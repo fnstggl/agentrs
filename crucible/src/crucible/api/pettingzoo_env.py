@@ -5,6 +5,11 @@ Each `step(actions)` executes every live agent's action in a random order drawn 
 the world clock once by `dt`. Rewards/termination come from optional per-agent objectives (same protocol as
 `CrucibleEnv`); agents may have different observation renderers. Episode semantics are those of `CrucibleEnv`:
 ``reset_mode="continue"`` never resets the world, ``reset_mode="fork"`` forks a base snapshot per episode.
+
+``reward_mode`` (Crucible 5.0) is that of `CrucibleEnv`: ``legacy_shaped_reward`` (default, 4.0 behaviour),
+``verified_terminal_outcome`` (reward 1.0 once per agent at its first verified success; ``infos[a]["objective"]``
+holds only ``success``/``failed``) and ``observation_only`` (rewards 0.0, no ``objective`` in the infos, termination
+only by truncation; `verify()` returns every agent's status to the evaluator).
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ import numpy as np
 from gymnasium import spaces
 from pettingzoo import ParallelEnv
 
+from ..experience.modes import LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective
 from . import render as R
 from .gym_env import CHARSET
 from .local import API_VERSION, ActorIdentity, Observation, WorldServer
@@ -32,7 +38,11 @@ class CrucibleParallelEnv(ParallelEnv):
                  base_snapshot: str | None = None, ephemeral_forks: bool = True, dt: int = 60,
                  max_steps: int | None = 100, max_events: int = 30, max_text_length: int = 65536,
                  max_action_length: int = 8192, order_seed: int = 0,
-                 driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None):
+                 driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None,
+                 reward_mode: str = LEGACY):
+        self.reward_mode = check_mode(reward_mode)
+        self._paid: set[str] = set()
+        self._statuses: dict[str, dict] = {}
         if reset_mode not in ("continue", "fork"):
             raise ValueError("reset_mode must be 'continue' or 'fork'")
         self._owns_server = server is None
@@ -124,6 +134,7 @@ class CrucibleParallelEnv(ParallelEnv):
         else:
             self._wid = self.server.resolve(self.world_id)
         self.agents = list(self.possible_agents)
+        self._paid = set()
         w = self.server.world(self._wid)
         obs, infos = {}, {}
         for a in self.agents:
@@ -151,18 +162,35 @@ class CrucibleParallelEnv(ParallelEnv):
         obs, rew, term, trunc, infos = {}, {}, {}, {}, {}
         for a in self.agents:
             r, status = self._status(a)
+            self._statuses[a] = status
             obs[a], o = self._observe(a)
-            rew[a] = r
-            term[a] = bool(status.get("success") or status.get("failed"))
+            if self.reward_mode == LEGACY:
+                rew[a] = r
+                term[a] = bool(status.get("success") or status.get("failed"))
+            elif self.reward_mode == VERIFIED:
+                rew[a] = 0.0
+                if status.get("success") and a not in self._paid:
+                    self._paid.add(a)
+                    rew[a] = 1.0
+                term[a] = bool(status.get("success") or status.get("failed"))
+            else:                               # observation-only: no reward, no objective, no outcome termination
+                rew[a], term[a] = 0.0, False
             trunc[a] = bool(self.max_steps is not None and self.steps >= self.max_steps and not term[a])
             infos[a] = {"world_id": o.world_id, "principal": o.principal, "episode": self.episode,
                         "step": self.steps, "time": o.time, "order": list(order), "action_result": results.get(a),
-                        "events": o.events, "dropped_events": o.dropped, "tools_changed": o.tools_changed,
-                        "objective": status}
+                        "events": o.events, "dropped_events": o.dropped, "tools_changed": o.tools_changed}
+            if self.reward_mode == LEGACY:
+                infos[a]["objective"] = status
+            elif self.reward_mode != OBSERVATION_ONLY:
+                infos[a]["objective"] = info_objective(self.reward_mode, status)
             if o.tools_changed:
                 infos[a]["available_tools"] = o.tools
         self.agents = [a for a in self.agents if not (term[a] or trunc[a])]
         return obs, rew, term, trunc, infos
+
+    def verify(self) -> dict:
+        """Evaluator side: every agent's latest objective status."""
+        return {a: dict(s) for a, s in self._statuses.items()}
 
     def render(self):
         if self.render_mode == "ansi":

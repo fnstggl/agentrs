@@ -1,0 +1,33 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.4",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K4_independent_customer_accounting",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:40.183548+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "related_party_exclusion_errors": 0,
+  "independent_customers_counted": 15,
+  "independent_customers_true": 15,
+  "planted_related_customers": 8,
+  "individual_payment_accounts": 15,
+  "related_party_cents_excluded": 10000
+ },
+ "artifacts": [],
+ "notes": "15 independent customers paying from their own accounts; planted: founder, employee, sister company, same-controller persona, three owner-funded socks, a grant-controlled customer",
+ "junit": null
+}

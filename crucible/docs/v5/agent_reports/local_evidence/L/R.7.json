@@ -1,0 +1,38 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.7",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R7_reference_learner_updates_observation_only",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:40.147432+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "reference_learner_updates_observation_only": 7,
+  "optimizer_steps": 14,
+  "reward_sum_seen": 0.0,
+  "params_changed_tier1": true,
+  "params_changed_kernel": true
+ },
+ "artifacts": [],
+ "notes": "ReferenceLearner (not CAM) through make(..., 'observation_only'): its signal is its own (change of its observed balance) plus the self-supervised world-model loss; the environment paid 0.0 reward",
+ "junit": null
+}

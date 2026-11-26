@@ -1,0 +1,37 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "S.8",
+ "gate": "S",
+ "produced_by": "tests/v5/test_gate_S.py::test_S8_reproducible_commands",
+ "command": "python -m crucible.experience run --tier 1 --name mech:scm_additive --seed 0 --steps 120 --reward-mode observation_only --store ... ",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:22:29.935175+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "reproducible_commands_verified": true,
+  "digests_compared": 6,
+  "store_digest": "abb58bb71337231d338a31629d23e12d0a6a8680cce3eab94ed60aac4df1e5a4",
+  "params_hash": "235af508537eb987b315413bc87808a4b68d8addfdfed83110d43560d466aee9"
+ },
+ "artifacts": [],
+ "notes": "the same command run twice in fresh processes: identical experience-store digest, learner parameter hash, final world digest and counts",
+ "junit": null
+}

@@ -1,0 +1,205 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "D1",
+  "branch": "worktree-wf_62a0cf0b-bb3-1",
+  "commit": "dc44e34",
+  "summary": "Content encoders (INTERFACE_CONTRACTS section 4) are in place and use real pretrained models with pinned Hugging Face revisions, loaded from the local cache only. Total weights are 1.19 GB of safetensors in $HF_HOME (budget 3 GB).\n\nThe five encoders:\n- **text:** MiniLM-L6 with mean pooling over 256-token windows; HTML is read as its title and visible text. 384 dims.\n- **image:** CLIP ViT-B/32 image features. 512 dims.\n- **audio:** AST (AudioSet) embedding, plus a Whisper-tiny transcript embedded with the text encoder. The transcript is only made when AST hears speech. 1152 dims.\n- **video:** 8 sampled frames through CLIP in 4 ordered segments, plus the audio track, plus 8 temporal features. 3208 dims.\n- **code:** a summary of what the code declares, through the text encoder, plus 32 structural features. Accepts a single file, zip, tar or JSON file map. 416 dims.\n\nAPI:\n- `encode`, `encode_many`, `encoder_info` and `cache_key` follow the contract exactly. Cache keys have the form ref|id@version|prephash.\n- `encode` and `encode_many` gain two optional keyword arguments: `ctx` (record the vector in the world) and `data` (bytes the caller already holds).\n- `encode_bytes` encodes raw bytes with no world.\n- `crucible/semantic/__init__.py` exports the four contract functions.\n\nCaching and recording:\n- Vectors are cached in memory and on disk under $CRUCIBLE_CACHE/embeddings. Every disk read is verified; a tampered or misfiled entry is dropped and recomputed.\n- With `ctx`, a new vector is recorded through `substrate.inference.recorded`, or through `ctx.external` with the same record shape while the substrate is absent.\n- New kernel module `embed` keeps one record per vector per world. Replay, regeneration and snapshots return the recorded vector without running a model.\n- Models run on the slot's GPU (measured peak 1.5 GB allocated) or on CPU; a CPU process and a GPU process agree to cosine > 0.9995.\n\nMedia tooling (`semantic/media.py`):\n- Render text and HTML to images (a built-in layout engine, or headless Chromium with scripts and network off), draw scenes, edit images.\n- Synthesise speech with flite, plus tones, melodies and noise.\n- Assemble videos from images and audio, transcode, probe, and decode audio and frames.\n- FFmpeg runs with a timeout, CPU, memory and file-size limits, one thread, and only a fixed list of input protocols and demuxers, so a crafted playlist cannot make it read other files.\n- Outputs are byte-for-byte reproducible, so a recorded run can be checked by its SHA-256.\n- New kernel module `media` exposes these as 9 creator tools. Each run is recorded and its output stored as an artifact owned by the caller.\n\nGate E, measured on GPU and on CPU only, with a fresh cache:\n- **E.1 passes:** 4 real modalities (5 with code), 0 stub vectors, smallest encoder 22.7M parameters. Separately loaded reference models agree at cosine 1.0 / 0.999999 / 1.0.\n- **E.2 passes:** minimum separation ratio 15.1 (text). Image 22.4, audio 18.3, video 65.8, code 155.\n- **E.4 passes:** 0 invalidation failures, 10 cache hits, 5 recomputes after a content change.\n- **E.5 passes:** 0 creator-assigned quality fields read (static audit over 235 files).\n- **E.n1 passes:** 0 stub vectors and 9 counted forward passes; changing one weight matrix changes every modality's vector.\n- **E.3 fails by design:** the measurement helper exists, but no participant probe is registered yet. The test records p = 1.0 and fails.",
+  "files_added": [
+   "crucible/src/crucible/semantic/cache.py",
+   "crucible/src/crucible/semantic/media.py",
+   "crucible/src/crucible/semantic/modules.py",
+   "crucible/src/crucible/semantic/encoders/__init__.py",
+   "crucible/src/crucible/semantic/encoders/__main__.py",
+   "crucible/src/crucible/semantic/encoders/models.py",
+   "crucible/src/crucible/semantic/encoders/base.py",
+   "crucible/src/crucible/semantic/encoders/text.py",
+   "crucible/src/crucible/semantic/encoders/image.py",
+   "crucible/src/crucible/semantic/encoders/audio.py",
+   "crucible/src/crucible/semantic/encoders/video.py",
+   "crucible/src/crucible/semantic/encoders/code.py",
+   "crucible/src/crucible/semantic/encoders/module.py",
+   "crucible/src/crucible/semantic/encoders/validation.py",
+   "crucible/src/crucible/semantic/encoders/audit.py",
+   "crucible/src/crucible/semantic/encoders/effects.py",
+   "crucible/tests/v5/test_gate_E.py",
+   "crucible/tests/test_v5_semantic_encoders.py",
+   "crucible/tests/test_v5_semantic_media.py",
+   "crucible/tests/test_v5_semantic_media_world.py",
+   "crucible/docs/v5/workstreams/D1.json",
+   "crucible/docs/v5/components/D1.md"
+  ],
+  "requirements": [
+   {
+    "id": "E.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/encoders/__init__.py",
+     "src/crucible/semantic/encoders/models.py",
+     "src/crucible/semantic/encoders/base.py",
+     "src/crucible/semantic/encoders/text.py",
+     "src/crucible/semantic/encoders/image.py",
+     "src/crucible/semantic/encoders/audio.py",
+     "src/crucible/semantic/encoders/video.py",
+     "src/crucible/semantic/encoders/code.py",
+     "src/crucible/semantic/media.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py",
+     "tests/test_v5_semantic_encoders.py",
+     "tests/test_v5_semantic_media.py"
+    ],
+    "notes": "real_encoder_modalities 4 (5 with code); stub_vectors_detected 0; min_encoder_params 22,713,216. Reference cosine against separately loaded models: text 1.0, image 0.999999, AST 1.0. A still-image video's frames match the image vector at 0.994. Whisper transcript is correct. Same result on GPU and on CPU only."
+   },
+   {
+    "id": "E.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/encoders/validation.py",
+     "src/crucible/semantic/encoders/text.py",
+     "src/crucible/semantic/encoders/image.py",
+     "src/crucible/semantic/encoders/audio.py",
+     "src/crucible/semantic/encoders/video.py",
+     "src/crucible/semantic/encoders/code.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py"
+    ],
+    "notes": "min_modality_separation_ratio 15.1 (text); image 22.4, audio 18.3, video 65.8, code 155. AUC 0.997 to 1.0. Weakest semantic group ratio is 6.2 (audio: a different song in the same style). The suites are synthetic, generated locally."
+   },
+   {
+    "id": "E.3",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/semantic/encoders/effects.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py"
+    ],
+    "notes": "The measurement exists: two worlds that differ only in one artifact's bytes, a paired sign-flip permutation test, and Bonferroni correction over artifact pairs. No participant probe is registered yet (workstreams B/C), so the test records artifact_change_behavior_pvalue 1.0 and fails."
+   },
+   {
+    "id": "E.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/cache.py",
+     "src/crucible/semantic/encoders/__init__.py",
+     "src/crucible/semantic/encoders/module.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py",
+     "tests/test_v5_semantic_encoders.py"
+    ],
+    "notes": "cache_invalidation_failures 0, cache_hits 10, recomputes_after_change 5. A new encoder version or preprocessing setting gives a cache miss. Tampered disk entries are detected. The world keeps one record per content version, and replay and regeneration produce identical logs."
+   },
+   {
+    "id": "E.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/encoders/audit.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py",
+     "tests/test_v5_semantic_encoders.py"
+    ],
+    "notes": "creator_assigned_quality_fields_read 0 over 235 files, with 0 creator-assignable fields. 46 quality-like names outside the content/participant scope are listed by location. One line is exempted with a visible pragma: Pillow's JPEG 'quality' compression setting."
+   },
+   {
+    "id": "E.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/encoders/models.py",
+     "src/crucible/semantic/encoders/audit.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_E.py"
+    ],
+    "notes": "stub_vectors_detected 0 over 226 vectors; model_forward_passes 9. Changing one weight matrix changes every modality's vector (cosine 0.64 to 0.95), and restoring it restores the vector."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "slots --cpu 2 --gpu-mb 3000 -- pytest tests/test_v5_semantic_media.py tests/test_v5_semantic_encoders.py tests/test_v5_semantic_media_world.py tests/v5/test_gate_E.py",
+    "passed": 37,
+    "failed": 4,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 4 --gpu-mb 0 -- pytest tests/v5/test_gate_E.py (CPU only)",
+    "passed": 5,
+    "failed": 1,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 1 -- pytest tests/test_redteam.py tests/test_realworld_gate.py tests/test_admission.py tests/test_discovery.py tests/test_kernel.py tests/test_v5_acceptance_checker.py",
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 2 --gpu-mb 3000 -- pytest tests/test_v5_semantic_media_world.py tests/test_v5_semantic_encoders.py on a local, uncommitted copy of workstream A's in-progress tree",
+    "passed": 22,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "pytest tests/test_v5_semantic_media.py (after the final media edits)",
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "E.3 cannot be measured until a participant probe is registered; its gate test fails by design and records p = 1.0.",
+   "The substrate (workstream A) is not on feat/crucible-5-openworld yet. Without it, encode(world, ref) needs data=, and the media module and embed.compare cannot work. As a result tests/test_v5_semantic_media_world.py fails 3 tests on this branch; all 3 passed against A's in-progress tree.",
+   "Vectors are stored twice per world: once in the inference record and once in the embed.recorded event (about 2 KB per text vector, 13 KB per video vector).",
+   "CPU and GPU vectors differ in the last bits (cosine > 0.9995). Each world stays exact through its own records; the shared disk cache keeps whichever device computed a key first.",
+   "Separation was validated only on synthetic generated artifacts, not natural media.",
+   "Whisper-tiny is forced to English and transcribes only the first 60 s. AST reads at most three 10 s windows. A video is 8 frames. The code encoder uses a general sentence model and regular-expression parsing for languages other than Python.",
+   "The quality audit matches field names and only checks a listed set of packages; a score under an unrelated name would not be caught.",
+   "FFmpeg runs under resource limits and input allow-lists, not the Landlock/seccomp sandbox used for agent code. The built-in HTML renderer does no CSS layout.",
+   "Encoding throughput (GPU / CPU): video 1.2 / 0.67 per second, audio 4.9 / 1.1 per second. Whisper and FFmpeg dominate."
+  ],
+  "integration_notes": [
+   "Depends on workstream A, which was not merged when this work finished. It uses crucible.substrate.artifacts.get/put/readable and crucible.substrate.inference.recorded exactly as contracts 1.1 and 1.7 specify, imported lazily. Rerun tests/test_v5_semantic_media_world.py after A merges.",
+   "encode and encode_many gain two optional keyword arguments, ctx= and data=, which keep the contract signature compatible. Callers inside handlers should pass ctx, and world specs should include the module 'embed' so each vector is recorded once per world.",
+   "Shared files with D2: semantic/__init__.py exports encode, encode_many, encoder_info and cache_key, and semantic/modules.py imports the embed module. D2 should add its own lines to both files, keeping these.",
+   "New kernel modules: 'embed' (tools embed.encoders and embed.compare) and 'media' (9 creator tools; depends on 'artifacts'). Both pass admission; media was checked against A's in-progress tree.",
+   "On a fresh machine, run `PYTHONPATH=src python -m crucible.semantic.encoders fetch` once (1.19 GB). Use slots with --gpu-mb 3000.",
+   "For E.3, workstreams B/C should call crucible.semantic.encoders.effects.register_probe from their modules.py; the gate test then measures every registered probe.",
+   "Evidence files under docs/v5/evidence/gate_E were deleted after the local runs and are not committed.",
+   "Added an optional extra v5-semantic-encoders to pyproject.toml for documentation only; no packages were installed."
+  ],
+  "blockers": [
+   "E.3 is blocked on the population and social workstreams (B/C) registering a participant probe.",
+   "The media module, embed.compare and the 3 tests in tests/test_v5_semantic_media_world.py are blocked on workstream A's substrate being merged into feat/crucible-5-openworld."
+  ],
+  "measurements": [
+   "E.2 separation ratio (mean semantic distance / mean nuisance distance): text 15.1, image 22.4, audio 18.3, video 65.8, code 154.6. AUC: 1.0 / 0.9994 / 0.9973 / 1.0 / 1.0.",
+   "E.1 executed parameters: text 22.7M, image 87.8M, audio 147.1M, video 234.9M, code 22.7M.",
+   "E.4: 0 failures, 10 hits, 5 recomputes; 2 world records for 2 content versions.",
+   "E.5: 0 violations across 235 files; 46 quality-like names outside the content/participant scope, listed by location; 1 exempt line.",
+   "E.n1: 9 forward passes. Cosine after changing one weight matrix: text 0.64, image 0.69, audio 0.95, video 0.83, code 0.65.",
+   "Throughput, GPU (2 threads): text 4219/s, image 132/s, audio 4.9/s, video 1.2/s, code 529/s. Peak GPU memory allocated: 1495 MB.",
+   "Throughput, CPU (4 threads): text 331/s, image 33/s, audio 1.1/s, video 0.67/s, code 189/s.",
+   "Gate E wall time: 134 s on GPU, 156 s on CPU only."
+  ],
+  "disk_used_mb": 1200,
+  "packages_installed": [],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/pyproject.toml",
+    "why": "Added the optional extra v5-semantic-encoders, which lists the packages the encoders use (all already installed; documentation only)."
+   },
+   {
+    "path": "crucible/src/crucible/semantic/__init__.py",
+    "why": "File shared with D2. Added the contract exports encode, encode_many, encoder_info and cache_key."
+   },
+   {
+    "path": "crucible/src/crucible/semantic/modules.py",
+    "why": "File shared with D2. Imports the embed kernel module so load_all_modules registers it."
+   }
+  ]
+ }
+}

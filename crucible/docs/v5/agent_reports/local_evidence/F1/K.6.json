@@ -1,0 +1,35 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.6",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K6_profit_and_costs",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:41.613398+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "profit_reconciliation_error_cents": 0,
+  "profit_cents": -32200,
+  "expected_profit_cents": -32200,
+  "revenue_cents": 22000,
+  "operating_costs_cents": 6000,
+  "infrastructure_costs_cents": 48200,
+  "excluded_related_cents": 3000,
+  "cash_reconciliation_error_cents": 0
+ },
+ "artifacts": [],
+ "notes": "expected: revenue 22000, operating 6000, infrastructure 48200 (241 core-hours at 200)",
+ "junit": null
+}

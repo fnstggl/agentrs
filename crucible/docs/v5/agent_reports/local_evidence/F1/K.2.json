@@ -1,0 +1,29 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.2",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K2_cancellations",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:39.871868+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "cancellation_scenarios_passed": 6,
+  "cancellation_scenarios_total": 6
+ },
+ "artifacts": [],
+ "notes": "k2_cancel_at_period_end: passed; k2_resume_before_period_end: passed; k2_immediate_by_customer_no_refund: passed; k2_trial_cancel_never_charged: passed; k2_immediate_by_merchant_prorated_refund: passed; k2_churn_counts_cancellations: passed",
+ "junit": null
+}

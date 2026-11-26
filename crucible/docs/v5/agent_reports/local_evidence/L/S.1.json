@@ -1,0 +1,38 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "S.1",
+ "gate": "S",
+ "produced_by": "tests/v5/test_gate_S.py::test_S1_reference_learner_acts_in_tier1",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:42.681956+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "tier1_actions": 196,
+  "tier1_world_changes": 36,
+  "tier1_ok": 196,
+  "tier1_rejected": 0,
+  "tier1_updates": 12
+ },
+ "artifacts": [],
+ "notes": "Tier 1 = 4.0 hidden-mechanism facility scm_additive:11 through MechExperienceEnv (the kernel facility's own rig.* tools); world change = an executed action changed the settings the facility runs at",
+ "junit": null
+}

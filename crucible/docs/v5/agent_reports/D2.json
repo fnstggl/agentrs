@@ -1,0 +1,220 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "D2",
+  "branch": "worktree-wf_62a0cf0b-bb3-2",
+  "commit": "7510bc8",
+  "summary": "I built the shared inference service, a kernel module that records inference, the semantic participants, the Gate H society with its verifiers, and the SP-3.2b benchmark. All of it is real and integrated. The latest feat/crucible-5-openworld is merged in, including substrate (A), and recording now goes through crucible.substrate.inference.recorded and weights_hash.\n\nWhat works:\n- **Service** (crucible/src/crucible/semantic/service.py, contract 4): `SemanticService.generate` and `choose`. There is one weight copy per (model, revision, device, dtype, quantization). Batching groups compatible requests, left-pads them and drops finished rows; greedy output matches unbatched Hugging Face `generate` (tested). Generation is bounded. Shared prompt prefixes have an LRU KV cache. Option scoring supports mean, sum and pmi, and Qwen3 thinking mode can be switched per request. int8 dynamic quantization runs on CPU. `info()` gives revision and weights hash; `usage()` gives tokens/s and peak VRAM. With a ctx, calls are recorded.\n- **Recording** (recording.py, module semantic_inference, operator only on host admin): it records model calls that policies make between transactions. Regenerate and replay reproduce the hash chain without running the model (tested with the model call patched to fail). The module passes admit().\n- **Participants** (participants.py): `crucible.agents.base.Policy` objects, each with its own goal, memory and history, sharing one service. Candidate tools come from BM25 retrieval and the participant's own world.find_tools results. Tool choice uses Qwen3 thinking mode; arguments are filled one at a time against the schema. Everything is batched per step through `SemanticGroup` and `BatchedRunner`.\n- **Gate H** (Qwen3-0.6B, open_digital, 24 rounds). A second run after the merge reproduced every count exactly:\n  - H.1: 8 participants acted.\n  - H.2: 1 weight copy, 8 participants sharing it.\n  - H.3: 8 distinct goals, 8 distinct histories.\n  - H.4: tool choice 0.608 on 120 held-out situations (10 options, p=4e-42 against random; random 0.10, BM25 0.17).\n  - H.5: comprehension 0.90 (p=3e-51).\n  - H.6: 15 consequential actions.\n  - H.7: 2 results verified from world state (a 2,500-cent ledger payment and a rented instance).\n  - H.8: peak VRAM 5,813 MiB; 237-252 tokens/s on GPU; 6.5 tokens/s on CPU.\n  - H.n1: 596M parameters; 2 smaller models benchmarked.\n- **SP-3.2b**: 6 model sizes on 8 capabilities, with Wilson intervals, p-values, memory and latency. The test sets are staged in kernel worlds and use held-out templates. The report gives the smallest effective model per capability, both over all test items and over held-out templates only. Qwen3-0.6B is the smallest effective model on unseen situations for content understanding and tool choice; Qwen3-1.7B is needed for situation interpretation, incentives, programming and strategy; no model was effective on unseen negotiation templates.",
+  "files_added": [
+   "crucible/src/crucible/semantic/service.py",
+   "crucible/src/crucible/semantic/recording.py",
+   "crucible/src/crucible/semantic/modules.py",
+   "crucible/src/crucible/semantic/participants.py",
+   "crucible/src/crucible/semantic/scenarios.py",
+   "crucible/src/crucible/semantic/capbench/__init__.py",
+   "crucible/src/crucible/semantic/capbench/__main__.py",
+   "crucible/src/crucible/semantic/capbench/tasks.py",
+   "crucible/src/crucible/semantic/capbench/models.py",
+   "crucible/src/crucible/semantic/capbench/run.py",
+   "crucible/tests/test_v5_semantic_service.py",
+   "crucible/tests/test_v5_semantic_participants.py",
+   "crucible/tests/v5/test_gate_H.py",
+   "crucible/tests/v5/test_gate_SP_3_2b.py",
+   "crucible/docs/v5/components/D2.md",
+   "crucible/docs/v5/workstreams/D2.json"
+  ],
+  "requirements": [
+   {
+    "id": "H.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/participants.py",
+     "src/crucible/semantic/scenarios.py",
+     "src/crucible/semantic/service.py",
+     "src/crucible/semantic/recording.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py",
+     "tests/test_v5_semantic_participants.py"
+    ],
+    "notes": "semantic_participants 8 (129 actions, open_digital world with 33 modules and 196 tools, 24 rounds). The world is a 4.0 family, not the v5 standard population profile."
+   },
+   {
+    "id": "H.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/service.py",
+     "src/crucible/semantic/participants.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py",
+     "tests/test_v5_semantic_service.py"
+    ],
+    "notes": "model_weight_copies 1; participants_sharing_weights 8 (same weights object and embedding storage)."
+   },
+   {
+    "id": "H.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/participants.py",
+     "src/crucible/semantic/scenarios.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py",
+     "tests/test_v5_semantic_participants.py"
+    ],
+    "notes": "distinct_goals 8, distinct_histories 8."
+   },
+   {
+    "id": "H.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/participants.py",
+     "src/crucible/semantic/capbench/tasks.py",
+     "src/crucible/semantic/service.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py"
+    ],
+    "notes": "tool_selection_accuracy 0.6083 (73/120, 95% CI 0.519-0.691), p vs random 4.4e-42. Passes by a small margin."
+   },
+   {
+    "id": "H.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/service.py",
+     "src/crucible/semantic/capbench/tasks.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py"
+    ],
+    "notes": "comprehension_accuracy 0.900, p vs chance 3.3e-51; 0.817 on unseen document genres."
+   },
+   {
+    "id": "H.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/participants.py",
+     "src/crucible/semantic/scenarios.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py",
+     "tests/test_v5_semantic_participants.py"
+    ],
+    "notes": "consequential_actions_executed 15 by 4 participants, counted from the event log."
+   },
+   {
+    "id": "H.7",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/scenarios.py",
+     "src/crucible/semantic/participants.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py",
+     "tests/test_v5_semantic_participants.py"
+    ],
+    "notes": "verified_productive_results 2: a payment owed between participants (ledger) and a rented instance. No document, program or two-sided mail exchange was verified."
+   },
+   {
+    "id": "H.8",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/service.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py"
+    ],
+    "notes": "Peak VRAM 5,813 MiB, 237-252 GPU tokens/s, 6.5 CPU tokens/s (fp32, 4 threads); prefix-cache speedup 1.00-1.07."
+   },
+   {
+    "id": "H.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/service.py",
+     "src/crucible/semantic/capbench/run.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_H.py"
+    ],
+    "notes": "semantic_model_params 596,049,920; smaller_alternatives_benchmarked 2 (SmolLM2-135M and -360M)."
+   },
+   {
+    "id": "SP-3.2b",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/semantic/capbench/tasks.py",
+     "src/crucible/semantic/capbench/models.py",
+     "src/crucible/semantic/capbench/run.py",
+     "src/crucible/semantic/service.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_3_2b.py"
+    ],
+    "notes": "model_sizes_compared 6, capabilities_benchmarked 8. Recommendations computed over all test items and over held-out templates only."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 0 -- python -m pytest -q tests/test_v5_semantic_service.py tests/test_v5_semantic_participants.py tests/test_admission.py tests/test_v5_acceptance_checker.py (after the final merge)",
+    "passed": 36,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 4 --gpu-mb 7000 -- python -m pytest -q -s tests/v5/test_gate_H.py (run twice: before and after the substrate merge, identical results)",
+    "passed": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 2 --gpu-mb 10000 -- python -m pytest -q -s tests/v5/test_gate_SP_3_2b.py (40 min)",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 2 --gpu-mb 0 -- python -m pytest -q tests/test_redteam.py tests/test_realworld_gate.py tests/test_discovery.py tests/test_api.py tests/test_kernel.py tests/test_llm_interface4.py tests/test_agents_llm.py",
+    "passed": 97,
+    "failed": 0,
+    "skipped": 2
+   },
+   {
+    "command": "slots --cpu 2 --gpu-mb 0 -- python -m pytest -q tests/test_v5_substrate_{artifacts,bus,inference,primitives,typed,kernel}.py tests/test_v5_acceptance_checker.py tests/test_admission.py",
+    "passed": 129,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "The participants are weak agents: 74 of 129 calls were rejected and 2 of 8 goals were met. Qwen3-0.6B produced no document, program or question-and-answer exchange.",
+   "H.4 passes by a small margin: 0.608, with the 95% interval's lower bound at 0.519.",
+   "Gate H runs in the 4.0 open_digital world family because the v5 standard population (workstream B) is not merged.",
+   "Thinking mode costs about 380 generated tokens per tool choice. Decoding is a plain PyTorch loop (no CUDA graphs or paged KV cache), so the society is decode-bound: 237-252 tokens/s.",
+   "The prefix cache saves prefill only: with a 150-token shared system prompt the speedup was 1.00-1.07. In bfloat16 it changed 3 of 8 greedy outputs; outputs are recorded, so replay is unaffected.",
+   "int8 quantization runs on CPU only and its output quality was not benchmarked. There is no GPU int8 kernel in this environment.",
+   "The evaluation sets are generated from templates over world situations; test sizes give intervals of about +/-0.09. Communication is checked automatically (facts present and coherence), not by a reader.",
+   "The SP-3.2b recommendation over all test items favours trained heads for situation interpretation and incentive adaptation because their seen templates carry the score. On held-out templates those heads fail, and Qwen3-1.7B is the smallest effective model there; the report gives both recommendations."
+  ],
+  "integration_notes": [
+   "semantic/modules.py imports semantic/recording.py (module semantic_inference, host admin). If D1 adds its own semantic/modules.py, keep both import lines.",
+   "A world that hosts semantic participants needs extra_modules=['semantic_inference']. SemanticService max_new_tokens must be at least think_tokens + arg_tokens (640 with the defaults); SemanticGroup.participant raises if it is smaller.",
+   "Depends on A's crucible.substrate.inference (recorded, weights_hash), which is merged. No other workstream's code is required.",
+   "Gate H takes about 13 minutes (7 GB GPU, 4 CPUs) and SP-3.2b about 40 minutes (10 GB GPU, 2 CPUs). Run them with python -m crucible.acceptance.v5 run so that evidence is filed; the SP-3.2b report is written next to its evidence as an artifact.",
+   "1.09 GB of benchmark weights were downloaded to the shared HF cache: SmolLM2-135M-Instruct, SmolLM2-360M-Instruct and all-MiniLM-L6-v2. Built evaluation sets are cached under $CRUCIBLE_DATA/semantic/capbench (35 MB).",
+   "Proposed for decision D-6: keep Qwen3-0.6B as the default participant model, and escalate to Qwen3-1.7B for programming, negotiation and strategic decisions (one extra weight copy, 3.4 GB)."
+  ],
+  "blockers": [],
+  "disk_used_mb": 1125,
+  "packages_installed": [],
+  "measurements": [
+   "Gate H (Qwen3-0.6B, 24 rounds): 8 participants, 1 weight copy, tool selection 0.608 on held-out situations (random 0.10, BM25 0.167), comprehension 0.900, 15 consequential actions, 2 verified results, peak VRAM 5,813 MiB, 237-252 GPU tokens/s, 6.5 CPU tokens/s, society wall time 390-417 s; reproduced exactly on rerun",
+   "SP-3.2b primary test score (accuracy, or generation pass rate for communication and programming), Qwen3-0.6B / Qwen3-1.7B: content 0.90/0.90, situation 0.61/0.77, tool choice 0.61/0.75, communication 0.98/1.00, incentives 0.58/0.82, negotiation 0.37/0.63, programming 0.50/0.89, strategy 0.49/0.82",
+   "SP-3.2b, SmolLM2-135M / SmolLM2-360M: content 0.23/0.27, tool choice 0.11/0.13, communication 0.75/0.72, programming 0.14/0.25",
+   "SP-3.2b trained heads (2.1M n-gram, 23.1M MiniLM): tool choice 0.13/0.06; held-out-template accuracy falls to 0.27-0.52",
+   "Peak VRAM in the benchmark: 826 MiB (135M), 1,596 MiB (360M), 4,456 MiB (0.6B), 6,822 MiB (1.7B)",
+   "Tool choice for Qwen3-0.6B: scoring the tool names without thinking gave 0.53 in a development run; thinking mode gives 0.61"
+  ]
+ }
+}

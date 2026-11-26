@@ -1,0 +1,478 @@
+{
+ "subsystem": "mechanisms_worldgen",
+ "summary": "Crucible 4.0 hides causal processes behind facilities. A mechanism is driven only through the Engine contract in src/crucible/mechanisms/base.py (CONTRACT_VERSION \"mech/1\"). An engine has `generate(rng, params)` returning a JSON config, `levers` and `gauges` per seat, `brief`, `init_state`, a pure `step(state, settings, rng, t)` returning a StepResult, and a private `truth()` graph.\n\nThere are three engines, written independently:\n- `scm` (scm.py): a rule-compositional structural causal model. Motif blocks are composed in series or parallel, compiled to straight-line Python via `exec`, and calibrated on the noise-free steady state.\n- `abm` (abm.py): a numpy agent-based market with customers, a social network and adaptive incumbents. There are 10 rule-set \"kinds\".\n- `techsys` (techsys.py): an integer-job queueing service system with 7 scenario builders.\n\nThere are 25 mechanism families. They register with `@mech_family(name, engine, split, transfer, doc, motifs, seats)`:\n- **Train (7):** abm_utility/wom/congestion/duopoly and scm_additive/delay/gate.\n- **Val (7):** abm_trust_gate/commons/complement, scm_delay_gate/invu, tech_pipeline/handoff.\n- **Test (11):** abm_network_fx/segments/duopoly_fx, scm_stock_gate/feedback/regime, tech_cascade/contention/redundant/lostwork/shared_pool.\n- **Transfer labels:** base, compositional, structural or cross_impl. Every techsys family is cross_impl because no techsys family is in train.\n\nHosting works as follows:\n- `make_mechanism(family, seed, overrides)` gives a deterministic `{engine, family, seed, config}`.\n- The kernel module `rig` (module.py) hosts a mechanism as a facility with real ledger money and 8 `rig.*` tools.\n- The kernel-free `MechSim` and `BatchSim` (sim.py) share `settle_tick` and a bit-identical `TickRng`, so the hosted facility and the simulator agree tick for tick.\n\nEvaluation and checking are operator-side and work on any engine through the contract:\n- `evaluator.py` provides effect_matrix with common random numbers (CRN), claim scoring, discriminate, a CEM oracle, regret and information efficiency.\n- `validity.py` `check_mechanism` covers purity, boundedness, conservation, exploits, consequences, discoverability, difficulty, dynamism, engine claims and a solvability verdict. `sample_valid` redraws deterministically.\n- Recorded result: 288 of 300 first draws accepted.\n\nWorld generation:\n- `worldgen/generator.py` holds the world-family registry (`@family`) and `generate(config, seed) -> WorldSpec`.\n- `mech_families.py` auto-registers `mech_F` and `mech_F_tools` (50 families).\n- `ow_families.py` adds 6 `ow_*` families. 18 legacy, lab and open families come from 3.0 and 4.0 (bazaar..., engineering_lab, open_*).\n- `admission.admit` is a generic kernel-module gate covering schemas, crashes, invariants, replay, regeneration, snapshot/fork, visibility and protected hooks.\n\nThe machinery is robust and engine-agnostic. Against v5 it falls short in four ways:\n- **Volume:** 7 training families, against 60 required.\n- **Action interface:** settings are dicts of floats only.\n- **Missing pieces:** no cross-engine primitive registry, no fingerprints or distinctness registry, and no curriculum or proposal layer.",
+ "key_files": [
+  {
+   "path": "src/crucible/mechanisms/base.py",
+   "role": "Engine contract (Lever, Gauge, StepResult, Engine), registries ENGINES/MECH_FAMILIES, @register_engine, @mech_family, make_mechanism, build_engine, tick_rng, neutral_names; CONTRACT_VERSION='mech/1', TRANSFER_KINDS"
+  },
+  {
+   "path": "src/crucible/mechanisms/__init__.py",
+   "role": "re-exports; load_engines() imports abm, scm, techsys (the only place engines are enumerated besides sim.ensure_engines)"
+  },
+  {
+   "path": "src/crucible/mechanisms/scm.py",
+   "role": "engine 'scm': _Draft motif blocks (blk_direct/chain/fork/collider/mediator/gate/threshold/delay/stock/invu/interaction/feedback/confounder/dormant), _compile (exec of generated step), _calibrate, _settle_overhead, ScmEngine, handmade() ground-truth builder, _motifs census read off the graph, 8 families (lines 1137-1205)"
+  },
+  {
+   "path": "src/crucible/mechanisms/abm.py",
+   "role": "engine 'abm': agent-based market (customers/network/incumbents), CALIBRATION register (all uncalibrated), _KINDS rule sets, _CHAINS causal stories, _GOOD constructive settings, AbmEngine, _truth, _family helper and 10 families (lines 1306-1345)"
+  },
+  {
+   "path": "src/crucible/mechanisms/techsys.py",
+   "role": "engine 'techsys': queueing service systems, functional forms (batch_gain, cache_gain, pool_slowdown, giveup_probability), _Plan, TechSys, _truth/implied_effects, 7 _scn_* scenarios, _finalize calibration, reference_settings, 7 families (lines 2031-2091)"
+  },
+  {
+   "path": "src/crucible/mechanisms/module.py",
+   "role": "kernel module 'rig' (host 'rig'): facility hosting any engine, tools rig.list/take/release/spec/set/read/history/hypothesize, tick process, appliers, invariants, rig_entry(), metrics rig_net/rig_score/rig_ticks"
+  },
+  {
+   "path": "src/crucible/mechanisms/sim.py",
+   "role": "kernel-free simulation shared with the host: ensure_engines, TickRng (fast tick_rng), settle_tick, MechSim, BatchSim, demand_income, suggest_income, clip_value"
+  },
+  {
+   "path": "src/crucible/mechanisms/evaluator.py",
+   "role": "private evaluator/oracle: run_schedule, mean_net, effect_matrix, implied_signs, prediction_error, score_claims, discriminate, oracle (CEM), regret, information_efficiency"
+  },
+  {
+   "path": "src/crucible/mechanisms/validity.py",
+   "role": "mechanism admission: check_mechanism (purity, bounded, conservation, exploits, consequences, discoverability, difficulty, dynamism, claims, solvability), sample_valid, redraw_seed, acceptance; CLI python -m crucible.mechanisms.validity"
+  },
+  {
+   "path": "src/crucible/worldgen/generator.py",
+   "role": "world-family registry (Family, FAMILIES, @family, families()), generate(config, seed)->WorldSpec, legacy 3.0 families, open_* families, engineering_lab families, BASE/OPEN/INDUSTRY/LAB module lists"
+  },
+  {
+   "path": "src/crucible/worldgen/mech_families.py",
+   "role": "mech_F / mech_F_tools world families for every mechanism family, MechInfra module (compute providers), mech_of(spec), sim_of(spec) kernel-free twin"
+  },
+  {
+   "path": "src/crucible/worldgen/ow_families.py",
+   "role": "OpenWorld ow_market/ow_frontier/ow_composite/ow_heldout/ow_tiny/ow_works families over usefulness categories; register_ow_families/unregister_ow_families"
+  },
+  {
+   "path": "src/crucible/worldgen/admission.py",
+   "role": "admit(new_modules, ...) generic kernel-module admission harness (8 checks) returning AdmissionReport"
+  },
+  {
+   "path": "src/crucible/worldgen/adversarial.py",
+   "role": "module 'adversary': in-world injection pages, fraudulent capability, spam (deliberate adversarial content fixtures)"
+  },
+  {
+   "path": "src/crucible/worldgen/sitegen.py",
+   "role": "module 'webgen': procedural site specs and generated web apps"
+  },
+  {
+   "path": "src/crucible/worlds/digital_civilization.py",
+   "role": "legacy modules 'civ' (society genesis) and 'shocks' (scheduled exogenous changes)"
+  },
+  {
+   "path": "src/crucible/worlds/engineering_lab.py",
+   "role": "module 'lab': routing-controller lab with executed flow physics (executable-program environment, not a mechanism Engine)"
+  },
+  {
+   "path": "src/crucible/worlds/open_industry.py",
+   "role": "module 'industrygen': industrial supply-chain genesis; default_chain()"
+  },
+  {
+   "path": "src/crucible/research/tasks.py",
+   "role": "consumer of the registry: Task, make_task (uses sample_valid), families_by, train_stream, eval_tasks; seed partitions (train 0..999_999, val >=1_000_000, sealed via research.sealed)"
+  },
+  {
+   "path": "src/crucible/research/sealed.py",
+   "role": "sealed sets restricted to test-split mechanism families (create_set lines ~178-200)"
+  },
+  {
+   "path": "src/crucible/__init__.py",
+   "role": "load_all_modules(): the only place that imports worldgen.mech_families and worldgen.ow_families (line 22)"
+  },
+  {
+   "path": "docs/OPENWORLD_ARCHITECTURE.md",
+   "role": "binding component contracts 2.1-2.4 for engines, rig, sim, evaluator"
+  },
+  {
+   "path": "docs/WORLD_GENERATION.md",
+   "role": "legacy family table and engineering lab documentation"
+  },
+  {
+   "path": "docs/experiments/ow_validity_acceptance.json",
+   "role": "recorded validity acceptance per family (n=12 each, 288/300)"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "Engine",
+   "shape": "class Engine: engine: str; version: str='1'; __init__(config: dict); @classmethod generate(rng: np.random.Generator, params: dict) -> dict; n_seats (property, config['n_seats']); levers(seat) -> list[Lever]; gauges(seat) -> list[Gauge]; brief(seat) -> str; horizon (property, config['horizon'] default 120); init_state(rng) -> dict[str, np.ndarray]; step(state, settings: list[dict[str,float]], rng, t: int) -> StepResult; truth() -> dict; defaults(seat); clip_settings(seat, raw, base=None); public_spec(seat) -> {levers, gauges, brief, seats, horizon_ticks}",
+   "location": "src/crucible/mechanisms/base.py:93-168",
+   "notes": "Optional hooks used by hosts: state_in_event (module.py:136, default True), claims (validity.py:283), constructive_optimum(seat)->{'schedule':[{'from','settings'}]} (evaluator.py:379, validity.py:357), demand_income_cents_per_tick (sim.py:437) or config['income_cents_per_tick'], truth()['regimes'][i]['transient'] (validity.py:281)."
+  },
+  {
+   "name": "truth() schema",
+   "shape": "{'engine': str, 'family': str|None, 'nodes': [{'id','role': lever|latent|gauge|outcome|exogenous,'seat','public'}], 'edges': [{'src','dst','sign': +1|-1|0,'lag': int,'kind': str}], 'regimes': [{'at': tick,'what': str}], 'motifs': [str], 'notes': str}",
+   "location": "src/crucible/mechanisms/base.py:138-148",
+   "notes": "scm adds 'economics' (scm.py:984); abm adds 'chain','roles','calibration' (abm.py:1300-1302); techsys regimes may carry 'transient','until' (techsys.py:1099-1119)."
+  },
+  {
+   "name": "Lever / Gauge / StepResult",
+   "shape": "Lever(name, lo, hi, default, integer=False, doc=''), .clip(v)->float, .public(); Gauge(name, doc=''); StepResult(state: dict[str,ndarray], readings: list[dict[str,float]], revenue: list[float], cost: list[float], score: list[float], info: dict)",
+   "location": "src/crucible/mechanisms/base.py:48-90",
+   "notes": "The action space is a dict of named bounded floats per seat. There is no discrete, graph, text or program action type."
+  },
+  {
+   "name": "register_engine",
+   "shape": "register_engine(cls: type[Engine]) -> type[Engine]  (ENGINES[cls.engine] = cls)",
+   "location": "src/crucible/mechanisms/base.py:175-179",
+   "notes": "Overwrites silently on a name clash."
+  },
+  {
+   "name": "mech_family",
+   "shape": "mech_family(name: str, engine: str, split: 'train'|'val'|'test', transfer: 'base'|'within'|'compositional'|'structural'|'cross_impl', doc: str, motifs: tuple[str,...]=(), seats: int=1) -> decorator over build(rng, overrides) -> params for Engine.generate; registers MechFamily(name, engine, split, transfer, build, doc, motifs, seats)",
+   "location": "src/crucible/mechanisms/base.py:182-209",
+   "notes": "Enforces only that split is one of three values, that transfer is in TRANSFER_KINDS, and that train implies transfer='base'. abm uses the helper _family(name, kind, split, transfer, doc) at abm.py:1306."
+  },
+  {
+   "name": "mech_families",
+   "shape": "mech_families(split=None, engine=None, transfer=None) -> list[str]",
+   "location": "src/crucible/mechanisms/base.py:212-215"
+  },
+  {
+   "name": "make_mechanism",
+   "shape": "make_mechanism(family: str, seed: int, overrides: dict|None=None) -> {'engine','family','seed','config'}; rng = default_rng(SeedSequence([seed, int(digest(['mech', family])[:8],16)])); cfg.setdefault('n_seats', fam.seats); cfg['family']=family",
+   "location": "src/crucible/mechanisms/base.py:218-227"
+  },
+  {
+   "name": "build_engine / tick_rng / neutral_names",
+   "shape": "build_engine(mech) -> Engine; tick_rng(world_seed: int, rig_id: str, t: int|str) -> Generator (PCG64(SeedSequence(int(digest([world_seed,'rig',rig_id,str(t)],16),16)))); neutral_names(rng, n, used=None) -> list[str] like 'zu47'",
+   "location": "src/crucible/mechanisms/base.py:230-254"
+  },
+  {
+   "name": "load_engines / ensure_engines",
+   "shape": "load_engines() -> None (imports abm, scm, techsys once); ensure_engines() -> list[str] (swallows import errors per engine)",
+   "location": "src/crucible/mechanisms/__init__.py:14-20; src/crucible/mechanisms/sim.py:32-46"
+  },
+  {
+   "name": "settle_tick",
+   "shape": "settle_tick(engine, state, t, rng_for: Callable[[int],Generator], desired: list[dict], defaults: list[dict], held: Sequence[bool], funds: Sequence[int|None], demand: int|None) -> (StepResult, used_settings, [{'status': ok|fallback|idle|empty,'earned','revenue','shortfall','cost','score','readings'}])",
+   "location": "src/crucible/mechanisms/sim.py:248-310",
+   "notes": "The single definition of one tick, used by both the kernel module and MechSim. Demand shortfalls are paid pro rata (sim.py:293-297)."
+  },
+  {
+   "name": "MechSim",
+   "shape": "MechSim(mech, world_seed, rig_id='r1', *, income_cents_per_tick=None, funds=None, held=None, engine=None); reset(); snapshot()->tuple; restore(snap); set(seat, settings); step(settings_per_seat=None)->StepResult; run(policy, ticks)->{'revenue','cost','net','score' (ticks,seats) arrays,'readings','status'}",
+   "location": "src/crucible/mechanisms/sim.py:314-424"
+  },
+  {
+   "name": "BatchSim",
+   "shape": "BatchSim(mechs, world_seeds=0|list, rig_id='r1', seat=0, **MechSim kw); attributes lo/hi/default/lever_mask (n,max_levers), gauge_mask (n,max_gauges); step(actions: ndarray|list[dict], normalized=False) -> {'readings','revenue','cost','net','score','t'}; replace(i, mech, world_seed); reset(indices)",
+   "location": "src/crucible/mechanisms/sim.py:475-548"
+  },
+  {
+   "name": "demand_income / suggest_income",
+   "shape": "demand_income(mech, engine=None) -> int (config income, else engine.demand_income_cents_per_tick, else suggest_income); suggest_income(mech, seeds=2, margin=1.25) -> int (cached probe by simulation)",
+   "location": "src/crucible/mechanisms/sim.py:427-471"
+  },
+  {
+   "name": "rig module config",
+   "shape": "{'rigs': [{'id': str (no '|' or ':'), 'mech': make_mechanism output, 'tick_s': int=3600, 'income_cents_per_tick': int, 'seats': [{'holder': handle|None}], 'lease_cents': int=0, 'history': int=4096, 'record_info': bool=False}]}",
+   "location": "src/crucible/mechanisms/module.py:8-12, 107-142"
+  },
+  {
+   "name": "rig tools",
+   "shape": "rig.list(); rig.take(rig?, seat?); rig.release(rig?); rig.spec(rig?, seat?); rig.set(settings: {lever: number}, rig?, seat?); rig.read(rig?, seat?); rig.history(rig?, n=20<=500, seat?); rig.hypothesize(rig?, effects=[{lever,target,sign in -1|0|1,lag?,confidence?}]<=64, predictions=[{settings,target,value}]<=32, note?, seat?)",
+   "location": "src/crucible/mechanisms/module.py:289-461",
+   "notes": "Targets are gauge names plus revenue, cost, net and score (SCORE_TARGETS, line 53). Claims are stored as internal events, are scored only by the evaluator, and are limited to MAX_CLAIMS=1000 per principal and facility."
+  },
+  {
+   "name": "rig_entry",
+   "shape": "rig_entry(mech, id='r1', tick_s=3600, income_cents_per_tick=None, holders=(), lease_cents=0, **extra) -> dict",
+   "location": "src/crucible/mechanisms/module.py:690-699"
+  },
+  {
+   "name": "rig metrics",
+   "shape": "@metric rig_net(world, principal, rig, window_s=0); rig_score(world, principal, rig, window_s=0); rig_ticks(world, rig); helper rig_window(world, principal, rig, window_s) -> {revenue,cost,score,ticks,truncated}",
+   "location": "src/crucible/mechanisms/module.py:703-755"
+  },
+  {
+   "name": "effect_matrix",
+   "shape": "effect_matrix(mech, seat=0, lags=(0,1,2,4,8), n_base=16, t0_range=(8,24), levels=(0.25,0.75), z=3.0, seed=0, engine=None) -> {'levers','targets','lags','effect','se','significant' (L,T,lags),'sign','first_lag','scale','response','response_se',...}",
+   "location": "src/crucible/mechanisms/evaluator.py:82-143"
+  },
+  {
+   "name": "score_claims / prediction_error / discriminate / implied_signs / true_claims",
+   "shape": "score_claims(mech, claims: {'effects','predictions'}, seat=0, effects=None, lag_tolerance=0, engine=None, **em_kw) -> {n_claims, invalid, n_pairs, n_true_effects, sign_accuracy, lag_accuracy, lag_mae, coverage, identification, brier, prediction}; prediction_error(mech, predictions, seat=0, seeds=3, ticks=None, n_ref=12, seed=0, engine=None); discriminate(candidates, posterior, true_index) -> {log_score, normalized, prob_true, rank, top1, brier, n}; implied_signs(truth, seat=0, max_len=8) -> {(lever_public, target_public): (sign|None, lag)}; true_claims(em, with_lag=True)",
+   "location": "src/crucible/mechanisms/evaluator.py:146-309"
+  },
+  {
+   "name": "oracle / regret / information_efficiency / run_schedule / mean_net",
+   "shape": "oracle(mech, seat=0, budget=160, seeds=2, seed=0, ticks=None, piecewise=None, eval_seeds=4, engine=None) -> {seat, settings, net_constant, schedule, segments, expected_net, expected_net_se, default_net, default_net_se, evals, ticks, seeds, eval_seeds}; regret(mech, trajectory, seat=0, oracle_result=None, t0=0, engine=None, **oracle_kw) -> {..., regret_total, regret_mean, normalized}; information_efficiency(mech, checkpoints=[{'ticks','claims'}], seat=0, effects=None, threshold=0.8) -> {curve, auc, ticks_to_threshold, threshold, final}; run_schedule(mech, schedule, world_seed, ticks, seat=0, engine=None); mean_net(mech, schedule, seeds, ticks, seat=0, window=None, engine=None) -> (mean, se)",
+   "location": "src/crucible/mechanisms/evaluator.py:60-78, 342-480"
+  },
+  {
+   "name": "check_mechanism",
+   "shape": "check_mechanism(mech, n_seeds=6, budget=96, seed=0, n_random=160) -> {'engine','family','seed','ok','reasons': [check names failed (+'unsolvable')],'checks': {purity,bounded,conservation,exploits,consequences,discoverability,difficulty,dynamism?,claims?},'solvable': yes|unknown|no,'evidence','economics','horizon','n_seeds','cpu_s'}",
+   "location": "src/crucible/mechanisms/validity.py:221-409",
+   "notes": "The thresholds are at validity.py:47-55: STATE_BOUND=1e9, ARM_TICKS=12, REPLICATES=6, SNR_MIN=2.0, M_DEFAULT=0.02, M_RANDOM=0.04, CORNER_MAX=0.7, ZERO_TOL=0.2."
+  },
+  {
+   "name": "sample_valid / acceptance / redraw_seed",
+   "shape": "sample_valid(family, seed, max_tries=8, overrides=None, **check_kw) -> {'mech','seed','tries','rejected': [{seed,reasons,solvable}],'report'}; acceptance(families=None, n=30, first_seed=0, **check_kw) -> {family: {n, accepted, rate, reasons, solvable, cpu_s_per_mechanism}}; redraw_seed(family, seed, attempt) -> int",
+   "location": "src/crucible/mechanisms/validity.py:412-448"
+  },
+  {
+   "name": "scm.handmade",
+   "shape": "handmade(levers, latents, outcome, gauges=None, exogenous=None, price=10.0, units=100.0, overhead=0.0, horizon=60, regime_at=None, income_cents_per_tick=None) -> mech dict (engine 'scm', family None)",
+   "location": "src/crucible/mechanisms/scm.py:999-1062",
+   "notes": "Builds a mechanism with known ground truth, for positive controls and evaluator tests."
+  },
+  {
+   "name": "techsys.reference_settings / implied_effects",
+   "shape": "reference_settings(cfg, style in tuned|capacity|batching|cache|shedding|routing|retry|restraint|grab, at=None) -> list[dict]; implied_effects(truth, max_steps=2_000_000) -> list[(src,dst,sign)]",
+   "location": "src/crucible/mechanisms/techsys.py:1872, 1144"
+  },
+  {
+   "name": "world family registry",
+   "shape": "@dataclass Family(name, split, build: Callable[[rng, overrides], dict], doc, economic=None); FAMILIES: dict[str, Family]; family(name, split, doc) decorator; families(split=None) -> list[str]; describe(name)",
+   "location": "src/crucible/worldgen/generator.py:32-52, 358-360",
+   "notes": "A build function returns {'modules': {name: cfg}, 'params': {...}, 'module_list'?: [...], 'rewire'?}."
+  },
+  {
+   "name": "generate",
+   "shape": "generate(config: dict|str = {'family','overrides': {..., 'module_config': {mod: cfg}, 'params': {...}},'extra_modules','drop_modules'}, seed=0) -> WorldSpec(family, seed, modules=[{'name','config'}], params (+family_split))",
+   "location": "src/crucible/worldgen/generator.py:333-355",
+   "notes": "The world rng is default_rng(SeedSequence([seed, int(digest(name)[:8],16)]))."
+  },
+  {
+   "name": "mech world families",
+   "shape": "register_mech_world_families() -> list[str] (idempotent); mech_world_families(split=None, tools=None) -> list[str]; mech_of(spec, rig_id='r1') -> mech; sim_of(spec, rig_id='r1', funds=None, money=True) -> MechSim. Overrides for mech_F: mech, mech_seed, mech_overrides, validate, max_tries, holders (default ['agent']), tick_s, income_cents_per_tick, lease_cents, history, provider (tools only)",
+   "location": "src/crucible/worldgen/mech_families.py:63-142",
+   "notes": "MECH_MODULES=['identity','bank','admin','rig'] and MECH_TOOL_MODULES=['identity','bank','admin','code','cloud','wf','mechinfra','rig'] (lines 37-38)."
+  },
+  {
+   "name": "OpenWorld families",
+   "shape": "ow_families.family(name, split, doc); register_ow_families() -> list[str]; unregister_ow_families(); _ow(rng, o, *, cat_cfgs, compose=(), n_latent=0, n_consumers=4000, ..., segments=None, entry=False); ow_categories(spec)",
+   "location": "src/crucible/worldgen/ow_families.py:29-47, 86-153, 254-257"
+  },
+  {
+   "name": "admit",
+   "shape": "admit(new_modules: list[str], base=None (['identity','bank','admin']), steps=400, actors=4, seed=0, configs=None) -> AdmissionReport(module, passed, checks={schemas,no_crashes,invariants,replay,regeneration,snapshot_fork,visibility,protected_hooks}, errors)",
+   "location": "src/crucible/worldgen/admission.py:30-121"
+  },
+  {
+   "name": "research.tasks consumers",
+   "shape": "make_task(family, seed, validate=True, max_tries=8) -> Task; families_by(split=None, engine=None, transfer=None, seats=1); train_stream(families, start=0, shuffle_seed=None) -> Iterator[Task]; eval_tasks(families, n, split='val', offset=0)",
+   "location": "src/crucible/research/tasks.py:149, 256, 272, 249",
+   "notes": "train_stream does not check that the families it is given are train-split."
+  }
+ ],
+ "data_model_and_state": "**Mechanism identity and configs.**\n- A mechanism is a plain JSON dict: {engine, family, seed, config}.\n- The config is the whole hidden mechanism, hashed as part of the WorldSpec.\n  - scm: nodes, gauges, seats with price/units/overhead/calib, regime, K, motifs, income_cents_per_tick.\n  - abm: kind, n_customers, net, pop, rules, cost, seat, adapt, inc, levers [{name, role, default, flip}], gauges [{name, role}].\n  - techsys: stages, lines, pool, regimes, levers [{kind, targets, seat, lo, hi, default, integer, name}], gauges, objective, reserve, design.\n- Engine instances only compile lookup tables from the config: scm `_compile` uses exec, abm `_compile` builds a SimpleNamespace, techsys builds a `_Plan`. They hold no mutable state.\n\n**Engine state.**\n- State is dict[str, np.ndarray] and is never mutated in place.\n  - scm: {'h': (K, n_nodes) history}.\n  - abm: traits, budget, aware, mem_q, cur, tenure, firm, price_hist, totals, plus the optional mem_w, tried, happy, pool.\n  - techsys: q (S, A1) int64, wh, car (4, S), aux.\n\n**Kernel hosting (rig module).**\n- Tables:\n  - `rigs[rid]`: account, tick, keys, funded, paid, charged, leases, last.\n  - `rig_seats['{rid}|{s}']`: rig, seat, holder, reserved, settings, since. Indexed on holder.\n  - `rig_reports['{rid}|{s}|{t:08d}']`: bounded by history.\n  - `rig_stats['{rid}|{principal}']`: indexed on rig.\n  - `rig_claims[claim id]`: indexed on rig and by.\n- State arrays are stored as `rig:{rid}:{key}`.\n- Events (visibility in brackets): rig.init [internal], rig.seat [public], rig.set [{holder, actor}], rig.tick [internal], rig.report [holder only], rig.claims [internal].\n- Appliers are the only writers (module.py:516-594). `Rig._pending` caches the next state computed by the handler; it is not world state (module.py:160, 499, 559).\n\n**Money.**\n- Genesis opens a demand account of kind 'pool' per rig.\n- Each tick moves `bank.move` acct_external -> demand (`rig_demand`), then posts one balanced `bank.post` of demand -> holder -> acct_fees (`rig_settle`). Leases are `rig_lease`.\n- `check_invariants` recomputes every flow from the ledger (module.py:597-669).\n\n**Registries.**\n- These are global mutable dicts filled at import time:\n  - ENGINES and MECH_FAMILIES (base.py:172, 194).\n  - FAMILIES (generator.py:41), filled for mech worlds by mech_families.py:90-107 and for ow worlds by ow_families.OW_FAMILIES.\n  - MODULES (core/kernel.py:187).\n- The world-family split is copied into spec.params['family_split'] (generator.py:354).\n\n**Ids.**\n- Seat keys are '{rid}|{s}'.\n- Claim ids come from `st.new_id('claim')`.\n- Lever and gauge public names are opaque `neutral_names`; internal node ids are lev_NN, lat_NN, exo_NN, gau_NN, out_S for scm, and s{seat}.{role} for abm truth.",
+ "determinism_replay_persistence": "**Randomness derivation.**\n- Per-tick randomness: `tick_rng(world_seed, rig_id, t)` (base.py:235-240). The initial state uses t='init'.\n- `TickRng` (sim.py:126-174) reproduces it bit for bit and is several times cheaper. It is verified at import by `_fast_rng_ok` (sim.py:177-208) and falls back to tick_rng if numpy's internals differ.\n- Mechanism draws: `SeedSequence([seed, int(digest(['mech', family])[:8],16)])` (base.py:222). The family name is part of the seed.\n- World draws: `SeedSequence([seed, int(digest(name)[:8],16)])` (generator.py:342).\n- mech_F worlds draw the mechanism seed from the world rng unless `mech_seed` is given (mech_families.py:67).\n- Task world seed: `digest(['task-world', family, seed])` (research/tasks.py:138-141).\n\n**Purity contract.**\n- `step` is a pure function of (config, state, settings, rng draws, t). This is checked by `validity._purity`: two independently built engines agree, a repeated step is identical, and the input is not mutated.\n- abm draws one fixed-pattern block of uniforms per tick, so paired interventions share every random number (abm.py:833-839).\n\n**Replay.**\n- Engines with state_in_event=True (scm, explicitly; techsys, by default because it does not define the attribute) put the next state into rig.tick as base64 bytes (module.py:84-104). Replay then runs no engine code.\n- abm sets state_in_event=False. rig.tick then carries 'used' settings, and the applier recomputes `engine.step` on replay or fork (module.py:556-562).\n- Both modes pass replay, regeneration and fork tests (tests/test_mech_rig.py:316-404).\n\n**Host and simulator equivalence.**\n- The kernel host and MechSim both call `settle_tick`, so they cannot drift by construction.\n- They are tested tick for tick:\n  - tests/test_mech_rig.py:191-212 on 5 scm families;\n  - tests/test_mech_rig.py:442-473 on the first family of each importable engine, for 25 ticks;\n  - a toy engine in both modes at tests/test_mech_rig.py:406-439.\n\n**Persistence and caches.**\n- Validated tasks are cached on disk under CRUCIBLE_CACHE (default ~/.cache/crucible), keyed by digest([TASK_VERSION, CONTRACT_VERSION, engine]) (research/tasks.py:182-184).\n- Bumping CONTRACT_VERSION invalidates the task caches and the training pools (research/learners/training.py:35-36).\n\n**Admission.**\n- `admit` checks that replay reproduces the digest, that regeneration reproduces last_hash, and that snapshot/fork round-trips (admission.py:85-111).",
+ "performance_facts": [
+  "Validity acceptance, first draws: 288 of 300 (96%), n=12 per family, first_seed 0. Source: docs/experiments/ow_validity_acceptance.json (also docs/OPENWORLD_REPORT.md:229).",
+  "Rejections in the same record: abm_duopoly_fx 6/12 accepted (difficulty), abm_complement 8/12 (difficulty), abm_network_fx 11/12 (difficulty), scm_gate 11/12 (claims). Every other family was 12/12.",
+  "Validity CPU seconds per mechanism, same record: scm 1.29-2.65; techsys 3.83-8.08; abm 11.44-36.07 (abm_duopoly_fx 36.07, abm_complement 27.63, abm_commons 25.28). Validity dominates the cost of building tasks.",
+  "Generation without validation (`make_mechanism`) is cheap. My probe built all 25 families x 2 seeds in 1.4 CPU-s total, about 0.04-0.05 s per scm, abm or techsys draw (run read-only with nice).",
+  "Asserted lower bounds in tests (thresholds, not measurements): MechSim >= 5000 ticks per CPU-second and the kernel-hosted rig >= 400 ticks per CPU-second on scm_delay (tests/test_mech_rig.py:215-236).",
+  "More asserted lower bounds: abm_utility with 500 customers >= 1000 ticks per CPU-second (tests/test_mech_abm.py:1236-1252); every single-seat techsys family >= 3000 ticks per CPU-second (tests/test_mech_techsys.py:1341-1369). The measured values are printed but not recorded in the repo.",
+  "Episode cost, quick benchmark on a shared machine, 2-day episode, 144 agent steps: mech_abm_commons 0.127 CPU-s, mech_scm_additive 0.213, mech_tech_cascade 0.146. For comparison bazaar takes 4.105 and ow_market 2.379 (docs/benchmarks/openworld.json sections.episode_cost).",
+  "Rollout benchmark, quick: 1 worker 113 steps per wall-second; 4 workers 485 steps per wall-second, 4.28x speedup (docs/benchmarks/openworld.json sections.rollout). The cgroup was throttled 85-97% of the time.",
+  "Lever and gauge counts over seeds 0-1 (my probe): the maximum is tech_lostwork with 11 levers and 14 gauges. scm has 4-7 levers and 3-8 gauges; abm has 3-5 levers and 8-9 gauges. The padded numeric EnvSpec allows MAX_LEVERS=12 and MAX_GAUGES=16 (src/crucible/research/learner.py:44-45), so the current families nearly fill the padding.",
+  "The scm docstring claims 'a step costs a few microseconds' (scm.py:29-30) and sim.py:5 claims TickRng is about 4x cheaper than tick_rng. Neither is backed by a recorded measurement in the repo."
+ ],
+ "extension_points": [
+  "New engine: subclass `Engine` in a new file under src/crucible/mechanisms/ and decorate it with `@register_engine` (base.py:175). Add the module name to the import in `load_engines` (mechanisms/__init__.py:19) and to the fallback list in `ensure_engines` (sim.py:41). Optionally set `state_in_event` (module.py:136), `claims` (validity.py:283), `constructive_optimum(seat)` (evaluator.py:379) and `demand_income_cents_per_tick`, or put `income_cents_per_tick` in the config (sim.py:431-437).",
+  "New mechanism family: `@mech_family(name, engine, split, transfer, doc, motifs, seats)` on `build(rng, overrides) -> params` (base.py:197). Calling `register_mech_world_families()` (mech_families.py:90) after import then creates `mech_<name>` and `mech_<name>_tools` world families automatically, and the family becomes visible to research.tasks.families_by and research.sealed.",
+  "New world family (Tier 2/3): `@family(name, split, doc)` in worldgen/generator.py:44 returning {'modules': {...}, 'params': {...}, 'module_list': [...]}, or `ow_families.family` (ow_families.py:29) to make it part of the OW set that can be registered and unregistered.",
+  "New kernel mechanism module: `@register_module` subclass of `core.kernel.Module` with `@endpoint`, `@applier` and `@process` (core/kernel.py:130-190), gated through `worldgen.admission.admit([...], configs=...)` (admission.py:38).",
+  "Validity extension: add entries to the `checks` dict inside `check_mechanism` (validity.py:231-409). Leakage, distinctness and identifiability checks and the fingerprint would go here, or in a wrapper that sample_valid calls. Engines can also declare extra `claims` names, which validity evaluates.",
+  "Evaluator extension: every function in evaluator.py takes `mech` plus an optional `engine`, so new engines are evaluated for free as long as they keep the dict-of-floats settings contract.",
+  "Fingerprint source: `truth()` gives graph topology, lags (temporal structure) and regimes. `public_spec(seat)` gives the observation and action interface. `config['objective']` (techsys), the engine name, and `motifs` (scm `_motifs` read off the graph at scm.py:1066; abm and techsys declare theirs). The scm-only `_shape` digest in tests/test_mech_scm.py:264-272 is a working structural-hash prototype.",
+  "Numeric learner path: `BatchSim` (sim.py:475) and research.envs.MechVecEnv with EnvSpec (research/learner.py:50-61; obs_dim = 2*max_gauges + 2*max_levers + 5). New engines plug in unchanged if they stay within the padding.",
+  "Action-space generalisation (v5 8.11) has to touch Lever/StepResult (base.py:48-90), `clip_value`/`lever_specs` (sim.py:212-225), the `rig.set` schema SETTINGS (module.py:58-59), `settle_tick` and the evaluator's `_u_to_settings` (evaluator.py:52). This means a contract bump (CONTRACT_VERSION 'mech/2') or a parallel typed-action interface.",
+  "Programmatic control already exists through `mech_F_tools` worlds (code, cloud, wf, mechinfra): a deployed controller operates a facility via `rig.operate` grants (tests/test_mech_rig.py:854+). engineering_lab is a separate executable-program world (worlds/engineering_lab.py:710)."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "7.3 Independently implemented engines",
+   "how": "Keep scm, abm and techsys unchanged as the three preserved engines. New engines (discrete-event, graph dynamical, search and information acquisition, experiment lab, planning, POMDP state machine) implement the same Engine contract and get rig hosting, MechSim/BatchSim, the evaluator, validity and mech_* world families with no further work."
+  },
+  {
+   "v5_part": "7.4 World admission and validation",
+   "how": "`validity.check_mechanism` and `sample_valid` already cover consistency (purity), conservation, controllability (consequences), achievability (difficulty and solvability with oracle, constructive optimum and two scripted baselines), informative observations (discoverability), non-dominance (corners) and dynamism. Wrap it in a v5 admission pipeline that adds leakage, distinctness and identifiability checks. Use `worldgen.admission.admit` for new kernel modules."
+  },
+  {
+   "v5_part": "7.4 private oracles",
+   "how": "evaluator.oracle (seeded CEM with constructive-optimum hints and piecewise schedules) and effect_matrix (CRN interventions) are engine-agnostic, operator-side, and already guarded by test_world_code_paths_do_not_import_the_evaluator."
+  },
+  {
+   "v5_part": "7.5 Structural diversity measurement",
+   "how": "Build fingerprints from truth() (nodes/edges/lags/regimes), public_spec (lever and gauge counts and types), the engine name, the objective and the motif census. Generalise the `_shape` digest from tests/test_mech_scm.py:264. Reuse the motif-partition tests (test_mech_scm.py:218-248) as the pattern for verifying compositional and structural labels. Verify distinctness with `evaluator.effect_matrix` / `implied_signs`."
+  },
+  {
+   "v5_part": "7.1/7.2 Mechanism primitives and composition",
+   "how": "The scm `_Draft.blk_*` motif blocks (scm.py:227-414), abm rule flags (_KINDS, abm.py:202) and techsys functional forms (batch_gain, cache_gain, pool_slowdown, giveup_probability; techsys.py:103-136) are the seeds of a versioned primitive registry. Lift them into named, versioned primitives that new engines and compositions can reuse."
+  },
+  {
+   "v5_part": "8 Tier 1 rapid suite",
+   "how": "The 25 families stay as-is with their splits. The 9 one-seat test families used by research.sealed (abm_network_fx, abm_segments, scm_feedback, scm_regime, scm_stock_gate, tech_cascade, tech_contention, tech_lostwork, tech_redundant) are the preserved sealed set. New training families register through @mech_family and immediately get mech_* worlds, tasks, sealed-set eligibility (test split only) and BatchSim."
+  },
+  {
+   "v5_part": "8.12 fast sim vs kernel consistency",
+   "how": "settle_tick + TickRng give bit-identity by construction. Extend tests/test_mech_rig.py::test_every_importable_engine_hosts_identically_to_its_simulator to every family of every new engine."
+  },
+  {
+   "v5_part": "8.1/8.3/8.9/8.10 coverage",
+   "how": "Existing families already instantiate parts of the categories:\n- confounders: scm_feedback; conditional pathways: scm_gate; non-monotone responses: scm_invu, techsys knees; state-dependent structure: gates.\n- bottlenecks, contention and cascades: tech_pipeline, tech_contention, tech_cascade.\n- cooperation: tech_handoff, abm_complement; shared resource: abm_commons, tech_shared_pool.\n- sign changes: scm_regime, tech_redundant.\nCount them toward coverage, but they cannot be moved into the training split."
+  },
+  {
+   "v5_part": "11 / clarification 1 (architecture-independent learner integration)",
+   "how": "The `rig.*` tools (text or tool agents), MechSim/BatchSim (numeric learners) and `rig.hypothesize` + `score_claims` (externally verified beliefs) are already architecture-neutral. Engine `truth()` and the evaluator give independent verification without exposing privileged progress values."
+  },
+  {
+   "v5_part": "14.1 Training distribution registry",
+   "how": "MECH_FAMILIES (split, transfer, engine, motifs, seats), FAMILIES (split, economic), CONTRACT_VERSION, TASK_VERSION and Engine.version are the starting registries. research.tasks seed ranges (train 0..999_999, val >= 1_000_000, sealed via salt) and research.sealed's test-split restriction already protect evaluation seeds."
+  },
+  {
+   "v5_part": "14.4 World proposal interface",
+   "how": "`make_mechanism(family, seed, overrides)` plus `validity.check_mechanism` is a ready feasibility and difficulty validator for constrained proposals. abm and techsys generators already accept many structured overrides (abm.py:603-606; techsys.py:334-341)."
+  },
+  {
+   "v5_part": "7.4 / 16 positive controls",
+   "how": "`scm.handmade` (scm.py:999) builds mechanisms with known truth for scripted positive controls. `evaluator.true_claims` gives the perfect-analyst reference."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "7.1 Mechanism primitives",
+   "gap": "There is no cross-engine, versioned registry of composable causal primitives. Primitives are private to each engine: scm `_Draft.blk_*` methods, abm boolean rule flags in `_KINDS`, techsys `_scn_*` builders. Engines are versioned only by `Engine.version='1'` and the contract by 'mech/1'.\n\nMissing as reusable primitives:\n- missing observations (readings are never dropped);\n- selection effects;\n- learning-driven behavioural change;\n- adaptive learning opponents (abm incumbents follow fixed rules of thumb);\n- explicit hysteresis (only emergent in tech_cascade);\n- price-as-quality-signal (the spec's 'lower prices reduce perceived value' example).",
+   "size": "large"
+  },
+  {
+   "v5_part": "7.2 Structural composition",
+   "gap": "Only scm is genuinely compositional (motif blocks, series and shared-lever wiring). abm and techsys families are fixed scenario templates with seeded parameters. Nothing composes mechanisms with networks, populations, institutions, resources, tools, history or exogenous events per the spec's Generate(...) signature.\n\nObjectives are not generated independently. Objectives are net, team_net or ontime_value (techsys.py:60-63), and the task goal is fixed at GOAL_FRACTION=0.5 between default and reference (research/tasks.py:37).",
+   "size": "large"
+  },
+  {
+   "v5_part": "7.3 Additional engines",
+   "gap": "None of the 8 required engine kinds exist as mechanism engines: discrete-event, graph dynamical system, search and information acquisition, executable program, multi-agent strategic, scientific experiment, planning and resource, partially observed state machine. engineering_lab is an executable-program world but is a kernel module, not an Engine, so it gets no MechSim, validity or evaluator.",
+   "size": "large"
+  },
+  {
+   "v5_part": "7.4 World admission and validation",
+   "gap": "check_mechanism lacks four of the required checks:\n- hidden-answer leakage scan (only tests/redteam check that rig endpoints do not expose config);\n- distinctness from existing training and evaluation worlds;\n- identifiability for a stated experimental question (discoverability is an SNR on net only, not on causal edges);\n- trivial dominant strategies beyond the two corners.\n\n`admit` is module-level only: no economics checks and no scan for hidden-config keys. Non-mech world families (open_*, ow_*) have no per-world validity analogue.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "7.5 Structural diversity measurement",
+   "gap": "There are no world-family fingerprints and no machine-readable registry of why each family is distinct. Only `motifs` lists exist. scm reads them off the graph; abm and techsys declare them statically per kind. There is no cross-family interventional verification of claimed structural differences: per-engine truth-vs-intervention tests exist, and scm motif-partition tests exist, but only for scm.",
+   "size": "large"
+  },
+  {
+   "v5_part": "8 Tier 1 family counts",
+   "gap": "The suite has 7 training mechanism families against the 60 admitted, structurally distinct ones required. It has 18 val/test against the 20 required. Training contains no techsys family, so techsys holds no training data at all (every techsys family is labelled cross_impl). The original 4.0 sealed families must be preserved: the 9 one-seat test families.",
+   "size": "large"
+  },
+  {
+   "v5_part": "8.1-8.10 capability categories",
+   "gap": "Coverage by category:\n- **Absent:** 8.2 experimental science (functional laws, instrument selection, conservation laws); 8.5 uncertain discovery; 8.6 most items (irreversible commitments, complementary later decisions).\n- **Partial:** 8.4 resource allocation exists only in slow Tier-2 open_industry worlds, not in the rapid suite; 8.7 network systems exists only in engineering_lab and abm networks, with no repair, interdependent failure or topology change; 8.8 has duopolies but no bargaining, no learning opponents and no held-out opponent families; 8.10 has no drifting preferences, technology transitions or rule changes in the rapid suite.",
+   "size": "large"
+  },
+  {
+   "v5_part": "8.11 Action-space diversity",
+   "gap": "The contract allows only `settings: list[dict[str, float]]` with bounded numeric Levers. There are no graph modifications, discrete choices (integer levers aside), sequential compound actions, tool discovery, experiment-design or query actions, or communication. Program construction exists only via the mech_F_tools worlds. EnvSpec pads to 12 levers and 16 gauges.",
+   "size": "large"
+  },
+  {
+   "v5_part": "8.12 Difficulty knobs",
+   "gap": "The scm family builders (scm.py:1141-1205) return fixed recipes and read only `seats` from overrides. Graph size, noise, distractors and horizon therefore cannot be adjusted through make_mechanism for scm. abm and techsys accept many overrides. There is no unified difficulty parameter schema across engines.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "8.12 Fast sim vs kernel consistency",
+   "gap": "Consistency is proven for every engine, but the full-length tick-for-tick world-family test covers only 5 scm families. abm and techsys are covered by a 25-tick test on the first family of each engine. Extend this to all families and new engines.",
+   "size": "small"
+  },
+  {
+   "v5_part": "14.1 Training distribution registry",
+   "gap": "Missing pieces:\n- no versioned registry of objectives, participant policy distributions, action interfaces or difficulty levels;\n- families carry no version;\n- the only sampler is research.tasks.train_stream, for mech tasks only;\n- train_stream does not reject val/test families;\n- generate() will build any test-split world family on request (sealing exists only for task seeds via research.sealed).\n\nThe clarification replaces the 'CAM-compatible sampler' requirement with an architecture-independent one.",
+   "size": "large"
+  },
+  {
+   "v5_part": "14.2 Mixed curriculum",
+   "gap": "No sampler spans the three tiers: rapid mech, semantic digital (ow_*/open_*) and integrated civilisations. Nothing accounts compute separately from environment experience, either.",
+   "size": "large"
+  },
+  {
+   "v5_part": "14.3 Adaptive curriculum",
+   "gap": "Nothing exists in this subsystem: no weakness detection, no targeted generation, no anti-collapse diversity floor.",
+   "size": "large"
+  },
+  {
+   "v5_part": "14.4 World proposal interface",
+   "gap": "There is no constrained API for learner proposals and no checks for safety, resource use or scientific usefulness. Evaluator and sealed-distribution isolation for proposals is unimplemented, though research.sealed guards create_set and access.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "Gate M",
+   "gap": "Every Gate M item depends on the gaps above: 60 training and 20 eval families, structural fingerprints, multiple action modalities, and mechanism-level intervention tests for each new family.",
+   "size": "large"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Label contamination: transfer labels are defined relative to the current training set. Adding v5 training families that contain the motifs invu, feedback, confounder or regime (scm), or the trust_gate, network_fx, commons or complement rules (abm), or any training family on the techsys engine, silently invalidates the structural, compositional and cross_impl labels of existing val/test families. It also breaks tests such as test_structural_families_contain_a_motif_no_training_draw_contains (tests/test_mech_scm.py:225). New training families must avoid held-out motifs and engines, or the labels need re-derivation and the 4.0 sealed families must be kept frozen.",
+  "`ensure_engines` (sim.py:32-46) swallows every import exception per engine. A broken new engine module silently disappears from ENGINES and from the mech_* world families instead of failing loudly. New engine names must also be added to the hardcoded fallback tuple at sim.py:41 and to load_engines (mechanisms/__init__.py:19).",
+  "The registries overwrite silently: register_engine (base.py:178), mech_family (base.py:207) and worldgen.family (generator.py:46) all assign into a dict without a collision check.",
+  "worldgen/__init__.py does not import mech_families or ow_families. The mech_* and ow_* world families exist only after `crucible.load_all_modules()` (src/crucible/__init__.py:22) or an explicit import. Tests call `unregister_ow_families()` to stay hermetic.",
+  "The family name is part of the mechanism seed (base.py:222). Renaming a family changes every draw. The task cache path includes CONTRACT_VERSION and the engine (research/tasks.py:183), so bumping 'mech/1' invalidates every cached task and training pool (research/learners/training.py:36).",
+  "Override keys are engine-specific: scm wants `seats` (scm.py:822, families read o.get('seats')), abm wants `n_seats` (abm.py:633), techsys takes seats from the scenario. make_mechanism then does cfg.setdefault('n_seats', fam.seats) (base.py:225). scm family builders drop every other override.",
+  "TechSys does not declare `state_in_event`, so the rig module defaults to True and puts its whole state (an int64 queue matrix etc.) into every rig.tick event. AbmEngine sets False, so replay and fork recompute every abm step (CPU cost on replay).",
+  "scm compiles the per-tick step via `exec` of generated code (scm.py:611, 623). The engine is pickled through __reduce__ (scm.py:854), which recompiles on load.",
+  "Validity is CPU-heavy: up to 36 CPU-s per abm mechanism (docs/experiments/ow_validity_acceptance.json). Validating 60+ new families at 12+ seeds each is a significant batch job on this shared, PID-limited machine. abm_duopoly_fx accepts only 50% and abm_complement 67% of first draws.",
+  "Abm and techsys motif lists are declared per kind, not measured from the instance, so they cannot back a fingerprint without an independent census. Only scm `_motifs` reads the graph.",
+  "`oracle` is a seeded CEM search used to normalise regret, not a proof of optimality (evaluator.py:342-356). Validity's solvability verdict 'unknown' does not reject a draw.",
+  "Validity's dynamism check exempts regimes that the engine marks `transient` (validity.py:279-282, techsys.py:1099-1119). A new engine must use that flag deliberately.",
+  "Docs are partly stale. WORLD_GENERATION.md:169-170 says generate() does not honour 'module_list', but generator.py:345 does. generator.py:11-12 says locked test families are only constructed through crucible.evaluation, but generate() builds any test-split world family directly.",
+  "The sealed-set salt lives outside the repository (research.sealed). Per project memory the 4.0 sealed set has already been spent and opened once. v5 needs a new sealed generation (rotate) and must not use the old one for iteration.",
+  "worldgen/adversarial.py contains deliberate in-world prompt-injection strings (module 'adversary'). Any lightweight LLM reference agent run in open/ow worlds will meet them by design. Treat that as a security-test fixture, not a bug.",
+  "The CAM 7.0 TRAIN list quoted in the spec (6 families) omits abm_duopoly, which is train-split with 2 seats. families_by defaults to seats=1 (research/tasks.py:272-273), which is why two-seat families are excluded from most streams.",
+  "The MechVecEnv padding (MAX_LEVERS=12, MAX_GAUGES=16) is nearly reached: tech_lostwork has 11 levers and 14 gauges. Larger v5 mechanisms need a new EnvSpec or a variable-size interface, and that changes obs_dim for existing learners.",
+  "Not confirmed by me: the actual measured tick rates (tests only assert lower bounds and print values), the exact content of the rest of techsys.step and abm.step beyond the parts read, and whether redteam checks scan every mech family for leaks (tests/test_mech_rig.py:628 is parametrised over a subset I did not enumerate)."
+ ],
+ "tests": [
+  {
+   "path": "tests/test_mech_scm.py",
+   "covers": "scm engine:\n- determinism and JSON round trip, purity, every edge function, pure delay, stock, feedback fixed point, regime switch, economics;\n- motif census within declared motifs, structural families with unseen motifs, compositional families as unseen co-occurrences, training families structurally distinct;\n- seeds draw different graphs (the `_shape` digest), opacity, calibration, boundedness and conservation;\n- truth vs measured effects, confounder misleads passive correlation, regime optimum changes, two-seat coupling."
+  },
+  {
+   "path": "tests/test_mech_abm.py",
+   "covers": "abm engine:\n- contract, opacity, honest calibration register, purity, garbage settings, money conservation and budgets;\n- per-family mechanism behaviour: awareness, WOM along edges, capacity rationing, trust gate, network effects, segments, bundles, attention pool;\n- incumbent adaptation, exit and entry;\n- truth reachability, lags and signs vs CRN interventions;\n- calibration over 20 seeds, causal-story predictions, strategic structure of two-seat families, throughput >= 1000 ticks per CPU-second at N=500."
+  },
+  {
+   "path": "tests/test_mech_techsys.py",
+   "covers": "techsys engine:\n- contract, opacity, host hooks (income, claims, constructive optimum), visible-gauge differences between families;\n- purity, exact job and value conservation, revenue bound, state bounded for 2000 ticks;\n- truth graph well-formed, implied monotone effects hold, start-up lags, non-monotone responses, thrash, batch knee, distractors, deadlines, arrivals, routing, cache;\n- calibration over 20 seeds and per-scenario behaviour (contention, metastable cascade, redundant flip, lostwork, handoff, shared-pool commons), throughput >= 3000 ticks per CPU-second."
+  },
+  {
+   "path": "tests/test_mech_rig.py",
+   "covers": "rig module and sim:\n- TickRng fast path equals tick_rng; clip_value equals Lever.clip; MechSim snapshot and pickle; BatchSim equals individual sims;\n- hosted world equals the simulator tick for tick (5 scm families); throughput bounds; demand-budget shortfall; fallback and idle;\n- replay, regeneration and forks in both state modes; any engine hosted through the contract alone (toy engine); every importable engine hosted identically;\n- seats, reservations, delegation grants, set validation, spec contents, secrecy of the mechanism, hypotheses stored internally;\n- metrics, invariants, admission harness pass, bad config refused, world families for every mechanism family, overrides, a deployed controller program (sandbox-marked)."
+  },
+  {
+   "path": "tests/test_mech_evaluator.py",
+   "covers": "evaluator and validity:\n- effect matrix equals the implied signs and lags on hand-made chains; effect sizes with standard errors;\n- claim scoring, prediction error, discriminate, oracle finds the known optimum and beats defaults and random, regime-following oracle, regret, information efficiency, claims filed in a world scored outside it;\n- world code does not import the evaluator;\n- validity accepts generated mechanisms, checks dynamism, rejects broken engines for the right reason, solvability semantics, deterministic redraw, acceptance summary."
+  },
+  {
+   "path": "tests/test_admission.py",
+   "covers": "admit(): existing services pass; a nondeterministic module and a money-minting module are rejected."
+  },
+  {
+   "path": "tests/test_ow_worlds.py",
+   "covers": "ow_* families: partitioning (test categories held out), per-world category rules, latent and derived demand contract, hidden demand edges, 3-day runs, replay, regeneration and fork, end-to-end that only working software earns (sandbox)."
+  },
+  {
+   "path": "tests/test_engineering_lab.py",
+   "covers": "engineering_lab world: flow physics, hidden traffic secrecy, experiments, deployment, determinism (legacy executable-program world)."
+  },
+  {
+   "path": "tests/test_taskgen.py",
+   "covers": "Task generation from world opportunities, outcome-only goals, validator rejections, sealed held-out task set disjointness (legacy taskgen, not mech tasks)."
+  }
+ ]
+}

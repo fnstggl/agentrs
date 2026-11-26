@@ -2,6 +2,10 @@
 __version__ = "0.4.0"
 
 
+V5_PACKAGES = ("substrate", "population", "social", "semantic", "calibration", "commerce", "innovation", "rapid",
+               "domains", "civ", "multiagent", "experience")
+
+
 def load_all_modules() -> None:
     """Register every built-in module (services, economy, actors, worlds)."""
     from . import services  # noqa: F401
@@ -20,3 +24,10 @@ def load_all_modules() -> None:
     from .mechanisms import module as _rig  # noqa: F401
     from .actors import entry  # noqa: F401
     from .worldgen import mech_families, ow_families  # noqa: F401
+    # Crucible 5.0: each v5 package registers its kernel modules from `<package>/modules.py` when that file exists.
+    # find_spec only tests for the file; real import errors inside it are not swallowed.
+    import importlib
+    import importlib.util
+    for _pkg in V5_PACKAGES:
+        if importlib.util.find_spec(f"crucible.{_pkg}.modules") is not None:
+            importlib.import_module(f"crucible.{_pkg}.modules")

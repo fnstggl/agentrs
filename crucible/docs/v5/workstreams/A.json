@@ -1,0 +1,71 @@
+{
+ "workstream": "A",
+ "branch": "worktree-wf_2ca35ef4-2c1-1",
+ "commit": "51ccfe0",
+ "requirements": [
+  {
+   "id": "SP-2.3",
+   "implementation_files": [
+    "src/crucible/substrate/artifacts.py",
+    "src/crucible/substrate/columns.py",
+    "src/crucible/substrate/ids.py",
+    "src/crucible/substrate/bus.py",
+    "src/crucible/substrate/primitives.py",
+    "src/crucible/substrate/assets.py",
+    "src/crucible/substrate/attention.py",
+    "src/crucible/substrate/inference.py",
+    "src/crucible/substrate/modules.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/core/state.py",
+    "src/crucible/services/identity.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_2_3.py",
+    "tests/test_v5_substrate_artifacts.py",
+    "tests/test_v5_substrate_columns.py",
+    "tests/test_v5_substrate_bus.py",
+    "tests/test_v5_substrate_kernel.py",
+    "tests/test_v5_substrate_primitives.py",
+    "tests/test_v5_substrate_inference.py",
+    "tests/test_v5_substrate_typed.py"
+   ],
+   "state": "implemented",
+   "notes": "Measured locally (evidence is produced on the integration branch): shared_primitive_kinds 20 of 20 (every owner module and table present, no duplicate facts in any of the 74 4.0 families), cross_module_rollback_failures 0 over 240 randomised six-module commands failing in 7 real ways plus 20 contained failing sub-calls, inference_replay_without_rerun true (48 recorded torch-MLP cohort decisions with OS-entropy sampling; 0 network calls during regeneration and replay, both exact)."
+  },
+  {
+   "id": "SP-2.1",
+   "implementation_files": [
+    "src/crucible/substrate/modes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_2_1.py",
+    "tests/test_v5_substrate_modes.py"
+   ],
+   "state": "partial",
+   "notes": "The execution-mode registry exists and checks every provider for real (two builds from one seed, identical results; kernel worlds also replayed). Measured execution_modes = 1: Mode A via the 4.0 hidden-mechanism families (crucible.mechanisms, 25 environments). Modes B (crucible.domains, workstream I) and C (crucible.civ, workstream J) have no provider yet; the gate test records the number without asserting the >= 3 threshold."
+  }
+ ],
+ "dependencies_used": [],
+ "limitations": [
+  "Bytes uploaded through the artifact.put tool are also in the recorded cmd event (arguments are recorded for regeneration); module code should store large media with artifacts.put, whose events hold only the REF.",
+  "Store-less worlds keep artifact bytes in a process-wide content-addressed pool for the life of the process; long or large runs should use a store.",
+  "A world moved to another store must run artifacts.export(world, dest_store) before it is loaded in another process; in-process forks and replays find their parent's blobs automatically.",
+  "columns.declare runs in Module.install, so loading a snapshot briefly allocates the declared fill arrays before the snapshot's arrays replace them.",
+  "Subscribers never run in the rejection transaction (cmd.rejected and persisted refusal events).",
+  "Typed events cover the 5.0 substrate types and 21 events of the 4.0 primitive owners (primitives.PRIMITIVE_EVENTS, checked against 4.0 logs); other 4.0 event types are untyped, and sched.add is validated by tests only (kernel commit-path types cannot carry subscribers).",
+  "relationship and community are owned by the 4.0 forum tables and product by market.listings; moving ownership to v5 social/commerce modules is a registry change in primitives.OWNERS. market.inventory vs industry.stock is reported as a recognised 4.0 overlap (warning).",
+  "SP-2.1 criterion (>= 3 operational modes) is not met until workstreams I and J register Mode B and C providers."
+ ],
+ "integration_notes": [
+  "Kernel extension points (byte-identical for 4.0 worlds, proven by tests/test_v5_substrate_kernel.py against digests recorded on c07098b and by tests/test_behavior.py): World.subscribers/_notify, Ctx.quiet, World.replay(store=...), StateStore.array_rows_mut, StateStore.declaring/declared_by.",
+  "services/identity.py resolve_handle: a population principal 'p<i>' resolves to itself (one line; 4.0 resolution unchanged because 4.0 person ids always contain ':').",
+  "sandbox/bridge.py: the deterministic line count now sets aside gc callbacks installed by other code while counting (found by the regression run: tests/test_scale.py failed after tests/test_kernel_props.py because hypothesis' gc timer callback ran inside a measured region). 4.0 processes have no gc callbacks, so 4.0 digests are unchanged (tests/test_behavior.py, tests/test_v5_substrate_kernel.py).",
+  "Population (B): list modules 'artifacts' and 'cols' in the spec, depend on 'cols', call columns.declare(world, 'pop', n, {...}) and attention.declare(world, n) (or include attention.COLUMNS) in install, attention.reset(ctx) daily, columns.batch for every cohort update, ids.ensure_principal(ctx, i, account=True) for individuals that transact.",
+  "Social (C), commerce (F), innovation (G): declare shared facts with a class attribute shared_facts = {kind: table} only for kinds you own (primitives.OWNERS); to own relationship/community/product/tool_definition with new tables, ask workstream A to move ownership; check with primitives.check_no_duplicates(world).",
+  "Semantic (D): recorded(ctx, kind, model_id, weights_hash(model), inputs, fn) returns read-only numpy arrays when fn returns an array or a dict of arrays (stored as an array blob; needs the artifacts module); JSON outputs go into the ext record.",
+  "Tiers (H, I, J): register execution-mode providers from your package's modules.py: modes.register('A'|'B'|'C', name, package=..., names=..., make=..., kind='env'|'world'|'sim', check=optional); modes.status() runs them.",
+  "Cross-module couplings: bus.subscribe(world, '<host>.<what>', fn, owner=module_name) in Module.install; fn(ctx, ev) runs as sys inside the emitting transaction after the applier; raising undoes the whole command.",
+  "Benchmark: PYTHONPATH=src python -m crucible.substrate.bench --rows 1000000 --table-rows 10000000 (through crucible.scale.slots).",
+  "Regression (full 4.0 suite plus the v5 tests, three single-thread groups through crucible.scale.slots, GPU hidden): 1,238 tests; 1,235 passed, 2 skipped (GPU Qwen tests, as in the 4.0 baseline), 1 failed only because SIGINT is ignored in background-launched processes (tests/test_scale.py::test_keyboard_interrupt_leaves_no_process_behind, which passes when tests/test_scale.py is run in the foreground). The first run exposed the 4.0 cost-model order dependency fixed in sandbox/bridge.py; the affected files were rerun after the fix."
+ ]
+}

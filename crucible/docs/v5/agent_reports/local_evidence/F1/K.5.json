@@ -1,0 +1,32 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.5",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K5_mrr_and_arr",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:41.474996+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "mrr_arr_recompute_mismatches": 0,
+  "arr_equals_12_mrr": true,
+  "checkpoints": 13,
+  "normalisation_100k_arr_is_8333_33_mrr": true,
+  "final_mrr_cents": 51300.0
+ },
+ "artifacts": [],
+ "notes": "metric vs independent recomputation from the event log and ledger: d1:0.00/0.00 d5:0.00/0.00 d8:59160.00/59160.00 d15:59160.00/59160.00 d20:55360.00/55360.00 d31:55360.00/55360.00 d38:50140.00/50140.00 d45:50140.00/50140.00 d61:50140.00/50140.00 d75:50140.00/50140.00 d91:50140.00/50140.00 d120:51300.00/51300.00 d200:51300.00/51300.00",
+ "junit": null
+}

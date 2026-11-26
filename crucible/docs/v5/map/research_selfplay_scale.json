@@ -1,0 +1,580 @@
+{
+ "subsystem": "research_selfplay_scale (crucible.research, crucible.selfplay, crucible.scale, crucible.training, crucible.bench, plus the api Gym/PettingZoo adapters and the CAM2 adapter, which carry the reward contracts)",
+ "summary": "Crucible 4.0's research platform is built only for Tier 1, the hidden-mechanism facilities. `research.learner` defines one architecture-neutral numeric contract. `Learner` has reset_context, act, observe, update, freeze, save, load and usage. `EnvSpec` defaults to obs_dim 61 and act_dim 12, with every mechanism padded and masked into that layout.\n\n`research.envs.MechVecEnv` batches n kernel-free simulators, one Task per slot. `research.bridge.KernelMechEnv` gives the same one-slot problem through `rig.*` tool calls in an event-sourced kernel world, and tests check that observations and rewards are identical tick for tick. The environment computes the reward: the tick's net income divided by the task's public money scale. That reward is also written into the observation (scalars[0]), and scalars[1] minus scalars[2] equals it.\n\nTasks are (family, seed) pairs, 25 families in all: 7 train, 7 val, 11 test. Each carries a public objective and a private reference used for normalisation. Seed ranges are fixed: training 0 to 999,999, validation from 1,000,000, sealed seeds from a secret salt.\n\n`research.protocols` provides:\n- evaluate (frozen, hash-verified)\n- lifetime (resumable learning curves with full cost accounting)\n- timescales (fast, parametric and meta, Holm-corrected)\n- internalisation (8 steps, reload from checkpoint, repeat check, retention)\n- transfer (four categories: within, compositional, structural, cross_impl; censoring-aware steps-to-threshold ratios)\n- baseline/compare (paired, equal steps and equal compute)\n\nAll of them refuse an overlap between training and evaluation tasks, checked by task id and by a fingerprint of the hidden mechanism. `research.stats` supplies the statistics: bootstrap intervals, sign-flip permutation tests, Holm correction, Wilson intervals, IQM and ratio_ci. `research.sealed` hands out budgeted, logged, salted test sets behind a call-stack guard; the one set, ow-final, is spent (1 of 1 accesses used).\n\nSelf-play (`selfplay`) runs only on the six two-seat mechanism families:\n- SelfPlayEnv and KernelSelfPlayEnv\n- Individual, which owns its learner, objective, budget and lineage\n- SelfPlayLeague on disk, with Elo/TrueSkill ratings, PFSP sampling, an archive and a held-out population\n- six interaction modes\n- a collusion and transfer-invariance audit\n\n`training.League` (from 3.0) plays only scripted policies in full economies.\n\n`scale` provides WorldPool (process-parallel world jobs with deterministic digests and checkpoints) and RolloutFarm (asynchronous rollouts with versioned, hashed parameter blobs, backpressure and exact accounting) over WorldEnv. WorldEnv's reward is a RewardContract (potential shaping on verified progress) or the change in the actor's own balance.\n\nThe Gym, PettingZoo and CAM2 adapters return RewardContract rewards and expose GoalVerifier progress in info. No observation-only or verified-terminal reward mode exists anywhere. CAM 7 (Cam7Learner) and CAM 6.1 (UnifiedLearner) already subclass `crucible.research.learner.Learner` and drive `protocols.lifetime`, `train_pool` and `eval_tasks`.",
+ "key_files": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learner.py",
+   "role": "EnvSpec (obs/action layout), Usage, Learner base contract (7 methods); MAX_LEVERS=12, MAX_GAUGES=16, N_SCALARS=5"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/__init__.py",
+   "role": "learner registry: register/available/describe/make; built-ins hold, random, probe_exploit, hill_climb, ppo_gru, ppo_gru_flat, model_based, evo_probe, meta_np"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/ppo.py",
+   "role": "PPOGRULearner (recurrent PPO, set/flat arch, PPO_DEFAULTS); trains on the reward argument; torch checkpoint includes optimiser"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/model_based.py",
+   "role": "ModelBasedLearner: Bayesian regression of revenue/cost read from obs scalars[1:3] (ignores reward arg); meta-learned features"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/meta_np.py",
+   "role": "MetaNPLearner transformer neural process (failed positive control); reads revenue/cost from obs"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/scripted.py",
+   "role": "ProbeExploitLearner, HillClimbLearner (read obs scalars[0] = last reward)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/evo.py",
+   "role": "EvoProbeLearner (CEM over probe params; uses reward arg as episode return)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/learners/training.py",
+   "role": "train_pool/pool_stream disk-cached training pools (used by CAM7 train.py), simple train/evaluate loops"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/baselines.py",
+   "role": "HoldLearner, RandomLearner"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/envs.py",
+   "role": "MechVecEnv batched simulator env, money_scale, symlog, run_episodes; reward computed here"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/bridge.py",
+   "role": "KernelMechEnv: same obs/action/reward via rig.read/rig.set/bank.accounts tool calls in an event-sourced kernel world"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/tasks.py",
+   "role": "Task dataclass (public objective + private reference), make_task/build_tasks/eval_tasks/train_stream/families_by, seed partitions, disk cache"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/protocols.py",
+   "role": "evaluate, lifetime, timescales, internalisation, transfer, transfer_targets, evaluate_many, combine_evaluations, baseline, compare, compare_runs, diagnose_episode, kernel_diagnosis, TaskSource, _Watch disjointness, checkpoint hashing"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/stats.py",
+   "role": "mean_ci, proportion_ci (Wilson), paired_diff (sign-flip), holm, auc, steps_to_threshold, at_budget, curve_band, iqm_ci, ratio_ci, slope; MIN_N=5"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/accounting.py",
+   "role": "Cost, Meter (measures CPU/wall in act/observe/update), charge_episodes, COST_COLUMNS, cost_row"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/sealed.py",
+   "role": "sealed test sets: salt in ~/.crucible, create_set/open_set/evaluate/rotate, access log, budget, contamination, stack guard, alias redaction"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/llm_eval.py",
+   "role": "frozen LLM baseline on mechanism tasks/open economy (EvalLLMPolicy, RigExperimenter, run_mechanism with sim_check, RunStore)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/diagnostics.py",
+   "role": "event-log failure diagnosis (diagnose, classify_attempt, find_loops)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/research/discovery.py",
+   "role": "informed_vs_deprived experiment-information control"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/arena.py",
+   "role": "SelfPlayEnv, KernelSelfPlayEnv, Objective (own/joint/score/mixed), Individual, play, private diagnostics (operator side)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/league.py",
+   "role": "SelfPlayLeague (persistent population, archive snapshots, heldout pool+log, ratings, head_to_head)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/learners.py",
+   "role": "SPSALearner, PGLearner (torch), ClimberLearner, FixedLearner, make_learner (falls back to research registry)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/audit.py",
+   "role": "transfer_invariance, conservation, ledger_conservation, bilateral_transfers, classify_pair (collusion classes)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/modes.py",
+   "role": "six interaction modes (MODES, run_mode), noise seed ranges"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/experiments.py",
+   "role": "job functions for examples/ow_selfplay.py"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/selfplay/profiles.py",
+   "role": "privileged operator-side fixtures computed from hidden mechanism"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/training/league.py",
+   "role": "3.0 League (scripted policies in economies), PolicyEntry, MatchRecord, elo/trueskill, PFSP sample_opponents, measure_agent"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/training/trajectories.py",
+   "role": "RecordingRunner, crucible-traj/1 JSONL/NPZ export, ImitationDataset (kernel-Policy trajectories only)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/pool.py",
+   "role": "WorldPool, Supervisor, world_job/_JOB_DEFAULTS, run_world_job, pid_budget, cpu_quota_cores, MAX_WORKERS"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/rollout.py",
+   "role": "RolloutFarm, Rollout record, WorldEnv (semi-MDP over a kernel world), class_policy"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/scale/bench.py",
+   "role": "4.0 benchmark suite (SECTIONS kernel..llm) -> docs/benchmarks/openworld.json"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/bench/run.py",
+   "role": "3.0 benchmark script -> docs/benchmarks/bench.json"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/gym_env.py",
+   "role": "CrucibleEnv Gymnasium adapter (text obs; objective protocol reward; info['objective'] = verifier status incl. progress)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/api/pettingzoo_env.py",
+   "role": "CrucibleParallelEnv PettingZoo adapter (same reward/info contract)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/goals/contracts.py",
+   "role": "GoalContract, GoalVerifier.status (progress, streak), RewardContract (potential shaping + success bonus)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/integrations/agentrs_cam2.py",
+   "role": "CAM 2.0 EnvironmentAdapter (RewardContract reward, info['progress'] every step)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/src/crucible/agents/rl.py",
+   "role": "neural A2C Lifetime/FactoredActor/RLPolicy on kernel goal worlds (Tier-2 neural learner, RewardContract reward)"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/examples/ow_benchmark.py",
+   "role": "one-command benchmark CLI over all protocols incl. sealed"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam7/agent.py",
+   "role": "(compatibility reference, not a dependency) Cam7Learner subclasses crucible.research.learner.Learner; ignores reward arg; reads obs scalars[1..4]"
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/cam7-ref/superlearner/src/superlearner/cam7/experiments/train.py",
+   "role": "(compatibility reference) uses protocols.lifetime, learners.training.train_pool(TRAIN,300), tasks.eval_tasks, learners.make"
+  }
+ ],
+ "public_interfaces": [
+  {
+   "name": "EnvSpec",
+   "shape": "@dataclass(frozen=True) EnvSpec(max_levers=12, max_gauges=16, horizon=120); obs_dim = 2*max_gauges + 2*max_levers + 5 = 61; act_dim = max_levers = 12; slices gauges[0:16], gauge_mask[16:32], last_action[32:44], lever_mask[44:56], scalars[56:61] = (last_reward, last_revenue/scale, last_cost/scale, funds/endowment, tick/horizon)",
+   "location": "src/crucible/research/learner.py:49",
+   "notes": "gauges are symlog readings; actions in [-1,1] mapped linearly onto public lever ranges; slot order is the mechanism's public seeded order (no meaning across worlds). obs_dim is part of lifetime resume config and of CAM checkpoints."
+  },
+  {
+   "name": "Learner",
+   "shape": "class Learner: name, kind; __init__(spec: EnvSpec, seed=0, device='cpu'); reset_context(n, which=None); act(obs[n,obs_dim], explore=True)->[n,act_dim]; observe(obs, action, reward[n], done[n], next_obs); update()->{'updates':int,...}; freeze(frozen=True); save(path); load(path); usage()->Usage; optional state_hash()->str",
+   "location": "src/crucible/research/learner.py:103",
+   "notes": "Frozen = no update, no reading/writing stored experience. Batched over parallel envs. No channel for the public objective, events, text or tool schemas."
+  },
+  {
+   "name": "Usage",
+   "shape": "@dataclass Usage(env_steps=0, updates=0, train_cpu_s=0.0, train_gpu_s=0.0, infer_cpu_s=0.0, infer_gpu_s=0.0, infer_tokens=0, search_evals=0, params=0, extra=dict)",
+   "location": "src/crucible/research/learner.py:85",
+   "notes": "learner self-report; Meter keeps measured values separately"
+  },
+  {
+   "name": "learner registry",
+   "shape": "register(name, factory(spec, seed, device, **kw), *, kind, has_weights, learns_across_episodes, defaults=dict|callable|None, doc='', adapts_within_episode=True); available()->list[str]; describe(name)->dict; make(name, spec=None, seed=0, device='cpu', **kwargs)->Learner (unknown kwargs -> TypeError)",
+   "location": "src/crucible/research/learners/__init__.py:45-80",
+   "notes": "duplicate names raise; torch imported lazily"
+  },
+  {
+   "name": "MechVecEnv",
+   "shape": "MechVecEnv(tasks: Sequence[Task], spec=None, seat=0, money=True); reset(which=None, tasks=None)->obs[n,61] float32; step(actions[n,12])->(obs[n,61], reward[n] float32 = net_cents/money_scale, done[n] bool, {'net_cents': [n]}); drain()->list[episode records]; lever_mask(); public()->[Task.public()]; attrs sims, finished, sim_seconds, steps",
+   "location": "src/crucible/research/envs.py:37 (reset 107, step 129, _finish 164)",
+   "notes": "episode records (operator side) include private normalised score, success, segment profile, random_score, funds_end_cents, ticks_fallback/idle"
+  },
+  {
+   "name": "run_episodes",
+   "shape": "run_episodes(env: MechVecEnv, learner, explore=False, learn=False)->list[dict]",
+   "location": "src/crucible/research/envs.py:195",
+   "notes": "adds env steps into learner.usage().env_steps"
+  },
+  {
+   "name": "KernelMechEnv",
+   "shape": "KernelMechEnv(task, spec=None, handle='agent', tools=False, store=None, strict=True); n=1; reset()->obs[1,61] (only once: t!=0 raises); step(actions)->(obs, reward[1], done[1], {'net_cents','status'}); summary()->{task, net_cents, net_per_tick, score, success, tool_calls, world_digest}; calls list; world, actor",
+   "location": "src/crucible/research/bridge.py:22",
+   "notes": "every reading via rig.read, setting via rig.set, balance via bank.accounts; world clock advanced by tick_s"
+  },
+  {
+   "name": "Task",
+   "shape": "@dataclass(frozen=True) Task(family, seed, mech_seed, world_seed, income, endowment, horizon, n_seats=1, validated=False, goal_net_cents=None, default_net=None, reference_net=None, random_net=None, solvable='unknown', rejected=(), engine='', transfer='', split=''); id='family:seed'; mechanism(); world_config(tools=False, holders=('agent',)); sim(money=True, held=None, funds=None); public()->{task,horizon_ticks,starting_balance_cents,objective,goal_net_cents}; score(net_per_tick); success(total_net_cents)",
+   "location": "src/crucible/research/tasks.py:42",
+   "notes": "TASK_VERSION='task/2', ENDOWMENT_TICKS=20, GOAL_FRACTION=0.5, VAL_SEED0=1_000_000, TRAIN_SEED_MAX=999_999"
+  },
+  {
+   "name": "task builders",
+   "shape": "make_task(family, seed, validate=True, max_tries=8)->Task; build_tasks(pairs, workers=1, max_tries=8, use_cache=True, skip_failures=False)->list[Task]; eval_tasks(families, n, split='val', offset=0, **kw); train_stream(families, start=0, shuffle_seed=None)->Iterator[Task]; families_by(split=None, engine=None, transfer=None, seats=1)->list[str]",
+   "location": "src/crucible/research/tasks.py:149-278",
+   "notes": "cache at $CRUCIBLE_CACHE or ~/.cache/crucible/tasks/<digest>/<family>/<seed>.json"
+  },
+  {
+   "name": "protocols.evaluate",
+   "shape": "evaluate(learner, tasks, *, spec=None, n_envs=16, segments=4, explore=False, reset_every=None, verify_frozen=True, label='', cost=None, boot_seed=0)->{'protocol':'evaluate', records, aggregate, by_family, by_transfer, frozen{unchanged,hash_before,hash_after,method}, cost, ...}",
+   "location": "src/crucible/research/protocols.py:472",
+   "notes": "hashes learner state before/after (learner_hash: state_hash() or checkpoint_digest of save())"
+  },
+  {
+   "name": "protocols.lifetime",
+   "shape": "lifetime(learner, train_tasks, budget_env_steps, eval_every, eval_sets, *, spec=None, n_envs=16, update_every=1, explore=True, segments=4, checkpoint_dir=None, resume=True, thresholds=(0.5,), sustain=2, budgets=None, require_disjoint=False, verify_frozen=True, label='', on_point=None, max_points=None)->{'protocol':'lifetime', points, final, derived, cost{train,eval}, complete, disjoint, train_tasks, frozen_unchanged}",
+   "location": "src/crucible/research/protocols.py:791",
+   "notes": "state file <checkpoint_dir>/lifetime_state.json + point_%04d.ckpt; resume refuses a config mismatch"
+  },
+  {
+   "name": "protocols.timescales",
+   "shape": "timescales(learner_factory(seed), train_tasks, eval_tasks, budget_env_steps, *, seed=0, k_reset=1, spec=None, n_envs=16, update_every=1, segments=4, alpha=0.05, min_effect=0.0, workdir=None, label='')->{fast, parametric, meta, p_holm, attribution{fast,parametric,meta}, checkpoints, disjoint}",
+   "location": "src/crucible/research/protocols.py:1055",
+   "notes": ""
+  },
+  {
+   "name": "protocols.internalisation",
+   "shape": "internalisation(learner_factory, train_tasks, eval_tasks, budget_env_steps, *, seed=0, spec=None, n_envs=16, update_every=1, segments=4, alpha=0.05, reload=True, repeat_check=True, retention=None|{'train_tasks','budget_env_steps','eval_tasks'?}, workdir=None, label='')->{steps[1..8], gain, success_gain, verdict in internalised|no_gain_detected|regressed|invalid, valid, violations, warnings, retention}",
+   "location": "src/crucible/research/protocols.py:1164",
+   "notes": "reload builds a new learner in the same process and load()s the checkpoint"
+  },
+  {
+   "name": "protocols.transfer / transfer_targets",
+   "shape": "transfer(learner_factory, source, targets{name:{'category' in CATEGORIES,'eval':[Task],'train':families|source|None}}, *, source_budget, adapt_budget, eval_every, seeds=(0,), spec=None, n_envs=16, update_every=1, segments=4, threshold=0.5, sustain=1, floor=0.0, alpha=0.05, workdir=None, label=''); transfer_targets(source_families, n_eval=8, split='val', adapt_start=500_000, seats=1, **build_kw)",
+   "location": "src/crucible/research/protocols.py:1466 and 1383",
+   "notes": "CATEGORIES=('within','compositional','structural','cross_impl') at line 90; _steps_pair (1409) reports ratio bounds when one arm is censored"
+  },
+  {
+   "name": "protocols.compare / compare_runs / baseline / evaluate_many / combine_evaluations",
+   "shape": "compare(learners{name:factory}, train_tasks, eval_sets, budget_env_steps, eval_every, *, seeds=(0,), reference=None, spec=None, n_envs=16, update_every=1, segments=4, thresholds=(0.5,), sustain=2, alpha=0.05, compute_budget_s=None, kernel_diagnose=0, workdir=None, label='', keep_runs=False); compare_runs(runs{name:[lifetime results]}, *, reference=None, alpha=0.05, compute_budget_s=None, label=''); baseline(learners, tasks, *, seeds=(0,), reference=None, **kw); evaluate_many(subjects{name:[learner]}, tasks, *, reference=None, spec=None, n_envs=16, segments=4, alpha=0.05, label='')",
+   "location": "src/crucible/research/protocols.py:1730, 1771, 1699, 1637, 1653",
+   "notes": "quantities: final_score@equal_steps, final_success@equal_steps, auc_score_vs_steps, auc_success_vs_steps, score@equal_compute; Holm over all rows"
+  },
+  {
+   "name": "from_registry",
+   "shape": "from_registry(name, spec=None, device='cpu', **kw)->factory(seed)->Learner",
+   "location": "src/crucible/research/protocols.py:151",
+   "notes": ""
+  },
+  {
+   "name": "Cost / Meter",
+   "shape": "@dataclass Cost(env_steps, episodes, updates, updates_returned, updates_reported, train_cpu_s, train_wall_s, train_gpu_s, infer_cpu_s, infer_wall_s, infer_gpu_s, env_sim_s, infer_tokens, search_evals, sim_cost_cents, sim_revenue_cents, ticks_fallback, ticks_idle, reported:dict); compute_s = train_cpu+infer_cpu+train_gpu+infer_gpu; Meter(learner, cost).act/observe/update/close",
+   "location": "src/crucible/research/accounting.py:43 and 119",
+   "notes": "CPU via time.process_time (children not counted)"
+  },
+  {
+   "name": "sealed",
+   "shape": "SEALED_ACK='I am running the final sealed evaluation and will not use it for tuning'; create_set(name, families=None (test-split one-seat), n_per_family=8, budget=1, note=''); describe(name=None); rotate(name, ack, reason, budget=None); prepare(name, workers=1); open_set(name, ack, purpose, caller=None, workers=1)->SealedSet(tasks, tag, alias(), redact()); evaluate(subjects, name, ack, purpose, *, reference=None, caller=None, workers=1, **kw)",
+   "location": "src/crucible/research/sealed.py:42, 175, 206, 216, 296, 355, 397",
+   "notes": "ALLOWED_CALLERS=('crucible.research.sealed','crucible.cli','crucible.__main__'); dir $CRUCIBLE_SEALED_DIR or ~/.crucible; SEALED_SEED0=2e9"
+  },
+  {
+   "name": "SelfPlayEnv",
+   "shape": "SelfPlayEnv(tasks (same n_seats), spec=None, funds=None, trace=False); reset(which=None, tasks=None, funds=None)->[obs[n,61] per seat]; step(actions: [per seat [n,12] or None])->(list obs per seat, reward[S,n], done[n], {'net_cents','revenue_cents','cost_cents','score','status'}); drain(); normalise(seat, slot, settings)",
+   "location": "src/crucible/selfplay/arena.py:137 (step 277)",
+   "notes": "per-seat obs uses the same research.learner layout; private engine diagnostics kept in records/trace only"
+  },
+  {
+   "name": "KernelSelfPlayEnv",
+   "shape": "KernelSelfPlayEnv(task, spec=None, handles=None, funds=None, store=None, strict=True, extra_handles=()); reset()->[obs per seat]; step(actions)->(obs list, reward[S,1], done, info); transfer(seat,to,amount,memo); rig_net(seat, window_s=0); summary()",
+   "location": "src/crucible/selfplay/arena.py:391",
+   "notes": ""
+  },
+  {
+   "name": "Objective / Individual / play",
+   "shape": "Objective(kind in ('own','joint','score','mixed'), weight=0.0).reward(seat, reward[S,n], score=None); Individual(id, learner, objective='own', seat=None, funds_scale=1.0, bankroll=None, parent=None, generation=0, tags=(), privileged=False, world=None, config=None).save(dir)/load(dir, spec=None, learner=None, factory=None); play(env, individuals, *, noise=None, learn=True, explore=None, tasks=None, tag='')->match records",
+   "location": "src/crucible/selfplay/arena.py:521, 569, 668",
+   "notes": "Individual dir: meta.json (format crucible-selfplay-individual/1) + learner.ckpt"
+  },
+  {
+   "name": "SelfPlayLeague",
+   "shape": "SelfPlayLeague(root, task, spec=None, mode='competition', n_slots=4, seed=0, k_elo=24.0, coop_weight=0.5, draw_tol=0.01); new(id, algo, seed=0, objective='own', seat=None, heldout=False, funds_scale=1.0, bankroll=None, tags=(), **options); add(ind, heldout=False, tags=(), role=None); snapshot(pid, stage, heldout=False)->'pid@stage'; add_heldout_population(...); play(participants, seed, *, heldout_eval=False, learn=False, tag='', rated=True)->MatchRecord; train_match; evaluate_heldout(pid, seeds, both_seatings=True); head_to_head(ids, seeds); rerate; save(); load(root)",
+   "location": "src/crucible/selfplay/league.py:48",
+   "notes": "FORMAT 'crucible-selfplay-league/1'; SLOT_STRIDE=64"
+  },
+  {
+   "name": "selfplay make_learner",
+   "shape": "make_learner(spec=None, algo='spsa', seed=0, device='cpu', **options)->Learner; own algos ('spsa','pg','climber','fixed','hold','random') else research registry; learner_config(algo, seed=0, **options)->dict",
+   "location": "src/crucible/selfplay/learners.py:611",
+   "notes": ""
+  },
+  {
+   "name": "audit",
+   "shape": "transfer_invariance(task, schedule, payments, ...); conservation(records); ledger_conservation(world, rig='r1'); bilateral_transfers(world, principals); classify_pair(pair, reference, tol=0.02, ...)-> class in CLASSES=('value_creating_cooperation','tacit_collusion','mutual_cost_restraint','one_sided','no_joint_gain')",
+   "location": "src/crucible/selfplay/audit.py:49, 123, 159, 200, 216, 272",
+   "notes": ""
+  },
+  {
+   "name": "WorldPool / world_job",
+   "shape": "WorldPool(n_workers=None, store_dir=None, start_method='spawn', *, max_jobs_per_worker=32, job_timeout_s=None, imports=(), discover=True, mem_limit_mb=None, name='worldpool'); submit/map/run/as_completed/poll/join/stats/close/terminate; world_job(spec=None, days=None, *, agents=(), **options) with keys world{family,seed,overrides,extra_modules,drop_modules}|resume, days|until_day|until_s, agents[(handle,'mod:callable',kwargs[,{endowment}])], endowment, dt_s, chunk_s, runner sync|async, think_mean_s, agent_seed, record, snapshot_every_days, final_snapshot, summarise, summarise_kwargs, imports, discover, tag, name, world_id, store, strict, timeout_s, check_invariants, timeline",
+   "location": "src/crucible/scale/pool.py:1187, 823, 792",
+   "notes": "MAX_WORKERS=int(env CRUCIBLE_SCALE_MAX_WORKERS or 8)"
+  },
+  {
+   "name": "RolloutFarm / Rollout / WorldEnv",
+   "shape": "RolloutFarm(n_workers=None, make_world='crucible.scale.rollout:make_world_env', make_policy='crucible.scale.rollout:class_policy', *, world_kwargs=None, policy_kwargs=None, params=b'', queue_size=None, steps_per_task=None, max_tasks_per_worker=None, task_timeout_s=None, start_method='spawn', imports=(), discover=True, record_obs=True, obs_fn=None, max_live_worlds=4, max_steps_per_task=100_000, seed=0, policy_scope='world'|'worker', name='rollout'); publish(params: bytes)->version; submit(world, steps=None, *, reset=False, tag=None, seed=None)->id; get()/__iter__ -> Rollout(task_id, ok, world_key, param_version, params_hash, latest_version, fresh_world, done, truncated, steps, obs, actions, rewards, results, sim_dt, sim_t, final_obs, wall_s, policy_s, env_s, ...); WorldEnv(ref, *, handle='learner', endowment=3_000_000, think_s=600, horizon_days=None, objective=None ('mod:callable' RewardContract-like), objective_kwargs=None, max_events=30, imports=(), strict=False).step(action dict|None)->(obs dict, reward, done, {'sim_dt','result','t'})",
+   "location": "src/crucible/scale/rollout.py:354, 60, 106",
+   "notes": "policy needs act(obs, tools)->action; optional reset(actor, rng), observe_result(action, result), load_params(bytes)"
+  },
+  {
+   "name": "CrucibleEnv (Gymnasium)",
+   "shape": "CrucibleEnv(server=None, world_id=None, actor=None, *, spec=None, seed=None, handle='agent', endowment=0, objective=None, reset_mode='continue'|'fork', base_snapshot=None, ephemeral_forks=True, dt=60, time_mode='fixed'|'cost'|'none', min_dt=1, max_steps=100, max_events=30, max_text_length=65536, max_action_length=8192, renderer=None, include_tools='changed', driver=None, render_mode=None); observation_space Dict{text: Text, time: Box(1)}; action_space Text; step -> (obs, reward=objective.step_reward or 0.0, terminated=status.success|failed, truncated, info{..., action_result, objective=status})",
+   "location": "src/crucible/api/gym_env.py:51 (step 153, info at 172)",
+   "notes": ""
+  },
+  {
+   "name": "CrucibleParallelEnv (PettingZoo)",
+   "shape": "CrucibleParallelEnv(server=None, world_id=None, actors=None, *, spec=None, seed=None, agents=None, n_agents=2, endowment=0, objectives=None, renderers=None, reset_mode='continue', base_snapshot=None, ephemeral_forks=True, dt=60, max_steps=100, max_events=30, max_text_length=65536, max_action_length=8192, order_seed=0, driver=None, render_mode=None); step(actions{agent:action}) -> obs, rew, term, trunc, infos[agent]{..., order, action_result, objective=status}",
+   "location": "src/crucible/api/pettingzoo_env.py:23 (step 139, objective at 161)",
+   "notes": "random per-step action order seeded by (order_seed, episode, step)"
+  },
+  {
+   "name": "RewardContract / GoalVerifier.status",
+   "shape": "RewardContract(goal, shaping=1.0, success_bonus=1.0, check_every_s=86400).begin(world, actor)/step_reward(world, actor)->shaping*(phi_t - phi_{t-1}) + success_bonus once/status(); GoalVerifier.status(world)->{success, failed, progress, streak, elapsed_s, success_t, initially_true}",
+   "location": "src/crucible/goals/contracts.py:196 and 189",
+   "notes": "the only reward contract behind Gym/PZ/CAM2/agents.rl"
+  },
+  {
+   "name": "training.League / MatchRecord",
+   "shape": "League(*, world='tiny', days=3.0, seed=0, mode in ('competition','cooperation','mixed'), k_elo, coop_weight, draw_tol, deterministic); add_policy(pid, factory=None, *, spec=None, parent, tags, heldout, generation); sample_opponents(learner, k=1, method='pfsp'|'uniform'|'recent', weighting='hard'|'variance', decay=0.7); MatchRecord(id, world_family, seed, spec_hash, mode, days, participants, seats, outcomes, scores, results, heldout_eval=False, wall_s=0.0)",
+   "location": "src/crucible/training/league.py:233, 133, 309",
+   "notes": "no model/param hash field"
+  }
+ ],
+ "data_model_and_state": "State is held in process, in Python objects; there is no shared database for this subsystem.\n\n- **Learners.** Each learner object owns its weights, optimiser, buffers and per-slot episodic context (for example PPO's `_traj`, `_done_eps` and GRU state). `save(path)` writes the long-term state only: a torch dict for ppo/model_based/meta_np/pg, JSON for the scripted learners.\n- **MechVecEnv.** Holds one MechSim per slot (`sims`), per-slot lever ranges and masks, episode accumulators `_ep`, and operator-side records in `finished`, which `drain()` empties. The reward is computed in `step()` (envs.py:146) as `net/money_scale` and written into obs scalars[0] (envs.py:102).\n- **Tasks.** Immutable dataclasses identified by `family:seed`. `mech_fingerprint` (a digest of the mechanism config) detects the same hidden mechanism under different ids. `world_seed_of` gives each task its own noise. Validated tasks carry their private reference fields.\n- **Protocol run state.** Kept in `Cost` objects (separate train and eval buckets) and in `_Watch`, a chain digest of the training task ids consumed, with family counts and overlaps. Lifetime state is JSON (`lifetime_state.json`: config, points, stream consumed/pending, cost, watch) plus a checkpoint per point. Transfer stores `source_state.json` with a fingerprint and the checkpoint hash.\n- **Sealed sets.** `~/.crucible/` holds the files `sealed_salt` (mode 600), `sealed_sets.json` (registry: families, budget, generation, accesses, contaminated, history) and `sealed_access.jsonl` (append-only log), plus the directory `sealed_tasks/<set>.g<gen>.<v>.json`.\n- **Self-play.** An Individual holds its learner, objective, seat, funds_scale, bankroll, lineage (id, parent, generation, tags), a history row per batch, and counters for matches, env_steps and lifetime_net_cents. SelfPlayLeague keeps `entries` (PolicyEntry with Elo, mu, sigma, games), `info` (role live|snapshot|fixture, stage, of, arch, seat, objective), `records` (MatchRecord plus joint_net_per_tick, private, tag, rated) and `heldout_log`. On disk under `root`: `league.json`, `individuals/<id>/`, `archive/<id>@<stage>/` and `heldout_log.jsonl`.\n- **Events and appliers.** Only the kernel-hosted envs (KernelMechEnv, KernelSelfPlayEnv, WorldEnv, Gym/PZ) go through the event-sourced kernel. Their actions are `World.execute` tool commands and the rig module's `rig.tick`/`rig.report` appliers; MechVecEnv itself emits no events.\n- **WorldPool.** Jobs are declarative dicts. Each job's store is `<store_dir>/<name>/events.sqlite`, with `snap-t<secs>.blob` and `final.blob`.\n- **RolloutFarm.** Holds the parameter blob, a version counter, `params_hash` (blake2b-64 computed in the worker) and the persistent worlds per key inside a worker (LRU, `max_live_worlds`).\n- **Ids in use:**\n  - task `family:seed`\n  - individual ids (free strings) and snapshots `pid@stage`\n  - match `m%05d`\n  - sealed aliases `sealed/<set>/g<gen>/<family>/<k>`\n  - kernel world ids `task-<family>-<seed>-<handle>` and `selfplay-<family>-<seed>-<world_seed>`.",
+ "determinism_replay_persistence": "**Determinism**\n- **MechVecEnv** is deterministic per Task: per-tick noise is `tick_rng(world_seed, rig id, t)`, and `reset()` without new tasks replays the same noise. The kernel twin is bit-identical (tests/test_research_envs.py:139; acceptance K).\n- **Self-play noise.** `with_noise(task, k)` gives replications of one mechanism with different noise. Seeds k*64+slot keep training (TRAIN_SEED0=1000), eval (900000) and held-out (950000) noise disjoint.\n- **Learners** are seeded. PPO's evaluation sampling uses per-slot RNGs re-seeded at `reset_context`, so frozen evaluation is reproducible; internalisation's `repeat_check` verifies this.\n- **Training order.** Training streams (`task_stream`, `TaskSource`) are index-addressable and independent of the learner: equal env steps mean equal tasks, and runs resume exactly from the consumed count plus the pending buckets.\n- **Kernel-hosted runs** (KernelMechEnv, KernelSelfPlayEnv, WorldEnv) are ordinary event-sourced worlds with a digest, replay and fork. The 4.0 report says 12 of 12 trained self-play pairs replayed exactly as tool calls.\n- **WorldPool:** the same spec gives the same digest for any worker count or start method (tests/test_scale.py:187, 225). The stepping grid is absolute, so checkpoint plus resume matches a straight run. This requires `params.cost_model=\"deterministic\"` for worlds that execute code.\n- **RolloutFarm** is not order-deterministic: results arrive out of order. Each trajectory carries its `param_version`/`params_hash`, and staleness is measured. Policy RNG is `default_rng([seed, task id])`.\n\n**Persistence**\n- Checkpoints come from `Learner.save`. Lifetime and transfer are resumable in a workdir; a resume refuses a config/version mismatch (`versions()` = task/2 + mech contract + protocols schema).\n- Leagues persist on disk, and live learners reload with their optimiser state.\n- Task and pool caches are pure functions of (family, seed, versions) and can be deleted.\n- Sealed state lives outside the repository.\n\n**Not persisted**\n- Numeric learner experience (it lives only inside the learner).\n- MechVecEnv episodes, beyond the returned records.",
+ "extension_points": [
+  "research/learners/__init__.py:45 register(): any new reference learner, or a CAM/third-party wrapper, plugs in by name with kind/has_weights/learns_across_episodes metadata; protocols reach it via protocols.from_registry (protocols.py:151) and selfplay.learners.make_learner (selfplay/learners.py:611).",
+  "research/learner.py:49 EnvSpec and :103 Learner: add optional fields/methods with no-op defaults (e.g. an objective/public-task channel, observe_events, reward_mode awareness) without changing the default obs_dim=61, which CAM7/CAM6.1 checkpoints and lifetime resume configs depend on.",
+  "research/envs.py:38 MechVecEnv.__init__ plus _write_obs (envs.py:90-104) and step (envs.py:129-162): the place to add a reward_mode ('legacy_shaped_reward'|'verified_terminal_outcome'|'observation_only'). In observation_only, return reward 0 and zero scalars[0] while keeping scalars[1:5].",
+  "research/bridge.py:60 KernelMechEnv._obs and :89 step (sc[0] at :73, reward at :101): same reward-mode switch for the kernel twin.",
+  "selfplay/arena.py:221 SelfPlayEnv._write_obs (sc[0] at :241), :277 step, :539 Objective.reward and :668 play (learn signal at :719): reward mode, and turning off cross-seat objectives in observation-only mode.",
+  "research/protocols.py:357 _run_batch, the single env-learner loop. MechVecEnv is hard-coded at :362; making the env constructor a factory lets evaluate/lifetime/timescales/internalisation/transfer/compare run on new families and other tiers. :663 TaskSource accepts any index->task callable.",
+  "research/protocols.py:90 CATEGORIES and :1383 transfer_targets: map Levels 1-5 onto categories and add Level 2 (parameter-distribution shift) targets.",
+  "research/tasks.py:272 families_by plus mechanisms.base.MECH_FAMILIES (split/transfer/engine/seats tags): new structural Tier-1 families must register here with split train/val/test so the _Watch disjointness and sealed restrictions apply.",
+  "research/sealed.py:175 create_set (test-split check at :188), :45 ALLOWED_CALLERS, :397 evaluate: open new sealed generations and new sets for the new families and tiers.",
+  "research/accounting.py:43 Cost and :119 Meter: add fields (tokens and GPU s already exist; add VRAM, decisions and approximation error) and keep measured vs reported separate.",
+  "scale/rollout.py:378 RolloutFarm make_world/make_policy 'module:callable' hooks and :106 WorldEnv: plug in v5 universal-interface envs for Tier 2/3 and neural learners that publish parameter blobs; WorldEnv.step (:183) is where the reward contract/mode is chosen (balance-delta default at :199).",
+  "scale/pool.py:792 _JOB_DEFAULTS and :942 run_world_job: civilisation-scale jobs, agent factories and summarisers for population self-play.",
+  "selfplay/league.py:187 SelfPlayLeague.play and training/league.py:133 MatchRecord: add model hashes, parameter versions and training-data provenance; League (training/league.py:233) is the base for an economy-wide league with learned policies.",
+  "api/gym_env.py:153 step / :115 _info and api/pettingzoo_env.py:139 step / :161 infos['objective']: filter the verifier status down to authorised terminal outcomes and pass a reward mode.",
+  "integrations/agentrs_cam2.py:181 step (info['progress'] at :240): the same filtering, for the existing CAM 2.0 adapter.",
+  "scale/bench.py:51 SECTIONS and run_suite (:890): add v5 performance sections (vectorised env backends, participant decisions/s, VRAM, parameter counts, approximation error)."
+ ],
+ "reuse_for_v5": [
+  {
+   "v5_part": "Learner integration requirements replacing Gate S, and 11.6",
+   "how": "Keep the Learner contract and registry as the architecture-neutral numeric interface; CAM7 Cam7Learner and CAM6.1 UnifiedLearner already subclass it. Reuse save/load plus checkpoint_digest/learner_hash for checkpoint persistence and hash verification; MechVecEnv n-slot batching for parallel envs; Individual.save/load for per-agent persistence; RolloutFarm (versioned params_hash, exact accounting) for parallel Tier-2/3 rollouts; agents/rl.py A2C plus selfplay PGLearner/ppo_gru as lightweight neural reference learners whose parameter updates are already demonstrated (acceptance L internalisation verdict 'internalised')."
+  },
+  {
+   "v5_part": "11.3 observation-only and Gate R",
+   "how": "Reward is computed in a handful of places: envs.py:146, bridge.py:101, arena.py:315, rollout.py:196-199, gym/pz/cam2 via RewardContract. Add a single reward_mode switch there. Reuse Task.public() as the objective given to learners and the operator-side episode records and GoalVerifier as the independent verification. Reuse tests/test_research_envs.py:61 and tests/test_selfplay.py:87 as templates for reward-leakage tests."
+  },
+  {
+   "v5_part": "Part 12 and Gate Q",
+   "how": "Reuse Individual (independent learners, own objective, budget, lineage), SelfPlayLeague (archive snapshots, held-out population never trained, PFSP, ratings, persistence, heldout_log), modes.cross_play/best_response/head_to_head (cycle detection), audit.transfer_invariance/classify_pair/conservation (collusion checks), and training.League.measure_agent (independent_revenue with related-party exclusion) as the outcome measure in economy worlds."
+  },
+  {
+   "v5_part": "Part 13 and Gate V",
+   "how": "Reuse WorldPool (process isolation, deterministic digests, snapshots, pid_budget, cpu_quota_cores, mem_limit_mb, MAX_WORKERS) and scale.bench (records every row with its conditions: loadavg, quota, throttling, per-CPU-s rates) as the harness for 4.0-vs-5.0 comparisons on equivalent workloads. docs/benchmarks/openworld.json is the 4.0 baseline."
+  },
+  {
+   "v5_part": "Part 15 and Gate U",
+   "how": "Reuse evaluate/lifetime/timescales/internalisation/transfer/compare unchanged for Tier 1, and generalise _run_batch through an env factory for the other tiers. Reuse:\n- stats.steps_to_threshold and protocols._steps_pair, which give censoring-correct N_q ratios with upper/lower bounds\n- ratio_ci\n- Holm\n- Wilson intervals\n- compare's score@equal_compute for matched compute\n- _Watch, which checks id plus mechanism fingerprint for partition protection\n- sealed (salted, budgeted, logged, redacted) for confirmation runs\n- test-fixture positive controls (ContextLearner, WeightLearner, Memoriser, MetaLearner, LeakyLearner in tests/test_research_protocols.py) for 15.6"
+  },
+  {
+   "v5_part": "14.1 partitions and 14.3 curriculum protection",
+   "how": "Reuse the seed partitions (train 0..999,999, val 1e6+, sealed 2e9+), the families_by split/transfer tags and the sealed stack guard so that a curriculum can never read sealed results. TaskSource/task_stream/train_pool are the sampler interface that CAM7 train.py already uses."
+  },
+  {
+   "v5_part": "15.2 independent outcomes and diagnostics",
+   "how": "Reuse the operator-side episode records (score, success, objective_quantity, ticks_fallback/idle), diagnose_episode/diagnose_records, research.diagnostics.diagnose on kernel event logs, and llm_eval.run_mechanism plus sim_check for lightweight LLM agents on the same tasks."
+  }
+ ],
+ "gaps_vs_v5_spec": [
+  {
+   "v5_part": "11.1 Universal interaction contract",
+   "gap": "There are two disjoint learner interfaces. Tier 1 uses the numeric Learner/EnvSpec, with a fixed 61-float obs and a 12-float action. Tiers 2/3 use dict/text observations: WorldServer.observe, Gym Text obs, WorldEnv dict and Policy.act(obs, tools). No single observe/execute/observe_since contract spans the tiers. The numeric obs has no text, artifact references, tool schemas, events, entity relations, timestamps beyond tick/horizon, uncertainty markers or provenance. The Gym obs is only text plus time, with structured data available only in info.",
+   "size": "large"
+  },
+  {
+   "v5_part": "11.3 Observation-only mode / Gate R",
+   "gap": "No reward modes (legacy_shaped_reward / verified_terminal_outcome / observation_only) exist anywhere; a grep finds nothing.\n- MechVecEnv, KernelMechEnv and SelfPlayEnv write the native reward into obs scalars[0].\n- The Gym, PettingZoo and CAM2 adapters expose GoalVerifier progress and streak in info.\n- RewardContract shaping is the only reward contract.\n- The WorldEnv default reward is the change in the actor's own balance.\n- No reward-leakage tests exist.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "11.6 / Gate S replaced by architecture-independent learner integration",
+   "gap": "Tier-1 integration (actions, world change, checkpoints, parameter updates, parallel envs) exists only for numeric Learners. Persistent experience storage is missing: numeric experience goes only into learner.observe, and training/trajectories.py records only kernel-Policy Runner trajectories. No adapter runs a registry Learner on Tier-2/3 worlds. Neural updates in Tier 2 exist only in agents/rl.py (A2C on RewardContract reward). No Tier-3 learner run and no multi-world-type single learner interface have been demonstrated. Nothing documents how CAM connects without changes to the environment.",
+   "size": "large"
+  },
+  {
+   "v5_part": "Part 12 / Gate Q civilization-wide self-play",
+   "gap": "Learned self-play exists only on the six two-seat hidden-mechanism families: abm_duopoly, abm_commons, abm_complement, tech_handoff, abm_duopoly_fx and tech_shared_pool. The gate states that numeric facility-only self-play does not pass. training.League in full economies plays scripted policies only. No learned policy groups found businesses, trade or cooperate in digital or integrated worlds, and no neural learning has been demonstrated there.",
+   "size": "large"
+  },
+  {
+   "v5_part": "12.1 Population diversity",
+   "gap": "The league population covers live learners, archived snapshots, scripted fixtures and the held-out set (hold, random, climber, funds variants, privileged profiles). It has no semantic LLM generalists and no compact neural participants drawn from other policy families as members, and no notion of independently updated policy groups contributing to a shared trainer.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "12.2 Learning and versioning",
+   "gap": "MatchRecord stores only the task spec_hash. It records no model or parameter hash, policy version or training-data provenance, and Individual meta.json has no weights hash. Only RolloutFarm records params_hash and version.",
+   "size": "small"
+  },
+  {
+   "v5_part": "12.3 Independent behavior",
+   "gap": "transfer_invariance, conservation and classify_pair work only on rig facilities (rig_net metric). Nothing detects artificial transfers between controlled identities in open-economy self-play (related-party exclusion exists only inside goals.metrics.independent_revenue). The joint and mixed Objectives feed other seats' nets into the training signal; this is legitimate for team modes but must be off in observation-only mode.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "13.3 Batched numerical inference",
+   "gap": "MechVecEnv.step loops over slots in Python, calling sim.step on a dict per slot, at about 1.2k-1.7k transitions/s. No NumPy-vectorised, Numba, torch-CPU, quantised or GPU environment or inference alternatives have been benchmarked.",
+   "size": "large"
+  },
+  {
+   "v5_part": "13.4 Compact semantic inference",
+   "gap": "No shared batched small-model inference service exists (prefix cache, quantisation, model versioning). LLMPolicy/HFBackend runs one model per policy, and measured decisions take 3.5-6 s each.",
+   "size": "large"
+  },
+  {
+   "v5_part": "13.7 Resource scheduler",
+   "gap": "Explicit limits exist only for CPU workers (MAX_WORKERS=8, pid_budget, cpu_quota_cores) and per-worker address space (mem_limit_mb), all in WorldPool. Nothing limits GPU memory or time, disk, inference concurrency or the number of active worlds, and no performance budgets are declared ahead of benchmarks.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "13.8 Performance reporting / Gate V",
+   "gap": "The 4.0 bench ran in quick mode only (15 of 73 families), and the 30-day episode table was not run. It does not report participant decisions/s, peak VRAM, model parameter counts, inference token counts or approximation error. It has no 10M-identity test and no event-driven, batched or caching demonstrations.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "14.1-14.2 Training distribution registry and mixed curriculum",
+   "gap": "Tier-1 families carry split/transfer/engine tags in MECH_FAMILIES, and train_stream cycles them uniformly. There is no versioned registry across tiers (objectives, participant distributions, action interfaces, difficulty) and no 50/30/20 mixture sampler. Compute and experience are already measured separately by Cost.",
+   "size": "large"
+  },
+  {
+   "v5_part": "14.3 Adaptive curriculum (Tier 1 research side)",
+   "gap": "No curriculum over research Tasks exists; the GoalSampler for goals lives in another subsystem. Nothing in research measures learner weaknesses to drive generation.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "15.1 Six levels",
+   "gap": "The four CATEGORIES map onto Levels 1, 3, 4 and approximately 5 (cross_impl is a different engine but has the same action interface). No protocol covers Level 2 (new parameter distributions). Level 5's new domains and action interfaces are impossible under the fixed EnvSpec, and transfer_targets only uses the val split. The Level-6 adapter lives elsewhere (realworld) and was not mapped here.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "15.3 Learning efficiency",
+   "gap": "Curves use a linear eval_every grid. There is no 1/2/4/8/16/32/64 informative-interaction grid and no explicit N_q acceleration report, although _steps_pair already computes scratch/pretrained ratios with censoring bounds.",
+   "size": "small"
+  },
+  {
+   "v5_part": "15.4 Fresh-process weights-only",
+   "gap": "internalisation(reload=True) builds a new learner in the same process. load() restores the optimiser state (PPO) and there is no reset option. Clearing memories and replay relies on the learner honouring freeze/reset_context, and no subprocess runner exists.",
+   "size": "small"
+  },
+  {
+   "v5_part": "15.5 A/B/C/D comparisons",
+   "gap": "compare supports equal-steps and equal-compute comparisons for Tier-1 tasks only. No tier-mixture training configurations exist for arms B/C/D (new rapid families, rapid plus semantic, all three tiers), and Tier-2/3 evaluation is not inside protocols.",
+   "size": "large"
+  },
+  {
+   "v5_part": "15.6 Positive controls",
+   "gap": "Positive controls exist only as toy fixtures in tests. The one nontrivial control (meta_np) failed its pre-declared criteria, so no meaningful positive-control transfer on nontrivial new families exists.",
+   "size": "medium"
+  },
+  {
+   "v5_part": "15.7 Statistical rigor",
+   "gap": "Intervals are taken over tasks after averaging each task over seeds; seed_sd is reported separately. No hierarchical or two-level bootstrap covers both world and learner variation. Development and confirmation are separated only through the sealed sets, and the single set (ow-final) is spent.",
+   "size": "small"
+  },
+  {
+   "v5_part": "Sealed evaluation for new families and tiers",
+   "gap": "create_set accepts only test-split mechanism families, so Tier-2/3 objectives have no sealed sets in research.sealed (only evaluation.harness.locked_test_goals). ow-final has used 1 of 1 accesses. The validation seeds have been seen by many 4.0 learners, and the 4.0 report states that a successor needs fresh validation seeds.",
+   "size": "medium"
+  }
+ ],
+ "risks_and_gotchas": [
+  "Reward leakage in the observation, by construction. MechVecEnv writes scalars[0] = reward (envs.py:102), and test_observation_layout_masks_and_reward_units asserts sc[0]==reward and sc[1]-sc[2]==reward. Zeroing reward is not enough to hide net income: revenue and cost (which the spec says to keep) reconstruct it exactly. The leakage test therefore has to define the 'native reward' as the scalars[0] slot and the reward return value, not as the net.",
+  "Zeroing scalars[0] breaks existing learners that read it from the observation: probe_exploit and hill_climb (scripted.py:95), the selfplay climber (selfplay/learners.py:527) and CAM 6.1 UnifiedLearner (cam7-ref unified/runtime/learner.py:282, 412, 427). In observation-only mode, ppo_gru, evo_probe, spsa and pg would learn nothing from the zero reward argument. model_based, meta_np and Cam7Learner use only revenue and cost from the observation and are unaffected.",
+  "Privileged progress leaks today. Gym info['objective'] (gym_env.py:151, 172), PettingZoo infos['objective'] (pettingzoo_env.py:161) and CAM2 info['progress'] (agentrs_cam2.py:240) all carry GoalVerifier.status: progress, streak, success_t and initially_true. The RewardContract reward is itself delta-progress, so the reward reveals the evaluator metric.",
+  "WorldEnv's default reward is the change in the actor's own account balance (rollout.py:198-199). A payment from another participant or a controlled identity counts as reward, so the reward is inflatable, which contradicts v5 12.3.",
+  "In-process learners are not isolated from evaluator data. Nothing stops learner code from importing crucible.research.tasks and building validated tasks (reference_net) on the public validation seeds, or reading env.sims[i].info if handed the env object. Only research.sealed has a stack guard (sealed.py:152). The universal interface must never pass env, Task or MechSim objects to learners.",
+  "Spent sealed set. sealed_sets.json shows ow-final (9 test families x 8 tasks, budget 1) with accesses 1 and remaining 0. Opening it again marks it contaminated. Any v5 confirmation needs rotate() or a new set, and create_set rejects non-test-split families.",
+  "The default EnvSpec (12 levers, 16 gauges, obs_dim 61) is baked into lifetime resume configs (protocols.py:820), into CAM7/CAM6.1 and into stored checkpoints. New families with more levers raise ValueError in MechVecEnv._install. Enlarging the default breaks compatibility; use a non-default EnvSpec instead.",
+  "Bumping TASK_VERSION ('task/2') or the mechanism CONTRACT_VERSION invalidates task, pool and sealed caches and makes results non-pairable (compare_runs raises ProtocolViolation on a version mismatch).",
+  "KernelMechEnv and KernelSelfPlayEnv cannot be reset (a RuntimeError if t != 0), so a new env is needed per episode. They are single-slot and orders of magnitude slower than MechVecEnv; this was not measured precisely.",
+  "Self-play evaluation varies only the noise within one hidden mechanism (EVAL_SEEDS=(900000,), HELDOUT_SEEDS=(950000,)); claims across worlds need several leagues. The privileged profiles (selfplay/profiles.py) are computed from the hidden mechanism and must never count as learners.",
+  "Machine limits: pids.max 2816 (about 100 per Chromium), an 11.52-core cgroup quota shared with other tenants on 48 logical CPUs, and WorldPool/RolloutFarm capped at 8 workers by default. A regression run is in progress, so wall-clock benchmarks are pessimistic. The task cache (~/.cache/crucible) and sealed state (~/.crucible) are outside the repository and are not guaranteed to persist on a container recycle.",
+  "Accounting CPU is time.process_time for the parent process. Learners that compute in child processes or on GPU must self-report through usage(), and RolloutFarm worker CPU is not charged to the learner Cost.",
+  "Not confirmed: whether the realworld Level-6 adapter, goals.propose (self-goals), GoalSampler and agents/llm.py batching meet the v5 needs. They are outside this subsystem and were not read in detail. KernelMechEnv throughput and the full (non-quick) bench table were not measured."
+ ],
+ "tests": [
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_research_envs.py",
+   "covers": "Every family fits EnvSpec and partitions are disjoint; tasks are deterministic and cached; Task.public() contains no private number; normalisation (hold about 0, reference about 1); observation layout, masks and reward units (sc[0]==reward); replay and task swap; overspending; the kernel world equals the simulator tick for tick."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_learners.py",
+   "covers": "Registry; action shape and bounds; reset_context keeps weights; freeze blocks weight changes bit for bit; save/load round-trip; seed determinism; usage accounting; scripted beats hold/random; short training improves ppo_gru and model_based; identical behaviour through kernel tool calls; train_pool equals the stream."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_research_protocols.py",
+   "covers": "Frozen evaluation pairing and hash checks (LeakyLearner caught); torch checkpoint hashing; timescale attribution with ContextLearner, WeightLearner and MetaLearner; internalisation 8 steps, null learners and the Memoriser; overlap rejection; retention; lifetime costs and resume; batch horizons; accounting; transfer efficiency above 1 and equal to 1; compare pairing and Holm; failure diagnosis; generated tasks; kernel diagnosis; sealed salt, budget, rotation and stack guard; reports; the benchmark CLI."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_research_stats.py",
+   "covers": "mean_ci coverage, Wilson edges, paired permutation (exact and null-uniform), IQM, Holm, AUC, steps_to_threshold with sustain, curve_band without extrapolation."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_meta_np.py",
+   "covers": "meta_np invariances (lever and arm order, padding), regression equivalence of the untrained model, exploration allowance, calibration."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_selfplay.py",
+   "covers": "Seat isolation; kernel match equals the arena tick for tick; own observation and objective only; no shared weights or buffers; checkpoint resume; per-individual budgets; joint-outcome learning; opponent dependence; registry learners as individuals; league archive, ratings, held-out log, PFSP and persistence; the six modes; no transfer moves the objective; conservation; collusion classification; profiles as fixtures."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_scale.py",
+   "covers": "WorldPool job validation; digests equal across worker count and fork; failure isolation; checkpoint and resume in another process; worker recycling; no orphans after interrupt, death or parent kill; RolloutFarm versions, exact accounting, crash survival, backpressure and throughput growth; bench schema and plausibility."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_api.py",
+   "covers": "Gym continue and fork modes with an objective, env_checker, PettingZoo parallel, HTTP/MCP routes. No reward-leakage assertions."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_acceptance.py",
+   "covers": "4.0 acceptance gates. K (architecture-neutral evaluation: same budget, kernel equals simulator for ppo_gru/model_based) and L (ppo_gru internalisation verdict 'internalised', probe_exploit null) are the ones relevant here."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_llm_eval.py",
+   "covers": "Frozen LLM baseline harness on mechanism tasks and the open economy (sim_check, interface audit)."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_diagnostics.py",
+   "covers": "Event-log failure diagnosis classes and loops."
+  },
+  {
+   "path": "/workspace/agentrs/.worktrees/crucible-5/crucible/tests/test_agents_llm.py",
+   "covers": "LLMPolicy/CAM2 adapter plumbing, replay, token accounting (GPU tests skip without a model)."
+  }
+ ],
+ "performance_facts": [
+  "MechVecEnv simulator throughput is about 1,190-1,700 transitions/s in one process. Over 121,216 env steps, env_sim_s was 101.6 s (ppo_gru run), 99.2 s (model_based) and 71.3 s (probe_exploit). Source: docs/experiments/ow_benchmark_compare_final.json per_learner.cost.",
+  "Learner compute over the same 121,216 steps: ppo_gru 125.2 s (train 107.8 + infer 17.4, 420 updates); model_based 238.3 s (992 updates); probe_exploit 2.5 s. Source: ow_benchmark_compare_final.json.",
+  "Kernel (docs/benchmarks/openworld.json, quick, 2026-11-23): bank.transfer 4,442 commands/s wall (7,196 per CPU-s); mixed 9-tool calls 3,944/s (6,861 per CPU-s); recorded read bank.accounts 18,120/s; replay from genesis 26,345 events/s (42,618 per CPU-s).",
+  "WorldPool scaling (tiny world, 2 simulated days each, 8 workers): median 1.15 / 1.41 / 4.68 / 10.13 aggregate simulated days per wall-second for 1 / 2 / 4 / 8 parallel worlds. Source: openworld.json scaling.",
+  "RolloutFarm (tiny world, think_s 1800, RandomPolicy, 12 steps per task): 113.3 agent steps/s with 1 worker and 485.1 steps/s with 4 workers (speedup 4.28), with accounting_exact True. Source: openworld.json rollout.",
+  "World memory (bazaar): world RSS 4.1 MB at 1,030 population, 7.5 MB at 10,030 and 39.9 MB at 100,030, at 0.55 / 0.36 / 0.094 simulated days per wall-second. Source: openworld.json memory.",
+  "Mechanism-family 2-day episodes (144 agent steps): 0.13-0.27 CPU-s and about 56-59 MB peak RSS. Storage: 216-1,072 bytes per event; snapshots 4.6-68.7 kB. Source: openworld.json episode_cost and storage.",
+  "Machine: 48 logical CPUs, 11.52-core cgroup CPU quota, 188.5 GB RAM, pids.max 2816, RTX A6000 with 46 GB (not used by the bench suite). Source: openworld.json machine and docs/SCALING.md.",
+  "Building an unvalidated task costs 0.3 s (scm) to 4 s (abm) of CPU; validated tasks take seconds each. Source: research/learners/training.py docstring and research/tasks.py docstring.",
+  "LLM decisions: Qwen3-4B about 3.5 s of generation per decision with prompts of about 4.6k tokens (docs/SCALING.md); Qwen3-1.7B 4.9-6.2 s per call with 3.3-3.4k prompt tokens (docs/RL_INTEGRATION.md).",
+  "Self-play integrity: 560 matches checked for conservation with 0 violations; 12 of 12 trained pairs replayed exactly as kernel tool calls. Source: docs/OPENWORLD_REPORT.md section 3.4.",
+  "3.0 benchmarks: 7,732 transactional commands/s; sandboxed one-shot program 91 ms; persistent service call 0.106 ms. Source: docs/SCALING.md and docs/benchmarks/bench.json.",
+  "4.0 research results: ppo_gru internalised in 3 of 3 seeds (+0.085, +0.065, +0.069); no trained learner beat the scripted experimenter on the sealed set; the meta_np positive control failed C2/C3. Source: docs/OPENWORLD_REPORT.md sections 3.1-3.2."
+ ]
+}

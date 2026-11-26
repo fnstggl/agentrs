@@ -1,0 +1,35 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "SP-11.1",
+ "gate": "SP",
+ "produced_by": "tests/v5/test_gate_SP_11_1.py::test_SP_11_1_universal_contract",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_1.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:18:25.400428+00:00",
+ "tree": {
+  "commit": "8b50eba4edcea83204502fd02bb5f2749d1db491",
+  "dirty_paths": [
+   "rucible/docs/v5/REPRODUCE.md",
+   "crucible/src/crucible/experience/kernel.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "observation_kinds": 12,
+  "tiers_supported": 1,
+  "schema_failures": 0,
+  "exact_numbers_checked": true,
+  "kinds_missing": "semantic_representations"
+ },
+ "artifacts": [],
+ "notes": "kinds per world: {\"tier1 mech:scm_delay\": [\"action_results\", \"delayed_consequences\", \"entity_relationships\", \"events\", \"missing_or_uncertain\", \"public_analytics\", \"resource_usage\", \"structured_numbers\", \"text\", \"timestamps\", \"tool_schemas\"], \"kernel open_digital (4.0)\": [\"action_results\", \"artifact_references\", \"delayed_consequences\", \"entity_relationships\", \"events\", \"missing_or_uncertain\", \"public_analytics\", \"resource_usage\", \"structured_numbers\", \"text\", \"timestamps\", \"tool_schemas\"]}; missing kinds: ['semantic_representations'] (semantic representations need workstream D's encoders on v5 artifacts; tiers 2/3 need workstreams I/J)",
+ "junit": null
+}

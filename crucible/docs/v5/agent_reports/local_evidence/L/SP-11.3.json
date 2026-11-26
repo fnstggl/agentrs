@@ -1,0 +1,37 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "SP-11.3",
+ "gate": "SP",
+ "produced_by": "tests/v5/test_gate_SP_11_3.py::test_SP_11_3_reward_modes",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_3.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:18:40.935380+00:00",
+ "tree": {
+  "commit": "8b50eba4edcea83204502fd02bb5f2749d1db491",
+  "dirty_paths": [
+   "rucible/docs/v5/REPRODUCE.md",
+   "crucible/src/crucible/experience/kernel.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "reward_modes": 3,
+  "legacy_runs_identical_to_4_0": 11,
+  "kernel_rewards_legacy_sum": 1.666667,
+  "kernel_rewards_verified_sum": 1.0,
+  "kernel_rewards_observation_only_sum": 0.0,
+  "gym_rewards_verified_sum": 1.0,
+  "gym_rewards_observation_only_sum": 0.0
+ },
+ "artifacts": [],
+ "notes": "modes verified: {'legacy_shaped_reward': True, 'verified_terminal_outcome': True, 'observation_only': True}; same inputs in every mode (a participant pays the learner $50 a day; the evaluator's goal is cash >= $300); kernel rewards per day: legacy [0.16666666666666669, 0.16666666666666663, 0.16666666666666674, 1.1666666666666665, 0.0, 0.0], verified [0.0, 0.0, 0.0, 1.0, 0.0, 0.0], observation-only [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+ "junit": null
+}

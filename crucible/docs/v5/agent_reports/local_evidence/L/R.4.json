@@ -1,0 +1,36 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.4",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R4_legitimate_observations_remain",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:38.733570+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "legitimate_fields_missing": 0,
+  "environments_compared_to_legacy": 7,
+  "required_entries_checked": 11
+ },
+ "artifacts": [],
+ "notes": "every non-reward observation entry of the numeric envs, the Gym/PZ observations and WorldEnv observations equal to legacy mode's; required present: ['rig.seats.r1.revenue_cents', 'rig.seats.r1.cost_cents', 'rig.seats.r1.net_cents', 'rig.seats.r1.ticks_done'] + balances, readings, tools, events, resources. Absent: []",
+ "junit": null
+}

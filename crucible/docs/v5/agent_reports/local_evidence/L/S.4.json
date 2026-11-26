@@ -1,0 +1,39 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "S.4",
+ "gate": "S",
+ "produced_by": "tests/v5/test_gate_S.py::test_S4_experience_storage_and_updates",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:22:04.951013+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "experience_records": 1140,
+  "records_appended": 1140,
+  "learner_parameter_updates": 18,
+  "params_changed": true,
+  "sealed_shards": 5,
+  "store_bytes": 7477194
+ },
+ "artifacts": [],
+ "notes": "records appended by run_learner across 3 Tier 1 worlds and a kernel economy, store closed and reopened from disk, every line/shard/manifest hash verified, a fresh learner trained on the stored Tier 1 experience",
+ "junit": null
+}

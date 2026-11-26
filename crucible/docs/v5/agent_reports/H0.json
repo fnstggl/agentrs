@@ -1,0 +1,312 @@
+{
+ "workflow": "wf_91afed28-f3c",
+ "wave": "wave1-calibration-rapid",
+ "report": {
+  "workstream": "H0",
+  "branch": "worktree-wf_91afed28-f3c-3",
+  "commit": "4e7c9744345e56d64866719b412becb7162d6e6b",
+  "summary": "The package crucible/src/crucible/rapid now implements INTERFACE_CONTRACTS section 8. All work is committed on the branch and the tree is clean.\n\nWhat works:\n- **Actions and observations.** An `ActionSpace` covers all ten action kinds, each with a JSON schema and checks the schema cannot express. Observations are section-11 Observation dicts.\n- **RapidEnv.** `make(family, seed, **difficulty)` builds a world. It handles action sequences, messages, a journal for filing predictions, joint plans, and controller programs run in `crucible.sandbox`.\n- **Primitives.** A versioned registry of the 28 Part 7.1 primitives. Each is batched, never mutates its state, and has a characteristic-behaviour check (e.g. confounding shows passive slope > 1 but interventional slope about 0).\n- **Generator.** `GraphBuilder` and `compose` cover 8 topologies, temporal classes, observation channels and affordances. The look-alike markets are four worlds with identical interfaces and different price rules; one intervention protocol tells them apart.\n- **Engines.** Five, each with its own transition code: `primitive_graph` (vectorised compositional engine) plus four new Part 7.3 kinds: `discrete_event` (event heap), `graph_dynamical` (real networks), `state_machine` (hidden finite states) and `search`.\n- **Fingerprints.** Measured from built worlds (9 components) with a distance. Renamed copies and parameter variants of all 29 families have distance 0. The smallest distance between real families is 0.063.\n- **Admission.** Ten Part 7.4 checks, with oracles and references kept evaluator-side; world modules import none of them (checked in a fresh interpreter). Each check rejects a deliberately broken control world.\n- **Families.** 29 families with intervention tests; 87 test runs, 0 failures.\n- **4.0 view.** Lever families work as a 4.0 `Engine` (`engine=\"rapid\"`), so `MechVecEnv` and the existing learners run on them unchanged.\n- **Batch path and kernel twin.** `BatchRapid` steps many seeds at about 57,500 world-steps per second and matches single worlds bit for bit. Kernel-hosted `rig` twins with ledger money matched the fast simulators with 0 mismatches over 320 ticks.\n\nMeasured (seeds 0-2):\n- 28 of 29 families admitted (21 train, 7 in the new v5-eval-1 partition), covering all 10 categories.\n- 8 independent engines (5 v5 plus 4.0's scm, abm and techsys).\n- 10 action modalities, 9 difficulty axes, 0 oracle-exposure findings.\n- On held-out seeds 10-12: 26 of 29 admitted (19 train).\n\nBelow threshold, recorded as measured:\n- M.1: 21 of 60 training families.\n- M.2: 7 of 20 evaluation families.\n- M.7 and M.8: 29 of 80 families.\n- SP-7.3: 4 of 8 engine kinds.\n\nTests: 142 rapid unit tests and 15 gate tests pass. A run with the 4.0 rig, evaluator, research-env, learner, sandbox and admission tests plus the v5 checker and slots tests gave 314 passed. The full 1,076-test suite was not run.",
+  "files_added": [
+   "crucible/src/crucible/rapid/__main__.py",
+   "crucible/src/crucible/rapid/actions.py",
+   "crucible/src/crucible/rapid/admission.py",
+   "crucible/src/crucible/rapid/batch.py",
+   "crucible/src/crucible/rapid/claims.py",
+   "crucible/src/crucible/rapid/engines/__init__.py",
+   "crucible/src/crucible/rapid/engines/base.py",
+   "crucible/src/crucible/rapid/engines/discrete_event.py",
+   "crucible/src/crucible/rapid/engines/graph_dynamical.py",
+   "crucible/src/crucible/rapid/engines/primitive_graph.py",
+   "crucible/src/crucible/rapid/engines/search.py",
+   "crucible/src/crucible/rapid/engines/state_machine.py",
+   "crucible/src/crucible/rapid/env.py",
+   "crucible/src/crucible/rapid/families.py",
+   "crucible/src/crucible/rapid/families_des.py",
+   "crucible/src/crucible/rapid/families_net.py",
+   "crucible/src/crucible/rapid/families_pg.py",
+   "crucible/src/crucible/rapid/families_posm.py",
+   "crucible/src/crucible/rapid/families_search.py",
+   "crucible/src/crucible/rapid/fingerprints.py",
+   "crucible/src/crucible/rapid/generator.py",
+   "crucible/src/crucible/rapid/identify.py",
+   "crucible/src/crucible/rapid/mechview.py",
+   "crucible/src/crucible/rapid/observation.py",
+   "crucible/src/crucible/rapid/oracles.py",
+   "crucible/src/crucible/rapid/policies.py",
+   "crucible/src/crucible/rapid/primitive_checks.py",
+   "crucible/src/crucible/rapid/primitives.py",
+   "crucible/src/crucible/rapid/program.py",
+   "crucible/src/crucible/rapid/references.py",
+   "crucible/src/crucible/rapid/report.py",
+   "crucible/tests/test_v5_rapid_actions.py",
+   "crucible/tests/test_v5_rapid_engines.py",
+   "crucible/tests/test_v5_rapid_families.py",
+   "crucible/tests/test_v5_rapid_primitives.py",
+   "crucible/tests/v5/test_gate_M.py",
+   "crucible/tests/v5/test_gate_SP_7_1.py",
+   "crucible/tests/v5/test_gate_SP_7_3.py",
+   "crucible/tests/v5/test_gate_SP_7_4.py",
+   "crucible/tests/v5/test_gate_SP_8_11.py",
+   "crucible/tests/v5/test_gate_SP_8_12.py",
+   "crucible/docs/v5/components/H0.md",
+   "crucible/docs/v5/workstreams/H0.json"
+  ],
+  "requirements": [
+   {
+    "id": "M.1",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/rapid/families.py",
+     "src/crucible/rapid/families_pg.py",
+     "src/crucible/rapid/families_des.py",
+     "src/crucible/rapid/families_net.py",
+     "src/crucible/rapid/families_posm.py",
+     "src/crucible/rapid/families_search.py",
+     "src/crucible/rapid/admission.py",
+     "src/crucible/rapid/report.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py",
+     "tests/test_v5_rapid_families.py"
+    ],
+    "notes": "admitted_train_families=21 (all ten checks on seeds 0-2, fingerprint-distinct); 19 also pass on held-out seeds 10-12. Below the required 60."
+   },
+   {
+    "id": "M.2",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/rapid/families.py",
+     "src/crucible/rapid/admission.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py"
+    ],
+    "notes": "eval_families=7 in the new partition v5-eval-1 (8 registered; net_cascade fails the difficulty check). 4.0's 18 val/test families are untouched and not counted. Below the required 20."
+   },
+   {
+    "id": "M.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/families.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py"
+    ],
+    "notes": "capability_categories_covered=10."
+   },
+   {
+    "id": "M.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/engines/base.py",
+     "src/crucible/rapid/engines/primitive_graph.py",
+     "src/crucible/rapid/engines/discrete_event.py",
+     "src/crucible/rapid/engines/graph_dynamical.py",
+     "src/crucible/rapid/engines/state_machine.py",
+     "src/crucible/rapid/engines/search.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py",
+     "tests/test_v5_rapid_engines.py"
+    ],
+    "notes": "independent_engines=8: 5 v5 engines (checked from source that no engine module imports another) plus 4.0 scm/abm/techsys."
+   },
+   {
+    "id": "M.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/fingerprints.py",
+     "src/crucible/rapid/families.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py",
+     "tests/test_v5_rapid_families.py"
+    ],
+    "notes": "families_missing_fingerprint=0 of 29; fingerprints are measured from built worlds."
+   },
+   {
+    "id": "M.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/actions.py",
+     "src/crucible/rapid/env.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py",
+     "tests/test_v5_rapid_actions.py"
+    ],
+    "notes": "action_modalities=10."
+   },
+   {
+    "id": "M.7",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/rapid/admission.py",
+     "src/crucible/rapid/oracles.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py"
+    ],
+    "notes": "families_feasibility_validated=29 (needs 80); feasibility_failures_admitted=0."
+   },
+   {
+    "id": "M.8",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/rapid/claims.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py",
+     "tests/test_v5_rapid_families.py"
+    ],
+    "notes": "families_with_intervention_tests=29 (needs 80); intervention_test_failures=0 over 87 runs; the look-alike rules are distinguished."
+   },
+   {
+    "id": "M.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/fingerprints.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_M.py"
+    ],
+    "notes": "cosmetic_variants_counted=0 of 58 (a renamed copy and a parameter variant of every family); min_fingerprint_distance=0.063."
+   },
+   {
+    "id": "SP-7.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/primitives.py",
+     "src/crucible/rapid/primitive_checks.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_7_1.py",
+     "tests/test_v5_rapid_primitives.py"
+    ],
+    "notes": "primitives_registered=28, each with version, parameter schema, implementation and a passing characteristic check; versions enforced."
+   },
+   {
+    "id": "SP-7.3",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/rapid/engines/discrete_event.py",
+     "src/crucible/rapid/engines/graph_dynamical.py",
+     "src/crucible/rapid/engines/state_machine.py",
+     "src/crucible/rapid/engines/search.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_7_3.py",
+     "tests/test_v5_rapid_engines.py"
+    ],
+    "notes": "new_engine_kinds=4 of 8 (discrete-event, graph dynamical, search/information, partially observed state machine). Executable program, multi-agent strategic, scientific experiment and planning/resource are the next wave."
+   },
+   {
+    "id": "SP-7.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/admission.py",
+     "src/crucible/rapid/oracles.py",
+     "src/crucible/rapid/identify.py",
+     "src/crucible/rapid/references.py",
+     "src/crucible/rapid/claims.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_7_4.py"
+    ],
+    "notes": "admission_checks=10, each rejecting a negative-control world (7 controls); oracle_exposure_findings=0 (static isolation, 852 secrets scanned, kernel rig outputs)."
+   },
+   {
+    "id": "SP-8.11",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/actions.py",
+     "src/crucible/rapid/env.py",
+     "src/crucible/rapid/program.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_8_11.py",
+     "tests/test_v5_rapid_actions.py"
+    ],
+    "notes": "action_types=10: each Part 8.11 type is offered by an admitted family and its effect is verified on a real world. Tool discovery is the query target 'tools' plus a growing catalogue; programs run in the sandbox."
+   },
+   {
+    "id": "SP-8.12",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/rapid/families.py",
+     "src/crucible/rapid/batch.py",
+     "src/crucible/rapid/mechview.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_8_12.py",
+     "tests/test_v5_rapid_families.py",
+     "tests/test_v5_rapid_engines.py"
+    ],
+    "notes": "difficulty_axes=9, each measured to change built worlds. sim_kernel_mismatches=0 over 320 ticks (4 families on 3 engines, rig twins with ledger money); batch vs single mismatches 0."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 0 --label 'ws-H0: rapid unit tests' -- python -m pytest -q tests/test_v5_rapid_primitives.py tests/test_v5_rapid_actions.py tests/test_v5_rapid_engines.py tests/test_v5_rapid_families.py",
+    "passed": 142,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "CRUCIBLE_V5_AUTHOR=ws-H PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 0 --label 'ws-H0: gate tests final' -- python -m pytest -q tests/v5/test_gate_M.py tests/v5/test_gate_SP_7_1.py tests/v5/test_gate_SP_7_3.py tests/v5/test_gate_SP_7_4.py tests/v5/test_gate_SP_8_11.py tests/v5/test_gate_SP_8_12.py",
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 0 --label 'ws-H0: regression subset' -- python -m pytest -q tests/test_v5_rapid_*.py tests/test_mech_rig.py tests/test_mech_evaluator.py tests/test_research_envs.py tests/test_learners.py tests/test_sandbox.py tests/test_v5_acceptance_checker.py tests/test_v5_slots.py tests/test_admission.py",
+    "passed": 314,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "Gate counts below threshold: M.1 has 21 of 60 training families; M.2 has 7 of 20 evaluation families; M.7 and M.8 have 29 of 80 families; SP-7.3 has 4 of 8 engine kinds.",
+   "Families were tuned against admission seeds 0-2. On held-out seeds 10-12, 26 of 29 are admitted: des_bottleneck and dl_short_term_damage fail the difficulty check there. net_cascade fails on both seed sets and is not admitted.",
+   "The difficulty check uses scripted public-information references, some generic (the best constant action found over practice episodes). A weak reference can fail a family that is not actually too hard.",
+   "Oracles are search-based upper references on the realised noise, not proven optima.",
+   "RapidEnv cash is unconstrained (it may go negative). Only the 4.0 lever view and the rig twin apply 4.0 money rules.",
+   "Structured-action families have no kernel module. The kernel twin exists only for lever families, through rig.",
+   "The informativeness check shows that observations depend on the hidden instance (between/within variance ratio, hidden-state predictability). It does not show that a learner can use them.",
+   "The structural generator `compose()` is tested over 8 topologies, but no registered family is built from a compose recipe yet. The families use `GraphBuilder` and `lookalike_market`.",
+   "Only the test subset listed was run, not the full 1,076-test regression suite."
+  ],
+  "integration_notes": [
+   "Importing crucible.rapid.mechview registers a 4.0 mechanism engine 'rapid' in crucible.mechanisms.base.ENGINES. It adds no MECH_FAMILIES entries, so 4.0 splits, tasks and sealed sets are unchanged.",
+   "No kernel module was added (there is no rapid/modules.py), so load_all_modules is unaffected.",
+   "Contract functions are crucible.rapid.make, crucible.rapid.fingerprint(family) and crucible.rapid.admit(family, seeds). The fingerprint module is crucible.rapid.fingerprints (plural) so the function name is not shadowed. Registries are crucible.rapid.primitives.REGISTRY and crucible.rapid.families.REGISTRY.",
+   "Gate tests run admission on seeds 0-2 and 10-12 (about 60 CPU-s each, marked slow). Run them through crucible.scale.slots. Results are cached under $CRUCIBLE_CACHE/rapid/ keyed by a digest of the rapid sources (about 1 MB).",
+   "Env follows the section-11 Observation shape and offers observe/step/observe_since/tools/outcome, so workstream L can wrap it directly.",
+   "tests/test_v5_acceptance_checker.py rewrites the tracked docs/v5/evidence/checker_report.json when run. I restored it rather than committing it.",
+   "Generated evidence files were deleted locally; none were committed."
+  ],
+  "blockers": [],
+  "disk_used_mb": 1.5,
+  "packages_installed": [],
+  "measurements": [
+   "Admission of all 29 families on 3 seeds: about 60 CPU-s (1-4.5 s per family).",
+   "Seeds 0-2: 28 of 29 admitted (21 train, 7 eval). Seeds 10-12: 26 of 29 admitted (19 train, 7 eval).",
+   "Intervention tests: 87 runs, 0 failures.",
+   "Fingerprint minimum distance 0.063 (mk_elastic~mk_signal); 0 of 58 cosmetic variants counted.",
+   "Oracle exposure findings 0, with 852 hidden numbers scanned.",
+   "Batch path: 64 routing worlds x 30 ticks at about 57,500 world-steps/s; batch-vs-single mismatches 0.",
+   "Kernel twin vs fast simulator: 320 ticks compared over 4 families on 3 engines, 0 mismatches.",
+   "RapidEnv single world: about 0.3-1 ms per tick."
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/tests/v5/test_gate_M.py, test_gate_SP_7_1.py, test_gate_SP_7_3.py, test_gate_SP_7_4.py, test_gate_SP_8_11.py, test_gate_SP_8_12.py",
+    "why": "Gate test files assigned to this workstream by the task."
+   },
+   {
+    "path": "crucible/docs/v5/components/H0.md, crucible/docs/v5/workstreams/H0.json",
+    "why": "Component guide and workstream report required by the task."
+   }
+  ]
+ }
+}

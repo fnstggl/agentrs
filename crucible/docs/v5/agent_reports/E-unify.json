@@ -1,0 +1,124 @@
+{
+ "workflow": "wf_84ace443-66b",
+ "wave": "calibration-unify",
+ "report": {
+  "branch": "worktree-wf_84ace443-66b-1",
+  "commit": "d8c59cd",
+  "summary": "The calibration package now has one registry. `crucible.calibration.load(\"<name>@1\")` loads all nine models and `crucible.calibration.datasets()` serves all four datasets. All six test modules pass (59 tests) at commit 1426ada on a clean tree. The follow-up commit d8c59cd changes only the component guide.\n\nThe E2 model cards were not migrated: the registry reads both card schemas instead. No model was refitted. No params.npz, model card, report, plan, fitted metric or checkpoint hash changed (git diff of models/, reports/ and plans/ is empty). Nothing under docs/v5/evidence/ and not ACCEPTANCE_MANIFEST.json was touched, and history was not rewritten.\n\nWhat changed:\n- **The registry** (crucible/src/crucible/calibration/registry.py): it reads E1's `crucible.v5.model_card/1` cards (a predictor `kind`) and E2's `crucible.v5.calibration.model_card/1` cards (a `loader` class). `card_view()` turns either schema into one description: canonical domain and identification, datasets, checkpoint files, report, limits, mechanisms, the plan and its amendments, fit, and the selection record. The card's own labels are kept alongside.\n- **Vocabulary aliases**: `commercial_intervention_response` -> `advertising_response`, `software_collaboration_and_adoption` -> `software_adoption`, `randomized_experiment` -> `randomized_controlled_trial`.\n- **One FittedModel base class**: E2's CommercialResponseModel, DeepEngagementModel and RepoGrowthModel now subclass it. `sample(X, rng)` also accepts E2's old `(rng, X)` order. Errors are CalibrationError subclasses that are also KeyError, IOError or ValueError, so existing error handling keeps working.\n- **Datasets** (datasets.py): also serves the committed manifests in docs/v5/calibration/datasets/, through new acquire/verify/validate hooks in criteo.py and gharchive.py. GH Archive's raw hourly files are deleted after extraction, so each hour is checked by its recorded raw SHA-256 and by the digest of its extracted table.\n- **Manifests**: both gained publisher, citation, platform, period, retrieved date, title and acquirer, and the GH Archive manifest also gained a licence name. No checksum or file entry changed. The manifest builders now write the same fields.\n- **Audit** (audit.py): it reads both schemas. E2 reports are re-indexed into the audit's layout; the only computed number is the kept-minus-baseline difference.\n- **Plan check (SP-5.5)**: each plan and each amendment must be at its recorded commit with the recorded sha256 and unchanged since. It must be committed before the fit's start time (E2 cards record it), before the card was first committed, and inside the fit commit. The check reads both plan layouts. A candidate that is not in the plan must be named by an amendment of it; this is how amendment 1 accounts for t_gbdt_reg and gbdt_poisson_reg. The selection check also verifies E2's bootstrap comparisons.\n- **Reproduction**: F.3 now recomputes the held-out metric of all nine models, E2's included.\n- **registry_e2.py**: now a thin compatibility layer that delegates everything to the unified code. It is kept for the E2 fitting scripts and their CRUCIBLE_E2_CAL_DIR smoke-run redirect.\n- **FIDELITY_REGISTER.md**: the E2 rows now use the cards' mechanism ids and exactly one of the six categories, with the qualifiers moved to the evidence column. The Criteo row now states a period (released 2018). I added a row for `new_repository_adoption_curve`, which the growth card lists but had no row.\n- **Tests**: gate F uses the card's checkpoint file name and tamper-tests one model of each schema. F.3, F.5 and F.7 now cover every qualifying model and every cited dataset. I added tests that both schemas load and that the checks catch violations in E2-style cards. The E2 test modules now call the unified API; two assertions now expect the canonical labels.\n- **Docs**: new crucible/docs/v5/components/E.md describes the unified registry; E1.md, E2.md and REPRODUCE.md are updated.",
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --label \"unify: calibration tests\" -- /venv/main/bin/python -m pytest -q tests/test_v5_calibration_core.py tests/test_v5_calibration_commercial.py tests/test_v5_calibration_software.py tests/v5/test_gate_F.py tests/v5/test_gate_SP_5_4.py tests/v5/test_gate_SP_5_5.py  (from crucible/, at commit 1426ada, clean tree, TMPDIR set to the session scratchpad so the unofficial evidence records are this run's own)",
+    "passed": 59,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "Same six modules before the change (baseline, at 5b19b82)",
+    "passed": 43,
+    "failed": 3,
+    "skipped": 0
+   }
+  ],
+  "gate_metrics": {
+   "F.1": {
+    "empirical_domains_fitted": 5,
+    "registered_models": 9,
+    "qualifying_models": 9,
+    "domains": "advertising_response,browsing_frequency,content_selection,software_adoption,watch_duration"
+   },
+   "F.2": {
+    "content_consumption_fitted": true,
+    "randomized_commercial_response_fitted": true,
+    "content_consumption_models": "content_consumption,content_consumption_feed,news_click",
+    "randomized_commercial_models": "commercial_response",
+    "content_consumption_test_log_loss": 0.44255150798626197,
+    "content_consumption_baseline_log_loss": 0.4778572206978486
+   },
+   "F.3": {
+    "heldout_reports": 9,
+    "reports_reproduced": 9,
+    "max_relative_difference": 1.8947872721139063e-16,
+    "content_consumption.log_loss": 0.44255150798626197,
+    "content_consumption_feed.log_loss": 0.6238223777319946,
+    "watch_duration.pinball": 0.1293642501577663,
+    "return_daily.log_loss": 0.5617286764812411,
+    "session_rate.poisson_deviance": 3.3014586700554815,
+    "news_click.log_loss": 0.1464838614028877,
+    "commercial_response.primary_pooled_logloss_visit_plus_conversion (100,000-user test audit subsample)": 0.1161135761968873,
+    "software_deep_engagement.log_loss": 0.1268606690571936,
+    "software_repo_growth.mean_poisson_deviance": 0.5361286591839725
+   },
+   "F.4": {
+    "baseline_comparisons": 9,
+    "learned_models_beating_baseline": 9
+   },
+   "F.5": {
+    "calibration_metric_reports": 9
+   },
+   "F.6": {
+    "checkpoints_saved": 9,
+    "checkpoint_hash_mismatches": 0,
+    "tamper_detected": true,
+    "largest_checkpoint_bytes": 830690
+   },
+   "F.7": {
+    "datasets_with_checksums": 4,
+    "provenance_records": 4,
+    "datasets_registered": 4,
+    "datasets_verified_locally": 4,
+    "datasets_cited_by_qualifying_models": 4
+   },
+   "F.8": {
+    "extrapolation_limit_sections": 9
+   },
+   "F.n1": {
+    "synthetic_only_domains": 0,
+    "synthetic_datasets_registered": 0
+   },
+   "SP-5.4": {
+    "important_mechanisms": 31,
+    "with_complete_record": 31,
+    "important_mechanisms_without_record": 0,
+    "v5_rows": 12,
+    "v5_rows_with_problems": 0,
+    "empirically_fitted_rows": 11
+   },
+   "SP-5.5": {
+    "models_checked": 9,
+    "metrics_prespecified_before_fit": true,
+    "models_without_prespecified_plan": 0,
+    "worse_model_kept": 0,
+    "learned_model_kept": 9
+   },
+   "registry_e2.gate_metrics (E2 subset)": {
+    "empirical_domains": [
+     "advertising_response",
+     "software_adoption"
+    ],
+    "heldout_reports": 3,
+    "baseline_comparisons": 3,
+    "calibration_metric_reports": 3,
+    "checkpoints_saved": 3,
+    "checkpoint_hash_mismatches": 0,
+    "datasets_with_checksums": 2,
+    "provenance_records": 2,
+    "extrapolation_limit_sections": 3,
+    "synthetic_only_domains": 0,
+    "metrics_prespecified_before_fit": true,
+    "worse_model_kept": 0
+   },
+   "measured_at": "commit 1426ada, clean tree; values read from the evidence records of the test run (written to the session scratchpad, not filed under docs/v5/evidence)"
+  },
+  "limitations": [
+   "The two card schemas still exist side by side because the cards were not migrated. Two pairs of readers must stay in step: registry._view_kind_card / _view_loader_card and audit._spec_problems_keyed / _spec_problems_listed.",
+   "The E2 commercial plan defines its composite primary metric in words. The audit accepts the card's `primary_*` key as that metric and cannot check the key's name against the words. E2 plans list secondary metrics as prose, so plan_check does not check that they were reported; the E2 unit tests recompute them from the data.",
+   "Three vocabulary choices are mine and should be confirmed: commercial_intervention_response -> advertising_response, software_collaboration_and_adoption -> software_adoption, randomized_experiment -> randomized_controlled_trial. Because of them, FittedModel.identification and registry_e2.gate_metrics()['empirical_domains'] now return the canonical terms. Two E2 test assertions were updated to match; the cards' own labels are still available.",
+   "new_repository_adoption_curve is listed by the growth card but is a measured descriptive reference: not fitted, no held-out evaluation, and nothing in the simulator uses it yet. I recorded it as 'plausible, unvalidated', with the measured curve in the evidence column. This is a judgement call, and the owning workstream may prefer another category.",
+   "Provenance facts I added to the E2 manifests (publisher, citation, platform, period, retrieved 2026-11-25) come from E2's own docs and cards and the data-directory dates. Criteo's collection period is undisclosed, so the manifest and register say 'released with Diemert et al., AdKDD 2018'.",
+   "F.3 recomputes commercial_response on the report's seeded 100,000-user test audit subsample, not on all 2,795,919 test users; the full-test number is the fit's own.",
+   "F.7 now calls acquire() and verify() on every cited dataset. With the data present this is a re-verification of about 1.7 GB with no download. It rewrites the GH Archive acquisition.json in the data directory with identical content; I made that write atomic.",
+   "The workstream reports docs/v5/workstreams/E1.json and E2.json were left as written, so they still say registry_e2 must be unified. INTERFACE_CONTRACTS section 5 was not changed; the unified FittedModel satisfies it.",
+   "Gate tests were run as ordinary pytest runs, not official `python -m crucible.acceptance.v5 run` runs, so no evidence is filed under docs/v5/evidence/."
+  ]
+ }
+}

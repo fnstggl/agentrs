@@ -1,0 +1,51 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "SP-11.6",
+ "gate": "SP",
+ "produced_by": "tests/v5/test_gate_SP_11_6.py::test_SP_11_6_external_adapter_without_environment_changes",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_6.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:18:57.345918+00:00",
+ "tree": {
+  "commit": "8b50eba4edcea83204502fd02bb5f2749d1db491",
+  "dirty_paths": [
+   "rucible/docs/v5/REPRODUCE.md",
+   "crucible/src/crucible/experience/kernel.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "external_adapter_env_changes": 0,
+  "connection_guide_present": true,
+  "adapter_import_violations": 0,
+  "environment_files_changed": 0,
+  "public_attributes_patched": 0,
+  "adapter_actions": 180,
+  "adapter_events": 159,
+  "adapter_records": 180,
+  "external_learner_updates": 180,
+  "worlds": 3
+ },
+ "artifacts": [
+  {
+   "path": "docs/v5/LEARNER_GUIDE.md",
+   "sha256": "86b2c62b8d8c356e4153296237ef091ec84f2782a67030dabc2f77bfe97b2ce2",
+   "bytes": 13842
+  },
+  {
+   "path": "examples/experience_external_adapter.py",
+   "sha256": "4e68459254e2bd5601f0ef4ddf7c179e887fab5ea1cb7109e1753b31b6323c88",
+   "bytes": 10399
+  }
+ ],
+ "notes": "adapter: examples/experience_external_adapter.py (CAM Unified EnvAdapter shape on crucible.experience); violations []; changed files []; patched []",
+ "junit": null
+}

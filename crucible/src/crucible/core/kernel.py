@@ -215,6 +215,7 @@ class Ctx:
         self.tool_args: dict | None = None
         self.read_only = False
         self.gov_approved: str | None = None  # set while executing an approved governance proposal
+        self.quiet = False                    # 5.0: True only in the rejection transaction (no subscribers run)
 
     @property
     def now(self) -> int:
@@ -356,6 +357,9 @@ class World:
         self.processes: dict[str, Callable] = {}
         self.resolvers: list[Callable[[str, str], Endpoint | None]] = []
         self.listeners: list[Callable[[Event], None]] = []
+        # 5.0 (crucible.substrate.bus): same-transaction event subscribers, by event type -> [(owner, fn(ctx, ev))].
+        # Registered in Module.install; called by _emit right after the applier. Empty -> 4.0 behaviour exactly.
+        self.subscribers: dict[str, list[tuple[str, Callable[["Ctx", Event], None]]]] = {}
         self.hooks: dict[str, Callable] = {}
         self.runtime: dict[str, Any] = {}  # non-state runtime resources (sandbox workers, caches)
         self.stats = {"commands": 0, "rejected": 0, "events": 0, "procs": 0}
@@ -373,10 +377,12 @@ class World:
     # ------------------------------------------------------------------ construction
     def _install_core(self) -> None:
         st = self.state
+        st.declaring = "kernel"
         st.declare_table("principals", index=("kind",))
         st.declare_table("sched")
         st.declare_table("idem")
         st.declare_table("knowledge", index=("principal",))
+        st.declaring = None
         st.meta.setdefault("clock", 0)
         for name, fn in [("cmd", self._ap_cmd), ("cmd.rejected", self._ap_rejected), ("proc", self._ap_proc),
                          ("proc.failed", _ap_noop), ("time", self._ap_time), ("sched.add", self._ap_sched_add),
@@ -436,7 +442,11 @@ class World:
                 self.appliers[et] = bound
             if hasattr(fn, "__crucible_process__"):
                 self.processes[f"{mod.name}.{fn.__crucible_process__}"] = bound
-        mod.install(self)
+        self.state.declaring = mod.name        # 5.0: which module declares which table (runtime, not state)
+        try:
+            mod.install(self)
+        finally:
+            self.state.declaring = None
 
     def module(self, name: str) -> Module:
         return self.modules[name]
@@ -539,7 +549,36 @@ class World:
         ev = Event(self.seq, self.now, type, ctx.actor, ctx.cmd, payload, vis)
         self._apply(ev)
         ctx.events.append(ev)
+        if self.subscribers and not ctx.quiet:
+            subs = self.subscribers.get(type)
+            if subs:
+                self._notify(ctx, ev, subs)
         return ev
+
+    def _notify(self, ctx: Ctx, ev: Event, subs: list) -> None:
+        """5.0: run the same-transaction subscribers of `ev` (crucible.substrate.bus). Each runs as the system in a
+        nested context that shares the transaction (events, external outcomes) and a savepoint: if it raises, its
+        partial effects are undone and the error propagates to the emitting handler, so an uncaught failure rolls the
+        whole command back. Replay never calls subscribers (it applies recorded events, theirs included);
+        regeneration re-runs them through the handlers, so they must be deterministic."""
+        for _owner, fn in list(subs):
+            if ctx.depth >= 8:
+                raise InvalidAction("event subscription depth limit exceeded", event=ev.type)
+            sub = Ctx(self, SYSTEM, ctx.cmd, origin=ctx.origin, depth=ctx.depth + 1)
+            sub.ext_key, sub.events, sub.ext = ctx.ext_key, ctx.events, ctx.ext
+            sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = ctx.tool, ctx.tool_args, ctx.read_only, \
+                ctx.gov_approved
+            mark = self.state.savepoint()
+            n_ev, seq0 = len(ctx.events), self.seq
+            try:
+                fn(sub, ev)
+            except Exception:
+                self.state.rollback_to(mark)
+                del ctx.events[n_ev:]
+                self.seq = seq0
+                raise
+            finally:
+                ctx._rng_n += sub._rng_n + 1000
 
     def _apply(self, ev: Event) -> None:
         fn = self.appliers.get(ev.type)
@@ -660,6 +699,7 @@ class World:
         self.stats["rejected"] += 1
         self._begin()
         ctx = Ctx(self, actor if self.state.has("principals", actor) else SYSTEM, cmd_no)
+        ctx.quiet = True   # a rejection records the refusal only; subscribers never run here (nothing may fail now)
         payload = {"tool": tool if isinstance(tool, str) else repr(tool)[:200], "actor": actor if isinstance(actor, str) else None,
                    "args": args if isinstance(args, dict) else None, "error": err.as_dict()}
         if cmd_no is not None:
@@ -911,6 +951,7 @@ class World:
         # keep table declarations from install(), take data from snapshot
         for name, fields in w.state.index_fields.items():
             loaded.declare_table(name, fields)
+        loaded.declared_by = w.state.declared_by
         w.state = loaded
         w.seq = d["seq"]
         w.last_hash = d["hash"]
@@ -938,7 +979,7 @@ class World:
             raise ProtocolError(f"fork {world_id} has no base snapshot")
         from_seq = snap["seq"] if snap else 0
         w = cls.replay(spec, store.read_events(world_id, from_seq=from_seq), world_id=world_id, verify=verify,
-                       base_blob=base)
+                       base_blob=base, store=store)
         w.store = store
         w.strict = strict
         return w
@@ -954,12 +995,17 @@ class World:
 
     @classmethod
     def replay(cls, spec: WorldSpec, events: Iterable[dict], world_id: str = "replay", verify: bool = True,
-               base_blob: bytes | None = None) -> "World":
-        """Rebuild a world by applying recorded events (from genesis, or on top of a snapshot)."""
+               base_blob: bytes | None = None, store=None) -> "World":
+        """Rebuild a world by applying recorded events (from genesis, or on top of a snapshot).
+
+        5.0: `store` is where content-addressed blobs referenced by events (artifact bytes, `cols.batch` arrays) can
+        be read while applying; replay never writes to it."""
         if base_blob is not None:
             w = cls.from_blob(base_blob, world_id=world_id)
         else:
             w = cls(spec, world_id)
+        if store is not None:
+            w.store = store
         h = w.last_hash
         for d in events:
             ev = Event.from_dict(d)

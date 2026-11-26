@@ -1,0 +1,866 @@
+{
+ "schema": "crucible.v5.calibration.dataset/1",
+ "name": "gharchive_2024-10-07_96h",
+ "workstream": "E2",
+ "synthetic": false,
+ "title": "GH Archive: public GitHub events, 2024-10-07 to 2024-10-10 UTC (96 hourly dumps)",
+ "description": "Hourly dumps of the GitHub public events API archived by GH Archive, 2024-10-07T00 to 2024-10-11T00 UTC, streamed one hour at a time and reduced to a numeric event table (time, event type and action, numeric actor and repository ids, four derived flags, push size).",
+ "acquirer": "crucible.calibration.gharchive",
+ "url": "https://data.gharchive.org/",
+ "homepage": "https://www.gharchive.org/",
+ "license": {
+  "name": "GitHub Terms of Service and Acceptable Use Policies (public events archived by GH Archive; GH Archive code MIT)",
+  "summary": "Public GitHub events as archived by GH Archive. Use is governed by GitHub's Terms of Service and the Acceptable Use Policies' information-usage restrictions (research and archival use allowed; personal information must not be used for spamming, sold, or used to identify people). GH Archive's own code is MIT licensed.",
+  "text_locations": [
+   "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+   "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies",
+   "https://github.com/igrigorik/gharchive.org/blob/master/LICENSE"
+  ]
+ },
+ "files": [
+  {
+   "file": "2024-10-07-0.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-0.json.gz",
+   "sha256": "2fcde2e1b1968bf20c953f3b342e0e44565cc1f1df2e237ec00d6eaba5664b12",
+   "bytes": 76021848,
+   "events": 175507,
+   "extract_digest": "0e822a1b7f1cf2767bff517589f0d572793b4ce5f95b157ec2c6900ec5858563"
+  },
+  {
+   "file": "2024-10-07-1.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-1.json.gz",
+   "sha256": "c20228fa16090818e66c8cf031820d59d6883a9bfd1f75700caa43866cf3bf35",
+   "bytes": 75539225,
+   "events": 192853,
+   "extract_digest": "5b4fe64698e3df067229774a4c17b7fe35008eb3949fc843069c96a0c0c418c0"
+  },
+  {
+   "file": "2024-10-07-2.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-2.json.gz",
+   "sha256": "2c8c03324a427f067e6eb604605b58247e2c2c17ee1ba8768fb40374dfdccf26",
+   "bytes": 72693239,
+   "events": 171032,
+   "extract_digest": "e31547006a27f8dfc7c760e3209f298781d843aa68bacd9f0b6ec21f8f967bee"
+  },
+  {
+   "file": "2024-10-07-3.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-3.json.gz",
+   "sha256": "f9db6747441485a0156568c1fb0d3b087b74b396201b4fe1ff3c9a3da29dfe02",
+   "bytes": 82638474,
+   "events": 195633,
+   "extract_digest": "96070ac083a1001de266f332a0933fdf0a2ffac62044cc3aada248472c253735"
+  },
+  {
+   "file": "2024-10-07-4.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-4.json.gz",
+   "sha256": "5d2db24d82edecd2748f02a9325039cbec5cca23954bcd55e3361446964050ad",
+   "bytes": 83315468,
+   "events": 180662,
+   "extract_digest": "d4e6a73fc17ac26bfbc57c384b652619f547a66797d3375377bfec98a764b186"
+  },
+  {
+   "file": "2024-10-07-5.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-5.json.gz",
+   "sha256": "d6636c60b320e6e4ab49294f9a1a38419d569b3cf085212d2b0d3e0791ede0f5",
+   "bytes": 85676485,
+   "events": 189125,
+   "extract_digest": "ac064b9572c8b7a085eaa1e3dc3ca1e33874c74dd6bfc5efd29ed689b4bd6b61"
+  },
+  {
+   "file": "2024-10-07-6.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-6.json.gz",
+   "sha256": "78b27e00655260d14a0e99bec82e8ae95594ce0fb44f7a191e831285d3727453",
+   "bytes": 101648130,
+   "events": 221111,
+   "extract_digest": "4b6853812929e28c84638db4b4fdbc3200deb91173e77051ebf1208a170d5c0e"
+  },
+  {
+   "file": "2024-10-07-7.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-7.json.gz",
+   "sha256": "f1b3fbe09ed8db3b46edf464f0183294daf17f5385e6652d41a33b7ee3619193",
+   "bytes": 115694010,
+   "events": 230617,
+   "extract_digest": "db05a2478ee2042c5892520953c8b6a0c0cc0b72ad892100a5aa04f96efc1497"
+  },
+  {
+   "file": "2024-10-07-8.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-8.json.gz",
+   "sha256": "903d4a76948a2393e7682a22973efbe22389973b3d3e95b3a8abb4f4a2fa6f30",
+   "bytes": 120224130,
+   "events": 240932,
+   "extract_digest": "58618d11ca41eb9a64fdfe05364ef61670dba89770d7daca43cf0541ce7d4afb"
+  },
+  {
+   "file": "2024-10-07-9.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-9.json.gz",
+   "sha256": "09772dc0adb6944d29c2f2a62a935657310de6d81935f8ebc2b127ed5fcac6aa",
+   "bytes": 123133590,
+   "events": 247435,
+   "extract_digest": "9fd495017433227b7786da75cf5a34ccbacdd0f41f40ddadd41f3b04d4ad86ba"
+  },
+  {
+   "file": "2024-10-07-10.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-10.json.gz",
+   "sha256": "fd8a1dd554d589b022123919dd7ab1dbcc46a9028b117b5e32d3b7f29d0f459b",
+   "bytes": 117815017,
+   "events": 240211,
+   "extract_digest": "3330bbbf11d0548ff53058ff541aee05d4274e02f815e43b200db5ebe7e50af5"
+  },
+  {
+   "file": "2024-10-07-11.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-11.json.gz",
+   "sha256": "2be0c690ad4c50846decdb80ae3aa53266dd2e99cb92e1eda20e7bcc5da49f85",
+   "bytes": 122780094,
+   "events": 241278,
+   "extract_digest": "60c16bc95d3aba7f423872bf39de5b8c88297b80ec7ba1263b1347b6885f19c3"
+  },
+  {
+   "file": "2024-10-07-12.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-12.json.gz",
+   "sha256": "bf38f27f60566b79d37f7f8b236f1913b0b9237a5552a456f2d492c22e4fff18",
+   "bytes": 120034550,
+   "events": 281542,
+   "extract_digest": "07c166f61d6c2de921a1eb196d02ada72a3f8f9a0608aed2bb6d83b4112033b9"
+  },
+  {
+   "file": "2024-10-07-13.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-13.json.gz",
+   "sha256": "e9912f0f68f4655884e7912f7b054a4f1d046f62c20f87fcc1baa55f17e6ca58",
+   "bytes": 135173235,
+   "events": 281662,
+   "extract_digest": "dd1de12a40340d00ea6f06122ce25ff4052f0aa48c6deeda3aa022f618b388f3"
+  },
+  {
+   "file": "2024-10-07-14.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-14.json.gz",
+   "sha256": "2c46dcaab4e68705e620b4296888722431fbc782d1999a2f9287e4f51eb5f998",
+   "bytes": 135851103,
+   "events": 270773,
+   "extract_digest": "d453ea748f324b8bd1d4924f3ba80d722ff871ec41693d04ed971469adda6c0f"
+  },
+  {
+   "file": "2024-10-07-15.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-15.json.gz",
+   "sha256": "d63a55c4e8c5c89f0551fbee9b960139a59f4950afcd0ad39e1aeca327e65ceb",
+   "bytes": 137479719,
+   "events": 269726,
+   "extract_digest": "0390a671aaee87ffe32bc97bcb466a51f26fba6a62b13a35a20687bda3bc2708"
+  },
+  {
+   "file": "2024-10-07-16.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-16.json.gz",
+   "sha256": "33c7b51bae737311c320bdb46d35c00d244029c0407b4591795d9c39a220d692",
+   "bytes": 128288910,
+   "events": 258821,
+   "extract_digest": "42e3c1462c19d5749c9100ca54429e07751ac211595e4f8e9a68e0cd3cc8e30c"
+  },
+  {
+   "file": "2024-10-07-17.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-17.json.gz",
+   "sha256": "b9bce3325e66d1dcd53fc735e517074416c4538d336d85d8065b63edbb7f5d35",
+   "bytes": 122631742,
+   "events": 257976,
+   "extract_digest": "39fcb657d0addf0cb1176a4536766d1366fda8d4e3bc04242a31b12b772815bb"
+  },
+  {
+   "file": "2024-10-07-18.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-18.json.gz",
+   "sha256": "d0148a994784a2332892abd5ff42e30b88a4b623412ee29962ee98237926899a",
+   "bytes": 130842933,
+   "events": 268919,
+   "extract_digest": "72b15db82d6762f1730465a3c6a9c32a574ad1ffee38e547cb5593f2952c86b9"
+  },
+  {
+   "file": "2024-10-07-19.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-19.json.gz",
+   "sha256": "270fe26f8eb18c9b32f2bf385bf470919fef0defada1fd74c4f79dc4fa172792",
+   "bytes": 137933125,
+   "events": 251184,
+   "extract_digest": "50ee903b8aa7d781d9c23c03fab6471066319a4dcc2e20873838f8d435e66e50"
+  },
+  {
+   "file": "2024-10-07-20.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-20.json.gz",
+   "sha256": "f9fae4291a41651dfa8ce5b2e346874b630821676cf0ef082d674eb5f3cac889",
+   "bytes": 127376005,
+   "events": 232497,
+   "extract_digest": "5600d1953a4972e70319bd31d68a4b3638222e3fec89d92dbefa1b1fef716ea9"
+  },
+  {
+   "file": "2024-10-07-21.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-21.json.gz",
+   "sha256": "e51f4c13883b21f4b7b513d9f6a36071cc20f4c80c25949a3f939b4d845f9de4",
+   "bytes": 126609484,
+   "events": 231777,
+   "extract_digest": "7bc34a9e382d52b82434ea9fb89be3831341cd2faf796e9c2fcb98c17083f482"
+  },
+  {
+   "file": "2024-10-07-22.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-22.json.gz",
+   "sha256": "978bc7206d5ff9f05c001a810d83b12f5d08d3b53bd07d95e873e6ea88558c8f",
+   "bytes": 106279191,
+   "events": 208088,
+   "extract_digest": "749feb80edee256137c123376edc4b7d99f4c09970b056db65fbcfedba12cb41"
+  },
+  {
+   "file": "2024-10-07-23.json.gz",
+   "url": "https://data.gharchive.org/2024-10-07-23.json.gz",
+   "sha256": "971b785010f2e7af985a64f821c5d0ed8a3ec1896192f3491604fe1a2accad5a",
+   "bytes": 93666787,
+   "events": 192147,
+   "extract_digest": "a7f989e8c034f9a991b4178ecb696b9ece01bf2ab423ce423cad163da33acba4"
+  },
+  {
+   "file": "2024-10-08-0.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-0.json.gz",
+   "sha256": "7534bbfb310b8f7a3c99e7a807fa2b3244e2fbd033bda06869dae27987dcfa1a",
+   "bytes": 77203000,
+   "events": 196674,
+   "extract_digest": "f12daefe0944424a15cd0439820585148759c7110c10371db8fec960b8a78ec2"
+  },
+  {
+   "file": "2024-10-08-1.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-1.json.gz",
+   "sha256": "74206c93f5d240ea814090d7d13b20eb0b58cbce94aa38fbe0491a08aed9dd40",
+   "bytes": 74981144,
+   "events": 208268,
+   "extract_digest": "26cd9ba1e9967fd8251c846c692705cebce2e0381dd05611f0e8f4536da4a245"
+  },
+  {
+   "file": "2024-10-08-2.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-2.json.gz",
+   "sha256": "cbc7e1129fb669f9f31f048558273ddcecfd9b6d8d22f9e65cf43b30e9cdf8fd",
+   "bytes": 69571391,
+   "events": 185430,
+   "extract_digest": "d5ebfa8f9874f210b8282865c9b8a64f9c4f35fa6cdf5cccbe6317c419caf764"
+  },
+  {
+   "file": "2024-10-08-3.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-3.json.gz",
+   "sha256": "89b25e8479566faf37cfbd2ff1a37ff58aa138f52c0d485b1c500faa0e82d37f",
+   "bytes": 76203831,
+   "events": 202625,
+   "extract_digest": "32eb6de304fcdb9aa9e6bd8af5231e9b8bb7843c26f10b80040d51363fd756ad"
+  },
+  {
+   "file": "2024-10-08-4.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-4.json.gz",
+   "sha256": "7f5cd7fd54e55bc591b6c7ce6178ec5b85dabd188f90335830d8ab02e4f47ab8",
+   "bytes": 74789981,
+   "events": 185777,
+   "extract_digest": "03dda149517f69601be017570dc8ad0d3b1a5846f0a353631aef2f5a68d45efb"
+  },
+  {
+   "file": "2024-10-08-5.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-5.json.gz",
+   "sha256": "2519c82f1567f80822b6cd2decdbaf71c5ca7fcec3b19f347a87a625413eb9e4",
+   "bytes": 84066748,
+   "events": 203397,
+   "extract_digest": "cd295076fa3a047ab06a5f7286db49d59ea47d221c92d95757924cf8e9596568"
+  },
+  {
+   "file": "2024-10-08-6.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-6.json.gz",
+   "sha256": "8df438515c676dfddcc51ee58da5e0f332ce032eba9ef85f113c2c8b474d0316",
+   "bytes": 95453670,
+   "events": 233181,
+   "extract_digest": "4056e7f904544bef1b3ecd09e410cd9a4f21c5394c510cc9a63eb0972e044e9a"
+  },
+  {
+   "file": "2024-10-08-7.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-7.json.gz",
+   "sha256": "de2cd01fb6ed367724c2b4daa755a3593d6959b5be7c1b31e2db706d802f7112",
+   "bytes": 109504877,
+   "events": 241339,
+   "extract_digest": "cb5b73d3ddef37235385151caeb06b52e052826fb819e827d998f142837ab9a3"
+  },
+  {
+   "file": "2024-10-08-8.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-8.json.gz",
+   "sha256": "1217a3438590458e9bc3fe78a9bf70d9bb1bc9ab3c54f0e03ccdcebba04d1a3e",
+   "bytes": 115237002,
+   "events": 246799,
+   "extract_digest": "2d116adab81f0e92e9478939b0a1498a2e520ab10c5a4d0d60cfef0f830cc587"
+  },
+  {
+   "file": "2024-10-08-9.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-9.json.gz",
+   "sha256": "0facd2213415b804475e0b4d1d2a6ec0ca53e5ee95a5044b2f9d42ae70572581",
+   "bytes": 117533150,
+   "events": 257332,
+   "extract_digest": "43796b4e2df28da111d3f8d3bb7a23f0862bc890b803b942f5280ddc8685b288"
+  },
+  {
+   "file": "2024-10-08-10.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-10.json.gz",
+   "sha256": "ebd5533371471ad4889d9adb629ee52b08c93bcb0518e20a35ed2fcf20bf8f13",
+   "bytes": 107160081,
+   "events": 240051,
+   "extract_digest": "a2f89abd3c97470b09cdcd4e73cebc0274397d3cbd178ff1d18553921d359ebd"
+  },
+  {
+   "file": "2024-10-08-11.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-11.json.gz",
+   "sha256": "175242ce4e2cd5bd42dc63d44f24c0bbc5cf7387882ba3dfc0d959004df0be5c",
+   "bytes": 109057952,
+   "events": 240696,
+   "extract_digest": "8f7341935f9137917cb928c04f8d3fe9ed832d4a450aae594c43f12cc6bfe33c"
+  },
+  {
+   "file": "2024-10-08-12.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-12.json.gz",
+   "sha256": "ad5e097bf85c3a50295d681a1561e2cad5b3d5830be2fca2252293e21b9ce644",
+   "bytes": 108708427,
+   "events": 282148,
+   "extract_digest": "05fe6476f4ecada6e9fe8a48cff0385a9d0eafcee5c4c1f5544b394e67a1e7bf"
+  },
+  {
+   "file": "2024-10-08-13.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-13.json.gz",
+   "sha256": "3cca153299ecd2f0ca729b7f7fd8ff5b466bdf4e1c8dfa1c429c9c396e5abe0f",
+   "bytes": 126236545,
+   "events": 281514,
+   "extract_digest": "ccc8243655e17ba40761249f1e1096e89ce752d26778db0078f65910f5de4d33"
+  },
+  {
+   "file": "2024-10-08-14.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-14.json.gz",
+   "sha256": "baac131731bff69901549e70205caa6296ede1f07a5907b3fca269485f9ff769",
+   "bytes": 126557587,
+   "events": 272228,
+   "extract_digest": "dde99c999015ad377c7ccb0bd9fa1a5ad1da96f791b81937b98ad3b2d9ceda7c"
+  },
+  {
+   "file": "2024-10-08-15.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-15.json.gz",
+   "sha256": "e0fac93118a66e3869df62d161a098f25cd67b4117b2907dc7ca4d76bdfc6434",
+   "bytes": 126086065,
+   "events": 269180,
+   "extract_digest": "276a3bfa094c37c565c3f9eb050fb66085c4516026df529450e59f1d453955fd"
+  },
+  {
+   "file": "2024-10-08-16.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-16.json.gz",
+   "sha256": "74461d1489f1e188fc44de778ed8bc127e464c775ee26f166e7c146fdf0707e4",
+   "bytes": 115570858,
+   "events": 249354,
+   "extract_digest": "3b564fd909cbc206e5f6188a1a700bc5839b93e4319064efdec7fca573d6eb9c"
+  },
+  {
+   "file": "2024-10-08-17.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-17.json.gz",
+   "sha256": "eafe19577d3aa913750ddc785c46359e9b628e71df2455f189d1647aa1145771",
+   "bytes": 107213558,
+   "events": 240610,
+   "extract_digest": "1dbf415eb35184204bc5ceaa7fb5bc38ed42473061f37b198b5e373415f5abff"
+  },
+  {
+   "file": "2024-10-08-18.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-18.json.gz",
+   "sha256": "770c068fa3d237d3912b5e0cc4ef1932c38bb4a6768222b33fbb193bbbb705fd",
+   "bytes": 114728389,
+   "events": 255247,
+   "extract_digest": "e5ba671d2795a59f77272a9df0d9f208ae8efbc53e926127feedea126209b34b"
+  },
+  {
+   "file": "2024-10-08-19.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-19.json.gz",
+   "sha256": "fd1d44fa6eb56d50d80c5e457519cb41a9308d0a09a367f17696be64f99a3328",
+   "bytes": 113592940,
+   "events": 235910,
+   "extract_digest": "eb06f7e4f1d6eeba655d5eaea58df853c6d668a24af52000cd2c7db716a68e22"
+  },
+  {
+   "file": "2024-10-08-20.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-20.json.gz",
+   "sha256": "43cc6b01495253a7f75500b8cb1d2d31657e296407745c8b1d5061fae1807675",
+   "bytes": 104232483,
+   "events": 226950,
+   "extract_digest": "8007079485350b857eb7937970aad004b25bf7fd450136f726a1f5ad9e4a351a"
+  },
+  {
+   "file": "2024-10-08-21.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-21.json.gz",
+   "sha256": "070d5ed35479e004b7ddef3edd8265eabec4cf01553d4c881da350dcf93966db",
+   "bytes": 103220534,
+   "events": 217345,
+   "extract_digest": "986b72c4fd6ca01fb1ea96dfaf61a839b2b7d28e279bb04897e4092d75d838ab"
+  },
+  {
+   "file": "2024-10-08-22.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-22.json.gz",
+   "sha256": "60de9174ca5d5f2a12147463011536ba9fb7f22e53c3436c250b14a7bd6e0ace",
+   "bytes": 91071826,
+   "events": 198914,
+   "extract_digest": "b9c48278b261bb33635faca39b2ca127d18dc4c52b9e1708462d54820739506c"
+  },
+  {
+   "file": "2024-10-08-23.json.gz",
+   "url": "https://data.gharchive.org/2024-10-08-23.json.gz",
+   "sha256": "36af882dd3864a0dec059da85cb2a58b5931739e8ba8965f28a26e4eb39244e9",
+   "bytes": 78158277,
+   "events": 186439,
+   "extract_digest": "36c942d63e3c7dc8e76cce1eebc38a5e446879b4093c06e3f794b65f6ad3d2d3"
+  },
+  {
+   "file": "2024-10-09-0.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-0.json.gz",
+   "sha256": "adcfced75e6c9aa38ae5f2ae9c7ce2a23ecd9429d5d82f989875088f73bf3d62",
+   "bytes": 74814774,
+   "events": 194732,
+   "extract_digest": "57428dcb7b8e4d0a53f2a518295898608cb5ab3b66c74868c62da82b6b8b3214"
+  },
+  {
+   "file": "2024-10-09-1.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-1.json.gz",
+   "sha256": "74da05196291af007b9a6568d77ded8300caa9708a4cc847bc84939a163f4446",
+   "bytes": 76924301,
+   "events": 207653,
+   "extract_digest": "f29fea4640f52227bbe71012dc41af3dbf7488fa78cd46977f946a04f75f398b"
+  },
+  {
+   "file": "2024-10-09-2.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-2.json.gz",
+   "sha256": "42c86459b92f370583a919493819bbc54dfcc3f62bbe4b0569ab35616efcf85f",
+   "bytes": 68932438,
+   "events": 176084,
+   "extract_digest": "0de36701abd08c4d27b1a922414362f85715fe5077835a6ee10dd6b3fc96306f"
+  },
+  {
+   "file": "2024-10-09-3.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-3.json.gz",
+   "sha256": "e6e8792215206064a3eb1819b55ebb49c8975faf60f052959d12127c062e334c",
+   "bytes": 77672084,
+   "events": 203149,
+   "extract_digest": "f94abbec9dcffb2eaa66c42ae32c97b6d497a44c258e7d13867811e9bb878456"
+  },
+  {
+   "file": "2024-10-09-4.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-4.json.gz",
+   "sha256": "c9f8572cef60bfb66284968df76300c12017ed47faf711607a77b06c992460fb",
+   "bytes": 71168844,
+   "events": 178860,
+   "extract_digest": "5adbc21e5a8905e516c30616cc7231add23b75d9ab84e6bae87b8a7dde6f483f"
+  },
+  {
+   "file": "2024-10-09-5.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-5.json.gz",
+   "sha256": "580e08e56d751a11898a3dc9902b68169e451909c7e359e4bcbbe4432b59f727",
+   "bytes": 80552678,
+   "events": 192241,
+   "extract_digest": "7fdb0c10ffa1ddc527b0bb1993e367c5a0e7f3afd4ba329ddaeedae760d08b7b"
+  },
+  {
+   "file": "2024-10-09-6.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-6.json.gz",
+   "sha256": "dba807aab90d84fb04c5990bd4785d8aba02673b7f3ffe1c6b4e754a968f6f8c",
+   "bytes": 95331509,
+   "events": 226022,
+   "extract_digest": "15074365f4fd6a6ff42581de05c802a24d6e20814ea044c14922a41253982af0"
+  },
+  {
+   "file": "2024-10-09-7.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-7.json.gz",
+   "sha256": "7e73a99b08fbd808129e286f8db284181a7ad93879d1cfc903ce6471a0d53491",
+   "bytes": 111495553,
+   "events": 238338,
+   "extract_digest": "cdba434326396751ab669d1b35aa3f24705925a1e0aada84ba4f083c3d822c08"
+  },
+  {
+   "file": "2024-10-09-8.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-8.json.gz",
+   "sha256": "685eae32ccae79d14f815fc40cb415fe8659430f0550dbf1e1b51cfa6a228f9f",
+   "bytes": 116254235,
+   "events": 248883,
+   "extract_digest": "6ecc2fe4c3da3334965ef05f7b78554d723f1379d8991d62c7e23458e3193c2b"
+  },
+  {
+   "file": "2024-10-09-9.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-9.json.gz",
+   "sha256": "943a50197ac85c712a4a189c401578b009f4d98cc8905a097ea3daeb79fa0171",
+   "bytes": 116834674,
+   "events": 257404,
+   "extract_digest": "0399944f9c850d83cc1b9b58ba39efcd8802811bfb6b0986336892f49d59a6e2"
+  },
+  {
+   "file": "2024-10-09-10.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-10.json.gz",
+   "sha256": "db63a69f8fe8c758f181d930078f89c155de9cbdd9fba0ba03cc118da7e4f245",
+   "bytes": 107540576,
+   "events": 242276,
+   "extract_digest": "ebd4bc2a9cfa9d96dfe9624a76d4e1b42ef21ed098835603442a674f42d72857"
+  },
+  {
+   "file": "2024-10-09-11.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-11.json.gz",
+   "sha256": "5423ec37be9cc63cb22a00d3a1392aa32bc008a07ab94fe3da77519d32d61346",
+   "bytes": 109725547,
+   "events": 245444,
+   "extract_digest": "213cd56413a6cf039948e29ee63034dd591be7be4c64bb3acec91b7f15f5e04d"
+  },
+  {
+   "file": "2024-10-09-12.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-12.json.gz",
+   "sha256": "33fe585f4f4031e37f511fa1008f129f461e2423a6cc46da0ac0941aff1fb879",
+   "bytes": 110466680,
+   "events": 281938,
+   "extract_digest": "1d2d9e929954d8b23922b4fbb3e7f48594ec24fc2667301cba3f50969b0b4a64"
+  },
+  {
+   "file": "2024-10-09-13.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-13.json.gz",
+   "sha256": "7b7a9586dc4dcc1b8c819174c113c7868ab0280bd27bfd29145b4e090592dde6",
+   "bytes": 124513428,
+   "events": 279901,
+   "extract_digest": "1cd2b8eb69d9d58e21f2baaea8172f337418e641419402441fc5c779b5089874"
+  },
+  {
+   "file": "2024-10-09-14.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-14.json.gz",
+   "sha256": "e1d74e591ac2fde23f7646dd9b6ff05a4a94b68c6c24aaf73ef5c7bac480d52c",
+   "bytes": 128008730,
+   "events": 271397,
+   "extract_digest": "4d399b1671e1010ec79f60d205490f1ffe8c1cbb8c6ad7421927705159e19425"
+  },
+  {
+   "file": "2024-10-09-15.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-15.json.gz",
+   "sha256": "dd2303d32c4366ac01f03c96e2966f2ed43251140b4d60f562a4a1ae18005ac7",
+   "bytes": 126264845,
+   "events": 271828,
+   "extract_digest": "46f179b44b5da24b3b90b2c28fff388d402264961d0a7e12bd6b02824a963a90"
+  },
+  {
+   "file": "2024-10-09-16.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-16.json.gz",
+   "sha256": "e3bbf00947c7c2951044a47f236d43a9ff094eb1c469f28280a8449ceb808c3e",
+   "bytes": 117304747,
+   "events": 251508,
+   "extract_digest": "34cf9fa0485b3539069fb7296ade2bddc76668d7fe92b19130139bb8c2d88aca"
+  },
+  {
+   "file": "2024-10-09-17.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-17.json.gz",
+   "sha256": "caecd475be87dd903a982582ffdc0c84dea59c6f8e88e55a203f96755111bc40",
+   "bytes": 108286427,
+   "events": 250436,
+   "extract_digest": "54691aefd57350a07ec45e5981582c16d33e3fb60c2bfd29144f20a12a4c20e5"
+  },
+  {
+   "file": "2024-10-09-18.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-18.json.gz",
+   "sha256": "b688d6719a8083aeae3b35311ecec85ae39920f8908816328e1eccea9f2c6e58",
+   "bytes": 111086657,
+   "events": 249435,
+   "extract_digest": "718644a0bcb171dd8d39ff568e677fd15e15456e7dd26dbfb68eda42e32ac720"
+  },
+  {
+   "file": "2024-10-09-19.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-19.json.gz",
+   "sha256": "fc1fb21bd24da403697d54528adadb14ebade221774c1b9cd691083ef026e468",
+   "bytes": 106440553,
+   "events": 235120,
+   "extract_digest": "34bd610f42489b1c95820862de49f15aa228be209432d5f1b72977318c56e6fa"
+  },
+  {
+   "file": "2024-10-09-20.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-20.json.gz",
+   "sha256": "a373abbcccaa67ce3d73827981c0ed30528449db6eade2903734d79bfda674c9",
+   "bytes": 98774561,
+   "events": 224402,
+   "extract_digest": "995a7cf32a71e8081803841a52ca8408d08022fcbaa244f9aa23f4ba158f061d"
+  },
+  {
+   "file": "2024-10-09-21.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-21.json.gz",
+   "sha256": "bd4445028f96cb7187ab2f8f30b99cae820e17154f027aaab5721fc81b44c695",
+   "bytes": 98324922,
+   "events": 215257,
+   "extract_digest": "bc34b1993253b73bdea1966896387a652ba012dfd001de3ee24072e6d83416a5"
+  },
+  {
+   "file": "2024-10-09-22.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-22.json.gz",
+   "sha256": "5ea2da61310da6924ec35e32900844f183dc908d37f7d74456ba48f6658895d6",
+   "bytes": 82874448,
+   "events": 194044,
+   "extract_digest": "2d357639058ba5779ba781473556d08bd32e9b758ec6705894675675139f8994"
+  },
+  {
+   "file": "2024-10-09-23.json.gz",
+   "url": "https://data.gharchive.org/2024-10-09-23.json.gz",
+   "sha256": "6c4f966ad16cc2a57c1f3093f1d369b6db0a93ef5e9661695387f0dde977eee2",
+   "bytes": 74426425,
+   "events": 185200,
+   "extract_digest": "3d99b2d4bbf4c25f2e7179c6e8fa5105a10407cbd0f259afb78f910fa64211cc"
+  },
+  {
+   "file": "2024-10-10-0.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-0.json.gz",
+   "sha256": "5545e98783676c9d9bfd2bb6540c96a30598637b0659d28dfcbe993c05df6b50",
+   "bytes": 70458314,
+   "events": 191609,
+   "extract_digest": "3180c8243630a3c1deb2d08f8f7b34d33bb462254772b29c96cff74a67205d90"
+  },
+  {
+   "file": "2024-10-10-1.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-1.json.gz",
+   "sha256": "628361a55b0f18d0cb7fc27ac5e2b51c6c4daa9d067039c780323a9d75de3ded",
+   "bytes": 70484696,
+   "events": 203863,
+   "extract_digest": "f74c074288456c62a14c4fd1424514dc221811f8007547a05ce3c1f36fbabaf6"
+  },
+  {
+   "file": "2024-10-10-2.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-2.json.gz",
+   "sha256": "3d9f9a26cb987074b16ff23c23b00748ffcea1cd09793f0163a61069432b60d2",
+   "bytes": 69322180,
+   "events": 182313,
+   "extract_digest": "4061747eb6eb5e89284e3c2d0d141139647bb5565070f1e9d55ae53afa0d55aa"
+  },
+  {
+   "file": "2024-10-10-3.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-3.json.gz",
+   "sha256": "c292971ce8df8f46efbc5ee9535119ebadd725d92510fafc2ef5d6f38289e594",
+   "bytes": 71478507,
+   "events": 198874,
+   "extract_digest": "24c9cf5936f6dd119d91c2ecd18715267cb7792a7ef816831797472d1a3e1d48"
+  },
+  {
+   "file": "2024-10-10-4.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-4.json.gz",
+   "sha256": "943afea59af78c4e77578ac9f3550eb67951b505bae98775d91ac54e269dc969",
+   "bytes": 68558507,
+   "events": 175683,
+   "extract_digest": "43ac520e13788e975e0dcdb1a2e3e03cd6b01c65504c367f860f87f525b1ae9b"
+  },
+  {
+   "file": "2024-10-10-5.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-5.json.gz",
+   "sha256": "739b5489223404d50dadfb8743ec650449b99253f2aec7710d39ef9dae82a1ec",
+   "bytes": 78033019,
+   "events": 190715,
+   "extract_digest": "aa73cec4d61e8cae8baf9ec00556122553dde77fc47fbc1dabaf854d7e5b0dcf"
+  },
+  {
+   "file": "2024-10-10-6.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-6.json.gz",
+   "sha256": "f23f69dbcec068ae3c375b72f0121cf560df25bf0e9b1186609d9b223d2fa2f6",
+   "bytes": 89236956,
+   "events": 223976,
+   "extract_digest": "71cd4edb44fadb86f072060288a1d60ed0448d7146db2df3bfb22407095e5d05"
+  },
+  {
+   "file": "2024-10-10-7.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-7.json.gz",
+   "sha256": "011fe3f2f0c72d1cb3adbeb34380346769e0ceb4073d1f1c926513e06b7a35af",
+   "bytes": 102186940,
+   "events": 237554,
+   "extract_digest": "953baebb388edeac3f49730580951b3276af1aa2452874cb6befa56d1c2e9a2a"
+  },
+  {
+   "file": "2024-10-10-8.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-8.json.gz",
+   "sha256": "489bbc2460f131e59b1a49431465b69634418737f889515ae36f55add5ee9916",
+   "bytes": 105600584,
+   "events": 244429,
+   "extract_digest": "2d7fc5c2f269d3b73c2a8bdf6585c8b0081d76f941fa26a118c914d0981c2257"
+  },
+  {
+   "file": "2024-10-10-9.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-9.json.gz",
+   "sha256": "2204b1944e5da0398847c6860fca9ad135e10bda2f4c966ca2d2e16e2853f56f",
+   "bytes": 108712158,
+   "events": 249619,
+   "extract_digest": "4823f3002dd8ad18a2f6d04856211951fc02365e4ac24ac09d4072cd7086f3bf"
+  },
+  {
+   "file": "2024-10-10-10.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-10.json.gz",
+   "sha256": "45dc601b4394b53a3a661e4246d5b2e641c742ca1eeee0df8901862ac93c0a1b",
+   "bytes": 107134056,
+   "events": 239101,
+   "extract_digest": "5870252e687ced5332dedad707adf346b54a82be74ea5a81d6ee330f1559f592"
+  },
+  {
+   "file": "2024-10-10-11.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-11.json.gz",
+   "sha256": "bd24aec4f1bf3efe1792077b0de959b26b046536ef01f91f274913362a003954",
+   "bytes": 106960605,
+   "events": 241597,
+   "extract_digest": "eb786e1ee6b749850c626d358e40680a8c3de0ac076dc736edd7aea39302628e"
+  },
+  {
+   "file": "2024-10-10-12.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-12.json.gz",
+   "sha256": "1891be86406845a2e18d5f9370e3c5059fb524218fece2b24fcad50c717a9db7",
+   "bytes": 104683201,
+   "events": 278463,
+   "extract_digest": "478c4e93c97688d462be3b95edb2e8f20c4dd50a6910647b6b8b66b7cec73669"
+  },
+  {
+   "file": "2024-10-10-13.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-13.json.gz",
+   "sha256": "db1af32453b169a35caddabdd483299e0edc2f15c0598a3cf0d127cc1a850795",
+   "bytes": 121952241,
+   "events": 274318,
+   "extract_digest": "1c32afb6d68d8108562a873487b44125c9d888d777ef88f34a6a803455520771"
+  },
+  {
+   "file": "2024-10-10-14.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-14.json.gz",
+   "sha256": "d9e781c93477f03f403625521fcfac5d9735392d7807383ff3327ececfa853eb",
+   "bytes": 133569779,
+   "events": 269358,
+   "extract_digest": "5f8654fbb321932e3b323c7ddf6989b8518ee6da2d74d3d4e5ccec5bdef624ae"
+  },
+  {
+   "file": "2024-10-10-15.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-15.json.gz",
+   "sha256": "cfd28ab96f3cc677e4a1d504f4840183c4794922497e79417aa979c314c86616",
+   "bytes": 122199566,
+   "events": 264581,
+   "extract_digest": "29278992f86650b0183d05060aab48667d17f2cdc23ac134a71907225a79b02c"
+  },
+  {
+   "file": "2024-10-10-16.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-16.json.gz",
+   "sha256": "f18aa68c6c80b92ad8b9f023bbbc366f43d0a8d8886ca1ffc15206bc46242b80",
+   "bytes": 111056889,
+   "events": 241324,
+   "extract_digest": "9b2b4a5208b52708ee9af4f5291e538238e84be1a566ba99e0510f3b1eeb922f"
+  },
+  {
+   "file": "2024-10-10-17.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-17.json.gz",
+   "sha256": "6e8e4d3ec7ee4629d96dbbb9261700eae716bd07ca85a056131ea7a92c8e3361",
+   "bytes": 104813244,
+   "events": 238291,
+   "extract_digest": "1a735caaa281f02b2f63ac3a347a89a6ca825bcf2d4defc7d5b27b107da8423f"
+  },
+  {
+   "file": "2024-10-10-18.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-18.json.gz",
+   "sha256": "b29dbaaeada4a2b2a5cbe4b3e719e1ea507a4bf01d804191244e92bc3a9caef3",
+   "bytes": 104099733,
+   "events": 244963,
+   "extract_digest": "13e695a0f7f7056c9a9feba1ae3ab32ecd98ef408a4d1bc5a40a9cf6c85eb763"
+  },
+  {
+   "file": "2024-10-10-19.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-19.json.gz",
+   "sha256": "a9fa77f445b9c369cb1f1ed956fcf952acd69d6d57b2f5dbce9fc8c2e2e044cb",
+   "bytes": 103423153,
+   "events": 229424,
+   "extract_digest": "c3990f231b227a3833916328797a574a90c9f6f9c38c7ff7f05b69e146d4e501"
+  },
+  {
+   "file": "2024-10-10-20.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-20.json.gz",
+   "sha256": "7741058f8a783eca0f53a841e399557f7dfda9ddea275d444756d2c18f778d86",
+   "bytes": 95806838,
+   "events": 214871,
+   "extract_digest": "a4a82321acf93d2e5371be44b73ba3fde2dddd980bf5f0aaded533640af608c6"
+  },
+  {
+   "file": "2024-10-10-21.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-21.json.gz",
+   "sha256": "ad64701a3904ac65799fb923b7f3d48959fbeb29f240deb6947d6646c78e44af",
+   "bytes": 95343045,
+   "events": 207475,
+   "extract_digest": "2067a5ed89a32416fe35ceada54632251b5e5a6ceeec467555dfb21369c07ff8"
+  },
+  {
+   "file": "2024-10-10-22.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-22.json.gz",
+   "sha256": "15232cbc174e39b17e63b2a60b584d3662547723e10216e5959b83d5d68cbd67",
+   "bytes": 83234312,
+   "events": 179566,
+   "extract_digest": "94e1ab300e3157bbb662d4e5cefa36fb6a10895614b7dc42414ad6ef43f1dac1"
+  },
+  {
+   "file": "2024-10-10-23.json.gz",
+   "url": "https://data.gharchive.org/2024-10-10-23.json.gz",
+   "sha256": "f465e6d818ea2229a1f586b61036ca9c6ee4f28d0b2ed095e36755a5b64ac8c9",
+   "bytes": 77918881,
+   "events": 178914,
+   "extract_digest": "0b85484bafc589dd88db6433455a0405f74627e520fd09317291b3680b0016d9"
+  }
+ ],
+ "size": {
+  "raw_bytes_streamed": 9805773850,
+  "events": 22011349,
+  "kept_on_disk": "compact event tables only (about 160 MB); raw files deleted after extraction"
+ },
+ "schema_extracted": {
+  "t": "int32",
+  "type": "uint8",
+  "action": "uint8",
+  "flags": "uint8",
+  "size": "uint16",
+  "actor": "int64",
+  "repo": "int64"
+ },
+ "extractor": {
+  "module": "crucible.calibration.gharchive",
+  "version": "1",
+  "types": [
+   "PushEvent",
+   "CreateEvent",
+   "DeleteEvent",
+   "PullRequestEvent",
+   "IssueCommentEvent",
+   "WatchEvent",
+   "PullRequestReviewEvent",
+   "PullRequestReviewCommentEvent",
+   "IssuesEvent",
+   "ForkEvent",
+   "ReleaseEvent",
+   "MemberEvent",
+   "CommitCommentEvent",
+   "GollumEvent",
+   "PublicEvent",
+   "DiscussionEvent"
+  ],
+  "actions": [
+   "started",
+   "opened",
+   "closed",
+   "reopened",
+   "created",
+   "published",
+   "edited",
+   "deleted",
+   "labeled",
+   "added",
+   "synchronize",
+   "assigned",
+   "submitted",
+   "released",
+   "prereleased",
+   "unlabeled"
+  ],
+  "flags": {
+   "org": 1,
+   "bot": 2,
+   "owner": 4,
+   "repo_create": 8
+  }
+ },
+ "provenance": {
+  "source": "GH Archive hourly JSON dumps of the GitHub public events API (https://data.gharchive.org/)",
+  "window_utc": [
+   "2024-10-07T00:00:00+00:00",
+   "2024-10-11T00:00:00+00:00"
+  ],
+  "acquired_by": "crucible.calibration.gharchive.acquire (streamed one hour at a time)",
+  "population": "public GitHub accounts and public repositories whose events reached the public events API",
+  "privacy": "only numeric actor and repository ids as distributed, event type/action, derived flags and push size are kept; no logins, names, e-mails, commit messages or text",
+  "publisher": "GH Archive (Ilya Grigorik), archiving the GitHub public events API",
+  "citation": "GH Archive, https://www.gharchive.org/ (Ilya Grigorik): hourly dumps 2024-10-07-0 to 2024-10-10-23",
+  "platform": "GitHub (github.com): public repositories and public accounts",
+  "period": "2024-10-07T00:00 to 2024-10-11T00:00 UTC (Monday to Thursday, 96 hours)",
+  "identification": "observational",
+  "retrieved": "2026-11-25"
+ }
+}

@@ -1,0 +1,269 @@
+{
+ "workflow": "wf_91afed28-f3c",
+ "wave": "wave1-calibration-rapid",
+ "report": {
+  "workstream": "E2",
+  "branch": "worktree-wf_91afed28-f3c-2",
+  "commit": "5b9eb4ad88fba249a1fac11616fd0e5067892a60",
+  "summary": "E2 fitted three behavioural models on public data, each evaluated on held-out data against a simple baseline. World code loads them with `registry_e2.load(\"<name>@1\")` and needs only numpy; no dataset access, no pickle, and the checkpoint SHA-256 is checked on every load.\n\n1. **commercial_response@1** (Criteo Uplift v2.1, randomized experiment). It gives per-arm visit and conversion probabilities from a regularised gradient-boosted T-learner.\n   - It beats the constant-effect baseline on pooled visit+conversion log loss: 0.1143 vs 0.2092 on 2.8M test users, bootstrap difference -0.095 [-0.0955, -0.0942]. Per-arm ECE is at most 0.0004 and visit Qini is 0.087 [0.081, 0.093].\n   - For the simulator, a 64-type table of (baseline propensity, effect) is validated on test: type-level uplift correlation 0.970 [0.948, 0.978], calibration slope 0.84. `sample_types`, `respond` and `transport` (re-bases rates, keeps each type's odds ratio) are provided.\n   - Post-fit finding: the pooled tests have slightly different treatment ratios (propensity AUC 0.509). The raw difference in means (visit 0.0103) overstates the average effect; the model-implied 0.0074 matches the propensity-stratified 0.0077 [0.0071, 0.0083] and IPW 0.0075. The card's identification statement and limits now say this.\n2. **software_deep_engagement@1** (GH Archive, public GitHub, 2024-10-07..10 UTC, observational). P(fork, issue or pull request by the same developer within 24 h of their first star).\n   - Time-based test: log loss 0.1269 vs 0.1439 base rate, AUC 0.737. New-user holdout and a strict-time refit also beat the base rate.\n3. **software_repo_growth@1**. Next-day stars of a repository given today's activity, with negative-binomial overdispersion (alpha 0.848).\n   - Test Poisson deviance 0.536 vs 0.732 for a proportional rule; simulated-vs-observed KS 0.009. Spearman is slightly below the proportional rule (0.441 vs 0.463).\n   - A descriptive (not fitted) early-adoption curve for new repositories is in the report.\n\nProcess:\n- **Plans before fits.** The evaluation plans were committed before any fit (7d4fb1e, 06:26:32Z); `prespecified_before_fit` checks this through git.\n- **Amendment 1.** Run 1 showed two prespecified GBDT candidates diverging numerically (scikit-learn keeps the trees fitted after the best iteration). Amendment 1 adds best-iteration early stopping and regularised GBDT candidates. It was committed before the refits, discloses that run-1 test numbers had already been computed, and run-1 records are kept.\n- **Selection.** `worse_model_kept` is 0 for all three models.\n\nAlso delivered: dataset manifests with checksums, licenses and provenance, cards, reports, 4 fidelity-register rows, `docs/v5/components/E2.md`, `docs/v5/workstreams/E2.json`, and 23 unit tests that recompute held-out metrics from the data through the registry.",
+  "files_added": [
+   "crucible/src/crucible/calibration/registry_e2.py",
+   "crucible/src/crucible/calibration/commercial.py",
+   "crucible/src/crucible/calibration/software.py",
+   "crucible/src/crucible/calibration/portable.py",
+   "crucible/src/crucible/calibration/scoring_e2.py",
+   "crucible/src/crucible/calibration/criteo.py",
+   "crucible/src/crucible/calibration/gharchive.py",
+   "crucible/src/crucible/calibration/fit_commercial.py",
+   "crucible/src/crucible/calibration/fit_software.py",
+   "crucible/src/crucible/calibration/gbdt_e2.py",
+   "crucible/src/crucible/calibration/fitmeta_e2.py",
+   "crucible/docs/v5/calibration/plans/E2_commercial_response.plan.json",
+   "crucible/docs/v5/calibration/plans/E2_software_adoption.plan.json",
+   "crucible/docs/v5/calibration/plans/E2_amendment_1.plan.json",
+   "crucible/docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
+   "crucible/docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json",
+   "crucible/docs/v5/calibration/models/commercial_response/model_card.json",
+   "crucible/docs/v5/calibration/models/commercial_response/commercial_response.npz",
+   "crucible/docs/v5/calibration/models/software_deep_engagement/model_card.json",
+   "crucible/docs/v5/calibration/models/software_deep_engagement/software_deep_engagement.npz",
+   "crucible/docs/v5/calibration/models/software_repo_growth/model_card.json",
+   "crucible/docs/v5/calibration/models/software_repo_growth/software_repo_growth.npz",
+   "crucible/docs/v5/calibration/reports/commercial_response@1.json",
+   "crucible/docs/v5/calibration/reports/software_deep_engagement@1.json",
+   "crucible/docs/v5/calibration/reports/software_repo_growth@1.json",
+   "crucible/docs/v5/calibration/superseded/E2_run1/commercial_response@1.model_card.json",
+   "crucible/docs/v5/calibration/superseded/E2_run1/software_deep_engagement@1.model_card.json",
+   "crucible/docs/v5/calibration/superseded/E2_run1/software_deep_engagement@1.report.json",
+   "crucible/docs/v5/calibration/superseded/E2_run1/software_repo_growth@1.model_card.json",
+   "crucible/docs/v5/calibration/superseded/E2_run1/software_repo_growth@1.report.json",
+   "crucible/docs/v5/components/E2.md",
+   "crucible/docs/v5/workstreams/E2.json",
+   "crucible/tests/test_v5_calibration_commercial.py",
+   "crucible/tests/test_v5_calibration_software.py"
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/docs/v5/FIDELITY_REGISTER.md",
+    "why": "Appended 4 rows to the previously empty table, as the task instructed: advertising response, its heterogeneity, light-to-deep developer engagement, repository growth."
+   },
+   {
+    "path": "crucible/docs/v5/REPRODUCE.md",
+    "why": "Added an 'Calibration E2' section with the acquisition, fit and test commands (the file invites each workstream to add its commands)."
+   },
+   {
+    "path": "crucible/pyproject.toml",
+    "why": "Added optional extra v5-calibration (scikit-learn, scipy, threadpoolctl, pandas), as required for new packages."
+   }
+  ],
+  "requirements": [
+   {
+    "id": "F.1",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/calibration/fit_commercial.py",
+     "src/crucible/calibration/fit_software.py",
+     "src/crucible/calibration/registry_e2.py",
+     "docs/v5/calibration/models/commercial_response/model_card.json",
+     "docs/v5/calibration/models/software_deep_engagement/model_card.json",
+     "docs/v5/calibration/models/software_repo_growth/model_card.json"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py",
+     "tests/test_v5_calibration_software.py",
+     "tests/v5/test_gate_F.py (E1)"
+    ],
+    "notes": "E2 supplies 2 of the 3 required empirical domains: commercial_intervention_response and software_collaboration_and_adoption. E1's content consumption is the third."
+   },
+   {
+    "id": "F.2",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/calibration/commercial.py",
+     "src/crucible/calibration/fit_commercial.py",
+     "docs/v5/calibration/reports/commercial_response@1.json"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py"
+    ],
+    "notes": "The randomized commercial-response half is done: Criteo Uplift v2.1, identification kind randomized_experiment, conditional on features. The content-consumption half belongs to E1."
+   },
+   {
+    "id": "F.3",
+    "state": "implemented",
+    "implementation_files": [
+     "docs/v5/calibration/reports/commercial_response@1.json",
+     "docs/v5/calibration/reports/software_deep_engagement@1.json",
+     "docs/v5/calibration/reports/software_repo_growth@1.json"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py",
+     "tests/test_v5_calibration_software.py"
+    ],
+    "notes": "3 held-out reports: user-level, time-based and repository-level holdouts. The tests recompute the test metrics from the data through the registry, to within 1e-9."
+   },
+   {
+    "id": "F.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/fit_commercial.py",
+     "src/crucible/calibration/fit_software.py"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_selection_follows_the_prespecified_rule",
+     "tests/test_v5_calibration_software.py::test_selection_rule_and_prespecification"
+    ],
+    "notes": "3 baseline comparisons, each with a paired-bootstrap 95% interval. In every case the kept model beats the baseline and the interval excludes zero."
+   },
+   {
+    "id": "F.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/scoring_e2.py"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_scoring_matches_reference_implementations"
+    ],
+    "notes": "All 3 reports carry log loss, Brier, ECE, AUC, AP and reliability tables, plus Qini/AUUC, Poisson deviance and count calibration by decile. The metric code is checked against scikit-learn."
+   },
+   {
+    "id": "F.6",
+    "state": "implemented",
+    "implementation_files": [
+     "docs/v5/calibration/models/*/",
+     "src/crucible/calibration/portable.py",
+     "src/crucible/calibration/registry_e2.py"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_registry_loads_checkpoint_with_verified_hash",
+     "tests/test_v5_calibration_commercial.py::test_tampered_checkpoint_is_refused",
+     "tests/test_v5_calibration_software.py::test_models_load_with_verified_hashes"
+    ],
+    "notes": "3 npz checkpoints without pickle (0.09-0.83 MB). Their SHA-256 is verified on every load; 0 mismatches."
+   },
+   {
+    "id": "F.7",
+    "state": "partial",
+    "implementation_files": [
+     "docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
+     "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json",
+     "src/crucible/calibration/criteo.py",
+     "src/crucible/calibration/gharchive.py"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_dataset_manifest_and_local_checksums",
+     "tests/test_v5_calibration_software.py::test_dataset_manifest_matches_extracted_window"
+    ],
+    "notes": "E2 supplies 2 of the 3 required datasets, with checksums, licenses and provenance. E1 supplies the rest."
+   },
+   {
+    "id": "F.8",
+    "state": "implemented",
+    "implementation_files": [
+     "docs/v5/calibration/models/*/model_card.json",
+     "docs/v5/components/E2.md"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_registry_loads_checkpoint_with_verified_hash",
+     "tests/test_v5_calibration_software.py::test_models_load_with_verified_hashes"
+    ],
+    "notes": "3 cards with extrapolation_limits (8, 8 and 9 items), plus 'may and may not infer' sections in the guide."
+   },
+   {
+    "id": "F.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "docs/v5/calibration/datasets/*.json"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_registry_gate_metrics_for_e2_models"
+    ],
+    "notes": "synthetic_only_domains is 0 for E2's models."
+   },
+   {
+    "id": "SP-5.4",
+    "state": "partial",
+    "implementation_files": [
+     "docs/v5/FIDELITY_REGISTER.md"
+    ],
+    "tests": [],
+    "notes": "4 rows for the mechanisms E2 grounds. The register-wide coverage check is not E2's, and no gate test was written."
+   },
+   {
+    "id": "SP-5.5",
+    "state": "partial",
+    "implementation_files": [
+     "docs/v5/calibration/plans/*.plan.json",
+     "src/crucible/calibration/registry_e2.py"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_commercial.py::test_plan_was_committed_before_the_fit",
+     "tests/test_v5_calibration_software.py::test_selection_rule_and_prespecification"
+    ],
+    "notes": "For E2's models, metrics_prespecified_before_fit is true (git-verified, amendment included) and worse_model_kept is 0. tests/v5/test_gate_SP_5_5.py was not written; it is shared with E1."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_commercial.py (via slots, 1 CPU)",
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_software.py (via slots, 1 CPU)",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_commercial.py tests/test_v5_calibration_software.py tests/test_v5_acceptance_checker.py tests/test_v5_slots.py tests/test_fidelity.py tests/test_calibration.py (final run, via slots)",
+    "passed": 50,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "registry_e2.py duplicates the section-5 interface because E1's registry.py did not exist in this worktree; the two must be unified.",
+   "No simulator module uses the models yet. Workstreams B, C and G must wire up each card's simulator_mapping.",
+   "Amendment 1 was written after run 1, whose test numbers had already been computed. This is disclosed in the amendment, and the run-1 records are kept in docs/v5/calibration/superseded/E2_run1/.",
+   "The Criteo covariate-balance finding (pooled tests with different treatment ratios) comes from a post-fit diagnostic, not from the plan. The report's simulated-experiment check and the exposure Wald estimate compare against the raw arms, so both inherit the composition bias.",
+   "The kept commercial model was selected by log loss and does not beat the T-logistic on uplift ranking: visit Qini 0.087 vs 0.089, conversion 0.159 vs 0.200.",
+   "The response-type table defaults to the model estimate, as prespecified. The 'honest' estimate scored better on test (slope 1.01 vs 0.84), but that choice would be informed by the test split.",
+   "The GH Archive window is four weekdays in 2024 with 24 h horizons, and the data are observational. The deep-engagement model's top decile over-predicts: 0.169 predicted vs 0.131 observed.",
+   "The commercial card's fit.dirty_paths has the first character of its first path truncated, by a bug in fitmeta_e2.code_state that is now fixed. The listed dirty files were non-code.",
+   "The tests need the datasets under $CRUCIBLE_DATA and fail when the data are absent. The software tests take about 2.5 min on 1 CPU."
+  ],
+  "integration_notes": [
+   "E1's registry.py did not exist in this worktree, so E2 created calibration/registry_e2.py with the same section-5 interface (datasets, acquire, load, FittedModel). It is data-driven: model cards in docs/v5/calibration/models/<name>/model_card.json, schema crucible.v5.calibration.model_card/1, each naming its loader class. E1's registry and test_gate_F should scan the same directory so that E2's three models are counted.",
+   "registry_e2.gate_metrics() over E2's models gives: heldout_reports 3, baseline_comparisons 3, calibration_metric_reports 3, checkpoints_saved 3, checkpoint_hash_mismatches 0, datasets_with_checksums 2, provenance_records 2, extrapolation_limit_sections 3, synthetic_only_domains 0, metrics_prespecified_before_fit true, worse_model_kept 0. The empirical domains are commercial_intervention_response and software_collaboration_and_adoption.",
+   "The SP-5.5 gate test can call registry_e2.prespecified_before_fit(model), which checks the plan and its amendments through git, and read card['selection']['worse_model_kept'].",
+   "Added the optional extra v5-calibration to pyproject.toml. If E1 adds an extra with the same name, merge the lists.",
+   "FIDELITY_REGISTER.md: 4 rows appended to the table, which was empty; E1's rows merge into the same table.",
+   "Running tests/test_v5_acceptance_checker.py rewrites docs/v5/evidence/checker_report.json. I restored that file and did not commit it.",
+   "World code should depend only on crucible.calibration.registry_e2 (or the unified registry), commercial.py, software.py and portable.py, which need numpy only. criteo.py, gharchive.py and fit_*.py are offline-only (pandas, scikit-learn) and must stay out of world import chains."
+  ],
+  "blockers": [],
+  "disk_used_mb": 1284,
+  "packages_installed": [
+   "scikit-learn==1.9.1",
+   "scipy==1.18.1",
+   "joblib==1.6.0",
+   "threadpoolctl==3.8.0",
+   "narwhals==2.29.0"
+  ],
+  "measurements": [
+   "Criteo: 13,979,592 rows; SHA-256 2716e1bf...16dc matches the Hugging Face LFS oid. Treatment ratio 0.85, visit rate 0.04699, conversion rate 0.00292, exposure among treated 0.036. Conversion to npy took 20 s.",
+   "GH Archive: 96 hourly files, 9.81 GB streamed and deleted after extraction, 22,011,349 events kept in a 162 MB extract. Feature tables build in about 22 s.",
+   "commercial_response@1 test primary metric (visit + conversion log loss): constant 0.20915, T-logistic 0.12394, T-GBDT 0.12152, T-GBDT-reg (kept) 0.11426. Kept minus baseline -0.0949 [-0.0955, -0.0942].",
+   "commercial kept model: visit AUC 0.947, conversion AUC 0.958; per-arm ECE 0.0004 or less. Qini: visit 0.087 [0.081, 0.093], conversion 0.159 [0.132, 0.190].",
+   "Criteo average effects on test: visit raw difference in means 0.0103, model-implied 0.0074, propensity-stratified 0.0077 [0.0071, 0.0083], IPW 0.0075. Conversion: 0.00124 raw, 0.00096 model-implied, 0.00107 stratified, 0.00111 IPW.",
+   "Response types (64, validated on test): visit-uplift correlation 0.970 [0.948, 0.978], slope 0.84. The honest-estimate variant scores 0.988 with slope 1.006.",
+   "software_deep_engagement@1 test log loss (83,304 stars): base rate 0.14393, logistic 0.13223, GBDT (kept) 0.12686. AUC 0.737, ECE 0.0053. New-user holdout 0.1351 vs 0.1475; strict-time refit 0.1267.",
+   "software_repo_growth@1 test Poisson deviance (321,303 repo-days): proportional rule 0.7318, GLM 0.6586, prespecified GBDT 2.398 (diverged, truncated to 0 trees), regularised GBDT (kept) 0.5361. NB2 alpha 0.848; KS on log1p 0.009 (NB) vs 0.023 (Poisson).",
+   "New repositories created on 2024-10-08 (205,095): 0.57% got a non-owner star within 24 h, 0.74% within 48 h.",
+   "Checkpoint sizes: 830,690 / 87,599 / 446,010 bytes. Portable predictions match the scikit-learn estimators to within 1e-14.",
+   "Fit wall time: commercial 1,113 s on 2 threads plus about 5 min of post-fit diagnostics; software 114 s on 1 thread."
+  ]
+ }
+}

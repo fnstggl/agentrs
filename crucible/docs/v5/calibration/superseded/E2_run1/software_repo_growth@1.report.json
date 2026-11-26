@@ -1,0 +1,1085 @@
+{
+ "schema": "crucible.v5.calibration.report/1",
+ "model": "software_repo_growth@1",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E2_software_adoption.plan.json",
+  "sha256": "22d302cf334d80809dc8e38ee677d0715a0c5db6e8a7529f633301c7502e4716",
+  "commit": "7d4fb1e20a6350a30f4294f4dd85729ac3e21e38",
+  "committed_at": "2026-11-25T06:26:32+00:00"
+ },
+ "dataset": {
+  "name": "gharchive_2024-10-07_96h",
+  "synthetic": false,
+  "url": "https://data.gharchive.org/",
+  "dataset": "gharchive_2024-10-07_96h",
+  "dataset_manifest": "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json"
+ },
+ "identification": {
+  "kind": "observational",
+  "statement": "Associations in public GitHub activity; nothing was randomized."
+ },
+ "population": "public GitHub accounts and public repositories whose events reached GitHub's public events API and GH Archive between 2024-10-07 and 2024-10-10 UTC (Monday to Thursday); bot accounts excluded from units",
+ "split": {
+  "train": "D1 -> D2, repository hash bucket < 80",
+  "validation": "D1 -> D2, bucket >= 80",
+  "test": "D2 -> D3 (time-based)"
+ },
+ "counts": {
+  "train": 264438,
+  "validation": 66267,
+  "test": 321303
+ },
+ "heldout": {
+  "validation": {
+   "proportional": {
+    "n": 66267,
+    "mean_poisson_deviance": 0.6540061956638725,
+    "mae": 0.35153896428281883,
+    "rmse_log1p": 0.3005407866397793,
+    "spearman": 0.4551685254634267,
+    "top_1pct_recall": 0.6636500754147813,
+    "mean_predicted": 0.34628926939788923,
+    "mean_observed": 0.3373926690509605,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 6627,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.09099139882299682
+     },
+     {
+      "bin": 1,
+      "n": 6627,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0024143654745737136
+     },
+     {
+      "bin": 2,
+      "n": 6627,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0021125697902519996
+     },
+     {
+      "bin": 3,
+      "n": 6626,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.003622094778146695
+     },
+     {
+      "bin": 4,
+      "n": 6627,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0043760374226648555
+     },
+     {
+      "bin": 5,
+      "n": 6627,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0043760374226648555
+     },
+     {
+      "bin": 6,
+      "n": 6626,
+      "mean_predicted": 0.13426665964966034,
+      "mean_observed": 0.10247509809840025
+     },
+     {
+      "bin": 7,
+      "n": 6627,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.27116342236306024
+     },
+     {
+      "bin": 8,
+      "n": 6627,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.1987324581258488
+     },
+     {
+      "bin": 9,
+      "n": 6626,
+      "mean_predicted": 2.136362139003251,
+      "mean_observed": 2.693932991246604
+     }
+    ]
+   },
+   "poisson_glm": {
+    "n": 66267,
+    "mean_poisson_deviance": 0.6255495387483782,
+    "mae": 0.36997860793338083,
+    "rmse_log1p": 0.26377679908740936,
+    "spearman": 0.41883667816834935,
+    "top_1pct_recall": 0.6606334841628959,
+    "mean_predicted": 0.39670685453867244,
+    "mean_observed": 0.3373926690509605,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 6627,
+      "mean_predicted": 0.011181810111445006,
+      "mean_observed": 0.0012071827372868568
+     },
+     {
+      "bin": 1,
+      "n": 6627,
+      "mean_predicted": 0.0132510535031112,
+      "mean_observed": 0.0028670590010562848
+     },
+     {
+      "bin": 2,
+      "n": 6627,
+      "mean_predicted": 0.013694111210017453,
+      "mean_observed": 0.003168854685377999
+     },
+     {
+      "bin": 3,
+      "n": 6626,
+      "mean_predicted": 0.014732035395828286,
+      "mean_observed": 0.003169332930878358
+     },
+     {
+      "bin": 4,
+      "n": 6627,
+      "mean_predicted": 0.016449724007625347,
+      "mean_observed": 0.008902972687490568
+     },
+     {
+      "bin": 5,
+      "n": 6627,
+      "mean_predicted": 0.021967783120910606,
+      "mean_observed": 0.008752074845329711
+     },
+     {
+      "bin": 6,
+      "n": 6626,
+      "mean_predicted": 0.17655391222826908,
+      "mean_observed": 0.11575611228493812
+     },
+     {
+      "bin": 7,
+      "n": 6627,
+      "mean_predicted": 0.3173604628527357,
+      "mean_observed": 0.11332427946280368
+     },
+     {
+      "bin": 8,
+      "n": 6627,
+      "mean_predicted": 0.3758476438125856,
+      "mean_observed": 0.24173834314169307
+     },
+     {
+      "bin": 9,
+      "n": 6626,
+      "mean_predicted": 3.0063329363088727,
+      "mean_observed": 2.8753395713854513
+     }
+    ]
+   },
+   "gbdt_poisson": {
+    "n": 66267,
+    "mean_poisson_deviance": 28197727758.292477,
+    "mae": 14098863881.090633,
+    "rmse_log1p": 11.980703807343152,
+    "spearman": 0.13893592943768085,
+    "top_1pct_recall": 0.07692307692307693,
+    "mean_predicted": 14098863881.198402,
+    "mean_observed": 0.3373926690509605,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 6627,
+      "mean_predicted": 0.05107464906238883,
+      "mean_observed": 0.0021125697902519996
+     },
+     {
+      "bin": 1,
+      "n": 6627,
+      "mean_predicted": 0.09221322177596199,
+      "mean_observed": 0.1234344348875811
+     },
+     {
+      "bin": 2,
+      "n": 6627,
+      "mean_predicted": 0.13769954789109856,
+      "mean_observed": 0.0019616719480911424
+     },
+     {
+      "bin": 3,
+      "n": 6626,
+      "mean_predicted": 0.14496306963472724,
+      "mean_observed": 0.043012375490492
+     },
+     {
+      "bin": 4,
+      "n": 6627,
+      "mean_predicted": 0.21698580164724243,
+      "mean_observed": 0.14742719179115737
+     },
+     {
+      "bin": 5,
+      "n": 6627,
+      "mean_predicted": 0.23262385651086048,
+      "mean_observed": 0.1368643428398974
+     },
+     {
+      "bin": 6,
+      "n": 6626,
+      "mean_predicted": 1.4033755545883797,
+      "mean_observed": 0.8928463628131603
+     },
+     {
+      "bin": 7,
+      "n": 6627,
+      "mean_predicted": 6215825969.778374,
+      "mean_observed": 1.2722197072581862
+     },
+     {
+      "bin": 8,
+      "n": 6627,
+      "mean_predicted": 10434173118.010098,
+      "mean_observed": 0.008601177003168854
+     },
+     {
+      "bin": 9,
+      "n": 6626,
+      "mean_predicted": 124351021558.33072,
+      "mean_observed": 0.7455478418351947
+     }
+    ]
+   }
+  },
+  "test": {
+   "proportional": {
+    "n": 321303,
+    "mean_poisson_deviance": 0.7318232497844525,
+    "mae": 0.36279133921811646,
+    "rmse_log1p": 0.30323394458058506,
+    "spearman": 0.4631519619694313,
+    "top_1pct_recall": 0.673202614379085,
+    "mean_predicted": 0.3478732464075741,
+    "mean_observed": 0.3507436905351024,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0888861224362765
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.0038281979458450045
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.0041705571117335825
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.00463726619152843
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.006224712107065048
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.005944600062247121
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 0.15405894261819966,
+      "mean_observed": 0.10463415393233949
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.3017740429505135
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.22605042016806723
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 2.1322478222807795,
+      "mean_observed": 2.7613134142545905
+     }
+    ]
+   },
+   "poisson_glm": {
+    "n": 321303,
+    "mean_poisson_deviance": 0.658579049175343,
+    "mae": 0.3411290249432598,
+    "rmse_log1p": 0.26581536977910897,
+    "spearman": 0.4277655478020307,
+    "top_1pct_recall": 0.6738250855897915,
+    "mean_predicted": 0.3647179753715125,
+    "mean_observed": 0.3507436905351024,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.011181810111445008,
+      "mean_observed": 0.0016494973701409853
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.013313367635685943,
+      "mean_observed": 0.002832244008714597
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.013694111210017457,
+      "mean_observed": 0.004014939309056956
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.014785236996259417,
+      "mean_observed": 0.005384208396875292
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.016634427529135017,
+      "mean_observed": 0.007531901649548709
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.02259447791420411,
+      "mean_observed": 0.01235605353252412
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 0.18783051707576512,
+      "mean_observed": 0.12950110485201208
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 0.31736046285273567,
+      "mean_observed": 0.10563336445689386
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 0.38451766711166285,
+      "mean_observed": 0.3164954870837224
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 2.665295075102738,
+      "mean_observed": 2.9220666044195456
+     }
+    ]
+   },
+   "gbdt_poisson": {
+    "n": 321303,
+    "mean_poisson_deviance": 26921390068.715763,
+    "mae": 13460695036.21855,
+    "rmse_log1p": 12.000574419117845,
+    "spearman": 0.1418305337150075,
+    "top_1pct_recall": 0.07220666044195456,
+    "mean_predicted": 13460695036.326265,
+    "mean_observed": 0.3507436905351024,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.05107469146796456,
+      "mean_observed": 0.004108182129407737
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.09419462492238231,
+      "mean_observed": 0.1201058201058201
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.13769954789109856,
+      "mean_observed": 0.0022720199190787425
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.1475951303755175,
+      "mean_observed": 0.06224518377890511
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.21701159472769013,
+      "mean_observed": 0.13520074696545284
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.2447332599681323,
+      "mean_observed": 0.1614067849361967
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 1.5114425093184107,
+      "mean_observed": 0.9833805359310324
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 6300255043.314313,
+      "mean_observed": 1.3318705259881731
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 10448386957.975977,
+      "mean_observed": 0.007749766573295985
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 117859565193.839,
+      "mean_observed": 0.6990974167444756
+     }
+    ]
+   }
+  },
+  "test_new_repos": {
+   "proportional": {
+    "n": 293723,
+    "mean_poisson_deviance": 0.525436059078647,
+    "mae": 0.2326921866204713,
+    "rmse_log1p": 0.2641514189127989,
+    "spearman": 0.33856247576239545,
+    "top_1pct_recall": 0.4698672114402451,
+    "mean_predicted": 0.21847030679948962,
+    "mean_observed": 0.13242068207120314,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 29373,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.055799543798726724
+     },
+     {
+      "bin": 1,
+      "n": 29372,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.003915293476780607
+     },
+     {
+      "bin": 2,
+      "n": 29372,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0041536156884107315
+     },
+     {
+      "bin": 3,
+      "n": 29373,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.004391788377080993
+     },
+     {
+      "bin": 4,
+      "n": 29372,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.006128285441917472
+     },
+     {
+      "bin": 5,
+      "n": 29372,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.006230423532616097
+     },
+     {
+      "bin": 6,
+      "n": 29373,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.006945153712593198
+     },
+     {
+      "bin": 7,
+      "n": 29372,
+      "mean_predicted": 0.4137050434014418,
+      "mean_observed": 0.1574288437968133
+     },
+     {
+      "bin": 8,
+      "n": 29372,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.19375595805529075
+     },
+     {
+      "bin": 9,
+      "n": 29372,
+      "mean_predicted": 1.1068560549734363,
+      "mean_observed": 0.885469154296609
+     }
+    ]
+   },
+   "poisson_glm": {
+    "n": 293723,
+    "mean_poisson_deviance": 0.4769190253103234,
+    "mae": 0.20578777464519762,
+    "rmse_log1p": 0.21971125280801165,
+    "spearman": 0.3007075915871965,
+    "top_1pct_recall": 0.4783792986040177,
+    "mean_predicted": 0.18830608429352114,
+    "mean_observed": 0.13242068207120314,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 29373,
+      "mean_predicted": 0.011181810111445005,
+      "mean_observed": 0.0017022435570081366
+     },
+     {
+      "bin": 1,
+      "n": 29372,
+      "mean_predicted": 0.013041713774598201,
+      "mean_observed": 0.002689636388397113
+     },
+     {
+      "bin": 2,
+      "n": 29372,
+      "mean_predicted": 0.013694111210017455,
+      "mean_observed": 0.003574833174451859
+     },
+     {
+      "bin": 3,
+      "n": 29373,
+      "mean_predicted": 0.014370539338728469,
+      "mean_observed": 0.005208865284444898
+     },
+     {
+      "bin": 4,
+      "n": 29372,
+      "mean_predicted": 0.015666662352862234,
+      "mean_observed": 0.0065708838349448455
+     },
+     {
+      "bin": 5,
+      "n": 29372,
+      "mean_predicted": 0.01849053341286351,
+      "mean_observed": 0.00885196786054746
+     },
+     {
+      "bin": 6,
+      "n": 29373,
+      "mean_predicted": 0.06357129271491056,
+      "mean_observed": 0.04653933884860246
+     },
+     {
+      "bin": 7,
+      "n": 29372,
+      "mean_predicted": 0.28162616675892854,
+      "mean_observed": 0.12471060874302056
+     },
+     {
+      "bin": 8,
+      "n": 29372,
+      "mean_predicted": 0.3284200224810764,
+      "mean_observed": 0.1291365926732943
+     },
+     {
+      "bin": 9,
+      "n": 29372,
+      "mean_predicted": 1.1230141896974821,
+      "mean_observed": 0.9952335557673975
+     }
+    ]
+   },
+   "gbdt_poisson": {
+    "n": 293723,
+    "mean_poisson_deviance": 22763836557.48078,
+    "mae": 11381918279.39812,
+    "rmse_log1p": 12.350497793301347,
+    "spearman": 0.08683906464218406,
+    "top_1pct_recall": 0.07865168539325842,
+    "mean_predicted": 11381918279.421734,
+    "mean_observed": 0.13242068207120314,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 29373,
+      "mean_predicted": 0.05105838156020546,
+      "mean_observed": 0.004017294794539203
+     },
+     {
+      "bin": 1,
+      "n": 29372,
+      "mean_predicted": 0.08595885979167105,
+      "mean_observed": 0.05821871169821599
+     },
+     {
+      "bin": 2,
+      "n": 29372,
+      "mean_predicted": 0.13769954789109853,
+      "mean_observed": 0.0022810840256026147
+     },
+     {
+      "bin": 3,
+      "n": 29373,
+      "mean_predicted": 0.13769954789109856,
+      "mean_observed": 0.00435774350594083
+     },
+     {
+      "bin": 4,
+      "n": 29372,
+      "mean_predicted": 0.20695953343132645,
+      "mean_observed": 0.13931635571292386
+     },
+     {
+      "bin": 5,
+      "n": 29372,
+      "mean_predicted": 0.21725233809062958,
+      "mean_observed": 0.0990739479776658
+     },
+     {
+      "bin": 6,
+      "n": 29373,
+      "mean_predicted": 1.1218272497981723,
+      "mean_observed": 0.39379702447826237
+     },
+     {
+      "bin": 7,
+      "n": 29372,
+      "mean_predicted": 7947476227.299105,
+      "mean_observed": 0.3560193381451723
+     },
+     {
+      "bin": 8,
+      "n": 29372,
+      "mean_predicted": 10549736420.525072,
+      "mean_observed": 0.007966771074492713
+     },
+     {
+      "bin": 9,
+      "n": 29372,
+      "mean_predicted": 95323132671.83621,
+      "mean_observed": 0.25915838213264336
+     }
+    ]
+   }
+  }
+ },
+ "selection": {
+  "rule": "lowest validation mean Poisson deviance; confirmed on test by paired bootstrap",
+  "kept": "poisson_glm",
+  "baseline": "proportional",
+  "comparisons": [
+   {
+    "kept": "poisson_glm",
+    "other": "proportional",
+    "metric": "mean_poisson_deviance (test)",
+    "kept_minus_other": {
+     "mean": -0.07324420060910944,
+     "se": 0.012242820548102006,
+     "ci95": [
+      -0.09594949014653406,
+      -0.04990678495132728
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -0.02845665691549437
+   },
+   {
+    "kept": "poisson_glm",
+    "other": "gbdt_poisson",
+    "metric": "mean_poisson_deviance (test)",
+    "kept_minus_other": {
+     "mean": -26921390068.057186,
+     "se": 678090839.4311954,
+     "ci95": [
+      -28151481544.207275,
+      -25664669171.343468
+     ],
+     "n_boot": 200
+    },
+    "kept_significantly_worse": false,
+    "validation_kept_minus_other": -28197727757.666927
+   }
+  ],
+  "worse_model_kept": 0
+ },
+ "calibration_metrics": {
+  "proportional": {
+   "test": {
+    "mean_poisson_deviance": 0.7318232497844525,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.0888861224362765
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.0038281979458450045
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.0041705571117335825
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.016984096226095674,
+      "mean_observed": 0.00463726619152843
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.006224712107065048
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.016984096226095678,
+      "mean_observed": 0.005944600062247121
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 0.15405894261819966,
+      "mean_observed": 0.10463415393233949
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.3017740429505135
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 0.5452738754541986,
+      "mean_observed": 0.22605042016806723
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 2.1322478222807795,
+      "mean_observed": 2.7613134142545905
+     }
+    ]
+   }
+  },
+  "poisson_glm": {
+   "test": {
+    "mean_poisson_deviance": 0.658579049175343,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.011181810111445008,
+      "mean_observed": 0.0016494973701409853
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.013313367635685943,
+      "mean_observed": 0.002832244008714597
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.013694111210017457,
+      "mean_observed": 0.004014939309056956
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.014785236996259417,
+      "mean_observed": 0.005384208396875292
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.016634427529135017,
+      "mean_observed": 0.007531901649548709
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.02259447791420411,
+      "mean_observed": 0.01235605353252412
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 0.18783051707576512,
+      "mean_observed": 0.12950110485201208
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 0.31736046285273567,
+      "mean_observed": 0.10563336445689386
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 0.38451766711166285,
+      "mean_observed": 0.3164954870837224
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 2.665295075102738,
+      "mean_observed": 2.9220666044195456
+     }
+    ]
+   }
+  },
+  "gbdt_poisson": {
+   "test": {
+    "mean_poisson_deviance": 26921390068.715763,
+    "calibration_by_decile": [
+     {
+      "bin": 0,
+      "n": 32131,
+      "mean_predicted": 0.05107469146796456,
+      "mean_observed": 0.004108182129407737
+     },
+     {
+      "bin": 1,
+      "n": 32130,
+      "mean_predicted": 0.09419462492238231,
+      "mean_observed": 0.1201058201058201
+     },
+     {
+      "bin": 2,
+      "n": 32130,
+      "mean_predicted": 0.13769954789109856,
+      "mean_observed": 0.0022720199190787425
+     },
+     {
+      "bin": 3,
+      "n": 32131,
+      "mean_predicted": 0.1475951303755175,
+      "mean_observed": 0.06224518377890511
+     },
+     {
+      "bin": 4,
+      "n": 32130,
+      "mean_predicted": 0.21701159472769013,
+      "mean_observed": 0.13520074696545284
+     },
+     {
+      "bin": 5,
+      "n": 32130,
+      "mean_predicted": 0.2447332599681323,
+      "mean_observed": 0.1614067849361967
+     },
+     {
+      "bin": 6,
+      "n": 32131,
+      "mean_predicted": 1.5114425093184107,
+      "mean_observed": 0.9833805359310324
+     },
+     {
+      "bin": 7,
+      "n": 32130,
+      "mean_predicted": 6300255043.314313,
+      "mean_observed": 1.3318705259881731
+     },
+     {
+      "bin": 8,
+      "n": 32130,
+      "mean_predicted": 10448386957.975977,
+      "mean_observed": 0.007749766573295985
+     },
+     {
+      "bin": 9,
+      "n": 32130,
+      "mean_predicted": 117859565193.839,
+      "mean_observed": 0.6990974167444756
+     }
+    ]
+   }
+  }
+ },
+ "distribution": {
+  "observed": {
+   "mean": 0.3507436905351024,
+   "share_zero": 0.9068200421409075,
+   "share_ge_10": 0.005751580284030961,
+   "q50": 0.0,
+   "q90": 0.0,
+   "q99": 6.0,
+   "q999": 34.0
+  },
+  "simulated_nb": {
+   "mean": 0.3586178778287162,
+   "share_zero": 0.8867393083786955,
+   "share_ge_10": 0.004014901821644989,
+   "q50": 0.0,
+   "q90": 1.0,
+   "q99": 5.0,
+   "q999": 31.0
+  },
+  "simulated_poisson": {
+   "mean": 0.36324590806808527,
+   "share_zero": 0.8534156232590421,
+   "share_ge_10": 0.0039339813198133846,
+   "q50": 0.0,
+   "q90": 1.0,
+   "q99": 4.0,
+   "q999": 29.697999999974854
+  },
+  "nb_alpha": 1.9905815411297096,
+  "ks_log1p_nb": 0.020080733762211977,
+  "ks_log1p_poisson": 0.05340441888186542,
+  "test_nb_loglik": -0.3462285825645592
+ },
+ "new_repository_adoption_curve": {
+  "n_new_repos_D1": 205095,
+  "share_with_star_24h": 0.005724176601087301,
+  "share_with_star_48h": 0.007352690216728833,
+  "mean_cumulative_stars_by_hour": [
+   0.008849557522123894,
+   0.009946610107511153,
+   0.010838879543626124,
+   0.011433725834369439,
+   0.01194568370755016,
+   0.012379628952436675,
+   0.012789195250981253,
+   0.013164631024647116,
+   0.013574197323191692,
+   0.013959384675394329,
+   0.014476218337843438,
+   0.015007679368097711,
+   0.015509885662741656,
+   0.015963334064701722,
+   0.016455788780808892,
+   0.01698237402179478,
+   0.0175333382091226,
+   0.018108681342792365,
+   0.018713279212072453,
+   0.01930324971354738,
+   0.01990297179355908,
+   0.02044418440235013,
+   0.020902508593578586,
+   0.02237012116336332,
+   0.02297471903264341,
+   0.0234184158560667,
+   0.02384748531168483,
+   0.024169287403398423,
+   0.024510592652185574,
+   0.02485189790097272,
+   0.025183451571223092,
+   0.025427241034642483,
+   0.02568078207659865,
+   0.025958702064896755,
+   0.026197615739047758,
+   0.02648528730588264,
+   0.026792462029791072,
+   0.02712889148930983,
+   0.027455569370291817,
+   0.027704234622979596,
+   0.0279431482971306,
+   0.028177186182013213,
+   0.02845023038104293,
+   0.028776908262024916,
+   0.029137716667885612,
+   0.029430264023988885,
+   0.029815451376191522,
+   0.030181135571320607
+  ],
+  "stars_48h_distribution": {
+   "mean": 0.030181135571320607,
+   "share_zero": 0.9926473097832712,
+   "share_ge_10": 0.000243789463419391,
+   "q50": 0.0,
+   "q90": 0.0,
+   "q99": 0.0,
+   "q999": 3.0
+  },
+  "note": "descriptive reference (not fitted): repositories created on 2024-10-08 UTC, non-owner non-bot stars within 48 h"
+ },
+ "audit": {
+  "rows": "all test rows",
+  "n": 321303,
+  "max_rel_diff_vs_estimator": 0.0,
+  "mean_poisson_deviance": 0.658579049175343,
+  "baseline_mean_poisson_deviance": 0.7318232497844525
+ },
+ "tables": {
+  "digests": {
+   "curve/n_new_repos": "75148901a3c49b2d95b3071542d2f8c7211968761a637856b7508f9a236bf9ea",
+   "curve/stars_24h": "bf6c4581cd7bec07a368b86870f296332764bbf7c96dc4d5798198dd8320f30d",
+   "curve/stars_48h": "6e7e92f9d7112151788009a42fb846be69f1dbdd8b0672b1b6b27a983a1654b5",
+   "curve/stars_by_hour": "3c1d9dca2798b58fe9d62b174414ad7881c9bd27b8656ed297d1a9fe063f2709",
+   "growth/d1/X": "5040050537f6e9dba02e993e8d03db8e58da7052acbd4530f9694e9eeeb63a6b",
+   "growth/d1/repo": "77331c14d67bfce78ba7df6d5a2d1b84c4047ec34ec678df5e3a08529af0e93a",
+   "growth/d1/train_bucket": "57893174d92c64c75a66a7b0ed6b741ca550675d6468f4f6b4e8fed4d550d44c",
+   "growth/d1/y": "9260a9e403afcc312dfc7843bfef8287913215e0307b93b471e518b48e5ddec9",
+   "growth/d2/X": "d955fdf33872a3e2c548d3a9a58976728288c154d893f123b7031a45275b36c6",
+   "growth/d2/repo": "02ee974c39d078adf39d46018aa92bdf1d83590a6bfdd15055dda35eb3b5bc63",
+   "growth/d2/train_bucket": "f7ef24e0221e591b99218a62921f50b89cb6be4b930848efe5d641c0dd040d2c",
+   "growth/d2/y": "d46b5b1917d67f137f2467cd63579cb55e871067c9ee0d021d7f0d428012578d"
+  },
+  "version": "1"
+ },
+ "fit_info": {
+  "proportional": {
+   "a": 0.5282897792281028,
+   "b": 0.016984096226095674,
+   "converged": true,
+   "wall_s": 0.0,
+   "portable_max_rel_diff": 0.0
+  },
+  "poisson_glm": {
+   "n_iter": 66,
+   "wall_s": 0.9,
+   "portable_max_rel_diff": 0.0
+  },
+  "gbdt_poisson": {
+   "n_iter": 20,
+   "wall_s": 2.5,
+   "portable_max_rel_diff": 1.4280311702409693e-14
+  }
+ },
+ "extrapolation_limits": [
+  "Population: public GitHub, 2024-10-07..10 UTC (four weekdays of one autumn week). Developers on GitHub are skewed towards professional, English-speaking and North-American/European/Asian time zones; private repositories and private activity are invisible.",
+  "GH Archive records the public events API, which drops events under load and omits some activity; counts are lower bounds.",
+  "Stars are cheap signals inflated by automation and star farming; a star is not evidence of useful adoption (MASTER_SPEC 6.5). These models describe engagement dynamics, not usefulness.",
+  "Observational associations only: nothing was randomized, so the models do not say what promotion, ranking or buying stars would cause.",
+  "Short horizon: features look back 24 h and outcomes forward 24 h; long-run adoption, retention, maintenance and dependency incorporation are not observed.",
+  "Bots are identified only by the '[bot]' login suffix; other automation accounts remain in the data.",
+  "Units are repositories with at least one star or fork on the day (or created that day): the model says nothing about the large majority of repositories with no such activity.",
+  "Next-day stars for the test day (2024-10-10) come from a Thursday; weekday and holiday patterns are not modelled.",
+  "The negative-binomial dispersion was fitted on training rows; the simulated distribution's tail (q99.9) should be compared with the report before using the model for viral outliers."
+ ],
+ "wall_s": 43.1,
+ "finished_at": "2026-11-25T06:50:49+00:00"
+}

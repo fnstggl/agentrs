@@ -1,0 +1,35 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "SP-11.4",
+ "gate": "SP",
+ "produced_by": "tests/v5/test_gate_SP_11_4.py::test_SP_11_4_self_generated_experiments",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_4.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:18:48.702901+00:00",
+ "tree": {
+  "commit": "8b50eba4edcea83204502fd02bb5f2749d1db491",
+  "dirty_paths": [
+   "rucible/docs/v5/REPRODUCE.md",
+   "crucible/src/crucible/experience/kernel.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "self_experiment_roundtrips": 9,
+  "self_goal_rewards_paid": 0,
+  "outcomes_match_world": true,
+  "legacy_reward_steps_same_actions": 2,
+  "modes_compared": 3
+ },
+ "artifacts": [],
+ "notes": "evidence (hypothesis, baseline, measured, held, actions during): [('my balance stays non-negative for an hou', 50000.0, 46000.0, True, 4), ('two 40-dollar orders in two days lower m', 50000.0, 42000.0, True, 4), ('my balance will grow (it will not: I onl', 50000.0, 38000.0, False, 4)]; rewards per step with/without experiments identical in every mode; the legacy reward is nonzero on the same actions (the cash objective moves), so equality is not trivially 0 = 0",
+ "junit": null
+}
