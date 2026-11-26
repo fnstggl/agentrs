@@ -142,7 +142,13 @@
     "q1": 2.45,
     "q4": 4.49
    },
-   "compaction_s_at_day_365_before_incremental_fix": 19.3
+   "compaction_s_at_day_365_before_incremental_fix": 19.3,
+   "compaction_s_after_incremental_fix": {
+    "first_in_a_process_cold": 12.38,
+    "weekly_warm_day_372": 8.83,
+    "weekly_warm_day_379": 9.44,
+    "profile_of_a_warm_compaction_after_one_day": "3.4 s, of which 1.8 s are the two full blob-size scans (pack and collect, 222k blob keys): the remaining O(blobs) term"
+   }
   }
  },
  "kernel_pieces_for_other_requirements": {
@@ -162,7 +168,7 @@
   "social/studio.py's own sandbox pool and rapid/engines/program_exec.py use the deterministic cost model with meter_scope None and no memo file: anchors shared by all worlds of a process, not across processes (owners C and H).",
   "Snapshot bytes grow superlinearly (each snapshot holds the state, which keeps one artifacts metadata row per system blob: 222,702 rows after 365 days; 15 retained snapshots = 120 MB at day 365, growing 1.4 -> 3.3 MB/week). Blob and event growth rates are constant.",
   "Historical runtime reconstruction (history.state_at(..., runtime=True)) is available only at times whose neural checkpoints are still stored: collect drops superseded checkpoints that no retained snapshot roots. State queries (runtime=False) stay exact at any time.",
-  "Wall time per simulated day grew 2.45 -> 4.49 s over 365 days; the weekly compaction (19.3 s at day 365) was the main O(history) term and is now incremental; not re-measured over a full year after the fix.",
+  "Wall time per simulated day grew 2.45 -> 4.49 s over 365 days; the weekly compaction was the main O(history) term (19.3 s at day 365); after the incremental fix a warm weekly compaction at day 372-379 takes 8.8-9.4 s (packing that week's blobs included), the remaining O(blobs) part being two blob-size scans (1.8 s); a full 365-day run was not repeated after the fix.",
   "Fault injection still reaches few agent commands (random schema-valid commands rarely span modules); deliberate composed failures come from a labelled test driver module.",
   "Cross-process exactness is verified on this machine (CPU torch), not across machines.",
   "The event log is not bounded (linear, as any exact record); SQLite stores payloads > 2 KiB compressed, Postgres (JSON columns) does not.",

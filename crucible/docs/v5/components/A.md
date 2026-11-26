@@ -268,3 +268,11 @@ Measured in that mirror (single CPU, slot scheduler):
   artifact metadata rows: 222,702 at day 364); SQLite file 859 MB (unvacuumed). At the end, in a fresh store
   object: replay from genesis exact (297 s), recount of the population's 271,993 visits from blobs read through the
   packed chunks exact, resume exact (16 s). Wall time per simulated day 2.5 s (first quarter) -> 4.5 s (last).
+  Most of that growth was the weekly compaction itself (19.3 s at day 365: `collect` re-read every `cols.batch`
+  event and every retained snapshot was unpickled for its roots and time). Now incremental: a warm weekly
+  compaction at day 372-379 takes 8.8-9.4 s including packing that week's blobs (cold, first in a process: 12.4 s);
+  the remaining O(blobs) term is two blob-size scans (1.8 s at 222k blobs). Not re-run over a full year.
+* History on that compacted store: `history.state_at(seq)` (nearest retained snapshot + replay) equals replay from
+  genesis at days 45, 150 and 300 (7 / 37 / 95 s against 31 / 109 / 211 s). `state_at(..., runtime=True)` at day 45
+  fails with NotFound: the checkpoint current then was superseded and collected (no retained snapshot roots it) -
+  historical *state* is exact at any time, historical *runtime* (rebuilt weights) only where its checkpoint is kept.
