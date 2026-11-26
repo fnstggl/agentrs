@@ -137,6 +137,17 @@ def compatible(arg: str, schema: dict, value: str) -> bool:
     return not value.startswith(("sha256:", "acct_")) or n in ("id",)
 
 
+def _specific(arg: str, value: str) -> bool:
+    """Optional arguments are offered only when the known identifier is of the arguments's own kind (a message for
+    in_reply_to, content for reply_to / post / item ...), not merely compatible in form."""
+    n = arg.lower()
+    if n in ("in_reply_to", "msg"):
+        return value.startswith("mail_")
+    if n in ("reply_to", "post", "thread", "question", "parent", "item", "id"):
+        return bool(re.fullmatch(r"c\d+|post_\d+|[a-z]{2,8}_\d{3,9}", value)) and not value.startswith(("acct_", "mail_"))
+    return False
+
+
 def ids_in_text(s: str) -> list[str]:
     return list(dict.fromkeys(_ID_PATTERNS.findall(s or "")))
 
@@ -469,6 +480,15 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
                 out.append(Slot(k, ps, required, "choose", opts, vals))
             continue
         if not required:
+            # an optional reference to something the participant has seen (the message it answers, the post it
+            # replies to): offered with the option to leave it out
+            if "string" in typ and not ps.get("enum") and not is_text_field(k, ps):
+                pat, mx = ps.get("pattern"), int(ps.get("maxLength", 200) or 200)
+                ids = [x for x in a.known if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
+                       _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x) and _specific(k, x)]
+                if ids:
+                    out.append(Slot(k, ps, False, "choose", [f"{x} ({a.known[x]})" for x in ids][:8] + [OMIT],
+                                    ids[:8] + [None]))
             continue
         if "integer" in typ or "number" in typ:
             lo = ps.get("minimum")
