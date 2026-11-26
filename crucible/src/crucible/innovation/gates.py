@@ -49,15 +49,39 @@ from . import measure as M
 DAY = 86400
 
 
+def _arm_summary(r: dict) -> dict:
+    """What the gate measures read from a counterfactual arm's world, so that only the factual world stays open (a
+    civilisation world holds a few GB): individuals relying on in-world creations per step, and the system credits
+    to its creators."""
+    w = r["world"]
+    steps = sorted({row["step_need"] for _, row in w.state.scan("work_exp") if row["step_need"]})
+    creators = sorted({p["creator"] for p in M.agent_products(w)})
+    return {"relying": {need: relying_on_creations(w, need) for need in steps},
+            "bonuses": M.special_case_bonuses(w, creators)}
+
+
 @functools.lru_cache(maxsize=2)
 def arms(kind: str = "civ", seed: int = 3, days: int = 24, profile: str = "balanced", n: int = 600) -> dict:
+    """The four arms (factual first). Counterfactual arms are summarised (`_arm_summary`) and their worlds closed;
+    the factual arm keeps its world (`A["factual"]["world"]`)."""
     out = {}
     for arm in CX.ARMS:
         r = CX.run_arm(kind, arm, seed, days=days, profile=profile, n=n, log=print)
         r["outcome"] = CX.outcome(r)
         r["chains"] = X.mine_chains(r) + CX.package_chains(r)
+        r["summary"] = _arm_summary(r)
+        if arm != "factual":
+            r["world"].close()
+            r["world"] = None
         out[arm] = r
     return out
+
+
+def _relying(A: dict, arm: str, need: str) -> int:
+    r = A[arm]
+    if r.get("world") is not None:
+        return relying_on_creations(r["world"], need)
+    return int(r["summary"]["relying"].get(need, 0))
 
 
 def _cat_totals(out: dict, cat: str) -> tuple[int, int]:
@@ -178,8 +202,8 @@ def confirmed(A: dict, chain: dict) -> bool:
         target = name.split("capability/", 1)[-1]
         later = [s for s in chain["stages"] if s["name"] in ("adoption by holders", "need relieved")]
         # without the invention nobody adopts anything created for the step and the need is still there at the end
-        return bool(later) and relying_on_creations(A["factual"]["world"], target) > 0 and \
-            relying_on_creations(A[arm]["world"], target) == 0 and nid in out["needs"]
+        return bool(later) and _relying(A, "factual", target) > 0 and _relying(A, arm, target) == 0 and \
+            nid in out["needs"]
     if name.startswith("competition:"):
         return out["incumbent_price_changes"] < A["factual"]["outcome"]["incumbent_price_changes"] or \
             not any(c["chain"] == name and c["n_stages"] >= 3 for c in A[arm]["chains"])
@@ -227,8 +251,7 @@ def l_measure(A: dict) -> dict:
                  any(s["name"] == "adoption by holders" for s in c["stages"])]
     conf = [(c["chain"], chain_removal_arm(c), confirmed(A, c)) for c in indep]
     creators = sorted({p["creator"] for p in M.agent_products(f["world"])})
-    bon = {a: M.special_case_bonuses(A[a]["world"], sorted({p["creator"] for p in M.agent_products(A[a]["world"])}))
-           for a in A}
+    bon = {a: A[a]["summary"]["bonuses"] for a in A}
     return {
         "effects": effects, "emerged": emerged, "good": good, "independent": indep, "confirmations": conf,
         "L.1": {"capability_effects_measured": len(measured), **{f"effect_{k}": float(v) for k, v in effects.items()}},

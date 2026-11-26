@@ -30,6 +30,7 @@ import numpy as np
 
 DAY = 86400
 ARMS = ("factual", "garbage", "ban_novel", "ban_published")
+LOG_RETAIN = 6_000_000
 
 
 def published_formats(spec) -> list[str]:
@@ -114,12 +115,18 @@ def run_arm(kind: str, arm: str, seed: int, *, days: int = 24, profile: str = "b
     import crucible
     from ..core.kernel import World
     crucible.load_all_modules()
+    # the measurements read the whole event log (adoptions after accepted trials, income deposits, chains): keep it
+    # all (a civilisation retains 300,000 events by default and drops the older half beyond that)
+    kw["params"] = {**dict(kw.get("params") or {}), "log_retain": LOG_RETAIN}
     sp = arm_spec(kind, arm, seed, profile=profile, n=n, **kw)
     t0 = time.time()
     w = World.create(sp, world_id=f"inv-{kind}-{arm}-{sp.hash()[:10]}")
     history = [snapshot_day(w)]
     for d in range(1, days + 1):
         w.advance_time(d * DAY)
+        if w.log_base:
+            raise RuntimeError(f"{kind}/{arm}: the event log was truncated on day {d} ({w.log_base} events dropped); "
+                               "the measurements need the whole log")
         history.append(snapshot_day(w))
         if log is not None:
             st = w.state
