@@ -121,12 +121,15 @@ def cx_reactive_history(rng, d):
 
 @_pg("cx_overdose", category="8.1", item="8.1.3", split="train",
         doc="A treatment lever has a dose-response that rises and then falls: past a hidden dose more of it lowers "
-            "output, and the plant was left running at an overdose. A second lever helps with diminishing returns.",
+            "output, and the plant was left running at an overdose. A second lever helps with diminishing returns. "
+            "Predict where output settles at doses partly outside what can be set.",
         distinct_because="compose diamond (a mediated lagged path and a direct path) into a non-monotonic node whose "
                          "peak lies at a low hidden dose, plus a separate saturating lever path: the interventional "
                          "response to the first lever changes sign along its range",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "dose_peak",), identify=C + "dose_is_non_monotonic", lever_view=True)
+        axes={"horizon": 120, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "dose_peak",), identify=C + "dose_is_non_monotonic", lever_view=True,
+        reference="crucible.rapid.refs_adapt:held_dose_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def cx_overdose(rng, d):
     c = Composed(rng, _base(d, topology="diamond", motifs=["linear_nonlinear", "non_monotonic"], temporal="lagged"))
     a, b = c.levers
@@ -145,6 +148,15 @@ def cx_overdose(rng, d):
     costs = price_levers_at(cfg, {a: ta, b: u(rng, 5.5, 8.0)})
     cfg["nodes"][int(a[1:])]["lever"]["cost"] = max(costs[a], 0.0) + 0.05 * costs[b]
     cfg["claim"]["peak_dose"] = ta
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((0.5, 12.0), (2.5, 14.0), (12.0, 3.0), (6.0, 16.0), (14.0, 12.0), (1.5, 0.5), (11.0, 8.0))]
+    text = ("Predict where output settles if the two dosing levers were held at these values (partly outside what "
+            f"you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 12}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 

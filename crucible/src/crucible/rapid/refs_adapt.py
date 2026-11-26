@@ -1311,3 +1311,65 @@ def learning_transition_predict(view, env, seed: int = 0, settle: int = 60) -> N
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== a dose with a peak, acting after a delay
+def held_dose_predict(view, env, hold: int = 7, use: int = 2, seed: int = 0) -> None:
+    """Scripted public reference for predicting the settled output of a treatment whose dose-response rises to a
+    peak and falls, acting after a delay, next to a second, saturating lever: random conditions are held for
+    `hold` ticks each and only the last `use` readings of every hold are kept (the delayed effect has arrived);
+    output is modelled as y = z or y = cap z / (z + K) with z = c0 + c1 bump(dose; peak, width) + c2 sat(second; h)
+    (bump: r e^(1 - r), r = dose / peak, scaled by a width), shapes and link from grids, the c's by least squares.
+    Public: the objective names the treatment first, the second lever second."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    an, bn = list(held[0])[:2]
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = {n: float(props[n]["minimum"]) for n in (an, bn)}
+    hi = {n: float(props[n]["maximum"]) for n in (an, bn)}
+    A, B, y = [], [], []
+    while view.t < view.horizon - 2 and not view.done:
+        a = float(lo[an] + rng.random() * (hi[an] - lo[an]))
+        b = float(lo[bn] + rng.random() * (hi[bn] - lo[bn]))
+        vals = []
+        for _ in range(hold):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {an: a, bn: b}})
+            vals.append(float(r["observation"]["numbers"].get(gauge, np.nan)))
+        if len(vals) == hold:
+            for v in vals[-use:]:
+                A.append(a)
+                B.append(b)
+                y.append(v)
+    A, B, y = np.asarray(A), np.asarray(B), np.asarray(y)
+    ok = np.isfinite(y)
+    A, B, y = A[ok], B[ok], y[ok]
+    if len(y) >= 12 and not view.done:
+        ymax = float(np.max(y))
+        links = [(None, None)] + [(ymax * m, k) for m in (1.2, 1.6, 2.5) for k in (10.0, 25.0, 50.0)]
+        best = None
+        for pk in np.linspace(0.5, 9.5, 19):
+            bump = (A / pk) * np.exp(1.0 - A / pk)
+            for h in (1.0, 3.0, 6.0, 12.0):
+                F_ = np.c_[np.ones(len(y)), bump, B / (B + h)]
+                for cap, K in links:
+                    tz = y if cap is None else K * np.minimum(y, 0.98 * cap) / (cap - np.minimum(y, 0.98 * cap))
+                    coef, *_ = np.linalg.lstsq(F_, tz, rcond=None)
+                    zh = F_ @ coef
+                    yh = zh if cap is None else cap * np.maximum(zh, 0.0) / (np.maximum(zh, 0.0) + K)
+                    err = float(np.sum((yh - y) ** 2))
+                    if best is None or err < best[0]:
+                        best = (err, pk, h, coef, cap, K)
+        _, pk, h, coef, cap, K = best
+        out = []
+        for c in held:
+            a, b = float(c[an]), float(c[bn])
+            z = coef[0] + coef[1] * (a / pk) * np.exp(1.0 - a / pk) + coef[2] * b / (b + h)
+            v = z if cap is None else cap * max(z, 0.0) / (max(z, 0.0) + K)
+            out.append({"set": c, "value": float(v)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)
