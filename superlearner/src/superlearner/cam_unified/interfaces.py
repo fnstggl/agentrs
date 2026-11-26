@@ -164,6 +164,10 @@ class Action(_Rec):
                                          # filled (intervention-level randomization_p); reserved non-float keys:
                                          # "decode" (decoder replay record), "greedy", "decoder"
     proposal: Optional[dict] = None      # when candidates were proposed: {"n": int, "probs": [...], "chosen": int}
+                                         # v4 reserved key "cam_eval": CAM's pre-execution evaluation of this action
+                                         # (decision.select: {"q", "k", "n_candidates", "gen_logp", "sel_logp",
+                                         # "policy_version", "psi_version"}); required by the canonical loop when
+                                         # the DOM decision path is on (runtime.authorise)
     action_id: str = field(default_factory=lambda: new_id("a_"))
 
     @staticmethod
@@ -774,4 +778,10 @@ class CheckpointOpsP(Protocol):               # workstream E: cam_unified/memory
 #   (the first argument may be the reasoned latent R_t; z = a given stochastic latent sample).
 # * Config switches of the DOM runtime are CamConfig fields (config.py, "DOM integrated runtime"), presets
 #   config.make_preset("dom" | "dom_dev" | "dom_150m"); cfg.reward_mode "legacy" is the pre-v4 behaviour.
+# * The canonical loop (W1): runtime.run_lifetime is the only act -> execute -> advance loop; build.build_agent the
+#   only factory. In reward_mode "observation_only" / "sparse_verified" Transition.rewards is None and every record the
+#   agent receives has reward 0.0; verified labels go LabelSource.take_labels() -> envs.labels.LabelStore (learner
+#   side). Action.proposal["cam_eval"] (reserved) authorises execution when runtime.dom_decision_path(cfg) is true
+#   (cfg.n_intent > 0 or cfg.n_candidates > 1); runtime.merge_by_seq builds the next observation batch from the tool
+#   results, the advance's observations and collected events.
 

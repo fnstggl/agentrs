@@ -1,13 +1,15 @@
 """CamUnifiedAgent: per-environment state around CamUnifiedModel (spec Parts 11, 12, 14, 18.1, 20 A22).
 
-AgentP shape (used by runtime.run_steps, workstream F's actors and - through `stage1.harness_agent.HarnessAgent` -
-G's OpenWorld lifetime harness `envs.harness.run_lifetime`):
+AgentP shape (driven by the canonical loop runtime.run_lifetime - directly, through its wrappers run_steps /
+envs.harness.run_lifetime / experiments.mechrun.run_batch, or through `stage1.harness_agent.HarnessAgent` - and by
+workstream F's actors):
 
     act(obs_batch: ObservationBatch, tools_batch: [B] list[ToolSchema]) -> [B] Action | None   (None = done env)
-    observe(results: [B] ExecutionResult, rewards: [B] float, next_obs: ObservationBatch) -> list[EventRecord]
-    observe(transition: envs.agent_protocol.Transition) -> list[EventRecord]      (harness call shape)
+    observe(transition: envs.agent_protocol.Transition) -> list[EventRecord]      (canonical loop; rewards None in
+                                                                                   observation-only modes)
+    observe(results: [B] ExecutionResult, rewards: [B] float | None, next_obs: ObservationBatch) -> list  (pre-v4)
     update() -> dict                                    (one learner step; no-op when cfg.continual_updates is False)
-    reset(env_ids: list[str] | None) -> None
+    reset(env_ids: list[str] | None) -> None            (a different env-id set replaces the whole batch)
     flush() -> list[EventRecord]                        (end of a run: archive undelivered post-action observations)
 
 Per environment the agent keeps Z_t, the FastState, an EntityRegistry (episode-local slots), the outcome tracker, the
@@ -63,6 +65,7 @@ from .outcome_spec import CONTINUOUS, OutcomeSpec, build_outcome_batch
 from .learn import integrated
 from .learn.integrated import (DEFAULT_OBJECTIVES, SUPPORT_SIZES, gae_semi_markov, objective_adapt,  # noqa: F401
                                objective_memory, objective_policy, objective_world)
+STAMP_KEYS = ("versions", "schema", "reward_mode")             # cam-event/4 keys copied from the loop's records
 OBS_REF = re.compile(r"^obs:(\d+)")
 SLOT_REF = re.compile(r"^entity(?:_slot)?:(\d+)$")             # B's EntityEncoder: "entity:<slot>"
 REL_REF = re.compile(r"^relation:(-?\d+)->(-?\d+)$")           # B's EntityEncoder: "relation:<i>-><j>" (slots)
@@ -483,8 +486,9 @@ class CamUnifiedAgent:
         Undelivered post-action observations of the reset rows are archived first."""
         env_ids = list(env_ids) if env_ids is not None else list(self.env_ids)
         if self.state is None or any(e not in self.env_ids for e in env_ids):
-            if self.state is not None and set(env_ids) != set(self.env_ids):
-                raise ValueError("reset: a new batch must replace all environments at once")
+            # a batch with a different env-id set replaces the whole batch (every row restarts; the pending
+            # post-action observations of the old batch are archived first; the fresh buffer is kept). Before v4 this
+            # raised and callers (experiments.mechrun) dropped `state` themselves.
             self.flush("reset")
             self.env_ids = env_ids
             B = len(env_ids)
@@ -708,14 +712,19 @@ class CamUnifiedAgent:
         replay notification), DecisionTraces -> recorder, fresh buffer for the policy objective. Returns the records
         (including world-event records of post-action observations at episode ends).
 
-        Two call shapes: observe(results [B], rewards [B], next_obs) (runtime.run_steps), or observe(transition) with
-        a lifetime-harness `envs.agent_protocol.Transition` (records [B] carrying the ExecutionResults, next_obs,
-        rewards = verified return increments). Only those fields are read: the harness's own records are its
-        transcript; the agent archives its own records (with its predictions, behaviour provenance, outcomes)."""
+        Two call shapes: observe(transition) with an `envs.agent_protocol.Transition` (the canonical loop
+        runtime.run_lifetime: records [B] carrying the ExecutionResults and the cam-event/4 stamps, next_obs, rewards
+        = verified return increments in reward_mode "legacy", None otherwise), or the pre-v4 observe(results [B],
+        rewards [B] | None, next_obs). Only those fields are read: the loop's own records are its transcript; the agent
+        archives its own records (with its predictions, behaviour provenance, outcomes and the loop's version
+        stamps). With rewards None no reward enters beliefs, archived outcome targets or the fresh buffer."""
+        stamps = None
         if rewards is None and next_obs is None and hasattr(results, "records") and hasattr(results, "next_obs"):
             tr = results
             results = [None if r is None else r.result for r in tr.records]
-            rewards, next_obs = list(tr.rewards), tr.next_obs
+            rewards, next_obs = (None if tr.rewards is None else list(tr.rewards)), tr.next_obs
+            stamps = [{k: r.extra[k] for k in STAMP_KEYS if r is not None and k in (r.extra or {})}
+                      for r in tr.records]
         t0 = time.perf_counter()
         if self._pending is None:
             return []
@@ -725,10 +734,26 @@ class CamUnifiedAgent:
         res = [results[b] for b in rows]
         if any(r is None for r in res):
             raise ValueError("observe: a live environment returned no ExecutionResult")
-        rew = [float(rewards[b]) for b in rows]
+        # observation-only delivery (runtime.run_lifetime, reward_mode != "legacy"): no reward reaches this agent.
+        # The outcome tracker still needs a number for its "reward" query; it gets 0, the belief / Kalman updates
+        # never see it (reward masked for this call) and the archived outcome specs mark it unobserved, so no
+        # world-model target, belief or actor input is built from a reward the agent was never given.
+        no_reward = rewards is None
+        rew = [0.0] * len(rows) if no_reward else [float(rewards[b]) for b in rows]
         nxt = [list(next_obs.observations[b]) for b in rows]
         done = [bool(next_obs.done[b]) for b in rows]
-        info = self.model.observe_outcomes(sub, dec, res, nxt, rew)
+        if no_reward:
+            masked, self.model.reward_in_beliefs = self.model.reward_in_beliefs, False
+            try:
+                info = self.model.observe_outcomes(sub, dec, res, nxt, rew)
+            finally:
+                self.model.reward_in_beliefs = masked
+            for sp in info["specs"]:
+                for s in sp:
+                    if s.key == "reward":
+                        s.observed, s.y = False, 0.0
+        else:
+            info = self.model.observe_outcomes(sub, dec, res, nxt, rew)
         self.state.scatter(rows, sub)
         lp = info["lp"]
         dt_actual = [max(0.0, float(next_obs.t[b]) - now[j]) for j, b in enumerate(rows)]
@@ -757,7 +782,11 @@ class CamUnifiedAgent:
                      "option_steps": int(dec.inputs.option_steps[j]), "option_new": bool(dec.inputs.option_new[j]),
                      "behavior": dict(dec.behavior[j]), "channels": dict(info["channels"][j]), "dropped": dropped,
                      "budget": None if bud is None else bud.row(j),
-                     "belief_loglik": None if info["loglik"] is None else float(info["loglik"][j])}
+                     "belief_loglik": None if info["loglik"] is None else float(info["loglik"][j]),
+                     "reward_mode": "legacy" if not no_reward else (stamps[b].get("reward_mode") if stamps
+                                                                    else "observation_only")}
+            if stamps and stamps[b]:          # cam-event/4: versions / schema stamped by the canonical loop
+                extra.update(stamps[b])
             rec = EventRecord(event_id=eid, env_id=self.env_ids[b], actor_id=self.actor_id,
                               episode_id=self.episode_ids[b], step=self.steps[b], model_version=version, t_sim=now[j],
                               observations=list(dec.inputs.obs_lists[j]), action=a, result=r,

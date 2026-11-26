@@ -396,69 +396,91 @@ class EpisodeResult:
         return dict(self.__dict__)
 
 
+class _BatchEnv:
+    """The env a `run_batch` episode sees, as one EnvAdapter for the canonical loop: the world's adapter with the
+    condition presentation (predecessor notes appended to the reset observations, condition D's DelayedPartial
+    reset / advance) and - as the operator-side reward source - the evaluator's (or DelayedPartial's) take_rewards."""
+
+    def __init__(self, world: World, notes: Optional[Callable] = None, delayed: Optional[DelayedPartial] = None):
+        self.world, self.notes, self.delayed = world, notes, delayed
+        self.ad = world.adapter
+        self._done: Optional[list] = None
+
+    @property
+    def B(self) -> int:
+        return self.world.B
+
+    def reset(self, seeds=None) -> ObservationBatch:
+        ob = self.delayed.reset() if self.delayed is not None else self.ad.reset()
+        if self.notes is not None:
+            extra = self.notes(self.world)
+            ob = ObservationBatch(ob.env_ids, [list(ob.observations[b]) + list(extra[b]) for b in range(len(ob.env_ids))],
+                                  ob.t, ob.done)
+        return ob
+
+    def available_tools(self) -> list:
+        return self.ad.available_tools()
+
+    def execute(self, actions) -> list:
+        return self.ad.execute(actions)
+
+    def advance_time(self, durations) -> ObservationBatch:
+        ob = self.delayed.advance(durations) if self.delayed is not None else self.ad.advance_time(durations)
+        self._done = list(ob.done)
+        return ob
+
+    def goals(self) -> list:
+        return self.ad.goals()
+
+    def take_rewards(self) -> list:
+        if self.delayed is not None:
+            return self.delayed.take_rewards(self._done)
+        return self.world.evaluator.take_rewards()
+
+
 def run_batch(agent, world: World, *, learn: bool = False, update_every: int = 8, think_s: int = THINK_S,
               notes: Optional[Callable] = None, delayed: Optional[DelayedPartial] = None,
               max_rounds: int = 100_000, meter=None, on_update: Optional[Callable] = None,
-              on_round: Optional[Callable] = None) -> list:
-    """Run one episode of every env of `world` with `agent` (CamUnifiedAgent) to the horizon. ``learn``: call
-    ``agent.update()`` every `update_every` rounds (continual learning on the fly); ``notes``: callable(world) -> [B]
-    lists of extra observations delivered at reset, called after the reset built the facilities (condition C);
-    ``delayed``: a DelayedPartial wrapper over this world (condition D); ``on_round(r, actions, results, rewards,
-    next_obs)`` is called after every round r >= 1 and once with r = 0 (only the reset observations) after the reset
-    (e.g. `predict.TrajectoryRecorder`)."""
-    ad, ev = world.adapter, world.evaluator
-    think = think_s / DAY
-    ob = delayed.reset() if delayed is not None else ad.reset()
-    B = len(ob.env_ids)
-    if notes is not None:
-        extra = notes(world)
-        ob = ObservationBatch(ob.env_ids, [list(ob.observations[b]) + list(extra[b]) for b in range(B)], ob.t, ob.done)
-    if agent.state is not None and set(ob.env_ids) != set(agent.env_ids):
-        # CamUnifiedAgent.reset refuses an all-new batch once it holds state (agent.py:582-584 raises whenever the
-        # id sets differ); archive the old batch's pending observations and start the new batch from scratch
-        agent.flush("reset")
-        agent.state = None
-    agent.reset(ob.env_ids)
-    agent.set_goals(ad.goals())
-    if on_round is not None:
-        on_round(0, None, None, None, ob)
+              on_round: Optional[Callable] = None, reward_mode: Optional[str] = None, **kw) -> list:
+    """Run one episode of every env of `world` with `agent` (CamUnifiedAgent) to the horizon, through the canonical
+    loop `runtime.run_lifetime`. ``learn``: learner.step() (agent.update()) every `update_every` rounds (continual
+    learning on the fly); ``notes``: callable(world) -> [B] lists of extra observations delivered at reset, called
+    after the reset built the facilities (condition C); ``delayed``: a DelayedPartial wrapper over this world
+    (condition D); ``on_round(r, actions, results, rewards, next_obs)`` is called after every round r >= 1 and once
+    with r = 0 (only the reset observations) after the reset (e.g. `predict.TrajectoryRecorder`); `rewards` there are
+    the operator-side verified increments (delivered to the agent only in reward_mode "legacy", the default for a
+    legacy config). Extra keyword arguments go to run_lifetime (labels, label_store, learner, ...)."""
+    from ..runtime import legacy_default_mode, run_lifetime
+    env = _BatchEnv(world, notes, delayed)
+    B = world.B
     tools_used = [dict() for _ in range(B)]
     n_dec = [0] * B
-    returns = [0.0] * B
-    sim_days = 0.0
-    rounds = 0
     updates = []
-    while not all(ob.done) and rounds < max_rounds:
-        tools = ad.available_tools()
-        acts = agent.act(ob, tools)
-        res = ad.execute(acts)
-        dur = [((r.duration if r is not None else 0.0) + think) if a is not None else 0.0
-               for a, r in zip(acts, res)]
-        adv = delayed.advance(dur) if delayed is not None else ad.advance_time(dur)
-        rew = delayed.take_rewards(adv.done) if delayed is not None else ev.take_rewards()
-        nxt = [list(res[b].observations if res[b] is not None else []) + list(adv.observations[b]) for b in range(B)]
-        nob = ObservationBatch(list(adv.env_ids), nxt, list(adv.t), list(adv.done))
-        agent.observe(res, rew, nob)
-        for b, a in enumerate(acts):
+
+    def round_cb(info):
+        for b, a in enumerate(info.actions):
             if a is not None:
                 n_dec[b] += 1
-                tools_used[b][a.tool.split("_", 1)[0]] = tools_used[b].get(a.tool.split("_", 1)[0], 0) + 1
-            returns[b] += float(rew[b])
-        sim_days += float(sum(dur))
-        rounds += 1
+                t = a.tool.split("_", 1)[0]
+                tools_used[b][t] = tools_used[b].get(t, 0) + 1
         if meter is not None:
-            meter.add(env_steps=B, decisions=sum(a is not None for a in acts), sim_days=float(sum(dur)))
-        if learn and update_every and rounds % update_every == 0:
-            u = agent.update()
-            if meter is not None and u.get("updated"):
+            meter.add(env_steps=B, decisions=sum(a is not None for a in info.actions),
+                      sim_days=float(sum(info.dt_requested)))
+        if info.update is not None:
+            updates.append(info.update)
+            if meter is not None and info.update.get("updated"):
                 meter.add(updates=1)
-            updates.append(u)
             if on_update is not None:
-                on_update(u)
+                on_update(info.update)
         if on_round is not None:
-            on_round(rounds, acts, res, rew, nob)
-        ob = nob
-    agent.flush("episode_end")
+            on_round(info.index + 1, info.actions, info.results, info.rewards, info.next_obs)
+
+    res = run_lifetime(agent, env, evaluator=env, reward_mode=reward_mode or legacy_default_mode(agent, env),
+                       max_decisions=max_rounds, update_every=update_every if learn else 0, think_s=think_s,
+                       reward_source="take_rewards", final_results=False, flush_reason="episode_end",
+                       on_round=round_cb, on_reset=None if on_round is None else
+                       (lambda e, ob: on_round(0, None, None, None, ob)), **kw)
+    sim_days = float(res.compute["sim_days"])
     out = []
     for b, t in enumerate(world.tasks):
         nets = list(world.nets[b])
@@ -466,6 +488,7 @@ def run_batch(agent, world: World, *, learn: bool = False, update_every: int = 8
         sc = t.score(float(np.sum(nets)) / h) if t.validated else None
         out.append(EpisodeResult(t.id, t.family, int(t.seed), nets, list(world.rewards[b]), n_dec[b], tools_used[b],
                                  sc, t.success(float(np.sum(nets))) if t.validated else None,
-                                 window_scores(t, nets) if t.validated else {}, sim_days / B, returns[b]))
+                                 window_scores(t, nets) if t.validated else {}, sim_days / B, res.returns[b]))
     run_batch.last_updates = updates                   # type: ignore[attr-defined]
+    run_batch.last_result = res                        # type: ignore[attr-defined]
     return out

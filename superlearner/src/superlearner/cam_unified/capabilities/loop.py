@@ -1,8 +1,10 @@
 """Training and instrumented evaluation loops over the assembled CAM (workstream Y).
 
-`train_agent` drives `CamUnifiedAgent` with the reference runtime (`runtime.run_steps`: act -> execute ->
-advance_time(duration + think) -> collect_events -> observe(verified returns) -> update), so training uses exactly the
-agent's own objectives (world / adapt / memory / policy through D's CombinedTrainer).
+`train_agent` drives `CamUnifiedAgent` with `runtime.run_steps`, a wrapper over the canonical loop
+`runtime.run_lifetime` (act -> execute -> advance_time(duration + think) -> collect_events -> observe -> update), so
+training uses exactly the agent's own objectives (world / adapt / memory / policy through D's CombinedTrainer). The
+reward channel follows the agent's cfg.reward_mode (capability configs keep "legacy": the score increments are the
+actor reward; the DOM presets run observation-only).
 
 `Episode` replays the agent's per-decision computation step by step for evaluation (`CamUnifiedModel.decide` and
 `observe_outcomes`, the same calls `CamUnifiedAgent.act` / `observe` make) and exposes the Decision objects and belief

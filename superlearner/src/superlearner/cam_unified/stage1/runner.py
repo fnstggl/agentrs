@@ -6,9 +6,10 @@
 `run(RunSpec)` builds the full real system (`system.build_system`), opens one task world with workstream G's
 process-isolated operator (`open_world_isolated`: worlds, operator and evaluator in a spawned process, only records
 cross; the world store is a SQLite file in the run directory so another process can resume it) and drives the
-`HarnessAgent` with G's `harness.run_lifetime`: SMDP clock (cost_s + think_s, or the agent's own wait), verified
+`HarnessAgent` with the canonical loop: SMDP clock (cost_s + think_s, or the agent's own wait), verified
 rewards from the operator-side evaluator only, a neural update every `update_every` decisions, full-lifetime
-checkpoints every `checkpoint_every_days` simulated days, the JSONL transcript.
+checkpoints every `checkpoint_every_days` simulated days, the JSONL transcript - all through the canonical loop
+`runtime.run_lifetime` (labels of a LabelSource evaluator go to the run's LabelStore, learner side only).
 
 Chunks: a lifetime longer than one GPU-lock slot runs as several processes. `max_wall_s` / `stop_after` end a chunk
 at the first checkpoint written after the limit (the adapter refuses the next tool listing, before any action, so no
@@ -175,15 +176,20 @@ def run(spec: RunSpec) -> dict:
         _prune(ckpt_dir, spec.keep_checkpoints)
         return meta
     hagent.save = save
-    from ..envs.harness import run_lifetime
+    from ..runtime import CheckpointSpec, legacy_default_mode, run_lifetime
     stopped, res, err = False, None, None
     t0 = time.time()
+    # the canonical loop; labels (when the evaluator is a LabelSource) go to the learner-side LabelStore only
+    labels = rev if rev is not None and (hasattr(rev, "take_labels") or hasattr(rev, "release_labels")) else None
     try:
-        res = run_lifetime(hagent, _ChunkAdapter(ad, ctl), rev, max_decisions=spec.max_decisions,
-                           think_s=spec.think_s, update_every=spec.update_every, operator=rop,
-                           checkpoint_dir=ckpt_dir, checkpoint_every_days=spec.checkpoint_every_days,
-                           resume=spec.resume, transcript=os.path.join(run_dir, "transcript.jsonl"),
-                           model_version=lambda: hagent.model_version, on_step=ctl.on_step)
+        res = run_lifetime(hagent, _ChunkAdapter(ad, ctl), evaluator=rev, labels=labels,
+                           label_store=system.label_store if labels is not None else None,
+                           reward_mode=legacy_default_mode(hagent, rev), learner=system.learner_for(hagent),
+                           max_decisions=spec.max_decisions, think_s=spec.think_s, update_every=spec.update_every,
+                           checkpoint=CheckpointSpec(ckpt_dir, every_days=spec.checkpoint_every_days, operator=rop,
+                                                     resume=spec.resume),
+                           transcript=os.path.join(run_dir, "transcript.jsonl"),
+                           model_version=lambda: hagent.model_version, on_step=ctl.on_step, flush_reason=None)
     except StopChunk:
         stopped = True
     except ExitNow:
