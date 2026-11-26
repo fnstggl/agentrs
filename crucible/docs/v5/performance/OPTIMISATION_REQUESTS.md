@@ -55,7 +55,14 @@ the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions
 
 ## Requests
 
-### R1 - services/search.py `Search._organic` (owner: the 4.0 services; caller `economy/work.py` ECON)
+### R1 - services/search.py `Search._organic` (owner: the 4.0 services; caller `economy/work.py` ECON) - the large profile's bottleneck
+
+* Cost (`light`, large profile, 101,120 individuals, day 2): the day cost 697.6 CPU-s, of which `Work.act_shop`
+  497.7 s (71.3%) and inside it `Search._organic` 486.1 s (69.7%): 33,219 searches from 23,036 `_candidates` calls,
+  14.6 ms each, and 2.8M `page_authority` calls. Day 1 cost 75 CPU-s: the index (listings, pages, posts) grows with
+  the world, the shoppers grow with the population, and the cost per search grows with the index, so the shopping
+  cost grows faster than the population and through the run. At 697.6 CPU-s per day the large world runs 5.2
+  simulated days per CPU-hour on day 2, against T3 >= 3.75; with a growing index the 30-day run is at risk.
 
 * Cost (`light`, standard days 2-3): `Work.act_shop` 22.1% of the world's CPU, of which `_organic` 19.2%: 5,554
   `search.query` calls made by `Work._candidates` (3,449 calls: one search per shopping step); 7.4% on day 4. `_organic` scores every
