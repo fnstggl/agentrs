@@ -115,7 +115,7 @@ def artifact_change(seed: int, *, n: int = 1500, warm_h: int = 24, run_h: int = 
                     b_topic: str = "recipes") -> dict:
     """Publish about `a_topic`, then update the bytes to `b_topic`: who views it before and after the change?"""
     crucible.load_all_modules()
-    spec = social_world("development", seed, n=n, platforms=["posts", "blog"], creators={"prior": -0.6})
+    spec = social_world("development", seed, n=n, platforms=["posts", "blog"], creators={"prior": -1.2})
     w = World.create(spec)
     lab = w.system_call("admin.join", {"handle": "lab", "endowment": 10_000, "password": "pw-lab"})["principal"]
     w.advance_time(w.now + warm_h * 3600)
@@ -124,7 +124,7 @@ def artifact_change(seed: int, *, n: int = 1500, warm_h: int = 24, run_h: int = 
     ta, tb = names.index(a_topic), names.index(b_topic)
     title_a, body_a = writing.compose(rng, ta, 5, 1.0)
     _, body_b = writing.compose(rng, tb, 5, 1.0)
-    cid, item = _publish(w, lab, "Notes for this week", body_a)
+    cid, item = _publish(w, lab, "Notes for this week", body_a, platform="blog")
     w.advance_time(w.now + run_h * 3600)
     from ..population import api as P
     ca, cb = semantics.asset()["centroids"][ta], semantics.asset()["centroids"][tb]

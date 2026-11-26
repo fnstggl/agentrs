@@ -63,6 +63,17 @@ def register_activity(world, name: str, handler, *, owner: str, prior: float = 0
                          "goals": tuple(int(g) for g in goals)}
 
 
+def register_class_runtime(world, cls: int, handler, *, owner: str) -> None:
+    """Bind a participant class (3 strategic, 4 semantic) to a runtime of its own: due rows of that class are handed
+    to `handler(ctx, idx, now) -> next_active_at (int64 per row) or None` by the population's tick, inside the same
+    recorded session machinery (decision provenance, attention). Call in Module.install (before genesis) so the
+    class's rows get activation times. This is the hook the semantic participant runtime (class 4) binds to."""
+    rt = world.runtime.setdefault("pop.class_runtimes", {})
+    if int(cls) in rt and rt[int(cls)]["owner"] != owner:
+        raise ProtocolError(f"class {cls} is bound to {rt[int(cls)]['owner']}")
+    rt[int(cls)] = {"handler": handler, "owner": owner}
+
+
 def activities(world) -> list[str]:
     return list(_registry(world)["order"])
 
@@ -338,7 +349,8 @@ class Population(Module):
             "wtp_scale": np.exp(rng.normal(0, 0.4, m)).astype(np.float16), "employer": employer,
             "commit_start_min": commit_start, "commit_len_min": commit_len, "day_start_min": day_start,
             "day_len_min": day_len, "mean_gap_s": mean_gap, "session_min": session_min,
-            "next_active_at": np.where(cls <= 2, nxt, NEVER).astype(np.int64), "habit": habit,
+            "next_active_at": np.where((cls <= 2) | np.isin(cls, list(world.runtime.get("pop.class_runtimes", {}))),
+                                       nxt, NEVER).astype(np.int64), "habit": habit,
             "contacts": contacts, "contact_trust": trust.astype(np.float16),
             "attention_budget_min": budget, "attention_left_min": budget,
         }
@@ -354,6 +366,26 @@ class Population(Module):
         nxt = columns.col(w, TABLE, "next_active_at")
         wk = columns.col(w, TABLE, "wake_at")
         cls = columns.col(w, TABLE, "class")
+        runtimes = w.runtime.get("pop.class_runtimes") or {}
+        for c_, rt in sorted(runtimes.items()):
+            if c_ <= 2:
+                continue
+            bound = np.flatnonzero(((nxt <= now) | (wk <= now)) & (cls == c_))
+            if bound.size:
+                decided: list[str] = []
+                w.runtime["pop.tick.decisions"] = decided
+                try:
+                    nx = rt["handler"](ctx, bound, now)
+                finally:
+                    w.runtime.pop("pop.tick.decisions", None)
+                nx = np.full(bound.size, now + 6 * 3600, np.int64) if nx is None else np.asarray(nx, np.int64)
+                columns.batch(ctx, TABLE, "pop.session", bound, {
+                    "next_active_at": np.maximum(nx, now + 60), "wake_at": np.full(bound.size, NEVER, np.int64),
+                    "last_session_at": np.full(bound.size, now, np.int64),
+                    "n_sessions": columns.col(w, TABLE, "n_sessions")[bound] + 1},
+                    extra={"t": int(now), "activations": int(bound.size), "sessions": int(bound.size), "woken": 0,
+                           "by_activity": {f"class{c_}.{rt['owner']}": int(bound.size)}, "left_platform": 0,
+                           "switches": 0, "mean_utility": 0.0, "decisions": decided})
         due = np.flatnonzero(((nxt <= now) | (wk <= now)) & (cls <= 2))
         if due.size and self.window > self.tick_s and now % self.window:
             # event aggregation: adaptive participants that are due wait for the next decision round, so their
@@ -456,17 +488,26 @@ class Population(Module):
             np.where(had, 1.0, 0.5) / (0.6 + 0.8 * np.clip(sat, 0, 1))
         nxt = schedule_times(now, np.clip(gaps, 600, 3 * DAY), c("day_start_min"), c("day_len_min"), rng)
         left_plat = int(np.sum(had & (habit[np.arange(due.size), np.maximum(chosen, 0)] < -1.0)))
-        vals = {"next_active_at": nxt, "wake_at": np.where(woken, NEVER, c("wake_at")).astype(np.int64),
-                "wake_act": np.where(woken, -1, wact).astype(np.int16), "satisfaction": sat.astype(np.float32),
-                "habit": habit, "n_sessions": n_sess.astype(np.int32), "n_switches": n_sw.astype(np.int32),
-                "last_activity": last_act.astype(np.int16), "experience": exp_.astype(np.float32),
-                "last_utility": last_u.astype(np.float32), "last_session_at": last_at}
-        columns.batch(ctx, TABLE, "pop.session", due, vals, mode="set",
-                      extra={"t": int(now), "activations": int(due.size), "sessions": int(rows.size),
-                             "woken": int(woken.sum()), "by_activity": by_act, "left_platform": left_plat,
-                             "switches": int(np.sum(n_sw - c("n_switches"))),
-                             "mean_utility": float(util[rows].mean()) if rows.size else 0.0,
-                             "decisions": decided})
+        wake_at = np.where(woken, NEVER, c("wake_at")).astype(np.int64)
+        wake_act = np.where(woken, -1, wact).astype(np.int16)
+        extra = {"t": int(now), "activations": int(due.size), "sessions": int(rows.size), "woken": int(woken.sum()),
+                 "by_activity": by_act, "left_platform": left_plat, "switches": int(np.sum(n_sw - c("n_switches"))),
+                 "mean_utility": float(util[rows].mean()) if rows.size else 0.0, "decisions": decided}
+        # storage on the hot path: individuals who took a session get their learned state written; those who were
+        # activated but did not start one only get their next activation (no rewrite of unchanged columns)
+        if rows.size:
+            columns.batch(ctx, TABLE, "pop.session", due[rows], {
+                "next_active_at": nxt[rows], "wake_at": wake_at[rows], "wake_act": wake_act[rows],
+                "satisfaction": sat[rows].astype(np.float32), "habit": habit[rows],
+                "n_sessions": n_sess[rows].astype(np.int32), "n_switches": n_sw[rows].astype(np.int32),
+                "last_activity": last_act[rows].astype(np.int16), "experience": exp_[rows].astype(np.float32),
+                "last_utility": last_u[rows].astype(np.float32), "last_session_at": last_at[rows]}, mode="set",
+                extra=extra)
+        idle = np.flatnonzero(~had)
+        if idle.size:
+            columns.batch(ctx, TABLE, "pop.activation", due[idle], {
+                "next_active_at": nxt[idle], "wake_at": wake_at[idle], "wake_act": wake_act[idle]}, mode="set",
+                extra={"t": int(now), "activations": int(idle.size)} if rows.size else extra)
         return {"activations": int(due.size), "sessions": int(rows.size), "by_activity": by_act}
 
     # ------------------------------------------------------------------ daily

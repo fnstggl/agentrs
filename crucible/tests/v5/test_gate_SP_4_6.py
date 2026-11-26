@@ -75,8 +75,14 @@ def test_audience_quantities_and_view_threshold(world):
     relations["watch_time_includes_non_views"] = bool(np.any(~con["is_view"] & (con["watch_s"] > 0)))
 
     # controlled consumption through the tools: the threshold, exposure-before-view, repeat and self-views
-    art = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] >= 62 and
-               w.state.tables["aud_item_info"][str(i)]["platform"] == "blog")
+    # a long article for the controlled checks (an experimenter account publishes it through the ordinary tools)
+    lab = w.system_call("admin.join", {"handle": "lab46", "endowment": 1000, "password": "pw-lab"})["principal"]
+    a_ = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Harbour almanac",
+                                                          "body": "The tide turns twice a day at the old pier. " * 40}})
+    pub = w.execute(lab, {"tool": "blog.publish", "args": {"ref": a_.result["ref"], "title": "Harbour almanac"}})
+    art = int(w.state.tables["content"][pub.result["id"]]["aud_item"])
+    ni = AUD.n_items(w)
+    assert float(AUD.item_col(w, "duration_s")[art]) >= 60
     post = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] < 50 and
                 w.state.tables["aud_item_info"][str(i)]["platform"] == "posts")
     i1, p1 = _individual(w, (art, post))

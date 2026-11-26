@@ -18,11 +18,11 @@ plus `interest_coords` / `to_coords` (the compact coordinates the population sto
 `check_provenance`. Kernel modules live in `population/modules.py` (`crucible.load_all_modules()` imports it).
 """
 from .core import (activities, activity_slot, class_members, features, n_individuals, register_activity,  # noqa: F401
-                   spendable, wake)
+                   register_class_runtime, spendable, wake)
 from .api import (check_provenance, experience, interest_coords, interests, pay, participant_decision,  # noqa: F401
                   record_decisions, to_coords)
 from . import semantics  # noqa: F401
 
 __all__ = ["register_activity", "n_individuals", "features", "interests", "spendable", "pay", "wake",
            "class_members", "record_decisions", "experience", "interest_coords", "to_coords", "check_provenance",
-           "activities", "activity_slot", "participant_decision", "semantics"]
+           "activities", "activity_slot", "participant_decision", "semantics", "register_class_runtime"]
