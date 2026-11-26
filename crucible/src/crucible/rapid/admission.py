@@ -76,7 +76,7 @@ SECRET_KEYS = {
     "graph_dynamical": ("c1", "c2", "toll", "demand_mean", "demand_sd", "theta", "cap", "base", "hazard",
                         "pair_demand", "shock", "rewire_at"),
     "state_machine": ("T", "slope", "base", "loss", "emit", "lever_cost"),
-    "search": ("bumps", "weights", "app", "features_true", "returns"),
+    "search": ("bumps", "weights", "app", "features_true", "returns", "delay", "mult_sched"),
 }
 
 

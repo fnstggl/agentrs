@@ -361,3 +361,121 @@ def screen_audit_invest(view, env=None, screen_bar: float = 1.0, audit_bar: floa
             if not isinstance(x, dict) or x.get("lead") is None or "estimate" not in x:
                 continue
             (audited if st.get("target") == "audit" else screened)[x["lead"]] = x["estimate"]
+
+
+# ====================================================================== srch_ventures (8.5.4)
+def ventures_return_after_delay(env) -> dict:
+    """A unit funded in a sector comes back exactly after that sector's hidden delay (forks: fund one sector now
+    versus nothing, on the same noise), as that sector's multiplier times the unit up to the noise."""
+    from .oracles import fork
+    c = env._config
+    firsts = []
+    for i, n in enumerate(c["sector_names"]):
+        a, b = fork(env), fork(env)
+        a.step({"kind": "allocate", "amounts": {n: 1.0}})
+        b.step(None)
+        f = None
+        for k in range(1, 10):
+            ra, rb = a.step(None), b.step(None)
+            if ra["observation"]["numbers"][f"{n}.returned"] != rb["observation"]["numbers"][f"{n}.returned"]:
+                f = k
+                break
+        firsts.append(f)
+    want = [int(x) for x in c["delay"]]
+    return {"ok": firsts == want, "first_return_after": firsts, "delays": want}
+
+
+def venture_prospects_shift(env) -> dict:
+    """The return per unit of at least one sector differs by more than the noise between two times (its hidden
+    multiplier shifted): mean return of 200 noise draws of one unit funded at the start and at the last switch."""
+    eng = env._engine
+    c = env._config
+    out = []
+    for i, segs in enumerate(c["mult_sched"]):
+        if len(segs) < 2:
+            continue
+        m0, m1 = eng.multiplier(i, 0), eng.multiplier(i, int(segs[-1][0]))
+        out.append(abs(np.log(m1 / m0)))
+    return {"ok": bool(out) and max(out) > 0.3, "largest_log_shift": max(out) if out else None,
+            "sectors_with_shifts": len(out)}
+
+
+def identify_best_sector(env) -> dict:
+    """Question: which sector pays most per unit right now? Public: fund every sector equally for ten ticks and
+    compare the multiples reported by the investments that have matured from the last five ticks of funding."""
+    view = PublicView(env)
+    sp = view.action_space()
+    names = list(sp.kinds["allocate"]["properties"]["amounts"]["properties"])
+    B = float(sp.limits["allocate_total"])
+    mult = {n: [] for n in names}
+    t_stop = 10
+    while not view.done and view.t < t_stop + 6:
+        act = {"kind": "allocate", "amounts": {n: B / len(names) for n in names}} if view.t < t_stop else None
+        r = view.step(act)
+        for e in r["observation"]["entities"]:
+            if e.get("kind") == "matured" and e["funded_tick"] >= t_stop - 5 and e["units"] > 0:
+                mult[e["sector"]].append(e["returned"] / (100.0 * e["units"]))
+    est = max(names, key=lambda n: np.mean(mult[n]) if mult[n] else -1.0)
+    eng = env._engine
+    truth = env._config["sector_names"][int(np.argmax([eng.multiplier(i, t_stop - 3)
+                                                     for i in range(len(env._config["sector_names"]))]))]
+    return {"question": "the sector that pays most per unit now", "estimate": est, "truth": truth,
+            "ok": est == truth}
+
+
+def oracle_ventures(env) -> dict:
+    """Evaluator: every tick, the whole budget into the sector whose hidden multiplier is highest, when it is above
+    one (nothing otherwise)."""
+    from .oracles import best_of
+    c = env._config
+    eng = env._engine
+
+    def pol(share):
+        def fn(e):
+            m = [eng.multiplier(i, e.t) for i in range(len(c["sector_names"]))]
+            i = int(np.argmax(m))
+            if m[i] <= 1.0:
+                return None
+            return {"kind": "allocate", "amounts": {c["sector_names"][i]: float(c["budget"]) * share}}
+        return fn
+    return best_of(env, {f"knows the multipliers (budget x{s})": pol(s) for s in (1.0, 0.8)})
+
+
+def venture_tracker(view, env=None, probe: float = 0.2, decay: float = 0.75, seed: int = 0) -> None:
+    """Scripted public reference: keep, per sector, a discounted estimate of the multiple its recent investments
+    returned (from the statement of matured investments, dated by when they were made) and how uncertain it is;
+    every tick put a small probe into every sector (so changes are seen) and the rest of the budget into the
+    sector with the highest sampled estimate (Thompson sampling) if it promises more than it costs."""
+    rng = np.random.default_rng(seed)
+    sp = view.action_space()
+    names = list(sp.kinds["allocate"]["properties"]["amounts"]["properties"])
+    B = float(sp.limits["allocate_total"])
+    w = {n: 0.0 for n in names}
+    s1 = {n: 0.0 for n in names}
+    s2 = {n: 0.0 for n in names}
+    obs = view.observe()
+    while not view.done:
+        for m in names:                                   # forget a little every tick
+            w[m] *= decay
+            s1[m] *= decay
+            s2[m] *= decay
+        for e in obs["entities"]:
+            if e.get("kind") == "matured" and e["units"] > 0:
+                n = e["sector"]
+                x = e["returned"] / (100.0 * e["units"])
+                w[n] += e["units"]
+                s1[n] += e["units"] * x
+                s2[n] += e["units"] * x * x
+        draw = {}
+        for n in names:
+            if w[n] < 1e-6:
+                draw[n] = rng.normal(1.0, 0.5)
+                continue
+            mu = s1[n] / w[n]
+            var = max(s2[n] / w[n] - mu * mu, 0.01) / max(w[n], 0.5)
+            draw[n] = rng.normal(mu, np.sqrt(var + 0.01))
+        best = max(draw, key=draw.get)
+        amounts = {n: probe for n in names}
+        if draw[best] > 1.0:
+            amounts[best] += max(0.0, B - probe * len(names))
+        obs = view.step({"kind": "allocate", "amounts": amounts})["observation"]

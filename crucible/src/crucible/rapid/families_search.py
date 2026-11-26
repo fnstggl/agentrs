@@ -161,3 +161,39 @@ def srch_leads(rng, d):
                      f"Investing in a lead costs {price:g} and pays its return, which you do not know; most leads "
                      "return less than they cost. Each lead shows a pitch score (a weak hint). You may screen a lead "
                      f"(quick and rough, {sc:g}) or audit it (thorough, {6.0 * sc:g})."}
+
+
+@family("srch_ventures", engine="search", category="8.5", item="8.5.4", split="train",
+        doc="A budget is spread over a few sectors every tick. What a sector is given comes back after the "
+            "sector's hidden delay as a noisy multiple of itself; the multiple - the sector's hidden prospects - "
+            "shifts at hidden times: one sector at a time is hot and the hot sector rotates, so sectors that paid well "
+            "turn into money pits and the reverse. The "
+            "statement of account reports every matured investment with the tick it was made.",
+        distinct_because="uncertain, delayed investment returns with risk (lognormal noise around a hidden "
+                         "multiplier) and hidden regime shifts of the multipliers, decided by allocation every "
+                         "tick: an explore-exploit problem over opportunities whose value has to be inferred from "
+                         "delayed, noisy outcomes, unlike the one-off investigations of srch_leads",
+        axes={"horizon": 80, "graph_size": 4, "resources": 10.0, "observation_noise": 1.0},
+        objective="maximize_net", claims=(W + "ventures_return_after_delay", W + "venture_prospects_shift"),
+        identify=W + "identify_best_sector", reference=W + "venture_tracker", oracle=W + "oracle_ventures")
+def srch_ventures(rng, d):
+    S, H = int(d["graph_size"]), int(d["horizon"])
+    names = neutral_names(rng, S)
+    # sector rotation: at any time one sector is hot (its ventures return about twice what they cost) and the
+    # others are cold (they lose); which sector is hot changes at hidden times, so no sector pays on average
+    sched = [[] for _ in range(S)]
+    t0, hot = 0, int(rng.integers(S))
+    while t0 < H:
+        for i in range(S):
+            sched[i].append([t0, round(u(rng, 1.7, 2.4) if i == hot else u(rng, 0.4, 0.8), 4)])
+        t0 += int(rng.integers(12, 21))
+        hot = int(rng.choice([i for i in range(S) if i != hot]))
+    return {"engine": "search", "scenario": "ventures", "horizon": H, "sector_names": names,
+            "budget": float(d["resources"]), "unit": 100.0, "delay": [int(rng.integers(2, 6)) for _ in range(S)],
+            "mult_sched": sched, "sigma": 0.25 * float(d["observation_noise"]), "endowment": 100_000,
+            "objective": {"type": "maximize_net", "text": "Maximise what your investments return minus what you "
+                                                          "put in."},
+            "brief": f"Every tick you may fund ventures in sectors {', '.join(names)} (allocate up to "
+                     f"{float(d['resources']):g} units per tick; a unit costs 100). Funded ventures pay back later; "
+                     "how much and when depends on the sector. Each matured investment is reported with the tick "
+                     "you made it."}

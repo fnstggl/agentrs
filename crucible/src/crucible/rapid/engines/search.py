@@ -16,6 +16,9 @@ Scenarios:
                 the action space grows as tools are found (discoverable tools of unknown applicability, 8.5.3)
     coop        two participants each see a noisy signal of one coordinate of a hidden target; payment needs a
                 joint commitment to the right cell (`coordinate`), so they must communicate (`message`) (8.9.2)
+    ventures    a budget is spread over sectors every tick; what is funded returns after a sector's hidden delay a
+                noisy multiple of itself, the sector's hidden multiplier, which shifts at hidden times (uncertain
+                investment opportunities, 8.5.4)
     leads       investment leads arrive over time in a few slots and expire; each has a hidden return, a weakly
                 informative public pitch, a cheap noisy screen and a costly precise audit; investing pays the
                 hidden return against a public price (hidden opportunities with costly investigation, 8.5.1)
@@ -44,7 +47,7 @@ class Search(RapidEngine):
     def __init__(self, config: dict):
         super().__init__(config)
         self.sc = config["scenario"]
-        if self.sc not in ("field", "distractors", "tools", "coop", "leads"):
+        if self.sc not in ("field", "distractors", "tools", "coop", "leads", "ventures"):
             raise ValueError(f"unknown scenario {self.sc}")
         self.dynamic_space = self.sc == "tools"
         if self.sc in ("field", "coop"):
@@ -73,6 +76,9 @@ class Search(RapidEngine):
             kinds["discrete"] = A.discrete_schema({"use": opts})
             limits["decisions"] = {"use": opts}
             q["catalogue"] = f"look up the next tool in the catalogue; costs {c['lookup_cost']}"
+        elif self.sc == "ventures":
+            kinds["allocate"] = A.allocate_schema(c["sector_names"], float(c["budget"]), "units funded this tick")
+            limits["allocate_total"] = float(c["budget"])
         elif self.sc == "leads":
             slots = list(c["slot_names"])
             kinds["discrete"] = A.discrete_schema({"invest": slots})
@@ -99,6 +105,9 @@ class Search(RapidEngine):
             return {"left": np.asarray(c["values"], dtype=float).copy(), "spent": np.zeros(1), "gain": np.zeros(1)}
         if self.sc == "distractors":
             return {"left": np.ones(len(c["item_names"])), "spent": np.zeros(1), "gain": np.zeros(1)}
+        if self.sc == "ventures":
+            return {"fund": np.zeros(len(c["sector_names"])), "pending": [], "spent": np.zeros(1),
+                    "gain": np.zeros(1), "funded": np.zeros(1), "returned": np.zeros(1)}
         if self.sc == "leads":
             K = len(c["slot_names"])
             cur = np.full(K, -1.0)
@@ -116,7 +125,16 @@ class Search(RapidEngine):
                 "gain": np.zeros(2), "redraw": np.zeros(1)}
 
     def copy_state(self, state):
-        return {k: np.array(v, copy=True) for k, v in state.items()}
+        return {k: (np.array(v, copy=True) if isinstance(v, np.ndarray) else [list(x) for x in v])
+                for k, v in state.items()}
+
+    def multiplier(self, s: int, t: int) -> float:
+        """Hidden return multiplier of sector s for funding placed at tick t (ventures; evaluator data)."""
+        m = 1.0
+        for t0, x in self.config["mult_sched"][s]:
+            if t >= t0:
+                m = float(x)
+        return m
 
     # ------------------------------------------------------------------ actions
     def apply(self, state, agent, action, rng, t):
@@ -151,6 +169,13 @@ class Search(RapidEngine):
             sd = float(c["screen_sd"] if action["target"] == "screen" else c["audit_sd"])
             v = float(c["returns"][j]) + sd * float(rng.standard_normal())
             return {"slot": slot, "lead": c["leads"][j]["id"], "estimate": round(v, 2), "cost": cost}
+        if k == "allocate" and self.sc == "ventures":
+            amt = np.asarray([max(0.0, float(action["amounts"].get(n, 0.0))) for n in c["sector_names"]])
+            tot = float(amt.sum())
+            if tot > float(c["budget"]) + 1e-9:
+                amt = amt * float(c["budget"]) / tot
+            state["fund"] = amt
+            return {"funded": {n: round(float(x), 4) for n, x in zip(c["sector_names"], amt)}}
         if k == "discrete" and self.sc == "leads":
             slot = action["choice"]
             i = c["slot_names"].index(slot)
@@ -234,6 +259,32 @@ class Search(RapidEngine):
             return {"obs": obs, "revenue": rev, "cost": cost, "info": {}}
         a = ags[0]
         ob: dict = {"numbers": {}}
+        if self.sc == "ventures":
+            S = len(c["sector_names"])
+            z = rng.standard_normal(S)                     # one draw per sector every tick, funded or not
+            unit = float(c["unit"])
+            for i in range(S):
+                amt = float(st["fund"][i])
+                if amt > 0:
+                    st["spent"] = st["spent"] + amt * unit
+                    st["funded"] = st["funded"] + amt * unit
+                    ret = amt * unit * self.multiplier(i, t) * float(np.exp(float(c["sigma"]) * z[i]
+                                                                           - 0.5 * float(c["sigma"]) ** 2))
+                    st["pending"].append([float(t + int(c["delay"][i])), float(i), float(t), amt, round(ret, 4)])
+            due = [p for p in st["pending"] if p[0] <= t]
+            st["pending"] = [p for p in st["pending"] if p[0] > t]
+            per = np.zeros(S)
+            ents = []
+            for p in due:
+                per[int(p[1])] += p[4]
+                ents.append({"kind": "matured", "sector": c["sector_names"][int(p[1])], "funded_tick": int(p[2]),
+                             "units": round(p[3], 4), "returned": p[4]})
+            st["gain"] = st["gain"] + float(per.sum())
+            st["returned"] = st["returned"] + float(per.sum())
+            for i, n in enumerate(c["sector_names"]):
+                ob["numbers"][f"{n}.returned"] = float(per[i])
+            ob["entities"] = ents
+            st["fund"] = np.zeros(S)
         if self.sc == "leads":
             # leads arrive on a fixed schedule (whatever the participant does); a slot shows the lead whose window
             # holds the coming tick unless it was taken
@@ -295,6 +346,8 @@ class Search(RapidEngine):
             hidden = {"app": c["app"], "order": c["order"]}
         elif self.sc == "leads":
             hidden = {"good": [ld["id"] for ld, r in zip(c["leads"], c["returns"]) if r > c["price"]]}
+        elif self.sc == "ventures":
+            hidden = {"delay": c["delay"], "mult_sched": c["mult_sched"]}
         else:
             hidden = {"G": self.G}
         return {"engine": self.kind, "scenario": self.sc, "hidden": hidden, "motifs": self.motifs()}
@@ -308,6 +361,8 @@ class Search(RapidEngine):
             return ["multiplicative", "partial_observability", "state_dependent_effect"]
         if self.sc == "leads":
             return ["measurement_noise", "partial_observability", "selection_effect", "decay", "threshold"]
+        if self.sc == "ventures":
+            return ["delay", "multiplicative", "regime_change", "measurement_noise", "resource_competition"]
         return ["complementarity", "measurement_noise", "partial_observability"]
 
     def latent(self, state) -> np.ndarray:
@@ -335,4 +390,9 @@ class Search(RapidEngine):
             errs.append("an exhausted opportunity came back")
         if self.sc == "leads" and (after["taken"] < before["taken"] - 1e-12).any():
             errs.append("a taken lead came back")
+        if self.sc == "ventures":
+            owed = sum(p[4] for p in after["pending"])
+            # money in = money returned + what is still to come back; nothing is created between the two
+            if after["returned"][0] < before["returned"][0] - 1e-9 or owed < -1e-9:
+                errs.append("venture returns went backwards")
         return errs
