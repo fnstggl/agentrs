@@ -47,7 +47,7 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 | open an article in a slate | `article_open_semantic@1` | K | MiniLM cosine of item and consumption history (D-16 shared space must preserve it), own topic views, item opens in 24 h |
 | active today | `daily_return@1` | K | per individual: active days in the last 7, days since last active, impressions and sessions in the last 7 days |
 | sessions per active day | `extra_sessions@1` | S (C2 rule kept by the E3 review) | none beyond the day's activity |
-| session length (attention allocation) | `session_minutes@1` | K | per individual: mean log minutes and count of earlier sessions, items per session, time since the last session |
+| session length (attention allocation) | `session_minutes@1` | K (the E4 rule kept the own-history quantile baseline) | per individual: mean log minutes and count of earlier sessions, items per session, time since the last session |
 | return to a creator | `creator_return@1` | K (weak: AUC 0.51) | per pair: views of the creator before / today, first-view day, follow and like flags, watch fraction |
 | respond to an advertising campaign | `ad_response@1` | B (constant ITT effect; review compute rule) | per individual: a response type drawn once (kept for when K is served) and the campaign arm |
 | buy again from a shop within 90 days | `customer_return@1` | K | per (customer, shop): order days, spend, lines, products, cancellations |
@@ -400,6 +400,27 @@ Extrapolation limits: GH Archive public GitHub events 2024-10-07..10 UTC (Mon-Th
 | `repo_org` | item | flag | [0, 1] | 1 if owned by an organisation (events of the simulated code-hosting / package ecosystem: `code`, `pkg`, `issues`; stars = public endorsements, forks, issues, pull requests, pushes, releases) |
 
 Extrapolation limits: GH Archive, repositories with a star, fork or creation that day, 2024-10-08..10 UTC; observational; weekday only; short horizon; inactive repositories are outside the data.
+
+## `session_minutes@1` -> `session_length@1`
+
+* use: attention allocation: minutes an individual spends watching in one feed session, given its earlier sessions and the time of day (draw once per session; content-level choices stay per item)
+* output: quantiles (quantiles of minutes watched in the session at the card's levels)
+* status: ready
+* fidelity record: `runtime:session_minutes@1`
+* parameters: none
+
+| input | kind | unit | domain | meaning |
+|---|---|---|---|---|
+| `own_mean_log_session_minutes` | individual | log1p(minutes) | [0, inf] | mean of log1p(minutes watched) over the individual's sessions on earlier days (ignored when own_sessions_before = 0) |
+| `own_sessions_before` | individual | count | [0, inf] | the individual's sessions on earlier days |
+| `own_mean_items_per_session` | individual | count | [0, inf] | mean feed items reached per earlier session |
+| `active_days_7d` | individual | days | [0, 7] int | active days among the previous 7 |
+| `minutes_since_last_session` | individual | minutes | [0, inf] | minutes since the individual's previous session ended (10080 when none) |
+| `sessions_earlier_today` | individual | count | [0, inf] | the individual's sessions earlier the same day |
+| `local_hour` | context | hour | [0, 24] | local hour of the session start |
+| `weekend` | context | flag | [0, 1] | 1 on Saturdays and Sundays |
+
+Extrapolation limits: KuaiRand-Pure sessions (30-minute gap) of 27,285 Kuaishou users, 2022-04-22..05-08; only plays of the 7,583 pool videos are logged, so minutes are lower than real app time; no content inputs.
 
 ## `watch_time@1` -> `watch_duration@1`
 
