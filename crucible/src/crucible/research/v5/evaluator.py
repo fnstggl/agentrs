@@ -103,8 +103,10 @@ class _Server:
                 "evaluation_families": evals, "accepted_proposals": list(self.accepted)}
 
     def ev_open_episode(self, entry: str, seed: int, purpose: str = "dev", difficulty: dict | None = None,
-                        prereg: str | None = None, _sealed_alias: str | None = None) -> dict:
+                        prereg: str | None = None, _sealed_alias: str | None = None, budget: int | None = None) -> dict:
         from .episodes import references, world
+        if budget is not None and (not isinstance(budget, int) or isinstance(budget, bool) or budget < 0):
+            return self._refuse("evaluator", "open_episode", "an interaction budget is a non-negative integer")
         part = self.reg.partition_of(entry, int(seed))
         key = (entry, int(seed))
         if part == "sealed" and _sealed_alias is None:
@@ -127,7 +129,8 @@ class _Server:
         t = secrets.token_hex(16)
         self.episodes[t] = {"env": env, "refs": refs, "entry": entry, "seed": int(seed), "partition": part,
                             "purpose": purpose, "traj": [], "interactions": 0, "prereg": prereg,
-                            "alias": _sealed_alias, "opened": time.time()}
+                            "alias": _sealed_alias, "opened": time.time(), "budget": budget,
+                            "refused_beyond_budget": 0}
         self.log.append({"op": "open", "ticket": t[:8], "entry": entry if part != "sealed" else _sealed_alias,
                          "partition": part, "purpose": purpose})
         return {"ok": True, "ticket": t, "partition": part}
@@ -147,6 +150,8 @@ class _Server:
         q = max(1, H // 4)
         rec = {"partition": ep["partition"], "purpose": ep["purpose"], "ticks": H,
                "value": traj[-1] if traj else None, "interactions": ep["interactions"],
+               "budget": ep.get("budget"), "refused_beyond_budget": ep.get("refused_beyond_budget", 0),
+               "budget_exceeded": bool(ep.get("budget") is not None and ep["interactions"] > ep["budget"]),
                "score": normalised(traj[-1], ep["refs"]) if traj else None,
                "early_rate": (traj[q - 1] / q) * H / span if H else None,
                "late_rate": ((traj[-1] - traj[-q - 1]) / q) * H / span if H > q else None,
@@ -255,6 +260,12 @@ class _Server:
         if op == "execute":
             if not isinstance(args[1], dict):
                 return self._refuse("participant", op, "an action is a JSON object")
+            # the interaction budget is enforced here, on the evaluator side: once the granted informative
+            # interactions are used, every further action is refused unexecuted (a learner that calls its
+            # participant environment itself, bypassing the driver, gets nothing more; SP-15.8)
+            if ep.get("budget") is not None and ep["interactions"] >= ep["budget"]:
+                ep["refused_beyond_budget"] += 1
+                return self._refuse("participant", op, "interaction budget exhausted")
             before = env.changes
             r = env.execute(str(args[0]), dict(args[1]))
             ep["interactions"] += int(env.changes > before)
@@ -432,9 +443,10 @@ class Evaluator:
             raise EvaluatorError(f"{op}: {r.get('error')}")
         return r
 
-    def open_episode(self, entry, seed, purpose="dev", difficulty=None, prereg=None) -> str:
+    def open_episode(self, entry, seed, purpose="dev", difficulty=None, prereg=None, budget=None) -> str:
+        kw = {} if budget is None else {"budget": int(budget)}
         return self.must("open_episode", entry, int(seed), purpose=purpose, difficulty=difficulty,
-                         prereg=prereg)["ticket"]
+                         prereg=prereg, **kw)["ticket"]
 
     def participant_env(self, ticket: str) -> ParticipantEnv:
         return ParticipantEnv(self.part, ticket)

@@ -257,11 +257,16 @@ def _child(pre_imported: list[str]) -> None:
     except OSError:
         checks["filesystem_confined"] = True
     learner = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(cfg))
-    declared = set(learner.parameters())
+    shapes = {k: np.asarray(v).shape for k, v in learner.parameters().items()}
+    declared = set(shapes)
     numeric = all(np.issubdtype(a.dtype, np.number) for a in params.values())
-    checks["authorised_parameters"] = set(params) == declared and numeric
+    # every entry has exactly the shape the declared architecture gives it: a checkpoint with widened layers (more
+    # capacity than the configuration declares, under a manifest the adversary rehashed) is refused (SP-15.8)
+    wrong = sorted(k for k in set(params) & declared if params[k].shape != shapes[k])
+    checks["authorised_parameters"] = set(params) == declared and numeric and not wrong
     if not checks["authorised_parameters"]:
-        out["refused"] = f"unauthorised parameter entries {sorted(set(params) ^ declared)}"
+        out["refused"] = (f"parameter shapes differ from the declared architecture {wrong}" if wrong else
+                          f"unauthorised parameter entries {sorted(set(params) ^ declared)}")
         return done()
     h0 = params_hash(params)
     checks["parameter_hash_verified"] = h0 == req["params_hash"]
@@ -320,8 +325,10 @@ def in_process_eval(learner, worlds: list[Mapping], *, rng_seed: int = 12345) ->
 
 def tampered_copy(manifest: Mapping, kind: str, directory: str) -> dict:
     """Adversarial checkpoints for the gate: ``memory_in_params`` (a memory table added to the parameter file),
-    ``pickle`` (an object array that needs pickle to load) or ``arch_edit`` (architecture configuration changed after
-    the hash was recorded). Returns a manifest pointing at the copy (with the original expected hashes)."""
+    ``pickle`` (an object array that needs pickle to load), ``arch_edit`` (architecture configuration changed after
+    the hash was recorded) or ``widened_layers`` (every array of the parameter file doubled along its last axis, and
+    the manifest's parameter hash recomputed by the adversary, which controls its own checkpoint). Returns a
+    manifest pointing at the copy (with the original expected hashes, except where the kind rehashes)."""
     os.makedirs(directory, exist_ok=True)
     shutil.copyfile(os.path.join(manifest["dir"], "arch.json"), os.path.join(directory, "arch.json"))
     with np.load(os.path.join(manifest["dir"], "params.npz"), allow_pickle=False) as z:
@@ -334,8 +341,17 @@ def tampered_copy(manifest: Mapping, kind: str, directory: str) -> dict:
         a = json.load(open(os.path.join(directory, "arch.json")))
         a["cfg"] = dict(a.get("cfg") or {}, lr=9.0)
         json.dump(a, open(os.path.join(directory, "arch.json"), "w"), sort_keys=True)
+    elif kind == "widened_layers":
+        if {"W1", "b1", "W2"} <= set(params):          # a consistent wider hidden layer (the network still runs)
+            W1, b1, W2 = params["W1"], params["b1"], params["W2"]
+            params = dict(params, W1=np.concatenate([W1, 0.5 * W1], axis=1), b1=np.concatenate([b1, b1]),
+                          W2=np.concatenate([0.5 * W2, 0.5 * W2], axis=0))
+        else:
+            params = {k: (np.concatenate([v, v], axis=-1) if v.ndim else v) for k, v in params.items()}
     else:
         raise ValueError(kind)
     with open(os.path.join(directory, "params.npz"), "wb") as fh:
         np.savez(fh, **params)
+    if kind == "widened_layers":
+        return dict(manifest, dir=directory, params_hash=params_hash(params))
     return dict(manifest, dir=directory)

@@ -147,3 +147,49 @@ def test_control_labels_control_false_labels_and_keep_power():
             r1 = I._one(draw(sds) + eff)
             hit += int(r1["lo"] > 0 and r1["estimate"] >= 0.10)
         assert hit / T >= 0.9, (sds, eff, hit / T)
+
+
+def test_widened_layers_checkpoint_is_refused(reg, tmp_path):
+    """SP-15.8 (security workstream's checkpoint_tampering control): a checkpoint whose network is wider than the
+    declared architecture, under a manifest the adversary rehashed, is refused by its shapes; the honest checkpoint
+    of the same learner is accepted."""
+    w = LR.make("weights", 2)
+    _train(w, reg, n=2, reps=1)
+    man = FR.save_checkpoint(w, str(tmp_path / "w"))
+    spec = [{"entry": FAM, "seed": 1_000_102}]
+    assert FR.weights_only_eval(man, spec)["ok"]
+    wide = FR.tampered_copy(man, "widened_layers", str(tmp_path / "wide"))
+    with np.load(os.path.join(wide["dir"], "params.npz")) as z:
+        assert z["W1"].shape[1] == 2 * w.parameters()["W1"].shape[1]
+        assert LR.params_hash({k: z[k] for k in z.files}) == wide["params_hash"]     # the manifest matches
+    r = FR.weights_only_eval(wide, spec)
+    assert not r["ok"] and r["checks"]["authorised_parameters"] is False and "shapes" in r["refused"]
+
+
+def test_evaluator_enforces_the_interaction_budget(reg):
+    """SP-15.8 (interaction_budget control): a learner granted k informative interactions that calls its
+    participant environment itself gets exactly k executed; the evaluator refuses the rest and reports them."""
+    from crucible.research.v5 import evaluator as EV
+    ev = EV.Evaluator.start()
+    try:
+        t = ev.open_episode(FAM, 1_000_103, purpose="dev", budget=2)
+        env = ev.participant_env(t)
+        a = env.agents()[0]
+        tool = next(x for x in env.tools(a) if x["name"] == "rapid.levers")
+        names = sorted(tool["inputSchema"]["properties"]["values"]["properties"])
+        ok = refused = 0
+        for i in range(6):
+            try:
+                env.execute(a, {"tool": "rapid.levers", "args": {"values": {names[0]: 1.0 + i}}})
+                ok += 1
+            except EV.EvaluatorError:
+                refused += 1
+            env.advance(3600)
+        res = ev.result(t, view="development")
+        assert ok == 2 and refused == 4
+        assert res["interactions"] == 2 and res["budget"] == 2 and res["refused_beyond_budget"] == 4
+        assert res["budget_exceeded"] is False
+        with pytest.raises(EV.EvaluatorError):
+            ev.open_episode(FAM, 1_000_104, purpose="dev", budget=-1)
+    finally:
+        ev.close()

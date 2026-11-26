@@ -16,6 +16,8 @@ attack works where the defence is absent (the in-process gain, or the unjailed r
     memory_in_params     a memory table added to the parameter file: refused (undeclared parameter entries)
     pickle_checkpoint    an object array that needs pickle to load: refused without executing it
     arch_edit            the architecture configuration changed after its hash was recorded: refused
+    widened_layers       every parameter array widened (more capacity than declared) under a rehashed manifest:
+                         refused (shapes must be the declared architecture's)
     calibration_shortcut fixed public rules that exploit how a generator places optima relative to the published
                          defaults (the audit's p9 shortcut: "75% of the range if the default is the minimum, else 25%",
                          plus the quartiles and the centre) on calibrated generated worlds (`compose`): the median
@@ -41,7 +43,7 @@ from .episodes import run_episode, score_episode
 from .sampler import build_env
 
 CONTROLS = ("process_stash", "file_stash", "config_smuggle", "memory_in_params", "pickle_checkpoint", "arch_edit",
-            "calibration_shortcut")
+            "widened_layers", "calibration_shortcut")
 SHORTCUT_MAX = 0.5          # a fixed public rule reaching half the oracle's improvement in the median world is a shortcut
 GAIN_MIN = 0.02             # an attack "works" when it gains at least this much (normalised score) where undefended
 TRAIN_SEEDS = tuple(760_000 + i for i in range(8))
@@ -142,7 +144,7 @@ def _tamper_controls(reg: Registry, families: list[str], workdir: str) -> dict:
     honest = FR.weights_only_eval(man, spec)
     out = {}
     for name, kind in (("memory_in_params", "memory_in_params"), ("pickle_checkpoint", "pickle"),
-                       ("arch_edit", "arch_edit")):
+                       ("arch_edit", "arch_edit"), ("widened_layers", "widened_layers")):
         r = FR.weights_only_eval(FR.tampered_copy(man, kind, os.path.join(workdir, kind)), spec)
         out[name] = {"refused": r.get("refused"), "honest_checkpoint_accepted": bool(honest.get("ok")),
                      "passed": bool(honest.get("ok") and not r.get("ok") and r.get("refused"))}
