@@ -81,3 +81,16 @@ def test_the_participant_pipe_is_closed_before_the_evaluator_verifies():
         assert "outcome" in ev.verify()
     finally:
         ev.close()
+
+
+def test_an_external_learner_file_is_evaluated_out_of_process():
+    """An architecture-neutral external learner (examples/external_learner/curiosity_learner.py, its own reward) is
+    named by file and function and evaluated with the world in another process; it updates its own parameters."""
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples", "external_learner",
+                        "curiosity_learner.py")
+    out = evaluate({"tier": 1, "name": "rapid:net_routing"}, f"{path}:evaluated", {"steps": 60})
+    assert out["learner_status"] == "ok", out["learner_error"]
+    res = out["learner_result"]
+    assert res["actions"] >= 30 and res["env_reward_sum"] == 0.0 and res["param_updates_changed"] >= 1
+    assert res["distinct_hashes"] >= 2 and res["schema_failures"] == 0 and "outcome" in out["verification"]

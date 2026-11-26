@@ -282,6 +282,14 @@ def run(env, learner: CuriosityLearner, steps: int, *, agent: str | None = None,
     return out
 
 
+def evaluated(part, steps: int = 200, seed: int = 0) -> dict:
+    """The entry point for an out-of-process evaluation (`crucible.experience.remote.evaluate(ref,
+    "examples/external_learner/curiosity_learner.py:evaluated", {"steps": ...})`): this learner then runs in its own
+    process and holds only the participant handle; the world and its verifier live elsewhere."""
+    res = run(part, CuriosityLearner(seed=int(seed)), int(steps))
+    return {k: v for k, v in res.items() if k != "hashes"} | {"distinct_hashes": len(set(res["hashes"]))}
+
+
 if __name__ == "__main__":            # PYTHONPATH=src python examples/external_learner/curiosity_learner.py
     import sys
     from crucible.experience import make
