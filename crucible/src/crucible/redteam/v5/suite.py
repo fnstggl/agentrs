@@ -36,6 +36,14 @@ KNOWN_OPEN: dict[str, dict] = {
                 "v5.isolation.remote_participant_cannot_run_code_in_the_world holds); to close this entry the "
                 "evaluation entry points must host evaluated learners remotely (and keep the evaluator handle out of "
                 "the learner's process), and make() must not be the evaluation path"},
+    "v5.isolation.evaluated_learner_reaches_no_sealed_material": {
+        "outcome": "leak", "severity": "high", "owner": "L",
+        "note": "the experience package's evaluation path runs the learner as the evaluator's user (root): it reads "
+                "the 4.0 sealed salt, sealed sets and task files under ~/.crucible and other processes' environments "
+                "(wave 3b review; on this branch the only path drives the learner in the evaluator's process, which "
+                "also holds the RemoteEvaluator). Fix: host the learner function in crucible.sandbox.learnerhost "
+                "(protocol experience-remote: own uid, Landlock without /proc or ~/.crucible, seccomp); the same "
+                "adversary reaches nothing there (tests/test_v5_security_sandbox.py)"},
     "v5.isolation.tier1_engines_cannot_import_oracles": {
         "outcome": "integrity_break", "severity": "low", "owner": "H",
         "note": "crucible/rapid/__init__.py imports admission -> references -> oracles eagerly; no participant path "

@@ -57,7 +57,7 @@ MAX_CKPT_FILE = 256 * 2**20      # largest arch.json / params.npz the host copie
 
 _BOOT = r"""
 import json, os, sys
-work, src, site, entry, kw, pfd = sys.argv[1:7]
+work, src, site, entry, kw, pfd, proto = sys.argv[1:8]
 sys.path[:0] = [src, site]
 os.chdir(work)
 _proto = os.fdopen(os.dup(1), "w", buffering=1)
@@ -79,14 +79,24 @@ def _reply(obj):
     _proto.flush()
 
 
+def _target(spec):
+    mod, _, fn = str(spec).rpartition(":")
+    if not mod or not fn:
+        raise ValueError("a target is named 'module:function', got %r" % (spec,))
+    return getattr(__import__(mod, fromlist=["_"]), fn)
+
+
 try:
-    mod, _, fn = entry.partition(":")
-    learner = getattr(__import__(mod, fromlist=["_"]), fn)(**json.loads(kw))
+    learner = _target(entry)(**json.loads(kw)) if entry else None
     chan = None
-    if int(pfd) >= 0:
+    if int(pfd) >= 0 and proto == "research-evaluator":
         import socket
         from crucible.research.v5.evaluator import Channel
         chan = Channel(socket.socket(fileno=int(pfd)))
+    elif int(pfd) >= 0:                        # crucible.experience.remote: JSON frames on a multiprocessing pipe
+        from multiprocessing.connection import Connection
+        from crucible.experience.remote import PARTICIPANT_OPS, RemoteParticipant
+        chan = RemoteParticipant(Connection(int(pfd)), PARTICIPANT_OPS)
     _reply({"ok": True, "ready": True, "pid": os.getpid(), "uid": os.getuid()})
 except BaseException as e:
     _reply({"ok": False, "ready": False, "error": "%s: %s" % (type(e).__name__, str(e)[:500])})
@@ -109,6 +119,8 @@ for line in sys.stdin:
             d = os.path.join(work, "ckpt-%d" % n_ckpt)
             save_checkpoint(learner, d)
             out = {"ok": True, "dir": d}
+        elif op == "function":                  # fn(participant, **kw): the experience.remote learner contract
+            out = {"ok": True, "value": _target(req["target"])(chan, **dict(req.get("kw") or {}))}
         elif op == "call":
             name = str(req.get("method"))
             if name.startswith("_"):
@@ -206,16 +218,20 @@ def _reachable_copy(src: str, uid: int) -> str:
 
 class LearnerHost:
     """One learner in its own jailed process (module docstring). `entry` is ``"module:factory"`` (importable from the
-    crucible sources or `code_dirs`), called as ``factory(**kw)`` inside the jail to build the learner. `participant`
-    is the socket of the evaluator's participant channel (or None for a learner without one)."""
+    crucible sources or `code_dirs`), called as ``factory(**kw)`` inside the jail to build a lever learner (or None:
+    only `function` is used). `participant` is the participant endpoint the jail inherits: the research evaluator's
+    participant socket (``protocol="research-evaluator"``) or the participant pipe of `crucible.experience.remote.host`
+    (``protocol="experience-remote"``, anything with a ``fileno()``)."""
 
-    def __init__(self, entry: str, kw: dict | None = None, *, participant: socket.socket | None = None,
-                 code_dirs: tuple[str, ...] = (), kind: str = "learner-host", mem_mb: int = 3072,
-                 cpu_s: int = 3600, start_timeout: float = 120.0, op_timeout: float = 900.0):
+    def __init__(self, entry: str | None, kw: dict | None = None, *, participant=None,
+                 protocol: str = "research-evaluator", code_dirs: tuple[str, ...] = (), kind: str = "learner-host",
+                 mem_mb: int = 3072, cpu_s: int = 3600, start_timeout: float = 120.0, op_timeout: float = 900.0):
         ok, why = isolation.available()
         if not ok:
             raise isolation.JailUnavailable(why)
-        self.entry, self.kw = str(entry), dict(kw or {})
+        if protocol not in ("research-evaluator", "experience-remote"):
+            raise ValueError(f"unknown participant protocol {protocol!r}")
+        self.entry, self.kw, self.protocol = str(entry or ""), dict(kw or {}), protocol
         self.op_timeout = float(op_timeout)
         self.uid = isolation.uid_for(kind)
         self.work = tempfile.mkdtemp(prefix="learner-", dir=isolation._base())
@@ -240,7 +256,7 @@ class LearnerHost:
             os.set_inheritable(pfd, True)
             fds = (pfd,)
         cmd = [sys.executable, "-I", "-S", "-B", isolation.JAIL, self._cfg, py, "-I", "-S", "-B", "-c", _BOOT,
-               self.work, src, site, self.entry, json.dumps(self.kw), str(pfd)]
+               self.work, src, site, self.entry, json.dumps(self.kw), str(pfd), self.protocol]
         lim = (int(mem_mb) * 2**20, int(cpu_s))
         self._err = open(os.path.join(self.out_dir, "stderr.log"), "wb")
 
@@ -308,6 +324,15 @@ class LearnerHost:
         if not r.get("ok"):
             raise LearnerHostError(f"episode failed in the learner process: {r.get('error')}")
         return r.get("record") or {}
+
+    def function(self, target: str, kw: dict | None = None, timeout: float | None = None) -> Any:
+        """Call ``target(participant, **kw)`` inside the learner process (``"module:function"``): the learner contract
+        of `crucible.experience.remote.evaluate`, with a `RemoteParticipant` over the inherited participant pipe
+        (protocol ``experience-remote``). Returns the function's JSON result."""
+        r = self._call({"op": "function", "target": str(target), "kw": dict(kw or {})}, timeout=timeout)
+        if not r.get("ok"):
+            raise LearnerHostError(f"{target} failed in the learner process: {r.get('error')}")
+        return r.get("value")
 
     def call(self, method: str, *args) -> Any:
         """Call a public method of the learner inside its process (JSON arguments and result)."""

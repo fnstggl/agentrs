@@ -407,3 +407,34 @@ def test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes(t
     a, b = run(memo), run(memo)
     assert a["sandbox_outcomes"] > 10, ("the agents must run sandboxed programs for this test to mean anything", a)
     assert (a["seq"], a["hash"]) == (b["seq"], b["hash"]), (a, b)
+
+
+def test_learner_host_runs_an_experience_remote_learner_function_jailed(tmp_path):
+    """The experience package's learner contract (fn(participant, **kw)) over the participant pipe of
+    `crucible.experience.remote.host`, inside the jail: the episode is ordinary, the adversary reaches nothing (no
+    /proc, no ~/.crucible sealed files, no evaluator object)."""
+    code = (
+        "import json, sys\nsys.path.insert(0, sys.argv[1])\n"
+        "def main():\n"
+        "    from crucible.experience.remote import host\n"
+        "    from crucible.sandbox.learnerhost import LearnerHost\n"
+        "    part, ev = host({'tier': 1, 'name': 'pe_rule_induction', 'seed': 3, 'reward_mode': 'observation_only'})\n"
+        "    try:\n"
+        "        with LearnerHost(None, participant=part._conn, protocol='experience-remote') as h:\n"
+        "            r = h.function('crucible.redteam.v5.adversaries:probe_participant', {})\n"
+        "        v = ev.verify()\n"
+        "    finally:\n"
+        "        ev.close()\n"
+        "    print(json.dumps({'report': r, 'verified': bool(v)}))\n"
+        "if __name__ == '__main__':\n    main()\n")
+    f = tmp_path / "run_hosted.py"
+    f.write_text(code)
+    env = dict(os.environ, PYTHONPATH=SRC)
+    env.pop("CRUCIBLE_HOSTS_WORLDS", None)
+    p = subprocess.run([sys.executable, str(f), SRC], capture_output=True, text=True, timeout=600, env=env)
+    assert p.returncode == 0, p.stderr[-2000:]
+    import json
+    out = json.loads(p.stdout.strip().splitlines()[-1])
+    rep = out["report"]
+    assert out["verified"] and rep["acted"] is True and rep["uid"] not in (0, 65534), rep
+    assert rep["found"] == {}, rep["found"]

@@ -448,6 +448,65 @@ class RemoteParticipantCannotRunCode(V5Probe):
                            "participant pipe", evd, severity="high")
         return Verdict(HELD, "the participant pipe ran nothing it received; evaluator operations were refused", evd)
 
+_EVAL_REACH = ("sealed_file_read:", "sealed_salt_read", "sealed_dir_named", "evaluator_memory_read", "gc:RemoteEvaluator",
+               "gc:ExperienceEnv", "gc:RapidExperienceEnv", "gc:KernelExperienceEnv", "gc:World", "gc:evaluator",
+               "verified_result_read", "other_process_environ_read")
+
+
+def _evaluated_learner_report() -> tuple[str, dict]:
+    """What an adversarial learner function reaches on the experience package's evaluation path: through
+    `crucible.experience.remote.evaluate` (the learner in its own process) where that entry point exists, otherwise
+    driven in the process that hosts the world and holds the evaluator handle (the only path the package offers)."""
+    import json as _j
+    from ...experience import remote as R
+    target = "crucible.redteam.v5.adversaries:probe_participant"
+    ref = {"tier": 1, "name": "pe_rule_induction", "reward_mode": "observation_only"}
+    if hasattr(R, "evaluate"):
+        out = R.evaluate(ref, target, {}, timeout=600)
+        res = out.get("learner_result") or {}
+        if out.get("learner_status") != "ok":
+            raise RuntimeError(f"the evaluated learner did not run: {out.get('learner_status')} {out.get('learner_error')}")
+        return "experience.remote.evaluate (learner in its own process)", _j.loads(_j.dumps(res))
+    from .adversaries import probe_participant
+    part, ev = R.host(dict(ref, seed=3))
+    try:
+        return "experience.remote.host driven in the evaluator's process", probe_participant(part)
+    finally:
+        ev.close()
+
+
+class EvaluatedLearnerReachesNoSealedMaterial(V5Probe):
+    name = "v5.isolation.evaluated_learner_reaches_no_sealed_material"
+    attack_class = "evaluator_independence/hidden_answer"
+    gates = ("W.2",)
+    target, owner = "experience (evaluation entry point)", "L"
+    world = {"v5": "substrate"}
+    description = ("An adversarial learner function (the `remote.evaluate` contract: fn(participant)) is evaluated "
+                   "through the experience package's out-of-process evaluation path. From its own process it looks "
+                   "for the evaluator: environment, world or evaluator objects through the garbage collector, other "
+                   "processes' environments and memory, the 4.0 sealed salt, sealed sets and sealed task files under "
+                   "~/.crucible, the research evaluator's sealed directories. Checked: it reaches none of them "
+                   "(crucible.sandbox.learnerhost, protocol experience-remote, is the jailed learner process that "
+                   "achieves this).")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("evaluated", 10)
+
+    def attack(self, a: Attacker) -> None:
+        self.how, self.rep = _evaluated_learner_report()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        found = dict(self.rep.get("found") or {})
+        reach = {k: v for k, v in found.items() if any(k.startswith(p) for p in _EVAL_REACH)}
+        evd = {"how": self.how, "reach": reach, "uid": self.rep.get("uid"), "acted": self.rep.get("acted"),
+               "evaluator_leaks": len(reach)}
+        if reach:
+            return Verdict(LEAK, f"the evaluated learner reached {sorted(reach)} ({self.how})", evd, severity="high",
+                           fix="run the learner function in crucible.sandbox.learnerhost.LearnerHost(None, participant="
+                               "<participant pipe>, protocol='experience-remote').function(target, kw)")
+        return Verdict(HELD, f"the evaluated learner reached nothing of the evaluator ({self.how})", evd)
+
+
 def probes() -> list:
     return [StaticReachabilityV5(), Tier1EngineReachability(), SandboxCannotReachEvaluator(),
-            InProcessLearnerReachesGrader(), RemoteParticipantCannotRunCode()]
+            InProcessLearnerReachesGrader(), RemoteParticipantCannotRunCode(), EvaluatedLearnerReachesNoSealedMaterial()]

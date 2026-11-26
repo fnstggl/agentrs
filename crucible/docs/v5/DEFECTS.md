@@ -2445,3 +2445,27 @@ B_population verdict) and P's own findings.
  "summary": "Fresh-process weights-only evaluation checks parameter names and numeric dtype but not shapes: a checkpoint whose `weights` network is widened from 12 to 64 hidden units (rehashed by its writer) is accepted and scored, although the immutable architecture configuration declares the original network."
 }
 ```
+
+### DEF-O-13 (high, open): The experience package's out-of-process evaluation (remote.evaluate, c5c/w3b-obs) runs the learner process as 
+
+```json
+{
+ "area": "O_security",
+ "fix": "experience/remote.py evaluate: run the learner function through crucible.sandbox.learnerhost.LearnerHost(None, participant=part._conn, protocol='experience-remote').function(learner, learner_kw) (own uid, Landlock without /proc or ~/.crucible, seccomp); the same adversary reaches nothing there",
+ "id": "DEF-O-13",
+ "owner": "L",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W2_evaluator_isolation (v5.isolation.evaluated_learner_reaches_no_sealed_material), tests/test_v5_security_sandbox.py::test_learner_host_runs_an_experience_remote_learner_function_jailed",
+ "requirements": [
+  "W.2",
+  "SP-16c",
+  "OO.4"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "The experience package's out-of-process evaluation (remote.evaluate, c5c/w3b-obs) runs the learner process as the evaluator's user (root): an adversarial learner function read the 4.0 sealed salt, sealed sets and sealed task files under ~/.crucible and other processes' environments (measured on a check merge of c5c/w3b-obs into c5c/w3b-sec); on the integrated tree the only path drives the learner in the process holding the RemoteEvaluator."
+}
+```

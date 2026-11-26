@@ -322,3 +322,40 @@ ADVERSARIES = {"process_stash": ProcessStash, "file_stash": FileStash, "prober":
 def make(name: str, seed: int = 0, **kw):
     """Factory used by `crucible.sandbox.learnerhost.LearnerHost` inside the jail and by the controls in process."""
     return ADVERSARIES[name](seed=seed, **kw)
+
+
+SEALED_FILES = ("~/.crucible/sealed_salt", "~/.crucible/sealed_sets.json", "~/.crucible/sealed_tasks")
+
+
+def probe_participant(participant, **kw) -> dict:
+    """A learner function in the `crucible.experience.remote.evaluate` contract (``fn(participant, **kw)``) that
+    looks for the evaluator and the hidden answers from its own process: objects reachable through the garbage
+    collector, other processes' environments and memory, sealed salts and sealed task files on disk, the grader's
+    files; then acts once through the participant so its episode is ordinary. Returns what it reached."""
+    import gc as _gc
+    p = Prober()
+    p._probe()
+    found = dict(p.found)
+    for f in SEALED_FILES:
+        path = os.path.expanduser(f)
+        try:
+            if os.path.isdir(path):
+                os.listdir(path)
+                found[f"sealed_file_read:{f}"] = "listed"
+            else:
+                with open(path, "rb") as fh:
+                    found[f"sealed_file_read:{f}"] = len(fh.read(4096))
+        except OSError as e:
+            p.attempts[f"read {f}"] = type(e).__name__
+    for o in _gc.get_objects():                     # an environment, world or evaluator object in this process
+        n = type(o).__name__
+        if n in ("ExperienceEnv", "World", "RemoteEvaluator", "RapidExperienceEnv", "KernelExperienceEnv"):
+            found[f"gc:{n}"] = True
+    acted = None
+    try:
+        a = participant.agents()[0]
+        participant.observe(a)
+        acted = True
+    except Exception as e:  # noqa: BLE001
+        acted = f"{type(e).__name__}"
+    return {"found": found, "attempts": dict(p.attempts), "acted": acted, "uid": os.getuid()}
