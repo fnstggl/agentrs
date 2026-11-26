@@ -97,7 +97,9 @@ def recorded(ctx: Ctx, kind: str, model_id: str, model_hash: str, inputs: Any, f
             return arrays["a"] if rec.get("output_kind") == "array" else arrays
         ctx.fill(slot, PREFIX + kind, rec)
         return to_jsonable(rec["output"])
-    out = _np(fn())
+    from ..scale import governor               # the job's inference-concurrency grant (MASTER_SPEC 13.7)
+    with governor.inference():
+        out = _np(fn())
     record = {"model_id": model_id, "model_hash": model_hash, "inputs_digest": dig}
     if inputs_ref is not None:
         record["inputs_ref"] = inputs_ref
