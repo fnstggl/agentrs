@@ -32,12 +32,15 @@ def demos(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def model(enc, cfg):
+    """The integrated model over the session encoder; the shared LoRA weights it trains are restored afterwards."""
     from dataclasses import replace
     from superlearner.cam_unified.model import build_model
+    lora0 = enc.trainable_state_dict()
     c = replace(cfg, imag_branches=3, imag_samples=2, imag_horizons=(2,), mem_top_k=4, use_imagination=False,
                 declared_conditions=(DI.CONDITION,))
     torch.manual_seed(0)
-    return build_model(c, components={"semantic": enc}).to(enc.device)
+    yield build_model(c, components={"semantic": enc}).to(enc.device)
+    enc.load_trainable_state_dict(lora0)
 
 
 def test_demo_dataset_holds_the_agents_inputs_and_refuses_privileged_or_heldout(demos, tmp_path):

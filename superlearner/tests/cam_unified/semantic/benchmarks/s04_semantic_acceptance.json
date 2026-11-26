@@ -1,0 +1,113 @@
+{
+ "1_unseen_tool_schema": {
+  "before": 0.328125,
+  "loss_first_last": [
+   3.1623058319091797,
+   0.2953398160636425
+  ],
+  "held_out": 0.015625,
+  "train_fit": 0.9375,
+  "control": 0.1875,
+  "examples": [
+   {
+    "goal": "Handle the user's latest request with the right tool.",
+    "want": {
+     "tool": "kuleza_96"
+    },
+    "got": {
+     "tool": "zumazi_12"
+    }
+   },
+   {
+    "goal": "Handle the user's latest request with the right tool.",
+    "want": {
+     "tool": "genutu_82"
+    },
+    "got": {
+     "tool": "tatulu_14"
+    }
+   },
+   {
+    "goal": "Handle the user's latest request with the right tool.",
+    "want": {
+     "tool": "vidipu_10"
+    },
+    "got": {
+     "tool": "fedunu_22"
+    }
+   },
+   {
+    "goal": "Handle the user's latest request with the right tool.",
+    "want": {
+     "tool": "mevosa_56"
+    },
+    "got": {
+     "tool": "baziva_28"
+    }
+   }
+  ],
+  "n_train": 256,
+  "n_test": 64,
+  "steps": 150
+ },
+ "3_unseen_document": {
+  "before": 0.40625,
+  "loss_first_last": [
+   1.2134687900543213,
+   0.22115785330533982
+  ],
+  "held_out": 0.453125,
+  "train_fit": 0.84375,
+  "control": 0.453125,
+  "examples": [
+   {
+    "goal": "Raise the water level of the boiler room.",
+    "want": {
+     "tool": "pifasu_58"
+    },
+    "got": {
+     "tool": "pifasu_58"
+    }
+   },
+   {
+    "goal": "Raise the steam output of the boiler room.",
+    "want": {
+     "tool": "vebizo_62"
+    },
+    "got": {
+     "tool": "kimuvo_84"
+    }
+   },
+   {
+    "goal": "Raise the water level of the fish farm.",
+    "want": {
+     "tool": "genutu_82"
+    },
+    "got": {
+     "tool": "tatulu_14"
+    }
+   },
+   {
+    "goal": "Lower the water level of the bakery oven.",
+    "want": {
+     "tool": "famelo_28"
+    },
+    "got": {
+     "tool": "famelo_28"
+    }
+   }
+  ],
+  "n_train": 256,
+  "n_test": 64,
+  "steps": 150
+ },
+ "7_meaningful_change": {
+  "paired_flip_rate": 0.0,
+  "paired_flip_rate_before": 0.0,
+  "held_out_accuracy": 0.5,
+  "surface_view_same_decision": 0.5,
+  "n_pairs": 32,
+  "n_train": 256,
+  "chance_flip_rate": 0.25
+ }
+}
