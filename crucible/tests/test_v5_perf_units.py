@@ -117,3 +117,17 @@ def test_rollout_world_env_defaults_to_observation_only_regression_def_m_5():
         out[mode] = (env.reward_mode, r, env._balance() - before)
     assert out[None][0] == "observation_only" and out[None][1] == 0.0 and out[None][2] >= 12345
     assert out["legacy_shaped_reward"][1] == float(out["legacy_shaped_reward"][2]) >= 12345
+
+
+def test_semantic_batches_are_counted_per_reply():
+    class E:
+        def __init__(self, t, p):
+            self.type, self.payload, self.vis, self.actor = t, p, "internal", "sys"
+
+        def body(self):
+            return {"type": self.type, "payload": self.payload}
+    ec = bench5.EventCounter(count_bytes=False)
+    ec(E("ext", {"outcomes": [{"kind": "infer.semantic.choose", "out": {"output": [{"choice": 0}] * 5}},
+                              {"kind": "infer.space.items", "out": {"output_ref": "sha256:x"}}]}))
+    ec(E("ext", {"outcomes": [{"kind": "infer.semantic.generate", "out": {"output": [{"text": "a"}] * 3}}]}))
+    assert ec.semantic_calls == 2 and ec.semantic_rows == 8 and ec.infer["infer.space.items"] == 1

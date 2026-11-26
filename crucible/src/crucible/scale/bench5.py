@@ -101,7 +101,7 @@ class EventCounter:
         self.infer = Counter()
         self.actors = set()
         self.event_bytes = 0
-        self.semantic_calls = 0               # recorded semantic-service batches (semantic.inference events)
+        self.semantic_calls = 0               # recorded semantic-service batches (infer.semantic.* outcomes)
         self.semantic_rows = 0
         from ..core.canonical import canonical_bytes
         self._cb = canonical_bytes
@@ -133,9 +133,10 @@ class EventCounter:
             for o in ev.payload.get("outcomes") or ():
                 if isinstance(o, dict) and str(o.get("kind", "")).startswith("infer."):
                     self.infer[o["kind"]] += 1
-        elif ev.type == "semantic.inference":
-            self.semantic_calls += 1
-            self.semantic_rows += int(ev.payload.get("n", 0))
+                    if o["kind"].startswith("infer.semantic."):      # the shared semantic service: one reply per row
+                        out = (o.get("out") or {}).get("output")
+                        self.semantic_calls += 1
+                        self.semantic_rows += len(out) if isinstance(out, list) else 1
 
 
 # ====================================================================== the world
@@ -243,7 +244,8 @@ def batching(w, ec: EventCounter) -> dict:
     The shared batching service (crucible.substrate.inference_batch) accounts per class directly; callers that
     still record their own batches are counted from their records: class 2 from the adaptive policies' counters,
     class 3 from its recorded `pop.strategic.*` calls and one `pop_strategic.exp` event per member decision,
-    class 4 from the semantic service's recorded batches (`semantic.inference`, rows = requests)."""
+    class 4 from the shared semantic service's recorded batches (`infer.semantic.choose|generate` outcomes, rows =
+    replies; in the civilisation world only the class-4 runtime calls that service)."""
     from ..substrate import inference_batch as IB
     svc = IB.report(IB.stats(w))
     by = svc.get("by_class", {})
