@@ -957,18 +957,22 @@ def claim_assembly(env) -> dict:
 
 
 # ====================================================================== 8.9.4 schedule
-def _sched_assign(jobs_of, cur_of, rem_of, speed, t, rule, nM):
-    """A machine assignment: list over machines of participant index or None."""
+def _sched_assign(jobs_of, cur_of, rem_of, speed, t, rule, nM, unblock: float = 0.0):
+    """A machine assignment: list over machines of participant index or None. With `unblock` > 0 a job is also
+    worth that share of the value of the participant's later jobs it holds up (a participant works on its jobs in
+    order of due period, so a job left unfinished blocks the rest)."""
     cand = [i for i in range(len(jobs_of)) if cur_of[i] >= 0]
     out: list = [None] * nM
     used = set()
     pairs = []
     for i in cand:
         jb = jobs_of[i][cur_of[i]]
+        behind = sum(float(j["value"]) for k, j in enumerate(jobs_of[i])
+                     if k != cur_of[i] and not j.get("finished", False)) if unblock else 0.0
         for m in range(nM):
             rem = max(1e-6, rem_of[i]) / max(1e-6, speed[i][m])
             slack = jb["deadline"] - t - rem
-            pay = jb["value"] * max(0.0, 1.0 - max(0.0, t + rem - 1 - jb["deadline"]) / 8.0)
+            pay = jb["value"] * max(0.0, 1.0 - max(0.0, t + rem - 1 - jb["deadline"]) / 8.0) + unblock * behind
             if pay <= 10.0 * rem:                        # would not pay for its machine time (public terms)
                 continue
             if rule == "pay":
@@ -1021,11 +1025,11 @@ def oracle_schedule(env) -> dict:
     return best_with(env, pols, [rollout(env, cands, base, 12, f"rollout over {first['how']}")])
 
 
-def reference_schedule(view, env):
+def reference_schedule(view, env, unblock: float = 0.3):
     """Public, per participant: after the first period each participant knows its own jobs (from its own
     observation) and broadcasts them by message; then every period each participant computes the same assignment
-    from the shared job lists (estimated work, value density with urgency, machine speeds estimated from work done)
-    and submits it as a joint plan."""
+    from the shared job lists (estimated work, value density with urgency, machine speeds estimated from work done,
+    a share `unblock` of the value of the later jobs a job holds up) and submits it as a joint plan."""
     ags = view.agents()
     sp = view.action_space(ags[0])
     machines = [o for o in sp.limits["decisions"]["book"] if o != "idle"]
@@ -1068,7 +1072,10 @@ def reference_schedule(view, env):
             jobs_of.append(jl)
             cur.append(ci)
             rem.append(max(0.5, jl[ci]["est"] - jl[ci]["worked"]) if ci >= 0 else 0.0)
-        assign = _sched_assign(jobs_of, cur, rem, speed[a0], view.t, "pay", len(machines))
+        # each participant's measured speeds are its own; the shared plan uses every participant's estimate of
+        # its own speeds (pooled like the job lists)
+        spd = [speed[a][i] for i, a in enumerate(ags)]
+        assign = _sched_assign(jobs_of, cur, rem, spd, view.t, "pay", len(machines), unblock=unblock)
         last_assign = assign
         if all(x is None for x in assign):
             obs = view.step(None)["observations"]

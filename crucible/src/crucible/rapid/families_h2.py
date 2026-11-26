@@ -247,23 +247,28 @@ def team_assembly(rng, d):
 
 @family("team_schedule", engine="planning", category="8.9", item="8.9.4", split="val",
         doc="Three participants with private job queues (values, due periods, estimated work) share two machines "
-            "whose speed differs by participant; double bookings waste the period; joint plans reserve machines.",
+            "whose speed differs by participant; double bookings waste the period; joint plans reserve machines. "
+            "Each participant's work comes in a burst with tight due periods, at a time of its own.",
         distinct_because="multi-agent scheduling on shared machines: private job information, conflicts from "
                          "simultaneous bookings, hidden machine speeds and true work content, joint reservations",
         axes={"horizon": 40, "action_complexity": 4}, objective="maximize_net",
-        participants=("teammate:shared_machines",), **hooks("schedule"))
+        participants=("teammate:shared_machines",), version="2", **hooks("schedule"))
 def team_schedule(rng, d):
     H = int(d["horizon"])
     J = int(d["action_complexity"])
     names = neutral_names(rng, 2 + 3 * J)
     jobs, true_time = [], []
+    # each participant's work comes in a burst (its jobs are released within a few periods of one another, with
+    # tight due periods) at a time of its own: whoever is in a burst needs the machines most
+    starts = sorted(int(x) for x in rng.choice(np.arange(0, int(0.7 * H)), size=3, replace=False))
+    starts = [starts[int(k)] for k in rng.permutation(3)]
     for i in range(3):
         js, tt = [], []
         for j in range(J):
             est = int(rng.integers(3, 7))
-            rel = int(rng.integers(0, H // 2))
+            rel = starts[i] + int(rng.integers(0, 4))
             js.append({"name": names[2 + i * J + j], "value": float(round(u(rng, 300, 900), -1)), "est": est,
-                       "release": rel, "deadline": rel + est + int(rng.integers(2, 9))})
+                       "release": rel, "deadline": rel + est + int(rng.integers(1, 6))})
             tt.append(est * u(rng, 0.7, 1.4))
         jobs.append(js)
         true_time.append(tt)
