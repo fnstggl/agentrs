@@ -177,12 +177,17 @@ class Code(Module):
                                              f"on this host ({caps}); see docs/SECURITY.md")
             p = world.spec.params
             # D-20: work is measured by the parent; one uid per world lineage (its own process budget) and the
-            # deterministic memo keyed by the same lineage (forks and reruns bill identical computations alike)
-            lineage = world.spec.hash()[:16]
+            # deterministic memo keyed by the same lineage (forks and reruns bill identical computations alike).
+            # 5.0 (A, K3 after D-20): the memo's anchors are shared by every process of the machine
+            # (metering.DiskMemo) so that a rerun, a resume or a replication in a new process gives the same event
+            # hashes; `meter_lineage` lets an experiment's arms whose specs differ bill alike.
+            from ..sandbox import metering
+            lineage = str(p.get("meter_lineage") or world.spec.hash()[:16])
+            det = p.get("cost_model") == "deterministic"
+            memo = metering.default_memo_path() if det and p.get("meter_memo", "machine") == "machine" else None
             cfg = SandboxConfig(mem_mb=int(p.get("sandbox_mem_mb", 1024)), job_wall_s=float(p.get("sandbox_job_s", 10)),
-                                allow_weak=bool(p.get("allow_weak_sandbox", False)),
-                                count_lines=p.get("cost_model") == "deterministic",
-                                meter_scope=lineage, tenant=f"world:{lineage}")
+                                allow_weak=bool(p.get("allow_weak_sandbox", False)), count_lines=det,
+                                meter_scope=lineage, memo_path=memo, tenant=f"world:{world.spec.hash()[:16]}")
             pool = WorkerPool(int(p.get("sandbox_max_workers", 24)), cfg)
             world.runtime["sandbox_pool"] = pool
         return pool
