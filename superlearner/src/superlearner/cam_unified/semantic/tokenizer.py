@@ -488,8 +488,11 @@ class ObservationTokenizer(nn.Module):
             for _, ref, n in row:
                 refs[b][k: k + n] = [ref] * n
                 k += n
-        sc = SemanticContext(h, mask)
-        sc.refs = refs
+        try:                                               # W3's SemanticContext carries refs as a field
+            sc = SemanticContext(h, mask, refs=refs)
+        except TypeError:
+            sc = SemanticContext(h, mask)
+            sc.refs = refs
         sc.stats = stats
         self.last_semantic_stats = stats
         return sc

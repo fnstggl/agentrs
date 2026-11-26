@@ -13,7 +13,9 @@ Checks (numbers go to superlearner/docs/evidence/dom/W4/e2e.json):
   E. Exact replay with the conditioning on: strings sampled with cond rescore bit for bit (twice, and in another
      batch composition).
   F. semantic_context() on real observations -> GatedUnifiedCore consumes it (shape, refs, budget, gradient).
-  G. code.run demonstration arguments representable (reported; expected to fail: needs a JSON-value hole).
+  G. code.run demonstration arguments representable: the untyped `input` is a JSON-value hole (GrammarOptions.json_holes)
+     - every demonstration encodes and tokenises within the cap, replays exactly through the real decoder (twice,
+     bit for bit), and greedy decoding on the real decision contexts writes schema-valid code.run arguments.
 
 Run (GPU, under the shared lock):
   flock /workspace/agentrs/runs/cam_unified/gpu_heavy.lock env PYTHONPATH=src:../crucible/src \
@@ -81,7 +83,8 @@ def part_a(model, cfg) -> dict:
 
 
 def string_steps(model, episodes):
-    """Representable non-wait demonstrated decisions whose action has string holes -> [(ForcedStep, n_holes)]."""
+    """Representable non-wait demonstrated decisions whose action has decoder holes -> [(ForcedStep, n_holes, json)]
+    (json: the action has a JSON-value hole, i.e. code.run)."""
     from superlearner.cam_unified.semantic.demo_init import demo_string_programs, teacher_forced_rollout
     steps = teacher_forced_rollout(model, episodes, batch=8, keep=lambda ep, d: d.action.tool != "wait")
     gen = model.action_generator
@@ -96,7 +99,7 @@ def string_steps(model, episodes):
             progs, _ = demo_string_programs(model, [st])
         except ValueError:
             continue                                  # no string holes in this demonstration
-        out.append((st, len(progs[0].holes)))
+        out.append((st, len(progs[0].holes), any(h.kind == "json" for h in progs[0].holes)))
     return out
 
 
@@ -120,8 +123,10 @@ def _force_mask(gen, tool_lists, names):
     return m
 
 
-def sample_strings(model, steps, protocol: int, batch: int = 4) -> dict:
-    """Greedy CAM-decoder actions (demo tool forced, no length prior) on the steps' real decision contexts."""
+def sample_strings(model, steps, protocol: int, batch: int = 4, min_slots: int = 60) -> dict:
+    """Greedy CAM-decoder actions (demo tool forced, no length prior) on the steps' real decision contexts, in
+    batches until at least `min_slots` string slots were generated (the untrained heads choose optional fields, so
+    generated actions carry fewer slots than the demonstrations)."""
     from superlearner.cam_unified.model import StepInputs, acting_mode
     from superlearner.cam_unified.semantic.demo_init import _stack_inputs
     import copy
@@ -140,6 +145,8 @@ def sample_strings(model, steps, protocol: int, batch: int = 4) -> dict:
     holes, actions = [], []
     try:
         for c0 in range(0, len(steps), batch):
+            if len(holes) >= min_slots:
+                break
             sub = steps[c0: c0 + batch]
             inputs = _stack_inputs(sub)
             live = StepInputs(**{**inputs.__dict__, "registries": copy.deepcopy(inputs.registries)})
@@ -183,6 +190,52 @@ def sample_strings(model, steps, protocol: int, batch: int = 4) -> dict:
                         "cap": h["cap"], "max_len": h["max_len"]} for h in holes if not h["own_close"]][:20],
             "examples": [{"value": h["value"][:80], "close": h["close_token"], "own": h["own_close"]}
                          for h in holes[:12]]}
+
+
+def _demo_value(filler, h):
+    """The value a demonstrated hole's tokens write (replaying the automaton to find the consumed characters)."""
+    s, c = filler._init_state(h), 0
+    for t in h.tokens:
+        s0 = s
+        s, c, _ = filler._advance(h, s, c, t)
+    h.consumed = filler._consumed(h, s0, h.tokens[-1])
+    return filler._hole_value(h)
+
+
+def demo_template_closure(model, steps, batch: int = 8) -> dict:
+    """Greedy decoding (no length prior) of the demonstrated templates' string slots on held-out decision contexts,
+    with the CAM latent conditioning (filler.sample(cond=...)): does the decoder close each string by its own choice,
+    and does it write the demonstrated string? Used before and after the stage-D behaviour cloning."""
+    from superlearner.cam_unified.semantic.demo_init import decision_conditioning, demo_string_programs
+    filler = model.action_generator.filler
+    saved = filler.length_head
+    filler.length_head = None
+    rows = []
+    try:
+        for c0 in range(0, len(steps), batch):
+            sub = steps[c0: c0 + batch]
+            progs, ctxs = demo_string_programs(model, sub)
+            demo = []
+            for p in progs:                                 # the demonstrated values, in hole order
+                demo.append([_demo_value(filler, h) for h in p.holes])
+            with torch.no_grad(), model._autocast():
+                prefix, c = decision_conditioning(model, sub)
+                filler.sample(progs, prefix, ctxs, 1.0, True, cond=c)
+            for p, dv in zip(progs, demo):
+                for h, v in zip(p.holes, dv):
+                    rows.append({"kind": h.kind, "own": bool(h.own_close), "value": h.value, "demo": v,
+                                 "n": len(h.tokens), "comma": isinstance(h.value, str)
+                                 and h.value.rstrip().endswith(",")})
+    finally:
+        filler.length_head = saved
+    n = len(rows)
+    return {"actions": len(steps), "slots": n, "own_close": sum(r["own"] for r in rows),
+            "own_close_rate": sum(r["own"] for r in rows) / max(n, 1),
+            "trailing_commas": sum(r["comma"] for r in rows),
+            "exact_demo_match_rate": sum(r["value"] == r["demo"] for r in rows) / max(n, 1),
+            "tokens_mean": sum(r["n"] for r in rows) / max(n, 1),
+            "forced": [{"kind": r["kind"], "value": str(r["value"])[:60], "demo": str(r["demo"])[:60], "n": r["n"]}
+                       for r in rows if not r["own"]][:12]}
 
 
 def part_c_init(model, held) -> dict:
@@ -336,11 +389,19 @@ def part_f(model, cfg, steps) -> dict:
             "last_gates": core.last_gates}
 
 
-def part_g() -> dict:
+def part_g(model, json_steps) -> dict:
+    """code.run demonstrations: (1) all of them (both splits) encode + tokenise under the model's own grammar options;
+    (2) the ones in the rollout replay exactly through the real decoder; (3) greedy decoding on their decision
+    contexts writes schema-valid code.run arguments, closing the JSON value by the LM's own choice."""
+    from crucible.core.schema import validate
     from superlearner.cam_unified.interfaces import ToolSchema
-    from superlearner.cam_unified.semantic.grammar import GrammarError, GrammarOptions, ToolGrammar, encode_value
-    opts = GrammarOptions(max_string_tokens=1536, max_action_tokens=3072)
-    ok, bad, err = 0, 0, None
+    from superlearner.cam_unified.semantic.demo_init import (decision_conditioning, demo_string_log_prob,
+                                                             demo_string_programs)
+    from superlearner.cam_unified.semantic.grammar import (GrammarError, ToolGrammar, drive_walks, encode_value,
+                                                           materialize)
+    gen = model.action_generator
+    opts = gen.opts
+    ok, bad, err, n_tok = 0, 0, None, []
     for split in ("train", "held"):
         for line in open(f"{DEMO}/{split}/episodes.jsonl"):
             ep = json.loads(line)
@@ -350,12 +411,65 @@ def part_g() -> dict:
                     continue
                 g = ToolGrammar(tools["code.run"], opts)
                 try:
-                    encode_value(g.root, d["action"]["args"], opts, [], [], {}, None)
+                    cs, hs = [], []
+                    encode_value(g.root, d["action"]["args"], opts, cs, hs, {}, None)
+                    it = iter(cs)
+                    tpl = drive_walks([g.root], opts, lambda rows, decs: [next(it) for _ in decs])[0]
+                    prog = gen.filler.program(tpl)
+                    for k, (h, (kind, val)) in enumerate(zip(prog.holes, hs)):
+                        h.tokens = gen.filler.tokenize_hole(kind, val, h, prog.cap[k])
+                        if kind == "json":
+                            n_tok.append(len(h.tokens))
                     ok += 1
                 except GrammarError as e:
                     bad += 1
                     err = str(e)[:160]
-    return {"code_run_demos": ok + bad, "representable": ok, "error": err, "pass": bad == 0 and ok > 0}
+    out = {"code_run_demos": ok + bad, "representable": ok, "error": err,
+           "json_hole_tokens": {"min": min(n_tok, default=0), "max": max(n_tok, default=0),
+                                "mean": sum(n_tok) / max(len(n_tok), 1)},
+           "grammar": {"json_holes": opts.json_holes, "cap": opts.max_string_tokens, "max_depth": opts.json_max_depth},
+           "rollout_steps": len(json_steps)}
+    sub = json_steps[:4]
+    if sub:
+        with torch.no_grad():
+            lp1, nt = demo_string_log_prob(model, sub, cond="latent")
+            lp2, _ = demo_string_log_prob(model, list(reversed(sub)), cond="latent")
+        out["replay"] = {"actions": len(sub), "tokens": nt.tolist(), "nll_per_token": (-lp1 / nt.float()).tolist(),
+                         "bit_identical_other_order": bool(torch.equal(lp1, lp2.flip(0))),
+                         "finite": bool(torch.isfinite(lp1).all())}
+        # greedy decoding of the demonstrated templates' holes on the real decision contexts (strings + JSON value)
+        progs, ctxs = demo_string_programs(model, sub)
+        with torch.no_grad(), model._autocast():
+            prefix, c = decision_conditioning(model, sub)
+            t0 = time.time()
+            _, _, ns, steps = gen.filler.sample(progs, prefix, ctxs, 1.0, True, cond=c)
+            dt = time.time() - t0
+            s1, _, _ = gen.filler.score(progs, prefix, ctxs, 1.0, exact_rows=True, cond=c)
+            s2, _, _ = gen.filler.score(progs, prefix, ctxs, 1.0, exact_rows=True, cond=c)
+        valid, own, lens, ex = 0, 0, [], []
+        tools = {t.name: t for t in list(sub[0].inputs.tools[0]) + list(getattr(gen, "builtins", []))}
+        for p, st in zip(progs, sub):
+            # the template's holes now hold the greedy values; rebuild the arguments from the demo's structure
+            args = {}
+            jh = next(h for h in p.holes if h.kind == "json")
+            own += bool(jh.own_close)
+            lens.append(len(jh.tokens))
+            ex.append(json.dumps(jh.value, ensure_ascii=False)[:160])
+            args = dict(st.action.args)
+            strs = [h for h in p.holes if h.kind != "json"]
+            for key, h in zip([k for k in ("repo", "target", "ref") if k in args], strs):
+                args[key] = h.value
+            args["input"] = jh.value
+            valid += validate(tools["code.run"].parameters, args) == []
+        out["greedy"] = {"actions": len(sub), "valid_arguments": valid, "json_closed_by_lm": own,
+                         "json_tokens": lens, "decode_steps": steps, "seconds": dt, "examples": ex,
+                         "demo_input_head": [json.dumps(st.action.args.get("input"), ensure_ascii=False)[:160]
+                                             for st in sub[:2]],
+                         "rescore_bit_identical": bool(torch.equal(s1, s2))}
+    out["pass"] = bad == 0 and ok > 0 and (not sub or (out["replay"]["bit_identical_other_order"]
+                                                       and out["greedy"]["valid_arguments"] == len(sub)
+                                                       and out["greedy"]["rescore_bit_identical"]))
+    return out
 
 
 def main(argv=None):
@@ -409,31 +523,26 @@ def _run(args, argv, t_start):
     if "A" in S:
         t0 = time.time()
         save("A", "A_value_channel", part_a(model, cfg), t0)
-    if "G" in S:
-        t0 = time.time()
-        save("G", "G_code_run", part_g(), t0)
-    if not S & set("BCDEF"):
+    if not S & set("BCDEFG"):
         return
     t0 = time.time()
     train_eps = load_episodes(f"{DEMO}/train/episodes.jsonl")[: args.train_episodes]
     held_eps = load_episodes(f"{DEMO}/held/episodes.jsonl")[: args.held_episodes]
     run["families"] = sorted({e.family for e in train_eps + held_eps})
     held_keys = {e.key for e in held_eps}
-    both = string_steps(model, held_eps + train_eps)              # one batched rollout (<= 8 episodes)
+    every = string_steps(model, held_eps + train_eps)             # one batched rollout (<= 8 episodes)
+    json_steps = [s for s, _, j in every if j]                    # code.run (JSON-value hole): stage G
+    both = [(s, n) for s, n, j in every if not j]                 # string slots: stages B-F
     held = [s for s, _ in both if s.episode in held_keys]
     train = [s for s, _ in both if s.episode not in held_keys]
     run["timing_s"]["rollout"] = round(time.time() - t0, 1)
-    run["string_steps"] = {"train": len(train), "held": len(held)}
+    run["string_steps"] = {"train": len(train), "held": len(held), "code_run": len(json_steps)}
     print("steps", len(train), len(held), f"({run['timing_s']['rollout']} s)", flush=True)
     if "B" in S:
         t0 = time.time()
-        slots, n_h = [], 0
-        for st, nh in sorted(both, key=lambda x: x[0].episode not in held_keys):   # held-out decisions first
-            slots.append(st)
-            n_h += nh
-            if n_h >= 60:
-                break
-        b = {"v4": sample_strings(model, slots, 4), "v3_pre_fix": sample_strings(model, slots, 3)}
+        slots = [st for st, _ in sorted(both, key=lambda x: x[0].episode not in held_keys)]   # held-out first
+        v4 = sample_strings(model, slots, 4, min_slots=60)
+        b = {"v4": v4, "v3_pre_fix": sample_strings(model, slots[: v4["actions"]], 3, min_slots=10 ** 9)}
         v4 = b["v4"]
         b["pass"] = v4["slots"] >= 50 and v4["own_close_rate"] >= 0.9 and v4["trailing_commas"] == 0
         save("B", "B_string_closure", b, t0)
@@ -445,12 +554,19 @@ def _run(args, argv, t_start):
         save("F", "F_semantic_context", part_f(model, cfg, held), t0)
     if "D" in S:
         t0 = time.time()
-        reserve = 150.0 if "E" in S else 60.0                     # time left for the after-ablations (+ E)
+        save("B2", "B2_demo_templates_at_init", demo_template_closure(model, held), t0)
+        t0 = time.time()
+        reserve = 240.0 if "E" in S else 150.0                    # time left for the after-ablations (+ B2, E, G)
         save("D", "D_bc_latent_dependence", part_d(model, train, held, n_steps=args.bc_steps,
                                                    deadline=t_start + args.budget_s - reserve - 120.0), t0)
+        t0 = time.time()
+        save("B2", "B2_demo_templates_after_bc", demo_template_closure(model, held), t0)
     if "E" in S:
         t0 = time.time()
         save("E", "E_replay_with_conditioning", part_e(model, held), t0)
+    if "G" in S:
+        t0 = time.time()
+        save("G", "G_code_run", part_g(model, json_steps), t0)
     run["wall_s"] = time.time() - t_start
     with open(args.out, "w") as fh:
         json.dump(res, fh, indent=1, default=str)
