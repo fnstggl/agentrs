@@ -2,17 +2,6 @@
  "workstream": "P",
  "branch": "c5c/w1-qa",
  "requirements": {
-  "A.1": {
-   "implementation_files": [
-    "src/crucible/acceptance/v5/baseline.py",
-    "src/crucible/core/discovery.py"
-   ],
-   "tests": [
-    "tests/v5/test_gate_A.py"
-   ],
-   "status_claim": "implemented; measured locally in progress",
-   "notes": "Runs the 4.0 test files of the recorded baseline (1,076 node ids) by exact id; needs the GPU visible (slot --gpu-mb) for 0 skips. The 4.0 discovery failure is fixed by giving media_error a meaning in core/discovery.py (the 4.0 test is unchanged)."
-  },
   "A.2": {
    "implementation_files": [
     "src/crucible/acceptance/v5/baseline.py",
@@ -53,8 +42,19 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; measurement running",
-   "notes": "16 acceptance records A-P and 2 deterministic demos regenerated in a fresh clone; 148 of 148 4.0 world trajectories in deterministic mode equal c07098b's (measured). Under the default measured-CPU cost model 4.0 trajectories differ between fresh executions even at c07098b (documented 4.0 behaviour), so the comparison uses the deterministic mode."
+   "status_claim": "implemented; fails (1 record unresolved)",
+   "notes": "Measured locally: 148 of 148 4.0 world trajectories in 4.0's deterministic mode equal c07098b's (under the default measured-CPU cost model even c07098b differs between fresh executions, documented 4.0 behaviour). Of the 16 acceptance records A-P and 2 demos, the first full run reproduced 14; after excluding provenance (the N record's own commit, durations inside summary strings) and fixing the demo_social_org command, N and demo_social_org reproduce; O differs from its record by about 3e-2 relative but c07098b regenerates exactly the current tree's numbers, so it is counted as reproduced and reported as v4_self_irreproducible_records; demo_lifetime (78,353 vs 73,617 events) is unresolved (DEF-P-13). The full gate was not rerun after the fixes (slot scheduler saturated)."
+  },
+  "A.1": {
+   "implementation_files": [
+    "src/crucible/acceptance/v5/baseline.py",
+    "src/crucible/core/discovery.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_A.py"
+   ],
+   "status_claim": "implemented; full run not completed in this session",
+   "notes": "Harness validated on tests/test_discovery.py and tests/test_kernel.py (44 baseline node ids, all pass by id, including the formerly failing discovery test); 0 of the 54 4.0 baseline test files changed since c07098b. The full 1,076-node run was queued behind the slot scheduler (all 8 job slots held by other workstreams) and did not start. Needs the GPU visible for 0 skips."
   },
   "X.1": {
    "implementation_files": [
