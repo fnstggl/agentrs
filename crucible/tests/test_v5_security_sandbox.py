@@ -369,7 +369,9 @@ def test_learner_host_runs_the_learner_jailed_with_only_its_participant_channel(
     assert ok, why
     with LearnerHost("crucible.redteam.v5.adversaries:make", {"name": "prober", "seed": 0}) as h:
         rep = h.call("probe")
-        assert h.jail_uid not in (0, 65534) and h.jail_uid == isolation.uid_for("learner-host")
+        # its own uid (one per learner process, above the per-kind jail uids; wave-3b review)
+        assert h.jail_uid not in (0, 65534) and h.jail_uid == h.uid
+        assert isolation.UID_BASE + 0x10000 <= h.jail_uid < isolation.UID_BASE + 0x20000
     found, att = rep["found"], rep["attempts"]
     assert not {k for k in found if k in ("other_process_environ_read", "sealed_salt_read", "evaluator_memory_read",
                                           "gc:evaluator", "tmp_listed")}, found

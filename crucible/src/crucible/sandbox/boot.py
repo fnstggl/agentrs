@@ -105,7 +105,14 @@ DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4"
         "setresgid", "setgroups", "personality",
         # handles on other processes (every sandbox worker runs under the same unprivileged uid, so the kernel's
         # own permission checks would let one tenant's code act on another tenant's worker)
-        "pidfd_open", "pidfd_send_signal", "pidfd_getfd", "kcmp", "process_madvise", "process_mrelease"]
+        "pidfd_open", "pidfd_send_signal", "pidfd_getfd", "kcmp", "process_madvise", "process_mrelease",
+        # kernel objects named by a key, not a path (Landlock on this kernel does not mediate them), that outlive the
+        # program: System V IPC and POSIX message queues were a channel between worlds' programs (any mode bits the
+        # creator chooses) and a store outside the world (wave-3b review, probe
+        # v5.crossworld.kernel_ipc_does_not_cross_worlds)
+        "shmget", "shmat", "shmdt", "shmctl", "msgget", "msgsnd", "msgrcv", "msgctl", "semget", "semop",
+        "semtimedop", "semctl", "mq_open", "mq_unlink", "mq_timedsend", "mq_timedreceive", "mq_notify",
+        "mq_getsetattr"]
 # Syscalls that name a target process: allowed only when the target is this process itself. (syscall, index of
 # the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process").
 SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt_sigqueueinfo", 0, "pid"),

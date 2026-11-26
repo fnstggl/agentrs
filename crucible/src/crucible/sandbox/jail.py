@@ -9,8 +9,10 @@ caller). Before it replaces itself with the program it
 2. applies Landlock: read-only access to the listed system paths, execute access only to the listed binaries (and the
    dynamic loader), read-write access only to the listed private directories, and (ABI >= 4) no TCP bind/connect;
 3. applies seccomp: no socket other than AF_UNIX for the browser and no socket at all for tools; no ptrace, mount,
-   namespaces, BPF, perf, io_uring, keyrings, kernel modules or uid changes; signals and process limits only on
-   processes of the jail itself (by pid for tools; the browser signals its own children, which share the jail uid);
+   namespaces, BPF, perf, io_uring, keyrings, kernel modules or uid changes; no System V IPC or POSIX message
+   queues; no descriptor ownership (F_SETOWN/F_SETSIG, FIOSETOWN: kernel-sent signals); signals and process limits
+   only on processes of the jail itself (by pid for tools; the browser signals its own children, which share the
+   jail uid);
 4. execs the program. Landlock and seccomp survive the exec and are inherited by every child.
 
 The configuration is written by the trusted caller (`crucible.sandbox.isolation`); nothing in it comes from an
@@ -211,7 +213,18 @@ DENY = ["ptrace", "process_vm_readv", "process_vm_writev", "mount", "umount2", "
         "delete_module", "reboot", "swapon", "swapoff", "sethostname", "setdomainname", "acct", "quotactl",
         "name_to_handle_at", "open_by_handle_at", "setuid", "setgid", "setreuid", "setregid", "setresuid",
         "setresgid", "setgroups", "personality", "pidfd_getfd", "kcmp", "process_madvise", "process_mrelease",
-        "mount_setattr", "fsopen", "fsmount", "fspick", "move_mount", "open_tree"]
+        "mount_setattr", "fsopen", "fsmount", "fspick", "move_mount", "open_tree",
+        # System V IPC and POSIX message queues: kernel objects named by a key (not mediated by Landlock on this
+        # kernel) that outlive the process - a store carried from one jailed learner process to the next and a
+        # channel between processes of one uid (wave-3b review, v5.sandbox.hosted_learners_cannot_reach_each_other)
+        "shmget", "shmat", "shmdt", "shmctl", "msgget", "msgsnd", "msgrcv", "msgctl", "semget", "semop",
+        "semtimedop", "semctl", "mq_open", "mq_unlink", "mq_timedsend", "mq_timedreceive", "mq_notify",
+        "mq_getsetattr"]
+# descriptor ownership: the kernel signals the owner of a descriptor on I/O (SIGIO, or any signal chosen with
+# F_SETSIG - SIGKILL included) after only a same-uid check, and F_SETOWN's ESRCH answers whether a pid exists. A
+# jailed learner killed another learner process of its uid this way (same review). Refused in every mode.
+FCNTL_DENY = [8, 10, 15]             # F_SETOWN, F_SETSIG, F_SETOWN_EX
+IOCTL_DENY = [0x8901, 0x8902]        # FIOSETOWN, SIOCSPGRP (sockets)
 TOOL_DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4", "fork", "vfork",
              "pidfd_open", "pidfd_send_signal"]
 SELF_ONLY = [("kill", 0), ("tkill", 0), ("tgkill", 0), ("rt_sigqueueinfo", 0), ("rt_tgsigqueueinfo", 0)]
@@ -237,6 +250,12 @@ def seccomp() -> None:
         nr = sc.seccomp_syscall_resolve_name(name.encode())
         if nr >= 0 and sc.seccomp_rule_add(ctx, eperm, nr, 0) != 0:
             raise SystemExit(f"jail: seccomp_rule_add({name}) failed")
+    for name, cmds in (("fcntl", FCNTL_DENY), ("ioctl", IOCTL_DENY)):
+        nr = sc.seccomp_syscall_resolve_name(name.encode())
+        for c in cmds:
+            cmp = (ArgCmp * 1)(ArgCmp(1, 4, c, 0))       # SCMP_CMP_EQ on the command
+            if nr >= 0 and sc.seccomp_rule_add_array(ctx, eperm, nr, 1, cmp) != 0:
+                raise SystemExit(f"jail: seccomp {name} rule {c:#x} failed")
     if tool:
         cmp = (ArgCmp * 1)(ArgCmp(0, 7, 0x00010000, 0))   # clone without CLONE_THREAD: no new processes
         nr = sc.seccomp_syscall_resolve_name(b"clone")

@@ -52,6 +52,38 @@ def matrix(args, caller):
     t("import_crucible", lambda: __import__("crucible"))
     t("import_torch", lambda: __import__("torch"))
     t("uid_is_root", lambda: os.getuid() == 0 and 1 or (_ for _ in ()).throw(OSError("not root")))
+    # kernel objects that are not paths (SysV IPC, POSIX message queues) and signals by descriptor ownership
+    def ipc(kind):
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        name = b"/crucible-rt-matrix-%d" % os.getpid()
+        if kind == "shm":
+            i = libc.shmget(0, 4096, 0o1000 | 0o600)
+            rm = lambda: libc.shmctl(i, 0, None)
+        elif kind == "msg":
+            i = libc.msgget(0, 0o1000 | 0o600)
+            rm = lambda: libc.msgctl(i, 0, None)
+        elif kind == "sem":
+            i = libc.semget(0, 1, 0o1000 | 0o600)
+            rm = lambda: libc.semctl(i, 0, 0)
+        else:
+            i = libc.mq_open(name, 0o100 | 0o2, 0o600, None)
+            rm = lambda: (libc.mq_close(i), libc.mq_unlink(name))
+        if i < 0:
+            raise OSError(ctypes.get_errno(), "refused")
+        rm()
+        return i
+    for k in ("shm", "msg", "sem", "mq"):
+        t("sysv_" + k if k != "mq" else "posix_mq", lambda k=k: ipc(k))
+    def setown():
+        import fcntl
+        r, w = os.pipe()
+        try:
+            return fcntl.fcntl(r, fcntl.F_SETOWN, os.getppid())
+        finally:
+            os.close(r)
+            os.close(w)
+    t("fcntl_setown_parent", setown)
     # expected to work inside the sandbox
     t("write_workdir", lambda: open("ok.txt", "w").write("x"))
     t("numpy", lambda: int(__import__("numpy").arange(4).sum()))
@@ -165,11 +197,14 @@ class SandboxEscapeMatrix(V5Probe):
     target, owner = "sandbox", "O"
     needs_sandbox = True
     world = {"v5": "commerce"}
-    description = ("Agent code run with `code.run` tries 31 ways out: host files (passwd, environment, /root, "
+    description = ("Agent code run with `code.run` tries 36 ways out: host files (passwd, environment, /root, "
                    "/workspace, other processes' environments, the sandbox base directory, /dev/shm), writes outside "
                    "its directory, symlink and hard-link escapes, sockets (inet, unix, raw syscall), DNS, HTTP to the "
                    "metadata address, subprocesses, exec, fork, spawn, signals to the parent / init / everyone, "
-                   "setuid, ptrace, unshare, importing the simulator and running as root. Checked: every one is "
+                   "setuid, ptrace, unshare, importing the simulator, running as root, System V shared memory / "
+                   "message queues / semaphores and POSIX message queues (kernel objects outside the world that "
+                   "outlive the program), and owning a descriptor for the parent (F_SETOWN: the kernel signals the "
+                   "owner on I/O). Checked: every one is "
                    "refused, and the two ordinary operations (writing its own directory, numpy) still work.")
 
     def setup(self, op: Operator) -> None:
@@ -180,6 +215,13 @@ class SandboxEscapeMatrix(V5Probe):
         self.out = run(a, self.att, rid, "esc.py:matrix", timeout_s=20)
 
     def verdict(self, ev: Evaluator) -> Verdict:
+        import glob
+        import os
+        for p in glob.glob("/dev/mqueue/crucible-rt-matrix-*"):   # a queue whose creation was half refused
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
         if not self.out.get("ok"):
             raise NotApplicable(f"the probe program failed: {self.out.get('error')}")
         res = self.out["result"]
@@ -818,9 +860,107 @@ class NestedRunsMultiplyWallTime(V5Probe):
         return Verdict(HELD, f"the call tree finished in {self.wall:.1f} s (bound {bound:.0f} s)", evd)
 
 
+class HostedLearnersCannotReachEachOther(V5Probe):
+    name = "v5.sandbox.hosted_learners_cannot_reach_each_other"
+    attack_class = "cross_world/learner_processes"
+    gates = ("W.5", "W.7")
+    target, owner = "sandbox (learner host)", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("Jailed learner processes (`crucible.sandbox.learnerhost`, the out-of-process evaluation of "
+                   "untrusted learners) of different evaluations run side by side. Learner A leaves a canary in "
+                   "System V shared memory, a message queue, a semaphore and a POSIX message queue and exits; a "
+                   "FRESH learner process B (a later evaluation, or the 'fresh' instance of a protocol that restarts "
+                   "the learner) reads them back, then tries to make the kernel SIGKILL a third learner V through "
+                   "descriptor ownership (fcntl F_SETOWN + F_SETSIG on a pipe with O_ASYNC; ioctl FIOSETOWN on its "
+                   "inherited participant socket) and uses F_SETOWN's ESRCH answer as a pid-existence oracle. "
+                   "Checked: nothing is carried between learner processes, V survives, no pid oracle answers, and "
+                   "the three processes run under different uids (own thread budgets).")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("hosted", 10)
+
+    def attack(self, a: Attacker) -> None:
+        import socket
+        from ...sandbox.learnerhost import LearnerHost
+        from .crossworld import _ipc_cleanup, _ipc_key
+        self.key = _ipc_key(self.name)
+        self.canary = f"hosted-canary-{self.key:x}"
+        self.out = {}
+        pa, pb = socket.socketpair()                       # B's participant endpoint (an inherited socket)
+        victim = LearnerHost(None)
+        try:
+            with LearnerHost(None) as h:
+                self.out["a"] = {"uid": h.jail_uid, **h.function("crucible.redteam.v5.adversaries:ipc_stash",
+                                                                  {"key": self.key, "canary": self.canary})}
+            with LearnerHost(None, participant=pb) as h:
+                self.out["b_uid"] = h.jail_uid
+                self.out["b_recall"] = h.function("crucible.redteam.v5.adversaries:ipc_recall", {"key": self.key})
+                absent = self._absent_pid()
+                self.out["b_signal"] = h.function("crucible.redteam.v5.adversaries:signal_owner",
+                                                  {"victim": victim.pid, "absent": absent})
+                pa.sendall(b"x")                            # input on B's socket: a FIOSETOWN owner would be signalled
+                time.sleep(0.3)
+            self.out["victim_uid"] = victim.jail_uid
+            self.out["victim_returncode"] = victim.proc.poll()
+        finally:
+            try:
+                victim.close()
+            except Exception:  # noqa: BLE001 - a killed victim cannot be closed cleanly
+                victim.kill()
+            pa.close()
+            pb.close()
+            self.out["left_in_kernel"] = _ipc_cleanup(self.key, [(self.out.get("a") or {}).get("uid"),
+                                                                 self.out.get("b_uid"), self.out.get("victim_uid")])
+
+    @staticmethod
+    def _absent_pid() -> int:
+        import os
+        pid_max = int(open("/proc/sys/kernel/pid_max").read())
+        for cand in range(pid_max - 1, 1, -1):
+            if not os.path.exists(f"/proc/{cand}"):
+                return cand
+        raise NotApplicable("no free pid")
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        o = self.out
+        read = dict((o.get("b_recall") or {}).get("read") or {})
+        carried = sorted(k for k, v in read.items() if self.canary in str(v) or (k == "sem_value" and
+                                                                                 v == len(self.canary)))
+        sig = o.get("b_signal") or {}
+        bad = {}
+        if carried:
+            bad["state_carried_between_learner_processes"] = carried
+        if o.get("victim_returncode") is not None:
+            bad["victim_killed"] = o["victim_returncode"]
+        if sig.get("setown_victim") == "ok" or sig.get("fiosetown") == "ok" or sig.get("setsig") == "ok":
+            bad["descriptor_owner_signals"] = {k: sig.get(k) for k in ("setown_victim", "setsig", "fiosetown")}
+        if sig.get("setown_absent_pid") != sig.get("setown_victim"):
+            bad["pid_existence_oracle"] = [sig.get("setown_absent_pid"), sig.get("setown_victim")]
+        uids = [(o.get("a") or {}).get("uid"), o.get("b_uid"), o.get("victim_uid")]
+        if None in uids:
+            raise NotApplicable(f"a learner process did not report: {o}")
+        if len(set(uids)) < 3:
+            bad["learner_processes_share_a_uid"] = uids
+        created = sorted(k for k in ("shm", "msg", "sem", "mq") if (o.get("a") or {}).get(k) == "created")
+        if created:
+            bad["kernel_ipc_created"] = created
+        evd = {"attack": o, "findings": bad, "cross_world_leaks": len(carried),
+               "resource_limit_escapes": int("victim_killed" in bad)}
+        if carried or "victim_killed" in bad:
+            return Verdict(INTEGRITY_BREAK, f"jailed learner processes reached each other: {sorted(bad)}", evd,
+                           severity="high", fix="sandbox/jail.py seccomp (SysV/POSIX IPC, F_SETOWN/F_SETSIG, "
+                                                "FIOSETOWN) and one uid per learner process (learnerhost)")
+        if bad:
+            return Verdict(INTEGRITY_BREAK, f"jailed learner processes are not separated: {sorted(bad)}", evd,
+                           severity="medium", fix="sandbox/jail.py seccomp and one uid per learner process")
+        return Verdict(HELD, "no kernel IPC, no descriptor-owner signal, no pid oracle; three distinct uids", evd)
+
+
 def probes() -> list:
     return ([SandboxEscapeMatrix()] + [MeterForgery(v) for v in sorted(FORGERIES)] +
             [WorkDeliveredThenExit(), BuiltinsAreNotFree(), BackgroundThreadOutlivesRequest(),
              ForgedCompletionKeepsWorking(), ForgedCompletionThenExit(), DiskQuota(),
              MemoryCpuAndTimeLimits(), TenantIsolationBetweenWorlds(), HostPathsNotDisclosed(),
-             MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime()])
+             MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime(),
+             HostedLearnersCannotReachEachOther()])

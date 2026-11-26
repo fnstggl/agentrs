@@ -254,6 +254,120 @@ class MemoEvictionIsPerLineage(V5Probe):
                              "rows", evd)
 
 
+def _ipc_key(tag: str) -> int:
+    """A System V key unique to this run of a probe (process id + time), so concurrent runs never meet."""
+    import os
+    import time
+    import zlib
+    return 0x5E000000 | (zlib.crc32(f"{tag}|{os.getpid()}|{time.monotonic_ns()}".encode()) & 0x00FFFFF0)
+
+
+_IPC_RM = r"""
+import ctypes, json, sys
+libc = ctypes.CDLL(None, use_errno=True)
+key, out = int(sys.argv[1]), {}
+for name, get, rm in (("shm", lambda: libc.shmget(key, 0, 0), lambda i: libc.shmctl(i, 0, None)),
+                      ("msg", lambda: libc.msgget(key + 1, 0), lambda i: libc.msgctl(i, 0, None)),
+                      ("sem", lambda: libc.semget(key + 2, 0, 0), lambda i: libc.semctl(i, 0, 0))):
+    i = get()
+    if i >= 0:
+        out[name] = rm(i) == 0
+try:
+    out["mq"] = libc.mq_unlink(("/crucible-rt-%x" % key).encode()) == 0
+except AttributeError:
+    pass
+print(json.dumps(out))
+"""
+
+
+def _ipc_cleanup(key: int, uids) -> dict:
+    """Remove whatever kernel IPC objects a run under `key` left behind; returns what was removed. Root in this
+    container has no CAP_IPC_OWNER/CAP_SYS_ADMIN, so the removal runs as each uid that may own an object."""
+    import subprocess
+    import sys
+    gone = {}
+    for uid in sorted({int(u) for u in uids if isinstance(u, int) and u > 0}):
+        try:
+            r = subprocess.run([sys.executable, "-I", "-S", "-c", _IPC_RM, str(int(key))], user=uid, group=uid,
+                               extra_groups=[], cwd="/", capture_output=True, text=True, timeout=60)
+            gone.update({k: v for k, v in json.loads(r.stdout or "{}").items() if v})
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+    return gone
+
+
+_IPC_ENTRY = ("\n\ndef stash(a, c):\n    return ipc_stash(None, a['key'], a['canary'], 0o666)\n"
+              "\n\ndef recall(a, c):\n    return ipc_recall(None, a['key'])\n")
+
+
+def _ipc_files() -> dict:
+    """The attack program: the red team's IPC functions (`adversaries.ipc_stash` / `ipc_recall`, plain ctypes) copied
+    into the agent's own program file (a sandboxed program carries its own code; it cannot import crucible)."""
+    import inspect
+    from . import adversaries as ADV
+    lib = "import ctypes\nimport os\n\n\n" + "\n\n".join(inspect.getsource(f) for f in
+                                                           (ADV._ipc_libc, ADV.ipc_stash, ADV.ipc_recall))
+    return {"ipc.py": lib + _IPC_ENTRY}
+
+
+class KernelIpcDoesNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.kernel_ipc_does_not_cross_worlds"
+    attack_class = "cross_world/kernel_ipc"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("System V shared memory, message queues and semaphores (and POSIX message queues) are kernel "
+                   "objects named by a key, not by a path: Landlock does not mediate them on this kernel and they "
+                   "outlive the process that made them. An agent's program in a second world (another tenant uid) "
+                   "creates them world-readable under a key both agents' code knows and writes a canary; then this "
+                   "world's program, in its own sandbox, looks the key up and reads. Checked: the writer cannot "
+                   "create them and the reader receives nothing - no channel between worlds, and no state outside "
+                   "the world that a later run (a replay, a regenerated world) could read.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-ipc", 2_000_000)
+        self.key = _ipc_key(self.name)
+        self.canary = f"xw-ipc-canary-{self.key:x}"
+        self.other = _second_world("commerce", 11, "xw-ipc-other")
+        p = self.other.system_call("admin.join", {"handle": "other", "endowment": 2_000_000})["principal"]
+        rid = self.other.system_call("code.create_repo", {"name": "ipc"}, as_principal=p)["repo"]
+        self.other.system_call("code.commit", {"repo": rid, "files": _ipc_files()}, as_principal=p)
+        r = self.other.system_call("code.run", {"repo": rid, "target": "ipc.py:stash",
+                                                "input": {"key": self.key, "canary": self.canary}}, as_principal=p)
+        self.writer = r.get("result") if isinstance(r.get("result"), dict) else {"error": str(r)[:400]}
+
+    def attack(self, a: Attacker) -> None:
+        rid = repo(a, self.att, "ipc", _ipc_files())
+        self.reader = run(a, self.att, rid, "ipc.py:recall", input={"key": self.key})
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        reader = self.reader.get("result") if isinstance(self.reader.get("result"), dict) else self.reader
+        try:
+            self.other.close()
+        finally:
+            removed = _ipc_cleanup(self.key, [(self.writer or {}).get("uid"), (reader or {}).get("uid")])
+        read = dict((reader or {}).get("read") or {})
+        evd = {"writer": self.writer, "reader": reader, "left_in_kernel": removed}
+        if not isinstance(self.writer, dict) or "shm" not in self.writer or not isinstance(reader, dict) \
+                or "shm" not in reader:
+            raise NotApplicable(f"the IPC programs did not run: {json.dumps(evd, default=str)[:400]}")
+        crossed = sorted(k for k, v in read.items() if self.canary in str(v) or (k == "sem_value" and
+                                                                                 v == len(self.canary)))
+        created = sorted(k for k in ("shm", "msg", "sem", "mq") if self.writer.get(k) == "created")
+        evd.update({"crossed": crossed, "created_by_writer": created, "cross_world_leaks": len(crossed)})
+        if crossed:
+            return Verdict(LEAK, f"another world's program passed the canary through kernel IPC: {crossed}", evd,
+                           severity="high", fix="sandbox/boot.py seccomp: deny SysV IPC and POSIX mq syscalls")
+        if created or removed:
+            return Verdict(INTEGRITY_BREAK, f"a sandboxed program left kernel IPC objects outside the world: "
+                                            f"{created or sorted(removed)}", evd, severity="medium",
+                           fix="sandbox/boot.py seccomp: deny SysV IPC and POSIX mq syscalls")
+        return Verdict(HELD, "no SysV or POSIX IPC object could be created, and nothing crossed between the worlds",
+                       evd)
+
+
 def probes() -> list:
     return [ArtifactsDoNotCrossWorlds(), ClosedWorldBytesAreReleased(), SandboxStateIsPerWorld(),
-            ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage()]
+            ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage(),
+            KernelIpcDoesNotCrossWorlds()]

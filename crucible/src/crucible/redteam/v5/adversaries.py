@@ -359,3 +359,147 @@ def probe_participant(participant, **kw) -> dict:
     except Exception as e:  # noqa: BLE001
         acted = f"{type(e).__name__}"
     return {"found": found, "attempts": dict(p.attempts), "acted": acted, "uid": os.getuid()}
+
+
+# ------------------------------------------------------------------ learner processes against each other (W.5/W.7)
+# Functions in the learner-function contract (``fn(participant, **kw)``) that a jailed learner process
+# (`crucible.sandbox.learnerhost.LearnerHost.function`) runs to reach ANOTHER learner process or a later instance of
+# itself through the kernel rather than through files: System V IPC and POSIX message queues are not path objects
+# (Landlock on this kernel does not mediate them) and survive the process that created them; the owner of a
+# descriptor (fcntl F_SETOWN / F_SETSIG, ioctl FIOSETOWN on a socket) receives a signal the kernel sends on I/O, with
+# only a same-uid check. Probe `v5.sandbox.hosted_learners_cannot_reach_each_other`.
+
+def _ipc_libc():
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.shmat.restype = ctypes.c_void_p
+    libc.shmat.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+    libc.shmdt.argtypes = [ctypes.c_void_p]
+    return libc
+
+
+def ipc_stash(participant, key: int, canary: str, mode: int = 0o600) -> dict:
+    """Leave `canary` in kernel objects that outlive this process: a SysV shared-memory segment, a SysV message
+    queue and a SysV semaphore (value = len(canary)) under `key`, and a POSIX message queue."""
+    import ctypes
+    libc = _ipc_libc()
+    out = {"uid": os.getuid(), "pid": os.getpid()}
+    data = canary.encode()
+    sid = libc.shmget(int(key), 4096, 0o1000 | int(mode))
+    out["shm"] = "created" if sid >= 0 else f"errno {ctypes.get_errno()}"
+    if sid >= 0:
+        p = libc.shmat(sid, None, 0)
+        if p not in (None, ctypes.c_void_p(-1).value):
+            ctypes.memmove(p, data, len(data))
+            libc.shmdt(p)
+    mid = libc.msgget(int(key) + 1, 0o1000 | int(mode))
+    out["msg"] = "created" if mid >= 0 else f"errno {ctypes.get_errno()}"
+    if mid >= 0:
+        buf = ctypes.create_string_buffer(8 + len(data))
+        ctypes.memmove(ctypes.addressof(buf), ctypes.byref(ctypes.c_long(1)), 8)
+        ctypes.memmove(ctypes.addressof(buf) + 8, data, len(data))
+        libc.msgsnd(mid, buf, len(data), 0o4000)          # IPC_NOWAIT
+    sem = libc.semget(int(key) + 2, 1, 0o1000 | int(mode))
+    out["sem"] = "created" if sem >= 0 else f"errno {ctypes.get_errno()}"
+    if sem >= 0:
+        libc.semctl(sem, 0, 16, ctypes.c_int(len(data)))  # SETVAL
+    try:
+        libc.mq_open.restype = ctypes.c_int
+        q = libc.mq_open(f"/crucible-rt-{int(key):x}".encode(), 0o100 | 0o2, int(mode), None)   # O_CREAT | O_RDWR
+        out["mq"] = "created" if q >= 0 else f"errno {ctypes.get_errno()}"
+        if q >= 0:
+            libc.mq_send(q, data, len(data), 0)
+            libc.mq_close(q)
+    except AttributeError:
+        out["mq"] = "no mq_open in libc"
+    return out
+
+
+def ipc_recall(participant, key: int) -> dict:
+    """Read back what `ipc_stash` left (from another process, of this uid or another)."""
+    import ctypes
+    libc = _ipc_libc()
+    out = {"uid": os.getuid(), "pid": os.getpid(), "read": {}}
+    sid = libc.shmget(int(key), 0, 0)
+    out["shm"] = "opened" if sid >= 0 else f"errno {ctypes.get_errno()}"
+    if sid >= 0:
+        p = libc.shmat(sid, None, 0o10000)                 # SHM_RDONLY
+        if p not in (None, ctypes.c_void_p(-1).value):
+            out["read"]["shm"] = ctypes.string_at(p, 128).split(b"\0")[0].decode(errors="replace")
+            libc.shmdt(p)
+    mid = libc.msgget(int(key) + 1, 0)
+    out["msg"] = "opened" if mid >= 0 else f"errno {ctypes.get_errno()}"
+    if mid >= 0:
+        buf = ctypes.create_string_buffer(8 + 256)
+        n = libc.msgrcv(mid, buf, 256, 0, 0o4000)          # IPC_NOWAIT
+        if n > 0:
+            out["read"]["msg"] = buf.raw[8:8 + n].decode(errors="replace")
+    sem = libc.semget(int(key) + 2, 0, 0)
+    out["sem"] = "opened" if sem >= 0 else f"errno {ctypes.get_errno()}"
+    if sem >= 0:
+        out["read"]["sem_value"] = int(libc.semctl(sem, 0, 12))   # GETVAL
+    try:
+        q = libc.mq_open(f"/crucible-rt-{int(key):x}".encode(), 0o4000, 0, None)   # O_RDONLY | O_NONBLOCK
+        out["mq"] = "opened" if q >= 0 else f"errno {ctypes.get_errno()}"
+        if q >= 0:
+            buf = ctypes.create_string_buffer(8192)
+            n = libc.mq_receive(q, buf, 8192, None)
+            if n > 0:
+                out["read"]["mq"] = buf.raw[:n].decode(errors="replace")
+            libc.mq_close(q)
+    except AttributeError:
+        out["mq"] = "no mq_open in libc"
+    return out
+
+
+def signal_owner(participant, victim: int, absent: int) -> dict:
+    """Make the kernel signal process `victim` (another learner process of the host): F_SETOWN on a pipe with
+    O_ASYNC, F_SETSIG(SIGKILL), then input on the pipe; the same through ioctl(FIOSETOWN) on any inherited socket.
+    Also uses F_SETOWN's ESRCH as a pid-existence oracle (`absent` is a pid that does not exist)."""
+    import fcntl
+    import signal
+    import socket as _s
+    import stat
+    import struct
+    import time
+    out = {"pid": os.getpid()}
+
+    def setown(fd, pid):
+        try:
+            fcntl.fcntl(fd, fcntl.F_SETOWN, int(pid))
+            return "ok"
+        except OSError as e:
+            return f"errno {e.errno}"
+    r, w = os.pipe()
+    out["setown_absent_pid"] = setown(r, absent)
+    out["setown_victim"] = setown(r, victim)
+    try:
+        fcntl.fcntl(r, 10, signal.SIGKILL)              # F_SETSIG
+        out["setsig"] = "ok"
+    except OSError as e:
+        out["setsig"] = f"errno {e.errno}"
+    if out["setown_victim"] == "ok":
+        fcntl.fcntl(r, fcntl.F_SETFL, fcntl.fcntl(r, fcntl.F_GETFL) | os.O_ASYNC)
+        os.write(w, b"x")
+    socks = []
+    for fd in range(3, 256):
+        try:
+            if stat.S_ISSOCK(os.fstat(fd).st_mode):
+                socks.append(fd)
+        except OSError:
+            pass
+    out["inherited_sockets"] = len(socks)
+    for fd in socks[:1]:
+        try:
+            fcntl.ioctl(fd, 0x8901, struct.pack("i", int(victim)))    # FIOSETOWN
+            out["fiosetown"] = "ok"
+        except OSError as e:
+            out["fiosetown"] = f"errno {e.errno}"
+    try:
+        s = _s.socket(_s.AF_UNIX, _s.SOCK_DGRAM)
+        out["new_socket"] = "ok"
+        s.close()
+    except OSError as e:
+        out["new_socket"] = f"errno {e.errno}"
+    time.sleep(0.3)
+    return out

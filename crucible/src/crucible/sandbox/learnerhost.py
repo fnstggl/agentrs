@@ -54,12 +54,12 @@ from . import isolation
 
 MAX_REPLY = 16 * 2**20           # a control reply larger than this is a protocol violation
 MAX_CKPT_FILE = 256 * 2**20      # largest arch.json / params.npz the host copies out of the jail
-NPROC = 512                      # tasks (threads) the learner-host uid may hold, all its learners together
+NPROC = 512                      # tasks (threads) a learner process's own uid may hold
 
 _BOOT = r"""
 import json, os, sys
-work, src, site, entry, kw, pfd, proto = sys.argv[1:8]
-sys.path[:0] = [src, site]
+work, src, site, entry, kw, pfd, proto, code = sys.argv[1:9]
+sys.path[:0] = [src, site] + json.loads(code)          # the learner's own code directories are importable too
 os.chdir(work)
 _proto = os.fdopen(os.dup(1), "w", buffering=1)
 os.dup2(2, 1)                                 # anything the learner prints goes to stderr, never into the protocol
@@ -217,6 +217,20 @@ def _reachable_copy(src: str, uid: int) -> str:
     return dst
 
 
+_INSTANCES = [0]
+
+
+def _instance_uid(kind: str) -> int:
+    """A uid of this learner process alone, in a range of its own (above the per-kind jail uids, outside the sandbox
+    tenants'): learner processes of one kind used to share a uid, so one learner held the thread budget
+    (RLIMIT_NPROC counts per uid) of every other, and the kernel's same-uid checks (signals by descriptor ownership,
+    System V IPC) let it reach them (wave-3b review). 16 bits of (kind, harness pid, instance number): n concurrent
+    learner processes share a uid with probability ~n^2/2^17; the jail's seccomp filter still keeps those apart."""
+    _INSTANCES[0] += 1
+    nonce = f"{kind}|{os.getpid()}|{_INSTANCES[0]}"
+    return isolation.UID_BASE + 0x10000 + int(hashlib.blake2b(nonce.encode(), digest_size=2).hexdigest(), 16)
+
+
 class LearnerHost:
     """One learner in its own jailed process (module docstring). `entry` is ``"module:factory"`` (importable from the
     crucible sources or `code_dirs`), called as ``factory(**kw)`` inside the jail to build a lever learner (or None:
@@ -234,16 +248,17 @@ class LearnerHost:
             raise ValueError(f"unknown participant protocol {protocol!r}")
         self.entry, self.kw, self.protocol = str(entry or ""), dict(kw or {}), protocol
         self.op_timeout = float(op_timeout)
-        self.uid = isolation.uid_for(kind)
+        self.uid = _instance_uid(kind)
         self.work = tempfile.mkdtemp(prefix="learner-", dir=isolation._base())
         self.out_dir = tempfile.mkdtemp(prefix="learner-out-")          # host side, root only
         py = os.path.realpath(sys.executable)
         paths = sysconfig.get_paths()
         site = _reachable_copy(_site_packages(), self.uid)
         src = _reachable_copy(_src_root(), self.uid)
+        code = [_reachable_copy(os.path.realpath(d), self.uid) for d in code_dirs]
         ro = isolation.RO_SYSTEM + [paths["stdlib"], paths["platstdlib"], os.path.join(paths["stdlib"], "lib-dynload"),
                                     site, src, os.path.dirname(py), os.path.join(sys.base_prefix, "lib"),
-                                    *[os.path.realpath(d) for d in code_dirs]]
+                                    *code]
         self._cfg = isolation._write_cfg({"uid": self.uid, "gid": self.uid, "mode": "tool", "ro": sorted(set(ro)),
                                           "exec": [py] + isolation._loaders(), "rw": [self.work],
                                           "chown": [self.work],
@@ -257,7 +272,7 @@ class LearnerHost:
             os.set_inheritable(pfd, True)
             fds = (pfd,)
         cmd = [sys.executable, "-I", "-S", "-B", isolation.JAIL, self._cfg, py, "-I", "-S", "-B", "-c", _BOOT,
-               self.work, src, site, self.entry, json.dumps(self.kw), str(pfd), self.protocol]
+               self.work, src, site, self.entry, json.dumps(self.kw), str(pfd), self.protocol, json.dumps(code)]
         lim = (int(mem_mb) * 2**20, int(cpu_s))
         self._err = open(os.path.join(self.out_dir, "stderr.log"), "wb")
 
