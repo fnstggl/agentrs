@@ -6,7 +6,8 @@ another subsystem than the one intervened on (the measured quantity is never the
     1 science_technology      remove `science_process`        -> true process quality of producers' settings
     2 technology_cost         revert adopted process settings -> energy and labour per good unit produced
     3 usage_infrastructure    take the busiest web services down -> energy drawn by datacenters from the grid
-    4 infrastructure_software remove `grid_curtailment` (scarce grid) -> revenue of web businesses, failed requests
+    4 infrastructure_software cut the datacenter regions' grids (scarce profile) -> failed requests, revenue of web
+                              businesses (second arm: remove `grid_curtailment`)
     5 social_adoption         remove `goods_wom`              -> goods bought by the population
     7 coordination            remove `org_coordination`       -> units produced by multi-operator firms
     8 supply_disruption       black out the component makers' grid region -> units on retail shelves, prices,
@@ -227,6 +228,16 @@ def undeploy_busiest(k: int = 5):
     return fn
 
 
+def cut_datacenter_grids(share: float):
+    def fn(w):
+        st = w.state
+        for r in sorted({rec["region"] for _, rec in st.scan("civ_dc")}):
+            g = st.tables["regions"][r]["grid"]
+            w.system_call("admin.civ_grid", {"region": r, "capacity_kwh_day": int(g["capacity"] * share)})
+    fn.__name__ = f"cut_datacenter_grids_{share}"
+    return fn
+
+
 def blackout_components(w):
     """Cut the grids of every region hosting a component maker to 1 kWh/day for the rest of the window."""
     st = w.state
@@ -354,8 +365,11 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                "balanced", 2.0, 4.0, {"undeploy_busiest_5": undeploy_busiest(5)},
                {"dc_kwh": m_dc_kwh, "region_grid_kwh": m_dc_region_grid, "web_revenue": m_web_revenue},
                "dc_kwh", category=3),
-    Experiment("infrastructure_software", "grid capacity limits compute, which limits web businesses' sales",
-               "infrastructure_constrained", 2.0, 5.0, {"remove_grid_curtailment": remove("grid_curtailment")},
+    Experiment("infrastructure_software", "grid capacity limits compute, which limits web businesses' sales: the "
+               "grids of the datacenter regions are cut to 40% at the fork (and, as a second arm, the curtailment "
+               "relation is removed instead)",
+               "infrastructure_constrained", 2.0, 5.0, {"grid_cut_datacenters": cut_datacenter_grids(0.4),
+                                                        "remove_grid_curtailment": remove("grid_curtailment")},
                {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh},
                "failed_requests", category=4),
     Experiment("social_adoption", "word of mouth between contacts changes what the population buys",
