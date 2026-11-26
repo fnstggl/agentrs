@@ -244,7 +244,21 @@ def _root_actor(world, pv: Provenance, s: int) -> tuple[str, str, bool]:
     from ..substrate import ids
     if ids.index(actor) is not None:
         kind = "population"
-    return actor, kind, bool(info.get(SCRIPTED_KEY))
+    scripted = bool(info.get(SCRIPTED_KEY)) or str(info.get("controller") or "").startswith("scripted:")
+    return actor, kind, scripted
+
+
+def stage_scripted(world, pv: Provenance, stage: dict) -> bool:
+    """A stage is scripted when every (sampled) event of it belongs to a transaction initiated by a scripted actor
+    (a labelled scripted reference agent) or to a scheduled narrative module (shocks): then nothing autonomous
+    happened in it."""
+    seqs = stage.get("seqs") or [stage["first_seq"]]
+    for s in seqs:
+        if pv.events[s].type.startswith("shocks."):
+            continue
+        if not _root_actor(world, pv, s)[2]:
+            return False
+    return True
 
 
 def candidate_roots(world, pv: Provenance, *, since_seq: int = 0) -> list[int]:
@@ -277,6 +291,9 @@ def mine(world, *, from_seq: int = 0, to_seq: int | None = None, min_stages: int
         subs = [st["subsystem"] for st in stages]
         if len(set(subs)) < min_stages:
             continue
+        for k, st in enumerate(stages):
+            st["scripted"] = stage_scripted(world, pv, st)
+            st["is_root_stage"] = k == 0
         ev = pv.events[s]
         entity = next((e for e, c in pv.created.items() if c == s), None)
         chains.append({"root_seq": s, "root_type": ev.type, "root_t": ev.t, "root_entity": entity, "actor": actor,

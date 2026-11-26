@@ -132,8 +132,8 @@ def run_seed(exp: Experiment, seed: int, *, log=None) -> dict:
 def _chain_record(c: dict) -> dict:
     return {k: c[k] for k in ("root_seq", "root_type", "root_t", "root_entity", "actor", "actor_kind", "scripted",
                               "n_stages", "agent_artifact", "social", "technical")} | {
-        "stages": [{k: s[k] for k in ("subsystem", "first_seq", "first_t", "n_events", "types", "social",
-                                      "technical")} for s in c["stages"]]}
+        "stages": [{k: s.get(k) for k in ("subsystem", "first_seq", "first_t", "n_events", "types", "social",
+                                          "technical", "scripted", "is_root_stage")} for s in c["stages"]]}
 
 
 # --------------------------------------------------------------------------------------------- statistics

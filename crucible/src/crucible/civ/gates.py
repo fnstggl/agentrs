@@ -174,10 +174,18 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
             stages = [ROOT_SUBSYSTEM[cls]] + [s for s in confirmed_subs if s != ROOT_SUBSYSTEM[cls]]
             # provenance: a mined chain of the agent with this class in every seed's reference arm
             support = [c for c in mined if c["actor_kind"] == "agent" and c.get(cls)]
+            per_seed = r.get("per_seed_chains", [])
+            seeds_with = sum(1 for per in per_seed if any(c["actor_kind"] == "agent" and c.get(cls) for c in per))
+            # stages after the root of the mined support chains that only a scripted actor produced
+            scripted_stages = sum(1 for c in support for st in c["stages"]
+                                  if st.get("scripted") and not st.get("is_root_stage"))
+            unlabelled = sum(1 for c in support if not c.get("scripted"))
             chains_out.append({"experiment": exp, "arm": arm, "removed": what, "class": cls,
                                "confirmed_stages": stages, "n_confirmed_stages": len(stages),
                                "mined_in_reference_arm": len(support),
                                "max_mined_stages": max((c["n_stages"] for c in support), default=0),
+                               "seeds_with_mined_chain": seeds_with, "seeds": len(per_seed),
+                               "scripted_stages_after_root": scripted_stages, "unlabelled_scripted_roots": unlabelled,
                                "scripted_root": True,
                                "effects": {m: {k: v[k] for k in ("effect_mean", "ci95", "reshuffle_noise_rms",
                                                                  "confirmed")}
@@ -185,6 +193,12 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
     good = [c for c in chains_out if c["n_confirmed_stages"] >= 3 and c["mined_in_reference_arm"] > 0]
     return {"multi_stage_chains": len(good), "min_chain_stages": min((c["n_confirmed_stages"] for c in good),
                                                                      default=0),
+            # SP-10.3b: the confirmation is across seeds (sign-consistent in every seed); replicated = also mined
+            # from provenance in every seed's reference arm
+            "chains_replicated_across_seeds": sum(1 for c in good if c["seeds"] and
+                                                  c["seeds_with_mined_chain"] == c["seeds"]),
+            "scripted_chain_stages": sum(c["scripted_stages_after_root"] for c in chains_out),
+            "unlabelled_scripted_results": sum(c["unlabelled_scripted_roots"] for c in chains_out),
             "chains_with_agent_artifact": sum(1 for c in good if c["class"] == "agent_artifact"),
             "chains_with_social_activity": sum(1 for c in good if c["class"] == "social"),
             "chains_with_technical_activity": sum(1 for c in good if c["class"] == "technical"),
