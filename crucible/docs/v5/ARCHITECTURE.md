@@ -1,6 +1,7 @@
 # Crucible 5.0 architecture
 
-Status: design of record for the integration branch `feat/crucible-5-openworld`. Binding interfaces are in
+Status: design of record for the integration branch `feat/crucible-5-complete` (Clarification 3; the earlier
+branch `feat/crucible-5-openworld` is the immutable historical reference). Binding interfaces are in
 [INTERFACE_CONTRACTS.md](INTERFACE_CONTRACTS.md). Decisions and their reasons are in [DECISION_LOG.md](DECISION_LOG.md).
 The requirements are [MASTER_SPEC.md](MASTER_SPEC.md) as amended by [MASTER_SPEC_CLARIFICATIONS.md](MASTER_SPEC_CLARIFICATIONS.md);
 Clarification 1 makes Crucible independent of CAM or any other learning architecture.
@@ -134,8 +135,8 @@ execution.
 `crucible.experience` gives one interface for every tier: `observe`, `execute`, `observe_since`, tool discovery, and
 three reward modes (`legacy_shaped_reward`, `verified_terminal_outcome`, `observation_only`). Observation-only mode
 removes every reward path, including the reward copy in numeric observations and the objective fields of the Gym and
-PettingZoo adapters; outcome verification stays on the evaluator side. A lightweight reference learner proves real
-parameter updates through this interface in all three tiers. CAM, or any other learner, connects through the same
+PettingZoo adapters; outcome verification stays on the evaluator side. A lightweight reference learner is designed to prove real
+parameter updates through this interface in all three tiers (verified so far only where Gate S evidence says so: Tiers 2 and 3 did not exist at the recovery audit). CAM, or any other learner, connects through the same
 interface with no environment change; `docs/v5/LEARNER_GUIDE.md` documents how.
 
 ## 11. Compute

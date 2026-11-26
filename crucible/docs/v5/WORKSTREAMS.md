@@ -2,7 +2,8 @@
 
 The orchestrator owns architecture, contracts, the manifest, integration and the release decision. Each workstream owns
 the paths listed and may touch other code only at the extension points named in INTERFACE_CONTRACTS.md. Work runs in
-isolated git worktrees; the orchestrator merges verified work into `feat/crucible-5-openworld`. Compute is scheduled
+isolated git worktrees; the orchestrator merges verified work into `feat/crucible-5-complete` (Clarification 3;
+`feat/crucible-5-openworld` is the immutable historical reference). Compute is scheduled
 through `crucible.scale.slots`; at most one GPU-heavy job per workstream at a time.
 
 Waves: 1 = foundations that need nothing new (now); 2 = systems that need the substrate; 3 = worlds that need the
@@ -25,7 +26,7 @@ systems; the repair loop and the final QA audit follow. A wave starts as soon as
 | M | Performance engineering | `src/crucible/scale/, benchmarks` | 2-4 | B, C, D | 12 |
 | N | Research evaluation | `src/crucible/research/ (v5 additions), src/crucible/rapid/curriculum` | 3 | H, L | 25 |
 | O | Security and adversarial testing | `src/crucible/redteam/ (v5 probes)` | 2-4 | every world module | 11 |
-| P | Independent quality assurance | `docs/v5/reviews/, tests/v5/test_gate_X.py` | continuous, final | everything | 20 |
+| P | Independent quality assurance | `src/crucible/acceptance/, docs/v5/reviews/, tests/v5/test_gate_{A,X,SP_1_3,SP_1_5,SP_18,SP_20,SP_21,RP}.py` | continuous, final | everything | 20 |
 
 ## Requirements by workstream
 

@@ -18,12 +18,42 @@ python -m pytest -q -p no:cacheprovider --junitxml=docs/v5/evidence/gate_A/regre
 The baseline used three groups split by file size (see `docs/v5/evidence/gate_A/regression_baseline.json`): 1,076
 tests, 1,074 passed, 2 skipped, 694 s wall with three groups in parallel, one thread each, GPU hidden.
 
-## Gate evidence
+## Gate evidence (official runs and independent reviews, decision D-24)
 
 ```bash
-PYTHONPATH=src python -m crucible.acceptance.v5 run --gate B           # runs tests/v5/test_gate_B.py, records evidence
-PYTHONPATH=src python -m crucible.acceptance.v5 review --requirement B.1 --reviewer ws-P --verdict approved --notes "..."
+# official run: clones the committed HEAD into a fresh directory, runs the gate's test files there, installs evidence,
+# the run record and the JUnit under docs/v5/evidence/ (uncommitted work is never measured); then commit them
+PYTHONPATH=src python -m crucible.acceptance.v5 run --gate B --agent ws-B
+git add docs/v5/evidence && git commit -m "evidence: gate B"
+# independent review (another agent and session): re-executes the tests in another fresh clone of the evidence commit
+# and compares the metrics within the declared tolerance; writes docs/v5/reviews/; then commit it
+PYTHONPATH=src python -m crucible.acceptance.v5 review --requirement B.1 --agent qa-1 --verdict approved --notes "..."
+git add docs/v5/reviews && git commit -m "review: B.1"
+# release check: everything above plus a fresh re-execution of every VERIFIED requirement
+PYTHONPATH=src python -m crucible.acceptance.v5 --verify-all --reproduce --agent release-check
+# after merging a workstream branch: rebuild the manifest and merge the workstream reports' file lists
+PYTHONPATH=src python -m crucible.acceptance.v5 build-manifest [--decision D-<n>]
+PYTHONPATH=src python -m crucible.acceptance.v5 merge-workstreams
+PYTHONPATH=src python -m crucible.acceptance.v5 final-report            # docs/v5/FINAL_REPORT.md from the checker
 ```
+Gate tests that need more than one CPU or the GPU run under the slot scheduler, e.g. Gate A with the GPU visible:
+`python -m crucible.scale.slots --cpu 3 --gpu-mb 4000 --label "P: gate A" -- env CRUCIBLE_GATE_A_WORKERS=3 PYTHONPATH=src
+python -m crucible.acceptance.v5 run --gate A --agent ws-P`.
+
+## Clean-checkout reproduction (Gate X.3)
+
+`crucible.acceptance.v5.qa.clean_checkout` clones the committed tree into a fresh directory and runs every line of the
+block below there (each must exit 0), then re-executes every VERIFIED requirement's tests in fresh clones. The block is
+machine-read; keep each command on one line.
+
+```clean-checkout
+python -m crucible.acceptance.v5 progress validate
+python -m crucible.acceptance.v5 report
+python -m pytest -q -p no:cacheprovider tests/test_kernel.py tests/test_invariants.py
+python -m pytest -q -p no:cacheprovider tests/test_v5_acceptance_checker.py
+```
+Calibration tests read `$CRUCIBLE_DATA` (default /workspace/data/crucible, not committed): re-acquire the datasets
+first (Calibration section below) for a clean-room run of Gate F.
 
 ## Compute scheduler
 

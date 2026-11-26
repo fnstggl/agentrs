@@ -1,7 +1,9 @@
 # Crucible 5.0 blockers and risks
 
 A blocker is something the project cannot resolve itself. A requirement marked BLOCKED in the manifest must cite an
-entry here by id. Risks are listed so they are watched; they are not blockers.
+entry here by id: an open blocker is a `### BLK-<n> <title>` heading under "## Open blockers" (the checker reads
+only that section; a resolved blocker moves to "## Resolved blockers"). The project status is INCOMPLETE_BLOCKED only
+when every unverified requirement cites an open blocker. Risks are listed so they are watched; they are not blockers.
 
 ## Open blockers
 

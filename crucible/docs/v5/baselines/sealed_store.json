@@ -1,0 +1,30 @@
+{
+ "all_mtimes_before_v5_start": true,
+ "captured_at": "2026-11-26T10:23:42.151082+00:00",
+ "dir": "~/.crucible (or CRUCIBLE_SEALED_DIR)",
+ "files": {
+  ".sealed.lock": {
+   "bytes": 0,
+   "mtime_ns": 1795409741835478971
+  },
+  "sealed_access.jsonl": {
+   "bytes": 897,
+   "mtime_ns": 1795410626234976586,
+   "sha256": "1d952dd84e6ce69f50e1ee811c59b1221410a3790eb8901c50eb6e06971b0cc7"
+  },
+  "sealed_salt": {
+   "bytes": 64,
+   "mtime_ns": 1795409741834478971
+  },
+  "sealed_sets.json": {
+   "bytes": 500,
+   "mtime_ns": 1795410626234976586,
+   "sha256": "f0e3d0604b19948f6ba7dee1194ebf09f8b7c6fd3da865a38aaa0c887260153c"
+  },
+  "sealed_tasks/ow-final.g1.66bad809.json": {
+   "bytes": 29738,
+   "mtime_ns": 1795410603224963815
+  }
+ },
+ "what": "metadata of the Crucible 4.0 sealed store, captured by workstream P; registry and access log by SHA-256, salt and task files by size and mtime (never read)"
+}

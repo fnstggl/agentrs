@@ -290,10 +290,18 @@ data; legitimate world consequences (balances, revenue, costs, analytics a parti
 
 ## 12. Acceptance evidence (`crucible.acceptance.v5`, orchestrator)
 
-`evidence.record(requirement_id, metrics: dict, *, command=None, artifacts=(), notes="")` - metrics must include every
-metric named in the requirement's manifest criteria. Evidence is produced on the integration branch by
-`python -m crucible.acceptance.v5 run --gate <G>`; reviews by the QA workstream with `... review`; the verdict comes
-only from `python -m crucible.acceptance.v5 --verify-all`.
+`evidence.record(requirement_id, metrics: dict, *, command=None, artifacts=(), notes="", datasets=None, labels=None)` -
+metrics must include every metric named in the requirement's manifest criteria, and must be measured: the producing
+test asserts on the measured values (`assert not checker.unmet(rid, metrics)` is the idiom), records non-constant
+metrics, imports at least one of the requirement's implementation modules, and never skips, returns early, swallows
+exceptions, mocks or leaves patches in place. `datasets={name: path}` records checksums; `labels` mark how a result was
+obtained (`{"scripted": True}` for scripted reference policies, `{"learned": True}`, `{"calibrated": True}`,
+`{"approximation": True}`); the final report separates results by them. Evidence is produced on the integration
+branch by `python -m crucible.acceptance.v5 run --gate <G> --agent <name>` in a fresh clone of the committed tree (a
+record written anywhere else is never evidence); an independent reviewer re-executes and reproduces it with
+`... review --requirement <id> --agent <other>`; both are committed. The verdict comes only from
+`python -m crucible.acceptance.v5 --verify-all` (decision D-24, `docs/v5/components/P.md`). Workstreams never edit
+the manifest or the ledger; their reports (section 13) are merged by `merge-workstreams`.
 
 ## 13. Workstream report file (`docs/v5/workstreams/<WS>.json`)
 
