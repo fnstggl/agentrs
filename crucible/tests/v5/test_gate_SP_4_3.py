@@ -124,7 +124,15 @@ def test_SP_4_3_meaning_not_tokens():
     spread = float(np.std(vv) / max(1e-9, np.mean(vv))) if vv else 0.0
     same_rep_diff = sum(1 for t in TOPICS
                         if len({i["unique_viewers"] for i in inf_items if i["topic"] == t}) > 1)
-    solely = int(same_rep_diff == 0)
+    # the semantic prediction itself (interest-item cosine in the space) is validated on held-out real behaviour
+    # (MIND dev impressions; `crucible.semantic.space.prior`), and it is one input of the individuals' decisions:
+    # identical bytes (identical representation) published by different creators reach different audiences
+    from crucible.semantic.space import prior
+    meta = prior.load(space.SPACE_VERSION)["meta"]
+    cal, auc = meta["calibration"], meta["click_auc"]
+    validated = bool(auc["space"]["mean_auc"] > auc["random"]["mean_auc"] + 0.05 and
+                     cal["heldout_logloss"] < cal["heldout_logloss_constant"])
+    solely = int(same_rep_diff == 0 or not validated)
     # 4. re-encoding on update
     upd = inf_items[0]
     p = w.state.get("content", upd["content"])
@@ -150,6 +158,12 @@ def test_SP_4_3_meaning_not_tokens():
                                                                       if i["kind"] == k])), 3)
                                               for k in ("informative",) + KINDS}),
          "audience_spread_informative": round(spread, 3), "updated_item_cosine_to_new_bytes": round(cos_new, 5),
+         "topics_identical_bytes_different_audiences": same_rep_diff,
+         "semantic_prediction_heldout_click_auc": auc["space"]["mean_auc"],
+         "random_baseline_click_auc": auc["random"]["mean_auc"],
+         "popularity_baseline_click_auc": auc["popularity"]["mean_auc"],
+         "semantic_prediction_heldout_logloss": cal["heldout_logloss"],
+         "constant_baseline_logloss": cal["heldout_logloss_constant"],
          "by_topic_kind": json.dumps(table)[:2000]}
     record("SP-4.3", m, command="PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_3.py")
     w.close()
