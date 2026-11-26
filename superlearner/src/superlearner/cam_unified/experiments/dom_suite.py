@@ -649,6 +649,11 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
     if st.cfg.reward_mode != "observation_only":
         raise RuntimeError(f"CAM conditions run in reward_mode observation_only; the preset has {st.cfg.reward_mode}")
     handles = []
+    if c == "B" and init_ckpt:          # untrained = exactly the source run's initial weights (same seed)
+        info = st.ops.load_weights_only(init_ckpt, seed=spec.seed)
+        attach_fresh_experience(st, run_dir)
+        detail["weights"] = {"sha256": info.get("sha256"), "arch_hash": info.get("arch_hash"),
+                             "source": "initial weights of the source run"}
     if c in NEEDS_TRAINED:
         info = st.ops.load_weights_only(ckpt, seed=spec.seed)
         attach_fresh_experience(st, run_dir)
