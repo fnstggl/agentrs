@@ -89,7 +89,8 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
     if "inst" not in w.modules or idx.size == 0:
         return util
     f = pb.features(w, idx)
-    emp = pb.employment(w, idx)
+    hired = pb.labour_market_employees(w)
+    emp = pb.employment(w, idx, hired)
     prefs = f["prefs"].astype(np.float64)
     contacts = f["contacts"]
     month = int(now // MONTH)
@@ -186,7 +187,7 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                      if len(st.find_ids("members", "org", o)) < int(_cfg(work, "max_members"))]
             risk = 1.0 - float(prefs[k, 2])
             cs = [int(c) for c in contacts[k] if int(c) >= 0]
-            out_of_work = 0 if not cs else int((~pb.employment(w, np.array(cs))).sum())
+            out_of_work = 0 if not cs else int((~pb.employment(w, np.array(cs), hired)).sum())
             p_loss = (out_of_work + 0.05 * 4) / (len(cs) + 4)
             best = None
             for o, t in open_:
@@ -274,13 +275,14 @@ def due(work, ctx) -> np.ndarray:
                if ids.index(rec["person"]) is not None and (st.get("orgs", rec["org"]) or {}).get("kind") == "association"]
     if members:
         mi = np.array(sorted(set(members)), np.int64)
-        emp = pb.employment(w, mi)
+        hired = pb.labour_market_employees(w)
+        emp = pb.employment(w, mi, hired)
         was = columns.col(w, TABLE, "was_employed")[mi]
         out.update(int(x) for x in mi[(was == 1) & ~emp].tolist())
     rng = ctx.rng("assoc.wake")
     k = max(1, n // int(_cfg(work, "consider_days")))
     sample = np.unique(rng.choice(n, size=min(n, k), replace=False)) if n else np.zeros(0, np.int64)
     if sample.size:
-        emp = pb.employment(w, sample)
+        emp = pb.employment(w, sample, pb.labour_market_employees(w))
         out.update(int(x) for x in sample[emp].tolist())
     return np.array(sorted(out), np.int64)

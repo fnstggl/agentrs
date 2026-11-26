@@ -53,20 +53,28 @@ def features(world, idx) -> dict:
     return fn(world, np.asarray(idx, np.int64))
 
 
-def employment(world, idx) -> np.ndarray:
+def labour_market_employees(world) -> np.ndarray:
+    """Sorted indices of the individuals employed through the world's labour market (`commerce.labor`: a registered
+    worker with an employer, notice period included)."""
+    st = world.state
+    if "labor_workers" not in st.tables:
+        return np.zeros(0, np.int64)
+    hired = {int(i) for i in (ids.index(p) for p, r in st.scan("labor_workers") if r.get("employer"))
+             if i is not None}
+    return np.array(sorted(hired), np.int64)
+
+
+def employment(world, idx, hired: np.ndarray | None = None) -> np.ndarray:
     """bool[len(idx)]: the individual has work - an employer of its own (the population's `employed` feature) or an
-    employment contract in the world's labour market (`commerce.labor`: a registered worker with an employer, notice
-    period included). Economy helper, not a contract name: the population's exogenous `employer` column does not
-    see labour-market contracts yet (CORE-POP migration, facts.py KNOWN_DUPLICATES pop.employer), so activities that
-    care whether someone has work (insurance against losing it) read both through this one function."""
+    employment contract in the world's labour market (`labour_market_employees`; pass `hired` when calling it many
+    times in one session). Economy helper, not a contract name: the population's exogenous `employer` column does
+    not see labour-market contracts yet (CORE-POP migration, facts.py KNOWN_DUPLICATES pop.employer), so activities
+    that care whether someone has work (insurance against losing it) read both through this one function."""
     idx = np.asarray(idx, np.int64)
     out = features(world, idx)["employed"].astype(bool)
-    st = world.state
-    if "labor_workers" in st.tables and idx.size:
-        hired = {int(i) for i in (ids.index(p) for p, r in st.scan("labor_workers") if r.get("employer"))
-                 if i is not None}
-        if hired:
-            out = out | np.isin(idx, np.fromiter(hired, np.int64, len(hired)))
+    hired = labour_market_employees(world) if hired is None else hired
+    if hired.size and idx.size:
+        out = out | np.isin(idx, hired)
     return out
 
 
