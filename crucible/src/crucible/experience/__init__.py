@@ -37,7 +37,7 @@ _LAZY = {
     "run_learner": ".loop", "run_learners": ".loop",
     "ExperienceGymEnv": ".gym", "ExperienceParallelEnv": ".gym",
     "host": ".remote", "RemoteParticipant": ".remote", "RemoteEvaluator": ".remote",
-    "CIV_ENTRY_POINT": ".registry", "civ_available": ".registry",
+    "civ_available": ".registry",
     "VecExperience": ".parallel", "FarmRun": ".parallel",
     "TOOL_CATEGORIES": ".features", "tool_category": ".features",
 }

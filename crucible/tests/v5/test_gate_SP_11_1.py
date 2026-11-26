@@ -66,6 +66,35 @@ def test_SP_11_1_universal_contract():
     per_world["tier1 mech:scm_delay"] = sorted(k1)
     union |= k1
     tiers.add(1)
+    # Tier 1: v5 rapid families, a single participant and a team (the receiver of a message)
+    for fam in ("net_routing", "team_commons"):
+        env = make(1, f"rapid:{fam}", 2)
+        ags = env.agents()
+        if len(ags) > 1:
+            env.execute(ags[1], {"tool": "rapid.message", "args": {"to": ags[0], "text": "meet at 3"}})
+        obs = []
+        for _ in range(5):
+            env.advance(env.tick_s)
+            obs.append(env.observe(ags[0]))
+        kr = set().union(*(kinds_present(o) for o in obs))
+        failures += sum(len(validate_observation(o)) for o in obs)
+        exact_ok &= all(isinstance(o["t"], int) and o["t"] % env.tick_s == 0 for o in obs)
+        per_world[f"tier1 rapid:{fam}"] = sorted(kr)
+        union |= kr
+    # a kernel world with the v5 modules (artifacts, media, encoders): a participant renders a text artifact, the
+    # observation carries its semantic representation (not one of the v5 tiers: counted for kinds only)
+    from crucible.experience.kernel import KernelExperienceEnv
+    from crucible.redteam.v5.worlds import v5_spec
+    env = KernelExperienceEnv(v5_spec("all", 3), 3, agents=["writer", "reader"], endowment=2_000_000)
+    w5 = env.agents()[0]
+    r = env.execute(w5, {"tool": "media.render_text", "args": {"text": "Routing prices moved this morning."}})
+    assert r["ok"], r
+    env.advance(3600)
+    o5 = [env.observe(w5)]
+    k5 = kinds_present(o5[0])
+    failures += len(validate_observation(o5[0]))
+    per_world["kernel v5 modules"] = sorted(k5)
+    union |= k5
     # kernel worlds (4.0 families: not one of the v5 tiers, counted for kinds only)
     env = make(0, "open_digital", 3, "observation_only", agents=["ann", "bob"])
     seen = _exercise_kernel(env)
@@ -86,7 +115,9 @@ def test_SP_11_1_universal_contract():
         union |= k2
         tiers.add(2)
     if civ_available():
-        env = make(3, "default", 0, "observation_only", agents=["ann", "bob"])
+        import crucible.civ as civ
+        env = make(3, sorted(getattr(civ, "PROFILES", {"default": None}))[0], 0, "observation_only",
+                   agents=["ann", "bob"])
         obs = [o for o in _exercise_kernel(env) if "numbers" in o]
         k3 = set().union(*(kinds_present(o) for o in obs))
         failures += sum(len(validate_observation(o)) for o in obs)
@@ -96,7 +127,7 @@ def test_SP_11_1_universal_contract():
     missing = sorted(set(OBSERVATION_KINDS) - union)
     metrics = {"observation_kinds": len(union), "tiers_supported": len(tiers), "schema_failures": failures,
                "exact_numbers_checked": bool(exact_ok), "kinds_missing": ",".join(missing) or "none"}
-    record("SP-11.1", metrics, command=CMD, notes=f"kinds per world: {json.dumps(per_world)}; missing kinds: {missing} "
-           "(semantic representations need workstream D's encoders on v5 artifacts; tiers 2/3 need workstreams I/J)")
+    record("SP-11.1", metrics, command=CMD, notes=f"kinds per world: {json.dumps(per_world)}; missing kinds: {missing}; "
+           "v5 tiers that ran: " + str(sorted(tiers)) + " (Tier 2 needs v5 domains, Tier 3 crucible.civ)")
     assert failures == 0 and exact_ok
     assert len(union) >= 13 and len(tiers) >= 3, metrics

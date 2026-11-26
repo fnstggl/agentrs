@@ -187,7 +187,8 @@ def test_S5_one_interface_many_world_types():
 def test_S6_checkpoint_persistence(tmp_path):
     env = make(1, "mech:scm_gate", 7, "observation_only", validate=False)
     L = _learner(env, 3)
-    run_learner(env, L, 120, update_every=50, learn=True)            # leaves transitions buffered mid-episode
+    run_learner(env, L, 100, update_every=50)
+    run_learner(env, L, 7, learn=False)                              # seven more transitions stay in the buffer
     assert L.buf, "the checkpoint must be taken with transitions in the buffer"
     path = str(tmp_path / "ref.pt")
     L.save(path)
