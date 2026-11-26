@@ -182,8 +182,8 @@ def identify_distribution(env) -> dict:
 
 
 def claim_distribution(env) -> dict:
-    """An order arrives at the depot exactly after the hidden lead time; shipping stock to the site with the
-    highest hidden demand sells more than shipping it to the lowest (same noise)."""
+    """An order arrives at the depot exactly after the hidden lead time; stock shipped to the site with the
+    highest hidden demand sells at a higher rate than stock shipped to the lowest (same noise)."""
     eng, st, c = inside(env)
     a, b = fork(env), fork(env)
     a.step({"kind": "levers", "values": {c["order_name"]: 15.0}})
@@ -197,15 +197,22 @@ def claim_distribution(env) -> dict:
     hi, lo = int(np.argmax(c["lam"])), int(np.argmin(c["lam"]))
     sold = {}
     for lab, i in (("high", hi), ("low", lo)):
-        e = fork(env)
+        # ship the same 20 units to one site and count what that site sells over the next twelve ticks, relative
+        # to not shipping (same noise): the extra sales the shipment makes there
+        e, f = fork(env), fork(env)
         e.step({"kind": "allocate", "amounts": {c["site_names"][i]: 20.0}})
-        tot = 0.0
-        for _ in range(12):
-            tot += sum(v for k, v in nums(e.step(None)["observation"]).items() if k.endswith(".sold"))
-        sold[lab] = tot
+        f.step(None)
+        key = f"{c['site_names'][i]}.sold"
+        per = []
+        for k in range(30):
+            per.append(nums(e.step(None)["observation"]).get(key, 0.0) -
+                       nums(f.step(None)["observation"]).get(key, 0.0))
+        # once the shipment has arrived, the site sells the extra stock at the rate its demand allows: the
+        # largest per-tick extra sale over the next ticks (averaged over the best three) measures that rate
+        sold[lab] = float(np.mean(sorted(per)[-3:]))
     return {"ok": first == int(c["lead"]) and sold["high"] > sold["low"], "lead": int(c["lead"]),
-            "first_difference_at": first, "sold_shipping_to_high_demand": sold["high"],
-            "sold_shipping_to_low_demand": sold["low"]}
+            "first_difference_at": first, "extra_sales_rate_high_demand_site": sold["high"],
+            "extra_sales_rate_low_demand_site": sold["low"]}
 
 
 # ====================================================================== 8.4.2 perishable

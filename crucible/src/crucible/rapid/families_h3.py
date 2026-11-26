@@ -151,10 +151,12 @@ def cx_balancing_loop(rng, d):
     c = Composed(rng, _base(d, topology="feedback", motifs=["saturation"]))
     a, b = c.levers
     fb = next(n for n in c.motifs if c.prim_of(n) == "feedback")
-    c.set_params(fb, g=u(rng, 0.05, 0.15))
+    # the balancing loop: the hidden node damps its own response (negative self-feedback, y' = x + g y with
+    # g < 0, so a step settles at 1 / (1 - g) of its immediate size), plus a weak pull from the output; loop gain
+    # below one at every operating point
+    c.set_params(fb, g=u(rng, -0.6, -0.4))
     sat = c.node(c.core)["params"]
-    # loop gain below one at every operating point: the weight is a share of the inverse of the steepest slope
-    w = u(rng, 0.6, 0.8) * sat["half"] / sat["cap"]
+    w = u(rng, 0.15, 0.25) * sat["half"] / sat["cap"]
     c.node(fb)["ports"]["x"] = [[a, 0, 1.0], [c.core, 1, -w]]
     c.set_lever(a, default=u(rng, 0.5, 1.5))
     c.set_lever(b, default=u(rng, 6.0, 8.0))
