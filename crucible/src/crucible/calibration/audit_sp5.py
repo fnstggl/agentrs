@@ -107,6 +107,27 @@ def gharchive_raw_id_values(dest: str | None = None) -> dict:
     return out
 
 
+def co_located_keys(dest: str | None = None) -> dict:
+    """Pseudonym keys stored with the data they re-identify: a key file inside the data root (any dataset directory)
+    makes every value pseudonymised under it re-identifiable by whoever holds that directory and the public source.
+    Returns {"files": [...], "values": re-identifiable pseudonymised values}."""
+    from . import gharchive as G, retail
+    root = dest or data_root()
+    files = sorted(set(glob.glob(os.path.join(root, "*", G.SALT_FILE)) +
+                       glob.glob(os.path.join(root, "**", "*pseudonym_key*"), recursive=True)))
+    out = {"files": [os.path.relpath(f, root) for f in files], "values": 0}
+    for f in files:
+        ds = os.path.relpath(f, root).split(os.sep)[0]
+        if ds == "gharchive_2024-10-07_96h":
+            out["values"] += int(gharchive_raw_id_values(root)["values"])
+        elif ds == "online_retail_ii" and os.path.exists(retail.table_path(os.path.join(root, ds))):
+            with np.load(retail.table_path(os.path.join(root, ds)), allow_pickle=False) as z:
+                out["values"] += int(np.count_nonzero(z["customer"] != -1))
+        else:
+            out["values"] += 1
+    return out
+
+
 def sp51_metrics(records: list[dict] | None = None) -> dict:
     recs = audit.all_records() if records is None else records
     ds = datasets()
@@ -115,6 +136,7 @@ def sp51_metrics(records: list[dict] | None = None) -> dict:
         L = e.get("license") or {}
         lic[name] = bool(L.get("name")) and bool(L.get("url") or L.get("text_location") or L.get("terms"))
     gh = gharchive_raw_id_values()
+    keys = co_located_keys()
     cited = {n for r in recs for n in (r.get("datasets") or [])}
     gh_missing = "gharchive_2024-10-07_96h" in cited and not gh["present"]
     q = [r for r in recs if r.get("qualifies")]
@@ -126,13 +148,14 @@ def sp51_metrics(records: list[dict] | None = None) -> dict:
         for r in recs if r.get("card")}
     return {"datasets_registered": len(ds), "datasets_with_licence_record": sum(lic.values()),
             "reidentifiable_ids_in_calibration_data": gh["raw_like_values"] + gh["raw_extractor_files"]
-            + (1 if gh_missing else 0),
+            + (1 if gh_missing else 0) + keys["values"],
+            "pseudonym_keys_with_the_data": len(keys["files"]),
             "gharchive_id_values_checked": gh["values"], "qualifying_models": len(q),
             "models_with_uncertainty": sum(unc.values()),
             "models_with_time_or_user_holdout": sum(1 for v in hold.values() if v),
             "models_with_time_and_user_holdout": sum(1 for v in hold.values() if set(v) == {"time", "user"}),
             "effects_without_identification_label": sum(1 for v in ident.values() if not v),
-            "_licence": lic, "_gharchive": gh, "_uncertainty": unc, "_holdout": hold, "_identification": ident}
+            "_licence": lic, "_gharchive": gh, "_keys": keys, "_uncertainty": unc, "_holdout": hold, "_identification": ident}
 
 
 # ====================================================================== SP-5.3

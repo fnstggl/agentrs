@@ -42,3 +42,17 @@ def test_SP_5_1_raw_identifier_check_detects_raw_ids(tmp_path):
     (d / "2024-10-07-0.meta.json").write_text(json.dumps({"extractor_version": "1"}))
     out = audit_sp5.gharchive_raw_id_values(str(tmp_path))
     assert out["raw_like_values"] == 2 and out["raw_extractor_files"] == 1
+
+
+def test_SP_5_1_key_kept_with_the_data_counts_as_reidentifiable(tmp_path):
+    """A pseudonym key stored in the dataset directory re-identifies every value pseudonymised under it (anyone with
+    the directory and the public GH Archive can recompute the pseudonyms): all of them are counted."""
+    import numpy as np
+    d = tmp_path / "gharchive_2024-10-07_96h"
+    (d / "extracted").mkdir(parents=True)
+    np.savez(d / "extracted" / "2024-10-07-0.npz", actor=np.array([1 << 60, 1 << 59], np.int64),
+             repo=np.array([1 << 62, 1 << 61], np.int64))
+    assert audit_sp5.co_located_keys(str(tmp_path)) == {"files": [], "values": 0}
+    (d / "pseudonym_key").write_bytes(b"k" * 32)
+    out = audit_sp5.co_located_keys(str(tmp_path))
+    assert out["files"] == ["gharchive_2024-10-07_96h/pseudonym_key"] and out["values"] == 4
