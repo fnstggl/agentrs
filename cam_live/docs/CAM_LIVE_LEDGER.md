@@ -23,7 +23,9 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   300 GB overlay disk. **No persistent volume**; the Vast rental ends 2026-11-30 03:00 UTC.
 - Unprivileged container: no user namespaces, no CAP_NET_ADMIN / CAP_SYS_ADMIN. Available: setuid/setgid, Landlock,
   seccomp. Process isolation therefore uses separate uids; per-destination network filtering is policy-level only.
-- Nothing is pushed. Pushing `feat/cam-live` needs the operator's authorization.
+- **Push authorization (2026-11-26, operator: "Yes, push milestones"):** `feat/cam-live` is pushed to `origin` at each
+  committed milestone with `cam_live/tools/push_milestone.sh` (secret scan of every unpushed commit, explicit sha,
+  never force). First push: `d9f8dde`. Run data and checkpoints are not in git and still have no off-box copy.
 
 ## Decisions
 
