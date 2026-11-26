@@ -9,8 +9,9 @@ browsing and the social internet, 6 simulated days):
 choice_factors_used >= 12: `population.choice.factor_effects` evaluates the content-choice decisions the world uses
 (the fitted article-open model article_open_semantic@1 on page slates, the resource choice, the class-1 continue,
 evaluate, purchase, abandon, recommend and follow decisions) on 400 real individuals' feature rows built from the
-world's state, perturbing one factor's input at a time; a factor is used when it moves a decision probability by
-more than 1e-3 on average;
+world's state, perturbing one factor's input at a time (an alternative-specific input of the resource choice for one
+alternative, the attention ratio by a quarter of the day's budget, other inputs by one cohort standard deviation; see
+population.choice); a factor is used when it moves a decision probability by more than 1e-3 on average;
 decision_kinds_simulated >= 4: continue (an article opened from a slate or another page read), share (a
 recommendation to a contact or a share in the social graph), subscribe (following a creator or a board, a
 newsletter subscription, a community join) and disengage (abandoning a resource, unfollowing, leaving a community),
