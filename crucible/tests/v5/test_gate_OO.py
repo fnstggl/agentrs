@@ -726,6 +726,17 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
     cli_records = list(ExperienceStore(str(out)).iterate())
     if rc not in (0, None) or not cli_records or any(r.get("reward_mode") != OBSERVATION_ONLY for r in cli_records):
         bad.append(f"experience CLI: rc={rc}, records={len(cli_records)}")
+    # the evaluation entry point (D-66: world, learner and evaluator in three processes) and its CLI
+    from crucible.experience.remote import evaluate as remote_evaluate
+    ev = remote_evaluate({"tier": 1, "name": "rapid:net_routing"}, "crucible.experience.remote:reference_learner",
+                         {"steps": 4})
+    checked.append("experience.remote.evaluate")
+    if ev["learner_status"] != "ok" or ev["describe"].get("reward_mode") != OBSERVATION_ONLY or \
+            ev["learner_result"]["nonzero_rewards"]:
+        bad.append(f"experience.remote.evaluate: {ev['describe'].get('reward_mode')} {ev['learner_status']}")
+    checked.append("python -m crucible.experience evaluate")
+    if inspect.getsource(cli_main).count('"--reward-mode", default="observation_only"') != 2:
+        bad.append("experience CLI evaluate: --reward-mode default")
     # explicit selections are recorded: the environment reports the mode and every stored record carries it
     unrecorded = 0
     for mode in (LEGACY, VERIFIED, OBSERVATION_ONLY):
