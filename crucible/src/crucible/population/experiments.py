@@ -152,6 +152,11 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
             days.setdefault(t // DAY, set()).update(a2.tolist())
             rounds[t] = rounds.get(t, 0) + int(a2.size)
     out["max_adaptive_active_same_day"] = max((len(v) for v in days.values()), default=0)
+    ph2 = set()
+    for d_, v in days.items():
+        if d_ * DAY >= t_switch:
+            ph2 |= v
+    out["adaptive_active_phase2"] = len(ph2)
     ds = sorted(days)
     out["max_adaptive_active_two_days"] = max((len(days[d] | days.get(d + 1, set())) for d in ds), default=0)
     out["max_adaptive_per_decision_round"] = max(rounds.values(), default=0)

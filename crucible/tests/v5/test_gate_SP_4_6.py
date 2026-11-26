@@ -76,7 +76,12 @@ def test_audience_quantities_and_view_threshold(world):
 
     # controlled consumption through the tools: the threshold, exposure-before-view, repeat and self-views
     # a long article for the controlled checks (an experimenter account publishes it through the ordinary tools)
-    lab = w.system_call("admin.join", {"handle": "lab46", "endowment": 1000, "password": "pw-lab"})["principal"]
+    # (a population member, acting through the tools as a scripted author for this check, so that its own
+    # self-view can be tested too)
+    au = next(i for i in range(AUD.n_people(w) - 1, 0, -1)
+              if ids.pid(i) not in {r["creator"] for r in w.state.tables["aud_item_info"].values()})
+    w._run_system("sp46.author", lambda ctx: ids.ensure_principal(ctx, au))
+    lab = ids.pid(au)
     a_ = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Harbour almanac",
                                                           "body": "The tide turns twice a day at the old pier. " * 40}})
     pub = w.execute(lab, {"tool": "blog.publish", "args": {"ref": a_.result["ref"], "title": "Harbour almanac"}})

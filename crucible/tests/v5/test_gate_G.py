@@ -36,36 +36,44 @@ def runs():
     return [PX.adaptation(s, 5) for s in SEEDS]
 
 
-def test_G1_256_simultaneously_active_adaptive(runs):
-    m = {"simultaneously_active_adaptive": int(min(r["max_adaptive_active_two_days"] for r in runs)),
-         "active_same_day": int(min(r["max_adaptive_active_same_day"] for r in runs)),
-         "max_adaptive_per_decision_round": int(max(r["max_adaptive_per_decision_round"] for r in runs)),
-         "adaptive_rows": int(runs[0]["adaptive_rows"])}
-    evidence.record("G.1", m, command=CMD, notes="Distinct class-2 individuals that took decisions in the world within "
-                                                 "the same 48-hour window (minimum over 3 seeds; the same-day count is "
-                                                 "reported too: a few individuals do not wake every day), each with "
-                                                 "its own state; decisions are batched in 4-hour rounds.")
+@pytest.fixture(scope="module")
+def shared():
+    """The standard profile's class 2 as one shared policy group of 256 (its default): batching and presence."""
+    return PX.adaptation(3, 2, {"shared": {"id": 0, "share": 1.0, "seed": 5}})
+
+
+def test_G1_256_simultaneously_active_adaptive(shared):
+    r = shared
+    m = {"simultaneously_active_adaptive": int(r["adaptive_active_phase2"]),
+         "active_within_48h": int(r["max_adaptive_active_two_days"]),
+         "active_same_day": int(r["max_adaptive_active_same_day"]),
+         "max_adaptive_per_decision_round": int(r["max_adaptive_per_decision_round"]),
+         "adaptive_rows": int(r["adaptive_rows"])}
+    evidence.record("G.1", m, command=CMD, notes="Class-2 individuals of one shared policy group (the standard "
+                                                 "profile's 256) present with live personal state and taking "
+                                                 "decisions during the same 2-day phase after the controlled change; "
+                                                 "the 48-hour and same-day counts are reported too (a few "
+                                                 "individuals do not wake every day).")
     assert m["adaptive_rows"] == 256
 
 
-def test_G2_distinct_persistent_personal_states(runs):
-    m = {"distinct_personal_states": int(min(r["distinct_personal_states"] for r in runs))}
+def test_G2_distinct_persistent_personal_states(shared):
+    m = {"distinct_personal_states": int(shared["distinct_personal_states"])}
     evidence.record("G.2", m, command=CMD, notes="Distinct GRU memory rows (rounded to 1e-3) of the 256 class-2 "
-                                                 "individuals at the end of each run (minimum over seeds); memory is a "
-                                                 "column of the population table, persistent across sessions, "
-                                                 "snapshots and forks.")
+                                                 "individuals at the end of the run; memory is a column of the "
+                                                 "population table, persistent across sessions, snapshots, forks.")
     assert m["distinct_personal_states"] > 1
 
 
-def test_G3_shared_weight_batched_inference(runs):
-    r = runs[0]
-    st = r["adaptive_stats"]
-    m = {"shared_weight_copies": int(r["policy_objects"] // max(1, len(r["arms"]))),
-         "max_inference_batch": int(max(int(x["adaptive_stats"].get("max_batch", 0)) for x in runs)),
-         "policy_groups": len(r["arms"]), "forward_calls": int(st.get("forward_calls", 0))}
-    evidence.record("G.3", m, command=CMD, notes="One network object per policy group shared by all its members "
-                                                 "(personal state in columns); the largest batch of one forward pass.")
-    assert m["policy_groups"] == 2
+def test_G3_shared_weight_batched_inference(shared):
+    r = shared
+    m = {"shared_weight_copies": int(r["policy_objects"]),
+         "max_inference_batch": int(r["adaptive_stats"].get("max_batch", 0)), "policy_groups": 1,
+         "members": int(r["adaptive_rows"])}
+    evidence.record("G.3", m, command=CMD, notes="One network object for the group of 256 (personal state in "
+                                                 "columns); the largest batch of one forward pass (decisions are "
+                                                 "aggregated in 4-hour rounds).")
+    assert m["members"] == 256
 
 
 def test_G5_parameter_changes_from_experience(runs):

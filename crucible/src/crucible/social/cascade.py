@@ -53,8 +53,9 @@ def internet_spec(n: int, seed: int, *, positive_control: bool, creators: int = 
                      {"log_retain": 10_000_000})
 
 
-def pop_internet_spec(n: int, seed: int, *, positive_control: bool, k: int = 8, pool: int = 200,
-                      creator_prior: float = -2.5) -> WorldSpec:
+def pop_internet_spec(n: int | None, seed: int, *, positive_control: bool, k: int = 8, pool: int = 200,
+                      creator_prior: float = -2.5, profile: str = "internet", classes: dict | None = None
+                      ) -> WorldSpec:
     """The internet-profile world of the ONE population (`crucible.population`, profile `internet`, D-15): n
     identities of `pop` (interests in the shared semantic space, derived initial state), members who write and
     publish (`pop_social`: few, as on real platforms), one posts platform with the ordinary recommenders, sharing to
@@ -67,8 +68,10 @@ def pop_internet_spec(n: int, seed: int, *, positive_control: bool, k: int = 8, 
         mix = [{"name": "trending", "weight": 1.0}, {"name": "interest", "weight": 1.0},
                {"name": "social", "weight": 0.8}, {"name": "explore", "weight": 0.3}]
     platforms = {"posts": {"k": k, "pool": pool, "pool_days": 3, "inbox_slots": 2, "recommenders": mix}}
-    pcfg = {"profile": "internet", "n": int(n), "tick_s": 900, "classes": {"adaptive": 0, "strategic": 0,
-                                                                        "semantic": 0}}
+    pcfg = {"profile": profile, "tick_s": 900,
+            "classes": dict(classes) if classes is not None else {"adaptive": 0, "strategic": 0, "semantic": 0}}
+    if n is not None:
+        pcfg["n"] = int(n)
     mods = [{"name": m, "config": {}} for m in ("identity", "bank", "admin", "artifacts", "cols", "space", "search")]
     mods += [{"name": "pop", "config": pcfg}]
     mods += [{"name": m, "config": {}} for m in ("social_ids", "social_rows", "content", "studio", "social", "posts")]

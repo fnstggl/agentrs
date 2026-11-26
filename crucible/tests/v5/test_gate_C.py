@@ -247,7 +247,7 @@ def _two_prop(k1, n1, k2, n2):
     return k1 / max(n1, 1) - k2 / max(n2, 1), float(2 * norm.sf(abs(z)))
 
 
-def test_C_5_social_mechanisms_affect_future_interactions(pop_run):
+def test_C_5_social_mechanisms_affect_future_interactions():
     """Three randomised experiments on the one population (forks of the day-10 state of a smaller run of the same
     world): the experimenter assigns the relation to a random half of a sample - a follow edge to a creator, a share
     of an item into the inbox, a newsletter subscription - and the outcome is what the individuals then do by
@@ -283,9 +283,11 @@ def test_C_5_social_mechanisms_affect_future_interactions(pop_run):
     out.update(follow_effect=round(eff, 4), follow_effect_pvalue=p, follow_new_items=len(later))
     # --- share: an informative post by the experimenter shared into the inboxes of the treated
     g = w.fork("c5-share")
-    a = g.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Storm season outlook",
-                                                         "body": "Forecasters expect an active storm season. " * 12}})
-    r = g.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": "Storm season outlook"}})
+    from crucible.population import semantics, writing
+    popular = int(np.argmax(semantics.popularity()))
+    title_s, body_s = writing.compose(np.random.default_rng(11), popular, 5, 1.0)
+    a = g.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": title_s, "body": body_s}})
+    r = g.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": title_s}})
     item = int(g.state.tables["content"][r.result["id"]]["aud_item"])
     feed = g.modules["feed"]
     g._run_system("experiment.assign", lambda ctx: feed.engine.deliver(ctx, treat, np.full(treat.size, item),
@@ -304,8 +306,8 @@ def test_C_5_social_mechanisms_affect_future_interactions(pop_run):
         ctx, treat, np.full(treat.size, ln, np.int64)))
     items = []
     for k in range(2):
-        a = h.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": f"Issue {k}",
-                                                             "body": "Rain is expected on Saturday, sun on Sunday. " * 10}})
+        ti, bi = writing.compose(np.random.default_rng(20 + k), popular, 5, 1.0)
+        a = h.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": ti, "body": bi}})
         s_ = h.execute(lab, {"tool": "letters.send", "args": {"newsletter": nid, "ref": a.result["ref"],
                                                                "title": f"Weekend weather {k}"}})
         items.append(int(h.state.tables["content"][s_.result["item"]]["aud_item"]))
@@ -318,7 +320,8 @@ def test_C_5_social_mechanisms_affect_future_interactions(pop_run):
     out.update(sample_treated=int(treat.size), sample_control=int(ctrl.size))
     evidence.record("C.5", out, command=CMD, notes=(
         "Randomised assignment of a follow edge (to the population's most prolific creator), of a share into the "
-        "inbox (an experimenter's post), and of a newsletter subscription (two issues) to 600 of 1,200 sampled "
+        "inbox (an experimenter's informative post on the population's most popular topic), and of a newsletter "
+        "subscription (two such issues) to 600 of 1,200 sampled "
         "individuals; outcome: the individual later viewed the creator's new items / the shared post / an issue, "
         "decided by the population itself; two-proportion z-tests. The assignment is the experimenter's "
         "manipulation (labelled), the outcomes are ordinary population decisions."))

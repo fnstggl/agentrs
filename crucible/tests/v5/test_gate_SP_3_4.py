@@ -43,7 +43,7 @@ def test_SP_3_4_independent_learning_kinds():
         "benefit_ci_high": float(max(p["ci95"][1] for p in ps))}
     kinds["shared_policy_learning"] = {
         "tested": bool(r["hash_end"]["memory"] != r["hash_genesis"]["memory"] and r["optimizer_steps"]["memory"] > 0),
-        "heldout_mse_learned": r["heldout_mse"]["memory"]}
+        "heldout_mse_learned": (r.get("heldout_mse") or {}).get("memory")}
     kinds["independent_policy_groups"] = {
         "tested": bool(r["hash_end"]["other_init"] != r["hash_genesis"]["other_init"] and
                        r["hash_end"]["other_init"] != r["hash_end"]["memory"]),

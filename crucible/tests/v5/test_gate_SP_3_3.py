@@ -22,10 +22,14 @@ pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
 
 
 def _bench(name: str) -> dict:
-    mods = [{"name": m, "config": {}} for m in ("artifacts", "cols", "space")]
-    mods.append({"name": "pop", "config": {"profile": name, "tick_s": 900}})
+    from crucible.social import cascade
+    # the profile's population with the social internet's posts platform as its activity (classes 2-4 rows are
+    # created with the profile's counts; their policies are benchmarked in Gate G)
+    p = profiles.PROFILES[name]
+    spec = cascade.pop_internet_spec(None, 1, positive_control=False, profile=name,
+                                     classes={k: int(p[k]) for k in profiles.CLASS_KEYS[1:]})
     t0 = time.time()
-    w = World.create(WorldSpec(f"profile-{name}", 1, mods))
+    w = World.create(spec)
     t_create = time.time() - t0
     t1 = time.time()
     w.advance_time(9 * 3600)            # the morning: individuals wake up and start sessions
