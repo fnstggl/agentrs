@@ -359,7 +359,9 @@ def _verify_child(path, wid, s0, sid0, s1, sid1) -> dict:
     evs = store.read_events(wid, from_seq=int(s0), to_seq=int(s1))
     base = store.get_snapshot(sid0)[1] if sid0 != "-" else None
     rw = World.replay(World_spec(store, wid), evs, world_id=f"{wid}-replay", base_blob=base, store=store)
-    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check").digest()
+    # the recorded snapshot is loaded with the store attached (its modules' on_load read blobs, e.g. the adaptive
+    # population's weights); nothing is written to the store (no event is applied or flushed)
+    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check", store=store).digest()
     return {"replayed": rw.digest(), "recorded": want, "seq": rw.seq, "events": len(evs)}
 
 
