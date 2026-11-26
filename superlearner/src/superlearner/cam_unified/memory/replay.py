@@ -364,25 +364,35 @@ class ReplaySampler:
         self.rng.shuffle(out)
         return out
 
-    def sample(self, n: int, length: int, with_records: bool = True) -> list:
+    def sample(self, n: int, length: int, with_records: bool = True, burn_in: int = 0) -> list:
         """n contiguous slices of up to ``length`` events of the anchor's own (env, actor, episode) stream, each
-        containing its stratum's anchor event; the window position is uniform among those containing the anchor."""
+        containing its stratum's anchor event; the window position is uniform among those containing the anchor.
+
+        ``burn_in`` > 0 (plan 2026-11-26 §2 BPTT: 16 burn-in decisions without gradient, then 8 graded ones):
+        each slice is preceded by up to ``burn_in`` earlier events of the same stream (fewer at the start of an
+        episode); the anchor always lies in the graded part, and ``slice.meta["burn_in"]`` is the number of leading
+        burn-in events. ``burn_in=0`` draws exactly what it drew before the parameter existed."""
         anchors = self.sample_anchors(n)
         if not anchors:
             return []
         cols = ["gseq", "env_id", "actor_id", "episode_id", "step", "event_id"]
         metas = {m["gseq"]: m for m in self._meta_by_gseq(sorted({g for _, g in anchors}), cols)}
         out = []
-        L = int(length)
+        L, Bn = int(length), max(0, int(burn_in))
         for stratum, g in anchors:
             m = metas[g]
-            ep, i = self.archive.stream_window(m["env_id"], m["actor_id"], m["episode_id"], m["step"], g, L - 1, L - 1)
+            ep, i = self.archive.stream_window(m["env_id"], m["actor_id"], m["episode_id"], m["step"], g,
+                                               L - 1 + Bn, L - 1)
             lo = max(0, i - L + 1)
             hi = min(i, max(0, len(ep) - L))
             start = self.rng.randint(lo, hi) if hi >= lo else lo
-            part = ep[start:start + L]
-            out.append(ReplaySlice(stratum, g, m["episode_id"], [s for s, _, _ in part], [e for _, e, _ in part],
-                                   env_id=m["env_id"], actor_id=m["actor_id"]))
+            b0 = max(0, start - Bn)
+            part = ep[b0:start + L]
+            sl = ReplaySlice(stratum, g, m["episode_id"], [s for s, _, _ in part], [e for _, e, _ in part],
+                             env_id=m["env_id"], actor_id=m["actor_id"])
+            if Bn:
+                sl.meta["burn_in"] = start - b0
+            out.append(sl)
         if with_records:
             self._attach_records(out)
         return out
