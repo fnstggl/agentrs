@@ -98,10 +98,13 @@ def test_V_3_parameter_counts_reported():
 def test_V_4_batched_inference():
     bm = K.backend_matrix()["result"]
     s = K.suite()
-    sizes = []
+    sizes, exact = [], 0
     for r in s["runs"]:
         b = r.get("batching", {}).get("class2", {})
-        if b.get("calls"):
+        if b.get("sizes"):                     # exact rows per recorded call, read from the recorded outputs
+            sizes += [int(k) for k, v in b["sizes"].items() for _ in range(int(v))]
+            exact += 1
+        elif b.get("calls"):                   # runs measured before the histogram existed: the run's mean
             sizes += [max(1, int(round(b["mean_batch"])))] * int(b["calls"])
     from crucible.scale import backends
     sp = backends.batching_speedup(bm["adaptive"], sizes or None)
@@ -111,7 +114,7 @@ def test_V_4_batched_inference():
          "in_world_mean_batch": float(in_world.get("mean_batch", 0.0)),
          "strategic_mlp_speedup": float(bm["strategic"]["mlp"]["speedup"]),
          "strategic_gru_speedup": float(bm["strategic"]["gru"]["speedup"]),
-         "encoder_batch_speedup": float(bm["encoder"]["speedup"])}
+         "encoder_batch_speedup": float(bm["encoder"]["speedup"]), "runs_with_exact_batch_sizes": exact}
     for case, v in (bm.get("service") or {}).get("cases", {}).items():     # the shared batching service, per class
         m[f"service_{case}_speedup"] = float(v["speedup_wall"])
     best256 = [r for r in bm["adaptive"]["rows"] if r["B"] == 256 and r.get("backend") == "torch_cpu"]

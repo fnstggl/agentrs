@@ -143,3 +143,41 @@ def test_outcomes_handle_resources_created_during_the_run():
                 "res_purchases": np.zeros(n_res, np.int64), "res_revenue_cents": np.zeros(n_res, np.int64)}
     o = approx.outcomes({"snaps": [snap(2, [0, 0, 0, 0]), snap(3, [1, 0, 2, 0]), snap(5, [2, 1, 2, 0])]})
     assert o["days"] == 2 and len(o["reach_top"]) == 2 and o["audience_shares"][0] == 1.0
+
+
+def test_batch_sizes_are_read_from_the_recorded_outputs():
+    """bench5 sizes every class-2/3 recorded call from its recorded output (V.4 uses the exact in-world batches, not
+    per-run means): real AdaptivePolicy and StrategicGroup calls recorded the way the population records them."""
+    import crucible
+    crucible.load_all_modules()
+    import numpy as np
+    from crucible.core.kernel import World, WorldSpec
+    from crucible.population.adaptive import AdaptivePolicy
+    from crucible.population.strategic import HIST, OBS_DIM, StrategicGroup
+    from crucible.substrate import inference
+    pol = AdaptivePolicy(0, 12, 9, 8, hidden=32, seed=1)
+    grp = StrategicGroup({"group": "g", "arch": "mlp", "hidden": 32, "learning": False, "code": 0}, seed=2)
+    w = World.create(WorldSpec("bench-sizes", 1, [{"name": m, "config": {}} for m in
+                                                  ("identity", "bank", "admin", "artifacts")]))
+    ec = bench5.EventCounter(count_bytes=False)
+    w.listeners.append(ec)
+    rng = np.random.default_rng(0)
+
+    def run(ctx):
+        for n in (3, 3, 7):
+            x = {"obs": rng.normal(size=(n, 12)).astype(np.float32), "mem": rng.normal(size=(n, 8)).astype(np.float32),
+                 "cand": rng.normal(size=(n, 5, 9)).astype(np.float32)}
+            inference.recorded(ctx, "pop.adaptive.0", "adaptive:0", pol.weights_hash(), x,
+                               lambda x=x: {"scores": pol.scores(x["obs"], x["mem"], x["cand"])[0]})
+        O = rng.normal(size=(2, OBS_DIM)).astype(np.float32)
+        H = rng.normal(size=(2, HIST, OBS_DIM)).astype(np.float32)
+        inference.recorded(ctx, "pop.strategic.g", "strategic:g", grp.weights_hash(), {"obs": O, "hist": H},
+                           lambda: grp.logits(O, H))
+        inference.recorded(ctx, "other.model", "m", "h", {"x": O}, lambda: {"y": O})   # not a class-2/3 call
+    w._run_system("bench.sizes", run)
+    ec.size_batches(w)
+    assert dict(ec.batch_sizes["class2"]) == {3: 2, 7: 1} and dict(ec.batch_sizes["class3"]) == {2: 1}
+    assert ec.model_refs == []
+    b = bench5.batching(w, ec)
+    assert b["class2"]["sizes"] == {"3": 2, "7": 1} and b["class3"]["sizes"] == {"2": 1}
+    w.close()

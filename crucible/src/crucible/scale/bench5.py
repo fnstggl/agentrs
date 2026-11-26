@@ -108,6 +108,8 @@ class EventCounter:
         self.event_bytes = 0
         self.semantic_calls = 0               # recorded semantic-service batches (infer.semantic.* outcomes)
         self.semantic_rows = 0
+        self.model_refs: list = []            # (class, output ref) of class-2/3 recorded calls, sized after each day
+        self.batch_sizes = {"class2": Counter(), "class3": Counter()}
         from ..core.canonical import canonical_bytes
         self._cb = canonical_bytes
 
@@ -142,6 +144,30 @@ class EventCounter:
                         out = (o.get("out") or {}).get("output")
                         self.semantic_calls += 1
                         self.semantic_rows += len(out) if isinstance(out, list) else 1
+                    parts = o["kind"].split(".")
+                    cls = BATCH_KINDS.get(".".join(parts[1:3])) if len(parts) >= 4 else None
+                    ref = (o.get("out") or {}).get("output_ref")
+                    if cls and ref:
+                        self.model_refs.append((cls, ref))
+
+    def size_batches(self, world) -> None:
+        """Rows of every class-2/3 recorded call since the last call, read from its recorded output (evaluator
+        side, outside the measured CPU): the exact in-world batch sizes behind V.4 and SP-13.1."""
+        from ..substrate import artifacts
+        refs, self.model_refs = self.model_refs, []
+        for cls, ref in refs:
+            try:
+                arrs = artifacts.npz_arrays(artifacts.get(world, ref))
+            except Exception:                  # noqa: BLE001 - an unreadable record is not counted
+                continue
+            first = arrs[sorted(arrs)[0]] if arrs else None
+            if first is not None and getattr(first, "ndim", 0) >= 1:
+                self.batch_sizes[cls][int(first.shape[0])] += 1
+
+
+#: recorded-call kinds (`infer.pop.<model>.<group>`) whose rows are class-2 / class-3 decisions (class 2: the
+#: resource choice and, where the population records it, the activity choice of the adaptive policies)
+BATCH_KINDS = {"pop.adaptive": "class2", "pop.adaptive_act": "class2", "pop.strategic": "class3"}
 
 
 # ====================================================================== the world
@@ -271,6 +297,9 @@ def batching(w, ec: EventCounter) -> dict:
         out[c] = {"calls": calls, "decisions": dec, "max_batch": max(mx, int(s.get("max_rows", 0))),
                   "mean_batch": round(dec / max(1, calls), 3), "via_service_calls": int(s.get("calls", 0)),
                   "merged_calls": int(s.get("merged_calls", 0))}
+        hist = getattr(ec, "batch_sizes", {}).get(c)
+        if hist:                                # exact rows per recorded call (from the recorded outputs)
+            out[c]["sizes"] = {str(k): int(v) for k, v in sorted(hist.items())}
     out["service"] = svc
     return out
 
@@ -343,6 +372,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
         tm = cpu_s()
         row["event_bytes"] = stored_event_bytes(store, w.world_id, sq, w.seq)
         ec.event_bytes += row["event_bytes"]
+        ec.size_batches(w)
         compact_cpu += cpu_s() - tm                # measurement, not simulation
         if w.now >= next_compact or w.now >= end:
             tc, cc = time.time(), cpu_s()
