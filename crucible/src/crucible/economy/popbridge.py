@@ -76,14 +76,17 @@ def class_members(world, cls) -> np.ndarray:
     return fn(world, cls)
 
 
-def record_decisions(ctx, kind, idx, values, *, model_id, model_version, fidelity_id, mode="set", table=None) -> str:
+def record_decisions(ctx, kind, idx, values, *, model_id, model_version, fidelity_id, mode="set", table=None,
+                     extra=None) -> str:
+    """`extra`: further batch extras (e.g. `experiment` labels of a randomised design, calibration/RUNTIME.md)."""
     fn = _export("record_decisions")
     if fn is not None:
+        kw = {"extra": extra} if extra else {}
         return fn(ctx, kind, np.asarray(idx, np.int64), values, model_id=model_id, model_version=model_version,
-                  fidelity_id=fidelity_id, mode=mode, table=table)
+                  fidelity_id=fidelity_id, mode=mode, table=table, **kw)
     return columns.batch(ctx, table, kind, np.asarray(idx, np.int64), values, mode=mode,
-                         extra={"decision": {"model_id": model_id, "model_version": str(model_version),
-                                             "fidelity_id": fidelity_id}})
+                         extra={**(extra or {}), "decision": {"model_id": model_id, "model_version": str(model_version),
+                                                              "fidelity_id": fidelity_id}})
 
 
 def experience(ctx, idx, activity, utility, *, item_vecs=None, satisfaction=None) -> None:

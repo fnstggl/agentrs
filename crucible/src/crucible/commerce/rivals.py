@@ -23,6 +23,10 @@ tickets, its service's overloads in `cloud.metrics`) and the public market (comp
   accepts counters within the range, and closes the posting when it hired; it dismisses its latest hire when no
   ticket was left over for 21 days and it has two or more staff, or when its cash falls below two months of
   payroll. The employees work the queue in their own shifts (`labor.shift`);
+* **display advertising** (wave 3b, worlds with `ads` and the population's `work`; config `display_ads`) - every
+  `display_every_days` it runs a `display_days` display campaign for its product to the workers of its format
+  (`work.display_campaign` on an `ads` campaign of kind `display`, bid `display_bid` per impression, daily budget
+  `display_budget`) when its cash covers twenty days of that budget;
 * **marketplaces** (wave 3b, worlds with `xchg`) - it sells a 30-day pass of its service on one open exchange: the
   venue with the most buyers in the last 30 days by the venue's public statistics (ties: the lowest take rate), at
   its cheapest monthly price x `pass_markup`, grossed up for the venue's take rate; it re-lists when its monthly
@@ -43,7 +47,8 @@ DAY = 86400
 DEFAULTS = {"window_days": 14, "lose_share": 0.15, "cut": 0.9, "floor": 0.55, "grow_share": 0.3, "raise_": 1.05,
             "min_rating": 3.2, "min_ratings": 5, "dev_days": 21, "max_cores": 12, "reply_p": 0.7, "refund_p": 0.6,
             "first_day": 3, "pass_markup": 1.25, "pass_days": 30, "founder_tickets": 3, "hire_backlog": 4,
-            "max_staff": 4, "salary_min": 120_000, "salary_max": 220_000, "job_hours": 20}
+            "max_staff": 4, "salary_min": 120_000, "salary_max": 220_000, "job_hours": 20, "display_ads": True,
+            "display_every_days": 30, "display_days": 14, "display_bid": 20, "display_budget": 3_000}
 REFUND_RE = re.compile(r"(sinv_[0-9]+)")
 
 
@@ -177,10 +182,33 @@ class Rivals(Module):
             self._do(ctx, inc, "support.resolve", ticket=t["ticket"], note="answered")
         if staffed:
             self._staff(ctx, inc, mem, actions)
+        if self.cfg("display_ads") and need and "ads" in self.world.modules and "work_display" in st.tables:
+            self._advertise(ctx, inc, pid, need, mem, actions)
         if "xchg" in self.world.modules and price is not None:
             self._list_pass(ctx, inc, pid, int(price), actions, mem)
         ctx.emit("rivals.observed", {"org": org, "memory": mem, "subscribers": subs_now, "actions": actions},
                  vis=(org,))
+
+    def _advertise(self, ctx, inc, pid: str, need: str, mem: dict, actions: list) -> None:
+        """The display-advertising rule (module docstring)."""
+        from ..economy.needs import NEEDS
+        st = ctx.state
+        org = inc["org"]
+        last = mem.get("last_display")
+        if last is not None and ctx.now - int(last) < int(self.cfg("display_every_days")) * DAY:
+            return
+        if self._cash(st, org) < 20 * int(self.cfg("display_budget")):
+            return
+        acct = self.world.modules["bank"].primary_account(st, org)
+        name = st.tables["products"][pid]["name"]
+        c = self._do(ctx, inc, "ads.create_campaign", account=acct, keywords=list(NEEDS[need].keywords[:5]) or [need],
+                     bid_cents=int(self.cfg("display_bid")), daily_budget_cents=int(self.cfg("display_budget")),
+                     title=name[:120], text=f"{NEEDS[need].title} as a service: try it on your own tasks."[:500],
+                     ref=pid, kind="display")
+        cid = c["campaign"]
+        self._do(ctx, inc, "work.display_campaign", campaign=cid, need=need, days=int(self.cfg("display_days")))
+        mem["last_display"] = int(ctx.now)
+        actions.append(["display_campaign", cid])
 
     def _cash(self, st, org: str) -> int:
         return sum(int(st.tables["accounts"][a]["balance"]) for a in st.find_ids("accounts", "owner", org)

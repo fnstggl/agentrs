@@ -87,6 +87,7 @@ def startup_spec(seed: int, *, n: int = 3000, formats: list[str] | None = None, 
             "need_end_month_p": d["need_end_month_p"], "publish_formats": True}
     wcfg.update(work or {})
     mods.append({"name": "work", "config": wcfg})
-    mods.append({"name": "rivals", "config": dict(rivals or {})})
+    # display campaigns of the incumbents are off in the K.n1 startup template unless asked for (rivals config)
+    mods.append({"name": "rivals", "config": {"display_ads": False, **dict(rivals or {})}})
     return WorldSpec("startup", int(seed), mods, {"cost_model": "deterministic", "formats": d["formats"],
                                                   **(params or {})})

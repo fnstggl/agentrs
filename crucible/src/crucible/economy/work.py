@@ -55,6 +55,30 @@ worth trying where its subscription is not. When a bought pass turns out badly (
 `refund_threshold`) it disputes the order within the venue's window. A pass expires; the individual then shops
 again (subscription, another pass, or by hand). Decisions are recorded as `work.buy_pass`.
 
+Display advertising (wave 3b; calibration/RUNTIME.md "Advertising response"). An advertiser turns one of its `ads`
+campaigns of kind `display` (kind `display` keeps it out of search results) into a display campaign for a format
+(`work.display_campaign`): during the campaign's period its creative is shown in the working sessions of the
+individuals whose work has an unserved step of that format (the audience). Eligibility is RANDOMISED by the
+platform: each audience member is assigned once per campaign, with probability `display_holdout`, to a holdout that
+is never shown the campaign (a lift study; the advertiser cannot see who is held out). Once per individual and
+campaign period, at its first working session in the period, the platform draws:
+* displayed - eligible, and the campaign could pay for `display_impressions` impressions (`ads.record_impressions`,
+  ledger kind `ad_impressions`; an exhausted budget means not displayed: non-compliance, as in Criteo's data);
+* attended_probability - 1 when displayed, 0 otherwise: no attention model is registered for display slots in work
+  pages, so a displayed campaign period counts as one attended Criteo display (the runtime's reference
+  `A_ref = 1`; fidelity record `work.display_attention`, a documented assumption);
+* organic_visit_probability - the individual's probability of visiting the advertised offer during the period
+  without the campaign, from this module's own discovery mechanism: its planned shopping (`shop_p` every
+  `shop_every_days`) times the chance that a shop finds the product among the products serving the format, or a
+  2% switching rate when it relies on another provider already (fidelity record `work.display_organic`);
+* visit - drawn by `ad_response@2` (scoped use `display_campaign`, one coupled uniform per row). A visit makes the
+  product a candidate of the individual's next shop and plans that shop; whether it buys is the world's own
+  value-based purchase decision (the runtime's incremental conversion ratio is not applied: the purchase decision
+  here is a value comparison, not a probability).
+The decisions are recorded per arm (`work.ad_visit` on table `ads_seen`, columns `visit`, `displayed`,
+`organic_visit_probability`, `attended_probability`, extra `experiment = {"id": "ad_holdout", "arm": "eligible" |
+"holdout"}`) so that `calibration.inworld.ad_holdout_experiment` can re-estimate the shift in the world.
+
 Daily process `work.day`: deposits the accrued income of individuals that pay standing charges, wakes
 professionals for their next working day, and lets an occupation's need end now and then (exogenous churn).
 
@@ -85,7 +109,8 @@ DEFAULTS = {"families": [], "professional_share": 0.6, "use_min": 2.0, "shop_p":
             "wom": True, "forum_board": "tools", "post_p": 0.08, "search_limit": 8, "ads_click_rate": 0.03,
             "ticket_patience_days": 3, "refund_threshold": 0.35, "first_day": 1, "rate_after": 5,
             "publish_formats": False, "ask_p": 0.15, "ask_board": "help", "help_share": 0.3, "xchg_browse_p": 0.6,
-            "complain_rejects": True}
+            "complain_rejects": True, "display_holdout": 0.2, "display_impressions": 3, "display_days": 14}
+AD_MODEL = {"model_id": "ad_response@2", "model_version": "1", "fidelity_id": "runtime:ad_response@2"}
 
 
 def _draw(rng, lohi, n):
@@ -154,6 +179,13 @@ class Work(Module):
             from . import jobs
             jobs.declare(world, n)
             pb.register_activity(world, "jobs", self.act_jobs, owner="work", prior=-0.4, goals=(5,))
+        if "ads" in world.modules:
+            columns.declare(world, "ads_seen", n, {"visit": ("bool", (), False), "displayed": ("bool", (), False),
+                                                   "organic_visit_probability": ("float32", (), 0.0),
+                                                   "attended_probability": ("float32", (), 0.0)})
+            st.declare_table("work_display", index=("need", "advertiser"))
+            st.declare_table("work_ad_draws", index=("campaign",))
+            st.declare_table("work_ads", index=("i",))
         if "inst" in world.modules:
             from . import assoc
             assoc.declare(world, n)
@@ -330,6 +362,8 @@ class Work(Module):
             return util
         columns.batch(ctx, TABLE, "work.day_started", idx[rows], {"work_day": np.full(rows.size, today, np.int32)},
                       mode="set")
+        if "ads" in w.modules and "work_display" in st.tables:
+            self._displays(ctx, idx[rows], now)
         rng = ctx.rng("work.session")
         use_min = float(self.cfg("use_min"))
         tasks = self._col("tasks")[idx]
@@ -748,6 +782,13 @@ class Work(Module):
                     told = (r["ok"] + 1.0) / (r["uses"] + 2.0)        # what the contact says about it
                     if rng.random() < 0.7:
                         out[r["prov"]] = (prov, 0.5 * self._public_prior(prov) + 0.5 * told, "contact")
+        if "work_ads" in st.tables:
+            for key in st.find_ids("work_ads", "i", int(i)):
+                r = st.tables["work_ads"][key]
+                prov = self._provider(st, r["product"])
+                if ctx.now - int(r["t"]) <= 14 * DAY and prov is not None and r["product"] not in out and \
+                        self.compatible(st, prov, need, sample):
+                    out[r["product"]] = (prov, self._public_prior(prov), "display")
         xchg = w.modules.get("xchg")
         if xchg is not None and rng.random() < float(self.cfg("xchg_browse_p")) * (0.5 + skill_shop):
             for lst in self._exchange_offers(ctx, p, need, sample):
@@ -882,6 +923,131 @@ class Work(Module):
                                "need": need, "why": "adopted"}, vis="internal")
         return True
 
+    # ------------------------------------------------------------------ display advertising
+    @endpoint("display_campaign", S.obj({"campaign": S.s_str("an ads campaign of kind 'display' you run", maxLength=40),
+                                         "need": S.s_str("the public format whose workers are the audience",
+                                                         maxLength=60),
+                                         "days": S.s_int("campaign period", minimum=1, maximum=60)},
+                                        ["campaign", "need"]), cost_s=60)
+    def ep_display_campaign(self, ctx, campaign, need, days=None):
+        """Show an ads campaign as a display ad in the working sessions of the people whose work has an unserved
+        step of `need`, for `days` (impressions charged to the campaign at its bid). The platform holds a random
+        share of the audience out of every campaign to measure its lift (you do not learn who)."""
+        st = ctx.state
+        c = st.get("ads_campaigns", campaign)
+        if c is None or c["status"] != "active":
+            raise CrucibleError("no active campaign " + str(campaign))
+        if c["advertiser"] not in ctx.world.principals_of(ctx.actor):
+            from ..core.errors import Forbidden
+            raise Forbidden("only the advertiser runs its campaign")
+        if c.get("kind") != "display":
+            from ..core.errors import InvalidAction
+            raise InvalidAction("a display campaign is an ads campaign of kind 'display' (kept out of search results)")
+        if need not in _needs():
+            from ..core.errors import InvalidAction
+            raise InvalidAction(f"unknown format {need!r}")
+        if st.has("work_display", campaign):
+            from ..core.errors import Conflict
+            raise Conflict("this campaign already runs as a display campaign")
+        land = c.get("landing") or {}
+        prod = land.get("ref") if isinstance(land.get("ref"), str) and str(land.get("ref")).startswith("prd_") else None
+        if prod is None:
+            for h in land.get("hosts") or []:
+                prod = next((pid for pid, p in st.scan("products") if p["status"] == "launched"
+                             and (p["delivery"] or {}).get("host") == h), None) or prod
+        if prod is None:
+            from ..core.errors import InvalidAction
+            raise InvalidAction("the campaign's landing must name a launched product (ref) or its host")
+        d = int(days or self.cfg("display_days"))
+        ctx.emit("work.display", {"id": campaign, "need": need, "product": prod, "advertiser": c["advertiser"],
+                                  "start": int(ctx.now), "end": int(ctx.now + d * DAY),
+                                  "holdout": float(self.cfg("display_holdout"))}, vis=(c["advertiser"],))
+        return {"campaign": campaign, "until": int(ctx.now + d * DAY)}
+
+    def _organic_visit(self, st, i: int, need: str, prod: str, days: float, search_skill: float,
+                       search_belief: float) -> float:
+        """The individual's probability of visiting the offer within the period without the campaign (module
+        docstring), from its own state; -1 when it is not in the audience. Shopping individuals (an unserved step
+        of the format) find a given product per shop with a chance that rises with their searching skill and their
+        belief that search results are useful and falls with the number of products serving the format; they shop
+        about `shop_p` every `shop_every_days`, more often the larger the step's share of their hand work.
+        Individuals relying on another provider visit with a switching probability that rises as their own belief
+        in that provider falls."""
+        steps = self._steps(i)
+        if need not in {n for _, n in steps}:
+            return -1.0
+        rel = [p for p, _ in self.relied(st, i, need)]
+        if prod in rel:
+            return -1.0                                   # a customer already: not in the audience
+        if rel:
+            pacc, _ = self.belief(st, i, rel[0])
+            return float(np.clip(0.01 + 0.4 * (1.0 - pacc), 0.005, 0.5))
+        serving = max(1, sum(1 for _, p in st.scan("products") if p["status"] == "launched" and p.get("need") == need))
+        # the product is one of `serving` results the individual may open on a shop (searching skill and its belief in
+        # search results raise the chance); a shop is a search of the format's vocabulary (organic results)
+        find = float(np.clip(0.45 / serving * (0.5 + search_skill) * (0.5 + search_belief), 0.005, 0.95))
+        diy = self._col("diy")[i]
+        s_idx = next(k for k, (s_, n) in enumerate(steps) if n == need)
+        hand = float(diy[s_idx]) / max(1e-6, float(sum(diy[s] for s, _ in steps)))
+        shops = days / float(self.cfg("shop_every_days")) * float(self.cfg("shop_p")) * (0.5 + hand)
+        return float(np.clip(1.0 - (1.0 - find) ** max(shops, 0.1), 0.005, 0.95))
+
+    def _displays(self, ctx, who: np.ndarray, now: int) -> None:
+        st = ctx.state
+        live = [(cid, c) for cid, c in st.scan("work_display") if c["start"] <= now < c["end"]]
+        if not live:
+            return
+        from ..calibration import runtime
+        dm = runtime.get("ad_response@2").scoped(use="display_campaign")
+        ads = ctx.world.modules["ads"]
+        k_imp = int(self.cfg("display_impressions"))
+        f = pb.features(ctx.world, who)
+        sk = f["skills"].astype(np.float64)
+        bel = f["beliefs"].astype(np.float64)
+        srch = sk[:, 0] if sk.shape[1] else np.full(who.size, 0.5)
+        sbel = bel[:, 1] if bel.shape[1] > 1 else np.full(who.size, 0.5)
+        pos = {int(x): k for k, x in enumerate(who.tolist())}
+        for cid, c in sorted(live):
+            rows = {"eligible": [], "holdout": []}
+            for i in who.tolist():
+                key = f"{cid}|{i}"
+                if st.has("work_ad_draws", key):
+                    continue
+                k = pos[int(i)]
+                p0 = self._organic_visit(st, int(i), c["need"], c["product"],
+                                         min(7.0, (c["end"] - c["start"]) / DAY), float(srch[k]), float(sbel[k]))
+                if p0 < 0:
+                    continue
+                eligible = ctx.world.rng_for("display-eligibility", cid, int(i)).random() >= float(c["holdout"])
+                shown = False
+                if eligible:
+                    shown = cid in ads.record_impressions(ctx, [cid], n=k_imp)
+                rows["eligible" if eligible else "holdout"].append((int(i), shown, p0))
+            for arm, lst in rows.items():
+                if not lst:
+                    continue
+                ix = np.array([r[0] for r in lst], np.int64)
+                shown = np.array([r[1] for r in lst], bool)
+                p0 = np.array([r[2] for r in lst], np.float64)
+                A = shown.astype(np.float64)
+                draw = dm.sample({"organic_visit_probability": p0, "attended_probability": A},
+                                 ctx.rng("work.ad_visit", cid, arm))
+                visit, incr = draw[:, 0].astype(bool), draw[:, 1].astype(bool)
+                ctx.emit("work.ad_draws", {"campaign": cid, "arm": arm,
+                                           "rows": [[int(i), bool(s), bool(v), bool(x)] for i, s, v, x in
+                                                    zip(ix.tolist(), shown.tolist(), visit.tolist(), incr.tolist())],
+                                           "product": c["product"], "t": int(now)}, vis="internal")
+                pb.record_decisions(ctx, "work.ad_visit", ix, {
+                    "visit": visit, "displayed": shown, "organic_visit_probability": p0.astype(np.float32),
+                    "attended_probability": A.astype(np.float32)}, table="ads_seen",
+                    extra={"experiment": {"id": "ad_holdout", "arm": arm}, "campaign": cid}, **AD_MODEL)
+                go = ix[visit]
+                if go.size:
+                    at = now + ctx.rng("work.ad_shop", cid).integers(1800, 4 * 3600, go.size).astype(np.int64)
+                    cur = self._col("shop_at")[go]
+                    at = np.where((cur >= 0) & (cur < at), cur, at)
+                    columns.batch(ctx, TABLE, "work.shop_planned", go, {"shop_at": at}, mode="set")
+
     # ------------------------------------------------------------------ the labour market (economy.jobs)
     def act_jobs(self, ctx, idx: np.ndarray, now: int):
         from . import jobs
@@ -1008,6 +1174,23 @@ class Work(Module):
     @applier("work.considered")
     def ap_considered(self, ev):
         pass
+
+    @applier("work.display")
+    def ap_display(self, ev):
+        p = dict(ev.payload)
+        self.world.state.insert("work_display", p.pop("id"), p)
+
+    @applier("work.ad_draws")
+    def ap_ad_draws(self, ev):
+        st = self.world.state
+        p = ev.payload
+        for i, shown, visit, incr in p["rows"]:
+            st.put("work_ad_draws", f"{p['campaign']}|{i}", {"campaign": p["campaign"], "i": int(i), "arm": p["arm"],
+                                                              "displayed": bool(shown), "visit": bool(visit),
+                                                              "incremental": bool(incr), "t": ev.t})
+            if visit:
+                st.put("work_ads", f"{i}|{p['product']}", {"i": int(i), "product": p["product"],
+                                                           "campaign": p["campaign"], "t": ev.t})
 
     @applier("work.exp_note")
     def ap_note(self, ev):
