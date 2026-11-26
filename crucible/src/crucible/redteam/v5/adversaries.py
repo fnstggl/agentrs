@@ -235,6 +235,12 @@ class Prober(LR.LeverLearner):
                     pass
         return self._setting
 
+    def probe(self) -> dict:
+        """Run the probe now (outside an episode) and return the report."""
+        self._probe()
+        self._probed = True
+        return self.report()
+
     def report(self) -> dict:
         return {"found": dict(self.found), "attempts": dict(self.attempts),
                 "verified_values_read_mid_episode": len(self.cheat_scores)}

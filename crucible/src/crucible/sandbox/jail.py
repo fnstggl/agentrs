@@ -25,11 +25,51 @@ import sys
 CFG = json.load(open(sys.argv[1]))
 ARGV = sys.argv[2:]
 libc = ctypes.CDLL(None, use_errno=True)
+def _traversable(path: str, uid: int, gid: int) -> bool:
+    """Whether `uid` (no supplementary groups) may search every directory above `path` (DAC; Landlock comes on top)."""
+    d = os.path.dirname(path)
+    while True:
+        try:
+            st = os.stat(d)
+        except OSError:
+            return False
+        if not (st.st_mode & 0o001 or (st.st_uid == uid and st.st_mode & 0o100)
+                or (st.st_gid == gid and st.st_mode & 0o010)):
+            return False
+        if d == "/":
+            return True
+        d = os.path.dirname(d)
+
+
+def _relocate(d: str) -> str:
+    """A profile directory the jail uid cannot reach (its caller's TMPDIR below a root-only directory, e.g. an agent
+    scratchpad of mode 700) is replaced by a fresh one in the jail's own home; stale ones (a day old) are pruned.
+    DEFECTS DEF-P-16: the jailed Chromium could not create its profile and every browser test failed there."""
+    import shutil
+    import time as _t
+    home = CFG.get("env", {}).get("HOME") or os.path.dirname(sys.argv[1])
+    base = os.path.join(home, "profiles")
+    os.makedirs(base, mode=0o700, exist_ok=True)
+    for x in os.listdir(base):
+        p = os.path.join(base, x)
+        try:
+            if _t.time() - os.stat(p).st_mtime > 86400:
+                shutil.rmtree(p, ignore_errors=True)
+        except OSError:
+            pass
+    new = os.path.join(base, f"{os.path.basename(d)}-{os.getpid()}")
+    os.makedirs(new, mode=0o700, exist_ok=True)
+    return new
+
+
 for _pre in CFG.get("rw_from_argv", []):          # e.g. the profile directory Playwright created for this launch
-    for _a in ARGV[1:]:
+    for _i, _a in enumerate(ARGV[1:], 1):
         if _a.startswith(_pre):
             _d = os.path.realpath(_a[len(_pre):])
             if os.path.isdir(_d) and _d.startswith(("/tmp/", "/var/tmp/")) and _d.count("/") >= 2:
+                if not _traversable(_d, CFG["uid"], CFG["gid"]):
+                    _d = _relocate(_d)
+                    ARGV[_i] = _pre + _d
                 CFG.setdefault("rw", []).append(_d)
                 CFG.setdefault("chown", []).append(_d)
 ARGV += CFG.get("append_args", [])

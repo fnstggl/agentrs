@@ -284,3 +284,93 @@ def test_isolation_run_is_a_jailed_drop_in_for_media_tool_call_sites():
         assert ok.returncode == 0 and b"ffprobe" in ok.stdout
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------------------------- wave 3b review (W.n1)
+@needs_sandbox
+def test_nested_jobs_share_the_enclosing_jobs_time_limit():
+    """A program's world call that runs another sandboxed program used to get a fresh time limit while the caller's
+    clock stood still (time in the broker is not the caller's): fan-outs of sleeping programs held the world for
+    hours. A nested job now gets at most what is left of the enclosing job's limit, and none once it is spent."""
+    inner_runs = []
+
+    def rpc(tool, args):                      # the world call runs a nested sandboxed job, like code.run does
+        t = time.monotonic()
+        r = run_program({"z.py": "import time\ndef f(a, c):\n    time.sleep(5)\n    return 1\n"}, "z:f", timeout=30)
+        inner_runs.append((round(time.monotonic() - t, 2), (r.get("error") or {}).get("type")))
+        return True, r.get("ok")
+    outer = "import crucible_sdk\ndef f(a, c):\n    return [crucible_sdk.call('x') for _ in range(3)]\n"
+    t0 = time.monotonic()
+    r = run_program({"o.py": outer}, "o:f", rpc=rpc, timeout=2.0)
+    wall = time.monotonic() - t0
+    assert r["ok"] and r["result"] == [False, False, False], r
+    assert wall < 2 * 2.0 + 3.0, (wall, inner_runs)                     # not 3 x 5 s
+    assert inner_runs[0][1] == "Timeout" and inner_runs[0][0] < 2.5, inner_runs
+    assert all(e == "Timeout" for _, e in inner_runs), inner_runs
+
+
+@needs_sandbox
+def test_protocol_allowance_cannot_hide_work_in_padded_messages():
+    work = "def f(a, c):\n    s = 0\n    for i in range(2_000_000):\n        s += i % 7\n    return s\n"
+    pad = ("import crucible_sdk\n" + work.replace("def f(a, c):\n", "def f(a, c):\n    p = 'x' * 7_000_000\n"
+           "    for k in range(20):\n        crucible_sdk.call('t', pad=p)\n"))
+    cfg = SandboxConfig(count_lines=True, meter_scope="proto-test-%d" % os.getpid())
+    h = run_program({"m.py": work}, "m:f", cfg=cfg)
+    f = run_program({"m.py": pad}, "m:f", cfg=cfg, rpc=lambda tool, args: (True, None), timeout=60)
+    assert h["ok"] and f["ok"] and f["result"] == h["result"], (h, f)
+    assert f["work_lines"] >= 0.5 * h["work_lines"] > 0, (f["work_lines"], h["work_lines"])
+
+
+def test_meter_memo_file_evicts_per_lineage(tmp_path):
+    path = str(tmp_path / "memo.sqlite")
+    a = M.DiskMemo(path, max_rows=500, scope_max=100, check_every=50)
+    b = M.DiskMemo(path, max_rows=500, scope_max=100, check_every=50)
+    mine = [M.digest(["victim", i]) for i in range(40)]
+    for k in mine:
+        assert a.first(k, 5, "victim") == (5, True)
+    for i in range(3000):                                   # another lineage (another world) floods the shared file
+        b.first(M.digest(["flood", i]), 1, "flood")
+    assert all(M.DiskMemo(path).first(k, 9, "victim") == (5, False) for k in mine)
+    import sqlite3
+    n = dict(sqlite3.connect(path).execute("SELECT scope, count(*) FROM memo GROUP BY scope").fetchall())
+    assert n["victim"] == 40 and n["flood"] <= 100 + 50, n
+    m = M.Memo(max_entries=10)                              # the in-process memo is bounded per lineage too
+    m.bill("v", 7, scope="victim")
+    for i in range(100):
+        m.bill(f"f{i}", 1, scope="flood")
+    assert m.bill("v", 8, scope="victim") == (7, "remembered")
+
+
+def test_jailed_browser_starts_below_a_root_only_tmpdir(tmp_path):
+    """DEFECTS DEF-P-16: Playwright creates Chromium's profile under the caller's TMPDIR; below a root-only directory
+    (an agent scratchpad of mode 700) the jail uid could not reach it and every jailed-browser test failed."""
+    from crucible.sandbox import isolation
+    ok, why = isolation.available()
+    assert ok, why
+    private = tmp_path / "private"
+    (private / "tmp").mkdir(parents=True)
+    os.chmod(private, 0o700)
+    code = ("from playwright.sync_api import sync_playwright\nfrom crucible.sandbox import isolation\n"
+            "exe, kw = isolation.browser_executable('rt-tmpdir-test')\n"
+            "with sync_playwright() as pw:\n"
+            "    b = pw.chromium.launch(headless=True, executable_path=exe, args=['--disable-gpu'], **kw)\n"
+            "    p = b.new_page()\n    p.set_content('<title>jailed</title><p>ok</p>')\n    print(p.title())\n"
+            "    b.close()\n")
+    env = {k: v for k, v in os.environ.items() if k != "CRUCIBLE_HOSTS_WORLDS"}
+    env.update(PYTHONPATH=SRC, TMPDIR=str(private / "tmp"))
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=180, env=env)
+    assert r.returncode == 0 and r.stdout.strip().splitlines()[-1] == "jailed", r.stderr[-1500:]
+
+
+def test_learner_host_runs_the_learner_jailed_with_only_its_participant_channel():
+    from crucible.sandbox import isolation
+    from crucible.sandbox.learnerhost import LearnerHost
+    ok, why = isolation.available()
+    assert ok, why
+    with LearnerHost("crucible.redteam.v5.adversaries:make", {"name": "prober", "seed": 0}) as h:
+        rep = h.call("probe")
+        assert h.jail_uid not in (0, 65534) and h.jail_uid == isolation.uid_for("learner-host")
+    found, att = rep["found"], rep["attempts"]
+    assert not {k for k in found if k in ("other_process_environ_read", "sealed_salt_read", "evaluator_memory_read",
+                                          "gc:evaluator", "tmp_listed")}, found
+    assert att["list_proc"] != "ok" and att["listdir /tmp"] != "ok", att
