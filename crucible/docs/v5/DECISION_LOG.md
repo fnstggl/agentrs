@@ -395,3 +395,16 @@ the participant (`KernelExperienceEnv._measures`: its cash plus the independent 
 administers), read evaluator side, never shown to the learner. A level counts as executable only when every test
 world is scored in both arms with at least three learner seeds and the training log passes the partition audit; the
 size or sign of the transfer gain is reported, not required.
+
+## D-71 Cross-tier training runs: compute-budgeted mixtures, one architecture-neutral learner for arms C and D, and reported tier failures (2026-11-26, workstream N, wave 3b)
+With Tier 2 domains (domains-framework/2, nine domains on this branch) and Tier 3 civilisations both present, an
+episode's compute differs by more than two orders of magnitude between tiers (a rapid episode ~0.1 CPU-s, a domain
+episode 0.1-8 s, a civilisation episode ~30 s). Deficit scheduling on measured compute (Part 14.2) then converges to
+the target shares only when the total is large against the dearest episode, so `sampler.run_mixture` takes a compute
+budget and the default-mixture gate (SP-14.2) runs 900 CPU-s instead of a fixed 60 episodes (the criterion - every
+tier instantiated, realised compute shares within 0.05 of 50/30/20 - is unchanged). The lever-interface learners act
+only in Tier 1, so the A/B/C/D comparison runs every arm with the architecture-neutral
+`crucible.experience.ReferenceLearner` (`comparison.NEUTRAL`), which acts through the tools of whatever world it is
+in; experience is counted in decisions. A Tier 2 package that fails to load is reported (`Registry.unavailable`,
+quoted by `TierUnavailable`) instead of failing the whole research instrument; domains that do not satisfy the
+framework contract are not merged into this branch (they make `crucible.domains.load_all` raise for every domain).
