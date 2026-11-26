@@ -50,7 +50,7 @@ SIGNATURES: dict[str, str] = {
     "product": r"product|catalog|(^|_)items?($|_)",
     "listing": r"listing|offer",
     "subscription": r"subscri|(^|_)subs?($|_)|member|nlsub|tier",
-    "relationship": r"follow|friend|(^|_)ties?($|_)|block|graph|edge|contact",
+    "relationship": r"follow|friend|(^|_)ties?($|_)|block|graph|(^|_)edges?($|_)|contact",
     "community": r"communit|board|club|group|cmember",
     "institution": r"constitution|charter|institution|(^|_)inst_|(^|_)gov|office|ballot|vote",
     "contract": r"contract|commitment|(^|_)deals?($|_)|agreement|mandate|claim",
@@ -110,6 +110,33 @@ REVIEWED: dict[str, dict] = {
     "popweb.cols:res": _r(None, _V, "web resources the population fetched (page cache, visit statistics)"),
     "pop_social.cols:pop": _r("population", _X, "content-creation counters of each individual (items written, "
                                                 "views last seen, last item), keyed by population row"),
+    # columns of the population table scanned one by one (wave 3, A): facts of other kinds kept per individual
+    "pop.cols:pop.contacts": _r("relationship", _D, "who each individual knows (contact rows, read by word of mouth "
+                                                    "in civgoods/work): a fourth tie graph next to forum follows, the "
+                                                    "social graph and the audience's follower sets"),
+    "pop.cols:pop.contact_trust": _r("relationship", _P, "trust per contact", "pop.cols:pop.contacts"),
+    "pop.cols:pop.communities": _r("community", _D, "boards each individual takes part in (forum board indices), "
+                                                    "a membership record of its own next to community.cols:cmember"),
+    "pop.cols:pop.policy_group": _r(None, _V, "index of the neural policy-sharing group (parameter sharing)"),
+    "pop.cols:pop.wallet_cents": _r("money", _X, "income accrued from the exogenous economy and not yet deposited "
+                                                 "(a claim on acct_external, not ledger money): an individual pays "
+                                                 "only after money_deposit moves it into its own bank account "
+                                                 "(bank.move), so no payment bypasses the ledger"),
+    "pop_social.cols:pop.soc_items": _r("content_artifact", _X, "how many pieces the individual published "
+                                                                "(counter over its catalogue items)"),
+    "pop_social.cols:pop.soc_last_item": _r("content_artifact", _X, "catalogue index of the individual's latest "
+                                                                    "piece"),
+    "aud.cols:pop.aud_c_item": _r("content_artifact", _X, "per-individual pointer into the catalogue (audience "
+                                                          "accounting state)"),
+    "aud.cols:pop.aud_i_item": _r("content_artifact", _X, "per-individual pointer into the catalogue (audience "
+                                                          "accounting state)"),
+    "aud.cols:aud_creators.followers": _r("relationship", _D, "follower sets of creators kept by the audience "
+                                                              "engine (bitsets fo:<creator>) and their counts: a "
+                                                              "follow graph of its own"),
+    **{f"aud.cols:{t}.{c}": _r("relationship", _P, "counts of follows decided in audience accounting",
+                               "aud.cols:aud_creators.followers")
+       for t, c in (("aud_creators", "follows"), ("aud_items", "follows"), ("aud_items", "pub_follows"),
+                    ("aud_items", "stg_follows"))},
     # ---------------------------------------------------------------- content
     "content.content": _r("content_artifact", _X, "content items of the catalogue (creator, platform, artifact "
                                                   "REFs)"),
@@ -231,6 +258,23 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                               "migration": "employment of individuals comes from accepted labour-market offers "
                                            "(employment contracts); the employer column becomes a cache derived "
                                            "from them, and random job loss/finding is removed"},
+    # found by scanning every column on its own (wave 3, A): per-individual ties and memberships, audience follows
+    "pop.cols:pop.contacts": {"target_owner": "social.cols:follow", "decision": "D-15/D-21", "workstream": "B+C",
+                              "expires": _WAVE2,
+                              "migration": "an individual's contacts are edges of the one social graph (a contact "
+                                           "tie with trust as an edge attribute) that word of mouth, recommenders "
+                                           "and follows all read; the column becomes a cache derived from the "
+                                           "edges or is removed"},
+    "pop.cols:pop.communities": {"target_owner": "community.communities", "decision": "D-15/D-21",
+                                 "workstream": "B+C", "expires": _WAVE2,
+                                 "migration": "memberships of individuals are the community module's membership "
+                                              "columns (community.cols:cmember); a forum board is a community's "
+                                              "discussion space; popweb reads memberships from there"},
+    "aud.cols:aud_creators.followers": {"target_owner": "social.cols:follow", "decision": "D-21", "workstream": "C",
+                                        "expires": _WAVE2,
+                                        "migration": "a follow decided in the consumption engine is a follow edge "
+                                                     "of the social graph (written through it); audience "
+                                                     "accounting keeps only counts derived from those edges"},
     # relationships, communities, institutions, contracts, subscriptions, listings: D-21 ownership decisions
     "social.cols:follow": {"target_owner": "social.cols:follow", "decision": "D-21", "workstream": "C+A",
                            "expires": _WAVE2,
@@ -376,7 +420,9 @@ def world_items(world) -> list[str]:
                 continue
             keys.append(f"{m}.cols:{table}")
             for c, who in sorted(by.items()):
-                if who == m and f"{m}.cols:{table}.{c}" in REVIEWED:
+                # every column is scanned on its own name too (the owner's and extensions' columns included: a
+                # population column of contacts is a relationship fact whoever declares it)
+                if who == m and (f"{m}.cols:{table}.{c}" in REVIEWED or _signature(c)):
                     keys.append(f"{m}.cols:{table}.{c}")
     for k in REVIEWED:
         if ".arrays:" in k:

@@ -125,8 +125,8 @@ def test_the_data_level_report_counts_the_facts_each_copy_holds():
     rep = P.check_no_duplicates(w)
     fr = rep["facts"]
     assert fr["problems"] == []
-    rel = [d for d in fr["known_duplicates"] if d["kind"] == "relationship"]
-    assert rel and rel[0]["table"] == "social.cols:follow"
+    rel = [d for d in fr["known_duplicates"] if d["table"] == "social.cols:follow"]
+    assert rel and rel[0]["kind"] == "relationship"
     assert rel[0]["owner"] == "forum.forum_follows" and rel[0]["owner_rows"] == len(w.state.tables["forum_follows"])
     assert rel[0]["owner_rows"] > 0 and rel[0]["rows"] == 0       # two unsynchronised graphs, measured
     from crucible.substrate import columns
@@ -191,3 +191,31 @@ def test_a_legacy_table_never_holds_facts_where_the_owner_is_installed(monkeypat
     monkeypatch.setitem(facts.REVIEWED, "factstest_oldties.factstest_old_ties",
                         facts._r("relationship", "legacy", "unverified"))
     assert any("names no test" in p for p in facts.audit(["factstest_oldties"])["problems"])
+
+
+@register_module
+class FactsColumns(Module):
+    """Columns on the population-like column table of a test module: one carries a tie (contacts), one does not."""
+    name = "factstest_cols"
+    depends = ("cols",)
+
+    def install(self, world):
+        from crucible.substrate import columns
+        columns.declare(world, "factstest_people", 8, {"contacts": ("int32", (4,), -1), "mood": ("float32", (), 0.0)})
+
+
+def test_every_column_is_scanned_on_its_own_name():
+    """A per-individual tie list declared as a column (as `pop.contacts` was) is a relationship fact whoever
+    declares it: the column-level scan finds it without any declaration; a neutral column stays private."""
+    w = World(WorldSpec("facts", 1, [{"name": m, "config": {}} for m in ["identity", "bank", "artifacts", "cols",
+                                                                          "factstest_cols"]]), "facts")
+    items = facts.world_items(w)
+    assert "factstest_cols.cols:factstest_people.contacts" in items
+    assert "factstest_cols.cols:factstest_people.mood" not in items
+    probs = facts.world_problems(w)
+    assert any("factstest_cols.cols:factstest_people.contacts" in p and "relationship" in p for p in probs)
+    a = facts.audit(["factstest_cols"])
+    assert "factstest_cols.cols:factstest_people.contacts" in a["unreviewed"]
+    # the population's own columns of other kinds are reviewed, and the duplicates are on the allow-list
+    for k in ("pop.cols:pop.contacts", "pop.cols:pop.communities", "aud.cols:aud_creators.followers"):
+        assert facts.REVIEWED[k]["role"] == "duplicate" and k in facts.KNOWN_DUPLICATES
