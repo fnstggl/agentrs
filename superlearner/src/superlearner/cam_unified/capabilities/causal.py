@@ -299,7 +299,8 @@ def measure_actions_differ(stack, heldout, all_steps: bool = False) -> dict:
     predictions; reported as the mean absolute pairwise difference and the per-tool means. Legacy: step 2 of the
     first held-out batch; ``all_steps``: averaged over every step of every held-out batch (DOM acceptance)."""
     model = stack.model
-    names = [t.name for t in stack.info["tools"]]
+    cand = stack.info.get("t1_actions") or {t.name: Action(tool=t.name) for t in stack.info["tools"]}
+    names = list(cand)
     preds = {n: [] for n in names}
     batches = heldout if all_steps else heldout[:1]
     for seq, aux in batches:
@@ -312,7 +313,7 @@ def measure_actions_differ(stack, heldout, all_steps: bool = False) -> dict:
             B = Z.shape[0]
             with torch.no_grad(), model._autocast():
                 for n in names:
-                    acts = [Action(tool=n) for _ in range(B)]
+                    acts = [copy.deepcopy(cand[n]) for _ in range(B)]
                     A = model.tokenizer.action(acts, [stack.info["tools"]] * B)
                     Zh, _ = model.world_model.prior(Z, A, bel, st.dt, sample=False)
                     d = model.world_model.outcome_dist(Zh, st.outcomes)
@@ -565,6 +566,10 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
                             component_kwargs=ckw or None)
         env = make_env(w, st.B)
         stack.info["tools"] = env.available_tools()[0]
+        if w == "interaction":
+            # one tool with two boolean arguments: the contemplated interventions are the four lever settings
+            stack.info["t1_actions"] = {f"x{int(x)}w{int(v)}": Action("set_levers", {"x": x, "w": v})
+                                        for x in (False, True) for v in (False, True)}
         eps = record(stack, env, st.record_episodes, st.seed * 10_007)
         rng.shuffle(eps)
         n_ho = max(2, int(len(eps) * st.heldout_frac))
@@ -700,7 +705,8 @@ def criteria(worlds: dict) -> dict:
     out = {}
     for w, r in worlds.items():
         t1 = r.get("t1_actions_differ", {}).get("mean_abs_pairwise_diff")
-        out[f"{w}/t1_mean_abs_pairwise_diff"] = {"value": t1, "pass": t1 is not None and t1 > 0.5}
+        if w != "switch":                  # the switch world has a single action: no pair to compare
+            out[f"{w}/t1_mean_abs_pairwise_diff"] = {"value": t1, "pass": t1 is not None and t1 == t1 and t1 > 0.5}
         c = r.get("consistency") or {}
         for k in ("cons_mse_var_teacher_forced", "cons_mse_var_mode1"):
             v = c.get(k)
