@@ -564,24 +564,39 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                 q = box["queue"]
                 if not any(x["ticket"] == ticket for x in q):
                     q.append(qentry)
-                if q[0]["ticket"] == ticket and fits(box["held"], req["cpu"], req["gpu_mb"], eff, ram_mb=req["ram_mb"],
-                                                     disk_mb=int(req["disk_mb"] or 0),
-                                                     inference=int(req["inference"] or 0),
-                                                     worlds=int(req["worlds"] or 0), free_disk_mb=free):
+                others = [h for h in box["held"] if h.get("reserving") != ticket]
+                head = q[0]["ticket"] == ticket
+                if head and fits(others, req["cpu"], req["gpu_mb"], eff, ram_mb=req["ram_mb"],
+                                 disk_mb=int(req["disk_mb"] or 0), inference=int(req["inference"] or 0),
+                                 worlds=int(req["worlds"] or 0), free_disk_mb=free):
                     box["queue"] = [x for x in q if x["ticket"] != ticket]
                     entry = {"pid": pid, "cpu": req["cpu"], "gpu_mb": req["gpu_mb"], "label": label,
                              "since": time.time(), "v": 2, "job": job or ticket,
-                             "cpus": choose_cpus(box["held"], req["cpu"]), "ram_mb": req["ram_mb"], "gpu_s": gpu_s,
+                             "cpus": choose_cpus(others, req["cpu"]), "ram_mb": req["ram_mb"], "gpu_s": gpu_s,
                              "disk_mb": req["disk_mb"], "inference": req["inference"], "worlds": req["worlds"],
                              "clamped": cut, "waited_s": round(time.time() - t0, 3)}
-                    box["held"].append(entry)
+                    box["held"] = others + [entry]
                     return entry
+                if head:
+                    # The head reserves what is free now and keeps it while it waits for the rest, so that clients
+                    # that do not read the queue (older copies of this module) cannot take it piece by piece.
+                    used_cpu = sum(int(h["cpu"]) for h in others)
+                    used_gpu = sum(int(h["gpu_mb"]) for h in others)
+                    r_cpu = max(0, min(req["cpu"], eff.cpus - used_cpu))
+                    r_gpu = max(0, min(req["gpu_mb"], eff.gpu_mb - used_gpu))
+                    if r_cpu or r_gpu:
+                        box["held"] = others + [{"pid": os.getpid(), "cpu": r_cpu, "gpu_mb": r_gpu, "ram_mb": 0,
+                                                 "label": f"(reserving for) {label}"[:120], "since": t0, "v": 2,
+                                                 "reserving": ticket, "cpus": []}]
+                    else:
+                        box["held"] = others
             if timeout_s is not None and time.time() - t0 > timeout_s:
                 raise TimeoutError(f"no slot for cpu={cpu} gpu_mb={gpu_mb} within {timeout_s}s")
             time.sleep(poll_s)
     except BaseException:
         with _ledger(d) as box:
             box["queue"] = [x for x in box["queue"] if x["ticket"] != ticket]
+            box["held"] = [h for h in box["held"] if h.get("reserving") != ticket]
         raise
 
 

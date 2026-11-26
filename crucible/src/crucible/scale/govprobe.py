@@ -352,9 +352,38 @@ def _sh(s: str) -> str:
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
+def reservation(d: str) -> dict:
+    """Budget 2 CPUs. A holds 1; B (2 CPUs) waits at the head of the queue. A client that does not read the queue
+    (the first version of this module: it admits whatever fits next to the held entries) must not be able to take
+    the CPU that B is waiting for."""
+    os.environ["CRUCIBLE_SLOTS_DIR"] = d
+    b = slots.Budget(cpus=2, gpu_mb=0, jobs=8)
+    sleeper = [PY, "-c", "import time; time.sleep(60)"]
+    a = subprocess.Popen(sleeper)
+    slots.acquire(1, 0, "A", b, pid=a.pid, d=d)
+    kb = subprocess.Popen(sleeper)
+    got = []
+    t = threading.Thread(target=lambda: got.append(slots.acquire(2, 0, "B", b, poll_s=0.05, pid=kb.pid, d=d)))
+    t.start()
+    time.sleep(0.5)
+
+    def old_client_fits(held):                     # the first version's rule: CPU, GPU and job count of held entries
+        return len(held) < b.jobs and sum(int(h["cpu"]) for h in held) + 1 <= b.cpus
+    with slots._ledger(d) as box:
+        blocked = not old_client_fits(box["held"])
+        reserved = sum(int(h["cpu"]) for h in box["held"] if h.get("reserving"))
+    a.kill()
+    a.wait()
+    t.join(10)
+    kb.kill()
+    kb.wait()
+    return {"rule": "reservation", "old_client_blocked": blocked, "reserved_cpus": reserved,
+            "head_admitted": bool(got), "contained": bool(blocked and got and reserved == 1)}
+
+
 DIMENSION_PROBES = {"cpu": cpu, "ram": ram, "gpu_mem": gpu_mem, "gpu_time": gpu_time, "disk": disk,
                     "inference": inference, "worlds": worlds}
-RULE_PROBES = {"fifo": fifo, "zombie": zombie, "escape": escape, "foreign": foreign,
+RULE_PROBES = {"fifo": fifo, "reservation": reservation, "zombie": zombie, "escape": escape, "foreign": foreign,
                "self_declared_budget": self_declared, "oversize": oversize, "nested": nested}
 
 
