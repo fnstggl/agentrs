@@ -1,8 +1,8 @@
 {
  "workstream": "L",
  "branch": "c5c/w3b-obs",
- "base": "55433e7 (feat/crucible-5-complete: waves 1, 2a, 3a + the integration fix); merged c5c/w3b-domfw f9e9d96",
- "summary": "Wave-3b continuation (in progress; see history for wave 3a). Re-ran every R/S/OO/SP-11 gate on the integrated tree with real civilisations: all Tier 3 parts pass; the only failures left are Tier 2 (no Part 9 domain registered yet). Added the out-of-process evaluation entry point (remote.evaluate: world, learner and evaluator in three processes, sealed seeds) with isolation probes (W.2/SP-16c), removed every CAM/AGENTRS import from the experience package and its tests (RP.1), re-probed the modules merged after wave 3a.",
+ "base": "55433e7 (feat/crucible-5-complete: waves 1, 2a, 3a + the integration fix) + feat/crucible-5-complete 1e11451 (D-28); merged read-only for the Tier 2 gates: c5c/w3b-domfw bcef0ab, c5c/w3b-dom1 81c4802, c5c/w3b-dom2 4e7c077, c5c/w3b-dom3 31eb000 (all fifteen Part 9 domains registered)",
+ "summary": "Wave-3b continuation (second agent; the first was stopped by a usage limit). All fifteen Part 9 domains are merged and registered; every Tier 2 part of Gates R, S, OO and SP-11 iterates over all of them. Tier 2 measurement repairs (D-68): OO.3 consequences adapt to the subsystems a restricted domain world composes; the domain verdict probe drives the scripted reference until the verdict is distinctive (<= 30 days) and names domains whose verdict stays non-distinctive; a hidden-mechanism probe (science laws and their coefficients) in the Tier 2 probes and the evaluation-path isolation probe. Out-of-process evaluation (remote.evaluate, D-66), RP.1 stand-ins (D-67) and the wave-3b re-probes of the predecessor kept. The full 15-domain gate runs are queued on GPU slots (see gate_runs); CPU dev-harness runs of the Tier 2 parts on 2-12 domains each are recorded per requirement.",
  "requirements": {
   "R.1": {
    "implementation_files": [
@@ -99,10 +99,10 @@
   },
   "R.n1": {
    "implementation_files": [
+    "src/crucible/experience/isolation.py",
     "src/crucible/experience/leakage.py",
     "src/crucible/experience/probes.py",
-    "src/crucible/experience/probes_tiers.py",
-    "src/crucible/experience/isolation.py"
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -128,8 +128,8 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; measured with the Part 9 domains merged on this branch (run pending at this commit)",
-   "notes": "c5c/w3b-dom1/dom2 merged read-only: startup, content, community, research, education, infrastructure"
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "c5c/w3b-dom1/dom2 merged read-only: startup, content, community, research, education, infrastructure; wave 3b (2): dev harness (CPU, crisis+marketplace): tier2_actions 235, tier2_world_changes 12 -> passes; 15-domain run queued"
   },
   "S.3": {
    "implementation_files": [
@@ -163,7 +163,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": ""
   },
   "S.6": {
@@ -208,8 +208,8 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit (Tiers 1 and 3 measured: 13 kinds)",
-   "notes": ""
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "wave 3b (2): dev harness (CPU, crisis+marketplace + Tier 3 civ): observation_kinds 13, tiers_supported 3 -> passes"
   },
   "SP-11.2": {
    "implementation_files": [
@@ -279,7 +279,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_1b.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": ""
   },
   "SP-11.4b": {
@@ -303,7 +303,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6c.py"
    ],
-   "status_claim": "implemented; run pending at this commit (slow, GPU)",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": ""
   },
   "SP-11.6d": {
@@ -338,15 +338,15 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit (Tiers 1 and 3: 0 families not observation-only)",
-   "notes": "only Part 9 domains count as Tier 2 (fixtures never)"
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "only Part 9 domains count as Tier 2 (fixtures never); wave 3b (2): dev harness (CPU, 10 domains = 50 configurations): 0 families not observation-only; Tier 3 measured in the gate run"
   },
   "OO.2": {
    "implementation_files": [
-    "src/crucible/experience/probes.py",
-    "src/crucible/experience/probes_tiers.py",
     "src/crucible/core/evaluator_only.py",
-    "src/crucible/experience/isolation.py"
+    "src/crucible/experience/isolation.py",
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py"
@@ -357,14 +357,15 @@
   "OO.3": {
    "implementation_files": [
     "src/crucible/experience/kernel.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/registry.py"
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/scripted.py",
+    "src/crucible/experience/tier1.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": ""
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "wave 3b (2): dev harness (CPU): startup shows all 7 kinds; industry/labor/software/crisis/marketplace lose none of the kinds they compose (D-68)"
   },
   "OO.4": {
    "implementation_files": [
@@ -376,8 +377,8 @@
     "tests/v5/test_gate_OO.py",
     "tests/test_v5_experience_isolation.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": "reachability now measured on the evaluation path (remote.evaluate + adversarial evaluated learner, sealed seed) per tier"
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "reachability now measured on the evaluation path (remote.evaluate + adversarial evaluated learner, sealed seed) per tier; wave 3b (2): dev harness (CPU, crisis + Tier 1 + Tier 3 civ isolation probe): verifier matches, not reachable, 0 hidden values reached"
   },
   "OO.5": {
    "implementation_files": [
@@ -388,7 +389,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; slow run pending at this commit",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": "civ day cost on the integrated tree (GPU slot): about 21 s per simulated day after a 4 s build, rss +2.1 GB after 10 days, ~11k events/day, log retained at 300k"
   },
   "OO.6": {
@@ -399,8 +400,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": ""
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "wave 3b (2): dev harness (CPU, 12 domains): every domain's curiosity learner made 5 weight-changing updates, env paid 0.0"
   },
   "OO.7": {
    "implementation_files": [
@@ -435,7 +436,7 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 entry point measurement pending at this commit",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": "the evaluation entry point (remote.evaluate) and its CLI are checked too"
   },
   "OO.10": {
@@ -447,8 +448,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": ""
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "wave 3b (2): dev harness (CPU, 8 domains): objective delivered, 0 progress values exposed, 0 rewards"
   },
   "OO.11": {
    "implementation_files": [
@@ -459,8 +460,8 @@
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": "Tier 2 worlds get the learner-side exp/goals modules"
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "Tier 2 worlds get the learner-side exp/goals modules; wave 3b (2): dev harness (CPU, 10 domains): every self-experiment resolved, 0 rewards"
   },
   "OO.12": {
    "implementation_files": [
@@ -474,33 +475,33 @@
   },
   "OO.14": {
    "implementation_files": [
-    "src/crucible/experience/probes_tiers.py",
     "src/crucible/experience/gym.py",
-    "src/crucible/experience/probes.py",
     "src/crucible/experience/isolation.py",
+    "src/crucible/experience/probes.py",
+    "src/crucible/experience/probes_tiers.py",
     "src/crucible/experience/registry.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
-   "notes": "Tier 2 probes adapt to restricted domain worlds and check the domain evaluator's verdict"
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
+   "notes": "Tier 2 probes adapt to restricted domain worlds and check the domain evaluator's verdict; wave 3b (2): per-domain probes (CPU, 13 domains: all except community/content, which need the GPU text path): 0 leaks; channels event_metadata, free_text, info, observation, tool_response"
   },
   "OO.16": {
    "implementation_files": [
     "src/crucible/experience/probes_tiers.py",
-    "src/crucible/experience/tier1.py",
-    "src/crucible/experience/registry.py"
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/tier1.py"
    ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
-   "status_claim": "implemented; Tier 2 measurement pending at this commit",
+   "status_claim": "implemented; 15-domain gate run queued on a GPU slot (not yet run at this commit)",
    "notes": ""
   }
  },
  "limitations": [
-  "Tier 2 coverage is what the domain workstreams had registered when merged here (read-only): startup 9.1, content 9.3, community 9.4 and research 9.5 (c5c/w3b-dom1 c1adbfa), education 9.10 and infrastructure 9.7 (c5c/w3b-dom2 b035ee6). c5c/w3b-dom3 (information 9.11, crisis 9.14, marketplace 9.13, commercialization 9.15) was not merged: built on the pre-framework contract (no Domain.fixture) when checked; later domain commits were not merged either. Every Tier 2 measurement iterates over experience.registry.domains(), so the integrated tree measures every registered Part 9 domain with the same code.",
+  "Tier 2 coverage: all fifteen Part 9 domains merged read-only (c5c/w3b-dom1 81c4802, dom2 4e7c077, dom3 31eb000, domfw bcef0ab). Later domain commits are not merged; every Tier 2 measurement iterates over experience.registry.tier2_domains(), so the integrated tree measures whatever is registered with the same code.",
   "Restricted domain worlds lack some channels (education/research have no workflow, institutions or commitment modules): those probes are recorded as not present for that world, never as 'no leak'; the remaining channels (observation, info, tool responses, event metadata, free text, identity, predicate oracles via self-goals) are probed.",
   "Evaluation isolation (D-66) is a process boundary of one uid: Yama ptrace scope 1 keeps sibling memory unreadable, but plumbing pipes (stdout/stderr, the multiprocessing resource tracker) of the other processes can be opened through /proc; no uid or seccomp jail for the learner process. Fixed explicit seeds (e.g. SP-11.6c's held-out seeds 11-14) are guessable by a learner that attacks; only sealed seeds defeat the rebuild attack.",
   "make() remains in-process for development and training; a learner given its object reaches the hidden grader by construction (positive control). The red-team probe of workstream O still measures make() until it is retargeted (integration note).",
@@ -1021,5 +1022,13 @@
     "When the civ fix lands, rerun: tests/v5/test_gate_R.py, test_gate_S.py (S.3, S.5), test_gate_OO.py, test_gate_SP_11_1.py, test_gate_SP_11_1b.py, test_gate_SP_2_2.py, test_gate_SP_11_6c.py."
    ]
   }
- ]
+ ],
+ "gate_runs": {
+  "queued_at_2026-11-26T20:20Z": {
+   "fast": "R, S, SP-11.1/1b/2/3/4/4b/5/6/6b/6d, SP-2.2, OO.2/7/8/9/12 (GPU slot, latest branch commit at admission)",
+   "oo_tier2": "OO.1, OO.3, OO.4, OO.6, OO.10, OO.11, OO.14, OO.16 over the fifteen domains",
+   "oo5": "OO.5 (90 objective-free days per Part 9 domain + civilisation, slow)",
+   "sp_11_6c": "SP-11.6c (slow, Qwen3-1.7B + improvement over frozen copies)"
+  }
+ }
 }
