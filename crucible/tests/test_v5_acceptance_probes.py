@@ -656,3 +656,21 @@ def test_testscan_flags_the_new_evasions():
     for conf in (FLIP_CONFTEST, SKIP_BODY_CONFTEST):
         assert testscan.harness_findings(conf), conf
     assert testscan.harness_findings("import os, sys\nsys.path.insert(0, os.path.dirname(__file__))\n") == []
+
+
+def test_ablate_source_keeps_module_code_and_makes_every_function_raise():
+    from crucible.acceptance.v5 import official
+    src = ('"""doc"""\nfrom __future__ import annotations\nX = 3\n\n\ndef f(a):\n    """f doc"""\n    return a + X\n\n\n'
+           'class C:\n    k = 2\n\n    def m(self):\n        def inner():\n            return 1\n        return inner()\n\n'
+           '    @property\n    def p(self):\n        return 5\n\n\nasync def g():\n    return 1\n\n\ndef gen():\n    yield 1\n')
+    new, n = official.ablate_source(src, "mod.py")
+    assert n == 5                                        # f, C.m, C.p, g, gen (inner disappears with m's body)
+    ns: dict = {}
+    exec(compile(new, "mod.py", "exec"), ns)
+    assert ns["X"] == 3 and ns["C"].k == 2 and ns["f"].__doc__ == "f doc"
+    exc = ns[official.ABLATION_EXC]
+    assert issubclass(exc, BaseException) and not issubclass(exc, Exception)
+    for call in (lambda: ns["f"](1), lambda: ns["C"]().m(), lambda: ns["C"]().p, lambda: ns["gen"]()):
+        with pytest.raises(exc):
+            call()
+    assert new.splitlines()[1] == "from __future__ import annotations"
