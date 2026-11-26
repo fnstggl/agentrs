@@ -49,18 +49,22 @@ def _pg(name: str, **kw):
 
 # ====================================================================== 8.1 hidden causal systems
 @_pg("cx_competing_causes", category="8.1", item="8.1.4", split="train",
-        doc="Two spending levers moved together in the previous operator's records, both following a hidden demand "
-            "cycle that also drives sales: either lever 'explains' the history equally well. Only one of them causes "
-            "sales; the other costs money and does nothing.",
+        doc="Two levers moved together in the previous operator's records, both following a hidden demand cycle "
+            "that also drives sales: either lever 'explains' the history equally well. Only one of them causes "
+            "sales. Predict sales at combinations of the two settings outside what can be set, as interventions: "
+            "the records attribute the effect to both levers, only experiments separate them.",
         distinct_because="compose chain whose second lever is causally inert, plus one hidden common driver of both "
                          "levers' historical regimes and of the outcome: two collinear candidate causes that passive "
-                         "records cannot separate and intervention can",
+                         "records cannot separate and intervention can; scored by interventional predictions at "
+                         "held-out conditions",
         axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0, "experiment_cost": 1.0,
-              "resources": 60.0}, objective="maximize_net",
-        claims=(C + "competing_causes",), identify=C + "which_lever_causes", lever_view=True)
+              "resources": 60.0}, objective="predict_heldout",
+        claims=(C + "competing_causes",), identify=C + "which_lever_causes", lever_view=True,
+        reference="crucible.rapid.refs_adapt:interleaved_law_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def cx_competing_causes(rng, d):
     c = Composed(rng, _base(d, topology="chain", motifs=["saturation", "linear_nonlinear"],
-                            affordances=["levers", "experiment"]))
+                            affordances=["levers", "experiment", "message"]))
     a, b = c.levers
     m0, m1 = c.motifs
     c.drop_input(m0, b)
@@ -70,12 +74,18 @@ def cx_competing_causes(rng, d):
     c.add_input(m1, "x", U, 0, u(rng, 2.0, 3.0))
     exp = {"vars": [c.name_of(a), c.name_of(b)], "measure": [c.gauge_of(c.sold)], "cost": float(d["experiment_cost"]),
            "budget": float(d["resources"]), "max_ticks": 3, "max_replicates": 4}
+    held = [{c.name_of(a): p, c.name_of(b): q} for p, q in
+            ((12.0, 1.0), (14.0, 9.0), (1.0, 13.0), (8.0, 14.0), (16.0, 4.0), (11.0, 11.0))]
+    text = ("Predict mean units sold if the two spending levers were set to these values (partly outside what you "
+            f"can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
     cfg = c.finish(warmup=40, brief="A shop with two spending levers. Gauges: units sold and an engagement count. "
                                     "You have the previous operator's records, and a pilot store for trials.",
-                   objective={"type": "maximize_net", "text": SHOP}, experiment=exp,
+                   objective={"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text},
+                   experiment=exp, journal=True,
                    claim={"lever": a, "inert": b, "outcome": c.sold, "confounder": U})
-    costs = price_levers_at(cfg, {a: u(rng, 6.0, 8.0), b: 0.0})
-    cfg["nodes"][int(b[1:])]["lever"]["cost"] = costs[a] * u(rng, 0.7, 1.0)
+    for lv in (a, b):                                     # spending costs nothing here: the question is causal
+        cfg["nodes"][int(lv[1:])]["lever"]["cost"] = 0.0
     return cfg
 
 
