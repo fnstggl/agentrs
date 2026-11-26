@@ -337,6 +337,26 @@ print("@@JSON@@" + json.dumps({"hits": sorted(set(hits)), "packages_loaded": loa
 '''
 
 
+def _denylist_strings(src: str) -> dict[int, list[str]]:
+    """line -> dotted `crucible.` module paths that are elements of a literal collection of at least two such paths (a
+    denylist of modules that must not be reachable, e.g. the red team's isolation probe): naming a module there is
+    not a use of it. Imports, import_module/__import__ calls and the store's file and variable names still count."""
+    import ast
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return {}
+    out: dict[int, list[str]] = {}
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Tuple, ast.List, ast.Set)):
+            mods = [e for e in n.elts if isinstance(e, ast.Constant) and isinstance(e.value, str) and
+                    re.fullmatch(r"crucible(\.\w+)+", e.value)]
+            if len(mods) >= 2 and len(mods) == len(n.elts):
+                for e in mods:
+                    out.setdefault(e.lineno, []).append(e.value)
+    return out
+
+
 def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps: int = 48) -> dict:
     root = root or M.crucible_root()
     d = sealed_dir()
@@ -359,12 +379,22 @@ def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps
     except (OSError, ValueError):
         pass
     over = [k for k, v in reg.items() if v.get("contaminated") or v.get("accesses", 0) > v.get("budget", 0)]
-    static = []
+    static, denylisted = [], []
     for f in v5_source_files(root):
         txt = open(os.path.join(root, f), encoding="utf-8", errors="replace").read()
+        deny = _denylist_strings(txt)
         for k, line in enumerate(txt.splitlines(), 1):
             code = line.split("#", 1)[0]
-            if any(n in code for n in SEALED_NAMES) or re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", code):
+            hit = any(n in code for n in SEALED_NAMES) or re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", code)
+            if hit and k in deny:                    # a module-path denylist entry names the module without using it
+                rest = code
+                for d in deny[k]:
+                    rest = rest.replace(repr(d), "").replace(f'"{d}"', "")
+                if not (any(n in rest for n in SEALED_NAMES) or
+                        re.search(r"from\s+\S*research\S*\s+import\s+.*\bsealed\b", rest)):
+                    denylisted.append(f"{f}:{k}")
+                    continue
+            if hit:
                 static.append(f"{f}:{k}")
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     env.update(PYTHONPATH=os.path.join(root, "src"), OMP_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1")
@@ -377,9 +407,10 @@ def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps
                         "sealed_sets_contaminated_or_over_budget": len(over),
                         "v5_files_scanned": len(v5_source_files(root)), "v5_static_references_to_sealed_store": len(static),
                         "v5_runtime_sealed_opens": len(dyn["hits"]), "v5_workload_steps": dyn["steps"],
+                        "v5_denylist_mentions_of_sealed_module": len(denylisted),
                         "v5_packages_loaded_under_audit": dyn["packages_loaded"],
                         "sealed_leak_findings": len(static) + len(dyn["hits"]) + len(after) + len(over)},
-            "changed": changed, "static": static[:20], "runtime_hits": dyn["hits"][:20],
+            "changed": changed, "static": static[:20], "denylisted": denylisted[:20], "runtime_hits": dyn["hits"][:20],
             "probe_stderr": p.stderr[-1500:]}
 
 

@@ -9,6 +9,7 @@
     python -m crucible.acceptance.v5 sync-status                   # write the checker's statuses into the manifest
     python -m crucible.acceptance.v5 final-report [--out docs/v5/FINAL_REPORT.md]
     python -m crucible.acceptance.v5 progress validate | progress milestone --title ... --completed ... --next ...
+    python -m crucible.acceptance.v5 progress interrupted --workstream B --why ... --recovery-branch ... --reassigned-to ...
 
 Exit codes of --verify-all: 0 CRUCIBLE_5_COMPLETE, 1 IN_PROGRESS, 3 INCOMPLETE_BLOCKED.
 Run from the `crucible/` directory with PYTHONPATH=src. `run` and `review` work in fresh clones of committed trees;
@@ -94,13 +95,17 @@ def main(argv: list[str] | None = None) -> int:
     fr = sub.add_parser("final-report")
     fr.add_argument("--out", default=None)
     pg = sub.add_parser("progress")
-    pg.add_argument("action", choices=("validate", "milestone"))
+    pg.add_argument("action", choices=("validate", "milestone", "interrupted"))
     pg.add_argument("--title", default="")
     pg.add_argument("--completed", action="append", default=[])
     pg.add_argument("--next", dest="next_actions", action="append", default=[])
     pg.add_argument("--problem", dest="problems", action="append", default=[])
     pg.add_argument("--workstream", dest="workstreams", action="append", default=[])
     pg.add_argument("--junit", action="append", default=[])
+    pg.add_argument("--why", default="", help="interrupted: what interrupted the workstream")
+    pg.add_argument("--recovery-branch", default="", help="interrupted: the branch holding its committed work")
+    pg.add_argument("--reassigned-to", default="", help="interrupted: who took the work over")
+    pg.add_argument("--status", default="reassigned", help="interrupted: reassigned | resumed | completed | abandoned")
     a = ap.parse_args(argv)
     if a.verify_all or a.cmd in ("report", "sync-status"):
         res = verify_all(reproduce=bool(a.verify_all and a.reproduce), agent=a.agent)
@@ -154,6 +159,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {p}")
             print(f"{len(probs)} problems")
             return 1 if probs else 0
+        if a.action == "interrupted":
+            if len(a.workstreams) != 1:
+                raise SystemExit("progress interrupted takes exactly one --workstream")
+            e = progress.add_interrupted(workstream=a.workstreams[0], why=a.why, recovery_branch=a.recovery_branch,
+                                         reassigned_to=a.reassigned_to, status=a.status)
+            print(f"interrupted workstream {e['workstream']} ({e['recovery_branch']}): {e['status']}, "
+                  f"reassigned to {e['reassigned_to']}")
+            return 0
         ms = progress.add_milestone(title=a.title, completed=a.completed, next_actions=a.next_actions,
                                     problems=a.problems, workstreams=a.workstreams, junit=a.junit)
         print(f"milestone {ms['id']} recorded at {ms['commit'][:9]}: {len(ms['remaining_requirements'])} requirements "

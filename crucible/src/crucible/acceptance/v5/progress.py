@@ -6,6 +6,8 @@ failed tests, known integration problems, remaining requirements (exact ids), ne
 
     python -m crucible.acceptance.v5 progress validate
     python -m crucible.acceptance.v5 progress milestone --title "..." --completed "..." --next "..." [--junit x.xml]
+    python -m crucible.acceptance.v5 progress interrupted --workstream B --why "usage limit" --recovery-branch c5c/w1-x \
+        --reassigned-to "P (c5c/w3-qa)" --status reassigned
 """
 from __future__ import annotations
 
@@ -173,3 +175,31 @@ def add_milestone(*, title: str, completed: list[str], next_actions: list[str], 
     d["milestones"].append(ms)
     save(d, root)
     return ms
+
+
+INTERRUPTED_STATUSES = ("reassigned", "resumed", "completed", "abandoned")
+
+
+def add_interrupted(*, workstream: str, why: str, recovery_branch: str, reassigned_to: str, status: str = "reassigned",
+                    root: str | None = None) -> dict:
+    """Record (or update) a sub-agent that terminated early and who took its work over (Part 1.5). An entry is keyed
+    by workstream and recovery branch; earlier states are kept in its `history`."""
+    if status not in INTERRUPTED_STATUSES:
+        raise ValueError(f"status must be one of {INTERRUPTED_STATUSES}")
+    if not (workstream and why and recovery_branch and reassigned_to):
+        raise ValueError("workstream, why, recovery branch and reassignment are all required")
+    root = root or M.crucible_root()
+    d = load(root)
+    iw = d.setdefault("interrupted_workstreams", [])
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")
+    e = next((w for w in iw if w.get("workstream") == workstream and w.get("recovery_branch") == recovery_branch), None)
+    if e is None:
+        e = {"workstream": workstream, "interrupted": why, "recovery_branch": recovery_branch,
+             "reassigned_to": reassigned_to, "status": status, "recorded_at": now}
+        iw.append(e)
+    else:
+        e.setdefault("history", []).append({k: e.get(k) for k in ("interrupted", "reassigned_to", "status")} |
+                                           {"until": now})
+        e.update(interrupted=why, reassigned_to=reassigned_to, status=status, recorded_at=now)
+    save(d, root)
+    return e

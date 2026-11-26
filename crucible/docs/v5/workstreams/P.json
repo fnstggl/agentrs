@@ -1,6 +1,6 @@
 {
  "workstream": "P",
- "branch": "c5c/w1-qa",
+ "branch": "c5c/w3-qa",
  "requirements": {
   "A.2": {
    "implementation_files": [
@@ -10,8 +10,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "109 definitions (74 world, 25 mechanism, 10 useful-work families) on 2 seeds byte-identical to c07098b."
+   "status_claim": "measured on 87a6c54: passes",
+   "notes": "109 definitions (74 world, 25 mechanism, 10 useful-work) on 2 seeds: 0 changed, 0 missing, 0 generation errors against an extracted c07098b tree."
   },
   "A.3": {
    "implementation_files": [
@@ -21,8 +21,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "All 74 4.0 world families build and advance 2 days on seeds 0 and 1."
+   "status_claim": "measured on 87a6c54: passes",
+   "notes": "74 of 74 4.0 world families build and advance 2 days on seeds 0 and 1."
   },
   "A.4": {
    "implementation_files": [
@@ -31,8 +31,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "Sealed store metadata equal to docs/v5/baselines/sealed_store.json (contents of salt and tasks never read), no access-log entry after 2026-11-25, 0 static references in 228 v5 files, 0 runtime opens under an audit hook over 12 v5 packages and 48 Tier 1 steps."
+   "status_claim": "measured: passes after the scan refinement (failed on 87a6c54 with 1 static reference)",
+   "notes": "On 87a6c54 the static scan counted src/crucible/redteam/v5/isolation.py:23, a module-path denylist of the red team's isolation probe that names crucible.research.sealed without importing it. The scan now reports such denylist entries as v5_denylist_mentions_of_sealed_module (1) instead of a reference; imports, import_module/__import__ and the store's file and variable names still count. Measured: 0 sealed files changed (5 checked), 0 access-log entries after 2026-11-25, 0 static references in 320 v5 files, 0 runtime opens under the audit hook (12 packages, 48 steps)."
   },
   "A.5": {
    "implementation_files": [
@@ -42,8 +42,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; fails (1 record unresolved)",
-   "notes": "Measured locally: 148 of 148 4.0 world trajectories in 4.0's deterministic mode equal c07098b's (under the default measured-CPU cost model even c07098b differs between fresh executions, documented 4.0 behaviour). Of the 16 acceptance records A-P and 2 demos, the first full run reproduced 14; after excluding provenance (the N record's own commit, durations inside summary strings) and fixing the demo_social_org command, N and demo_social_org reproduce; O differs from its record by about 3e-2 relative but c07098b regenerates exactly the current tree's numbers, so it is counted as reproduced and reported as v4_self_irreproducible_records; demo_lifetime (78,353 vs 73,617 events) is unresolved (DEF-P-13). The full gate was not rerun after the fixes (slot scheduler saturated)."
+   "status_claim": "measured on 87a6c54: fails (7 mismatches; D-20 cross-process nondeterminism DEF-P-27, D-19 digest change, stale demo record DEF-P-13)",
+   "notes": "demo_lifetime (bazaar, seed 7, 30 days), regenerated with --out/--store in clean trees: record 73,617 events / dc8a6794; c07098b 78,353 / 9b08db59 twice (deterministic, but not the record: the record is stale in 4.0 itself); 3df5faf (the commit that last wrote the record) 73,617 / 2b679e64 (event count reproduced, digest not). Bisect of the first-parent merges: 3043334 and 7ce3db0 = c07098b; 1c3d69d (observation-only L, D-19) and 2d0f4ce 78,353 / 6fa80946 (state digest changed, same events); 33b5f2b (O, D-20 parent-measured metering) 74,735 / 94c48108; 87a6c54 74,280 / 753ff574. So the merged tree changes 4.0's own trajectory (baseline.prior_results classifies it as a mismatch, correctly), and the record would be v4_self_irreproducible even without v5. Agents differ materially (Builder bob's 30-day independent revenue 314,868 at c07098b vs 2,289,257 at 87a6c54). Full A.5 gate on 87a6c54 (21 min): v4_trajectories_compared 148, v4_trajectory_mismatches 0, v4_nondeterministic_trajectories 0; reproduction_candidates 21 (3 documented unreproducible), 18 attempted, reproduced_exactly_as_recorded 10, v4_self_irreproducible_records 1, reproduction_mismatches 7 (A, B, G, H, I, M records and demo_lifetime), reproduced_results 11 < 18. demo_lifetime gave 78,900 events in this run and 74,280 in another fresh process at the same commit: since the D-20 merge 4.0 worlds with sandboxed programs are not reproducible across processes (DEF-P-27, critical)."
   },
   "A.1": {
    "implementation_files": [
@@ -53,8 +53,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; full run not completed in this session",
-   "notes": "Harness validated on tests/test_discovery.py and tests/test_kernel.py (44 baseline node ids, all pass by id, including the formerly failing discovery test); 0 of the 54 4.0 baseline test files changed since c07098b. The full 1,076-node run was queued behind the slot scheduler (all 8 job slots held by other workstreams) and did not start. Needs the GPU visible for 0 skips."
+   "status_claim": "measured on the merged tree 87a6c54: fails (conflict DEF-P-24 plus 2 real regressions)",
+   "notes": "First full run of all 1,076 baseline node ids (4 workers, GPU visible, slot scheduler, 10.4 min): 1,076 cases, 0 skipped (both Qwen GPU tests ran and passed), 1,054 baseline ids passed, 21 not passed, 1 missing (test_sandbox::test_deterministic_line_accounting, renamed under D-20), 11 4.0 test files modified since c07098b. Of the 21: 19 fail only because TMPDIR was in the agent scratchpad (5 jailed-Chromium, 14 PostgreSQL; all 19 pass with TMPDIR unset, DEF-P-16); 2 remain: test_scale::test_workers_are_recycled_after_a_fixed_number_of_jobs (a native thread from huggingface_hub imported at load time by semantic/space, DEF-P-25; passes at c07098b) and test_ow_worlds::test_end_to_end_only_working_software_earns_a_living (passes alone, fails after other 4.0 test modules in the same process: order-dependent, DEF-P-26). The criteria v4_test_files_modified == 0 and baseline_node_ids_missing == 0 cannot hold under Clarification 2/D-19/D-20 as merged (DEF-P-24, needs a decision)."
   },
   "X.1": {
    "implementation_files": [
@@ -122,8 +122,8 @@
    "tests": [
     "tests/v5/test_gate_X.py"
    ],
-   "status_claim": "implemented; fails honestly until integration completes",
-   "notes": "94 defects registered from the audits (every critical finding) and P's findings; 3 fixed by this branch."
+   "status_claim": "implemented; fails honestly (95 open critical/high defects)",
+   "notes": "Register: 109 defects, 0 malformed, every critical finding of all 15 audits registered (the 6 B_population.json findings were unregistered; now indexed: DEF-B-1..6). New: DEF-P-14..25 (9 fixed acceptance holes, 3 open)."
   },
   "X.7": {
    "implementation_files": [
@@ -134,7 +134,7 @@
     "tests/v5/test_gate_X.py"
    ],
    "status_claim": "implemented; fails honestly until integration completes",
-   "notes": "13 gate tests assert nothing (F.4, F.5, F.n1, H.1-H.8, H.n1, SP-3.2b); 204 manifest ids are recorded by no test."
+   "notes": "Stricter detector (patches through fixtures/helpers/classes with restores and negative controls, broad swallows, constants through helpers, module dicts, dict() and pure builtins): on the real gate tests the flagged count is unchanged at 17 of 214 tests in 61 files (15 no_assert, 1 early_return, 1 swallow) - no false positives from the new rules; 149 manifest ids recorded by no test."
   },
   "X.8": {
    "implementation_files": [
@@ -177,8 +177,8 @@
    "tests": [
     "tests/v5/test_gate_SP_1_3.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "MASTER_SPEC sha256 7b35feb3... equals the anchor and the file at 4a7591e and a881d18; stale integration-branch references fixed."
+   "status_claim": "measured locally on c5c/w3-qa: passes",
+   "notes": "10 of 10 documents, MASTER_SPEC sha256 equals the anchor, 0 stale branch references."
   },
   "SP-1.3b": {
    "implementation_files": [
@@ -187,30 +187,32 @@
    "tests": [
     "tests/v5/test_gate_SP_1_3.py"
    ],
-   "status_claim": "implemented; fails honestly",
-   "notes": "262 of 354 entries have no implementation files; no entry has a verified implementation commit yet."
+   "status_claim": "fails honestly",
+   "notes": "After merge-workstreams: 212 of 354 entries without implementation files (was 262), 354 without a verified commit."
   },
   "SP-1.5": {
    "implementation_files": [
     "src/crucible/acceptance/v5/progress.py",
+    "src/crucible/acceptance/v5/__main__.py",
     "docs/v5/PROGRESS.json"
    ],
    "tests": [
     "tests/v5/test_gate_SP_1_5.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "Machine-readable ledger with M0-M4 (backfilled from PROGRESS.md and git, marked backfilled) and a validator."
+   "status_claim": "implemented; measured locally: passes on the integration head 97bf56c (M5)",
+   "notes": "progress validate: 0 problems on 97bf56c (6 milestones, 13 interrupted workstreams); progress milestone works (0.7 s); new: progress interrupted --workstream --why --recovery-branch --reassigned-to [--status] records or updates an interrupted sub-agent with history."
   },
   "SP-1.5b": {
    "implementation_files": [
     "src/crucible/acceptance/v5/progress.py",
+    "src/crucible/acceptance/v5/__main__.py",
     "docs/v5/PROGRESS.json"
    ],
    "tests": [
     "tests/v5/test_gate_SP_1_5.py"
    ],
-   "status_claim": "implemented; measured locally: passes",
-   "notes": "13 interrupted workstreams with recovery branch and reassignment."
+   "status_claim": "measured locally: passes (13 interrupted workstreams, 0 unassigned)",
+   "notes": "The wave-1 and wave-2a interruptions (usage limit) are not yet recorded as interrupted workstreams; the orchestrator records them with `progress interrupted` on the integration branch."
   },
   "SP-18": {
    "implementation_files": [
@@ -219,8 +221,8 @@
    "tests": [
     "tests/v5/test_gate_SP_18.py"
    ],
-   "status_claim": "implemented; fails honestly (0 of 18 rows verified)",
-   "notes": "The committed FINAL_REPORT.md table must equal the checker's current table; regenerate with final-report after each evidence change."
+   "status_claim": "fails honestly (0 of 18 rows verified)",
+   "notes": "FINAL_REPORT.md regenerated after merge-workstreams (f66fed2)."
   },
   "SP-20": {
    "implementation_files": [
@@ -229,8 +231,8 @@
    "tests": [
     "tests/v5/test_gate_SP_20.py"
    ],
-   "status_claim": "implemented; fails honestly",
-   "notes": "21 deliverables mapped to requirements."
+   "status_claim": "fails honestly",
+   "notes": "16 of 21 deliverables present, 0 verified."
   },
   "SP-20b": {
    "implementation_files": [
@@ -245,22 +247,22 @@
   },
   "SP-21": {
    "implementation_files": [
-    "src/crucible/acceptance/v5/checker.py",
-    "src/crucible/acceptance/v5/manifest.py",
-    "src/crucible/acceptance/v5/ledger.py",
-    "src/crucible/acceptance/v5/evidence.py",
-    "src/crucible/acceptance/v5/official.py",
-    "src/crucible/acceptance/v5/testscan.py",
     "src/crucible/acceptance/v5/__main__.py",
-    "src/crucible/acceptance/v5/requirements.py"
+    "src/crucible/acceptance/v5/checker.py",
+    "src/crucible/acceptance/v5/evidence.py",
+    "src/crucible/acceptance/v5/ledger.py",
+    "src/crucible/acceptance/v5/manifest.py",
+    "src/crucible/acceptance/v5/official.py",
+    "src/crucible/acceptance/v5/requirements.py",
+    "src/crucible/acceptance/v5/testscan.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_21.py",
     "tests/test_v5_acceptance_checker.py",
-    "tests/acceptance_kit.py"
+    "tests/test_v5_acceptance_probes.py"
    ],
-   "status_claim": "implemented; see measured counts in the final report",
-   "notes": "The 11 probes of the audit script and P12-P14 plus variants (16 probe tests) all fail to reach VERIFIED; three project statuses; CLI exit codes 0/1/3."
+   "status_claim": "implemented and adversarially re-verified; measured locally: passes (official evidence not produced: integration branch)",
+   "notes": "Wave 3 attacked the D-24 checker with 34 new fabrication probes (tests/test_v5_acceptance_probes.py, P15-P30, throwaway repositories with the real acceptance package): 29 succeeded on 87a6c54 (VERIFIED, a terminal project status or an accepted self-review), 5 were already rejected; all 34 are rejected after D-26. Measured locally (unofficial): tests/test_v5_acceptance_checker.py + tests/test_v5_acceptance_probes.py 80 passed (11.5 min, 1 CPU); the SP-21 gate test ran 54 probe tests, 0 reaching VERIFIED, 3 project statuses, exit codes unverified 1 / verified without the release check 1 / with it 0, manifest anchored. A real-repository S1 probe (SP-1.5 with a committed defect in progress.validate, measured and reviewed through a poisoned interpreter whose .pth hook restores the honest function; the run passed and the colluding review approved) is rejected by the checker: IMPLEMENTED_UNVERIFIED with 'unrecognised interpreter startup hooks' on the evidence and on the reproduction."
   },
   "SP-19.7": {
    "implementation_files": [
@@ -270,19 +272,20 @@
    "tests": [
     "tests/v5/test_gate_SP_21.py"
    ],
-   "status_claim": "implemented",
-   "notes": "Ledger chain, git append-only history, no removal, stricter-only criteria."
+   "status_claim": "implemented; measured locally: passes",
+   "notes": "Checked across git history as well: 0 requirements removed and 0 criteria weakened against all 6 committed manifest versions (11 commits) and all 5 derive() versions of requirements.py (11 commits) in HEAD's history; the check is now permanent (manifest.history_problems) and the spec anchor is immutable. merge-workstreams after the wave-1/2a merges appended 82 ledger entries (additions only)."
   },
   "SP-21b": {
    "implementation_files": [
     "src/crucible/acceptance/v5/checker.py",
+    "src/crucible/acceptance/v5/evidence.py",
     "src/crucible/acceptance/v5/official.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_21.py"
    ],
-   "status_claim": "implemented",
-   "notes": "Dirty tree blocks completion; --reproduce detects a change outside the tree that static checks cannot see."
+   "status_claim": "implemented; the release check now re-executes and ablates at HEAD and is the only way to a terminal status",
+   "notes": "Measured locally: verify_all_checks_committed_tree, verify_all_checks_regression and verify_all_reproduces_in_clean_checkout all true (the static row stays VERIFIED after an external change but the project is IN_PROGRESS; the release reproduction at HEAD - reproduction commit == HEAD - fails it)."
   },
   "RP.1": {
    "implementation_files": [
@@ -348,21 +351,25 @@
   }
  },
  "limitations": [
-  "Identities are declared agent names plus hashed session ids, not signatures; a determined forger with write access can fabricate consistent files, which only the release-time --verify-all --reproduce exposes.",
-  "Static genuineness checks (constants, missing assertions, skips, mocks, patches, imports of implementation modules) do not prove a test measures the right thing; mutation testing of implementation files is not implemented.",
-  "OO.13 and OO.15 are P-owned but their canonical gate file tests/v5/test_gate_OO.py belongs to workstream L; no test written for them here.",
-  "Gate A.1 and A.5 are long (about 40 and 35 CPU-minutes); A.1 needs a GPU slot for zero skips.",
-  "X.8 attributes kernel events to packages by event-type prefix; it can only pass once crucible.civ.generate exists.",
-  "The 101 requirements added under D-22 have no gate tests; their owners must write them."
+  "Identities are declared agent names plus hashed session ids, not signatures; a forger with write access can fabricate consistent files. Since D-26 such a forgery cannot reach a terminal project status: only the release check (re-execution and ablation at HEAD) gives one.",
+  "The interpreter's own files (standard library, installed packages) are trusted; a poisoned site-packages without a new start-up hook is not detected. Run the release check in an environment installed from requirements.lock.txt.",
+  "Static detection has limits: registry insertions paired with a removal count as negative controls; constants laundered through another module or arbitrary computation, recorded after a call of the implementation, pass both the static detector and the ablation. Ablation shows dependence on the implementation, not that the right property is measured; requirements whose implementation lists no Python module are not ablated.",
+  "The foreign-module rule rejects gate tests that import code they generated outside the clone (none of the current gate tests does).",
+  "A.1 cannot pass as specified (DEF-P-24 conflict with Clarification 2 / D-19 / D-20); A.5's demo_lifetime record is stale in 4.0 itself (see A.5).",
+  "OO.13 and OO.15 (P-owned) still have no measurement in tests/v5/test_gate_OO.py (workstream L's file).",
+  "X.8 needs crucible.civ.generate (being fixed by the integration engineer); every world workstream measures as disconnected until then.",
+  "Official evidence was not produced (by instruction: produced later on the integration branch)."
  ],
  "integration_notes": [
-  "After merging this branch the ledger docs/v5/ACCEPTANCE_LEDGER.jsonl is the change-control anchor: only the integration branch may append to it (run build-manifest / merge-workstreams after each merge and commit manifest + ledger). If another branch also modified ACCEPTANCE_MANIFEST.json, take this branch's ledger and rebuild; never hand-merge the ledger.",
-  "Decision ids D-22..D-25 are used here; if a parallel branch also adds D-22..D-25, keep both texts under their headings (the checker concatenates sections with the same id) or renumber the other branch's: the ledger entries cite D-23 and D-25 and are immutable.",
-  "src/crucible/core/discovery.py gains one ERROR_MEANINGS entry (media_error) - the only change outside acceptance/; the 4.0 test tests/test_discovery.py is unchanged (Gate A.1 requires 4.0 test files byte-identical to c07098b).",
-  "Gate tests must assert on measured values: 13 existing gate tests (F.4, F.5, F.n1, H.1-H.8, H.n1, SP-3.2b) assert nothing and their evidence will be rejected until they do (DEF-P-7).",
-  "Commit the recovery audit docs/v5/audit/ on the integration branch (RP.2, X.6 read it there); the defect register DEFECTS.md was generated from it.",
-  "RP.1 conflicts with A.1/Clarification 1: 23 imports of agentrs.cam2/agentrs.sl remain in 4.0 adapters and tests; needs an orchestrator decision (DEF-P-8).",
-  "Official evidence: python -m crucible.acceptance.v5 run --gate <G> --agent <name> (fresh clone of HEAD), commit, then an independent reviewer runs review --requirement <id> --agent <other> in another session, commit. Gate A: CRUCIBLE_GATE_A_WORKERS=3 under slots with --gpu-mb so the two Qwen tests run.",
-  "tests/v5/test_gate_SP_21.py imports tests/acceptance_kit.py (sys.path insert of tests/)."
- ]
+  "Ledger: this branch appended 82 entries (merge-workstreams after the wave-1/2a merges and for P's report; additions only). No other branch has touched the ledger since 87a6c54; if one does, take this branch's ledger and re-run merge-workstreams on the integration branch (never hand-merge the ledger).",
+  "D-26 is used here (acceptance hardening). If another branch also adds D-26, keep both texts under the heading (the checker concatenates sections with the same id) or renumber the other branch's; no ledger entry cites D-26.",
+  "Evidence schema is now crucible.v5.evidence/3 (run/2, review/3): records of earlier schemas are rejected. Official runs and reviews need a session identity (CRUCIBLE_V5_SESSION or CLAUDE_CODE_SESSION_ID) and run pytest with -s -p crucible.acceptance.v5.evidence in a scrubbed environment; reviews now ablate the implementation (one extra short run).",
+  "--verify-all without --reproduce never reports a terminal status (it adds a project problem saying so); progress milestones therefore always record IN_PROGRESS until the release check.",
+  "A gate test whose evidence must verify: produced in its canonical gate file; no conftest on its path with outcome-rewriting hooks or patches; no imports from outside the clone; its measurement must not survive ablation of the listed implementation modules (a test that only reads constant tables of its implementation will be rejected).",
+  "Requirement changes: requirements.py is imported by every gate test (through checker.unmet and evidence), so adding or changing requirements makes all existing evidence stale (unchanged behaviour, now stated): settle requirements.py before producing official evidence.",
+  "Run regressions and Gate A with TMPDIR unset (or world-traversable): with TMPDIR in an agent scratchpad, 5 jailed-Chromium tests and 14 PostgreSQL tests fail for that reason alone (DEF-P-16); the orchestrator's M5 failed_tests list contains them.",
+  "Defects for other workstreams found by Gate A: DEF-P-25 (semantic/space resolves the LM revision at import time and imports huggingface_hub in every process: a native thread breaks the 4.0 single-threaded worker test) for D/INT; DEF-P-24 (A.1 vs Clarification 2) needs an orchestrator decision.",
+  "Session identity: the checker compares the hashed CRUCIBLE_V5_SESSION (else CLAUDE_CODE_SESSION_ID) of producer and reviewer; sub-agents of one harness session may share CLAUDE_CODE_SESSION_ID, so give each agent its own CRUCIBLE_V5_SESSION, or the review is refused as a self-review."
+ ],
+ "wave": "3 (independent adversarial verification of wave 1's hardened checker; c5c/w1-qa's verifier never ran)"
 }

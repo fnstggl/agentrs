@@ -2,10 +2,12 @@
 
 The machine-readable ledger is `docs/v5/PROGRESS.json` (every Part 1.5 field per milestone, exact remaining
 requirement ids, interrupted workstreams and their reassignment); validate it with
-`python -m crucible.acceptance.v5 progress validate` and add a milestone with `... progress milestone`. This file is
-the narrative.
+`python -m crucible.acceptance.v5 progress validate`, add a milestone with `... progress milestone` and record (or
+update) an interrupted workstream with `... progress interrupted --workstream X --why ... --recovery-branch B
+--reassigned-to Y [--status reassigned|resumed|completed|abandoned]`. This file is the narrative.
 
-Project status: **IN_PROGRESS** (the checker decides; see `python -m crucible.acceptance.v5 --verify-all`).
+Project status: **IN_PROGRESS** (the checker decides; a terminal status only from the release check
+`python -m crucible.acceptance.v5 --verify-all --reproduce`, D-26).
 
 ## Milestone 0 - foundation (2026-11-25)
 

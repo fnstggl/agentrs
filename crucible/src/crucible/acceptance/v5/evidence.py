@@ -7,6 +7,15 @@ with its git blob id, `crucible` modules imported from outside the checkout, the
 visibility), checksums of the datasets the test declares, and the hashes of cited artifacts. It does not state whether
 it passed: the checker evaluates the manifest's criteria on the metrics.
 
+What else ran in the process is recorded too, so the checker can reject a measurement of code that is not the
+committed code: the interpreter (executable, prefix, flags, `sys.path`), its start-up hooks (every `.pth` file of its
+site directories with its SHA-256, and any loaded `sitecustomize` / `usercustomize`), modules imported from outside
+both the checkout and the interpreter's own directories (`foreign_modules`), functions of checkout modules whose code
+lives in such a foreign file (`patched_functions`: a patch, whatever the injection vector), PYTHON*/LD_* variables of
+the process, and - in official runs, through an audit hook installed when this module is imported - every file
+under the checkout the process opened (`files_read`, with git blob ids), so that a changed data or configuration file
+makes the evidence stale just as a changed module does.
+
 Evidence is filed only by an official run (`python -m crucible.acceptance.v5 run`): the runner clones the committed
 tree into a fresh directory, marks the clone (a marker inside the clone's git directory, outside the work tree), runs
 the requirement's tests there with `CRUCIBLE_V5_RUN_ID` and `CRUCIBLE_V5_EVIDENCE_OUT` set, and installs the records,
@@ -21,20 +30,46 @@ import json
 import math
 import os
 import platform
+import site
 import subprocess
 import sys
+import sysconfig
+import types
 
 from .manifest import crucible_root, docs_dir
 
-SCHEMA = "crucible.v5.evidence/2"
-RUN_SCHEMA = "crucible.v5.run/1"
-REVIEW_SCHEMA = "crucible.v5.review/2"
+SCHEMA = "crucible.v5.evidence/3"
+RUN_SCHEMA = "crucible.v5.run/2"
+REVIEW_SCHEMA = "crucible.v5.review/3"
 MARKER = "crucible_v5_run.json"                     # inside the clone's git dir: <clone>/.git/crucible_v5_run.json
 EVIDENCE_DIR = "docs/v5/evidence"
 RUNS_DIR = "docs/v5/evidence/official_runs"         # not `runs/`: that name is git-ignored repository-wide
 REVIEWS_DIR = "docs/v5/reviews"
 REPRO_DIR = "docs/v5/reviews/reproductions"
 MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
+MAX_READ_BYTES = 256 * 1024 * 1024                  # files_read: larger files are listed without a blob id
+ALLOWED_PY_ENV = ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "PYTHONNOUSERSITE", "PYTHONHASHSEED", "PYTHONUNBUFFERED",
+                  "PYTHONIOENCODING", "PYTHONUTF8", "PYTHONFAULTHANDLER")
+STARTUP_HOOK_NAMES = ("sitecustomize", "usercustomize")
+
+# ------------------------------------------------------------------------------------------------- files read
+_OPENED: set[str] = set()
+_OPENED_MAX = 200_000
+
+
+def _open_hook(event: str, args: tuple) -> None:
+    if event != "open" or not args or len(_OPENED) >= _OPENED_MAX:
+        return
+    p = args[0]
+    if isinstance(p, (str, bytes, os.PathLike)) and not isinstance(p, int):
+        try:
+            _OPENED.add(os.path.abspath(os.fsdecode(p)))
+        except (TypeError, ValueError):
+            pass
+
+
+if os.environ.get("CRUCIBLE_V5_RUN_ID"):            # only inside official runs: no cost anywhere else
+    sys.addaudithook(_open_hook)
 
 
 def sha256_file(path: str) -> str:
@@ -116,6 +151,162 @@ def environment() -> dict:
             "cuda_visible_devices": vis, "gpu_visible": bool(gpu) and vis not in ("", "-1"),
             "torch_cuda_available": torch_cuda, "host": platform.node(),
             "threads": {k: os.environ.get(k) for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS")}}
+
+
+def trusted_dirs() -> list[str]:
+    """The interpreter's own directories: its standard library and its site directories."""
+    paths = sysconfig.get_paths()
+    out = {os.path.realpath(paths[k]) for k in ("stdlib", "platstdlib", "purelib", "platlib") if paths.get(k)}
+    try:
+        out.update(os.path.realpath(d) for d in site.getsitepackages())
+    except AttributeError:
+        pass
+    return sorted(out)
+
+
+def _under(path: str, dirs) -> bool:
+    return any(path == d or path.startswith(d + os.sep) for d in dirs)
+
+
+def interpreter() -> dict:
+    f = sys.flags
+    return {"executable": os.path.realpath(sys.executable), "prefix": sys.prefix, "base_prefix": sys.base_prefix,
+            "version": sys.version.split()[0],
+            "flags": {"no_user_site": bool(f.no_user_site), "ignore_environment": bool(f.ignore_environment),
+                      "isolated": bool(f.isolated), "safe_path": bool(getattr(f, "safe_path", False)),
+                      "dont_write_bytecode": bool(f.dont_write_bytecode)},
+            "user_site_enabled": bool(site.ENABLE_USER_SITE), "path": list(sys.path)[:60]}
+
+
+def site_hooks() -> dict:
+    """Code that runs at interpreter start-up: the .pth files of the site directories actually processed, and the
+    sitecustomize / usercustomize modules if one was loaded."""
+    dirs = []
+    try:
+        dirs += site.getsitepackages()
+    except AttributeError:
+        pass
+    if site.ENABLE_USER_SITE:
+        dirs.append(site.getusersitepackages())
+    pth = {}
+    for d in dirs:
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for n in names:
+            if n.endswith(".pth"):
+                p = os.path.join(d, n)
+                try:
+                    pth[os.path.realpath(p)] = sha256_file(p)
+                except OSError:
+                    pth[os.path.realpath(p)] = None
+    cust = {}
+    for name in STARTUP_HOOK_NAMES:
+        m = sys.modules.get(name)
+        cust[name] = os.path.realpath(m.__file__) if m is not None and getattr(m, "__file__", None) else None
+    return {"pth": pth, "customize": cust}
+
+
+def foreign_modules(root: str) -> list[str]:
+    """Modules (any name) imported from files outside both the checkout and the interpreter's own directories."""
+    root = os.path.realpath(root)
+    trusted = trusted_dirs()
+    out = []
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if not f:
+            continue
+        rf = os.path.realpath(f)
+        if not _under(rf, [root]) and not _under(rf, trusted):
+            out.append(f"{name}:{rf}")
+    return sorted(out)
+
+
+def _functions_of(obj):
+    if isinstance(obj, types.FunctionType):
+        yield "", obj
+    elif isinstance(obj, (staticmethod, classmethod)):
+        f = getattr(obj, "__func__", None)
+        if isinstance(f, types.FunctionType):
+            yield "", f
+    elif isinstance(obj, property):
+        for acc in (obj.fget, obj.fset, obj.fdel):
+            if isinstance(acc, types.FunctionType):
+                yield "", acc
+
+
+def patched_functions(root: str) -> list[str]:
+    """Functions reachable from modules of the checkout (module attributes, and the methods of classes defined there)
+    whose code was compiled from a real file outside the checkout and outside the interpreter: a patch."""
+    root = os.path.realpath(root)
+    trusted = trusted_dirs()
+    ok: dict[str, bool] = {}
+
+    def foreign(fn) -> str | None:
+        fname = fn.__code__.co_filename
+        if not fname or fname.startswith("<"):
+            return None
+        if fname not in ok:
+            rf = os.path.realpath(fname)
+            ok[fname] = _under(rf, [root]) or _under(rf, trusted)
+        return None if ok[fname] else os.path.realpath(fname)
+
+    out = []
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if not f or not _under(os.path.realpath(f), [root]):
+            continue
+        try:
+            items = list(vars(mod).items())
+        except TypeError:
+            continue
+        for attr, val in items:
+            for _, fn in _functions_of(val):
+                where = foreign(fn)
+                if where:
+                    out.append(f"{name}.{attr} <- {where}")
+            if isinstance(val, type) and getattr(val, "__module__", None) == name:
+                try:
+                    members = list(vars(val).items())
+                except TypeError:
+                    continue
+                for mname, mval in members:
+                    for _, fn in _functions_of(mval):
+                        where = foreign(fn)
+                        if where:
+                            out.append(f"{name}.{attr}.{mname} <- {where}")
+    return sorted(set(out))
+
+
+def python_env() -> dict:
+    """PYTHON* and dynamic-loader variables of this process (code-injection vectors when unexpected)."""
+    return {k: v for k, v in sorted(os.environ.items())
+            if (k.startswith("PYTHON") and k not in ALLOWED_PY_ENV) or k in ("LD_PRELOAD", "LD_AUDIT")}
+
+
+def files_read(root: str) -> dict[str, str | None]:
+    """Files under the checkout opened by this process since this module was imported (official runs only), with git
+    blob ids; generated output (git directory, byte-code caches) is left out."""
+    root = os.path.realpath(root)
+    out: dict[str, str | None] = {}
+    for p in sorted(_OPENED):
+        rp = os.path.realpath(p)
+        if not rp.startswith(root + os.sep) or not os.path.isfile(rp):
+            continue
+        rel = os.path.relpath(rp, root)
+        parts = rel.split(os.sep)
+        if ".git" in parts or "__pycache__" in parts:
+            continue
+        try:
+            if os.path.getsize(rp) > MAX_READ_BYTES:
+                out[rel] = None
+                continue
+            with open(rp, "rb") as fh:
+                out[rel] = git_blob_id(fh.read())
+        except OSError:
+            continue
+    return out
 
 
 def imported_modules(root: str) -> tuple[dict[str, str], list[str]]:
@@ -248,6 +439,7 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
             rel = os.path.relpath(p, root)
         arts.append({"path": rel, "sha256": sha256_file(p), "bytes": size, "too_large": size > MAX_ARTIFACT_BYTES})
     mods, outside = imported_modules(root)
+    reads = files_read(root) if run else {}
     rec = {"schema": SCHEMA, "requirement": requirement, "gate": gate_of(requirement),
            "produced_by": os.environ.get("PYTEST_CURRENT_TEST", "").split(" (")[0] or command or "unknown",
            "command": command, "run_id": run["run_id"] if run else None, "official": bool(run),
@@ -255,7 +447,10 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "tree": tree_state(root), "environment": environment(), "identity": identity(),
            "author": os.environ.get("CRUCIBLE_V5_AGENT") or os.environ.get("CRUCIBLE_V5_AUTHOR") or "",
            "binding": _manifest_binding(root, requirement),
-           "modules": mods, "modules_outside_root": outside, "datasets": dataset_checksums(datasets),
+           "modules": mods, "modules_outside_root": outside, "files_read": reads,
+           "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
+           "patched_functions": patched_functions(root), "python_env": python_env(),
+           "datasets": dataset_checksums(datasets),
            "metrics": metrics, "artifacts": arts, "labels": dict(labels or {}), "notes": notes,
            "junit": None, "run": None}
     if run:

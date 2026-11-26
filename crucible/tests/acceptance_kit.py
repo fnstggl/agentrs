@@ -52,6 +52,9 @@ class Repo:
         src = os.path.join(self.root, "src")
         shutil.copytree(PKG, os.path.join(src, "crucible", "acceptance", "v5"),
                         ignore=shutil.ignore_patterns("__pycache__"))
+        hooks = os.path.join(M.crucible_root(), "docs", "v5", "baselines", "python_site_hooks.json")
+        if os.path.exists(hooks):                   # the reference interpreter's start-up hooks (checker.env_problems)
+            self.write("docs/v5/baselines/python_site_hooks.json", open(hooks).read())
         self.write("src/crucible/__init__.py", '"""mini crucible"""\n')
         self.write("src/crucible/acceptance/__init__.py", "")
         self.items = items if items is not None else [("Z.1", "Z", "make widgets", "A", [], CRIT, 3)]
@@ -60,8 +63,8 @@ class Repo:
         self.write("src/widgets/__init__.py", widgets)
         self.write("tests/v5/test_gate_Z.py", test_src)
         self.write("docs/v5/DECISION_LOG.md", "# log\n\n## D-1 raise the bar for Z.1\nZ.1 needs more widgets.\n")
-        self.write("docs/v5/BLOCKERS.md", "# blockers\n\n## Open blockers\n\n### BLK-1 the widget mine is closed\n\n"
-                                          "## Risks being managed\n")
+        self.write("docs/v5/BLOCKERS.md", "# blockers\n\n## Open blockers\n\n### BLK-1 the widget mine is closed\n"
+                                          "Blocks Z.2 (no hard widgets without the mine).\n\n## Risks being managed\n")
         for p, s in (extra_files or {}).items():
             self.write(p, s)
         git(self.top, "init", "-q")

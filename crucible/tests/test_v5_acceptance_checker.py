@@ -64,6 +64,10 @@ def test_the_honest_pipeline_verifies_and_completes(repo):
     repo.commit("review")
     res, rows = repo.verify()
     assert rows["Z.1"]["status"] == "VERIFIED", rows["Z.1"]["problems"]
+    # static checks never decide the project status: only the release check (re-execution at HEAD) does
+    assert not res["ok"] and res["project_status"] == "IN_PROGRESS" and res["global_problems"] == [checker.RELEASE_NOTE]
+    repo.mp.setenv("CRUCIBLE_V5_SESSION", "s-release")
+    res, rows = repo.verify(reproduce=True, agent="release-check", scratch=repo.scratch)
     assert res["ok"] and res["project_status"] == "CRUCIBLE_5_COMPLETE" and not res["global_problems"]
 
 
@@ -291,10 +295,15 @@ def test_P12_a_test_that_records_constants_and_asserts_nothing_fails(tmp_path, m
     src = ('from crucible.acceptance.v5 import evidence\n\n\ndef test_z():\n'
            '    evidence.record("Z.1", {"widgets": 25, "leaks": 0})\n')
     r = Repo(str(tmp_path), monkeypatch, test_src=src)
-    r.honest()
+    r.official_run()
+    r.commit("evidence")
+    rv = r.review()
+    assert rv["verdict"] == "rejected" and rv["ablation"]["sensitive"] is False   # survives the ablated implementation
+    r.commit("review")
     _, row = not_verified(r)
     assert any("constant_record" in p for p in row["problems"])
     assert any("imported none of the listed implementation modules" in p for p in row["problems"])
+    assert any("ablation" in p for p in row["problems"])
 
 
 def test_P12b_the_cli_refuses_an_anonymous_official_run(repo, monkeypatch):
@@ -409,6 +418,9 @@ def test_incomplete_blocked_only_when_every_unverified_requirement_cites_an_open
     r.save_manifest(m)
     r.commit("blocked by an open blocker")
     res, rows = r.verify()
+    assert rows["Z.2"]["status"] == "BLOCKED" and res["project_status"] == "IN_PROGRESS"   # terminal only on release
+    monkeypatch.setenv("CRUCIBLE_V5_SESSION", "s-release")
+    res, rows = r.verify(reproduce=True, agent="release-check", scratch=r.scratch)
     assert rows["Z.2"]["status"] == "BLOCKED" and res["project_status"] == "INCOMPLETE_BLOCKED" and not res["ok"]
 
 
@@ -518,7 +530,8 @@ def test_the_real_checker_exit_code_follows_the_project_status():
                        capture_output=True, text=True)
     res = json.load(open(out))
     assert p.returncode == {"CRUCIBLE_5_COMPLETE": 0, "IN_PROGRESS": 1, "INCOMPLETE_BLOCKED": 3}[res["project_status"]]
-    assert (p.returncode == 0) == all(r["status"] == "VERIFIED" for r in res["rows"])
+    assert p.returncode != 0 or all(r["status"] == "VERIFIED" for r in res["rows"])
+    assert res["project_status"] == "IN_PROGRESS" or res["reproduced"]       # static checks never complete
 
 
 def test_a_merge_that_drops_ledger_entries_of_one_parent_is_detected(tmp_path):
@@ -541,3 +554,44 @@ def test_a_merge_that_drops_ledger_entries_of_one_parent_is_detected(tmp_path):
     run("commit", "-qm", "main moves on")
     run("merge", "-q", "-s", "ours", "side", "-m", "merge that keeps only main's ledger")
     assert any("rewrites the ledger" in x for x in L.git_problems(root))
+
+
+def test_progress_ledger_records_and_updates_interrupted_workstreams(tmp_path):
+    from crucible.acceptance.v5 import progress as P
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "docs", "v5"))
+    P.save({"schema": P.SCHEMA, "milestones": [], "interrupted_workstreams": []}, root)
+    P.add_interrupted(workstream="Q", why="usage limit", recovery_branch="c5c/w1-q", reassigned_to="Q2", root=root)
+    e = P.add_interrupted(workstream="Q", why="usage limit", recovery_branch="c5c/w1-q", reassigned_to="Q2",
+                          status="completed", root=root)
+    d = P.load(root)
+    assert len(d["interrupted_workstreams"]) == 1 and e["status"] == "completed"
+    assert [h["status"] for h in e["history"]] == ["reassigned"]
+    with pytest.raises(ValueError):
+        P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="", root=root)
+    with pytest.raises(ValueError):
+        P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="R", status="vanished", root=root)
+
+
+def test_workstream_reports_may_name_files_by_pattern(tmp_path):
+    root = str(tmp_path)
+    for rel in ("src/pkg/a.py", "src/pkg/b.py", "tests/v5/test_gate_Q.py"):
+        os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+        open(os.path.join(root, rel), "w").write("x = 1\n")
+    os.makedirs(os.path.join(root, "docs", "v5", "workstreams"))
+    json.dump({"requirements": {"Q.1": {"implementation_files": ["src/pkg/*.py", "src/none/*.py"],
+                                        "tests": ["tests/v5/test_gate_*.py"]}}},
+              open(os.path.join(root, "docs", "v5", "workstreams", "Q.json"), "w"))
+    got = M.workstream_files(root)["Q.1"]
+    assert got["implementation_files"] == ["src/pkg/a.py", "src/pkg/b.py"]
+    assert got["tests"] == ["tests/v5/test_gate_Q.py"]
+    assert got["skipped"] == [("src/none/*.py", "does not exist in this checkout")]
+
+
+def test_gate_A4_scan_tells_a_module_denylist_from_a_use():
+    from crucible.acceptance.v5 import baseline as B
+    src = ('FORBIDDEN = ("crucible.realworld", "crucible.research.sealed",\n'
+           '             "crucible.acceptance")\nimport crucible.research.sealed\nx = "crucible.research.sealed"\n')
+    deny = B._denylist_strings(src)
+    assert deny == {1: ["crucible.realworld", "crucible.research.sealed"], 2: ["crucible.acceptance"]}
+    assert 3 not in deny and 4 not in deny                  # an import and a lone module string still count
