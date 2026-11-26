@@ -1681,13 +1681,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-B-2 (critical, open): No fitted calibration model is used by any population decision although FIDELITY_REGISTER.md claimed six were 
+### DEF-B-2 (critical, fixed): No fitted calibration model is used by any population decision although FIDELITY_REGISTER.md claimed six were 
 
 ```json
 {
  "area": "B_population",
+ "fixed_by": "c5c/w3b-pop (D-30): the population takes daily activation (daily_return@1), sessions per active day (extra_sessions@1), article slate opens (article_open_semantic@1) and repurchase (customer_return@1) through crucible.calibration.runtime, recorded with their provenance inside its own sessions; the calibration.load plug-in of population/models.py is removed; FIDELITY_REGISTER records population.daily_return / session_frequency / article_choice and commerce.customer_retention claim default use (probes: population.fidelity_probes, to be registered by E)",
  "id": "DEF-B-2",
  "owner": "B, E",
+ "regression_tests": "tests/test_v5_population_core.py::test_fitted_runtime_models_take_population_decisions",
  "requirements": [
   "SP-5.0",
   "SP-5.4"
@@ -1699,18 +1701,20 @@ B_population verdict) and P's own findings.
   "finding": 1,
   "section": "critical_findings (also docs/v5/audit/B_population.md, 1. Verdict)"
  },
- "status": "open",
+ "status": "fixed",
  "summary": "No fitted calibration model is used by any population decision although FIDELITY_REGISTER.md claimed six were (an unsupported claim)."
 }
 ```
 
-### DEF-B-3 (high, open): Class 3 is a 4-head categorical bandit over a scripted entrepreneur template with unstable A2C updates; it is 
+### DEF-B-3 (high, fixed): Class 3 is a 4-head categorical bandit over a scripted entrepreneur template with unstable A2C updates; it is 
 
 ```json
 {
  "area": "B_population",
+ "fixed_by": "c5c/w3b-pop (D-31): class 3 redesigned - ventures built through ordinary tools with eight composable action kinds (sites, articles the member writes, products, prices, promotion, links to other ventures, closing), four groups (REINFORCE, frozen twin, A2C with a stable learning rate, PPO; objectives profit and reach), feasibility masking, standardised advantages; decisions inside the population's sessions (class runtime 3); evaluator-side behaviour measure (competition, cooperation, objectives, lifetime policy shift)",
  "id": "DEF-B-3",
  "owner": "B, K",
+ "regression_tests": "tests/test_v5_population_core.py::test_strategic_participants_act_through_tools, ::test_policy_updates_are_recorded, tests/v5/test_gate_SP_3_2c.py, tests/v5/test_gate_G.py::test_G4_independent_strategic_groups",
  "requirements": [
   "SP-3.2c",
   "G.4"
@@ -1722,7 +1726,7 @@ B_population verdict) and P's own findings.
   "finding": 4,
   "section": "critical_findings (also docs/v5/audit/B_population.md, 1. Verdict)"
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Class 3 is a 4-head categorical bandit over a scripted entrepreneur template with unstable A2C updates; it is not strategic learning."
 }
 ```
