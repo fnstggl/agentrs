@@ -98,11 +98,24 @@ def shares_of(world, item: int | None = None, sharer: int | None = None) -> dict
 
 
 # ---------------------------------------------------------------------------------------------------- population API
+def _population_decision(ctx: Ctx, src: np.ndarray) -> dict | None:
+    """Decision provenance for relation rows decided by population members (the engine's model, or the member's
+    own tool use)."""
+    if "pop" not in ctx.world.modules or not src.size or not np.all(src < nodes.OFFSET):
+        return None
+    from ..population import participant_decision
+    from ..substrate.ids import index
+    from .audience import ENGINE_DECISION
+    return participant_decision(ctx) if index(ctx.actor) is not None else ENGINE_DECISION
+
+
 def follow_batch(ctx: Ctx, src: np.ndarray, dst: np.ndarray, *, via: str = "population") -> int:
     """Record that each src[i] now follows dst[i] (one cohort decision). Self-follows, repeats and pairs already
-    following are dropped. Returns the number of new edges."""
+    following are dropped. Returns the number of new edges. The follow relation has this one owner: the population's
+    follow decisions on every platform and agents' `social.follow` land here."""
     mod = _mod(ctx.world)
-    return mod.add_follows(ctx, np.asarray(src, dtype=np.int64), np.asarray(dst, dtype=np.int64), via)
+    s_ = np.asarray(src, dtype=np.int64)
+    return mod.add_follows(ctx, s_, np.asarray(dst, dtype=np.int64), via, decision=_population_decision(ctx, s_))
 
 
 def unfollow_batch(ctx: Ctx, src: np.ndarray, dst: np.ndarray) -> int:
@@ -112,8 +125,10 @@ def unfollow_batch(ctx: Ctx, src: np.ndarray, dst: np.ndarray) -> int:
 def share_batch(ctx: Ctx, sharers: np.ndarray, items: np.ndarray, *, to: np.ndarray | None = None,
                 via: str = "population") -> int:
     """Record shares: sharers[i] shares catalogue item items[i] publicly (to=-1) or with node to[i]."""
-    return _mod(ctx.world).add_shares(ctx, np.asarray(sharers, dtype=np.int64), np.asarray(items, dtype=np.int64),
-                                      None if to is None else np.asarray(to, dtype=np.int64), via)
+    sh = np.asarray(sharers, dtype=np.int64)
+    return _mod(ctx.world).add_shares(ctx, sh, np.asarray(items, dtype=np.int64),
+                                      None if to is None else np.asarray(to, dtype=np.int64), via,
+                                      decision=_population_decision(ctx, sh))
 
 
 bus.event_type("social.notice", S.obj({"what": {"type": "string", "enum": ["follow", "share", "mention"]},
@@ -148,7 +163,7 @@ class Social(Module):
         bus.enforce(world, owner="social")
 
     # ------------------------------------------------------------------ internal API
-    def add_follows(self, ctx: Ctx, src: np.ndarray, dst: np.ndarray, via: str) -> int:
+    def add_follows(self, ctx: Ctx, src: np.ndarray, dst: np.ndarray, via: str, decision: dict | None = None) -> int:
         if via not in VIA_CODE:
             raise InvalidAction(f"via must be one of {VIA}")
         if src.shape != dst.shape or src.ndim != 1:
@@ -171,7 +186,8 @@ class Social(Module):
         n = src.size
         FOLLOW.append(ctx, "social.follow", {"src": src, "dst": dst, "t": np.full(n, ctx.now, np.int64),
                                              "t_end": np.full(n, -1, np.int64), "active": np.ones(n, bool),
-                                             "via": np.full(n, VIA_CODE[via], np.uint8)}, extra={"via": via})
+                                             "via": np.full(n, VIA_CODE[via], np.uint8)}, extra={"via": via},
+                     decision=decision)
         return int(n)
 
     def end_follows(self, ctx: Ctx, src: np.ndarray, dst: np.ndarray) -> int:
@@ -186,7 +202,8 @@ class Social(Module):
                                                      "t_end": np.full(rows.size, ctx.now, np.int64)})
         return int(rows.size)
 
-    def add_shares(self, ctx: Ctx, sharers: np.ndarray, items: np.ndarray, to: np.ndarray | None, via: str) -> int:
+    def add_shares(self, ctx: Ctx, sharers: np.ndarray, items: np.ndarray, to: np.ndarray | None, via: str,
+                   decision: dict | None = None) -> int:
         if via not in VIA_CODE:
             raise InvalidAction(f"via must be one of {VIA}")
         if sharers.shape != items.shape:
@@ -202,7 +219,8 @@ class Social(Module):
         n = sharers.size
         SHARE.append(ctx, "social.share", {"sharer": sharers, "item": items, "t": np.full(n, ctx.now, np.int64),
                                            "to": np.full(n, -1, np.int64) if to is None else to,
-                                           "via": np.full(n, VIA_CODE[via], np.uint8)}, extra={"via": via})
+                                           "via": np.full(n, VIA_CODE[via], np.uint8)}, extra={"via": via},
+                     decision=decision)
         return int(n)
 
     def creator_stats(self, world, principal: str) -> dict:

@@ -49,7 +49,8 @@ DAY = 86400
 DEFAULT_MIX = [{"name": "interest", "weight": 1.0}, {"name": "social", "weight": 1.0},
                {"name": "fresh", "weight": 0.5}, {"name": "explore", "weight": 0.3}]
 DEFAULTS = {"platforms": {"posts": {"recommenders": DEFAULT_MIX}, "articles": {"recommenders": DEFAULT_MIX}},
-            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {}}
+            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {},
+            "activity_prior": 0.3, "adapt": {}}
 _PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule"}
 
 
@@ -171,7 +172,12 @@ class Feed(Module):
                                           "feed_social": ("int32", (self.R,), -1),
                                           "feed_habit": ("float32", (len(self.platforms),), 0.0)})
         if self.cfg["calibrated"]:                       # per-individual consumption history by topic
-            columns.declare(world, "pop", n, {"feed_topic_views": ("uint16", (len(TOPIC_NAMES),), 0)})
+            if self.aud.cfg.get("encoder") == "space":
+                from ...population import semantics
+                ntop = len(semantics.topic_names())
+            else:
+                ntop = len(TOPIC_NAMES)
+            columns.declare(world, "pop", n, {"feed_topic_views": ("uint16", (ntop,), 0)})
         world.state.declare_table("feed_private")
         world.state.declare_table("feed_models")
         self.engine = Engine(self)
@@ -180,11 +186,12 @@ class Feed(Module):
             from ..scale import register_activity
             register_activity(world, "browse", self.browse, owner="feed")
         elif "pop" in world.modules:
+            # the one population (D-15): every platform is an activity of its own, competing for each individual's
+            # finite attention and time with everything else the population does
             from ... import population
-            reg = getattr(population, "register_activity", None)
-            if reg is None:
-                raise ProtocolError("feed: the population module does not provide register_activity")
-            reg(world, "browse", self.browse, owner="feed")
+            for p in self.platforms:
+                population.register_activity(world, f"feed.{p}", self._platform_activity(p), owner="feed",
+                                             prior=float(self.cfg["activity_prior"]), goals=(1, 4))
         else:
             raise ProtocolError("feed needs a population module (crowd or pop) listed before it")
         bus.enforce(world, owner="feed")
@@ -203,7 +210,17 @@ class Feed(Module):
             ctx.emit("feed.mixture", {"platform": p, "version": "v0", "day": 0, "names":
                                       [e["name"] for e in self.versions[p][0][1]]}, vis="internal")
 
-    # ------------------------------------------------------------------ the population's browse activity
+    # ------------------------------------------------------------------ the population's activities
+    def _platform_activity(self, platform: str):
+        def act(ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
+            idx = np.asarray(idx, dtype=np.int64)
+            out = self.engine.run(ctx, platform, idx)
+            u = np.asarray(out.get("utility", np.zeros(np.unique(idx).size)), np.float64)
+            # the engine works on the sorted unique cohort; hand utilities back in the caller's row order
+            uniq = np.unique(idx)
+            return u[np.searchsorted(uniq, idx)]
+        return act
+
     def browse(self, ctx: Ctx, idx: np.ndarray, now: int) -> None:
         idx = np.asarray(idx, dtype=np.int64)
         if idx.size == 0:
@@ -415,12 +432,27 @@ class Feed(Module):
         AUD.consumption(ctx, rec["platform"], np.array([i]), np.array([item]), np.array([got]), np.array([comp]),
                         np.array([bool(share)]), np.array([bool(follow)]), np.array([bool(like)]))
         graph = ctx.world.runtime.get("crowd.graph")
+        con = None
         if share and graph is not None:
             con = graph.contacts(np.array([i]))[0]
+        elif share and "pop" in ctx.world.modules:
+            con = columns.col(ctx.world, "pop", "contacts")[i].astype(np.int64)
+            con = con[con >= 0]
+        if con is not None:
             con = con[con != i]
             g = int(columns.col(ctx.world, "pop", "aud_i_gen")[i]) if \
                 int(columns.col(ctx.world, "pop", "aud_i_item")[i]) == item else 0
-            self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)))
+            if con.size:
+                self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)))
+        if "social" in ctx.world.modules and (follow or share):
+            from .. import graph as G
+            from . import features as F
+            if follow:
+                dst = F.creator_nodes(ctx.world, np.array([int(rec["creator_code"])]))
+                if dst[0] >= 0:
+                    G.follow_batch(ctx, np.array([i]), dst, via="feed")
+            if share and isinstance(rec.get("content_id"), str):
+                G.share_batch(ctx, np.array([i]), np.array([int(rec["content_id"][1:])]), via="feed")
         view = got >= float(AUD.view_threshold(dur)) and rec["creator"] != ctx.actor
         return {"item": item, "watched_s": round(got, 3), "counted_as_view": bool(view), "completed": bool(comp)}
 

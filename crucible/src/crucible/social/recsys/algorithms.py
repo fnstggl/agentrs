@@ -174,9 +174,9 @@ def _engagement_features(world, viewers: np.ndarray, items: np.ndarray, *, pairw
     seen = np.zeros(items.size)
     from .. import idset
     st = world.state
+    fol = F.follows_matrix(world, viewers, cre[:, None])[:, 0].astype(np.float64)
     for c in np.unique(cre):
         m = cre == c
-        fol[m] = idset.contains(st, idset.key("fo", int(c)), viewers[m])
         fam[m] = idset.contains(st, idset.key("cv", int(c)), viewers[m])
     for i in np.unique(items):
         m = items == i
@@ -357,7 +357,7 @@ def _bm25_matrix(world, cand: np.ndarray, vocab: list[str], k1: float, b: float)
         avg = dl.mean() if dl.size else 1.0
         denom = tf + k1 * (1 - b + b * dl[None, :] / avg)
         return idf[:, None] * np.where(tf > 0, tf * (k1 + 1) / np.maximum(denom, 1e-9), 0.0)
-    return F.memo(world, "bm25", run, cand, k1, b)
+    return F.memo(world, "bm25", run, cand, k1, b, "|".join(vocab))
 
 
 _VOCAB = sorted({w for words in TOPICS.values() for w in words})
@@ -390,9 +390,24 @@ class Search(Base):
             out[m] = words[pick[m] % words.size]
         return out
 
+    def space_queries(self, world, viewers, rng) -> tuple[list[str], np.ndarray]:
+        """In the shared space: each viewer types the query-vocabulary words whose embeddings best match its
+        need-shifted interests (population.semantics.query_words). Returns (vocabulary, [V, q] word indices)."""
+        from ...population import semantics
+        u = F.interests(world, viewers, need_weight=self.p["need_weight"]).astype(np.float32)
+        qs = semantics.query_words(u, rng, np.full(viewers.size, 0.15), k=int(self.p["query_terms"]))
+        vocab = sorted({w for q in qs for w in q.split()})
+        widx = {w: j for j, w in enumerate(vocab)}
+        out = np.array([[widx[w] for w in q.split()] for q in qs], dtype=np.int64)
+        return vocab, out
+
     def scores(self, world, platform, viewers, cand, rng):
-        W = _bm25_matrix(world, cand, _VOCAB, self.p["k1"], self.p["b"])
-        q = self.queries(world, viewers, rng)
+        if F.space_world(world):
+            vocab, q = self.space_queries(world, viewers, rng)
+            W = _bm25_matrix(world, cand, vocab, self.p["k1"], self.p["b"])
+        else:
+            W = _bm25_matrix(world, cand, _VOCAB, self.p["k1"], self.p["b"])
+            q = self.queries(world, viewers, rng)
         s = W[q].sum(axis=1)                           # [V, C]
         s[s <= 0] = -np.inf
         return self._exclude_seen(world, viewers, cand, s)

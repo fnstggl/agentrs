@@ -93,3 +93,48 @@ def audience_view(world, aud_item: int | None, principal: str) -> dict | None:
     if aud_item is None or aud_module(world) is None:
         return None
     return audience_api().audience(world, int(aud_item), principal=principal)
+
+
+def reindex(ctx: Ctx, aud_item: int, ref: str, *, title=None, tags=None, duration_s=None) -> None:
+    """content.update of a distributed item: recompute its distributed representation from the new bytes."""
+    if aud_module(ctx.world) is None:
+        return
+    audience_api().reindex_item(ctx, int(aud_item), ref, title=title, tags=tags, duration_s=duration_s)
+
+
+def record_open(ctx: Ctx, platform: str, viewer: int, aud_item: int) -> None:
+    """A population member opened an item with content.open: an impression of source "direct"."""
+    m = aud_module(ctx.world)
+    if m is None or platform not in getattr(m, "platforms", ()):
+        return
+    from ..substrate import columns
+    if int(viewer) >= columns.rows(ctx.world, "pop"):
+        return
+    AUD = audience_api()
+    AUD.impressions(ctx, platform, np.array([int(viewer)]), np.array([int(aud_item)]), np.array([0]),
+                    source=np.array([AUD.SOURCE_CODE["direct"]]))
+
+
+def record_read(ctx: Ctx, platform: str, viewer: int, aud_item: int, seconds: float, like: bool, share: bool,
+                follow: bool) -> dict:
+    """Reading time a population member spends on an item it was shown (content.read): attention is spent, the
+    consumption row is the member's own decision (participant provenance)."""
+    from ..core.errors import InvalidAction as _IA
+    from ..substrate import attention, columns
+    from . import idset
+    AUD = audience_api()
+    if aud_module(ctx.world) is None or platform not in getattr(aud_module(ctx.world), "platforms", ()):
+        raise _IA("this item is not distributed here")
+    if not idset.contains(ctx.state, idset.key("ex", int(aud_item)), np.array([int(viewer)]))[0]:
+        raise _IA("open the item first (content.open)")
+    dur = float(AUD.item_col(ctx.world, "duration_s")[aud_item])
+    left = float(columns.col(ctx.world, "pop", "attention_left_min")[viewer]) * 60.0
+    got = float(np.float32(min(max(seconds, 0.0), dur, left)))
+    if got <= 0:
+        return {"read_s": 0.0, "counted_as_view": False}
+    attention.spend(ctx, np.array([int(viewer)]), np.array([got / 60.0]), activity=f"read.{platform}")
+    comp = got >= AUD.COMPLETE_FRAC * dur
+    AUD.consumption(ctx, platform, np.array([int(viewer)]), np.array([int(aud_item)]), np.array([got]),
+                    np.array([comp]), np.array([share]), np.array([follow]), np.array([like]))
+    return {"read_s": round(got, 3), "counted_as_view": bool(got >= float(AUD.view_threshold(dur))),
+            "completed": bool(comp)}

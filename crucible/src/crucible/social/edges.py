@@ -43,7 +43,8 @@ class EdgeTable:
     def col(self, world, c: str) -> np.ndarray:
         return columns.col(world, self.name, c)[:self.used(world)]
 
-    def append(self, ctx: Ctx, kind: str, values: dict[str, np.ndarray], *, extra: dict | None = None) -> np.ndarray:
+    def append(self, ctx: Ctx, kind: str, values: dict[str, np.ndarray], *, extra: dict | None = None,
+               decision: dict | None = None) -> np.ndarray:
         k = None
         for v in values.values():
             k = len(v)
@@ -55,7 +56,14 @@ class EdgeTable:
         if n0 + k > cap:
             columns.grow(ctx, self.name, max(cap, n0 + k - cap))
         rows = np.arange(n0, n0 + k, dtype=np.int64)
-        columns.batch(ctx, self.name, kind, rows, values, mode="set", extra=extra)
+        if decision is not None:
+            # decisions of population members carry decision provenance (population.record_decisions)
+            from ..population import record_decisions
+            record_decisions(ctx, kind, rows, values, model_id=decision["model_id"],
+                             model_version=decision["model_version"], fidelity_id=decision["fidelity_id"],
+                             table=self.name, extra=extra)
+        else:
+            columns.batch(ctx, self.name, kind, rows, values, mode="set", extra=extra)
         ctx.emit("social.alloc", {"table": self.name, "used": n0 + k}, vis="internal")
         return rows
 
