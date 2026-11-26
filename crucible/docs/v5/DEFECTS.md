@@ -2469,3 +2469,102 @@ B_population verdict) and P's own findings.
  "summary": "The experience package's out-of-process evaluation (remote.evaluate, c5c/w3b-obs) runs the learner process as the evaluator's user (root): an adversarial learner function read the 4.0 sealed salt, sealed sets and sealed task files under ~/.crucible and other processes' environments (measured on a check merge of c5c/w3b-obs into c5c/w3b-sec); on the integrated tree the only path drives the learner in the process holding the RemoteEvaluator."
 }
 ```
+
+### DEF-O-14 (high, fixed): System V IPC (shared memory, message queues, semaphores) and POSIX message queues were open to sandboxed agent
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py seccomp refuses shmget/shmat/shmdt/shmctl, msgget/msgsnd/msgrcv/msgctl, semget/semop/semtimedop/semctl and mq_* (EPERM); the jail (tools, browser, learner processes) refuses the same",
+ "id": "DEF-O-14",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.kernel_ipc_does_not_cross_worlds, MUST_HOLD), tests/v5/test_gate_W.py::test_W1_sandbox (escape matrix sysv_*, posix_mq), tests/test_v5_security_sandbox.py::test_sandboxed_programs_cannot_create_kernel_ipc_objects",
+ "requirements": [
+  "W.5",
+  "W.1",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "System V IPC (shared memory, message queues, semaphores) and POSIX message queues were open to sandboxed agent programs: they are kernel objects named by a key, not paths (Landlock on this kernel does not mediate them), outlive the program and carry any mode bits the creator chooses. A program in one world wrote a canary into a 0666 shared-memory segment; a program of another world (another tenant uid) read it back (and the message queue and semaphore value). Also a store outside the world that a later run could read."
+}
+```
+
+### DEF-O-15 (high, fixed): Jailed learner processes (sandbox.learnerhost, the out-of-process evaluation of untrusted learners) all ran un
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/jail.py seccomp refuses F_SETOWN/F_SETSIG/F_SETOWN_EX and FIOSETOWN/SIOCSPGRP in every mode, SysV IPC and POSIX mq in every mode, inotify in tool mode, and makes lock-taking a no-op in tool mode; sandbox/learnerhost.py gives every learner process its own uid (UID_BASE+0x10000 range)",
+ "id": "DEF-O-15",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world and ::test_W7_resource_limits (v5.sandbox.hosted_learners_cannot_reach_each_other), tests/test_v5_security_sandbox.py::test_jailed_learner_processes_have_own_uids_and_cannot_signal_each_other_or_share_ipc",
+ "requirements": [
+  "W.5",
+  "W.7",
+  "SP-16b",
+  "SP-15.8",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Jailed learner processes (sandbox.learnerhost, the out-of-process evaluation of untrusted learners) all ran under one uid with no restriction on descriptor ownership or SysV IPC: a learner SIGKILLed another learner process (fcntl F_SETOWN + F_SETSIG(SIGKILL) on a pipe with O_ASYNC; ioctl FIOSETOWN on its participant socket worked too), used F_SETOWN's ESRCH as a pid-existence oracle, carried state to a FRESH learner process through SysV shared memory / message queue / semaphore (defeating protocols that restart the learner to clear hidden state), and shared one RLIMIT_NPROC thread budget with every other learner."
+}
+```
+
+### DEF-O-16 (high, fixed): Advisory locks were a channel between worlds: every tenant reads the standard library and may write /dev/null,
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py seccomp makes flock and F_SETLK/F_SETLKW/F_OFD_SETLK/F_OFD_SETLKW succeed without effect (a program's own files are private to it, so a lock could only ever exclude other tenants); lock queries stay real (sqlite3 WAL needs F_GETLK; with no sandboxed lock holders they report none); the same in tool-mode jails",
+ "id": "DEF-O-16",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.file_locks_do_not_cross_worlds), tests/test_v5_security_sandbox.py::test_advisory_locks_do_not_reach_other_tenants_and_sqlite_still_works",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Advisory locks were a channel between worlds: every tenant reads the standard library and may write /dev/null, and locks work on such files. A service deployed in one world (a long-lived worker) took flock() locks on read-only standard-library files, POSIX write locks on byte ranges of /dev/null and POSIX read locks visible to F_GETLK (with the holder's pid); a program in another world read the full 16-bit secret back through each of the three."
+}
+```
+
+### DEF-O-17 (high, fixed): inotify was a channel between worlds: watches need only read access, so a long-lived service worker in one wor
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py seccomp refuses inotify_init/inotify_init1/inotify_add_watch/inotify_rm_watch and fanotify_*; the tool-mode jail likewise",
+ "id": "DEF-O-17",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W5_cross_world (v5.crossworld.file_watches_do_not_cross_worlds), tests/v5/test_gate_W.py::test_W1_sandbox (escape matrix inotify_watch_stdlib), tests/test_v5_security_sandbox.py::test_file_watches_on_shared_files_are_refused",
+ "requirements": [
+  "W.5",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "inotify was a channel between worlds: watches need only read access, so a long-lived service worker in one world armed watches on 16 rarely used standard-library source files and its queue received the opens made by a program of another world - the exact 16-bit secret crossed (store-and-forward: the sender need not run at the same time as the receiver's request)."
+}
+```

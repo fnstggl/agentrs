@@ -5,7 +5,7 @@ Reviewer: workstream O (security), wave 3b, on branch `c5c/w3b-sec` from the int
 research instrument (N), the media/social call sites (C, D), the package ablation (G) or the kernel memo (A/K3), and it
 re-measured the earlier security workstreams' own claims instead of trusting them. Every verdict below rests on a probe
 or control that is part of the gate suite, so it is re-executed (and ablated) whenever the gate runs:
-`crucible.redteam.v5` (Gate W, 77 probes) and `crucible.redteam.v5.instrument` (SP-15.8, 9 controls).
+`crucible.redteam.v5` (Gate W, 81 probes on this branch; Tier 2 probes grow with the domain registry) and `crucible.redteam.v5.instrument` (SP-15.8, 9 controls).
 
 Targets named by the assignment: metering, ablation-based adoption, media/JavaScript isolation, network isolation,
 cross-tenant state, and the research instrument's evaluator.
@@ -22,6 +22,25 @@ cross-tenant state, and the research instrument's evaluator.
 Hardening without a demonstrated exploit: every jailed browser launch now gets a private HOME/TMPDIR/XDG directory
 (concurrent browsers of one kind share a uid; they used to share the kind's home, i.e. writable profile and cache
 state across worlds) - `test_concurrent_jailed_browsers_of_one_kind_get_private_homes`.
+
+## 1a. Kernel objects shared between tenants (wave-3b continuation)
+
+The sandbox gives each world's programs their own uid, a private working directory and Landlock rules over paths;
+the review asked what else two tenants share on one kernel. Each row: found with a probe on this branch, fixed in
+`sandbox/boot.py` / `sandbox/jail.py` / `sandbox/learnerhost.py`, probe now holds (FIXED in the ratchet).
+
+| id | channel | attack | before | after | probe |
+|---|---|---|---|---|---|
+| DEF-O-14 (high) | System V IPC, POSIX mq | world A's program creates a 0666 shared-memory segment, message queue and semaphore under a key both agents know and writes a canary; world B's program (other uid) reads | canary read through all three SysV kinds (POSIX mq: the name was created, open refused by Landlock - a name channel) | every IPC syscall refused (EPERM) | `v5.crossworld.kernel_ipc_does_not_cross_worlds` (MUST_HOLD) |
+| DEF-O-15 (high) | learner processes | learner A stashes a canary in SysV IPC and exits; a FRESH learner process B reads it; B makes the kernel SIGKILL learner V (F_SETOWN + F_SETSIG on an O_ASYNC pipe; FIOSETOWN on its participant socket); F_SETOWN's ESRCH as a pid oracle; all three share one uid | canary carried to the fresh process; V killed (rc -9); pid oracle answered; one uid | all refused; V alive; three uids | `v5.sandbox.hosted_learners_cannot_reach_each_other` |
+| DEF-O-16 (high) | advisory locks | a service (long-lived worker) in world A locks a 16-bit pattern of standard-library files (flock), of /dev/null byte ranges (record write locks) and read-locks files (visible to F_GETLK with the holder's pid); world B's program reads | 9 of 9 set bits through each of the three | lock-taking succeeds without effect (D-77 amendment), queries real; 0 bits; sqlite3 WAL still works | `v5.crossworld.file_locks_do_not_cross_worlds` |
+| DEF-O-17 (high) | inotify | a service in world A arms watches on 16 rarely used standard-library files; world B's program opens the files of a secret; A's next request reads its queue | the exact 16-bit secret | inotify/fanotify refused | `v5.crossworld.file_watches_do_not_cross_worlds` |
+
+Checked and not a channel here: access times of standard-library files (overlay lower layer: reads do not update
+atime); /dev/shm and /tmp (Landlock); sockets (seccomp); signals and scheduling of other processes (seccomp self-only
+rules). Residual, stated: covert *timing* channels of a shared kernel (CPU load, page-cache residency of shared
+read-only files observable through read latency, pid allocation, free disk space) cannot be removed by process-level
+isolation; they need a VM or dedicated hardware per tenant.
 
 ## 1b. Evaluated learners of the experience package (W.2, owner L)
 
