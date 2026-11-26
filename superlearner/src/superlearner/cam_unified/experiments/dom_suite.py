@@ -306,7 +306,8 @@ def _build_stage1(preset, run_dir, *, device, seed, overrides, semantic=None, ag
     trainer = SY.make_trainer(cfg, model, sc, os.path.join(run_dir, "learner", "trainer.jsonl"))
     arts = ArtifactStore(os.path.join(run_dir, "artifacts"))
     archive = EventArchive(os.path.join(run_dir, "archive"), cfg, artifacts=arts, autoflush=True)
-    view = SY.BranchView(archive, set())
+    from ..stage1.branch import BranchView
+    view = BranchView(archive, set())
     replay = ReplaySampler(view, seed=seed)
     recorder = TraceRecorder(os.path.join(run_dir, "traces"))
     kw = dict(seq_len=sc.seq_len, n_seqs=sc.n_seqs, adapt_seq_len=sc.adapt_seq_len, adapt_n_seqs=sc.adapt_n_seqs,
@@ -324,9 +325,9 @@ def attach_fresh_experience(st: Stack, run_dir: str) -> None:
     """A new lifetime's own (empty) archive + replay (never the source lifetime's)."""
     from ..memory.archive import EventArchive
     from ..memory.replay import ReplaySampler
-    from ..stage1 import system as SY
+    from ..stage1.branch import BranchView          # (stage1.system re-exported it only before W1's factory)
     arc = EventArchive(os.path.join(run_dir, "archive_target"), st.cfg, autoflush=True)
-    view = SY.BranchView(arc, set())
+    view = BranchView(arc, set())
     st.agent.archive, st.agent.replay = arc, ReplaySampler(view, seed=0)
     st.agent.exclude_events = view.exclude
     st.archive = arc
