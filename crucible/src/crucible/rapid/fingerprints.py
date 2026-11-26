@@ -153,7 +153,7 @@ def instance_fingerprint(env) -> dict:
         lags = {("lagged" if int(e.get("lag", 0) or 0) > 0 else "instant") for e in edges} or {"instant"}
         temporal.update(lags=sorted(lags), stateful=bool(motifs & STATEFUL),
                         regimes=bool(tr.get("regimes")) or "regime_change" in motifs)
-        obs = _observed_structure(env)
+        obs = {"channels": sorted(eng.observation_channels()), **_observed_structure(env)}
     kinds_offered: set[str] = set()
     for a in eng.agents:
         sp = eng.action_space(a)

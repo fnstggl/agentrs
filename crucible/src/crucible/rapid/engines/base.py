@@ -94,6 +94,11 @@ class RapidEngine:
         """Mechanism motifs present in this instance, measured from its config (primitive vocabulary)."""
         raise NotImplementedError
 
+    def observation_channels(self) -> list[str]:
+        """How the participant's readings relate to the hidden quantities, by kind (the channel vocabulary of the
+        primitive graph's gauges: noisy, delayed, missing, selected, aggregated, on_demand); evaluator side."""
+        return []
+
     def outcome(self, state: dict, ledger: dict) -> dict:
         """The objective quantity so far, from the state and the environment's ledger (money per agent, journal)."""
         raise NotImplementedError
