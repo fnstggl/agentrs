@@ -1,0 +1,14 @@
+{
+ "what": "W1 change request 'migrate the loop in experiments/predict.py collect_support to run_lifetime': collect_support now acts with a scripted DesignPolicy through mechrun.run_batch (a wrapper over runtime.run_lifetime on W1's branch), reward_mode observation_only; the support it returns is identical to the pre-migration loop's (kept only as a test reference in tests/cam_unified/experiments/legacy_support_ref.py)",
+ "commit": "12e8d27",
+ "checks": {
+  "worktree_seam0_loop": {"tree": "W9 worktree (seam-0 base: run_batch is the pre-v4 loop)", "tests": "tests/cam_unified/experiments/test_x_predict_canonical_loop.py (5) + test_x_predict.py (6) + test_x_stats_agents.py", "result": "17 passed"},
+  "merged_with_w1_run_lifetime": {"tree": "git merge-tree of W9 b0dbd37 with feat/cam-7.0-unified-complete 19a7a4c = 89c2baa6c9f9a916cdce679d657be95c64d71140 (extracted to scratch, not committed)",
+                                  "tests": "test_x_predict_canonical_loop.py (5), test_x_predict.py (6), integration/test_single_loop.py::test_only_runtime_contains_the_act_execute_advance_loop",
+                                  "result": "12 passed",
+                                  "act_execute_advance_loops_outside_runtime": ["capabilities/causal.py", "capabilities/memory.py", "dist/actor.py", "dist/toyworld.py", "envs/integrity.py", "learn/meta.py"],
+                                  "predict_py_has_loop": false}
+ },
+ "equivalence": "conditions A (ks 0,2,6), C (2 predecessor notes), D (delay 2): actions, per-step rewards (D: delayed release), times, observations, X, G, Y, queries (X, Y, actions), notes and obs_final equal to the legacy loop on 2 validated dev tasks (scm_additive, cw1_scm_delay_stock; offset 100000), k_max 6, 3 queries",
+ "follow_up": "W1: drop experiments/predict.py from KNOWN_OTHER_LOOPS in tests/cam_unified/integration/test_single_loop.py after the merge"
+}
