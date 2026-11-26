@@ -2471,6 +2471,150 @@
    "reassigned_to": "c5c/w3b-* owners (pop, soc, sem, civ verify their parts)",
    "status": "reassigned",
    "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "I (domfw)",
+   "interrupted": "wave-3b independent verifier (verify:domfw) refused at start by a usage limit (2026-11-26 ~19:05 UTC); the implementation pass had finished (head bcef0ab)",
+   "recovery_branch": "c5c/w3b-domfw",
+   "reassigned_to": "wave-3b continuation workflow: verify:domfw (then repair if needed)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "I (dom1)",
+   "interrupted": "wave-3b implementation agent impl:dom1 stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-dom1",
+   "reassigned_to": "wave-3b continuation workflow: cont:dom1 (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "I (dom2)",
+   "interrupted": "wave-3b implementation agent impl:dom2 stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-dom2",
+   "reassigned_to": "wave-3b continuation workflow: cont:dom2 (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "I (dom3)",
+   "interrupted": "wave-3b implementation agent impl:dom3 stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-dom3",
+   "reassigned_to": "wave-3b continuation workflow: cont:dom3 (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "B (pop)",
+   "interrupted": "wave-3b implementation agent impl:pop stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-pop",
+   "reassigned_to": "wave-3b continuation workflow: cont:pop (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "C (soc)",
+   "interrupted": "wave-3b implementation agent impl:soc stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-soc",
+   "reassigned_to": "wave-3b continuation workflow: cont:soc (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "D (sem)",
+   "interrupted": "wave-3b implementation agent impl:sem stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-sem",
+   "reassigned_to": "wave-3b continuation workflow: cont:sem (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "F (econ1)",
+   "interrupted": "wave-3b implementation agent impl:econ1 stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-econ1",
+   "reassigned_to": "wave-3b continuation workflow: cont:econ1 (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "G (econ2)",
+   "interrupted": "wave-3b implementation agent impl:econ2 stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-econ2",
+   "reassigned_to": "wave-3b continuation workflow: cont:econ2 (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "J (civ)",
+   "interrupted": "wave-3b implementation agent impl:civ stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-civ",
+   "reassigned_to": "wave-3b continuation workflow: cont:civ (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "K (selfplay)",
+   "interrupted": "wave-3b implementation agent impl:selfplay stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-selfplay",
+   "reassigned_to": "wave-3b continuation workflow: cont:selfplay (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "H (rapid)",
+   "interrupted": "wave-3b implementation agent impl:rapid stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-rapid",
+   "reassigned_to": "wave-3b continuation workflow: cont:rapid (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "L (obs)",
+   "interrupted": "wave-3b implementation agent impl:obs stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-obs",
+   "reassigned_to": "wave-3b continuation workflow: cont:obs (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "N (research)",
+   "interrupted": "wave-3b implementation agent impl:research stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-research",
+   "reassigned_to": "wave-3b continuation workflow: cont:research (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "M (perf)",
+   "interrupted": "wave-3b implementation agent impl:perf stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-perf",
+   "reassigned_to": "wave-3b continuation workflow: cont:perf (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "O (sec)",
+   "interrupted": "wave-3b implementation agent impl:sec stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-sec",
+   "reassigned_to": "wave-3b continuation workflow: cont:sec (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "A+E (kcal)",
+   "interrupted": "wave-3b implementation agent impl:kcal stopped mid-work by a usage limit (2026-11-26 ~19:05 UTC); its commits are on the branch, uncommitted files saved by the orchestrator as a WIP commit where present",
+   "recovery_branch": "c5c/w3b-kcal",
+   "reassigned_to": "wave-3b continuation workflow: cont:kcal (continues from the branch head + handoff notes) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
+  },
+  {
+   "workstream": "P (qa)",
+   "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work done",
+   "recovery_branch": "c5c/w3b-qa",
+   "reassigned_to": "wave-3b continuation workflow: impl:qa (fresh start) -> verify -> repair",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T19:27:48+00:00"
   }
  ]
 }
