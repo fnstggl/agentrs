@@ -146,8 +146,9 @@ class EventCounter:
                         self.semantic_rows += len(out) if isinstance(out, list) else 1
                     parts = o["kind"].split(".")
                     cls = BATCH_KINDS.get(".".join(parts[1:3])) if len(parts) >= 4 else None
-                    ref = (o.get("out") or {}).get("output_ref")
-                    if cls and ref:
+                    rec = o.get("out")
+                    ref = rec.get("output_ref") if isinstance(rec, dict) else None
+                    if cls and isinstance(ref, str):
                         self.model_refs.append((cls, ref))
 
     def size_batches(self, world) -> None:
