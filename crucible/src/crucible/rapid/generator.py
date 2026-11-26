@@ -222,6 +222,7 @@ def compose(rng: np.random.Generator, recipe: dict) -> dict:
         gb.gauge([levers[0], levers[1]], [("partial_observability", {"mode": "sum", "weights": [1.0, 1.0]})])
     if "on_demand" in channels:
         gb.gauge(out, [("measurement_noise", {"sd": noise / 4})], on_demand=True, query_cost=1.0)
+    _compose_context(gb, rng, recipe, levers, out, sold)
     price = float(recipe.get("price", 20.0))
     return gb.build(horizon=int(recipe.get("horizon", 60)),
                     money={"revenue_node": sold, "price": price, "cap": 100.0, "fixed_cost": 0.0},
@@ -233,6 +234,60 @@ def compose(rng: np.random.Generator, recipe: dict) -> dict:
                     endowment=int(price * 100 * 20),
                     brief="You operate a facility. Set its levers; you are paid for what it sells.",
                     recipe=recipe)
+
+
+CONTEXT_KEYS = ("participants", "network", "resources", "institution", "initial")
+
+
+def _compose_context(gb: GraphBuilder, rng, recipe: dict, levers: list[str], out: str, sold: str) -> None:
+    """The context of a composed mechanism, between its core output and what is sold (Part 7.2: participants,
+    networks, resources, institutions, initial conditions). Each is a real mechanism spliced into the path to the
+    outcome; its coefficients are drawn after every other draw of the recipe, so a recipe without context keys
+    builds exactly the world it always built.
+
+        participants  ["adaptive_rival"]: a rival that learns the participant's typical first-lever setting and
+                      matches it claims a share of a fixed market with the core output (resource_competition)
+        network       "installed_base": the output is worth more as an installed base, which accumulates from past
+                      output and slowly churns, grows (network_effect on a stock)
+        resources     "shared_supply": the core output and the second lever's own use draw on one fixed supply,
+                      rationed proportionally (resource_competition with the participant's other use as rival)
+        institution   "output_quota": above a quota (a rule of the market's regulator) only a fraction of the output
+                      can be sold (threshold rule multiplying the output)
+        initial       "depleted" | "stocked": the outcome passes through a stock (inventory) that starts empty or
+                      full - the same mechanism from different initial conditions
+    """
+    keys = [k for k in CONTEXT_KEYS if recipe.get(k)]
+    if not keys:
+        return
+    x = out
+    if recipe.get("participants"):
+        if list(recipe["participants"]) != ["adaptive_rival"]:
+            raise ValueError(f"unknown participants {recipe['participants']}")
+        rival = gb.prim("adaptive_opponent", {"lr": _u(rng, 0.15, 0.3), "lm": 0.2, "margin": 0.0, "lo": 0.0,
+                                              "hi": 10.0, "init": _u(rng, 1.0, 4.0), "mode": "match"},
+                        role="rival", x=[(levers[0], 1, 1.0)])
+        x = gb.prim("resource_competition", {}, role="market_share", own=[(x, 0, 1.0)],
+                    rival=[(rival, 0, _u(rng, 1.5, 3.0))], supply=[], bias={"supply": _u(rng, 12.0, 20.0)})
+    if recipe.get("network"):
+        base = gb.prim("stock", {"init": 0.0, "cap": 1e6}, role="installed_base", inflow=[(x, 1, 0.05)],
+                       outflow=[], bias={"outflow": _u(rng, 0.05, 0.2)})
+        x = gb.prim("network_effect", {"strength": _u(rng, 0.02, 0.06)}, role="network", x=[(x, 0, 1.0)],
+                    base=[(base, 0, 1.0)])
+    if recipe.get("resources"):
+        x = gb.prim("resource_competition", {}, role="shared_supply", own=[(x, 0, 1.0)],
+                    rival=[(levers[-1], 0, _u(rng, 1.0, 2.0))], supply=[], bias={"supply": _u(rng, 8.0, 14.0)})
+    if recipe.get("institution"):
+        rule = gb.prim("threshold", {"theta": _u(rng, 6.0, 10.0), "lo": 1.0, "hi": _u(rng, 0.3, 0.6)},
+                       role="quota_rule", x=[(x, 0, 1.0)])
+        x = gb.prim("multiplicative", {"k": 1.0}, role="regulated_output", a=[(x, 0, 1.0)], b=[(rule, 0, 1.0)])
+    if recipe.get("initial"):
+        level = {"depleted": 0.0, "stocked": 1.0}[recipe["initial"]]
+        cap = _u(rng, 40.0, 80.0)
+        inv = gb.prim("stock", {"init": level * cap, "cap": cap}, role="inventory", inflow=[(x, 0, 1.0)],
+                      outflow=[], bias={"outflow": _u(rng, 6.0, 10.0)})
+        x = gb.prim("saturation", {"cap": 30.0, "half": 10.0}, role="shipments", x=[(inv, 0, 1.0)])
+    nd = next(n for n in gb.nodes if n["id"] == sold)
+    nd["ports"]["x"] = [[x, 0, 1.0]]
 
 
 def _channel(channels: list[str], noise: float, rng) -> list[tuple[str, dict]]:
