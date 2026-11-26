@@ -60,9 +60,130 @@ NPZ_MIME = "application/x-npz"
 # Content-addressed bytes of worlds that have no store (the "memory store" of this process). Bytes are immutable and
 # verified on insertion, so sharing them between worlds cannot change any world's state: a world can only reach
 # bytes whose REF its own state records.
+#
+# 5.0 (D-21, audit A2 / W.5): the pool is reference-counted. Every store-less world holds a *lease* on the blobs it
+# wrote or read (world.runtime["artifact_pool"]); closing the world (World.close) or garbage-collecting it releases
+# the lease, and a blob no live world holds leaves the pool. A fork or replay of a store-less world takes its own
+# lease on every blob its state references, so it keeps working after its parent is closed.
 _POOL: dict[str, bytes] = {}
+_POOL_REFS: dict[str, int] = {}
 # Stores that received artifact bytes in this process: a fork or replay without a store finds its parent's blobs
 _SOURCES: list[weakref.ref] = []
+
+
+class _PoolLease:
+    """The set of pool blobs one store-less world holds. Released exactly once (close or garbage collection)."""
+
+    __slots__ = ("held", "__weakref__")
+
+    def __init__(self):
+        self.held: set[str] = set()
+
+    def hold(self, h: str) -> None:
+        if h not in self.held:
+            self.held.add(h)
+            _POOL_REFS[h] = _POOL_REFS.get(h, 0) + 1
+
+
+def _release(held: set) -> None:
+    for h in held:
+        n = _POOL_REFS.get(h, 0) - 1
+        if n <= 0:
+            _POOL_REFS.pop(h, None)
+            _POOL.pop(h, None)
+        else:
+            _POOL_REFS[h] = n
+    held.clear()
+
+
+def _lease(world) -> _PoolLease:
+    lease = world.runtime.get("artifact_pool")
+    if lease is None:
+        lease = world.runtime["artifact_pool"] = _PoolLease()
+        weakref.finalize(world, _release, lease.held)
+    return lease
+
+
+def release_pool(world) -> int:
+    """Release this world's lease on the process pool (called by World.close through the artifacts module).
+    Returns the number of blobs it held."""
+    lease = world.runtime.pop("artifact_pool", None)
+    if lease is None:
+        return 0
+    n = len(lease.held)
+    _release(lease.held)
+    return n
+
+
+def pool_stats() -> dict:
+    """{blobs, bytes} currently in this process's pool (worlds without a store)."""
+    return {"blobs": len(_POOL), "bytes": sum(len(b) for b in _POOL.values())}
+
+
+# Packed blobs (crucible.substrate.retention.pack): many system array blobs compressed into one chunk `pack/<hex>`;
+# the blob's own key `art/<hex>` then holds a fixed-size pointer. Reads resolve the pointer and still verify the
+# blob's own SHA-256, so packing can never change what a world reads.
+PACK_MAGIC = b"CRUCIBLE-PACKREF/1\n"
+PTR_LEN = len(PACK_MAGIC) + 64 + 16 + 16 + 1
+_CHUNKS: "OrderedDict[str, bytes]" = OrderedDict()
+_CHUNKS_CAP = 192 * (1 << 20)
+
+
+def pack_pointer(pack_hex: str, off: int, length: int, codec: str) -> bytes:
+    return PACK_MAGIC + pack_hex.encode() + b"%016x%016x" % (off, length) + codec.encode()
+
+
+def _parse_pointer(data: bytes) -> tuple[str, int, int, str] | None:
+    if len(data) != PTR_LEN or not data.startswith(PACK_MAGIC):
+        return None
+    body = data[len(PACK_MAGIC):]
+    try:
+        return body[:64].decode(), int(body[64:80], 16), int(body[80:96], 16), body[96:97].decode()
+    except ValueError:
+        return None
+
+
+def _decompress(codec: str, data: bytes) -> bytes:
+    if codec == "x":
+        import lzma
+        return lzma.decompress(data)
+    if codec == "z":
+        import zlib
+        return zlib.decompress(data)
+    raise ValueError(f"unknown pack codec {codec!r}")
+
+
+def _chunk(store, pack_hex: str, codec: str) -> bytes | None:
+    key = pack_hex          # content-addressed: the same key is the same bytes in any store
+    raw = _CHUNKS.get(key)
+    if raw is not None:
+        _CHUNKS.move_to_end(key)
+        return raw
+    comp = store.get_blob(f"pack/{pack_hex}")
+    if comp is None or sha256_hex(comp) != pack_hex:
+        return None            # missing or damaged chunk: its members are unavailable, never wrong
+    raw = _decompress(codec, comp)
+    _CHUNKS[key] = raw
+    size = sum(len(v) for v in _CHUNKS.values())
+    while size > _CHUNKS_CAP and len(_CHUNKS) > 1:
+        _, old = _CHUNKS.popitem(last=False)
+        size -= len(old)
+    return raw
+
+
+def read_store_blob(store, h: str) -> bytes | None:
+    """The verified bytes of blob `h` in `store` (resolving a packed pointer), or None."""
+    data = store.get_blob(blob_key(h))
+    if data is None:
+        return None
+    ptr = _parse_pointer(data) if len(data) == PTR_LEN else None
+    if ptr is not None:
+        pack_hex, off, length, codec = ptr
+        raw = _chunk(store, pack_hex, codec)
+        if raw is None:
+            return None
+        data = raw[off:off + length]
+    return _verified(h, data)
 
 
 def _register_source(store) -> None:
@@ -163,6 +284,7 @@ def _write_bytes(world, h: str, data: bytes) -> None:
         c.put(h, data, bounded=True)
     else:
         data = _POOL.setdefault(h, data)
+        _lease(world).hold(h)
         c.put(h, data, bounded=False)
 
 
@@ -181,18 +303,20 @@ def _read_bytes(world, h: str) -> bytes | None:
         return b
     found = None
     if world.store is not None:
-        found = _verified(h, world.store.get_blob(blob_key(h)))
+        found = read_store_blob(world.store, h)
         if found is not None:
             c.persisted.add(h)
     if found is None:
         found = _POOL.get(h)
+        if found is not None and world.store is None:
+            _lease(world).hold(h)
     if found is None:
         for r in list(_SOURCES):
             s = r()
             if s is None or s is world.store:
                 continue
             try:
-                found = _verified(h, s.get_blob(blob_key(h)))
+                found = read_store_blob(s, h)
             except Exception:   # a closed store cannot serve: try the next one
                 found = None
             if found is not None:
@@ -450,6 +574,18 @@ class Artifacts(Module):
 
     def on_load(self, world):
         world.runtime.pop("artifacts", None)
+        if world.store is None:
+            # a fork or replay of a store-less world: hold every pooled blob its state references, so closing the
+            # world it came from cannot take them away
+            lease = _lease(world)
+            for ref in world.state.tables["artifacts"]:
+                h = ref[len(REF_PREFIX):]
+                if h in _POOL:
+                    lease.hold(h)
+
+    def close(self):
+        if self.world is not None:
+            release_pool(self.world)
 
     # ------------------------------------------------------------------ internal API
     def _owner_side(self, ctx: Ctx, owner: str) -> bool:

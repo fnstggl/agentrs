@@ -163,6 +163,9 @@ class PostgresStore(Store):
         r = self._conn().execute("SELECT data FROM crucible_blobs WHERE key=%s", (key,)).fetchone()
         return bytes(r[0]) if r else None
 
+    def delete_snapshot(self, sid):
+        self._conn().execute("DELETE FROM crucible_snapshots WHERE id=%s", (sid,))
+
     def delete_blob(self, key):
         self._conn().execute("DELETE FROM crucible_blobs WHERE key=%s", (key,))
 

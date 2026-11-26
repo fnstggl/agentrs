@@ -169,14 +169,16 @@ PRIMITIVE_EVENTS: dict[str, tuple[str, str, dict]] = {
 }
 
 
-def _register_primitive_events() -> None:
+def register_owner_events() -> int:
+    """Register the payload schemas of the events that create or move the 4.0 owners' shared facts (bank.txn,
+    id.person, ...). Called explicitly when the kernel modules are loaded (`crucible.load_all_modules` imports
+    `crucible.substrate.modules`, which calls it) and by `bus.enforce_world`; idempotent. Importing this module
+    registers nothing (5.0 audit A5: registration must not depend on who happened to import what)."""
     from . import bus
     for name, (kind, mod, schema) in PRIMITIVE_EVENTS.items():
         bus.event_type(name, schema, owner=mod, doc=f"4.0 {kind} fact ({OWNERS[kind]['module']}."
                                                      f"{OWNERS[kind]['table']})")
-
-
-_register_primitive_events()
+    return len(PRIMITIVE_EVENTS)
 
 
 def kinds() -> list[str]:

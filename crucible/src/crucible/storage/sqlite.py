@@ -4,6 +4,7 @@ import json
 import os
 import sqlite3
 import threading
+import zlib
 
 from .base import Store, StoreConflict, dumps, now
 
@@ -26,10 +27,14 @@ _EV_COLS = "seq, t, type, actor, cmd, payload, vis, hash, via"
 
 
 class SQLiteStore(Store):
+    """`compress_payloads`: event payloads whose JSON is longer than this many bytes are stored zlib-compressed
+    (5.0: recorded sandbox outputs and inference records are large and compress about 5x); 0 stores all as text.
+    Reads accept both forms, so stores written by older versions stay readable."""
     kind = "sqlite"
 
-    def __init__(self, path: str, synchronous: str = "NORMAL") -> None:
+    def __init__(self, path: str, synchronous: str = "NORMAL", compress_payloads: int = 2048) -> None:
         self.path = path
+        self.compress_payloads = int(compress_payloads)
         if path != ":memory:":
             os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         self._local = threading.local()
@@ -94,7 +99,7 @@ class SQLiteStore(Store):
                     raise StoreConflict(f"non-contiguous append to {world_id}: {e['seq']} after {last + i}")
             c.executemany("INSERT INTO events(world_id, seq, t, type, actor, cmd, payload, vis, hash, via) "
                           "VALUES (?,?,?,?,?,?,?,?,?,?)",
-                          [(world_id, e["seq"], e["t"], e["type"], e["actor"], e["cmd"], dumps(e["payload"]),
+                          [(world_id, e["seq"], e["t"], e["type"], e["actor"], e["cmd"], self._payload(e["payload"]),
                             dumps(e["vis"]), e["hash"], e.get("via")) for e in events])
             c.execute("COMMIT")
         except sqlite3.IntegrityError as e:
@@ -103,6 +108,17 @@ class SQLiteStore(Store):
         except BaseException:
             c.execute("ROLLBACK")
             raise
+
+    def _payload(self, payload):
+        txt = dumps(payload)
+        if self.compress_payloads and len(txt) > self.compress_payloads:
+            return sqlite3.Binary(_ZMARK + zlib.compress(txt.encode(), 6))
+        return txt
+
+    def seq_at_time(self, world_id, t):
+        """The seq of the last event with event time <= t (0 if none)."""
+        r = self._conn().execute("SELECT MAX(seq) FROM events WHERE world_id=? AND t<=?", (world_id, int(t))).fetchone()
+        return int(r[0]) if r[0] is not None else 0
 
     def read_events(self, world_id, from_seq=0, to_seq=None, types=None):
         q = f"SELECT {_EV_COLS} FROM events WHERE world_id=? AND seq>?"
@@ -155,6 +171,9 @@ class SQLiteStore(Store):
         r = self._conn().execute("SELECT data FROM blobs WHERE key=?", (key,)).fetchone()
         return bytes(r[0]) if r else None
 
+    def delete_snapshot(self, sid):
+        self._conn().execute("DELETE FROM snapshots WHERE id=?", (sid,))
+
     def delete_blob(self, key):
         self._conn().execute("DELETE FROM blobs WHERE key=?", (key,))
 
@@ -176,8 +195,19 @@ class SQLiteStore(Store):
             self._local.c = None
 
 
+_ZMARK = b"\x00z"
+
+
+def _load_payload(v):
+    if isinstance(v, (bytes, memoryview)):
+        v = bytes(v)
+        if v.startswith(_ZMARK):
+            v = zlib.decompress(v[len(_ZMARK):])
+    return json.loads(v)
+
+
 def _ev(r) -> dict:
-    d = {"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": json.loads(r[5]),
+    d = {"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": _load_payload(r[5]),
          "vis": json.loads(r[6]), "hash": r[7]}
     if r[8] is not None:
         d["via"] = r[8]

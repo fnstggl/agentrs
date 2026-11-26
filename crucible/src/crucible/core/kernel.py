@@ -200,6 +200,17 @@ class Module:
     def check_invariants(self, world: "World") -> list[str]:
         return []
 
+    def blob_roots(self, world: "World"):
+        """5.0 retention (crucible.substrate.retention): REFs of the blobs `on_load` reads to rebuild this module's
+        runtime state from the world's current state (e.g. the latest neural checkpoints). Recorded in snapshots."""
+        return ()
+
+    def superseded_blobs(self, world: "World"):
+        """5.0 retention: REFs of blobs this module wrote that nothing needs any more from the current state on
+        (e.g. checkpoints replaced by later ones). Only these may be dropped, and only when no retained snapshot
+        roots them; every other blob is kept."""
+        return ()
+
     def close(self) -> None:
         pass
 
@@ -410,6 +421,10 @@ class World:
             for dep in mod.depends:
                 if dep not in self.modules:
                     raise ProtocolError(f"module {mod.name} requires {dep}")
+        if spec.params.get("typed_events"):
+            # 5.0: a typed world validates every registered event type of its modules (crucible.substrate.bus)
+            from ..substrate import bus
+            bus.enforce_world(self)
 
     # ------------------------------------------------------------------ construction
     def _install_core(self) -> None:
@@ -995,6 +1010,10 @@ class World:
         import pickle
         payload = {"spec": self.spec.to_dict(), "world_id": self.world_id, "seq": self.seq, "hash": self.last_hash,
                    "state": self.state.dumps(), "kernel": KERNEL_VERSION}
+        roots = sorted({r for m in self.modules.values() for r in (m.blob_roots(self) or ()) if r})
+        if roots or any(type(m).blob_roots is not Module.blob_roots for m in self.modules.values()):
+            # 5.0: blobs a resume from this snapshot needs (retention never drops them) and its simulated time
+            payload["blob_roots"], payload["t"] = roots, self.now
         return zlib.compress(pickle.dumps(payload, protocol=5), 1)
 
     def snapshot(self) -> str:
@@ -1068,7 +1087,7 @@ class World:
 
     @classmethod
     def replay(cls, spec: WorldSpec, events: Iterable[dict], world_id: str = "replay", verify: bool = True,
-               base_blob: bytes | None = None, store=None) -> "World":
+               base_blob: bytes | None = None, store=None, *, load: bool = True) -> "World":
         """Rebuild a world by applying recorded events (from genesis, or on top of a snapshot).
 
         5.0: `store` is where content-addressed blobs referenced by events (artifact bytes, `cols.batch` arrays) can
@@ -1101,8 +1120,9 @@ class World:
             w.state.meta["hash"] = w.last_hash
         w.log_base = w.seq
         w._rebuild_heap()
-        for mod in w.modules.values():
-            mod.on_load(w)
+        if load:      # False: state only (historical queries), no runtime rebuild
+            for mod in w.modules.values():
+                mod.on_load(w)
         return w
 
     # ------------------------------------------------------------------ regeneration (determinism check)

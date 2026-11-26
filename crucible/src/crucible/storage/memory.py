@@ -91,6 +91,9 @@ class MemoryStore(Store):
     def get_blob(self, key):
         return self.blobs.get(key)
 
+    def delete_snapshot(self, sid):
+        self.snaps.pop(sid, None)
+
     def delete_blob(self, key):
         self.blobs.pop(key, None)
 
