@@ -289,9 +289,10 @@ civilisation measurement is `not_measured` and fails its gate. SP-19.3 slices 5 
 `crucible.experience.ReferenceLearner` through the public experience interface (Clarification 1).
 
 ## D-47 Determinism of civilisations is checked exactly under contract 1.7 (2026-11-26, workstream J)
-A civilisation's world logic is deterministic, but its batched neural inference on a shared GPU is not
-bit-reproducible (shared-space vectors depend on batch composition and on the machine-wide representation cache:
-DEF-J-1), which is why contract 1.7 records inference outcomes (and measured sandbox CPU time) in `ext` events. Two
+A civilisation's world logic is deterministic, but two of its recorded outcomes are not bit-reproducible: measured
+sandbox CPU time (a measurement beyond the memo tolerance is billed fresh: the first divergence of a fresh-process
+rerun seen in this wave) and batched neural inference (shared-space vectors depend on batch composition and on the
+machine-wide representation cache) - DEF-J-1; this is why contract 1.7 records them in `ext` events. Two
 free runs of one spec and seed can therefore part through one recorded outcome. Decision: the Gate P and SP-10.0
 checks are the exact ones the contract supports, and the free ones are measured and reported beside them, never
 counted in their place. Snapshot and resume (P.3): a NEW process loads the world from a copy of the store taken at the
@@ -305,7 +306,8 @@ diverging, and an unchanged fork either equal to its parent or parted first by a
 transaction's recorded outcomes are equal is the world's logic or the fork, and fails. The interrupted-run test uses
 the same rule and also regenerates the interrupted run's whole record from genesis. Rules out: comparing free reruns
 and calling their noise a resume or fork defect, and calling a logic divergence inference noise. Free-rerun agreement
-becomes an exact criterion once the space encodes batch-invariantly (DEF-J-1).
+becomes an exact criterion once metering resolves anchor exceedances deterministically and the space encodes
+batch-invariantly (DEF-J-1).
 
 ## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
 The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset

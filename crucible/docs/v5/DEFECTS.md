@@ -138,13 +138,13 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-J-1 (high, open): Free reruns of one civilisation spec and seed are not bit-reproducible: shared-space vectors depend on batch composition and on the machine-wide cache
+### DEF-J-1 (high, open): Free reruns of one civilisation spec and seed are not bit-reproducible: sandbox CPU metering beyond the memo tolerance, and batch-dependent shared-space vectors with a machine-wide cache
 
 ```json
 {
  "area": "A_J_substrate_civ",
  "id": "DEF-J-1",
- "owner": "D (crucible.semantic.space), J",
+ "owner": "O/A (D-20/D-21 sandbox metering), D (crucible.semantic.space), J",
  "requirements": [
   "SP-10.0",
   "P.3"
@@ -155,7 +155,7 @@ B_population verdict) and P's own findings.
   "finding": null
  },
  "status": "open",
- "summary": "crucible.semantic.space computes missing representations in batches whose composition depends on what the world's record AND the process-wide/machine-wide RepCache (memory LRU + ~/.cache/crucible/space, shared by every process of every agent) already hold, and padded batched encoding is not batch-invariant: on CPU, 5 of 6 texts encoded in one batch differ from the same texts encoded alone by 0.9e-7..7.2e-7 (max abs, not bitwise equal; the one unpadded text is bitwise equal; probe in the w3b-civ report). A decision that compares such a value with a random draw flips occasionally, so two free runs of one spec and seed part: 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories (observer diagnosis), and fresh-process reruns rarely match. Regeneration and replay are exact (contract 1.7 records the outcomes), so P.3/P.4/SP-10.0 are measured with them (D-47). Fix (D): make a representation a function of its bytes only - encode padding-free (group by exact token length, or one item per forward pass) and verify bitwise equality of batched vs single encoding on CPU and GPU; until then the free-rerun rate is reported, not counted."
+ "summary": "Two free runs of one spec and seed (each recomputing every non-reproducible outcome) part. Measured on balanced seed 41, one simulated day: in-process reruns (memory cache warm, then cleared) and two fresh processes with the space's disk cache off were all identical to the first run; a third fresh process differed first at seq 1790, a hosted site's request billed cpu_ms 4.096 / cu 204.8 instead of 0.101 / 5.05 - a fresh parent-side CPU measurement beyond crucible.sandbox.metering's MEMO_TOL (3x + 1 ms) is billed instead of the remembered anchor, so billing (and everything downstream) depends on machine load. Over 3 days, 8 sequential in-process runs of balanced seed 5 gave 4 distinct trajectories. A second mechanism is latent: crucible.semantic.space computes missing representations in batches whose composition depends on the world's record and on the process-wide and machine-wide RepCache (~/.cache/crucible/space, shared by every process of every agent), and padded batched encoding is not batch-invariant (CPU probe: 5 of 6 padded texts differ from their single encoding by 0.9e-7..7.2e-7; the unpadded one is bitwise equal). Both outcomes are recorded (contract 1.7), so regeneration and replay are exact and P.3/P.4/SP-10.0 are measured with them (D-47). Fix: metering - resolve an anchor exceedance deterministically (e.g. bill the anchor and flag, or re-measure until two measurements agree) instead of billing the noisy fresh value; space - encode padding-free (group by exact token length, or one item per forward pass) and test bitwise equality of batched vs single encoding on CPU and GPU."
 }
 ```
 
