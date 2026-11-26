@@ -167,9 +167,7 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     from ..api.local import ensure_modules
     ensure_modules([m["name"] for m in spec.modules])
     world = World.create(spec, store=kw.pop("store", None))
-    agents = kw.pop("agents", None)
-    if agents is None:
-        agents = [dom.participant_principal(world)] if dom.participant_principal else ["agent"]
+    agents = _domain_agents(dom, world, kw.pop("agents", None))
     env = KernelExperienceEnv(world, seed, reward_mode=mode, tier=2, name=f"{dom.name}:{cfg.name}", agents=agents,
                               **kw)
     attach_domain(env, dom, difficulty)
@@ -177,11 +175,29 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     return env
 
 
+def _domain_agents(dom, world, agents):
+    """Who a Tier 2 learner is (workstream I hook, D-48): by default every seat of the domain (the first is the
+    primary learner; several seats make a multi-learner world), else the domain's `participant_principal`, else a
+    new participant. An int n means the first n seats (n new participants when the domain has fewer seats);
+    explicit names are seats or principals ("p:...") or handles of new participants."""
+    seats = list(dom.seat_principals()) if hasattr(dom, "seat_principals") else []
+    if isinstance(agents, int):
+        return seats[:agents] if seats and agents <= len(seats) else agents
+    if agents is not None:
+        return list(agents)
+    if seats:
+        return seats
+    if dom.participant_principal:
+        return [dom.participant_principal(world)]
+    return ["agent"]
+
+
 class DomainObjective:
     """A v5 domain's objective behind the begin/step_reward/status protocol. The domain's own evaluator is the
     verifier: its verdict stays on the evaluator side (`status` is read only by `verify()` and the reward gate);
     the participant sees the objective's public text. The legacy reward (explicit legacy mode only) is the change of
-    the evaluator's numeric score, the verified outcome its success."""
+    the evaluator's numeric score, the verified outcome its success. The evaluator runs at most once per world
+    state (event sequence number and clock) and principal."""
 
     def __init__(self, dom, objective: dict):
         self.dom, self.objective = dom, dict(objective)
@@ -189,10 +205,17 @@ class DomainObjective:
         self.text = text if isinstance(text, str) else None
         self._score: dict[str, float] = {}
         self._last: dict[str, dict] = {}
+        self._at: dict[str, tuple] = {}
 
     def _eval(self, world, actor) -> dict:
+        key = (int(world.seq), int(world.now))
+        hit = self._at.get(actor)
+        if hit is not None and hit[0] == key:
+            return hit[1]
         ev = self.dom.evaluate(world, actor, self.objective)
-        return ev if isinstance(ev, dict) else {"value": ev}
+        ev = ev if isinstance(ev, dict) else {"value": ev}
+        self._at[actor] = (key, ev)
+        return ev
 
     @staticmethod
     def _num(ev: dict) -> float:
