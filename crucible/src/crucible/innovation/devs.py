@@ -876,6 +876,12 @@ class Developers(Module):
         need = proj["need"]
         if proj.get("uses_package"):
             return self._upgrade(ctx, p, pid, proj)
+        if _parts(need) and not proj.get("composes"):
+            # a two-stage task its own program does poorly: call other providers' services for the stages when
+            # people keep them (public registry counts), passing their prices on plus a margin
+            plan = self._compose_plan(ctx, p, need, {"examples": list(proj.get("examples") or [])})
+            if plan is not None and self._to_workflow(ctx, p, pid, proj, plan, now):
+                return True
         k = self.approach(i, need, rng, current=int(proj["approach"]))
         ctx.emit("devs.project_update", {"id": pid, "improved_t": int(now), "attempts": int(proj.get("attempts", 0)) + 1},
                  vis="internal")
@@ -903,6 +909,53 @@ class Developers(Module):
             if self._try(ctx, p, "code.commit", repo=proj["pkg_repo"], files={"lib.py": src}, message="improve") and \
                     self._try(ctx, p, "pkg.release", package=proj["package"], version=nv, notes="improved results"):
                 ctx.emit("devs.project_update", {"id": pid, "pkg_version": nv}, vis="internal")
+        return True
+
+    @staticmethod
+    def _flow_name(task: str) -> str:
+        two = slug(task, 2)
+        return ((".".join(two.split("-")) if "-" in two else slug(task, 1) + ".task")[:50] + ".flow")
+
+    def _to_workflow(self, ctx, p, pid, proj, plan, now) -> bool:
+        """Replace a service's own program by a workflow of two other providers' services (same host, instance and
+        declaration; price: the components' prices plus half its old price as margin, never below the old price),
+        keep it only if it runs on one of the posted examples, and register the combination (`caps.compose`);
+        otherwise restore the previous program and price."""
+        from ..commerce.reference import service_files
+        a, b = plan["components"]
+        price = max(int(proj["price"]), int(plan["cost"]) + max(2, int(proj["price"]) // 2))
+        ctx.emit("devs.project_update", {"id": pid, "improved_t": int(now), "attempts": int(proj.get("attempts", 0)) + 1},
+                 vis="internal")
+        old = self._try(ctx, p, "code.read", repo=proj["repo"], path="service.py")
+        if not old:
+            return False
+        src = WORKFLOW.format(a=f"{a['host']}.{a['endpoint']}", b=f"{b['host']}.{b['endpoint']}", key=plan["key"])
+        old_manifest = self._try(ctx, p, "code.read", repo=proj["repo"], path="crucible.json")
+        if not self._try(ctx, p, "code.commit", repo=proj["repo"], message="workflow",
+                         files=service_files(src, proj["task"][:120], price=price)):
+            return False
+        ok = False
+        if self._try(ctx, p, "id.grant", grantee=f"svc:{proj['host']}", cap="bank.spend",
+                     limit=max(2000, 400 * plan["cost"])) is not None:
+            dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
+            ex = (proj.get("examples") or [None])[0]
+            out = self._try(ctx, p, "pkg.exec", repo=proj["repo"], target="service:solve", input=ex) \
+                if dep and dep.get("status") == "live" else None
+            ok = bool(out and out.get("ok") and isinstance(out.get("result"), dict)) and self._try(
+                ctx, p, "caps.compose", service_host=proj["host"], name=self._flow_name(proj["task"]),
+                components=[a["declaration"], b["declaration"]],
+                doc=f"{proj['task']}: stage 1 by {a['host']}, its records into stage 2 by {b['host']}.") is not None
+        if not ok:
+            files = {"service.py": old["content"]}
+            if old_manifest:
+                files["crucible.json"] = old_manifest["content"]
+            self._try(ctx, p, "code.commit", repo=proj["repo"], files=files, message="revert")
+            self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
+            return False
+        reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
+        ctx.emit("devs.project_update", {"id": pid, "approach": -1, "composes": [a["declaration"], b["declaration"]],
+                                         "price": int(price), "trials_at": int(reg.get("trials") or 0)}, vis="internal")
+        self._announce(ctx, p, proj["task"], proj["host"], int(price), now, new_version=True)
         return True
 
     def _upgrade(self, ctx, p, pid, proj) -> bool:
