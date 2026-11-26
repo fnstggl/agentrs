@@ -51,7 +51,7 @@ def test_profiles_match_part_3_3():
 
 
 def test_schema_represents_part_3_1_fields():
-    cols = schema.columns(schema.dims({}))
+    cols = {**schema.columns(schema.dims({})), **schema.web_columns(schema.dims({}))}   # web columns: popweb
     assert len(schema.FIELDS) == 18
     for f, cs in schema.FIELDS.items():
         assert all(c in cols or c == "income_day" for c in cs), f
