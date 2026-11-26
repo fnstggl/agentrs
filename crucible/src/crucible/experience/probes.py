@@ -420,7 +420,7 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple =
         for k in range(steps):
             for a in env.agents():
                 env.execute(a, _rapid_noop(env, a, k))
-            env.advance(60)
+            env.advance(getattr(env, "tick_s", 60))
             rs += [env.reward(a) for a in env.agents()]
         rewards(P, rs, f"{fam} default mode")
         views = []
@@ -432,7 +432,7 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple =
             for k in range(steps):
                 for a in env.agents():
                     got.append(env.execute(a, _rapid_noop(env, a, k)))
-                env.advance(60)
+                env.advance(getattr(env, "tick_s", 60))
                 got += [env.observe(a) for a in env.agents()]
             got += [env.observe_since(a, 0) for a in env.agents()]
             views.append(got)
@@ -447,7 +447,7 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple =
         r = env.execute(ags[0], {"tool": "rapid.message", "args": {"to": ags[2], "text": f"between us: {secret}"}})
         if not r.get("ok"):
             raise RuntimeError(f"{fam}: could not send the private message: {r}")
-        env.advance(60)
+        env.advance(getattr(env, "tick_s", 60))
         bystander = [env.observe(ags[1]), env.observe_since(ags[1], 0)]
         scan(P, bystander, canaries=[secret], label=f"{fam} {ags[0]}->{ags[2]} private message seen by {ags[1]}")
         P.check("canary")

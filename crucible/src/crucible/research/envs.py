@@ -14,10 +14,11 @@ ticks ran at fallback settings or idle because the operator could not pay.
 An episode is one pass over the task's horizon. `step` reports `done` when the horizon is reached; the caller then
 calls `reset(which=done)` (optionally with new tasks for those slots) before stepping those slots again.
 
-Reward modes (Crucible 5.0, `crucible.experience.modes`): ``reward_mode="legacy_shaped_reward"`` (the default) is the
-4.0 behaviour byte for byte. ``"observation_only"`` removes every reward path: `step` returns zeros and the reward
+Reward modes (Crucible 5.0, `crucible.experience.modes`; Clarification 2): the default is ``"observation_only"``,
+which removes every reward path: `step` returns zeros and the reward
 slot of the observation (scalars[0]) stays 0; revenue, cost, funds and time (scalars[1:5]) are unchanged, because
-they are what the operator's own account shows. ``"verified_terminal_outcome"`` returns 0 on every tick and, on the
+they are what the operator's own account shows. ``reward_mode="legacy_shaped_reward"``, selected explicitly, is the
+4.0 behaviour byte for byte (historical baselines). ``"verified_terminal_outcome"`` returns 0 on every tick and, on the
 tick that ends an episode, 1.0 if the public objective was reached (`Task.success`) and 0.0 otherwise; the reward
 slot of the observation stays 0 as well.
 """
@@ -44,7 +45,7 @@ def money_scale(task: Task) -> float:
 
 class MechVecEnv:
     def __init__(self, tasks: Sequence[Task], spec: EnvSpec | None = None, seat: int = 0, money: bool = True,
-                 reward_mode: str = LEGACY):
+                 reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         self.spec = spec or EnvSpec()
         self.seat = int(seat)

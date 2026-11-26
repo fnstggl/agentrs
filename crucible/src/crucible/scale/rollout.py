@@ -116,17 +116,18 @@ class WorldEnv:
     ``objective.step_reward(world, actor)`` when an objective factory is given (`goals.contracts.RewardContract`
     protocol: `begin`, `step_reward`); otherwise the change of the participant's own account balances, in cents.
 
-    `reward_mode` (Crucible 5.0, `crucible.experience.modes`): ``legacy_shaped_reward`` (default) is the behaviour
-    above; ``observation_only`` returns 0.0 on every step (the objective, if any, is still stepped so its verifier
-    keeps running; `verify()` returns its status); ``verified_terminal_outcome`` returns 1.0 once, at the first step
+    `reward_mode` (Crucible 5.0, `crucible.experience.modes`; Clarification 2): ``observation_only`` (the default)
+    returns 0.0 on every step (the objective, if any, is still stepped so its verifier keeps running; `verify()`
+    returns its status) and builds the world with evaluator data hidden from the participant;
+    ``legacy_shaped_reward``, selected explicitly, is the 4.0 behaviour above; ``verified_terminal_outcome`` returns 1.0 once, at the first step
     where the objective's status reports success, else 0.0 (0.0 always without an objective).
     """
 
     def __init__(self, ref: dict, *, handle: str = "learner", endowment: int = 3_000_000, think_s: int = 600,
                  horizon_days: float | None = None, objective: str | None = None, objective_kwargs: dict | None = None,
                  max_events: int = 30, imports: tuple = (), strict: bool = False,
-                 reward_mode: str = "legacy_shaped_reward"):
-        from ..experience.modes import check_mode
+                 reward_mode: str | None = None):
+        from ..experience.modes import check_mode, prepare_spec, prepare_world
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
         ensure_registered(imports)
@@ -143,11 +144,11 @@ class WorldEnv:
                 blob = f.read()
             head = pickle.loads(zlib.decompress(blob))
             ensure_modules([m["name"] for m in head["spec"]["modules"]])
-            self.world = World.from_blob(blob, world_id=f"{head['world_id']}.e{head['seq']}", fork=True,
-                                         strict=strict)
+            self.world = prepare_world(World.from_blob(blob, world_id=f"{head['world_id']}.e{head['seq']}", fork=True,
+                                                       strict=strict), self.reward_mode)
         else:
             cfg = {k: ref[k] for k in ("family", "overrides", "extra_modules", "drop_modules") if k in ref}
-            spec = generate(cfg, int(ref.get("seed", 0)))
+            spec = prepare_spec(generate(cfg, int(ref.get("seed", 0))), self.reward_mode)
             ensure_modules([m["name"] for m in spec.modules])
             self.world = World.create(spec, strict=strict)
         w = self.world

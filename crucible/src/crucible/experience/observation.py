@@ -5,7 +5,8 @@ domain or a Tier 3 civilisation. Every field is JSON-native, so an observation c
 pipe or rendered as text without loss. Exact quantities are numbers, never text: money is integer cents, time is
 integer seconds, readings keep their full float value.
 
-    t            world time in seconds
+    t            world time in simulated seconds (every tier and adapter; `TIME_UNIT`, stated in ``resources``
+                 as ``time_unit`` and in each adapter's ``describe()``)
     agent        the observing agent (a principal id)
     numbers      flat ``{"path.to.quantity": number}`` of exact scalar quantities the agent may see
     arrays       ``{"name": [numbers...]}`` vectors (gauge vectors, semantic representations ``semantic.<ref>``)
@@ -31,6 +32,7 @@ import math
 from typing import Any, TypedDict
 
 OBSERVATION_FORMAT = "crucible-obs/1"
+TIME_UNIT = "s"          # `t`, event times, `cost_s`, `delay_s`: simulated seconds in every tier and adapter
 
 
 class Observation(TypedDict):

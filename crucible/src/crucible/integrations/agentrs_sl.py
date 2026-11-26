@@ -20,10 +20,16 @@ module is imported.
   summary leaves with ids replaced by kinds, decisions left), entities (remembered identifiers with recency / source
   features), text (rendered observation). The actor's own view only.
 * **Time.** One decision per sl step, then ``advance_time`` moves the world by ``dt`` seconds (``Consequence.dt`` is in
-  hours). Episodes end on verified success, at the goal horizon, or after ``max_decisions``.
-* **Reward / verification.** ``evaluate_goal`` reads Crucible's `GoalVerifier` (progress potential, success with
-  sustained daily checks; never agent claims). The native reward is 0 except a small cost for schema-invalid calls;
-  sl's own RewardContract adds potential shaping on the verified progress and the success bonus.
+  hours). Episodes end at the goal horizon or after ``max_decisions`` (and, in the explicitly selected legacy and
+  verified modes, on the verifier's outcome).
+* **Reward modes** (Crucible 5.0; Clarification 2). ``reward_mode="observation_only"`` (THE DEFAULT): the native
+  reward is always 0.0 (no action-quality penalty), the episode never ends because of the verifier's outcome,
+  `goal()` carries the public objective text and horizon only (not the evaluator's metric name or target), the world
+  hides evaluator tools and fields from the actor, and ``evaluate_goal`` (sl's evaluator side) reports only the
+  verified success label. ``"verified_terminal_outcome"``: 1.0 once at the terminal outcome when the verifier confirms
+  success, else 0.0. ``"legacy_shaped_reward"`` (explicit): the 4.0 adapter - a small native cost for schema-invalid
+  calls, episodes end on verified success, `goal()` names the progress metric and target, ``evaluate_goal`` reads
+  Crucible's `GoalVerifier` progress (sl's own RewardContract adds potential shaping on it).
 """
 from __future__ import annotations
 
@@ -62,7 +68,11 @@ class CrucibleSLWorld(World):
     agent_controls_length = False      # episodes end by verified outcome / horizon / decision cap, not by an action
 
     def __init__(self, goal_family: str = "service", world_family: str = "tiny", level: int = 0, dt: int = 3600,
-                 max_decisions: int = 48, prefix: Optional[str] = None, prefix_kw: Optional[dict] = None):
+                 max_decisions: int = 48, prefix: Optional[str] = None, prefix_kw: Optional[dict] = None,
+                 reward_mode: Optional[str] = None):
+        from ..experience.modes import check_mode
+        self.reward_mode = check_mode(reward_mode)
+        self._paid = False
         self.goal_family, self.world_family, self.level = goal_family, world_family, level
         self.dt, self.max_decisions, self.prefix, self.prefix_kw = int(dt), int(max_decisions), prefix, prefix_kw or {}
         self.family = f"crucible/{goal_family}" + (f"/{prefix}" if prefix else "")
@@ -84,8 +94,11 @@ class CrucibleSLWorld(World):
 
     def reset_world(self) -> None:
         from ..core.kernel import World as CW
+        from ..experience.modes import prepare_world
         from ..goals.contracts import GoalVerifier
-        self.world = CW.from_blob(self.base, world_id=f"{self.world_id}-e{self.n_episode}")
+        self.world = prepare_world(CW.from_blob(self.base, world_id=f"{self.world_id}-e{self.n_episode}"),
+                                   self.reward_mode)
+        self._paid = False
         self.n_episode += 1
         self.verifier = GoalVerifier(self.goal_contract, self.actor)
         self.verifier.begin(self.world)
@@ -105,10 +118,14 @@ class CrucibleSLWorld(World):
 
     # ------------------------------------------------------------------ agent view
     def goal(self, agent: str = "0") -> Obs:
-        return Obs(tokens=[f"goal:{self.goal_contract.family}", f"level:{self.level}"] +
-                   [f"metric:{self.goal_contract.progress['metric']}"],
-                   numbers={"target": symlog(float(self.goal_contract.progress.get("target", 0))),
-                            "horizon_days": self.goal_contract.horizon_s / DAY}, text=self.goal_contract.description)
+        g = self.goal_contract
+        if self.reward_mode == "legacy_shaped_reward":
+            return Obs(tokens=[f"goal:{g.family}", f"level:{self.level}"] + [f"metric:{g.progress['metric']}"],
+                       numbers={"target": symlog(float(g.progress.get("target", 0))),
+                                "horizon_days": g.horizon_s / DAY}, text=g.description)
+        # the public objective only: its text and horizon (the evaluator's metric and target stay evaluator-side)
+        return Obs(tokens=[f"goal:{g.family}", f"level:{self.level}"], numbers={"horizon_days": g.horizon_s / DAY},
+                   text=g.description)
 
     def observe(self, agent: str = "0") -> Obs:
         o = self._obs
@@ -224,6 +241,8 @@ class CrucibleSLWorld(World):
 
     def _ended(self) -> bool:
         st = self.verifier.status(self.world)
+        if self.reward_mode == "observation_only":     # time and decision budget only, never the verifier's outcome
+            return bool(self.n_dec >= self.max_decisions or st["elapsed_s"] >= self.goal_contract.horizon_s)
         return bool(st["success"] or st["failed"] or self.n_dec >= self.max_decisions)
 
     def observe_consequences(self, agent: str = "0") -> Consequence:
@@ -232,12 +251,22 @@ class CrucibleSLWorld(World):
             ev.append("ok" if self.last.get("ok") else (self.last.get("error") or {}).get("code", "error"))
         if self.last_invalid:
             ev.append("invalid")
-        return Consequence(reward=-INVALID_COST if self.last_invalid else 0.0, dt=self.dt / 3600.0,
-                           done=self._ended(), events=ev)
+        done = self._ended()
+        if self.reward_mode == "legacy_shaped_reward":
+            reward = -INVALID_COST if self.last_invalid else 0.0
+        elif self.reward_mode == "verified_terminal_outcome" and done and not self._paid and \
+                self.verifier.status(self.world)["success"]:
+            self._paid, reward = True, 1.0
+        else:
+            reward = 0.0
+        return Consequence(reward=reward, dt=self.dt / 3600.0, done=done, events=ev)
 
     def evaluate_goal(self, agent: str = "0") -> GoalStatus:
         st = self.verifier.status(self.world)
         left = max(0.0, 1.0 - max(self.n_dec / self.max_decisions, st["elapsed_s"] / self.goal_contract.horizon_s))
+        if self.reward_mode != "legacy_shaped_reward":      # the verified outcome label only
+            ok = float(bool(st["success"]))
+            return GoalStatus(success=bool(st["success"]), progress=ok, violated=None, score=ok, time_left=left)
         return GoalStatus(success=bool(st["success"]), progress=float(st["progress"]), violated=None,
                           score=float(st["progress"]), time_left=left)
 
@@ -250,7 +279,8 @@ class CrucibleSLWorld(World):
 
     def restore_world_state(self, s) -> None:
         from ..core.kernel import World as CW
-        self.world = CW.from_blob(s["blob"], world_id=s["wid"])
+        from ..experience.modes import prepare_world
+        self.world = prepare_world(CW.from_blob(s["blob"], world_id=s["wid"]), self.reward_mode)
         self.view.rebind(self.world)
         self.view.cursor = s["cursor"]
         self.verifier = pickle.loads(s["verifier"])
@@ -266,20 +296,29 @@ class CrucibleSLWorld(World):
             self.world.close()
 
 
-def register_families(world_family: str = "tiny", level: int = 0, max_decisions: int = 48, dt: int = 3600) -> list:
+def register_families(world_family: str = "tiny", level: int = 0, max_decisions: int = 48, dt: int = 3600,
+                      reward_mode: Optional[str] = None, prefix_name: str = "crucible") -> list:
+    """Register the goal families with ``agentrs.sl.worlds``: ``crucible/<goal family>`` in the default
+    (observation-only) mode, and ``crucible-legacy/<goal family>`` in the explicitly selected 4.0 mode for historical
+    baselines (`FAMILY_NAMES`, `LEGACY_FAMILY_NAMES`)."""
     from ..goals.contracts import GOAL_FAMILIES, HELDOUT_GOAL_FAMILIES
     names = []
     for gf in sorted(set(GOAL_FAMILIES) - set(HELDOUT_GOAL_FAMILIES)):   # held-out goal families are never registered
-        name = f"crucible/{gf}"
-        W.register(name, lambda gf=gf: CrucibleSLWorld(gf, world_family, level, dt, max_decisions),
-                   meta={"source": "Crucible (crucible/)", "agents": 1, "goal_family": gf, "world_family": world_family})
+        name = f"{prefix_name}/{gf}"
+        W.register(name, lambda gf=gf: CrucibleSLWorld(gf, world_family, level, dt, max_decisions,
+                                                       reward_mode=reward_mode),
+                   meta={"source": "Crucible (crucible/)", "agents": 1, "goal_family": gf, "world_family": world_family,
+                         "reward_mode": reward_mode or "observation_only"})
         names.append(name)
     for gf in ("revenue", "service"):
-        name = f"crucible/{gf}/deployed_service"
-        W.register(name, lambda gf=gf: CrucibleSLWorld(gf, world_family, level, dt, max_decisions, "deployed_service"),
-                   meta={"source": "Crucible (crucible/)", "agents": 1, "goal_family": gf, "prefix": "deployed_service"})
+        name = f"{prefix_name}/{gf}/deployed_service"
+        W.register(name, lambda gf=gf: CrucibleSLWorld(gf, world_family, level, dt, max_decisions, "deployed_service",
+                                                       reward_mode=reward_mode),
+                   meta={"source": "Crucible (crucible/)", "agents": 1, "goal_family": gf, "prefix": "deployed_service",
+                         "reward_mode": reward_mode or "observation_only"})
         names.append(name)
     return names
 
 
 FAMILY_NAMES = register_families()
+LEGACY_FAMILY_NAMES = register_families(reward_mode="legacy_shaped_reward", prefix_name="crucible-legacy")

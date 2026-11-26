@@ -293,7 +293,10 @@ def make_app(server: WorldServer, *, operator_token: str | None = None, env: Cru
         cfg = body.get("spec") or body.get("config")
         if cfg is None:
             raise ApiError("body needs 'spec' (WorldSpec dict) or 'config' (world-generator config)", status=422)
-        wid = server.create_world(cfg, body.get("seed"), world_id=body.get("world_id"))
+        from ..experience.modes import prepare_spec
+        # Clarification 2: worlds created for participants hide evaluator data unless legacy is named explicitly
+        spec = prepare_spec(server._spec_from(cfg, body.get("seed")), body.get("reward_mode"))
+        wid = server.create_world(spec, world_id=body.get("world_id"))
         return server.world_info(wid)
 
     @app.get("/v1/worlds")
@@ -405,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dt", type=int, default=60)
     ap.add_argument("--max-steps", type=int, default=100)
     ap.add_argument("--reset-mode", choices=["continue", "fork"], default="continue")
+    ap.add_argument("--reward-mode", choices=["observation_only", "verified_terminal_outcome", "legacy_shaped_reward"],
+                    default="observation_only",
+                    help="reward mode of the default binding (Clarification 2: observation_only unless named)")
     ap.add_argument("--lease-ttl", type=float, default=600.0,
                     help="writer lease seconds (0 disables; a crashed server's lease blocks others until expiry)")
     a = ap.parse_args(argv)
@@ -415,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
         if not tok:
             ap.error(f"--world needs an actor token in ${a.token_env}")
         env = CrucibleEnv(server=server, world_id=a.world, actor=tok, dt=a.dt, max_steps=a.max_steps,
-                          reset_mode=a.reset_mode)
+                          reset_mode=a.reset_mode, reward_mode=a.reward_mode)
     serve(server, host=a.host, port=a.port, operator_token=os.environ.get(a.operator_token_env), env=env)
     return 0
 

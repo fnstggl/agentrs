@@ -175,8 +175,10 @@ def catalogue_hash(tools: Iterable[Mapping]) -> str:
 
 def builtin_tools(world, principal: str | None = None) -> list[dict]:
     """Specs of the built-in tools an in-world actor can call (operator tools only for the system principal)."""
+    from . import evaluator_only as EO
     from .kernel import SYSTEM
-    return [e.spec() for _, e in sorted(world.endpoints.items()) if e.host != "admin" or principal == SYSTEM]
+    return [e.spec() for n, e in sorted(world.endpoints.items()) if (e.host != "admin" or principal == SYSTEM)
+            and EO.participant_tool_allowed(world, principal or "", n, e)]
 
 
 def known_extra_hosts(world, principal: str) -> tuple[str, ...]:
@@ -199,8 +201,9 @@ def visible_tools(world, principal: str) -> list[dict]:
     from .kernel import SYSTEM
     if known_extra_hosts(world, principal):
         return world.available_tools(principal)
+    from . import evaluator_only as EO
     cache = world.runtime.setdefault("discovery.builtin_tools", {})
-    key = (principal == SYSTEM, len(world.endpoints))
+    key = (principal == SYSTEM, len(world.endpoints), EO.policy(world))
     if key not in cache:
         cache[key] = world.available_tools(principal)
     return cache[key]
@@ -455,10 +458,11 @@ def hosts(world, principal: str, summary_chars: int = 72) -> dict:
     """Map of the world's services for `principal`: ``{"hosts": {host: [number of tools, one-line description]},
     "tools": total, "discovered": {host: number of tools}}`` - every built-in host, and the agent-deployed hosts
     the principal already knows (count only). The keyed, positional form keeps the whole map small."""
+    from . import evaluator_only as EO
     from .kernel import SYSTEM
     counts: dict[str, int] = {}
-    for e in world.endpoints.values():
-        if e.host != "admin" or principal == SYSTEM:
+    for n, e in world.endpoints.items():
+        if (e.host != "admin" or principal == SYSTEM) and EO.participant_tool_allowed(world, principal, n, e):
             counts[e.host] = counts.get(e.host, 0) + 1
     summ = host_summaries(world)
     known: dict[str, int] = {}

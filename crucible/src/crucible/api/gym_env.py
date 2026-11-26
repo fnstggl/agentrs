@@ -23,11 +23,13 @@ Without one the reward is 0.0 and episodes end only by truncation (`max_steps`).
 
 Reward modes (Crucible 5.0, `crucible.experience.modes`), chosen with ``reward_mode``:
 
-* ``legacy_shaped_reward`` (default): the 4.0 contract above, byte for byte; ``info["objective"]`` is the
-  objective's full status (including its progress).
+* ``observation_only`` (THE DEFAULT, Clarification 2): see below.
+* ``legacy_shaped_reward`` (explicitly selected only): the 4.0 contract above, byte for byte; ``info["objective"]``
+  is the objective's full status (including its progress).
 * ``verified_terminal_outcome``: reward 1.0 once, on the step at which the objective's independent status first
   reports success, else 0.0; ``info["objective"]`` carries only the terminal labels ``success`` and ``failed``.
-* ``observation_only``: the reward is always 0.0 - Gymnasium needs a scalar; it is **not a learning signal** -,
+* ``observation_only``: the world hides evaluator tools and fields from the actor (`core.evaluator_only`); the
+  reward is always 0.0 - Gymnasium needs a scalar; it is **not a learning signal** -,
   ``info`` has no ``objective`` key and episodes end only by truncation, so neither the reward, the info nor the
   termination flag says anything about goal progress or satisfaction. The objective is still stepped (its verifier
   keeps running); `verify()` returns its status to the evaluator. ``info["objective_text"]`` gives the objective's
@@ -42,7 +44,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ..experience.modes import LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective
+from ..experience.modes import (LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective, prepare_spec,
+                                prepare_world)
 from . import render as R
 from .local import API_VERSION, ActorIdentity, Observation, WorldServer
 
@@ -68,7 +71,7 @@ class CrucibleEnv(gym.Env):
                  max_text_length: int = 65536, max_action_length: int = 8192,
                  renderer: Callable[[Observation], str] | None = None, include_tools: str = "changed",
                  driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None,
-                 reward_mode: str = LEGACY):
+                 reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
         self._status: dict = {}
@@ -81,7 +84,9 @@ class CrucibleEnv(gym.Env):
         if world_id is None:
             if spec is None:
                 raise ValueError("CrucibleEnv needs world_id or spec")
-            world_id = self.server.create_world(spec, seed)
+            world_id = self.server.create_world(prepare_spec(self.server._spec_from(spec, seed), self.reward_mode))
+        else:
+            prepare_world(self.server.world(world_id), self.reward_mode)
         self.world_id = world_id
         self.identity = _resolve_actor(self.server, world_id, actor, handle, endowment)
         self.principal = self.identity.principal

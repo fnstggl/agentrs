@@ -118,16 +118,21 @@ class Experiments(Module):
 
     # ------------------------------------------------------------------ measuring
     def _endpoint(self, ctx, tool: str):
+        from ..core import evaluator_only as EO
         ep = ctx.world.resolve(tool, ctx.actor)
         if ep.host in FORBIDDEN_HOSTS:
             raise Forbidden(f"{tool} cannot be used as a measure")
+        if not EO.participant_tool_allowed(ctx.world, ctx.actor, tool, ep):
+            raise Forbidden(f"{tool} is an evaluator tool and cannot be used as a measure", law="evaluator-only")
         if not ep.read_only:
             raise Forbidden(f"{tool} is not a read-only tool: a measure may only read")
         return ep
 
     def _measure(self, ctx, measure: dict, owner: str) -> float:
+        from ..core import evaluator_only as EO
         res = ctx.call(measure["tool"], dict(measure.get("args") or {}), as_principal=owner)
-        return select(res, measure, owner)
+        # measured as the agent: what the agent itself would receive (no evaluator-only fields)
+        return select(EO.participant_result(ctx.world, measure["tool"], res), measure, owner)
 
     # ------------------------------------------------------------------ endpoints
     @endpoint("register", S.obj({"hypothesis": S.s_str("what you expect and why, in words", maxLength=2000),

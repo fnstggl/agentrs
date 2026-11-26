@@ -6,7 +6,8 @@ the world clock once by `dt`. Rewards/termination come from optional per-agent o
 `CrucibleEnv`); agents may have different observation renderers. Episode semantics are those of `CrucibleEnv`:
 ``reset_mode="continue"`` never resets the world, ``reset_mode="fork"`` forks a base snapshot per episode.
 
-``reward_mode`` (Crucible 5.0) is that of `CrucibleEnv`: ``legacy_shaped_reward`` (default, 4.0 behaviour),
+``reward_mode`` (Crucible 5.0) is that of `CrucibleEnv`: ``observation_only`` (the default, Clarification 2),
+``legacy_shaped_reward`` (explicitly selected: the 4.0 behaviour),
 ``verified_terminal_outcome`` (reward 1.0 once per agent at its first verified success; ``infos[a]["objective"]``
 holds only ``success``/``failed``) and ``observation_only`` (rewards 0.0, no ``objective`` in the infos, termination
 only by truncation; `verify()` returns every agent's status to the evaluator).
@@ -20,7 +21,8 @@ import numpy as np
 from gymnasium import spaces
 from pettingzoo import ParallelEnv
 
-from ..experience.modes import LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective
+from ..experience.modes import (LEGACY, OBSERVATION_ONLY, VERIFIED, check_mode, info_objective, prepare_spec,
+                                prepare_world)
 from . import render as R
 from .gym_env import CHARSET
 from .local import API_VERSION, ActorIdentity, Observation, WorldServer
@@ -39,7 +41,7 @@ class CrucibleParallelEnv(ParallelEnv):
                  max_steps: int | None = 100, max_events: int = 30, max_text_length: int = 65536,
                  max_action_length: int = 8192, order_seed: int = 0,
                  driver: Callable[[WorldServer, str], None] | None = None, render_mode: str | None = None,
-                 reward_mode: str = LEGACY):
+                 reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         self._paid: set[str] = set()
         self._statuses: dict[str, dict] = {}
@@ -50,7 +52,9 @@ class CrucibleParallelEnv(ParallelEnv):
         if world_id is None:
             if spec is None:
                 raise ValueError("CrucibleParallelEnv needs world_id or spec")
-            world_id = self.server.create_world(spec, seed)
+            world_id = self.server.create_world(prepare_spec(self.server._spec_from(spec, seed), self.reward_mode))
+        else:
+            prepare_world(self.server.world(world_id), self.reward_mode)
         self.world_id = world_id
         if actors is None:
             names = agents or [f"agent-{i}" for i in range(n_agents)]

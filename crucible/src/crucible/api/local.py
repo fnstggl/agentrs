@@ -578,7 +578,8 @@ class WorldServer:
             show = include_tools == "always" or (include_tools == "changed" and changed)
             summary = {k: v for k, v in w.observe(p).items() if k not in ("time", "principal")}
             obs = Observation(world_id=w.world_id, principal=p, time=w.now, seq=w.seq,
-                              events=[compact_event(e) for e in evs], dropped=dropped, summary=summary,
+                              events=[compact_event(w.participant_event(e)) for e in evs], dropped=dropped,
+                              summary=summary,
                               last_result=s.last_result, tools_changed=changed, tools=tools if show else None,
                               new_tools=new_tools, removed_tools=removed, unscanned=unscanned,
                               observed=s.observed + 1)

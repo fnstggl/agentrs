@@ -95,12 +95,13 @@ class ReferenceLearner:
     kind = "rl"
     version = VERSION
 
-    def __init__(self, seed: int = 0, reward_mode: str = "legacy_shaped_reward", device: str = "cpu", **cfg):
+    def __init__(self, seed: int = 0, reward_mode: str | None = None, device: str = "cpu", **cfg):
         import torch
+        from .modes import check_mode
         self.cfg = Config(**cfg)
         torch.set_num_threads(int(self.cfg.threads))
         self.seed = int(seed)
-        self.reward_mode = reward_mode
+        self.reward_mode = check_mode(reward_mode)      # observation_only unless named (Clarification 2)
         self.device = device
         torch.manual_seed(self.seed)
         self.net = _Net(self.cfg).to(device)
@@ -115,13 +116,19 @@ class ReferenceLearner:
 
     # ------------------------------------------------------------------ context
     def reset(self, actor: str | None = None, rng=None) -> None:
-        """Start of a new life or episode: clears the recurrent state and the transition buffer (never weights)."""
+        """Start of a new life, episode, agent or world: clears the recurrent state (never weights). Transitions
+        already buffered are kept for the next `update`; the next one is marked as starting from a fresh recurrent
+        state, so the update replays the sequence with the same resets the learner experienced."""
         import torch
         self.actor = actor
         self.h = torch.zeros(1, self.cfg.hidden)
         self.prev_tokens: list[int] = []
-        self.buf: list[dict] = []
-        self.h0 = self.h.clone()
+        if not getattr(self, "buf", None):
+            self.buf: list[dict] = []
+            self.h0 = self.h.clone()
+            self._boundary = False
+        else:
+            self._boundary = True
         self._pending: dict | None = None
         self._last_value: float | None = None
 
@@ -240,7 +247,9 @@ class ReferenceLearner:
             action, logp, ent, toks = _Decider(self, h, obs, tools, explore=explore).decide()
             value = float(self.net.value(h))
         self._pending = {"obs": obs, "tools": tools, "action": action, "logp": float(logp), "value": value,
-                         "prev_tokens": list(self.prev_tokens), "signal0": self._signal_value(obs)}
+                         "prev_tokens": list(self.prev_tokens), "signal0": self._signal_value(obs),
+                         "h_after": h.clone(), "tokens_after": list(toks), "reset": bool(self._boundary)}
+        self._boundary = False
         self.h = h
         self.prev_tokens = toks
         self.steps += 1
@@ -284,15 +293,27 @@ class ReferenceLearner:
         buf = self.buf
         T = len(buf)
         sig = np.array([b["signal"] for b in buf], np.float64)
-        vals = np.array([b["value"] for b in buf] + [0.0 if buf[-1]["done"] else buf[-1]["value"]], np.float64)
+        # V(s_{t+1}) for every t: the next transition's value when it continues this one; otherwise (the last one, or
+        # one followed by a recurrent reset) the value of its own next observation under the state it left behind
+        nxt = np.zeros(T)
+        for t in range(T):
+            b = buf[t]
+            if b["done"]:
+                continue
+            if t + 1 < T and not buf[t + 1].get("reset"):
+                nxt[t] = buf[t + 1]["value"]
+            else:
+                nxt[t] = self._bootstrap(b)
+        vals = np.array([b["value"] for b in buf], np.float64)
         adv = np.zeros(T)
         last = 0.0
         for t in reversed(range(T)):
             nonterm = 0.0 if buf[t]["done"] else 1.0
-            delta = sig[t] + self.cfg.gamma * vals[t + 1] * nonterm - vals[t]
-            last = delta + self.cfg.gamma * self.cfg.lam * nonterm * last
+            cont = 0.0 if (t + 1 >= T or buf[t + 1].get("reset")) else 1.0
+            delta = sig[t] + self.cfg.gamma * nxt[t] * nonterm - vals[t]
+            last = delta + self.cfg.gamma * self.cfg.lam * nonterm * cont * last
             adv[t] = last
-        ret = adv + vals[:T]
+        ret = adv + vals
         if T > 1 and adv.std() > 1e-8:
             adv = (adv - adv.mean()) / (adv.std() + 1e-8)
         X = torch.from_numpy(np.stack([self.features(b["obs"]) for b in buf]))
@@ -306,6 +327,8 @@ class ReferenceLearner:
             h = self.h0
             logps, ents, values, preds = [], [], [], []
             for t, b in enumerate(buf):
+                if b.get("reset"):
+                    h = torch.zeros(1, self.cfg.hidden)
                 h = self.net.step(X[t:t + 1], b["prev_tokens"], h)
                 lp, ent, toks = _Decider(self, h, b["obs"], b["tools"]).score(b["action"])
                 logps.append(lp)
@@ -329,21 +352,28 @@ class ReferenceLearner:
         self.updates += n_up
         self.buf = []
         self.h0 = self.h.detach().clone()
+        self._boundary = False
         after = self.params_hash()
         return {"updates": n_up, "transitions": T, "signal_sum": float(sig.sum()), "params_hash_before": before,
                 "params_hash_after": after, "changed": before != after, **stats}
 
     def learn_from_records(self, records, batch: int = 64) -> dict:
         """Train on stored experience records (`ExperienceStore.iterate()` output, any learner's): consecutive
-        records of one agent become transitions; the stored action is scored under the current parameters."""
-        out = {"updates": 0, "transitions": 0, "batches": 0, "changed": False}
+        records of one agent in one world become transitions; the stored action is scored under the current
+        parameters. The recurrent state is reset whenever the agent or the world changes."""
+        out = {"updates": 0, "transitions": 0, "batches": 0, "changed": False, "resets": 0}
         prev = None
+        self.buf = []
         self.reset()
         first_hash = self.params_hash()
         for r in records:
             obs = r["observation"]
             if prev is not None and prev["agent"] == r["agent"] and prev["env"] == r["env"]:
                 self._push_record(prev, obs)
+            elif prev is not None:
+                self._push_record(prev, None)            # the last record of that agent/world: no successor
+                self._reset_recurrent()
+                out["resets"] += 1
             prev = r
             if len(self.buf) >= batch:
                 u = self.update()
@@ -360,6 +390,22 @@ class ReferenceLearner:
         out["changed"] = self.params_hash() != first_hash
         out["params_hash"] = self.params_hash()
         return out
+
+    def _reset_recurrent(self) -> None:
+        import torch
+        self.h = torch.zeros(1, self.cfg.hidden)
+        self.prev_tokens = []
+        self._boundary = True
+
+    def _bootstrap(self, b: dict) -> float:
+        """V(s_{t+1}) of a transition from its stored next observation and the recurrent state its action left."""
+        import torch
+        if b.get("next_obs") is None or b.get("h_after") is None:
+            return 0.0
+        with torch.no_grad():
+            x = torch.from_numpy(self.features(b["next_obs"])).unsqueeze(0)
+            h1 = self.net.step(x, b["tokens_after"], b["h_after"])
+            return float(self.net.value(h1))
 
     def _push_record(self, r: dict, next_obs: dict | None) -> None:
         import torch
@@ -380,7 +426,9 @@ class ReferenceLearner:
             sig = 0.0
         self.buf.append({"obs": obs, "tools": tools, "action": r.get("action"), "logp": float(lp), "value": value,
                          "prev_tokens": list(self.prev_tokens), "signal": sig, "done": next_obs is None,
-                         "next_obs": next_obs})
+                         "next_obs": next_obs, "h_after": h.clone(), "tokens_after": list(toks),
+                         "reset": bool(self._boundary)})
+        self._boundary = False
         self.h, self.prev_tokens = h, toks
 
     # ------------------------------------------------------------------ checkpoints
@@ -398,7 +446,7 @@ class ReferenceLearner:
 
     def load(self, path: str) -> None:
         import torch
-        self._load_state(torch.load(path, map_location="cpu", weights_only=False))
+        self._load_state(torch.load(path, map_location="cpu", weights_only=True))
 
     def _load_state(self, st: dict) -> None:
         if st.get("format") != VERSION:
@@ -426,7 +474,7 @@ class ReferenceLearner:
         import torch
         if not blob:
             return
-        st = torch.load(io.BytesIO(blob), map_location="cpu", weights_only=False)
+        st = torch.load(io.BytesIO(blob), map_location="cpu", weights_only=True)
         if asdict(self.cfg) != st["config"]:
             self.cfg = Config(**st["config"])
             self.net = _Net(self.cfg)
