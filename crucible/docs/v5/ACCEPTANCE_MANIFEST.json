@@ -11922,6 +11922,719 @@
     "gate_title": "Mandatory requirements outside Part 17",
     "clarification": null
    }
+  },
+  {
+   "id": "OO.1",
+   "gate": "OO",
+   "requirement": "Observation-only mode is enabled by default across every environment family (Tier 1 rapid families, Tier 2 domains, Tier 3 civilization profiles, and the 4.0 environments exposed through crucible.experience).",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.1",
+   "criteria": [
+    {
+     "metric": "tiers_covered",
+     "op": "==",
+     "value": 3
+    },
+    {
+     "metric": "env_families_checked",
+     "op": ">=",
+     "value": 100
+    },
+    {
+     "metric": "families_not_observation_only_by_default",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "tiers_covered",
+       "op": "==",
+       "value": 3
+      },
+      {
+       "metric": "env_families_checked",
+       "op": ">=",
+       "value": 100
+      },
+      {
+       "metric": "families_not_observation_only_by_default",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Observation-only mode is enabled by default across every environment family (Tier 1 rapid families, Tier 2 domains, Tier 3 civilization profiles, and the 4.0 environments exposed through crucible.experience).",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.2",
+   "gate": "OO",
+   "requirement": "No native or privileged reward signals reach the learner: no intermediate reward, shaping, action-quality score or goal-progress value through observations, auxiliary fields, tool responses or event metadata; Gymnasium scalar reward is 0.0.",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.2",
+   "criteria": [
+    {
+     "metric": "reward_leak_probe_kinds",
+     "op": ">=",
+     "value": 8
+    },
+    {
+     "metric": "reward_leaks_found",
+     "op": "==",
+     "value": 0
+    },
+    {
+     "metric": "nonzero_scalar_rewards_default_mode",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "reward_leak_probe_kinds",
+       "op": ">=",
+       "value": 8
+      },
+      {
+       "metric": "reward_leaks_found",
+       "op": "==",
+       "value": 0
+      },
+      {
+       "metric": "nonzero_scalar_rewards_default_mode",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "No native or privileged reward signals reach the learner: no intermediate reward, shaping, action-quality score or goal-progress value through observations, auxiliary fields, tool responses or event metadata; Gymnasium scalar reward is 0.0.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.3",
+   "gate": "OO",
+   "requirement": "Real observable consequences remain accessible: transactions, customer behaviour, technical measurements, social responses, resource changes, failures and delayed outcomes.",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.3",
+   "criteria": [
+    {
+     "metric": "consequence_kinds_observable",
+     "op": ">=",
+     "value": 7
+    },
+    {
+     "metric": "tiers_covered",
+     "op": "==",
+     "value": 3
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "consequence_kinds_observable",
+       "op": ">=",
+       "value": 7
+      },
+      {
+       "metric": "tiers_covered",
+       "op": "==",
+       "value": 3
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Real observable consequences remain accessible: transactions, customer behaviour, technical measurements, social responses, resource changes, failures and delayed outcomes.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.4",
+   "gate": "OO",
+   "requirement": "Independent outcome verification remains functional through a separate evaluator-side interface unreachable by the learner.",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.4",
+   "criteria": [
+    {
+     "metric": "tiers_covered",
+     "op": "==",
+     "value": 3
+    },
+    {
+     "metric": "verifier_matches_ground_truth",
+     "op": "==",
+     "value": true
+    },
+    {
+     "metric": "verifier_reachable_from_learner",
+     "op": "==",
+     "value": false
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "tiers_covered",
+       "op": "==",
+       "value": 3
+      },
+      {
+       "metric": "verifier_matches_ground_truth",
+       "op": "==",
+       "value": true
+      },
+      {
+       "metric": "verifier_reachable_from_learner",
+       "op": "==",
+       "value": false
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Independent outcome verification remains functional through a separate evaluator-side interface unreachable by the learner.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.5",
+   "gate": "OO",
+   "requirement": "Agents can operate indefinitely within configured resource limits without an assigned objective.",
+   "workstream": "L",
+   "dependencies": [
+    "R",
+    "P"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.5",
+   "criteria": [
+    {
+     "metric": "objectiveless_tiers",
+     "op": "==",
+     "value": 3
+    },
+    {
+     "metric": "objectiveless_civ_sim_days",
+     "op": ">=",
+     "value": 90
+    },
+    {
+     "metric": "resource_limit_violations",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "objectiveless_tiers",
+       "op": "==",
+       "value": 3
+      },
+      {
+       "metric": "objectiveless_civ_sim_days",
+       "op": ">=",
+       "value": 90
+      },
+      {
+       "metric": "resource_limit_violations",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Agents can operate indefinitely within configured resource limits without an assigned objective.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.6",
+   "gate": "OO",
+   "requirement": "An architecture-neutral external learner can supply its own training rewards and update its parameters with no environment change.",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.6",
+   "criteria": [
+    {
+     "metric": "tiers_covered",
+     "op": "==",
+     "value": 3
+    },
+    {
+     "metric": "external_reward_param_updates",
+     "op": ">=",
+     "value": 3
+    },
+    {
+     "metric": "env_changes_required",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "tiers_covered",
+       "op": "==",
+       "value": 3
+      },
+      {
+       "metric": "external_reward_param_updates",
+       "op": ">=",
+       "value": 3
+      },
+      {
+       "metric": "env_changes_required",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "An architecture-neutral external learner can supply its own training rewards and update its parameters with no environment change.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.7",
+   "gate": "OO",
+   "requirement": "Delayed outcomes remain accessible for retrospective learning, linked to the originating actions by observable provenance.",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.7",
+   "criteria": [
+    {
+     "metric": "delayed_outcomes_retrieved",
+     "op": ">=",
+     "value": 1
+    },
+    {
+     "metric": "max_retrieved_delay_sim_days",
+     "op": ">=",
+     "value": 30
+    },
+    {
+     "metric": "provenance_links_to_action",
+     "op": "==",
+     "value": true
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "delayed_outcomes_retrieved",
+       "op": ">=",
+       "value": 1
+      },
+      {
+       "metric": "max_retrieved_delay_sim_days",
+       "op": ">=",
+       "value": 30
+      },
+      {
+       "metric": "provenance_links_to_action",
+       "op": "==",
+       "value": true
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Delayed outcomes remain accessible for retrospective learning, linked to the originating actions by observable provenance.",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "OO.8",
+   "gate": "OO",
+   "requirement": "Historical reward-based experiments remain reproducible through explicitly selected alternative modes (legacy_shaped_reward, verified_terminal_outcome).",
+   "workstream": "L",
+   "dependencies": [
+    "R"
+   ],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.8",
+   "criteria": [
+    {
+     "metric": "legacy_results_reproduced",
+     "op": ">=",
+     "value": 2
+    },
+    {
+     "metric": "legacy_mode_requires_explicit_selection",
+     "op": "==",
+     "value": true
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "legacy_results_reproduced",
+       "op": ">=",
+       "value": 2
+      },
+      {
+       "metric": "legacy_mode_requires_explicit_selection",
+       "op": "==",
+       "value": true
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2",
+    "spec_text": "Historical reward-based experiments remain reproducible through explicitly selected alternative modes (legacy_shaped_reward, verified_terminal_outcome).",
+    "gate_title": "Observation-only as the universal default",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 2"
+   }
+  },
+  {
+   "id": "RP.1",
+   "gate": "RP",
+   "requirement": "Crucible is independent of CAM: no import of CAM code, and no acceptance gate depends on CAM's completion or success.",
+   "workstream": "P",
+   "dependencies": [],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_RP.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement RP.1",
+   "criteria": [
+    {
+     "metric": "cam_imports_in_crucible",
+     "op": "==",
+     "value": 0
+    },
+    {
+     "metric": "gates_depending_on_cam",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "cam_imports_in_crucible",
+       "op": "==",
+       "value": 0
+      },
+      {
+       "metric": "gates_depending_on_cam",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3",
+    "spec_text": "Crucible is independent of CAM: no import of CAM code, and no acceptance gate depends on CAM's completion or success.",
+    "gate_title": "Recovery, audit and persistence",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3"
+   }
+  },
+  {
+   "id": "RP.2",
+   "gate": "RP",
+   "requirement": "An independent audit classified every subsystem (RETAIN/REPAIR/EXTEND/REDESIGN/REBUILD/IMPLEMENT) on evidence before implementation resumed.",
+   "workstream": "P",
+   "dependencies": [],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_RP.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement RP.2",
+   "criteria": [
+    {
+     "metric": "audit_reports",
+     "op": ">=",
+     "value": 15
+    },
+    {
+     "metric": "audit_reports_with_skeptic_review",
+     "op": ">=",
+     "value": 15
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "audit_reports",
+       "op": ">=",
+       "value": 15
+      },
+      {
+       "metric": "audit_reports_with_skeptic_review",
+       "op": ">=",
+       "value": 15
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3",
+    "spec_text": "An independent audit classified every subsystem (RETAIN/REPAIR/EXTEND/REDESIGN/REBUILD/IMPLEMENT) on evidence before implementation resumed.",
+    "gate_title": "Recovery, audit and persistence",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3"
+   }
+  },
+  {
+   "id": "RP.3",
+   "gate": "RP",
+   "requirement": "The progress ledger is maintained with the exact remaining requirements and next steps; milestones are committed and pushed to GitHub; no milestone work exists only in an uncommitted worktree.",
+   "workstream": "P",
+   "dependencies": [],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_RP.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement RP.3",
+   "criteria": [
+    {
+     "metric": "milestones_recorded",
+     "op": ">=",
+     "value": 3
+    },
+    {
+     "metric": "integration_head_pushed",
+     "op": "==",
+     "value": true
+    },
+    {
+     "metric": "ledger_lists_remaining_requirements",
+     "op": "==",
+     "value": true
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "milestones_recorded",
+       "op": ">=",
+       "value": 3
+      },
+      {
+       "metric": "integration_head_pushed",
+       "op": "==",
+       "value": true
+      },
+      {
+       "metric": "ledger_lists_remaining_requirements",
+       "op": "==",
+       "value": true
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3",
+    "spec_text": "The progress ledger is maintained with the exact remaining requirements and next steps; milestones are committed and pushed to GitHub; no milestone work exists only in an uncommitted worktree.",
+    "gate_title": "Recovery, audit and persistence",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3"
+   }
+  },
+  {
+   "id": "RP.4",
+   "gate": "RP",
+   "requirement": "Important fitted models, checkpoints and experimental artifacts are preserved in durable storage.",
+   "workstream": "P",
+   "dependencies": [],
+   "implementation_files": [],
+   "tests": [
+    "tests/v5/test_gate_RP.py"
+   ],
+   "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement RP.4",
+   "criteria": [
+    {
+     "metric": "required_artifacts_unpreserved",
+     "op": "==",
+     "value": 0
+    }
+   ],
+   "criteria_history": [
+    {
+     "criteria": [
+      {
+       "metric": "required_artifacts_unpreserved",
+       "op": "==",
+       "value": 0
+      }
+     ],
+     "decision": null,
+     "note": "initial criteria"
+    }
+   ],
+   "status": "NOT_STARTED",
+   "evidence": [],
+   "review": null,
+   "commit": null,
+   "blocker": null,
+   "source": {
+    "spec": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3",
+    "spec_text": "Important fitted models, checkpoints and experimental artifacts are preserved in durable storage.",
+    "gate_title": "Recovery, audit and persistence",
+    "clarification": "MASTER_SPEC_CLARIFICATIONS.md Clarification 3"
+   }
   }
  ]
 }

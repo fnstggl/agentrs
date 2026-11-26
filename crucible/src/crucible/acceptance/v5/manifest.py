@@ -81,6 +81,13 @@ def derive(root: str | None = None) -> list[dict]:
                         "criteria": criteria, "source": {"spec": f"MASTER_SPEC.md Part {part}", "spec_text": text,
                                                          "gate_title": "Mandatory requirements outside Part 17",
                                                          "clarification": None}})
+    for rid, gate, text, ws, deps, criteria, clar in getattr(R, "AMENDMENT_ITEMS", []):
+        entries.append({"id": rid, "gate": gate, "requirement": text, "workstream": ws, "dependencies": list(deps),
+                        "criteria": criteria,
+                        "source": {"spec": f"MASTER_SPEC_CLARIFICATIONS.md Clarification {clar}", "spec_text": text,
+                                   "gate_title": {2: "Observation-only as the universal default",
+                                                  3: "Recovery, audit and persistence"}[clar],
+                                   "clarification": f"MASTER_SPEC_CLARIFICATIONS.md Clarification {clar}"}})
     ids = [e["id"] for e in entries]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate requirement ids")

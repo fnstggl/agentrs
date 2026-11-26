@@ -416,3 +416,49 @@ SPEC_ITEMS = [
      "whenever a requirement is not verified.", "P", [], crit(("checker_rejects_fabricated_evidence", "==", True),
                                                               ("checker_nonzero_when_unverified", "==", True))),
 ]
+
+# Clarification 2 (observation-only as the universal default) and Clarification 3 (recovery preamble):
+# requirements the user added on 2026-11-26. (id, gate, text, workstream, dependencies, criteria, clarification)
+AMENDMENT_ITEMS = [
+    ("OO.1", "OO", "Observation-only mode is enabled by default across every environment family (Tier 1 rapid "
+     "families, Tier 2 domains, Tier 3 civilization profiles, and the 4.0 environments exposed through crucible.experience).",
+     "L", ["R"], crit(("tiers_covered", "==", 3), ("env_families_checked", ">=", 100),
+                      ("families_not_observation_only_by_default", "==", 0)), 2),
+    ("OO.2", "OO", "No native or privileged reward signals reach the learner: no intermediate reward, shaping, "
+     "action-quality score or goal-progress value through observations, auxiliary fields, tool responses or event "
+     "metadata; Gymnasium scalar reward is 0.0.", "L", ["R"],
+     crit(("reward_leak_probe_kinds", ">=", 8), ("reward_leaks_found", "==", 0),
+          ("nonzero_scalar_rewards_default_mode", "==", 0)), 2),
+    ("OO.3", "OO", "Real observable consequences remain accessible: transactions, customer behaviour, technical "
+     "measurements, social responses, resource changes, failures and delayed outcomes.", "L", ["R"],
+     crit(("consequence_kinds_observable", ">=", 7), ("tiers_covered", "==", 3)), 2),
+    ("OO.4", "OO", "Independent outcome verification remains functional through a separate evaluator-side interface "
+     "unreachable by the learner.", "L", ["R"],
+     crit(("tiers_covered", "==", 3), ("verifier_matches_ground_truth", "==", True),
+          ("verifier_reachable_from_learner", "==", False)), 2),
+    ("OO.5", "OO", "Agents can operate indefinitely within configured resource limits without an assigned objective.",
+     "L", ["R", "P"], crit(("objectiveless_tiers", "==", 3), ("objectiveless_civ_sim_days", ">=", 90),
+                            ("resource_limit_violations", "==", 0)), 2),
+    ("OO.6", "OO", "An architecture-neutral external learner can supply its own training rewards and update its "
+     "parameters with no environment change.", "L", ["R"],
+     crit(("tiers_covered", "==", 3), ("external_reward_param_updates", ">=", 3), ("env_changes_required", "==", 0)), 2),
+    ("OO.7", "OO", "Delayed outcomes remain accessible for retrospective learning, linked to the originating actions by "
+     "observable provenance.", "L", ["R"],
+     crit(("delayed_outcomes_retrieved", ">=", 1), ("max_retrieved_delay_sim_days", ">=", 30),
+          ("provenance_links_to_action", "==", True)), 2),
+    ("OO.8", "OO", "Historical reward-based experiments remain reproducible through explicitly selected alternative modes "
+     "(legacy_shaped_reward, verified_terminal_outcome).", "L", ["R"],
+     crit(("legacy_results_reproduced", ">=", 2), ("legacy_mode_requires_explicit_selection", "==", True)), 2),
+    ("RP.1", "RP", "Crucible is independent of CAM: no import of CAM code, and no acceptance gate depends on CAM's "
+     "completion or success.", "P", [],
+     crit(("cam_imports_in_crucible", "==", 0), ("gates_depending_on_cam", "==", 0)), 3),
+    ("RP.2", "RP", "An independent audit classified every subsystem (RETAIN/REPAIR/EXTEND/REDESIGN/REBUILD/IMPLEMENT) "
+     "on evidence before implementation resumed.", "P", [],
+     crit(("audit_reports", ">=", 15), ("audit_reports_with_skeptic_review", ">=", 15)), 3),
+    ("RP.3", "RP", "The progress ledger is maintained with the exact remaining requirements and next steps; milestones "
+     "are committed and pushed to GitHub; no milestone work exists only in an uncommitted worktree.", "P", [],
+     crit(("milestones_recorded", ">=", 3), ("integration_head_pushed", "==", True),
+          ("ledger_lists_remaining_requirements", "==", True)), 3),
+    ("RP.4", "RP", "Important fitted models, checkpoints and experimental artifacts are preserved in durable storage.",
+     "P", [], crit(("required_artifacts_unpreserved", "==", 0)), 3),
+]
