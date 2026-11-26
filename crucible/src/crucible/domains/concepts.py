@@ -22,6 +22,7 @@ lists, `=>`), and a document that explains in prose only teaches nothing (time s
 """
 from __future__ import annotations
 
+import functools
 import math
 import re
 from dataclasses import dataclass
@@ -121,17 +122,33 @@ class Concept:
         return None
 
     def grade(self, answer: str, p) -> bool:
-        a = self.norm(answer)
-        return a is not None and a == self.norm(self.solve(p))
+        return _grade(self.name, str(answer), tuple(p))
 
     def misconception(self, p) -> str | None:
         """The answer under the concept's misconception, or None where the buggy procedure gives the right answer
         (the misconception does not show on this problem)."""
-        b = self.buggy(p)
-        return None if self.grade(b, p) else b
+        return _misconception(self.name, tuple(p))
 
     def key(self, p) -> str:
         return f"{self.name}:{','.join(str(x) for x in p)}"
+
+
+@functools.lru_cache(maxsize=200_000)
+def _solution_norm(name: str, p: tuple):
+    con = LIBRARY[name]
+    return con.norm(con.solve(p))
+
+
+@functools.lru_cache(maxsize=400_000)
+def _grade(name: str, answer: str, p: tuple) -> bool:
+    a = LIBRARY[name].norm(answer)
+    return a is not None and a == _solution_norm(name, p)
+
+
+@functools.lru_cache(maxsize=200_000)
+def _misconception(name: str, p: tuple) -> str | None:
+    b = LIBRARY[name].buggy(p)
+    return None if _grade(name, str(b), p) else b
 
 
 def _r(rng, lo, hi) -> int:

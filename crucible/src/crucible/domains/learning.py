@@ -54,6 +54,7 @@ from `ctx.rng` / `world.rng_for`. Nothing a participant can call returns another
 """
 from __future__ import annotations
 
+import functools
 import math
 import re
 
@@ -121,11 +122,16 @@ class Rec:
         return float(p + (m - p) * 2.0 ** (-dt / max(1e-6, self.h[k])))
 
     def readiness(self, c: str, L: int, t: int) -> float:
+        pre, low = self.readiness_parts(c, L, t)
+        return pre * low
+
+    def readiness_parts(self, c: str, L: int, t: int) -> tuple[float, float]:
+        """(prerequisite readiness, lower-level readiness): how far the concept's prerequisites and its own lower
+        level are mastered relative to the threshold THETA."""
         pre = [p for p in C.PREREQS[c] if p in self.cix]
         r = min((_cl(self.eff(p, L, t) / THETA) for p in pre), default=1.0)
-        if L > 1:
-            r *= _cl(self.eff(c, L - 1, t) / THETA)
-        return r
+        low = _cl(self.eff(c, L - 1, t) / THETA) if L > 1 else 1.0
+        return r, low
 
     def p_correct(self, c: str, L: int, t: int) -> float:
         pre = [p for p in C.PREREQS[c] if p in self.cix]
@@ -186,9 +192,57 @@ def assess(rec: Rec, t: int, rng, k: int, concepts, exclude: set) -> tuple[dict,
     return scores, len(keys), digest(keys)
 
 
+def exam(world, idx, concepts, t: int, rng, k: int, exclude: set, cix: dict) -> tuple[np.ndarray, int, str]:
+    """A test taken by every individual of `idx` at time `t`: for each concept and level `k` fresh problems (one
+    paper for all takers, none of them in `exclude`), answered by each individual from its own knowledge state
+    exactly as `Rec.answer` does (misconception where it bites, else right with p_correct, else a slip), vectorised
+    over individuals. Returns (share right [n, len(concepts)], problems per taker, digest of the paper)."""
+    ix = np.asarray(idx, np.int64)
+    n = ix.size
+    out = np.zeros((n, len(concepts)), np.float64)
+    keys = []
+    if n == 0:
+        return out, 0, digest(keys)
+    m_all = columns.col(world, TABLE, "m")[ix].astype(np.float64)
+    pm_all = np.minimum(columns.col(world, TABLE, "pm")[ix].astype(np.float64), m_all)
+    h_all = columns.col(world, TABLE, "h")[ix].astype(np.float64)
+    tl_all = columns.col(world, TABLE, "tl")[ix].astype(np.int64)
+    bug_all = columns.col(world, TABLE, "bug")[ix].astype(np.float64)
+    dt = np.maximum(0.0, (int(t) - tl_all) / DAY)
+    decay = 2.0 ** (-dt / np.maximum(1e-6, h_all))                        # [n, K]
+    eff = pm_all + (m_all - pm_all) * decay[:, :, None]                    # [n, K, 3]
+    for j, c in enumerate(concepts):
+        kc = cix[c]
+        pre = [cix[p] for p in C.PREREQS[c] if p in cix]
+        con = C.LIBRARY[c]
+        ok = np.zeros(n)
+        for L in LEVELS:
+            me = eff[:, kc, L - 1]
+            pf = np.min(0.4 + 0.6 * eff[:, pre, L - 1], axis=1) if pre else np.ones(n)
+            pc = GUESS + (1.0 - GUESS - SLIP) * me * pf
+            for _ in range(k):
+                p = C.generate(c, rng, L)
+                for _ in range(10):
+                    if con.key(p) not in exclude:
+                        break
+                    p = C.generate(c, rng, L)
+                keys.append(con.key(p))
+                u1, u2 = rng.random(n), rng.random(n)
+                bites = con.misconception(p) is not None
+                misled = (u1 < bug_all[:, kc] * (1.0 - 0.5 * me)) if bites else np.zeros(n, bool)
+                ok += (~misled) & (u2 < pc)
+        out[:, j] = ok / (3 * k)
+    return np.round(out, 4), len(keys), digest(keys)
+
+
 def path(goal: str, cur) -> list[str]:
     """The goal and every prerequisite of it in the curriculum (what a course towards the goal covers)."""
-    return [c for c in C.closure([goal]) if c in cur]
+    return list(_path(goal, tuple(cur)))
+
+
+@functools.lru_cache(maxsize=4096)
+def _path(goal: str, cur: tuple) -> tuple:
+    return tuple(c for c in C.closure([goal]) if c in cur)
 
 
 # ============================================================================================ the module
@@ -456,8 +510,9 @@ class Learning(Module):
 
     def _placement(self, ctx, i, rec, row, rng, exclude, now) -> dict:
         k = int(self.cfg["placement_k"])
-        scores, n, dg = assess(rec, now, rng, k, self.cur, exclude)
-        sc = np.array([scores[c] for c in self.cur], np.float32)
+        arr, n, dg = exam(ctx.world, [i], self.cur, now, rng, k, exclude, self.cix)
+        scores = {c: float(arr[0, j]) for j, c in enumerate(self.cur)}
+        sc = arr[0].astype(np.float32)
         deep = [c for c in self.cur if C.depth(c, self.cur) >= int(self.cfg["goal_min_depth"]) and scores[c] < 0.6] or \
             sorted(self.cur, key=lambda c: (-C.depth(c, self.cur), c))[:1]
         wts = np.array([1.0 + C.depth(c, self.cur) for c in deep])
@@ -466,8 +521,8 @@ class Learning(Module):
                 "score0": sc.copy(), "score_d": scores, "n_items": n, "digest": dg}
 
     def _exam(self, ctx, i, rec, goal, rng, exclude, now) -> tuple[bool, float]:
-        scores, _, _ = assess(rec, now, rng, int(self.cfg["exam_k"]), [goal], exclude)
-        s = float(scores[goal])
+        arr, _, _ = exam(ctx.world, [i], [goal], now, rng, int(self.cfg["exam_k"]), exclude, self.cix)
+        s = float(arr[0, 0])
         return s >= float(self.cfg["cert_pass"]), s
 
     def _next_goal(self, row) -> str | None:
@@ -594,6 +649,7 @@ class Learning(Module):
         attempts: list[tuple[str, bool]] = []
         noticed = 0
         items = []
+        prereq_limited, forgot, consolidated = 0, 0.0, 0
         for it in les["items"]:
             c, L = it["concept"], it["level"]
             cost = (MIN_EX if it["kind"] == "example" else MIN_PR) * L
@@ -604,11 +660,15 @@ class Learning(Module):
             if c not in touched:            # consolidate the forgetting curve before studying the concept again
                 dt = max(0.0, (now - int(rec.tl[k])) / DAY)
                 for lv in LEVELS:
-                    rec.m[k, lv - 1] = rec.eff(c, lv, now)
+                    e = rec.eff(c, lv, now)
+                    forgot += max(0.0, float(rec.m[k, lv - 1]) - e)
+                    rec.m[k, lv - 1] = e
                 touched[c] = min(1.0, dt / max(1e-6, rec.h[k]))
                 rec.tl[k] = now
             spacing = touched[c]
-            R = rec.readiness(c, L, now)
+            R_pre, R_low = rec.readiness_parts(c, L, now)
+            R = R_pre * R_low
+            prereq_limited += int(R_pre < 0.9)
             nov = NOVEL_REPEAT if n_read else 1.0
             kk = massed.get(f"{c}|{L}", 0)
             massed[f"{c}|{L}"] = kk + 1
@@ -633,8 +693,9 @@ class Learning(Module):
                     if truly:
                         rec.m[k, L - 1] = mm + A_PR * R * nov * mass * (1 - mm) * (0.3 + 0.7 * mm)
                         rec.h[k] = min(H_MAX, rec.h[k] * (1 + 0.6 * spacing * R))
-                        rec.pm[k, L - 1] = rec.pm[k, L - 1] + KAPPA * spacing * max(
-                            0.0, rec.m[k, L - 1] - rec.pm[k, L - 1])
+                        gain_pm = KAPPA * spacing * max(0.0, rec.m[k, L - 1] - rec.pm[k, L - 1])
+                        rec.pm[k, L - 1] = rec.pm[k, L - 1] + gain_pm
+                        consolidated += int(gain_pm > 1e-4)
                         rec.bug[k] *= 0.9
                     else:
                         rec.m[k, L - 1] = mm + 0.6 * A_PR * R * nov * mass * (1 - mm) * (0.3 + 0.7 * mm)
@@ -696,7 +757,9 @@ class Learning(Module):
             rating = {"doc": doc, "stars": int(1 + round(4 * _cl(success)))}
         sess = {"i": int(i), "doc": doc, "version": int(d["version"]), "author": author, "via": via,
                 "concepts": sorted(touched), "items": items, "usable": usable, "minutes": round(used, 2),
-                "ok": round(float(success), 4), "t": int(now), "new_author": new_author}
+                "ok": round(float(success), 4), "t": int(now), "new_author": new_author,
+                "prereq_limited": int(prereq_limited), "forgot": round(float(forgot), 4),
+                "consolidated": int(consolidated)}
         util = (0.8 * success - 0.1) if usable else -0.4
         return {"changes": changes, "session": sess, "rating": rating, "utility": util}
 
@@ -738,16 +801,20 @@ class Learning(Module):
         pend = ctx.world.runtime.pop("learn.pending_authors", {})
         for a, code in sorted(pend.items(), key=lambda kv: kv[1]):
             ctx.emit("learn.author", {"principal": a, "code": int(code)}, vis="internal")
+        w = ctx.world
         for kind, lst in sorted(rows.items()):
-            groups: dict[tuple, list] = {}          # rows of one batch carry the same columns
-            for i, ch in lst:
-                groups.setdefault(tuple(sorted(ch)), []).append((i, ch))
-            for key, g in sorted(groups.items()):
-                if not key:
-                    continue
-                ix = np.array([i for i, _ in g], np.int64)
-                vals = {k: np.stack([np.asarray(ch[k]) for _, ch in g]) for k in key}
-                P.record_decisions(ctx, f"learn.{kind}", ix, vals, table=TABLE, **MODEL)
+            lst = [(i, ch) for i, ch in lst if ch]
+            if not lst:
+                continue
+            # one batch per kind: every column any row changed; rows that did not change a column keep its value
+            keys = sorted({k for _, ch in lst for k in ch})
+            ix = np.array([i for i, _ in lst], np.int64)
+            vals = {}
+            for k in keys:
+                cur = columns.col(w, TABLE, k)
+                vals[k] = np.stack([np.asarray(ch[k], dtype=cur.dtype) if k in ch else np.array(cur[i])
+                                    for i, ch in lst])
+            P.record_decisions(ctx, f"learn.{kind}", ix, vals, table=TABLE, **MODEL)
         if sessions:
             ctx.emit("learn.sessions", {"sessions": sessions}, vis="internal")
         for r in rated:
@@ -776,10 +843,13 @@ class Learning(Module):
         taught_t = columns.col(w, TABLE, "taught_t")
         goal = columns.col(w, TABLE, "goal")
         state = columns.col(w, TABLE, "state")
-        demand = np.zeros(len(self.cur))
-        for g in np.flatnonzero((state == 1) & (goal >= 0)).tolist():
-            for c in path(self.cur[int(goal[g])], self.cur):
-                demand[self.cix[c]] += 1
+        K = len(self.cur)
+        on_path = np.zeros((K, K))
+        for gk, gname in enumerate(self.cur):
+            for c in path(gname, self.cur):
+                on_path[gk, self.cix[c]] = 1.0
+        act = goal[(state == 1) & (goal >= 0)].astype(np.int64)
+        demand = np.bincount(act, minlength=K).astype(np.float64) @ on_path
         supply = np.zeros(len(self.cur))
         for _, les in ctx.state.scan("learn_lessons"):
             for c in les["concepts"]:
@@ -816,6 +886,8 @@ class Learning(Module):
     # ------------------------------------------------------------------ the Board's periodic assessment
     @process("assess")
     def pr_assess(self, ctx):
+        """The Board's periodic test: one fresh paper over the whole curriculum for every enrolled individual (no
+        problem published in any public document); scores go to each individual's own row, aggregates are public."""
         w = ctx.world
         st = ctx.state
         state = columns.col(w, TABLE, "state")
@@ -824,39 +896,24 @@ class Learning(Module):
             ctx.emit("learn.summary", {"t": ctx.now, "concepts": {}, "assessed": 0}, vis="public")
             return
         exclude = self.published_keys(w)
-        goal = columns.col(w, TABLE, "goal")
-        k = int(self.cfg["assess_k"])
-        tot: dict[str, list] = {}
-        new_score, new_perc, new_mot = [], [], []
-        rec_rows = []
-        for i in who.tolist():
-            rng = ctx.rng("learn.assess", i)
-            rec = Rec.of(w, i, self.cur, self.cix)
-            g = int(goal[i])
-            cs = path(self.cur[g], self.cur) if g >= 0 else list(self.cur)
-            scores, n, dg = assess(rec, ctx.now, rng, k, cs, exclude)
-            sc = np.array(columns.col(w, TABLE, "score")[i], np.float32)
-            pc = np.array(columns.col(w, TABLE, "perc")[i], np.float32)
-            mot = float(columns.col(w, TABLE, "mot")[i])
-            prev = sc[g] if g >= 0 else -1.0
-            for c, s in scores.items():
-                kc = self.cix[c]
-                sc[kc] = s
-                pc[kc] = 0.4 * (pc[kc] if pc[kc] >= 0 else s) + 0.6 * s
-                tot.setdefault(c, []).append(s)
-            if g >= 0 and prev >= 0:
-                mot = _cl(mot + 0.5 * (sc[g] - prev))
-            new_score.append(sc)
-            new_perc.append(pc)
-            new_mot.append(mot)
-            rec_rows.append({"i": int(i), "scores": scores, "n_items": n, "digest": dg})
+        rng = ctx.rng("learn.assess", int(ctx.now))
+        arr, n, dg = exam(w, who, self.cur, ctx.now, rng, int(self.cfg["assess_k"]), exclude, self.cix)
+        goal = columns.col(w, TABLE, "goal")[who].astype(np.int64)
+        sc_old = columns.col(w, TABLE, "score")[who].astype(np.float64)
+        pc_old = columns.col(w, TABLE, "perc")[who].astype(np.float64)
+        mot = columns.col(w, TABLE, "mot")[who].astype(np.float64)
+        pc = 0.4 * np.where(pc_old >= 0, pc_old, arr) + 0.6 * arr
+        rows = np.arange(who.size)
+        g = np.maximum(goal, 0)
+        prev = sc_old[rows, g]
+        new_g = arr[rows, g]
+        mot = np.where((goal >= 0) & (prev >= 0), np.clip(mot + 0.5 * (new_g - prev), 0.0, 1.0), mot)
         columns.batch(ctx, TABLE, "learn.assessment", who, {
-            "score": np.stack(new_score), "perc": np.stack(new_perc), "mot": np.array(new_mot, np.float32)},
-            extra={"t": int(ctx.now), "assessed": int(who.size)})
-        for r in rec_rows:
-            ctx.emit("learn.assessed", {"id": st.new_id("lassess"), "kind": "periodic", "t": int(ctx.now), **r},
-                     vis="internal")
-        summ = {c: {"mean": round(sum(v) / len(v), 4), "n": len(v)} for c, v in sorted(tot.items())}
+            "score": arr.astype(np.float32), "perc": pc.astype(np.float32), "mot": mot.astype(np.float32)},
+            extra={"t": int(ctx.now), "assessed": int(who.size), "items": int(n), "paper": dg})
+        ctx.emit("learn.assessed", {"id": st.new_id("lassess"), "kind": "periodic", "t": int(ctx.now),
+                                    "n_takers": int(who.size), "n_items": int(n), "digest": dg}, vis="internal")
+        summ = {c: {"mean": round(float(arr[:, j].mean()), 4), "n": int(who.size)} for j, c in enumerate(self.cur)}
         ctx.emit("learn.summary", {"t": ctx.now, "concepts": summ, "assessed": int(who.size)}, vis="public")
 
     # ------------------------------------------------------------------ public tools
@@ -921,17 +978,14 @@ class Learning(Module):
 
     # ------------------------------------------------------------------ evaluator side (never a tool)
     def final_scores(self, world, at: int, salt: str, k: int = 6, who=None, concepts=None) -> dict[int, dict]:
-        """A delayed assessment at time `at` (no further study assumed) on fresh problems drawn with the evaluator's
-        own random stream, excluding every published problem. Pure: reads state only."""
+        """A delayed test at time `at` (no further study assumed) on one fresh paper drawn with the evaluator's own
+        random stream, excluding every published problem. Pure: reads state only."""
         exclude = self.published_keys(world)
         state = columns.col(world, TABLE, "state")
         rows = np.flatnonzero(state > 0) if who is None else np.asarray(who, np.int64)
         cs = list(concepts or self.cur)
-        out = {}
-        for i in rows.tolist():
-            rng = world.rng_for("learn-evaluator", salt, int(i))
-            out[int(i)] = assess(Rec.of(world, int(i), self.cur, self.cix), int(at), rng, k, cs, exclude)[0]
-        return out
+        arr, _, _ = exam(world, rows, cs, int(at), world.rng_for("learn-evaluator", salt), k, exclude, self.cix)
+        return {int(i): {c: float(arr[j, q]) for q, c in enumerate(cs)} for j, i in enumerate(rows.tolist())}
 
     def knowledge(self, world, i: int, at: int) -> dict:
         """Evaluator side: effective mastery per concept and level of individual i at time `at`."""
