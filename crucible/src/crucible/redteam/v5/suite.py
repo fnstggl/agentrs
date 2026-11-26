@@ -30,8 +30,12 @@ GATES = ("W.1", "W.2", "W.3", "W.4", "W.5", "W.6", "W.7", "W.8", "W.9")
 KNOWN_OPEN: dict[str, dict] = {
     "v5.isolation.in_process_learner_reads_hidden_grader": {
         "outcome": "leak", "severity": "high", "owner": "L",
-        "note": "an in-process learner holding ExperienceEnv reaches the Tier 1 scenario's hidden configuration; "
-                "evaluated learners need an out-of-process path (HTTP API / subprocess bridge)"},
+        "note": "an in-process learner holding ExperienceEnv reaches the Tier 1 scenario's hidden configuration (by "
+                "construction: Python has no access control). The out-of-process path exists now "
+                "(experience.remote.host; its participant pipe was pickle-injectable until wave 3, probe "
+                "v5.isolation.remote_participant_cannot_run_code_in_the_world holds); to close this entry the "
+                "evaluation entry points must host evaluated learners remotely (and keep the evaluator handle out of "
+                "the learner's process), and make() must not be the evaluation path"},
     "v5.isolation.tier1_engines_cannot_import_oracles": {
         "outcome": "integrity_break", "severity": "low", "owner": "H",
         "note": "crucible/rapid/__init__.py imports admission -> references -> oracles eagerly; no participant path "
@@ -96,6 +100,12 @@ FIXED: dict[str, str] = {
         "v5.sandbox.meter_forgery.work_at_import_time",
     "O wave 3: nondeterministic output credited every locked package as adopted":
         "v5.innovation.adoption_by_nondeterministic_output",
+    "O wave 3: a dead worker was reaped before its CPU was read (work delivered by a world call, then self-kill)":
+        "v5.sandbox.work_delivered_through_a_world_call_then_exit",
+    "O wave 3: work after a forged completion, then exit, unbilled in pooled workers":
+        "v5.sandbox.forged_completion_then_exit",
+    "O wave 3: the hosted learner's participant pipe unpickled what the learner sent (code ran in the world process "
+    "and read the grader)": "v5.isolation.remote_participant_cannot_run_code_in_the_world",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

@@ -358,6 +358,96 @@ class InProcessLearnerReachesGrader(V5Probe):
                        evd)
 
 
+
+_PAYLOAD_CODE = """
+import gc, json
+found = []
+for o in gc.get_objects():
+    h = getattr(o, "h", None) if not isinstance(o, (dict, list, tuple)) else None
+    if isinstance(h, dict) and ({"holdout", "theta", "hidden"} & set(map(str, h))):
+        found.append(sorted(map(str, h))[:12])
+open(%r, "w").write(json.dumps(found))
+"""
+
+
+class _Payload:
+    """A pickle that runs code while it is loaded (what `Connection.recv` does with a received object)."""
+
+    def __init__(self, path: str):
+        self.path = path
+
+    def __reduce__(self):
+        return (exec, (_PAYLOAD_CODE % self.path,))
+
+
+class RemoteParticipantCannotRunCode(V5Probe):
+    name = "v5.isolation.remote_participant_cannot_run_code_in_the_world"
+    attack_class = "evaluator_independence/out_of_process_learner"
+    gates = ("W.2",)
+    target, owner = "experience.remote", "L"
+    world = {"v5": "substrate"}
+    description = ("The out-of-process evaluation path (`crucible.experience.remote.host`): a learner holding only "
+                   "the participant handle of a hosted Tier 1 rule-induction world sends, on its own pipe, an object "
+                   "whose unpickling runs code that searches the world process for the grader's hidden parameters "
+                   "and holdout and writes them where the learner can read them. Checked: nothing runs in the world "
+                   "process (the participant pipe carries JSON frames only), nothing is exfiltrated, the world keeps "
+                   "serving, and the participant pipe refuses the evaluator operations.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("remote-learner", 10)
+
+    def attack(self, a: Attacker) -> None:
+        import os
+        import shutil
+        import tempfile
+        from ...experience.remote import host
+        a.note("the learner's only handle is the participant pipe of a hosted world")
+        d = tempfile.mkdtemp(prefix="rt-remote-")
+        out = os.path.join(d, "exfil.json")
+        try:
+            part, ev = host({"tier": 1, "name": "pe_rule_induction", "seed": 3, "reward_mode": "observation_only"})
+        except Exception as e:  # noqa: BLE001
+            shutil.rmtree(d, ignore_errors=True)
+            raise NotApplicable(f"the hosted Tier 1 world did not start: {type(e).__name__}: {e}")
+        try:
+            agent = part.agents()[0]
+            try:
+                part._conn.send(_Payload(out))
+                raw = part._conn.recv_bytes()
+                self.reply = raw[:200].decode("utf-8", "replace")
+            except (EOFError, OSError) as e:
+                self.reply = f"connection lost: {type(e).__name__}"
+            import time as _t
+            _t.sleep(0.5)
+            self.exfil = open(out).read()[:400] if os.path.exists(out) else None
+            try:
+                self.still_serving = part.agents() == [agent]
+            except Exception:  # noqa: BLE001
+                self.still_serving = False
+            try:
+                self.refused = {op: part._raw(op)[0] == "error" for op in ("verify", "digest", "describe", "env")}
+            except Exception as e:  # noqa: BLE001
+                self.refused = {"error": f"{type(e).__name__}"}
+        finally:
+            try:
+                ev.close()
+            except Exception:  # noqa: BLE001
+                pass
+            shutil.rmtree(d, ignore_errors=True)
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        evd = {"reply_to_payload": self.reply, "exfiltrated": self.exfil, "world_still_serving": self.still_serving,
+               "evaluator_ops_refused": self.refused}
+        if self.exfil is not None:
+            return Verdict(LEAK, "a pickled object sent on the participant pipe ran code in the world process and "
+                           f"read the grader: {self.exfil[:120]}", evd, severity="critical",
+                           fix="experience/remote.py: JSON frames on the participant pipe (never unpickle what a "
+                               "learner sends)")
+        if not self.still_serving or not all(v is True for v in self.refused.values()):
+            return Verdict(LEAK, "the hosted world stopped serving or answered an evaluator operation on the "
+                           "participant pipe", evd, severity="high")
+        return Verdict(HELD, "the participant pipe ran nothing it received; evaluator operations were refused", evd)
+
 def probes() -> list:
     return [StaticReachabilityV5(), Tier1EngineReachability(), SandboxCannotReachEvaluator(),
-            InProcessLearnerReachesGrader()]
+            InProcessLearnerReachesGrader(), RemoteParticipantCannotRunCode()]
