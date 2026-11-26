@@ -123,3 +123,28 @@ def test_key_name_probe_tells_a_work_task_progress_from_goal_progress():
     disguised = {"id": "task_000003", "progress": 0.44, "objective_progress": 0.44}
     assert _key_hits(goal) == [".agents.p:a.progress"]
     assert _key_hits(disguised) == [".progress"]                   # not a plain task record: still flagged
+
+
+def test_population_vector_components_count_only_at_their_own_component_index():
+    """An individual's 422-d interest vector leaks component by component; one float32 component equal to some other
+    component of a public semantic encoding is chance (found once among ~5,000 x 4,600 pairs in a commercialization
+    world). The probe counts a vector component only at its own index; scalars and text as before."""
+    from crucible.experience import probes_tiers as PT
+    from crucible.experience.registry import tier2_domains
+    name = next((n for n, d in sorted(tier2_domains().items())), None)
+    env = make(2, name, 3)
+    a = env.agents()[0]
+    vals = PT.population_private_values(env.world)
+    vec = sorted(k for k in vals if k.startswith("pop.interests["))
+    assert vec, "interests are a vector feature of the population"
+    k = vec[0]
+    comp = int(k.rsplit("[", 1)[1].rstrip("]"))
+    row = [0.5] * 422
+    other = list(row)
+    other[(comp + 7) % 422] = vals[k]                 # the value at another component: chance, not counted
+    same = list(row)
+    same[comp] = vals[k]                              # at its own component: the vector is reaching the seat
+    for arr, leaks in ((other, 0), (same, 1)):
+        P = PT.TierProbe("vector", 2)
+        PT.probe_population_private(P, env, a, [{"arrays": {"semantic.x": arr}}], "planted vector")
+        assert P.kinds["exact_value"]["leaks"] == leaks, (arr is same, P.result()["leaks"][:2])

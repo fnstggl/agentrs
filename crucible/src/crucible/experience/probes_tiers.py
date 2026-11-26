@@ -441,17 +441,32 @@ def population_private_values(world, n: int = 64) -> dict[str, float]:
     feats["interests"] = pop.interests(world, idx)
     for k, v in sorted(feats.items()):
         try:
-            arr = np.asarray(v, dtype=np.float64).ravel()
+            a2 = np.asarray(v, dtype=np.float64)
         except (TypeError, ValueError):
             continue
+        width = int(a2.shape[-1]) if a2.ndim >= 2 else 0
+        arr = a2.ravel()
         for j, x in enumerate(arr[:4096]):
             x = float(x)
             # a value exactly representable in float16 is too coarse to identify (semantic chunk vectors and several
             # population columns are float16: 0.04327392578125 occurs in both by coincidence)
             if np.isfinite(x) and not x.is_integer() and abs(x) > 1e-4 and len(repr(abs(x)).replace(".", "")) >= 6 \
                     and float(np.float16(x)) != x:
-                out[f"pop.{k}[{j}]"] = x
+                # vector features (interests: a 422-d point of the shared semantic space) name their component
+                out[f"pop.{k}[{j // width}][{j % width}]" if width else f"pop.{k}[{j}]"] = x
     return out
+
+
+_TAIL_INDEX = re.compile(r"\[(\d+)\]$")
+_COMPONENT = re.compile(r"\]\[(\d+)\]$")
+
+
+def _aligned(name: str, path: str) -> bool:
+    """A hit of a private vector component inside a reached vector counts only at the same component index: a
+    float32 component of an individual's 422-d interests equals some component of a public 422-d semantic encoding
+    by chance (5,000 values x thousands of components); the vector itself would match component by component."""
+    c, t = _COMPONENT.search(name), _TAIL_INDEX.search(path)
+    return c is None or t is None or int(c.group(1)) == int(t.group(1))
 
 
 def probe_population_private(P: TierProbe, env, agent: str, reach: Any, label: str) -> None:
@@ -464,13 +479,17 @@ def probe_population_private(P: TierProbe, env, agent: str, reach: Any, label: s
     data = _plain(reach)
     P.check("exact_value", len(vals))
     from .probes import exact_hits, text_numbers
-    hits = exact_hits(vals, data)
+    found = exact_hits(vals, data)
+    hits = [h for h in found if _aligned(h[0], h[2])]
     for name, v, path, x in hits[:20]:
         P.leak("exact_value", f"{label}: an individual's private value reached the participant", value=name, path=path)
     P.check("free_text", len(vals))
     for name, v, path, x in exact_hits(vals, data, text_numbers(data))[:20]:
         P.leak("free_text", f"{label}: an individual's private value written in text", value=name, path=path)
-    P.notes.append(f"{label}: {len(vals)} private values of up to 64 individuals checked, {len(hits)} found")
+    P.notes.append(f"{label}: {len(vals)} private values of up to 64 individuals checked, {len(hits)} found"
+                   + (f" ({len(found) - len(hits)} chance equalities of a vector component at another component "
+                      f"index: {[(h[0], h[2][-60:]) for h in found if h not in hits][:3]})" if len(found) > len(hits)
+                      else ""))
 
 
 def _domain_env(name: str, seed: int, **kw):
