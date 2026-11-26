@@ -34,6 +34,7 @@ from crucible.acceptance.v5 import evidence
 from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social import cascade
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = ('PYTHONPATH=src python -m crucible.scale.slots --cpu 4 --label "ws-C2: gate I" -- '
@@ -98,6 +99,12 @@ def test_I1_ten_million_identities(positive_control):
                     "individual of crucible.population becomes a kernel principal p<i> on first need (a random sample of 1,000 was "
                     "materialised). distinct_state_rows counts distinct (interests, attention budget) rows by "
                     "64-bit hash. Exact, individual-level: no estimated-population mode is used. " + _notes(positive_control))
+    assert_met('I.1', {"distinct_identities": m["distinct_identities"],
+               "distinct_identities_with_qualifying_consumption":
+               m["distinct_identities_with_qualifying_consumption"],
+               "distinct_state_rows": m["distinct_state_rows"],
+               "identities_with_decisions": m["identities_with_decisions"],
+               "materialised_sample_principals": m["materialised_sample"], "estimated": False})
     assert m["distinct_identities"] == N_PC and m["materialised_sample"] == 1000
 
 
@@ -109,6 +116,8 @@ def test_I2_verified_exposure_accounting(positive_control):
                     "re-read; impressions and distinct (item, identity) exposures per item were recomputed "
                     "independently and compared with the state counters and, member by member, with each item's "
                     "exact exposed set. " + _notes(positive_control))
+    assert_met('I.2', {"exposure_recount_mismatches": m["exposure_recount_mismatches"],
+               "exposures_checked": m["exposures_checked"], "impression_rows": m["impression_rows"]})
     assert m["exposures_checked"] > 0
 
 
@@ -122,6 +131,10 @@ def test_I3_verified_distinct_viewer_accounting(positive_control):
                     "(the view rule applied to watch_s and the item's duration) and compared with the counters and "
                     "the exact viewer sets member by member; all ten audience quantities were recounted. " +
                     _notes(positive_control))
+    assert_met('I.3', {"distinct_viewer_recount_mismatches": m["distinct_viewer_recount_mismatches"],
+               "distinct_viewers_checked": m["distinct_viewers_checked"],
+               "consumption_rows": m["consumption_rows"],
+               "total_recount_mismatches": m["total_recount_mismatches"]})
     assert m["distinct_viewers_checked"] > 0
 
 
@@ -133,6 +146,9 @@ def test_I4_finite_attention(positive_control):
                     command=CMD, notes="The attention ledger (left >= 0, spent <= daily budget) checked for all "
                     "identities, and per identity and day the seconds consumed in the recorded consumption rows "
                     "compared with the daily budget. " + _notes(positive_control))
+    assert_met('I.4', {"attention_budget_violations": m["attention_budget_violations"],
+               "attention_ledger_violations": m["attention_ledger_violations"],
+               "daily_consumption_over_budget": m["daily_consumption_over_budget"]})
     assert m["consumption_rows"] > 0
 
 
@@ -149,6 +165,11 @@ def test_I5_organic_propagation(positive_control):
                     "of the deciding individual: population.check_provenance). Share "
                     "generations: qualifying views reached through an inbox share of generation g (1 = shared by "
                     "someone who found it in a feed). " + _notes(positive_control))
+    assert_met('I.5', {"forced_view_assignments": m["forced_view_assignments"] + m["decision_rows_without_provenance"],
+               "views_without_prior_exposure": m["forced_view_assignments"],
+               "decision_rows_without_provenance": m["decision_rows_without_provenance"],
+               "share_generations_observed": m["share_generations_observed"],
+               "share_generation_views": json.dumps(m["share_generation_views"])})
     assert m["share_generations_observed"] >= 1
 
 
@@ -166,6 +187,11 @@ def test_I6_positive_control_cascade(positive_control):
                     f"{rec['creator']}, an experimenter account: scripted publication) is an informative text post "
                     "(real news abstracts) published through the ordinary tools at the start; it reached people "
                     "only through feeds and shares, every view a population decision. " + _notes(positive_control))
+    assert_met('I.6', {"positive_control_unique_viewers": m["item_unique_viewers"],
+               "positive_control_unique_exposed": m["item_unique_exposed"],
+               "positive_control_item": it, "top_item": m["top_item"],
+               "forced_view_assignments": m["forced_view_assignments"] +
+               m["decision_rows_without_provenance"]})
     assert m["item"] == it
 
 
@@ -182,6 +208,12 @@ def test_I7_ten_million_qualifying_distinct_consumption_events(positive_control)
                     "distinct_identities_with_qualifying_consumption counts the identities among them (spec 4.6's "
                     "condition for an exact claim of that many unique viewers). Capacity, not realism. " +
                     _notes(positive_control))
+    assert_met('I.7', {"qualifying_distinct_consumption_events": m["qualifying_distinct_consumption_events"],
+               "distinct_identities_with_qualifying_consumption":
+               m["distinct_identities_with_qualifying_consumption"],
+               "qualifying_views": m["qualifying_views"], "consumption_rows": m["consumption_rows"],
+               "distinct_viewer_recount_mismatches": m["distinct_viewer_recount_mismatches"],
+               "run_wall_s": m["run_wall_s"]})
     assert m["qualifying_distinct_consumption_events"] == m["distinct_viewers_checked"]
 
 
@@ -201,6 +233,13 @@ def test_In1_organic_large_adoption(organic):
                     "retrieval, social, freshness, exploration): "
                     "the most viewed item of 24 simulated hours. Every view recounted from recorded batches. "
                     f"Trajectory (hour, top item, its unique viewers): {traj}")
+    assert_met('I.n1', {"organic_cascade_unique_viewers": m["top_item_unique_viewers"],
+               "forced_view_assignments": m["forced_view_assignments"] +
+               m["decision_rows_without_provenance"],
+               "organic_item": m["top_item"], "distinct_identities": m["distinct_identities"],
+               "share_generations_observed": m["share_generations_observed"],
+               "total_recount_mismatches": m["total_recount_mismatches"],
+               "items": m["items"]})
     assert m["total_recount_mismatches"] == 0
 
 
@@ -218,6 +257,10 @@ def test_In2_no_unsupported_realism_claims():
                              "planted_controls_correct": r["controls"]["ok"],
                              "validated_cascade_realism_evidence": False},
                     notes=f"Claims found: {r['claims'][:10]}; planted controls {r['controls']}")
+    assert_met('I.n2', {"unsupported_realism_claims": r["unsupported_claims"], "statements_checked":
+               r["statements_checked"], "files_scanned": r["files_scanned"],
+               "planted_controls_correct": r["controls"]["ok"],
+               "validated_cascade_realism_evidence": False})
     assert r["controls"]["ok"], r["controls"]
     assert r["files_scanned"] > 100 and r["statements_checked"] >= 1
     assert r["unsupported_claims"] == 0, r["claims"]

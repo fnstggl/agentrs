@@ -17,6 +17,7 @@ from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.substrate import ids
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_6.py"
@@ -157,5 +158,6 @@ def test_audience_quantities_and_view_threshold(world):
                           "from those of every other quantity. Relations: " +
                           ", ".join(f"{k}={v}" for k, v in relations.items()) + ". Controlled checks: " +
                           ", ".join(f"{k}={v}" for k, v in checks.items()))
+    assert_met('SP-4.6', metrics)
     assert all(relations.values()), relations
     assert all(checks.values()), checks

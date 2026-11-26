@@ -21,7 +21,7 @@ from __future__ import annotations
 import pytest
 
 from crucible.acceptance.v5 import evidence
-from social_helpers import Actor, social_world
+from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_2.py"
 
@@ -135,4 +135,5 @@ def test_SP_4_2_ten_artifact_kinds_full_life_cycle():
         "Ten formats, seven life-cycle steps each, through the studio.* and content.* tools; edits keep provenance, "
         "renders are previews (apps executed and packages tested in the program sandbox), publication is checked "
         "by another participant opening the item, removal by listings, search and open."))
+    assert_met('SP-4.2', metrics)
     assert sorted(kinds_ok) == sorted(plan), done

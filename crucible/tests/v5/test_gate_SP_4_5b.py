@@ -39,6 +39,7 @@ from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.social.worlds import social_world
 from crucible.substrate import columns
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_5b.py"
@@ -185,5 +186,6 @@ def test_SP_4_5b_attention_competition_and_dynamics():
         "inbox placement (no notification) of two popular items for 800 of 1,600 individuals at day 3; primary "
         "outcome = feed slots of other items in each individual's first posts session afterwards (one-sided "
         "Mann-Whitney); day totals, views and seconds reported. Dynamic kinds observed in the run itself."))
+    assert_met('SP-4.5b', metrics)
     assert got_item[treat].sum() > got_item[ctrl].sum()
     assert w.check_invariants() == []

@@ -35,7 +35,7 @@ import numpy as np
 import pytest
 
 from crucible.acceptance.v5 import evidence
-from social_helpers import Actor, social_world
+from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_C.py"
 DAY = 86400
@@ -180,6 +180,7 @@ def test_C_1_media_artifacts_published():
         "opened by another participant through content.open and decoded independently (UTF-8, Pillow, wave, "
         "ffprobe); a published_* count is an item both verified and distributed. Then one day of the population's "
         "own creation: population_published_* counts its image cards, narrated audio and slide videos."))
+    assert_met('C.1', metrics)
     assert reps.get("caption", 0) == 0
 
 
@@ -246,6 +247,7 @@ def test_C_2_discovery_channels(pop_run):
         "The one population over 30 days: for every qualifying view, the channel of the viewer's first impression "
         "of the item (platform recommender mechanisms, shares in the inbox, newsletters, community feeds, search); "
         "a channel counts when it delivered at least 30 views."))
+    assert_met('C.2', metrics)
     assert ok.sum() > 1000
 
 
@@ -269,6 +271,7 @@ def test_C_3_consumption_produces_analytics(pop_run):
         "Consumption decisions of the one population (feeds of 8 platforms, communities, newsletters) recorded as "
         "decision batches with provenance; every audience quantity of every item recounted independently from the "
         "batch blobs; creator analytics are the platform's delayed, noisy publication of the same quantities."))
+    assert_met('C.3', metrics)
     assert prov["forced_rows"] == 0
 
 
@@ -290,6 +293,7 @@ def test_C_4_communities_form_and_persist(pop_run):
         "predefined), joined by fit, activity and contacts, read, posted and replied in, left when their "
         "experienced value fell. Active = at least 3 members who took part in the last 7 days. Weekly snapshots: "
         f"{json.dumps(pop_run['weekly'][-1])[:3000]}. Subjects: {subjects[:20]}"))
+    assert_met('C.4', metrics)
     assert len(pop_founded) >= 1
 
 
@@ -389,6 +393,7 @@ def test_C_5_social_mechanisms_affect_future_interactions():
         "individuals; outcome: the individual later viewed the creator's new items / the shared post / an issue, "
         "decided by the population itself; two-proportion z-tests. The assignment is the experimenter's "
         "manipulation (labelled), the outcomes are ordinary population decisions."))
+    assert_met('C.5', out)
     assert out["sample_treated"] == 600
 
 
@@ -499,6 +504,7 @@ def test_C_6_browser_workflow_against_real_state():
         "a community, create an artifact in the studio, post it in the community, comment, follow a creator, see "
         "the timeline, search. Every form post is one recorded command; the same commands headlessly reproduce "
         "the event-hash chain."))
+    assert_met('C.6', metrics)
     assert passed == len(steps), steps
     assert all(changes.values()) and twin, (changes, twin)
 
@@ -631,4 +637,5 @@ def test_C_n1_no_direct_counter_mutation(pop_run):
         "the state is replayed from the log. Probes try to write counters through tools (extra arguments, artifact "
         "metadata, self-votes, repeats, operator tools) and must be refused; a module-level forgery of consumption "
         "rows must be detected by decision provenance."))
+    assert_met('C.n1', metrics)
     assert direct == 0, (rc, before, after)

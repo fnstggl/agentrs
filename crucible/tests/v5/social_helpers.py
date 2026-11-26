@@ -138,3 +138,14 @@ def alerts(html: str) -> list[str]:
 
 def statuses(html: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", m).strip() for m in re.findall(r'role="status"[^>]*>(.*?)</div>', html, re.S)]
+
+
+# ---------------------------------------------------------------------------------------------------- criteria
+def assert_met(req: str, metrics: dict) -> None:
+    """Assert every ACCEPTANCE_MANIFEST criterion of requirement `req` on the measured metrics, with the acceptance
+    checker's own rule (a gate test fails when its measurement misses a criterion, not only the later check)."""
+    from crucible.acceptance.v5 import manifest as MF
+    from crucible.acceptance.v5.checker import criterion_met
+    crit = next(e for e in MF.load()["requirements"] if e["id"] == req)["criteria"]
+    fails = [msg for c in crit for ok, msg in [criterion_met(c, metrics)] if not ok]
+    assert not fails, f"{req}: {fails}"

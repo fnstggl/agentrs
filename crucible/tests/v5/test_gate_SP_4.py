@@ -18,7 +18,7 @@ import pytest
 
 from crucible.acceptance.v5 import evidence
 from crucible.social.platforms import PLATFORMS
-from social_helpers import Actor, social_world
+from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4.py"
 
@@ -150,4 +150,5 @@ def test_SP_4_interoperable_platforms():
         "Every platform kind in one world (crucible.social.modules.social_internet_modules + market); each "
         "platform's characteristic use exercised by participants through tools and checked in the shared "
         "catalogue, follow graph, identity and bank state."))
+    assert_met('SP-4', metrics)
     assert all(ok.values()), {p: v for p, v in res.items() if not ok[p]}

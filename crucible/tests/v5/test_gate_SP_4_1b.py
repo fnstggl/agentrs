@@ -29,6 +29,7 @@ from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social.worlds import social_world
 from crucible.substrate import artifacts, columns, ids
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_1b.py"
@@ -114,6 +115,7 @@ def test_SP_4_1b_tool_reads_are_consumption():
         "60 population members opened (content.open) and read (content.read) 3 items each in the integrated social "
         "internet after one day of autonomous activity; each read is one consumption row with participant "
         "provenance, recounted independently from the durable event store; creator analytics include the reads."))
+    assert_met('SP-4.1b', metrics)
     assert ok, (missing[:5], prov)
     assert mism == 0
     assert len(cmd_rows["imp"]) >= len(expected)

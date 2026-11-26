@@ -29,6 +29,7 @@ from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.social.recsys import REGISTRY
 from crucible.substrate import attention, columns, ids
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_D.py"
@@ -101,6 +102,7 @@ def test_D1_distinct_recommenders_end_to_end(arms):
                     notes="Each arm: the same day-2 world state, every platform distributing with one recommender, "
                           "one simulated day. Overlap = Jaccard similarity of the (viewer, item) exposure sets of "
                           f"two arms. All pairwise overlaps: {json.dumps({k: round(v, 3) for k, v in pairs.items()})}")
+    assert_met('D.1', metrics)
     assert len(ok) == len(REGISTRY)            # every mechanism operated end to end (impressions and views)
     assert all(0.0 <= v <= 1.0 for v in pairs.values())
 
@@ -143,6 +145,7 @@ def test_D2_controlled_change_changes_exposure_and_consumption(arms):
                     notes="Two arms from the same day-2 state differing only in the recommender (interest retrieval vs "
                           "global trending); chi-square tests of homogeneity of impressions and of qualifying views "
                           "over items, and a Mann-Whitney test of the interest-content affinity of viewed items.")
+    assert_met('D.2', metrics)
     assert ea.sum() > 0 and eb.sum() > 0 and va.sum() > 0 and vb.sum() > 0
 
 
@@ -200,6 +203,7 @@ def test_D3_distribution_changes_during_persistent_run(base):
                           "mechanisms in its own recorded batches). Shifts: chi-square tests of the posts item-age "
                           "profile and of the blog exposure sources on day 3, run vs a counterfactual fork of the "
                           "pre-change state without either change; the reported criterion is the larger p-value.")
+    assert_met('D.3', metrics)
     assert changes >= 1 and selfc >= 1
     assert h_changed.sum() > 0 and h_cf.sum() > 0
 
@@ -332,6 +336,7 @@ def test_D4_hidden_parameters_are_not_reachable(base):
                           "observation, every visible event, the artifact tools on model and decision blobs, and "
                           "creator analytics; a leak is any evaluator-side parameter value, parameter name or "
                           f"algorithm name in a result, or a readable internal record. Leaks: {detail}")
+    assert_met('D.4', metrics)
     assert probes >= 5
 
 
@@ -366,5 +371,6 @@ def test_D5_exposure_and_attention_accounting_consistent(base):
                           "sets, unique <= totals, repeat = views - unique; attention left >= 0 and spent <= budget); "
                           "then every audience quantity recounted from the recorded batch blobs; per individual and "
                           "day, seconds consumed never exceed the attention budget.")
+    assert_met('D.5', metrics)
     assert rc["impression_rows"] > 10000 and rc["consumption_rows"] > 1000
     assert len(checks) >= 4 * 96 - 1

@@ -19,6 +19,7 @@ from crucible.core.kernel import World
 from crucible.social import audience as AUD
 from crucible.social import experiments as X
 from crucible.social.recsys import REGISTRY, training
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_5.py"
@@ -108,6 +109,7 @@ def test_recommendation_mechanisms(run):
                     ". Engagement is refitted every 6 h only on impressions at least delay_s old with label_noise of "
                     "the labels flipped; explore and engagement read the published analytics, which lag one to two "
                     "analytics intervals and carry log-normal noise (sd compared against the exact recount).")
+    assert_met('SP-4.5', metrics)
     assert len(eng) >= 2 and len(cf) >= 2
     assert eng_delay >= 6 * 3600
     assert set(REQUIRED) <= set(REGISTRY)

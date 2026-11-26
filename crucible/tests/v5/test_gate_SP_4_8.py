@@ -22,7 +22,7 @@ import re
 import pytest
 
 from crucible.acceptance.v5 import evidence
-from social_helpers import Actor, social_world
+from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_8.py"
 DAY = 86400
@@ -156,6 +156,7 @@ def test_SP_4_8_social_to_purchase_through_ordinary_mechanisms():
         "second buyer reads the review on the product page and buys. Bonus checks: static scan of "
         "src/crucible/social, every bank transaction of the run, and a counterfactual fork with social success "
         "and no purchases (seller balance unchanged)." + (f" Static findings: {static}" if static else "")))
+    assert_met('SP-4.8', metrics)
     assert all(chains.values()) and revenue == 2 * 3000, (chains, revenue)
 
 
@@ -250,4 +251,5 @@ def test_SP_4_8_population_discovers_buys_uses_and_reviews():
         "visitors' decisions read the rating (prod.view). The maker is scripted (labelled). No bonus: static scan of "
         "the social package and every bank transaction of the run. Service products with infrastructure cost and "
         f"subscriptions are wired by ECON (integration note). Buyers: {detail[:20]}"))
+    assert_met('SP-4.8', metrics)
     assert metrics["hardcoded_social_revenue_bonuses"] == 0

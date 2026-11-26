@@ -31,6 +31,7 @@ from crucible.social import communities as CM
 from crucible.social import nodes
 from crucible.social.worlds import social_world
 from crucible.substrate import ids
+from social_helpers import assert_met  # noqa: E402
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_7b.py"
@@ -107,5 +108,6 @@ def test_SP_4_7b_community_membership_churn_and_sustained_participation():
         "joined, used and left by the members themselves. Sustained participation: consecutive days with >= 3 "
         "distinct population contributors (posts or replies) in the trailing 7 days, from the recorded events. "
         f"Per community: {json.dumps(sustained)[:2000]}"))
+    assert_met('SP-4.7b', metrics)
     assert errs == []
     assert len(comms) >= 1

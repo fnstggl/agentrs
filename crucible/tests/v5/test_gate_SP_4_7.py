@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from crucible.acceptance.v5 import evidence
-from social_helpers import Actor, social_world
+from social_helpers import Actor, social_world, assert_met
 
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_7.py"
 DAY = 86400
@@ -193,4 +193,5 @@ def test_SP_4_7_community_features():
         "13 community features exercised through the community tools and verified in recorded state; individual "
         "interests measured on 40 reference participants over 14 days (members' interests overlap the subject of "
         "their community more than non-members')."))
+    assert_met('SP-4.7', metrics)
     assert all(f.values()), {k: v for k, v in f.items() if not v}
