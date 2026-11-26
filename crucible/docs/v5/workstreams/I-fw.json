@@ -137,7 +137,8 @@
   "P/QA: sync implementation_files of N.1-N.7, N.n1, SP-9.0, SP-9.16 from this file into the manifest (src/crucible/domains/base.py is the measuring implementation). The canonical gate files are tests/v5/test_gate_N.py, tests/v5/test_gate_SP_9_0.py, tests/v5/test_gate_SP_9_16.py.",
   "N (research/v5/distribution.py): entries keep working (Domain.configs, c.structure as the declared structure, spec_part); fixtures (Domain.fixture True) should be excluded from the distribution registry.",
   "J (civ): base.civ_recipe restricts crucible.civ.recipe (no change to civ); base.tier3_spec merges a domain configuration into a civilisation recipe and orders modules by dependencies (as civ.spec does). The undeclared runtime dependency society -> market (listings index) surfaced when restricting recipes; consider declaring it in society.depends.",
-  "Mode B (substrate/modes.py, SP-2.1): domains/modes.py now returns WorldSpecs (the registry creates the world) and lists only non-fixture domains; with no registered domain mode B lists nothing (not operational, never faked)."
+  "Mode B (substrate/modes.py, SP-2.1): domains/modes.py now returns WorldSpecs (the registry creates the world) and lists only non-fixture domains; with no registered domain mode B lists nothing (not operational, never faked).",
+  "A (substrate): tests/test_v5_substrate_modes.py::test_mode_c_requires_genuine_shared_state_composition fails when the whole file runs (passes alone) on the integration head 55433e7 too - an order dependence on the providers/worlds of earlier tests in the file, not caused by this branch."
  ],
  "tests_run": {
   "tests/test_v5_domains_framework.py": "25 passed (CPU, 71 s)",
@@ -147,7 +148,8 @@
   "tests/v5/test_gate_SP_9_0.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture autonomous, open-ended, composes into balanced civ in 6 h, inert actor 0 events, numbers-only pair detected)",
   "tests/v5/test_gate_SP_9_16.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture null fails, probes fail, reference feasible, 0 dice; planted always-succeeding evaluator makes the null succeed; planted failure dice detected)",
   "tests/test_v5_experience_oo.py": "11 passed (CPU, 15 s)",
-  "tests/test_v5_experience_core.py": "all passed (run together with test_v5_substrate_modes.py)"
+  "tests/test_v5_experience_core.py": "all passed (run together with test_v5_substrate_modes.py: 18 of 19 passed, the 1 failure being the pre-existing one above)",
+  "tests/test_v5_substrate_modes.py": "7 passed, 1 failed (test_mode_c_requires_genuine_shared_state_composition) - PRE-EXISTING and order-dependent: the same failure occurs on the integration head 55433e7 when the whole file runs (1 failed, 7 passed), and the test passes alone on both trees"
  },
  "history": [],
  "compatibility_checks": {
