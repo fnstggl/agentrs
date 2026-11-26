@@ -298,10 +298,7 @@ def test_Sn1_integration_not_claimed_as_learning_success():
     scan = G.scan_claims("integration_success", G.corpus(ROOT))
     learned = []
     for p in _glob.glob(os.path.join(ROOT, "docs", "v5", "evidence", "gate_S", "*.json")):
-        try:
-            d = json.load(open(p))
-        except (OSError, ValueError):
-            continue
+        d = json.load(open(p))
         if isinstance(d, dict) and (d.get("labels") or {}).get("learned"):
             learned.append(os.path.basename(p))
     n = scan["unsupported_claims"] + len(learned)

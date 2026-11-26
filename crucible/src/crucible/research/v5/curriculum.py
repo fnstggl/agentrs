@@ -316,3 +316,13 @@ def _entropy(p: np.ndarray) -> float:
     p = np.asarray(p, dtype=float)
     p = p[p > 0]
     return float(-(p * np.log(p)).sum())
+
+
+def goal_possible(env, goal_type: str) -> bool:
+    """Whether the independent goal generator can draw a goal of `goal_type` from this world's public face."""
+    from ...rapid import goals as G
+    try:
+        G.generate(env, 0.4, 5, goal_type)
+        return True
+    except ValueError:
+        return False

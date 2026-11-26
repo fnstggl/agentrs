@@ -120,10 +120,10 @@ def test_T3_independently_varied_objectives(generated):
         e = r["entry"]
         for t in G.GOAL_TYPES:
             env = rapid_world(e, 3, {}, None)
-            try:
-                g = G.generate(env, 0.4, 5, t)
-            except ValueError:
+            possible = CU.goal_possible(env, t)
+            if not possible:
                 continue
+            g = G.generate(env, 0.4, 5, t)
             v = GE.validate(lambda: rapid_world(e, 3, {}, None), g)
             if v.get("feasible"):
                 feasible[t].add(e["name"])

@@ -260,3 +260,11 @@ def signflip_pvalue(d: np.ndarray, trials: int = 20000, seed: int = 0) -> float:
     rng = np.random.default_rng(seed)
     s = rng.choice((1.0, -1.0), size=(trials, n))
     return float(((s * d).mean(axis=1) >= obs - 1e-12).mean())
+
+
+def score_or_none(e: Mapping, seed: int, learner, rng) -> float | None:
+    """`_score`, or None when the generated world cannot be built (reported by the caller, never hidden)."""
+    try:
+        return _score(e, seed, learner, rng)
+    except (ValueError, KeyError, IndexError, FloatingPointError, ZeroDivisionError):
+        return None

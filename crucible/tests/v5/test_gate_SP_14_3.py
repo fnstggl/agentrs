@@ -45,16 +45,16 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
         evals = [w["id"] for w in reg.worlds(tier=1, family_partition="evaluation", source="crucible.rapid")][:1]
         ev.must("declare_sealed", "final", evals, 1, 1)
         rng = np.random.default_rng(3)
-        n = 0
+        n, unbuildable = 0, 0
         while n < 90:
             it = cur.next()
             if "structure" not in it:
                 continue
             e = cur.entry_for(it)
             sd = 1_000_000 + int(it["seed"]) % 900_000
-            try:
-                sc = CL._score(e, sd, learner, rng)
-            except Exception:  # noqa: BLE001 - an unbuildable draw gives no measurement
+            sc = CL.score_or_none(e, sd, learner, rng)
+            if sc is None:                       # a structure the grammar admits but whose world cannot be built
+                unbuildable += 1
                 continue
             cur.observe({"partition": "validation", "structure": it["structure"], "category": it["category"],
                          "score": sc, "seen": False})
@@ -77,7 +77,8 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
     record("SP-14.3", {"weakness_categories": len(measured), "curriculum_measures": len(measures),
                        "sealed_result_accesses": int(accesses), "refused_evaluation_results":
                        st["refused_results"]["evaluation"], "refused_sealed_results": st["refused_results"]["sealed"],
-                       "random_share": float(st["random_share"]), "normalised_entropy": float(st["normalised_entropy"])},
+                       "random_share": float(st["random_share"]), "normalised_entropy": float(st["normalised_entropy"]),
+                       "unbuildable_draws": unbuildable},
            notes=f"Profile {({c: {k: (round(v, 3) if isinstance(v, float) else v) for k, v in prof[c].items()} for c in CU.WEAKNESSES})}; "
                  f"weights {cur.weights()}")
     assert len(measured) >= 10 and len(measures) >= 4, prof
