@@ -571,3 +571,18 @@ def test_progress_ledger_records_and_updates_interrupted_workstreams(tmp_path):
         P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="", root=root)
     with pytest.raises(ValueError):
         P.add_interrupted(workstream="Q", why="x", recovery_branch="b", reassigned_to="R", status="vanished", root=root)
+
+
+def test_workstream_reports_may_name_files_by_pattern(tmp_path):
+    root = str(tmp_path)
+    for rel in ("src/pkg/a.py", "src/pkg/b.py", "tests/v5/test_gate_Q.py"):
+        os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+        open(os.path.join(root, rel), "w").write("x = 1\n")
+    os.makedirs(os.path.join(root, "docs", "v5", "workstreams"))
+    json.dump({"requirements": {"Q.1": {"implementation_files": ["src/pkg/*.py", "src/none/*.py"],
+                                        "tests": ["tests/v5/test_gate_*.py"]}}},
+              open(os.path.join(root, "docs", "v5", "workstreams", "Q.json"), "w"))
+    got = M.workstream_files(root)["Q.1"]
+    assert got["implementation_files"] == ["src/pkg/a.py", "src/pkg/b.py"]
+    assert got["tests"] == ["tests/v5/test_gate_Q.py"]
+    assert got["skipped"] == [("src/none/*.py", "does not exist in this checkout")]
