@@ -11,8 +11,12 @@ capabilities Part 6.6 names, by agents acting through tools and simulated worker
 Each capability is checked against authoritative world state (balances, memberships, decisions, contracts), not
 against what the actors report. Then the institutions try to change what they must not - core accounting law,
 security boundaries, hidden evaluation criteria and world state - through their own authorised mechanisms; an
-attempt counts as blocked only if it was refused AND the protected state is unchanged. Finally the whole world is
-replayed and regenerated from its event log.
+attempt counts as blocked only if it was refused AND the protected state is unchanged. Since the 5.0 audit the
+attempts include adversarial uses of *authorised* tools (audit F S5): an admin moving the treasury to its own
+business through a subscription, a purchase or a direct-debit mandate - tools whose arguments carry no amount, so
+only the charter's money rule at the bank posting layer stops them - and agreements that try to read the
+evaluator's hidden revenue analysis (charter conditions and commitment predicates on `mrr_cents`). Finally the
+whole world is replayed and regenerated from its event log.
 
 Metrics (manifest SP-6.6): institution_features (>= 10), core_law_modifications_blocked (>= 3).
 """
@@ -37,7 +41,7 @@ SEEDS = (66, 1, 2)          # the gate is measured on three independent worlds; 
 
 class Gate:
     def __init__(self, seed: int = SEED):
-        self.w = OW.create(seed, workers=16)
+        self.w = OW.create(seed, workers=16, extra=("docs", "products", "subs"))
         self.features: dict[str, tuple[bool, str]] = {}
         self.attempts: list[dict] = []
         self.p = {}
@@ -475,6 +479,41 @@ def run_gate(seed: int = SEED) -> tuple[dict, Gate]:
             lambda: decide({"kind": "set_state", "table": "accounts", "id": acct, "balance": 10**9}),
             ("money_total", "private_money", "clock"))
     attempt("charter moves the clock", "world state", amend_with({"clock": 0}), ("clock", "charters"))
+
+    # ---------------------------------------------------------------- adversarial use of authorised tools
+    # lea (an admin of the organisation, not an owner) sells her own content product: a $50,000 annual plan and a
+    # $50,000 one-time offer. The charter needs a members' decision before 1,000,000 cents leave the treasury.
+    doc = g.ok("lea", "docs.create", title="Strategy memo", body="contents", visibility="private")["doc"]
+    lp = g.ok("lea", "prod.create", name="Strategy memo", kind="media", delivery={"type": "content", "doc": doc})["product"]
+    g.ok("lea", "prod.update", product=lp, status="launched")
+    lplan = g.ok("lea", "subs.create_plan", product=lp, price_cents=5_000_000, interval="year")["plan"]
+    loffer = g.ok("lea", "prod.offer", product=lp, kind="one_time", price_cents=5_000_000)["offer"]
+    treasury0 = OW.balance(w, org)
+
+    def drained(r):
+        return (not r.ok and OW.balance(w, org) == treasury0, r.error)
+    attempt("admin subscribes the treasury to its own $50k plan", "core accounting law",
+            lambda: drained(g.ex("lea", "subs.subscribe", plan=lplan, account=acct)),
+            ("private_money", "money_total", "charters"))
+    attempt("admin buys its own $50k offer with the treasury", "core accounting law",
+            lambda: drained(g.ex("lea", "prod.buy", offer=loffer, account=acct)),
+            ("private_money", "money_total", "charters"))
+    attempt("admin authorises a 10^9-per-month direct debit to itself", "core accounting law",
+            lambda: (lambda r: (not r.ok and not [m for m in st.tables["mandates"].values()
+                                                  if m["payer_acct"] == acct and m["payee"] == g.p["lea"]], r.error))(
+                g.ex("lea", "bank.authorize_debit", from_account=acct, payee=g.p["lea"], max_per_period=10**9)),
+            ("private_money", "money_total"))
+    attempt("charter conditions on the evaluator's MRR (in-world oracle)", "hidden evaluation criteria",
+            amend_with({"rules": [{"match": {"kind": "tool", "tool": "bank.transfer", "when": {
+                "metric": "mrr_cents", "args": {"principal": org}, "op": ">=", "value": 1}},
+                "procedure": "members"}]}), ("charters", "metrics"))
+    attempt("commitment predicate on the evaluator's MRR (in-world oracle)", "hidden evaluation criteria",
+            lambda: (lambda r: (not r.ok, r.error))(g.ex(
+                "ada", "commit.offer", to=g.p["ben"], as_org=org, account=acct,
+                terms={"title": "probe", "payer": "$me", "milestones": [{
+                    "amount_cents": 1_000, "due_in_s": DAY, "deliverable": {"kind": "predicate", "predicate": {
+                        "metric": "mrr_cents", "args": {"principal": org}, "op": ">=", "value": 1}}}]})),
+            ("charters", "metrics"))
 
     # ================================================================ integrity of the whole run
     inv = w.check_invariants()
