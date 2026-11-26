@@ -314,11 +314,14 @@ def test_prior_counts_match_brute_force():
 # ---------------------------------------------------------------- fidelity register and audit
 def test_fidelity_register_parser(tmp_path):
     md = tmp_path / "r.md"
-    md.write_text("intro\n\n| mechanism | module | category | evidence (dataset, period) | held-out result | limits |\n"
-                  "|---|---|---|---|---|---|\n| a.b | pop | plausible, unvalidated | none | | assumed |\n\nafter\n"
-                  "| other | table |\n")
+    head = ("| id | mechanism | module | category | evidence (dataset, period) | held-out result | limits | "
+            "in-world use |\n|---|---|---|---|---|---|---|---|\n")
+    md.write_text("intro\n\n" + head + "| a.b | m | `pop` | plausible, unvalidated | none | | assumed | none |\n\n"
+                  "after a blank line\n\n| c.d | m | `pop` | plausible, unvalidated | none | | assumed | none |\n\n"
+                  "| other | table |\n|---|---|\n| not | read |\n")
     rows = FI.v5_rows(str(md))
-    assert len(rows) == 1 and rows[0]["mechanism"] == "a.b" and rows[0]["limits"] == "assumed"
+    assert [r["id"] for r in rows] == ["a.b", "c.d"]           # rows after a blank line are read; other tables not
+    assert rows[0]["limits"] == "assumed" and rows[0]["module"] == "`pop`"
     assert FI.record_problems(rows[0]) == []
 
 

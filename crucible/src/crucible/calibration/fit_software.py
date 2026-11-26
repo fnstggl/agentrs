@@ -34,7 +34,7 @@ from .software import DEEP_FEATURES, GROWTH_FEATURES, transform
 
 PLAN = "E2_software_adoption.plan.json"
 AMENDMENTS = ("E2_amendment_1.plan.json",)
-TABLES_VERSION = "1"
+TABLES_VERSION = "2"        # 2: built from pseudonymised events (gharchive extractor 2)
 N_BOOT = 200
 DAY = 86400
 WINDOW_S = 24 * 3600
@@ -65,7 +65,7 @@ def build_tables(ev: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     bot = (flags & G.FLAG_BOT) != 0; owner = (flags & G.FLAG_OWNER) != 0; org = (flags & G.FLAG_ORG) != 0
     hour = np.clip(t // 3600, 0, G.HOURS - 1)
     day = np.clip(t // DAY, 0, G.HOURS // 24 - 1)
-    repo_ids, repo = np.unique(ev["repo"], return_inverse=True); R = repo_ids.size
+    repo_ids, repo_first, repo = np.unique(ev["repo"], return_index=True, return_inverse=True); R = repo_ids.size
     _, actor = np.unique(ev["actor"], return_inverse=True)
     _, pair = np.unique(actor.astype(np.int64) * R + repo, return_inverse=True)
     repo = repo.astype(np.int64); actor = actor.astype(np.int64); pair = pair.astype(np.int64)
@@ -130,7 +130,8 @@ def build_tables(ev: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     cnt = {k: np.bincount(repo[m] * nd + day[m], minlength=R * nd).reshape(R, nd).astype(np.float64) for k, m in grp.items()}
     org_repo = np.zeros(R, bool); org_repo[repo[org]] = True
     cday = np.where(created_t < np.iinfo(np.int64).max, created_t // DAY, -1)
-    hashed = splitmix64(repo_ids.astype(np.int64) ^ REPO_SPLIT_SEED) % np.uint64(100)
+    # repository split bucket, computed from the raw id at extraction (gharchive extractor 2 keeps no raw id)
+    hashed = np.asarray(ev["repo_bucket"])[repo_first].astype(np.uint64)
     for d in (1, 2):
         m = ((cnt["stars"][:, d] + cnt["forks"][:, d]) >= 1) | (cday == d)
         r = np.flatnonzero(m)

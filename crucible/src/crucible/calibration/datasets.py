@@ -177,6 +177,10 @@ _DATASETS: dict[str, dict] = {
             "terms": ("Free for non-commercial research use under the Microsoft Research License Terms. Crucible "
                       "redistributes none of the data; only derived model parameters and aggregate metrics are "
                       "committed."),
+            "acceptance": ("NOT RECORDED: the files were downloaded from an unofficial ungated mirror, which skips the "
+                           "click-through acceptance of the official gated distribution; nobody accepted the licence "
+                           "on the user's behalf. User decision pending: docs/v5/BLOCKERS.md B-1."),
+            "derived_artifacts": "non-commercial research only (docs/v5/calibration/models/LICENSE_NOTICE.md)",
         },
         "provenance": {
             "publisher": "Microsoft (Wu et al.)",

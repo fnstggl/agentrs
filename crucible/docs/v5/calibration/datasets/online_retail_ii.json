@@ -1,0 +1,59 @@
+{
+ "schema": "crucible.v5.calibration.dataset/1",
+ "name": "online_retail_ii",
+ "workstream": "E",
+ "synthetic": false,
+ "title": "UCI Online Retail II: invoice lines of a UK online gift retailer, 2009-12-01 to 2011-12-09",
+ "description": "All 1,067,371 invoice lines (sales, cancellations and adjustments) of a UK-based, registered, non-store online retailer of all-occasion gift-ware, many of whose customers are wholesalers; two worksheets of one xlsx file, parsed with the standard library into a compact NumPy table with pseudonymised customer ids.",
+ "acquirer": "crucible.calibration.retail",
+ "url": "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip",
+ "homepage": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+ "license": {
+  "spdx": "CC-BY-4.0",
+  "summary": "Creative Commons Attribution 4.0 International, as stated on the UCI dataset page. Attribution: Daqing Chen, 'Online Retail II', UCI Machine Learning Repository, 2012, doi:10.24432/C5CG6D. Fitted parameters derived from it may be shared with attribution.",
+  "text_locations": [
+   "https://creativecommons.org/licenses/by/4.0/legalcode",
+   "https://archive.ics.uci.edu/dataset/502/online+retail+ii"
+  ]
+ },
+ "files": [
+  {
+   "file": "online_retail_ii.zip",
+   "path": "download/online_retail_ii.zip",
+   "url": "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip",
+   "sha256": "572e36277c2390fbfde10664750731e0a86f55e33470d91919085f0408e67bfb",
+   "md5": "dc74ff2011818f6baebf525b50f19a07",
+   "bytes": 45622418
+  }
+ ],
+ "rows": 1067371,
+ "extract_digest": "4e164746f978d986acadc13cd36bb3518190bd8a26341429752483f3c9e95a76",
+ "schema_extracted": {
+  "t": "int64",
+  "invoice": "int64",
+  "cancel": "uint8",
+  "product": "int32",
+  "quantity": "int32",
+  "price": "float64",
+  "customer": "int64",
+  "country": "int16"
+ },
+ "size": {
+  "download_bytes": 45622418,
+  "kept_on_disk": "the archive (46 MB) and the compact table (4.5 MB)"
+ },
+ "provenance": {
+  "publisher": "Daqing Chen (London South Bank University), UCI Machine Learning Repository dataset 502",
+  "source": "UCI Machine Learning Repository static archive (official distribution)",
+  "landing_page": "https://archive.ics.uci.edu/dataset/502/online+retail+ii",
+  "doi": "10.24432/C5CG6D",
+  "citation": "Chen, D. (2012). Online Retail II [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5CG6D",
+  "population": "5,942 customers (anonymous five-digit ids in the source; 243,007 lines have no customer id) of one UK online gift retailer, many of them wholesalers, in 43 countries (mostly the United Kingdom)",
+  "platform": "the retailer's own non-store online shop (business-to-business and business-to-consumer orders)",
+  "period": "2009-12-01 to 2011-12-09 (invoice dates)",
+  "collection": "the retailer's transaction records: invoice number, product code and description, quantity, invoice date and time, unit price, customer id, country",
+  "identification": "observational (prices were set by the retailer, not randomised)",
+  "privacy": "customer ids are replaced by keyed 63-bit pseudonyms (blake2b under a 32-byte secret salt kept outside the repository, mode 0600); product codes and descriptions (the retailer's catalogue) are kept; the extracted table is never committed",
+  "retrieved": "2026-11-26"
+ }
+}
