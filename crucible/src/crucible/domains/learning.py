@@ -1,111 +1,160 @@
-"""Learner knowledge, educational artifacts and independent assessment (kernel module `learn`, host `learn`).
+"""Education on the ONE population (kernel module `learn`, host `learn`; MASTER_SPEC 9.10, D-15, D-18).
 
-The world of the education ecosystem (MASTER_SPEC 9.10). Its parts:
+The learners are the individuals of `crucible.population` (no second population: the module keeps no learner
+persons of its own). It registers two population activities (ONE_WORLD_CONTRACTS section 1):
 
-* **Curriculum.** A set of executable concepts (`domains.concepts`) closed under prerequisites, published by the
-  Board of Education as a public document and through `learn.curriculum`.
-* **Learner knowledge state.** Each learner (an NPC principal with its own account) holds, per concept and level
-  (1-3), a mastery value; per concept a memory half-life, the time of its last study and a misconception strength.
-  The state is private to the learner (events visible to the learner only) and read by the evaluator.
-* **Educational artifacts.** Any public document. A learner reads only lines `Example: <problem> => <answer>` (a
-  worked example) and `Practice: <problem> => <answer>` (an exercise it attempts before reading the answer), plus
-  an optional `Next: <doc id>` link; problems are recognised by the curriculum's formats and every stated answer
-  is checked by the world's solver. Prose is not read: time spent on a document teaches nothing by itself.
-* **Learning dynamics** (documented in FIDELITY_REGISTER.md): gains scale with readiness (prerequisite and lower-level
-  mastery), novelty (an item already seen teaches little), massing (repeats of one concept-level in one session
-  teach less) and expertise (worked examples help novices most, practice helps learners who already know some);
-  practice with feedback lengthens the half-life, more when spaced; wrong answer keys and wrong examples create or
-  strengthen misconceptions; reading costs attention minutes and a session ends when the learner's minutes run out.
-* **Retention.** Effective mastery decays between studies towards a floor with the concept's half-life:
-  `m_eff = m * (floor + (1 - floor) * 2 ** (-days_since_study / half_life))`.
-* **Participation.** Learners decide for themselves: whether to study (motivation), what (their goal, or the weakest
-  prerequisite they perceive), where to look (search or forum recommendations, the calibrated slate-click model,
-  their own trust in authors learned from their own experience), whether to follow a lesson's `Next:` link, when to
-  give up (dropout) and come back, and whether to recommend a lesson after an assessment showed them progress.
-* **Independent assessment.** A placement test when a learner joins and a periodic test every `assess_days`, on
-  problems generated fresh for each test and never present in any published document. Answers come from the
-  learner's knowledge state (`answer`), are graded by the solver, and only the learner sees its own scores; public
-  aggregates are published.
-* **Teachers.** NPC teachers with different styles publish lessons and respond to the public scores.
+* `study` - an individual who spends a session on it works on its own learning goal: a placement test the first
+  time, then it chooses what to study (its goal, or the weakest prerequisite it perceives), finds a document
+  (a lesson of the Board's textbook, of another individual, of the participant: any public document) through its
+  own channels - search with a query it forms itself, the study board of the forum, what its own contacts studied
+  last and liked (word of mouth), or the next document a lesson pointed to - reads it within its attention and
+  learns from what it contains, rates it now and then, recommends a lesson on the forum after a test showed its
+  progress, and takes the Board's certification exam once it believes it masters its goal;
+* `teach` - an individual who knows a concept well and writes well enough authors a lesson for it from its OWN
+  knowledge (its worked answers come from its own knowledge state, so they can be wrong), in its own style, as a
+  public document. What others then learn from it is decided by its content, not by who wrote it.
 
-Handlers read state and emit events; appliers write. Randomness comes from `ctx.rng` / `world.rng_for`.
+Per-person state lives in this module's column table `learn` (one row per individual; no population fact copied):
+mastery per concept and level, a stable floor of long-term knowledge (permastore), memory half-life, time of last
+study, misconception strength, own perceived mastery, own test scores, goal, motivation, trust in authors it has
+read, recent documents, certificates.
+
+Mechanisms (fidelity records FR-LEARN-1..6; forms from the learning-science literature, parameters in published
+ranges, not fitted in-world):
+
+* **Reading** (`concepts.parse_lesson`): a learner extracts worked problems and exercises written in the
+  curriculum's notations from ordinary text; prose alone teaches nothing; whether a stated answer is right is
+  decided by the world's solver. Study costs attention minutes (`substrate.attention`).
+* **Learning dynamics** (FR-LEARN-1): a worked example raises mastery of its concept and level with readiness
+  (prerequisite and lower-level mastery), novelty and massing, more for novices (worked-example effect, expertise
+  reversal: Sweller; Kalyuga 2003); an exercise is attempted before its answer is read (testing effect, Roediger &
+  Karpicke 2006): a right attempt confirmed by a right key strengthens and lengthens the half-life, more when
+  spaced (Cepeda et al. 2006); a wrong attempt corrected by a right key teaches less and weakens a misconception;
+  a wrong answer key or a wrong worked example interferes and strengthens a misconception unless the learner knows
+  enough to notice (Grosse & Renkl 2007: unflagged erroneous examples harm novices). Per-opportunity gains are in
+  the range of Bayesian knowledge-tracing fits (P(T) 0.1-0.4, guess 0.02-0.2, slip 0.05-0.1).
+* **Retention** (FR-LEARN-2): mastery above a stable floor (permastore, Bahrick 1984) decays with the concept's
+  half-life (half-life regression, Settles & Meeder 2016); spaced successful retrieval raises the floor and the
+  half-life, massed study does not.
+* **Answering** (FR-LEARN-3): the probability of a right answer is guess + (1 - guess - slip) x effective mastery x
+  a prerequisite factor; a misconception answers by its buggy procedure where that differs from the solution.
+* **Participation** (FR-LEARN-4): placement, goal choice, concept choice, channels, the lesson-choice logit (query
+  match, social proof, ratings, own trust in the author, word of mouth), dropout through falling motivation (the
+  population's habit for `study` learns from the session's utility), certification decisions.
+* **Independent assessment** (FR-LEARN-5): the Board's placement, periodic and certification tests are drawn fresh
+  for each test and exclude every problem published in any public document; only the individual sees its scores;
+  aggregates are public. The evaluator's delayed final test (`final_scores`) uses its own random stream.
+* **Teaching** (FR-LEARN-6): who teaches, which concept (demand over supply), the plan and style of a lesson.
+
+Certificates are public facts (`learn_certs`): the labour market reads them (domains.firms), so education changes
+job matching and, through real mastery, work performance elsewhere.
+
+Handlers read state and emit events; appliers (columns batches and the module's appliers) write. Randomness comes
+from `ctx.rng` / `world.rng_for`. Nothing a participant can call returns another individual's knowledge state.
 """
 from __future__ import annotations
 
 import math
 import re
 
+import numpy as np
+
 from ..core import schema as S
 from ..core.canonical import digest
-from ..core.errors import CrucibleError, Forbidden, InvalidAction, NotFound
+from ..core.errors import CrucibleError, Forbidden, NotFound, ProtocolError
 from ..core.kernel import Module, applier, endpoint, process, register_module
+from ..substrate import attention, columns, ids
 from . import concepts as C
-from .common import DAY, HOUR, SlateClicks, bow_cos, bump_hourly, ctr_features, make_person, make_seat
+
+HOUR, DAY = 3600, 86400
+TABLE = "learn"
+T_SLOTS, R_SLOTS = 6, 8
+LEVELS = (1, 2, 3)
+DOC_RE = re.compile(r"doc_(\d{6,})")
 
 DEFAULTS = {
     "curriculum": ["add", "sub", "mul", "div", "gcd", "lcm", "frac_simplify", "frac_add"],
-    "n": 40, "prefix": "l", "background": [2.0, 2.0], "minutes": [15, 45], "rhythm_h": [12, 36],
-    "motivation": [0.55, 0.9], "channels": {"search": 1.0}, "half_life_days": [3.0, 8.0], "floor": 0.25,
-    "assess_days": 7, "assess_k": 3, "placement_k": 8, "tick_h": 6, "board": "study", "recommend_p": 0.5,
-    "dropout": 0.12, "return_p_day": 0.03, "teachers": [], "peer_p": 0.0, "cohorts": [], "seat": None,
-    "trust_lr": 0.6, "goal_min_depth": 2,
+    "half_life_days": [3.0, 8.0], "assess_days": 7, "assess_k": 3, "placement_k": 4, "exam_k": 4,
+    "board": "study", "channels": ["search", "forum", "contacts"], "authors": True, "textbook": "basic",
+    "prior": 0.2, "teach_prior": -0.4, "cert_pass": 0.8, "cohort": None, "goal_min_depth": 2,
+    "recommend_p": 0.35, "rate_p": 0.4, "search_limit": 8, "n": 0,
 }
-# learning-rate constants of the dynamics (FIDELITY_REGISTER.md rows "education.*")
-A_EX, A_PR, THETA, GUESS, SLIP, B_WRONG, H_MAX = 0.30, 0.34, 0.6, 0.02, 0.05, 0.22, 120.0
+# learning-rate constants (FR-LEARN-1, FR-LEARN-3)
+A_EX, A_PR, THETA, GUESS, SLIP, B_WRONG, H_MAX = 0.30, 0.34, 0.6, 0.02, 0.05, 0.22, 180.0
 MIN_EX, MIN_PR = 1.5, 2.5          # attention minutes per item and level
-NOVEL_REPEAT, MASS = 0.25, 0.35
-LEVELS = (1, 2, 3)
-DOC_RE = re.compile(r"doc_[0-9a-z_]+")
-
-
-def _u(rng, lohi, integer=False):
-    lo, hi = lohi if isinstance(lohi, (list, tuple)) else (lohi, lohi)
-    return int(rng.integers(int(lo), int(hi) + 1)) if integer else float(rng.uniform(lo, hi))
+NOVEL_REPEAT, MASS, KAPPA = 0.25, 0.35, 0.3
+MODEL = {"model_id": "learn.participation", "model_version": "2", "fidelity_id": "FR-LEARN-4"}
+TEACH_MODEL = {"model_id": "learn.teaching", "model_version": "1", "fidelity_id": "FR-LEARN-6"}
 
 
 def _cl(x, lo=0.0, hi=1.0):
     return lo if x < lo else (hi if x > hi else x)
 
 
-# ------------------------------------------------------------------------------------------ the learner model
-def eff(rec, c: str, L: int, t: int, floor: float) -> float:
-    """Effective mastery of (concept, level) at time t: the stored mastery decayed by the forgetting curve."""
-    m = rec["m"][c][L - 1]
-    dt = max(0.0, (t - rec["tl"][c]) / DAY)
-    return m * (floor + (1.0 - floor) * 2.0 ** (-dt / max(1e-6, rec["h"][c])))
+def doc_num(did: str | None) -> int:
+    m = DOC_RE.fullmatch(str(did or ""))
+    return int(m.group(1)) if m else -1
 
 
-def readiness(rec, c: str, L: int, t: int, floor: float, cur) -> float:
-    pre = [p for p in C.PREREQS[c] if p in cur]
-    r = min((_cl(eff(rec, p, L, t, floor) / THETA) for p in pre), default=1.0)
-    if L > 1:
-        r *= _cl(eff(rec, c, L - 1, t, floor) / THETA)
-    return r
+def doc_id(n: int) -> str | None:
+    return f"doc_{int(n):06d}" if int(n) >= 0 else None
 
 
-def p_correct(rec, c: str, L: int, t: int, floor: float, cur) -> float:
-    pre = [p for p in C.PREREQS[c] if p in cur]
-    pf = min((0.4 + 0.6 * eff(rec, p, L, t, floor) for p in pre), default=1.0)
-    return GUESS + (1.0 - GUESS - SLIP) * eff(rec, c, L, t, floor) * pf
+# ============================================================================================ the learner model
+class Rec:
+    """One individual's knowledge state as plain arrays (a working copy; written back through a batch)."""
+    __slots__ = ("m", "pm", "h", "tl", "bug", "cur", "cix")
 
+    def __init__(self, m, pm, h, tl, bug, cur, cix):
+        self.m, self.pm, self.h, self.tl, self.bug, self.cur, self.cix = m, pm, h, tl, bug, cur, cix
 
-def answer(rec, c: str, p, t: int, floor: float, cur, rng) -> tuple[str, bool]:
-    """The learner's answer to problem `p` of concept `c` (a misconception, a slip or the solution)."""
-    con = C.LIBRARY[c]
-    L = int(con.level(p))
-    me = eff(rec, c, L, t, floor)
-    if rng.random() < rec["bug"][c] * (1.0 - 0.5 * me):
-        a = con.buggy(p)
-    elif rng.random() < p_correct(rec, c, L, t, floor, cur):
-        a = con.solve(p)
-    else:
-        a = _slip(con, p, rng)
-    return a, con.grade(a, p)
+    @classmethod
+    def of(cls, world, i: int, cur, cix):
+        c = lambda n: np.array(columns.col(world, TABLE, n)[i], dtype=np.float64)  # noqa: E731
+        return cls(c("m"), c("pm"), c("h"), np.array(columns.col(world, TABLE, "tl")[i], dtype=np.int64), c("bug"),
+                   cur, cix)
+
+    def eff(self, c: str, L: int, t: int) -> float:
+        k = self.cix[c]
+        dt = max(0.0, (t - int(self.tl[k])) / DAY)
+        m, p = self.m[k, L - 1], min(self.pm[k, L - 1], self.m[k, L - 1])
+        return float(p + (m - p) * 2.0 ** (-dt / max(1e-6, self.h[k])))
+
+    def readiness(self, c: str, L: int, t: int) -> float:
+        pre = [p for p in C.PREREQS[c] if p in self.cix]
+        r = min((_cl(self.eff(p, L, t) / THETA) for p in pre), default=1.0)
+        if L > 1:
+            r *= _cl(self.eff(c, L - 1, t) / THETA)
+        return r
+
+    def p_correct(self, c: str, L: int, t: int) -> float:
+        pre = [p for p in C.PREREQS[c] if p in self.cix]
+        pf = min((0.4 + 0.6 * self.eff(p, L, t) for p in pre), default=1.0)
+        return GUESS + (1.0 - GUESS - SLIP) * self.eff(c, L, t) * pf
+
+    def answer(self, c: str, p, t: int, rng) -> tuple[str, bool]:
+        """The learner's answer to problem `p` of concept `c`: its misconception where that bites, a right answer
+        with probability p_correct, else a slip."""
+        con = C.LIBRARY[c]
+        L = int(con.level(p))
+        me = self.eff(c, L, t)
+        u1, u2 = rng.random(), rng.random()
+        bug = con.misconception(p)
+        if bug is not None and u1 < self.bug[self.cix[c]] * (1.0 - 0.5 * me):
+            a = bug
+        elif u2 < self.p_correct(c, L, t):
+            a = con.solve(p)
+        else:
+            a = _slip(con, p, rng)
+        return a, con.grade(a, p)
 
 
 def _slip(con, p, rng) -> str:
     sol = con.solve(p)
     v = con.norm(sol)
+    from fractions import Fraction
+    if isinstance(v, bool):
+        return "?"
     if isinstance(v, int):
         return str(v + int(rng.choice([-10, -2, -1, 1, 2, 10])))
     if isinstance(v, float):
@@ -114,16 +163,15 @@ def _slip(con, p, rng) -> str:
         return f"{v[0]} r {v[1] + 1}"
     if isinstance(v, str):
         return v + "1"
-    from fractions import Fraction
     if isinstance(v, Fraction):
         return f"{v.numerator + 1}/{v.denominator}"
     return "?"
 
 
-def assess(rec, t: int, rng, k: int, cur, floor: float, exclude: set) -> tuple[dict, int, str]:
-    """Scores on fresh problems (k per concept and level, none of them in `exclude`)."""
+def assess(rec: Rec, t: int, rng, k: int, concepts, exclude: set) -> tuple[dict, int, str]:
+    """Scores on fresh problems (k per concept and level, none of them in `exclude`): the share answered right."""
     scores, keys = {}, []
-    for c in cur:
+    for c in concepts:
         ok = 0
         for L in LEVELS:
             for _ in range(k):
@@ -133,638 +181,877 @@ def assess(rec, t: int, rng, k: int, cur, floor: float, exclude: set) -> tuple[d
                         break
                     p = C.generate(c, rng, L)
                 keys.append(C.LIBRARY[c].key(p))
-                ok += answer(rec, c, p, t, floor, cur, rng)[1]
+                ok += rec.answer(c, p, t, rng)[1]
         scores[c] = round(ok / (3 * k), 4)
     return scores, len(keys), digest(keys)
 
 
-def published_problem_keys(world, cur) -> set:
-    """Every problem that appears in a lesson line of any public document (assessments never reuse them)."""
-    st = world.state
-    out = set()
-    if "documents" not in st.tables:
-        return out
-    for did in st.find_ids("documents", "visibility", "public"):
-        for it in C.parse_lesson(st.tables["documents"][did]["body"], cur, max_lines=200)["items"]:
-            out.add(it["key"])
-    return out
+def path(goal: str, cur) -> list[str]:
+    """The goal and every prerequisite of it in the curriculum (what a course towards the goal covers)."""
+    return [c for c in C.closure([goal]) if c in cur]
 
 
+# ============================================================================================ the module
 @register_module
 class Learning(Module):
     name = "learn"
     host = "learn"
-    depends = ("identity", "bank", "docs", "search", "forum")
+    version = "2"
+    depends = ("identity", "bank", "docs", "search", "forum", "artifacts", "cols", "pop")
+
+    def __init__(self, config=None):
+        super().__init__(config)
+        cfg = dict(DEFAULTS)
+        for k, v in (self.config or {}).items():
+            if k not in DEFAULTS:
+                raise ProtocolError(f"learn: unknown config key {k!r}")
+            cfg[k] = v
+        if int(cfg.get("n") or 0):
+            raise ProtocolError("learn: learners are the population's individuals (config 'n' must be 0)")
+        for ch in cfg["channels"]:
+            if ch not in ("search", "forum", "contacts"):
+                raise ProtocolError(f"learn: unknown channel {ch!r}")
+        self.cfg = cfg
 
     def install(self, world):
-        st = world.state
-        st.declare_table("learn_learners", index=("state",))
-        st.declare_table("learn_sessions", index=("learner", "doc", "author"))
-        st.declare_table("learn_assessments", index=("learner", "kind"))
-        st.declare_table("learn_docstats", index=("author",))
-        st.declare_table("learn_teachers", index=())
-        self.cfg = {**DEFAULTS, **self.config}
+        from .. import population as P
         self.cur = C.closure(self.cfg["curriculum"])
+        if len(self.cur) > 62:
+            raise ProtocolError("learn: at most 62 concepts")
+        self.cix = {c: k for k, c in enumerate(self.cur)}
+        n = P.n_individuals(world)
+        K = len(self.cur)
+        columns.declare(world, TABLE, n, {
+            "m": ("float32", (K, 3), 0.0), "pm": ("float32", (K, 3), 0.0), "h": ("float32", (K,), 3.0),
+            "tl": ("int64", (K,), 0), "bug": ("float32", (K,), 0.0), "perc": ("float32", (K,), -1.0),
+            "score": ("float32", (K,), -1.0), "score0": ("float32", (K,), -1.0), "placed": ("float32", (K,), -1.0),
+            "goal": ("int16", (), -1), "mot": ("float32", (), 0.5), "state": ("uint8", (), 0),
+            "sessions": ("int32", (), 0), "minutes": ("float32", (), 25.0), "next_doc": ("int32", (), -1),
+            "last_doc": ("int32", (), -1), "last_ok": ("float32", (), 0.0), "ta": ("int32", (T_SLOTS,), -1),
+            "tv": ("float32", (T_SLOTS,), 1.0), "rd": ("int32", (R_SLOTS,), -1), "rn": ("uint8", (R_SLOTS,), 0),
+            "certs": ("int64", (), 0), "exam_t": ("int64", (), -1), "eligible_at": ("int64", (), 0),
+            "taught_t": ("int64", (), -1), "posted": ("int64", (), 0), "lessons_read": ("int32", (), 0)})
+        st = world.state
+        st.declare_table("learn_lessons", index=("author",))
+        st.declare_table("learn_sessions", index=("doc", "author"))
+        st.declare_table("learn_assessments", index=("kind",))
+        st.declare_table("learn_certs", index=("person", "concept"))
+        st.declare_table("learn_authors")
+        P.register_activity(world, "study", self.act_study, owner=self.name, prior=float(self.cfg["prior"]),
+                            goals=(1,))
+        if self.cfg["authors"]:
+            P.register_activity(world, "teach", self.act_teach, owner=self.name,
+                                prior=float(self.cfg["teach_prior"]), goals=(5,))
 
     # ------------------------------------------------------------------ genesis
     def genesis(self, ctx):
+        from .. import population as P
+        w = ctx.world
         cfg = self.cfg
-        rng = ctx.world.rng_for("learn-genesis")
-        if cfg.get("seat"):
-            make_seat(ctx, cfg["seat"]["handle"], int(cfg["seat"].get("endowment", 0)))
+        forum = w.modules["forum"]
+        if not ctx.state.has("forum_boards", cfg["board"]):
+            forum.create_board(ctx, cfg["board"], "Study", "Learning: lessons, courses and study help")
         from .common import make_org
-        board, lead = make_org(ctx, "board-of-education", "Board of Education", "institution")
-        docs = ctx.world.modules["docs"]
-        docs.create_doc(ctx, board, "Curriculum: concepts, prerequisites and problem formats", self.curriculum_text(),
+        board, _lead = make_org(ctx, "board-of-education", "Board of Education", "institution")
+        docs = w.modules["docs"]
+        docs.create_doc(ctx, board, "Curriculum: concepts, prerequisites and problem notations", self.curriculum_text(),
                         "public")
+        if cfg["textbook"]:
+            rng = w.rng_for("learn-textbook")
+            for c in self.cur:
+                docs.create_doc(ctx, board, f"{C.LIBRARY[c].title} ({c}) - textbook chapter",
+                                textbook(c, cfg["textbook"], rng), "public")
         ctx.emit("learn.meta", {"board": board}, vis="public")
-        groups = [(0, int(cfg["n"]))] + [(int(c["at_day"]) * DAY, int(c["n"])) for c in cfg["cohorts"]]
-        i = 0
-        chans = sorted(cfg["channels"])
-        cw = [float(cfg["channels"][k]) for k in chans]
-        for joined, n in groups:
-            for _ in range(n):
-                lid = make_person(ctx, f"{cfg['prefix']}{i:03d}", f"Learner {i}")
-                ctx.emit("learn.learner", self._new_learner(rng, i, lid, joined, chans, cw), vis="internal")
-                i += 1
-        for j, t in enumerate(cfg["teachers"]):
-            pid = make_person(ctx, t["handle"], t.get("name", t["handle"]), kind="npc", role="teacher")
-            ctx.emit("learn.teacher", {"id": pid, "style": t["style"], "per_week": float(t.get("per_week", 2)),
-                                       "name": t.get("name", t["handle"]), "covered": {}}, vis="internal")
-        ctx.schedule(ctx.now + 60, "learn.tick", {}, prio=60, period=int(cfg["tick_h"]) * HOUR, key="learn.tick")
+        n = P.n_individuals(w)
+        if n:
+            self._initial_state(ctx, n)
         ctx.schedule(ctx.now + int(cfg["assess_days"]) * DAY, "learn.assess", {}, prio=55,
                      period=int(cfg["assess_days"]) * DAY, key="learn.assess")
-        if cfg["teachers"]:
-            ctx.schedule(ctx.now + 30, "learn.teach", {}, prio=58, period=DAY, key="learn.teach")
 
-    def _new_learner(self, rng, i, lid, joined, chans, cw):
+    def _initial_state(self, ctx, n: int):
+        """Heterogeneous prior knowledge from each individual's background (its reading, technical and planning
+        skills in the population) plus individual variation; long-ago learning sits mostly on the stable floor;
+        some hold prior misconceptions."""
+        from .. import population as P
+        from ..population.schema import SKILL_NAMES
+        w = ctx.world
         cfg = self.cfg
-        cur = self.cur
-        b = float(rng.beta(*cfg["background"]))
-        m, h, tl, bug = {}, {}, {}, {}
-        for c in cur:
-            d = C.depth(c, cur)
-            base = _cl(b * (1.25 - 0.28 * d) + float(rng.normal(0, 0.08)), 0.0, 0.97)
-            m[c] = [round(base, 4), round(base * 0.7, 4), round(base * 0.4, 4)]
-            h[c] = round(_u(rng, cfg["half_life_days"]) * (1.0 + 3.0 * base), 3)
-            tl[c] = int(joined)
-            bug[c] = 0.0
-        deep = [c for c in cur if C.depth(c, cur) >= int(cfg["goal_min_depth"]) and m[c][0] < 0.6] or \
-            sorted(cur, key=lambda c: -C.depth(c, cur))[:1]
-        w = [1.0 + C.depth(c, cur) for c in deep]
-        goal = deep[int(rng.choice(len(deep), p=[x / sum(w) for x in w]))]
-        return {"id": lid, "i": i, "goal": goal, "state": "waiting", "joined_at": int(joined),
-                "motivation": round(_u(rng, cfg["motivation"]), 4), "m": m, "h": h, "tl": tl, "bug": bug,
-                "perceived": {}, "trust": {}, "seen": [], "minutes": _u(rng, cfg["minutes"], True),
-                "rhythm_h": _u(rng, cfg["rhythm_h"], True),
-                "channel": chans[int(rng.choice(len(chans), p=[x / sum(cw) for x in cw]))],
-                "next_session": int(joined), "sessions": 0, "scores": {}, "placement": {}, "next_doc": None,
-                "avoid": [], "hist_c": {}, "hist_a": {}, "posted": [], "notes": []}
+        rng = w.rng_for("learn-genesis")
+        f = P.features(w, np.arange(n))
+        sk = f["skills"]
+        cols = [SKILL_NAMES.index(s) for s in ("reading", "technical", "planning") if SKILL_NAMES.index(s) < sk.shape[1]]
+        bg = np.clip(0.45 * rng.beta(2.0, 2.0, n) + 0.55 * sk[:, cols].mean(axis=1), 0.0, 1.0) if cols else \
+            rng.beta(2.0, 2.0, n)
+        K = len(self.cur)
+        depth = np.array([C.depth(c, self.cur) for c in self.cur], np.float64)
+        # adults mostly master the shallow concepts of a curriculum and few master its deep ones
+        base = np.clip(1.2 * bg[:, None] + 0.25 - 0.22 * depth[None, :] + rng.normal(0, 0.08, (n, K)), 0.0, 0.97)
+        m = np.stack([base, 0.75 * base, 0.5 * base], axis=2)
+        pm = m * 0.85
+        lo, hi = cfg["half_life_days"]
+        h = rng.uniform(float(lo), float(hi), (n, K)) * (1.0 + 3.0 * base)
+        bug = np.where(rng.random((n, K)) < 0.25, 0.35 * (1.0 - base), 0.0)
+        prefs = f["prefs"]
+        learner = (f["goals"] == 1).any(axis=1)
+        mot = np.clip(0.35 + 0.25 * prefs[:, 1] + 0.2 * prefs[:, 3] + 0.15 * learner + rng.normal(0, 0.08, n),
+                      0.1, 0.95)
+        minutes = np.clip(f["attention_budget_min"] * rng.uniform(0.2, 0.45, n), 10.0, 60.0)
+        eligible = np.zeros(n, np.int64)
+        co = cfg.get("cohort")
+        if co:
+            later = rng.random(n) < float(co.get("share", 0.5))
+            eligible = np.where(later, int(float(co.get("at_day", 14)) * DAY), 0).astype(np.int64)
+        columns.batch(ctx, TABLE, "learn.init", np.arange(n), {
+            "m": m.astype(np.float32), "pm": pm.astype(np.float32), "h": h.astype(np.float32),
+            "tl": np.zeros((n, K), np.int64), "bug": bug.astype(np.float32), "mot": mot.astype(np.float32),
+            "minutes": minutes.astype(np.float32), "eligible_at": eligible},
+            extra={"concepts": list(self.cur)})
 
     def curriculum_text(self) -> str:
-        lines = ["Concepts taught and assessed in this world, with prerequisites and problem formats.", ""]
+        lines = ["Concepts taught and assessed in this world, with prerequisites and the notations problems are "
+                 "written in.", ""]
         for c in self.cur:
             con = C.LIBRARY[c]
             pre = ", ".join(p for p in C.PREREQS[c] if p in self.cur) or "none"
             lines.append(f"- {c}: {con.title}. {con.doc} Problems are written `{con.fmt}`; answers: {con.answer_fmt}. "
                          f"Prerequisites: {pre}.")
-        lines += ["", "How learners read lessons: a line `Example: <problem> => <answer>` is a worked example; a line "
-                  "`Practice: <problem> => <answer>` is an exercise the learner attempts before reading the answer; a "
-                  "line `Next: <doc id>` points to the next lesson. Problems must use the formats above. Other text is "
-                  "not read. Learners are assessed on new problems of every concept and level."]
+        lines += ["", "Learners study worked problems and exercises written in these notations. The Board assesses "
+                  "learners on new problems of every concept and level and certifies those who pass its exams."]
         return "\n".join(lines)
 
     # ------------------------------------------------------------------ helpers
-    def floor(self) -> float:
-        return float(self.cfg["floor"])
-
-    def learner(self, st, lid):
-        r = st.get("learn_learners", lid)
-        if r is None:
-            raise Forbidden("only enrolled learners study (see learn.curriculum)")
-        return r
-
     def _call(self, ctx, p, tool, args):
         try:
             return True, ctx.call(tool, args, as_principal=p)
         except CrucibleError as e:
             return False, e.as_dict()
 
-    def _change(self, ctx, lid, **changes):
-        ctx.emit("learn.state", {"id": lid, "changes": changes}, vis=(lid,))
+    def _parsed(self, world, did: str, body: str, version: int) -> dict:
+        cache = world.runtime.setdefault("learn.parse", {})
+        key = (did, int(version))
+        if key not in cache:
+            cache[key] = C.parse_lesson(body, self.cur)
+        return cache[key]
 
-    # ------------------------------------------------------------------ public tools
-    @endpoint("curriculum", S.obj(), read_only=True)
-    def ep_curriculum(self, ctx):
-        """The concepts of this world: name, title, problem and answer formats, prerequisites, and how learners read
-        lessons."""
-        return {"concepts": [{"name": c, "title": C.LIBRARY[c].title, "doc": C.LIBRARY[c].doc,
-                              "format": C.LIBRARY[c].fmt, "answer_format": C.LIBRARY[c].answer_fmt,
-                              "prerequisites": [p for p in C.PREREQS[c] if p in self.cur]} for c in self.cur],
-                "how_learners_read": self.curriculum_text().split("How learners read lessons: ")[1]}
+    def published_keys(self, world) -> set:
+        """Every problem that appears as a worked problem in any public document (tests never reuse them)."""
+        st = world.state
+        out = set()
+        if "documents" not in st.tables:
+            return out
+        for did in st.find_ids("documents", "visibility", "public"):
+            d = st.tables["documents"][did]
+            for it in self._parsed(world, did, d["body"], d["version"])["items"]:
+                out.add(it["key"])
+        return out
 
-    @endpoint("check", S.obj({"body": S.s_str("lesson text to check", maxLength=100_000),
-                              "doc": S.s_str("or a document you can read", maxLength=40)}), read_only=True)
-    def ep_check(self, ctx, body=None, doc=None):
-        """Which lines of a lesson learners will read (worked examples and exercises with their concept and level),
-        and its Next link. Says nothing about whether the stated answers are right."""
-        if doc:
-            d, _ = ctx.world.modules["docs"]._doc(ctx, doc, 1)
-            body = d["body"]
-        if body is None:
-            raise InvalidAction("give body or doc")
-        les = C.parse_lesson(body, self.cur)
-        return {"items": [{"kind": i["kind"], "concept": i["concept"], "level": i["level"]} for i in les["items"]],
-                "next": les["next"], "minutes_at_level": sum((MIN_EX if i["kind"] == "example" else MIN_PR) * i["level"]
-                                                             for i in les["items"])}
+    def author_code(self, st, principal: str) -> int | None:
+        r = st.get("learn_authors", principal)
+        return None if r is None else int(r["code"])
 
-    @endpoint("stats", S.obj(), read_only=True)
-    def ep_stats(self, ctx):
-        """Public education statistics: the latest assessment's mean score per concept, active learners, sessions in
-        the last 7 days, and the most-read lessons (readers, sessions)."""
+    # ------------------------------------------------------------------ activity: study
+    def act_study(self, ctx, idx, now):
+        """A study session of each individual of the cohort (see the module docstring). Returns its utility."""
+        w = ctx.world
+        idx = np.asarray(idx, np.int64)
+        util = np.zeros(idx.size)
+        if idx.size == 0:
+            return util
+        exclude = None
+        rows: dict[str, list] = {}
+        sessions, rated, recs, certs, choices = [], [], [], [], []
+        spend = np.zeros(idx.size)
+        for j, i in enumerate(idx.tolist()):
+            rng = ctx.rng("learn.study", i)
+            row = self._row(w, i)
+            if now < row["eligible_at"]:
+                util[j] = -0.3                      # nothing open to it yet (a later cohort)
+                continue
+            rec = Rec.of(w, i, self.cur, self.cix)
+            if row["state"] == 0:
+                if exclude is None:
+                    exclude = self.published_keys(w)
+                ch = self._placement(ctx, i, rec, row, rng, exclude, now)
+                recs.append({"i": i, "kind": "placement", "scores": ch.pop("score_d"), "n_items": ch.pop("n_items"),
+                             "digest": ch.pop("digest"), "t": now})
+                rows.setdefault("placed", []).append((i, ch))
+                util[j] = 0.1
+                spend[j] = 15.0
+                choices.append((i, "placement", None))
+                continue
+            ch: dict = {}
+            goal = self.cur[row["goal"]] if row["goal"] >= 0 else None
+            self._maybe_recommend(ctx, i, row, rng, ch)       # word of mouth after a test showed progress
+            if goal is not None and row["perc"][self.cix[goal]] >= 0.85:
+                goal = self._next_goal(row)
+                ch["goal"] = self.cix[goal] if goal else -1
+                if goal is None:
+                    ch["state"] = 3
+                    choices.append((i, "done", None))
+                    rows.setdefault("decide", []).append((i, ch))
+                    util[j] = 0.05
+                    continue
+                choices.append((i, "goal", goal))
+            if goal is None:
+                goal = self._next_goal(row)
+                if goal is None:
+                    util[j] = -0.2
+                    continue
+                ch["goal"] = self.cix[goal]
+            row = {**row, **{k: v for k, v in ch.items() if k in row}}
+            c = self.choose_concept(row, goal)
+            gk = self.cix[goal]
+            if row["perc"][gk] >= 0.8 and not (int(row["certs"]) >> gk) & 1 and \
+                    (row["exam_t"] < 0 or now - row["exam_t"] >= 7 * DAY):
+                if exclude is None:
+                    exclude = self.published_keys(w)
+                passed, score = self._exam(ctx, i, rec, goal, rng, exclude, now)
+                ch["exam_t"] = now
+                perc = np.array(row["perc"], np.float32)
+                perc[gk] = 0.5 * perc[gk] + 0.5 * score
+                ch["perc"] = perc
+                if passed:
+                    ch["certs"] = int(row["certs"]) | (1 << gk)
+                    certs.append({"person": ids.pid(i), "concept": goal, "score": score, "t": now})
+                rows.setdefault("decide", []).append((i, ch))
+                util[j] = 0.4 if passed else -0.1
+                spend[j] = 20.0
+                choices.append((i, "exam", goal))
+                continue
+            doc, via = self._find(ctx, i, row, c, rng, now)
+            if doc is None:
+                ch["mot"] = float(_cl(row["mot"] - 0.03))
+                rows.setdefault("decide", []).append((i, ch))
+                choices.append((i, "nothing_found", c))
+                util[j] = -0.25
+                continue
+            p = ids.ensure_principal(ctx, i)
+            ok, d = self._call(ctx, p, "docs.get", {"doc": doc})
+            if not ok:
+                util[j] = -0.25
+                continue
+            out = self._study(ctx, i, rec, row, doc, d, rng, now, via)
+            ch.update(out["changes"])
+            rows.setdefault("study", []).append((i, ch))
+            sessions.append(out["session"])
+            if out["rating"] is not None:
+                rated.append(out["rating"])
+            spend[j] = out["session"]["minutes"]
+            util[j] = out["utility"]
+            choices.append((i, "study", c))
+        self._commit(ctx, rows, sessions, rated, recs, certs, choices)
+        has = spend > 0
+        if has.any():
+            attention.spend(ctx, idx[has], spend[has], activity="study")
+        return util
+
+    def _row(self, world, i: int) -> dict:
+        c = lambda n: columns.col(world, TABLE, n)[i]  # noqa: E731
+        return {"state": int(c("state")), "goal": int(c("goal")), "mot": float(c("mot")), "perc": np.array(c("perc")),
+                "score": np.array(c("score")), "score0": np.array(c("score0")), "placed": np.array(c("placed")),
+                "next_doc": int(c("next_doc")), "last_doc": int(c("last_doc")), "ta": np.array(c("ta")),
+                "tv": np.array(c("tv")), "rd": np.array(c("rd")), "rn": np.array(c("rn")), "certs": int(c("certs")),
+                "exam_t": int(c("exam_t")), "eligible_at": int(c("eligible_at")), "sessions": int(c("sessions")),
+                "minutes": float(c("minutes")), "posted": int(c("posted")), "lessons_read": int(c("lessons_read"))}
+
+    def _placement(self, ctx, i, rec, row, rng, exclude, now) -> dict:
+        k = int(self.cfg["placement_k"])
+        scores, n, dg = assess(rec, now, rng, k, self.cur, exclude)
+        sc = np.array([scores[c] for c in self.cur], np.float32)
+        deep = [c for c in self.cur if C.depth(c, self.cur) >= int(self.cfg["goal_min_depth"]) and scores[c] < 0.6] or \
+            sorted(self.cur, key=lambda c: (-C.depth(c, self.cur), c))[:1]
+        wts = np.array([1.0 + C.depth(c, self.cur) for c in deep])
+        goal = deep[int(rng.choice(len(deep), p=wts / wts.sum()))]
+        return {"state": 1, "goal": self.cix[goal], "placed": sc, "perc": sc.copy(), "score": sc.copy(),
+                "score0": sc.copy(), "score_d": scores, "n_items": n, "digest": dg}
+
+    def _exam(self, ctx, i, rec, goal, rng, exclude, now) -> tuple[bool, float]:
+        scores, _, _ = assess(rec, now, rng, int(self.cfg["exam_k"]), [goal], exclude)
+        s = float(scores[goal])
+        return s >= float(self.cfg["cert_pass"]), s
+
+    def _next_goal(self, row) -> str | None:
+        perc = row["perc"]
+        cand = [c for c in self.cur if perc[self.cix[c]] < 0.8 and
+                all(perc[self.cix[p]] >= 0.55 for p in C.PREREQS[c] if p in self.cix)]
+        if not cand:
+            return None
+        return sorted(cand, key=lambda c: (-C.depth(c, self.cur), c))[0]
+
+    def choose_concept(self, row, goal: str) -> str:
+        c = goal
+        perc = row["perc"]
+        for _ in range(8):
+            weak = [p for p in C.PREREQS[c] if p in self.cix and perc[self.cix[p]] < 0.55]
+            if not weak:
+                return c
+            c = min(weak, key=lambda p: (perc[self.cix[p]], p))
+        return c
+
+    def _trust(self, row, st, author: str) -> float:
+        code = self.author_code(st, author)
+        if code is None:
+            return 1.0
+        hit = np.flatnonzero(row["ta"] == code)
+        return float(row["tv"][hit[0]]) if hit.size else 1.0
+
+    def _times_read(self, row, dn: int) -> int:
+        hit = np.flatnonzero(row["rd"] == dn)
+        return int(row["rn"][hit[0]]) if hit.size else 0
+
+    # ------------------------------------------------------------------ discovery and choice
+    def _find(self, ctx, i, row, c, rng, now) -> tuple[str | None, str]:
+        from .. import population as P
+        from .common import bow_cos
         st = ctx.state
-        summ = st.meta_get("learn:summary", {})
-        week = ctx.now - 7 * DAY
-        recent = sum(1 for _, s in st.scan("learn_sessions") if s["t"] >= week)
-        docs = sorted(st.scan("learn_docstats"), key=lambda kv: (-kv[1]["n_readers"], kv[0]))[:20]
-        return {"assessment": summ, "active_learners": len(st.find_ids("learn_learners", "state", "active")),
-                "sessions_7d": recent,
-                "lessons": [{"doc": k, "author": v["author"], "readers": v["n_readers"], "sessions": v["sessions"]}
-                            for k, v in docs]}
+        w = ctx.world
+        nd = doc_id(row["next_doc"])
+        if nd and st.has("documents", nd) and self._times_read(row, row["next_doc"]) < 2 and \
+                self._trust(row, st, st.tables["documents"][nd]["owner"]) >= 1.0:
+            return nd, "next"
+        con = C.LIBRARY[c]
+        cands: dict[str, dict] = {}
+        p = ids.ensure_principal(ctx, i)
+        chans = self.cfg["channels"]
+        f = P.features(w, np.array([i]))
+        if "contacts" in chans:
+            for j in f["contacts"][0].tolist():
+                if j < 0:
+                    continue
+                ld = int(columns.col(w, TABLE, "last_doc")[j])
+                if ld < 0 or float(columns.col(w, TABLE, "last_ok")[j]) < 0.6:
+                    continue
+                did = doc_id(ld)
+                les = st.get("learn_lessons", did)
+                if les is not None and c in les["concepts"]:
+                    cands.setdefault(did, {"via": "contacts", "cos": 0.6})
+        if "forum" in chans:
+            ok, posts = self._call(ctx, p, "forum.list", {"board": self.cfg["board"], "sort": "new", "limit": 20})
+            if ok:
+                for post in posts:
+                    text = (post.get("title", "") + " " + post.get("snippet", "")).lower()
+                    if c not in text and con.title.lower() not in text:
+                        continue
+                    for mm in DOC_RE.finditer(text):
+                        cands.setdefault(f"doc_{mm.group(1)}", {"via": "forum", "cos": 0.5})
+        if "search" in chans:
+            from ..population.schema import SKILL_NAMES
+            sk = float(f["skills"][0][SKILL_NAMES.index("searching")])
+            words = re.sub(r"[()]", " ", con.title.lower()).split()
+            pick = [x for x in words if len(x) > 3 and x not in ("with", "whole", "numbers")]
+            parts = []
+            if pick:
+                parts.append(" ".join(rng.permutation(pick)[: 1 + int(rng.integers(0, len(pick)))].tolist()))
+            if sk > 0.5 or not parts:
+                parts.append(c.replace("_", " "))
+            parts.append(str(rng.choice(["lesson", "exercises", "how to", "examples", "practice", "explained"])))
+            q = " ".join(parts)
+            ok, res = self._call(ctx, p, "search.query", {"q": q, "kind": "doc", "limit": int(self.cfg["search_limit"])})
+            if ok:
+                for x in res["results"]:
+                    if x.get("sponsored") or not x.get("ref"):
+                        continue
+                    cands.setdefault(x["ref"], {"via": "search",
+                                                "cos": bow_cos(q, x["title"] + " " + x.get("snippet", ""))})
+        if not cands:
+            return None, ""
+        best, best_u = None, -1e9
+        for did in sorted(cands):
+            d = st.get("documents", did)
+            if d is None or d["visibility"] != "public":
+                continue
+            dn = doc_num(did)
+            n_read = self._times_read(row, dn)
+            if n_read >= 3:
+                continue
+            tr = self._trust(row, st, d["owner"])
+            if tr < 0.5:
+                continue
+            les = st.get("learn_lessons", did)
+            readers = les["readers"] if les else 0
+            rat = (les["rating_sum"] + 3.0 * 2) / (les["rating_n"] + 2) if les else 3.0
+            title = d["title"].lower()
+            on_topic = 1.0 if (c in title or con.title.lower() in title) else 0.0
+            u = (2.0 * cands[did]["cos"] + 1.2 * on_topic + 0.35 * math.log1p(readers) + 0.5 * (rat - 3.0)
+                 + 1.5 * math.log(max(1e-3, tr)) + (0.8 if cands[did]["via"] == "contacts" else 0.0)
+                 - 0.8 * n_read + float(rng.gumbel()) * 0.7)
+            if u > best_u:
+                best, best_u = did, u
+        return (best, cands[best]["via"]) if best else (None, "")
 
-    @endpoint("readers", S.obj(), read_only=True)
-    def ep_readers(self, ctx):
-        """For authors: how many distinct learners studied each of your documents and how many sessions there were."""
-        return [{"doc": k, "readers": v["n_readers"], "sessions": v["sessions"]}
-                for k, v in sorted(ctx.state.scan("learn_docstats")) if v["author"] == ctx.actor]
-
-    @endpoint("me", S.obj(), read_only=True)
-    def ep_me(self, ctx):
-        """Learners only: your goal, your own test scores and how you rate your own progress."""
-        r = ctx.state.get("learn_learners", ctx.actor)
-        if r is None:
-            return {"learner": False}
-        return {"learner": True, "goal": r["goal"], "state": r["state"], "scores": dict(r["scores"]),
-                "placement": dict(r["placement"]), "perceived": dict(r["perceived"]), "sessions": r["sessions"]}
-
-    @endpoint("study", S.obj({"doc": S.s_str(maxLength=40)}, ["doc"]), cost_s=600)
-    def ep_study(self, ctx, doc):
-        """Learners only: study a document you can read (its worked examples and exercises, in order, until your
-        attention for this session runs out)."""
+    # ------------------------------------------------------------------ reading and learning
+    def _study(self, ctx, i, rec: Rec, row, doc, d, rng, now, via) -> dict:
+        from .. import population as P
         st = ctx.state
-        r = self.learner(st, ctx.actor)
-        if r["state"] != "active":
-            raise Forbidden("you are not studying at the moment")
-        d, _ = ctx.world.modules["docs"]._doc(ctx, doc, 1)
-        les = C.parse_lesson(d["body"], self.cur)
-        return self._study(ctx, r, doc, d, les)
-
-    def _study(self, ctx, r, doc, d, les):
-        cfg, cur, fl, now = self.cfg, self.cur, self.floor(), ctx.now
-        rng = ctx.rng("learn.study", r["id"], doc)
-        m = {c: list(v) for c, v in r["m"].items()}
-        h, tl, bug = dict(r["h"]), dict(r["tl"]), dict(r["bug"])
-        work = {"m": m, "h": h, "tl": tl, "bug": bug}
-        seen = set(r["seen"])
+        les = self._parsed(ctx.world, doc, d["body"], d["version"])
+        dn = doc_num(doc)
+        n_read = self._times_read(row, dn)
+        left = float(P.features(ctx.world, np.array([i]))["attention_left_min"][0])
+        minutes = min(float(row["minutes"]), left)
+        used = 0.0
         touched: dict[str, float] = {}
         massed: dict[str, int] = {}
-        minutes = float(r["minutes"])
-        used = 0.0
-        out_items, practice = [], []
-        perceived_ok: dict[str, list] = {}
+        attempts: list[tuple[str, bool]] = []
+        noticed = 0
+        items = []
         for it in les["items"]:
             c, L = it["concept"], it["level"]
             cost = (MIN_EX if it["kind"] == "example" else MIN_PR) * L
             if used + cost > minutes:
                 break
             used += cost
+            k = self.cix[c]
             if c not in touched:            # consolidate the forgetting curve before studying the concept again
+                dt = max(0.0, (now - int(rec.tl[k])) / DAY)
                 for lv in LEVELS:
-                    m[c][lv - 1] = eff(work, c, lv, now, fl)
-                touched[c] = min(1.0, max(0.0, (now - tl[c]) / DAY) / max(1e-6, h[c]))
-                tl[c] = now
+                    rec.m[k, lv - 1] = rec.eff(c, lv, now)
+                touched[c] = min(1.0, dt / max(1e-6, rec.h[k]))
+                rec.tl[k] = now
             spacing = touched[c]
-            R = readiness(work, c, L, now, fl, cur)
-            nov = 1.0 if it["key"] not in seen else NOVEL_REPEAT
-            k = massed.get(f"{c}|{L}", 0)
-            massed[f"{c}|{L}"] = k + 1
-            mass = 1.0 / (1.0 + MASS * k)
-            mm = m[c][L - 1]
-            rec = {"kind": it["kind"], "concept": c, "level": L, "key_correct": it["correct"], "readiness": round(R, 3)}
+            R = rec.readiness(c, L, now)
+            nov = NOVEL_REPEAT if n_read else 1.0
+            kk = massed.get(f"{c}|{L}", 0)
+            massed[f"{c}|{L}"] = kk + 1
+            mass = 1.0 / (1.0 + MASS * kk)
+            mm = rec.m[k, L - 1]
             if it["kind"] == "example":
                 if it["correct"]:
-                    m[c][L - 1] = mm + A_EX * R * nov * mass * (1 - mm) * (1 - 0.7 * mm)
-                    h[c] = min(H_MAX, h[c] * (1 + 0.15 * spacing * R))
+                    rec.m[k, L - 1] = mm + A_EX * R * nov * mass * (1 - mm) * (1 - 0.7 * mm)
+                    rec.h[k] = min(H_MAX, rec.h[k] * (1 + 0.15 * spacing * R))
+                elif rng.random() < mm:     # knows enough to notice the error: no harm, less trust
+                    noticed += 1
                 else:
-                    bug[c] = bug[c] + B_WRONG * (1 - mm) * (1 - bug[c])
-                    m[c][L - 1] = mm * 0.96
+                    rec.bug[k] = rec.bug[k] + B_WRONG * (1 - mm) * (1 - rec.bug[k])
+                    rec.m[k, L - 1] = mm * 0.96
             else:
                 p = tuple(it["params"])
-                ans, truly = answer(work, c, p, now, fl, cur, rng)
+                ans, truly = rec.answer(c, p, now, rng)
                 con = C.LIBRARY[c]
-                matches_key = con.norm(ans) is not None and con.norm(ans) == con.norm(it["stated"])
-                perceived_ok.setdefault(c, []).append(matches_key)
-                practice.append({"problem": con.text(p), "your_answer": ans, "answer_key": it["stated"],
-                                 "matched": matches_key})
-                rec["attempt_correct"] = truly
+                matches = con.norm(ans) is not None and con.norm(ans) == con.norm(it["stated"])
+                attempts.append((c, matches))
                 if it["correct"]:
-                    m[c][L - 1] = mm + A_PR * R * nov * mass * (1 - mm) * (0.3 + 0.7 * mm) * (1.0 if truly else 0.6)
-                    h[c] = min(H_MAX, h[c] * (1 + (0.6 if truly else 0.1) * spacing * R))
-                    if not truly:
-                        bug[c] = bug[c] * 0.8
-                elif truly:              # a right attempt contradicted by a wrong key: confusion
-                    bug[c] = bug[c] + 0.5 * B_WRONG * (1 - bug[c])
-                    m[c][L - 1] = mm * 0.97
-                else:                    # a wrong attempt confirmed by a wrong key
-                    bug[c] = bug[c] + B_WRONG * (1 - bug[c])
-            m[c][L - 1] = round(_cl(m[c][L - 1]), 5)
-            bug[c] = round(_cl(bug[c]), 5)
-            h[c] = round(h[c], 4)
-            seen.add(it["key"])
-            out_items.append(rec)
-        usable = len(out_items)
+                    if truly:
+                        rec.m[k, L - 1] = mm + A_PR * R * nov * mass * (1 - mm) * (0.3 + 0.7 * mm)
+                        rec.h[k] = min(H_MAX, rec.h[k] * (1 + 0.6 * spacing * R))
+                        rec.pm[k, L - 1] = rec.pm[k, L - 1] + KAPPA * spacing * max(
+                            0.0, rec.m[k, L - 1] - rec.pm[k, L - 1])
+                        rec.bug[k] *= 0.9
+                    else:
+                        rec.m[k, L - 1] = mm + 0.6 * A_PR * R * nov * mass * (1 - mm) * (0.3 + 0.7 * mm)
+                        rec.h[k] = min(H_MAX, rec.h[k] * (1 + 0.1 * spacing * R))
+                        rec.bug[k] *= 0.75
+                elif truly:                 # a right attempt contradicted by a wrong key: confusion
+                    rec.bug[k] = rec.bug[k] + 0.5 * B_WRONG * (1 - rec.bug[k])
+                    rec.m[k, L - 1] = mm * 0.97
+                    noticed += 1
+                else:                       # a wrong attempt confirmed by a wrong key
+                    rec.bug[k] = rec.bug[k] + B_WRONG * (1 - rec.bug[k])
+                    rec.m[k, L - 1] = mm * 0.98
+            rec.m[k, L - 1] = _cl(rec.m[k, L - 1])
+            rec.pm[k, L - 1] = _cl(min(rec.pm[k, L - 1], rec.m[k, L - 1]))
+            rec.bug[k] = _cl(rec.bug[k])
+            items.append([c, L, it["kind"][0], int(it["correct"])])
+        usable = len(items)
         # the learner's own reading of the session: did its attempts match the answer key?
-        perceived = dict(r["perceived"])
-        for c, oks in perceived_ok.items():
-            perceived[c] = round(0.7 * perceived.get(c, 0.5) + 0.3 * (sum(oks) / len(oks)), 4)
-        all_ok = [x for v in perceived_ok.values() for x in v]
-        success = sum(all_ok) / len(all_ok) if all_ok else (0.5 if usable else 0.0)
+        perc = np.array(row["perc"], np.float32)
+        by_c: dict[str, list] = {}
+        for c, ok in attempts:
+            by_c.setdefault(c, []).append(ok)
+        for c, oks in by_c.items():
+            k = self.cix[c]
+            old = perc[k] if perc[k] >= 0 else 0.5
+            perc[k] = 0.7 * old + 0.3 * (sum(oks) / len(oks))
+        success = (sum(ok for _, ok in attempts) / len(attempts)) if attempts else (0.55 if usable else 0.0)
+        if noticed:
+            success = max(0.0, success - 0.15 * noticed)
+        # trust in the author (own experience)
         author = d["owner"]
-        trust = dict(r["trust"])
-        old = trust.get(author, 1.0)
-        trust[author] = round(_cl(old + float(cfg["trust_lr"]) * (success - 0.5) - (0.4 if not usable else 0.0),
-                                  0.1, 2.5), 4)
-        mot = _cl(r["motivation"] + (0.08 * (success - 0.4) if usable else -0.06) - 0.02)
-        n_doc = sum(1 for s in ctx.state.find("learn_sessions", "learner", r["id"]) if s["doc"] == doc) + 1
-        avoid = list(r["avoid"])
-        if (not usable or n_doc >= 3) and doc not in avoid:
-            avoid = (avoid + [doc])[-50:]
-        hist_c = dict(r["hist_c"])
-        for c in touched:
-            hist_c[c] = hist_c.get(c, 0) + 1
-        hist_a = dict(r["hist_a"])
-        hist_a[author] = hist_a.get(author, 0) + 1
-        changes = {"m": m, "h": h, "tl": tl, "bug": bug, "seen": sorted(seen)[-600:], "perceived": perceived,
-                   "trust": trust, "motivation": round(mot, 4), "avoid": avoid, "hist_c": hist_c, "hist_a": hist_a,
-                   "next_doc": les["next"] if (les["next"] and success >= 0.5 and les["next"] != doc) else None,
-                   "sessions": r["sessions"] + 1}
-        sid = ctx.state.new_id("lsess")
-        ctx.emit("learn.studied", {"id": sid, "learner": r["id"], "doc": doc, "version": d["version"], "author": author,
-                                   "items": out_items, "minutes": round(used, 2), "usable": usable,
-                                   "concepts": sorted(touched), "changes": changes}, vis=(r["id"],))
-        return {"session": sid, "items_read": usable, "minutes": round(used, 2), "practice": practice[:20],
-                "next": les["next"]}
+        ta, tv = np.array(row["ta"]), np.array(row["tv"], np.float32)
+        code = self.author_code(st, author)
+        new_author = code is None
+        if new_author:
+            code = self._new_author_code(ctx, author)
+        hit = np.flatnonzero(ta == code)
+        slot = int(hit[0]) if hit.size else int(np.argmin(np.where(ta < 0, -1.0, tv)))
+        old = float(tv[slot]) if hit.size else 1.0
+        ta[slot] = code
+        tv[slot] = _cl(old + 0.6 * (success - 0.5) - (0.4 if not usable else 0.0) - 0.15 * noticed, 0.1, 2.5)
+        rd, rn = np.array(row["rd"]), np.array(row["rn"])
+        hit = np.flatnonzero(rd == dn)
+        if hit.size:
+            rn[hit[0]] = min(255, int(rn[hit[0]]) + 1)
+        else:
+            rd = np.roll(rd, 1)
+            rn = np.roll(rn, 1)
+            rd[0], rn[0] = dn, 1
+        mot = _cl(row["mot"] + (0.06 * (success - 0.4) if usable else -0.06) - 0.01)
+        nxt = doc_num(les["next"]) if (les["next"] and success >= 0.5 and les["next"] != doc) else -1
+        changes = {"m": rec.m.astype(np.float32), "pm": rec.pm.astype(np.float32), "h": rec.h.astype(np.float32),
+                   "tl": rec.tl.astype(np.int64), "bug": rec.bug.astype(np.float32), "perc": perc,
+                   "mot": float(mot), "ta": ta, "tv": tv, "rd": rd, "rn": rn, "next_doc": nxt, "last_doc": dn,
+                   "last_ok": float(success if usable else 0.0), "sessions": row["sessions"] + 1,
+                   "lessons_read": row["lessons_read"] + (0 if n_read else 1)}
+        rating = None
+        if usable and ctx.rng("learn.rate", i, doc).random() < float(self.cfg["rate_p"]):
+            rating = {"doc": doc, "stars": int(1 + round(4 * _cl(success)))}
+        sess = {"i": int(i), "doc": doc, "version": int(d["version"]), "author": author, "via": via,
+                "concepts": sorted(touched), "items": items, "usable": usable, "minutes": round(used, 2),
+                "ok": round(float(success), 4), "t": int(now), "new_author": new_author}
+        util = (0.8 * success - 0.1) if usable else -0.4
+        return {"changes": changes, "session": sess, "rating": rating, "utility": util}
 
-    # ------------------------------------------------------------------ the learners' own decisions
-    def choose_concept(self, r) -> str:
-        c = r["goal"]
-        for _ in range(8):
-            weak = [p for p in C.PREREQS[c] if p in self.cur and r["perceived"].get(p, 0.5) < 0.55]
-            if not weak:
-                return c
-            c = min(weak, key=lambda p: (r["perceived"].get(p, 0.5), p))
-        return c
+    def _new_author_code(self, ctx, author: str) -> int:
+        pend = ctx.world.runtime.setdefault("learn.pending_authors", {})
+        if author in pend:
+            return pend[author]
+        code = len(ctx.state.tables["learn_authors"]) + len(pend)
+        pend[author] = code
+        return code
 
-    def _relevant(self, con, text: str) -> bool:
-        t = text.lower()
-        return con.name.lower() in t or con.title.lower() in t
-
-    def discover(self, ctx, lid, r, c, rng) -> str | None:
+    def _maybe_recommend(self, ctx, i, row, rng, ch):
+        """Word of mouth: after a test showed a gain of at least 0.25 on a concept, recommend on the study board
+        the lesson the individual read most recently for it."""
+        sc, s0 = row["score"], row["score0"]
+        gain = np.where((sc >= 0) & (s0 >= 0), sc - s0, 0.0)
+        k = int(np.argmax(gain))
+        if gain[k] < 0.25 or (int(row["posted"]) >> k) & 1 or row["last_doc"] < 0 or \
+                rng.random() > float(self.cfg["recommend_p"]):
+            return
+        did = doc_id(row["last_doc"])
+        les = ctx.state.get("learn_lessons", did)
+        c = self.cur[k]
+        if les is None or c not in les["concepts"]:
+            return
+        p = ids.ensure_principal(ctx, i)
         con = C.LIBRARY[c]
-        st = ctx.state
-        avoid = set(r["avoid"])
-        if r["channel"] == "forum":
-            ok, posts = self._call(ctx, lid, "forum.list", {"board": self.cfg["board"], "sort": "new", "limit": 20})
-            if ok:
-                for post in posts:
-                    if not self._relevant(con, post["title"] + " " + post.get("snippet", "")):
-                        continue
-                    ok2, full = self._call(ctx, lid, "forum.read", {"post": post["post"], "replies": 0})
-                    if not ok2:
-                        continue
-                    for did in DOC_RE.findall(full.get("body", "")):
-                        if did not in avoid and st.has("documents", did):
-                            return did
-        q = f"{con.title} lesson {con.name}"
-        ok, res = self._call(ctx, lid, "search.query", {"q": q, "kind": "doc", "limit": 8})
-        if not ok:
-            return None
-        slate = [x for x in res["results"] if x.get("ref") and x["ref"] not in avoid and not x.get("sponsored")]
-        if not slate:
-            return None
-        n_hist = sum(r["hist_c"].values())
-        tot_a = sum(r["hist_a"].values())
-        prior = SlateClicks.prior()
-        active = max(1, len(st.find_ids("learn_learners", "state", "active")))
-        cos, cat, sub, ctr, cpk, age, rel = [], [], [], [], [], [], []
-        for x in slate:
-            text = x["title"] + " " + x.get("snippet", "")
-            cos.append(bow_cos(q, text))
-            rc = next((k for k in self.cur if self._relevant(C.LIBRARY[k], x["title"])), None)
-            share = 1.0 / len(self.cur)
-            cat.append((r["hist_c"].get(rc, 0) + share) / (n_hist + 1) if rc else share / (n_hist + 1))
-            sub.append((r["hist_a"].get(x["owner"], 0) + 0.01) / (tot_a + 1))
-            s = st.get("learn_docstats", x["ref"])
-            a, b = ctr_features(s["hourly"] if s else None, ctx.now, active, prior)
-            ctr.append(a)
-            cpk.append(b)
-            age.append((ctx.now - (x.get("t") or ctx.now)) / HOUR)
-            rel.append(self._relevant(con, text))
-        p = SlateClicks.probabilities(SlateClicks.features(cos, cat, sub, n_hist, ctr, cpk, age))
-        w = [float(p[i]) * r["trust"].get(x["owner"], 1.0) * (1.0 if rel[i] else 0.05) for i, x in enumerate(slate)]
-        tot = sum(w)
-        pick = int(rng.choice(len(slate), p=[v / tot for v in w])) if tot > 0 else 0
-        ctx.emit("learn.browse", {"learner": lid, "shown": [x["ref"] for x in slate], "opened": slate[pick]["ref"],
-                                  "query": q}, vis=(lid,))
-        return slate[pick]["ref"]
-
-    def step(self, ctx, lid, r, rng):
-        cfg = self.cfg
-        nxt = ctx.now + int(r["rhythm_h"] * HOUR * (0.75 + 0.5 * rng.random()))
-        if rng.random() > r["motivation"]:
-            self._change(ctx, lid, next_session=nxt)
-            return
-        goal = r["goal"]
-        if r["perceived"].get(goal, 0.0) >= 0.85:
-            nxt_goal = [c for c in self.cur if r["perceived"].get(c, 0.5) < 0.8 and c != goal and
-                        all(r["perceived"].get(p, 0.5) >= 0.55 for p in C.PREREQS[c] if p in self.cur)]
-            if not nxt_goal:
-                ctx.emit("learn.decision", {"learner": lid, "kind": "done", "goal": goal}, vis=(lid,))
-                self._change(ctx, lid, state="done", next_session=nxt)
-                return
-            goal = sorted(nxt_goal, key=lambda c: (-C.depth(c, self.cur), c))[0]
-            ctx.emit("learn.decision", {"learner": lid, "kind": "goal", "goal": goal}, vis=(lid,))
-            self._change(ctx, lid, goal=goal)
-            r = {**r, "goal": goal}
-        c = self.choose_concept(r)
-        doc = r["next_doc"] if r["next_doc"] and r["next_doc"] not in r["avoid"] else None
-        if doc is not None:
-            dd = ctx.state.get("documents", doc)
-            if dd is None or r["trust"].get(dd["owner"], 1.0) < 1.0:
-                doc = None
-        if doc is None:
-            doc = self.discover(ctx, lid, r, c, rng)
-        if doc is None:
-            mot = round(_cl(r["motivation"] - 0.03), 4)
-            ctx.emit("learn.decision", {"learner": lid, "kind": "nothing_found", "concept": c}, vis=(lid,))
-            self._change(ctx, lid, motivation=mot, next_session=nxt)
-            return
-        ok, res = self._call(ctx, lid, "docs.get", {"doc": doc})
+        ok, _ = self._call(ctx, p, "forum.post", {
+            "board": self.cfg["board"], "title": f"{con.title} ({c}): {did} helped me",
+            "body": f"I studied {did} for {c} and my {c} test score went from {s0[k]:.2f} to {sc[k]:.2f}.",
+            "tags": ["lesson"]})
         if ok:
-            ok, res = self._call(ctx, lid, "learn.study", {"doc": doc})
-        r2 = ctx.state.get("learn_learners", lid)
-        if r2["motivation"] < float(cfg["dropout"]):
-            ctx.emit("learn.decision", {"learner": lid, "kind": "dropout", "motivation": r2["motivation"]}, vis=(lid,))
-            self._change(ctx, lid, state="dropped", next_session=nxt)
-        else:
-            self._change(ctx, lid, next_session=nxt)
+            ch["posted"] = int(row["posted"]) | (1 << k)
+            ch["score0"] = np.array(sc, np.float32)
 
-    # ------------------------------------------------------------------ processes
-    @process("tick")
-    def pr_tick(self, ctx):
-        st = ctx.state
-        cfg = self.cfg
-        exclude = None
-        for lid in st.ids("learn_learners"):
-            r = st.tables["learn_learners"][lid]
-            if r["state"] == "waiting" and ctx.now >= r["joined_at"]:
-                if exclude is None:
-                    exclude = published_problem_keys(ctx.world, self.cur)
-                self._assess_one(ctx, lid, r, "placement", int(cfg["placement_k"]), exclude)
-                self._change(ctx, lid, state="active", next_session=ctx.now + int(r["rhythm_h"] * HOUR * 0.25))
+    # ------------------------------------------------------------------ recording
+    def _commit(self, ctx, rows, sessions, rated, recs, certs, choices):
+        from .. import population as P
+        pend = ctx.world.runtime.pop("learn.pending_authors", {})
+        for a, code in sorted(pend.items(), key=lambda kv: kv[1]):
+            ctx.emit("learn.author", {"principal": a, "code": int(code)}, vis="internal")
+        for kind, lst in sorted(rows.items()):
+            groups: dict[tuple, list] = {}          # rows of one batch carry the same columns
+            for i, ch in lst:
+                groups.setdefault(tuple(sorted(ch)), []).append((i, ch))
+            for key, g in sorted(groups.items()):
+                if not key:
+                    continue
+                ix = np.array([i for i, _ in g], np.int64)
+                vals = {k: np.stack([np.asarray(ch[k]) for _, ch in g]) for k in key}
+                P.record_decisions(ctx, f"learn.{kind}", ix, vals, table=TABLE, **MODEL)
+        if sessions:
+            ctx.emit("learn.sessions", {"sessions": sessions}, vis="internal")
+        for r in rated:
+            ctx.emit("learn.rated", r, vis="public")
+        for r in recs:
+            ctx.emit("learn.assessed", {"id": ctx.state.new_id("lassess"), **r}, vis="internal")
+        for c in certs:
+            ctx.emit("learn.certified", c, vis="public")
+        if choices:
+            ctx.emit("learn.choices", {"choices": [[int(i), k, c] for i, k, c in choices]}, vis="internal")
+
+    # ------------------------------------------------------------------ activity: teach
+    def act_teach(self, ctx, idx, now):
+        """Individuals who know a concept well and write well enough author a lesson for it from their own
+        knowledge (FR-LEARN-6); others get nothing from the session."""
+        from .. import population as P
+        from ..population.schema import PREF_NAMES, SKILL_NAMES
+        w = ctx.world
+        idx = np.asarray(idx, np.int64)
+        util = np.full(idx.size, -0.4)
+        if idx.size == 0:
+            return util
+        f = P.features(w, idx)
+        writing = f["skills"][:, SKILL_NAMES.index("writing")]
+        careful = f["prefs"][:, PREF_NAMES.index("quality_sensitivity")]
+        taught_t = columns.col(w, TABLE, "taught_t")
+        goal = columns.col(w, TABLE, "goal")
+        state = columns.col(w, TABLE, "state")
+        demand = np.zeros(len(self.cur))
+        for g in np.flatnonzero((state == 1) & (goal >= 0)).tolist():
+            for c in path(self.cur[int(goal[g])], self.cur):
+                demand[self.cix[c]] += 1
+        supply = np.zeros(len(self.cur))
+        for _, les in ctx.state.scan("learn_lessons"):
+            for c in les["concepts"]:
+                if c in self.cix:
+                    supply[self.cix[c]] += 1
+        done, authored = [], []
+        for j, i in enumerate(idx.tolist()):
+            if writing[j] < 0.4 or (taught_t[i] >= 0 and now - int(taught_t[i]) < 3 * DAY):
                 continue
-            rng = ctx.rng("learn.tick", lid)
-            if r["state"] == "dropped":
-                if rng.random() < float(cfg["return_p_day"]) * int(cfg["tick_h"]) / 24:
-                    ctx.emit("learn.decision", {"learner": lid, "kind": "return"}, vis=(lid,))
-                    self._change(ctx, lid, state="active", motivation=0.35, next_session=ctx.now)
+            rec = Rec.of(w, i, self.cur, self.cix)
+            know = [c for c in self.cur if rec.eff(c, 1, now) >= 0.75 and rec.eff(c, 2, now) >= 0.55]
+            if not know:
                 continue
-            if r["state"] == "active" and ctx.now >= r["next_session"]:
-                self.step(ctx, lid, r, rng)
+            rng = ctx.rng("learn.teach", i)
+            sc = [(demand[self.cix[c]] + 1.0) / (supply[self.cix[c]] + 1.0) * float(rng.uniform(0.7, 1.3))
+                  for c in know]
+            c = know[int(np.argmax(sc))]
+            body = authored_lesson(rec, c, float(careful[j]), rng, now)
+            p = ids.ensure_principal(ctx, i)
+            con = C.LIBRARY[c]
+            title = str(rng.choice([f"{con.title}: worked examples", f"Learn {con.title.lower()} ({c})",
+                                    f"{con.title} - practice problems", f"How to do {c.replace('_', ' ')}"]))
+            ok, res = self._call(ctx, p, "docs.create", {"title": title, "body": body, "visibility": "public"})
+            if ok:
+                done.append(i)
+                authored.append({"i": int(i), "doc": res["doc"], "concept": c})
+                util[j] = 0.4
+        if done:
+            P.record_decisions(ctx, "learn.teach", np.array(done, np.int64),
+                               {"taught_t": np.full(len(done), now, np.int64)}, table=TABLE, **TEACH_MODEL)
+            ctx.emit("learn.authored", {"lessons": authored}, vis="public")
+        return util
 
-    def _assess_one(self, ctx, lid, r, kind, k, exclude):
-        rng = ctx.rng("learn.assess", kind, lid)
-        scores, n, dg = assess(r, ctx.now, rng, k, self.cur, self.floor(), exclude)
-        changes = {"scores": scores}
-        if kind == "placement":
-            changes["placement"] = scores
-            changes["perceived"] = dict(scores)
-        else:
-            per = dict(r["perceived"])
-            for c, s in scores.items():
-                per[c] = round(0.4 * per.get(c, s) + 0.6 * s, 4)
-            changes["perceived"] = per
-            prev = r["scores"].get(r["goal"])
-            if prev is not None:
-                changes["motivation"] = round(_cl(r["motivation"] + 0.5 * (scores[r["goal"]] - prev)), 4)
-        aid = ctx.state.new_id("lassess")
-        ctx.emit("learn.assessed", {"id": aid, "learner": lid, "kind": kind, "scores": scores, "n_items": n,
-                                    "problems_digest": dg, "changes": changes}, vis=(lid,))
-        return scores
-
+    # ------------------------------------------------------------------ the Board's periodic assessment
     @process("assess")
     def pr_assess(self, ctx):
+        w = ctx.world
         st = ctx.state
-        cfg = self.cfg
-        exclude = published_problem_keys(ctx.world, self.cur)
+        state = columns.col(w, TABLE, "state")
+        who = np.flatnonzero(state > 0)
+        if who.size == 0:
+            ctx.emit("learn.summary", {"t": ctx.now, "concepts": {}, "assessed": 0}, vis="public")
+            return
+        exclude = self.published_keys(w)
+        goal = columns.col(w, TABLE, "goal")
+        k = int(self.cfg["assess_k"])
         tot: dict[str, list] = {}
-        for lid in st.ids("learn_learners"):
-            r = st.tables["learn_learners"][lid]
-            if r["state"] == "waiting":
-                continue
-            before = dict(r["scores"])
-            scores = self._assess_one(ctx, lid, r, "periodic", int(cfg["assess_k"]), exclude)
+        new_score, new_perc, new_mot = [], [], []
+        rec_rows = []
+        for i in who.tolist():
+            rng = ctx.rng("learn.assess", i)
+            rec = Rec.of(w, i, self.cur, self.cix)
+            g = int(goal[i])
+            cs = path(self.cur[g], self.cur) if g >= 0 else list(self.cur)
+            scores, n, dg = assess(rec, ctx.now, rng, k, cs, exclude)
+            sc = np.array(columns.col(w, TABLE, "score")[i], np.float32)
+            pc = np.array(columns.col(w, TABLE, "perc")[i], np.float32)
+            mot = float(columns.col(w, TABLE, "mot")[i])
+            prev = sc[g] if g >= 0 else -1.0
             for c, s in scores.items():
+                kc = self.cix[c]
+                sc[kc] = s
+                pc[kc] = 0.4 * (pc[kc] if pc[kc] >= 0 else s) + 0.6 * s
                 tot.setdefault(c, []).append(s)
-            self._voice(ctx, lid, st.tables["learn_learners"][lid], before, scores)
+            if g >= 0 and prev >= 0:
+                mot = _cl(mot + 0.5 * (sc[g] - prev))
+            new_score.append(sc)
+            new_perc.append(pc)
+            new_mot.append(mot)
+            rec_rows.append({"i": int(i), "scores": scores, "n_items": n, "digest": dg})
+        columns.batch(ctx, TABLE, "learn.assessment", who, {
+            "score": np.stack(new_score), "perc": np.stack(new_perc), "mot": np.array(new_mot, np.float32)},
+            extra={"t": int(ctx.now), "assessed": int(who.size)})
+        for r in rec_rows:
+            ctx.emit("learn.assessed", {"id": st.new_id("lassess"), "kind": "periodic", "t": int(ctx.now), **r},
+                     vis="internal")
         summ = {c: {"mean": round(sum(v) / len(v), 4), "n": len(v)} for c, v in sorted(tot.items())}
-        ctx.emit("learn.summary", {"t": ctx.now, "concepts": summ}, vis="public")
+        ctx.emit("learn.summary", {"t": ctx.now, "concepts": summ, "assessed": int(who.size)}, vis="public")
 
-    def _voice(self, ctx, lid, r, before, scores):
-        """Word of mouth and peer notes, from the learner's own measured progress."""
-        cfg = self.cfg
-        rng = ctx.rng("learn.voice", lid)
+    # ------------------------------------------------------------------ public tools
+    @endpoint("curriculum", S.obj(), read_only=True)
+    def ep_curriculum(self, ctx):
+        """The concepts of this world: name, title, problem notation, answer format and prerequisites."""
+        return {"concepts": [{"name": c, "title": C.LIBRARY[c].title, "doc": C.LIBRARY[c].doc,
+                              "format": C.LIBRARY[c].fmt, "answer_format": C.LIBRARY[c].answer_fmt,
+                              "prerequisites": [p for p in C.PREREQS[c] if p in self.cur]} for c in self.cur],
+                "about": "Learners study worked problems and exercises written in these notations, in documents "
+                         "they find through search, the study board of the forum and their contacts. The Board "
+                         "assesses learners on new problems and certifies those who pass its exams.",
+                "board": self.cfg["board"]}
+
+    @endpoint("stats", S.obj(), read_only=True)
+    def ep_stats(self, ctx):
+        """Public education statistics: the latest assessment's mean score per concept, learners enrolled,
+        study sessions in the last 7 days, certificates issued, and the most-read lessons (readers, sessions,
+        mean rating)."""
         st = ctx.state
-        last_t = max((a["t"] for a in st.find("learn_assessments", "learner", lid)
-                      if a["kind"] == "periodic"), default=r["joined_at"])
-        for c, s in sorted(scores.items()):
-            gain = s - before.get(c, s)
-            if gain >= 0.25 and c not in r["posted"] and rng.random() < float(cfg["recommend_p"]):
-                sess = [x for x in st.find("learn_sessions", "learner", lid) if c in x["concepts"] and x["t"] >= last_t]
-                if not sess:
-                    continue
-                by_doc: dict[str, int] = {}
-                for x in sess:
-                    by_doc[x["doc"]] = by_doc.get(x["doc"], 0) + x["usable"]
-                best = sorted(by_doc.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
-                con = C.LIBRARY[c]
-                ok, _ = self._call(ctx, lid, "forum.post", {
-                    "board": cfg["board"], "title": f"{con.title} ({c}): {best} helped me",
-                    "body": f"I studied {best} for {c} and my {c} test score went from {before.get(c, 0):.2f} to "
-                            f"{s:.2f}.", "tags": ["lesson"]})
-                if ok:
-                    self._change(ctx, lid, posted=sorted(set(r["posted"]) | {c}))
-                    r = {**r, "posted": sorted(set(r["posted"]) | {c})}
-            if float(cfg["peer_p"]) > 0 and s >= 0.85 and c not in r["notes"] and rng.random() < float(cfg["peer_p"]):
-                self._peer_notes(ctx, lid, r, c, rng)
-                r = {**r, "notes": sorted(set(r["notes"]) | {c})}
+        w = ctx.world
+        summ = st.meta_get("learn:summary", {})
+        week = ctx.now - 7 * DAY
+        recent = st.meta_get("learn:sessions_by_day", {})
+        n7 = sum(v for d, v in recent.items() if int(d) * DAY >= week)
+        lessons = sorted(st.scan("learn_lessons"), key=lambda kv: (-kv[1]["readers"], kv[0]))[:20]
+        return {"assessment": summ, "enrolled": int((columns.col(w, TABLE, "state") > 0).sum()),
+                "sessions_7d": int(n7), "certificates": len(st.tables["learn_certs"]),
+                "lessons": [{"doc": k, "author": v["author"], "readers": v["readers"], "sessions": v["sessions"],
+                             "rating": round(v["rating_sum"] / v["rating_n"], 2) if v["rating_n"] else None,
+                             "ratings": v["rating_n"]} for k, v in lessons]}
 
-    def _peer_notes(self, ctx, lid, r, c, rng):
-        """A learner who tests well writes notes for others, answering its own problems (so it can be wrong)."""
-        con = C.LIBRARY[c]
-        lines = [f"Notes on {con.title} ({c}) by a fellow learner", ""]
-        for kind, L in (("Example", 1), ("Example", 2), ("Practice", 1), ("Practice", 2)):
-            p = C.generate(c, rng, L)
-            a, _ = answer(r, c, p, ctx.now, self.floor(), self.cur, rng)
-            lines.append(f"{kind}: {con.text(p)} => {a}")
-        ok, _ = self._call(ctx, lid, "docs.create", {"title": f"{con.title} ({c}) - notes", "body": "\n".join(lines),
-                                                      "visibility": "public"})
-        if ok:
-            self._change(ctx, lid, notes=sorted(set(r["notes"]) | {c}))
+    @endpoint("readers", S.obj(), read_only=True)
+    def ep_readers(self, ctx):
+        """For authors: how many distinct learners studied each of your documents, sessions and ratings."""
+        mine = set(ctx.world.principals_of(ctx.actor))
+        return [{"doc": k, "readers": v["readers"], "sessions": v["sessions"], "ratings": v["rating_n"],
+                 "rating": round(v["rating_sum"] / v["rating_n"], 2) if v["rating_n"] else None}
+                for k, v in sorted(ctx.state.scan("learn_lessons")) if v["author"] in mine]
 
-    @process("teach")
-    def pr_teach(self, ctx):
+    @endpoint("certificates", S.obj({"person": S.s_str(maxLength=40)}), read_only=True)
+    def ep_certificates(self, ctx, person=None):
+        """Certificates the Board issued (public): person, concept, exam score, time."""
         st = ctx.state
-        summ = st.meta_get("learn:summary", {}).get("concepts", {})
-        for tid in st.ids("learn_teachers"):
-            t = st.tables["learn_teachers"][tid]
-            rng = ctx.rng("learn.teach", tid)
-            first = not t["covered"]
-            n = 3 if first else (1 if rng.random() < t["per_week"] / 7 else 0)
-            for _ in range(n):
-                recent = {c for c, at in t["covered"].items() if at >= ctx.now - 7 * DAY}
-                cands = [c for c in self.cur if c not in recent]
-                if not cands:
-                    break
-                if summ:
-                    cands.sort(key=lambda c: (summ.get(c, {}).get("mean", 1.0), c))
-                    c = cands[min(len(cands) - 1, int(rng.integers(0, 2)))]
-                else:
-                    c = cands[int(rng.integers(0, len(cands)))]
-                body = teacher_lesson(c, t["style"], rng)
-                con = C.LIBRARY[c]
-                ok, res = self._call(ctx, tid, "docs.create", {"title": f"{con.title} ({c}) - lesson by {t['name']}",
-                                                               "body": body, "visibility": "public"})
-                if ok:
-                    t = {**t, "covered": {**t["covered"], c: ctx.now}}
-                    ctx.emit("learn.taught", {"id": tid, "concept": c, "doc": res["doc"]}, vis=(tid,))
+        keys = st.find_ids("learn_certs", "person", person) if person else st.ids("learn_certs")
+        return [dict(st.tables["learn_certs"][k]) for k in keys[-200:]]
+
+    @endpoint("me", S.obj(), read_only=True)
+    def ep_me(self, ctx):
+        """Individuals of the population only: your goal, your own test scores, certificates and how you rate your
+        own progress."""
+        i = ids.index(ctx.actor)
+        w = ctx.world
+        if i is None or i >= columns.rows(w, TABLE):
+            raise NotFound("you are not a member of the population")
+        row = self._row(w, i)
+        sc = lambda a: {c: round(float(a[k]), 3) for c, k in self.cix.items() if a[k] >= 0}  # noqa: E731
+        return {"enrolled": row["state"] > 0, "goal": self.cur[row["goal"]] if row["goal"] >= 0 else None,
+                "scores": sc(row["score"]), "placement": sc(row["placed"]), "perceived": sc(row["perc"]),
+                "certificates": [c for c, k in self.cix.items() if (row["certs"] >> k) & 1],
+                "sessions": row["sessions"]}
 
     # ------------------------------------------------------------------ evaluator side (never a tool)
-    def final_scores(self, world, at: int, salt: str, k: int = 8) -> dict[str, dict]:
+    def final_scores(self, world, at: int, salt: str, k: int = 6, who=None, concepts=None) -> dict[int, dict]:
         """A delayed assessment at time `at` (no further study assumed) on fresh problems drawn with the evaluator's
-        own seed. Pure: reads state only."""
-        st = world.state
-        exclude = published_problem_keys(world, self.cur)
+        own random stream, excluding every published problem. Pure: reads state only."""
+        exclude = self.published_keys(world)
+        state = columns.col(world, TABLE, "state")
+        rows = np.flatnonzero(state > 0) if who is None else np.asarray(who, np.int64)
+        cs = list(concepts or self.cur)
         out = {}
-        for lid in st.ids("learn_learners"):
-            r = st.tables["learn_learners"][lid]
-            if r["state"] == "waiting":
-                continue
-            rng = world.rng_for("learn-evaluator", salt, lid)
-            out[lid] = assess(r, at, rng, k, self.cur, self.floor(), exclude)[0]
+        for i in rows.tolist():
+            rng = world.rng_for("learn-evaluator", salt, int(i))
+            out[int(i)] = assess(Rec.of(world, int(i), self.cur, self.cix), int(at), rng, k, cs, exclude)[0]
         return out
+
+    def knowledge(self, world, i: int, at: int) -> dict:
+        """Evaluator side: effective mastery per concept and level of individual i at time `at`."""
+        rec = Rec.of(world, int(i), self.cur, self.cix)
+        return {c: [round(rec.eff(c, L, at), 4) for L in LEVELS] for c in self.cur}
 
     # ------------------------------------------------------------------ appliers
     @applier("learn.meta")
     def ap_meta(self, ev):
         self.world.state.meta_set("learn:board", ev.payload["board"])
 
-    @applier("learn.learner")
-    def ap_learner(self, ev):
-        p = dict(ev.payload)
-        self.world.state.insert("learn_learners", p.pop("id"), p)
+    @applier("learn.author")
+    def ap_author(self, ev):
+        self.world.state.put("learn_authors", ev.payload["principal"], {"code": int(ev.payload["code"])})
 
-    @applier("learn.teacher")
-    def ap_teacher(self, ev):
-        p = dict(ev.payload)
-        self.world.state.insert("learn_teachers", p.pop("id"), p)
-
-    @applier("learn.taught")
-    def ap_taught(self, ev):
+    @applier("learn.sessions")
+    def ap_sessions(self, ev):
         st = self.world.state
-        t = st.tables["learn_teachers"][ev.payload["id"]]
-        st.patch("learn_teachers", ev.payload["id"], covered={**t["covered"], ev.payload["concept"]: ev.t})
+        by_day = dict(st.meta_get("learn:sessions_by_day", {}))
+        day = str(ev.t // DAY)
+        for s in ev.payload["sessions"]:
+            sid = st.new_id("lsess")
+            st.insert("learn_sessions", sid, {**s, "t": ev.t})
+            les = st.get("learn_lessons", s["doc"])
+            base = dict(les) if les else {"author": s["author"], "readers": 0, "sessions": 0, "rating_sum": 0,
+                                          "rating_n": 0, "concepts": [], "first_t": ev.t, "reader_set": []}
+            rs = list(base["reader_set"])
+            if s["i"] not in rs:
+                rs.append(s["i"])
+            base.update(readers=len(rs), reader_set=rs, sessions=base["sessions"] + 1,
+                        concepts=sorted(set(base["concepts"]) | set(s["concepts"])))
+            st.put("learn_lessons", s["doc"], base)
+            by_day[day] = by_day.get(day, 0) + 1
+        st.meta_set("learn:sessions_by_day", {k: v for k, v in by_day.items() if int(k) >= ev.t // DAY - 30})
 
-    @applier("learn.state")
-    def ap_state(self, ev):
-        self.world.state.patch("learn_learners", ev.payload["id"], **ev.payload["changes"])
-
-    @applier("learn.decision")
-    def ap_decision(self, ev):
-        pass
-
-    @applier("learn.browse")
-    def ap_browse(self, ev):
+    @applier("learn.rated")
+    def ap_rated(self, ev):
         st = self.world.state
-        p = ev.payload
-        for did in p["shown"]:
-            s = st.get("learn_docstats", did)
-            d = st.get("documents", did)
-            base = dict(s) if s else {"author": d["owner"] if d else None, "readers": [], "n_readers": 0, "sessions": 0,
-                                      "hourly": {}}
-            base["hourly"] = bump_hourly(base["hourly"], ev.t, 1, 1 if did == p["opened"] else 0)
-            st.put("learn_docstats", did, base)
-
-    @applier("learn.studied")
-    def ap_studied(self, ev):
-        st = self.world.state
-        p = dict(ev.payload)
-        changes = p.pop("changes")
-        st.patch("learn_learners", p["learner"], **changes)
-        st.insert("learn_sessions", p.pop("id"), {**p, "t": ev.t})
-        s = st.get("learn_docstats", p["doc"])
-        base = dict(s) if s else {"author": p["author"], "readers": [], "n_readers": 0, "sessions": 0, "hourly": {}}
-        readers = list(base["readers"])
-        if p["learner"] not in readers:
-            readers.append(p["learner"])
-        base.update(readers=readers, n_readers=len(readers), sessions=base["sessions"] + 1, author=p["author"])
-        st.put("learn_docstats", p["doc"], base)
+        les = st.get("learn_lessons", ev.payload["doc"])
+        if les is not None:
+            st.patch("learn_lessons", ev.payload["doc"], rating_sum=les["rating_sum"] + int(ev.payload["stars"]),
+                     rating_n=les["rating_n"] + 1)
 
     @applier("learn.assessed")
     def ap_assessed(self, ev):
-        st = self.world.state
         p = dict(ev.payload)
-        changes = p.pop("changes")
-        st.patch("learn_learners", p["learner"], **changes)
-        st.insert("learn_assessments", p.pop("id"), {**p, "t": ev.t})
+        self.world.state.insert("learn_assessments", p.pop("id"), p)
+
+    @applier("learn.certified")
+    def ap_certified(self, ev):
+        p = ev.payload
+        self.world.state.put("learn_certs", f"{p['person']}|{p['concept']}", dict(p))
 
     @applier("learn.summary")
     def ap_summary(self, ev):
         self.world.state.meta_set("learn:summary", dict(ev.payload))
 
+    @applier("learn.choices")
+    def ap_choices(self, ev):
+        pass
+
+    @applier("learn.authored")
+    def ap_authored(self, ev):
+        pass
+
     # ------------------------------------------------------------------ invariants
     def check_invariants(self, world):
         errs = []
+        try:
+            m = columns.col(world, TABLE, "m")
+        except NotFound:
+            return ["learn table missing"]
+        if m.size and (float(m.min()) < 0 or float(m.max()) > 1):
+            errs.append("mastery out of [0, 1]")
+        pm = columns.col(world, TABLE, "pm")
+        if pm.size and float((pm - m).max()) > 1e-5:
+            errs.append("stable floor above mastery")
+        bug = columns.col(world, TABLE, "bug")
+        if bug.size and (float(bug.min()) < 0 or float(bug.max()) > 1):
+            errs.append("misconception strength out of [0, 1]")
         st = world.state
-        for lid, r in st.scan("learn_learners"):
-            for c, ms in r["m"].items():
-                if any(not (0.0 <= x <= 1.0) for x in ms) or not (0.0 <= r["bug"][c] <= 1.0) or r["h"][c] <= 0:
-                    errs.append(f"{lid}: knowledge of {c} out of range")
-            n = len(st.find_ids("learn_sessions", "learner", lid))
-            if n != r["sessions"]:
-                errs.append(f"{lid}: {r['sessions']} sessions counted, {n} recorded")
-        for did, s in st.scan("learn_docstats"):
-            sess = st.find("learn_sessions", "doc", did)
-            if s["sessions"] != len(sess) or s["n_readers"] != len({x["learner"] for x in sess}):
-                errs.append(f"{did}: reader statistics differ from the recorded sessions")
+        n_sess = int(columns.col(world, TABLE, "sessions").sum())
+        if n_sess != len(st.tables["learn_sessions"]):
+            errs.append(f"{n_sess} sessions counted, {len(st.tables['learn_sessions'])} recorded")
+        for did, les in st.scan("learn_lessons"):
+            if les["readers"] != len(les["reader_set"]):
+                errs.append(f"{did}: readers differ from the reader set")
         return errs
 
 
-def teacher_lesson(c: str, style: str, rng) -> str:
-    """An NPC teacher's lesson in its style (careful, sloppy, drill, advanced, prose)."""
+# ============================================================================================ lesson writing
+def textbook(c: str, kind: str, rng) -> str:
+    """The Board's incumbent textbook chapter: correct worked examples at level 1 only (kind 'basic') or levels 1-2
+    with two exercises (kind 'full')."""
     con = C.LIBRARY[c]
-    plan = {"careful": [("Example", 1), ("Example", 1), ("Practice", 1), ("Example", 2), ("Practice", 2),
-                        ("Practice", 2)],
-            "sloppy": [("Example", 1), ("Example", 2), ("Practice", 1), ("Practice", 2), ("Example", 2)],
-            "drill": [("Practice", 1)] * 8,
-            "advanced": [("Example", 3), ("Example", 3), ("Practice", 3), ("Practice", 3)],
-            "prose": []}[style]
-    lines = [f"Lesson: {con.title} ({c})", "", f"{con.doc} Problems look like `{con.fmt}`.", ""]
-    if style == "prose":
-        lines.append(f"{con.title} is an important topic. Read carefully, think about it, and practise on your own. "
-                     f"Many people find {c} difficult at first, but with time it becomes easier.")
-    for kind, L in plan:
+    lines = [f"{con.title} ({c})", "", f"{con.doc} Problems are written `{con.fmt}`.", ""]
+    plan = [("example", 1)] * 3 if kind == "basic" else [("example", 1), ("example", 1), ("example", 2),
+                                                          ("practice", 1), ("practice", 2)]
+    for n, (kd, L) in enumerate(plan, 1):
         p = C.generate(c, rng, L)
-        a = con.buggy(p) if style == "sloppy" and rng.random() < 0.45 else con.solve(p)
-        lines.append(f"{kind}: {con.text(p)} => {a}")
+        lines += C.write_item(kd, con, p, con.solve(p), "arrow", n)
+    return "\n".join(lines)
+
+
+def authored_lesson(rec: Rec, c: str, careful: float, rng, now: int) -> str:
+    """A lesson an individual writes from its own knowledge: plan by its carefulness, answers from its own
+    knowledge state (they can be wrong), phrasing in a style of its own."""
+    con = C.LIBRARY[c]
+    style = str(rng.choice(C.STYLES))
+    if careful >= 0.6:
+        plan = [("example", 1), ("example", 1), ("practice", 1), ("example", 2), ("practice", 2), ("practice", 2)]
+    elif careful >= 0.35:
+        plan = [("example", 1), ("example", 2), ("practice", 1), ("practice", 2)]
+    else:
+        plan = [("practice", 1)] * int(rng.integers(4, 8))
+    lines = [f"{con.title} ({c})", "", str(rng.choice([
+        f"Here is how I do {c.replace('_', ' ')}.", f"Some worked problems on {con.title.lower()}.",
+        f"Practice for {con.title.lower()} - check your answers below.", "Notes from my own studying."])), ""]
+    for n, (kd, L) in enumerate(plan, 1):
+        p = C.generate(c, rng, L)
+        a, _ = rec.answer(c, p, now, rng)
+        lines += C.write_item(kd, con, p, a, style, n)
     return "\n".join(lines)
