@@ -198,8 +198,14 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
     U = np.zeros(idx.size)
     if not np.any(out.get("view", False)):
         return U
+    letters = w.modules.get("letters")
+    cm = w.modules.get("creators")
+    qa = platform in ("kb", "dev") and f"{platform}_posts" in st.tables
     rng = ctx.rng("pop_social.followup", platform)
     vv, pp = np.nonzero(out["view"])
+    if letters is None and cm is None and not qa:
+        _service_leads(ctx, out, vv, pp, rng)
+        return U
     feed, watch = out["feed"], out["watch"]
     coords = population.interest_coords(w, idx)
     emb = AUD.item_col(w, "emb")
@@ -207,15 +213,21 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
     legib = AUD.item_col(w, "legib")
     wtp = columns.col(w, "pop", "wtp_scale")[idx].astype(np.float64)
     subs_n = columns.col(w, "pop", "soc_letters")[idx].astype(np.int64).copy()
-    letters = w.modules.get("letters")
-    cm = w.modules.get("creators")
     from . import graph
     deciders = set()
     n_sub = n_join = n_vote = n_accept = n_unsub = 0
-    for a, b in zip(vv.tolist(), pp.tolist()):
+    infos = [AUD.info(w, int(feed[a, b])) for a, b in zip(vv.tolist(), pp.tolist())]
+    # does each viewer follow the creator of what it viewed (the one follow graph, one vectorised lookup)
+    def _node(principal):
+        n_ = nodes.node_of(w, principal) if principal is not None else None
+        return -1 if n_ is None else int(n_)
+    src = np.array([_node(ids.pid(int(idx[a]))) for a in vv.tolist()], np.int64)
+    dst = np.array([_node(r["creator"] if r is not None else None) for r in infos], np.int64)
+    fol_all = graph.is_following(w, src, dst) & (src >= 0) & (dst >= 0) if src.size else np.zeros(0, bool)
+    for k_, (a, b) in enumerate(zip(vv.tolist(), pp.tolist())):
         i = int(idx[a])
         item = int(feed[a, b])
-        info = AUD.info(w, item)
+        info = infos[k_]
         if info is None:
             continue
         creator = info["creator"]
@@ -224,9 +236,7 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
             continue
         aff = float(coords[a] @ emb[item].astype(np.float32))
         frac = float(watch[a, b]) / max(float(dur[item]), 1.0)
-        na, nb = nodes.node_of(w, p), nodes.node_of(w, creator)
-        follows = bool(na is not None and nb is not None and graph.is_following(w, np.array([na]),
-                                                                               np.array([nb]))[0])
+        follows = bool(fol_all[k_])
         # newsletters: subscribe to the creator's newsletter
         if letters is not None and platform != "letters":
             nls = [x for x in st.find_ids("newsletters", "owner", creator)]
@@ -258,7 +268,7 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
                     except CrucibleError:
                         pass
         # Q&A: vote on what one read; accept an answer to one's own question that helped
-        if platform in ("kb", "dev") and f"{platform}_posts" in st.tables:
+        if qa:
             cid = info.get("content_id")
             post = st.get(f"{platform}_posts", cid) if cid else None
             if post is not None:
