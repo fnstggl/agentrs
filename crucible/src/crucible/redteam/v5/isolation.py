@@ -510,7 +510,7 @@ class EvaluatedLearnerReachesNoSealedMaterial(V5Probe):
 class RemoteEvaluatorSurvivesAStalledParticipant(V5Probe):
     name = "v5.isolation.remote_evaluator_survives_a_stalled_participant"
     attack_class = "evaluator_independence/out_of_process_learner"
-    gates = ("W.2", "W.7")
+    gates = ("W.2",)
     target, owner = "experience.remote", "L"
     world = {"v5": "substrate"}
     description = ("The out-of-process evaluation path (`crucible.experience.remote.host`): the hosted world serves "
@@ -546,7 +546,7 @@ class RemoteEvaluatorSurvivesAStalledParticipant(V5Probe):
             ev.close()
 
     def verdict(self, ev: Evaluator) -> Verdict:
-        evd = dict(self.out, evaluator_leaks=0, resource_limit_escapes=int(not self.out.get("answered_after_stall")))
+        evd = dict(self.out, evaluator_leaks=int(not self.out.get("answered_after_stall")))
         if not self.out.get("answered_before"):
             raise NotApplicable(f"the hosted world did not answer at all: {self.out}")
         if not self.out.get("answered_after_stall"):

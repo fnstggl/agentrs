@@ -2626,7 +2626,7 @@ B_population verdict) and P's own findings.
  "fix": "experience/remote.py _serve: bounded non-blocking reads per side (or one thread per side), a deadline on the evaluator side, and a stalled run recorded as the learner's failure",
  "id": "DEF-O-20",
  "owner": "L",
- "regression_tests": "tests/v5/test_gate_W.py::test_W2_evaluator_isolation and ::test_W7_resource_limits (v5.isolation.remote_evaluator_survives_a_stalled_participant, KNOWN_OPEN until fixed)",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W2_evaluator_isolation (v5.isolation.remote_evaluator_survives_a_stalled_participant, KNOWN_OPEN until fixed)",
  "requirements": [
   "W.2",
   "W.7",

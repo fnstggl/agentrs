@@ -149,8 +149,8 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_Wn1_independent_adversarial_review"
    ],
-   "status_claim": "met in unofficial runs: 3 reviews (audit + skeptic, wave-3b adversarial review of the merged tree, continued); every closed finding has a held probe (FIXED 31, FIXED_BY_OWNERS 7), every open one a probe (KNOWN_OPEN 8)",
-   "notes": "Wave-3b review: DEF-O-7..9 (time limits, protocol allowance, memo eviction), DEF-P-16; continuation: DEF-O-14..18 (SysV IPC/POSIX mq between worlds, learner processes signalling each other and carrying state, advisory-lock channel, inotify channel, memory files outside the cap and learner directories without quota) - each found by a probe on this branch, fixed, probe holds; 3 instrument holes for N (DEF-O-10..12), 1 for L (DEF-O-13); import-chain regression on the check merge for I-fw/H/D."
+   "status_claim": "met in unofficial runs: 3 reviews (audit + skeptic, wave-3b adversarial review of the merged tree, continued); every closed finding has a held probe (FIXED 31, FIXED_BY_OWNERS 7), every open one a probe (KNOWN_OPEN 9)",
+   "notes": "Wave-3b review: DEF-O-7..9 (time limits, protocol allowance, memo eviction), DEF-P-16; continuation: DEF-O-14..18 (SysV IPC/POSIX mq between worlds, learner processes signalling each other and carrying state, advisory-lock channel, inotify channel, memory files outside the cap and learner directories without quota) - each found by a probe on this branch, fixed, probe holds; 4 for N in all (DEF-O-10..12, DEF-O-19), 2 for L (DEF-O-13, DEF-O-20); import-chain regression on the check merge for I-fw/H/D."
   },
   "SP-16": {
    "implementation_files": [

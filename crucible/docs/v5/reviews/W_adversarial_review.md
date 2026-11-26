@@ -87,7 +87,7 @@ gate fails until N lands them. `LearnerHost` is the fix for DEF-O-10 (shown by t
 
 ## 4. Re-measured earlier claims
 
-Every entry of `suite.FIXED` and `suite.FIXED_BY_OWNERS` (37 after this continuation) holds on this branch; the 8
+Every entry of `suite.FIXED` and `suite.FIXED_BY_OWNERS` (37 after this continuation) holds on this branch; the 9
 `KNOWN_OPEN` entries still report the outcome first observed (owners C, D, G, H, L, O). Re-run in this continuation
 (after the seccomp changes, CPU-only, module by module): sandbox 21, crossworld 8, network 7, isolation 6, commerce 10,
 innovation 7, artifact/cols/asset 6, rapid 2, experience 1, social 5, private 1, population 2 - every probe held except
