@@ -38,7 +38,7 @@ NGRAM = 4
 
 _LOCK = threading.RLock()
 _SVC = {}
-STATS = {"windows": 0, "forward_passes": 0, "tokens": 0}
+_STATS = {"windows": 0, "forward_passes": 0, "tokens": 0}   # run-time counters (private: not a parameter)
 
 
 def device() -> str:
@@ -135,9 +135,9 @@ def analyse(texts: list[str]) -> list[dict]:
             with torch.inference_mode():
                 hidden = model.base_model(input_ids=inp.to(dev), attention_mask=att.to(dev)).last_hidden_state
             with _LOCK:
-                STATS["forward_passes"] += 1
-                STATS["windows"] += len(idx)
-                STATS["tokens"] += int(att.sum())
+                _STATS["forward_passes"] += 1
+                _STATS["windows"] += len(idx)
+                _STATS["tokens"] += int(att.sum())
             head_w = model.get_output_embeddings()
             for r, j in enumerate(idx):
                 ids = rows[j]

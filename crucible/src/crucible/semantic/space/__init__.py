@@ -409,7 +409,7 @@ def stats() -> dict:
     with _LOCK:
         return {"computed": dict(COUNTS["computed"]), "world_hits": COUNTS["world_hits"],
                 "cache_hits": COUNTS["cache_hits"], "recorded_batches": COUNTS["recorded_batches"],
-                "cache": dict(_store.default_cache().stats), "lm": dict(lm.STATS)}
+                "cache": dict(_store.default_cache().stats), "lm": dict(lm._STATS)}
 
 
 __all__ = ["DIM", "SPACE_ID", "SPACE_VERSION", "TOPIC", "AFFECT", "QUANT", "MODALITIES", "item_vector",

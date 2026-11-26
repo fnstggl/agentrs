@@ -452,7 +452,36 @@ def parse_color(c: Any, default=(255, 255, 255)) -> tuple[int, int, int]:
 
 
 def open_image(data: bytes):
-    """Decode an image with Pillow under the pixel limit; returns an RGB image (first frame of animations)."""
+    """Decode an image under the pixel limit; returns an RGB image (first frame of animations).
+
+    The bytes may come from any participant, so Pillow's native decoders never parse them in this process: the
+    image is decoded inside the jail (`crucible.sandbox.isolation.decode_image`: own uid, Landlock, seccomp,
+    rlimits; O.json W.1 / SP-16b) and only the raw pixels come back, from which `Image.frombytes` builds the image
+    without parsing anything (pixel-identical to an in-process decode). Where the jail cannot be applied this fails
+    closed unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1 (then Pillow decodes in-process, as before)."""
+    from PIL import Image
+    from ..sandbox import isolation
+    try:
+        meta = isolation.decode_image(bytes(data), max_pixels=LIMITS.max_pixels, timeout=float(LIMITS.timeout_s))
+    except isolation.JailUnavailable as e:
+        if not isolation.allow_unjailed():
+            raise MediaError(f"untrusted images cannot be decoded here: {e}") from e
+        return _open_image_unjailed(data)
+    if not meta.get("ok"):
+        raise MediaError(f"not a decodable image: {str(meta.get('error', ''))[:160]}")
+    w, h = (int(x) for x in meta["size"])
+    if w * h > LIMITS.max_pixels:
+        raise MediaError(f"image {w}x{h} over the pixel limit")
+    im = Image.frombytes(meta["mode"], (w, h), meta["raw"])
+    if im.mode == "RGBA":
+        bg = Image.new("RGB", im.size, (255, 255, 255))
+        bg.paste(im, mask=im.split()[-1])
+        return bg
+    return im.convert("RGB")
+
+
+def _open_image_unjailed(data: bytes):
+    """In-process Pillow decode (only with CRUCIBLE_ALLOW_UNJAILED_TOOLS=1 where the jail is unavailable)."""
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = LIMITS.max_pixels
     try:

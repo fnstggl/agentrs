@@ -188,3 +188,30 @@ def test_media_work_directories_are_removed():
         else:
             os.environ["CRUCIBLE_MEDIA_TMP"] = old
         os.rmdir(base)
+
+
+def test_images_from_participants_are_decoded_in_the_jail_not_in_this_process():
+    """O.json W.1 / SP-16b: `media.open_image` (used by the image encoder, the shared space and the studio tools)
+    decodes agent-supplied bytes in the jail and builds the image from raw pixels; Pillow's decoders never run in the
+    world process, and the pixels equal an in-process decode."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from crucible.redteam.v5.network import decodes
+    from crucible.semantic import media as M
+    rng = np.random.default_rng(3)
+    cases = []
+    for mode, fmt in (("RGB", "PNG"), ("RGBA", "PNG"), ("P", "GIF"), ("L", "JPEG"), ("LA", "PNG")):
+        im = Image.fromarray(rng.integers(0, 255, (24, 31, 4)).astype(np.uint8), "RGBA").convert(mode)
+        b = io.BytesIO()
+        im.save(b, fmt)
+        cases.append(b.getvalue())
+    with decodes() as d:
+        jailed = [np.asarray(M.open_image(c)) for c in cases]
+    assert d.n == 0
+    for c, a in zip(cases, jailed):
+        assert a.shape == (24, 31, 3) and (a == np.asarray(M._open_image_unjailed(c))).all()
+    with pytest.raises(M.MediaError):
+        M.open_image(b"\x89PNG\r\n\x1a\n not really a png")
