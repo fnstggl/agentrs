@@ -349,7 +349,25 @@ def cam_records(model, ep: SupportEpisode, upto: Optional[int] = None) -> list:
 
 
 @torch.no_grad()
-def cam_predict(stack, episodes: Sequence[SupportEpisode], ks: Sequence[int] = K_SET, chunk: int = 16) -> dict:
+def cam_predict(stack, episodes: Sequence[SupportEpisode], ks: Sequence[int] = K_SET, chunk: int = 16,
+                ablate_fast: bool = False) -> dict:
+    """See `_cam_predict`. ``ablate_fast``: the same trained weights with fast adaptation removed at inference
+    (``cfg.use_fast_adaptation = False``: no belief particles, no Kalman/NIG layer, no belief tokens in the context) -
+    spec 19 ablation 9 evaluated on trained weights (the network was trained with the component)."""
+    if not ablate_fast:
+        return _cam_predict(stack, episodes, ks, chunk)
+    from dataclasses import replace
+    model = stack.model
+    old = model.cfg
+    model.cfg = replace(old, use_fast_adaptation=False)
+    try:
+        return _cam_predict(stack, episodes, ks, chunk)
+    finally:
+        model.cfg = old
+
+
+@torch.no_grad()
+def _cam_predict(stack, episodes: Sequence[SupportEpisode], ks: Sequence[int] = K_SET, chunk: int = 16) -> dict:
     """{(episode index, k): (mean [Q], var [Q])} of CAM Unified's predictive of the next-tick reward of each query.
 
     The support enters through the model's acting-consistent filter (`CamUnifiedModel.filter_sequence`: Z_t =
@@ -373,15 +391,18 @@ def cam_predict(stack, episodes: Sequence[SupportEpisode], ks: Sequence[int] = K
         Zs = filt.Zs
         steps = seq.steps
         dev = Zs[0].device
-        fast = model.beliefs.init_fast(B, device=dev)
-        fast.channels = [{} for _ in range(B)]
+        fast = model.beliefs.init_fast(B, device=dev) if model.cfg.use_fast_adaptation else None
+        if fast is not None:
+            fast.channels = [{} for _ in range(B)]
         kal = model._kalman_on()
         snaps = {}
         with model._autocast():
             for t in range(kmax + 1):
                 if t in ks:
-                    snaps[t] = fast.clone()
-                if t == kmax:
+                    snaps[t] = fast.clone() if fast is not None else None
+                if t == kmax or fast is None:
+                    if fast is None:
+                        snaps.update({k: None for k in ks})
                     break
                 st = steps[t]
                 ob = model.belief_view(st.outcomes)
@@ -407,10 +428,10 @@ def cam_predict(stack, episodes: Sequence[SupportEpisode], ks: Sequence[int] = K
                         tl.append(ep.tools)
                 idx = torch.tensor(rows, dtype=torch.long, device=dev)
                 Z = Zs[k][idx]
-                f = fk.select(idx)
+                f = fk.select(idx) if fk is not None else None
                 A = model.tokenizer.action(acts, tool_lists=tl)
                 dt = model.expected_dt(Z, A, acts, tl)
-                Bt = model.beliefs.tokens(f)
+                Bt = model.beliefs.tokens(f) if f is not None else model.empty_tokens(len(rows))
                 Z_hat, _ = model.world_model.prior(Z, A, Bt, dt, sample=False)
                 specs = [[rspec] for _ in rows]
                 chans = [lookup_channels(f, r, specs[r]) for r in range(len(rows))]

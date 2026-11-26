@@ -172,7 +172,7 @@ def cmd_predict(a) -> None:
     for cond in a.conds.split(","):
         eps = load_support(a.set, cond)
         if a.learner.startswith("cam"):
-            preds = P.cam_predict(st, eps)
+            preds = P.cam_predict(st, eps, ablate_fast=a.ablate_fast)
             get = lambda i, k: (*preds[(i, k)], None)              # noqa: E731
         else:
             pr = load_predictor(a.learner, a.seed)
@@ -428,6 +428,8 @@ def main(argv=None) -> int:
         p.add_argument("--ckpt", default=None); p.add_argument("--seed", type=int, default=0)
         p.add_argument("--tag", default=None)
         p.add_argument("--conds", default="A,C,D" if name == "predict" else "B")
+        if name == "predict":
+            p.add_argument("--ablate-fast", action="store_true", help="trained weights, fast adaptation removed")
         if name == "decide":
             p.add_argument("--imagination", action="store_true")
             p.add_argument("--split", default="all"); p.add_argument("--limit", type=int, default=0)

@@ -94,3 +94,18 @@ def test_cam_predictions_ignore_query_outcomes_and_later_support(sem, dev_tasks)
     assert diff > 1e-2                                                         # k = 8 has seen the changed step
     m, v = base[(0, 4)]
     assert m.shape == (4,) and np.all(v > 0) and np.all(np.isfinite(m))
+
+
+def test_fast_adaptation_ablation_removes_the_belief_path(sem, dev_tasks):
+    """The inference-time ablation (spec 19 ablation 9 on trained weights) really removes fast adaptation: without it
+    the predictive of a query no longer narrows with support through the Kalman layer, and the full model's does."""
+    from superlearner.cam_unified.experiments import stack as S
+    st = S.build_stack(S.experiment_config(), experience=False, train=False, seed=0, sem=sem)
+    eps = P.collect_support(dev_tasks, k_max=8, n_queries=4, design_seed=5, ks=(0, 8))
+    full = P.cam_predict(st, eps, ks=(0, 8))
+    abl = P.cam_predict(st, eps, ks=(0, 8), ablate_fast=True)
+    assert st.model.cfg.use_fast_adaptation                                     # restored afterwards
+    for i in range(len(eps)):
+        assert float(full[(i, 8)][1].mean()) < 0.9 * float(full[(i, 0)][1].mean())   # Kalman narrows with support
+        assert np.all(np.isfinite(abl[(i, 8)][0])) and np.all(abl[(i, 8)][1] > 0)
+        assert not np.allclose(abl[(i, 8)][1], full[(i, 8)][1], rtol=1e-2)
