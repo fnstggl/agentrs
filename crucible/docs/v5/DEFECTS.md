@@ -486,13 +486,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-F-1 (critical, open): Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,00
+### DEF-F-1 (critical, fixed): Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,00
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ 15fa1a0/52dc517 (net MRR: kept factor over current period, 180 days and completed periods; credit from refunded invoices is void); re-verified wave 3b",
  "id": "DEF-F-1",
  "owner": "F (ECON)",
+ "regression_tests": "tests/v5/test_gate_K.py::test_K3_refunds (k3_ninety_nine_percent_refund_collusion_fails_objective, k3_refund_after_each_period_does_not_recur), ::test_K1_subscriptions (k1_superseded_refund_voids_carried_credit, k1_credit_from_refunded_invoice_cannot_pay_renewals)",
  "requirements": [
   "K.n1"
  ],
@@ -502,18 +504,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,000); K.n1 objective met on day 1 (only full refunds clear period_paid, subscriptions.py:298)."
 }
 ```
 
-### DEF-F-2 (critical, open): F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circ
+### DEF-F-2 (critical, fixed): F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circ
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ 15fa1a0 (escrow releases of commit and inst projects attributed to their payer and netted); wave 3b: commitments are contracts with an escrow clause, multi-agent collusion through institutions and escrow measured (SP-6.6b)",
  "id": "DEF-F-2",
  "owner": "F (ECON)",
+ "regression_tests": "tests/v5/test_gate_K.py::test_K7_circular_and_related_detection (commitment_payout, project_reward), tests/v5/test_gate_SP_6_6b.py::test_SP_6_6b_collusion_through_institutions_and_escrow",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -521,18 +525,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circular-flow netting: payer not flagged, MRR counted; plain transfer is flagged."
 }
 ```
 
-### DEF-F-3 (critical, open): Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through chart
+### DEF-F-3 (critical, fixed): Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through chart
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ 15fa1a0/febea24 (integrity-based metrics registered without a subject; booked metrics for in-world use; oracle attempts refused)",
  "id": "DEF-F-3",
  "owner": "F (ECON)",
+ "regression_tests": "tests/v5/test_gate_SP_6_6.py::test_SP_6_6_adaptable_institutions_within_stable_constraints (charter condition and commitment predicate on evaluator MRR refused)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -540,18 +546,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through charter conditions/commitment predicates: exact evaluator MRR recovered in 14 queries."
 }
 ```
 
-### DEF-F-4 (critical, open): MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-e
+### DEF-F-4 (critical, fixed): MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-e
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ 15fa1a0/52dc517 (proportional payer weights without the FLAG_SHARE cliff; cancel-at-period-end is scheduled churn, excluded from qualifying MRR)",
  "id": "DEF-F-4",
  "owner": "F (ECON)",
+ "regression_tests": "tests/v5/test_gate_K.py::test_K2_cancellations (k2_annual_cancellations_are_scheduled_churn_at_once), ::test_K7_circular_and_related_detection (rebate scheme), tests/v5/test_gate_SP_6_2.py (f_subscription_validity)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -559,18 +567,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-end annual plans for up to a year."
 }
 ```
 
-### DEF-F-5 (critical, open): Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue
+### DEF-F-5 (critical, fixed): Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ + c5c/w3-intfix (commerce installed in startup worlds and civilisations; demand from the population) and c5c/w3b-econ1 (marketplaces, labour market and institutions active in civilisations through population activities; passes are one-time sales; rolling sales never recurring, measured). The 4.0 `revenue` goal family and household pool remain only in 4.0 families (no v5 world installs consumers/shoppers); v5 objectives use commerce.objective (qualifying MRR)",
  "id": "DEF-F-5",
  "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_civic.py, tests/test_v5_econ_work.py, tests/v5/test_gate_SP_6_2.py::test_SP_6_2_genuine_recurring_revenue (rolling_sales_counted_as_recurring), tests/v5/test_gate_K.py::test_Kn1_reference_strategy_reaches_feasible_arr_objective",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -578,18 +588,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue' goal family uses rolling 30-day independent_revenue; 4.0 household-pool revenue is invisible to F1 metrics."
 }
 ```
 
-### DEF-F-6 (critical, open): Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; 
+### DEF-F-6 (critical, fixed): Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; 
 
 ```json
 {
  "area": "F_commerce",
+ "fixed_by": "c5c/w2-econ 1de3545 (demand from the one population's work activities; adaptive incumbents by labelled rules; search ads, word of mouth, forum) and c5c/w3b-econ1 (display campaigns through the fitted ad_response@2 with randomised eligibility; exchanges as a channel). The default experience reward is observation_only (workstream L, experience.modes.check_mode(None))",
  "id": "DEF-F-6",
  "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_civic.py::test_display_campaigns_randomise_eligibility_and_record_ad_response_decisions, tests/test_v5_econ_work.py::test_demand_comes_from_population_individuals_paying_their_own_money, tests/v5/test_gate_SP_6_1b.py::test_SP_6_1b_revenue_tracks_measured_value",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -597,7 +609,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/F_commerce.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; static incumbents; default experience reward is cash-delta legacy_shaped_reward."
 }
 ```

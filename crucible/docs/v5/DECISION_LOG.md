@@ -265,3 +265,52 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-39 The population's economic life beyond work: exchanges, the labour market and institutions (2026-11-26, workstream F, wave 3b)
+INT found marketplaces, employment and institutions inert in every civilisation (no population activity). They now
+carry continuing activity through the ONE population's own sessions, registered by `economy.work` (which every
+civilisation and startup world already installs) only where the subsystem's module is present, so no world gains a
+second population and no civ recipe change is needed:
+* marketplaces - individuals who shop also browse participant-run exchanges (`xchg`) for passes (term licences) of
+  services that serve their task, weigh the venue's public buyer protection, buy with their own money and dispute
+  bad passes; a population world founds two venues at genesis (world generation, one with a labelled buyer-first
+  operating rule); incumbents list passes by a labelled rule (`rivals`);
+* employment - individuals without an employer register in the labour market (`labor`), apply, negotiate and sign
+  employment contracts (salary paid monthly by `contracts` from the employer's account to theirs) and work shifts
+  on the employer's support queue; incumbents hire support staff when tickets back up (labelled rule). The
+  employment fact of such a job lives in `contracts.contracts` (the employment owner); the population's own
+  exogenous `employer` column is unchanged (its migration to a cache of contracts is CORE-POP's, facts.py
+  KNOWN_DUPLICATES); a worker profile of an individual holds labour-market state only, never skill levels;
+* institutions - individuals found, join, pay dues into, claim from, vote in, amend and leave mutual-aid
+  associations (`inst.found`, `inst.pay_dues`, decisions under the charter).
+All their decisions are recorded with decision provenance (`work.jobs@1` FR-WORK-2, `work.assoc@1` FR-WORK-3,
+`work.value@1` FR-WORK-1) inside the population's sessions (organic under `population.check_provenance`). Rules out:
+scripted buyers, stand-in workers or genesis-created memberships.
+
+## D-40 SP-2.3 migrations of the institution and contract primitives (2026-11-26, workstream F, wave 3b)
+As docs/v5/workstreams/A.json integration_notes specify: `primitives.OWNERS["institution"]` is `inst.inst_charters`
+(was 4.0 `gov.constitutions`); in a world with `inst`, the 4.0 `gov` module writes through it (a constitution is a
+translated charter - rules to procedures, distribution to the new charter field `profit_sharing`, paid by
+`inst.distribute`; gov proposals and votes are inst decisions and ballots; `effort` reads the charter), and the four
+gov tables are `legacy` entries (empty wherever `inst` is installed; verified by
+tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters). 4.0 worlds (no `inst`) are
+unchanged. Every `commit` commitment is now a `contracts.contracts` record with an `escrow` clause naming it (only
+the instrument module can write that clause), signed by both parties when the terms are accepted and ended with the
+commitment (completed / breached by the payee / cancelled); `commit.commitments` is a `part` of contracts (its escrow
+details). Both kinds leave the known-duplicate allow-list. Approximation stated in
+`commerce.institutions.charter_from_constitution`: a 4.0 vote counted yes against the whole electorate, a charter
+procedure counts the votes cast against its quorum.
+
+## D-41 Display advertising on the population with randomised eligibility (2026-11-26, workstream F, wave 3b)
+The in-world advertising mechanism is `ad_response@2` (calibration/RUNTIME.md), applied to display campaigns shown in
+the population's working sessions (`work.display_campaign` on an `ads` campaign of kind `display`, which keeps it out
+of search results). The platform assigns every audience member once per campaign, at random with probability
+`display_holdout` (0.2), to a holdout never shown the campaign; once per individual and 7-day period it draws the
+visit from the individual's own organic visit probability (from `work`'s discovery rules, FR record
+`work.display_organic`) and attention 1 when displayed (no attention model is registered for these slots:
+`work.display_attention`, the runtime's reference A_ref = 1). Decisions are recorded per arm with
+`extra.experiment = {"id": "ad_holdout", "arm": ...}` for `calibration.inworld.ad_holdout_experiment`. Because
+attention is the reference value, an in-world re-estimate matching Criteo checks the mechanism (randomisation,
+compliance, recording), not attention. The incremental conversion ratio is not applied: conversion is the world's
+value-based purchase decision. Incumbents run display campaigns by a labelled rule, off in the K.n1 startup template
+so the reference strategy's feasibility evidence stays comparable.
