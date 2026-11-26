@@ -22,7 +22,15 @@ What is measured where (this checkout):
 * K - the civilisation's own subscription economy (the population's subscriptions to ECON's incumbents) measured with
   `crucible.commerce.revenue` / `integrity`; the scripted scenario batteries of K.1-K.3, K.7 and the reference
   strategy K.n1/K.n2 are not run on a civilisation.
-* D, E, G, H, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
+* D - Gate D's battery on a civilisation (`d_battery`): the civilisation's posts and blog platforms carry Gate D's
+  evaluator-side mixtures (`crucible.social.experiments.GATE_D_POP`: a scheduled change on posts at day 3, a blog
+  platform that reweights its own mixture from its measured feedback), every other platform keeps the
+  civilisation's own; a persistent 4-day run with the invariants checked every 15 minutes, one arm per registered
+  recommender forked at day 2 (both platforms distributing with that recommender alone for one day), the
+  counterfactual fork of the pre-change state, and the hidden-parameter probes of a participant and a creator. The
+  formulas are those of tests/v5/test_gate_D.py on the helpers it uses (`crucible.social.experiments`,
+  `crucible.social.audience`).
+* E, G, H, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
 """
 from __future__ import annotations
 
@@ -38,10 +46,8 @@ GATES = ("B", "C", "D", "E", "G", "H", "J", "K", "L", "Q")
 CREATION = {"profile": "balanced", "seed": 3, "days": 26, "saas_day": 8}
 ARMS = ("factual", "no_saas", "no_novelty", "garbage")
 AUTONOMOUS = {"profile": "balanced", "seed": 71, "days": 30}
+D_RUN = {"profile": "balanced", "seed": 13, "switch_day": 3}
 NOT_MEASURED = {
-    "D": "the recommender battery of Gate D (distinct recommenders end to end, controlled algorithm changes, hidden "
-         "parameter probes) is run on social worlds; a civilisation runs one mixture per platform and no controlled "
-         "recommender arms",
     "E": "Gate E's encoder battery is world-independent and its E.3 probe is a reading world; no controlled artifact "
          "pairs are planted into a civilisation's platforms",
     "G": "the civilisation's development population has 32 adaptive and 8 strategic individuals; G.1/G.2 need 256 "
@@ -371,13 +377,285 @@ def _k_metrics(w) -> dict:
     return out
 
 
+# --------------------------------------------------------------------------------------------- D
+def _d_checks(world):
+    errs = world.check_invariants()
+    return {"aud": [e for e in errs if e.startswith("aud:")],
+            "attention": [e for e in errs if "attention" in e],
+            "other": [e for e in errs if not e.startswith("aud:") and "attention" not in e]}
+
+
+def _chi2(counts_a, counts_b) -> float:
+    """p-value of a chi-square test of homogeneity of two count vectors (categories with tiny counts pooled) - the
+    formula of tests/v5/test_gate_D.py."""
+    import numpy as np
+    from scipy import stats
+    tab = np.stack([counts_a, counts_b]).astype(np.float64)
+    tot = tab.sum(0)
+    keep = tot >= 10
+    small = tab[:, ~keep].sum(1, keepdims=True)
+    tab = np.concatenate([tab[:, keep], small], axis=1) if small.sum() > 0 else tab[:, keep]
+    tab = tab[:, tab.sum(0) > 0]
+    if tab.shape[1] < 2:
+        return 1.0
+    return float(stats.chi2_contingency(tab)[1])
+
+
+def d_overrides(profile: str, seed: int) -> dict:
+    """The civilisation's own feed configuration with Gate D's mixtures on its posts and blog platforms."""
+    import copy
+    from ..social import experiments as X
+    from . import generator
+    plats = copy.deepcopy(generator.recipe(profile, seed)["modules"]["feed"]["platforms"])
+    for p, cfg in X.GATE_D_POP.items():
+        plats[p] = copy.deepcopy(cfg)
+    return {"module_config": {"feed": {"platforms": plats}}}
+
+
+def d_battery(p: dict | None = None) -> dict:
+    """Gate D's five requirements measured on one civilisation (see the module docstring)."""
+    import itertools
+    import numpy as np
+    import torch
+    from scipy import stats
+    torch.set_num_threads(1)
+    from ..core.kernel import World
+    from ..social import audience as AUD, experiments as X
+    from ..social.recsys import REGISTRY
+    from ..substrate import attention, columns, ids
+    from . import generator
+    p = {**D_RUN, **(p or {})}
+    sw = int(p["switch_day"]) * DAY
+    t0 = time.time()
+    w = generator.generate(p["profile"], p["seed"], overrides={**d_overrides(p["profile"], p["seed"]),
+                                                              "params": {"log_retain": 8_000_000}})
+    checks = X.run(w, 2 * DAY, check=_d_checks)
+    day2, day2_seq = w.snapshot_blob(), w.seq
+    checks += X.run(w, sw - 900, check=_d_checks)
+    pre, pre_seq = w.snapshot_blob(), w.seq
+    checks += X.run(w, sw + DAY, check=_d_checks)
+    out: dict = {}
+    # D.1 / D.2: one arm per registered recommender from the day-2 state
+    arms = {}
+    for name in sorted(REGISTRY):
+        a = World.from_blob(day2, world_id=f"civ-D-arm-{name}", fork=True)
+        for plat in X.GATE_D_POP:
+            a.system_call("feed.set_adapt", {"platform": plat, "enabled": False})
+            X.set_mixture(a, plat, [{"name": name, "weight": 1.0}])
+        s0 = a.seq
+        X.run(a, 3 * DAY)
+        imp = X.decision_rows(a, "imp", s0)
+        con = X.decision_rows(a, "consume", s0)
+        rec = {"imp_items": imp["item"], "exposure": X.pair_keys(a, imp), "views": int(con["is_view"].sum())
+               if con["item"].size else 0, "n_imp": int(imp["item"].size), "n_items": int(AUD.n_items(a))}
+        rec["view_items"] = con["item"][con["is_view"]] if con["item"].size else np.zeros(0, np.int64)
+        if name in ("interest", "trending") and con["item"].size:
+            m = con["is_view"]
+            u = columns.col(a, "pop", "interests")[con["viewer"][m]].astype(np.float64)
+            e = columns.col(a, AUD.ITEMS, "emb")[con["item"][m]].astype(np.float64)
+            rec["affinity"] = np.einsum("nd,nd->n", u, e)
+        arms[name] = rec
+        a.close()
+    ok = [n for n, a in arms.items() if a["n_imp"] > 0 and a["views"] > 0]
+    pairs = {f"{a}|{b}": X.jaccard(arms[a]["exposure"], arms[b]["exposure"]) for a, b in itertools.combinations(ok, 2)}
+    chosen = []
+    for n in ok:
+        if all(X.jaccard(arms[n]["exposure"], arms[m]["exposure"]) <= 0.8 for m in chosen):
+            chosen.append(n)
+    sub = [X.jaccard(arms[a]["exposure"], arms[b]["exposure"]) for a, b in itertools.combinations(chosen, 2)]
+    out["D.1"] = {"distinct_recommenders_end_to_end": len(chosen),
+                  "max_pairwise_exposure_overlap": round(max(sub) if sub else 1.0, 4),
+                  "registered_recommenders": len(REGISTRY), "recommenders_end_to_end": len(ok),
+                  "mechanisms": ",".join(chosen),
+                  "impressions_per_arm_min": min((a["n_imp"] for a in arms.values()), default=0),
+                  "views_per_arm_min": min((a["views"] for a in arms.values()), default=0)}
+    A, B = arms.get("interest"), arms.get("trending")
+    if A and B and A["n_imp"] and B["n_imp"]:
+        ni = max(A["n_items"], B["n_items"])
+        p_exp = _chi2(np.bincount(A["imp_items"], minlength=ni), np.bincount(B["imp_items"], minlength=ni))
+        p_con = _chi2(np.bincount(A["view_items"], minlength=ni), np.bincount(B["view_items"], minlength=ni))
+        out["D.2"] = {"recommender_exposure_difference_pvalue": p_exp,
+                      "recommender_consumption_difference_pvalue": p_con,
+                      "viewed_affinity_difference_pvalue": float(stats.mannwhitneyu(A["affinity"], B["affinity"]).pvalue)
+                      if A.get("affinity") is not None and B.get("affinity") is not None and A["affinity"].size and
+                      B["affinity"].size else 1.0,
+                      "impressions_a": A["n_imp"], "impressions_b": B["n_imp"], "views_a": A["views"],
+                      "views_b": B["views"]}
+    else:
+        out["D.2"] = "the interest or trending arm recorded no impressions in the civilisation"
+
+    # D.3: the scheduled change (posts) and the blog's own reweighting vs the counterfactual of the pre-change state
+    def ages(world, rows):
+        pub = columns.col(world, AUD.ITEMS, "published_at")[rows["item"]]
+        return np.histogram((rows["t"] - pub) / 3600.0, bins=[-1, 3, 6, 12, 24, 48, 96, 1e9])[0]
+    rows = X.decision_rows(w, "imp", pre_seq, platform="posts")
+    after = {k: v[rows["t"] >= sw] for k, v in rows.items()}
+    cf = World.from_blob(pre, world_id="civ-D-cf", fork=True)
+    X.set_mixture(cf, "posts", X.GATE_D_POP["posts"]["recommenders"])
+    cf.system_call("feed.set_adapt", {"platform": "blog", "enabled": False})
+    s0 = cf.seq
+    X.run(cf, sw + DAY)
+    crows = X.decision_rows(cf, "imp", s0, platform="posts")
+    cafter = {k: v[crows["t"] >= sw] for k, v in crows.items()}
+    p_shift = _chi2(ages(w, after), ages(cf, cafter))
+    brows = X.decision_rows(w, "imp", pre_seq, platform="blog")
+    cbrows = X.decision_rows(cf, "imp", s0, platform="blog")
+    p_self = _chi2(np.bincount(brows["src"][brows["t"] >= sw], minlength=len(AUD.SOURCES)),
+                   np.bincount(cbrows["src"][cbrows["t"] >= sw], minlength=len(AUD.SOURCES))) \
+        if brows["item"].size and cbrows["item"].size else 1.0
+    changes, selfc = X.mixture_changes(w), X.self_changes(w)
+    out["D.3"] = {"algorithm_changes_during_run": int(changes),
+                  "post_change_exposure_shift_pvalue": max(p_shift, p_self),
+                  "scheduled_change_exposure_shift_pvalue": p_shift, "self_adaptation_changes": int(selfc),
+                  "self_adaptation_exposure_shift_pvalue": p_self,
+                  "post_change_impressions_changed": int(after["item"].size),
+                  "post_change_impressions_counterfactual": int(cafter["item"].size)}
+    cf.close()
+
+    # D.4: hidden-parameter probes by a participant and a creator (the probes of tests/v5/test_gate_D.py)
+    out["D.4"] = _d_probes(World.from_blob(w.snapshot_blob(), world_id="civ-D-probe", fork=True))
+
+    # D.5: exposure and attention accounting over the persistent run
+    aud_viol = sum(len(c["aud"]) for c in checks)
+    att_viol = sum(len(c["attention"]) for c in checks)
+    rc = AUD.recount(w)
+    budget = columns.col(w, "pop", "attention_budget_min").astype(np.float64)
+    spent = columns.col(w, "pop", "attention_spent_min").astype(np.float64)
+    over_now = int(np.sum(spent > budget * (1 + attention.REL_TOL) + attention.ABS_TOL))
+    con = X.decision_rows(w, "consume", 0)
+    watch_over = 0
+    if con["item"].size:
+        key = (con["t"] // DAY) * AUD.n_people(w) + con["viewer"]
+        uk, inv = np.unique(key, return_inverse=True)
+        watched_min = np.bincount(inv, weights=con["watch_s"]) / 60.0
+        watch_over = int(np.sum(watched_min > budget[uk % AUD.n_people(w)] * (1 + 1e-5) + 1e-3))
+    out["D.5"] = {"exposure_invariant_violations": int(aud_viol + rc["total_mismatches"] +
+                                                       rc["views_without_prior_exposure"]),
+                  "attention_overspend_events": int(att_viol + over_now + watch_over),
+                  "invariant_checks": len(checks), "impression_rows": int(rc["impression_rows"]),
+                  "consumption_rows": int(rc["consumption_rows"]),
+                  "other_invariant_violations": sum(len(c["other"]) for c in checks)}
+    out["_run"] = {"events": w.seq, "proc_failed": sum(1 for e in w.log if e.type == "proc.failed"),
+                   "pairs": {k: round(v, 3) for k, v in pairs.items()}, "wall_s": round(time.time() - t0, 1)}
+    w.close()
+    return json.loads(json.dumps(out, default=str))
+
+
+_CONTENT_KEYS = {"title", "text", "tags", "data_b64", "body", "name", "subject", "description", "snippet"}
+
+
+def _strip_content(obj):
+    if isinstance(obj, dict):
+        return {k: _strip_content(v) for k, v in obj.items() if k not in _CONTENT_KEYS}
+    if isinstance(obj, (list, tuple)):
+        return [_strip_content(v) for v in obj]
+    return obj
+
+
+def _d_probes(w) -> dict:
+    """D.4 on a fork of the civilisation: every feed/aud tool, tool discovery, observation, visible events, the
+    artifact tools on model and decision blobs, and creator analytics, by one participant and one creator; a leak is
+    any of Gate D's evaluator-only markers (`crucible.social.experiments.SECRET_MARKERS`) in a result outside what
+    participants wrote, or a readable internal record."""
+    from ..social import audience as AUD, experiments as X
+    from ..substrate import ids
+    markers = X.SECRET_MARKERS
+    probes, leaks, detail = 0, 0, []
+
+    def scan(obj):
+        s = json.dumps(_strip_content(obj), sort_keys=True, default=str)
+        return [m for m in markers if m in s]
+
+    def probe(name, res_or_fn):
+        nonlocal probes, leaks
+        probes += 1
+        try:
+            res = res_or_fn() if callable(res_or_fn) else res_or_fn
+        except Exception as e:  # noqa: BLE001 - a refusal is a non-leak; its message is scanned too
+            res = {"error": str(e)}
+        hit = scan(res)
+        if hit:
+            leaks += 1
+            detail.append(f"{name}: {hit}")
+    info = w.state.tables["aud_item_info"]
+    creators = sorted({r["creator"] for r in info.values() if ids.index(r["creator"]) is not None},
+                      key=lambda q: ids.index(q))
+    if not creators:
+        w.close()
+        return "no population creator published on the civilisation's platforms"
+    creator = creators[0]
+    viewer_i = next(i for i in range(AUD.n_people(w)) if ids.pid(i) not in set(creators))
+    w._run_system("probe.principal", lambda ctx: ids.ensure_principal(ctx, viewer_i))
+    viewer = ids.pid(viewer_i)
+    my_item = int(w.state.find_ids("aud_item_info", "creator", creator)[0])
+    for actor in (viewer, creator):
+        r = w.execute(actor, {"tool": "feed.home", "args": {"platform": "posts", "k": 10}})
+        probe(f"{actor} feed.home", r.to_dict())
+        items = [x["item"] for x in (r.result or {}).get("items", [])]
+        probe(f"{actor} feed.platforms", w.execute(actor, {"tool": "feed.platforms", "args": {}}).to_dict())
+        probe(f"{actor} feed.search", w.execute(actor, {"tool": "feed.search", "args": {
+            "platform": "blog", "q": "garden soil"}}).to_dict())
+        if items:
+            probe(f"{actor} feed.watch", w.execute(actor, {"tool": "feed.watch", "args": {
+                "item": items[0], "seconds": 40, "share": True}}).to_dict())
+            probe(f"{actor} aud.item", w.execute(actor, {"tool": "aud.item", "args": {"item": items[0]}}).to_dict())
+        probe(f"{actor} feed.open", w.execute(actor, {"tool": "feed.open", "args": {"item": my_item}}).to_dict())
+        probe(f"{actor} set_mixture refused", w.execute(actor, {"tool": "feed.set_mixture", "args": {
+            "platform": "posts", "recommenders": [{"name": "random"}]}}).to_dict())
+        probe(f"{actor} describe feed", w.execute(actor, {"tool": "world.describe", "args": {"host": "feed"}})
+              .to_dict())
+        probe(f"{actor} describe aud", w.execute(actor, {"tool": "world.describe", "args": {"host": "aud"}}).to_dict())
+        if "world.find_tools" in w.endpoints:
+            probe(f"{actor} find_tools", w.execute(actor, {"tool": "world.find_tools", "args": {
+                "query": "recommendation algorithm weights parameters"}}).to_dict())
+        probe(f"{actor} observe", w.observe(actor))
+        evs, _ = w.visible_events(actor, 0, limit=10 ** 7)
+        vis_types = sorted({e.type for e in evs})
+        probe(f"{actor} visible event payloads", [e.payload for e in evs if e.type.startswith(("feed.", "aud."))])
+        probes += 1
+        if any(t in vis_types for t in ("feed.model", "feed.mixture", "feed.mixture_set", "aud.impressed",
+                                        "aud.consumed")):
+            leaks += 1
+            detail.append(f"{actor} sees internal distribution events")
+        refs = [r_["ref"] for r_ in w.state.tables["feed_models"].values()] + [b["ref"] for b in AUD.batches(w)[:5]]
+        for ref in refs[:6]:
+            probes += 1
+            if w.execute(actor, {"tool": "artifact.get", "args": {"ref": ref}}).ok:
+                leaks += 1
+                detail.append(f"{actor} read system blob {ref}")
+        probes += 1
+        r = w.execute(actor, {"tool": "artifact.list", "args": {"owner": "sys"}})
+        probe(f"{actor} artifact.list sys", r.to_dict())
+        if r.ok and r.result.get("total"):
+            leaks += 1
+            detail.append(f"{actor} lists system artifacts")
+    a1 = w.execute(creator, {"tool": "aud.analytics", "args": {"item": my_item}})
+    a2 = w.execute(creator, {"tool": "aud.analytics", "args": {"item": my_item}})
+    probe("creator analytics", a1.to_dict())
+    probes += 1
+    if a1.ok and a2.ok and a1.result != a2.result:
+        leaks += 1
+        detail.append("analytics noise differs between repeated queries (averageable)")
+    probes += 1
+    other = next((int(i) for i in info if info[i]["creator"] != creator), None)
+    if other is not None and w.execute(creator, {"tool": "aud.analytics", "args": {"item": other}}).ok:
+        leaks += 1
+        detail.append("creator read another creator's analytics")
+    probe("creator mine", w.execute(creator, {"tool": "aud.mine", "args": {}}).to_dict())
+    w.close()
+    return {"hidden_parameter_probes": probes, "hidden_parameter_leaks": leaks, "leak_detail": detail[:10],
+            "markers_searched": len(markers), "probe_actors": 2}
+
+
 # --------------------------------------------------------------------------------------------- all gates
 def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | None = None) -> dict:
     t = time.time()
     A = creation_arms(creation, workers=workers)
     jm, lm = j_metrics(A), l_metrics(A)
     au = autonomous_run(autonomous)
-    measured = {"J": {k: v for k, v in jm.items() if not k.startswith("_")},
+    dm = d_battery()
+    measured = {"D": {k: v for k, v in dm.items() if k.startswith("D.")},
+                "J": {k: v for k, v in jm.items() if not k.startswith("_")},
                 "L": {k: v for k, v in lm.items() if not k.startswith("_")},
                 "B": {k: v for k, v in au.items() if k.startswith("B.")},
                 "C": {k: v for k, v in au.items() if k.startswith("C.")},
@@ -388,6 +666,7 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
             "partial_world_only_gates": len(GATES) - len(held),
             "creation_runs": {a: {k: A[a][k] for k in ("events", "proc_failed", "invariants", "wall_s")} for a in A},
             "j_rows": jm["_rows"], "l_effects": lm["_effects"], "autonomous_run": au.get("_run"),
+            "d_run": dm.get("_run"),
             "wall_s": round(time.time() - t, 1)}
 
 
@@ -398,7 +677,10 @@ def _main(argv) -> int:
         with open(path, "w") as fh:
             json.dump(r, fh)
         return 0
-    print("usage: python -m crucible.civ.redemo arm <seed> <arm> <profile> <days> <saas_day> <out.json>")
+    if argv and argv[0] == "D":
+        print(json.dumps(d_battery(), indent=1, default=str)[:20000])
+        return 0
+    print("usage: python -m crucible.civ.redemo arm <seed> <arm> <profile> <days> <saas_day> <out.json> | D")
     return 2
 
 
