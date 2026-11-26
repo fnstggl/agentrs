@@ -471,6 +471,31 @@ def _freight_obs(world, nodes) -> dict:
     return out
 
 
+def _org_relations(world) -> list[dict]:
+    """Organisations' coordination load (the civilisation's `org_coordination` coupling, crucible.civ.couplings):
+    an organisation running production with operators requires coordination; the share of its operator hours lost
+    to coordination overhead (which grows with headcount, halved by running workflows) is the requirement's time
+    share; its members are the holders, and they rely on a coordination tool when it runs workflows."""
+    st = world.state
+    if world.modules.get("civlinks") is None or "facilities" not in st.tables:
+        return []
+    from ..civ import couplings as CP
+    if not CP.active(world, "org_coordination"):
+        return []
+    out = []
+    for org in sorted({f["owner"] for _, f in st.scan("facilities") if f["owner"]}):
+        n = CP.headcount(world, st, org)
+        if n < 2:
+            continue
+        share = 1.0 - CP.coordination_factor(world, st, org)
+        members = sorted({m["person"] for m in st.find("members", "org", org)} | {org})
+        flows = st.find_ids("wf_flows", "owner", org) if "wf_flows" in st.tables else []
+        out.append(rel(f"activity/operations:{org}", "activity", "requires", "capability/coordination", "capability",
+                       obs={"time_share": round(share, 4), "holders": members,
+                            "relied_holders": members if flows else [], "operators": n}))
+    return out
+
+
 register_provider("work", _work_relations)
 register_provider("cloud", _cloud_relations)
 register_provider("caps", _caps_relations)
@@ -481,6 +506,7 @@ register_observable("resource", _cloud_obs)
 register_observable("service", _cloud_obs)
 register_provider("compute_market", _compute_market_relations)
 register_provider("freight", _freight_relations)
+register_provider("orgs", _org_relations)
 register_observable("compute_market", _compute_market_obs)
 register_observable("transport_link", _freight_obs)
 register_observable("carrier", _freight_obs)

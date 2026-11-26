@@ -528,8 +528,9 @@ LISTED = ("workflow_change", "transport_market_access", "coordination", "content
           "education_skill_availability")
 EXTRA = ("reliability_bottleneck", "computing_demand")
 NOT_LIVE = {
-    "coordination": "no module models organisational coordination load (organisations' size, overhead or "
-                    "coordination failures are not world state), so the graph has nothing to read",
+    "coordination": "the coupling org_coordination makes coordination overhead world state (provider `orgs` reads "
+                    "it: the share of operator hours lost, 1 - 1/(1 + k (n - 1))), but operator headcounts are fixed at "
+                    "genesis (labour is inert in civilisations: nobody hires), so the overhead never grows into a need",
     "content_communities_tools": "communities hold no tool requirement or moderation load the population produces "
                                  "(population members join, leave and post; nobody reports or moderates)",
     "education_skill_availability": "the education module (domains/learning.py) is inert in civilisations (learn n=0), "

@@ -63,3 +63,27 @@ def test_freight_links_are_read_off_the_network_and_congestion_labels_a_transpor
     assert not [n for n in R.label(w) if n["path"][0]["provider"] == "freight" and
                 obs[n["path"][0]["dst"]]["utilisation"] < R.THRESHOLDS["scarce"] and
                 obs[n["path"][0]["dst"]]["refused_share"] < R.THRESHOLDS["refused"]]
+
+
+def test_coordination_overhead_of_organisations_is_read_off_the_coupling():
+    """Provider `orgs`: an organisation's coordination requirement carries the share of operator hours the
+    civilisation's org_coordination coupling takes (1 - coordination_factor), for its members."""
+    from crucible.civ import couplings as CP
+    from crucible.innovation import inventworld as IW
+    w = IW.generate("balanced", 3)
+    try:
+        st = w.state
+        E = [e for e in R.graph(w) if e["provider"] == "orgs"]
+        assert E
+        for e in E:
+            org = e["src"].split(":", 1)[1]
+            o = e["attrs"]["obs"]
+            assert e["rel"] == "requires" and e["dst"] == "capability/coordination"
+            assert abs(o["time_share"] - (1 - CP.coordination_factor(w, st, org))) < 1e-4
+            assert o["operators"] == CP.headcount(w, st, org) and org in o["holders"]
+        # below the generic bottleneck threshold nothing is labelled; at a lower one the same rule labels it
+        assert not [n for n in R.label(w) if n["path"][0]["provider"] == "orgs"]
+        low = min(e["attrs"]["obs"]["time_share"] for e in E)
+        assert [n for n in R.label(w, {"bottleneck": low}) if n["path"][0]["provider"] == "orgs"]
+    finally:
+        w.close()
