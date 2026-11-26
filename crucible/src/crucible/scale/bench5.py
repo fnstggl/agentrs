@@ -14,7 +14,7 @@ blobs are compacted by workstream A's retention after every day (crucible.substr
 | peak VRAM | torch's peak reserved memory when the process initialised CUDA (0.0 measured otherwise) |
 | model parameter counts | counted on the loaded objects: the shared class-2 policies, class-3 policy groups, the shared-space encoders and language model, the semantic service when loaded |
 | inference token counts | tokens the shared space's language model scored, items each encoder computed, recorded inference calls by kind, generated tokens of the semantic service |
-| event storage growth | store bytes (events + blobs + snapshots) per simulated day and per individual-day, raw (before compaction) and resident (after) |
+| event storage growth | bytes per simulated day and per individual-day: raw = event rows as the store holds them (read with one SQL aggregate per day, outside the measured CPU) + array-blob bytes written (before compaction); resident = store growth after compaction and VACUUM |
 | snapshot size | bytes and seconds of `World.snapshot_blob()` at the end; a fork from it must have the same state digest |
 | world-generation cost | wall and CPU seconds, events and RSS of `World.create` |
 | approximation error | from crucible.scale.approx (the estimated large-population mode against individual simulation) |
@@ -88,8 +88,9 @@ def peak_vram_mb() -> tuple[float, bool]:
 class EventCounter:
     """A world listener counting what a run records (observers never change a trajectory)."""
 
-    def __init__(self):
-        self.types = Counter()
+    def __init__(self, count_bytes: bool = True):
+        self.count_bytes = bool(count_bytes)   # canonical bytes per event (costs as much as the kernel's hashing:
+        self.types = Counter()                 # benchmark runs measure event bytes from the store instead)
         self.batches = Counter()
         self.decisions = 0
         self.decisions_by = Counter()
@@ -107,7 +108,8 @@ class EventCounter:
 
     def __call__(self, ev) -> None:
         self.types[ev.type] += 1
-        self.event_bytes += len(self._cb(ev.body()))
+        if self.count_bytes:
+            self.event_bytes += len(self._cb(ev.body()))
         if ev.vis == "public":
             self.public += 1
             self.public_kinds[ev.type] += 1
@@ -263,6 +265,17 @@ def batching(w, ec: EventCounter) -> dict:
     return out
 
 
+def stored_event_bytes(store, world_id: str, seq_from: int, seq_to: int) -> int:
+    """Bytes of the events seq_from < seq <= seq_to as the store holds them (every column of the row; payloads above
+    the store's threshold are zlib-compressed there), read with one SQL aggregate."""
+    c = store._conn()
+    r = c.execute("SELECT COALESCE(SUM(LENGTH(type) + LENGTH(COALESCE(actor, '')) + LENGTH(COALESCE(cmd, '')) + "
+                  "LENGTH(payload) + LENGTH(COALESCE(vis, '')) + LENGTH(COALESCE(hash, '')) + "
+                  "LENGTH(COALESCE(via, '')) + 16), 0) FROM events WHERE world_id = ? AND seq > ? AND seq <= ?",
+                  (world_id, int(seq_from), int(seq_to))).fetchone()
+    return int(r[0] or 0)
+
+
 def _store_bytes(path: str) -> int:
     return sum(os.path.getsize(p) for p in (path, path + "-wal", path + "-shm") if os.path.exists(p))
 
@@ -290,7 +303,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     n_ind = int(columns.rows(w, "pop"))
     rep["individuals"] = n_ind
     n_sessions0 = columns.col(w, "pop", "n_sessions").astype("int64").copy()
-    ec = EventCounter()
+    ec = EventCounter(count_bytes=False)
     w.listeners.append(ec)
     store.compact_file()
     bytes0 = _store_bytes(db)
@@ -305,11 +318,15 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     next_compact = w.now + int(compact_every * DAY)
     while w.now < end:
         until = min(end, w.now + step)
-        td, cd, sq, ss, eb = time.time(), cpu_s(), w.seq, ec.sessions, ec.event_bytes
+        td, cd, sq, ss = time.time(), cpu_s(), w.seq, ec.sessions
         w.advance_time(until)
         w.flush()
         row = {"t": int(w.now), "wall_s": round(time.time() - td, 3), "cpu_s": round(cpu_s() - cd, 3),
-               "events": int(w.seq - sq), "sessions": int(ec.sessions - ss), "event_bytes": int(ec.event_bytes - eb)}
+               "events": int(w.seq - sq), "sessions": int(ec.sessions - ss)}
+        tm = cpu_s()
+        row["event_bytes"] = stored_event_bytes(store, w.world_id, sq, w.seq)
+        ec.event_bytes += row["event_bytes"]
+        compact_cpu += cpu_s() - tm                # measurement, not simulation
         if w.now >= next_compact or w.now >= end:
             tc, cc = time.time(), cpu_s()
             unpacked = retention.stats(w)["blob_bytes_unpacked"]
