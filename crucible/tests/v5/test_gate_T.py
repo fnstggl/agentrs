@@ -79,9 +79,13 @@ def test_T1_procedural_structural_composition(generated):
 
 def test_T2_configurable_participant_populations():
     """Each population configuration of the grammar is built on the same base structures and seeds; it counts when
-    its measured participant fingerprint differs from the population-free world and the outcome of the same scripted
-    constant policy differs (paired by structure and seed)."""
-    from crucible.rapid.fingerprints import instance_fingerprint
+    the participant mechanisms present in the built world (the primitives the composer placed in participant roles:
+    adaptive rivals, learning customers, endogenous demand - read from the built configuration) differ from the
+    population-free world and the outcome of the same adapter differs (paired by structure and seed)."""
+    roles = ("rival", "customers", "demand", "share")
+
+    def participants_of(env):
+        return sorted({f"{n.get('role')}:{n.get('prim')}" for n in env.env._config["nodes"] if n.get("role") in roles})
     rng = np.random.default_rng(22)
     bases = [{"topology": t, "motifs": ["saturation"], "n_levers": 1, "horizon": 60} for t in ("chain", "fork", "hub")]
     outcome = {}
@@ -93,7 +97,7 @@ def test_T2_configurable_participant_populations():
             e = D.generated_entry(s)
             for sd in (1, 2):
                 env = build_env(e, sd, {}, {"mode": "assigned"})
-                fps.add(str(instance_fingerprint(env.env).get("participants")))
+                fps.add(str(participants_of(env)))
                 rec = run_episode(env, CL.PlantedAdapter(0), learn=False, rng=rng)
                 vals.append(rec["value"])
         outcome[kind] = np.array(vals)
@@ -103,7 +107,8 @@ def test_T2_configurable_participant_populations():
     record("T.2", {"population_configurations_tested": len(tested), "population_configurations_defined":
                    len(C.POPULATIONS), "worlds_built": int(sum(len(v) for v in outcome.values()))},
            notes=f"Configurations with measured participant and outcome differences: {tested}; participant "
-                 f"fingerprints {({k: sorted(v) for k, v in parts.items()})}")
+                 f"mechanisms {({k: sorted(v) for k, v in parts.items()})}. These are equation primitives inside one "
+                 "causal graph (Tier 1), not autonomous policies of crucible.population.")
     assert len(tested) >= 3
 
 
