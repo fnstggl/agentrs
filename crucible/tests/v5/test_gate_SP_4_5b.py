@@ -6,12 +6,13 @@ simulated days; the posts platform reweights its own recommender mixture every d
 runs learned recommenders refitted from recorded outcomes; members create on several platforms).
 
 Attention competition (randomised, within one world so that both arms share every other draw): at day 3 a random
-half of 1,600 individuals receives an experimenter's informative post (on the population's most read topic) in the
+half of 1,600 individuals receives two informative experimenter posts (on the population's most read topic) in the
 share inbox of the posts platform (as when many contacts shared it, without the notification an ordinary share sends)
 and the other half does not. Outcome: what each individual was shown and consumed of OTHER items on posts during the
 next 24 hours. Popularity takes finite
-feed slots and attention: the competing content must get fewer opportunities with the treated - fewer impressions
-(feed slots; the primary outcome, one-sided Mann-Whitney U test) and fewer views and seconds (reported).
+feed slots and attention: the competing content must get fewer opportunities with the treated - fewer feed slots
+in each individual's first posts session after the assignment (the primary outcome, one-sided Mann-Whitney U test),
+and fewer impressions over the day and fewer views and seconds (reported).
 
 Dynamic kinds, each observed on the run (not configured):
 1. delayed feedback - the analytics a creator sees lag the exact counters (published values older than one tick);
@@ -68,11 +69,14 @@ def test_SP_4_5b_attention_competition_and_dynamics():
     from crucible.population import semantics, writing
     lab = w.system_call("admin.join", {"handle": "lab", "endowment": 10_000, "password": "pw-lab"})["principal"]
     topic = int(np.argmax(semantics.popularity()))
-    title, body = writing.compose(np.random.default_rng(9), topic, 6, 1.0)
-    a = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": title, "body": body}})
-    r = w.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": title}})
-    assert r.ok, r.error
-    item = int(w.state.tables["content"][r.result["id"]]["aud_item"])
+    popular = []
+    for k in range(2):
+        title, body = writing.compose(np.random.default_rng(9 + k), topic, 6, 1.0)
+        a = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": title, "body": body}})
+        r = w.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": title}})
+        assert r.ok, r.error
+        popular.append(int(w.state.tables["content"][r.result["id"]]["aud_item"]))
+    item = popular[0]
     rng = np.random.default_rng(45)
     sample = rng.choice(n, 1600, replace=False)
     treat, ctrl = np.sort(sample[:800]), np.sort(sample[800:])
@@ -82,8 +86,9 @@ def test_SP_4_5b_attention_competition_and_dynamics():
     def assign(ctx):
         # the item sits in the share inbox of the treated (as when many of one's contacts shared it) - without the
         # notification of an ordinary share, so that the treated are not brought back more often than the control
-        u_, cnt, (newi, newg) = group_into_rows(treat, [np.full(treat.size, item, np.int32),
-                                                       np.ones(treat.size, np.uint8)], feed.R)
+        rec = np.repeat(treat, len(popular))
+        u_, cnt, (newi, newg) = group_into_rows(rec, [np.tile(np.array(popular, np.int32), treat.size),
+                                                      np.ones(rec.size, np.uint8)], feed.R)
         columns.batch(ctx, "pop", "share.deliver", u_,
                       {"feed_inbox": ring_push(columns.col(w, "pop", "feed_inbox")[u_], newi, cnt),
                        "feed_inbox_gen": ring_push(columns.col(w, "pop", "feed_inbox_gen")[u_], newg, cnt)},
@@ -93,17 +98,32 @@ def test_SP_4_5b_attention_competition_and_dynamics():
     w.advance_time(w.now + DAY)
     con = X.decision_rows(w, "consume", s0, platform="posts")
     imp = X.decision_rows(w, "imp", s0, platform="posts")
-    other = con["item"] != item
+    other = ~np.isin(con["item"], popular)
     views = np.zeros(n)
     secs = np.zeros(n)
     imps = np.zeros(n)
     np.add.at(views, con["viewer"][other & con["is_view"]], 1)
     np.add.at(secs, con["viewer"][other], con["watch_s"][other])
-    np.add.at(imps, imp["viewer"][imp["item"] != item], 1)
+    np.add.at(imps, imp["viewer"][~np.isin(imp["item"], popular)], 1)
+    # each individual's first posts session after the assignment (one impression batch = one session of a cohort)
+    first_seq = {}
+    for v, q in zip(imp["viewer"].tolist(), imp["seq"].tolist()):
+        if v not in first_seq or q < first_seq[v]:
+            first_seq[v] = q
+    first = np.array([first_seq.get(int(v), -1) == q for v, q in zip(imp["viewer"], imp["seq"])], bool) \
+        if imp["viewer"].size else np.zeros(0, bool)
+    imps1 = np.full(n, np.nan)
+    seen = np.array(sorted(first_seq), np.int64)
+    imps1[seen] = 0.0
+    np.add.at(imps1, imp["viewer"][first & ~np.isin(imp["item"], popular)], 1)
     got_item = np.zeros(n, bool)
-    got_item[AUD.viewers_of(w, item)] = True
-    # the competing content's opportunities: its impressions (feed slots) and the views and seconds it received
-    u = mannwhitneyu(imps[treat], imps[ctrl], alternative="less")
+    for it_ in popular:
+        got_item[AUD.viewers_of(w, it_)] = True
+    # the competing content's opportunities: its feed slots in the individual's first session after the assignment
+    # (primary), over the whole day, and the views and seconds it received
+    t1, c1 = imps1[treat][~np.isnan(imps1[treat])], imps1[ctrl][~np.isnan(imps1[ctrl])]
+    u = mannwhitneyu(t1, c1, alternative="less")
+    ud = mannwhitneyu(imps[treat], imps[ctrl], alternative="less")
     uv = mannwhitneyu(views[treat], views[ctrl], alternative="less")
     us = mannwhitneyu(secs[treat], secs[ctrl], alternative="less")
     # ---------------------------------------------------------------- dynamic kinds
@@ -148,6 +168,10 @@ def test_SP_4_5b_attention_competition_and_dynamics():
                "competing_seconds_pvalue": float(us.pvalue), "competing_views_pvalue": float(uv.pvalue),
                "competing_impressions_treated_mean": round(float(imps[treat].mean()), 4),
                "competing_impressions_control_mean": round(float(imps[ctrl].mean()), 4),
+               "competing_impressions_day_pvalue": float(ud.pvalue),
+               "first_session_competing_impressions_treated_mean": round(float(t1.mean()), 4) if t1.size else -1,
+               "first_session_competing_impressions_control_mean": round(float(c1.mean()), 4) if c1.size else -1,
+               "first_session_individuals": int(t1.size + c1.size),
                "treated_who_viewed_the_popular_item": int(got_item[treat].sum()),
                "control_who_viewed_the_popular_item": int(got_item[ctrl].sum()),
                "analytics_log_noise_sd": round(noise_sd, 4), "analytics_min_age_s": int(age.min()) if age.size else -1,
@@ -158,7 +182,8 @@ def test_SP_4_5b_attention_competition_and_dynamics():
                "creators_whose_medium_values_changed": int(np.sum(np.any(np.abs(value1 - value0) > 1e-6, axis=1)))}
     evidence.record("SP-4.5b", metrics, command=CMD, notes=(
         "One persistent run on 2,000 population members (4 platforms, 4 days). Attention competition: randomised "
-        "inbox delivery of one popular item to 800 of 1,600 individuals at day 3; outcome = qualifying views of "
-        "other items on posts in the next day (one-sided Mann-Whitney). Dynamic kinds observed in the run itself."))
+        "inbox placement (no notification) of two popular items for 800 of 1,600 individuals at day 3; primary "
+        "outcome = feed slots of other items in each individual's first posts session afterwards (one-sided "
+        "Mann-Whitney); day totals, views and seconds reported. Dynamic kinds observed in the run itself."))
     assert got_item[treat].sum() > got_item[ctrl].sum()
     assert w.check_invariants() == []
