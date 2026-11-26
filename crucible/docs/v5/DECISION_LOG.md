@@ -206,3 +206,21 @@ SP-21, SP-20 and SP-21, so their canonical gate test is that requirement's exist
 (`requirements.GATE_TEST_OVERRIDE`): tests/v5/test_gate_SP_1_3.py, test_gate_SP_1_5.py, test_gate_SP_21.py,
 test_gate_SP_20.py and test_gate_SP_21.py, replacing the per-id file names the first build assigned (files that never
 existed). This changes where the evidence is produced, not what is measured.
+
+## D-26 Machine-specific Gate V performance targets, adopted before any official benchmark (2026-11-26, workstream M)
+Gate V's mandatory note asks for throughput targets set from the measured hardware before the major benchmarks, and
+forbids weakening them after poor results without change control. The targets are `docs/v5/performance/targets.json`
+(SHA-256 `7db49aa7e0ebbe6284c6c0a4cb8e0c95304e8dd447abbddc1a78a2ecacd8e2b6`); this entry adopts exactly that file. They are derived from what the research needs on this machine
+(Gate P's 30/90/365-day horizons with three seeds, the slow-test timeout tier, the ~14 GB of free disk, a third of the
+container RAM for the 10M capacity run), not from benchmark results: each target states its derivation. The audit's
+proposal (audit/M_performance.md section 6) was taken as the starting point and re-derived; where the derivation gives a
+lower value than the audit proposed (standard: 15 instead of 46 sim days per CPU-hour; large: 3.75 instead of 7.6;
+storage: 550 instead of 200 bytes per individual-day) the reason is stated: the audit's values sat just below its own
+day-one measurements of the population-only world (the skeptic's objection), the targets now bind the integrated
+civilisation world (D-17), and the 200 B storage value was shown unreachable without compaction (skeptic S.3).
+Throughput is measured in CPU-hours of the world process (tenant noise does not move it), wall hours are reported.
+Rules: (1) a target changes only through a later DECISION_LOG entry naming the target, both values, the measured
+result that prompted it and a justification independent of that result; the gate test verifies that every committed
+version of the file is adopted by an entry citing its SHA-256 and that the official run happened after the adopting
+commit; (2) a missed target is reported as missed (the gate test fails), never re-labelled; (3) results on the
+population-only world are reported as a second row and do not satisfy a target.

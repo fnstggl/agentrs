@@ -332,7 +332,19 @@ def _children(pid: int) -> list[int]:
     return out
 
 
+def _rss_mb(pid: int) -> float:
+    """Resident set size from /proc/<pid>/statm (cheap; counts pages shared between the job's processes once per
+    process, so a sum over processes over-estimates)."""
+    try:
+        with open(f"/proc/{pid}/statm") as fh:
+            return int(fh.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / MB
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+
 def _pss_mb(pid: int) -> float:
+    """Proportional set size (shared pages divided among their users; exact for sums, but reading it walks the
+    process's page tables: tens of milliseconds for a large process)."""
     try:
         with open(f"/proc/{pid}/smaps_rollup") as fh:
             for line in fh:
@@ -657,6 +669,7 @@ class Job:
     repinned: dict = field(default_factory=dict)
     over: int = 0
     samples: int = 0
+    pss_ratio: float = 1.0
 
 
 def _tree(job: Job) -> list[int]:
@@ -763,7 +776,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
             continue
         k = (p, st[19])
         cpu_now[k] = (int(st[11]) + int(st[12])) / tick
-        rss += _pss_mb(p)
+        rss += _rss_mb(p)
         try:
             tids = os.listdir(f"/proc/{p}/task")
         except OSError:
@@ -796,13 +809,23 @@ def _sample(job: Job, now: float, dt: float) -> None:
         else:
             job.over = 0
     job.cpu_prev = cpu_now
-    job.peak["rss_mb"] = max(job.peak["rss_mb"], rss)
-    job.peak["write_mb"] = max(job.peak["write_mb"], sum(job.writes.values()) / MB)
+    # RAM: summed RSS every sample; the exact summed PSS every 15th sample and whenever the RSS sum nears the
+    # grant (the kill decision is always taken on PSS)
     ram_limit = g["ram_mb"] if g.get("ram_mb") is not None else g.get("default_ram_mb")
-    if ram_limit is not None and rss > ram_limit:
-        _violation(job, "ram", rss, ram_limit, "killed")
-        _stop(job, "ram")
-        return
+    if job.samples % 15 == 1 or (ram_limit is not None and rss * job.pss_ratio > 0.8 * ram_limit):
+        pss = sum(_pss_mb(p) for p in pids)
+        if rss > 0:
+            job.pss_ratio = min(1.0, pss / rss)
+        mem = pss
+        if ram_limit is not None and pss > ram_limit:
+            job.peak["rss_mb"] = max(job.peak["rss_mb"], pss)
+            _violation(job, "ram", pss, ram_limit, "killed")
+            _stop(job, "ram")
+            return
+    else:
+        mem = rss * job.pss_ratio
+    job.peak["rss_mb"] = max(job.peak["rss_mb"], mem)
+    job.peak["write_mb"] = max(job.peak["write_mb"], sum(job.writes.values()) / MB)
     # GPU memory and GPU time from the interpreter hook's reports; GPU contexts without a report
     reports = _gpu_reports(job)
     live = set(pids)
@@ -813,7 +836,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
             job.gpu_s[p] = max(job.gpu_s.get(p, 0.0), t_end - float(r["t0"]))
         if p in live and not r.get("exited"):
             gpu_mb += max(float(r.get("reserved_mb") or 0), float(r.get("max_reserved_mb") or 0))
-    if job.samples % 3 == 1:
+    if job.samples % 5 == 1:
         for p in pids:
             if p not in reports and p not in job.gpu_unmetered and _gpu_context(p):
                 job.gpu_unmetered.add(p)
