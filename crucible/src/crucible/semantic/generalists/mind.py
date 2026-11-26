@@ -274,12 +274,13 @@ def perceive(ctx, a: Agent) -> None:
     """Read-only look at the participant's own situation (see the module docstring)."""
     now = ctx.now
     a.situation = []
+    a.learn_ids({c: "a person you know" for c in a.persona.get("contacts", [])})
 
     def call(tool: str, args: dict) -> Any:
         try:
             return ctx.call(tool, args, as_principal=a.principal)
-        except CrucibleError:
-            return None
+        except (CrucibleError, TypeError, ValueError, KeyError, IndexError, AttributeError):
+            return None                 # read-only tools: a refusal or fault leaves nothing to undo
     accts = call("bank.accounts", {})
     for r in accts if isinstance(accts, list) else []:
         if isinstance(r, dict) and r.get("account") and r.get("status", "open") == "open":
@@ -458,6 +459,14 @@ class Slot:
     tokens: int = 24
 
 
+MAX_OPTIONS = 12
+
+
+def _recent(a: Agent) -> list[str]:
+    """Known identifiers, most recently learned first."""
+    return list(reversed(list(a.known)))
+
+
 def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
     sch = tool.get("inputSchema") or {}
     props = sch.get("properties") or {}
@@ -484,8 +493,8 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
             # replies to): offered with the option to leave it out
             if "string" in typ and not ps.get("enum") and not is_text_field(k, ps):
                 pat, mx = ps.get("pattern"), int(ps.get("maxLength", 200) or 200)
-                ids = [x for x in a.known if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
-                       _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x) and _specific(k, x)]
+                ids = [x for x in _recent(a) if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
+                       _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x) and _specific(k, x)][:MAX_OPTIONS]
                 if ids:
                     out.append(Slot(k, ps, False, "choose", [f"{x} ({a.known[x]})" for x in ids][:8] + [OMIT],
                                     ids[:8] + [None]))
@@ -501,7 +510,8 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
             if pat or items.get("type") != "string":
                 out.append(Slot(k, ps, required, "list", tokens=24))
             else:
-                ids = [x for x in a.known if int(items.get("maxLength", 200)) >= len(x) and compatible(k, items, x)]
+                ids = [x for x in _recent(a) if int(items.get("maxLength", 200)) >= len(x) and
+                       compatible(k, items, x)][:MAX_OPTIONS]
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [OTHER],
                                 [[x] for x in ids] + [OTHER]) if ids else Slot(k, ps, required, "list", tokens=24))
         elif is_text_field(k, ps):
@@ -511,8 +521,8 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
             out.append(Slot(k, ps, required, "text", tokens=n))
         else:
             pat, mx = ps.get("pattern"), int(ps.get("maxLength", 200) or 200)
-            ids = [x for x in a.known if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
-                   _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x)]
+            ids = [x for x in _recent(a) if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
+                   _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x)][:MAX_OPTIONS]
             if ids:
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [OTHER],
                                 ids + [OTHER]))
