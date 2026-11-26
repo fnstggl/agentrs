@@ -211,8 +211,8 @@ def session_budget(world, idx: np.ndarray) -> np.ndarray:
     session (float32[n]); outside a session it is the attention left."""
     ix = np.asarray(idx, np.int64)
     left = columns.col(world, TABLE, "attention_left_min")[ix].astype(np.float32)
-    if world.runtime.get("pop.tick.decisions") is None:
-        return left
+    if world.runtime.get("pop.tick.decisions") is None or world.runtime.get("pop.tick.class") is not None:
+        return left                     # outside a session, or a class runtime's session (its own time rules)
     return np.minimum(columns.col(world, TABLE, "session_budget_min")[ix].astype(np.float32), left)
 
 
@@ -446,11 +446,13 @@ class Population(Module):
             if bound.size:
                 decided: list[str] = []
                 w.runtime["pop.tick.decisions"] = decided
+                w.runtime["pop.tick.class"] = int(c_)
                 try:
                     with running_as(ctx, rt["owner"]):
                         nx = rt["handler"](ctx, bound, now)
                 finally:
                     w.runtime.pop("pop.tick.decisions", None)
+                    w.runtime.pop("pop.tick.class", None)
                 nx = np.full(bound.size, now + 6 * 3600, np.int64) if nx is None else np.asarray(nx, np.int64)
                 from .api import record_decisions
                 with running_as(ctx, "pop"):
