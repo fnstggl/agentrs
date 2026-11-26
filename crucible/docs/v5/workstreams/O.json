@@ -19,7 +19,7 @@
     "tests/test_v5_security_sandbox.py",
     "tests/test_sandbox.py"
    ],
-   "status_claim": "NOT met until C/D land their fixes: sandbox_tests_passed 38, sandbox_escapes 2 (KNOWN_OPEN: social/render.run_tool starts FFmpeg/SoX unjailed - owner C; Pillow decodes participant images in the world process - owners C, D)",
+   "status_claim": "NOT met on this branch until C/D's fixes merge: sandbox_escapes 2 (KNOWN_OPEN: social/render.run_tool starts FFmpeg/SoX unjailed - 4 of 7 launches; Pillow decodes 14 participant images in the world process); escape matrix 37 checks all refused, 2 ordinary operations work. On the check merge with c5c/w3b-soc/-sem (20:15 UTC heads) both media probes HOLD (7 of 7 launches jailed, 0 in-process decodes): W.1 passes there once the two KNOWN_OPEN entries move to suite.FIXED_BY_OWNERS.",
    "notes": "Escape matrix (31 checks), limits, tenants, host paths, jailed tools and browser hold. Wave 3b: the jailed Chromium now starts below a root-only TMPDIR (DEF-P-16). Wave-3b continuation: escape matrix 37 checks (+ SysV shm/msg/sem, POSIX mq, F_SETOWN to the parent, inotify on a shared file); boot.py refuses SysV IPC, POSIX mq, inotify/fanotify and makes lock-taking a no-op (DEF-O-14, DEF-O-16, DEF-O-17)."
   },
   "W.2": {
@@ -32,7 +32,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W2_evaluator_isolation"
    ],
-   "status_claim": "NOT met until L lands its fix: evaluator_leaks 1 (KNOWN_OPEN v5.isolation.in_process_learner_reads_hidden_grader, owner L); civilisation probes run and hold",
+   "status_claim": "NOT met: evaluator_leaks 2 on this branch (KNOWN_OPEN high, owner L: in_process_learner_reads_hidden_grader, evaluated_learner_reaches_no_sealed_material / DEF-O-13). On the check merge also the MUST_HOLD probe world_code_cannot_import_evaluator_side_code FAILS (new import chains to rapid.oracles and semantic.capbench; owners I-fw, H, D). Civilisation and Tier 2 offline/isolation probes hold where run (Tier 2: 15 domains on the merge).",
    "notes": "crucible.sandbox.learnerhost is the jailed learner process that closes this class of leak for any driver (shown for the research evaluator in SP-15.8 control evaluator_internals_hosted); L's experience.remote can host learners the same way."
   },
   "W.3": {
@@ -46,7 +46,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W3_reward_hacking"
    ],
-   "status_claim": "met in unofficial runs: reward_hack_probes 34 (>= 20), open_critical_high_reward_hacks 0",
+   "status_claim": "met in unofficial runs: reward_hack_probes 33 (>= 20), open_critical_high_reward_hacks 0 (catalogue on this branch; only KNOWN_OPEN low memo game open)",
    "notes": "Wave 3b closed protocol-allowance farming (DEF-O-8: padded world calls billed a 3M-iteration loop 0 ms; allowance 20 -> 1.5 ns/byte)."
   },
   "W.4": {
@@ -61,7 +61,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W4_metric_manipulation"
    ],
-   "status_claim": "NOT met until G and C land their fixes: metric_manipulation_probes 22 (>= 5), open_metric_manipulations 2 (KNOWN_OPEN medium: G adoption by reading the package source, C sybils with a fake footprint)",
+   "status_claim": "NOT met on this branch until C/G's fixes merge: open_metric_manipulations 2 (KNOWN_OPEN medium: G adoption by reading the package source, C sybils with a fake footprint), metric_manipulation_probes 22. Both probes HOLD on the check merge (G attested package boundary, C footprint).",
    "notes": "New civilisation probe: audience counters cannot be written inside a generated civilisation."
   },
   "W.5": {
@@ -77,7 +77,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W5_cross_world"
    ],
-   "status_claim": "met in unofficial runs on the integrated tree (civilisations generate now): cross_world_leaks 0 over 6 probes",
+   "status_claim": "met in unofficial runs on this branch: cross_world_leaks 0 over 10 probes (all held; targeted run of v5.crossworld.* and the learner-process probe); four new channels found and closed this wave (DEF-O-14..17)",
    "notes": "Wave 3b closed per-lineage eviction of the shared meter memo (DEF-O-9). Wave-3b continuation (W.n1): three kernel-object channels between worlds found and closed - SysV IPC (canary read by another tenant), advisory locks (16-bit secret through flock / /dev/null record locks / F_GETLK), inotify (16-bit secret through a long-lived worker's watch queue); and jailed learner processes reaching each other (DEF-O-14..17). Probes kernel_ipc_does_not_cross_worlds (MUST_HOLD), file_locks_do_not_cross_worlds, file_watches_do_not_cross_worlds, sandbox.hosted_learners_cannot_reach_each_other."
   },
   "W.6": {
@@ -104,7 +104,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W7_resource_limits"
    ],
-   "status_claim": "met in unofficial runs: resource_limit_escapes 0",
+   "status_claim": "met in unofficial runs: resource_limit_escapes 0 over 13 probes (incl. learner processes cannot kill each other, DEF-O-15)",
    "notes": "Wave 3b closed nested-run wall-time amplification (DEF-O-7: 42 s for one tool call -> 3.1 s; nested jobs share the enclosing call tree's deadline, D-77). Wave-3b continuation: a jailed learner process SIGKILLed another (F_SETOWN + F_SETSIG) and all learner processes shared one uid's thread budget; refused / one uid per learner process now (DEF-O-15)."
   },
   "W.8": {
@@ -141,8 +141,8 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_Wn1_independent_adversarial_review"
    ],
-   "status_claim": "met in unofficial runs: 3 reviews (audit + skeptic, wave-3b adversarial review of the merged tree); every closed finding has a held probe (FIXED 26, FIXED_BY_OWNERS 7), every open one a probe (KNOWN_OPEN 7)",
-   "notes": "Wave-3b review: 3 new holes found and fixed (DEF-O-7..9), DEF-P-16 fixed, 3 instrument holes for N (DEF-O-10..12)."
+   "status_claim": "met in unofficial runs: 3 reviews (audit + skeptic, wave-3b adversarial review of the merged tree, continued); every closed finding has a held probe (FIXED 30, FIXED_BY_OWNERS 7), every open one a probe (KNOWN_OPEN 8)",
+   "notes": "Wave-3b review: DEF-O-7..9 (time limits, protocol allowance, memo eviction), DEF-P-16; continuation: DEF-O-14..17 (SysV IPC/POSIX mq between worlds, learner processes signalling each other and carrying state, advisory-lock channel, inotify channel) - each found by a probe on this branch, fixed, probe holds; 3 instrument holes for N (DEF-O-10..12), 1 for L (DEF-O-13); import-chain regression on the check merge for I-fw/H/D."
   },
   "SP-16": {
    "implementation_files": [
@@ -154,7 +154,7 @@
    "tests": [
     "tests/v5/test_gate_SP_16.py"
    ],
-   "status_claim": "met in unofficial runs: realworld_enabled_by_default false, public_network_reachable_from_world false",
+   "status_claim": "met in unofficial runs (21:22 UTC, this branch): realworld_enabled_by_default false, public_network_reachable_from_world false (5 of 5 network probes held); tests/v5/test_gate_SP_16.py 1 passed",
    "notes": ""
   },
   "SP-16b": {
@@ -173,8 +173,8 @@
    "tests": [
     "tests/v5/test_gate_SP_16b.py"
    ],
-   "status_claim": "NOT met until C/D jail their media call sites: integrity_mechanisms 9 (>= 4), realworld_abuse_paths 0, cross_tenant_isolation_failures 0, out_of_process_evaluation_mode true; unrestricted_media_tool_runs > 0 (owners C, D)",
-   "notes": "Wave 3b: real-world abuse policy (D-76: third-party platforms refused in authorisation documents, caller identity headers refused, automation disclosure on every request) and four more in-world consent/moderation mechanisms measured against attempts (invitation consent, unsubscribe stops delivery, report + moderation removes content, bans stop posting). Continuation: tenant isolation extended to kernel objects (SysV IPC, POSIX mq, advisory locks, inotify, descriptor-owner signals) and to learner processes (own uid each); the gate counts those probes among its tenant checks."
+   "status_claim": "NOT met on this branch until C/D's media fixes merge: integrity_mechanisms 9 (>= 4), realworld_abuse_paths 0 (14 checked), cross_tenant_isolation_failures 0 (9 tenant checks incl. kernel objects and learner processes), out_of_process_evaluation_mode true; unrestricted_media_tool_runs 18 (4 unjailed FFmpeg/SoX + 14 in-process decodes). On the check merge: unrestricted_media_tool_runs 0 but realworld_abuse_paths 1 = the import-chain regression (world_code_cannot_import_evaluator_side_code) - fails until I-fw/H/D fix it.",
+   "notes": "Wave 3b: real-world abuse policy (D-76: third-party platforms refused in authorisation documents, caller identity headers refused, automation disclosure on every request) and four more in-world consent/moderation mechanisms measured against attempts (invitation consent, unsubscribe stops delivery, report + moderation removes content, bans stop posting). Continuation: tenant isolation extended to kernel objects (SysV IPC, POSIX mq, advisory locks, inotify, descriptor-owner signals) and to learner processes (own uid each); the gate counts those probes among its tenant checks. tests/v5/test_gate_SP_16b.py: 1 failed on this branch (media, owners C/D) and 1 failed on the check merge (import chain only)."
   },
   "SP-16c": {
    "implementation_files": [
@@ -187,7 +187,7 @@
    "tests": [
     "tests/v5/test_gate_SP_16c.py"
    ],
-   "status_claim": "NOT met until L lands its fix: hidden_answer_probe_kinds 4, agent_reported_metering_trusted 0, v4_redteam_tests_passing true; hidden_answers_extracted 1 (the in-process learner object graph, owner L)",
+   "status_claim": "NOT met until L lands its fix: hidden_answer_probe_kinds 4, agent_reported_metering_trusted 0, v4_redteam_tests_passing true (8 passed); hidden_answers_extracted 2 (the in-process learner object graph; the evaluated learner reaches the 4.0 sealed salt/sets - also on the check merge, where remote.evaluate runs it as root). tests/v5/test_gate_SP_16c.py: 1 failed (21:23 UTC).",
    "notes": ""
   },
   "SP-15.8": {
@@ -197,13 +197,14 @@
     "src/crucible/sandbox/learnerhost.py",
     "src/crucible/research/v5/evaluator.py",
     "src/crucible/research/v5/fresh.py",
-    "src/crucible/research/v5/compose.py"
+    "src/crucible/research/v5/compose.py",
+    "src/crucible/sandbox/jail.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_15_8.py"
    ],
-   "status_claim": "criterion met, gate NOT passing until N lands three fixes: evaluator_adversarial_controls_passed 6 of 9 (>= 3); failed: evaluator_internals (DEF-O-10), interaction_budget (DEF-O-11), checkpoint_tampering (DEF-O-12); the gate also asserts no failed control (stricter, D-75)",
-   "notes": "Implemented this wave: adversarial learners (process stash, file/memory/config stash, prober, budget bypass, timer), adversarial checkpoints, generator-shortcut rules; the jailed learner host as the fix for DEF-O-10."
+   "status_claim": "criterion met, gate NOT passing until N lands three fixes: 10 controls; passed 7 (process_memory_stash, files_outside_checkpoint, evaluator_internals_hosted, hosted_state_outlives_the_process, timing_channel, partition_awareness, calibration_shortcut; >= 3), failed evaluator_internals (DEF-O-10), interaction_budget (DEF-O-11), checkpoint_tampering (DEF-O-12); the gate also asserts no failed control (stricter, D-75). Same on the check merge with c5c/w3b-research (controls run one by one there).",
+   "notes": "Continuation: control hosted_state_outlives_the_process (a jailed learner process leaves state in files and kernel IPC, a fresh one recovers none); stash battery sized by the instrument's own Design (5 seeds, its unfamiliar worlds per family) with its 'had something to hide' test at 95% - with the old sizes N's family-wise labels made the stash controls inconclusive on the merge (in-process gain 0.17, interval -0.31..0.66); with the design sizes: 0.26 (0.06..0.47) on the merge, 0.52 on this branch, weights-only gain 0.000 both; the architecture-configuration channel is tested on its own (refused on the merge, accepted and unused here)."
   }
  },
  "limitations": [
@@ -213,12 +214,14 @@
   "Engagement integrity is state-based (colluding agents with distinct controllers, own funding and a token footprint pass as organic; KNOWN_OPEN C). Adoption by ablation credits output depending on the package's files (KNOWN_OPEN G).",
   "The learner host gives a learner the crucible sources read-only (public code) and its CPU/time/disk allowance; GPU learners and extra system paths are out of its scope.",
   "The real-world platform list is a suffix list, not a census; the bridge prevents acting on platforms one does not own and posing as a person, not every misuse of an owned service.",
-  "No Tier 2 domain is registered on the integrated tree; the Tier 2 probe set (offline + evaluator isolation per evaluation configuration) grows with crucible.domains.REGISTRY.",
-  "Covert timing channels of a shared kernel (CPU load, page-cache residency of shared read-only files seen through read latency, pid allocation, free disk space) remain between concurrently running tenants; process-level isolation cannot remove them (a VM or dedicated hardware per tenant would). The data channels through kernel objects are closed."
+  "Covert timing channels of a shared kernel (CPU load, page-cache residency of shared read-only files seen through read latency, pid allocation, free disk space) remain between concurrently running tenants; process-level isolation cannot remove them (a VM or dedicated hardware per tenant would). The data channels through kernel objects are closed.",
+  "No Tier 2 domain is registered on this branch's base; on the check merge 15 domains give 45 Tier 2 probes. Their offline and isolation probes take one simulated day of the scripted reference: CPU-only they are slow (one community probe > 290 s), so the full Tier 2 set was not run here outside the GPU slot; one-day runs can leave the evaluator outcome without distinctive values (the isolation half is then reported as vacuous, not as passed silently)."
  ],
  "integration_notes": [
   "I-fw (domains/base.py make_env), H (rapid/__init__.py) and D (semantic/routing.py): on a check merge of c5c/w3b-sec with soc, sem, obs, econ2, research, domfw, dom1-3 and rapid (heads of 19:29 UTC) the MUST_HOLD probe v5.isolation.world_code_cannot_import_evaluator_side_code FAILS (and v5.isolation.tier1_engines_cannot_import_oracles, low): world code reaches crucible.rapid.oracles through core.kernel -> substrate.bus -> substrate.primitives -> substrate.facts -> crucible.domains -> domains.base -> experience.registry (domains.base.make_env imports experience.registry, new in domfw) -> crucible.rapid (registry._rapid) -> rapid.admission (rapid/__init__ imports it eagerly) -> references -> refs_v2 -> dominance -> oracles; and crucible.semantic.capbench (test splits) through semantic.generalists.module -> brain -> semantic.routing -> capbench.run (new in sem). Fix any one edge per chain: make_env's import of experience.registry lazy in a module world code does not import (or substrate.facts' domains.load_all out of the world path), rapid/__init__ without the eager admission import, routing reading the capbench report as data (a JSON file) instead of importing crucible.semantic.capbench.",
   "All sandbox and jail consumers (D-77 amendment): System V IPC, POSIX message queues and inotify are refused for sandboxed programs and tool-mode jails; advisory lock-taking (flock, F_SETLK*) succeeds without effect there (sqlite3 incl. WAL and dbm verified working; F_GETLK stays real); descriptor ownership (F_SETOWN/F_SETSIG/FIOSETOWN) is refused in every jail mode; LearnerHost gives every learner process its own uid (callers that compared jail_uid with isolation.uid_for('learner-host') must compare with host.uid). The jailed browser tests (test_internet_adversarial, test_web, test_internet: 26 passed) and the security unit tests pass with these rules.",
+  "Orchestrator, after merging c5c/w3b-soc, -sem and -econ2: the ratchet will report 'fixed but still listed' for v5.network.media_tools_at_participant_call_sites_are_jailed, v5.network.image_decoders_run_outside_the_world_process, v5.social.sybils_with_a_fake_footprint and v5.innovation.adoption_by_reading_the_package_source (they hold there) - move the four entries from suite.KNOWN_OPEN to suite.FIXED_BY_OWNERS (owners C, C/D, C, G) in crucible/redteam/v5/suite.py; nothing else changes.",
+  "N (research/v5): the instrument-integrity controls read the instrument's Design sizes and labelling rule; if Design changes again the stash battery follows. Still open for N: DEF-O-10 (drive untrusted learners through sandbox.learnerhost), DEF-O-11 (server-side interaction budgets), DEF-O-12 (shape check of weights-only checkpoints).",
   "N (research/v5/evaluator.py, fresh.py; DEFECTS DEF-O-10..12): (1) drive learners whose code is not Crucible's through crucible.sandbox.learnerhost.LearnerHost(entry, kw, participant=ev.part.sock) - host.episode(ticket, learn=, seed=, budget=) and host.checkpoint() (manifest computed by the host) - not in the harness process; (2) open_episode(..., budget=k): the server refuses informative actions beyond k (or marks the result budget_exceeded); (3) fresh._child: refuse unless every array's shape and dtype equal the freshly built architecture's parameters(). tests/v5/test_gate_SP_15_8.py then passes (6 of 9 controls pass today).",
   "C (social/render.py, formats.py) and D (semantic/media.py): unchanged from wave 3 - start FFmpeg/SoX through crucible.sandbox.isolation.run and decode participant images with isolation.decode_image; remove KNOWN_OPEN v5.network.media_tools_at_participant_call_sites_are_jailed and image_decoders_run_outside_the_world_process when the probes hold.",
   "L (experience): KNOWN_OPEN v5.isolation.in_process_learner_reads_hidden_grader closes when evaluated learners never share a process with the evaluator handle; crucible.sandbox.learnerhost is the generic jailed learner process (today it speaks the research evaluator's participant socket; a JSON-frame adapter for experience.remote is a small addition in sandbox/ on request).",
@@ -343,5 +346,17 @@
     }
    }
   }
- ]
+ ],
+ "test_results_unofficial": {
+  "when": "2026-11-26 19:30-21:25 UTC, this branch unless stated; CPU-only targeted runs (GPU gate jobs queued in the slot scheduler)",
+  "tests/test_v5_security_sandbox.py tests/test_v5_security_redteam.py tests/test_sandbox.py tests/test_redteam.py tests/test_open_security.py": "53 passed",
+  "tests/test_kernel.py tests/test_invariants.py": "51 passed",
+  "tests/test_internet_adversarial.py tests/test_web.py tests/test_internet.py (jailed browser)": "26 passed (after the jail changes)",
+  "tests/v5/test_gate_SP_16.py": "1 passed",
+  "tests/v5/test_gate_SP_16b.py": "1 failed (unrestricted_media_tool_runs 18, owners C/D); on the check merge 1 failed (realworld_abuse_paths 1 = import chain, owners I-fw/H/D)",
+  "tests/v5/test_gate_SP_16c.py": "1 failed (hidden_answers_extracted 2, owner L)",
+  "tests/v5/test_gate_SP_15_8.py": "not run as one file here (> 5 min CPU); its controls run individually: 7 of 10 pass, 3 fail (N) - queued in the GPU slot job",
+  "tests/v5/test_gate_W.py": "not run as one file here (civilisation probes need the GPU path); catalogue modules run individually: sandbox 21, crossworld 8, network 7, isolation 6 - all held except the KNOWN_OPEN entries; civ.world_is_offline held (CPU, 207 s). Queued in the slot scheduler with the SP gates and units (log: scratchpad w3b-sec/gate_<commit>.log)",
+  "flaky": "test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes failed once under load average ~21, passed 3 reruns"
+ }
 }
