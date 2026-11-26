@@ -132,6 +132,10 @@ def verified_value(v: Mapping) -> float:
     cur = v.get("current")
     if isinstance(cur, Mapping) and isinstance(cur.get("net_cents"), (int, float)):
         return float(cur["net_cents"])
+    eps = v.get("episodes")
+    if isinstance(eps, list) and eps and isinstance(eps[-1], Mapping) and \
+            isinstance(eps[-1].get("net_cents"), (int, float)):
+        return float(eps[-1]["net_cents"])          # a 4.0 task whose episode just ended
     ev = v.get("evaluation") or {}
     for k in ("score", "value", "progress"):
         if isinstance(ev.get(k), (int, float)) and not isinstance(ev.get(k), bool):
@@ -140,12 +144,13 @@ def verified_value(v: Mapping) -> float:
 
 
 def run_episode(env, learner, *, learn: bool, rng: np.random.Generator, budget: int | None = None,
-                agent: str | None = None, verify: bool = True) -> dict:
+                agent: str | None = None, verify: bool = True, blind: bool = False) -> dict:
     """One episode of `learner` in `env`. `learn` says whether the learner may update itself at the end;
     `budget` caps the informative interactions granted (later setting changes are not executed). Returns the
     measured record (verified per-tick cumulative net, counts, compute). With ``verify=False`` (an episode held by
     the evaluator process, `evaluator.run_remote_episode`) the driver never calls the verifier; the evaluator records
-    the verified trajectory itself."""
+    the verified trajectory itself. With ``blind=True`` the learner receives no consequences (its signal is 0 every
+    tick): the within-episode-adaptation ablation of the instrument."""
     t0, c0 = time.perf_counter(), time.process_time()
     agent = agent or env.agents()[0]
     iface = LeverInterface(env, agent)
@@ -169,7 +174,7 @@ def run_episode(env, learner, *, learn: bool, rng: np.random.Generator, budget: 
         s = cash - prev
         prev = cash
         sig.append(s)
-        learner.observe(k, s)
+        learner.observe(k, 0.0 if blind else s)
         if verify:
             traj.append(verified_value(env.verify()))
     learner.end(learn=learn)
@@ -238,9 +243,9 @@ def world(registry: Registry, entry_id: str, seed: int, difficulty: Mapping | No
 
 
 def score_episode(registry: Registry, entry_id: str, seed: int, learner, *, learn: bool, rng,
-                  difficulty: Mapping | None = None, budget: int | None = None) -> dict:
+                  difficulty: Mapping | None = None, budget: int | None = None, blind: bool = False) -> dict:
     env, refs = world(registry, entry_id, seed, difficulty)
-    rec = run_episode(env, learner, learn=learn, rng=rng, budget=budget)
+    rec = run_episode(env, learner, learn=learn, rng=rng, budget=budget, blind=blind)
     H = len(rec["verified_cum"])
     cum = np.array(rec["verified_cum"])
     q = max(1, H // 4)

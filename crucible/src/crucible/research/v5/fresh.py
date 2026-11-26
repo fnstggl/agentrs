@@ -170,8 +170,10 @@ def _child(pre_imported: list[str]) -> None:
     for w in req["worlds"]:
         r = score_episode(reg, w["entry"], int(w["seed"]), learner, learn=False, rng=rng,
                           difficulty=w.get("difficulty"))
+        b = score_episode(reg, w["entry"], int(w["seed"]), learner, learn=False, rng=rng,
+                          difficulty=w.get("difficulty"), blind=True)
         out["scores"].append({"entry": w["entry"], "seed": int(w["seed"]), "score": r["score"],
-                              "early_rate": r["early_rate"], "late_rate": r["late_rate"],
+                              "blind_score": b["score"], "early_rate": r["early_rate"], "late_rate": r["late_rate"],
                               "interactions": r["interactions"]})
     checks["frozen_verified"] = params_hash(learner.parameters()) == h0
     out["params_hash"] = h0

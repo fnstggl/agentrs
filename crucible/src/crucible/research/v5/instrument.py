@@ -6,7 +6,7 @@ design, `hstats.crossed_diff`). All scores are verified, normalised outcomes (`e
 see only their own observations (``observation_only``).
 
     untrained     scores on unfamiliar worlds (new seeds of the training families) before any training: episode
-                  score, early rate (first quarter) and late rate (last quarter)
+                  score, blind score (no feedback within the episode), early and late rates
     training      the same stream for every learner: `train_tasks` training worlds, each played `repeats` times
     repeat probe  in-process frozen scores on worlds seen in training, before and after training
     in process    frozen scores on the unfamiliar worlds after training, with everything the learner keeps
@@ -17,12 +17,15 @@ see only their own observations (``observation_only``).
 Explanations (Part 15 introduction), each a prespecified effect on the normalised scale (`EFFECTS`) whose crossed
 interval must exclude zero:
 
-    pretrained_competence    early rate before any adaptation above the hold baseline's on the same worlds
-    context_adaptation       within-episode improvement (late - early) above the hold baseline's, before training
+    pretrained_competence    score before any training, with no within-episode feedback (blind episode), above
+                             the hold baseline's on the same worlds: competent without adapting
+    context_adaptation       score minus blind score before training: what feedback within the episode
+                             contributed (the blind episode is the learner's own no-feedback ablation)
     memorisation             gain on seen worlds exceeds the gain on unfamiliar worlds
     persistent_state         in-process gain that the weights-only evaluation does not reproduce
     weight_learning          weights-only gain on unfamiliar worlds, with changed parameters
-    meta_learning            within-episode improvement after training (weights only) above before training
+    meta_learning            within-episode contribution (score - blind score) after training, weights only,
+                             above the same contribution before training: it learned to adapt better
     transferable_efficiency  area under the practice curve on held-out families, trained above untrained (with
                              N_q and a censoring-aware acceleration reported)
 
@@ -127,13 +130,16 @@ def _make(arch: str, seed: int, d: Design, reg: Registry):
     return LR.make(arch, seed)
 
 
-def _scores(reg, learner, worlds, rng) -> np.ndarray:
+def _scores(reg, learner, worlds, rng, blind: bool = True) -> np.ndarray:
+    """[world, (score, blind score, early rate, late rate)] of frozen episodes; the blind episode gives the learner
+    no consequences (0 signal), so score - blind score is what within-episode adaptation contributed."""
     was = learner.frozen
     learner.frozen = True
     out = []
     for f, s in worlds:
         r = score_episode(reg, f, s, learner, learn=False, rng=rng)
-        out.append((r["score"], r["early_rate"], r["late_rate"]))
+        b = score_episode(reg, f, s, learner, learn=False, rng=rng, blind=True)["score"] if blind else r["score"]
+        out.append((r["score"], b, r["early_rate"], r["late_rate"]))
     learner.frozen = was
     return np.array(out)
 
@@ -149,7 +155,7 @@ def battery(arch: str, seed: int, d: Design, workdir: str) -> dict:
     WT = [(f, s) for f in d.transfer_families for s in d.transfer_seeds]
     h0 = LR.params_hash(L.parameters())
     u = _scores(reg, L, W1, rng)
-    rb = _scores(reg, L, WR, rng)
+    rb = _scores(reg, L, WR, rng, blind=False)
     # transfer: untrained copy
     tu = []
     for f, s in WT:
@@ -159,13 +165,13 @@ def battery(arch: str, seed: int, d: Design, workdir: str) -> dict:
         for _ in range(d.repeats):
             run_episode(build_env(reg[f], s, {}, {"mode": "assigned"}), L, learn=True, rng=rng)
     h1 = LR.params_hash(L.parameters())
-    ra = _scores(reg, L, WR, rng)
+    ra = _scores(reg, L, WR, rng, blind=False)
     ip = _scores(reg, L, W1, rng)
     man = FR.save_checkpoint(L, os.path.join(workdir, f"{arch}-{seed}"))
     fo = FR.weights_only_eval(man, [{"entry": f, "seed": s} for f, s in W1])
     if not fo.get("ok"):
         raise RuntimeError(f"weights-only evaluation failed for {arch}/{seed}: {fo.get('refused') or fo.get('error')}")
-    wf = np.array([(x["score"], x["early_rate"], x["late_rate"]) for x in fo["scores"]])
+    wf = np.array([(x["score"], x["blind_score"], x["early_rate"], x["late_rate"]) for x in fo["scores"]])
     # transfer: trained copy, memory cleared (what it learned elsewhere is in its parameters)
     tt = []
     for f, s in WT:
@@ -197,10 +203,10 @@ def _label(res: Mapping, effect: float) -> bool:
 def classify(runs: Sequence[Mapping], hold: np.ndarray, d: Design) -> dict:
     """Labels found for one learner (all its seeds), with the statistics behind each."""
     A = lambda k, i: np.array([np.array(r[k])[:, i] for r in runs])        # noqa: E731
-    he, hl = hold[:, 1], hold[:, 2]
+    hs = hold[:, 0]
     stats = {}
-    stats["pretrained_competence"] = _one(A("untrained", 1) - he[None, :])
-    stats["context_adaptation"] = _one((A("untrained", 2) - A("untrained", 1)) - (hl - he)[None, :])
+    stats["pretrained_competence"] = _one(A("untrained", 1) - hs[None, :])
+    stats["context_adaptation"] = _one(A("untrained", 0) - A("untrained", 1))
     rep_gain = A("rep_after", 0) - A("rep_before", 0)
     new_gain = A("in_process", 0) - A("untrained", 0)
     rg, ng = _one(rep_gain), _one(new_gain)
@@ -213,7 +219,7 @@ def classify(runs: Sequence[Mapping], hold: np.ndarray, d: Design) -> dict:
     stats["persistent_state"] = _one(A("in_process", 0) - A("weights_only", 0))
     wl = _one(A("weights_only", 0) - A("untrained", 0))
     stats["weight_learning"] = dict(wl, params_changed=all(r["params_changed"] for r in runs))
-    stats["meta_learning"] = _one((A("weights_only", 2) - A("weights_only", 1)) - (A("untrained", 2) -
+    stats["meta_learning"] = _one((A("weights_only", 0) - A("weights_only", 1)) - (A("untrained", 0) -
                                                                                    A("untrained", 1)))
     Tu = np.array([[c["auc"] for c in r["transfer_untrained"]] for r in runs])
     Tt = np.array([[c["auc"] for c in r["transfer_trained"]] for r in runs])
