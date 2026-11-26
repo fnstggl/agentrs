@@ -3,9 +3,10 @@ audit "make every 6.6 learning test multi-seed, add LR decay, assert sampled and
 
 The world model is the DOM configuration: transition through the last 2 of 3 shared core blocks with adapters,
 per-group free bits 0.02, consistency loss, mode-latent open-loop future; every test runs twice: "preset" = the dom
-presets' cfg.wm_ema_target=False (latent target = detached posterior, self-predictive gradients routed to the
-transition), "ema" = with the EMA target encoder (W6's recommendation; measured 3/3 seeds vs 2/3 for "preset" on the
-delay world, see docs/evidence/dom/W6). The synthetic worlds of world_synth.py provide well-separated observation tokens, so these tests isolate the
+presets' cfg.wm_ema_target=False with the self-predictive gradients routed to the transition only (latent_rep_weight
+0, the WorldModel default), "ema" = with the EMA target encoder. Measured (docs/evidence/dom/W6): delay world "ema" 3/3
+seeds, "preset" 2/3; the beta_rep = 0.1 representation gradient (WorldModel latent_rep_weight, not a test variant)
+gave delay 1/3, switch 0/3, interaction 3/3, consistency gap 0.24-0.56, so it is not the default. The synthetic worlds of world_synth.py provide well-separated observation tokens, so these tests isolate the
 world-model mechanism from the tokenizer (the integrated dom_dev check is capabilities.causal's DOM driver).
 Slow (CAM_RUN_SLOW=1); three model seeds each, all must pass.
 """
@@ -26,6 +27,7 @@ WM_KEYS = ("wm_transition_blocks", "wm_ema_target", "kl_free_bits_group", "wm_co
 
 
 VARIANTS = {"preset": {}, "ema": {"wm_ema_target": True}}
+WM_KW = {"preset": {"latent_rep_weight": 0.0}, "ema": {}}         # WorldModel constructor overrides per variant
 
 
 def dom_wm_cfg(**over):
@@ -35,7 +37,8 @@ def dom_wm_cfg(**over):
     return tiny_config(**kw)
 
 
-def dom_wm(cfg, seed, **kw):
+def dom_wm(cfg, seed, variant="preset", **kw):
+    kw = {**WM_KW[variant], **kw}
     torch.manual_seed(seed)
     wm = WorldModel(cfg, UnifiedCore(cfg), **kw).to(DEV)
     assert (wm.target_core is None) == (not cfg.wm_ema_target) and wm.k_trans == 2 and wm.mode_latent
@@ -50,7 +53,7 @@ def delay_run(seed: int, steps: int = 700, variant: str = "preset"):
     cfg = dom_wm_cfg(**VARIANTS[variant])
     w = DelayWorld(cfg.d_model)
     batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
-    wm = dom_wm(cfg, seed, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
+    wm = dom_wm(cfg, seed, variant, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
     hist = train(wm, batches, steps, lr=4e-3, lr_end_frac=0.1, seed=seed)
     wm.eval()
     plans = [[0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
@@ -86,7 +89,7 @@ def test_dom_world_model_learns_the_interaction_on_every_seed(variant):
         cfg = dom_wm_cfg(**VARIANTS[variant])
         w = InteractionWorld(cfg.d_model)
         raw = [w.batch(64, seed=i) for i in range(10)]
-        wm = dom_wm(cfg, s, train_horizons=(1, 2), open_loop_samples=2, open_loop_starts=2)
+        wm = dom_wm(cfg, s, variant, train_horizons=(1, 2), open_loop_samples=2, open_loop_starts=2)
         train(wm, [batch_to(b, DEV) for b in raw], 400, lr=2e-3, lr_end_frac=0.1, seed=s)
         wm.eval()
         tb = batch_to(w.batch(4, seed=77, plans=[[0, a, 0, 0] for a in range(4)]), DEV)
@@ -106,7 +109,7 @@ def test_dom_world_model_follows_a_mechanism_change_on_every_seed(variant):
         cfg = dom_wm_cfg(**VARIANTS[variant])
         w = SwitchWorld(cfg.d_model)
         batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
-        wm = dom_wm(cfg, s, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
+        wm = dom_wm(cfg, s, variant, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
         train(wm, batches, 700, lr=4e-3, lr_end_frac=0.1, seed=s)
         wm.eval()
         preds = {}
@@ -133,7 +136,7 @@ def test_dom_world_model_closes_the_consistency_gap_on_delay_world(variant):
         cfg = dom_wm_cfg(**VARIANTS[variant])
         w = DelayWorld(cfg.d_model)
         batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
-        wm = dom_wm(cfg, s, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
+        wm = dom_wm(cfg, s, variant, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
         train(wm, batches, 700, lr=4e-3, lr_end_frac=0.1, seed=s)
         wm.eval()
         test = batch_to(w.batch(64, seed=4242), DEV)

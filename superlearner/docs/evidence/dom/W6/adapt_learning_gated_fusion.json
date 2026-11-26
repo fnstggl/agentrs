@@ -197,5 +197,74 @@
    },
    "wall_s": 418.76146507263184
   }
- ]
+ ],
+ "dom_dev_widths": {
+  "kw": {
+   "d_model": 384,
+   "K": 16,
+   "Dp": 128,
+   "bayes_feat": 32
+  },
+  "steps": 2500,
+  "seed": 0,
+  "device": "cuda",
+  "familiar": {
+   "0": {
+    "nll_full": 0.9949817061424255,
+    "nll_mix": 0.9949817061424255,
+    "nll_oracle": 0.7217692732810974,
+    "z_sd": 1.1383508443832397,
+    "cover90": 0.927734375,
+    "gate": null
+   },
+   "1": {
+    "nll_full": 0.315643310546875,
+    "nll_mix": 0.30905580520629883,
+    "nll_oracle": 0.014935026876628399,
+    "z_sd": 0.7541443109512329,
+    "cover90": 0.9609375,
+    "gate": 0.02511165291070938
+   },
+   "2": {
+    "nll_full": 0.17642734944820404,
+    "nll_mix": 0.17516642808914185,
+    "nll_oracle": 0.0218006931245327,
+    "z_sd": 0.8918474912643433,
+    "cover90": 0.92236328125,
+    "gate": 0.01739485003054142
+   },
+   "4": {
+    "nll_full": 0.15639382600784302,
+    "nll_mix": 0.15629975497722626,
+    "nll_oracle": 0.030247140675783157,
+    "z_sd": 0.9267024397850037,
+    "cover90": 0.916015625,
+    "gate": 0.024779636412858963
+   },
+   "8": {
+    "nll_full": 0.1608482152223587,
+    "nll_mix": 0.1612391173839569,
+    "nll_oracle": 0.031265728175640106,
+    "z_sd": 0.9444164037704468,
+    "cover90": 0.91357421875,
+    "gate": 0.03012067824602127
+   },
+   "16": {
+    "nll_full": 0.15832094848155975,
+    "nll_mix": 0.16309605538845062,
+    "nll_oracle": 0.03350212424993515,
+    "z_sd": 0.9136896133422852,
+    "cover90": 0.92626953125,
+    "gate": 0.05670180916786194
+   }
+  },
+  "criterion_k2": {
+   "nll_full": 0.17642734944820404,
+   "nll_oracle": 0.0218006931245327,
+   "z_sd": 0.8918474912643433,
+   "pass_nll": false,
+   "pass_zsd": true
+  }
+ },
+ "summary": "tiny widths (d 64, K 8, Dp 32): NLL(k=2) <= oracle+0.05 on seeds 0 and 1, fails on seed 2 (+0.082, the particle mixture itself is +0.080); z-sd in [0.8, 1.2] on all 3 seeds; the learned fusion gate is ~0.01 at k=2, so the fused predictive equals the mixture there. dom_dev widths (d 384, K 16, Dp 128, F 32, seed 0): NLL fails (+0.154), z-sd 0.89 passes."
 }

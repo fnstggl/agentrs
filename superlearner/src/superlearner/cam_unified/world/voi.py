@@ -67,10 +67,12 @@ def _reason(model, Z: Tensor, belief: TokenSet, goal: Optional[TokenSet]) -> Ten
     return Z if fn is None else fn(Z, belief, goal)
 
 
-def outcome_q(weights: dict) -> Callable:
-    """Q(b, a') = sum_key w_key * E[y_key | b, Z^'(a')] over the candidate's predicted outcomes (fused predictive),
+def outcome_q(weights: dict, transform: Optional[Callable] = None) -> Callable:
+    """Q(b, a') = sum_key w_key * u(E[y_key | b, Z^'(a')]) over the candidate's predicted outcomes (fused predictive),
     Z^' = WM.prior(R, A(a'), tokens(b), dt). ``weights`` maps outcome keys (exact) or key prefixes ending in "*" to
-    utility weights (observable outcomes only in observation_only mode, e.g. {"num:points@me[points]": 1.0})."""
+    utility weights (observable outcomes only in observation_only mode, e.g. {"num:points@me[points]": 1.0}).
+    ``transform`` u (default identity): maps the predictive mean to utility units, e.g. `world._util.symexp` for
+    numeric outcomes predicted in symlog space (the payout of the predictive mean; a plug-in, not E[symexp(y)])."""
     def q_fn(model, R: Tensor, fast: FastState, goal, cands: list, ob: OutcomeBatch, dt) -> Tensor:
         from ..core.belief_runtime import predictive_moments
         N = R.shape[0]
@@ -83,6 +85,8 @@ def outcome_q(weights: dict) -> Callable:
         obr = _rep_outcomes(ob, rows)
         feat = model.outcome_head.features(Zc, obr)
         mean, _ = predictive_moments(model, fast.select(rows), feat, obr)
+        if transform is not None:
+            mean = transform(mean)
         w = torch.zeros_like(mean)
         for i, keys in enumerate(obr.keys or []):
             for q, k in enumerate(keys):

@@ -95,14 +95,40 @@ def reason_fn_of(model) -> Optional[Callable]:
 
 # ============================================================================ filter
 
-def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None) -> "FilterResult":
-    """`filter_window` with the configured burn-in (`burn_in_for`; the signature `CamUnifiedModel.filter_sequence`
-    delegates to)."""
-    return filter_window(model, seq, aux, None)
+def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None,
+                    burn_in: Optional[int] = None, *, sem=None, sem_rows=None) -> "FilterResult":
+    """`filter_window` (burn-in None = the configured one, `burn_in_for`; the signature
+    `CamUnifiedModel.filter_sequence` delegates to)."""
+    return filter_window(model, seq, aux, burn_in, sem=sem, sem_rows=sem_rows)
+
+
+def _sem_kw(fn, sem, sem_rows) -> dict:
+    """sem / sem_rows keywords for a core or reasoner call that accepts them (W3); {} otherwise or without sem."""
+    if sem is None:
+        return {}
+    ps = _params(fn)
+    if "sem" not in ps:
+        return {}
+    kw = {"sem": sem}
+    if sem_rows is not None and "sem_rows" in ps:
+        kw["sem_rows"] = sem_rows
+    return kw
+
+
+def window_sem(seq, aux, sem=None):
+    """The semantic context of a replay window: ``sem`` when given, else ``aux.sem`` / ``seq.sem`` (W1/W4 replay
+    carries it there when the semantic stream is on), else None. One context for every step, or a list per step."""
+    if sem is not None:
+        return sem
+    for o in (aux, seq):
+        v = getattr(o, "sem", None) if o is not None else None
+        if v is not None:
+            return v
+    return None
 
 
 def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None,
-                  burn_in: Optional[int] = None) -> "FilterResult":
+                  burn_in: Optional[int] = None, *, sem=None, sem_rows=None) -> "FilterResult":
     """Run F_theta over a tokenised SequenceBatch with the acting context: Z_t = F(Z_{t-1}, [O_t; A_{t-1};
     TIME(dt_{t-1}); B_t; option_{t-1}; M_t; G_t]), where B_t is re-filtered along the sequence by the belief module
     from the stored outcomes (B_t has seen o_{<t}), M_t is rebuilt from the stored retrieved ids (when the
@@ -111,7 +137,11 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
 
     Extra fields of the result: ``burn_in`` (decisions filtered without gradient, `burn_in_for`), ``Rs`` ([T] R_t,
     or None entries when the prior runs on Z), ``belief_tokens`` ([T] pure B_t) and ``prior_feat_updates`` (belief
-    updates that used the world-model likelihood)."""
+    updates that used the world-model likelihood), ``sem`` (the window's semantic context, `window_sem`).
+
+    ``sem``: the semantic context S_t (Mechanism C) of the window's rows (one for every step, or a list of T), with
+    ``sem_rows`` [B] when it is aligned to source rows; passed to the core, the reasoner and the world-model prior
+    exactly as decide() passes it (cores / reasoners without a semantic input ignore it)."""
     from ..core import belief_runtime as _belief
     from ..model import FilterResult, fast_where, with_mask
     cfg = model.cfg
@@ -132,6 +162,8 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
     res.belief_tokens = []
     res.ctxs, res.resets = [], []           # per-step core context and episode resets (EMA target pass)
     res.prior_feat_updates = 0
+    sem_all = window_sem(seq, aux, sem)
+    res.sem, res.sem_rows = sem_all, sem_rows
     with model._autocast():
         for t, st in enumerate(steps):
             grad = contextlib.nullcontext() if t >= burn else torch.no_grad()
@@ -158,11 +190,13 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
                 ctx = model.context(st.obs, A_prev, TIME, Bt, opt_tok, M, st.goal)
                 res.ctxs.append(ctx)
                 res.resets.append(prev_done)
-                Z, _ = model.core(Z, ctx)
+                sem_t = sem_all[t] if isinstance(sem_all, (list, tuple)) else sem_all
+                Z, _ = model.core(Z, ctx, **_sem_kw(model.core.forward, sem_t, sem_rows))
                 Z = Z.float()
                 R = None
                 if use_R:
-                    R, _ = model.reasoner(Z, TokenSet.cat(Bt, opt_tok, M, st.goal), model.reason_iters)
+                    R, _ = model.reasoner(Z, TokenSet.cat(Bt, opt_tok, M, st.goal), model.reason_iters,
+                                          **_sem_kw(model.reasoner.forward, sem_t, sem_rows))
                     R = R.float()
                 res.Zs.append(Z)
                 res.Rs.append(R)
@@ -173,8 +207,11 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
                     ob = model.belief_view(st.outcomes)
                     feat = None
                     if wm_feat:
+                        pkw = {} if sem_t is None else {"sem": sem_t, "sem_rows": sem_rows}
+                        if pkw and "sem" not in _params(model.world_model.prior):
+                            pkw = {}
                         Z_hat, _ = model.world_model.prior(R if R is not None else Z, st.act, Bt, st.dt,
-                                                           sample=False)
+                                                           sample=False, **pkw)
                         feat = model.outcome_head.features(Z_hat, ob)
                         res.prior_feat_updates += 1
                     if feat is None:            # legacy call shape (any BeliefModuleP)
@@ -236,6 +273,11 @@ def world_loss(model: "CamUnifiedModel", seq, filt: Optional["FilterResult"]) ->
             kw["reason_fn"] = reason_fn_of(model)
         if "beliefs" in model._wm_loss_ctx:
             kw["beliefs"] = list(bel[burn:])
+        sem = getattr(filt, "sem", None)
+        if sem is not None and not isinstance(sem, (list, tuple)) and "sem" in _params(model.world_model.loss):
+            kw["sem"] = sem                      # one context for the window (rows mapped per transition)
+            if getattr(filt, "sem_rows", None) is not None:
+                kw["sem_rows"] = filt.sem_rows
         out = model.world_model.loss(SequenceBatch(steps), **kw)
         out["burn_in"], out["graded_steps"] = burn, len(steps)
         return out

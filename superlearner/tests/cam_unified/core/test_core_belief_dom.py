@@ -192,6 +192,39 @@ def test_kalman_ig_is_the_exact_gaussian_information_gain(mode):
     assert float(br.belief_change(new, same)["kalman_ig"].abs().max()) == 0.0
 
 
+def test_kalman_ig_is_normalised_per_updated_channel():
+    """kalman_ig = mean over the channels updated in the step of the exact per-channel information gain (W8: the summed
+    form grows with the number of observed keys); kalman_ig_sum keeps the exact total, kalman_ig_c the channels."""
+    cfg = tiny_config(bayes_feat=3)
+    bayes = BayesLastLayer(cfg, noise_mode="nig")
+    from superlearner.cam_unified.testing import zero_fast_state
+    B, C = 2, 3
+    f0 = zero_fast_state(B, cfg, C=C)
+    f0.bayes_P = torch.eye(3, dtype=torch.float64).expand(B, C, 3, 3).clone() * 0.7
+    f0.bayes_noise = torch.full((B, C), 0.3, dtype=torch.float64)
+    f0.bayes_n = torch.zeros(B, C)
+    f0.channels = [{"x": 0, "y": 1, "z": 2} for _ in range(B)]
+    phi = torch.tensor([[[0.5, -1.0, 1.0]], [[2.0, 0.1, 1.0]]])
+    fast, singles, states = f0, [], []
+    for c, key in enumerate("xyz"):
+        ob = one_query(B, [1.3 - c, -0.4 + c], key=key)
+        ob.channel[:] = c
+        new = bayes.update(fast, phi, ob)
+        singles.append(br.belief_change(fast, new)["kalman_ig"])     # one updated channel: mean == sum
+        states.append(new)
+        fast = new
+    ref_c = torch.stack(singles, -1)                                    # each channel updated once, from its prior
+    bc = br.belief_change(f0, fast)
+    torch.testing.assert_close(bc["kalman_ig_c"], ref_c, rtol=1e-5, atol=1e-7)
+    torch.testing.assert_close(bc["kalman_ig_sum"], ref_c.sum(-1), rtol=1e-5, atol=1e-7)
+    torch.testing.assert_close(bc["kalman_ig"], ref_c.mean(-1), rtol=1e-5, atol=1e-7)
+    torch.testing.assert_close(bc["info_gain"], bc["kl_weights"] + bc["kalman_ig"])
+    # channels without an update are not in the mean
+    one = br.belief_change(f0, states[0])
+    torch.testing.assert_close(one["kalman_ig"], singles[0])
+    assert float(one["kalman_ig_c"][:, 1:].abs().max()) == 0.0
+
+
 def test_kl_weights_use_the_pre_resampling_posterior_and_are_differentiable():
     m = dom_tiny()
     B = 4
@@ -251,7 +284,8 @@ def test_observe_outcomes_observation_only_and_world_model_likelihood(monkeypatc
             rs = [s for s in info["specs"][b] if s.key == "reward"]
             assert rs and not rs[0].observed
             assert "reward" not in fa.channels[b]
-        assert set(info["belief_change"]) == {"kl_weights", "d_entropy", "kalman_ig", "info_gain"}
+        assert set(info["belief_change"]) == {"kl_weights", "d_entropy", "kalman_ig", "kalman_ig_sum", "kalman_ig_c",
+                                              "info_gain"}
         assert torch.isfinite(info["loglik"]).all()
     assert ia[1]["lp"] is not None and torch.isfinite(ia[1]["lp"]).all()
 

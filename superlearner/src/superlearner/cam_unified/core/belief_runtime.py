@@ -20,7 +20,8 @@ DOM path (plan 2026-11-26 §1 Beliefs / §3 W6; `dom_beliefs(model)`: the `dom*`
                                                             replacement; the Kalman base is the particle-free head mean)
     predictive_log_prob, predictive_moments                 the full predictive actually used (decide, LP, adapt)
     belief_change(fast_prev, fast_new, info=None)           differentiable belief-change / information-gain features
-                                                            {kl_weights, kalman_ig, d_entropy, info_gain} [B]
+                                                            {kl_weights, kalman_ig (per-channel normalised),
+                                                            kalman_ig_sum, kalman_ig_c, d_entropy, info_gain} [B]
     adapt_loss_all_k                                        separation-correct support/query loss over every support
                                                             size in one pass (support-end world-model rollout, reset
                                                             at done, Kalman dropout, mixture auxiliary term)
@@ -483,10 +484,15 @@ def belief_change(fast_prev: FastState, fast_new: FastState, info: Optional[dict
       (exact when no row was resampled or expanded);
     * ``d_entropy``   H(w_prev) - H(w_post): the drop of the weight entropy (can be negative: a surprising
       observation can flatten the weights);
-    * ``kalman_ig``   sum over channels updated in this step of 0.5 (log det V_prev - log det V_new), V = Sigma /
-      s2_hat the noise-scaled posterior covariance: the exact Gaussian information gain about each channel's
-      weights given the noise (0.5 log(1 + phi^T V phi) per scalar observation); channels whose count did not grow
-      (unobserved, or reset to the prior) contribute 0;
+    * ``kalman_ig_c`` [B,C] per channel updated in this step: 0.5 (log det V_prev - log det V_new), V = Sigma /
+      s2_hat the noise-scaled posterior covariance: the exact Gaussian information gain about the channel's weights
+      given the noise (0.5 log(1 + phi^T V phi) per scalar observation; independent of the noise estimate, which
+      only rescales Sigma); channels whose count did not grow (unobserved, or reset to the prior) contribute 0;
+    * ``kalman_ig_sum`` sum over channels of kalman_ig_c (the exact total; grows with the number of bound keys);
+    * ``kalman_ig``   **per-channel normalised**: the mean of kalman_ig_c over the channels updated in this step
+      (0 when none was), nats per updated outcome channel -- on the scale of kl_weights (<= log K) whatever the
+      number of observed keys, so lambda_ig * IG_t does not grow with the size of the observation (W8 request:
+      the summed form gave 2-16 nats per decision and made information gain dominate R_psi);
     * ``info_gain``   kl_weights + kalman_ig (the actor-visible IG_t of R_psi)."""
     lw_prev = torch.log_softmax(fast_prev.logw.float(), -1)
     post = info.get("logw_post") if isinstance(info, dict) else None
@@ -497,17 +503,23 @@ def belief_change(fast_prev: FastState, fast_new: FastState, info: Optional[dict
     h_post = -(w_post * lw_post).sum(-1)
     B = fast_prev.logw.shape[0]
     dev = fast_prev.logw.device
+    kig_sum = torch.zeros(B, device=dev, dtype=torch.float32)
     kig = torch.zeros(B, device=dev, dtype=torch.float32)
+    kig_c = torch.zeros(B, 0, device=dev, dtype=torch.float32)
     if fast_prev.bayes_P is not None and fast_new.bayes_P is not None and fast_prev.bayes_P.shape[1] > 0:
         upd = fast_new.bayes_n.float() > fast_prev.bayes_n.float()                        # [B,C]
+        kig_c = torch.zeros(upd.shape, device=dev, dtype=torch.float32)
         if bool(upd.any()):
             s2p = fast_prev.bayes_noise.to(F64).clamp_min(1e-300)
             s2n = fast_new.bayes_noise.to(F64).clamp_min(1e-300)
             Fd = fast_prev.bayes_P.shape[-1]
             ldp = _logdet_spd(fast_prev.bayes_P) - Fd * torch.log(s2p)
             ldn = _logdet_spd(fast_new.bayes_P) - Fd * torch.log(s2n)
-            kig = torch.where(upd, 0.5 * (ldp - ldn), torch.zeros_like(ldp)).sum(-1).float()
-    return {"kl_weights": kl, "d_entropy": h_prev - h_post, "kalman_ig": kig, "info_gain": kl + kig}
+            kig_c = torch.where(upd, 0.5 * (ldp - ldn), torch.zeros_like(ldp)).float()
+            kig_sum = kig_c.sum(-1)
+            kig = kig_sum / upd.float().sum(-1).clamp_min(1.0)
+    return {"kl_weights": kl, "d_entropy": h_prev - h_post, "kalman_ig": kig, "kalman_ig_sum": kig_sum,
+            "kalman_ig_c": kig_c, "info_gain": kl + kig}
 
 
 # ============================================================================ outcomes -> beliefs

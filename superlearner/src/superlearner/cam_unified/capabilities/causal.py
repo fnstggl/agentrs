@@ -54,7 +54,7 @@ from ..outcome_spec import CORE_INDEX
 from ..world._util import symexp
 from ..world.baselines import (KeyMeanBaseline, LinearRegressionBaseline, NoChangeBaseline, TrendPersistenceBaseline,
                                WorldModelForecaster, evaluate_multistep)
-from .envs import DelayEffectEnv, InteractionEnv, ProbeEnv, ScoreEvaluator, SwitchEnv
+from .envs import DelayEffectEnv, InteractionEnv, ProbeEnv, ScoreEvaluator, SwitchEnv, _points
 from .imagination import config_override, imagination_settings
 from .loop import Episode, mean, train_agent
 from .stack import build_stack, capability_config
@@ -656,6 +656,38 @@ def measure_lp(stack, seed0: int, n_rows: int = 16, steps: int = 4) -> dict:
             "first_informative_lp_per_outcome": per[1] if len(per) > 1 else None}
 
 
+def train_world_adapt(stack, groups: list, st: CausalSettings) -> list:
+    """World objective + the DOM support/query objective (`CamUnifiedModel.adapt_loss`, all k) on fixed episode
+    groups, cycled, re-tokenised every step, with the configured linear LR decay. Returns per-step loss records."""
+    model, trainer, agent = stack.model, stack.trainer, stack.agent
+    opt = getattr(trainer, "opt", None)
+    base = [g.get("base_lr", g["lr"]) for g in opt.param_groups] if (st.lr_decay and opt is not None) else None
+    hist = []
+    for i in range(st.train_steps):
+        if base is not None:
+            f = 1.0 - (1.0 - st.lr_final_frac) * (i / max(1, st.train_steps - 1))
+            for g, b in zip(opt.param_groups, base):
+                g["lr"] = b * f
+                if "base_lr" in g:
+                    g["base_lr"] = b * f
+        model.train()
+        seq, aux = agent.tokenise_sequences(groups[i % len(groups)])
+        filt = model.filter_sequence(seq, aux)
+        w = model.world_loss(seq, filt)
+        a, am = model.adapt_loss(seq, filt, None)
+        trainer.step({"world": w["world"], "adapt": a})
+        model.version = model.version + 1
+        hist.append({"world": float(w["world"].detach()), "adapt": float(a.detach()),
+                     "adapt_kalman": am.get("adapt_kalman"), "adapt_ks": am.get("adapt_ks")})
+    if base is not None:
+        for g, b in zip(opt.param_groups, base):
+            g["lr"] = b
+            if "base_lr" in g:
+                g["base_lr"] = b
+    model.eval()
+    return hist
+
+
 def run_lp_probe(st: CausalSettings, root: Optional[str] = None, device=None) -> dict:
     """Record SwitchEnv episodes with the untrained dom_dev agent, train world + adapt objectives for
     ``st.train_steps`` steps (LR decay as configured), measure LP before and after."""
@@ -678,32 +710,113 @@ def run_lp_probe(st: CausalSettings, root: Optional[str] = None, device=None) ->
     groups = groups_of(eps, st.batch_seqs, rng)
     dev0 = 200_000 + 1000 * st.seed
     before = measure_lp(stack, dev0)
-    model, trainer, agent = stack.model, stack.trainer, stack.agent
-    opt = getattr(trainer, "opt", None)
-    base = [g.get("base_lr", g["lr"]) for g in opt.param_groups] if (st.lr_decay and opt is not None) else None
-    hist = []
-    for i in range(st.train_steps):
-        if base is not None:
-            f = 1.0 - (1.0 - st.lr_final_frac) * (i / max(1, st.train_steps - 1))
-            for g, b in zip(opt.param_groups, base):
-                g["lr"] = b * f
-                if "base_lr" in g:
-                    g["base_lr"] = b * f
-        model.train()
-        seq, aux = agent.tokenise_sequences(groups[i % len(groups)])
-        filt = model.filter_sequence(seq, aux)
-        w = model.world_loss(seq, filt)
-        a, am = model.adapt_loss(seq, filt, None)
-        trainer.step({"world": w["world"], "adapt": a})
-        model.version = model.version + 1
-        hist.append({"world": float(w["world"].detach()), "adapt": float(a.detach()),
-                     "adapt_kalman": am.get("adapt_kalman"), "adapt_ks": am.get("adapt_ks")})
-    model.eval()
+    model = stack.model
+    hist = train_world_adapt(stack, groups, st)
     after = measure_lp(stack, dev0)
     return {"settings": asdict(st), "before": before, "after": after, "train_first": hist[:3],
             "train_last": hist[-3:], "adapt_last10": mean([h["adapt"] for h in hist[-10:]]),
             "world_last10": mean([h["world"] for h in hist[-10:]]), "components": stack.real_component_report(),
             "wall_s": time.time() - t0}
+
+
+# ================================================================================================ W6 ProbeEnv margin
+# "ProbeEnv h=1 evaluator margin between test and safe actions is >= 0 once trained" (plan 2026-11-26 §3 W6). W5's
+# decision evaluator (r_psi + Phi + gamma V) is not part of this branch, so the margin is measured with the W6
+# one-step evaluator on observable outcomes: Q(a) = E[payout(a) | b] + E_{y ~ p(y | b, a)} max_{a'} E[payout(a') | b'(a,
+# y)] (`world.voi.decision_voi` with `outcome_q` on the points counter, symexp of the predicted symlog delta; cloned
+# belief updates; observation-only).
+# Truth (p_good 0.5, win 10, loss 10, safe 1, test cost 1): Q(test) = -1 + 5.5 = 4.5, Q(safe) = 1 + 1 = 2, margin 2.5.
+
+class PointsProbeEnv(ProbeEnv):
+    """ProbeEnv with the observable points counter of the causal worlds (observation-only payouts): every result
+    and the initial observations carry the running total."""
+
+    name = "probe_pts"
+
+    def _new(self, rng, b):
+        h = super()._new(rng, b)
+        h["total"] = 0.0
+        return h
+
+    def _obs0(self, h, b):
+        return list(super()._obs0(h, b)) + [_points(0.0)]
+
+    def _act(self, h, a, rng, b):
+        ok, obs, r, err = super()._act(h, a, rng, b)
+        h["total"] += float(r)
+        return ok, list(obs) + [_points(h["total"])], r, err
+
+
+@torch.no_grad()
+def measure_probe_margin(stack, seed0: int, n_rows: int = 16, n_y: int = 8,
+                         payout_key: str = "num:points@me[points]") -> dict:
+    """Q(run_test) - Q(play_safe) at the first decision of fresh PointsProbeEnv episodes (see the section note)."""
+    from ..world.voi import VOIState, decision_voi, outcome_q
+    model = stack.model
+    model.eval()
+    env = PointsProbeEnv(n_rows, horizon=3)
+    ep = Episode(model, env, ScoreEvaluator(env), [seed0 + b for b in range(n_rows)], greedy=True)
+    dec, _ = ep.decide()
+    state = ep.state
+    for b in range(n_rows):
+        state.trackers[b].ingest(ep.obs_lists[b])
+    _, prosp = model.prospective_batch(state)
+    goal = model.tokenizer.goal(env.goals())
+    info = [[Action("run_test"), Action("play_safe")] for _ in range(n_rows)]
+    cont = [[Action("launch"), Action("play_safe")] for _ in range(n_rows)]
+    q = outcome_q({payout_key: 1.0}, transform=symexp)        # payout units (the delta is predicted in symlog)
+    with model._autocast():
+        now = q(model, dec.R, state.fast, goal, info, prosp, dec.dt).float()             # [B, 2]
+    v = decision_voi(model, VOIState(dec.R, state.fast, goal, prosp, dt=dec.dt), info, n_y, next_actions=cont,
+                     q_fn=q, seed=seed0)
+    after = v["voi"] + v["base"].unsqueeze(-1)                                          # E_y max_a' Q(b'(a, y), a')
+    Q = now + after
+    margin = Q[:, 0] - Q[:, 1]
+    qa = v["q_after"][:, 0]                                                             # [B, n_y] after the test
+    return {"margin_mean": float(margin.mean()), "margin_min": float(margin.min()),
+            "frac_rows_margin_ge_0": float((margin >= 0).float().mean()),
+            "Q_test": float(Q[:, 0].mean()), "Q_safe": float(Q[:, 1].mean()),
+            "now_test": float(now[:, 0].mean()), "now_safe": float(now[:, 1].mean()),
+            "after_test": float(after[:, 0].mean()), "after_safe": float(after[:, 1].mean()),
+            "voi_test": float(v["voi"][:, 0].mean()), "voi_safe": float(v["voi"][:, 1].mean()),
+            "q_base_launch": float(v["q_base"][:, 0].mean()), "q_base_safe": float(v["q_base"][:, 1].mean()),
+            "q_after_test_sd_over_y": float(qa.std(-1).mean()), "n_rows": n_rows, "n_y": n_y,
+            "truth": {"Q_test": 4.5, "Q_safe": 2.0, "margin": 2.5}}
+
+
+def run_probe_margin(st: CausalSettings, root: Optional[str] = None, device=None) -> dict:
+    """Record PointsProbeEnv episodes (horizon 3, exploring starts: every first tool occurs) with the untrained
+    dom_dev agent, train world + adapt objectives, measure the h=1 margin before and after."""
+    from ..config import make_preset
+    t0 = time.time()
+    tmp = root or tempfile.mkdtemp(prefix="cam_w6_probe_")
+    rng = random.Random(st.seed)
+    cfg = make_preset(st.preset or "dom_dev", use_imagination=False, use_memory=False, lr=st.lr,
+                      grad_clip=st.grad_clip, train_horizons=tuple(st.horizons), **st.cfg_overrides)
+    ckw = {}
+    if st.wm_kwargs:
+        ckw["world_model"] = dict(st.wm_kwargs)
+    if st.core_kwargs:
+        ckw["core"] = dict(st.core_kwargs)
+    stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"probe_s{st.seed}"),
+                        component_kwargs=ckw or None)
+    if st.sem_cache_mb and hasattr(stack.semantic, "cache_max_bytes"):
+        stack.semantic.cache_max_bytes = int(st.sem_cache_mb) * 2 ** 20
+    env = PointsProbeEnv(st.B, horizon=3, exploring_starts=True)
+    stack.info["tools"] = env._all_tools()
+    eps = record(stack, env, st.record_episodes, st.seed * 10_007)
+    stack.agent.fresh = []
+    stack.agent._last_fresh = {}
+    groups = groups_of(eps, st.batch_seqs, rng)
+    dev0 = 300_000 + 1000 * st.seed
+    before = measure_probe_margin(stack, dev0)
+    hist = train_world_adapt(stack, groups, st)
+    after = measure_probe_margin(stack, dev0)
+    return {"settings": asdict(st), "before": before, "after": after, "train_first": hist[:3],
+            "train_last": hist[-3:], "world_last10": mean([h["world"] for h in hist[-10:]]),
+            "adapt_last10": mean([h["adapt"] for h in hist[-10:]]), "n_episodes": len(eps),
+            "first_tools": sorted({e[0].action.tool for e in eps if e and e[0].action is not None}),
+            "components": stack.real_component_report(), "wall_s": time.time() - t0}
 
 
 # ================================================================================================ W6 DOM driver
@@ -751,7 +864,7 @@ def criteria(worlds: dict) -> dict:
 
 def dom_main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("run", "summary", "lp"))
+    ap.add_argument("cmd", choices=("run", "summary", "lp", "probe"))
     ap.add_argument("files", nargs="*")
     ap.add_argument("--world", default="delay")
     ap.add_argument("--seed", type=int, default=0)
@@ -759,6 +872,29 @@ def dom_main(argv=None) -> int:
     ap.add_argument("--set", action="append", default=[], help="CausalSettings override key=json")
     ap.add_argument("--device", default=None)
     a = ap.parse_args(argv)
+    if a.cmd == "probe":
+        kw = dict(DOM_SETTINGS)
+        for item in a.set:
+            k, v = item.split("=", 1)
+            try:
+                kw[k] = json.loads(v)
+            except json.JSONDecodeError:
+                kw[k] = v
+        if "horizons" in kw:
+            kw["horizons"] = tuple(kw["horizons"])
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+        res = run_probe_margin(CausalSettings(seed=a.seed, worlds=("probe",), **kw), device=a.device)
+        res["cuda_peak_gb"] = torch.cuda.max_memory_allocated() / 2 ** 30 if torch.cuda.is_available() else None
+        res["command"] = " ".join([sys.executable, "-m", "superlearner.cam_unified.capabilities.causal"]
+                                  + list(argv if argv is not None else sys.argv[1:]))
+        m = res["after"]["margin_mean"]
+        res["criterion"] = {"margin_mean": m, "pass": m == m and m >= 0}
+        with open(a.out, "w") as f:
+            json.dump(res, f, indent=1, default=str)
+        print("margin before", res["before"]["margin_mean"], "after", m, "->",
+              "PASS" if res["criterion"]["pass"] else "FAIL")
+        return 0
     if a.cmd == "lp":
         kw = dict(DOM_SETTINGS)
         for item in a.set:

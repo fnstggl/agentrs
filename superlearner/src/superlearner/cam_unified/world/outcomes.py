@@ -370,8 +370,12 @@ class MixedOutcomeDist:
             m, r = self.nb_mean, self.nb_total_count
             with seeded_from(generator, dev):
                 lam = torch.distributions.Gamma(r, r / m.clamp(min=1e-8)).sample()
-            # the gamma mixing draw of a very over-dispersed NB can overflow; only non-finite draws are guarded
-            return torch.poisson(torch.nan_to_num(lam, nan=0.0, posinf=1e15).clamp(max=1e15), generator=generator)
+            # the gamma mixing draw of a very over-dispersed NB can overflow; draws are truncated to the representable
+            # range [0, exp(count_log_max)] the log-probability accepts (a simulated count above it -- e.g. the
+            # surprise simulation of beliefs.surprise_z on an early, very over-dispersed head -- otherwise raised)
+            cmax = float(math.floor(math.exp(self.count_log_max)))
+            lam = torch.nan_to_num(lam, nan=0.0, posinf=cmax).clamp(max=cmax)
+            return torch.poisson(lam, generator=generator).clamp(max=cmax)
 
         def surv():
             ps = self.surv_bin_probs.reshape(-1, self.M).clamp(min=0)

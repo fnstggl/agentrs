@@ -68,6 +68,42 @@ from .outcomes import OutcomeHead
 CONTINUOUS = (int(Likelihood.GAUSSIAN), int(Likelihood.STUDENT_T), int(Likelihood.COUNT))
 
 
+def _params_of(fn) -> set:
+    import inspect
+    try:
+        return set(inspect.signature(fn).parameters)
+    except (TypeError, ValueError):
+        return set()
+
+
+def _core_kwargs(wm, core, sem, sem_rows, code_rows) -> dict:
+    """Keyword arguments of one core call: code_rows / sem / sem_rows when given and accepted by the core's forward
+    (the seam core takes code_rows only; W3's core also sem and sem_rows). A dropped ``sem`` is counted."""
+    kw = {}
+    if code_rows is None and sem is None:
+        return kw
+    ps = _params_of(core.forward)
+    if code_rows is not None:
+        kw["code_rows"] = code_rows
+    if sem is not None:
+        if "sem" in ps:
+            kw["sem"] = sem
+            if sem_rows is not None and "sem_rows" in ps:
+                kw["sem_rows"] = sem_rows
+        else:
+            wm.sem_ignored += 1
+    return kw
+
+
+def _sem_at(sem, t: int):
+    """The semantic context of step t: ``sem`` itself (one for every step) or its t-th entry (a list per step)."""
+    if sem is None:
+        return None
+    if isinstance(sem, (list, tuple)):
+        return sem[t] if t < len(sem) else None
+    return sem
+
+
 def _as_dt(dt, B: int, device) -> torch.Tensor:
     if dt is None:
         return None
@@ -190,7 +226,7 @@ class WorldModel(nn.Module):
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
                  train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory",
                  latent_floor_rms: float = 0.1, mode_latent: Optional[bool] = None,
-                 latent_grad: Optional[str] = None):
+                 latent_grad: Optional[str] = None, latent_rep_weight: Optional[float] = None):
         super().__init__()
         if open_loop_credit not in ("trajectory", "row", "per_term"):
             raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
@@ -261,9 +297,17 @@ class WorldModel(nn.Module):
         # core: predictions collapse to climatology, consistency 0.001). The encoder is then shaped by the
         # predictive heads (outcomes, observations, continuation) only, as in the stop-gradient / predictor
         # asymmetry of non-EMA self-prediction.
+        # ``latent_rep_weight`` beta (with "transition"; cfg.wm_latent_rep_weight, default 0): a beta-scaled copy of
+        # the full gradient is added (representation term, DreamerV3's rep/dyn split with beta_rep = 0.1): the
+        # shared encoder is shaped towards predictable states with a small weight while the transition-specific
+        # parameters receive the full weight. Values are unchanged (gradient routing only).
         self.latent_grad = ("full" if self.use_ema else "transition") if latent_grad is None else latent_grad
         if self.latent_grad not in ("full", "transition"):
             raise ValueError("latent_grad must be 'full' or 'transition'")
+        self.latent_rep_weight = float(getattr(cfg, "wm_latent_rep_weight", 0.0) or 0.0) \
+            if latent_rep_weight is None else float(latent_rep_weight)
+        # latent read-out residual at the state's RMS (DOM switches only; legacy keeps the unit-scale residual)
+        self.latent_rms_scale = self.k_trans > 0 or not self.use_ema
         if self.use_ema:
             self.target_core = copy.deepcopy(core)
             for p in self.target_core.parameters():
@@ -271,6 +315,7 @@ class WorldModel(nn.Module):
         else:
             self.target_core = None
         self.n_transitions = 0              # world-model transition evaluations (rows), for compute accounting
+        self.sem_ignored = 0                # semantic contexts dropped because the core has no semantic input
 
     # ------------------------------------------------------------------ parameters / target
     def trainable_parameters(self):
@@ -323,20 +368,26 @@ class WorldModel(nn.Module):
         x = self.noise_proj(z.float()).view(z.shape[0], self.n_noise, -1)
         return TokenSet.from_dense(x, TokenKind.NOISE, time=dt.view(-1, 1).expand(-1, self.n_noise).float())
 
-    def _core(self, Z, ctx: TokenSet, core=None):
+    def _core(self, Z, ctx: TokenSet, core=None, sem=None, sem_rows=None, code_rows=None):
+        """One core pass. ``sem`` (a SemanticContext / SemanticKV, Mechanism C), ``sem_rows`` [B] (batch row ->
+        semantic row) and ``code_rows`` [B] (batch row -> entity slot-code episode row) are passed to the core when
+        given and the core accepts them (W3's `UnifiedCore.forward(Z_prev, ctx, code_rows=None, sem=None, *,
+        sem_rows=None)`); a core without a semantic input ignores ``sem`` (counted in ``sem_ignored``)."""
         core = self.core if core is None else core
+        kw = _core_kwargs(self, core, sem, sem_rows, code_rows)
         on = self.use_autocast and Z.is_cuda
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=on):
-            Zn, ctx_out = core(Z, ctx)
+            Zn, ctx_out = core(Z, ctx, **kw)
         return Zn.float(), ctx_out
 
     # ------------------------------------------------------------------ filter (posterior state)
     def filter_step(self, Z_prev, obs: Optional[TokenSet], act_prev: Optional[TokenSet] = None, dt_prev=None,
                     belief: Optional[TokenSet] = None, goal: Optional[TokenSet] = None,
-                    memory: Optional[TokenSet] = None, core=None, reset: Optional[torch.Tensor] = None):
+                    memory: Optional[TokenSet] = None, core=None, reset: Optional[torch.Tensor] = None,
+                    sem=None, sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
         """One agent state update Z_t = F(Z_{t-1}, [O_t; A_{t-1}; TIME(dt_{t-1}); B_t; M_t; G_t]).
         ``reset`` [B] bool: rows starting a new episode (Z_prev replaced by the initial state; A_{t-1} and the
-        elapsed time masked out). Returns (Z [B,S,D], ctx_out)."""
+        elapsed time masked out). ``sem`` / ``sem_rows`` / ``code_rows``: see `_core`. Returns (Z [B,S,D], ctx_out)."""
         B = Z_prev.shape[0]
         dev = Z_prev.device
         if reset is not None and bool(reset.any()):
@@ -351,11 +402,13 @@ class WorldModel(nn.Module):
         if dt_prev is not None:
             parts.append(self.time_tokens(_as_dt(dt_prev, B, dev), None if reset is None else ~reset))
         parts += [belief, memory, goal]
-        return self._core(Z_prev, cat_tokens(*parts), core)
+        return self._core(Z_prev, cat_tokens(*parts), core, sem, sem_rows, code_rows)
 
     def filter(self, batch: SequenceBatch, beliefs: Optional[list] = None, memory: Optional[list] = None,
-               core=None, Z0=None) -> torch.Tensor:
-        """Run the filter over a sequence. Returns Z_post [T,B,S,D] (Z_post[t] has seen O_{<=t} only)."""
+               core=None, Z0=None, sem=None, sem_rows: Optional[torch.Tensor] = None,
+               code_rows: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Run the filter over a sequence. Returns Z_post [T,B,S,D] (Z_post[t] has seen O_{<=t} only). ``sem``: one
+        semantic context for every step, or a list of T (one per step; None entries allowed)."""
         steps = batch.steps
         B = steps[0].obs.B
         dev = steps[0].obs.x.device
@@ -367,7 +420,8 @@ class WorldModel(nn.Module):
             Z, _ = self.filter_step(Z, st.obs, None if prev is None else prev.act,
                                     None if prev is None else prev.dt,
                                     None if beliefs is None else beliefs[t], st.goal,
-                                    None if memory is None else memory[t], core=core, reset=reset)
+                                    None if memory is None else memory[t], core=core, reset=reset,
+                                    sem=_sem_at(sem, t), sem_rows=sem_rows, code_rows=code_rows)
             out.append(Z)
         return torch.stack(out)
 
@@ -392,30 +446,44 @@ class WorldModel(nn.Module):
         """[B,G,C] log-probs -> straight-through one-hot z [B, G*C]."""
         return straight_through(logp, sample, generator).reshape(logp.shape[0], -1)
 
-    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z, view: bool = False):
+    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z, view: bool = False, sem=None,
+                   sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
         """Z^_{t+1} = F(Z_t, [A_t; B_t; TIME(dt_t); NOISE(z_t)]) (no observations). With cfg.wm_transition_blocks = k
         the transition runs only the last k shared core blocks (`_block_transition`); otherwise a full core pass.
         ``view=True`` returns (Z^, Z^_target_view): the same values, with gradients routed for the self-predictive
-        terms (`latent_grad`)."""
+        terms (`latent_grad`). ``sem`` / ``sem_rows`` / ``code_rows`` (rows of Z -> semantic rows / entity slot-code
+        episode rows, e.g. B*K candidate rows -> their environment row): see `_core`."""
         B = Z.shape[0]
         dt = _as_dt(dt, B, Z.device)
         self.n_transitions += B
         ctx = cat_tokens(act, belief, self.time_tokens(dt), self.noise_tokens(z, dt))
         if self.k_trans > 0:
-            Zn, Zv = self._block_transition(Z, ctx)
+            Zn, Zv = self._block_transition(Z, ctx, sem, sem_rows, code_rows)
         else:
-            Zn, _ = self._core(Z, ctx)
-            Zv = Zn if self.latent_grad == "full" else Zn.detach()
+            Zn, _ = self._core(Z, ctx, None, sem, sem_rows, code_rows)
+            Zv = Zn if self.latent_grad == "full" else self._rep_mix(Zn.detach(), Zn)
         return (Zn, Zv) if view else Zn
 
-    def _block_transition(self, R, ctx: TokenSet) -> torch.Tensor:
+    def _rep_mix(self, Zr: torch.Tensor, Zn: torch.Tensor) -> torch.Tensor:
+        """Routed view Zr (transition-specific gradient) plus ``latent_rep_weight`` x the full-gradient path of Zn;
+        the values stay Zr's (== Zn's)."""
+        b = self.latent_rep_weight
+        if b <= 0 or not Zn.requires_grad:
+            return Zr
+        return Zr + b * (Zn - Zn.detach())
+
+    def _block_transition(self, R, ctx: TokenSet, sem=None, sem_rows: Optional[torch.Tensor] = None,
+                          code_rows: Optional[torch.Tensor] = None) -> torch.Tensor:
         """DOM transition (plan §2, declared deviation from spec 6.1's full-core transition): the input state
         (the reasoned latent R_t when acting; an imagined Z^ in open loop) is embedded like a core state
         (`core.embed_state` + a zero-initialised input adapter), the context [A; B; TIME; NOISE] like core context
         (`core.embed_ctx`, budget-selected), and the joint sequence runs through the last k core blocks shared by
-        reference (`transition_block_list`, no semantic cross-attention), then a zero-initialised residual output
-        adapter and the core's output norm, so Z^ lies on the same RMS-normalised manifold as the posterior state.
-        At initialisation (adapters zero) this is exactly the last k core blocks applied to [R; ctx]."""
+        reference (`transition_block_list`), then a zero-initialised residual output adapter and the core's output
+        norm, so Z^ lies on the same RMS-normalised manifold as the posterior state. At initialisation (adapters
+        zero) this is exactly the last k core blocks applied to [R; ctx]. With ``sem`` and a core that has Mechanism C
+        (`project_semantic`, `run_blocks(..., sem=)`; W3) the semantic cross-attention after each reused block applies
+        as in the full pass (row alignment by ``sem_rows`` / ``code_rows``); ``code_rows`` also selects the entity
+        slot codes of the context rows (`embed_ctx`)."""
         core = self.core
         S = R.shape[1]
         blocks = self.transition_block_list()
@@ -423,12 +491,21 @@ class WorldModel(nn.Module):
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=on):
             sel, _, _ = core.select_budget(ctx)
             hs = core.embed_state(R) + self.trans_in(R.float())
-            hc = core.embed_ctx(sel)
+            hc = core.embed_ctx(sel) if code_rows is None else core.embed_ctx(sel, code_rows)
             h = torch.cat([hs, hc.to(hs.dtype)], 1)
             key_mask = torch.cat([torch.ones(R.shape[0], S, dtype=torch.bool, device=R.device), sel.mask.bool()], 1)
             if bool(key_mask.all()):
                 key_mask = None
-            h = core.run_blocks(h, key_mask, blocks)
+            rb_kw = {}
+            if sem is not None:
+                proj = getattr(core, "project_semantic", None)
+                if callable(proj) and "sem" in _params_of(core.run_blocks):
+                    kv = proj(sem, R.shape[0], code_rows, sem_rows)
+                    if kv is not None:
+                        rb_kw["sem"] = kv
+                else:
+                    self.sem_ignored += 1
+            h = core.run_blocks(h, key_mask, blocks, **rb_kw)
             hS0 = h[:, :S].float()
             Zn = core.out_norm(hS0 + self.trans_out(hS0)).float()
             if self.latent_grad == "full":
@@ -438,6 +515,7 @@ class WorldModel(nn.Module):
                 hd = hS0.detach()
                 w = core.out_norm.weight.detach().float()
                 Zv = F.rms_norm(hd + self.trans_out(hd), (hd.shape[-1],), w, getattr(core.out_norm, "eps", 1e-6))
+                Zv = self._rep_mix(Zv.float(), Zn)
         return Zn, Zv.float()
 
     def duration_params(self, Z, act: TokenSet):
@@ -453,15 +531,19 @@ class WorldModel(nn.Module):
         return torch.expm1(mu.clamp(max=25.0)) / SECONDS_PER_DAY
 
     def prior(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, sample: bool = True,
-              generator: Optional[torch.Generator] = None, z: Optional[torch.Tensor] = None):
-        """WorldModelP.prior: Z [B,S,D], act ACTION tokens, belief BELIEF tokens (or None), dt [B] days (None ->
-        the predicted duration). Returns (Z_hat [B,S,D], {"logits": [B,G,C], "z": [B,G*C], "dt": [B]})."""
+              generator: Optional[torch.Generator] = None, z: Optional[torch.Tensor] = None, sem=None,
+              sem_rows: Optional[torch.Tensor] = None, code_rows: Optional[torch.Tensor] = None):
+        """WorldModelP.prior: Z [B,S,D] (R_t on the DOM path), act ACTION tokens, belief BELIEF tokens (or None),
+        dt [B] days (None -> the predicted duration). ``sem`` / ``sem_rows`` / ``code_rows``: the semantic context
+        and the row maps of a batch whose rows are not the episode rows (e.g. B*K decision candidates -> their
+        environment row b; `transition`). With cfg.wm_transition_blocks = k the transition runs the core's
+        `transition_blocks(k)`. Returns (Z_hat [B,S,D], {"logits": [B,G,C], "z": [B,G*C], "dt": [B]})."""
         B = Z.shape[0]
         dt = self.predict_duration(Z, act).detach() if dt is None else _as_dt(dt, B, Z.device)
         logp = self.prior_logits(Z, act, belief, dt)
         if z is None:
             z = self.sample_latent(logp, sample, generator)
-        Zh = self.transition(Z, act, belief, dt, z)
+        Zh = self.transition(Z, act, belief, dt, z, sem=sem, sem_rows=sem_rows, code_rows=code_rows)
         return Zh, {"logits": logp, "z": z, "dt": dt}
 
     # ------------------------------------------------------------------ prediction heads on Z^
@@ -510,7 +592,14 @@ class WorldModel(nn.Module):
         ``scale`` [S,D] is the (detached) across-sample standard deviation of the target, so the objective measures
         how much of the sample-specific variation of Z_target is predicted (1 ~ predicting the mean state, 0 =
         exact); a shared constant component of the state cannot make it small."""
-        p = Zh.float() + self.latent_pred(self.state_norm(Zh))
+        # DOM path: the read-out is a residual at the state's own scale (per-token RMS, detached): the W3 default keeps
+        # Z unit-RMS (scale ~1), a core without unit-RMS states (core.state_unit=False) no longer gets an O(1)
+        # residual on O(0.01) states (W3 change request). The legacy path keeps the unit-scale residual.
+        Zf = Zh.float()
+        r = self.latent_pred(self.state_norm(Zh))
+        if self.latent_rms_scale:
+            r = Zf.pow(2).mean(-1, keepdim=True).sqrt().detach().clamp_min(1e-6) * r
+        p = Zf + r
         return (((p - Zt.detach().float()) / scale) ** 2).mean((-1, -2))
 
     def _target_scale(self, Z_tgt: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
@@ -589,8 +678,15 @@ class WorldModel(nn.Module):
              horizons: Optional[Sequence[int]] = None, generator: Optional[torch.Generator] = None,
              fast_states: Optional[list] = None, belief_update_fn: Optional[Callable] = None,
              belief_tokens_fn: Optional[Callable] = None, Z_post=None, R_post=None,
-             reason_fn: Optional[Callable] = None, Z_target=None) -> dict:
+             reason_fn: Optional[Callable] = None, Z_target=None, sem=None,
+             code_rows: Optional[torch.Tensor] = None, sem_rows: Optional[torch.Tensor] = None) -> dict:
         """Full world-model objective on real recorded sequences.
+
+        ``sem``: the semantic context of the batch's B rows (one for the whole window; a list of T per-step contexts
+        for the filter when this model runs its own); every transition over flattened rows (teacher-forced (t, b),
+        open-loop (start, b, sample)) passes ``sem_rows`` = the batch row of each row. ``code_rows`` [B]: batch row
+        -> entity slot-code episode row, mapped the same way; ``sem_rows`` [B]: batch row -> row of a source-aligned
+        ``sem`` (composed with the flattened row maps).
 
         beliefs: optional list of T BELIEF TokenSets (B_t computed from information up to t); memory: optional list
         of T MEMORY TokenSets for the filter.
@@ -674,10 +770,11 @@ class WorldModel(nn.Module):
         # ---- filter (online, with gradients) and latent target (no gradients): the EMA target encoder (legacy) or
         # the detached posterior itself; with given agent-filter states the world model runs no filter of its own
         if Z_post is None:
-            Z_post = self.filter(batch, beliefs, memory)                             # [T,B,S,D]
+            Z_post = self.filter(batch, beliefs, memory, sem=sem, sem_rows=sem_rows, code_rows=code_rows)
             if self.target_core is not None:
                 with torch.no_grad():
-                    Z_tgt = self.filter(batch, beliefs, memory, core=self.target_core)
+                    Z_tgt = self.filter(batch, beliefs, memory, core=self.target_core, sem=sem, sem_rows=sem_rows,
+                                        code_rows=code_rows)
             else:
                 Z_tgt = Z_post.detach()
         else:
@@ -688,8 +785,9 @@ class WorldModel(nn.Module):
         R_in = Z_post if R_post is None else \
             (torch.stack(list(R_post)) if isinstance(R_post, (list, tuple)) else R_post).float()
         S, D = Z_post.shape[2], Z_post.shape[3]
+        sem_w = None if isinstance(sem, (list, tuple)) else sem       # per-step lists: filter only
         ctx = _SeqCtx(T=T, ob_rows=ob_rows, obs=obs, Z_tgt=Z_tgt, rew=rew, done=done, valid=valid, gen=generator,
-                      tgt_scale=self._target_scale(Z_tgt, valid))
+                      tgt_scale=self._target_scale(Z_tgt, valid), sem=sem_w, code_rows=code_rows, sem_rows=sem_rows)
 
         tt = torch.arange(T, device=dev).repeat_interleave(B)
         bb = torch.arange(B, device=dev).repeat(T)
@@ -719,7 +817,8 @@ class WorldModel(nn.Module):
             # transitions without a next observation (episode end / sequence padding) have no posterior: use the prior
             lat_lp = torch.where(ok1.view(-1, 1, 1), post_lp, prior_lp)
             z_post = self.sample_latent(lat_lp, True, generator)
-            Zh1, Zv1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post, view=True)
+            Zh1, Zv1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post, view=True,
+                                       **ctx.row_kw(b1))
             rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups, Zv=Zv1)
             terms = self._reduce(rt1, self._responsibilities(rt1))
             with torch.no_grad():
@@ -996,7 +1095,8 @@ class WorldModel(nn.Module):
             if mode_row is not None:
                 zk = torch.where(mode_row[:nr].unsqueeze(-1), self.sample_latent(lp, False), zk)
             Z_prev = Z_in
-            Z, Zv_k = self.transition(Z_in, a_k, bel_rows, dt_k, zk, view=True)
+            Z, Zv_k = self.transition(Z_in, a_k, bel_rows, dt_k, zk, view=True,
+                                      **ctx.row_kw(b_r.repeat_interleave(S_tot)))
             if fast is not None and k < Hmax:
                 # imagined belief update from the model's own sampled outcomes (no real outcome after the start)
                 with torch.no_grad():
@@ -1082,21 +1182,27 @@ class WorldModel(nn.Module):
     @torch.no_grad()
     def forecast(self, batch: SequenceBatch, start: int, horizons: Sequence[int], beliefs: Optional[list] = None,
                  n_samples: int = 8, generator: Optional[torch.Generator] = None, sample: bool = True,
-                 Z0: Optional[torch.Tensor] = None, reason_fn: Optional[Callable] = None) -> dict:
+                 Z0: Optional[torch.Tensor] = None, reason_fn: Optional[Callable] = None, sem=None,
+                 code_rows: Optional[torch.Tensor] = None) -> dict:
         """Open-loop forecast of the outcomes Y_{start+h-1} for each h, from O_{<=start} and the recorded actions
         A_{start..start+h-1} with their recorded durations. Returns {h: {"mean": [B,Q], "var": [B,Q]}} (mixture
         over ``n_samples`` stochastic futures). Never reads observations or outcomes after ``start``.
         ``Z0`` [B,S,D]: the prior input at ``start`` from the agent's own filter (DOM: R_start of
         ``train_seq.filter_sequence``; it must have seen only O_{<=start}); without it the world model's own filter is
-        run. ``reason_fn(Z_hat, belief, goal)`` maps imagined states to prior inputs at steps >= 2 (as in training)."""
+        run. ``reason_fn(Z_hat, belief, goal)`` maps imagined states to prior inputs at steps >= 2 (as in training).
+        ``sem`` / ``code_rows``: the semantic context / slot-code rows of the batch's B rows (see `loss`)."""
         steps = batch.steps
         B = steps[0].obs.B
         dev = steps[0].obs.x.device
         if Z0 is None:
-            Z = self.filter(SequenceBatch(steps[:start + 1]), None if beliefs is None else beliefs[:start + 1])[-1]
+            Z = self.filter(SequenceBatch(steps[:start + 1]), None if beliefs is None else beliefs[:start + 1],
+                            sem=sem, code_rows=code_rows)[-1]
         else:
             Z = Z0.float()
         Z = Z.repeat_interleave(n_samples, 0)
+        rkw = _SeqCtx(T=0, ob_rows=None, obs=None, Z_tgt=None, rew=None, done=None, valid=None, gen=None,
+                      tgt_scale=None, sem=None if isinstance(sem, (list, tuple)) else sem,
+                      code_rows=code_rows).row_kw(torch.arange(B, device=dev).repeat_interleave(n_samples))
         b = None if beliefs is None else rows_rep(beliefs[start], n_samples)
         g = None if steps[start].goal is None else rows_rep(steps[start].goal, n_samples)
         res = {}
@@ -1108,7 +1214,7 @@ class WorldModel(nn.Module):
             dtk = _as_dt(st.dt, B, dev).repeat_interleave(n_samples)
             if k > 1 and reason_fn is not None:
                 Z = reason_fn(Z, b, g)
-            Z, _ = self.prior(Z, a, b, dtk, sample=sample, generator=generator)
+            Z, _ = self.prior(Z, a, b, dtk, sample=sample, generator=generator, **rkw)
             if k in horizons:
                 ob = st.outcomes
                 q = OutcomeBatch(rows_rep(ob.q, n_samples), ob.lik.repeat_interleave(n_samples, 0),
@@ -1177,3 +1283,16 @@ class _SeqCtx:
     valid: torch.Tensor
     gen: Optional[torch.Generator]
     tgt_scale: torch.Tensor
+    sem: object = None                       # semantic context of the batch's B rows (or None)
+    code_rows: Optional[torch.Tensor] = None  # [B] batch row -> entity slot-code episode row (or None)
+    sem_rows: Optional[torch.Tensor] = None   # [B] batch row -> semantic row of a source-aligned sem (or None)
+
+    def row_kw(self, b_idx: torch.Tensor) -> dict:
+        """sem / sem_rows / code_rows keywords of a transition over flattened rows whose batch rows are b_idx."""
+        kw = {}
+        if self.sem is not None:
+            kw["sem"] = self.sem
+            kw["sem_rows"] = b_idx if self.sem_rows is None else self.sem_rows.to(b_idx.device)[b_idx]
+        if self.code_rows is not None:
+            kw["code_rows"] = self.code_rows.to(b_idx.device)[b_idx]
+        return kw

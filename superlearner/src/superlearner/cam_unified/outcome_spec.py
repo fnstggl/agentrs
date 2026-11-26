@@ -538,7 +538,7 @@ def with_targets(ob: OutcomeBatch, y: torch.Tensor, y_mask: Optional[torch.Tenso
 
 def outcomes_from_results(prev_obs: Sequence[Sequence[Observation]], actions: Sequence[Optional[Action]],
                           results: Sequence[Optional[ExecutionResult]], next_obs: Sequence[Sequence[Observation]],
-                          reward: Sequence[float], encoder, *, trackers: Optional[Sequence[OutcomeTracker]] = None,
+                          reward: Optional[Sequence[Optional[float]]], encoder, *, trackers: Optional[Sequence[OutcomeTracker]] = None,
                           registries: Optional[Sequence[EntityRegistry]] = None, fast: Optional[FastState] = None,
                           d_model: Optional[int] = None, prior_var: float = 1.0, obs_var: float = 1.0,
                           device=None, return_specs: bool = False, stats: Optional[dict] = None):
@@ -547,14 +547,15 @@ def outcomes_from_results(prev_obs: Sequence[Sequence[Observation]], actions: Se
     ``encoder``: an OutcomeQueryEncoder, or an ObservationTokenizer / SemanticEncoder / callable from which one is
     built (``d_model`` required then). ``trackers`` carry numeric history across steps (fresh trackers when None:
     deltas are then relative to ``prev_obs`` only). With ``fast`` the keys are bound to channel slots in
-    ``fast.channels``."""
+    ``fast.channels``. ``reward`` None (or None entries): the 'reward' outcome is unobserved (observation_only)."""
     B = len(actions)
     if not isinstance(encoder, OutcomeQueryEncoder):
         if d_model is None:
             raise ValueError("d_model is required when `encoder` is not an OutcomeQueryEncoder")
         encoder = OutcomeQueryEncoder(d_model, make_text_encoder(encoder, d_model))
     trackers = list(trackers) if trackers is not None else [OutcomeTracker() for _ in range(B)]
-    specs = [trackers[b].realize(prev_obs[b], actions[b], results[b], next_obs[b], float(reward[b])) for b in range(B)]
+    rew = [None if (reward is None or reward[b] is None) else float(reward[b]) for b in range(B)]
+    specs = [trackers[b].realize(prev_obs[b], actions[b], results[b], next_obs[b], rew[b]) for b in range(B)]
     chans = [bind_channels(fast, b, specs[b], trackers[b].last_seen, prior_var, obs_var, stats) for b in range(B)]
     ob = build_outcome_batch(specs, encoder, registries, chans, device)
     return (ob, specs) if return_specs else ob
