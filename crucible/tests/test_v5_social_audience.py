@@ -155,3 +155,37 @@ def test_replay_regenerate_and_fork_are_exact():
     X.run(w, 20 * 3600, step=3600)
     X.run(f, 20 * 3600, step=3600)
     assert f.digest() == w.digest()                              # a fork continues identically
+
+
+def test_recount_verifies_a_resumed_and_a_long_persistent_world():
+    """Audit C skeptic S2: the verification of the audience accounting must not depend on the in-memory log window.
+    `recount` reads the world's whole history - from the durable store once the window no longer holds it (a world
+    resumed from its stored snapshot, or one whose window is shorter than the run) - and a world whose history is
+    neither in memory nor in a store cannot be verified (refused, never reported as mismatches)."""
+    from crucible.core.errors import ProtocolError
+    from crucible.storage.memory import MemoryStore
+    store = MemoryStore()
+    w = World.create(X.spec("recount-resume", 5, n=1500, creators=15), store=store, world_id="recount-resume")
+    X.run(w, DAY)
+    w.snapshot()
+    w.close()
+    r = World.load(store, "recount-resume")          # resume: snapshot + replay, a fresh in-memory window
+    X.run(r, 2 * DAY)
+    assert r.log_base > 0
+    rc = AUD.recount(r)
+    assert rc["total_mismatches"] == 0 and rc["consumption_rows"] > 0 and rc["views_without_prior_exposure"] == 0
+    assert rc["impression_rows"] > len([e for e in r.log if e.type == "aud.impressed"])   # history before resume
+    # a window shorter than the run, with a store
+    spec = X.spec("recount-window", 5, n=1500, creators=15)
+    spec.params["log_retain"] = 2000
+    s2 = MemoryStore()
+    w2 = World.create(spec, store=s2, world_id="recount-window")
+    X.run(w2, DAY)
+    assert w2.log_base > 0
+    rc2 = AUD.recount(w2)
+    assert rc2["total_mismatches"] == 0 and rc2["consumption_rows"] > 0
+    # no store and part of the history gone: refused
+    w3 = World.from_blob(r.snapshot_blob())
+    X.run(w3, w3.now + 3600)
+    with pytest.raises(ProtocolError):
+        AUD.recount(w3)

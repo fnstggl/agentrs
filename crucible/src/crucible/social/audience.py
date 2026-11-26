@@ -943,9 +943,16 @@ class Audience(Module):
 
 
 # ---------------------------------------------------------------------------------------------------- recount
+def history(world) -> list:
+    """Every event of the world since creation: the in-memory log when it holds the whole history, else the durable
+    store (a restored or long world keeps only a window in memory). Raises ProtocolError when part of the history is
+    neither in memory nor in a store - the accounting cannot be verified then (never a false mismatch)."""
+    return world.log if world.log_base == 0 else world.events_range(0)
+
+
 def decision_events(world, events=None) -> list:
-    """The aud.impressed / aud.consumed events of a world's log (in-memory window, or a given event list)."""
-    evs = world.log if events is None else events
+    """The aud.impressed / aud.consumed events of the world's whole history (`history`), or of a given event list."""
+    evs = history(world) if events is None else events
     out = []
     for e in evs:
         d = e if isinstance(e, dict) else e.to_dict()
@@ -960,6 +967,8 @@ def recount(world, events=None, *, check_members: bool = True) -> dict:
     st = world.state
     ni = n_items(world)
     npop = n_people(world)
+    if events is None:
+        events = history(world)
     evs = decision_events(world, events)
     imp_keys, imp_ord, con = [], [], []
     for d in evs:
