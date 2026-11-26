@@ -65,13 +65,59 @@ def test_batched_left_padded_generation_matches_unbatched(svc):
 
 
 def test_prefix_cache_reuses_shared_prefix_and_gives_identical_text(svc):
-    before = svc.stats["prefix_hits"]
+    svc.weights.prefixes.clear()
+    h0, m0 = svc.stats["prefix_hits"], svc.stats["prefix_misses"]
     with_cache = svc.generate(None, _reqs(QS))
     assert all(o["prefix_tokens"] > 30 for o in with_cache)
-    assert svc.stats["prefix_hits"] - before == len(QS)
-    assert [o["text"] for o in with_cache] == _one_by_one(svc, _reqs(QS))
-    m = svc.measure_prefix_cache(_reqs(QS))
-    assert m["identical_outputs"] == len(QS) and m["prefix_tokens"] > 30 and m["with_prefix_s"] > 0
+    assert svc.stats["prefix_misses"] - m0 == 1 and svc.stats["prefix_hits"] - h0 == len(QS) - 1
+    again = svc.generate(None, _reqs(QS))
+    assert svc.stats["prefix_hits"] - h0 == 2 * len(QS) - 1                     # the second call reuses it
+    assert [o["text"] for o in with_cache] == [o["text"] for o in again] == _one_by_one(svc, _reqs(QS))
+    m = svc.measure_prefix_cache(_reqs(QS), calls=3)
+    assert m["identical_outputs"] == m["outputs"] == 3 * len(QS) and m["prefix_tokens"] > 30
+
+
+def test_prefix_cache_is_exact_for_option_scoring(svc):
+    """Prefix-first evaluation makes the cache exact by construction: identical log probabilities on/off."""
+    reqs = [{"messages": [SYS, {"role": "user", "content": q}], "choices": ["yes", "no", "maybe"],
+             "normalize": "sum", "prefix_messages": 1} for q in QS]
+    m = svc.measure_prefix_cache(reqs, kind="choose", calls=3)
+    assert m["identical_outputs"] == m["outputs"] == 3 * len(QS)
+
+
+def test_continuous_batching_serves_several_callers_in_shared_steps(svc):
+    import threading
+    from crucible.semantic.batching import ContinuousBatcher
+    ref = [o["text"] for o in svc.generate(None, _reqs(QS, prefix=False))]
+    b = ContinuousBatcher(svc, max_batch=4)
+    futs = {}
+
+    def caller(name, qs):
+        for q in qs:
+            futs[(name, q)] = b.submit(_reqs([q], prefix=False)[0], caller=name)
+    ts = [threading.Thread(target=caller, args=(f"p{i}", [q])) for i, q in enumerate(QS)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    got = [futs[(f"p{i}", q)].result(timeout=120)["text"] for i, q in enumerate(QS)]
+    b.close()
+    assert got == ref                                     # float32 CPU: same greedy tokens as batched generate
+    assert b.stats["completed"] == len(QS) and b.stats["mixed_caller_steps"] > 0
+    assert b.stats["steps"] < sum(len(svc.weights.tok(t)["input_ids"]) + 1 for t in got)
+
+
+def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch):
+    from crucible.semantic import routing as R
+    monkeypatch.setenv("CRUCIBLE_DATA", "/nonexistent")
+    assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
+    assert R.route("tool_choice") == R.route("communication") == "Qwen/Qwen3-0.6B"
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
+    assert R.device_for("Qwen/Qwen3-1.7B") == ("cpu", "int8-dynamic")
+    assert R.device_for("Qwen/Qwen3-0.6B") == ("cpu", None)
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "0")
+    monkeypatch.setenv("CRUCIBLE_SLOT_GPU_MB", "500")         # too small a grant: stay on CPU
+    assert R.device_for("Qwen/Qwen3-0.6B")[0] == "cpu"
 
 
 def test_generation_is_bounded(svc):

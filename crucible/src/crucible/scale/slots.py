@@ -152,6 +152,7 @@ def run(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budget: 
         env[v] = str(max(1, cpu))
     if gpu_mb <= 0:
         env["CUDA_VISIBLE_DEVICES"] = ""
+    env["CRUCIBLE_SLOT_GPU_MB"] = str(max(0, int(gpu_mb)))      # the grant, for in-process allocator caps
     waited0 = time.time()
     acquire(cpu, gpu_mb, label or " ".join(cmd)[:120], budget)
     waited = time.time() - waited0
