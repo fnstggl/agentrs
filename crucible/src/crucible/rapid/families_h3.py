@@ -361,12 +361,16 @@ def ch_drifting_ideal(rng, d):
 
 @_pg("ch_demand_shift", category="8.10", item="8.10.4", split="train",
         doc="Sales are capped by capacity and by demand, and demand responds slowly to how well it was served. At a "
-            "hidden tick demand shifts abruptly - up in some worlds, down in others - and capacity has to follow.",
+            "hidden tick demand shifts abruptly - up in some worlds, down in others - and capacity has to follow. "
+            "Predict where service settles under the end-of-episode demand at settings partly outside what can be "
+            "set.",
         distinct_because="compose collider (capacity and demand complements) with endogenous demand fed back from "
                          "sales and an abrupt timed demand multiplier: a one-off level shift on top of slow endogenous "
                          "adjustment",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "demand_shift",), identify=C + "shift_direction", lever_view=True)
+        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "demand_shift",), identify=C + "shift_direction", lever_view=True,
+        reference="crucible.rapid.refs_adapt:fir_shape_predict_recent", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def ch_demand_shift(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="collider", motifs=["saturation", "saturation", "complementarity"]))
@@ -395,6 +399,16 @@ def ch_demand_shift(rng, d):
     ta = u(rng, 2.5, 4.0)
     price_key_and_costly(cfg, a, ta, b, u(rng, 1.4, 1.9))
     cfg["claim"]["capacity_before"] = ta
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 3.0), (2.0, 12.0), (18.0, 2.0), (1.0, 1.0), (20.0, 6.0), (6.0, 15.0), (16.0, 0.5))]
+    text = ("Predict how many customers would be served per period under the conditions at the end of the episode "
+            f"if capacity and promotion were held at these values (partly outside what you can set): {held}. File "
+            "predictions with the journal: message to 'journal' with content {\"predictions\": [{\"set\": "
+            "<condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 25}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
