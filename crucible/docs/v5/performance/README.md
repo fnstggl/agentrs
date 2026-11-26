@@ -18,7 +18,7 @@ What is measured, by which code, and how to run it. Results are produced only by
 Every heavy job runs through the governor. The gate tests nest their runs in the ledger of the job that runs them, so
 give that job the whole suite's budget:
 
-    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000 \
+    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 \
         --label "M: gate V" -- python -m crucible.acceptance.v5 run --requirement V.1
 
 Runs of a clean committed tree are kept per commit (`$CRUCIBLE_BENCH5_CACHE`, default `/tmp/crucible-bench5-cache`),

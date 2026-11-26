@@ -7,7 +7,7 @@ simulated days, run from the 4.0 source tree (c07098b, git archive) under the sa
 performance_quantities_reported = the quantities present (measured, not null) in every profile's report, counting
 approximation error from the estimated-mode validation; v4_comparison_rows = equivalent-workload rows.
 
-    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000 -- \\
+    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- \\
         python -m crucible.acceptance.v5 run --requirement SP-13.8
 """
 import pytest
@@ -18,7 +18,7 @@ from crucible.scale import bench5
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-13.8")
 PER_RUN = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", "cpu_utilisation", "peak_ram_mb",
            "peak_vram_mb", "model_parameter_counts", "inference_token_counts", "event_storage_growth",

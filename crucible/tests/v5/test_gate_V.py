@@ -8,7 +8,7 @@ Further workloads: the backend matrix (V.4), the event-driven comparison (V.5), 
 worlds (V.6), the estimated-mode validation (V.9) and the 10M-identity capacity run (V.2).
 
 Run it inside a governed job that can hold the suite (it nests its runs in the job's own ledger):
-    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000 \\
+    PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 \\
         --label "M: gate V" -- python -m crucible.acceptance.v5 run --requirement V.1
 """
 import math
@@ -21,7 +21,7 @@ from crucible.scale import bench5, slots
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
        "python -m crucible.acceptance.v5 run --requirement V.<n>")
 QUANT_KEYS = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", "cpu_utilisation", "peak_ram_mb",
               "peak_vram_mb", "model_parameter_counts", "inference_token_counts", "event_storage_growth",

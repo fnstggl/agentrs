@@ -49,8 +49,11 @@ WORLD_KINDS = ("civ", "population")
 QUANTITIES = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", "cpu_utilisation", "peak_ram_mb",
               "peak_vram_mb", "model_parameter_counts", "inference_token_counts", "event_storage_growth",
               "snapshot_size", "world_generation_cost", "approximation_error")
-#: grants a run declares (per profile): RAM MB, disk MB
-GRANTS = {"development": (6000, 1500), "standard": (10000, 3000), "large": (24000, 6000), "internet": (32768, 5120)}
+#: grants a run declares (per profile): RAM MB, disk MB, GPU MB. The shared space's language model and encoders run
+#: on the GPU when the job is granted one (crucible.semantic.space.lm "selective GPU"); on CPU they dominate a run.
+GRANTS = {"development": (8000, 1500, 3500), "standard": (12000, 3000, 3500), "large": (24000, 6000, 3500),
+          "internet": (32768, 5120, 3500)}
+GPU_S = 4 * 86400                     # GPU-time grant of one run: seconds of held CUDA context (the run's wall time)
 
 
 # ====================================================================== process measurements
@@ -468,16 +471,17 @@ def _run_cmd(kind, profile, seed, days, store_dir, out) -> list[str]:
             str(seed), "--days", str(days), "--store-dir", store_dir, "--out", out]
 
 
-def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int = 0) -> dict:
+def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int | None = None) -> dict:
     """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record."""
     from . import slots
-    ram, disk = GRANTS[profile]
+    ram, disk, gpu = GRANTS[profile]
+    gpu_mb = gpu if gpu_mb is None else gpu_mb
     src = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     env = dict(os.environ)
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.setdefault("OMP_NUM_THREADS", "1")
     return slots.run_job(cmd, cpu=cpu, gpu_mb=gpu_mb, label=label, ram_mb=ram, disk_mb=disk, disk_dirs=[store_dir],
-                         inference=2, worlds=4, gpu_s=(3600 if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
+                         inference=2, worlds=4, gpu_s=(GPU_S if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
 
 
 def cache_dir() -> str | None:

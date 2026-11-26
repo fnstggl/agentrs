@@ -37,7 +37,7 @@ def suite() -> dict:
 
 
 def _governed_json(cmd: list[str], out: str, label: str, profile: str = "standard", cpu: int = 1,
-                   gpu_mb: int = 0) -> tuple[dict | None, dict]:
+                   gpu_mb: int | None = None) -> tuple[dict | None, dict]:
     store = os.path.join(WORK, "stores", os.path.basename(out))
     os.makedirs(store, exist_ok=True)
     rec = bench5.governed(cmd, profile, label, store, cpu=cpu, gpu_mb=gpu_mb)
@@ -73,7 +73,7 @@ def v4_rows() -> dict:
             out = os.path.join(WORK, f"v4-{n}.json")
             r, rec = _governed_json([sys.executable, "-m", "crucible.scale.bench5", "v4", "--consumers", str(n),
                                      "--days", str(DAYS), "--seed", "0", "--work", os.path.join(WORK, "v4"),
-                                     "--out", out], out, f"M: 4.0 bazaar {n} consumers {DAYS:g}d", prof)
+                                     "--out", out], out, f"M: 4.0 bazaar {n} consumers {DAYS:g}d", prof, gpu_mb=0)
             recs.append(rec)
             if r is not None:
                 rows.append(r)

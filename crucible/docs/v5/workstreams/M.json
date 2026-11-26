@@ -3,50 +3,236 @@
  "branch": "c5c/w3-perf",
  "requirements": {
   "SP-13.7": {
-   "implementation_files": ["src/crucible/scale/slots.py", "src/crucible/scale/governor.py", "src/crucible/scale/_slotsite/sitecustomize.py", "src/crucible/scale/govprobe.py", "src/crucible/core/kernel.py", "src/crucible/substrate/inference.py"],
-   "tests": ["tests/v5/test_gate_SP_13_7.py", "tests/test_v5_slots.py"],
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "src/crucible/scale/governor.py",
+    "src/crucible/scale/_slotsite/sitecustomize.py",
+    "src/crucible/scale/govprobe.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/substrate/inference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_7.py",
+    "tests/test_v5_slots.py"
+   ],
    "status_claim": "implemented; verified by an unofficial run of the gate test in this worktree (all 7 dimensions stopped, all 7 scheduling rules held)",
    "notes": "Enforcing governor: CPU (affinity to disjoint CPUs, thread caps, per-task re-pinning, kill after 3 strikes), RAM (summed PSS watchdog, kill), GPU memory (GPU hidden at 0; torch allocator cap + per-process reporter injected by the interpreter hook; kill on summed overrun), GPU time (seconds of held CUDA contexts, kill), disk (directory growth watchdog + RLIMIT_FSIZE + free-disk admission), inference concurrency (per-job flock tokens used by substrate.inference.recorded), active worlds (World.__init__ registers, job-wide registry, ResourceLimitExceeded). FIFO queue, budget stored with the ledger (env cannot widen it), oversize clamped, zombie-aware liveness, child-subreaper supervision (detached grandchildren stay in the job and are stopped after the orphan grace), signals only the job's own tree, nested ledgers inside a job. CLI flags of the first version unchanged."
   },
   "V.n1": {
-   "implementation_files": ["docs/v5/performance/targets.json", "src/crucible/scale/bench5.py"],
-   "tests": ["tests/v5/test_gate_V.py"],
+   "implementation_files": [
+    "docs/v5/performance/targets.json",
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
    "status_claim": "targets recorded (D-26, before any official benchmark); throughput not yet met/measured on the civ world",
    "notes": "13 targets with derivations from research needs (Gate P horizons, timeout tiers, free disk, RAM share). The test checks every committed version of targets.json is adopted by a DECISION_LOG entry citing its SHA-256 and predates the runs, then checks T1-T5 on the civ world aggregates."
   },
-  "V.1": {"implementation_files": ["src/crucible/scale/bench5.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "harness implemented; expected to FAIL until civ.generate works and class 4 is bound to a runtime",
-          "notes": "3 profiles x 3 seeds x 30 days of the civ world (and the population world as a second row), governed sub-jobs; a profile counts only if all four classes act. No in-tree code binds class 4 (population.register_class_runtime has no caller), so classes_acting_min is 3 at best."},
-  "V.2": {"implementation_files": ["src/crucible/scale/gatev.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented on the Gate I path (social.cascade, internet profile of pop); not run at 10M in this session",
-          "notes": "Same world as Gate I's positive control, run as a governed job under the T4 grants; records identities, identities with decisions, recounted qualifying distinct consumption events and resource use against T4. Coordinated with Gate I (not duplicated: Gate I owns the audience-accounting claims)."},
-  "V.3": {"implementation_files": ["src/crucible/scale/bench5.py", "src/crucible/scale/backends.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented; counts measured on loaded objects (class-2 AdaptiveNet 187,585 params at hidden 256 in the backend bench; StrategicMLP 2,191,385, StrategicGRU 4,203,289)", "notes": ""},
-  "V.4": {"implementation_files": ["src/crucible/scale/backends.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented; measured unofficially: batched vs per-participant 8.8x at B=32, 10.0x at B=256 (1 CPU thread)",
-          "notes": "The gate's speedup is computed at the in-world class-2 batch sizes of the suite runs."},
-  "V.5": {"implementation_files": ["src/crucible/scale/gatev.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented; not yet measured on a working population world",
-          "notes": "Dense observer evaluates the population's decision policies for every eligible individual each tick vs for the activated ones; equal hash chains; also requires activations caused by recorded population.wake triggers."},
-  "V.6": {"implementation_files": ["src/crucible/scale/gatev.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented; not yet measured", "notes": "Three worlds (two replicas of a seed, another seed) in separate processes on one fresh cache directory; hit rate over all lookups; encoder runs per artifact; cross-world reuse."},
-  "V.7": {"implementation_files": ["src/crucible/scale/slots.py", "src/crucible/scale/bench5.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented", "notes": "Peak CPU (window rate) and PSS from the governor; VRAM from the interpreter hook of GPU jobs and torch peaks in-process; asserted within grants."},
-  "V.8": {"implementation_files": ["src/crucible/scale/slots.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented", "notes": "Violations in the seven dimensions over every governed job of the gate; every job must declare RAM, disk, inference and worlds."},
-  "V.9": {"implementation_files": ["src/crucible/scale/approx.py"], "tests": ["tests/v5/test_gate_V.py"],
-          "status_claim": "implemented (estimated cohort mode + validation); not yet measured", "notes": "Errors for the 7 quantities with 95% intervals over 3 target seeds; fit at 400, predict 1,600 individuals and a shop-share intervention."},
-  "SP-13.8": {"implementation_files": ["src/crucible/scale/bench5.py"], "tests": ["tests/v5/test_gate_SP_13_8.py"],
-              "status_claim": "implemented; depends on the suite (civ world)", "notes": "4.0 equivalent workload = bazaar family with as many consumers as the profile has individuals, same days, from the c07098b tree."},
-  "SP-13.8b": {"implementation_files": ["src/crucible/scale/bench5.py"], "tests": ["tests/v5/test_gate_SP_13_8b.py"], "status_claim": "implemented", "notes": "public events, decisions and diversity per CPU-second."},
-  "SP-0.10": {"implementation_files": ["src/crucible/scale/bench5.py", "src/crucible/acceptance/v5/baseline.py"], "tests": ["tests/v5/test_gate_SP_0_10.py"], "status_claim": "implemented", "notes": "4.0 throughput, memory and generation cost measured from the extracted c07098b tree."},
-  "SP-1.2": {"implementation_files": ["src/crucible/scale/slots.py"], "tests": ["tests/v5/test_gate_SP_1_2.py"], "status_claim": "implemented; outcome depends on other agents' GPU use at run time", "notes": "Census of container processes holding a GPU context, governed = environment carries a scheduler GPU grant; positive control job."},
-  "SP-3.3b": {"implementation_files": ["src/crucible/scale/bench5.py", "src/crucible/scale/gatev.py"], "tests": ["tests/v5/test_gate_SP_3_3b.py"], "status_claim": "implemented; depends on the suite and the capacity run", "notes": ""},
-  "SP-13.1": {"implementation_files": ["src/crucible/scale/bench5.py"], "tests": ["tests/v5/test_gate_SP_13_1.py"], "status_claim": "implemented; expected to FAIL (class 4 unbound)", "notes": ""},
-  "SP-13.3": {"implementation_files": ["src/crucible/scale/backends.py"], "tests": ["tests/v5/test_gate_SP_13_3.py"], "status_claim": "implemented; measured unofficially (8 backends, choice per batch size)", "notes": "Numba is not installed: TorchScript is the JIT standing in for it, Inductor the compiled kernels."},
-  "SP-13.6": {"implementation_files": ["src/crucible/scale/techniques.py", "src/crucible/scale/approx.py"], "tests": ["tests/v5/test_gate_SP_13_6.py"], "status_claim": "implemented", "notes": ""},
-  "SP-13.7b": {"implementation_files": ["src/crucible/scale/slots.py", "docs/v5/performance/targets.json"], "tests": ["tests/v5/test_gate_SP_13_7b.py"], "status_claim": "implemented", "notes": ""}
+  "V.1": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "harness implemented; expected to FAIL until civ.generate works and class 4 is bound to a runtime",
+   "notes": "3 profiles x 3 seeds x 30 days of the civ world (and the population world as a second row), governed sub-jobs; a profile counts only if all four classes act. No in-tree code binds class 4 (population.register_class_runtime has no caller), so classes_acting_min is 3 at best."
+  },
+  "V.2": {
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented on the Gate I path (social.cascade, internet profile of pop); not run at 10M in this session",
+   "notes": "Same world as Gate I's positive control, run as a governed job under the T4 grants; records identities, identities with decisions, recounted qualifying distinct consumption events and resource use against T4. Coordinated with Gate I (not duplicated: Gate I owns the audience-accounting claims)."
+  },
+  "V.3": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/scale/backends.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented; counts measured on loaded objects (class-2 AdaptiveNet 187,585 params at hidden 256 in the backend bench; StrategicMLP 2,191,385, StrategicGRU 4,203,289)",
+   "notes": ""
+  },
+  "V.4": {
+   "implementation_files": [
+    "src/crucible/scale/backends.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented; measured unofficially: batched vs per-participant 8.8x at B=32, 10.0x at B=256 (1 CPU thread)",
+   "notes": "The gate's speedup is computed at the in-world class-2 batch sizes of the suite runs."
+  },
+  "V.5": {
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented; not yet measured on a working population world",
+   "notes": "Dense observer evaluates the population's decision policies for every eligible individual each tick vs for the activated ones; equal hash chains; also requires activations caused by recorded population.wake triggers."
+  },
+  "V.6": {
+   "implementation_files": [
+    "src/crucible/scale/gatev.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented; not yet measured",
+   "notes": "Three worlds (two replicas of a seed, another seed) in separate processes on one fresh cache directory; hit rate over all lookups; encoder runs per artifact; cross-world reuse."
+  },
+  "V.7": {
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented",
+   "notes": "Peak CPU (window rate) and PSS from the governor; VRAM from the interpreter hook of GPU jobs and torch peaks in-process; asserted within grants."
+  },
+  "V.8": {
+   "implementation_files": [
+    "src/crucible/scale/slots.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented",
+   "notes": "Violations in the seven dimensions over every governed job of the gate; every job must declare RAM, disk, inference and worlds."
+  },
+  "V.9": {
+   "implementation_files": [
+    "src/crucible/scale/approx.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_V.py"
+   ],
+   "status_claim": "implemented (estimated cohort mode + validation); not yet measured",
+   "notes": "Errors for the 7 quantities with 95% intervals over 3 target seeds; fit at 400, predict 1,600 individuals and a shop-share intervention."
+  },
+  "SP-13.8": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_8.py"
+   ],
+   "status_claim": "implemented; depends on the suite (civ world)",
+   "notes": "4.0 equivalent workload = bazaar family with as many consumers as the profile has individuals, same days, from the c07098b tree."
+  },
+  "SP-13.8b": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_8b.py"
+   ],
+   "status_claim": "implemented",
+   "notes": "public events, decisions and diversity per CPU-second."
+  },
+  "SP-0.10": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/acceptance/v5/baseline.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_0_10.py"
+   ],
+   "status_claim": "implemented",
+   "notes": "4.0 throughput, memory and generation cost measured from the extracted c07098b tree."
+  },
+  "SP-1.2": {
+   "implementation_files": [
+    "src/crucible/scale/slots.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_1_2.py"
+   ],
+   "status_claim": "implemented; outcome depends on other agents' GPU use at run time",
+   "notes": "Census of container processes holding a GPU context, governed = environment carries a scheduler GPU grant; positive control job."
+  },
+  "SP-3.3b": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py",
+    "src/crucible/scale/gatev.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_3_3b.py"
+   ],
+   "status_claim": "implemented; depends on the suite and the capacity run",
+   "notes": ""
+  },
+  "SP-13.1": {
+   "implementation_files": [
+    "src/crucible/scale/bench5.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_1.py"
+   ],
+   "status_claim": "implemented; expected to FAIL (class 4 unbound)",
+   "notes": ""
+  },
+  "SP-13.3": {
+   "implementation_files": [
+    "src/crucible/scale/backends.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_3.py"
+   ],
+   "status_claim": "implemented; measured unofficially (8 backends, choice per batch size)",
+   "notes": "Numba is not installed: TorchScript is the JIT standing in for it, Inductor the compiled kernels."
+  },
+  "SP-13.6": {
+   "implementation_files": [
+    "src/crucible/scale/techniques.py",
+    "src/crucible/scale/approx.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_6.py"
+   ],
+   "status_claim": "implemented",
+   "notes": ""
+  },
+  "SP-13.7b": {
+   "implementation_files": [
+    "src/crucible/scale/slots.py",
+    "docs/v5/performance/targets.json"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_7b.py"
+   ],
+   "status_claim": "implemented",
+   "notes": ""
+  }
  },
- "limitations": [],
- "integration_notes": []
+ "limitations": [
+  "Per-process GPU memory cannot be read from outside this container (nvidia-smi reports host pids); it is capped (torch allocator fraction) and reported inside every Python process of a GPU job by an interpreter hook injected through PYTHONPATH. A job that replaces PYTHONPATH inside its own command (e.g. `bash -c 'PYTHONPATH=x python ...'`) or a non-Python CUDA program is detected as holding a GPU context but is not metered; the allocator cap covers torch's caching allocator, not the CUDA context itself (~200-450 MB per process).",
+  "Enforcement is by sampling (1 s by default): RAM and disk can overshoot by what a job allocates or writes within one interval before it is killed (probe: 300 MB grant, 304-398 MB at kill when allocating 1 GB/s at 0.25 s sampling).",
+  "Older copies of slots.py in other worktrees share the ledger (entries stay compatible) but neither the FIFO queue nor the stored budget: until every worktree runs this version they can still overtake queued requests and use their own environment budget.",
+  "GPU time is accounted as seconds during which a process holds a CUDA context (an upper bound of kernel time); per-process SM utilisation is not observable from this container.",
+  "Class 4 (semantic generalists) is not bound to any runtime in the tree (population.register_class_runtime has no caller), so no profile has four acting classes; V.1 and SP-13.1 fail until CORE-POP/CORE-SEM bind it.",
+  "crucible.civ.generate fails at 87a6c54 (missing 'space' dependency) and the population tick fails there (KeyError 'items'); the integration fix (c5c/w3-intfix) repairs both. All civ-world measurements of the gate tests therefore fail on this branch alone.",
+  "The event-driven speedup is the ratio of decision-policy compute (dense per-tick evaluation of every eligible individual vs evaluation of the activated individuals) measured by observers of one world, not of two differently scheduled worlds; the world-level CPU ratio is reported next to it.",
+  "The estimated cohort mode is deliberately simple (exchangeable cohorts, per-kind attractiveness, no contact graph); its errors are measured and reported, and it is never used to produce world outcomes.",
+  "Candidate retrieval (13.6) was measured with an inverted-file index on synthetic clustered vectors: 1.2x faster than all-pairs at 1M items with recall 0.83 - the in-tree recommenders' candidate pools were not separately benchmarked."
+ ],
+ "integration_notes": [
+  "Merge after c5c/w3-intfix: every civ-world benchmark (V.1, V.n1, SP-13.8, SP-13.1, SP-3.3b, SP-13.6, SP-13.8b) needs civ.generate and a working population tick.",
+  "kernel.py: World.__init__ registers with crucible.scale.governor and World.close releases (2 small insertions); substrate/inference.py wraps fn() of recorded() in governor.inference(). Both are no-ops outside a governed job.",
+  "The shared ledger /tmp/crucible-slots now has budget.json (cpus 9, gpu 24000 MB, jobs 12 (raised from 8 with a recorded reason: the CPU budget binds), ram 69,481 MB, default RAM ceiling 46,321 MB for undeclared jobs, gpu_jobs 4, inference 16, worlds 512, disk 40,000 MB). Change it only with `python -m crucible.scale.slots --set-budget k=v --reason ...`.",
+  "Official runs of the performance gates should be launched inside one governed job sized for the suite (README: --cpu 6 --gpu-mb 2000 --ram-mb 64000 --disk-mb 12000); the tests nest their runs in that job's ledger. Runs of a clean commit are cached per commit (CRUCIBLE_BENCH5_CACHE) so the separate gate files share one suite.",
+  "Someone must bind class 4: population.register_class_runtime(world, 4, handler, owner=...) with the semantic participant runtime (crucible.semantic.participants) - required by ONE_WORLD_CONTRACTS section 1.",
+  "Performance of the integrated population world on the intfix tree is far below the D-26 targets (see measurements); the profile points at the shared space's encoders and language model running on CPU for every new artifact (skeptic S.3 D-16 cost risk)."
+ ]
 }
