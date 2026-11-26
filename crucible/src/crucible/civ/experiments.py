@@ -501,9 +501,10 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                {"dc_kwh": m_dc_kwh, "region_grid_kwh": m_dc_region_grid, "web_revenue": m_web_revenue},
                "dc_kwh", category=3),
     Experiment("infrastructure_software", "grid capacity limits compute, which limits web businesses' sales: the "
-               "grids of the datacenter regions are cut to 40% at the fork (and, as a second arm, the curtailment "
-               "relation is removed instead)",
-               "infrastructure_constrained", 2.0, 5.0, {"grid_cut_datacenters": cut_datacenter_grids(0.4),
+               "grids of the datacenter regions are cut to 10% at the fork (the binding condition of the SP-10.2 "
+               "battery; at 40% no grid refused a datacenter in any arm or seed at e77fef3: 0 outages, 0 failed "
+               "requests) and, as a second arm, the curtailment relation is removed instead",
+               "infrastructure_constrained", 2.0, 5.0, {"grid_cut_datacenters": cut_datacenter_grids(0.1),
                                                         "remove_grid_curtailment": remove("grid_curtailment")},
                {"web_revenue": m_web_revenue, "failed_requests": m_failed_requests, "dc_kwh": m_dc_kwh},
                "failed_requests", category=4),
