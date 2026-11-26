@@ -69,6 +69,19 @@ class OperatorLabels:
         return out
 
 
+class ConcatLabels:
+    """Several LabelSources as one (learner side)."""
+
+    def __init__(self, sources):
+        self.sources = [s for s in sources if s is not None]
+        vs = [getattr(s, "version", None) for s in self.sources]
+        self.version = None if all(v is None for v in vs) else "+".join(str(v) for v in vs)
+
+    def take_labels(self) -> list:
+        from .runtime import take_labels
+        return [r for s in self.sources for r in take_labels(s)]
+
+
 def make_cam_config(scale: str, overrides: Optional[dict] = None) -> CamConfig:
     """CamConfig of a preset or base scale with `overrides` applied."""
     over = dict(overrides or {})
@@ -297,7 +310,7 @@ def build_agent(scale: str = "dom_dev", *, env_kind: Optional[str] = None, sem_m
     archive = EventArchive(os.path.join(run_dir, "archive"), cfg, artifacts=artifacts, autoflush=sc.archive_autoflush)
     view = BranchView(archive, exclude_events or set())
     replay = ReplaySampler(view, seed=sc.seed)
-    consolidator = Consolidator(view, index, model.retriever)
+    consolidator = Consolidator(view, index, model.retriever) if model.retriever is not None else None
     recorder = TraceRecorder(os.path.join(run_dir, "traces"))
     akw = dict(archive=archive, recorder=recorder, replay=replay, trainer=trainer, index=index,
                consolidator=consolidator, actor_id=sc.actor_id, seed=sc.seed, seq_len=sc.seq_len, n_seqs=sc.n_seqs,

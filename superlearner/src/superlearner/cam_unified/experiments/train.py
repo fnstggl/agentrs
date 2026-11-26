@@ -32,7 +32,7 @@ import time
 
 import torch
 
-from . import mechrun as M
+from . import mechrun as M          # run_batch: a wrapper over the canonical loop runtime.run_lifetime
 from . import stack as S
 
 

@@ -7,6 +7,24 @@ bounded per-row unroll, iteration checkpointing in training, compute penalty in 
 
     flock /workspace/agentrs/runs/cam_unified/gpu_heavy.lock python -m superlearner.cam_unified.core.bench \
         --scales dev main large --B 8 --N 384 --J 4 adaptive
+
+Full-model mode (W1, plan 2026-11-26 §2 memory budget / §3 W1): the real `build.build_agent(preset)` system (1B
+core + Qwen3-4B for "dom") acting on real Crucible rapid worlds through the canonical loop, then one full optimiser
+step over the collected decisions:
+
+    flock ... python -m superlearner.cam_unified.core.bench --full --preset dom --B 16 --K 4 --rounds 8 \
+        --microbatch 4 [--share-ema-target] [--adafactor-satellites] [--planned-adapters] --out FILE
+
+Measured: build memory and parameter counts per group; decide time at B (agent.act, real observations and numeric
+tools) and at B*K rows (one batched decide of B*K rows: the cost model of K candidates per environment until W5's
+candidate decoding exists); one full optimiser step = policy_evaluate fwd+bwd over every collected decision in
+microbatches + world-model and adaptation losses on replayed sequences + the optimiser step (AdamW; Adafactor for
+the satellites with --adafactor-satellites), its wall time and peak memory, the core hash before and after; optionally
+the agent's own (unmicrobatched) update on a reduced buffer. --planned-adapters adds the parameters (weights, grads,
+optimiser states) of the DOM adapters not yet wired by their owners (Mechanism C cross-attention in the core every
+cfg.sem_xattn_every blocks, Mechanism A decoder cross-attention every cfg.dec_xattn_every decoder layers) so the
+memory of the final system is counted; their activations are not. --share-ema-target makes the world model's EMA
+target the online core (the plan removes the EMA target; W6 implements it).
 """
 from __future__ import annotations
 
@@ -161,6 +179,326 @@ def benchmark(scale: str, B: int = 8, N: int = 384, steps: int = 10, warmup: int
     return res
 
 
+# ============================================================================ full-model mode (real system)
+
+GB = 2 ** 30
+
+
+def _mem() -> dict:
+    return {"allocated_GB": torch.cuda.memory_allocated() / GB, "reserved_GB": torch.cuda.memory_reserved() / GB,
+            "peak_GB": torch.cuda.max_memory_allocated() / GB}
+
+
+def rapid_lever_specs(n: int, seed0: int = 0, split: str = "train") -> list:
+    """`n` WorldSpecs of rapid families of `split` whose only action kind is numeric levers (numeric tools), in
+    registry order, cycled with fresh seeds when there are fewer families than n."""
+    import crucible
+    crucible.load_all_modules()
+    from crucible.rapid import families as F
+    from ..envs.experience import BROKEN_MULTIAGENT_RAPID, WorldSpec
+    fams = [k for k, v in F.REGISTRY.items() if v.get("split") == split and list(v.get("action_kinds") or []) ==
+            ["levers"] and not v.get("participants") and k not in BROKEN_MULTIAGENT_RAPID]
+    if not fams:
+        raise RuntimeError(f"no rapid lever families in split {split!r}")
+    return [WorldSpec(1, f"rapid:{fams[i % len(fams)]}", seed=seed0 + i) for i in range(n)]
+
+
+class _PlannedAdapters(torch.nn.Module):
+    """Parameters of DOM adapters that their owners have not wired yet, at the preset's sizes: Mechanism C (gated
+    semantic cross-attention after every cfg.sem_xattn_every core blocks, W3) and Mechanism A (latent cross-attention
+    in every cfg.dec_xattn_every-th decoder layer, W4). Only for memory accounting: they get zero gradients so the
+    optimiser allocates their states; they compute nothing."""
+
+    def __init__(self, cfg, sem, core):
+        super().__init__()
+        from ..semantic.decoder_xattn import LatentDecoderConditioning
+        from .semantic_xattn import GatedSemanticXAttn, SemanticProjection
+        self.report = {}
+        have_c = bool(getattr(core, "xattn", None)) and len(core.xattn) > 0
+        every = int(getattr(cfg, "sem_xattn_every", 0) or 0)
+        sdim = int(getattr(cfg, "sem_xattn_dim", 0) or 0)
+        if every and sdim and not have_c:
+            layers = [i for i in range(cfg.n_layers) if (i + 1) % every == 0]
+            self.mech_c = torch.nn.ModuleDict({str(i): GatedSemanticXAttn(cfg.d_model, cfg.n_heads)
+                                               for i in layers})
+            self.mech_c_proj = SemanticProjection(sdim, cfg.d_model)
+            self.report["mech_c"] = {"layers": layers, "params": count_parameters(self.mech_c)
+                                     + count_parameters(self.mech_c_proj)}
+        de = int(getattr(cfg, "dec_xattn_every", 0) or 0)
+        n_lm = int(getattr(sem, "n_layers", 0) or 0)
+        d_lm = int(getattr(sem, "sem_dim", 0) or sdim)
+        if de and n_lm:
+            layers = [i for i in range(n_lm) if (i + 1) % de == 0]
+            self.mech_a = LatentDecoderConditioning(d_lm, cfg.d_model, layers)
+            self.report["mech_a"] = {"layers": layers, "params": count_parameters(self.mech_a)}
+        self.report["params"] = count_parameters(self)
+
+
+def _optimizers(system, extra: Optional[torch.nn.Module], adafactor_satellites: bool, lr: float = 1e-5) -> list:
+    """The trainer's AdamW over every trained group (+ the planned adapters), or AdamW for the core and Adafactor for
+    every other trainable parameter."""
+    tr = system.trainer
+    extra_ps = [p for p in extra.parameters()] if extra is not None else []
+    if not adafactor_satellites:
+        opts = [tr.opt]
+        if extra_ps:
+            opts.append(torch.optim.AdamW(extra_ps, lr=lr))
+        return opts
+    core = list(tr.groups["core"])
+    sat = list(tr.groups["heads"]) + list(tr.groups["semantic"]) + extra_ps
+    if not hasattr(torch.optim, "Adafactor"):
+        raise RuntimeError("torch.optim.Adafactor needs torch >= 2.5")
+    return [torch.optim.AdamW(core, lr=lr, fused=True), torch.optim.Adafactor(sat, lr=lr)]
+
+
+def _opt_state_GB(opts) -> float:
+    n = 0
+    for o in opts:
+        for st in o.state.values():
+            for v in st.values():
+                if torch.is_tensor(v):
+                    n += v.numel() * v.element_size()
+    return n / GB
+
+
+def full_optimiser_step(system, *, microbatch: int = 4, world: bool = True, adapt: bool = True,
+                        extra: Optional[torch.nn.Module] = None, opts: Optional[list] = None) -> dict:
+    """One full optimiser step over the agent's fresh buffer (every collected decision): policy_evaluate fwd + bwd in
+    microbatches of `microbatch` decisions (surrogate -logp - c*entropy + value^2, the graph of the policy objective),
+    the world-model loss and the support/query adaptation loss on replayed sequences, zero gradients for trainable
+    parameters the step did not reach (so the optimiser state of the whole model is allocated), clip, step."""
+    from ..model import StepInputs
+    from ..stage1.harness_agent import core_hash
+    agent, model = system.agent, system.model
+    opts = opts or [system.trainer.opt]
+    rows = [(st, j) for st in agent.fresh for j in range(len(st.rows))]
+    N = len(rows)
+    out = {"decisions": N, "microbatch": microbatch}
+    h0 = core_hash(model)
+    for o in opts:
+        o.zero_grad(set_to_none=True)
+    model.train()
+    torch.cuda.synchronize()
+    torch.cuda.reset_peak_memory_stats()
+    t0 = time.perf_counter()
+    tp = 0.0
+    for i in range(0, N, microbatch):
+        chunk = rows[i:i + microbatch]
+        subs = [st.subset([j]) for st, j in chunk]
+        inp = StepInputs.cat([s.inputs for s in subs])
+        acts = [a for s in subs for a in s.actions]
+        r = model.policy_evaluate(inp, acts)
+        loss = (-r["logp"].float().sum() - 1e-3 * r["entropy"].float().sum()
+                + 0.5 * r["value"].float().pow(2).sum()) / max(N, 1)
+        loss.backward()
+    torch.cuda.synchronize()
+    tp = time.perf_counter() - t0
+    out["policy_s"] = tp
+    out["policy_peak_GB"] = torch.cuda.max_memory_allocated() / GB
+    tw = time.perf_counter()
+    if world or adapt:
+        if hasattr(agent.replay, "sync"):
+            agent.replay.sync()
+    if world:
+        seqs = agent._sample(agent.n_seqs, agent.seq_len)
+        if seqs:
+            seq, aux = agent.tokenise_sequences(seqs)
+            wl = model.world_loss(seq, model.filter_sequence(seq, aux))["world"]
+            wl.backward()
+            out["world_loss"] = float(wl.detach())
+            out["world_T"] = len(seq.steps)
+    if adapt and model.cfg.use_fast_adaptation:
+        aseqs = agent._sample(agent.adapt_n_seqs, agent.adapt_seq_len)
+        if aseqs:
+            aseq, aaux = agent.tokenise_sequences(aseqs)
+            k = min(4, len(aseq.steps) - 1)
+            al, _ = model.adapt_loss(aseq, model.filter_sequence(aseq, aaux), k)
+            if al.requires_grad:
+                al.backward()
+                out["adapt_loss"] = float(al.detach())
+    torch.cuda.synchronize()
+    out["world_adapt_s"] = time.perf_counter() - tw
+    ps = [p for o in opts for g in o.param_groups for p in g["params"]]
+    n_zero = 0
+    for p in ps:
+        if p.grad is None and p.requires_grad:
+            p.grad = torch.zeros_like(p)
+            n_zero += p.numel()
+    out["params_without_grad"] = n_zero
+    gn = torch.nn.utils.clip_grad_norm_(ps, 1.0)
+    to = time.perf_counter()
+    for o in opts:
+        o.step()
+    torch.cuda.synchronize()
+    out["optimizer_s"] = time.perf_counter() - to
+    out["step_s"] = time.perf_counter() - t0
+    out["grad_norm"] = float(gn)
+    out["peak_GB"] = torch.cuda.max_memory_allocated() / GB
+    out["optimizer_state_GB"] = _opt_state_GB(opts)
+    for o in opts:
+        o.zero_grad(set_to_none=True)
+    model.eval()
+    h1 = core_hash(model)
+    out["core_hash_before"], out["core_hash_after"], out["core_hash_changed"] = h0, h1, h0 != h1
+    return out
+
+
+def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int = 8, microbatch: int = 4,
+                   decide_reps: int = 3, overrides: Optional[dict] = None, share_ema_target: bool = False,
+                   adafactor_satellites: bool = False, planned_adapters: bool = False, grad_checkpoint: bool = True,
+                   agent_update_rows: int = 0, run_dir: Optional[str] = None, sem_model: Optional[str] = None,
+                   seed: int = 0, ow_envs: int = 0, variants: Optional[list] = None) -> dict:
+    """The real system at `preset` (see the module docstring). `ow_envs` > 0 adds that many ow_tiny OpenWorld worlds
+    to the B rapid worlds (one ConcatEnv batch)."""
+    import tempfile
+    from ..build import ConcatLabels, OperatorLabels, SystemConfig, build_agent, describe
+    from ..envs.experience import ExperienceOperator
+    from ..runtime import ConcatEnv, run_lifetime
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+    base = torch.cuda.memory_allocated()
+    over = {"grad_checkpoint": bool(grad_checkpoint), **dict(overrides or {})}
+    run_dir = run_dir or tempfile.mkdtemp(prefix=f"bench_full_{preset}_")
+    res: dict = {"mode": "full", "preset": preset, "B": B, "K": K, "rounds": rounds, "microbatch": microbatch,
+                 "overrides": over, "share_ema_target": share_ema_target, "planned_adapters": planned_adapters,
+                 "adafactor_satellites": adafactor_satellites, "ow_envs": ow_envs, "run_dir": run_dir,
+                 "torch": torch.__version__, "gpu": torch.cuda.get_device_name(0)}
+    t0 = time.perf_counter()
+    sysm = build_agent(preset, env_kind="mixed" if ow_envs else "rapid", device="cuda", run_dir=run_dir,
+                       overrides=over, sem_model=sem_model, seed=seed,
+                       system=SystemConfig(deterministic=False, grad_probe_every=0, archive_autoflush=False,
+                                           fresh_max_steps=rounds + 2, checkpoint_semantic_cache=False))
+    res["build_s"] = time.perf_counter() - t0
+    model, agent = sysm.model, sysm.agent
+    if share_ema_target and hasattr(model.world_model, "target_core"):
+        del model.world_model.target_core
+        model.world_model.target_core = model.world_model.core
+        model.world_model.update_target = lambda *a, **k: None
+        torch.cuda.empty_cache()
+    extra = _PlannedAdapters(sysm.cfg, sysm.semantic, model.core).cuda() if planned_adapters else None
+    res["build_mem"] = {k: v - (base / GB if k == "allocated_GB" else 0.0) for k, v in _mem().items()}
+    d = describe(sysm)
+    res["parameters"] = d["parameters"]
+    res["trainer_groups"] = d["trainer"]["groups"]
+    res["planned_adapters_report"] = extra.report if extra is not None else None
+    res["ema_target_params"] = sum(p.numel() for p in model.world_model.target_core.parameters())         if hasattr(model.world_model, "target_core") and not share_ema_target else 0
+    res["semantic_model"] = d["semantic_model"]
+    # ---------------- acting through the canonical loop (real rapid worlds, numeric tools)
+    op = ExperienceOperator(rapid_lever_specs(B, seed0=1000 + seed))
+    parts, srcs = [op.adapter()], [OperatorLabels(op)]
+    ow_ad = None
+    if ow_envs:
+        from crucible.research import llm_eval as L
+        from ..envs.openworld import open_world
+        goal = L.open_economy_goal(world_family="ow_tiny", seed=1, overrides={"n_consumers": 800}, days=8,
+                                   window_days=3, revenue_cents=10_000, requests=100, sustain_checks=2,
+                                   endowment=3_000_000)
+        ow_ad, ow_op = open_world([goal] * ow_envs, seed=seed)
+        parts.append(ow_ad)
+    env = ConcatEnv(parts) if len(parts) > 1 else parts[0]
+    act_s: list = []
+    act0 = agent.act
+
+    def timed_act(obs, tools):
+        torch.cuda.synchronize()
+        t = time.perf_counter()
+        a = act0(obs, tools)
+        torch.cuda.synchronize()
+        act_s.append(time.perf_counter() - t)
+        return a
+    agent.act = timed_act
+    torch.cuda.reset_peak_memory_stats()
+    try:
+        life = run_lifetime(agent, env, labels=ConcatLabels(srcs), label_store=sysm.label_store, learner=sysm.learner,
+                            max_decisions=rounds, update_every=0, require_cam_eval=False)
+    finally:
+        agent.act = act0
+    res["acting"] = {"decide_s": act_s, "decide_s_warm_median": sorted(act_s[1:])[len(act_s[1:]) // 2]
+                     if len(act_s) > 1 else None, "peak_GB": torch.cuda.max_memory_allocated() / GB,
+                     "decisions": life.compute["decisions"], "rounds": life.steps, "reward_mode": life.reward_mode,
+                     "labels_appended": life.labels_appended, "authorisation": life.authorisation,
+                     "tools_per_env": [len(t) for t in env.available_tools()][:4],
+                     "versions": life.versions, "phase_wall_s": life.accounting["phase_wall_s"]}
+    # ---------------- B*K rows in one decide (cost model of K candidates per environment)
+    if K and K > 1:
+        obs = env.observe()
+        tools = env.available_tools()
+        goals = env.goals()
+        nb = len(obs.env_ids)
+        rowsK = nb * K
+        st = model.init_state(rowsK, device=agent.device, seed=seed)
+        times = []
+        torch.cuda.reset_peak_memory_stats()
+        for r in range(decide_reps + 1):
+            st = model.init_state(rowsK, device=agent.device, seed=seed + r)
+            torch.cuda.synchronize()
+            t = time.perf_counter()
+            model.decide(st, [list(o) for o in obs.observations] * K, [float(x) for x in obs.t] * K, tools * K,
+                         list(goals) * K, generator=torch.Generator().manual_seed(r))
+            torch.cuda.synchronize()
+            times.append(time.perf_counter() - t)
+        res["decide_BK"] = {"rows": rowsK, "decide_s": times, "decide_s_warm_median": sorted(times[1:])[len(times[1:]) // 2],
+                            "peak_GB": torch.cuda.max_memory_allocated() / GB,
+                            "note": "one batched decide of B*K rows; K-candidate decoding (W5) not merged"}
+    # ---------------- one full optimiser step per variant (optimiser states freed between variants)
+    res["steps"] = {}
+    for var in (variants or ["base"]):
+        parts_v = set(var.split("+"))
+        if "share_ema" in parts_v and hasattr(model.world_model, "target_core") \
+                and model.world_model.target_core is not model.world_model.core:
+            del model.world_model.target_core
+            model.world_model.target_core = model.world_model.core
+            model.world_model.update_target = lambda *a, **k: None
+        mb = microbatch
+        for q in parts_v:
+            if q.startswith("mb"):
+                mb = int(q[2:])
+        sysm.trainer.opt.state.clear()
+        torch.cuda.empty_cache()
+        opts = _optimizers(sysm, extra, adafactor_satellites or "adafactor" in parts_v)
+        try:
+            r = full_optimiser_step(sysm, microbatch=mb, extra=extra, opts=opts)
+        except torch.OutOfMemoryError as e:
+            r = {"error": "OutOfMemoryError", "detail": str(e)[:400], "peak_GB": torch.cuda.max_memory_allocated() / GB}
+            for o in opts:
+                o.zero_grad(set_to_none=True)
+            model.eval()
+        r["static_after_GB"] = torch.cuda.memory_allocated() / GB
+        res["steps"][var] = r
+        for o in opts:
+            o.state.clear()
+        del opts
+        torch.cuda.empty_cache()
+    res["step"] = res["steps"][(variants or ["base"])[-1]]
+    res["after_step_mem"] = _mem()
+    # ---------------- the agent's own (unmicrobatched) update on a reduced buffer
+    if agent_update_rows:
+        keep, n = [], 0
+        for stp in reversed(agent.fresh):
+            if n >= agent_update_rows:
+                break
+            keep.append(stp)
+            n += len(stp.rows)
+        agent.fresh = list(reversed(keep))
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+        t = time.perf_counter()
+        try:
+            u = sysm.learner.step()
+            res["agent_update"] = {"rows": n, "updated": bool(u.get("updated")), "s": time.perf_counter() - t,
+                                   "peak_GB": torch.cuda.max_memory_allocated() / GB,
+                                   "losses": u.get("losses"), "reason": u.get("reason")}
+        except torch.OutOfMemoryError as e:
+            res["agent_update"] = {"rows": n, "error": "OutOfMemoryError", "detail": str(e)[:300],
+                                   "peak_GB": torch.cuda.max_memory_allocated() / GB}
+    res["overall_peak_GB"] = max(v.get("peak_GB", 0.0) if isinstance(v, dict) else 0.0
+                                 for v in (res.get("acting"), res.get("decide_BK"), *res["steps"].values(),
+                                           res.get("agent_update")) if v is not None)
+    if ow_ad is not None:
+        ow_ad.close()
+    return res
+
+
 def main(argv: Optional[list] = None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--scales", nargs="+", default=["dev", "main", "large"])
@@ -174,7 +512,41 @@ def main(argv: Optional[list] = None):
     ap.add_argument("--checkpoint", default="auto", choices=["auto", "on", "off"])
     ap.add_argument("--fp32", action="store_true")
     ap.add_argument("--out", default=None)
+    # full-model mode
+    ap.add_argument("--full", action="store_true", help="the real build_agent system (see module docstring)")
+    ap.add_argument("--preset", default="dom")
+    ap.add_argument("--K", type=int, default=4)
+    ap.add_argument("--rounds", type=int, default=8)
+    ap.add_argument("--microbatch", type=int, default=4)
+    ap.add_argument("--ow-envs", type=int, default=0)
+    ap.add_argument("--share-ema-target", action="store_true")
+    ap.add_argument("--adafactor-satellites", action="store_true")
+    ap.add_argument("--planned-adapters", action="store_true")
+    ap.add_argument("--agent-update-rows", type=int, default=0)
+    ap.add_argument("--override", action="append", default=[], help="CamConfig field=value (JSON value)")
+    ap.add_argument("--sem-model", default=None)
+    ap.add_argument("--variants", nargs="*", default=None,
+                    help="optimiser-step variants in order, '+'-joined flags: base, share_ema, adafactor, mb<k>")
     a = ap.parse_args(argv)
+    if a.full:
+        over = {}
+        for kv in a.override:
+            k, v = kv.split("=", 1)
+            try:
+                over[k] = json.loads(v)
+            except ValueError:
+                over[k] = v
+        r = benchmark_full(a.preset, B=a.B, K=a.K, rounds=a.rounds, microbatch=a.microbatch, overrides=over,
+                           share_ema_target=a.share_ema_target, adafactor_satellites=a.adafactor_satellites,
+                           planned_adapters=a.planned_adapters, agent_update_rows=a.agent_update_rows,
+                           sem_model=a.sem_model, ow_envs=a.ow_envs, grad_checkpoint=a.checkpoint != "off",
+                           variants=a.variants)
+        txt = json.dumps(r, indent=1, default=str)
+        print(txt, flush=True)
+        if a.out:
+            with open(a.out, "w") as fh:
+                fh.write(txt)
+        return r
     out = []
     for s in a.scales:
         ck = {"on": True, "off": False}.get(a.checkpoint, s == "large")

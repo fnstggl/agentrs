@@ -43,7 +43,8 @@ def main(argv=None) -> int:
     r.add_argument("--task", default="open_economy", choices=["open_economy", "rig"])
     r.add_argument("--task-index", type=int, default=0)
     r.add_argument("--days", type=float, default=None)
-    r.add_argument("--scale", default="dev", choices=["dev", "main", "large"])
+    r.add_argument("--scale", default="dev", help="base scale (dev, main, large, superlearner, ...) or DOM preset "
+                                                  "(dom, dom_dev, dom_150m); build.build_agent")
     r.add_argument("--set", action="append", default=[], help="CamConfig override key=JSON (repeatable)")
     r.add_argument("--sem-model", default=None)
     r.add_argument("--device", default="cuda")

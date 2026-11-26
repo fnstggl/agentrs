@@ -397,6 +397,58 @@ def _begin(agent, env_ids: list, goals: list) -> None:
         agent.set_goals(list(goals))
 
 
+class ConcatEnv:
+    """Several EnvAdapters as one batch (e.g. 16 rapid worlds + 2 OpenWorld worlds in one canonical loop): rows are
+    the parts' rows in order; each part keeps its own clock, tools, events and goals."""
+
+    def __init__(self, parts: Sequence):
+        self.parts = list(parts)
+        self.sizes = [int(getattr(p, "B", 0) or getattr(p, "n", 0) or 0) for p in self.parts]
+        if not all(self.sizes):
+            raise ValueError("ConcatEnv needs parts with a known batch size (attribute B or n)")
+        self.B = sum(self.sizes)
+        self.version = "+".join(str(getattr(p, "version", type(p).__name__)) for p in self.parts)
+
+    def _split(self, xs) -> list:
+        out, i = [], 0
+        for n in self.sizes:
+            out.append(None if xs is None else list(xs[i:i + n]))
+            i += n
+        return out
+
+    @staticmethod
+    def _cat(batches: list) -> ObservationBatch:
+        return ObservationBatch([e for b in batches for e in b.env_ids], [o for b in batches for o in b.observations],
+                                [t for b in batches for t in b.t], [d for b in batches for d in b.done])
+
+    def reset(self, seeds=None) -> ObservationBatch:
+        return self._cat([p.reset(s) for p, s in zip(self.parts, self._split(seeds))])
+
+    def observe(self) -> ObservationBatch:
+        return self._cat([p.observe() for p in self.parts])
+
+    def available_tools(self) -> list:
+        return [t for p in self.parts for t in p.available_tools()]
+
+    def execute(self, actions) -> list:
+        return [r for p, a in zip(self.parts, self._split(actions)) for r in p.execute(a)]
+
+    def advance_time(self, duration) -> ObservationBatch:
+        return self._cat([p.advance_time(d) for p, d in zip(self.parts, self._split(duration))])
+
+    def collect_events(self, since) -> tuple:
+        got = [p.collect_events(c) for p, c in zip(self.parts, self._split(since))]
+        return [e for g in got for e in g[0]], [c for g in got for c in g[1]]
+
+    def goals(self) -> list:
+        return [g for p in self.parts for g in p.goals()]
+
+    def close(self) -> None:
+        for p in self.parts:
+            if hasattr(p, "close"):
+                p.close()
+
+
 # ============================================================================ the learner side
 
 class AgentLearner:
