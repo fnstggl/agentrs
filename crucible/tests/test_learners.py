@@ -16,6 +16,7 @@ from crucible.research import learners, tasks as T  # noqa: E402
 from crucible.research.envs import MechVecEnv, run_episodes  # noqa: E402
 from crucible.research.learner import EnvSpec  # noqa: E402
 from crucible.research.learners.training import evaluate, pool_stream, summarise, train, train_pool  # noqa: E402
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 
 torch.set_num_threads(2)
 SPEC = EnvSpec()
@@ -142,7 +143,7 @@ def rollout(lr, tasks, explore=False, learn=False, ticks=None, other=None, junk=
     """Drive `lr` on one episode of every task. Returns (actions [t, n, act], rewards [t, n], records, and the
     actions of `other`, a second learner shown the same observations - with garbage in the masked slots if
     `junk`)."""
-    env = MechVecEnv(list(tasks), SPEC)
+    env = MechVecEnv(list(tasks), SPEC, reward_mode=LEGACY)
     obs = env.reset()
     lr.reset_context(env.n)
     if other is not None:
@@ -258,7 +259,7 @@ def test_reset_context_clears_context_but_not_weights(name, easy, tmp_path):
         assert np.array_equal(ref, again), "a fresh context must not remember the previous episode"
         assert not np.array_equal(ref[4:14, 0], ref[14:24, 0]) or name == "hold"
         # reset one slot in mid-episode: it starts over, the other slot is not disturbed
-        env = MechVecEnv(list(tasks), SPEC)
+        env = MechVecEnv(list(tasks), SPEC, reward_mode=LEGACY)
         obs = env.reset()
         lr.reset_context(2)
         got = []
@@ -281,7 +282,7 @@ def test_a_context_reset_in_mid_episode_plans_for_the_ticks_that_are_left(name, 
     """The protocols reset a learner's context inside an episode (the context-reset control). The learners that
     plan against the horizon read it off the clock, and must then plan for what is left, not for a whole episode."""
     lr = make(name)
-    env = MechVecEnv(easy[:1], SPEC)
+    env = MechVecEnv(easy[:1], SPEC, reward_mode=LEGACY)
     obs = env.reset()
     lr.reset_context(1)
     for t in range(44):
@@ -305,7 +306,7 @@ def test_freeze_blocks_every_weight_change_bit_for_bit(name, easy, tmp_path):
     for _ in range(3):                                  # experience offered while frozen is refused
         upd = rollout(lr, easy[:4], explore=True, learn=True)[4]
         assert upd == 0 and lr.update().get("updates", 0) == 0
-    run_episodes(MechVecEnv(easy[:4], SPEC), lr, explore=False, learn=True)
+    run_episodes(MechVecEnv(easy[:4], SPEC, reward_mode=LEGACY), lr, explore=False, learn=True)
     assert fingerprint(lr, tmp_path) == fp
     assert lr.frozen
     lr.freeze(False)
@@ -357,7 +358,7 @@ def test_usage_accounting_adds_up(name, easy):
     steps = sum(t.horizon for t in tasks)
     u = lr.usage()
     assert u.env_steps == 0 and u.updates == 0 and u.search_evals == 0
-    run_episodes(MechVecEnv(tasks, SPEC), lr, explore=False)
+    run_episodes(MechVecEnv(tasks, SPEC, reward_mode=LEGACY), lr, explore=False)
     assert u.env_steps == steps                         # counted once, by the harness
     if name not in ("hold", "random"):
         assert u.infer_cpu_s > 0
@@ -389,7 +390,7 @@ def test_usage_accounting_adds_up(name, easy):
 
 # ---------------------------------------------------------------------------- what the learners achieve
 def test_scripted_experimenters_beat_hold_and_random_on_easy_mechanisms(easy):
-    sc = {n: np.array([r["score"] for r in evaluate(learners.make(n, SPEC, seed=1), easy)])
+    sc = {n: np.array([r["score"] for r in evaluate(learners.make(n, SPEC, seed=1), easy, reward_mode=LEGACY)])
           for n in ("hold", "random", "probe_exploit", "hill_climb")}
     assert abs(sc["hold"].mean()) < 0.05 and sc["random"].mean() < -0.1
     assert sc["probe_exploit"].mean() > sc["hold"].mean() + 0.3
@@ -397,7 +398,7 @@ def test_scripted_experimenters_beat_hold_and_random_on_easy_mechanisms(easy):
     assert (sc["probe_exploit"] > sc["hold"] + 0.15).all() and (sc["probe_exploit"] > sc["random"]).all()
     assert sc["hill_climb"].mean() > sc["hold"].mean() + 0.1 and sc["hill_climb"].mean() > sc["random"].mean() + 0.3
     # the experiment costs the first half of the episode and pays in the second
-    recs = evaluate(learners.make("probe_exploit", SPEC), easy)
+    recs = evaluate(learners.make("probe_exploit", SPEC), easy, reward_mode=LEGACY)
     assert np.mean([r["score_second_half"] for r in recs]) > np.mean([r["score_first_half"] for r in recs]) + 0.3
     assert np.mean([r["score_second_half"] for r in recs]) > 0.7
 
@@ -415,8 +416,8 @@ def test_probe_exploit_probes_again_when_net_collapses():
 
 
 def test_model_based_identifies_an_easy_mechanism_within_the_episode(easy):
-    recs = evaluate(learners.make("model_based", SPEC, seed=0), easy)
-    hold = evaluate(learners.make("hold", SPEC), easy)
+    recs = evaluate(learners.make("model_based", SPEC, seed=0), easy, reward_mode=LEGACY)
+    hold = evaluate(learners.make("hold", SPEC), easy, reward_mode=LEGACY)
     assert np.mean([r["score"] for r in recs]) > np.mean([r["score"] for r in hold]) + 0.5
     assert np.mean([r["success"] for r in recs]) >= 0.75
     assert np.mean([r["score_second_half"] for r in recs]) > np.mean([r["score_first_half"] for r in recs]) + 0.15
@@ -426,9 +427,9 @@ def test_a_short_training_run_improves_the_frozen_score_of_ppo_gru(easy):
     """Real training (recurrent PPO, about 29k environment steps on 8 easy worlds): the frozen policy with fresh
     context earns clearly more than the same network before training, and more than leaving the levers alone."""
     lr = learners.make("ppo_gru", SPEC, seed=0, hidden=32, rollout_steps=960, lr=1e-3)
-    before = summarise(evaluate(lr, easy))["score"]
-    curve = train(lr, pool_stream(easy, 0), total_steps=28_800, n_envs=16, eval_tasks=easy, eval_every=14_400)
-    after = summarise(evaluate(lr, easy))["score"]
+    before = summarise(evaluate(lr, easy, reward_mode=LEGACY))["score"]
+    curve = train(lr, pool_stream(easy, 0), total_steps=28_800, n_envs=16, eval_tasks=easy, eval_every=14_400, reward_mode=LEGACY)
+    after = summarise(evaluate(lr, easy, reward_mode=LEGACY))["score"]
     assert lr.usage().updates > 0 and lr.usage().env_steps >= 28_800
     assert len(curve) == 3 and curve[0]["steps"] == 0 and curve[-1]["steps"] >= 28_800
     assert curve[-1]["updates"] == lr.usage().updates and curve[-1]["train_cpu_s"] > 0
@@ -444,18 +445,18 @@ def test_a_short_training_run_improves_the_frozen_score_of_model_based():
     tasks = [regular_task(k) for k in range(12)]
     unseen = [regular_task(k) for k in range(100, 112)]
     lr = learners.make("model_based", SPEC, seed=0, min_episodes=24, batch_episodes=16)
-    before, before_unseen = summarise(evaluate(lr, tasks))["score"], summarise(evaluate(lr, unseen))["score"]
+    before, before_unseen = summarise(evaluate(lr, tasks, reward_mode=LEGACY))["score"], summarise(evaluate(lr, unseen, reward_mode=LEGACY))["score"]
     assert lr.usage().updates == 0
-    curve = train(lr, pool_stream(tasks, 0), total_steps=3_600, n_envs=12, eval_tasks=tasks, eval_every=1_800)
+    curve = train(lr, pool_stream(tasks, 0), total_steps=3_600, n_envs=12, eval_tasks=tasks, eval_every=1_800, reward_mode=LEGACY)
     lr.freeze(True)
-    after, after_unseen = summarise(evaluate(lr, tasks))["score"], summarise(evaluate(lr, unseen))["score"]
+    after, after_unseen = summarise(evaluate(lr, tasks, reward_mode=LEGACY))["score"], summarise(evaluate(lr, unseen, reward_mode=LEGACY))["score"]
     assert lr.usage().updates >= 100 and curve[-1]["updates"] == lr.usage().updates
     assert after > before + 0.1, (before, after)
     assert after_unseen > before_unseen + 0.05, (before_unseen, after_unseen)
     # what was learned is a better predictive model: episodes of unseen worlds, collected by an untrained learner
     collector = learners.make("model_based", SPEC, seed=5)
     for _ in range(3):
-        run_episodes(MechVecEnv(unseen, SPEC), collector, explore=True, learn=True)
+        run_episodes(MechVecEnv(unseen, SPEC, reward_mode=LEGACY), collector, explore=True, learn=True)
     episodes = list(collector._buffer)
     assert len(episodes) == 36 and collector.usage().updates == 0
     assert lr.heldout_nll(episodes) < collector.heldout_nll(episodes) - 0.2
@@ -469,7 +470,7 @@ def test_a_learner_acts_and_is_paid_identically_through_kernel_tool_calls(name):
     from crucible.research.bridge import KernelMechEnv
     t = T.make_task("scm_additive", 3, validate=False)
     ticks = 40
-    sim_env, ker_env = MechVecEnv([t], SPEC), KernelMechEnv(t, SPEC)
+    sim_env, ker_env = MechVecEnv([t], SPEC, reward_mode=LEGACY), KernelMechEnv(t, SPEC, reward_mode=LEGACY)
     la, lb = make(name, seed=9), make(name, seed=9)
     oa, ob = sim_env.reset(), ker_env.reset()
     la.reset_context(1)

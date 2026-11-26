@@ -204,8 +204,19 @@ class ReferenceLearner:
         return v
 
     def _signal_value(self, obs: dict) -> float:
+        """The learner's own valuation of a state: its money as the observation shows it - the numbers matching
+        `signal_keys` (kernel and mechanism worlds: ``bank.balances.*``), else its own resources' money (rapid
+        worlds report ``resources.cash_cents``)."""
         pat = re.compile(self.cfg.signal_keys)
-        return float(sum(float(x) for k, x in (obs.get("numbers") or {}).items() if pat.search(k)))
+        hits = [float(x) for k, x in (obs.get("numbers") or {}).items() if pat.search(k)]
+        if hits:
+            return float(sum(hits))
+        res = obs.get("resources") or {}
+        for k in ("balance_cents", "cash_cents"):
+            v = res.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return float(v)
+        return 0.0
 
     def signal_mode(self) -> str:
         s = self.cfg.signal
@@ -368,7 +379,8 @@ class ReferenceLearner:
         first_hash = self.params_hash()
         for r in records:
             obs = r["observation"]
-            if prev is not None and prev["agent"] == r["agent"] and prev["env"] == r["env"]:
+            if prev is not None and prev["agent"] == r["agent"] and prev["env"] == r["env"] and \
+                    not prev.get("done") and prev.get("episode", 0) == r.get("episode", 0):
                 self._push_record(prev, obs)
             elif prev is not None:
                 self._push_record(prev, None)            # the last record of that agent/world: no successor
@@ -436,7 +448,12 @@ class ReferenceLearner:
         return {"format": VERSION, "config": asdict(self.cfg), "seed": self.seed, "reward_mode": self.reward_mode,
                 "net": self.net.state_dict(), "opt": self.opt.state_dict(), "gen": self.gen.get_state(),
                 "rng": self.rng.bit_generator.state, "memory": dict(self.memory), "updates": self.updates,
-                "steps": self.steps}
+                "steps": self.steps,
+                # the learner's context: a mid-episode save resumes with the same recurrent state, the same
+                # buffered transitions and the same transition in flight
+                "context": {"h": self.h, "h0": self.h0, "prev_tokens": list(self.prev_tokens), "buf": list(self.buf),
+                            "pending": self._pending, "boundary": bool(self._boundary), "actor": self.actor,
+                            "frozen": bool(self.frozen)}}
 
     def save(self, path: str) -> None:
         import torch
@@ -463,6 +480,12 @@ class ReferenceLearner:
         self.memory = dict(st["memory"])
         self.updates, self.steps = int(st["updates"]), int(st["steps"])
         self.seed, self.reward_mode = int(st["seed"]), st["reward_mode"]
+        c = st.get("context")
+        if c is not None:
+            self.h, self.h0 = c["h"], c["h0"]
+            self.prev_tokens, self.buf = list(c["prev_tokens"]), list(c["buf"])
+            self._pending, self._boundary = c["pending"], bool(c["boundary"])
+            self.actor, self.frozen = c["actor"], bool(c["frozen"])
 
     def params_blob(self) -> bytes:
         import torch

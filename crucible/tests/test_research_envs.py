@@ -10,6 +10,7 @@ from crucible.research.baselines import HoldLearner, RandomLearner
 from crucible.research.bridge import KernelMechEnv
 from crucible.research.envs import MechVecEnv, money_scale, run_episodes
 from crucible.research.learner import EnvSpec
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 
 SPEC = EnvSpec()
 
@@ -68,7 +69,7 @@ def test_public_view_of_a_task_contains_no_private_number(val_tasks):
 
 
 def test_normalisation_hold_scores_zero_random_scores_below_and_reference_scores_about_one(val_tasks):
-    env = MechVecEnv(val_tasks, SPEC)
+    env = MechVecEnv(val_tasks, SPEC, reward_mode=LEGACY)
     hold = run_episodes(env, HoldLearner(SPEC))
     rand = run_episodes(env, RandomLearner(SPEC, seed=1))
     for t, h, r in zip(val_tasks, hold, rand):
@@ -87,7 +88,7 @@ def test_normalisation_hold_scores_zero_random_scores_below_and_reference_scores
 
 
 def test_observation_layout_masks_and_reward_units(val_tasks):
-    env = MechVecEnv(val_tasks[:2], SPEC)
+    env = MechVecEnv(val_tasks[:2], SPEC, reward_mode=LEGACY)
     obs = env.reset()
     assert obs.shape == (2, SPEC.obs_dim) and obs.dtype == np.float32
     eng = env.sims[0].engine
@@ -100,7 +101,7 @@ def test_observation_layout_masks_and_reward_units(val_tasks):
     assert sc[0] == pytest.approx(rew[0]) and sc[1] - sc[2] == pytest.approx(rew[0], abs=1e-5)
     assert sc[4] == pytest.approx(1 / val_tasks[0].horizon)
     # masked action entries are ignored: garbage there changes nothing
-    env2 = MechVecEnv(val_tasks[:2], SPEC)
+    env2 = MechVecEnv(val_tasks[:2], SPEC, reward_mode=LEGACY)
     env2.reset()
     junk = act.copy()
     junk[:, len(eng.levers(0)):] = 0.77
@@ -113,7 +114,7 @@ def test_observation_layout_masks_and_reward_units(val_tasks):
 
 
 def test_replaying_a_task_gives_the_same_episode_and_new_tasks_can_be_swapped_in(val_tasks):
-    env = MechVecEnv(val_tasks[:2], SPEC)
+    env = MechVecEnv(val_tasks[:2], SPEC, reward_mode=LEGACY)
     a = run_episodes(env, RandomLearner(SPEC, seed=5))
     b = run_episodes(env, RandomLearner(SPEC, seed=5))
     assert [x["net_cents"] for x in a] == [x["net_cents"] for x in b]
@@ -124,7 +125,7 @@ def test_replaying_a_task_gives_the_same_episode_and_new_tasks_can_be_swapped_in
 
 def test_an_operator_who_overspends_runs_out_of_money_and_the_record_says_so(val_tasks):
     t = val_tasks[0]
-    env = MechVecEnv([t], SPEC)
+    env = MechVecEnv([t], SPEC, reward_mode=LEGACY)
 
     class MaxEverything(HoldLearner):
         def act(self, obs, explore=True):
@@ -141,8 +142,8 @@ def test_the_kernel_world_and_the_simulator_are_the_same_problem(val_tasks, whic
     batched simulator's, tick for tick (float32 observations compared exactly)."""
     t = val_tasks[which]
     ticks = 30
-    sim_env = MechVecEnv([t], SPEC)
-    ker_env = KernelMechEnv(t, SPEC)
+    sim_env = MechVecEnv([t], SPEC, reward_mode=LEGACY)
+    ker_env = KernelMechEnv(t, SPEC, reward_mode=LEGACY)
     la, lb = RandomLearner(SPEC, seed=9, hold=3), RandomLearner(SPEC, seed=9, hold=3)
     oa, ob = sim_env.reset(), ker_env.reset()
     la.reset_context(1)

@@ -23,6 +23,7 @@ from crucible.research import tasks as T  # noqa: E402
 from crucible.research.envs import MechVecEnv  # noqa: E402
 from crucible.research.learner import EnvSpec  # noqa: E402
 from crucible.worldgen import generate  # noqa: E402
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 
 SPEC = EnvSpec()
 WAIT = '{"tool": "wait", "args": {}}'
@@ -72,7 +73,7 @@ def _set(settings: dict) -> str:
 
 def _vec_record(task, actions: np.ndarray) -> dict:
     """The numeric learners' episode record for a sequence of actions (one row per tick)."""
-    env = MechVecEnv([task], SPEC)
+    env = MechVecEnv([task], SPEC, reward_mode=LEGACY)
     env.reset()
     for a in actions:
         pad = np.zeros((1, SPEC.max_levers))

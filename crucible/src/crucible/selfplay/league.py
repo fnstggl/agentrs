@@ -48,7 +48,7 @@ def _safe(pid: str) -> str:
 class SelfPlayLeague(League):
     def __init__(self, root: str, task: Task, spec: EnvSpec | None = None, mode: str = "competition",
                  n_slots: int = 4, seed: int = 0, k_elo: float = 24.0, coop_weight: float = 0.5,
-                 draw_tol: float = 0.01):
+                 draw_tol: float = 0.01, reward_mode: str | None = None):
         super().__init__(world=task.family, days=float(task.horizon), seed=seed, mode=mode, k_elo=k_elo,
                          coop_weight=coop_weight, draw_tol=draw_tol, deterministic=False)
         if not 1 <= n_slots <= SLOT_STRIDE:
@@ -57,7 +57,8 @@ class SelfPlayLeague(League):
         self.task = task
         self.spec = spec or EnvSpec()
         self.n_slots = int(n_slots)
-        self.env = SelfPlayEnv([task] * self.n_slots, self.spec)
+        self.env = SelfPlayEnv([task] * self.n_slots, self.spec, reward_mode=reward_mode)
+        self.reward_mode = self.env.reward_mode      # observation_only unless named (Clarification 2)
         self.live: dict[str, Individual] = {}        # learners that can still learn
         self.frozen: dict[str, Individual] = {}      # snapshots and fixtures, loaded on demand
         self.info: dict[str, dict] = {}              # per entry: role (live | snapshot | fixture), stage, of
@@ -337,7 +338,7 @@ class SelfPlayLeague(League):
         doc = {"format": FORMAT, "task": self.task.to_dict(), "mode": self.mode, "n_slots": self.n_slots,
                "seed": self.seed, "k_elo": self.k_elo, "coop_weight": self.coop_weight, "draw_tol": self.draw_tol,
                "entries": [e.to_dict() for e in self.entries.values()], "info": self.info, "records": recs,
-               "ratings": self.ratings(), "heldout_log": self.heldout_log}
+               "ratings": self.ratings(), "heldout_log": self.heldout_log, "reward_mode": self.reward_mode}
         tmp = os.path.join(self.root, f"league.json.{os.getpid()}.tmp")
         with open(tmp, "w") as fh:
             json.dump(doc, fh)
@@ -351,8 +352,9 @@ class SelfPlayLeague(League):
             d = json.load(fh)
         if d.get("format") != FORMAT:
             raise ValueError(f"{root} is not a {FORMAT} directory")
+        # a league saved before reward modes existed ran the 4.0 (legacy) reward: it is reloaded as it ran
         lg = cls(root, Task.from_dict(d["task"]), spec, d["mode"], d["n_slots"], d["seed"], d["k_elo"],
-                 d["coop_weight"], d["draw_tol"])
+                 d["coop_weight"], d["draw_tol"], reward_mode=d.get("reward_mode", "legacy_shaped_reward"))
         lg.info = d["info"]
         for e in sorted(d["entries"], key=lambda e: e["added"]):
             lg.entries[e["id"]] = PolicyEntry(e["id"], None, e.get("parent"), tuple(e.get("tags", ())),

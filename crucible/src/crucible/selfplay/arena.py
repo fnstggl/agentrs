@@ -747,7 +747,8 @@ def play(env: SelfPlayEnv, individuals: Sequence[Individual | None], *, noise: S
     scale_score = np.asarray(env._scale)
     legacy = getattr(env, "reward_mode", LEGACY) == LEGACY
     if not legacy:
-        bad = sorted({ind.objective.kind for ind in individuals if ind is not None and ind.objective.kind != "own"})
+        bad = sorted({ind.objective.kind for s, ind in enumerate(individuals)
+                      if ind is not None and learn_s[s] and ind.objective.kind != "own"})
         if bad:
             raise ValueError(f"objective(s) {bad} need privileged data (another seat's private net or the "
                              f"mechanism's objective quantity); outside legacy_shaped_reward only 'own' is available, "

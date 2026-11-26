@@ -410,7 +410,8 @@ def _drive_mech(env, steps: int, seed: int) -> tuple[list, list[float], list[lis
 
 
 # ====================================================================== surface: Tier 1 rapid adapter
-def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple = ("team_commons",),
+def probe_rapid(single: tuple = ("net_routing", "hc_confounded", "ch_sign_reversal", "lab_kinetics"),
+                multi: tuple = ("team_commons", "coop_split_info"),
                 steps: int = 12) -> dict:
     from .registry import make
     P = Probe("tier1 rapid adapter (RapidExperienceEnv)")
@@ -438,11 +439,30 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple =
             views.append(got)
             scan(P, got, canaries=[] if target is None else [repr(target)], label=f"{fam} objective threshold")
         counterfactual(P, views, f"{fam} evaluator success threshold")
+    for fam in single + multi:                           # the generated world's identity is not an observation
+        env = make(1, f"rapid:{fam}", 5)
+        a = env.agents()[0]
+        names = {t["name"] for t in env.tools(a)}
+        if "rapid.query" not in names:
+            continue
+        env.execute(a, {"tool": "rapid.query", "args": {"target": "spec"}})
+        if env.multi:
+            env.advance(env.tick_s)
+        res = env.observe(a)["last_result"] or {}
+        P.check("key_name")
+        spec = ((res.get("result") or {}) if isinstance(res.get("result"), dict) else {}).get("spec") or {}
+        if not spec:
+            raise RuntimeError(f"{fam}: the spec query returned nothing (the probe proves nothing): {res}")
+        found = [k for k in ("family", "seed", "category", "split") if k in spec]
+        if found:
+            P.leak("key_name", f"{fam}: the spec query reveals the generated world's identity", keys=found)
+    bystanders = 0
     for fam in multi:
         env = make(1, f"rapid:{fam}", 4, OBSERVATION_ONLY)
         ags = env.agents()
         if len(ags) < 3:
-            raise ValueError(f"{fam}: the private-message probe needs three participants")
+            continue                                     # a private message needs a third party to hide it from
+        bystanders += 1
         secret = canary("PRIVATEMSG")
         r = env.execute(ags[0], {"tool": "rapid.message", "args": {"to": ags[2], "text": f"between us: {secret}"}})
         if not r.get("ok"):
@@ -460,6 +480,8 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded"), multi: tuple =
                 break
         if secret not in dump(_plain([env.observe(ags[2]), env.observe_since(ags[2], 0)])):
             raise RuntimeError(f"{fam}: the recipient never received the message (the probe proves nothing)")
+    if not bystanders:
+        raise ValueError("no multi-agent family with three participants: the private-message probe did not run")
     return P.result()
 
 

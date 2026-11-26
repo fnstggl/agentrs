@@ -155,6 +155,7 @@ def test_store_roundtrip_recovery_and_tamper_detection(tmp_path):
     st.flush()
     st._fh.close()
     st._fh = None
+    st._unlock()                                                     # the writer crashed: the OS drops its lock
     part = os.path.join(root, "shards", "000002.jsonl.part")
     with open(part, "ab") as fh:
         fh.write(b'{"i": 10, "h": "torn')                           # a crashed writer's torn line
@@ -164,13 +165,13 @@ def test_store_roundtrip_recovery_and_tamper_detection(tmp_path):
     assert st2.verify()["shards"] == 3 and len(st2) == 10
     st2.append({"i": 10})
     st2.close()
-    assert [r["i"] for r in ExperienceStore(root).iterate()] == list(range(11))
+    assert [r["i"] for r in ExperienceStore(root, readonly=True).iterate()] == list(range(11))
     with open(os.path.join(root, "shards", "000000.jsonl"), "r+b") as fh:
         data = fh.read().replace(b'"x":1', b'"x":7')
         fh.seek(0)
         fh.write(data)
     with pytest.raises(StoreCorrupt):
-        list(ExperienceStore(root).iterate())
+        list(ExperienceStore(root, readonly=True).iterate())
     with pytest.raises(TypeError):
         ExperienceStore(str(tmp_path / "t")).append({"bad": float("inf")})
 

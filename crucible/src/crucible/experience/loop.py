@@ -72,7 +72,8 @@ def run_learner(env, learner, steps: int, *, agent: str | None = None, think_s: 
         if store is not None:
             info = learner.info() if hasattr(learner, "info") else {"name": type(learner).__name__}
             store.append(make_record(env, agent, step, obs, action, result, r, next_cursor=nxt["cursor"],
-                                     learner={k: info.get(k) for k in ("name", "version", "params_hash")}))
+                                     learner={k: info.get(k) for k in ("name", "version", "params_hash")},
+                                     done=done))
             summary["records"] += 1
         summary["steps"] += 1
         if learn and hasattr(learner, "update") and (step + 1) % int(update_every) == 0:
@@ -147,7 +148,8 @@ def run_learners(env, learners: dict, steps: int, *, think_s: int | None = None,
             if store is not None:
                 info = L.info() if hasattr(L, "info") else {"name": type(L).__name__}
                 store.append(make_record(env, a, step, obs[a], acts[a], results.get(a), r, next_cursor=nxt["cursor"],
-                                         learner={k: info.get(k) for k in ("name", "version", "params_hash")}))
+                                         learner={k: info.get(k) for k in ("name", "version", "params_hash")},
+                                         done=done))
                 out[a]["records"] += 1
             obs[a] = nxt
             out[a]["steps"] += 1

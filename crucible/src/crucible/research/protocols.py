@@ -62,6 +62,12 @@ Failure diagnosis (`diagnose_episode`). What an episode record can establish, te
 
 "No better than the scripted experimenter" is a statement about a learner, not an episode: it is the paired
 difference to a named reference learner on the same tasks (`compare(..., reference=...)`).
+
+Reward mode (Crucible 5.0, Clarification 2): every entry point takes ``reward_mode`` (default ``observation_only``),
+passed to the environments it builds. A learner that reads the environment's reward receives 0.0 in that mode and
+must derive its own signal from the observations; the 4.0 protocol results are reproduced with an explicitly named
+``reward_mode="legacy_shaped_reward"`` (OO.8). The operator-side episode records the protocols score are computed
+on the evaluator side and are the same in every mode.
 """
 from __future__ import annotations
 
@@ -355,11 +361,12 @@ def learner_hash(learner, workdir: str | None = None) -> dict:
 
 # ====================================================================== one batch of episodes
 def _run_batch(learner, tasks: Sequence[Task], spec: EnvSpec, meter: Meter, *, learn: bool, explore: bool,
-               segments: int, reset_every: int | None = None, update_every: int = 1) -> list[dict]:
+               segments: int, reset_every: int | None = None, update_every: int = 1,
+               reward_mode: str | None = None) -> list[dict]:
     """One episode of every task (all with the same horizon), in parallel. Returns the operator-side episode
     records in slot order, each extended with the within-episode profile and the activity measures the failure
-    diagnosis needs."""
-    env = MechVecEnv(tasks, spec)
+    diagnosis needs. `reward_mode`: that of `MechVecEnv` (observation_only unless named, Clarification 2)."""
+    env = MechVecEnv(tasks, spec, reward_mode=reward_mode)
     n, h = env.n, int(tasks[0].horizon)
     if any(int(t.horizon) != h for t in tasks):
         raise ValueError("a batch runs tasks of one horizon")
@@ -471,7 +478,7 @@ def _group(records: Sequence[dict], key: str, seed: int = 0) -> dict:
 # ====================================================================== 1. frozen evaluation
 def evaluate(learner, tasks: Sequence[Task], *, spec: EnvSpec | None = None, n_envs: int = 16, segments: int = 4,
              explore: bool = False, reset_every: int | None = None, verify_frozen: bool = True, label: str = "",
-             cost: Cost | None = None, boot_seed: int = 0) -> dict:
+             cost: Cost | None = None, boot_seed: int = 0, reward_mode: str | None = None) -> dict:
     """Frozen evaluation of `learner` on `tasks`: weights frozen, context reset at the start of every episode,
     one episode per task, records in the order of `tasks` (so two learners evaluated on the same list are paired
     by position and by `record["task"]`).
@@ -497,7 +504,7 @@ def evaluate(learner, tasks: Sequence[Task], *, spec: EnvSpec | None = None, n_e
         before = learner_hash(learner) if verify_frozen else None
         for idx in _horizon_batches(tasks, max(1, int(n_envs))):
             recs = _run_batch(learner, [tasks[i] for i in idx], spec, meter, learn=False, explore=explore,
-                              segments=segments, reset_every=reset_every)
+                              segments=segments, reset_every=reset_every, reward_mode=reward_mode)
             for i, r in zip(idx, recs):
                 out[i] = r
         meter.close()
@@ -610,7 +617,7 @@ def diagnose_records(records: Sequence[Mapping], **kw) -> dict:
     return out
 
 
-def kernel_diagnosis(learner, task: Task, spec: EnvSpec | None = None) -> dict:
+def kernel_diagnosis(learner, task: Task, spec: EnvSpec | None = None, reward_mode: str | None = None) -> dict:
     """Run `learner` (frozen) on `task` inside a kernel world through `rig.*` tool calls (`research.bridge`) and
     classify the resulting trajectory with `research.diagnostics.diagnose`. This is where the event-log
     diagnosis applies to a numeric learner: every action is an ordinary tool call in a replayable log."""
@@ -620,7 +627,7 @@ def kernel_diagnosis(learner, task: Task, spec: EnvSpec | None = None) -> dict:
     was = bool(getattr(learner, "frozen", False))
     learner.freeze(True)
     try:
-        env = KernelMechEnv(task, spec)
+        env = KernelMechEnv(task, spec, reward_mode=reward_mode)
         obs = env.reset()
         learner.reset_context(1)
         while not env.done.all():
@@ -732,7 +739,8 @@ class TaskSource:
 
 
 def _train(learner, source: TaskSource, until_steps: int, cost: Cost, *, spec: EnvSpec, n_envs: int,
-           update_every: int, explore: bool, segments: int, watch: _Watch | None = None) -> dict:
+           update_every: int, explore: bool, segments: int, watch: _Watch | None = None,
+           reward_mode: str | None = None) -> dict:
     """Training interaction until `cost.env_steps >= until_steps` (whole batches) or the source runs dry.
     Returns a summary of the training episodes run."""
     learner.freeze(False)
@@ -747,7 +755,7 @@ def _train(learner, source: TaskSource, until_steps: int, cost: Cost, *, spec: E
                 for t in batch:
                     watch.see(t)
             recs = _run_batch(learner, batch, spec, meter, learn=True, explore=explore, segments=segments,
-                              update_every=update_every)
+                              update_every=update_every, reward_mode=reward_mode)
             n += len(recs)
             for r in recs:
                 rets.append(r["return"] / max(1, r["ticks"]))
@@ -793,7 +801,8 @@ def lifetime(learner, train_tasks: Any, budget_env_steps: int, eval_every: int, 
              segments: int = 4, checkpoint_dir: str | None = None, resume: bool = True,
              thresholds: Sequence[float] = (GOAL_FRACTION,), sustain: int = 2, budgets: Sequence[int] | None = None,
              require_disjoint: bool = False, verify_frozen: bool = True, label: str = "",
-             on_point: Callable[[dict], None] | None = None, max_points: int | None = None) -> dict:
+             on_point: Callable[[dict], None] | None = None, max_points: int | None = None,
+             reward_mode: str | None = None) -> dict:
     """A learning curve. Alternates training interaction on `train_tasks` (see `TaskSource`) with frozen
     evaluations on the fixed task sets `eval_sets` (`{name: [Task]}` or one list), every `eval_every` environment
     steps up to `budget_env_steps` (the first point is the untrained learner; points fall on batch boundaries, so
@@ -847,7 +856,8 @@ def lifetime(learner, train_tasks: Any, budget_env_steps: int, eval_every: int, 
         i = len(state["points"])
         before = learner_hash(learner) if verify_frozen else None
         evs = {name: evaluate(learner, ts, spec=spec, n_envs=n_envs, segments=segments, verify_frozen=False,
-                              label=name, cost=eval_cost, boot_seed=i) for name, ts in sets.items()}
+                              label=name, cost=eval_cost, boot_seed=i, reward_mode=reward_mode)
+               for name, ts in sets.items()}
         path = os.path.join(ckpt_dir, f"point_{i:04d}.ckpt")
         learner.save(path)
         saved = checkpoint_digest(path)
@@ -881,7 +891,8 @@ def lifetime(learner, train_tasks: Any, budget_env_steps: int, eval_every: int, 
                 break
             target = min(budget_env_steps, (train_cost.env_steps // eval_every + 1) * eval_every)
             summary = _train(learner, source, target, train_cost, spec=spec, n_envs=n_envs,
-                             update_every=update_every, explore=explore, segments=segments, watch=watch)
+                             update_every=update_every, explore=explore, segments=segments, watch=watch,
+                             reward_mode=reward_mode)
             if summary["episodes"] == 0:
                 break
             commit(summary)
@@ -1055,7 +1066,8 @@ def _pair_block(ev_intact: dict, ev_reset: dict) -> dict:
 def timescales(learner_factory: Callable[[int], Any], train_tasks: Any, eval_tasks: Sequence[Task],
                budget_env_steps: int, *, seed: int = 0, k_reset: int = 1, spec: EnvSpec | None = None,
                n_envs: int = 16, update_every: int = 1, segments: int = 4, alpha: float = 0.05,
-               min_effect: float = 0.0, workdir: str | None = None, label: str = "") -> dict:
+               min_effect: float = 0.0, workdir: str | None = None, label: str = "",
+               reward_mode: str | None = None) -> dict:
     """The three timescales of learning, measured separately on the same fresh tasks.
 
     Two checkpoints of one learner are evaluated frozen: the untrained one and the one after `budget_env_steps`
@@ -1091,7 +1103,7 @@ def timescales(learner_factory: Callable[[int], Any], train_tasks: Any, eval_tas
     try:
         learner = learner_factory(seed)
         spec = spec or learner.spec
-        kw = dict(spec=spec, n_envs=n_envs, segments=segments)
+        kw = dict(spec=spec, n_envs=n_envs, segments=segments, reward_mode=reward_mode)
         p0 = os.path.join(d, "untrained.ckpt")
         learner.save(p0)
         h0 = checkpoint_digest(p0)
@@ -1100,7 +1112,7 @@ def timescales(learner_factory: Callable[[int], Any], train_tasks: Any, eval_tas
         watch = _Watch({"eval": eval_tasks}, strict=True)
         cost = Cost()
         tr = _train(learner, TaskSource(train_tasks, n_envs), int(budget_env_steps), cost, spec=spec, n_envs=n_envs,
-                    update_every=update_every, explore=True, segments=segments, watch=watch)
+                    update_every=update_every, explore=True, segments=segments, watch=watch, reward_mode=reward_mode)
         p1 = os.path.join(d, "trained.ckpt")
         learner.save(p1)
         h1 = checkpoint_digest(p1)
@@ -1165,7 +1177,7 @@ def internalisation(learner_factory: Callable[[int], Any], train_tasks: Any, eva
                     budget_env_steps: int, *, seed: int = 0, spec: EnvSpec | None = None, n_envs: int = 16,
                     update_every: int = 1, segments: int = 4, alpha: float = 0.05, reload: bool = True,
                     repeat_check: bool = True, retention: Mapping | None = None, workdir: str | None = None,
-                    label: str = "") -> dict:
+                    label: str = "", reward_mode: str | None = None) -> dict:
     """The parametric internalisation protocol: how much of what a learner acquired is in its weights.
 
     Eight steps, each recorded in `steps`:
@@ -1207,7 +1219,7 @@ def internalisation(learner_factory: Callable[[int], Any], train_tasks: Any, eva
     try:
         learner = learner_factory(seed)
         spec = spec or learner.spec
-        kw = dict(spec=spec, n_envs=n_envs, segments=segments)
+        kw = dict(spec=spec, n_envs=n_envs, segments=segments, reward_mode=reward_mode)
         # 1 ---------------------------------------------------------------------------------------
         p0 = os.path.join(d, "original.ckpt")
         learner.save(p0)
@@ -1222,7 +1234,7 @@ def internalisation(learner_factory: Callable[[int], Any], train_tasks: Any, eva
         watch = _Watch(guard, strict=True)
         cost = Cost()
         tr = _train(learner, TaskSource(train_tasks, n_envs), int(budget_env_steps), cost, spec=spec, n_envs=n_envs,
-                    update_every=update_every, explore=True, segments=segments, watch=watch)
+                    update_every=update_every, explore=True, segments=segments, watch=watch, reward_mode=reward_mode)
         steps.append({"step": 2, "name": "learning_interactions", "env_steps": cost.env_steps,
                       "episodes": cost.episodes, "infer_cpu_s": cost.infer_cpu_s, "infer_gpu_s": cost.infer_gpu_s,
                       "infer_tokens": cost.infer_tokens, "search_evals": cost.search_evals,
@@ -1329,7 +1341,7 @@ def _retention(factory, learner, subject1, retention: Mapping, eval_tasks, e0, e
     cost = Cost()
     tr = _train(learner, TaskSource(retention["train_tasks"], kw["n_envs"]), int(retention["budget_env_steps"]), cost,
                 spec=kw["spec"], n_envs=kw["n_envs"], update_every=update_every, explore=True,
-                segments=kw["segments"], watch=watch)
+                segments=kw["segments"], watch=watch, reward_mode=kw.get("reward_mode"))
     p2 = os.path.join(d, "after_second.ckpt")
     learner.save(p2)
     if reload:
@@ -1467,7 +1479,7 @@ def transfer(learner_factory: Callable[[int], Any], source: Any, targets: Mappin
              source_budget: int, adapt_budget: int, eval_every: int, seeds: Sequence[int] = (0,),
              spec: EnvSpec | None = None, n_envs: int = 16, update_every: int = 1, segments: int = 4,
              threshold: float = GOAL_FRACTION, sustain: int = 1, floor: float = 0.0, alpha: float = 0.05,
-             workdir: str | None = None, label: str = "") -> dict:
+             workdir: str | None = None, label: str = "", reward_mode: str | None = None) -> dict:
     """Transfer from source families to targets in the four categories (`CATEGORIES`).
 
     `source`: family names or any task source (`TaskSource`). `targets`: `{name: {"category": one of CATEGORIES,
@@ -1518,7 +1530,8 @@ def transfer(learner_factory: Callable[[int], Any], source: Any, targets: Mappin
                 watch = _Watch(guard, strict=True)
                 cost = Cost()
                 tr = _train(learner, TaskSource(src, n_envs), int(source_budget), cost, spec=sp, n_envs=n_envs,
-                            update_every=update_every, explore=True, segments=segments, watch=watch)
+                            update_every=update_every, explore=True, segments=segments, watch=watch,
+                            reward_mode=reward_mode)
                 learner.save(ck)
                 run = _js({"seed": int(seed), "training": dict(tr, **cost_row(cost)), "reused": False,
                            "training_tasks": watch.summary(), "checkpoint_hash": checkpoint_digest(ck)["hash"]})
@@ -1533,13 +1546,13 @@ def transfer(learner_factory: Callable[[int], Any], source: Any, targets: Mappin
                 pre.load(ck)
                 new = learner_factory(seed)
                 per[name]["zs_src"].append(evaluate(pre, ev_tasks, spec=sp, n_envs=n_envs, segments=segments,
-                                                    label=f"{name}/zero_shot/source_trained"))
+                                                    label=f"{name}/zero_shot/source_trained", reward_mode=reward_mode))
                 per[name]["zs_new"].append(evaluate(new, ev_tasks, spec=sp, n_envs=n_envs, segments=segments,
-                                                    label=f"{name}/zero_shot/untrained"))
+                                                    label=f"{name}/zero_shot/untrained", reward_mode=reward_mode))
                 if t.get("train") is None:
                     continue
                 kw = dict(spec=sp, n_envs=n_envs, update_every=update_every, segments=segments,
-                          thresholds=(threshold,), sustain=sustain, require_disjoint=True)
+                          thresholds=(threshold,), sustain=sustain, require_disjoint=True, reward_mode=reward_mode)
                 a = lifetime(pre, _as_source(t["train"]), adapt_budget, eval_every, {"target": ev_tasks},
                              checkpoint_dir=None if temporary else os.path.join(sd, name, "pretrained"),
                              label=f"{name}/pretrained", **kw)
@@ -1636,7 +1649,7 @@ def _holm_rows(rows: list[dict], alpha: float) -> None:
 
 def evaluate_many(subjects: Mapping[str, Sequence[Any]], tasks: Sequence[Task], *, reference: str | None = None,
                   spec: EnvSpec | None = None, n_envs: int = 16, segments: int = 4, alpha: float = 0.05,
-                  label: str = "") -> dict:
+                  label: str = "", reward_mode: str | None = None) -> dict:
     """Frozen evaluation of several learners on identical tasks: `{name: [learner, ...]}` (one learner per seed,
     as they are - trained or not), then `combine_evaluations`."""
     tasks = list(tasks)
@@ -1645,8 +1658,8 @@ def evaluate_many(subjects: Mapping[str, Sequence[Any]], tasks: Sequence[Task], 
         learners = list(learners)
         if not learners:
             raise ValueError(f"no learner for {name!r}")
-        evs[name] = [evaluate(lr, tasks, spec=spec, n_envs=n_envs, segments=segments, label=f"{name}/{k}", boot_seed=k)
-                     for k, lr in enumerate(learners)]
+        evs[name] = [evaluate(lr, tasks, spec=spec, n_envs=n_envs, segments=segments, label=f"{name}/{k}", boot_seed=k,
+                              reward_mode=reward_mode) for k, lr in enumerate(learners)]
     return combine_evaluations(evs, reference=reference, alpha=alpha, label=label)
 
 
@@ -1732,7 +1745,7 @@ def compare(learners: Mapping[str, Callable[[int], Any]], train_tasks: Any, eval
             spec: EnvSpec | None = None, n_envs: int = 16, update_every: int = 1, segments: int = 4,
             thresholds: Sequence[float] = (GOAL_FRACTION,), sustain: int = 2, alpha: float = 0.05,
             compute_budget_s: float | None = None, kernel_diagnose: int = 0, workdir: str | None = None,
-            label: str = "", keep_runs: bool = False) -> dict:
+            label: str = "", keep_runs: bool = False, reward_mode: str | None = None) -> dict:
     """Two or more learners under equal budgets: one `lifetime` per (learner, seed) with identical training
     tasks, evaluation sets, seeds and schedule, then `compare_runs`. `train_tasks` must be re-iterable (a list of
     tasks, family names, or an index-addressable stream), since every run consumes it from the start."""
@@ -1753,7 +1766,7 @@ def compare(learners: Mapping[str, Callable[[int], Any]], train_tasks: Any, eval
                 learner, src, budget_env_steps, eval_every, sets, spec=spec, n_envs=n_envs,
                 update_every=update_every, segments=segments, thresholds=thresholds, sustain=sustain,
                 checkpoint_dir=None if workdir is None else os.path.join(workdir, name, f"seed_{int(s)}"),
-                label=f"{name}/seed{s}"))
+                label=f"{name}/seed{s}", reward_mode=reward_mode))
             subjects[name] = learner
     out = compare_runs(runs, reference=reference, alpha=alpha, compute_budget_s=compute_budget_s, label=label)
     if kernel_diagnose:
@@ -1762,7 +1775,7 @@ def compare(learners: Mapping[str, Callable[[int], Any]], train_tasks: Any, eval
                 failed = [r["task"] for r in runs[name][-1]["final"][set_name]["records"] if not r["success"]]
                 by_id = {t.id: t for t in ts}
                 out["diagnosis"][name][set_name]["kernel"] = _js(
-                    [kernel_diagnosis(learner, by_id[i], spec) for i in failed[:int(kernel_diagnose)]])
+                    [kernel_diagnosis(learner, by_id[i], spec, reward_mode) for i in failed[:int(kernel_diagnose)]])
     if keep_runs:
         out["runs"] = runs
     return out

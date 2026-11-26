@@ -22,6 +22,7 @@ crucible.load_all_modules()
 from crucible.agents.base import Runner  # noqa: E402
 from crucible.core.kernel import World  # noqa: E402
 from crucible.worldgen import generate  # noqa: E402
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 
 DAY = 86400
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -539,7 +540,7 @@ def test_D_structural_transfer(tmp_path, acceptance):
                               "eval": T.eval_tasks(["scm_invu"], 6),
                               "train": P.task_stream(["scm_invu"], 500_000)}}
     r = P.transfer(P.from_registry("model_based", spec), source, targets, source_budget=6000, adapt_budget=3000,
-                   eval_every=1500, seeds=(0,), spec=spec, n_envs=8, workdir=str(tmp_path), label="acceptance-D")
+                   eval_every=1500, seeds=(0,), spec=spec, n_envs=8, workdir=str(tmp_path), label="acceptance-D", reward_mode=LEGACY)
     o = r["targets"]["structural"]
     assert r["source"]["families"] == sorted(source) and o["families"] == ["scm_invu"]
     assert not set(o["families"]) & set(r["source"]["families"])
@@ -574,7 +575,7 @@ def test_E_autonomous_competition(acceptance):
     t = arena_task("abm_duopoly", 0)
     trained, net = {}, {}
     for opp in ("aggressive", "passive"):
-        env = SelfPlayEnv([t] * 4, spec)
+        env = SelfPlayEnv([t] * 4, spec, reward_mode=LEGACY)
         me = Individual(f"vs_{opp}", make_learner(spec, "spsa", 5), "own", seat=0)
         other = PF.profile_individual(t, 1, opp, spec)
         for it in range(24):
@@ -583,21 +584,21 @@ def test_E_autonomous_competition(acceptance):
     for tr, me in trained.items():
         for opp in ("aggressive", "passive"):
             net[f"trained_vs_{tr}|plays_{opp}"] = M.evaluate(t, [me, PF.profile_individual(t, 1, opp, spec)],
-                                                             n_slots=6)["net_per_tick"][0]
+                                                             n_slots=6, reward_mode=LEGACY)["net_per_tick"][0]
     dist = float(np.linalg.norm(np.asarray(trained["aggressive"].learner.theta) -
                                 np.asarray(trained["passive"].learner.theta)))
     own = net["trained_vs_aggressive|plays_aggressive"] + net["trained_vs_passive|plays_passive"]
     cross = net["trained_vs_passive|plays_aggressive"] + net["trained_vs_aggressive|plays_passive"]
     assert dist > 0.05 and own > cross, (dist, net)      # what it learned depends on whom it learned against
     # two independent learners in one market, each moving the other's payoff, as recorded tool calls in a world
-    env = SelfPlayEnv([t] * 4, spec)
+    env = SelfPlayEnv([t] * 4, spec, reward_mode=LEGACY)
     pair = [Individual(f"p{s}", make_learner(spec, "spsa", 11 + s), "own", seat=s) for s in range(2)]
     play(env, pair, noise=3000)                      # a learner's parameters exist from its first episode
     start = [np.array(i.learner.theta, copy=True) for i in pair]
     for it in range(1, 12):
         play(env, pair, noise=3000 + 4 * it)
     assert all(np.linalg.norm(np.asarray(i.learner.theta) - s) > 0.01 for i, s in zip(pair, start))
-    k = KernelSelfPlayEnv(t, spec, handles=("ana", "ben"))
+    k = KernelSelfPlayEnv(t, spec, handles=("ana", "ben"), reward_mode=LEGACY)
     obs = k.reset()
     for i in pair:
         i.learner.freeze(True)
@@ -628,14 +629,14 @@ def test_F_cooperation(acceptance):
     rows = []
     for k in (0, 1, 2):
         t = arena_task("tech_handoff", k)
-        env = SelfPlayEnv([t] * 6, spec)
+        env = SelfPlayEnv([t] * 6, spec, reward_mode=LEGACY)
         inds = [Individual(f"s{s}", make_learner(spec, "spsa", 10 + s), "joint", seat=s) for s in range(2)]
         for it in range(16):
             play(env, inds, noise=1000 + 6 * it)
-        pair = M.evaluate(t, inds, n_slots=6)["joint_net_per_tick"]      # identical worlds and noise in every arm
-        base = M.evaluate(t, [None, None], n_slots=6)["joint_net_per_tick"]
-        solo0 = M.evaluate(t, [inds[0], None], n_slots=6)["joint_net_per_tick"]
-        solo1 = M.evaluate(t, [None, inds[1]], n_slots=6)["joint_net_per_tick"]
+        pair = M.evaluate(t, inds, n_slots=6, reward_mode=LEGACY)["joint_net_per_tick"]      # identical worlds and noise in every arm
+        base = M.evaluate(t, [None, None], n_slots=6, reward_mode=LEGACY)["joint_net_per_tick"]
+        solo0 = M.evaluate(t, [inds[0], None], n_slots=6, reward_mode=LEGACY)["joint_net_per_tick"]
+        solo1 = M.evaluate(t, [None, inds[1]], n_slots=6, reward_mode=LEGACY)["joint_net_per_tick"]
         rows.append({"world": k, "trained_pair": pair, "both_default": base, "only_upstream_trained": solo0,
                      "only_downstream_trained": solo1})
     p = [r["trained_pair"] for r in rows]
@@ -668,7 +669,7 @@ def test_K_architecture_neutral_evaluation(acceptance):
     for n in names:
         lr = L.make(n, spec, seed=0)
         assert isinstance(lr, Learner)
-        env = MechVecEnv(tasks, spec)
+        env = MechVecEnv(tasks, spec, reward_mode=LEGACY)
         obs = env.reset()
         lr.reset_context(len(tasks))
         while not env.done.all():
@@ -681,7 +682,7 @@ def test_K_architecture_neutral_evaluation(acceptance):
     real = T.build_tasks([("scm_additive", T.VAL_SEED0)])[0]
     for n in ("ppo_gru", "model_based"):
         la, lb = L.make(n, spec, seed=3), L.make(n, spec, seed=3)
-        sim, ker = MechVecEnv([real], spec), KernelMechEnv(real, spec)
+        sim, ker = MechVecEnv([real], spec, reward_mode=LEGACY), KernelMechEnv(real, spec, reward_mode=LEGACY)
         oa, ob = sim.reset(), ker.reset()
         la.reset_context(1)
         lb.reset_context(1)
@@ -695,7 +696,7 @@ def test_K_architecture_neutral_evaluation(acceptance):
     r = P.compare({"ppo_gru": P.from_registry("ppo_gru", spec, hidden=32, rollout_steps=480),
                    "model_based": P.from_registry("model_based", spec)},
                   [easy_task(k) for k in range(4)], {"fresh": [easy_task(k) for k in range(50, 54)]}, 1920, 960,
-                  seeds=(0,), spec=spec, n_envs=8, keep_runs=True, label="acceptance-K")
+                  seeds=(0,), spec=spec, n_envs=8, keep_runs=True, label="acceptance-K", reward_mode=LEGACY)
     pts = {n: [(p["env_steps"]) for p in x[0]["points"]] for n, x in r["runs"].items()}
     assert pts["ppo_gru"] == pts["model_based"], pts
     ids = {n: x[0]["final"]["fresh"]["tasks"] for n, x in r["runs"].items()}
@@ -717,14 +718,14 @@ def test_L_parametric_learning(acceptance):
     spec = EnvSpec()
     train, fresh = [easy_task(k) for k in range(8)], [easy_task(k) for k in range(100, 112)]
     r = P.internalisation(P.from_registry("ppo_gru", spec, hidden=32, rollout_steps=960, lr=1e-3), train, fresh,
-                          28_800, seed=0, spec=spec, n_envs=16, label="acceptance-L")
+                          28_800, seed=0, spec=spec, n_envs=16, label="acceptance-L", reward_mode=LEGACY)
     assert r["valid"] is True and r["violations"] == []
     assert r["frozen_unchanged"]["original"] is True and r["frozen_unchanged"]["trained"] is True
     assert r["update_count"] > 0 and r["env_interactions"] >= 28_800
     assert r["verdict"] == "internalised" and r["gain"]["lo"] > 0, r["gain"]
     # the protocol does not manufacture a gain: a learner with no weights gets none on the same tasks
     null = P.internalisation(P.from_registry("probe_exploit", spec), train[:2], fresh[:6], 480, seed=0, spec=spec,
-                             n_envs=8, label="acceptance-L-null")
+                             n_envs=8, label="acceptance-L-null", reward_mode=LEGACY)
     assert null["valid"] is True and null["verdict"] == "no_gain_detected"
     acceptance.measure(learner="ppo_gru (recurrent PPO)", weight_updates=r["update_count"],
                        env_interactions=r["env_interactions"], compute=r["compute"], gain_on_fresh_tasks=r["gain"],
@@ -810,7 +811,7 @@ def test_O_independent_generalization(acceptance):
     assert len(subjects) >= 3
     out = {}
     for n, lr in subjects.items():
-        ev = P.evaluate(lr, tasks, spec=spec, n_envs=8, label=f"acceptance-O-{n}")
+        ev = P.evaluate(lr, tasks, spec=spec, n_envs=8, label=f"acceptance-O-{n}", reward_mode=LEGACY)
         assert ev["frozen"]["unchanged"] is True, n
         out[n] = {"score": ev["aggregate"]["score"], "by_transfer": {k: v["score"] for k, v in ev["by_transfer"].items()},
                   "success": ev["aggregate"]["success"]}

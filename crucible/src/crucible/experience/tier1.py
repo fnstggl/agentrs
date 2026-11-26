@@ -495,6 +495,9 @@ class RapidExperienceEnv(BaseExperienceEnv):
     kind = "rapid"
     DEFAULT_TICK_S = 3600
     QUIET_KINDS = ("query",)                # kinds that only read: they never change the world
+    # identity of the generated world in a `query spec` result: a memorisation key and an evaluation-partition
+    # label, not an observation (kept only in an explicitly selected legacy run)
+    SPEC_IDENTITY_KEYS = ("family", "seed", "category", "split")
 
     def __init__(self, family: str, seed: int = 0, *, reward_mode: str | None = None, rapid_env=None,
                  tick_s: int | None = None, **difficulty):
@@ -695,7 +698,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
             r = {"ok": bool(raw.get("ok", False)), "t": int(t_before), "tool": tool, "cost_s": self.tick_s,
                  "action_seq": seq}
             if r["ok"]:
-                r["result"] = json_copy(raw.get("result", raw.get("results")))
+                r["result"] = self._participant_result(json_copy(raw.get("result", raw.get("results"))))
             else:
                 err = raw.get("error")
                 r["error"] = err if isinstance(err, dict) else {"code": "refused", "message": str(err)}
@@ -725,6 +728,34 @@ class RapidExperienceEnv(BaseExperienceEnv):
                     self._paid.add(a)
                     self._pending[a] += 1.0
         return ret
+
+    def _participant_result(self, res: Any) -> Any:
+        if self.reward_mode == LEGACY:
+            return res
+        if isinstance(res, list):
+            return [self._participant_result(x) for x in res]
+        if isinstance(res, dict) and isinstance(res.get("spec"), dict):
+            res = dict(res, spec={k: v for k, v in res["spec"].items() if k not in self.SPEC_IDENTITY_KEYS})
+        return res
+
+    @staticmethod
+    def _entities(raw: list) -> list[dict]:
+        """Rapid entities in the contract's shape ``{id, kind, relations, attrs}`` (a message entity
+        ``{kind, from, content}`` becomes ``{id: "message:<n>", kind: "message", relations: [{rel: "from", to}],
+        attrs: {content}}``); valid entities pass unchanged."""
+        out = []
+        for n, e in enumerate(raw or []):
+            if not isinstance(e, dict):
+                continue
+            if isinstance(e.get("id"), str) and isinstance(e.get("kind"), str) and isinstance(e.get("relations", []),
+                                                                                              list):
+                out.append(e)
+                continue
+            kind = str(e.get("kind", "entity"))
+            rel = [{"rel": k, "to": e[k]} for k in ("from", "to") if isinstance(e.get(k), str)]
+            attrs = {k: v for k, v in e.items() if k not in ("id", "kind", "from", "to", "relations")}
+            out.append({"id": str(e.get("id") or f"{kind}:{n}"), "kind": kind, "relations": rel, "attrs": attrs})
+        return out
 
     def _cash(self, agent: str) -> float | None:
         res = (self._obs.get(agent) or {}).get("resources") or {}
@@ -781,7 +812,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
             missing.append("rapid: the episode is over (horizon reached)")
         return Observation(t=self.now, agent=agent, numbers=numbers, arrays=raw.get("arrays") or {},
                            text=list(raw.get("text") or []), artifacts=list(raw.get("artifacts") or []),
-                           tools=self.tools(agent), events=events, entities=list(raw.get("entities") or []),
+                           tools=self.tools(agent), events=events, entities=self._entities(raw.get("entities")),
                            resources=resources, analytics=dict(raw.get("analytics") or {}),
                            last_result=json_copy(self._last[agent]), missing=missing, cursor=int(cursor),
                            objective=raw.get("objective"))

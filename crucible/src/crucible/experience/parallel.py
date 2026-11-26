@@ -128,7 +128,10 @@ class FarmRun:
                 if not r.ok:
                     self.failures.append({"kind": r.kind, "error": r.error, "key": r.world_key})
                     continue
-                self.intervals.append((arrive - r.wall_s, arrive, r.world_key, r.worker_pid))
+                if getattr(r, "ended_at", 0.0):        # worker-side stamps: when the environment really ran
+                    self.intervals.append((float(r.started_at), float(r.ended_at), r.world_key, r.worker_pid))
+                else:
+                    self.intervals.append((arrive - r.wall_s, arrive, r.world_key, r.worker_pid))
                 got.append(r)
             records = []
             for r in got:
@@ -147,13 +150,18 @@ class FarmRun:
         return self.summary()
 
     def concurrency(self) -> int:
-        """The largest number of environments whose worker intervals overlap (they ran at the same time)."""
-        pts = sorted([(a, 1) for a, _, _, _ in self.intervals] + [(b, -1) for _, b, _, _ in self.intervals],
+        """The largest number of environments that ran at the same time in *different* worker processes, from
+        worker-side wall-clock stamps (``Rollout.started_at/ended_at``): environments of one process never count as
+        concurrent with each other."""
+        pts = sorted([(a, 1, p) for a, _, _, p in self.intervals] + [(b, -1, p) for _, b, _, p in self.intervals],
                      key=lambda x: (x[0], x[1]))
-        cur = best = 0
-        for _, d in pts:
-            cur += d
-            best = max(best, cur)
+        live: dict[int, int] = {}
+        best = 0
+        for _, d, p in pts:
+            live[p] = live.get(p, 0) + d
+            if live[p] <= 0:
+                live.pop(p, None)
+            best = max(best, len(live))
         return best
 
     def summary(self) -> dict:

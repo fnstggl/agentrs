@@ -22,6 +22,8 @@ SPEC = {"family": "test", "seed": 1, "modules": [{"name": "identity"}, {"name": 
 DISCO_SPEC = {"family": "test", "seed": 1,
               "modules": [{"name": "identity"}, {"name": "bank"}, {"name": "admin"}, {"name": "testdisco"}]}
 
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
+
 # A test-only module: an agent-deployed-style service at host "shop" that becomes a tool once discovered
 # (world.describe {"host": "shop"} -> world.learn -> available_tools changes).
 DISCO_SRC = '''
@@ -305,7 +307,7 @@ def _pay(env, amount):
 def test_gym_continue_mode_world_persists(world):
     from crucible.api.gym_env import CrucibleEnv
     srv, wid, _, bob = world
-    env = CrucibleEnv(srv, wid, handle="learner", endowment=1000, max_steps=3, dt=60)
+    env = CrucibleEnv(srv, wid, handle="learner", endowment=1000, max_steps=3, dt=60, reward_mode=LEGACY)
     obs, info = env.reset(seed=0)
     assert env.observation_space.contains(obs) and info["tools_changed"] and info["available_tools"]
     t0 = obs["time"][0]
@@ -332,7 +334,7 @@ def test_gym_fork_mode_and_objective(world):
     srv, wid, _, _ = world
     obj = PayBobObjective(target=200)
     env = CrucibleEnv(srv, wid, handle="learner", endowment=1000, reset_mode="fork", objective=obj, max_steps=10,
-                      time_mode="cost")
+                      time_mode="cost", reward_mode=LEGACY)
     obs1, info1 = env.reset(seed=1)
     fork1 = info1["world_id"]
     assert fork1 != wid and obj.begun == 1
@@ -360,7 +362,7 @@ def test_gym_env_checker():
     from gymnasium.utils.passive_env_checker import (check_action_space, check_observation_space,
                                                      env_reset_passive_checker, env_step_passive_checker)
     from crucible.api.gym_env import CrucibleEnv
-    env = CrucibleEnv(spec=SPEC, seed=3, handle="learner", endowment=100, reset_mode="fork", max_steps=5)
+    env = CrucibleEnv(spec=SPEC, seed=3, handle="learner", endowment=100, reset_mode="fork", max_steps=5, reward_mode=LEGACY)
     check_observation_space(env.observation_space)
     check_action_space(env.action_space)
     obs0, _ = env_reset_passive_checker(env, seed=5)
@@ -379,7 +381,7 @@ def test_pettingzoo_parallel(world):
     from crucible.api.pettingzoo_env import CrucibleParallelEnv
     srv, wid, _, _ = world
     env = CrucibleParallelEnv(srv, wid, agents=["ann", "ben", "cat"], endowment=500, max_steps=5, order_seed=7,
-                              renderers={"cat": lambda o: f"t={o.time}"})
+                              renderers={"cat": lambda o: f"t={o.time}"}, reward_mode=LEGACY)
     parallel_api_test(env, num_cycles=20)
 
     obs, infos = env.reset(seed=11)
@@ -396,7 +398,7 @@ def test_pettingzoo_parallel(world):
     env.step(acts)
     assert srv.world(wid).now == t_before + 120  # world persisted across resets (continue mode)
     # same seed, episode index and step -> same order (recorded, reproducible)
-    env2 = CrucibleParallelEnv(srv, wid, actors={a: env.identities[a] for a in env.possible_agents})
+    env2 = CrucibleParallelEnv(srv, wid, actors={a: env.identities[a] for a in env.possible_agents}, reward_mode=LEGACY)
     env2.reset(seed=11)
     env2.episode = episode
     i2 = env2.step(acts)[-1]
@@ -411,7 +413,7 @@ def client(world):
     from crucible.api.gym_env import CrucibleEnv
     from crucible.api.http_server import make_app
     srv, wid, alice, bob = world
-    env = CrucibleEnv(srv, wid, alice, max_steps=4)
+    env = CrucibleEnv(srv, wid, alice, max_steps=4, reward_mode=LEGACY)
     app = make_app(srv, operator_token="op-secret", env=env)
     with TestClient(app) as c:
         yield c, srv, wid, alice, bob

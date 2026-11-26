@@ -61,8 +61,9 @@ def open_org(env: KernelSelfPlayEnv, seat: int, handle: str, fund: int = 0) -> d
 
 
 def _run_kernel(task: Task, schedule: Callable[[int, int], np.ndarray | None], ticks: int, spec: EnvSpec | None,
-                funds: Sequence[int] | None, payments: Sequence[dict] | None, extra: Sequence[str]) -> dict:
-    env = KernelSelfPlayEnv(task, spec, funds=funds, extra_handles=extra)
+                funds: Sequence[int] | None, payments: Sequence[dict] | None, extra: Sequence[str],
+                reward_mode: str | None = None) -> dict:
+    env = KernelSelfPlayEnv(task, spec, funds=funds, extra_handles=extra, reward_mode=reward_mode)
     env.reset()
     S = env.n_seats
     orgs: dict[str, dict] = {}
@@ -122,7 +123,7 @@ def _run_kernel(task: Task, schedule: Callable[[int, int], np.ndarray | None], t
 
 def transfer_invariance(task: Task, schedule: Callable[[int, int], np.ndarray | None], payments: Sequence[dict],
                         ticks: int = 30, spec: EnvSpec | None = None, funds: Sequence[int] | None = None,
-                        extra: Sequence[str] = ()) -> dict:
+                        extra: Sequence[str] = (), reward_mode: str | None = None) -> dict:
     """Play the same match twice in kernel worlds, with and without `payments`, and compare the objective.
 
     `schedule(seat, t)` gives the action vector of a seat at tick t (None: keep). `payments` is a list of
@@ -134,8 +135,8 @@ def transfer_invariance(task: Task, schedule: Callable[[int, int], np.ndarray | 
     funds bind), the net payment received by each seat, the change of each seat's bank balance, and `binding`:
     whether any seat ran at fallback or idle in either run (the one way money can change what a seat runs).
     """
-    base = _run_kernel(task, schedule, ticks, spec, funds, None, extra)
-    paid = _run_kernel(task, schedule, ticks, spec, funds, payments, extra)
+    base = _run_kernel(task, schedule, ticks, spec, funds, None, extra, reward_mode)
+    paid = _run_kernel(task, schedule, ticks, spec, funds, payments, extra, reward_mode)
     S = len(base["rig_net"])
     recv = [0] * S
     for m in paid["moved"]:

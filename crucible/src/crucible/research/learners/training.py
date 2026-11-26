@@ -92,15 +92,16 @@ def pool_stream(pool: Sequence[T.Task], shuffle_seed: int | None = 0) -> Iterato
 
 # ---------------------------------------------------------------------------- frozen evaluation
 def evaluate(learner: Learner, tasks: Sequence[T.Task], spec: EnvSpec | None = None, batch: int = 64,
-             explore: bool = False) -> list[dict]:
+             explore: bool = False, reward_mode: str | None = None) -> list[dict]:
     """Frozen evaluation with fresh context: one episode per task, records in task order. The learner's frozen
-    flag is restored afterwards; its weights cannot change in between."""
+    flag is restored afterwards; its weights cannot change in between. `reward_mode` is that of `MechVecEnv`
+    (observation_only unless named; the operator-side records are the same in every mode)."""
     was = learner.frozen
     learner.freeze(True)
     recs: list[dict] = []
     try:
         for a in range(0, len(tasks), batch):
-            env = MechVecEnv(list(tasks[a:a + batch]), spec or learner.spec)
+            env = MechVecEnv(list(tasks[a:a + batch]), spec or learner.spec, reward_mode=reward_mode)
             recs += run_episodes(env, learner, explore=explore, learn=False)
     finally:
         learner.freeze(was)
@@ -128,11 +129,13 @@ def summarise(recs: Sequence[dict]) -> dict:
 def train(learner: Learner, stream: Iterator[T.Task], total_steps: int, n_envs: int = 16,
           eval_tasks: Sequence[T.Task] | None = None, eval_every: int = 0, spec: EnvSpec | None = None,
           on_point: Callable[[dict], None] | None = None, curve: list[dict] | None = None,
-          log: Callable[[str], None] | None = None) -> list[dict]:
+          log: Callable[[str], None] | None = None, reward_mode: str | None = None) -> list[dict]:
     """Train `learner` for `total_steps` environment steps of the stream. Returns the learning curve: one point
     per evaluation, `{"steps", "episodes", "updates", "train_cpu_s", "infer_cpu_s", "wall_s", "score", "success",
     "by_family", "scores": [per task]}`; the first point is the learner before any training. `curve` (a list of
-    earlier points) resumes a run: counting starts from its last point."""
+    earlier points) resumes a run: counting starts from its last point. `reward_mode` is that of the training
+    environment (`MechVecEnv`): observation_only unless named - a learner that reads the environment reward then
+    receives 0.0 and must compute its own signal; ``legacy_shaped_reward`` reproduces the 4.0 runs."""
     spec = spec or learner.spec
     curve = list(curve or [])
     steps0 = int(curve[-1]["steps"]) if curve else 0
@@ -140,7 +143,7 @@ def train(learner: Learner, stream: Iterator[T.Task], total_steps: int, n_envs: 
     wall0 = time.perf_counter() - (float(curve[-1]["wall_s"]) if curve else 0.0)
 
     def point(steps: int) -> None:
-        recs = evaluate(learner, eval_tasks, spec) if eval_tasks else []
+        recs = evaluate(learner, eval_tasks, spec, reward_mode=reward_mode) if eval_tasks else []
         u = learner.usage()
         s = summarise(recs)
         p = {"steps": int(steps), "episodes": int(episodes), "updates": int(u.updates),
@@ -160,7 +163,7 @@ def train(learner: Learner, stream: Iterator[T.Task], total_steps: int, n_envs: 
     if not curve:
         point(0)
     learner.freeze(False)
-    env = MechVecEnv([next(stream) for _ in range(n_envs)], spec)
+    env = MechVecEnv([next(stream) for _ in range(n_envs)], spec, reward_mode=reward_mode)
     obs = env.reset()
     learner.reset_context(n_envs)
     steps, next_eval = steps0, (steps0 // eval_every + 1) * eval_every if eval_every else None
