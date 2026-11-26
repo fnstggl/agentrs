@@ -271,7 +271,8 @@ def run_meta_condition(spec: MetaSpec, semantic=None) -> dict:
     t0 = time.time()
     with GpuBusy(enabled=spec.profile_gpu) as gb:
         res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode=cond.reward_mode,
-                           learner=st.learner if cond.learn else None, days=None, max_decisions=spec.decisions,
+                           learner=st.learner if cond.learn else None, days=None,
+                           max_decisions=DS.rounds_for(spec.decisions, spec.n_envs),
                            update_every=spec.update_every if cond.learn else 0, think_s=None, checkpoint=None,
                            on_step=None)
     tm.detach()

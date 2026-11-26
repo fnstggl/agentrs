@@ -149,20 +149,28 @@ def resolve_loop() -> tuple:
     return _run_lifetime_via_run_steps, "runtime.run_steps (run_lifetime absent at this commit)"
 
 
+def rounds_for(decisions: int, n_envs: int) -> int:
+    """run_lifetime's `max_decisions` counts ROUNDS (one decision per live environment per round; W1 runtime.py
+    `step >= max_decisions`): the round budget of a decision budget over `n_envs` environments."""
+    return max(1, int(math.ceil(int(decisions) / max(1, int(n_envs)))))
+
+
 def _run_lifetime_via_run_steps(agent, env, *, labels=None, label_store=None, reward_mode="observation_only",
                                 learner=None, days=None, max_decisions=None, update_every=8, think_s=None,
-                                checkpoint=None, on_step=None, seeds=None, profile_gpu=False):
+                                checkpoint=None, on_step=None, seeds=None, profile_gpu=False, keep_rounds=True):
     """run_lifetime's keyword signature over runtime.run_steps (the only act -> execute -> advance loop at this
-    commit). No evaluator is passed, so the agent receives no environment reward (run_steps hands it zeros); labels
-    are drained into the trainer-side label store after every round. `learner` is not supported by run_steps (the
-    agent's own update() runs every `update_every` rounds); `days` is not enforced (the decision budget is)."""
+    commit). `max_decisions` is a ROUND budget as in W1's run_lifetime. No evaluator is passed, so the agent receives
+    no environment reward (run_steps hands it zeros); labels are drained into the trainer-side label store after
+    every round. `learner` is not supported by run_steps (the agent's own update() runs every `update_every`
+    rounds); `days` is not enforced (the round budget is); rounds are always kept (`keep_rounds` is accepted)."""
     from .. import runtime
     if reward_mode != "observation_only":
         raise ValueError("the run_steps delegation implements observation_only only")
     if learner is not None:
         raise NotImplementedError("a LearnerHook needs runtime.run_lifetime (W1); run_steps drives agent.update()")
-    B = getattr(env, "B", None) or len(env.observe().env_ids)
-    n = max(1, int(math.ceil((max_decisions or B) / B)))
+    if labels is not None and label_store is None:
+        raise ValueError("labels need a label_store: verified labels reach the learner only through the LabelStore")
+    n = max(1, int(max_decisions or 1))
     joined = []
 
     def step(i, row):
@@ -178,26 +186,31 @@ def _run_lifetime_via_run_steps(agent, env, *, labels=None, label_store=None, re
             "updates": rep.updates, "steps": rep.steps}
 
 
+def lifetime_rounds(res) -> list:
+    """Per-round rows ({"tools", "rewards", "ok", ...}) of a LifetimeResult (W1, keep_rounds=True: `rounds`) or of
+    the run_steps delegation (`steps`)."""
+    if isinstance(res, dict):
+        return list(res.get("steps") or [])
+    rows = getattr(res, "rounds", None)
+    return list(rows) if isinstance(rows, list) else []
+
+
 def _lifetime_stats(res) -> dict:
-    """decisions / env_steps / updates / compute of a LifetimeResult (W1) or of the run_steps delegation."""
+    """decisions / env_steps / updates / compute of a LifetimeResult (W1) or of the run_steps delegation. `updates`
+    counts learner steps that updated (`updated` true); labels_joined = labels newly appended to the LabelStore."""
     if isinstance(res, dict):
         comp = res.get("compute") or {}
         ups = res.get("updates") or []
-        return {"decisions": comp.get("decisions"), "env_steps": comp.get("env_steps"),
-                "updates": sum(1 for u in ups if isinstance(u, dict) and u.get("updated")),
-                "gpu_span_s": comp.get("gpu_span_s"), "wall_s": comp.get("wall_s"),
-                "peak_gpu_mb": (comp.get("peak_gpu_mem_bytes") or 0) / 2 ** 20, "labels_joined": res.get("labels_joined")}
-    out = {}
-    for k in ("decisions", "env_steps", "updates", "labels_joined"):
-        v = getattr(res, k, None)
-        out[k] = len(v) if isinstance(v, list) else v
-    comp = getattr(res, "compute", None)
-    if comp is not None:
-        c = comp.to_dict() if hasattr(comp, "to_dict") else dict(comp)
-        out.update(decisions=out.get("decisions") or c.get("decisions"), env_steps=c.get("env_steps"),
-                   gpu_span_s=c.get("gpu_span_s"), wall_s=c.get("wall_s"),
-                   peak_gpu_mb=(c.get("peak_gpu_mem_bytes") or 0) / 2 ** 20)
-    return out
+        labels = res.get("labels_joined")
+    else:
+        c = getattr(res, "compute", None) or {}
+        comp = c.to_dict() if hasattr(c, "to_dict") else dict(c)
+        ups = getattr(res, "updates", None) or []
+        labels = getattr(res, "labels_appended", None)
+    return {"decisions": comp.get("decisions"), "env_steps": comp.get("env_steps"),
+            "updates": sum(1 for u in ups if isinstance(u, dict) and u.get("updated")),
+            "gpu_span_s": comp.get("gpu_span_s"), "wall_s": comp.get("wall_s"),
+            "peak_gpu_mb": (comp.get("peak_gpu_mem_bytes") or 0) / 2 ** 20, "labels_joined": labels}
 
 
 # ============================================================================================ builder
@@ -599,7 +612,7 @@ def source_run(spec: RunSpec, run_dir: str, semantic=None) -> dict:
     store = LabelStore(os.path.join(run_dir, "labels"))
     run_lifetime, loop = resolve_loop()
     res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
-                       learner=st.learner, days=None, max_decisions=spec.source_rounds * spec.n_envs,
+                       learner=st.learner, days=None, max_decisions=spec.source_rounds,
                        update_every=max(1, spec.update_every // 2), think_s=None, checkpoint=None, on_step=None)
     trained = os.path.join(run_dir, "trained.safetensors")
     info = st.ops.save_weights(trained)
@@ -699,7 +712,8 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
         torch.cuda.reset_peak_memory_stats()
     with GpuBusy(enabled=spec.profile_gpu) as gb:
         res = run_lifetime(agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
-                           learner=st.learner if learn else None, days=None, max_decisions=spec.decisions,
+                           learner=st.learner if learn else None, days=None,
+                           max_decisions=rounds_for(spec.decisions, spec.n_envs),
                            update_every=spec.update_every if learn else 0, think_s=None, checkpoint=None,
                            on_step=None)
     tm.detach()
@@ -778,7 +792,8 @@ def _run_condition_a(spec: RunSpec, run_dir: str, fams, row_id: str, t_start: fl
         tm.attach(m)
     with GpuBusy(enabled=spec.profile_gpu) as gb:
         res = run_lifetime(agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
-                           learner=None, days=None, max_decisions=spec.decisions, update_every=0, think_s=None,
+                           learner=None, days=None, max_decisions=rounds_for(spec.decisions, spec.n_envs),
+                           update_every=0, think_s=None,
                            checkpoint=None, on_step=None)
     tm.detach()
     stats = _lifetime_stats(res)
@@ -830,7 +845,7 @@ def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0
     while done < todo and time.time() - t0 < budget_s:     # sub-chunks: the GPU-lock hold stays bounded
         k = min(20, todo - done)
         res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
-                           learner=st.learner, days=None, max_decisions=k * n_envs, update_every=1, think_s=None,
+                           learner=st.learner, days=None, max_decisions=k, update_every=1, think_s=None,
                            checkpoint=None, on_step=None)
         s = _lifetime_stats(res)
         done += int(s.get("updates") or 0)
@@ -870,10 +885,12 @@ def ckpt_e2e_load(run_dir: str, out: str, *, seed: int = 7, preset: str = "dom_d
     fams = families_for("train", families)
     adapter, operator, labels, env_src, _ = make_world(fams, world_seed, n_envs)
     run_lifetime, loop = resolve_loop()
-    res = run_lifetime(a, adapter, labels=labels, label_store=None, reward_mode="observation_only",
-                       learner=st.learner, days=None, max_decisions=act_rounds * n_envs, update_every=act_rounds,
-                       think_s=None, checkpoint=None, on_step=None)
-    steps = res["steps"] if isinstance(res, dict) else getattr(res, "steps", [])
+    from ..envs.labels import LabelStore
+    store = LabelStore(os.path.join(tgt, "labels"))
+    res = run_lifetime(a, adapter, labels=labels, label_store=store, reward_mode="observation_only",
+                       learner=st.learner, days=None, max_decisions=act_rounds, update_every=act_rounds,
+                       think_s=None, checkpoint=None, on_step=None, keep_rounds=True)
+    steps = lifetime_rounds(res)
     ups = res["updates"] if isinstance(res, dict) else getattr(res, "updates", [])
     ups = [u for u in ups if isinstance(u, dict) and u.get("updated")]
     new_ids = set()
