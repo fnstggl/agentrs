@@ -29,7 +29,7 @@ def test_registry_entries_carry_the_contract_fields():
 
 def test_make_respects_difficulty_axes_and_refuses_unknown_ones():
     env = F.make("net_routing", 1, graph_size=6, horizon=30, observation_noise=0.5)
-    assert env.horizon == 30 and len(env._config["route_names"]) == 6 and env.spec["difficulty"]["graph_size"] == 6
+    assert env.horizon == 30 and len(env._config["route_names"]) == 6 and env.difficulty["graph_size"] == 6
     with pytest.raises(ValueError):
         F.make("net_routing", 1, opponent_capability=0.9)
     a, b = F.build_config("hc_confounded", 3), F.build_config("hc_confounded", 3)
@@ -55,6 +55,26 @@ def test_the_spec_object_holds_no_hidden_configuration():
         text = json.dumps(env.spec, default=str)
         assert not [s for s in secrets(env) if s in text]
         assert "claim" not in text and "truth" not in text
+        # no identity: the family name (which describes the mechanism), the seed, the engine, the category, the
+        # split (which marks evaluation worlds) and the difficulty setting stay evaluator side
+        assert fam not in text and not {"family", "seed", "engine", "category", "split", "difficulty"} & set(env.spec)
+        r = env.step({"kind": "query", "target": "spec"}) if "query" in env.action_space().kinds else None
+        if r is not None:
+            assert fam not in json.dumps(r, default=str) and '"val"' not in json.dumps(r["result"], default=str)
+
+
+def test_observation_only_is_the_default_and_objective_free_operation_works():
+    env = F.make("net_routing", 0)
+    assert env.reward_mode == "observation_only" and env.spec["reward_mode"] == "observation_only"
+    free = F.make("net_routing", 0, objective=None)
+    assert free.spec["objective"] == {"a0": None} and free.observe()["objective"] is None
+    for _ in range(free.horizon + 3):                                   # runs to the horizon and refuses after
+        r = free.step(None)
+        assert "reward" not in r and "reward" not in r["result"]
+    assert free.done and not r["result"]["ok"]
+    assert free.outcome()["objective_mode"] == "none"
+    with pytest.raises(ValueError):
+        F.make("net_routing", 0, reward_mode="no_such_mode")
 
 
 def test_fingerprints_ignore_names_seeds_and_coefficients_but_not_structure():

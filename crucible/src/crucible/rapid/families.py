@@ -106,13 +106,18 @@ def build_config(name: str, seed: int, **difficulty) -> dict:
     return cfg
 
 
-def make(name: str, seed: int, **difficulty):
+def make(name: str, seed: int, *, reward_mode: str | None = None, objective="assigned", **difficulty):
     """A fresh world of family `name` drawn with `seed` at the given difficulty (axes of `DIFFICULTY_AXES` the
-    family supports; the others are refused)."""
+    family supports; the others are refused).
+
+    `reward_mode` defaults to "observation_only" (Clarification 2; a rapid world never returns a reward in any
+    mode). `objective` is "assigned" (the family's own objective is shown), None (objective-free: no objective
+    is shown and the participant may pursue its own) or a goal drawn by `crucible.rapid.goals.generate`."""
     from .env import Env
     fam = FAMILIES[name]
     cfg = build_config(name, seed, **difficulty)
-    return Env(name, seed, cfg, difficulty, meta={"category": fam.category, "split": fam.split})
+    return Env(name, seed, cfg, difficulty, meta={"category": fam.category, "split": fam.split},
+               reward_mode=reward_mode, objective=objective)
 
 
 def families(split: str | None = None, engine: str | None = None, category: str | None = None) -> list[str]:
