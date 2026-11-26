@@ -501,5 +501,11 @@ def signal_owner(participant, victim: int, absent: int) -> dict:
         s.close()
     except OSError as e:
         out["new_socket"] = f"errno {e.errno}"
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    ifd = libc.inotify_init1(0)                      # watches on shared files see other processes' opens
+    out["inotify"] = "ok" if ifd >= 0 else f"errno {ctypes.get_errno()}"
+    if ifd >= 0:
+        os.close(ifd)
     time.sleep(0.3)
     return out

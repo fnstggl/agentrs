@@ -233,7 +233,11 @@ IOCTL_DENY = [0x8901, 0x8902]        # FIOSETOWN, SIOCSPGRP (sockets)
 LOCK_NOOP_FCNTL = [6, 7, 37, 38]     # F_SETLK, F_SETLKW, F_OFD_SETLK, F_OFD_SETLKW
 LOCK_DENY_FCNTL: list = []
 TOOL_DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4", "fork", "vfork",
-             "pidfd_open", "pidfd_send_signal"]
+             "pidfd_open", "pidfd_send_signal",
+             # file watches on shared read-only files observe other processes' opens (a channel between worlds in
+             # the sandbox; wave-3b review). Tools and learner processes do not need them; the browser keeps them.
+             "inotify_init", "inotify_init1", "inotify_add_watch", "inotify_rm_watch", "fanotify_init",
+             "fanotify_mark"]
 SELF_ONLY = [("kill", 0), ("tkill", 0), ("tgkill", 0), ("rt_sigqueueinfo", 0), ("rt_tgsigqueueinfo", 0)]
 
 

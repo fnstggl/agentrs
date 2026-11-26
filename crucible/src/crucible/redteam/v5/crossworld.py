@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import gc
 import json
+import time
 
 from ..framework import HELD, INTEGRITY_BREAK, LEAK, Attacker, Evaluator, NotApplicable, Operator, Verdict
 from .base import V5Probe, b64, repo, run
@@ -454,7 +455,84 @@ class FileLocksDoNotCrossWorlds(V5Probe):
                            fix="sandbox/boot.py seccomp: locks private to the program (no-op), lock queries refused")
         return Verdict(HELD, f"no bit crossed through flock, /dev/null record locks or lock queries ({n} set)", evd)
 
+_WATCH_FILES = ("aifc.py", "antigravity.py", "cgi.py", "cgitb.py", "chunk.py", "crypt.py", "imghdr.py", "mailcap.py",
+                "nntplib.py", "pipes.py", "sndhdr.py", "sunau.py", "tabnanny.py", "telnetlib.py", "uu.py", "xdrlib.py")
+_WATCH_LIB = ("import ctypes, os, struct\nFILES = " + repr(_WATCH_FILES) + "\nSTATE = {}\n"
+              "def _path(n):\n    return os.path.join(os.path.dirname(os.__file__), n)\n")
+WATCH_LISTENER = _WATCH_LIB + (
+    "def arm(args, caller):\n    libc = ctypes.CDLL(None, use_errno=True)\n"
+    "    fd = libc.inotify_init1(0o4000)\n    if fd < 0:\n        return {'inotify': 'errno %d' % ctypes.get_errno()}\n"
+    "    wds = {}\n    for i, n in enumerate(FILES):\n"
+    "        wd = libc.inotify_add_watch(fd, _path(n).encode(), 0x20 | 0x1)\n"
+    "        wds[wd] = i if wd >= 0 else None\n"
+    "    STATE.update(fd=fd, wds=wds)\n    return {'inotify': 'ok', 'watches': sum(1 for k in wds if k >= 0)}\n"
+    "def collect(args, caller):\n    if 'fd' not in STATE:\n        return {'bits': 0, 'armed': False}\n"
+    "    bits = 0\n    try:\n        data = os.read(STATE['fd'], 65536)\n    except OSError:\n        data = b''\n"
+    "    off = 0\n    while off + 16 <= len(data):\n        wd, mask, cookie, ln = struct.unpack_from('iIII', data, off)\n"
+    "        i = STATE['wds'].get(wd)\n        if i is not None:\n            bits |= 1 << i\n        off += 16 + ln\n"
+    "    return {'bits': bits, 'armed': True, 'bytes': len(data)}\n")
+WATCH_SENDER = _WATCH_LIB + (
+    "def send(args, caller):\n    n = 0\n    for i, f in enumerate(FILES):\n        if int(args['bits']) >> i & 1:\n"
+    "            with open(_path(f), 'rb') as h:\n                h.read(1)\n            n += 1\n    return n\n")
+
+
+class FileWatchesDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.file_watches_do_not_cross_worlds"
+    attack_class = "cross_world/file_watches"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("inotify watches need only read access to a path, and every tenant reads the standard library. A "
+                   "service deployed in this world (a long-lived worker) arms watches on 16 rarely used standard-"
+                   "library source files and returns; a program in a second world opens the files of a 16-bit secret; "
+                   "the service's next request reads its queued events. Checked: no bit crosses (watches refused, or "
+                   "blind to other tenants).")
+
+    SECRET = 0b0110100111010101
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-watch", 20_000_000)
+        self.other = _second_world("commerce", 17, "xw-watch-other")
+
+    def attack(self, a: Attacker) -> None:
+        from .base import deploy, manifest, org_of
+        org, acct = org_of(a, self.att, "watchco", company=True)
+        deploy(a, self.att, org, acct, "watcher", {"crucible.json": manifest(arm=0, collect=0),
+                                                   "service.py": WATCH_LISTENER})
+        r = a.act(self.att, "watcher.arm")
+        self.armed = r.result if r.ok else {"error": r.error}
+        o = self.other
+        p = o.system_call("admin.join", {"handle": "sender", "endowment": 2_000_000})["principal"]
+        rid = o.system_call("code.create_repo", {"name": "s"}, as_principal=p)["repo"]
+        o.system_call("code.commit", {"repo": rid, "files": {"s.py": WATCH_SENDER}}, as_principal=p)
+        rr = o.system_call("code.run", {"repo": rid, "target": "s.py:send", "input": {"bits": self.SECRET}},
+                           as_principal=p)
+        self.sent = rr.get("result")
+        time.sleep(0.2)
+        r = a.act(self.att, "watcher.collect")
+        self.got = r.result if r.ok else {"error": r.error}
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        self.other.close()
+        armed = (self.armed or {}).get("body", self.armed) if isinstance(self.armed, dict) else None
+        got = (self.got or {}).get("body", self.got) if isinstance(self.got, dict) else None
+        evd = {"armed": armed, "sent": self.sent, "collected": got, "secret": self.SECRET}
+        if not isinstance(armed, dict) or not isinstance(got, dict) or "bits" not in got or not self.sent:
+            raise NotApplicable(f"the watch programs did not run: {json.dumps(evd, default=str)[:400]}")
+        bits = int(got["bits"])
+        crossed = bin(bits & self.SECRET).count("1")
+        evd.update({"bits_crossed": crossed, "bits_set_but_not_secret": bin(bits & ~self.SECRET).count("1"),
+                    "cross_world_leaks": int(crossed > 0)})
+        if crossed:
+            return Verdict(LEAK, f"{crossed} of {bin(self.SECRET).count('1')} secret bits crossed to another world "
+                                 "through inotify events on shared read-only files", evd, severity="high",
+                           fix="sandbox/boot.py seccomp: refuse inotify for sandboxed programs")
+        return Verdict(HELD, f"no bit crossed (watcher: {armed.get('inotify')})", evd)
+
+
 def probes() -> list:
     return [ArtifactsDoNotCrossWorlds(), ClosedWorldBytesAreReleased(), SandboxStateIsPerWorld(),
             ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage(),
-            KernelIpcDoesNotCrossWorlds(), FileLocksDoNotCrossWorlds()]
+            KernelIpcDoesNotCrossWorlds(), FileLocksDoNotCrossWorlds(),
+            FileWatchesDoNotCrossWorlds()]

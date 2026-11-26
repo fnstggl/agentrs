@@ -56,7 +56,7 @@ def _rec(req: str, m: dict, keys: tuple, notes: str = "") -> dict:
 def test_W1_sandbox(red_team):
     m = _gate(red_team, "W.1")
     _rec("W.1", m, ("sandbox_tests_passed", "sandbox_escapes"),
-         notes="36-check escape matrix through code.run plus limit, tenant, host-path and jail probes")
+         notes="37-check escape matrix through code.run plus limit, tenant, host-path and jail probes")
     _common(m)
     assert m["sandbox_tests_passed"] >= 10 and m["sandbox_escapes"] == 0, m
 

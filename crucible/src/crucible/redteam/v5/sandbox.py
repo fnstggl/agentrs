@@ -84,6 +84,7 @@ def matrix(args, caller):
             os.close(r)
             os.close(w)
     t("fcntl_setown_parent", setown)
+    t("inotify_watch_stdlib", lambda: (lambda l: (lambda fd: fd if fd >= 0 and l.inotify_add_watch(fd, os.__file__.encode(), 0x20) >= 0 else (_ for _ in ()).throw(OSError("refused")))(l.inotify_init1(0)))(__import__("ctypes").CDLL(None, use_errno=True)))
     # expected to work inside the sandbox
     t("write_workdir", lambda: open("ok.txt", "w").write("x"))
     t("numpy", lambda: int(__import__("numpy").arange(4).sum()))
@@ -197,14 +198,14 @@ class SandboxEscapeMatrix(V5Probe):
     target, owner = "sandbox", "O"
     needs_sandbox = True
     world = {"v5": "commerce"}
-    description = ("Agent code run with `code.run` tries 36 ways out: host files (passwd, environment, /root, "
+    description = ("Agent code run with `code.run` tries 37 ways out: host files (passwd, environment, /root, "
                    "/workspace, other processes' environments, the sandbox base directory, /dev/shm), writes outside "
                    "its directory, symlink and hard-link escapes, sockets (inet, unix, raw syscall), DNS, HTTP to the "
                    "metadata address, subprocesses, exec, fork, spawn, signals to the parent / init / everyone, "
                    "setuid, ptrace, unshare, importing the simulator, running as root, System V shared memory / "
                    "message queues / semaphores and POSIX message queues (kernel objects outside the world that "
-                   "outlive the program), and owning a descriptor for the parent (F_SETOWN: the kernel signals the "
-                   "owner on I/O). Checked: every one is "
+                   "outlive the program), owning a descriptor for the parent (F_SETOWN: the kernel signals the "
+                   "owner on I/O) and watching a shared file (inotify). Checked: every one is "
                    "refused, and the two ordinary operations (writing its own directory, numpy) still work.")
 
     def setup(self, op: Operator) -> None:
@@ -935,6 +936,8 @@ class HostedLearnersCannotReachEachOther(V5Probe):
             bad["victim_killed"] = o["victim_returncode"]
         if sig.get("setown_victim") == "ok" or sig.get("fiosetown") == "ok" or sig.get("setsig") == "ok":
             bad["descriptor_owner_signals"] = {k: sig.get(k) for k in ("setown_victim", "setsig", "fiosetown")}
+        if sig.get("inotify") == "ok":
+            bad["file_watches"] = "inotify available"
         if sig.get("setown_absent_pid") != sig.get("setown_victim"):
             bad["pid_existence_oracle"] = [sig.get("setown_absent_pid"), sig.get("setown_victim")]
         uids = [(o.get("a") or {}).get("uid"), o.get("b_uid"), o.get("victim_uid")]

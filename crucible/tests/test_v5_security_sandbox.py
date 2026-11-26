@@ -522,3 +522,13 @@ def test_advisory_locks_do_not_reach_other_tenants_and_sqlite_still_works():
         w.close()
     s = run_program({"s.py": SQL}, "s:f", None)
     assert s["ok"] and s["result"] == 45, s
+
+
+@needs_sandbox
+def test_file_watches_on_shared_files_are_refused():
+    """Wave-3b review: a long-lived worker's inotify queue on standard-library files received another world's
+    program's opens (16 bits crossed). Sandboxed programs cannot create watches."""
+    src = ("import ctypes\ndef f(a, c):\n    libc = ctypes.CDLL(None, use_errno=True)\n"
+           "    fd = libc.inotify_init1(0)\n    return ctypes.get_errno() if fd < 0 else 'created'\n")
+    r = run_program({"w.py": src}, "w:f", None)
+    assert r["ok"] and r["result"] == 1, r
