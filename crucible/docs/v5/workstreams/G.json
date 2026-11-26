@@ -21,7 +21,7 @@
     "tests/test_v5_innovation_pkg.py",
     "tests/test_v5_innovation_devs.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "products of the population's autonomous developers (services, packages) that executed for independent users"
   },
   "J.2": {
@@ -40,7 +40,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "published = live and declared (services) or released (packages) at the end"
   },
   "J.3": {
@@ -59,7 +59,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "min over task categories of the best product's individuals who considered it after the interface check or tried it"
   },
   "J.4": {
@@ -78,7 +78,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "min over categories: individuals for whom it executed on their own input"
   },
   "J.5": {
@@ -97,7 +97,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "Fisher test kept/tried, factual vs garbage arm (developers ship input-ignoring programs), summed over categories"
   },
   "J.6": {
@@ -116,7 +116,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "paid calls net of refunds from independent payers (commerce.integrity payer weights)"
   },
   "J.7": {
@@ -135,7 +135,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "population hand-work minutes saved against the arm where the category is not built (pre-existing resource); developers' compute drawn from providers reported"
   },
   "J.n1": {
@@ -154,7 +154,7 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "task categories passing J.1-J.7, incl. generated undocumented and composed categories"
   },
   "L.1": {
@@ -173,7 +173,7 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "pre-existing conditions changed by inventions (counterfactual removal): hand-work minutes of novel and documented activities, tasks lost, incumbents' subscriptions, provider compute"
   },
   "L.2": {
@@ -193,7 +193,7 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "needs first labelled after genesis by the evaluator's relation graph"
   },
   "L.3": {
@@ -213,7 +213,7 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "needs served by a provider created after the need's chain began and adopted by holders"
   },
   "L.4": {
@@ -232,7 +232,7 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "chains mined generically (need -> public request -> developer artifact -> adoption -> relief; adoption creating a need; package -> independent developer's adoption by execution -> service -> adoption); distinct first changes; no scripted stage"
   },
   "L.5": {
@@ -251,7 +251,7 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "chains whose later stages do not happen in the arm where the first change was removed"
   },
   "L.n1": {
@@ -270,7 +270,7 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending in the slot queue",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "system credits to creators after admission (population income deposits verified against the population's deposit records) + static scan"
   },
   "SP-6.3": {
@@ -290,7 +290,7 @@
     "tests/v5/test_gate_SP_6_3.py",
     "tests/test_v5_innovation_caps.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial); civilisation run pending",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "a service for a generated undocumented category, created after genesis, discovered, tried on own input, adopted; garbage counterpart tried and not adopted"
   },
   "SP-6.3b": {
@@ -309,7 +309,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_3b.py"
    ],
-   "status_claim": "implemented; passes on creation worlds locally (unofficial: 0 single-judge paths, 115 novel-category adoptions, 2 verified workflows used by 42 individuals); civilisation run pending",
+   "status_claim": "implemented; creation world (10 days) passes single-judge 0 and novel-category adoptions 27 but registers 0 composed workflows in 10 days (earlier 24-day creation run: 2); civilisation run queued",
    "notes": "workflows: caps.compose registry objects verified by observed service-to-service calls (D-44); single-judge scan is static (AST) over the usefulness decision functions with an LM negative control"
   },
   "SP-6.5b": {
@@ -329,7 +329,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_5b.py"
    ],
-   "status_claim": "implemented; lean parts pass locally (6 forgeries 0 credited, honest control credited, star-only 0); civilisation part passes on creation worlds (unofficial)",
+   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
    "notes": "attested package boundary (D-42); autonomous developers adopt other developers' packages through CI; creators' deployments never trusted in-process"
   },
   "W.4 (G share)": {
@@ -344,6 +344,22 @@
    ],
    "status_claim": "closed for G: v5.innovation.adoption_by_reading_the_package_source holds (moved to FIXED_BY_OWNERS); 9 innovation probes hold locally",
    "notes": "W.4 is owned by O; only G's KNOWN_OPEN entry is closed here"
+  },
+  "SP-6.4b": {
+   "implementation_files": [
+    "src/crucible/innovation/relations.py",
+    "src/crucible/innovation/gates.py",
+    "src/crucible/innovation/civexp.py",
+    "src/crucible/innovation/devs.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/inventworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_4b.py",
+    "tests/test_v5_innovation_relations.py"
+   ],
+   "status_claim": "partially implemented; expected to FAIL need_mechanism_examples >= 5",
+   "notes": "Measured on the civilisation arms with the one relation graph (new providers: compute providers' capacity, freight network). Of the five listed mechanisms only workflow change arises from live state (creation world, 10 days: 1 of 5; civilisation pending); coordination and content communities/tools have no live module state to read; education is inert in civilisations and the learn module is being rewritten by dom2 (learn v2). designer_supplied_demand_paths = 0 on the creation world. Novel combination: verified workflows adopted by individuals that save hand work against the removal arm (0 in a 10-day creation world; civilisation pending)."
   }
  },
  "limitations": [
