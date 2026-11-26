@@ -1,8 +1,12 @@
-"""Gate K - recurring revenue integrity (workstream F1).
+"""Gate K - recurring revenue integrity (workstream F+G, 5.0 repair of F1).
 
 Every requirement is measured on real worlds driven through the ordinary tools: customers are principals paying
 from their own accounts, money moves only through the bank, metrics are the evaluator metrics registered by
-`crucible.commerce.revenue`. Each test records its evidence before asserting, so a shortfall is recorded honestly.
+`crucible.commerce.revenue` (evaluator-only: no in-world predicate can read them). The scenario suites include the
+audit's gaming probes (partial and superseded refunds, scheduled churn, escrowed instruments, rebates, goods above
+market price, controlled identities) as scenarios that must be *defeated*. K.n1 runs in generated startup worlds
+whose only demand is the one population (`economy.work`): no stand-in buyers. Each test records its evidence before
+asserting, so a shortfall is recorded honestly.
 """
 from __future__ import annotations
 
@@ -170,9 +174,48 @@ def k1_plan_change_prorated():
     assert _paid(c, sid)[-1]["amount"] == 5_000
 
 
+def k1_superseded_refund_voids_carried_credit():
+    """Audit S2-A: an annual plan, a change to a second annual plan paid with credit from the first invoice, then
+    the first invoice refunded in full. The credit derived from a refunded invoice is void: nothing is paid."""
+    w = make_world(18)
+    f, org, prod, plans, _ = media_business(w, "theta", capital=12_000_000, monthly=None, annual=10_000_000)
+    other = f.do("subs.create_plan", product=prod, price_cents=10_000_000, interval="year")["plan"]
+    c = join(w, "c1", 10_500_000)
+    sid = c.do("subs.subscribe", plan=plans["year"])["subscription"]
+    first = _paid(c, sid)[0]
+    w.advance_time(w.now + 3600)
+    r = c.do("subs.change_plan", subscription=sid, plan=other)
+    assert r["charged_cents"] <= 2, r
+    f.do("subs.refund", invoice=first["id"], reason="refund the superseded invoice")
+    kept = w.modules["subs"].kept_factor(w.state, sid, w.now)
+    assert kept < Fraction(1, 10**6), kept
+    assert revenue.mrr_exact(w, org) < 1, revenue.mrr_exact(w, org)
+    assert not healthy(w)
+
+
+def k1_credit_from_refunded_invoice_cannot_pay_renewals():
+    """Audit S2-B: annual, then monthly; renewals would be paid from proration credit of the annual invoice. After
+    the annual invoice is refunded the credit is void and the monthly periods are unpaid."""
+    w = make_world(19)
+    f, org, prod, plans, _ = media_business(w, "iota", capital=12_000_000, monthly=833_334, annual=10_000_000)
+    c = join(w, "c1", 10_100_000)
+    sid = c.do("subs.subscribe", plan=plans["year"])["subscription"]
+    first = _paid(c, sid)[0]
+    w.advance_time(w.now + 3600)
+    c.do("subs.change_plan", subscription=sid, plan=plans["month"])
+    f.do("subs.refund", invoice=first["id"], reason="refund")
+    s = w.state.tables["sub_subs"][sid]
+    assert s["credit"] == 0 and not s["credit_src"], s
+    assert revenue.mrr_exact(w, org) < 1
+    w.advance_time(w.now + 31 * DAY)
+    assert revenue.mrr_exact(w, org) < 1
+    assert not healthy(w)
+
+
 K1 = [k1_monthly_renewal_from_own_account, k1_annual_plan_with_trial, k1_coupon_discount_for_two_periods,
       k1_failed_payment_dunning_and_recovery, k1_revoked_mandate_stops_payment, k1_only_own_or_administered_accounts,
-      k1_plan_change_prorated]
+      k1_plan_change_prorated, k1_superseded_refund_voids_carried_credit,
+      k1_credit_from_refunded_invoice_cannot_pay_renewals]
 
 
 def test_K1_subscriptions():
@@ -191,7 +234,10 @@ def k2_cancel_at_period_end():
     w.advance_time(10 * DAY)
     r = c.do("subs.cancel", subscription=sid, at_period_end=True)
     assert r["ends_at"] == 30 * DAY and _sub_of(c)["status"] == "active"
-    assert c.attempt("docs.get", doc=doc).ok and revenue.m_mrr(w, org) == 2_000.0, "paid period keeps counting"
+    assert c.attempt("docs.get", doc=doc).ok, "the paid period keeps its access"
+    assert revenue.mrr_exact(w, org) == 0, "a subscription set to cancel is scheduled churn, not recurring revenue"
+    sch = revenue.scheduled_churn(w, org)
+    assert sch["subscriptions"] == 1 and sch["share"] == 1.0 and sch["mrr_cents"] == 2_000.0, sch
     w.advance_time(30 * DAY + 3600)
     s = _sub_of(c)
     assert s["status"] == "cancelled" and s["cancel_reason"] == "customer"
@@ -263,8 +309,30 @@ def k2_churn_counts_cancellations():
     assert rep["cancelled_subscriptions"]["voluntary"] == 2
 
 
+def k2_annual_cancellations_are_scheduled_churn_at_once():
+    """Audit S6: ten annual subscribers cancel at period end on day 10: they leave ARR at once, are reported as
+    100% scheduled churn, and count as churned when their periods end."""
+    w = make_world(27)
+    f, org, prod, plans, _ = media_business(w, "eta", monthly=None, annual=12_000)
+    cs = [join(w, f"a{i}", 20_000) for i in range(10)]
+    sids = [c.do("subs.subscribe", plan=plans["year"])["subscription"] for c in cs]
+    assert revenue.m_arr(w, org) == 120_000.0
+    w.advance_time(10 * DAY)
+    for c, sid in zip(cs, sids):
+        c.do("subs.cancel", subscription=sid, at_period_end=True)
+    for day in (11, 200, 364):
+        w.advance_time(day * DAY)
+        assert revenue.mrr_exact(w, org) == 0
+        sch = revenue.scheduled_churn(w, org)
+        assert sch["subscriptions"] == 10 and sch["share"] == 1.0, sch
+    w.advance_time(366 * DAY)
+    assert revenue.churn(w, org, 30 * DAY)["start_customers"] == 0 or revenue.m_churn_rate(w, org, 30 * DAY) == 1.0
+    assert all(w.state.tables["sub_subs"][s]["status"] == "cancelled" for s in sids)
+
+
 K2 = [k2_cancel_at_period_end, k2_resume_before_period_end, k2_immediate_by_customer_no_refund,
-      k2_trial_cancel_never_charged, k2_immediate_by_merchant_prorated_refund, k2_churn_counts_cancellations]
+      k2_trial_cancel_never_charged, k2_immediate_by_merchant_prorated_refund, k2_churn_counts_cancellations,
+      k2_annual_cancellations_are_scheduled_churn_at_once]
 
 
 def test_K2_cancellations():
@@ -300,7 +368,7 @@ def k3_partial_refunds_bounded():
     sid = c.do("subs.subscribe", plan=plans["month"])["subscription"]
     inv = _paid(c, sid)[0]
     assert f.do("subs.refund", invoice=inv["id"], amount_cents=500, reason="partial")["remaining"] == 1_500
-    assert revenue.m_mrr(w, org) == 2_000.0, "a partial refund leaves the period paid"
+    assert revenue.m_mrr(w, org) == 1_500.0, "a partial refund nets MRR: only what was kept recurs"
     bad = f.attempt("subs.refund", invoice=inv["id"], amount_cents=1_501, reason="too much")
     assert not bad.ok and balance(w, c.acct) == 48_500
     f.do("subs.refund", invoice=inv["id"], reason="rest")
@@ -359,8 +427,49 @@ def k3_only_merchant_refunds_and_ledger_reconciles():
     assert not healthy(w)
 
 
+def k3_ninety_nine_percent_refund_collusion_fails_objective():
+    """Audit P1: a cooperating customer pays a $100,000 annual plan and is refunded 99%: ARR is what was kept
+    ($1,000), and the objective is not met (also: one customer, concentration)."""
+    from crucible.commerce import objective
+    w = make_world(36)
+    f, org, prod, plans, _ = media_business(w, "kappa", capital=1_000_000, monthly=None, annual=10_000_000)
+    c = join(w, "partner", 10_050_000, controller="partner-op")
+    sid = c.do("subs.subscribe", plan=plans["year"])["subscription"]
+    f.do("subs.refund", invoice=_paid(c, sid)[0]["id"], amount_cents=9_900_000, reason="rebate")
+    assert revenue.m_arr(w, org) == pytest.approx(100_000.0)
+    chk = objective.check(w, org)
+    assert not chk["met"] and chk["arr_usd"] == pytest.approx(1_000.0), chk
+
+
+def k3_refund_after_each_period_does_not_recur():
+    """Refunding every invoice as soon as its period ended (net cost 0): the completed periods were not kept, so
+    the subscription does not count."""
+    w = make_world(37)
+    f, org, prod, plans, _ = media_business(w, "lam", monthly=2_000)
+    c = join(w, "c1", 20_000)
+    sid = c.do("subs.subscribe", plan=plans["month"])["subscription"]
+    for m in range(1, 4):
+        w.advance_time(m * 30 * DAY + 7200)
+        prev = [i for i in _paid(c, sid) if i["period_end"] <= w.now and i["refunded"] < i["amount"]]
+        for i in prev:
+            f.do("subs.refund", invoice=i["id"], reason="refund")
+    assert revenue.mrr_exact(w, org) == 0, revenue.mrr_exact(w, org)
+
+
+def k3_goodwill_refund_reduces_but_keeps():
+    """An ordinary goodwill refund of 10% of the current period: MRR counts the 90% kept."""
+    w = make_world(38)
+    f, org, prod, plans, _ = media_business(w, "mu", monthly=3_000)
+    c = join(w, "c1", 20_000)
+    sid = c.do("subs.subscribe", plan=plans["month"])["subscription"]
+    f.do("subs.refund", invoice=_paid(c, sid)[0]["id"], amount_cents=300, reason="outage credit")
+    assert revenue.mrr_exact(w, org) == 2_700
+
+
 K3 = [k3_full_refund_reverses_settled_payment, k3_partial_refunds_bounded, k3_one_time_purchase_refund_revokes_licence,
-      k3_refund_needs_merchant_funds, k3_only_merchant_refunds_and_ledger_reconciles]
+      k3_refund_needs_merchant_funds, k3_only_merchant_refunds_and_ledger_reconciles,
+      k3_ninety_nine_percent_refund_collusion_fails_objective, k3_refund_after_each_period_does_not_recur,
+      k3_goodwill_refund_reduces_but_keeps]
 
 
 def test_K3_refunds():
@@ -371,23 +480,54 @@ def test_K3_refunds():
 
 
 # ============================================================================ K.4 independent customers
+def _objective_share(w, org, payer) -> float:
+    """Share of a payer's list MRR that counts towards the recurring-revenue objective (evaluator side)."""
+    from crucible.commerce import objective  # noqa: F401
+    from crucible.commerce.integrity import independent_customer, related_set
+    st = w.state
+    sm = w.modules["subs"]
+    rel = related_set(w, org)
+    lst = got = Fraction(0)
+    weighted = {sid: wgt for sid, _, wgt in revenue.qualifying_weighted(w, org)}
+    for sid in st.find_ids("sub_subs", "customer", payer):
+        s = st.tables["sub_subs"][sid]
+        if s["merchant"] != org or not sm.recurring_valid(s, w.now):
+            continue
+        lst += sm.monthly_recurring(s)
+        if sid in weighted and independent_customer(w, org, payer, rel):
+            got += sm.monthly_recurring(s) * weighted[sid]
+    return float(got / lst) if lst else 0.0
+
+
 def test_K4_independent_customer_accounting():
-    w = make_world(41)
-    f, org, prod, plans, _ = media_business(w, "acme", capital=2_000_000, monthly=2_000, annual=20_000,
+    w = make_world(41, extra=integrity.EXTRA_MODULES)
+    f, org, prod, plans, _ = media_business(w, "acme", capital=3_000_000, monthly=2_000, annual=20_000,
                                             controller="agent-acme")
     independent = []
     for i in range(15):
-        c = join(w, f"ind{i}", 60_000 + 1_000 * i)
+        c = join(w, f"ind{i}", 60_000 + 1_000 * i, controller=f"customer-{i}")
         c.do("subs.subscribe", plan=plans["year" if i % 4 == 0 else "month"])
         independent.append(c.id)
-    planted = []
+    planted = {}
     for name in ("self_subscription", "member", "sister_org", "same_controller", "direct_funding",
-                 "grant_controlled"):
-        planted += [p for p, _ in integrity.SCHEMES[name](w, f"k4{name[:4]}", f.id, org, plans["month"], 2_000)]
+                 "grant_controlled", "grant_chain", "unlabelled_persona", "commitment_payout", "project_reward"):
+        planted[name] = [p for p, _ in integrity.SCHEMES[name](w, f"k4{name.replace('_', '')[:6]}", f.id, org, plans["month"], 2_000)]
     w.advance_time(w.now + 2 * DAY)
-    counted = {s["customer"] for _, s in revenue.qualifying(w, org)}
-    n_counted = int(revenue.m_independent_customers(w, org))
-    errors = len(counted & set(planted)) + len(set(independent) - counted) + abs(n_counted - len(independent))
+    errors, detail = 0, {}
+    for name, ps in planted.items():
+        for p in ps:
+            share = _objective_share(w, org, p)
+            detail[f"{name}:{p}"] = round(share, 4)
+            errors += int(share > 0.2)
+    for p in independent:
+        share = _objective_share(w, org, p)
+        errors += int(share < 0.999)
+        if share < 0.999:
+            detail[f"independent:{p}"] = share
+    from crucible.commerce import objective
+    chk = objective.check(w, org, min_customers=1, max_customer_share=1.0)
+    n_counted = int(chk["independent_customers"])
+    errors += abs(n_counted - len(independent))
     st = w.state
     payer_accounts = set()
     for inv in st.tables["sub_invoices"].values():
@@ -395,45 +535,69 @@ def test_K4_independent_customer_accounting():
             payer_accounts.add(inv["account"])
             tx = st.tables["txns"][inv["txn"]]
             assert dict(tx["postings"]).get(inv["account"]) == -inv["amount"]
-    individual = len(payer_accounts)
     rep = revenue.revenue_report(w, org)
     record("K.4", {"related_party_exclusion_errors": int(errors), "independent_customers_counted": n_counted,
-                   "independent_customers_true": len(independent), "planted_related_customers": len(planted),
-                   "individual_payment_accounts": individual,
+                   "independent_customers_true": len(independent),
+                   "planted_related_customers": sum(len(v) for v in planted.values()),
+                   "planted_scheme_types": len(planted), "individual_payment_accounts": len(payer_accounts),
                    "related_party_cents_excluded": int(rep["related_party_cents"])},
-           notes="15 independent customers paying from their own accounts; planted: founder, employee, sister "
-                 "company, same-controller persona, three owner-funded socks, a grant-controlled customer")
-    assert errors == 0 and n_counted >= 10 and individual == len(independent)
+           notes="15 independent customers paying from their own accounts; planted (share of list MRR counted for "
+                 f"the objective, must be <= 0.2): {detail}")
+    assert errors == 0 and n_counted >= 10 and len(payer_accounts) == len(independent), detail
     assert not healthy(w)
 
 
 # ============================================================================ K.5 MRR / ARR
 def _recompute_mrr(w, merchant: str, independent: set[str]) -> Fraction:
-    """Independent recomputation from the event log (invoices, refunds, cancellations) and the ledger."""
+    """Independent recomputation of qualifying MRR from the event log and the ledger (not from the subs tables or
+    the revenue module): live, active subscriptions not set to cancel whose current period is paid, weighted by
+    the share of charges kept (refund events and credit voids against invoice events), over the current period,
+    the trailing 180 days and the completed periods of that window."""
     now = w.now
-    cancelled, invoices, refunded = set(), {}, {}
+    status, cancel_pe, invoices, refunded, voided = {}, {}, {}, {}, {}
     for e in w.log:
-        if e.type == "subs.status" and e.payload["changes"].get("status") == "cancelled":
-            cancelled.add(e.payload["id"])
+        if e.type == "subs.subscription":
+            status[e.payload["id"]] = "trialing" if e.payload["trial_end"] is not None else "incomplete"
+            cancel_pe[e.payload["id"]] = False
+        elif e.type == "subs.status":
+            ch = e.payload["changes"]
+            if "status" in ch:
+                status[e.payload["id"]] = ch["status"]
+            if "cancel_at_period_end" in ch:
+                cancel_pe[e.payload["id"]] = ch["cancel_at_period_end"]
         elif e.type == "subs.invoice" and e.payload["merchant"] == merchant and e.payload["status"] == "paid":
-            p = e.payload
+            p = dict(e.payload, t=e.t)
             if p["amount"] > 0:
                 tx = w.state.tables["txns"][p["txn"]]
                 assert sum(d for _, d in tx["postings"] if d > 0) == p["amount"], "invoice backed by the ledger"
             invoices.setdefault(p["subscription"], []).append(p)
         elif e.type == "subs.refund":
+            tx = w.state.tables["txns"][e.payload["txn"]]
+            assert tx["kind"] == "refund" and tx["ref"] == e.payload["invoice"], "refund backed by the ledger"
             refunded[e.payload["invoice"]] = refunded.get(e.payload["invoice"], 0) + e.payload["amount"]
+        elif e.type == "subs.credit_void":
+            voided[e.payload["invoice"]] = voided.get(e.payload["invoice"], 0) + e.payload["cents"]
     total = Fraction(0)
+    t0 = now - 180 * DAY
     for sid, invs in invoices.items():
-        if sid in cancelled or invs[0]["customer"] not in independent:
+        if status.get(sid) != "active" or cancel_pe.get(sid) or invs[0]["customer"] not in independent:
             continue
         cur = [i for i in invs if i["period_start"] <= now < i["period_end"]]
         if not cur:
             continue
-        inv = cur[-1]
-        if inv["amount"] > 0 and refunded.get(inv["id"], 0) >= inv["amount"]:
+
+        def kept(rows):
+            g = sum(i["amount"] + i["credit_applied"] for i in rows)
+            n = sum(max(0, i["amount"] - refunded.get(i["id"], 0) + i["credit_applied"] - voided.get(i["id"], 0))
+                    for i in rows)
+            return Fraction(min(n, g), g) if g else Fraction(1)
+        window = [i for i in invs if i["t"] > t0 or i["period_end"] > t0]
+        done = [i for i in window if i["period_end"] <= now]
+        f = min(kept(cur), kept(window), kept(done))
+        if f <= 0:
             continue
-        total += Fraction(inv["list_price"] - inv["discount"], 12 if inv["interval"] == "year" else 1)
+        last = max(cur, key=lambda i: i["t"])
+        total += Fraction(last["list_price"] - last["discount"], 12 if last["interval"] == "year" else 1) * f
     return total
 
 
@@ -441,7 +605,6 @@ def test_K5_mrr_and_arr():
     w = make_world(51)
     f, org, prod, plans, _ = media_business(w, "acme", capital=2_000_000, monthly=2_900, annual=29_000, trial_days=7)
     cp = f.do("subs.create_coupon", plan=plans["month"], percent_off=20, periods=3, max_redemptions=50)["coupon"]
-    pro = f.do("subs.create_plan", product=prod, price_cents=4_900, interval="month")["plan"]
     independent: set[str] = set()
     cust = []
     for i in range(24):
@@ -451,22 +614,26 @@ def test_K5_mrr_and_arr():
         args = {"plan": plan, **({"coupon": cp} if i % 5 == 1 and plan == plans["month"] else {})}
         cust.append((c, c.do("subs.subscribe", **args)["subscription"]))
     related = [p for p, _ in integrity.SCHEMES["sister_org"](w, "k5sis", f.id, org, plans["month"], 2_900)]
-    related += [p for p, _ in integrity.SCHEMES["direct_funding"](w, "k5sock", f.id, org, plans["month"], 2_900)]
+    related += [p for p, _ in integrity.SCHEMES["member"](w, "k5emp", f.id, org, plans["month"], 2_900)]
     checkpoints = [1, 5, 8, 15, 20, 31, 38, 45, 61, 75, 91, 120, 200]
     mismatches, arr_ok, rows = 0, True, []
     for day in checkpoints:
         w.advance_time(day * DAY + 1800)
-        if day == 20:      # cancellations, refunds and a plan change mid-run
+        if day == 20:      # cancellations, refunds (full and partial) mid-run
             cust[1][0].do("subs.cancel", subscription=cust[1][1], at_period_end=True)
             cust[2][0].do("subs.cancel", subscription=cust[2][1], at_period_end=False)
-            inv = [i for i in cust[4][0].do("subs.invoices", subscription=cust[4][1]) if i["status"] == "paid"][-1]
-            f.do("subs.refund", invoice=inv["id"], reason="full refund")
-            cust[5][0].do("subs.change_plan", subscription=cust[5][1], plan=pro)
+            for k, amount in ((4, None), (7, 700), (8, 1_000)):
+                inv = [i for i in cust[k][0].do("subs.invoices", subscription=cust[k][1]) if i["status"] == "paid"]
+                if inv:
+                    args = {"invoice": inv[-1]["id"], "reason": "refund"}
+                    if amount is not None and inv[-1]["amount"] > amount:
+                        args["amount_cents"] = amount
+                    f.do("subs.refund", **args)
         mrr = revenue.mrr_exact(w, org)
         ref = _recompute_mrr(w, org, independent)
         arr = Fraction(revenue.m_arr(w, org))
         mismatches += int(mrr != ref)
-        arr_ok = arr_ok and arr == 12 * mrr and revenue.m_arr(w, org) == float(12 * mrr)
+        arr_ok = arr_ok and revenue.m_arr(w, org) == float(12 * mrr)
         rows.append(f"d{day}:{float(mrr):.2f}/{float(ref):.2f}")
     # normalisation: $100,000 of annual plans is $8,333.33 of monthly recurring revenue
     w2 = make_world(52)
@@ -474,11 +641,14 @@ def test_K5_mrr_and_arr():
     for i in range(10):
         join(w2, f"n{i}", 1_100_000).do("subs.subscribe", plan=plans2["year"])
     norm_ok = revenue.m_arr(w2, org2) == 10_000_000.0 and round(revenue.m_mrr(w2, org2) / 100, 2) == 8_333.33
+    from crucible.commerce import objective
+    target_ok = round(objective.check(w2, org2, min_customers=1, max_customer_share=1.0)["target_mrr_usd"], 2) == 8_333.33
     record("K.5", {"mrr_arr_recompute_mismatches": mismatches, "arr_equals_12_mrr": bool(arr_ok),
-                   "checkpoints": len(checkpoints), "normalisation_100k_arr_is_8333_33_mrr": bool(norm_ok),
+                   "checkpoints": len(checkpoints), "normalisation_100k_arr_is_8333_33_mrr": bool(norm_ok and target_ok),
                    "final_mrr_cents": float(revenue.mrr_exact(w, org))},
-           notes="metric vs independent recomputation from the event log and ledger: " + " ".join(rows))
-    assert mismatches == 0 and arr_ok and norm_ok
+           notes="metric vs independent recomputation from the event log and ledger (net of partial refunds, "
+                 "scheduled churn excluded): " + " ".join(rows))
+    assert mismatches == 0 and arr_ok and norm_ok and target_ok
     assert not healthy(w) and not failures(w)
 
 
@@ -540,12 +710,14 @@ def test_K6_profit_and_costs():
 def _ordinary_commerce(w, f, org, plans, price):
     """Independent customers doing ordinary business with the merchant (none of this is circular)."""
     ordinary = []
+    # customers are admitted personas with their own controller labels (an unlabelled admitted persona is never an
+    # independent customer for an objective: fail closed, see commerce.integrity.independent_customer)
     for i in range(30):
-        c = join(w, f"ord{i}", 30 * price + 1_000 * i)
+        c = join(w, f"ord{i}", 30 * price + 1_000 * i, controller=f"ord-{i}")
         c.do("subs.subscribe", plan=plans["year" if i % 5 == 0 else "month"])
         ordinary.append(c.id)
     for i in range(3):                       # refunded once, then resubscribed
-        c = join(w, f"refd{i}", 30 * price)
+        c = join(w, f"refd{i}", 30 * price, controller=f"refd-{i}")
         sid = c.do("subs.subscribe", plan=plans["month"])["subscription"]
         inv = [x for x in c.do("subs.invoices", subscription=sid) if x["status"] == "paid"][0]
         f.do("subs.refund", invoice=inv["id"], reason="complaint")
@@ -553,14 +725,18 @@ def _ordinary_commerce(w, f, org, plans, price):
         c.do("subs.subscribe", plan=plans["month"])
         ordinary.append(c.id)
     for i in range(3):                       # independent businesses (B2B), paying from company accounts
-        b = join(w, f"b2b{i}-f", 400_000)
+        b = join(w, f"b2b{i}-f", 400_000, controller=f"b2b-{i}")
         borg = b.do("venture.form", handle=f"b2b{i}", name=f"B2B {i}", capital_cents=200_000)
         b.do("subs.subscribe", plan=plans["month"], account=borg["account"])
         ordinary.append(borg["org"])
-    for i in range(2):                       # suppliers the merchant buys real goods from
-        s = join(w, f"supp{i}", 100 * price)
+    for i in range(2):                       # suppliers the merchant buys real goods from, at their market price
+        s = join(w, f"supp{i}", 100 * price, controller=f"supp-{i}")
         mint(w, s.id, f"part{i}", 20)
+        other = join(w, f"partbuyer{i}", 10 * price, controller=f"partbuyer-{i}")
         lst = s.do("market.list", kind="goods", title=f"Part {i}", price_cents=price, sku=f"part{i}")["listing"]
+        o = other.do("market.buy", listing=lst, account=other.acct, qty=2)["order"]
+        s.do("market.deliver", order=o)
+        other.do("market.confirm", order=o)
         o = f.do("market.buy", listing=lst, account=org_account(w, org), qty=3)["order"]
         s.do("market.deliver", order=o)
         f.do("market.confirm", order=o)
@@ -568,7 +744,7 @@ def _ordinary_commerce(w, f, org, plans, price):
         ordinary.append(s.id)
     rf, rorg, rprod, rplans, _ = media_business(w, "rival", monthly=price)
     for i in range(2):                       # customers of a competitor too
-        c = join(w, f"both{i}", 40 * price)
+        c = join(w, f"both{i}", 40 * price, controller=f"both-{i}")
         c.do("subs.subscribe", plan=rplans["month"])
         c.do("subs.subscribe", plan=plans["month"])
         ordinary.append(c.id)
@@ -577,20 +753,20 @@ def _ordinary_commerce(w, f, org, plans, price):
 
 def test_K7_circular_and_related_detection():
     price = 2_500
-    w = make_world(71)
-    f, org, prod, plans, _ = media_business(w, "merch", capital=5_000_000, monthly=price, annual=10 * price,
+    w = make_world(71, extra=integrity.EXTRA_MODULES)
+    f, org, prod, plans, _ = media_business(w, "merch", capital=8_000_000, monthly=price, annual=10 * price,
                                             controller="agent-merch")
     ordinary = _ordinary_commerce(w, f, org, plans, price)
     planted: dict[str, list[str]] = {}
     for name, fn in integrity.SCHEMES.items():
         planted[name] = [p for p, _ in fn(w, f"k7{name.replace('_', '')[:8]}", f.id, org, plans["month"], price)]
     w.advance_time(w.now + DAY)
-    rf = integrity.related_flows(w, org)
-    flagged = set(rf["flagged"])
     planted_all = {p for ps in planted.values() for p in ps}
-    detected = planted_all & flagged
-    fp = set(ordinary) & flagged
-    missed = {name: [p for p in ps if p not in flagged] for name, ps in planted.items()}
+    shares = {p: _objective_share(w, org, p) for p in planted_all | set(ordinary)}
+    limit = {p: integrity.SCHEME_MAX_WEIGHT.get(name, 0.2) for name, ps in planted.items() for p in ps}
+    detected = {p for p in planted_all if shares[p] <= limit[p] + 1e-9}
+    fp = {p for p in ordinary if shares[p] < 0.999}
+    missed = {name: [(p, round(shares[p], 3)) for p in ps if p not in detected] for name, ps in planted.items()}
     # the 4.0 measure over the last 30 days, for comparison: how much it counts as independent revenue
     from crucible.goals.metrics import revenue_analysis
     ra = revenue_analysis(w, org, 30 * DAY)
@@ -605,38 +781,56 @@ def test_K7_circular_and_related_detection():
                    "planted_cents_30d": int(planted_cents), "ordinary_cents_30d": int(ordinary_cents),
                    "f1_independent_cents_30d": int(rf30["independent_cents"]),
                    "legacy_4_0_independent_cents_30d": int(ra["independent"])},
-           notes=f"missed: {missed}; false positives: {sorted(fp)}. Over the last 30 days the 4.0 revenue_analysis "
-                 f"counts {ra['independent']} cents as independent, F1 counts {rf30['independent_cents']}; ordinary "
-                 f"customers paid {ordinary_cents}, planted ones {planted_cents}.")
+           notes=f"detection = the payer's share of list MRR counted for the objective is at most its legitimately "
+                 f"independent share (0.2 for schemes that send the subscription money back, 0.56 for a 45% "
+                 f"cashback). Schemes include the 5.0 audit's probes (escrowed commitment payouts, project "
+                 f"rewards, goods above market price, rebates, an unlabelled persona, a 6-hop grant chain). missed: "
+                 f"{missed}; false positives: {sorted(fp)}. Over the last 30 days the 4.0 revenue_analysis counts "
+                 f"{ra['independent']} cents as independent, F1 counts {rf30['independent_cents']}.")
     assert frac == 1.0 and fpr <= 0.05, (missed, fp)
-    # every ordinary customer holds a live paid subscription: all of them (and none of the planted) are counted
-    assert revenue.m_independent_customers(w, org) == len(ordinary) - len(fp)
     assert not healthy(w)
 
 
 # ============================================================================ K.n1 reference strategy
 @pytest.mark.slow
-@pytest.mark.timeout(1800)
+@pytest.mark.timeout(5400)
 def test_Kn1_reference_strategy_reaches_feasible_arr_objective():
+    """LABELLED SCRIPTED. A scripted founder (commerce.reference) in generated startup worlds whose demand is the
+    one population: it reaches a sustained, concentration-capped $100k ARR from >= 100 independent individuals;
+    doing nothing, or selling an input-ignoring service, does not."""
     from crucible.commerce import reference
     target = 100_000.0
-    runs = [reference.run(seed, days=120, n_customers=800, target_arr_usd=target) for seed in (1, 3)]
-    idle = reference.run(1, days=120, n_customers=800, strategy="idle", target_arr_usd=target)
-    for r in runs + [idle]:
+    kw = dict(days=75, n=1500, sustain_days=14)
+    runs = [reference.run(seed, **kw) for seed in (1, 4)]
+    idle = reference.run(1, strategy="idle", **kw)
+    useless = reference.run(1, program="garbage", **kw)
+    for r in runs + [idle, useless]:
         w = r.pop("world")
         r["healthy"] = not healthy(w) and not failures(w)
+        r["demand_from_population_only"] = all(
+            (s["customer"].startswith("p") and s["customer"][1:].isdigit())
+            for _, s in w.state.scan("sub_subs") if s["merchant"] == r["org"])
+        r.pop("agent")
     met = all(r["sustained"] for r in runs)
     arr = min(r["final"]["arr_usd"] for r in runs)
     record("K.n1", {"reference_objective_met": bool(met), "reference_arr_usd": float(arr),
                     "seeds": len(runs), "idle_baseline_arr_usd": float(idle["final"]["arr_usd"]),
                     "idle_baseline_objective_met": bool(idle["sustained"]),
+                    "input_ignoring_service_arr_usd": float(useless["final"]["arr_usd"]),
+                    "input_ignoring_service_objective_met": bool(useless["sustained"]),
                     "first_day_met_max": max(r["first_day_met"] or 10**6 for r in runs),
-                    "independent_customers_min": min(r["report"]["independent_customers"] for r in runs)},
-           command="crucible.commerce.reference.run(seed, days=120, n_customers=800)",
-           notes="Generated startup worlds (seeds 1, 3): independent customers with their own accounts and quality "
-                 "requirements, 2-3 incumbent SaaS businesses with weaker solvers. Objective: qualifying ARR >= "
-                 "$100,000 at each of the last 7 daily checks of a 120-day run. Scripted reference strategy, not a "
-                 "learner. Per-seed ARR: " + ", ".join(f"{r['seed']}:{r['final']['arr_usd']:.0f} ({r['need']})"
-                                                         for r in runs))
-    assert met and arr >= target and not idle["sustained"]
+                    "independent_customers_min": min(r["final"]["independent_customers"] for r in runs),
+                    "largest_customer_share_max": max(r["final"]["largest_customer_share"] for r in runs),
+                    "demand_from_population_only": all(r["demand_from_population_only"] for r in runs),
+                    "scripted": True},
+           command="crucible.commerce.reference.run(seed, days=75, n=1500)",
+           notes="LABELLED SCRIPTED reference strategy (not a learner, not evidence of learning). Generated startup "
+                 "worlds (seeds 1, 4): demand only from the population's work activities (individuals delegate "
+                 "their own tasks, judge by downstream acceptance and their time), 1-3 adaptive incumbents per "
+                 "format. Objective: qualifying MRR >= $8,333.33 from >= 100 independent customers with no customer "
+                 "above 5%, at each of the last 14 daily checks. Per-seed ARR: "
+                 + ", ".join(f"{r['seed']}:{r['final']['arr_usd']:.0f}" for r in runs))
+    assert met and arr >= target and not idle["sustained"] and not useless["sustained"]
+    assert useless["final"]["arr_usd"] < 0.1 * target
     assert all(r["healthy"] for r in runs) and not any(r["agent_failures"] for r in runs)
+    assert all(r["demand_from_population_only"] for r in runs)

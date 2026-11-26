@@ -29,6 +29,12 @@ run in an organisation's name (by owners too, and also under an approved 4.0 `go
 governs is refused unless it runs as the execution of an approved `inst` decision or by an officer within budget.
 Where both a 4.0 `gov` constitution and a charter govern an action, both must be satisfied (the stricter wins).
 
+**Money rules bind the postings** (5.0 repair, audit F S5). A rule with `min_amount` is also enforced at the bank
+posting layer (hook `post_guards`): whenever money leaves the organisation's accounts in a command that is not the
+execution of an approved decision, the cumulative amount the command has taken out of them is matched against the
+charter with the tool that caused it - so a subscription, a purchase, a mandate (its per-period limit) or any
+internal `bank.move` is governed by the amount actually posted, not by the names of its arguments.
+
 **What decisions can do** (`action.kind`): run a tool as the organisation (`tool`), amend the charter (`amend`),
 admit or expel members and change roles, create / staff / dissolve units, appoint officers and set their budgets,
 allocate money to projects and tasks, merge with another organisation (`merge` + `absorb`, both organisations
@@ -72,7 +78,7 @@ VENTURE_KINDS = ("allocate", "project_close", "admit_partner")
 CHARTER_KEYS = ("procedures", "rules", "default", "membership", "offices", "dissolution")
 DISTRIBUTIONS = ("equal", "shares", "contribution")
 AMOUNT_KEYS = ("amount", "amount_cents", "salary_cents_month", "price_cents", "reward_cents", "budget_cents",
-               "cents")
+               "cents", "max_per_period", "endowment", "capital_cents", "daily_budget_cents")
 NAME = r"[a-z][a-z0-9_-]{0,39}"
 UNIT_ID = r"unit_[0-9]{6}"
 HANDLE = r"[a-z][a-z0-9-]{1,30}"
@@ -159,6 +165,9 @@ class Institutions(Module):
         st.declare_table("inst_merge_offers", index=("into",))
         world.hooks["inst"] = self
         self._chain_gov_check(world)
+        guards = list(world.hooks.get("post_guards", ()))
+        guards.append(self.post_guard)
+        world.hooks["post_guards"] = guards
         cur = world.hooks.get("on_member_left")
 
         def left(ctx, org, person, _inner=cur):
@@ -307,11 +316,12 @@ class Institutions(Module):
     def validate_condition(self, ctx, org, pred, what) -> dict:
         """A charter condition is a metrics predicate about the organisation itself (goals/metrics.py): metrics
         without a declared subject are evaluator-only and cannot be read by an institution."""
-        from ..goals.metrics import check_predicate, check_predicate_scope
+        from ..goals.metrics import check_predicate
+        from .observables import in_world_errors
         errs = check_predicate(pred)
         if errs:
             raise InvalidAction(f"{what}: " + "; ".join(errs[:3]))
-        errs = check_predicate_scope(ctx.world, pred, [org])
+        errs = in_world_errors(ctx.world, pred, [org])
         if errs:
             raise Forbidden(f"{what}: an institution may only condition on its own data - " + "; ".join(errs[:3]),
                             law="hidden evaluation criteria")
@@ -371,6 +381,16 @@ class Institutions(Module):
         finally:
             stack.pop()
 
+    def _cmd_money(self, ctx: Ctx) -> dict:
+        """Per-command record of money taken out of chartered organisations and of amounts already authorised."""
+        rt = ctx.world.runtime
+        key = (ctx.cmd, ctx.world._tx_seq0)
+        cur = rt.get("inst.cmd_money")
+        if cur is None or cur["key"] != key:
+            cur = {"key": key, "out": {}, "auth": {}}
+            rt["inst.cmd_money"] = cur
+        return cur
+
     def check(self, ctx: Ctx, org: str, tool: str, args: dict) -> None:
         """Called (through `gov_check`) before a tool runs in an organisation's name. A tool a charter rule governs
         runs only as an approved decision's execution, or by an officer the rule names, within budget."""
@@ -386,9 +406,51 @@ class Institutions(Module):
             title = self.office_of(st, org, ctx.origin, proc["office"], tool)
             if title is not None:
                 self.spend_office(ctx, org, title, _amount(args))
+                cm = self._cmd_money(ctx)
+                cm["auth"][org] = cm["auth"].get(org, 0) + _amount(args)
                 return
         raise Forbidden(f"{org}'s charter requires a {proc['type']} decision ({r['procedure']}) for {tool}; "
                         "use inst.propose", procedure=r["procedure"])
+
+    def post_guard(self, ctx: Ctx, net: dict, kind: str, ref) -> None:
+        """Bank posting hook: money leaving a chartered organisation's accounts is matched against the charter by
+        the cumulative amount this command took out of them (see the module doc)."""
+        if ctx.actor == SYSTEM:
+            return
+        st = ctx.state
+        out: dict[str, int] = {}
+        for acct, d in net.items():
+            if d >= 0:
+                continue
+            owner = st.tables["accounts"][acct]["owner"]
+            if owner.startswith("o:") and st.has("inst_charters", owner):
+                out[owner] = out.get(owner, 0) + int(-d)
+        if not out:
+            return
+        cm = self._cmd_money(ctx)
+        for org, amt in sorted(out.items()):
+            if self.executing(ctx.world, org):
+                continue
+            cum = cm["out"].get(org, 0) + amt
+            cm["out"][org] = cum
+            c = self.charter(st, org)
+            tool = ctx.tool or f"bank.{kind}"
+            r = self.rule_for(ctx.world, c, "tool", tool, {"amount": cum})
+            if r is None or "min_amount" not in r["match"]:
+                continue
+            uncovered = cum - cm["auth"].get(org, 0)
+            if uncovered <= 0:
+                continue
+            proc = c["procedures"][r["procedure"]]
+            if proc["type"] == "officer":
+                title = self.office_of(st, org, ctx.origin, proc["office"], tool)
+                if title is not None:
+                    self.spend_office(ctx, org, title, uncovered)
+                    cm["auth"][org] = cm["auth"].get(org, 0) + uncovered
+                    continue
+            raise Forbidden(f"{org}'s charter requires a {proc['type']} decision ({r['procedure']}) before "
+                            f"{cum} cents leave its accounts ({tool}); use inst.propose", procedure=r["procedure"],
+                            law="charter money rule")
 
     # ------------------------------------------------------------------ offices
     def office_rows(self, st, org) -> dict[str, dict]:

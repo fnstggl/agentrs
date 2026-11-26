@@ -109,7 +109,8 @@ class Commitments(Module):
                 errs = check_predicate(d.get("predicate"))
                 if errs:
                     raise InvalidAction(f"milestone {i}: " + "; ".join(errs[:3]))
-                errs = check_predicate_scope(ctx.world, d["predicate"], [payer, payee])
+                from .observables import in_world_errors
+                errs = in_world_errors(ctx.world, d["predicate"], [payer, payee])
                 if errs:
                     raise Forbidden(f"milestone {i}: " + "; ".join(errs[:3]))
                 dv = {"kind": kind, "predicate": d["predicate"]}

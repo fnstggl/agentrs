@@ -1,0 +1,465 @@
+{
+ "workstream": "F+G",
+ "branch": "c5c/w2-econ",
+ "requirements": {
+  "K.1": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py",
+    "tests/test_v5_commerce_modules.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "9 subscription scenarios incl. the audit's superseded-refund probes (S2-A, S2-B): credit has provenance and a refund voids the credit derived from it; kept factor over current period, trailing 180 days and completed periods."
+  },
+  "K.2": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "7 cancellation scenarios; cancel-at-period-end is scheduled churn (excluded from qualifying MRR, reported separately) incl. the audit's S6 (10 annual cancellations -> MRR 0 from day 11, scheduled churn 1.0)."
+  },
+  "K.3": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "8 refund scenarios; partial refunds net MRR (500 of 2000 refunded -> 1500), 99% refund collusion fails the objective (ARR $1,000), refund-after-each-period scheme counts 0."
+  },
+  "K.4": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "15 labelled independent customers counted, 10 planted related schemes (incl. 6-hop grant chain, unlabelled persona, commitment payout, project reward) contribute <= 20% of list MRR (0 errors). Controlled identities: shared controller -> related (fixpoint); unlabelled admitted personas never independent for objectives (fail closed)."
+  },
+  "K.5": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "independent recomputation from the event log and ledger (net of partial refunds, scheduled churn excluded) vs revenue.mrr_exact at 13 checkpoints: 0 mismatches; ARR == 12 MRR exactly; $100k ARR == $8,333.33 MRR target in commerce.objective."
+  },
+  "K.6": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "cash-basis profit reconciliation unchanged (0 cents); acquisition now includes ad_impressions."
+  },
+  "K.7": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "19 scheme types (13 old + 6 from the 5.0 audit probes) detected 1.0 (payer share of objective MRR at or below its legitimate share; proportional, no FLAG_SHARE cliff), FPR 0.0 over 40 ordinary customers (incl. suppliers at market price, B2B, refunded-then-resubscribed). Escrow releases (commit, inst project rewards) attributed to their payer; goods exempt only up to the market price set by other pairs."
+  },
+  "K.n1": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (scripted reference, 2 seeds)",
+   "notes": "LABELLED SCRIPTED reference (commerce.reference.ReferenceSaaS: own solvers, public observables only) in generated startup worlds whose only demand is the population (economy.work): seeds 1 and 4, n=1500, 75 days: ARR $145,022 and $145,467, sustained 14 days, >= 358 independent individuals, largest customer <= 0.3%; idle 0; input-ignoring service ARR 0. Not evidence of learning."
+  },
+  "J.1": {
+   "implementation_files": [
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "products of LABELLED SCRIPTED agents (NoveltyCreator, ReferenceSaaS) created through tools in creation worlds on the population (seed 3, n=600, 26 days, 4 arms): 4 executable agent products. No learner or LM agent created products here."
+  },
+  "J.2": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "published = declared and live at the end (not hard-coded)."
+  },
+  "J.3": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "discoverers = individuals who considered the product for their own task after the interface check (work.considered), not search hits. Measured min over the 2 categories: 91."
+  },
+  "J.4": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "users = individuals for whom it executed on their own input."
+  },
+  "J.5": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "Fisher test kept/tried: good programs (149/152 kept) vs input-ignoring programs (4/151), p=1.7e-77; individuals judge by downstream acceptance of their own work (world physics), never by the verifier."
+  },
+  "J.6": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "net of refunds (failed calls refunded by the cloud), weighted by payer independence (integrity.payer_weights); min over categories 56 transactions from 56 independent payers."
+  },
+  "J.7": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "population hand-work minutes saved vs the removal arm (a pre-existing resource): min 76,901 minutes over 26 days; incumbent compute delta reported (22 CU). Compute metering itself is still the in-sandbox line counter until O lands parent-side metering."
+  },
+  "J.n1": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_J.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "categories: subscription SaaS for a published format; per-call capability for a procedurally generated, undocumented task category (novel)."
+  },
+  "L.1": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "effects by counterfactual removal: hand-work minutes, incumbents' subscriptions and prices."
+  },
+  "L.2": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "needs labelled evaluator-side (relations.label) first after genesis, e.g. the second pipeline step becoming the bottleneck once a provider automates the first."
+  },
+  "L.3": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "needs relieved after a provider created after the triggering change was adopted by holders; creators react to public help requests, never to a needs oracle."
+  },
+  "L.4": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "partial: passes in ECON creation worlds (one seed); chains in the integrated civilization are CIV's",
+   "notes": "6 chains (>= 5 stages each among the top 3) mined generically from the labelled-need history and the log (experiments.mine_chains) in ECON creation worlds (one seed), incl. adoption-created need (route.shortest SaaS adoption -> knapsack bottleneck -> public requests -> new service -> adoption -> relief) and competition (agent SaaS -> incumbents lose -> incumbent responds); integrated-civilization chains are finished by CIV."
+  },
+  "L.5": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "partial: passes in ECON creation worlds (one seed)",
+   "notes": "removal arms of the same spec and seed (no SaaS, no generated-category service): 5 of 6 chains confirmed (the 'alternative schedule.jobs' chain is not, incumbents' rejections persist without the SaaS but also with it)."
+  },
+  "L.n1": {
+   "implementation_files": [
+    "src/crucible/innovation/measure.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_L.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "every system-account credit to creators after admission counts (endowment kind included), plus a static scan of all modules for success-conditioned grants."
+  },
+  "SP-6.1": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/platform.py",
+    "src/crucible/commerce/products.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_1.py",
+    "tests/test_v5_econ_work.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "20/20 features; competition and customer-support consequences measured with population demand; education measured on the learner's own program; media products still use scripted buyers (media demand belongs to the social layer)."
+  },
+  "SP-6.3": {
+   "implementation_files": [
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/measure.py",
+    "src/crucible/innovation/popworld.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_3.py"
+   ],
+   "status_claim": "implemented; gate passes locally with scripted creators (one seed); no learner evidence",
+   "notes": "novel = procedurally generated, undocumented task category; matched by interface (declared input schema accepts the individual's own input) + search retrieval of the declaration/reply + trial on own input; subjective usefulness from diverse grounded responses is not covered (CORE-SEM/CORE-POP)."
+  },
+  "SP-6.4": {
+   "implementation_files": [
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/relations.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_4.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "one generic relation graph; rules keyed by relation type and observable names; relations as data (skill, transport, coordination, content community, advisory) labelled without code change; rename-invariance; no entity literals in rules."
+  },
+  "SP-6.5": {
+   "implementation_files": [
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/services/code.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_5.py",
+    "tests/test_v5_innovation_pkg.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "15/15 features, adoption by parent-side ablation, advisories verified only by a fixing release, host fork lineage; 4 audit forgeries leave no trace."
+  },
+  "SP-6.6": {
+   "implementation_files": [
+    "src/crucible/commerce/contracts.py",
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/orgworld.py",
+    "src/crucible/services/bank.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_6.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence)",
+   "notes": "14/14 features, 14/14 core-law attempts blocked on 3 seeds incl. 5 adversarial uses of authorised tools (subscription, purchase and mandate to an admin's own business; charter condition and commitment predicate on evaluator MRR)."
+  }
+ },
+ "limitations": [
+  "Gate L chains and J/SP-6.3 arms run on one seed (3) in ECON creation worlds, not the integrated civilization (CIV finishes them).",
+  "Compute metering is still the in-sandbox line counter (cost_model deterministic); J.7 uses hand-work minutes, a pre-existing resource independent of metering, and reports incumbent compute as well.",
+  "Parent-side adoption by ablation can still be gamed by a program that detects the ablation stub and changes its output; tracer overwrite and shadow copies are defeated.",
+  "Source-of-funds tracing replays the ledger (linear in ledger size, cached per world seq); no incremental tracer yet (audit F 3.3 / S8).",
+  "Platform review and exchange-statistics filters look one hop back over 90 days (deliberately weaker than the evaluator).",
+  "Unlabelled admitted personas are never independent customers for objectives (fail closed); harnesses must label controllers.",
+  "Work activities: value of time is drawn from the individual's spendable money (the population exports no income feature); word of mouth reads contacts' own experience records directly (a modelled conversation).",
+  "work.value decision model and rivals adaptive rules are uncalibrated documented assumptions (fidelity rows needed); ad response uses commercial_response@1 response types re-based to a 3% search click rate.",
+  "Media and educational demand from the population is not implemented (SP-6.1 media scenario uses scripted buyers; education is measured on the learner's own program).",
+  "Subjective usefulness from diverse grounded participant responses (6.3) is not implemented.",
+  "Legacy 5.0 innovation scenario worlds (innovation/scenarios.py, adopt.py, needs with visible:true) remain for historical unit tests only.",
+  "Labour market task quality is still a formula of skill match (labor.py unchanged)."
+ ],
+ "integration_notes": [
+  "CORE-POP: economy/popbridge.py uses crucible.population exports when present (register_activity, n_individuals, features, interests, spendable, pay, wake, class_members, record_decisions, experience) and otherwise the current population.core; popbridge.fund() needs a deposit primitive (population.core.money_deposit/accrued today) - please export one or make pay() fund mandates. pop.run_cohort clears wake_at of woken individuals after handlers, erasing wakes scheduled during the session; economy.work schedules shop sessions from its own hourly process - consider keeping in-session wakes. features() has no income; work draws value of time from spendable money. record_decisions fallback writes columns.batch on table 'work' with extra.decision provenance.",
+  "CORE-POP (social): social/creators.py bills memberships outside subs (audit F S1) - route creator memberships through subs so MRR/churn see them.",
+  "CORE-SEM: work discovery retrieves candidates with the world's search engine; choice uses interface match, trial outcomes, ratings and price, never text similarity. When crucible.semantic.space lands, optional affinity ranking can be added in Work._candidates.",
+  "CIV: commerce.worlds.startup_spec and innovation.experiments.creation_world_spec are the ECON recipe slices (modules identity bank admin artifacts cols code search docs forum support contracts business cloud market ads products subs ventures wf caps{registry} pop work rivals; forum boards general/tools/help/market/dev; work.publish_formats). Tier 2 startup/software/technology-invention domains should configure these; Gate L chains in the integrated civilization: use experiments.mine_chains + relations.label over the civ run and removal arms.",
+  "L (observation-only): commerce.observables.EVALUATOR_ONLY (F1 metrics + 4.0 independent_revenue, revenue_from, capability_adopters) should join the kernel evaluator-only marking; services/contracts.py (4.0 deliverables) still accepts subject metrics like independent_revenue; services/capabilities.py search results (4.0 registry) carry independent_adopters/independent_payers; usefulness use.probe/use.report return hidden quality. Harnesses (experience/kernel.py add_agent, selfplay arena, training.League) must pass a controller label per learner/group (K_selfplay 3.4).",
+  "O (metering): exact points - services/cloud.py execute_handler (cu = out['cpu_ms'] * work_scale; _usage/ap_usage), sandbox/bridge.py run_in_ctx cpu_ms, innovation/pkg.py ep_exec/ep_ci code.charge_compute(out['cpu_ms']); adoption decision point Packages._exercised (2+k sandbox runs per exec) can be replaced by parent-side RPC-shim tracing.",
+  "A (kernel/services): services/bank.py post() calls world.hooks['post_guards'] (institutions' charter money rule); services/code.py ep_fork emits code.forked and repos gain forked_from (host lineage); both additive.",
+  "E (calibration): economy.work loads commercial_response@1 via calibration.registry; switch to crucible.calibration.runtime when it lands. Fidelity rows needed: FR-WORK-1 (work.value), commerce.rivals rules, commerce.platform rules, innovation.relations thresholds, caps/pkg (audit G 5.10).",
+  "goals/metrics (not ECON): _circle/_Groups do not follow population principals 'p<i>' (no colon) into organisations they own.",
+  "Manifest: implementation_files for J/K/L/SP-6.x listed in this file."
+ ],
+ "test_results": {
+  "unit": "tests/test_v5_commerce_{modules,contracts,institutions,labor}.py + tests/test_v5_econ_work.py: 65 passed; tests/test_v5_innovation_{pkg,caps,needs}.py: 22 passed",
+  "kernel": "tests/test_kernel.py tests/test_invariants.py: 51 passed",
+  "regression": "test_hardening, test_open_substrate, test_npc_innovation, test_v5_population_core: 49 passed; test_economy, test_services_comm, test_sandbox: 38 passed; test_api, test_tooling: 27 passed",
+  "gates": "test_gate_K (7 fast) + K.n1 (1, 720 s via slots), SP-6.5 1, SP-6.6 1, SP-6.1 1, J 8 + L 6 + SP-6.3 1 (15 in 164 s), SP-6.4 1: all passed"
+ }
+}

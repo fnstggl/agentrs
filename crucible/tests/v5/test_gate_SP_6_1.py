@@ -5,6 +5,12 @@ on authoritative state: formation, development, subscriptions, one-time purchase
 educational, media, developer-tool, data, infrastructure and industrial products, contracts, refunds,
 cancellations, customer support, competition, bankruptcy - plus the rule that revenue only comes from independent
 participants. A feature counts only if its scenario passes; the evidence lists every result.
+
+5.0 repair (D-15): competition and customer support are measured with demand from the one population
+(`economy.work`): individuals choose, keep or drop providers from their own outcomes on their own tasks, and their
+support tickets have consequences - a ticket answered with words while the failures continue makes them leave,
+a fix keeps them. The educational scenario measures the learner's own program, not the course's. Media products
+still use scripted buyers here (media demand is the social layer's population activity, workstream CORE-POP).
 """
 from __future__ import annotations
 
@@ -192,9 +198,14 @@ def f_educational_products():
             qs.append(float(nd.score(inp, hidden, r["result"])) if r["ok"] else 0.0)
         return float(np.mean(qs))
     before = quality(own, "naive.py:solve")
-    assert not learner.attempt("code.run", repo=course, target="lesson.py:solve", input=cases[0][0]).ok
+    assert not learner.attempt("code.read", repo=course, path="lesson.py").ok, "the course is for buyers"
     learner.do("prod.buy", offer=off)
-    after = quality(course, "lesson.py:solve")
+    # the learner studies the lesson and rewrites its OWN program with what it learned; the measured change is in
+    # the learner's own work, not in the course's code
+    lesson = learner.do("code.read", repo=course, path="lesson.py")["content"]
+    learner.do("code.commit", repo=own, files={"naive.py": tier_source(need, 0), "improved.py": lesson},
+               message="after the course")
+    after = quality(own, "improved.py:solve")
     assert after - before > 0.05, (before, after)
 
 
@@ -326,7 +337,7 @@ def f_cancellations():
     assert s["status"] == "cancelled" and balance(w, c.acct) == 18_000
 
 
-def f_customer_support():
+def f_customer_support_desk():
     w = make_world(117)
     f, org, prod, plans, _ = media_business(w, "supco", monthly=1_000)
     c, stranger = join(w, "customer", 20_000), join(w, "stranger", 1_000)
@@ -343,20 +354,102 @@ def f_customer_support():
     assert ov["support"] is not None and ov["subscriptions"]["active"] == 1
 
 
+def _pop_market(seed, need, n=500):
+    """A startup world on the population with one work format and no generated incumbents."""
+    from crucible.commerce.worlds import startup_spec
+    from crucible.core.kernel import World
+    spec = startup_spec(seed, n=n, formats=[need])
+    for m in spec.modules:
+        if m["name"] == "ventures":
+            m["config"] = dict(m["config"], incumbents=[])
+    return World.create(spec)
+
+
+def _service(w, handle, need, source, monthly, trial_days=7):
+    """A company running `source` (a solve(args, caller) program) as a SaaS product, through the ordinary tools."""
+    from crucible.commerce.reference import service_files
+    f = join(w, f"{handle}-f", 1_300_000, controller=f"ctl-{handle}")
+    out = f.do("venture.form", handle=handle, name=handle.title(), capital_cents=1_000_000)
+    org, acct = out["org"], out["account"]
+    repo = f.do("code.create_repo", name="svc", owner=org)["repo"]
+    f.do("code.commit", repo=repo, files=service_files(source, need), message="v1")
+    prov = sorted(p["provider"] for p in f.do("cloud.providers"))[0]
+    inst = f.do("cloud.rent", provider=prov, cores=2, account=acct, owner=org)["instance"]
+    host = f"{handle}-svc"
+    assert f.do("cloud.deploy", repo=repo, host=host, instance=inst)["status"] == "live"
+    prod = f.do("prod.create", name=f"{handle} {need}", kind="saas", owner=org,
+                description=f"{NEEDS[need].title}. {' '.join(NEEDS[need].keywords)}",
+                delivery={"type": "service", "host": host, "endpoint": "solve", "need": need})["product"]
+    f.do("prod.update", product=prod, status="launched")
+    f.do("subs.create_plan", product=prod, price_cents=monthly, interval="month", trial_days=trial_days)
+    return f, org, prod, {"repo": repo, "host": host, "instance": inst}
+
+
+def _live(w, org):
+    return sum(1 for s in w.state.find("sub_subs", "merchant", org) if s["status"] in ("trialing", "active", "past_due"))
+
+
 def f_competition():
-    need = "text.extract"
-    cfg = {"patrons": {"n": 80, "prefix": "cc", "needs": {need: 1.0}, "wtp_month_cents": [2_500, 6_000],
-                       "min_quality": [0.86, 0.97], "search_p": 0.4, "act_every_days": 2, "checks": 1}}
-    w = make_world(118, configs=cfg, extra=["patrons"], providers=True)
-    weak = saas_business(w, "cheapco", need, tier=0, monthly=1_900, trial_days=7)
-    strong = saas_business(w, "bestco", need, tier=len(NEEDS[need].tiers) - 1, monthly=2_900, trial_days=7)
-    w.advance_time(45 * DAY)
-    n_weak = revenue.m_active_subscriptions(w, weak[1])
-    n_strong = revenue.m_active_subscriptions(w, strong[1])
-    rejected_weak = sum(1 for s in w.state.find("sub_subs", "merchant", weak[1])
-                        if s["cancel_reason"] in ("trial_cancelled", "customer"))
-    assert n_strong > 2 * max(1.0, n_weak) and rejected_weak > 0, (n_weak, n_strong, rejected_weak)
-    assert not failures(w)
+    """Population demand chooses between a strong and a weak (input-ignoring-ish) solver by its own outcomes."""
+    from crucible.commerce.refsolvers import GARBAGE, SOLVERS
+    need = "schedule.jobs"
+    w = _pop_market(118, need)
+    weak = _service(w, "cheapco", need, GARBAGE[need], 1_900)
+    strong = _service(w, "bestco", need, SOLVERS[need], 2_900)
+    w.advance_time(35 * DAY)
+    n_weak, n_strong = _live(w, weak[1]), _live(w, strong[1])
+    dropped_weak = sum(1 for s in w.state.find("sub_subs", "merchant", weak[1])
+                       if s["cancel_reason"] in ("trial_cancelled", "customer") or s["cancel_at_period_end"])
+    assert n_strong > 2 * max(1, n_weak) and dropped_weak > 0, (n_weak, n_strong, dropped_weak)
+    assert all(s["customer"][1:].isdigit() for s in w.state.find("sub_subs", "merchant", strong[1]))
+    assert not failures(w) and not healthy(w)
+
+
+FLAKY = """
+def solve(args, caller):
+    d = [int(x) for x in args["durations"]]
+    if (sum(d) + len(d)) % 5 < 2:
+        raise RuntimeError("worker crashed")
+    m = int(args["machines"])
+    loads = [0] * m
+    out = [0] * len(d)
+    for j in sorted(range(len(d)), key=lambda j: (-d[j], j)):
+        k = min(range(m), key=lambda k: (loads[k], k))
+        out[j] = k
+        loads[k] += d[j]
+    return {"assignment": out}
+"""
+
+
+def f_customer_support():
+    """Two businesses run the same failing service. One answers tickets with words and marks them resolved; the
+    other reads them and ships a fix. The population's customers stay with the one whose answer changed what
+    they experience."""
+    from crucible.commerce.refsolvers import SOLVERS
+    from crucible.commerce.reference import service_files
+    f_customer_support_desk()            # the ticket desk itself (filing, staff queue, reply, resolve)
+    need = "schedule.jobs"
+    w = _pop_market(117, need)
+    talk = _service(w, "talkco", need, FLAKY, 2_000)
+    fix = _service(w, "fixco", need, FLAKY, 2_000)
+    stranger = join(w, "stranger", 1_000)
+    assert not stranger.attempt("prod.support", product=talk[2], subject="hello").ok, "customers only"
+    fixed = False
+    for day in range(1, 41):
+        w.advance_time(day * DAY)
+        for f, org, prod, info in (talk, fix):
+            for t in f.do("support.list", owner=org, status="unresolved", limit=50):
+                f.do("support.reply", ticket=t["ticket"], body="Thanks, we are looking into it.")
+                f.do("support.resolve", ticket=t["ticket"], note="answered")
+                if org == fix[1] and not fixed:
+                    f.do("code.commit", repo=info["repo"], files=service_files(SOLVERS[need], need), message="fix")
+                    f.do("cloud.deploy", repo=info["repo"], host=info["host"], instance=info["instance"])
+                    fixed = True
+    tickets = {org: [t for t in w.state.tables["sup_tickets"].values() if t["owner"] == org] for org in (talk[1], fix[1])}
+    assert tickets[talk[1]] and tickets[fix[1]] and fixed, {k: len(v) for k, v in tickets.items()}
+    n_talk, n_fix = _live(w, talk[1]), _live(w, fix[1])
+    assert n_fix > n_talk, (n_talk, n_fix)
+    assert not failures(w) and not healthy(w)
 
 
 def f_bankruptcy():

@@ -62,9 +62,25 @@ class Exchanges(Module):
         return tuple(sorted({o["buyer"], o["seller"], o["operator"]}))
 
     def stats(self, state, eid: str, now: int) -> dict:
-        """Public 30-day statistics of an exchange."""
+        """Public 30-day statistics of an exchange. Buyers and orders are counted under the platform trust rule
+        (`commerce.platform.counted_buyer`): buyers related to, or recently funded by, the exchange's operator or
+        the order's seller are not counted (wash trading with shells does not move the statistics)."""
+        from .platform import counted_buyer, side_accounts
         t0 = now - 30 * DAY
-        orders = [o for o in state.find("xchg_orders", "exchange", eid) if o["t"] > t0]
+        ex = state.tables["xchg_exchanges"][eid]
+        op_side = side_accounts(self.world, ex["operator"])
+        first: dict[str, int] = {}
+        for o in state.find("xchg_orders", "exchange", eid):
+            first[o["buyer"]] = min(first.get(o["buyer"], o["t"]), o["t"])
+        ok_buyer: dict[tuple[str, str], bool] = {}
+
+        def counted(o):
+            k = (o["buyer"], o["seller"])
+            if k not in ok_buyer:
+                ok_buyer[k] = counted_buyer(self.world, ex["operator"], o["buyer"], first[o["buyer"]], op_side) and \
+                    counted_buyer(self.world, o["seller"], o["buyer"], first[o["buyer"]])
+            return ok_buyer[k]
+        orders = [o for o in state.find("xchg_orders", "exchange", eid) if o["t"] > t0 and counted(o)]
         lst = [x for x in state.find("xchg_listings", "exchange", eid) if x["status"] == "active"]
         disputes = [o for o in orders if o["disputed"]]
         return {"active_listings": len(lst), "sellers": len({x["seller"] for x in lst}),

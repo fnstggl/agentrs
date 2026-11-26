@@ -32,7 +32,22 @@ ledger entries (kind `refund`, `ref` = the purchase) recorded against the purcha
 entitlement (goods are returned if the buyer still holds them).
 
 Customer support: current and past customers file tickets about a product (`prod.support`) with the 4.0 support
-service; the seller's staff answer them there.
+service; the seller's staff answer them there. What a ticket's handling does to the customer (retention, rating)
+is the customer's own decision (`economy.work`).
+
+Ratings (5.0 repair): every paying customer unrelated to the seller may rate once, but the public rating shown to
+everyone (`rating`, `ratings`) counts only *verified* ratings - the platform's review filter drops a rating when the
+rater received money from the seller's side (the seller and its 4.0 related parties) in the 90 days before it first
+paid for the product. The filter is a platform rule on public ledger structure, deliberately simpler than the
+evaluator's source-of-funds analysis (which it must not reveal).
+
+Seats (5.0 repair): a licence or subscription held by an organisation gives access to at most `seats` of its
+members. Repository and content access are granted to seat holders, not to the organisation (`prod.assign_seat`,
+`prod.release_seat` by an organisation admin); service calls by a member take a free seat on first use and are
+refused when every seat is taken.
+
+Discovery: a launched product is indexed in the world's search engine (kind `product`) with its name, description,
+kind and served format, and unindexed when retired.
 """
 from __future__ import annotations
 
@@ -80,6 +95,7 @@ class Products(Module):
         st.declare_table("prod_ratings", index=("product",))
         st.declare_table("prod_use_days", index=("product",))
         st.declare_table("prod_use_holders", index=("product", "holder"))
+        st.declare_table("prod_seats", index=("entitlement", "person"))
 
     # ------------------------------------------------------------------ internal API
     def product(self, state, pid: str) -> dict:
@@ -118,7 +134,9 @@ class Products(Module):
         p = self.product(st, pid)
         d = p["delivery"] or {}
         extra: dict = {}
-        if d.get("type") == "repo":
+        if holder.startswith("o:") and d.get("type") in ("repo", "content"):
+            pass                                    # organisations get access per seat (prod.assign_seat)
+        elif d.get("type") == "repo":
             gid = st.new_id("grant")
             ctx.emit("id.grant", {"id": gid, "grantee": holder, "owner": p["owner"], "cap": "code.read",
                                   "scope": d["repo"], "limit": None, "expires": expires, "by": SYSTEM},
@@ -148,6 +166,9 @@ class Products(Module):
         if e is None or e["status"] != "active":
             return
         p = st.tables["products"][e["product"]]
+        for seat in st.find("prod_seats", "entitlement", eid):
+            if seat["status"] == "active":
+                self._end_seat(ctx, eid, seat["person"])
         if e.get("grant") and st.has("grants", e["grant"]) and st.tables["grants"][e["grant"]]["status"] == "active":
             ctx.emit("id.revoke", {"id": e["grant"]}, vis=(e["holder"], p["owner"]))
         if e.get("share") and st.has("doc_shares", f"{e['share']}|{e['holder']}"):
@@ -229,6 +250,101 @@ class Products(Module):
         ident(ctx.world).authorize(ctx, owner, "bank.spend", amount=amount, scope=acct)
         return acct, owner
 
+    # ------------------------------------------------------------------ seats
+    def seat_check(self, ctx: Ctx, eid: str, e: dict, person: str, take: bool) -> None:
+        """An organisation's entitlement admits at most `seats` of its members: `person` needs a seat (a free one
+        is taken on first use when `take`)."""
+        if not e["holder"].startswith("o:") or person == e["holder"]:
+            return
+        st = ctx.state
+        if st.has("prod_seats", f"{eid}|{person}") and st.tables["prod_seats"][f"{eid}|{person}"]["status"] == "active":
+            return
+        used = sum(1 for x in st.find("prod_seats", "entitlement", eid) if x["status"] == "active")
+        if not take or used >= int(e["seats"]):
+            raise Forbidden(f"all {e['seats']} seats of this licence are in use")
+        self._start_seat(ctx, eid, e, person)
+
+    def _start_seat(self, ctx: Ctx, eid: str, e: dict, person: str) -> None:
+        st = ctx.state
+        p = st.tables["products"][e["product"]]
+        d = p["delivery"] or {}
+        extra: dict = {}
+        if d.get("type") == "repo":
+            gid = st.new_id("grant")
+            ctx.emit("id.grant", {"id": gid, "grantee": person, "owner": p["owner"], "cap": "code.read",
+                                  "scope": d["repo"], "limit": None, "expires": e["expires"], "by": SYSTEM},
+                     vis=(person, p["owner"]))
+            extra["grant"] = gid
+        elif d.get("type") == "content" and not st.has("doc_shares", f"{d['doc']}|{person}"):
+            ctx.emit("docs.share", {"doc": d["doc"], "principal": person, "perm": "read", "by": SYSTEM},
+                     vis=(p["owner"], person))
+            extra["share"] = d["doc"]
+        ctx.emit("prod.seat", {"id": f"{eid}|{person}", "entitlement": eid, "person": person, "status": "active",
+                               **extra}, vis=(e["holder"], person))
+
+    def _end_seat(self, ctx: Ctx, eid: str, person: str) -> None:
+        st = ctx.state
+        seat = st.tables["prod_seats"][f"{eid}|{person}"]
+        e = st.tables["prod_entitlements"][eid]
+        p = st.tables["products"][e["product"]]
+        if seat.get("grant") and st.has("grants", seat["grant"]) and st.tables["grants"][seat["grant"]]["status"] == "active":
+            ctx.emit("id.revoke", {"id": seat["grant"]}, vis=(person, p["owner"]))
+        if seat.get("share") and st.has("doc_shares", f"{seat['share']}|{person}"):
+            ctx.emit("docs.share", {"doc": seat["share"], "principal": person, "perm": "none", "by": SYSTEM},
+                     vis=(p["owner"], person))
+        ctx.emit("prod.seat", {"id": f"{eid}|{person}", "entitlement": eid, "person": person, "status": "released"},
+                 vis=(e["holder"], person))
+
+    @endpoint("assign_seat", S.obj({"entitlement": S.s_str(maxLength=40), "person": S.s_str(maxLength=60)},
+                                   ["entitlement", "person"]), cost_s=5)
+    def ep_assign_seat(self, ctx, entitlement, person):
+        """Give a member of your organisation one of the seats of an entitlement the organisation holds."""
+        st = ctx.state
+        e = st.get("prod_entitlements", entitlement)
+        if e is None or e["status"] != "active":
+            raise NotFound("no active entitlement")
+        if not e["holder"].startswith("o:"):
+            raise InvalidAction("seats belong to organisations' entitlements")
+        ident(ctx.world).authorize(ctx, e["holder"], "org.admin")
+        person = ident(ctx.world).resolve_handle(st, person)
+        if ident(ctx.world).role(st, e["holder"], person) is None:
+            raise InvalidAction("seats go to members of the organisation")
+        self.seat_check(ctx, entitlement, e, person, take=True)
+        return {"ok": True, "seats_used": sum(1 for x in st.find("prod_seats", "entitlement", entitlement)
+                                              if x["status"] == "active"), "seats": e["seats"]}
+
+    @endpoint("release_seat", S.obj({"entitlement": S.s_str(maxLength=40), "person": S.s_str(maxLength=60)},
+                                    ["entitlement", "person"]), cost_s=5)
+    def ep_release_seat(self, ctx, entitlement, person):
+        """Take a seat back from a member (it becomes free for another member)."""
+        st = ctx.state
+        e = st.get("prod_entitlements", entitlement)
+        if e is None:
+            raise NotFound("no entitlement")
+        ident(ctx.world).authorize(ctx, e["holder"], "org.admin")
+        person = ident(ctx.world).resolve_handle(st, person)
+        seat = st.get("prod_seats", f"{entitlement}|{person}")
+        if seat is None or seat["status"] != "active":
+            raise NotFound("that member holds no seat")
+        self._end_seat(ctx, entitlement, person)
+        return {"ok": True}
+
+    def _funded_by_seller(self, st, owner: str, rater: str, pid: str) -> bool:
+        """Platform review filter (`commerce.platform`): did the rater receive money from the seller's side in the
+        90 days before it first paid for the product?"""
+        from .platform import funded_by, side_accounts
+        first = None
+        for pur in st.find("prod_purchases", "buyer", rater):
+            if pur["product"] == pid:
+                first = pur["t"] if first is None else min(first, pur["t"])
+        if "sub_invoices" in st.tables:
+            for inv in st.find("sub_invoices", "customer", rater):
+                if inv["product"] == pid and inv["status"] == "paid" and inv["amount"] > 0:
+                    first = inv["t"] if first is None else min(first, inv["t"])
+        if first is None:
+            return False
+        return funded_by(self.world, side_accounts(self.world, owner), rater, first)
+
     def paid_by(self, state, pid: str, principals) -> bool:
         """Has any of `principals` paid money for the product (a purchase not fully refunded, or a paid
         subscription invoice)?"""
@@ -297,13 +413,27 @@ class Products(Module):
         ctx.emit("prod.update", {"id": product, "changes": ch}, vis="public")
         if ch.get("status") == "retired":
             self.retire(ctx, product)
+        elif ctx.state.tables["products"][product]["status"] == "launched":
+            self._index(ctx, product)
         return {"ok": True, "status": ch.get("status", p["status"])}
+
+    def _index(self, ctx: Ctx, pid: str) -> None:
+        from ..services.search import index
+        p = ctx.state.tables["products"][pid]
+        d = p["delivery"] or {}
+        hosts = [d["host"]] if d.get("host") else []
+        index(ctx, f"product:{pid}", "product", p["name"],
+              f"{p['description']}\nKind: {p['kind']}\nFormat: {p.get('need') or ''}", p["owner"], ref=pid,
+              hosts=hosts)
 
     def retire(self, ctx: Ctx, pid: str) -> None:
         """Close the product's offers (and, through subs, its plans). Called by `prod.update` and wind-downs."""
         st = ctx.state
         if st.tables["products"][pid]["status"] != "retired":
             ctx.emit("prod.update", {"id": pid, "changes": {"status": "retired"}}, vis="public")
+        from ..services.search import unindex
+        if "search_docs" in st.tables and st.has("search_docs", f"product:{pid}"):
+            unindex(ctx, f"product:{pid}")
         for oid in st.find_ids("prod_offers", "product", pid):
             if st.tables["prod_offers"][oid]["status"] == "active":
                 ctx.emit("prod.offer_status", {"id": oid, "status": "closed"}, vis="public")
@@ -423,6 +553,7 @@ class Products(Module):
         ent = self.entitlement(st, product, ctx.world.principals_of(ctx.actor))
         if ent is None:
             raise Forbidden("you are not entitled to this product")
+        self.seat_check(ctx, ent[0], ent[1], ctx.actor, take=True)
         cloud = ctx.world.modules["cloud"]
         dep = cloud.live_deployment(st, d["host"])
         if dep is None:
@@ -447,6 +578,7 @@ class Products(Module):
         d = p["delivery"] or {}
         if d.get("type") == "service":
             raise InvalidAction("service products are used with prod.use")
+        self.seat_check(ctx, ent[0], ent[1], ctx.actor, take=False)
         ctx.emit("prod.used", {"product": product, "holder": ent[1]["holder"], "ok": True, "day": ctx.now // DAY},
                  vis=(ent[1]["holder"], p["owner"]))
         out = {"product": product, "delivery": d.get("type"), "expires": ent[1]["expires"]}
@@ -504,6 +636,8 @@ class Products(Module):
             raise Conflict("already rated")
         ctx.emit("prod.rating", {"id": rid, "product": product, "rater": ctx.actor, "stars": int(stars),
                                  "text": text[:1000]}, vis="public")
+        verified = not any(self._funded_by_seller(st, p["owner"], who, product) for who in mine)
+        ctx.emit("prod.rating_check", {"id": rid, "verified": verified}, vis="internal")
         return {"ok": True}
 
     @endpoint("support", S.obj({"product": S.s_str(maxLength=40), "subject": S.s_str(minLength=1, maxLength=200),
@@ -533,8 +667,8 @@ class Products(Module):
         return {"product": pid, "name": p["name"], "owner": p["owner"], "kind": p["kind"], "need": p["need"],
                 "delivery": (p["delivery"] or {}).get("type"), "status": p["status"], "version": p["version"],
                 "releases": p["releases"], "description": p["description"][:300],
-                "rating": round(p["rating_sum"] / p["rating_n"], 2) if p["rating_n"] else None,
-                "ratings": p["rating_n"], "offers": offers,
+                "rating": round(p.get("vrating_sum", 0) / p["vrating_n"], 2) if p.get("vrating_n") else None,
+                "ratings": p.get("vrating_n", 0), "offers": offers,
                 "plans": subs.public_plans(st, pid) if subs is not None else []}
 
     @endpoint("catalog", S.obj({"kind": S.s_enum(sorted(KINDS)), "need": S.s_str(maxLength=60),
@@ -605,7 +739,8 @@ class Products(Module):
                                                      "description": p["description"], "delivery": p["delivery"],
                                                      "need": p["need"], "status": "development", "version": None,
                                                      "releases": 0, "created": ev.t, "launched": None,
-                                                     "rating_sum": 0, "rating_n": 0})
+                                                     "rating_sum": 0, "rating_n": 0, "vrating_sum": 0,
+                                                     "vrating_n": 0})
 
     @applier("prod.update")
     def ap_update(self, ev):
@@ -689,6 +824,29 @@ class Products(Module):
                                             "text": p["text"], "t": ev.t})
         prod = st.tables["products"][p["product"]]
         st.patch("products", p["product"], rating_sum=prod["rating_sum"] + p["stars"], rating_n=prod["rating_n"] + 1)
+
+    @applier("prod.rating_check")
+    def ap_rating_check(self, ev):
+        st = self.world.state
+        r = st.tables["prod_ratings"][ev.payload["id"]]
+        st.patch("prod_ratings", ev.payload["id"], verified=bool(ev.payload["verified"]))
+        if ev.payload["verified"]:
+            prod = st.tables["products"][r["product"]]
+            st.patch("products", r["product"], vrating_sum=prod.get("vrating_sum", 0) + r["stars"],
+                     vrating_n=prod.get("vrating_n", 0) + 1)
+
+    @applier("prod.seat")
+    def ap_seat(self, ev):
+        p = dict(ev.payload)
+        st = self.world.state
+        if st.has("prod_seats", p["id"]):
+            ch = {"status": p["status"]}
+            for k in ("grant", "share"):
+                if k in p:
+                    ch[k] = p[k]
+            st.patch("prod_seats", p["id"], **ch, t=ev.t)
+        else:
+            st.insert("prod_seats", p.pop("id"), dict(p, t=ev.t))
 
     # ------------------------------------------------------------------ invariants
     def check_invariants(self, world):

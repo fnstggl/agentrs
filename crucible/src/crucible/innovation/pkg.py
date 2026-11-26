@@ -12,20 +12,27 @@ Packages extend 4.0 code hosting (`code`: repositories, commits, forks, `crucibl
 * dependency graph: `pkg.depend` resolves a version constraint and writes the lock into the dependent repository's
   `crucible.json` (`deps` entry `owner/repo@commit`, `packages` constraints); `pkg.upgrade` re-resolves only if the
   dependent's own tests still pass with the new version (compatibility);
-* adoption by execution only: `pkg.exec` (one call) and `pkg.ci` (the dependent's tests) run the dependent's code in
-  the sandbox and then, for each locked package, run it again with that package's files replaced by stubs that
-  fail on import (ablation, decided by the parent: D-20 - nothing the dependent's process reports is trusted). A
-  package is adopted by a dependent only when the dependent's successful execution *depends on it*: its result or
-  outcome changes (for `pkg.ci`: a passing test fails) when the package is ablated. World calls of the ablated runs
-  are answered from the first run's recorded replies, so ablation has no side effects. `pkg.deploy` records a
-  dependent's deployment with its locked versions (deployed adoption = ablation-verified execution of that commit
-  plus served requests);
+* adoption by execution only, measured by the parent (D-20): `pkg.exec` (one call) and `pkg.ci` (the dependent's
+  tests) run the dependent's code in the sandbox with its locked dependencies, and then once more per dependency
+  with that dependency *ablated* (its module replaced by a stub whose every attribute is an object that raises when
+  used); world calls of the ablated runs are answered from the first run's recorded replies, so ablation
+  has no side effects. A package is adopted by a dependent only when the dependent's successful outcome depends on it: the run
+  with the package ablated fails or returns a different result. Both outcomes are observed by the parent; the
+  in-sandbox call tracer's counts are recorded as self-reported and never decide adoption (they can be rewritten by
+  the traced code). `pkg.deploy` records a dependent's deployment with its locked versions;
 * collaboration: `pkg.pr_open` (a change proposed from another repository, tested in the sandbox), `pkg.pr_diff`
   (reading the change is recorded), `pkg.pr_review` (reviews count as independent only from principals unrelated to
   the author who read the diff), `pkg.pr_merge` (maintainer; needs an independent approval and passing tests);
   `pkg.report` files issues; `pkg.fork` forks with lineage;
-* failures: `pkg.advisory` is verified only by executing the reporter's reproduction tests against the affected
-  version in the sandbox (they must fail there); each later release is re-checked, so `fixed_in` is measured too.
+* failures: `pkg.advisory` reports a defect with a reproduction repository. It is accepted as *reported* (visible to
+  the reporter and the maintainer) only if the reproduction's tests fail against the affected release AND their
+  outcome changes when the package is ablated (the reproduction exercises the package). It becomes *verified*
+  (public, an issue is filed, dependents learn of it) only when a later release of the package makes the same
+  reproduction pass: the defect is then demonstrably in the package and fixed in that release (`fixed_in`; the
+  versions where it reproduced are `affected`). A reproduction that never passes on any release of the package
+  (e.g. `assert False`, or tests of the reporter's own code) never verifies, so advisories cannot be used to brand
+  a competitor's package.
+* lineage: `forked_from` comes only from the code host's fork record (`code.fork`), never from a description.
 
 All outcomes come from recorded sandbox executions (ctx.reserve/fill through `sandbox.bridge.run_in_ctx`).
 """
@@ -86,7 +93,6 @@ def api(args, caller):
             out[name] = [sum(1 for p in ps if p.default is p.empty), len(ps)]
     return out
 '''
-ABLATED_PY = "raise ImportError('this package is ablated by the evaluator (adoption measurement)')\n"
 MAX_ABLATE = 6          # packages ablated per execution (the first ones by import directory)
 
 
@@ -195,35 +201,64 @@ class Packages(Module):
                           timeout=timeout, close_after=True, world_access=world_access, rpc_fn=rpc_fn,
                           rpc_results=rpc_results)
 
-    def _ablations(self, ctx, files: dict, origin: dict, job: dict, principal: str, label: str, first: dict,
-                   replies: list, compare) -> dict[str, int]:
-        """Parent-side adoption evidence: rerun `job` with each mounted package's files replaced by stubs and count
-        how much of the first run's outcome depends on it (`compare(first, ablated) -> int`). World calls are
-        answered from the first run's replies (in order; a different call is refused), so nothing happens twice."""
-        dirs = sorted({d for d in origin.values()})[:MAX_ABLATE]
-        out: dict[str, int] = {}
-        timeout = 10.0
-        for d in dirs:
-            abl = {p: (ABLATED_PY if p.endswith(".py") else "") if origin.get(p) == d else c for p, c in files.items()}
-            seq = list(replies)
+    ABLATED = ("class _Ablated:\n"
+               "    def __init__(self, n):\n        self._n = n\n"
+               "    def __call__(self, *a, **k):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
+               "    def __getattr__(self, n):\n        return _Ablated(self._n + '.' + n)\n"
+               "    def __iter__(self):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
+               "    def __bool__(self):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
+               "def __getattr__(name):\n    return _Ablated(name)\n")
 
-            def mock(tool, args, _seq=seq):
+    def _ablate(self, st, files: dict, pkg_name: str) -> dict:
+        """The same tree with one mounted dependency replaced by an ablation stub (parent-side adoption test)."""
+        p = st.tables["pkg_packages"][pkg_name]
+        d = f"deps/{import_dir(p['repo'])}/"
+        out = {k: v for k, v in files.items() if not k.startswith(d)}
+        out[f"{d}{p['module']}.py"] = self.ABLATED
+        out[f"{d}__init__.py"] = ""
+        return out
+
+    def _exercised(self, ctx, repo: str, files: dict, job: dict, principal: str, base: dict, label: str,
+                   replies: list | None = None) -> list[str]:
+        """Packages whose ablation changes a successful outcome (both outcomes observed by the parent). World calls
+        of an ablated run are answered from the first run's recorded replies, in order (a different call is
+        refused), so nothing happens twice in the world; at most MAX_ABLATE packages are ablated."""
+        from ..core.canonical import digest as _dg
+        st = ctx.state
+        out = []
+        base_key = _dg(self._outcome(base))
+        for _, (name, _) in sorted(self.closure(st, repo).items())[:MAX_ABLATE]:
+            seq = list(replies or [])
+
+            def replay(tool, args, _seq=seq):
                 if _seq and _seq[0][0] == tool and _seq[0][1] == args:
                     _t, _a, ok, val = _seq.pop(0)
                     return ok, val
                 _seq.clear()
                 return False, {"code": "forbidden", "message": "world calls are replayed during ablation"}
-            res = self._run(ctx, abl, job, principal, label + ".ablate", world_access=True, timeout=timeout,
-                            rpc_fn=mock)
-            n = int(compare(first, res))
-            if n > 0:
-                out[d] = n
+            o2 = self._run(ctx, self._ablate(st, files, name), job, principal, label + ".ablate",
+                           world_access=replies is not None, timeout=10.0,
+                           rpc_fn=replay if replies is not None else None)
+            if _dg(self._outcome(o2)) != base_key:
+                out.append(name)
         return out
 
-    def _files_with(self, ctx, repo: str, ref: str | None, actor: str, swap: dict | None = None,
-                    origin: dict | None = None) -> dict:
-        """Files of `repo` with its locked dependencies mounted; `swap` = {dep_repo: commit} replaces locks.
-        `origin`, if given, is filled with {mounted path: import dir of the package it came from}."""
+    @staticmethod
+    def _outcome(o: dict):
+        """What the parent compares: success and the returned value (for tests: which tests passed)."""
+        if not o.get("ok"):
+            return ["failed"]
+        r = o.get("result")
+        if isinstance(r, dict) and "results" in r and "passed" in r:
+            # which tests passed, and how the failing ones failed (the exception type)
+            return ["tests", sorted([x.get("test"), bool(x.get("ok")), str(x.get("error") or "").split(":", 1)[0]]
+                                    for x in r["results"])]
+        if isinstance(r, dict) and "result" in r:
+            return ["ok", r["result"]]
+        return ["ok", r]
+
+    def _files_with(self, ctx, repo: str, ref: str | None, actor: str, swap: dict | None = None) -> dict:
+        """Files of `repo` with its locked dependencies mounted; `swap` = {dep_repo: commit} replaces locks."""
         code = ctx.world.modules["code"]
         files = code.files(ctx.state, repo, ref)
         swap = dict(swap or {})
@@ -247,10 +282,13 @@ class Packages(Module):
                     code._licensed(ctx, actor, r["owner"], dep_repo)):
                 raise Forbidden(f"no licence to use {dep_repo}")
             dfiles = code.files(ctx.state, dep_repo, dep_ref or None)
+            mount = f"deps/{import_dir(dep_repo)}/"
+            # the mount point belongs to the package manager: a dependent's own files there are not mounted
+            # (a shadow copy of a dependency cannot pass for the dependency)
+            for k in [k for k in out if k.startswith(mount)]:
+                del out[k]
             for p, c in dfiles.items():
-                out[f"deps/{import_dir(dep_repo)}/{p}"] = c
-                if origin is not None:
-                    origin[f"deps/{import_dir(dep_repo)}/{p}"] = import_dir(dep_repo)
+                out[f"{mount}{p}"] = c
             mounted.add(dep_repo)
             queue += [(d, depth + 1) for d in list(self._manifest(dfiles).get("deps", []))[:10]]
         return out
@@ -321,9 +359,11 @@ class Packages(Module):
         if st.find_ids("pkg_packages", "repo", repo):
             raise Conflict(f"{repo} is already a package")
         forked = None
-        for other_name, other in st.scan("pkg_packages"):
-            if r["description"].startswith("fork of ") and r["description"][8:].split("@")[0] == other["repo"]:
-                forked = other_name
+        parent = code.fork_parent(st, repo) if hasattr(code, "fork_parent") else r.get("forked_from")
+        if parent:
+            for other_name, other in st.scan("pkg_packages"):
+                if other["repo"] == parent:
+                    forked = other_name
         owner_handle = r["owner"].split(":", 1)[1]
         proj = ctx.call("issues.create_project", {"name": f"pkg-{name}", "repo": repo, "public": True,
                                                   "description": f"Issues of package {name}",
@@ -349,7 +389,7 @@ class Packages(Module):
         p = st.tables["pkg_packages"][name]
         rels = self.releases(st, name)
         latest = rels[-1] if rels else None
-        adopters = [a for a in st.find("pkg_adoptions", "package", name) if a["independent"]]
+        adopters = [a for a in st.find("pkg_adoptions", "package", name) if a["owner"] != p["owner"]]
         issues = [i for i in st.find("iss_issues", "project", p["project"])] if "iss_issues" in st.tables else []
         advs = [a for a in st.find("pkg_advisories", "package", name) if a["verified"]]
         return {"package": name, "repo": p["repo"], "owner": p["owner"], "description": p["description"],
@@ -457,13 +497,16 @@ class Packages(Module):
         fixed = []
         for aid in st.find_ids("pkg_advisories", "package", package):
             a = st.tables["pkg_advisories"][aid]
-            if not a["verified"] or a["fixed_in"]:
-                continue
             res = self._repro(ctx, a["repro_repo"], a["repro_commit"], p["repo"], repo["head"], a["by"])
+            fixes = res["failed"] == 0 and res["passed"] > 0
+            if a["verified"] and not res["failed"]:
+                continue                                    # still fixed
             ctx.emit("pkg.advisory_check", {"id": aid, "version": version, "reproduces": res["failed"] > 0,
-                                            "tests": {"passed": res["passed"], "failed": res["failed"]}}, vis="public")
-            if res["failed"] == 0 and res["passed"] > 0:
+                                            "tests": {"passed": res["passed"], "failed": res["failed"]}},
+                     vis="public" if (a["verified"] or fixes) else (a["by"], p["owner"]))
+            if fixes and not a["verified"]:
                 fixed.append(aid)
+                self._publish_advisory(ctx, aid)
         return {"release": rid, "commit": repo["head"], "tests": {"passed": tests["passed"], "failed": tests["failed"]},
                 "api": api, "compat": compat, "fixes_advisories": fixed}
 
@@ -567,16 +610,16 @@ class Packages(Module):
         return {"upgraded": True, "version": rel["version"], "commit": cid}
 
     # ================================================================== execution (adoption evidence)
-    def _record_exec(self, ctx, repo, commit, kind, ok, calls, extra=None):
+    def _record_exec(self, ctx, repo, commit, kind, ok, calls, extra=None, exercised=()):
         st = ctx.state
         r = st.tables["repos"][repo]
         by_pkg = self._calls_by_package(st, repo, calls or {})
         locked = {name: ver for name, ver in self.closure(st, repo).values()}
-        indep = {k: self._independent(ctx.world, r["owner"], self.package(st, k)["owner"]) for k in by_pkg}
         eid = st.new_id("pexec")
         ctx.emit("pkg.executed", {"id": eid, "repo": repo, "commit": commit, "owner": r["owner"], "by": ctx.actor,
-                                  "kind": kind, "ok": bool(ok), "calls": by_pkg, "locked": locked,
-                                  "independent": indep, **(extra or {})}, vis=tuple(sorted({r["owner"], ctx.actor})))
+                                  "kind": kind, "ok": bool(ok), "self_reported_calls": by_pkg, "locked": locked,
+                                  "exercised": sorted(exercised) if ok else [], **(extra or {})},
+                 vis=tuple(sorted({r["owner"], ctx.actor})))
         return eid, by_pkg
 
     @endpoint("exec", S.obj({"repo": S.s_str(maxLength=81),
@@ -593,21 +636,17 @@ class Packages(Module):
             raise Forbidden(f"no read access to {repo}")
         r = code.repo(st, repo)
         commit = ref or r["head"]
-        origin: dict = {}
-        files = self._files_with(ctx, repo, commit, ctx.actor, origin=origin)
+        files = self._files_with(ctx, repo, commit, ctx.actor)
         job = {"kind": "call", "target": "_pkgharness:call", "args": {"target": target, "input": input},
                "caller": ctx.actor}
         replies: list = []
         out = self._run(ctx, files, job, ctx.actor, "pkg.exec", world_access=True, rpc_results=replies)
         code.charge_compute(ctx, ctx.actor, out["cpu_ms"], f"pkg.exec {repo}")
         res = out["result"] if out["ok"] and isinstance(out["result"], dict) else {}
-        calls = {}
-        if out["ok"]:
-            calls = self._ablations(ctx, files, origin, job, ctx.actor, "pkg.exec", out, replies,
-                                    lambda a, b: int(not b["ok"] or b.get("result") != a.get("result")))
-        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], calls)
+        ex = self._exercised(ctx, repo, files, job, ctx.actor, out, "pkg.exec", replies) if out["ok"] else []
+        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], res.get("calls"), exercised=ex)
         return {"execution": eid, "ok": out["ok"], "result": res.get("result"), "error": out["error"],
-                "calls": by_pkg, "cpu_ms": out["cpu_ms"]}
+                "exercised": ex, "cpu_ms": out["cpu_ms"]}
 
     @endpoint("ci", S.obj({"repo": S.s_str(maxLength=81), "ref": S.s_str(maxLength=40)}, ["repo"]), cost_s=60)
     def ep_ci(self, ctx, repo, ref=None):
@@ -619,25 +658,18 @@ class Packages(Module):
             raise Forbidden(f"no read access to {repo}")
         r = code.repo(st, repo)
         commit = ref or r["head"]
-        origin: dict = {}
-        files = self._files_with(ctx, repo, commit, ctx.actor, origin=origin)
+        files = self._files_with(ctx, repo, commit, ctx.actor)
         res = self._ci(ctx, files, ctx.actor)
         code.charge_compute(ctx, ctx.actor, res["cpu_ms"], f"pkg.ci {repo}")
         ok = res["failed"] == 0 and res["passed"] > 0
-        calls = {}
-        if ok:
-            passed = {t["test"] for t in res.get("results", []) if t.get("ok")}
-            job = {"kind": "call", "target": "_pkgharness:tests", "args": {}, "caller": ctx.actor}
-
-            def broken(first, abl):     # passing tests that fail without the package
-                rs = abl.get("result") if abl.get("ok") and isinstance(abl.get("result"), dict) else {}
-                still = {t["test"] for t in rs.get("results", []) if t.get("ok")}
-                return len(passed - still)
-            calls = self._ablations(ctx, files, origin, job, ctx.actor, "pkg.ci", res, [], broken)
-        eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, calls,
-                                        {"tests": {"passed": res["passed"], "failed": res["failed"]}})
+        ex = self._exercised(ctx, repo, files, {"kind": "call", "target": "_pkgharness:tests", "args": {},
+                                                "caller": ctx.actor}, ctx.actor,
+                             {"ok": True, "result": {"results": res["results"], "passed": res["passed"]}},
+                             "pkg.ci") if ok else []
+        eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, res.get("calls"),
+                                        {"tests": {"passed": res["passed"], "failed": res["failed"]}}, exercised=ex)
         return {"execution": eid, "ok": ok, "passed": res["passed"], "failed": res["failed"],
-                "results": res["results"][:20], "calls": by_pkg}
+                "results": res["results"][:20], "exercised": ex}
 
     @endpoint("deploy", S.obj({"repo": S.s_str(maxLength=81), "host": S.s_str(maxLength=31),
                                "instance": S.s_str(maxLength=40)}, ["repo", "host", "instance"]), cost_s=120)
@@ -790,9 +822,9 @@ class Packages(Module):
                                                        "must fail against the affected version)", maxLength=81)},
                                 ["package", "version", "kind", "severity", "description", "repro_repo"]), cost_s=120)
     def ep_advisory(self, ctx, package, version, kind, severity, description, repro_repo):
-        """Report a security or reliability defect with a reproduction. The reproduction's tests run in the sandbox
-        against the affected release; the advisory is verified (and public) only if they fail there. Each later
-        release is re-checked."""
+        """Report a security or reliability defect with a reproduction repository whose tests fail against the
+        affected release. The report is kept private (you and the maintainer) and checked against every later
+        release; it becomes verified and public only when a release makes the reproduction pass."""
         st = ctx.state
         p = self.package(st, package)
         rid = f"{package}@{version}"
@@ -802,31 +834,55 @@ class Packages(Module):
         code = ctx.world.modules["code"]
         rr = code.repo(st, repro_repo)
         ident(ctx.world).authorize(ctx, rr["owner"], "code.write", scope=repro_repo)
-        res = self._repro(ctx, repro_repo, rr["head"], p["repo"], rel["commit"], ctx.actor)
-        verified = res["failed"] > 0
+        res, exercises = self._repro_check(ctx, repro_repo, rr["head"], p["repo"], rel["commit"], package, ctx.actor)
+        if res["failed"] == 0:
+            raise InvalidAction("the reproduction's tests pass against the affected release")
+        if not exercises:
+            raise InvalidAction("the reproduction does not exercise the package (its outcome is the same with the "
+                                "package ablated)")
         later = [r for r in self.releases(st, package) if parse_version(r["version"]) > parse_version(version)]
         affected = [version]
         fixed_in = None
-        if verified:
-            for r in later:
-                res2 = self._repro(ctx, repro_repo, rr["head"], p["repo"], r["commit"], ctx.actor)
-                if res2["failed"] > 0:
-                    affected.append(r["version"])
-                elif res2["passed"] > 0:
-                    fixed_in = fixed_in or r["version"]
+        for r in later:
+            res2 = self._repro(ctx, repro_repo, rr["head"], p["repo"], r["commit"], ctx.actor)
+            if res2["failed"] > 0:
+                affected.append(r["version"])
+            elif res2["passed"] > 0:
+                fixed_in = r["version"]
+                break
+        verified = fixed_in is not None
         aid = st.new_id("adv")
         ctx.emit("pkg.advisory", {"id": aid, "package": package, "version": version, "kind": kind,
                                   "severity": severity, "description": description[:4000], "by": ctx.actor,
                                   "repro_repo": repro_repo, "repro_commit": rr["head"], "verified": verified,
-                                  "affected": affected if verified else [], "fixed_in": fixed_in,
+                                  "affected": affected, "fixed_in": fixed_in,
                                   "tests": {"passed": res["passed"], "failed": res["failed"]}},
                  vis="public" if verified else (ctx.actor, p["owner"]))
-        if verified and "issues" in ctx.world.modules:
-            ctx.call("issues.create", {"project": p["project"], "title": f"[{kind}] {description[:150]}",
-                                       "body": f"Advisory {aid} ({severity}); reproduction {repro_repo}@{rr['head']}",
-                                       "labels": [kind, severity]})
-        return {"advisory": aid, "verified": verified, "affected": affected if verified else [], "fixed_in": fixed_in,
-                "tests": {"passed": res["passed"], "failed": res["failed"]}}
+        if verified:
+            self._publish_advisory(ctx, aid)
+        return {"advisory": aid, "verified": verified, "status": "verified" if verified else "reported",
+                "affected": affected, "fixed_in": fixed_in, "tests": {"passed": res["passed"], "failed": res["failed"]}}
+
+    def _repro_check(self, ctx, repro_repo, repro_commit, pkg_repo, pkg_commit, package, principal):
+        """Run a reproduction against a release and with the package ablated: (result, exercises the package)."""
+        st = ctx.state
+        files = self._files_with(ctx, repro_repo, repro_commit, principal, swap={pkg_repo: pkg_commit})
+        res = self._ci(ctx, files, principal, "pkg.repro")
+        abl = self._run(ctx, self._ablate(st, files, package), {"kind": "call", "target": "_pkgharness:tests",
+                                                                 "args": {}, "caller": principal}, principal,
+                        "pkg.repro.ablate")
+        base = self._outcome({"ok": True, "result": {"results": res["results"], "passed": res["passed"]}})
+        return res, base != self._outcome(abl)
+
+    def _publish_advisory(self, ctx, aid: str) -> None:
+        st = ctx.state
+        a = st.tables["pkg_advisories"][aid]
+        p = st.tables["pkg_packages"][a["package"]]
+        if "issues" in ctx.world.modules:
+            ctx.call("issues.create", {"project": p["project"], "title": f"[{a['kind']}] {a['description'][:150]}",
+                                       "body": f"Advisory {aid} ({a['severity']}): affects {', '.join(a['affected'])}; "
+                                               f"fixed in {a['fixed_in']}; reproduction {a['repro_repo']}",
+                                       "labels": [a["kind"], a["severity"]]})
 
     # ================================================================== needs-graph interface
     def relations(self, world):
@@ -871,6 +927,19 @@ class Packages(Module):
                 out.append({"by": r["id"], "host": None, "provider": st.tables["pkg_packages"][name]["owner"],
                             "path": [{"src": f"pkg:{name}@{r['version']}", "rel": "produces", "dst": pkg_node,
                                       "source": "release"}]})
+        # substitute packages: another package whose latest release offers every function of this one's API
+        mine = self.releases(st, name)
+        api = set((mine[-1]["api"] if mine else {}) or {})
+        for other, op in sorted(st.scan("pkg_packages")):
+            if other == name or not api:
+                continue
+            rs = [r for r in self.releases(st, other) if r["t"] >= since_t or True]
+            if rs and api <= set(rs[-1]["api"] or {}) and not any(
+                    rs[-1]["version"] in a["affected"] for a in st.find("pkg_advisories", "package", other)
+                    if a["verified"]):
+                out.append({"by": rs[-1]["id"], "host": None, "provider": op["owner"],
+                            "path": [{"src": f"pkg:{other}", "rel": "substitutes", "dst": pkg_node,
+                                      "source": "same API"}]})
         return out
 
     # ================================================================== appliers
@@ -911,20 +980,20 @@ class Packages(Module):
         st.insert("pkg_execs", p["id"], p)
         if not p["ok"]:
             return
-        for name, n in sorted(p["calls"].items()):
+        for name in sorted(p.get("exercised") or []):
             k = f"{name}|{p['repo']}"
             a = st.tables["pkg_adoptions"].get(k)
+            n = int((p.get("self_reported_calls") or {}).get(name, 0))
             if a is None:
                 st.insert("pkg_adoptions", k, {"package": name, "repo": p["repo"], "owner": p["owner"],
-                                               "independent": p["independent"].get(name, False), "first_t": ev.t,
-                                               "last_t": ev.t, "executions": 1, "calls": n,
-                                               "versions": [p["locked"].get(name)]})
+                                               "first_t": ev.t, "last_t": ev.t, "executions": 1,
+                                               "self_reported_calls": n, "versions": [p["locked"].get(name)]})
             else:
                 vs = list(a["versions"])
                 if p["locked"].get(name) not in vs:
                     vs.append(p["locked"].get(name))
-                st.patch("pkg_adoptions", k, last_t=ev.t, executions=a["executions"] + 1, calls=a["calls"] + n,
-                         versions=vs)
+                st.patch("pkg_adoptions", k, last_t=ev.t, executions=a["executions"] + 1,
+                         self_reported_calls=a.get("self_reported_calls", 0) + n, versions=vs)
 
     @applier("pkg.deployed")
     def ap_deployed(self, ev):
@@ -963,7 +1032,7 @@ class Packages(Module):
     @applier("pkg.advisory")
     def ap_advisory(self, ev):
         p = dict(ev.payload)
-        p.update(t=ev.t, status="open" if p["verified"] else "unverified", checks=[])
+        p.update(t=ev.t, status="fixed" if p["verified"] else "reported", checks=[])
         self.world.state.insert("pkg_advisories", p["id"], p)
 
     @applier("pkg.advisory_check")
@@ -975,7 +1044,8 @@ class Packages(Module):
         if p["reproduces"]:
             ch["affected"] = list(a["affected"]) + [p["version"]]
         elif p["tests"]["passed"] > 0 and not a["fixed_in"]:
-            ch.update(fixed_in=p["version"], fixed_t=ev.t, status="fixed")
+            # a release that makes the reproduction pass verifies the defect (it was in the package) and fixes it
+            ch.update(fixed_in=p["version"], fixed_t=ev.t, status="fixed", verified=True)
         st.patch("pkg_advisories", p["id"], **ch)
 
     @applier("pkg.star")
@@ -998,7 +1068,8 @@ class Packages(Module):
         errs = []
         st = world.state
         for k, a in st.scan("pkg_adoptions"):
-            ex = [e for e in st.find("pkg_execs", "repo", a["repo"]) if e["ok"] and a["package"] in e["calls"]]
+            ex = [e for e in st.find("pkg_execs", "repo", a["repo"]) if e["ok"] and a["package"] in (e.get("exercised")
+                                                                                                    or [])]
             if len(ex) != a["executions"]:
                 errs.append(f"adoption {k}: {a['executions']} executions recorded, {len(ex)} traced")
         for name, p in st.scan("pkg_packages"):

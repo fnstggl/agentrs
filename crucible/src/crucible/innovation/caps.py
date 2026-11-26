@@ -23,6 +23,12 @@ capabilities may exist; the registry only indexes what operators declare.
   itself executed the service successfully (`caps.try`); afterwards every real call it makes to that endpoint is
   counted as use (`caps.use`). Nothing is ever counted from what a provider says about itself.
 
+Observation-only (D-19, audit G 5.4): public statistics are raw counts anyone could tally - trials, successful
+trials, active adopters, public verifications. Whether a trial or an adoption was by a party independent of the
+provider is an evaluator verdict (`innovation.measure`); it is never computed in-world, stored in an event, or
+returned by a tool (an `independent` flag would be a Sybil oracle). Adoption notes are kept with the adopter's own
+record and are not relayed to the provider.
+
 The v5 tables and endpoints exist only when the module is configured with `{"registry": true}`: worlds built before
 5.0 keep their exact tool catalogue, state digests and event logs (the 4.0 endpoints, appliers and processes are
 inherited unchanged, and `caps.search` keeps its 4.0 schema there).
@@ -155,18 +161,14 @@ class CapabilityRegistry(Capabilities):
                 "inputs": d["inputs"], "outputs": d["outputs"], "status": d["status"], "live": live,
                 "price_cents": self.price_of(st, d), "declared_t": d["t"], "commit": d["commit"],
                 "tests_ref": d["tests_ref"],
-                "independent_trials": d["ind_trials"], "independent_trial_ok_rate":
-                    round(d["ind_trials_ok"] / d["ind_trials"], 4) if d["ind_trials"] else None,
-                "independent_adopters": d["ind_adopters"],
-                "public_verifications": [{"verification": v["id"], "by": v["by"], "independent": v["independent"],
+                "trials": d["trials"], "trial_ok_rate": round(d["trials_ok"] / d["trials"], 4) if d["trials"] else None,
+                "adopters": d["adopters"],
+                "public_verifications": [{"verification": v["id"], "by": v["by"],
                                           "provider_supplied": v["provider_supplied"], "cases": v["cases"],
                                           "mean_score": v["mean_score"], "failures": v["failures"],
                                           "schema_failures": v["schema_failures"], "commit": v["commit"]}
                                          for v in pub][-5:]}
 
-    def _independent(self, world, a: str, provider: str) -> bool:
-        from ..goals.metrics import is_related
-        return not is_related(world, provider, a)
 
     # ------------------------------------------------------------------ declare
     @endpoint("declare", S.obj({
@@ -238,7 +240,7 @@ class CapabilityRegistry(Capabilities):
     def ep_search(self, ctx, query=None, q=None, limit=10):
         """Search capabilities. `query` searches typed declarations of agent-created services (name, docs, tags,
         fields, host) and the installable capabilities published with caps.publish; each result carries public
-        statistics (independent trials and adopters, public verifications). Hosts of results become known to you.
+        statistics (trials, successful trials, adopters, public verifications). Hosts of results become known to you.
         The older form `q` searches published capabilities only."""
         if query is None:
             if q is None:
@@ -350,7 +352,6 @@ class CapabilityRegistry(Capabilities):
         ctx.emit("caps.tried", {"id": tid, "decl": did, "host": service_host, "by": ctx.actor, "status": status,
                                 "ok": ok, "schema_errors": out_errs[:5], "cpu_ms": res.get("cpu_ms"),
                                 "commit": dep["commit"] if dep else d["commit"],
-                                "independent": self._independent(ctx.world, ctx.actor, d["provider"]),
                                 "input_digest": digest(input), "output_digest": digest(body)}, vis=(ctx.actor,))
         return {"trial": tid, "declaration": did, "status": status, "ok": ok, "output": body,
                 "schema_errors": out_errs[:5], "cpu_ms": res.get("cpu_ms"), "error": res.get("error")}
@@ -426,13 +427,12 @@ class CapabilityRegistry(Capabilities):
         by = r["owner"]
         rec = {"id": vid, "decl": did, "by": by, "requested_by": ctx.actor, "suite": f"{repo}@{ref}",
                "provider_supplied": provider_supplied,
-               "independent": (not provider_supplied) and self._independent(ctx.world, by, d["provider"]),
                "cases": int(cases), "mean_score": round(sum(scores) / len(scores), 4), "failures": fails,
                "schema_failures": schema_fails, "mean_cpu_ms": round(sum(cpus) / len(cpus), 4) if cpus else None,
                "commit": dep["commit"] if dep else d["commit"], "public": bool(public)}
         ctx.emit("caps.verification", rec, vis="public" if public else (ctx.actor, by, d["provider"]))
         return {"verification": vid, **{k: rec[k] for k in ("mean_score", "failures", "schema_failures", "cases",
-                                                              "independent", "provider_supplied", "commit")}}
+                                                              "provider_supplied", "commit")}}
 
     # ------------------------------------------------------------------ adoption (only after own execution)
     @endpoint("adopt_service", S.obj({"declaration": S.s_str(maxLength=40),
@@ -454,9 +454,10 @@ class CapabilityRegistry(Capabilities):
         aid = st.new_id("cadopt")
         ctx.emit("caps.adopted", {"id": aid, "decl": did, "host": d["host"], "adopter": ctx.actor,
                                   "provider": d["provider"],
-                                  "independent": self._independent(ctx.world, ctx.actor, d["provider"]),
-                                  "trials": len(mine), "trials_ok": sum(1 for t in mine if t["ok"]),
-                                  "note": note[:500]}, vis=(ctx.actor, d["provider"]))
+                                  "trials": len(mine), "trials_ok": sum(1 for t in mine if t["ok"])},
+                 vis=(ctx.actor, d["provider"]))
+        if note:
+            ctx.emit("caps.adoption_note", {"id": aid, "note": note[:500]}, vis=(ctx.actor,))
         return {"adoption": aid}
 
     @endpoint("drop_service", S.obj({"declaration": S.s_str(maxLength=40), "reason": S.s_str(maxLength=300)},
@@ -505,7 +506,7 @@ class CapabilityRegistry(Capabilities):
         p = dict(ev.payload)
         for old in p["supersedes"]:
             st.patch("cap_decls", old, status="superseded")
-        p.update(status="active", t=ev.t, ind_trials=0, ind_trials_ok=0, ind_adopters=0, trials=0)
+        p.update(status="active", t=ev.t, trials=0, trials_ok=0, adopters=0)
         st.insert("cap_decls", p.pop("id"), p)
 
     @applier("caps.seen")
@@ -523,10 +524,7 @@ class CapabilityRegistry(Capabilities):
         p["t"] = ev.t
         st.insert("cap_trials", p.pop("id"), p)
         d = st.tables["cap_decls"][p["decl"]]
-        ch = {"trials": d["trials"] + 1}
-        if p["independent"]:
-            ch.update(ind_trials=d["ind_trials"] + 1, ind_trials_ok=d["ind_trials_ok"] + (1 if p["ok"] else 0))
-        st.patch("cap_decls", p["decl"], **ch)
+        st.patch("cap_decls", p["decl"], trials=d["trials"] + 1, trials_ok=d["trials_ok"] + (1 if p["ok"] else 0))
 
     @applier("caps.verification")
     def ap_verification(self, ev):
@@ -541,17 +539,19 @@ class CapabilityRegistry(Capabilities):
         d = st.tables["cap_decls"][p["decl"]]
         p.update(status="active", t=ev.t, uses=0, uses_ok=0, endpoint=d["endpoint"])
         st.insert("cap_adoptions", p.pop("id"), p)
-        if p["independent"]:
-            st.patch("cap_decls", p["decl"], ind_adopters=d["ind_adopters"] + 1)
+        st.patch("cap_decls", p["decl"], adopters=d["adopters"] + 1)
+
+    @applier("caps.adoption_note")
+    def ap_adoption_note(self, ev):
+        self.world.state.patch("cap_adoptions", ev.payload["id"], note=ev.payload["note"])
 
     @applier("caps.dropped")
     def ap_dropped(self, ev):
         st = self.world.state
         a = st.tables["cap_adoptions"][ev.payload["id"]]
         st.patch("cap_adoptions", ev.payload["id"], status="dropped", dropped_t=ev.t, reason=ev.payload["reason"])
-        if a["independent"]:
-            d = st.tables["cap_decls"][a["decl"]]
-            st.patch("cap_decls", a["decl"], ind_adopters=d["ind_adopters"] - 1)
+        d = st.tables["cap_decls"][a["decl"]]
+        st.patch("cap_decls", a["decl"], adopters=d["adopters"] - 1)
 
     @applier("caps.use")
     def ap_use(self, ev):
@@ -571,12 +571,11 @@ class CapabilityRegistry(Capabilities):
             trials.setdefault(t["decl"], []).append(t)
         for did, d in st.scan("cap_decls"):
             ts = trials.get(did, [])
-            ind = [t for t in ts if t["independent"]]
-            if d["trials"] != len(ts) or d["ind_trials"] != len(ind) or d["ind_trials_ok"] != sum(t["ok"] for t in ind):
+            if d["trials"] != len(ts) or d["trials_ok"] != sum(t["ok"] for t in ts):
                 errs.append(f"{did}: trial counters do not match the trial records")
-            act = [a for a in st.find("cap_adoptions", "decl", did) if a["status"] == "active" and a["independent"]]
-            if d["ind_adopters"] != len(act):
-                errs.append(f"{did}: independent adopter counter does not match adoption records")
+            act = [a for a in st.find("cap_adoptions", "decl", did) if a["status"] == "active"]
+            if d["adopters"] != len(act):
+                errs.append(f"{did}: adopter counter does not match adoption records")
         for aid, a in st.scan("cap_adoptions"):
             if not any(t["decl"] == a["decl"] and t["ok"] and t["t"] <= a["t"] for t in
                        st.find("cap_trials", "by", a["adopter"])):

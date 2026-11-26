@@ -74,19 +74,73 @@ def _pay_setup(own_cents):
     return w, f, org, plans, x
 
 
+def _goods_sale(w, seller, buyer, sku, price):
+    lst = seller.do("market.list", kind="goods", title=f"{sku} x1", price_cents=price, sku=sku)["listing"]
+    o = buyer.do("market.buy", listing=lst, account=buyer.acct)["order"]
+    seller.do("market.deliver", order=o)
+    buyer.do("market.confirm", order=o)
+
+
 def test_pro_rata_tracing_attributes_only_the_owner_share():
     from _commerce_kit import mint
     w, f, org, plans, x = _pay_setup(9_000)
-    mint(w, x.id, "bolt", 5)          # the merchant buys real goods from x: consideration, not netted
+    # a market price for bolts, set by other pairs of participants
+    s1, b1 = join(w, "boltmaker", 2_000), join(w, "boltbuyer", 5_000)
+    mint(w, s1.id, "bolt", 5)
+    _goods_sale(w, s1, b1, "bolt", 1_000)
+    mint(w, x.id, "bolt", 5)          # the merchant buys real goods from x at the market price: not netted
     lst = x.do("market.list", kind="goods", title="Bolts", price_cents=1_000, sku="bolt")["listing"]
     o = f.do("market.buy", listing=lst, account=w.modules["bank"].primary_account(w.state, org))["order"]
     x.do("market.deliver", order=o)
     f.do("market.confirm", order=o)
     x.do("subs.subscribe", plan=plans["month"])
     rec = integrity.related_flows(w, org)["payers"][x.id]
-    # x held 8,500 of its own (9,000 minus the listing fee) and 1,000 of the merchant's: 1,000 x 1,000/9,500
-    assert rec["funded"] == pytest.approx(1_000 * 1_000 / 9_500, abs=0.01), rec
-    assert rec["netted"] == 0 and not rec["flagged"], rec
+    # the 1,000 cents x received were the market price of the bolts it delivered: its own money, not traced
+    assert rec["funded"] == 0 and rec["netted"] == 0 and not rec["flagged"], rec
+    assert rec["weight"] == 1
+
+
+def test_pro_rata_tracing_of_money_given_without_consideration():
+    w, f, org, plans, x = _pay_setup(9_000)
+    f.do("bank.transfer", from_account=w.modules["bank"].primary_account(w.state, org), to=x.id, amount=1_000,
+         memo="gift")
+    x.do("bank.transfer", from_account=x.acct, to=join(w, "elsewhere", 0).id, amount=500)
+    x.do("subs.subscribe", plan=plans["month"])
+    rec = integrity.related_flows(w, org)["payers"][x.id]
+    # x held 9,000 of its own and 1,000 of the merchant's, then spent 500 pro rata: 1,000 x (9,500/10,000) left of
+    # 9,500, so the 1,000-cent payment carries 1,000 x 950/9,500 = 100 traced cents; netting takes the rest
+    assert rec["funded"] == pytest.approx(100.0, abs=0.01), rec
+    assert rec["netted"] == 1_000 and rec["weight"] == 0
+
+
+def test_goods_above_market_price_are_netted():
+    from _commerce_kit import mint
+    w, f, org, plans, x = _pay_setup(9_000)
+    s1, b1 = join(w, "boltmaker", 2_000), join(w, "boltbuyer", 5_000)
+    mint(w, s1.id, "bolt", 5)
+    _goods_sale(w, s1, b1, "bolt", 100)             # bolts change hands at 1 dollar
+    mint(w, x.id, "bolt", 5)
+    lst = x.do("market.list", kind="goods", title="Bolts", price_cents=1_000, sku="bolt")["listing"]
+    o = f.do("market.buy", listing=lst, account=w.modules["bank"].primary_account(w.state, org))["order"]
+    x.do("market.deliver", order=o)
+    f.do("market.confirm", order=o)
+    x.do("subs.subscribe", plan=plans["month"])
+    rec = integrity.related_flows(w, org)["payers"][x.id]
+    # 900 of the 1,000 cents are above the market price: they can have come back as x's payment
+    assert rec["netted"] == 900, rec
+
+
+def test_goods_without_any_market_price_are_netted():
+    from _commerce_kit import mint
+    w, f, org, plans, x = _pay_setup(9_000)
+    mint(w, x.id, "bolt", 5)
+    lst = x.do("market.list", kind="goods", title="Bolts", price_cents=1_000, sku="bolt")["listing"]
+    o = f.do("market.buy", listing=lst, account=w.modules["bank"].primary_account(w.state, org))["order"]
+    x.do("market.deliver", order=o)
+    f.do("market.confirm", order=o)
+    x.do("subs.subscribe", plan=plans["month"])
+    rec = integrity.related_flows(w, org)["payers"][x.id]
+    assert rec["netted"] == 1_000 and rec["flagged"], rec
 
 
 def test_direct_transfers_are_netted():
@@ -120,18 +174,23 @@ def test_refunds_return_the_customers_own_money():
     assert revenue.m_independent_customers(w, org) == 1.0
 
 
-def test_evaluator_metrics_are_registered_and_usable_in_predicates():
+def test_evaluator_metrics_are_evaluator_only_and_booked_metrics_are_readable():
+    from crucible.commerce.observables import EVALUATOR_ONLY, in_world_errors
     for name in ("mrr_cents", "arr_cents", "active_subscriptions", "churn_rate", "independent_customers",
-                 "profit_cents"):
+                 "profit_cents", "one_time_revenue_cents"):
+        assert name not in METRIC_SUBJECTS and name in EVALUATOR_ONLY       # no in-world predicate can read them
+    for name in ("booked_mrr_cents", "booked_subscribers", "booked_revenue_cents"):
         assert METRIC_SUBJECTS[name] == {"principal": "principal"}
     w = make_world(302)
     f, org, prod, plans, _ = media_business(w, "pred", monthly=None, annual=1_250_000)
-    for i in range(7):
+    for i in range(8):
         join(w, f"pr{i}", 1_300_000).do("subs.subscribe", plan=plans["year"])
+    # the evaluator still computes them (outside the world)
     p = {"metric": "arr_cents", "args": {"principal": org}, "op": ">=", "value": 10_000_000}
-    assert not evaluate_predicate(w, p)
-    join(w, "pr9", 1_300_000).do("subs.subscribe", plan=plans["year"])
     assert evaluate_predicate(w, p) and round(revenue.m_mrr(w, org) / 100, 2) == 8_333.33
+    assert in_world_errors(w, p, [org])                                   # but not through an agreement
+    b = {"metric": "booked_mrr_cents", "args": {"principal": org}, "op": ">=", "value": 1}
+    assert in_world_errors(w, b, [org]) == [] and evaluate_predicate(w, b)
 
 
 def test_public_surfaces_carry_no_private_or_evaluator_data():

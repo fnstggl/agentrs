@@ -206,6 +206,8 @@ class Adopters(Module):
 
     def _respond_to_needs(self, ctx, p, r, need, rng, ch):
         nmod = ctx.world.modules.get("needs")
+        if nmod is not None and not nmod.cfg.get("visible"):
+            return                      # derived needs are evaluator-side unless a historical world opts in
         if nmod is None:
             return
         held = [n for _, n in nmod._held(ctx.world, p) if n["status"] in ("open", "addressed")

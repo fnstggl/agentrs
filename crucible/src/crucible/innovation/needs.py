@@ -34,6 +34,12 @@ Every need records its rule and the path of edges that derived it; `special_case
 each recorded path consists of edges of the graph. Holders are the principals whose own activity is affected
 (operators of strained services, users who adopted them, dependents of a package); need events are visible to
 holders only. A holder may publish a need as a public request (`needs.publish`).
+
+Observation-only (D-19, audit G S.2): derived needs are an evaluator label, not an in-world signal. By default
+(`visible: false`) every needs event is internal and the endpoints `needs.mine`, `needs.publish`, `needs.requests`
+and `needs.graph` are withdrawn, so no participant or entrepreneur can read which need the world derived. Worlds
+that reproduce the historical 5.0 scenarios opt in with `{"visible": true}`. v5 worlds label needs with the
+evaluator-side relation graph (`innovation.relations`) instead.
 """
 from __future__ import annotations
 
@@ -47,7 +53,8 @@ RELATIONS = ("requires", "consumes", "produces", "constrains", "substitutes", "c
 NODE_KINDS = ("activity", "resource", "capability", "constraint", "need")
 DEFAULTS = {"period_s": 6 * HOUR, "first_s": 6 * HOUR, "util": 0.97, "unmet_share": 0.05, "min_unmet": 5,
             "min_volume": 20, "min_adopters": 2, "error_share": 0.2, "resolve_after": 2, "interfaces": [],
-            "edges": []}
+            "edges": [], "visible": False}
+HIDDEN_ENDPOINTS = ("mine", "publish", "requests", "graph")
 
 
 def _node_kind(nid: str) -> str:
@@ -74,6 +81,9 @@ class Needs(Module):
         st.declare_table("needs_requests", index=("need",))
         world.hooks["needs"] = self
         self.cfg = {**DEFAULTS, **self.config}
+        if not self.cfg["visible"]:
+            for ep in HIDDEN_ENDPOINTS:
+                world.endpoints.pop(f"{self.host or self.name}.{ep}", None)
 
     def genesis(self, ctx):
         ctx.schedule(ctx.now + int(self.cfg["first_s"]), "needs.update", {}, prio=85,
@@ -402,6 +412,7 @@ class Needs(Module):
         del_e = sorted(old_e - set(edges))
         if add_n or add_e or del_e:
             ctx.emit("needs.graph", {"nodes": add_n, "edges": add_e, "removed_edges": del_e}, vis="internal")
+        V = (lambda v: v) if self.cfg["visible"] else (lambda v: "internal")
         derived = self.derive(world, nodes, edges)
         by_key = {d["key"]: d for d in derived}
         now = ctx.now
@@ -415,7 +426,7 @@ class Needs(Module):
                 ctx.emit("needs.derived", {"id": nid, "key": k, "kind": d["kind"], "target": d["target"],
                                            "rule": d["rule"], "path": d["path"], "magnitude": d["magnitude"],
                                            "holders": d["holders"]},
-                         vis=tuple(holders) if holders else "internal")
+                         vis=V(tuple(holders) if holders else "internal"))
                 ctx.emit("needs.evidence", {"id": nid, "evidence": d["evidence"], "own": d["own"]}, vis="internal")
             else:
                 n = cur[0]
@@ -427,13 +438,13 @@ class Needs(Module):
                     ch["absent"] = 0
                 if ch or n["magnitude"] != d["magnitude"]:
                     ctx.emit("needs.changed", {"id": nid, "magnitude": d["magnitude"], **ch},
-                             vis=tuple(sorted(set(holders) | set(n["holders"]))) or "internal")
+                             vis=V(tuple(sorted(set(holders) | set(n["holders"]))) or "internal"))
                 if n["evidence"] != d["evidence"] or n["own"] != d["own"]:
                     ctx.emit("needs.evidence", {"id": nid, "evidence": d["evidence"], "own": d["own"]},
                              vis="internal")
         for nid in st.find_ids("needs_open", "status", "open") + st.find_ids("needs_open", "status", "addressed"):
             n = st.tables["needs_open"][nid]
-            vis = tuple(sorted(n["holders"])) or "internal"
+            vis = V(tuple(sorted(n["holders"])) or "internal")
             if n["status"] == "open":
                 adr = self.addressers(world, n, nodes, edges)
                 if adr:

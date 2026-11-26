@@ -2,10 +2,12 @@
 SP-6.4 and SP-6.5. Everything here reads authoritative state and the event log; nothing is a tool and nothing is
 reachable by in-world actors.
 
-The helpers are written for any world that contains the workstream-G modules (`caps` with the registry, `needs`,
-`pkg`), whoever its participants are: the need-driven adopters of `crucible.innovation.adopt` today, the population
-of workstream B once it exists. "Independent" always means not related to the creator in the sense of
-`crucible.goals.metrics.related_parties` (membership, founding, operated services).
+The helpers are written for any world that contains the workstream-G modules (`caps` with the registry, `pkg`)
+and the population's work activities (`economy.work`): participants are individuals of the one population.
+"Independent" is computed here, at evaluation time, never in-world: not related to the creator (4.0 related
+parties closed under shared controllers and money control, `commerce.integrity.related_set`) and not an unlabelled
+admitted persona. Creators admitted with a controller label starting `scripted:` are scripted reference policies:
+their products count for feasibility only and are reported as scripted (`creator_kind`).
 """
 from __future__ import annotations
 
@@ -36,11 +38,41 @@ def is_agent(world: World, principal: str) -> bool:
     return False
 
 
+def creator_kind(world: World, principal: str) -> str:
+    """"scripted" (controller label scripted:...), "agent" (admitted agent or human), "npc" or "population"."""
+    st = world.state
+    who = [principal]
+    if principal.startswith("o:"):
+        o = st.get("orgs", principal) or {}
+        who = [o.get("founder")] + [m["person"] for m in st.find("members", "org", principal)]
+    kinds = set()
+    for p in who:
+        rec = st.get("persons", p) if p else None
+        if rec is None:
+            continue
+        if str((rec.get("info") or {}).get("controller") or "").startswith("scripted:"):
+            kinds.add("scripted")
+        elif rec.get("kind") in ("agent", "human"):
+            kinds.add("agent")
+        else:
+            kinds.add(rec.get("kind") or "npc")
+    for k in ("agent", "scripted", "population", "npc"):
+        if k in kinds:
+            return k
+    return "npc"
+
+
 def independent(world: World, creator: str, other: str) -> bool:
-    from ..goals.metrics import is_related
+    from ..commerce.integrity import independent_customer, related_set
     if other in (SYSTEM, None) or other.startswith("svc:"):
         return False
-    return not is_related(world, creator, other)
+    cache = world.runtime.setdefault("measure.rel", {})
+    key = (creator, world.seq)
+    if key not in cache:
+        if len(cache) > 64:
+            cache.clear()
+        cache[key] = related_set(world, creator)
+    return independent_customer(world, creator, other, cache[key])
 
 
 # ====================================================================== products (Gate J)
@@ -61,10 +93,13 @@ def agent_products(world: World) -> list[dict]:
                 continue
             ok_after = sum(r["ok"] for k, r in st.scan("svc_days") if r["host"] == host and int(k.split("|")[1]) >=
                            d["t"] // DAY)
+            live = world.modules["cloud"].live_deployment(st, host) is not None
+            active = any(x["status"] == "active" for _, x in st.scan("cap_decls") if x["host"] == host)
             out.append({"id": f"service:{host}:{name}", "kind": "service", "category": "api_service",
                         "subcategory": name, "creator": d["provider"], "created_t": d["t"], "host": host,
                         "declarations": sorted(i for i, x in st.scan("cap_decls") if x["host"] == host),
-                        "published": True, "executable": ok_after > 0, "ok_requests": int(ok_after)})
+                        "published": bool(live and active), "executable": ok_after > 0, "ok_requests": int(ok_after),
+                        "creator_kind": creator_kind(world, d["provider"])})
     if "pkg_packages" in st.tables:
         pkg = world.modules["pkg"]
         for name, p in st.scan("pkg_packages"):
@@ -75,7 +110,7 @@ def agent_products(world: World) -> list[dict]:
             out.append({"id": f"package:{name}", "kind": "package", "category": "software_package",
                         "subcategory": name, "creator": p["owner"], "created_t": p["t"], "package": name,
                         "published": bool(rels), "executable": executed or any(r["api"] for r in rels),
-                        "releases": len(rels)})
+                        "releases": len(rels), "creator_kind": creator_kind(world, p["owner"])})
     if "deployments" in st.tables:
         for did, dep in st.scan("deployments"):
             if dep["manifest"].get("web") and is_agent(world, dep["owner"]):
@@ -86,36 +121,49 @@ def agent_products(world: World) -> list[dict]:
     return out
 
 
+def _provider_ids(world: World, product: dict) -> set[str]:
+    """Ids under which participants rely on the product: its declarations and any product selling its host."""
+    st = world.state
+    ids = set(product.get("declarations", []))
+    host = product.get("host")
+    if host and "products" in st.tables:
+        ids |= {pid for pid, p in st.scan("products") if (p["delivery"] or {}).get("host") == host}
+    return ids
+
+
 def discoverers(world: World, product: dict) -> list[str]:
-    """Independent principals that found the product through the world's discovery channels after it existed:
-    capability search results (caps.seen), learned hosts (search, forum, describe) or package search/info."""
+    """Independent participants that *considered* the product after it existed: individuals of the population
+    who read it as a candidate for one of their tasks (`work.considered`, after the interface check), tried it,
+    or principals that tried it through `caps.try`. A bare search hit does not count."""
     st = world.state
     who: set[str] = set()
-    if product["kind"] in ("service", "webapp"):
-        host = product["host"]
-        if "cap_seen" in st.tables:
-            for did in product.get("declarations", []):
-                who.update(r["by"] for r in st.find("cap_seen", "decl", did))
-        for kid in st.ids("knowledge"):
-            k = st.tables["knowledge"][kid]
-            if k["kind"] == "host" and k["value"] == host and k["t"] >= product["created_t"]:
-                who.add(k["principal"])
+    provs = _provider_ids(world, product)
+    for ev in world.log:
+        if ev.type == "work.considered" and ev.t >= product["created_t"]:
+            who.update(f"p{i}" for i, prov in ev.payload["rows"] if prov in provs)
+    if product["kind"] == "service":
+        decls = set(product.get("declarations", []))
+        who.update(t["by"] for _, t in st.scan("cap_trials") if t["decl"] in decls)
     elif product["kind"] == "package":
         who.update(r["by"] for r in st.find("pkg_seen", "package", product["package"]))
     return sorted(p for p in who if independent(world, product["creator"], p))
 
 
 def users(world: World, product: dict) -> list[str]:
-    """Independent principals for whom the product actually executed: trials and adopted use of a service, paying
-    callers, or owners of repositories whose own code executed the package."""
+    """Independent participants for whom the product actually executed on their own input: work-activity uses,
+    trials and adopted use of a declared service, product use, or owners of repositories whose own successful
+    execution depended on the package (parent-side ablation)."""
     st = world.state
     who: set[str] = set()
+    provs = _provider_ids(world, product)
+    if "work_exp" in st.tables:
+        who.update(f"p{r['i']}" for _, r in st.scan("work_exp") if r["prov"] in provs and r["uses"] > 0)
     if product["kind"] == "service":
         decls = set(product.get("declarations", []))
         who.update(t["by"] for _, t in st.scan("cap_trials") if t["decl"] in decls and t["status"] in (200, 500))
         who.update(a["adopter"] for _, a in st.scan("cap_adoptions") if a["decl"] in decls and a["uses"] > 0)
-        if "cap_payers" in st.tables:
-            who.update(p["payer"] for p in st.find("cap_payers", "host", product["host"]))
+        if "prod_use_holders" in st.tables:
+            who.update(h["holder"] for _, h in st.scan("prod_use_holders") if h["product"] in provs and h["uses"] > 0)
     elif product["kind"] == "package":
         who.update(a["owner"] for a in st.find("pkg_adoptions", "package", product["package"]))
     return sorted(p for p in who if independent(world, product["creator"], p))
@@ -123,42 +171,56 @@ def users(world: World, product: dict) -> list[str]:
 
 def adopters(world: World, product: dict) -> list[str]:
     st = world.state
+    who: set[str] = set()
+    provs = _provider_ids(world, product)
+    if "work_exp" in st.tables:
+        who.update(f"p{r['i']}" for _, r in st.scan("work_exp") if r["prov"] in provs and r.get("since") is not None)
     if product["kind"] == "service":
         decls = set(product.get("declarations", []))
-        who = {a["adopter"] for _, a in st.scan("cap_adoptions") if a["decl"] in decls}
+        who |= {a["adopter"] for _, a in st.scan("cap_adoptions") if a["decl"] in decls}
     elif product["kind"] == "package":
-        who = {a["owner"] for a in st.find("pkg_adoptions", "package", product["package"])}
-    else:
-        who = set()
+        who |= {a["owner"] for a in st.find("pkg_adoptions", "package", product["package"])}
     return sorted(p for p in who if independent(world, product["creator"], p))
 
 
 def independent_transactions(world: World, product: dict) -> dict:
-    """Ledger transactions paying the creator for the product (sales of service calls, capability subscriptions)
-    from accounts of principals independent of the creator. Returns {n, cents, payers}."""
+    """Genuine transactions paying the creator for the product: per-call sales of its host (failed calls are
+    refunded by the cloud and netted here) and subscription invoices / purchases of products selling it, net of
+    refunds, from payers independent of the creator, weighted by the share of each payer's money that is not
+    traced or netted back to the creator (`commerce.integrity.payer_weights`). Returns {n, cents, payers}."""
+    from ..commerce.integrity import payer_weights
     st = world.state
     if product["kind"] not in ("service", "webapp"):
         return {"n": 0, "cents": 0, "payers": 0}
+    creator = product["creator"]
+    weights, _ = payer_weights(world, creator)
     ref = f"svc:{product['host']}"
-    n, cents, payers = 0, 0, set()
-    for tid in st.find_ids("txns", "kind", "sale") + st.find_ids("txns", "kind", "subscription"):
-        t = st.tables["txns"][tid]
-        if t["ref"] != ref:
+    provs = _provider_ids(world, product)
+    net: dict[str, int] = {}
+    count: dict[str, int] = {}
+    mine = set(st.find_ids("accounts", "owner", creator))
+    for tid, t in st.scan("txns"):
+        r = t["ref"]
+        is_call = r == ref and t["kind"] in ("sale", "refund")
+        is_sub = False
+        if not is_call and isinstance(r, str) and t["kind"] in ("subscription", "refund", "product_sale", "license"):
+            inv = st.get("sub_invoices", r) if "sub_invoices" in st.tables else None
+            pur = st.get("prod_purchases", r) if "prod_purchases" in st.tables else None
+            is_sub = (inv is not None and inv["product"] in provs) or (pur is not None and pur["product"] in provs)
+        if not (is_call or is_sub):
             continue
-        src = [a for a, d in t["postings"] if d < 0]
-        dst = [a for a, d in t["postings"] if d > 0]
-        if not src or not dst:
-            continue
-        payer = st.tables["accounts"][src[0]]["owner"]
-        payee = st.tables["accounts"][dst[0]]["owner"]
-        if src[0] in SYSTEM_ACCOUNTS or not independent(world, product["creator"], payer):
-            continue
-        if payee != product["creator"] and not (payee.startswith("o:") and not independent(world, product["creator"], payee)):
-            continue
-        n += 1
-        cents += sum(d for _, d in t["postings"] if d > 0)
-        payers.add(payer)
-    return {"n": n, "cents": cents, "payers": len(payers)}
+        for a, d in t["postings"]:
+            if a in mine or a in SYSTEM_ACCOUNTS:
+                continue
+            payer = st.tables["accounts"][a]["owner"]
+            if not independent(world, creator, payer):
+                continue
+            net[payer] = net.get(payer, 0) - d
+            if d < 0 and t["kind"] != "refund":
+                count[payer] = count.get(payer, 0) + 1
+    payers = {p for p, c in net.items() if c > 0}
+    cents = sum(float(net[p]) * float(weights.get(p, 1)) for p in payers)
+    return {"n": int(sum(count.get(p, 0) for p in payers)), "cents": int(cents), "payers": len(payers)}
 
 
 def compute_use(world: World, since_t: int = 0) -> dict:
@@ -274,7 +336,7 @@ def software_features(world: World) -> dict:
         "releases": len(rel),
         "documentation": sum(1 for r in rel if r["docs"]),
         "deployment": len(served),
-        "developer_adoption": sum(1 for a in st.tables.get("pkg_adoptions", {}).values() if a["independent"]),
+        "developer_adoption": len(adoptions_by_execution(world)),
         "maintenance": len(closed_by_maint) + len(fixed) + sum(1 for p in st.tables.get("pkg_prs", {}).values()
                                                               if p["status"] == "merged"),
         "forks": int(st.meta_get("pkg:forks", 0)),
@@ -287,31 +349,48 @@ def software_features(world: World) -> dict:
 
 
 def adoptions_by_execution(world: World) -> list[dict]:
-    """(package, dependent repository) pairs where the dependent is independent of the package owner and the
-    package's code ran inside the dependent's own successful sandboxed execution."""
-    return [dict(a) for _, a in world.state.scan("pkg_adoptions") if a["independent"] and a["executions"] > 0]
+    """(package, dependent repository) pairs where the dependent is independent of the package owner (evaluated
+    here) and the dependent's own successful sandboxed execution depended on the package (parent-side ablation)."""
+    st = world.state
+    out = []
+    for _, a in st.scan("pkg_adoptions"):
+        owner = st.tables["pkg_packages"][a["package"]]["owner"]
+        if a["executions"] > 0 and independent(world, owner, a["owner"]):
+            out.append(dict(a, independent=True))
+    return out
 
 
 # ====================================================================== bonuses (Gate L.n1)
 def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) -> dict:
-    """Money credited to creators (or principals related to them) from system accounts after genesis other than
-    their own admission endowment, and success-conditioned grants: both must be zero. Revenue may come only from
-    other participants' accounts."""
-    from ..goals.metrics import related_parties
+    """Money credited to creators (or principals related to them) from system accounts after their admission:
+    every credit from a system account counts, whatever its ledger kind ("endowment" included), except each
+    creator's own admission endowment (the single `admin.join` endowment). Revenue may come only from other
+    participants' accounts. Must be zero."""
+    from ..commerce.integrity import related_set
     st = world.state
     circle: set[str] = set()
     for c in creators:
-        circle |= related_parties(world, c)
+        circle |= related_set(world, c)
     accts = {a for a, r in st.scan("accounts") if r["owner"] in circle}
+    sys_accts = {a for a, r in st.scan("accounts") if r["owner"] == SYSTEM and r["kind"] != "escrow"}
+    admission = set()
+    for c in circle:
+        first = None
+        for a in st.find_ids("accounts", "owner", c):
+            for lid in st.indexes[("acct_txns", "acct")].get(a, ()):
+                e = st.tables["acct_txns"][lid]
+                tx = st.tables["txns"][e["txn"]]
+                if tx["kind"] == "endowment" and tx["memo"] == f"endowment for {c}" and e["amount"] > 0:
+                    first = e["txn"] if first is None else min(first, e["txn"])
+        if first:
+            admission.add(first)
     bad = []
     for tid, t in st.scan("txns"):
-        if t["t"] < since_t:
+        if t["t"] < since_t or tid in admission:
             continue
         src = {a for a, d in t["postings"] if d < 0}
         dst = {a for a, d in t["postings"] if d > 0}
-        if src & set(SYSTEM_ACCOUNTS) and dst & accts and t["kind"] not in ("endowment",):
-            bad.append(tid)
-        if t["kind"] == "endowment" and dst & accts and t["by"] != SYSTEM:
+        if src & sys_accts and dst & accts:
             bad.append(tid)
     return {"bonuses": len(bad), "txns": bad[:20], "creator_accounts": len(accts)}
 

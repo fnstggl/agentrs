@@ -323,7 +323,14 @@ class Code(Module):
         files = self.files(ctx.state, repo)
         if files:
             self.commit_files(ctx, rid, files, f"fork of {repo}@{r['head']}", ctx.actor)
+        # 5.0: the host's own fork record (lineage never comes from a user-settable description)
+        ctx.emit("code.forked", {"repo": rid, "parent": repo, "commit": r["head"]}, vis="public")
         return {"repo": rid}
+
+    def fork_parent(self, state, repo: str) -> str | None:
+        """The repository `repo` was forked from (the host's record), or None."""
+        r = state.get("repos", repo)
+        return (r or {}).get("forked_from")
 
     @endpoint("set_visibility", S.obj({"repo": S.s_str(maxLength=81), "visibility": S.s_enum(["private", "public"]),
                                        "license": S.s_enum(["closed", "open"])}, ["repo", "visibility"]))
@@ -372,6 +379,11 @@ class Code(Module):
         self.world.state.insert("repos", p["id"], {"owner": p["owner"], "visibility": p["visibility"],
                                                   "description": p["description"], "license": p["license"],
                                                   "head": None, "created": ev.t, "commits": 0})
+
+    @applier("code.forked")
+    def ap_forked(self, ev):
+        self.world.state.patch("repos", ev.payload["repo"], forked_from=ev.payload["parent"],
+                               forked_at=ev.payload["commit"])
 
     @applier("code.blob")
     def ap_blob(self, ev):
