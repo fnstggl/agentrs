@@ -43,6 +43,16 @@ Proration rules (all amounts integer cents; u = unused fraction of the current p
 Refunds (`subs.refund`) are made by the merchant after settlement: a reversing ledger entry (kind `refund`,
 `ref` = the invoice, memo names the reversed transaction) back to the account that paid. Refunding the whole
 invoice of the current period makes that period unpaid, so the subscription stops counting as recurring revenue.
+
+Billing-state invariants (5.0 repair, audit F S.5):
+  * credit has provenance: every cent of credit records the invoice it came from (`credit_src`), and every invoice
+    records which source invoices funded the credit it applied (`credit_from`);
+  * refunding an invoice voids the credit derived from it, outstanding first, then credit already applied to later
+    invoices (`credit_void` on those invoices) - a period paid with credit from a refunded invoice is not paid;
+  * `period_funding` gives the gross and net-retained funding of the current period over every invoice covering it
+    (initial, renewal, retry and proration), and `kept_factor` the share of what the subscription was charged that
+    the merchant kept over a trailing window - also over its completed periods only, so refunding each invoice
+    once its period has ended does not keep it counting (`crucible.commerce.revenue` uses both).
 """
 from __future__ import annotations
 
@@ -58,6 +68,7 @@ PERIOD_S = {"month": 30 * DAY, "year": 365 * DAY}
 MONTHS = {"month": 1, "year": 12}
 RETRY_S = (1 * DAY, 3 * DAY, 7 * DAY)
 LIVE = ("trialing", "active", "past_due")
+KEPT_WINDOW_S = 180 * DAY
 
 
 def subs_module(world) -> "Subscriptions | None":
@@ -128,6 +139,47 @@ class Subscriptions(Module):
         return s["status"] == "active" and bool(s["period_paid"]) and s["period_end"] is not None \
             and s["period_end"] > now
 
+    @staticmethod
+    def _inv_net(inv: dict) -> tuple[int, int]:
+        """(gross, net kept) funding of one paid invoice: cash plus credit applied, less refunds and voided credit."""
+        gross = int(inv["amount"]) + int(inv.get("credit_applied") or 0)
+        net = int(inv["amount"]) - int(inv["refunded"]) + int(inv.get("credit_applied") or 0) - \
+            int(inv.get("credit_void") or 0)
+        return gross, max(0, net)
+
+    def period_funding(self, state, sid: str, now: int) -> tuple[int, int]:
+        """(gross, net kept) funding of the period that covers `now`, over every paid invoice covering it."""
+        g = n = 0
+        for inv in state.find("sub_invoices", "subscription", sid):
+            if inv["status"] != "paid" or inv["period_start"] is None:
+                continue
+            if inv["period_start"] <= now < inv["period_end"]:
+                a, b = self._inv_net(inv)
+                g, n = g + a, n + b
+        return g, n
+
+    def kept_factor(self, state, sid: str, now: int, window_s: int = KEPT_WINDOW_S) -> Fraction:
+        """Share of the funding the merchant kept: min over (a) the current period, (b) every invoice charged in the
+        trailing window and (c) the invoices of the window whose period has already ended (exact fraction; 1 when
+        nothing was charged at all, e.g. a 100% coupon)."""
+        t0 = now - int(window_s)
+        cur_g = cur_n = all_g = all_n = done_g = done_n = 0
+        for inv in state.find("sub_invoices", "subscription", sid):
+            if inv["status"] != "paid" or inv["period_start"] is None:
+                continue
+            a, b = self._inv_net(inv)
+            if inv["period_start"] <= now < inv["period_end"]:
+                cur_g, cur_n = cur_g + a, cur_n + b
+            if inv["t"] > t0 or inv["period_end"] > t0:
+                all_g, all_n = all_g + a, all_n + b
+                if inv["period_end"] <= now:
+                    done_g, done_n = done_g + a, done_n + b
+        f = Fraction(1)
+        for g, n in ((cur_g, cur_n), (all_g, all_n), (done_g, done_n)):
+            if g > 0:
+                f = min(f, Fraction(min(n, g), g))
+        return f
+
     # ------------------------------------------------------------------ helpers
     def _plan(self, state, plid: str) -> dict:
         pl = state.get("sub_plans", plid)
@@ -175,6 +227,25 @@ class Subscriptions(Module):
             return price, price * int(s["percent_off"]) // 100
         return price, 0
 
+    @staticmethod
+    def _take_credit(s: dict, cents: int) -> tuple[list, list]:
+        """Consume `cents` of the subscription's credit, oldest source first: ([[source invoice, cents]] used,
+        remaining sources)."""
+        src = [list(x) for x in (s.get("credit_src") or [])]
+        used, need = [], int(cents)
+        while need > 0 and src:
+            inv, c = src[0]
+            take = min(int(c), need)
+            used.append([inv, take])
+            need -= take
+            if take == c:
+                src.pop(0)
+            else:
+                src[0] = [inv, int(c) - take]
+        if need > 0:                                   # credit recorded before provenance existed
+            used.append([None, need])
+        return used, src
+
     def _mandate(self, ctx: Ctx, account: str, merchant: str, price: int, interval: str, sid: str) -> str:
         return ctx.call("bank.authorize_debit", {"from_account": account, "payee": merchant,
                                                  "max_per_period": int(price), "period_s": PERIOD_S[interval],
@@ -198,6 +269,7 @@ class Subscriptions(Module):
         dst = bank.primary_account(st, s["merchant"])
         if dst is None:
             raise Forbidden("the merchant cannot be paid")
+        used_from, left_src = self._take_credit(s, credit)
         iid = st.new_id("sinv")
         txn = bank.debit(ctx, s["mandate"], dst, amount, "subscription", f"{s['interval']}ly {s['product']}",
                          ref=iid) if amount > 0 else None
@@ -206,13 +278,15 @@ class Subscriptions(Module):
                                   "customer": s["customer"], "merchant": s["merchant"], "account": s["account"],
                                   "kind": kind, "status": "paid", "list_price": price, "discount": discount,
                                   "credit_applied": credit, "amount": amount, "txn": txn, "interval": s["interval"],
-                                  "period_start": start, "period_end": end}, vis=self._vis(s))
+                                  "period_start": start, "period_end": end, "credit_from": used_from},
+                 vis=self._vis(s))
         left = s["discount_left"]
         if discount and left is not None:
             left -= 1
         ch = {"status": "active", "period_start": start, "period_end": end, "period_paid": True,
               "current_amount": gross, "credit": int(s["credit"]) - credit, "failures": 0, "next_retry": None,
-              "last_invoice": iid, "periods_paid": int(s["periods_paid"]) + 1, "discount_left": left}
+              "last_invoice": iid, "periods_paid": int(s["periods_paid"]) + 1, "discount_left": left,
+              "credit_src": left_src}
         ctx.emit("subs.status", {"id": sid, "changes": ch}, vis=self._vis(s))
         if s["status"] != "active" or s.get("entitlement") is None:
             self._ensure_entitlement(ctx, sid)
@@ -294,10 +368,47 @@ class Subscriptions(Module):
                                  "txn": txn, "reverses": inv["txn"], "reason": reason[:300]},
                  vis=tuple(sorted({inv["customer"], inv["merchant"]})))
         s = st.tables["sub_subs"][inv["subscription"]]
-        inv = st.tables["sub_invoices"][invoice]
-        if s["last_invoice"] == invoice and int(inv["refunded"]) >= int(inv["amount"]):
+        self._void_credit_from(ctx, inv["subscription"], invoice, int(amount))
+        s = st.tables["sub_subs"][inv["subscription"]]
+        g, n = self.period_funding(st, inv["subscription"], ctx.now)
+        if s["period_paid"] and s["status"] == "active" and g > 0 and n <= 0:
             ctx.emit("subs.status", {"id": inv["subscription"], "changes": {"period_paid": False}}, vis=self._vis(s))
         return txn
+
+    def _void_credit_from(self, ctx: Ctx, sid: str, invoice: str, cents: int) -> None:
+        """A refund of `invoice` voids up to `cents` of the credit derived from it: outstanding credit first, then
+        credit already applied to later invoices (newest first)."""
+        st = ctx.state
+        s = st.tables["sub_subs"][sid]
+        left = int(cents)
+        src = [list(x) for x in (s.get("credit_src") or [])]
+        voided = 0
+        for x in src:
+            if left <= 0:
+                break
+            if x[0] == invoice and x[1] > 0:
+                v = min(int(x[1]), left)
+                x[1] = int(x[1]) - v
+                left -= v
+                voided += v
+        if voided:
+            ctx.emit("subs.status", {"id": sid, "changes": {"credit": max(0, int(s["credit"]) - voided),
+                                                            "credit_src": [x for x in src if x[1] > 0]}},
+                     vis=self._vis(s))
+        if left <= 0:
+            return
+        later = sorted(st.find_ids("sub_invoices", "subscription", sid),
+                       key=lambda i: (st.tables["sub_invoices"][i]["t"], i), reverse=True)
+        for iid in later:
+            if left <= 0:
+                break
+            other = st.tables["sub_invoices"][iid]
+            applied = sum(int(c) for src_inv, c in (other.get("credit_from") or []) if src_inv == invoice)
+            room = applied - int(other.get("credit_void") or 0)
+            if room > 0:
+                v = min(room, left)
+                left -= v
+                ctx.emit("subs.credit_void", {"invoice": iid, "source": invoice, "cents": int(v)}, vis=self._vis(s))
 
     # ------------------------------------------------------------------ endpoints: merchants
     @endpoint("create_plan", S.obj({"product": S.s_str(maxLength=40), "price_cents": S.s_int(minimum=1, maximum=10**9),
@@ -493,6 +604,10 @@ class Subscriptions(Module):
         used = min(credit, gross_due)
         charge = gross_due - used
         carried = int(s["credit"]) + (credit - used)
+        src_inv = s["last_invoice"]
+        credit_src = [list(x) for x in (s.get("credit_src") or [])]
+        if credit - used > 0:
+            credit_src.append([src_inv, int(credit - used)])
         iid = st.new_id("sinv")
         txn = None
         if charge:
@@ -505,9 +620,10 @@ class Subscriptions(Module):
                                   "customer": s["customer"], "merchant": s["merchant"], "account": s["account"],
                                   "kind": "proration", "status": "paid", "list_price": lp, "discount": disc,
                                   "credit_applied": used, "prorated_cents": gross_due, "amount": charge, "txn": txn, "interval": new["interval"],
-                                  "period_start": start, "period_end": end}, vis=self._vis(s))
+                                  "period_start": start, "period_end": end,
+                                  "credit_from": [[src_inv, int(used)]] if used else []}, vis=self._vis(s))
         ch = dict(base, period_start=start, period_end=end, current_amount=gross_new, credit=carried,
-                  last_invoice=iid, period_paid=True)
+                  last_invoice=iid, period_paid=True, credit_src=credit_src)
         if new["interval"] != s["interval"]:
             ch["periods_paid"] = int(s["periods_paid"]) + 1
         ctx.emit("subs.status", {"id": subscription, "changes": ch}, vis=self._vis(s))
@@ -653,7 +769,7 @@ class Subscriptions(Module):
             "period_start": None, "period_end": None, "period_paid": False, "current_amount": 0, "credit": 0,
             "failures": 0, "next_retry": None, "cancel_at_period_end": False, "cancel_requested_by": None,
             "cancelled_at": None, "cancel_reason": None, "last_invoice": None, "periods_paid": 0,
-            "entitlement": None})
+            "entitlement": None, "credit_src": []})
 
     @applier("subs.status")
     def ap_status(self, ev):
@@ -665,8 +781,15 @@ class Subscriptions(Module):
         rec = {k: p[k] for k in ("subscription", "plan", "product", "customer", "merchant", "account", "kind",
                                  "status", "list_price", "discount", "credit_applied", "amount", "txn", "interval",
                                  "period_start", "period_end")}
-        rec.update(refunded=0, refunds=[], t=ev.t, reason=p.get("reason"))
+        rec.update(refunded=0, refunds=[], t=ev.t, reason=p.get("reason"),
+                   credit_from=[list(x) for x in (p.get("credit_from") or [])], credit_void=0)
         self.world.state.insert("sub_invoices", p["id"], rec)
+
+    @applier("subs.credit_void")
+    def ap_credit_void(self, ev):
+        st = self.world.state
+        inv = st.tables["sub_invoices"][ev.payload["invoice"]]
+        st.patch("sub_invoices", ev.payload["invoice"], credit_void=int(inv.get("credit_void") or 0) + ev.payload["cents"])
 
     @applier("subs.refund")
     def ap_refund(self, ev):
@@ -699,6 +822,11 @@ class Subscriptions(Module):
                 errs.append(f"active subscription {sid} has no paid period")
             if s["credit"] < 0:
                 errs.append(f"subscription {sid} has negative credit")
+            if sum(int(c) for _, c in (s.get("credit_src") or [])) > int(s["credit"]):
+                errs.append(f"subscription {sid} credit provenance exceeds its credit")
+        for iid, inv in st.tables["sub_invoices"].items():
+            if int(inv.get("credit_void") or 0) > int(inv.get("credit_applied") or 0):
+                errs.append(f"invoice {iid} voids more credit than it applied")
         return errs
 
     def observe(self, world, actor):

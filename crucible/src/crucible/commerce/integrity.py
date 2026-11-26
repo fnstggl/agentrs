@@ -25,15 +25,31 @@ the 4.0 circular-flow netting (`goals.metrics.revenue_analysis`) in three ways:
    you circular. Mutual subscriptions, transfers, contract payments and payments for digital or off-ledger
    services are netted.
 
-A payer's circular cents are min(paid, max(funded, netted)); its circular share is that over what it paid. A payer
-is **flagged** when it is related or its circular share is at least `FLAG_SHARE` (0.5). Recurring-revenue metrics
-(`crucible.commerce.revenue`) count no subscription of a flagged payer; revenue and profit exclude every circular
-cent and all money from related payers.
+A payer's circular cents are min(paid, max(funded, netted)); its circular share is that over what it paid.
+Exclusion is **proportional**, never a cliff: recurring-revenue metrics (`crucible.commerce.revenue`) count a payer's
+subscriptions with weight 1 - circular share (`payer_weights`, exact fractions), so a 45% rebate removes 45% of that
+customer's MRR; related payers have weight 0. A payer is still *flagged* for reporting when it is related or its
+circular share is at least `FLAG_SHARE` (0.5); revenue and profit exclude every circular cent and all money from
+related payers.
 
-Known limits (also in docs/v5/components/F1.md): a colluder with large independent funds who is reimbursed
-through payments that are consideration for real goods escapes both measures (pro-rata tracing dilutes, goods
-consideration is not netted); the reciprocal graph search stops at `MAX_GROUPS` payer groups (reported as
-`truncated`).
+4. **Escrowed instruments are attributed to their real counterparty.** Money released from the commitment escrow
+   (`commit`, kind `commitment`) is a payment by the commitment's payer; a project reward released from the
+   institution escrow (`inst`, kind `project_reward`) is a payment by the project's contributors pro rata; market
+   orders and bounties as in 4.0. These flows enter both the netting graph and the payments counted for the owner.
+
+5. **Goods consideration is bounded by a market-price test.** A payment for conserved goods is exempt from netting
+   only up to the goods' market value: quantity x the median unit price at which the same item type changed hands
+   between *other* pairs of participants (`goods_value`). Without such a price, nothing is exempt.
+
+6. **Controlled identities.** Persons admitted with one `controller` are one party with everything related to any
+   of them (closed to a fixpoint, no round limit). For objectives, an admitted agent persona with no controller
+   label is never an independent customer (fail closed: `independent_customer`), since nothing ties it to, or
+   separates it from, the merchant's own operator.
+
+Known limits (also in docs/v5/components/F1.md): pro-rata tracing dilutes funding given to a colluder with large
+independent funds (the proportional weight then removes only the traced share); goods sold at a genuine market
+price are exempt from netting by design; the reciprocal graph search stops at `MAX_GROUPS` payer groups (reported
+as `truncated`); tracing replays the ledger (cost linear in ledger size, cached per world sequence number).
 
 `SCHEMES` plants circular and related-party revenue schemes in a world, through ordinary tools, for the gate
 tests and the red team.
@@ -43,14 +59,16 @@ from __future__ import annotations
 from fractions import Fraction
 
 from ..core.kernel import SYSTEM
-from ..goals.metrics import _Groups, _max_flow, _tx_flows, _unpaid_fixed_to, related_parties
+from ..goals.metrics import _Groups, _max_flow, _owner_key, _tx_flows, _unpaid_fixed_to, related_parties
 
 DAY = 86400
 FLAG_SHARE = 0.5
 MAX_GROUPS = 256
 # ledger kinds by which a customer pays a seller
 COMMERCE_KINDS = frozenset({"subscription", "product_sale", "license", "take_rate", "sale", "invoice", "contract",
-                            "bounty"})
+                            "bounty", "commitment", "api_call", "usage"})
+COMMIT_ESCROW = "acct_commit_escrow"
+INST_ESCROW = "acct_inst_escrow"
 ESCROW_KINDS = ("escrow",)
 
 
@@ -60,35 +78,55 @@ def _persons_info(st, pid: str) -> dict:
 
 
 def related_set(world, owner: str) -> set[str]:
-    """4.0 related parties of `owner`, closed under shared controllers and cross-boundary money control."""
+    """4.0 related parties of `owner`, closed (to a fixpoint) under shared controllers and cross-boundary money
+    control."""
     st = world.state
     rel = set(related_parties(world, owner))
-    changed = True
-    rounds = 0
-    while changed and rounds < 4:
-        changed, rounds = False, rounds + 1
+    grants = [g for _, g in st.scan("grants")] if "grants" in st.tables else []
+    grants = [g for g in grants if str(g.get("cap", "")) == "*" or str(g.get("cap", "")).startswith("bank")]
+    by_ctrl: dict[str, set[str]] = {}
+    for pid, rec in (st.scan("persons") if "persons" in st.tables else ()):
+        c = rec["info"].get("controller") if isinstance(rec.get("info"), dict) else None
+        if c:
+            by_ctrl.setdefault(str(c), set()).add(pid)
+    while True:
         add: set[str] = set()
         ctrls = {_persons_info(st, p).get("controller") for p in rel if p.startswith("p:")} - {None, ""}
-        if ctrls:
-            for pid, rec in st.scan("persons"):
-                if isinstance(rec.get("info"), dict) and rec["info"].get("controller") in ctrls:
-                    add.add(pid)
-        if "grants" in st.tables:
-            for _, g in st.scan("grants"):
-                cap = str(g.get("cap", ""))
-                if not (cap == "*" or cap.startswith("bank")):
-                    continue
-                if g["owner"] in rel:
-                    add.add(g["grantee"])
-                if g["grantee"] in rel:
-                    add.add(g["owner"])
+        for c in ctrls:
+            add |= by_ctrl.get(str(c), set())
+        for g in grants:
+            if g["owner"] in rel:
+                add.add(g["grantee"])
+            if g["grantee"] in rel:
+                add.add(g["owner"])
         add -= rel
         add.discard(SYSTEM)
-        if add:
-            changed = True
-            for x in sorted(add):
-                rel |= related_parties(world, x) if x.startswith(("p:", "o:", "svc:")) else {x}
-    return rel
+        if not add:
+            return rel
+        for x in sorted(add):
+            rel |= related_parties(world, x) if x.startswith(("p:", "o:", "svc:")) or x.startswith("p") else {x}
+
+
+def admitted_unlabelled(st, principal: str) -> bool:
+    """An admitted agent persona (kind `agent`) without a controller label, or an organisation owned by one."""
+    def _one(p):
+        rec = st.get("persons", p) if "persons" in st.tables else None
+        if rec is None:
+            return False
+        return rec.get("kind") == "agent" and not (rec.get("info") or {}).get("controller")
+    if principal.startswith("o:") and "members" in st.tables:
+        return any(_one(m["person"]) for m in st.find("members", "org", principal) if m["role"] == "owner")
+    return _one(principal)
+
+
+def independent_customer(world, owner: str, principal: str, rel: set[str] | None = None) -> bool:
+    """Whether `principal` can be an independent customer of `owner` for an objective: not related (including
+    shared controllers and money control) and not an unlabelled admitted agent persona (fail closed)."""
+    st = world.state
+    rel = related_set(world, owner) if rel is None else rel
+    if principal in rel:
+        return False
+    return not admitted_unlabelled(st, principal)
 
 
 def _is_system(acct: dict) -> bool:
@@ -104,27 +142,117 @@ def _escrow_payer(st, tx) -> str | None:
     return None
 
 
-def consideration_for_goods(st, tx) -> bool:
-    """Was this payment the price of conserved goods actually received?"""
+def _goods_sale(st, tx) -> tuple[str, int, str, str] | None:
+    """(sku, qty, seller, buyer) when the transaction paid for conserved goods actually received."""
     kind, ref = tx["kind"], tx.get("ref")
-    if kind == "purchase":
-        return True
     if not isinstance(ref, str):
-        return False
+        return None
     if kind == "sale" and "orders" in st.tables:
         o = st.tables["orders"].get(ref)
-        if o is not None:
-            return o["kind"] == "goods" and o["status"] in ("completed", "arbitrated")
+        if o is not None and o["kind"] == "goods" and o["status"] in ("completed", "arbitrated"):
+            lst = st.get("listings", o.get("listing") or "") if "listings" in st.tables else None
+            sku = (lst or {}).get("sku") or (lst or {}).get("title") or o.get("listing") or "?"
+            return str(sku), int(o.get("qty") or 1), o["seller"], o["buyer"]
     if kind in ("product_sale", "license") and "prod_purchases" in st.tables:
         pur = st.tables["prod_purchases"].get(ref)
         if pur is not None:
             prod = st.tables["products"].get(pur["product"]) or {}
-            return (prod.get("delivery") or {}).get("type") == "goods"
+            d = prod.get("delivery") or {}
+            if d.get("type") == "goods":
+                return str(d.get("sku")), int(pur.get("qty") or 1), pur["seller"], pur["buyer"]
     if kind == "sale" and "xchg_orders" in st.tables:
         o = st.tables["xchg_orders"].get(ref)
-        if o is not None:
-            return o["kind"] == "goods" and o["status"] in ("settled", "completed")
-    return False
+        if o is not None and o["kind"] == "goods" and o["status"] in ("settled", "completed"):
+            prod = st.tables["products"].get(o.get("product")) or {} if "products" in st.tables else {}
+            sku = (prod.get("delivery") or {}).get("sku") or o.get("product")
+            return str(sku), int(o.get("qty") or 1), o["seller"], o["buyer"]
+    return None
+
+
+def _goods_prices(world) -> dict[str, list[tuple[float, str, str]]]:
+    """Unit prices of every goods sale in the ledger: {sku: [(unit price, seller, buyer)]} (cached per seq)."""
+    st = world.state
+    cache = world.runtime.setdefault("commerce.goods_prices", {})
+    key = (world.seq, id(st))
+    if cache.get("key") == key and not st.in_tx:
+        return cache["val"]
+    out: dict[str, list] = {}
+    for tid in sorted(st.tables["txns"]):
+        tx = st.tables["txns"][tid]
+        g = _goods_sale(st, tx)
+        if g is None:
+            continue
+        amt = sum(d for _, d in tx["postings"] if d > 0)
+        out.setdefault(g[0], []).append((amt / max(1, g[1]), g[2], g[3]))
+    if not st.in_tx:
+        cache.update(key=key, val=out)
+    return out
+
+
+def goods_value(world, tx) -> int:
+    """Cents of a payment that are consideration for conserved goods at a market price: quantity x the median unit
+    price of the same item type in sales between other pairs of participants (0 without such sales)."""
+    st = world.state
+    g = _goods_sale(st, tx)
+    if g is None:
+        return 0
+    sku, qty, seller, buyer = g
+    pair = {seller, buyer}
+    others = sorted(p for p, s, b in _goods_prices(world).get(sku, ()) if {s, b} != pair)
+    if not others:
+        return 0
+    med = others[len(others) // 2] if len(others) % 2 else (others[len(others) // 2 - 1] + others[len(others) // 2]) / 2
+    amt = sum(d for _, d in tx["postings"] if d > 0)
+    return int(min(amt, qty * med))
+
+
+def consideration_for_goods(st, tx) -> bool:
+    """Was this payment the price of conserved goods actually received? (Kept for callers that only need the yes/no;
+    netting uses `goods_value`.)"""
+    return tx["kind"] == "purchase" or _goods_sale(st, tx) is not None
+
+
+def _escrow_release_payers(st, tx) -> list[tuple[str, float]] | None:
+    """Who really paid money released from a v5 escrow by this transaction: [(principal, share)] or None."""
+    ref = tx.get("ref")
+    if not isinstance(ref, str):
+        return None
+    if tx["kind"] == "commitment" and "commitments" in st.tables:
+        c = st.tables["commitments"].get(ref)
+        if c is not None:
+            return [(c["payer"], 1.0)]
+    if tx["kind"] == "project_reward" and "inst_contributions" in st.tables:
+        rows = [r for r in st.find("inst_contributions", "project", ref) if r.get("kind", "money") == "money"]
+        tot = sum(int(r.get("cents", 0)) for r in rows)
+        if tot > 0:
+            by: dict[str, int] = {}
+            for r in rows:
+                by[r["contributor"]] = by.get(r["contributor"], 0) + int(r.get("cents", 0))
+            return [(p, v / tot) for p, v in sorted(by.items())]
+        prj = st.get("inst_projects", ref) if "inst_projects" in st.tables else None
+        if prj is not None:
+            return [(prj["owner"], 1.0)]
+    return None
+
+
+def _flows(world, tx, mine: set[str]) -> list[tuple[str, int]]:
+    """`goals.metrics._tx_flows` plus v5 escrows: commitment payouts and project rewards are payments by whoever
+    funded them (see the module doc)."""
+    st = world.state
+    out = []
+    escrow_posts = [(a, d) for a, d in tx["postings"] if a in (COMMIT_ESCROW, INST_ESCROW)]
+    if escrow_posts and any(a in mine for a, _ in tx["postings"]):
+        payers = _escrow_release_payers(st, tx)
+        for a, d in escrow_posts:
+            if d < 0 and payers:                              # released from escrow to `mine`
+                for who, share in payers:
+                    part = int(round(-d * share))
+                    if part:
+                        out.append((who, part))
+        rest = {**tx, "postings": [[a, d] for a, d in tx["postings"] if a not in (COMMIT_ESCROW, INST_ESCROW)]}
+        out += _tx_flows(st, rest, mine)
+        return out
+    return _tx_flows(st, tx, mine)
 
 
 def funding_trace(world, owner: str, rel: set[str] | None = None) -> dict:
@@ -238,9 +366,15 @@ def reciprocal_returns(world, owner: str, rel: set[str], paid: dict[str, int], t
                         continue
                     done.add(e["txn"])
                     tx = st.tables["txns"][e["txn"]]
-                    if tx["kind"] in ("refund",) or consideration_for_goods(st, tx):
+                    if tx["kind"] in ("refund",):
                         continue
-                    for cp, amt in _tx_flows(st, tx, accts):
+                    gv = goods_value(world, tx)
+                    tot = sum(d for _, d in tx["postings"] if d > 0)
+                    keep = Fraction(max(0, tot - gv), tot) if tot > 0 else Fraction(0)
+                    if keep <= 0:
+                        continue
+                    for cp, amt in _flows(world, tx, accts):
+                        amt = int(amt * keep)
                         if amt <= 0 or cp in ("sys", "escrow", "households"):
                             continue
                         h = SRC if in_home(cp) else groups.of(cp)
@@ -300,8 +434,8 @@ def related_flows(world, owner: str, *, window_s: int | None = None, netting_win
                 continue
             if tx["kind"] not in COMMERCE_KINDS:
                 continue
-            for cp, amt in _tx_flows(st, tx, mine):
-                if amt <= 0 or cp in ("sys", "escrow", "households"):
+            for cp, amt in _flows(world, tx, mine):
+                if amt <= 0 or cp in ("sys", "escrow"):
                     continue
                 if tx["kind"] == "contract" and isinstance(tx.get("ref"), str):
                     by_contract[(tx["ref"], cp)] = by_contract.get((tx["ref"], cp), 0) + amt
@@ -351,11 +485,31 @@ def related_flows(world, owner: str, *, window_s: int | None = None, netting_win
             flagged.append(p)
         indep += cents - circ
         excl += circ
+        weight = Fraction(0) if is_rel else (Fraction(cents - circ, cents) if cents > 0 else Fraction(1))
         out_payers[p] = {"group": g, "paid": cents, "funded": round(f, 2), "netted": n, "circular": circ,
-                         "circular_share": round(share, 4), "related": is_rel, "flagged": flag, "reasons": reasons}
+                         "circular_share": round(share, 4), "related": is_rel, "flagged": flag, "reasons": reasons,
+                         "weight": weight}
     return {"owner": owner, "related": sorted(rel), "payers": out_payers, "flagged": flagged,
             "independent_cents": int(indep), "excluded_cents": int(excl), "financed_cents": int(financed),
             "truncated": truncated}
+
+
+def payer_weights(world, owner: str) -> tuple[dict[str, Fraction], set[str]]:
+    """({payer: weight in [0, 1]}, related set) over all history: the share of each payer's money that is
+    independent revenue of `owner` (1 - circular share; 0 for related parties). Payers absent from the dict paid
+    nothing yet (weight 1 unless related). Cached per world sequence number."""
+    st = world.state
+    cache = world.runtime.setdefault("commerce.weights", {})
+    hit = cache.get(owner)
+    if hit is not None and hit[0] == (world.seq, id(st)) and not st.in_tx:
+        return hit[1]
+    rf = related_flows(world, owner)
+    out = ({p: r["weight"] for p, r in rf["payers"].items()}, set(rf["related"]))
+    if not st.in_tx:
+        if len(cache) > 256:
+            cache.clear()
+        cache[owner] = ((world.seq, id(st)), out)
+    return out
 
 
 def flagged_payers(world, owner: str) -> set[str]:

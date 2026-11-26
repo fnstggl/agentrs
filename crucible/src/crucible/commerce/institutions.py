@@ -307,11 +307,12 @@ class Institutions(Module):
     def validate_condition(self, ctx, org, pred, what) -> dict:
         """A charter condition is a metrics predicate about the organisation itself (goals/metrics.py): metrics
         without a declared subject are evaluator-only and cannot be read by an institution."""
-        from ..goals.metrics import check_predicate, check_predicate_scope
+        from ..goals.metrics import check_predicate
+        from .observables import in_world_errors
         errs = check_predicate(pred)
         if errs:
             raise InvalidAction(f"{what}: " + "; ".join(errs[:3]))
-        errs = check_predicate_scope(ctx.world, pred, [org])
+        errs = in_world_errors(ctx.world, pred, [org])
         if errs:
             raise Forbidden(f"{what}: an institution may only condition on its own data - " + "; ".join(errs[:3]),
                             law="hidden evaluation criteria")
