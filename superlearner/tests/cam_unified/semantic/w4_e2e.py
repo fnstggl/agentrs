@@ -234,11 +234,15 @@ def part_d(model, train, held, n_steps=100, batch=8, seed=0) -> dict:
     from superlearner.cam_unified.semantic.demo_init import demo_string_log_prob
     gen = model.action_generator
     enc = gen.enc
-    cond_params = list(enc.conditioning.parameters()) + list(gen.bridge.cond_src.parameters())
+    gates = [m.alpha for m in enc.conditioning.mods.values()]
+    gate_ids = {id(p) for p in gates}
+    cond_params = [p for p in enc.conditioning.parameters() if id(p) not in gate_ids] + \
+        list(gen.bridge.cond_src.parameters())
     core_params = [p for m in (model.core, model.reasoner) if m is not None for p in m.parameters()
                    if p.requires_grad]
-    opt = torch.optim.AdamW([{"params": cond_params, "lr": 1e-3}, {"params": core_params, "lr": 1e-4}],
-                            weight_decay=0.0)
+    opt = torch.optim.AdamW([{"params": gates, "lr": 1e-2}, {"params": cond_params, "lr": 1e-3},
+                             {"params": core_params, "lr": 1e-4}], weight_decay=0.0)
+    cond_params = cond_params + gates
     before = ablation(model, held)
     rng = random.Random(seed)
     losses, t0 = [], time.time()
@@ -259,6 +263,8 @@ def part_d(model, train, held, n_steps=100, batch=8, seed=0) -> dict:
     after = ablation(model, held)
     after_train = ablation(model, train[:48])
     return {"bc_steps": n_steps, "batch": batch, "train_actions": len(train), "held_actions": len(held),
+            "optimizer": "AdamW: gates alpha lr 1e-2, decoder cross-attention + cond source tags lr 1e-3, core + "
+                         "reasoner lr 1e-4; clip 1.0 per group; loss = mean per-token NLL of the demonstrated strings",
             "loss_first": losses[0], "loss_last10_mean": sum(losses[-10:]) / 10, "seconds": time.time() - t0,
             "first_step_grad_norms": first, "gates_after": enc.conditioning.gates(),
             "held_before": before, "held_after": after, "train_after": after_train,
