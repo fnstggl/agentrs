@@ -18,6 +18,10 @@ Scenarios:
                and adds backup supply links (`graph_edit`) (8.7.4)
     repair     links fail at hidden rates; demand between node pairs is served only while they are connected; the
                participant dispatches a repair crew (`discrete`) or builds new links (`graph_edit`) (8.7.2)
+    balance    several participants, one per node of a small grid, each with its own fluctuating demand (seen only
+               by that participant) and its own generation cost; power flows over capacity-limited, lossy links
+               when a participant exports to a neighbour (`allocate`); meeting every node's demand cheaply needs
+               the participants to coordinate through messages (distributed resource coordination, 8.7.5)
 
 State is a flat mapping of arrays (leading dimension = batch for routing), so a kernel facility can store it.
 """
@@ -45,7 +49,7 @@ class GraphDynamical(RapidEngine):
     def __init__(self, config: dict, _stack: list[dict] | None = None):
         super().__init__(config)
         self.sc = config["scenario"]
-        if self.sc not in ("routing", "diffusion", "cascade", "repair"):
+        if self.sc not in ("routing", "diffusion", "cascade", "repair", "balance"):
             raise ValueError(f"unknown scenario {self.sc}")
         self.batched = self.sc == "routing"
         self.dynamic_space = False
@@ -56,6 +60,8 @@ class GraphDynamical(RapidEngine):
             self.deg = np.maximum(self.adj.sum(axis=1), 1.0)
         elif self.sc == "cascade":
             self.adj = np.asarray(config["adj"], dtype=float)
+        elif self.sc == "balance":
+            self.N = len(config["agents"])
         else:
             self.N = int(config["n_nodes"])
 
@@ -169,6 +175,16 @@ class GraphDynamical(RapidEngine):
             limits["allocate_total"] = float(c["reinforce_budget"])
             kinds["graph_edit"] = A.graph_edit_schema(["add_edge", "remove_edge"], list(c["node_names"]))
             limits["edge_ops"] = ("add_edge", "remove_edge")
+        elif self.sc == "balance":
+            i = self.agents.index(agent)
+            kinds["levers"] = A.levers_schema([{"name": c["gen_names"][i], "min": 0.0, "max": float(c["gen_max"]),
+                                                "default": 0.0}])
+            nb = self.neighbours(i)
+            kinds["allocate"] = A.allocate_schema([c["node_names"][j] for j in nb],
+                                                  float(sum(self.link_cap(i, j) for j in nb)),
+                                                  "power sent to each neighbour this tick")
+            limits["allocate_total"] = float(sum(self.link_cap(i, j) for j in nb))
+            kinds["message"] = A.message_schema([a for a in self.agents if a != agent])
         else:
             opts = ["none"] + list(c["edge_names"])
             kinds["discrete"] = A.discrete_schema({"repair": opts})
@@ -187,6 +203,10 @@ class GraphDynamical(RapidEngine):
         if self.sc == "diffusion":
             return {"adopted": np.zeros(len(c["theta"])), "seeds_left": np.array([float(c["seed_total"])]),
                     "pending": np.zeros(len(c["cluster_names"])), "seeded": np.zeros(1)}
+        if self.sc == "balance":
+            N = self.N
+            return {"x": np.zeros(N), "gen": np.zeros(N), "exp": np.zeros((N, N)), "served": np.zeros(1),
+                    "demanded": np.zeros(1)}
         if self.sc == "cascade":
             P = len(c["cap"])
             return {"down": np.zeros(P), "backup": np.full(len(c["dep"]), -1.0), "reinf": np.zeros(len(c["zone_names"])),
@@ -233,6 +253,19 @@ class GraphDynamical(RapidEngine):
                 raise ActionError("no such backup link")
             state["backup"][ci] = -1.0
             return {"removed": [action["src"], action["dst"]]}
+        if self.sc == "balance":
+            i = self.agents.index(agent)
+            if k == "levers":
+                state["gen"] = state["gen"].copy()
+                state["gen"][i] = float(np.clip(action["values"].get(c["gen_names"][i], state["gen"][i]), 0.0,
+                                                float(c["gen_max"])))
+                return {"generation": float(state["gen"][i])}
+            if k == "allocate":
+                state["exp"] = state["exp"].copy()
+                for j in self.neighbours(i):
+                    v = float(action["amounts"].get(c["node_names"][j], 0.0))
+                    state["exp"][i, j] = float(np.clip(v, 0.0, self.link_cap(i, j)))
+                return {"exports": {c["node_names"][j]: float(state["exp"][i, j]) for j in self.neighbours(i)}}
         if self.sc == "repair" and k == "discrete":
             if action["choice"] == "none":
                 return {"repair": None}
@@ -296,6 +329,58 @@ class GraphDynamical(RapidEngine):
         return {"obs": {a: {"numbers": {c["gauge_names"][0]: n_ad}, "entities": ents,
                             "resources": {"seeds_left": float(st["seeds_left"][0])}}},
                 "revenue": {a: rev}, "cost": {a: cost}, "info": {"seeded": seeded}}
+
+    # ---------------------------------------------------------------- balance (8.7.5)
+    def neighbours(self, i: int) -> list[int]:
+        return sorted({b for a, b, _ in self.config["links"] if a == i} | {a for a, b, _ in self.config["links"]
+                                                                          if b == i})
+
+    def link_cap(self, i: int, j: int) -> float:
+        for a, b, cap in self.config["links"]:
+            if {a, b} == {i, j}:
+                return float(cap)
+        return 0.0
+
+    def demand(self, st, i: int) -> float:
+        return max(0.0, float(self.config["d_mean"][i]) + float(st["x"][i]))
+
+    def gen_cost(self, i: int, g: float) -> float:
+        c = self.config
+        return float(c["c_lin"][i]) * g + float(c["c_quad"][i]) * g * g
+
+    def _adv_balance(self, st, rng, t):
+        c = self.config
+        N = self.N
+        z = rng.standard_normal(N)
+        # power available at each node: its generation minus what it sends plus what arrives (after line losses);
+        # a node cannot send more than it generates
+        gen = st["gen"].copy()
+        exp = st["exp"].copy()
+        for i in range(N):
+            out = exp[i].sum()
+            if out > gen[i] + 1e-12:
+                exp[i] *= gen[i] / out if out > 0 else 0.0
+        avail = np.maximum(0.0, gen - exp.sum(axis=1) + (1.0 - float(c["loss"])) * exp.sum(axis=0))
+        obs, rev, cost = {}, {}, {}
+        tot_served = tot_dem = 0.0
+        for i, a in enumerate(self.agents):
+            d = self.demand(st, i)
+            served = min(d, avail[i])
+            short = d - served
+            tot_served += served
+            tot_dem += d
+            rev[a] = float(c["price"]) * served
+            cost[a] = self.gen_cost(i, float(gen[i])) + float(c["shortage_cost"]) * short
+            obs[a] = {"numbers": {"my_demand": d, "my_served": served, "my_shortfall": short,
+                                  "my_generation": float(gen[i]),
+                                  "power_received": float((1.0 - float(c["loss"])) * exp[:, i].sum()),
+                                  "my_cost_at_half": self.gen_cost(i, 0.5 * float(c["gen_max"])) / (0.5 * float(c["gen_max"])),
+                                  "my_cost_at_full": self.gen_cost(i, float(c["gen_max"])) / float(c["gen_max"])}}
+        st["served"] = st["served"] + tot_served
+        st["demanded"] = st["demanded"] + tot_dem
+        st["x"] = float(c["phi"]) * st["x"] + float(c["d_sd"]) * np.sqrt(1 - float(c["phi"]) ** 2) * z
+        st["exp"] = np.zeros((N, N))                   # exports are set tick by tick
+        return {"obs": obs, "revenue": rev, "cost": cost, "info": {}}
 
     def propagate(self, load, cap, alive0, backup):
         """Failures within the power layer (load shed onto alive neighbours) and then between layers (a control node
@@ -410,6 +495,10 @@ class GraphDynamical(RapidEngine):
             edges += [{"src": int(p), "dst": P + i, "kind": "supply"} for i, p in enumerate(c["dep"])]
             edges += [{"src": P + int(ci), "dst": i, "kind": "control"} for i, ci in enumerate(c["ctrl"])]
             hidden, regimes = {}, []
+        elif self.sc == "balance":
+            nodes = [{"id": i, "c_lin": c["c_lin"][i], "c_quad": c["c_quad"][i]} for i in range(self.N)]
+            edges = [{"src": a, "dst": b, "cap": cap} for a, b, cap in c["links"]]
+            hidden, regimes = {"d_mean": c["d_mean"]}, []
         else:
             nodes = [{"id": i} for i in range(self.N)]
             edges = [{"src": a, "dst": b, "hazard": h} for (a, b), h in zip(c["edges"], c["hazard"])]
@@ -431,6 +520,8 @@ class GraphDynamical(RapidEngine):
             deg = A_.sum(axis=1)
             trip = float((deg * (deg - 1)).sum())
             return {"nodes": n, "edges": int(A_.sum() / 2), "clustering": tri / trip if trip else 0.0}
+        if self.sc == "balance":
+            return {"nodes": self.N, "edges": len(c["links"]), "clustering": 0.0}
         return {"nodes": self.N, "edges": len(c["edges"]), "clustering": 0.0}
 
     def motifs(self):
@@ -447,6 +538,11 @@ class GraphDynamical(RapidEngine):
                 m.add("decay")
         elif self.sc == "cascade":
             m = {"cascading_failure", "resource_competition", "delay"}
+        elif self.sc == "balance":
+            # private fluctuating demand at each node, convex generation cost, transfers over capacity-limited lossy
+            # links: the participants' choices interact through the shared network
+            m = {"resource_competition", "strategic_interaction", "partial_observability", "saturation",
+                 "hidden_confounding"}
         else:
             # service between a pair is all or nothing on connectivity; a repair is worth something only when it
             # reconnects a pair given the other failures
@@ -461,6 +557,12 @@ class GraphDynamical(RapidEngine):
         return []
 
     def outcome(self, state, ledger):
+        if self.sc == "balance":                       # a team objective: the whole grid's net income
+            rev = sum(ledger["revenue"].values())
+            cost = sum(ledger["cost"].values())
+            return {"net": float(rev - cost), "value": float(rev - cost), "revenue": float(rev), "cost": float(cost),
+                    "per_agent": {a: float(ledger["revenue"][a] - ledger["cost"][a]) for a in self.agents},
+                    "served_share": float(state["served"][0] / max(state["demanded"][0], 1e-9))}
         a = self.agents[0]
         net = float(ledger["revenue"][a] - ledger["cost"][a])
         out = {"net": net, "value": net, "revenue": float(ledger["revenue"][a]), "cost": float(ledger["cost"][a])}
@@ -472,9 +574,11 @@ class GraphDynamical(RapidEngine):
 
     def conservation(self, before, after, out):
         errs = []
-        a = self.agents[0]
-        if out["revenue"][a] < 0 or out["cost"][a] < 0:
-            errs.append("negative money flow")
+        for a in self.agents:
+            if out["revenue"].get(a, 0.0) < 0 or out["cost"].get(a, 0.0) < 0:
+                errs.append("negative money flow")
+        if self.sc == "balance" and after["served"][0] > after["demanded"][0] + 1e-6:
+            errs.append("more power served than demanded")
         if self.sc == "routing":
             inside = after["q1"].sum() + after["q2"].sum() + after["o1"].sum()
             bal = after["arrived"][0] - after["delivered"][0] - inside

@@ -222,3 +222,41 @@ def net_hidden_bottleneck_swap(rng, d):
                     "Gauges: flow delivered and the mean latency of delivered traffic."}
     cfg["income_cents_per_tick"] = int(cfg["price"] * (fast + slow + 1)) + 1
     return cfg
+
+
+@family("net_balance", engine="graph_dynamical", category="8.7", item="8.7.5", split="train",
+        doc="Three participants each run one node of a small power grid. Each sees only its own demand, which "
+            "fluctuates (a persistent hidden process), and its own generation cost, which differs a lot between "
+            "nodes and rises with output. Power sent over a link arrives next to a neighbour minus line losses, up "
+            "to the link's capacity. Shortfalls are expensive; the grid is paid as a whole. Meeting every node's "
+            "demand at low cost needs the cheap nodes to generate for the expensive ones, which needs the "
+            "participants to tell each other what they need.",
+        distinct_because="distributed resource coordination on an explicit network: private fluctuating demands, "
+                         "private convex costs, capacity-limited lossy transfers decided by each participant "
+                         "(allocate over neighbours) and messages; a team objective that no participant can reach "
+                         "alone",
+        axes={"horizon": 40, "observation_noise": 1.0, "resources": 45.0}, objective="maximize_net",
+        participants=("node_operator", "node_operator", "node_operator"),
+        claims=("crucible.rapid.claims_w3b:transfer_relieves_shortfall",
+                "crucible.rapid.claims_w3b:costs_differ_between_nodes"),
+        identify="crucible.rapid.claims_w3b:identify_cheapest_node",
+        reference="crucible.rapid.claims_w3b:share_and_dispatch", oracle="crucible.rapid.claims_w3b:oracle_balance")
+def net_balance(rng, d):
+    N = 3
+    names = neutral_names(rng, 2 * N)
+    c_lin = sorted([u(rng, 15.0, 30.0), u(rng, 45.0, 60.0), u(rng, 75.0, 95.0)])
+    order = [int(i) for i in rng.permutation(N)]
+    cap = float(d["resources"])
+    return {"engine": "graph_dynamical", "scenario": "balance", "agents": [f"a{i}" for i in range(N)],
+            "horizon": int(d["horizon"]), "node_names": names[:N], "gen_names": names[N:],
+            "links": [[0, 1, cap], [1, 2, cap], [0, 2, 0.6 * cap]], "d_mean": [u(rng, 20.0, 35.0) for _ in range(N)],
+            "d_sd": 14.0 * float(d["observation_noise"]), "phi": 0.9, "c_lin": [c_lin[i] for i in order],
+            "c_quad": [u(rng, 0.2, 0.5) for _ in range(N)], "gen_max": 70.0, "loss": 0.08, "price": 100.0,
+            "shortage_cost": 0.0, "endowment": 100_000,
+            "objective": {"type": "maximize_net", "text": "Maximise the grid's net income: power served pays 100 per "
+                                                          "unit, generation costs money."},
+            "brief": f"A grid of three nodes ({', '.join(names[:N])}), one run by each participant. You see your "
+                     "own demand and your own generation cost only. Set your generation (lever) and how much power to "
+                     "send to each neighbour (allocate; links carry at most "
+                     f"{cap:g} units, {0.6 * cap:g} on the long link, and lose 8%). Demand you do not meet is lost; power "
+                     "nobody uses is wasted. You may message the other operators."}

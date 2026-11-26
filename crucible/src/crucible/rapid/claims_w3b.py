@@ -655,3 +655,184 @@ def pilot_and_commit(view, env=None, reserve: float = 0.35, prior: tuple = (0.5,
                 piloted[x["site"]] = x["yield_estimate"]
             if st["kind"] == "discrete" and r["result"]["ok"]:
                 used += 1
+
+
+# ====================================================================== net_balance (8.7.5)
+def dispatch(demand, c_lin, c_quad, links, loss: float, gmax: float, short_cost: float, step: float = 0.5):
+    """Economic dispatch on the grid by increments: repeatedly cover the next `step` of the largest remaining
+    shortfall from the source (the node itself or a neighbour over a link with spare capacity) whose marginal
+    delivered cost is lowest, while that cost is below the cost of the shortfall. Returns (generation, exports
+    matrix)."""
+    N = len(demand)
+    g = np.zeros(N)
+    E = np.zeros((N, N))
+    capm = np.zeros((N, N))
+    for a, b, cap in links:
+        capm[a, b] = capm[b, a] = cap
+    left = np.asarray(demand, dtype=float).copy()
+    for _ in range(int(sum(demand) / step) + 3 * N):
+        j = int(np.argmax(left))
+        if left[j] <= 1e-9:
+            break
+        best = None
+        for i in range(N):
+            if g[i] + step > gmax + 1e-9:
+                continue
+            if i != j and E[i, j] + step > capm[i, j] + 1e-9:
+                continue
+            mc = c_lin[i] + c_quad[i] * (2 * g[i] + step)
+            deliv = 1.0 if i == j else (1.0 - loss)
+            per = mc / deliv
+            if best is None or per < best[0]:
+                best = (per, i, deliv)
+        if best is None or best[0] > short_cost + 100.0:
+            break
+        _, i, deliv = best
+        g[i] += step
+        if i != j:
+            E[i, j] += step
+        left[j] -= step * deliv
+    return g, E
+
+
+def oracle_balance(env) -> dict:
+    """Evaluator: a central dispatcher that sees every node's demand of the coming tick and every cost."""
+    from .oracles import best_of
+    c = env._config
+    eng = env._engine
+    ags = c["agents"]
+
+    def pol(scale):
+        def fn(e):
+            dem = [eng.demand(e._state, i) * scale for i in range(len(ags))]
+            g, E = dispatch(dem, c["c_lin"], c["c_quad"], c["links"], c["loss"], c["gen_max"], c["shortage_cost"])
+            acts = {}
+            for i, a in enumerate(ags):
+                steps = [{"kind": "levers", "values": {c["gen_names"][i]: float(g[i])}}]
+                nb = eng.neighbours(i)
+                steps.append({"kind": "allocate", "amounts": {c["node_names"][j]: float(E[i, j]) for j in nb}})
+                acts[a] = {"kind": "sequence", "steps": steps}
+            return acts
+        return fn
+    return best_of(env, {f"central dispatch on the true demands (x{s})": pol(s) for s in (1.0, 1.05)})
+
+
+def share_and_dispatch(view, env=None, margin: float = 0.85, persist: float = 0.8) -> None:
+    """Scripted public reference, per participant: each operator reads its own demand and its own average cost at
+    half and at full output (so its linear and quadratic cost terms), messages them to the other operators every
+    tick, and every operator runs the same dispatch rule on the latest figures it has (its own demand now, the
+    others' as of their last message; link capacities and losses from the brief), then sets its own generation and
+    exports as the plan says."""
+    import re
+    ags = view.agents()
+    N = len(ags)
+    brief = " ".join(view.spec["brief"].values())
+    cap = float(re.search(r"carry at most ([0-9.]+) units", brief).group(1))
+    long_cap = float(re.search(r"units, ([0-9.]+) on the long link", brief).group(1))
+    links = [[0, 1, cap], [1, 2, cap], [0, 2, long_cap]]         # public: the brief describes the grid
+    loss, short = 0.08, 100.0                          # an unserved unit loses its price (the brief)
+    know = {a: {} for a in ags}                       # what each operator knows: node -> (demand, c_lin, c_quad)
+    hist = {a: {} for a in ags}
+    obs = {a: view.observe(a) for a in ags}
+    gmax = {a: float(view.action_space(a).kinds["levers"]["properties"]["values"]["properties"][
+        next(iter(view.action_space(a).kinds["levers"]["properties"]["values"]["properties"]))]["maximum"])
+        for a in ags}
+    while not view.done:
+        acts = {}
+        for i, a in enumerate(ags):
+            x = obs[a]["numbers"]
+            for m in obs[a]["entities"]:
+                if m.get("kind") == "message" and isinstance(m.get("content"), dict) and "node" in m["content"]:
+                    k = m["content"]
+                    for node, rec in (k.get("all") or {str(k["node"]): [k["demand"], k["c_lin"], k["c_quad"]]}).items():
+                        nd = int(node)
+                        if nd == i:
+                            continue
+                        hist[a].setdefault(nd, []).append(float(rec[0]))
+                        # the other node's demand now: its last report pulled toward its average (demand is a
+                        # persistent process; the brief says it fluctuates)
+                        mu = float(np.mean(hist[a][nd]))
+                        know[a][nd] = (mu + persist * (float(rec[0]) - mu), float(rec[1]), float(rec[2]))
+            if "my_demand" in x:
+                G = gmax[a]
+                half, full = x["my_cost_at_half"], x["my_cost_at_full"]
+                cq = (full - half) / (0.5 * G)
+                cl = half - cq * 0.5 * G
+                know[a][i] = (float(x["my_demand"]), float(cl), float(cq))
+            if len(know[a]) < N:
+                # until every node has reported, cover your own demand yourself
+                d_own = know[a].get(i, (20.0, 0.0, 0.0))[0]
+                acts[a] = {"kind": "sequence", "steps": [
+                    {"kind": "levers", "values": {_lever_of(view, a): float(min(gmax[a], d_own * margin))}}] +
+                    (_msg_all(ags, a, i, know[a][i]) if i in know[a] else [])}
+                continue
+            dem = [know[a][k][0] * margin for k in range(N)]
+            cl = [know[a][k][1] for k in range(N)]
+            cq = [know[a][k][2] for k in range(N)]
+            g, E = dispatch(dem, cl, cq, links, loss, gmax[a], short)
+            nb = sorted(set(range(N)) - {i})
+            sp = view.action_space(a)
+            names = list(sp.kinds["allocate"]["properties"]["amounts"]["properties"])
+            node_of = {n: k for n, k in zip(names, [k for k in nb if any(
+                (l[0] == i and l[1] == k) or (l[1] == i and l[0] == k) for l in links)])}
+            steps = [{"kind": "levers", "values": {_lever_of(view, a): float(g[i])}},
+                     {"kind": "allocate", "amounts": {n: float(E[i, k]) for n, k in node_of.items()}}] + \
+                _msg_all(ags, a, i, know[a][i])
+            acts[a] = {"kind": "sequence", "steps": steps}
+        r = view.step(acts)
+        obs = r["observations"]
+
+
+def _lever_of(view, a) -> str:
+    return next(iter(view.action_space(a).kinds["levers"]["properties"]["values"]["properties"]))
+
+
+def _msg_all(ags, a, i, rec) -> list[dict]:
+    # every tick, this operator's own figures to every other operator
+    return [{"kind": "message", "to": b, "content": {"node": i, "demand": rec[0], "c_lin": rec[1], "c_quad": rec[2]}}
+            for b in ags if b != a]
+
+
+def transfer_relieves_shortfall(env) -> dict:
+    """Power one node sends to a short neighbour arrives minus the line loss and reduces that neighbour's
+    shortfall by exactly that much (forks with the same noise: the sender generates extra and sends it)."""
+    from .oracles import fork
+    c = env._config
+    ags = c["agents"]
+    a, b = fork(env), fork(env)
+    base = {ag: {"kind": "levers", "values": {c["gen_names"][i]: 0.0}} for i, ag in enumerate(ags)}
+    send = dict(base)
+    send[ags[0]] = {"kind": "sequence", "steps": [{"kind": "levers", "values": {c["gen_names"][0]: 10.0}},
+                                                   {"kind": "allocate", "amounts": {c["node_names"][1]: 10.0}}]}
+    ra, rb = a.step(send), b.step(base)
+    got = ra["observations"][ags[1]]["numbers"]["my_served"] - rb["observations"][ags[1]]["numbers"]["my_served"]
+    want = 10.0 * (1.0 - float(c["loss"]))
+    return {"ok": abs(got - want) < 1e-6, "extra_served_at_neighbour": got, "expected": want}
+
+
+def costs_differ_between_nodes(env) -> dict:
+    """The first unit of output costs very different amounts at different nodes (the cheapest node's marginal cost
+    at low output is below half the dearest node's), measured from the cost the engine charges."""
+    eng = env._engine
+    per = [eng.gen_cost(i, 1.0) for i in range(eng.N)]
+    return {"ok": min(per) < 0.5 * max(per), "cost_of_first_unit": per}
+
+
+def identify_cheapest_node(env) -> dict:
+    """Question: which node generates most cheaply? Public: every operator reports its own cost figure to the
+    first operator by message; the first operator picks the lowest."""
+    view = PublicView(env)
+    ags = view.agents()
+    obs = {a: view.observe(a) for a in ags}
+    r = view.step(None)
+    obs = r["observations"]
+    acts = {a: {"kind": "message", "to": ags[0], "content": {"node": i, "cost": obs[a]["numbers"]["my_cost_at_half"]}}
+            for i, a in enumerate(ags) if a != ags[0]}
+    r = view.step(acts)
+    costs = {0: r["observations"][ags[0]]["numbers"]["my_cost_at_half"]}
+    for m in r["observations"][ags[0]]["entities"]:
+        if m.get("kind") == "message" and isinstance(m.get("content"), dict):
+            costs[int(m["content"]["node"])] = float(m["content"]["cost"])
+    est = min(costs, key=costs.get) if len(costs) == len(ags) else None
+    truth = int(np.argmin(env._config["c_lin"]))
+    return {"question": "the node with the cheapest generation", "estimate": est, "truth": truth, "ok": est == truth}
