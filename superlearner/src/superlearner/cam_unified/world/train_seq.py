@@ -174,7 +174,10 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
                                                            sample=False)
                         feat = model.outcome_head.features(Z_hat, ob)
                         res.prior_feat_updates += 1
-                    fast, _ = model.beliefs.update(fast, Z, st.act, ob, model.outcome_head, feat=feat)
+                    if feat is None:            # legacy call shape (any BeliefModuleP)
+                        fast, _ = model.beliefs.update(fast, Z, st.act, ob, model.outcome_head)
+                    else:
+                        fast, _ = model.beliefs.update(fast, Z, st.act, ob, model.outcome_head, feat=feat)
                     res.n_belief_updates += 1
                 prev, prev_done = st, st.done.to(torch.bool).to(dev)
     return res

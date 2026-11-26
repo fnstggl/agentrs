@@ -729,8 +729,10 @@ def adapt_loss_all_k(model: "CamUnifiedModel", seq, filt: "FilterResult", ks: Op
             ob = model.channels_of(fast, ob)
             Z_hat, _ = model.world_model.prior(Zin[t], st.act, Bt, st.dt, sample=False)
             feat = model.outcome_head.features(Z_hat, ob)
-            fast_n, _ = model.beliefs.update(fast, filt.Zs[t], st.act, ob, model.outcome_head,
-                                             feat=feat if support_feat == "prior" else None)
+            if support_feat == "prior":
+                fast_n, _ = model.beliefs.update(fast, filt.Zs[t], st.act, ob, model.outcome_head, feat=feat)
+            else:
+                fast_n, _ = model.beliefs.update(fast, filt.Zs[t], st.act, ob, model.outcome_head)
             if use_k:
                 fast_n = model.kalman_update(fast_n, feat, ob, kalman_base(model, feat, ob, fast))
             fast = fast_n if bool(sup.all()) else fast_where(sup, fast_n, fast)
