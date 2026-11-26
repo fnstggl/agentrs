@@ -143,6 +143,9 @@ EVENT_SUBSYSTEM: dict[str, str] = {
     "make.trade": "supply_chains", "make.standing": "supply_chains", "make.standing_status": "supply_chains",
     "make.dispatch": "supply_chains", "make.retail": "supply_chains", "make.retail_update": "supply_chains",
     "make.retail_status": "supply_chains",
+    # coupling events belong to the subsystem whose state they describe
+    "links.rnd": "industry", "links.rnd_result": "industry", "links.curtailed": "computing_infrastructure",
+    "links.backup": "energy", "links.coordination": "organizations", "goods.wom": "social_media",
 }
 
 

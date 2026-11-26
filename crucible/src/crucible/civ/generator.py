@@ -85,7 +85,7 @@ def chain(kind: str, regions: int) -> list[dict]:
                                               components=comps, product_name=f"product {i}", price=1500 + 50 * i,
                                               operators=4, **kw)
     if kind == "linear":
-        return [mine(1, 0, 1), forge(1, 0, "sheet", 1, machines=2), assem(1, ["forge1"], 0)]
+        return [mine(1, 0, 1), forge(1, 0, "sheet", 1, machines=2), assem(1, ["forge1", "forge1"], 0)]
     if kind == "standard":
         from ..worlds.open_industry import default_chain
         return default_chain(R)
@@ -237,7 +237,7 @@ def recipe(profile: str | P.Profile, seed: int, *, population: str = "developmen
     # sandbox_max_workers: one warm worker per hosted site (the default pool of 24 is smaller than a civilisation's
     # web, and restarting evicted workers dominated the cost of a simulated day: 26 s -> 9-13 s per day)
     params = {"cost_model": "deterministic", "civ_profile": prof.name, "civ_population": population,
-              "log_retain": 3_000_000, "sandbox_max_workers": 64, **ov.pop("params", {})}
+              "log_retain": 300_000, "sandbox_max_workers": 64, **ov.pop("params", {})}
     if ov:
         raise ValueError(f"unknown overrides {sorted(ov)} (drop_modules, module_config, params)")
     subs = {s: [m for m in d["modules"] if m in mods] for s, d in SUB.SUBSYSTEMS.items()}

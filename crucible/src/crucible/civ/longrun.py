@@ -13,9 +13,12 @@ store and checks, as it goes:
 * at `resume_days`: cross-process resume - the store is copied (SQLite backup), a NEW Python process loads the world
   from the copy (`World.load`: latest snapshot plus the events after it), advances it one simulated day and reports
   its hash and state digest; this process advances its own world the same day and compares;
-* at the end: recorded replay - every segment between consecutive snapshots (and genesis to the first) is replayed
-  from the store's events on top of the earlier snapshot and must give the later snapshot's state digest, and the
-  last segment the live world's digest and hash.
+* recorded replay - as soon as a snapshot closes a segment, the segment is replayed from the store's events on top
+  of the previous snapshot (genesis for the first) and must give the new snapshot's state digest; the last
+  snapshot is taken at the end of the run and must equal the live world (digest and hash). With
+  `prune_verified_blobs`, the bytes of `cols.batch` blobs of segments that were verified and are older than the last
+  two are then removed from the store (a retention policy for long runs on a small disk; the report states how
+  many bytes were pruned; full replay from genesis is then no longer possible, segment-wise verification was).
 
 The report has everything Gate P measures; `suite(...)` runs several horizons and seeds, each in its own process,
 `workers` at a time (launch the caller through `crucible.scale.slots --cpu <workers>`), and removes each run's store
@@ -83,7 +86,8 @@ def _resume_child(copy_path: str, world_id: str, until: int, timeout_s: int = 36
 
 def run_horizon(profile: str, seed: int, days: int, *, population: str = "development", workdir: str | None = None,
                 snapshot_every: int = 10, audit_every: int = 10, resume_days: list[int] | None = None,
-                replay: bool = True, overrides: dict | None = None, log=None, keep_store: bool = False) -> dict:
+                replay: bool = True, overrides: dict | None = None, log=None, keep_store: bool = False,
+                prune_verified_blobs: bool = False) -> dict:
     import torch
     torch.set_num_threads(1)
     from ..core.kernel import World
@@ -101,7 +105,9 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
     t_start = time.time()
     rep: dict = {"profile": profile, "seed": int(seed), "days": int(days), "population": population,
                  "world_id": wid, "failed": False, "error": None, "daily": [], "unexplained_violations": [],
-                 "explained_violations": [], "proc_failed": 0, "accounting": [], "resume": [], "replay": None}
+                 "explained_violations": [], "proc_failed": 0, "accounting": [], "resume": [],
+                 "replay": {"segments": 0, "events": 0, "mismatches": 0, "detail": [], "wall_s": 0.0},
+                 "pruned_blob_mb": 0.0}
     try:
         w = generator.generate(profile, seed, population, overrides=overrides, store=store, world_id=wid)
         rep["spec_hash"] = w.spec.hash()
@@ -143,6 +149,10 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                 row["accounting_mismatches"] = rep["accounting"][-1]["mismatches"]
             if (d + 1) % snapshot_every == 0 or d + 1 in resume_days or d + 1 == days:
                 snaps.append((w.seq, w.snapshot()))
+                if replay:
+                    _replay_segment(w, store, wid, snaps[-2], snaps[-1], rep["replay"])
+                    if prune_verified_blobs and len(snaps) >= 4:
+                        rep["pruned_blob_mb"] += _prune(w, store, wid, snaps[-4], snaps[-3])
             if pending_resume is not None and pending_resume["until"] == w.now:
                 child = pending_resume["child"]
                 ok = child.get("ok") and child["hash"] == w.last_hash and child["digest"] == w.digest()
@@ -165,7 +175,11 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                 log(json.dumps(row))
         w.flush()
         if replay:
-            rep["replay"] = _replay_segments(w, store, wid, snaps)
+            from ..core.kernel import World as _W
+            last = _W.from_blob(store.get_snapshot(snaps[-1][1])[1], world_id=f"{wid}-last")
+            if snaps[-1][0] != w.seq or last.digest() != w.digest() or last.last_hash != w.last_hash:
+                rep["replay"]["mismatches"] += 1
+                rep["replay"]["detail"].append({"segment": "end", "snapshot": last.digest(), "live": w.digest()})
         rep["final"] = {"seq": w.seq, "hash": w.last_hash, "digest": w.digest()}
         w.close()
     except Exception as e:  # noqa: BLE001 - a run that crashes is a failed run, with the reason
@@ -183,27 +197,43 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
     return rep
 
 
-def _replay_segments(w, store, wid, snaps) -> dict:
-    """Replay every segment between snapshots from the recorded events; compare state digests."""
+def _replay_segment(w, store, wid, a, b, acc: dict) -> None:
+    """Replay the recorded events of segment a -> b on top of snapshot a; compare with snapshot b."""
     from ..core.kernel import World
     t = time.time()
-    mism = []
-    n_ev = 0
-    for (s0, sid0), (s1, sid1) in zip(snaps, snaps[1:]):
-        evs = store.read_events(wid, from_seq=s0, to_seq=s1)
-        n_ev += len(evs)
-        base = store.get_snapshot(sid0)[1] if sid0 else None
-        rw = World.replay(w.spec, evs, world_id=f"{wid}-replay", base_blob=base, store=store)
-        want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check").digest()
-        if rw.digest() != want or rw.seq != s1:
-            mism.append({"segment": [s0, s1], "replayed": rw.digest(), "recorded": want})
-    # the last snapshot is at the end of the run: compare with the live world too
-    if snaps[-1][0] == w.seq:
-        last = World.from_blob(store.get_snapshot(snaps[-1][1])[1], world_id=f"{wid}-last")
-        if last.digest() != w.digest() or last.last_hash != w.last_hash:
-            mism.append({"segment": "end", "replayed": last.digest(), "recorded": w.digest()})
-    return {"segments": len(snaps) - 1, "events": n_ev, "mismatches": len(mism), "detail": mism[:5],
-            "wall_s": round(time.time() - t, 1)}
+    (s0, sid0), (s1, sid1) = a, b
+    w.flush()
+    evs = store.read_events(wid, from_seq=s0, to_seq=s1)
+    base = store.get_snapshot(sid0)[1] if sid0 else None
+    rw = World.replay(w.spec, evs, world_id=f"{wid}-replay", base_blob=base, store=store)
+    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check").digest()
+    acc["segments"] += 1
+    acc["events"] += len(evs)
+    if rw.digest() != want or rw.seq != s1:
+        acc["mismatches"] += 1
+        acc["detail"] = (acc["detail"] + [{"segment": [s0, s1], "replayed": rw.digest(), "recorded": want}])[:5]
+    acc["wall_s"] = round(acc["wall_s"] + time.time() - t, 1)
+
+
+def _prune(w, store, wid, a, b) -> float:
+    """Remove the bytes of `cols.batch` blobs of a verified segment from the store (see the module docstring)."""
+    from ..substrate import artifacts
+    (s0, _), (s1, _) = a, b
+    c = artifacts._cache(w)
+    con = store._conn()
+    freed = 0
+    for e in store.read_events(wid, from_seq=s0, to_seq=s1):
+        if e["type"] != "cols.batch":
+            continue
+        h = artifacts.parse_ref(e["payload"]["ref"])
+        key = artifacts.blob_key(h)
+        r = con.execute("SELECT length(data) FROM blobs WHERE key=?", (key,)).fetchone()
+        if r is None:
+            continue
+        con.execute("DELETE FROM blobs WHERE key=?", (key,))
+        c.persisted.discard(h)        # identical bytes recorded later are written again
+        freed += int(r[0])
+    return round(freed / 2**20, 2)
 
 
 def _ratio(series: list[float], window: int) -> float:
@@ -228,6 +258,7 @@ def summarize(rep: dict) -> dict:
             "resume_checks": len(rep.get("resume") or []),
             "resume_mismatches": sum(0 if r["ok"] else 1 for r in rep.get("resume") or []),
             "replay_mismatches": (rep["replay"] or {}).get("mismatches") if rep.get("replay") else None,
+            "replay_segments": (rep.get("replay") or {}).get("segments", 0),
             "late_over_early_economic": _ratio(eco, 30), "late_over_early_social": _ratio(soc, 30),
             "months": months, "wall_s_per_day_mean": round(sum(walls) / len(walls), 2) if walls else None,
             "wall_s_per_day_last10": round(sum(walls[-10:]) / len(walls[-10:]), 2) if walls else None,
@@ -238,7 +269,7 @@ def summarize(rep: dict) -> dict:
 
 def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: str | None = None,
           population: str | None = None, workers: int = 1, workdir: str | None = None, base_seed: int = 101,
-          keep_stores: bool = False, log=None, timeout_s: int = 24 * 3600) -> list[dict]:
+          keep_stores: bool = False, prune: bool = True, log=None, timeout_s: int = 24 * 3600) -> list[dict]:
     """Every (horizon, seed) run in its own process; independent seeds (distinct per horizon)."""
     profile = profile or GATE_P_PROFILE["profile"]
     population = population or GATE_P_PROFILE["population"]
@@ -257,6 +288,8 @@ def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: s
             args = [sys.executable, "-m", "crucible.civ.longrun", "run", profile, str(s), str(h), population, wd, rp]
             if keep_stores:
                 args.append("--keep")
+            if prune:
+                args.append("--prune")
             running.append((subprocess.Popen(args, env=env, stdout=open(os.path.join(wd, "daily.jsonl"), "w"),
                                              stderr=subprocess.STDOUT), rp, h, s, time.time()))
         time.sleep(2)
@@ -295,7 +328,7 @@ def _main(argv) -> int:
     if argv and argv[0] == "run":
         profile, seed, days, population, wd, rp = argv[1], int(argv[2]), int(argv[3]), argv[4], argv[5], argv[6]
         rep = run_horizon(profile, seed, days, population=population, workdir=wd, keep_store="--keep" in argv,
-                          log=lambda m: print(m, flush=True))
+                          prune_verified_blobs="--prune" in argv, log=lambda m: print(m, flush=True))
         with open(rp, "w") as fh:
             json.dump(rep, fh)
         return 0 if not rep["failed"] else 1
