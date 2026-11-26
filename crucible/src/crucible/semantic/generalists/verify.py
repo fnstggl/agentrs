@@ -114,7 +114,8 @@ def collaborative(world) -> list[dict]:
                 continue
             rel = _cos(f"{src['subject']}\n{src['body']}", f"{m['subject']}\n{m['body']}")
             out.append({"kind": "answered_request", "request": m["in_reply_to"], "reply": mid, "from": src["from"],
-                        "by": m["from"], "relevance": round(rel, 4), "verified": bool(rel >= RELEVANCE)})
+                        "by": m["from"], "relevance": round(rel, 4),  # not-a-content-score: evaluator-side MiniLM cosine of request and reply, never in-world
+                        "verified": bool(rel >= RELEVANCE)})
     if "doc_versions" in st.tables:
         editors: dict[str, set] = {}
         for _, v in st.scan("doc_versions"):

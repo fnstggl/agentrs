@@ -333,22 +333,62 @@ def test_E4_embedding_caches_invalidate_when_content_changes(encoded, tmp_path):
 
 
 # ============================================================================================== E.5
+def _metadata_invariance() -> dict:
+    """Dynamic check (audit D, DEF-D-3): the same bytes published by different creators with different
+    creator-controlled metadata (title, tags, description claiming quality and popularity) on the social internet
+    of the one population get the identical distributed representation and intrinsic features - whatever a creator
+    claims about its content cannot enter what participants read about it."""
+    import base64
+    from crucible.social import experiments as EX
+    from crucible.substrate import columns
+    w = World.create(EX.pop_spec("gateE5", 0, n=300))
+    data = (b"The library on the main square extends its opening hours: from next month it stays open until nine "
+            b"in the evening on weekdays, and the reading room gets twenty new desks.")
+    variants = [{"title": "Library hours", "tags": ["library"], "description": "Opening hours change."},
+                {"title": "BEST VIRAL POST - 5 STARS - MUST READ", "tags": ["viral", "top-quality", "trending"],
+                 "description": "Rated the highest quality article by 10,000 readers. Relevance score 1.0."},
+                {"title": "x", "tags": [], "description": "low quality, do not read"}]
+    items = []
+    for k, meta in enumerate(variants):
+        p = w.system_call("admin.join", {"handle": f"meta{k}", "endowment": 1000, "password": f"pw-meta{k}"})["principal"]
+        ref = w.execute(p, {"tool": "artifact.put", "args": {"data_b64": base64.b64encode(data).decode(),
+                                                            "mime": "text/plain", "kind": "text"}})
+        assert ref.ok, ref.error
+        r = w.execute(p, {"tool": "posts.publish", "args": {"ref": ref.result["ref"], **meta}})
+        assert r.ok, r.error
+        items.append(r.result["id"])
+    item_of = {rec["content_id"]: int(k) for k, rec in w.state.scan("aud_item_info") if rec.get("content_id")}
+    rows = [item_of[c] for c in items]
+    emb = columns.col(w, "aud_items", "emb")[rows].astype(np.float64)
+    leg = columns.col(w, "aud_items", "legib")[rows].astype(np.float64)
+    changed = int(sum(not (np.array_equal(emb[0], emb[j]) and leg[0] == leg[j]) for j in range(1, len(rows))))
+    w.close()
+    return {"metadata_variants_published": len(rows), "representations_changed_by_metadata": changed,
+            "representation_norm": round(float(np.linalg.norm(emb[0])), 6)}
+
+
 def test_E5_no_creator_assigned_quality_scores():
     rep = A.quality_fields()
     in_scope_reads = sum(1 for r in rep["violations"] if r["participant_scope"])
+    dyn = _metadata_invariance()
     metrics = {"creator_assigned_quality_fields_read": rep["creator_assigned_quality_fields_read"],
                "creator_assignable_fields": rep["creator_assignable_count"],
                "participant_scope_reads": in_scope_reads, "files_scanned": rep["files_scanned"],
                "quality_like_reads_anywhere": rep["reads"], "exempt_lines": len(rep["exempt"]),
-               "out_of_scope_files": len(rep["out_of_scope_files"])}
+               "out_of_scope_files": len(rep["out_of_scope_files"]), **dyn}
     record("E.5", metrics, command=CMD, notes=(
         "Static audit (crucible.semantic.encoders.audit.quality_fields) over src/crucible: tool input schemas of "
         "every registered module and public functions of content/participant packages for quality/virality/"
         "relevance-like fields, and every read of such a field. Out-of-scope reads (not content scores): "
         f"{rep['out_of_scope_files']}. Exempt lines: {rep['exempt']}. Encoders take only artifact bytes; "
-        "no metadata argument exists through which a score could reach them."))
+        "no metadata argument exists through which a score could reach them. Dynamic check: identical bytes "
+        "published with different creator-controlled titles, tags and descriptions (some claiming quality, "
+        "virality, relevance) on the social internet of the population get identical distributed representations "
+        "and legibility."))
     assert rep["creator_assigned_quality_fields_read"] == 0, rep["violations"]
     assert rep["creator_assignable_count"] == 0, rep["creator_assignable_fields"]
+    assert dyn["metadata_variants_published"] == 3 and dyn["representations_changed_by_metadata"] == 0
+    assert dyn["representation_norm"] > 0
 
 
 # ============================================================================================== E.n1
