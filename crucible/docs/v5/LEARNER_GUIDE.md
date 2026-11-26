@@ -120,6 +120,10 @@ unless legacy is named; a raw `World.create` keeps the 4.0 contract):
   turned into a probe of the evaluator; `exp` refuses evaluator tools as measures and measures what the agent sees;
 * a Tier 1 rapid `query spec` answer does not carry the generated world's identity (family, seed, category,
   evaluation split);
+* the capability registry keeps installs and active installs but not the counts and flags computed with the
+  relatedness analysis (`independent_adopters`, `independent_payers`, `independent_buyers`, `independent`) in
+  `caps.view/list/graph/evidence` results and `caps.installed/evidence/payer/market` events; `caps.categories`
+  (markets selected by independent buyers) is an evaluator tool;
 * the science world's replication reports keep their statistical verdict (`consistent`/`refuted`: a test on the
   reporter's own readings) but lose `related_to_author`, `independent` and `independent_consistent` (the evaluator's
   relatedness analysis) in `sci.*` results and `sci.replication` events; evaluator-only metrics are the union of this

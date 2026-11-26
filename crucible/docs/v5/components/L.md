@@ -112,6 +112,13 @@ Adversarial verification on the integrated tree (87a6c54) found and fixed:
   now gets the participant view.
 * **relatedness verdicts in the science world** (`sci.replicate/paper/papers/replications`, `sci.replication`
   events): `related_to_author`, `independent`, `independent_consistent` registered evaluator-only.
+* **adoption verdicts of the capability registry** (`services/capabilities.py`, inherited by the v5
+  `innovation/caps.py`): `caps.view/list/graph/evidence` returned `independent_adopters`, `independent_payers`,
+  `independent_buyers` and per-evidence `independent` flags, and `caps.installed/evidence/payer/market` events carried
+  them - a provider could learn which of its own organisations the evaluator links to it by having them install its
+  capability; `caps.categories` (markets selected by independent buyers, with a `min_adopters` threshold) is now an
+  evaluator tool. Found by reading every relatedness computation that feeds a tool result or event after the
+  probes passed: the probes' scenario never created capabilities, so it could not see these (a coverage limit).
 * **evaluator metrics missing from the registry**: `scheduled_churn_share` (and the commerce list) were readable
   through self-goals in observation-only worlds; `evaluator_only.evaluator_metrics()` is now the union of the
   registry, `goals.metrics.EVALUATOR_ONLY_METRICS` and `commerce.observables.EVALUATOR_ONLY`.
