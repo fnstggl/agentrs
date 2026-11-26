@@ -22,6 +22,10 @@ nothing a world does.
   metadata) or a *handler write* (state changed outside any applier, so replay could not reproduce it). Package
   siblings are reported apart (`same_package`) and counted as cross-module: the requirement is per module.
 
+* `replay_check(world)` (wave 3b) replays the world's own log from genesis: a write that bypasses the state store's
+  methods (a nested value of a row mutated in place, `state.tables` changed directly) is invisible to the trace but
+  breaks replay, so a digest mismatch counts as state changed outside the appliers.
+
 * `hashes(kind, seed, hours)` builds a world of a registered kind (`KINDS`), runs it and returns its event hash,
   state digest and event count; `python -m crucible.substrate.integrity hashes <kind> <seed> <hours>` prints them,
   so a determinism check runs the same kind and seed in fresh processes and compares.
@@ -283,6 +287,22 @@ def _rapid_hashes(seed: int, steps: int) -> dict:
     return {"kind": "rapid", "family": fam, "last_hash": h, "digest": h, "events": int(steps)}
 
 
+def replay_check(world) -> dict:
+    """Whether replaying the world's own log from genesis reproduces its state (wave 3b). The write trace sees every
+    write made through the state store's methods; a write that bypasses them (mutating a nested value of a row a read
+    returned, or `state.tables` directly) leaves no trace but cannot be reproduced by replay, which re-applies only
+    the recorded events: a digest mismatch here means state changed outside the appliers."""
+    from ..core.kernel import World
+    if world.log_base != 0:
+        return {"replay_exact": None, "reason": "the in-memory log was trimmed"}
+    rep = World.replay(world.spec, [e.to_dict() for e in world.log], world_id=f"{world.world_id}-replay-check",
+                       store=world.store)
+    try:
+        return {"replay_exact": rep.digest() == world.digest(), "events": len(world.log)}
+    finally:
+        rep.close()
+
+
 def hashes(kind: str, seed: int, hours: float, *, trace: bool = False) -> dict:
     """Build a world of `kind` from `seed`, run it `hours` simulated hours and return {kind, last_hash, digest,
     events, modules} (plus the write trace's report when `trace`)."""
@@ -294,6 +314,7 @@ def hashes(kind: str, seed: int, hours: float, *, trace: bool = False) -> dict:
         with trace_writes(w) as tr:
             w.advance_time(w.now + int(hours * 3600))
         out["writes"] = tr.report()
+        out["replay"] = replay_check(w)
     else:
         w.advance_time(w.now + int(hours * 3600))
     out.update({"last_hash": w.last_hash, "digest": w.digest(), "events": int(w.seq),

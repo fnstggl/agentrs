@@ -10,9 +10,11 @@ is registered; a Tier 1 rapid environment for determinism):
 * cross-module state writes: every write to a world's state during the run is attributed to the module whose
   applier performs it (or to the handler, outside any applier) and checked against the declaring owner of the table,
   array, column or kernel metadata it changes (`integrity.trace_writes`). Approved interfaces are the columns
-  module's batch events whose recorded writer the column ownership rule admits, and the kernel's counters. The metric
-  counts distinct offending (writer, target) pairs. Positive control: a module whose applier writes another module's
-  table is found.
+  module's batch events whose recorded writer the column ownership rule admits (an interface only from the module
+  that implements it), and the kernel's counters. The metric counts distinct offending (writer, target) pairs, plus
+  one per traced world whose own log does not replay to its state (`integrity.replay_check`: a write that bypasses
+  the state store's methods, e.g. a nested value of a row mutated in place, leaves no trace but breaks replay).
+  Positive control: a module whose applier writes another module's table is found.
 * determinism: each kind is built from the same spec and seed in two fresh processes (`python -m
   crucible.substrate.integrity hashes`) and run for the same simulated time; event hash and state digest must be
   equal. A kind counts as checked only if its world ran (events > 0) in both processes.
@@ -120,7 +122,8 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
     checked = {k: v for k, v in hashed.items() if v[0]["events"] > 0 and v[1]["events"] > 0}
     mismatches = sorted(k for k, (a, b) in checked.items()
                         if (a["last_hash"], a["digest"]) != (b["last_hash"], b["digest"]))
-    cross = sum(t["writes"]["cross_module_state_writes"] for t in traced.values())
+    unreplayable = sorted(k for k, t in traced.items() if (t.get("replay") or {}).get("replay_exact") is not True)
+    cross = sum(t["writes"]["cross_module_state_writes"] for t in traced.values()) + len(unreplayable)
     offenders = {k: t["writes"]["cross"][:8] + t["writes"]["handler"][:4] + t["writes"]["refused"][:4]
                  for k, t in traced.items() if t["writes"]["cross_module_state_writes"]}
     writes = sum(t["writes"]["writes_traced"] for t in traced.values())
@@ -137,6 +140,7 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
         "column_writes_refused_by_rule": int(sum(t["writes"]["column_writes_refused_by_rule"]
                                                  for t in traced.values())),
         "control_cross_module_writes_found": int(ctl["cross_module_state_writes"]),
+        "traced_worlds_not_replaying_to_their_state": len(unreplayable),
         "registered_event_types": len(cov),
         "kinds_unavailable": len(problems),
     }
@@ -145,6 +149,6 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
                       "kinds": {k: {"events": v[0]["events"], "hash": v[0]["last_hash"][:16]}
                                 for k, v in checked.items()}}, indent=1, default=str))
     evidence.record("SP-2.3b", metrics, command=CMD,
-                    notes=f"kinds checked {sorted(checked)}; mismatches {mismatches}; offenders "
-                          f"{json.dumps(offenders, default=str)[:1500]}; unavailable {sorted(problems)}")
+                    notes=f"kinds checked {sorted(checked)}; mismatches {mismatches}; unreplayable {unreplayable}; "
+                          f"offenders {json.dumps(offenders, default=str)[:1500]}; unavailable {sorted(problems)}")
     assert len(checked) >= 3

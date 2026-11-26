@@ -46,8 +46,15 @@ class ItOther(Module):
     def install(self, world):
         world.state.declare_table("it_mine")
 
-    @endpoint("poke", S.obj({"how": S.s_enum(["table", "array", "meta", "handler", "column", "ok"])}, ["how"]))
+    @endpoint("poke", S.obj({"how": S.s_enum(["table", "array", "meta", "handler", "column", "ok", "nested"])},
+                            ["how"]))
     def ep_poke(self, ctx, how):
+        if how == "nested":
+            # a write that bypasses the state store's methods: a nested value of a row a read returned
+            rows = [r for _, r in ctx.state.scan("it_mine") if isinstance(r.get("tags"), list)]
+            if rows:
+                rows[0]["tags"].append("silent")
+            return {}
         if how == "handler":
             ctx.state.put("it_mine", "h", {"n": 1})                     # outside any applier
             return {}
@@ -62,7 +69,7 @@ class ItOther(Module):
     def ap_poked(self, ev):
         st = self.world.state
         how = ev.payload["how"]
-        st.put("it_mine", f"p{ev.seq}", {"how": how})                  # its own table: fine
+        st.put("it_mine", f"p{ev.seq}", {"how": how, "tags": []})      # its own table: fine
         if how == "table":
             st.put("it_owned", f"x{ev.seq}", {"n": 2})
         elif how == "array":
@@ -145,3 +152,16 @@ def test_hashes_of_a_rapid_environment_are_reproducible():
     x, y = integrity.hashes("rapid", 0, 24), integrity.hashes("rapid", 0, 24)
     assert x["last_hash"] == y["last_hash"] and x["events"] == 24
     assert integrity.hashes("rapid", 1, 24)["last_hash"] != x["last_hash"]
+
+
+def test_a_write_that_bypasses_the_state_store_is_caught_by_replay():
+    """Wave 3b: mutating a nested value of a row in a handler leaves no trace in the store's write methods (and no
+    journal entry: a failing command would not even roll it back), but replay from the log cannot reproduce it."""
+    w, p = _world()
+    with integrity.trace_writes(w) as tr:
+        assert w.execute(p, {"tool": "itoth.poke", "args": {"how": "ok"}}).ok
+    assert tr.report()["cross_module_state_writes"] == 0 and integrity.replay_check(w)["replay_exact"] is True
+    with integrity.trace_writes(w) as tr:
+        assert w.execute(p, {"tool": "itoth.poke", "args": {"how": "nested"}}).ok
+    assert tr.report()["cross_module_state_writes"] == 0            # invisible to the write trace...
+    assert integrity.replay_check(w)["replay_exact"] is False       # ...but not to replay
