@@ -22,7 +22,7 @@ PROFILES: dict[str, dict] = {
     "large": {"lightweight": 100_000, "adaptive": 1_000, "strategic": 100, "semantic": 20,
               "dims": {}, "init": "batch"},
     "internet": {"lightweight": 10_000_000, "adaptive": 1_000, "strategic": 100, "semantic": 20, "configurable": True,
-                 "dims": {"D": 16, "K": 4, "H": 8, "M": 8, "C": 4, "G": 2, "R": 2, "Q": 2, "A": 2, "U": 2},
+                 "dims": {"D": 32, "K": 4, "H": 8, "M": 8, "C": 4, "G": 2, "R": 2, "Q": 2, "A": 2, "U": 2},
                  "init": "derived"},
 }
 # what Part 3.3 specifies, for checking (the internet row says "10M+" and "configurable")

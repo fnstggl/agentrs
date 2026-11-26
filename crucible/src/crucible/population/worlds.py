@@ -9,7 +9,7 @@ from __future__ import annotations
 from ..core.kernel import WorldSpec
 from . import profiles
 
-BASE = ["identity", "bank", "admin", "artifacts", "cols", "code", "search", "forum", "cloud", "net", "appdb"]
+BASE = ["identity", "bank", "admin", "artifacts", "cols", "space", "code", "search", "forum", "cloud", "net", "appdb"]
 
 
 def population_world(profile: str = "development", seed: int = 0, *, n: int | None = None, sites: int = 24,

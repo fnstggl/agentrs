@@ -30,7 +30,7 @@ from ..core import schema as S
 from ..core.errors import Forbidden, InvalidAction, NotFound, ProtocolError
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import attention, bus, columns, ids
-from . import models, profiles, schema
+from . import models, profiles, schema, semantics
 from .schema import NEVER, TABLE
 
 DAY = 86400
@@ -101,7 +101,8 @@ def n_individuals(world) -> int:
 
 
 FEATURE_DOC = {
-    "interests": "float32[n, D] unit interest vector",
+    "interests": "float32[n, semantics.DIM] unit interest vector in the shared space",
+    "interest_coords": "float32[n, D] the same interests as coordinates of the space's topic subspace",
     "knowledge": "float32[n, D] accumulated topic knowledge (0..1 per dimension)",
     "prefs": "float32[n, P] preferences, names in schema.PREF_NAMES",
     "skills": "float32[n, S] skills, names in schema.SKILL_NAMES",
@@ -132,7 +133,8 @@ def features(world, idx: np.ndarray) -> dict[str, np.ndarray]:
     bud = c("attention_budget_min").astype(np.float32)
     left = c("attention_left_min").astype(np.float32)
     out = {
-        "interests": c("interests").astype(np.float32), "knowledge": c("knowledge").astype(np.float32),
+        "interests": semantics.lift(c("interests")), "interest_coords": c("interests").astype(np.float32),
+        "knowledge": c("knowledge").astype(np.float32),
         "prefs": c("prefs").astype(np.float32), "skills": c("skills").astype(np.float32),
         "beliefs": c("beliefs").astype(np.float32), "goals": c("goals").copy(), "habit": c("habit").copy(),
         "satisfaction": c("satisfaction").copy(), "attention_left_min": left, "attention_budget_min": bud,
@@ -187,6 +189,13 @@ bus.event_type("pop.policy_update", S.obj({
     doc="a neural policy group's parameters changed by learning from its participants' experience")
 
 
+bus.event_type("pop.decision_model", S.obj({"key": {"type": "string"}, "model_id": {"type": "string"},
+                                            "model_version": {"type": "string"}, "fidelity_id": {"type": "string"},
+                                            "kind": {"type": "string"}},
+                                           ["key", "model_id", "model_version", "fidelity_id"]), owner="pop",
+               doc="a decision model was used for the first time in this world (decision provenance registry)")
+
+
 # ============================================================================================ the module
 @register_module
 class Population(Module):
@@ -213,6 +222,7 @@ class Population(Module):
         st = world.state
         st.declare_table("pop_policies")
         st.declare_table("pop_policy_log", index=("group",))
+        st.declare_table("pop_decision_models")
         world.runtime["pop.models"] = models.build(self.config)
         _registry(world)
         bus.enforce(world, owner="pop")
@@ -245,7 +255,6 @@ class Population(Module):
 
     def _initial(self, world, lo: int, hi: int, now: int, derived: bool = False) -> dict[str, np.ndarray]:
         """Heterogeneous initial state of rows [lo, hi): a deterministic function of the world seed."""
-        from . import text
         d = self.d
         m = hi - lo
         rng = world.rng_for("pop-init", lo, hi)
@@ -259,10 +268,9 @@ class Population(Module):
         if wts.sum() <= 0:
             raise ProtocolError("seed_mix needs a positive weight")
         seg = rng.choice(len(SEGMENTS), size=m, p=wts / wts.sum()).astype(np.uint8)
-        # interests: a mixture of 1-3 dominant topics plus idiosyncratic noise
-        T = len(text.TOPIC_NAMES)
-        tw = rng.dirichlet(np.full(T, 0.25), size=m)
-        interests = text.interest_vector(tw, d["D"], rng.normal(0, 0.35 / math.sqrt(d["D"]), (m, d["D"])))
+        # interests: unit coordinates in the shared space's topic subspace, drawn from the embeddings of a real topic
+        # corpus (MIND-small news subcategories; population.semantics, D-16)
+        interests = semantics.interest_prior_coords(rng, m, d["D"])
         # preferences (schema.PREF_NAMES), segment-shifted
         P = d["P"]
         prefs = rng.beta(2.0, 2.0, size=(m, P))
@@ -396,18 +404,24 @@ class Population(Module):
             chosen[st_ix] = pick
         util = np.zeros(due.size, np.float64)
         by_act = {}
-        for a in reg["order"]:
-            sp = reg["spec"][a]
-            sel = np.flatnonzero(chosen == sp["slot"])
-            if sel.size == 0:
-                continue
-            by_act[a] = int(sel.size)
-            out = sp["handler"](ctx, due[sel], now)
-            if out is not None:
-                u = np.asarray(out, np.float64).reshape(-1)
-                if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
-                    raise ProtocolError(f"activity {a} returned {u.shape[0]} utilities for {sel.size} individuals")
-                util[sel] = np.clip(u, -2.0, 2.0)
+        decided: list[str] = []
+        w.runtime["pop.tick.decisions"] = decided       # record_decisions lists its batches here (provenance)
+        try:
+            for a in reg["order"]:
+                sp = reg["spec"][a]
+                sel = np.flatnonzero(chosen == sp["slot"])
+                if sel.size == 0:
+                    continue
+                by_act[a] = int(sel.size)
+                out = sp["handler"](ctx, due[sel], now)
+                if out is not None:
+                    u = np.asarray(out, np.float64).reshape(-1)
+                    if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
+                        raise ProtocolError(f"activity {a} returned {u.shape[0]} utilities for {sel.size} "
+                                            f"individuals")
+                    util[sel] = np.clip(u, -2.0, 2.0)
+        finally:
+            w.runtime.pop("pop.tick.decisions", None)
         # ---- recorded session outcome for every activated individual (re-read: handlers changed state)
         sat = c("satisfaction").astype(np.float64)
         habit = c("habit").astype(np.float32)
@@ -448,7 +462,8 @@ class Population(Module):
                       extra={"t": int(now), "activations": int(due.size), "sessions": int(rows.size),
                              "woken": int(woken.sum()), "by_activity": by_act, "left_platform": left_plat,
                              "switches": int(np.sum(n_sw - c("n_switches"))),
-                             "mean_utility": float(util[rows].mean()) if rows.size else 0.0})
+                             "mean_utility": float(util[rows].mean()) if rows.size else 0.0,
+                             "decisions": decided})
         return {"activations": int(due.size), "sessions": int(rows.size), "by_activity": by_act}
 
     # ------------------------------------------------------------------ daily
@@ -515,6 +530,13 @@ class Population(Module):
         st.put("pop_policies", p["group"], {"group": p["group"], "step": p["step"], "weights_hash": p["weights_hash"],
                                             "t": ev.t, "last_checkpoint": ck, "checkpoints": cks,
                                             "updates": (old or {}).get("updates", 0) + 1})
+
+    @applier("pop.decision_model")
+    def ap_decision_model(self, ev):
+        p = ev.payload
+        self.world.state.insert("pop_decision_models", p["key"], {
+            "model_id": p["model_id"], "model_version": p["model_version"], "fidelity_id": p["fidelity_id"],
+            "kind": p.get("kind", ""), "first_t": ev.t})
 
     @applier("pop.genesis")
     def ap_genesis(self, ev):

@@ -12,7 +12,8 @@ What a visit is made of - all of it real world state:
   deployment in the same availability state (a redeploy, an undeploy, an outage or a suspension invalidates it at
   once). So one recorded fetch serves the cohort that requests the same public page in that window; failures that a
   site's own code produces only at some times are sampled once per page and window.
-* What an individual gets from a page is computed from the page itself (`text.text_vector` of its visible text; its
+* What an individual gets from a page is computed from the page itself (its vector in the shared space, recorded
+  text encoder, `population.semantics`; its
   length, distinct-word share, links, prices) and the individual's own state (interests, knowledge, preferences,
   skills): relevance, richness, novelty; an error page costs its patience. No site carries a quality score.
 * Visits, first visits, returns, abandonment and purchases are recorded decisions: one `cols.batch` on the `pop`
@@ -40,7 +41,7 @@ from ..core import schema as S
 from ..core.errors import CrucibleError, NotFound
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import artifacts, attention, columns, ids
-from . import core, schema, text
+from . import semantics, core, schema, text
 from .schema import NONE_I32, RES_TABLE, TABLE
 
 DAY = 86400
@@ -76,7 +77,7 @@ class PopWeb(Module):
     name = "popweb"
     host = "popweb"
     version = "1"
-    depends = ("pop", "identity", "bank", "code", "cloud", "net", "search", "artifacts", "cols")
+    depends = ("pop", "space", "identity", "bank", "code", "cloud", "net", "search", "artifacts", "cols")
 
     def install(self, world):
         pop = world.modules["pop"]
@@ -209,9 +210,9 @@ class PopWeb(Module):
         body = r.get("body") if isinstance(r.get("body"), str) else ""
         parsed = text.parse_page(body, r.get("content_type", "")) if status == 200 else \
             {"text": "", "title": "", "paths": [], "hosts": [], "prices": []}
-        vec, stt = text.text_vector(parsed["title"] + " " + parsed["text"], self.D)
-        if status != 200:
-            vec = np.zeros(self.D, np.float32)
+        page_text = (parsed["title"] + " " + parsed["text"]).strip()
+        stt = {"uniq": semantics.text_features(page_text)["distinct_ratio"]}
+        vec = self._coords(ctx, [page_text])[0] if status == 200 and page_text else np.zeros(self.D, np.float32)
         dep_id, why = self._dep_state(st, host)
         out = {"key": key, "host": host, "path": path, "status": status, "digest": text.body_digest(body),
                "dep": dep_id, "why": why, "title": parsed["title"], "vec": [round(float(x), 3) for x in vec],
@@ -239,7 +240,7 @@ class PopWeb(Module):
         safe = np.clip(known, 0, max(R - 1, 0))
         if R:
             rv = columns.col(w, RES_TABLE, "vec")[safe].astype(np.float32)
-            match = text.cosine(inter[:, None, :], rv)
+            match = np.einsum("nd,nkd->nk", inter, rv)          # full-space cosine (interests are unit)
             fetched = columns.col(w, RES_TABLE, "fetched_at")[safe] >= 0
             match = np.where(fetched, match, 0.15)      # never seen: a neutral expectation
         else:
@@ -359,7 +360,7 @@ class PopWeb(Module):
                 if r["path"] == "/":
                     new_seen[int(rows[act[first_i[k]]])] = r
             ok, V, chars, uniq = P_ok[inv], P_V[inv], P_chars[inv], P_uniq[inv]
-            rel = text.cosine(inter[act], V) * ok
+            rel = np.einsum("nd,nd->n", inter[act], V.astype(np.float32)) * ok
             if depth == 0:
                 match0[act] = rel
             rich = np.sqrt(np.minimum(1.0, chars / 2000.0)) * np.clip(uniq * 1.6, 0, 1)
@@ -653,10 +654,11 @@ class PopWeb(Module):
         rows, via, frm = self._choose(ctx, idx, now, rng)
         return self._visit(ctx, idx, rows, via, frm, now, "web")
 
-    def _search(self, world, q: str, lim: int, version) -> list[tuple[str, np.ndarray]]:
+    def _search(self, ctx: Ctx, q: str, lim: int, version) -> list[tuple[str, np.ndarray]]:
         """Organic search results for `q` among indexed web pages: [(host, snippet vector)]. Cached per version of
         the page index (number of indexed pages and the last page-indexing event; pages change when the crawler runs),
         so a cache hit equals a fresh search."""
+        world = ctx.world
         cache = world.runtime.setdefault("popweb.search", {})
         if cache.get("version") != version:
             cache.clear()
@@ -665,12 +667,15 @@ class PopWeb(Module):
         if hit is not None:
             return hit
         _, organic, _ = world.modules["search"].search(world, q, "page", lim)
-        hs, seen = [], set()
+        hs, seen, snippets = [], set(), []
         for r in organic:
             h = _host_of_result(r)
             if h and h not in seen and self._is_web(world.state, h):
                 seen.add(h)
-                hs.append((h, text.text_vector(r.get("snippet", "") + " " + r.get("title", ""), self.D)[0]))
+                hs.append(h)
+                snippets.append((r.get("snippet", "") + " " + r.get("title", "")).strip() or h)
+        vecs = self._coords(ctx, snippets) if snippets else np.zeros((0, self.D), np.float32)
+        hs = [(h, vecs[j]) for j, h in enumerate(hs)]
         cache[q] = hs
         return hs
 
@@ -682,7 +687,7 @@ class PopWeb(Module):
         skills = c("skills").astype(np.float64)
         prefs = c("prefs").astype(np.float64)
         aband = c("abandoned")
-        qs = np.array(text.query_words(inter, rng, 1.0 - 0.8 * skills[:, 0]))
+        qs = np.array(semantics.query_words(inter, rng, 0.15 * (1.0 - 0.8 * skills[:, 0])))
         lim = int(self.config.get("search_limit", 6))
         tbl = w.state.tables["search_docs"]
         pages = w.state.find_ids("search_docs", "kind", "page")
@@ -692,7 +697,7 @@ class PopWeb(Module):
         n_res = np.zeros(idx.size, np.int16)
         rank = np.full(idx.size, -1, np.int16)
         for k, q in enumerate(uq):
-            hs = self._search(w, str(q), lim, version)
+            hs = self._search(ctx, str(q), lim, version)
             sel = np.flatnonzero(qinv == k)
             if not hs:
                 continue
@@ -702,7 +707,7 @@ class PopWeb(Module):
                 continue
             rows_q = rows_q[okr]
             sv = np.stack([v for (h, v), o in zip(hs, okr) if o])
-            sc = 2.0 * text.cosine(inter[sel][:, None, :], sv[None, :, :]) - 0.35 * np.arange(rows_q.size)[None, :] + \
+            sc = 2.0 * (inter[sel] @ sv.T) - 0.35 * np.arange(rows_q.size)[None, :] + \
                 rng.gumbel(size=(sel.size, rows_q.size)) * (0.4 + 0.3 * prefs[sel, 1:2])
             blocked = (aband[sel][:, :, None] == rows_q[None, None, :]).any(axis=1)
             sc = np.where(blocked, -np.inf, sc)
@@ -727,15 +732,21 @@ class PopWeb(Module):
         return U
 
     # ------------------------------------------------------------------ the forum (4.0 forum module)
-    def _post_vec(self, world, pid: str, post) -> tuple[np.ndarray, float]:
-        cache = world.runtime.setdefault("popweb.posts", {})
-        hit = cache.get(pid)
-        if hit is None:
-            v, stt = text.text_vector(post["title"] + " " + post.get("body", ""), self.D)
-            rich = math.sqrt(min(1.0, len(post.get("body", "")) / 1200.0)) * min(1.0, stt["uniq"] * 1.6)
-            hit = (v, rich)
-            cache[pid] = hit
-        return hit
+    def _post_vecs(self, ctx: Ctx, posts: list) -> list[tuple[np.ndarray, float]]:
+        """(vector in the interest coordinates, richness) of forum posts, from their text."""
+        texts = [(p["title"] + " " + p.get("body", "")).strip() or "post" for p in posts]
+        V = self._coords(ctx, texts) if texts else np.zeros((0, self.D), np.float32)
+        out = []
+        for j, p in enumerate(posts):
+            stt = semantics.text_features(texts[j])
+            rich = math.sqrt(min(1.0, len(p.get("body", "")) / 1200.0)) * min(1.0, stt["distinct_ratio"] * 1.6) * \
+                (0.3 + 0.7 * semantics.legibility(stt))
+            out.append((V[j], rich))
+        return out
+
+    def _coords(self, ctx: Ctx, texts: list[str]) -> np.ndarray:
+        """Interest-space coordinates of texts (recorded text encoder, population.semantics)."""
+        return semantics.project(semantics.text_vectors(ctx.world, list(texts), ctx=ctx), self.D)
 
     def _board_id(self, ctx, board: str) -> int:
         r = ctx.state.get("pop_boards", board)
@@ -763,10 +774,10 @@ class PopWeb(Module):
         U = np.full(n, -0.05)
         minutes = np.zeros(n)
         boards = sorted(st.tables["forum_boards"])
-        bmat = np.stack([text.text_vector(st.tables["forum_boards"][b]["title"] + " " +
-                                          st.tables["forum_boards"][b].get("description", ""), self.D)[0]
-                         for b in boards]) if boards else np.zeros((0, self.D), np.float32)
-        topics = np.argmax(inter @ text.topic_matrix(self.D).T, axis=1)
+        bmat = self._coords(ctx, [(st.tables["forum_boards"][b]["title"] + " " +
+                                   st.tables["forum_boards"][b].get("description", "")).strip() or b
+                                  for b in boards]) if boards else np.zeros((0, self.D), np.float32)
+        topics = semantics.nearest_topic(inter)
         # which post each reader reads: the shared public feed, or its own feed when it follows anything
         public = forum.feed(w, "pop:anyone", 20)
         read = [None] * n
@@ -779,7 +790,7 @@ class PopWeb(Module):
             feed = public if key is None else forum.feed(w, f"p{int(idx[key])}", 20)
             if not feed or not js:
                 continue
-            pv = [self._post_vec(w, p["post"], st.tables["forum_posts"][p["post"]]) for p in feed]
+            pv = self._post_vecs(ctx, [st.tables["forum_posts"][p["post"]] for p in feed])
             M = np.stack([v for v, _ in pv])
             rich = np.array([r for _, r in pv])
             js = np.array(js)
@@ -794,7 +805,7 @@ class PopWeb(Module):
             start = idle[rng.random(idle.size) < 0.15 + 0.5 * prefs[idle, 6]]
             for j in start:
                 b = boards[int(np.argmax(bmat @ inter[j]))]
-                self._write(ctx, int(idx[j]), "post", b, text.TOPIC_NAMES[topics[j]], rng, acts)
+                self._write(ctx, int(idx[j]), "post", b, int(topics[j]), rng, acts)
                 U[j] = 0.1
         if readers.size:
             rel = np.array([read[j][1] for j in readers])
@@ -816,7 +827,7 @@ class PopWeb(Module):
                 pr = st.tables["forum_posts"][post["post"]]
                 i = int(idx[j])
                 if reply[a]:
-                    self._write(ctx, i, "reply", post["post"], text.TOPIC_NAMES[topics[j]], rng, acts)
+                    self._write(ctx, i, "reply", post["post"], int(topics[j]), rng, acts)
                 if vote[a]:
                     self._call(ctx, i, "forum.vote", {"post": post["post"], "value": 1}, acts, "vote")
                 if follow[a] and pr["author"] != f"p{i}":
@@ -874,8 +885,9 @@ class PopWeb(Module):
             return False
 
     def _write(self, ctx, i, kind, target, topic, rng, acts) -> None:
-        """Write a reply or a new post in the individual's own words (from its topic), naming a site it likes."""
-        from .sites import compose
+        """Write a reply or a new post about its topic (population.writing, from a real corpus), naming a site it
+        likes."""
+        from . import writing
         w = ctx.world
         ks = columns.col(w, TABLE, "known_sat")[i]
         kn = columns.col(w, TABLE, "known")[i]
@@ -885,12 +897,12 @@ class PopWeb(Module):
             hosts = self._hosts(w)
             if r < len(hosts):
                 fav = f" I found {hosts[r]}.crucible useful."
-        body = compose(rng, text.TOPICS[topic], int(rng.integers(12, 40))) + fav
+        skill = float(columns.col(w, TABLE, "skills")[i, 1])
+        title, body = writing.compose(rng, topic, int(rng.integers(1, 4)), skill)
+        body = body + fav
         if kind == "reply":
             self._call(ctx, i, "forum.reply", {"post": target, "body": body}, acts, "reply")
         else:
-            words = text.TOPICS[topic]
-            title = f"{words[int(rng.integers(0, len(words)))]} and {words[int(rng.integers(0, len(words)))]}".capitalize()
             self._call(ctx, i, "forum.post", {"board": target, "title": title, "body": body}, acts, "post")
 
     # ------------------------------------------------------------------ owner analytics
