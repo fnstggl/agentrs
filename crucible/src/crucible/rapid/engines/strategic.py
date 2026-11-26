@@ -110,7 +110,7 @@ class Strategic(RapidEngine):
                    "inc_kind", "inc_cost", "patience", "takeover", "cp_v", "cp_r0", "cp_kind", "cp_e", "cp_zeta", "opp_value",
                    "opp_budget", "decisive", "memory", "att_util", "penalty", "kappa", "B", "forget", "w",
                    "value_sd", "Kp", "rp", "allee", "crowd", "shock_sd", "spells", "spell_mortality", "typeA", "typeB", "qualA", "qualB", "labelA",
-                   "labelB", "skills", "reservation", "reliability")
+                   "labelB", "skills", "reservation", "reliability", "draw", "regen")
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -223,7 +223,8 @@ class Strategic(RapidEngine):
             return {"S": [float(k) * float(f) for k, f in zip(c["Kp"], c["s0_frac"])], "ground": [-1] * 3,
                     "effort": [0.0] * 3, "collapsed": [0] * len(c["patch_names"])}
         if sc == "discovery":
-            return {"tests": 0, "pend_cost": [0.0, 0.0], "pend_rev": [0.0, 0.0], "found": []}
+            return {"tests": 0, "pend_cost": [0.0, 0.0], "pend_rev": [0.0, 0.0], "found": [],
+                    "sA": [1.0] * len(c["ingr_a"]), "sB": [1.0] * len(c["ingr_b"])}
         # formation
         W = len(c["worker_names"])
         return {"pay": [0.0] * W, "trust": [1.0] * W, "task": list(c["task0"]), "done": 0}
@@ -306,8 +307,14 @@ class Strategic(RapidEngine):
         if self.sc == "discovery":
             a, b = c["ingr_a"].index(plan["a"]), c["ingr_b"].index(plan["b"])
             match = c["typeA"][a] == c["typeB"][b]
-            y = float(c["base_yield"]) * float(c["qualA"][a]) * float(c["qualB"][b]) if match else 0.0
+            # yield scales with what is left of both ingredients' stocks; a run draws both down
+            fresh = float(state["sA"][a]) * float(state["sB"][b]) if "sA" in state else 1.0
+            y = float(c["base_yield"]) * float(c["qualA"][a]) * float(c["qualB"][b]) * fresh if match else 0.0
             y = max(0.0, y + float(c["yield_sd"]) * float(rng.standard_normal()))
+            if "sA" in state:
+                dr = float(c.get("draw", 0.0))
+                state["sA"][a] = float(state["sA"][a]) * (1.0 - dr)
+                state["sB"][b] = float(state["sB"][b]) * (1.0 - dr)
             state["tests"] += 1
             for p in range(n):
                 state["pend_rev"][p] += float(c["unit_price"]) * y / n
@@ -678,6 +685,10 @@ class Strategic(RapidEngine):
         c = self.config
         ags = self.agents
         z = rng.standard_normal((2, len(c["ingr_a"])))
+        if "sA" in st:                                    # ingredient stocks replenish toward full
+            g = float(c.get("regen", 0.0))
+            st["sA"] = [float(x) + g * (1.0 - float(x)) for x in st["sA"]]
+            st["sB"] = [float(x) + g * (1.0 - float(x)) for x in st["sB"]]
         rev = {x: st["pend_rev"][i] for i, x in enumerate(ags)}
         cost = {x: st["pend_cost"][i] for i, x in enumerate(ags)}
         st["pend_rev"], st["pend_cost"] = [0.0, 0.0], [0.0, 0.0]
@@ -807,7 +818,7 @@ class Strategic(RapidEngine):
             nodes = ["a0", "a1", "test"]
             edges = [{"src": "a0", "dst": "test", "kind": "ingredient", "lag": 0},
                      {"src": "a1", "dst": "test", "kind": "ingredient", "lag": 0}]
-            hidden = {"typeA": c["typeA"], "typeB": c["typeB"]}
+            hidden = {"typeA": c["typeA"], "typeB": c["typeB"], "draw": c.get("draw")}
         else:
             nodes = ["a0"] + [f"worker{w}" for w in range(len(c["worker_names"]))] + ["task"]
             edges = [{"src": "a0", "dst": f"worker{w}", "kind": "pay", "lag": 0} for w in range(len(c["worker_names"]))]

@@ -535,11 +535,15 @@ def team_commons(rng, d):
 
 @family("team_discovery", engine="strategic", category="8.9", item="8.9.5", split="train",
         doc="Two participants each own ingredients of hidden types; a joint test of one ingredient from each yields "
-            "only if their types match; private assays label each side's ingredients in that side's own labels.",
+            "only if their types match; private assays label each side's ingredients in that side's own labels. "
+            "Running a pair draws both ingredients down and they replenish slowly, so the team needs several "
+            "compatible pairs, not one.",
         distinct_because="collaborative discovery: the matching between two privately labelled partitions can only "
-                         "be found by joint experiments; assays, messages and joint tests are complementary",
+                         "be found by joint experiments; assays, messages and joint tests are complementary; "
+                         "depleting, replenishing ingredient stocks make the whole matching worth knowing",
         axes={"action_complexity": 5, "hidden_state_complexity": 3, "horizon": 40, "experiment_cost": 15.0},
-        objective="maximize_net", participants=("teammate:ingredient_owner",), **hooks("discovery"))
+        objective="maximize_net", participants=("teammate:ingredient_owner",), version="2",
+        **dict(hooks("discovery"), claims=(E + "claim_discovery", E + "claim_discovery_depletion")))
 def team_discovery(rng, d):
     n = int(d["action_complexity"])
     T = max(2, int(d["hidden_state_complexity"]))
@@ -553,13 +557,14 @@ def team_discovery(rng, d):
             "ingr_a": names[:n], "ingr_b": names[n:], "typeA": types(), "typeB": types(),
             "qualA": [u(rng, 0.6, 1.5) for _ in range(n)], "qualB": [u(rng, 0.6, 1.5) for _ in range(n)],
             "labelA": [labels[int(i)] for i in rng.permutation(T)], "labelB": [labels[int(i)] for i in rng.permutation(T)],
-            "base_yield": 100.0, "yield_sd": 3.0, "unit_price": 2.0, "try_cost": 40.0,
+            "base_yield": 100.0, "yield_sd": 3.0, "unit_price": 2.0, "try_cost": 40.0, "draw": 0.3, "regen": 0.12,
             "assay_cost": float(d["experiment_cost"]), "purity_sd": 0.25, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise the team's yield revenue minus test and assay "
                                                           "costs."},
             "brief": f"You and a partner each own {n} ingredients. A joint test (coordinate, both) of one ingredient "
                      "from each costs 40 and yields product (2 per unit) only if the two are compatible; a compatible "
-                     "pair can be run again every period. An assay (query) gives the class of one of your own "
+                     "pair can be run again every period, but a run draws down both ingredients, which replenish "
+                     "slowly. An assay (query) gives the class of one of your own "
                      "ingredients in your own labelling; your partner's labels are not yours. Purity readings hint "
                      "at quality."}
 

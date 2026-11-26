@@ -2364,7 +2364,17 @@ def oracle_discovery(env) -> dict:
 
     def fn(e):
         return _test(e.agents(), c["ingr_a"][i], c["ingr_b"][j]) if worth else None
-    return best_of(env, {"knows the best compatible pair": fn})
+
+    def greedy(e):
+        """Knows types, qualities and the current stocks: run the compatible pair with the highest yield now."""
+        s_ = e._state
+        best, bv = None, float(c["try_cost"])
+        for q_, i_, j_ in pairs:
+            y = float(c["unit_price"]) * float(c["base_yield"]) * q_ * float(s_["sA"][i_]) * float(s_["sB"][j_])
+            if y > bv:
+                best, bv = (i_, j_), y
+        return _test(e.agents(), c["ingr_a"][best[0]], c["ingr_b"][best[1]]) if best else None
+    return best_of(env, {"knows the best compatible pair": fn, "runs the freshest compatible pair": greedy})
 
 
 def _disc_explore(view, env, exploit=True):
@@ -2437,19 +2447,44 @@ def _disc_explore(view, env, exploit=True):
         r = view.step(_test(ags, ia, ib))
         res = r["results"][ags[0]]
         tried[(ia, ib)] = res["result"].get("yield", 0.0) if res.get("ok") and res["result"].get("agreed") else 0.0
-    best = max(tried, key=tried.get) if tried else None
+    # exploitation: every compatible pair the class matching implies, ranked by its last yield (or, untried, by
+    # purities); each period run the pair with the highest yield expected now - a pair's last yield, recovered
+    # toward its first yield with the time since its ingredients were last used (both stocks replenish)
+    first = {k: v for k, v in tried.items() if v > 18.0}
+    last = dict(first)
+    used = {}                                          # ingredient -> period last used
+    for k in tried:
+        used[k[0]] = used[k[1]] = view.t
+    scale = (float(np.mean(list(first.values()))) / max(1e-9, float(np.mean([pa.get(a_, 1.0) * pb.get(b_, 1.0)
+                                                                          for a_, b_ in first]))) if first else 100.0)
+    for _, ia, ib in cands:
+        if (ia, ib) not in first:
+            first[(ia, ib)] = scale * pa.get(ia, 1.0) * pb.get(ib, 1.0)
+            last[(ia, ib)] = first[(ia, ib)]
     while not view.done:
-        if best is None or tried[best] * 2.0 <= 40.0:            # public price 2 and test cost 40
+        best, bv = None, 0.0
+        for k, y0 in first.items():
+            idle = view.t - max(used.get(k[0], -99), used.get(k[1], -99))
+            rec = 1.0 - (1.0 - min(1.0, last[k] / max(y0, 1e-9))) * (0.88 ** max(0, idle))
+            v = y0 * rec
+            if v > bv:
+                best, bv = k, v
+        if best is None or bv * 2.0 <= 40.0:            # public price 2 and test cost 40
             view.step(None)
-        else:
-            view.step(_test(ags, *best))
+            continue
+        r = view.step(_test(ags, *best))
+        res = r["results"][ags[0]]
+        y = res["result"].get("yield", 0.0) if res.get("ok") and res["result"].get("agreed") else 0.0
+        last[best] = y
+        used[best[0]] = used[best[1]] = view.t
     return match
 
 
 def reference_discovery(view, env):
     """Public, per participant: assay one's own ingredients, exchange labels and purity readings by message, test
     one pair for each pair of classes (highest purities first) until the classes are matched, try the best
-    candidates within matched classes, then run the best pair found every period."""
+    candidates within matched classes, then each period run the compatible pair whose yield is expected to be
+    highest now (its last yield recovering with the time its ingredients rested)."""
     _disc_explore(view, env, exploit=True)
 
 
@@ -2480,6 +2515,31 @@ def claim_discovery(env) -> dict:
     rs = solo.step({ags[0]: _test(ags, c["ingr_a"][0], c["ingr_b"][0])[ags[0]]})
     return {"ok": wrong == 0 and not rs["results"][ags[0]]["result"].get("agreed"), "misclassified_pairs": wrong,
             "pairs": len(c["ingr_a"]) * len(c["ingr_b"])}
+
+
+def claim_discovery_depletion(env) -> dict:
+    """Ingredients deplete and replenish: running the best compatible pair every period for six periods, its yield
+    in the sixth run is below half of the first; after the ingredients rest ten periods it is back above 2.5 times
+    the sixth run and above 40% of the first (four noise replicates)."""
+    eng, st, c = inside(env)
+    pairs = [(float(c["qualA"][i]) * float(c["qualB"][j]), i, j) for i in range(len(c["ingr_a"]))
+             for j in range(len(c["ingr_b"])) if c["typeA"][i] == c["typeB"][j]]
+    _, i, j = max(pairs)
+    ags = env.agents()
+    act = _test(ags, c["ingr_a"][i], c["ingr_b"][j])
+    first, sixth, rested = [], [], []
+    for r in range(4):
+        e = replicate(env, r)
+        ys = []
+        for _ in range(6):
+            ys.append(e.step(act)["results"][ags[0]]["result"]["yield"])
+        for _ in range(10):
+            e.step(None)
+        rested.append(e.step(act)["results"][ags[0]]["result"]["yield"])
+        first.append(ys[0])
+        sixth.append(ys[-1])
+    f, x, y = float(np.mean(first)), float(np.mean(sixth)), float(np.mean(rested))
+    return {"ok": x < 0.5 * f and y > 2.5 * x and y > 0.4 * f, "first_run": f, "sixth_run": x, "after_rest": y}
 
 
 # ====================================================================== 8.9.6 team formation
