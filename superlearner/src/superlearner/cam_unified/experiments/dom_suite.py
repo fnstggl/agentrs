@@ -492,17 +492,23 @@ class LatentSwapAgent:
             a.archive = None                            # probes never write experience
             try:
                 own = a.act(obs, tools)
+                z_own = a.state.Z.detach().float().clone()
                 self._restore(snap)
                 perm = live[1:] + live[:1]              # derangement of the live rows
                 Z = a.state.Z.clone()
                 for b, d in zip(live, perm):
                     a.state.Z[b] = Z[d]
                 swap = a.act(obs, tools)
+                z_swap = a.state.Z.detach().float().clone()
                 self._restore(snap)
             finally:
                 a.archive = arc
+            Zf = Z.detach().float()
             for b, d in zip(live, perm):
-                self.probes.append({"probe": n, "row": b, "donor": d, "own": self._key(own[b]),
+                rel_in = float((Zf[d] - Zf[b]).norm() / Zf[b].norm().clamp(min=1e-12))
+                rel_out = float((z_swap[b] - z_own[b]).norm() / z_own[b].norm().clamp(min=1e-12))
+                self.probes.append({"probe": n, "row": b, "donor": d, "z_in_rel_diff": rel_in,
+                                    "z_out_rel_diff": rel_out, "own": self._key(own[b]),
                                     "swap": self._key(swap[b]), "donor_own": self._key(own[d]),
                                     "own_tool": getattr(own[b], "tool", None), "swap_tool": getattr(swap[b], "tool", None),
                                     "donor_tool": getattr(own[d], "tool", None)})
@@ -516,9 +522,15 @@ class LatentSwapAgent:
         tch = sum(p["own_tool"] != p["swap_tool"] for p in P) / len(P)
         dag = sum(p["swap_tool"] == p["donor_tool"] for p in P) / len(P)
         base = sum(p["own_tool"] == p["donor_tool"] for p in P) / len(P)
+        zin = [p["z_in_rel_diff"] for p in P if "z_in_rel_diff" in p]
+        zout = [p["z_out_rel_diff"] for p in P if "z_out_rel_diff" in p]
         return {"g_probes": len(P), "g_action_change_rate": ch, "g_tool_change_rate": tch,
                 "g_donor_tool_agreement": dag, "g_own_donor_tool_agreement": base,
-                "g_donor_follow_excess": dag - base}
+                "g_donor_follow_excess": dag - base,
+                # the intervention reached the latent: relative difference of the swapped-in Z_{t-1} and of the
+                # resulting Z_t (a nonzero latent change with no action change measures a decision bypass)
+                "g_z_prev_rel_diff_mean": sum(zin) / len(zin) if zin else None,
+                "g_z_next_rel_diff_mean": sum(zout) / len(zout) if zout else None}
 
 
 # ============================================================================================ integrity scan
