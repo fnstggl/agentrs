@@ -50,7 +50,10 @@ def _measured(axis: str, family: str):
     if axis == "opponent_capability":
         if F.FAMILIES[family].engine == "primitive_graph":
             return _rival_speed(lo_env), _rival_speed(hi_env)
-        return _changed_number(lo_cfg, hi_cfg, ("eta", "memory", "lr", "rate"))
+        a, b = _changed_number(lo_cfg, hi_cfg, ("eta", "memory", "lr", "rate"))
+        if a is None and "forget" in lo_cfg:              # a learner that forgets old regrets adapts faster
+            a, b = 1.0 - float(lo_cfg["forget"]), 1.0 - float(hi_cfg["forget"])
+        return a, b
     if axis == "resources":
         r = _resources(lo_cfg), _resources(hi_cfg)
         return r if None not in r else _changed_number(lo_cfg, hi_cfg, ("budget", "crew", "capacity", "slots",
@@ -71,20 +74,23 @@ def _changed_number(lo_cfg, hi_cfg, keys):
 
 
 def _noise_sd(env):
+    """Spread of tick-to-tick changes of the first reading while waiting; None when the world shows no reading
+    while one waits (its noise lives in query results and is measured through another family)."""
     e = env
     vals = []
     for _ in range(30):
         n = e.step(None)["observation"]["numbers"]
-        vals.append(list(n.values())[0])
-    return float(np.std(np.diff(vals)))
+        if n:
+            vals.append(list(n.values())[0])
+    return float(np.std(np.diff(vals))) if len(vals) >= 3 else None
 
 
 def _size(cfg):
     for k in ("n_nodes", "K", "G"):
         if k in cfg:
             return cfg[k]
-    for k in ("theta", "cap", "mu", "eta"):
-        if k in cfg:
+    for k in ("theta", "cap", "mu", "eta", "route_names", "site_names"):
+        if k in cfg and isinstance(cfg[k], list):
             return len(cfg[k])
     return len(cfg.get("nodes", []))
 
@@ -148,10 +154,7 @@ def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
         fams = [n for n in sorted(admitted) if axis in F.FAMILIES[n].axes]
         ok = False
         for fam in fams:
-            try:
-                a, b = _measured(axis, fam)
-            except Exception:  # noqa: BLE001 - a family whose quantity this gate cannot measure is skipped
-                continue
+            a, b = _measured(axis, fam)
             if a is not None and b is not None and b > a:
                 ok, where[axis] = True, f"{fam}: {a:.4g} -> {b:.4g}"
                 break

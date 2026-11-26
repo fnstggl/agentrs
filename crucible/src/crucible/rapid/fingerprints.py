@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from typing import Any
 
-FP_VERSION = "rapid-fp/2"
+FP_VERSION = "rapid-fp/3"
 WEIGHTS = {"engine": 1.0, "motifs": 2.0, "motif_edges": 1.0, "topology": 1.0, "temporal": 1.0, "observation": 1.0,
            "action_interface": 1.5, "objective": 1.0, "participants": 0.5}
 PROBE_SEEDS = tuple(range(8))      # instances whose structures are united into the family's fingerprint
@@ -184,10 +184,11 @@ def _observed_structure(env) -> dict:
         if not e.done:
             obs.append(e.step(None)["observation"])
     return {"readings": any(o["numbers"] for o in obs), "arrays": any(o["arrays"] for o in obs),
-            # entity kinds listed from the start (a catalogue the world shows); kinds that come and go with events
-            # (a job waiting, a trip) depend on what happens, so only whether entities appear at all counts
+            # entity kinds listed from the start (a catalogue the world shows); entities that come and go with
+            # events (a job waiting, a unit tripping) depend on what happens - on coefficients - so they are not
+            # structure (a parameter variant once differed from its family only in whether a trip happened in
+            # the first ticks)
             "entities": sorted({str(x.get("kind") or "entity") for x in obs[0]["entities"]}),
-            "event_entities": any(o["entities"] for o in obs[1:]),
             "resources": sorted({_resource_kind(k) for o in obs for k in o["resources"]})}
 
 
