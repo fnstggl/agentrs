@@ -1,10 +1,15 @@
 {
- "version": 1,
+ "version": 2,
  "project": "CAM 7.0 Unified",
- "branch": "feat/cam-7.0-unified",
+ "branch": "feat/cam-7.0-unified-complete",
  "base_commit": "f3cee12",
  "crucible_commit": "c07098b",
- "spec": "superlearner/docs/CAM_UNIFIED_SPEC.md",
+ "spec": [
+  "superlearner/docs/CAM_UNIFIED_SPEC.md",
+  "superlearner/docs/CAM_UNIFIED_SPEC_RECOVERY_2026-11-26.md",
+  "superlearner/docs/CAM_UNIFIED_SPEC_META_REWARDS.md",
+  "superlearner/docs/CAM_UNIFIED_SPEC_DOM.md"
+ ],
  "allowed_statuses": [
   "NOT_STARTED",
   "IN_PROGRESS",
@@ -19,7 +24,9 @@
   "IMPLEMENTED requires existing implementation files and at least one acceptance test id that exists.",
   "INTEGRATION_TESTED requires at least one integration test id and must be confirmed by workstream H (verified_by).",
   "EMPIRICALLY_DEMONSTRATED / FAILED_EMPIRICALLY require evidence entries pointing at result files or ledger sections.",
-  "Do not weaken acceptance tests to make an incomplete implementation appear finished."
+  "Do not weaken acceptance tests to make an incomplete implementation appear finished.",
+  "Engineering completion and scientific success are separate: FAILED_EMPIRICALLY is a valid, honest final status for an implemented, integrated capability whose experiment did not show the intended benefit.",
+  "Requirements from CAM_UNIFIED_SPEC_META_REWARDS.md and CAM_UNIFIED_SPEC_DOM.md are mandatory and are tracked here with the same evidence rules; `python -m superlearner.verify_completion` enforces them."
  ],
  "workstreams": {
   "A": "Semantic grounding and executable actions",
@@ -29,7 +36,13 @@
   "E": "Lifetime memory and continual learning",
   "F": "Distributed learning",
   "G": "Full Crucible OpenWorld",
-  "H": "Independent verification"
+  "H": "Independent verification",
+  "OB": "Observation-only Crucible 5.0 integration (meta-reward spec workstream F)",
+  "SE": "Learned goal-conditioned self-evaluation (meta-reward spec B)",
+  "IR": "Meta-learned intrinsic reward function (meta-reward spec C)",
+  "CR": "Retrospective and counterfactual credit assignment (meta-reward spec D)",
+  "AU": "Autonomous curriculum and learning without assigned goals (meta-reward spec E)",
+  "DM": "Neural capacity and CAM strategic dominance (DOM amendment)"
  },
  "requirements": [
   {
@@ -2080,6 +2093,1268 @@
    "limitations": [
     "Durable backups: code is pushed to GitHub; checkpoints and run outputs have no authorized off-box destination yet."
    ],
+   "verified_by": null
+  },
+  {
+   "id": "OB-01",
+   "title": "Crucible 5.0 observation_only mode exists and is the default reward_mode for every new CAM run",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-02",
+   "title": "Native shaped rewards disabled and reward/progress/verifier/hidden-mechanism leakage through observations, info and tool results eliminated (audited by an executable leakage test over every env family CAM trains on)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.2, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [
+    "OB-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-03",
+   "title": "Independent outcome verification functional with three separate channels: actor observations, released training outcome labels, private evaluation state (actor cannot read the latter)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.3, 2.4, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [
+    "OB-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-04",
+   "title": "Goal-free persistent operation: the environment runs with no assigned objective and no secret default objective",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.5, 9.1, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [
+    "OB-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-05",
+   "title": "Delayed outcomes represented correctly: pending vs verified-success vs verified-failure vs uncertain, never pending->failure",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.3, 4.1, 11.2",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-06",
+   "title": "Full OpenWorld (Crucible kernel tier) exercised by CAM in observation_only mode",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2, 15 Exp K, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [
+    "OB-01",
+    "A17"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-07",
+   "title": "Historical reward-based baselines remain reproducible (legacy_shaped_reward / verified_terminal_outcome modes)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "OB-08",
+   "title": "Diverse structurally different training world families (Crucible 5.0 registry) with untouched held-out families",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 14, 16",
+   "workstream": "OB",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "UR-01",
+   "title": "Exact numerical evidence with provenance preserved alongside learned representations (entity/event/action ids, timestamps, reliability, missingness masks, outcome maturity, uncertainty, policy version, reward-model version)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 3.2",
+   "workstream": "A",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "UR-02",
+   "title": "Goal encoder e_g=G(g) and action encoder e_a=A(a) in the shared latent space used by evaluation, intrinsic reward, credit and policy",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 3.1, 3.3",
+   "workstream": "B",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-01",
+   "title": "Goal-conditioned success predictor p_t=V_success(b_t,e_g,horizon,policy_context) trained with BCE-with-logits on independently verified eventual outcomes over many trajectory prefixes",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.1",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "OB-03",
+    "OB-05"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-02",
+   "title": "Distributional outcome predictions: magnitude, time-to-success (censoring-aware survival), resource consumption, potential losses, sustainability, uncertainty",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.2",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-03",
+   "title": "Pending outcomes never labelled as failures; censored targets handled",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.1, 16",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-04",
+   "title": "Calibration measured on independent trajectories with predictions recorded before outcomes: NLL, Brier, reliability diagram, ECE, calibration slope/intercept, by domain/horizon/difficulty; prevalence and frozen-model baselines",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.3, Exp A",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-05",
+   "title": "Stable value evaluation under a changing policy: policy-version conditioning, frozen target evaluator, recalibration/cross-fitting",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.5",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "SE-06",
+   "title": "Intermediate-significance progress estimate (change in predicted prospects) kept separate from action quality and never counted as verified achievement",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.4",
+   "workstream": "SE",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-01",
+   "title": "Trainable intrinsic reward generator r=R_psi(b_t,e_a,b_next,e_g,uncertainty,outcome_evidence,learning_context), bounded, versioned, recorded separately from verified outcomes, works with and without a goal",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.1",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "UR-02"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-02",
+   "title": "CAM's actor is trained from internally generated rewards (internal-reward-only actor training is the default research configuration; no native Crucible reward)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.2, 11.3",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-01",
+    "OB-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-03",
+   "title": "Differentiable inner learning update theta_{k+1}=theta_k - alpha grad L_inner(theta_k; psi, D_k) (functional, truncated K in {1,2,4,8}) on real collected experience",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.2, 5.5",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-04",
+   "title": "Outer lifetime objective J_outer(psi)=E[U_verified(tau_query; theta_K(psi))] on fresh query experience; psi updated by the meta-gradient through the inner updates (score-function surrogate with verified returns)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.3, 11.4",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-03",
+    "OB-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-05",
+   "title": "Lifetime value function grounded in subsequent independently verified lifetime performance (never intrinsic rewards alone)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.4",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-06",
+   "title": "Meta-gradient correctness: exact vs truncated on small problems, finite-difference direction check, removing the meta-gradient removes the pathway",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.5, Exp J",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-07",
+   "title": "Learned reward transfer: unfamiliar mechanisms, unfamiliar objectives, differently initialised learners, alternative policy architectures, cleared episodic memory, fixed reward",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.6, Exp G",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-08",
+   "title": "Reward stability: magnitude controls, normalisation from legitimate statistics, reward-model versioning, meta-gradient clipping, checkpoint promotion only on independent validation, rollback",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 12.3",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "IR-09",
+   "title": "Safeguards: learner/reward network cannot modify goal definitions, verifier, permissions, budgets or sealed evaluation sets (enforced by process/API boundary and tested)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.7, 12.1",
+   "workstream": "IR",
+   "files": [],
+   "dependencies": [
+    "OB-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-01",
+   "title": "Persistent outcome-linked event histories: delayed outcomes link to earlier actions/artifacts/entities; retrospective replay retrieves the original observable context beyond any context window",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 6.1, 11.2",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "A12"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-02",
+   "title": "RUDDER-style sequence return predictor F_xi(H_t,g) on verified outcomes; redistribution c_t=F(H_{t+1})-F(H_t) with offsets/residual; conservation verified (undiscounted and the discounted/variable-duration condition); unresolved trajectories separated",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 6.2",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-03",
+   "title": "COCOA contribution coefficients w(s,a,u)=h(a|s,u)/pi(a|s)-1 with a trained hindsight action model h_kappa(a|b_t,u_future,goal,policy_context); behaviour probabilities recorded",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.2, 7.3",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-04",
+   "title": "COCOA policy-gradient estimator implemented (sum over alternative actions) and verified against exact gradients on small finite-action environments",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.4",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-05",
+   "title": "Rewarding outcome representations u (outcome encoder) with measured approximation error / bias",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.5",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-06",
+   "title": "Restricted candidate-policy estimator for open-ended action spaces with proposal/selection probabilities and measured candidate coverage",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.6",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-07",
+   "title": "R-HCA implemented from the published estimator and evaluated (or BLOCKED with the precise missing information)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.8",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-08",
+   "title": "Credit comparison at equal data/compute: actor-critic, Monte Carlo, GAE/TD(lambda), RUDDER, COCOA, R-HCA, model-based counterfactual credit; bias, variance, SNR, gradient alignment, sample efficiency",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.8, Exp C",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-02",
+    "CR-04",
+    "CR-07"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CR-09",
+   "title": "Integration accounting: one selected (or validated mixture) estimator in the real learner, no duplicate attribution, future-information leakage prevented (hindsight model only in retrospective training), policy-distribution changes accounted",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.9, 16",
+   "workstream": "CR",
+   "files": [],
+   "dependencies": [
+    "CR-08"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "KV-01",
+   "title": "Decision-relevant value of information VOI(a)=E_y[max Q(b_updated)]-max Q(b_current) with cost/time/risk/continuation policy",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 8.2",
+   "workstream": "D",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "KV-02",
+   "title": "Measured learning gain learning_gain(D)=J_query(U(theta,D))-J_query(theta_control) with matched controls, plus a learned lightweight predictor periodically corrected by measurements",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 8.3",
+   "workstream": "D",
+   "files": [],
+   "dependencies": [
+    "IR-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "KV-03",
+   "title": "Distinguish surprise, belief change, epistemic reduction, irreducible randomness, predictive LP, decision-relevant knowledge and persistent capability gain; repeated unpredictable noise yields bounded reward",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 8.1, Exp F",
+   "workstream": "D",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-01",
+   "title": "goal_mode='autonomous_learning': CAM operates with an exploration budget and no assigned objective",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.1",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "OB-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-02",
+   "title": "Self-generated goals (semantic/structured: outcome, entities, actions, limits, horizon, evidence, expected learning benefit) compiled to verifiable predicates; self-assertion never certifies success",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.2",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "AU-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-03",
+   "title": "Trainable curriculum policy g_self ~ C_chi(b_t, lifetime_state, uncertainty, resources) trained on subsequent measured learning/transfer gain (not on self-goal completion, not on difficulty)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.3",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "AU-02",
+    "KV-02"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-04",
+   "title": "Goal-free lifetime meta-training: checkpoint -> goal-free exploration -> weight updates -> undisclosed objectives -> verified adaptation -> meta-update of R_psi and C_chi",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.4, 11.4",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "AU-03",
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-05",
+   "title": "Autonomous experience changes persistent neural weights (core, predictors, priors, policy, evaluator, reward)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.5",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "AU-01",
+    "A13"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-06",
+   "title": "Trivial self-goal exploitation and irreducible-noise curiosity exploitation tested",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 12.2, 16",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "AU-03"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "AU-07",
+   "title": "Hindsight relabeling of partial successes with grounded achieved-outcome evidence; original goal and failure preserved; off-policy caveats handled; benefit measured",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 10",
+   "workstream": "AU",
+   "files": [],
+   "dependencies": [
+    "SE-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CD-01",
+   "title": "Actor policy version, reward-model version, evaluator version, proposal distribution, selection probability, environment version, outcome timestamp and provenance logged; justified recomputation of intrinsic rewards",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 13.1",
+   "workstream": "F",
+   "files": [],
+   "dependencies": [
+    "IR-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CD-02",
+   "title": "Retention metrics: forward/backward transfer, forgetting, adaptation speed, reward-function retention after new domains",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 13.2",
+   "workstream": "E",
+   "files": [],
+   "dependencies": [
+    "A14"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CD-03",
+   "title": "Durable full state incl. intrinsic reward params, optimizer states, archives, pending delayed outcomes, curriculum state, replay indices, configs, seeds; restart and resume verified",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 13.3",
+   "workstream": "E",
+   "files": [],
+   "dependencies": [
+    "A21"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "CD-04",
+   "title": "Important checkpoints, optimizer states, replay, intrinsic reward parameters and results preserved in authorised durable off-instance storage",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md recovery preamble 10",
+   "workstream": "G",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "UR-03",
+   "title": "Integrated training algorithm with an explicit loss/parameter/gradient-routing table (L_world,L_success,L_outcome,L_return,L_hindsight,L_policy,L_meta,L_curriculum,L_retention), gradient tests verifying every boundary",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 11.5, 3.3",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "UR-04",
+   "title": "Online interaction loop implements the 14-step decision cycle and the 8-step delayed-feedback cycle in the canonical runtime",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 11.1, 11.2",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "SE-01",
+    "IR-02",
+    "CR-09"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-A",
+   "title": "Experiment A calibration executed (predictions before outcomes, goal families, horizons, unseen mechanisms, novel objectives, policy versions)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 A",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "SE-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-B",
+   "title": "Experiment B action-quality evaluation with controlled counterfactual forks (lucky successes, unlucky good decisions, external shocks, confounding)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 B",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "CR-09"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-C",
+   "title": "Experiment C delayed credit at 16/64/256/1024 decisions with distractors; RUDDER/COCOA/R-HCA/standard RL; exact comparisons on small envs",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 C",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "CR-08"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-D",
+   "title": "Experiment D learning efficiency across the 7 reward conditions under observation-only operation, matched experience and compute",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 D",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "IR-04",
+    "CR-09",
+    "AU-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-E",
+   "title": "Experiment E novel objectives (held-out objective families)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 E",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "SE-01",
+    "IR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-F",
+   "title": "Experiment F reward integrity in adversarial diagnostic worlds",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 F",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "IR-08",
+    "AU-06"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-G",
+   "title": "Experiment G parametric transfer (fresh process, weights only; core / reward generator / evaluator / complete)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 G",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "IR-07",
+    "A15"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-H",
+   "title": "Experiment H authorised real-world transfer through the common experience interface (or explicitly BLOCKED pending authorisation)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 H",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-I",
+   "title": "Experiment I learning without an objective vs no/random/fixed/curiosity/learned curricula",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 I",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "AU-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-J",
+   "title": "Experiment J meta-learned reward verification (meta-gradient pathway, costly-exploration task learns to value the experience)",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 J",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "IR-06"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "EX-K",
+   "title": "Experiment K long-horizon OpenWorld achievement (30/90/180 simulated days) with own evaluation and incentives vs frozen LLM, memory-only, prior CAM",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 15 K",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [
+    "OB-06",
+    "UR-04"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "RPT-01",
+   "title": "Final research report answering the 20 questions of meta-reward spec Part 18 plus original Part 23, separating engineering completion from scientific success",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 18",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "VER-01",
+   "title": "Executable completion checker `python -m superlearner.verify_completion` that fails on missing files/tests/integration/gradient pathways/experiments/verification and distinguishes engineering completion from scientific success",
+   "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 0.4",
+   "workstream": "H",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-01",
+   "title": "Approximately 1B genuinely trainable CAM core parameters (excluding the semantic model), measured",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 2",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-02",
+   "title": "Main 32-layer x 1536 x 24-head, ~128 state token, SwiGLU ~4096 architecture instantiated and exercised (training, acting, OpenWorld)",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 2",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [
+    "DOM-01"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-03",
+   "title": "Multilayer latent conditioning of the semantic decoder: H'_l = H_l + alpha_l CrossAttn_l(H_l, P_l(Z_t)) at several depths with bounded trainable gates; decoder output measurably depends on Z_t",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 A",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-04",
+   "title": "Consequential decision bottleneck: CAM intent I_t -> CAM-conditioned executable generation -> CAM evaluation of the concrete action -> authorised execution; the LLM has no independent execution path",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 B",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-05",
+   "title": "CAM-controlled gated semantic cross-attention inside CAM layers: Z_{l+1}=Z_l+R_l+g_l*C_l, g_l=sigmoid(Gate(Z_l,C_l,B,G))",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 C",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-06",
+   "title": "Independent learned world model and value functions (no LLM-as-value)",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 D",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-07",
+   "title": "Independent learned exploration and multistep belief-aware planning in CAM's latent space",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 D",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-08",
+   "title": "Verified experiential gradients through early/middle/late core layers, semantic projections, reasoning, beliefs, world model, intent, decoder conditioning, exploration, policy and value (frozen semantic model never detaches CAM inputs)",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 E",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-09",
+   "title": "Trainable latent-to-executable-action generation with recorded generation/selection probabilities; generator learning distinguished from selector learning",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 E, 9",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-10",
+   "title": "Progressive semantic-backbone plasticity: projections -> LoRA throughout selected layers -> selective unfreezing -> joint training, with retention evaluation of language/code competence",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 4",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-11",
+   "title": "Strategic dominance ablations: conditions A (pretrained LLM agent) .. I (semantic-only continual learning) with absolute performance reported",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 6",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-12",
+   "title": "Compute-normalised scaling comparison ~20M / 150M / 500M / 1B (equal interactions and equal training compute)",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 7",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
+   "verified_by": null
+  },
+  {
+   "id": "DOM-13",
+   "title": "Full OpenWorld learning with this integrated (1B core + Qwen3-4B) architecture",
+   "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 8",
+   "workstream": "DM",
+   "files": [],
+   "dependencies": [
+    "DOM-02",
+    "OB-06"
+   ],
+   "acceptance_tests": [],
+   "integration_tests": [],
+   "status": "NOT_STARTED",
+   "commit": null,
+   "evidence": [],
+   "limitations": [],
    "verified_by": null
   }
  ],
