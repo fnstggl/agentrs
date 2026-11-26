@@ -30,6 +30,18 @@ runtime models as RUNTIME.md says, adversarial worlds that stamp provenance with
 system call; the ad-holdout estimator on draws of `ad_response@2` at attention 1 to 0.19; scope ledger and syntax-tree
 scan against every bypass the verifier probed), `tests/test_v5_calibration_governance.py` (key location).
 
+## Wave 3b (kcal): what changed and where
+
+| piece | files | what it does |
+|---|---|---|
+| informative in-world matches | `inworld.py` (`match_criteo`, `random_exposure_estimate`) | a randomised in-world experiment "matches" only when the world's own estimate is informative: the ad holdout's profile-likelihood 95% interval must exclude a null display effect, and random exposure must detect the own-topic preference KuaiRand measures (\|LOR\| > 1.96 se), besides the two-sample z tests; an experiment too small to tell an effect from none (whose wide interval a z test alone accepts) never counts |
+| conversion-ratio assumption | `runtime_ext.py` (ad_response@2 limits) | the served incremental-conversion ratio 2.76 is stated as Criteo's retargeting-style compliers' ratio, transported as an assumption |
+| verified, unchanged | `inworld.py`, card `ad_exposure_response` | the ad-holdout comparison is per attended display (the world's effect A (q - p0) is matched through each stratum's mean A of its displayed rows, so A_ref = 1 is consistent with the estimand); heterogeneity is individuals' own session intensity (not a function of the active-days histogram); the E5 card's identification is `randomized_encouragement_iv` with the plan's label and the correction disclosed; the registry index pins all 17 models |
+
+Unit tests: `tests/test_v5_calibration_inworld.py::test_an_uninformative_campaign_never_matches`,
+`::test_random_exposure_matches_only_an_informative_agreeing_world`,
+`::test_a_random_exposure_experiment_too_small_to_detect_anything_never_matches`.
+
 ## World code: one entry point
 
 ```python

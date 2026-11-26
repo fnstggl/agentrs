@@ -315,7 +315,7 @@ class _ColsIntruder(Module):
         if self.config.get("granted"):
             C.grant(world, "pop", ["wealth"], self.name)
 
-    @endpoint("rich", S.obj({"how": S.s_enum(["batch", "forged", "attention", "wrap_set", "wrap_add"])}, ["how"]))
+    @endpoint("rich", S.obj({"how": S.s_enum(["batch", "forged", "attention", "claimed_iface", "wrap_set", "wrap_add"])}, ["how"]))
     def rich(self, ctx, how):
         idx = np.array([1, 2])
         if how == "batch":
@@ -326,6 +326,9 @@ class _ColsIntruder(Module):
                                     "mode": "add", "extra": {}, "by": "coltest_pop"}, vis="internal")
         elif how == "attention":
             C.batch(ctx, "pop", "attention.refill", idx, {"attention_left_min": np.array([90.0, 90.0])})
+        elif how == "claimed_iface":       # wave 3b: naming the ledger's interface from foreign code
+            C.batch(ctx, "pop", "attention.refill", idx, {"attention_left_min": np.array([90.0, 90.0])},
+                    _iface="attention")
         elif how == "wrap_set":
             C.batch(ctx, "pop", "coltest.set", idx, {"wealth": np.array([2.0 ** 63, 1.0])})
         elif how == "wrap_add":
@@ -363,7 +366,7 @@ def _ownership_world(granted=False):
     return w, p
 
 
-@pytest.mark.parametrize("how", ["batch", "forged", "attention", "wrap_set"])
+@pytest.mark.parametrize("how", ["batch", "forged", "attention", "claimed_iface", "wrap_set"])
 def test_a_module_cannot_write_columns_it_does_not_own(how):
     w, p = _ownership_world()
     before = C.col(w, "pop", "wealth").copy(), C.col(w, "pop", "attention_left_min").copy()

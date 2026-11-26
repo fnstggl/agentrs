@@ -30,6 +30,8 @@ Kernel module `cols` (no tools) owns the two appliers; a world that uses columns
 """
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 
 from ..core import schema as S
@@ -41,10 +43,19 @@ from . import artifacts, bus
 MODES = ("set", "add", "max", "min")
 #: column name -> interface that alone may write it (registered by crucible.substrate.attention)
 _IFACES: dict[str, str] = {}
+#: interface -> the Python module that implements it (the module that registered it). Wave 3b (kcal): an interface
+#: token is a capability of its implementation, not a string any module code may pass - `batch(..., _iface=...)` is
+#: refused unless called from that module, so the ownership rule cannot be bypassed by naming an interface.
+_IFACE_IMPL: dict[str, str] = {}
 
 
 def register_interface(name: str, cols) -> None:
-    """Columns `cols` (by name, in any table) are written only through interface `name`."""
+    """Columns `cols` (by name, in any table) are written only through interface `name`, which the calling Python
+    module implements (only its code may pass ``_iface=name`` to `batch`)."""
+    impl = sys._getframe(1).f_globals.get("__name__", "")
+    prev = _IFACE_IMPL.setdefault(name, impl)
+    if prev != impl:
+        raise ProtocolError(f"interface {name} is already implemented by {prev}")
     for c in cols:
         _IFACES[c] = name
 
@@ -213,6 +224,12 @@ def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np
     arrays = {"idx": ix.astype(np.int32) if n < 2**31 else ix}
     names = sorted(values)
     writer = getattr(ctx, "module", None)
+    if _iface is not None:
+        impl = _IFACE_IMPL.get(_iface)
+        caller = sys._getframe(1).f_globals.get("__name__", "")
+        if impl is None or caller != impl:
+            raise Forbidden(f"interface {_iface} is implemented by {impl or 'nobody'}; {caller} may not write "
+                            "through it")
     for c in names:
         spec = reg["columns"].get(c)
         if spec is None:
