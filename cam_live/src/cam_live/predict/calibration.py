@@ -42,7 +42,8 @@ def t_quantile(q: float, df: float) -> float:
 
 def t_sf2(t: float, df: float) -> float:
     """Two-sided p-value of a t statistic."""
-    return 2.0 * (1.0 - D.student_t_cdf_scalar(abs(float(t)), max(float(df), 1e-6)))
+    t, df = float(t), max(float(df), 1e-6)
+    return D.betainc_scalar(0.5 * df, 0.5, df / (df + t * t))        # = 2 * upper tail, accurate for tiny p
 
 
 # ----------------------------------------------------------------------------------------------------------------
