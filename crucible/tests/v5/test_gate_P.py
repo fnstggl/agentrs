@@ -9,7 +9,10 @@ snapshot segment from the recorded events, and resuming in a NEW process at two 
 
     P.1   runs_30/90/180/365_days >= 2, failed_runs == 0
     P.2   unexplained_invariant_violations == 0     (crucible.civ.longrun.EXPLAINED lists explained ones: none)
-    P.3   snapshot_resume_mismatches == 0          (cross-process: World.load in a fresh interpreter, +1 day)
+    P.3   snapshot_resume_mismatches == 0          (cross-process, exact (D-47): a fresh interpreter loads the
+                                                    world from a copy of the store and re-executes the live run's
+                                                    recorded next day through the handlers; the free resume that
+                                                    recomputes inference is reported beside it)
     P.4   replay_mismatches == 0                   (every segment replayed from the store's events)
     P.5   event_accounting_mismatches == 0         (crucible.civ.accounting.Accountant)
     P.6   min_late_over_early_economic/social_activity >= 0.3  (last 30 days over the first 30, worst run)
@@ -68,7 +71,8 @@ def test_P_2_no_unexplained_invariant_violations(suite):
 @pytest.mark.slow
 @pytest.mark.timeout(30 * 3600)
 def test_P_3_snapshot_and_resume(suite):
-    m = _rec("P.3", suite, ["snapshot_resume_mismatches", "snapshot_resume_checks"])
+    m = _rec("P.3", suite, ["snapshot_resume_mismatches", "snapshot_resume_checks", "snapshot_resume_exact_checks",
+                            "free_resume_equal", "free_resume_divergence_origins"])
     assert m["snapshot_resume_checks"] > 0 and m["snapshot_resume_mismatches"] == 0, m
 
 

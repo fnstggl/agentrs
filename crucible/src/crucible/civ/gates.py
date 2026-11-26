@@ -579,6 +579,10 @@ def p_metrics(reps: list[dict], horizons=P_HORIZONS) -> dict:
         sum(1 for r in reps if r.get("failed"))
     m["snapshot_resume_mismatches"] = sum(s.get("resume_mismatches", 0) for s in S)
     m["snapshot_resume_checks"] = sum(s.get("resume_checks", 0) for s in S)
+    m["snapshot_resume_exact_checks"] = sum(s.get("resume_exact_checks", 0) for s in S)
+    m["free_resume_equal"] = sum(s.get("free_resume_equal", 0) for s in S)
+    m["free_resume_divergence_origins"] = ",".join(sorted({o for s in S for o in s.get("free_resume_divergence_origins")
+                                                           or []})) or "none"
     m["replay_mismatches"] = sum((s.get("replay_mismatches") or 0) for s in S) + \
         sum(1 for s in S if not s.get("replay_segments"))
     m["event_accounting_mismatches"] = sum(s.get("accounting_mismatches", 0) for s in S)
