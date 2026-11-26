@@ -221,5 +221,13 @@
  ],
  "previous_branches": [
   "c5c/w1-calib"
- ]
+ ],
+ "tests_run": {
+  "tests/v5/test_gate_F.py (all, incl. F.3 reproduction with the E5 model, 1 CPU via slots)": "10 passed (713 s)",
+  "tests/v5/test_gate_SP_5_1.py, SP_5_3.py, SP_5_4.py, SP_5_5.py": "11 passed",
+  "tests/v5/test_gate_SP_5_0.py, SP_5_5b.py": "2 failed as expected (civ.generate: missing dependency 'space'; no fitted decisions in world)",
+  "calibration unit tests (core, commercial, software, runtime, social_calibrated, test_calibration, ad_exposure)": "93 passed",
+  "tests/test_kernel.py tests/test_invariants.py": "51 passed",
+  "tests/test_v5_econ_work.py": "3 passed, 3 errors - identical at the base commit 87a6c54 (module work may not write column pop.wake_act)"
+ }
 }
