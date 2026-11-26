@@ -61,7 +61,10 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
     if dev.type == "cuda":
         torch.cuda.reset_peak_memory_stats(dev)
-    os.makedirs(run_dir, exist_ok=True)
+    # a fresh directory per run: the archive and the label store persist on disk, and another run's experience
+    # must never enter this run's replay or label join
+    run_dir = os.path.join(run_dir, f"run-{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}-s{seed}")
+    os.makedirs(run_dir, exist_ok=False)
     st = build_stack(cfg, run_dir=os.path.join(run_dir, "stack"), seed=seed, device=dev, train=False)
     agent, model = st.agent, st.model
     specs = [X.WorldSpec(1, f"rapid:{f}", seed + i) for i, f in enumerate(families)]
@@ -123,7 +126,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     rep = summarise(updates, REQ, warm=learner.probe_warmup)
     rep["clip_rate_all"] = learner.trainer.clip_rate()
     rep.update({"commit": _commit(), "preset": "dom_dev", "device": str(dev), "families": list(families),
-                "seed": seed, "rounds": rounds, "decisions": n_dec, "episodes": episodes, "labels": n_labels,
+                "seed": seed, "run_dir": run_dir, "rounds": rounds, "decisions": n_dec, "episodes": episodes, "labels": n_labels,
                 "n_updates": len(updates), "wall_s": time.time() - t_start, "errors": errors,
                 "param_counts": model.count_parameters(), "reward_model": type(rm).__name__ +
                 (" (seam stub: reward 0)" if getattr(rm, "stub", False) else ""),
