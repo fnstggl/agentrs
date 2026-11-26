@@ -231,6 +231,7 @@ class CurriculumTrainer:
         if self.train_set:                    # reference: a constant Gaussian fitted to the training measurements
             yt = torch.stack([e[3] for e in self.train_set])
             m0, s0 = float(yt.mean()), max(float(yt.std()), 1e-6) if yt.numel() > 1 else 1.0
-            out["nll_constant"] = float((0.5 * ((yy - m0) / s0) ** 2 + math.log(s0) + 0.5 * math.log(2 * math.pi)).mean())
+            z0 = (yy - m0) / s0
+            out["nll_constant"] = float((0.5 * z0 ** 2 + math.log(s0) + 0.5 * math.log(2 * math.pi)).mean())
             out["rmse_constant"] = float(((yy - m0) ** 2).mean().sqrt())
         return out

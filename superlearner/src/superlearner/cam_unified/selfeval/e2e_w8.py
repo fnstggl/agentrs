@@ -77,7 +77,7 @@ def probe_labels(env, episode: int, kind_bounds: dict) -> list:
 
 
 def run(out_path: str, n_probe_batches: int = 40, B: int = 16, seed: int = 0, train_steps: int = 300,
-        device: str = "cuda", inner_lr: float = 0.01, phi_lr: float = 1e-3) -> dict:
+        device: str = "cuda", inner_lr: float = 0.01, phi_lr: float = 1e-3, preset: str = "dom_dev") -> dict:
     from ..capabilities.envs import ProbeEnv
     from ..envs.experience import ExperienceOperator, WorldSpec
     from ..envs.integrity import VARIANTS
@@ -85,13 +85,14 @@ def run(out_path: str, n_probe_batches: int = 40, B: int = 16, seed: int = 0, tr
     t_start = time.time()
     torch.manual_seed(seed)
     random.seed(seed)
-    cfg = make_preset("dom_dev")
+    cfg = make_preset(preset)
     rd = tempfile.mkdtemp(prefix="w8_e2e_")
     st = build_stack(cfg, run_dir=rd, experience=True, train=False, device=device, seed=seed)
     model, agent = st.model, st.agent
     dev = agent.device
     rm = RewardModel(cfg).to(dev)
-    ev = {"commit": _commit(), "preset": "dom_dev", "inner_lr": inner_lr, "phi_lr": phi_lr, "n_probe_batches": n_probe_batches,
+    ev = {"commit": _commit(), "preset": preset, "inner_lr": inner_lr, "phi_lr": phi_lr,
+          "n_probe_batches": n_probe_batches,
           "train_steps": train_steps, "sem_model": cfg.sem_model, "B": B, "seed": seed,
           "loop": "envs.harness.run_lifetime (seam-0 canonical loop)", "reward_mode": cfg.reward_mode,
           "model_trainable_params": int(sum(p.numel() for p in model.parameters() if p.requires_grad)),
@@ -312,9 +313,10 @@ def main():
     ap.add_argument("--train-steps", type=int, default=300)
     ap.add_argument("--inner-lr", type=float, default=0.01)
     ap.add_argument("--phi-lr", type=float, default=1e-3)
+    ap.add_argument("--preset", default="dom_dev", help="dom_dev (default); dom = 1B + Qwen3-4B, W1's GPU slot only")
     a = ap.parse_args()
     torch.set_num_threads(int(os.environ.get("OMP_NUM_THREADS", "8")))
-    ev = run(a.out, a.batches, a.B, a.seed, a.train_steps, inner_lr=a.inner_lr, phi_lr=a.phi_lr)
+    ev = run(a.out, a.batches, a.B, a.seed, a.train_steps, inner_lr=a.inner_lr, phi_lr=a.phi_lr, preset=a.preset)
     print(json.dumps(ev["checks"], indent=1))
     print(json.dumps({k: ev[k] for k in ("phi_calibration", "meta_step", "integrity")}, indent=1, default=str)[:6000])
 

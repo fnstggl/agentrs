@@ -111,6 +111,8 @@ def rollout(variant: str, seeds: Sequence[int], logits: torch.Tensor, horizon: i
         F.append(row)
         A.append(idx)
     labs = op.release_labels()
+    if any(l.status == "pending" for l in labs):           # pending is never a failure: the horizon must resolve
+        raise RuntimeError("rollout: an episode did not resolve within the horizon")
     U = torch.tensor([float(l.utility) if l.utility is not None else 0.0 for l in labs], dtype=torch.float64)
     V = torch.tensor([float(l.value) if l.value is not None else 0.0 for l in labs], dtype=torch.float64)
     traps = [op.private_verify(i)["verify"]["trap"] for i in range(N)]

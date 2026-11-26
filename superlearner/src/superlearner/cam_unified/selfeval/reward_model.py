@@ -220,7 +220,8 @@ class RewardModel(nn.Module):
         c = _vec(cost, B, dev)
         c_hat = torch.log1p(c.clamp_min(0.0) / self.cost_scale) if c is not None else torch.zeros(B, device=dev)
         filled = {"cost": c_hat if c is not None else None, "duration": dtv if dt is not None else None,
-                  "prospect_before": phi, "prospect_after": phi_next, "info_gain": ig if info_gain is not None else None}
+                  "prospect_before": phi, "prospect_after": phi_next,
+                  "info_gain": ig if info_gain is not None else None}
         S, M = self._signal_matrix(signals, B, dev, filled)
         b_t = R.mean(1)
         b_n = Rn.mean(1) if Rn is not None else b_t
