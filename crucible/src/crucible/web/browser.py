@@ -152,10 +152,18 @@ class BrowserSession:
         self.max_text = max_text
         self.timeout_ms = timeout_ms
         self.blocked: list[str] = []
+        from ..sandbox import isolation
+        try:        # agent-authored JavaScript: Chromium jailed as its own uid; TCP only to the world's web app port
+            exe, jail_kw = isolation.browser_executable("web-browser", tcp_ports=(u.port,))
+            jail_kw = {"executable_path": exe, **jail_kw}
+        except isolation.JailUnavailable as e:
+            if not isolation.allow_unjailed():
+                raise BrowserError(f"agent pages cannot be opened here: {e}") from e
+            jail_kw = {}
         self._pw = sync_playwright().start()
         try:
             rules = f"MAP *.crucible {u.hostname}:{u.port}, MAP * ~NOTFOUND, EXCLUDE {u.hostname}"
-            self._browser = self._pw.chromium.launch(headless=headless, args=[
+            self._browser = self._pw.chromium.launch(headless=headless, **jail_kw, args=[
                 f"--host-resolver-rules={rules}", "--no-proxy-server", "--disable-background-networking",
                 "--disable-component-update", "--disable-sync", "--disable-default-apps", "--no-first-run",
                 "--disable-extensions", "--renderer-process-limit=2", "--disable-gpu", *extra_args])
