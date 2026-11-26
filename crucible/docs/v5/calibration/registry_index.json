@@ -1,0 +1,117 @@
+{
+ "models": {
+  "commercial_response": {
+   "card_sha256": "c4c3978340428b5d3f1104b0e0a98d498989ee70baac6c3242e2d4a62f3017b8",
+   "files": {
+    "commercial_response.npz": "03fadf222425be1dd1a75bd99db0f1bf751e2e608a9e4f70e6fd9a292689550e"
+   },
+   "version": 1
+  },
+  "content_consumption": {
+   "card_sha256": "39e547b9bf654ce607240a458ccb13d4ac73b9dc628df580b9184d1a23e20a1c",
+   "files": {
+    "params.npz": "3a24030b6538d7cac590669a7c4da92832f55f34b8afe168e0817199080e4ba3"
+   },
+   "version": 1
+  },
+  "content_consumption_feed": {
+   "card_sha256": "8d95a532445cf4d8adf356a1a4f2dd24283c5a8ce67dc510340a6b99de726a7e",
+   "files": {
+    "params.npz": "35aeca499205219e02c8044695092086fc01cfe1f9cb4b0d07187c0af95a981d"
+   },
+   "version": 1
+  },
+  "creator_return": {
+   "card_sha256": "4d3327885816e99e4758255ff7c2d93fb0b3cfe5ee3583e03003d44e0dcc88e0",
+   "files": {
+    "params.npz": "68d78c2f1252b26f197a96b33e829221c9dca0b9742b1960f052aa8493833673"
+   },
+   "version": 1
+  },
+  "customer_return": {
+   "card_sha256": "200f6cc61a0b4ca85e39f6f576184710d75e635470057a2050464c60d4b203fd",
+   "files": {
+    "params.npz": "8c71274c3bd1f51acb07ed9aa7a5c1f670b441c68693fdcb52dd6183d8d5e0d1"
+   },
+   "version": 1
+  },
+  "news_click": {
+   "card_sha256": "b799483bb86d262bbe464c46bcfe64bf846185060265b835f7356bc486df05f8",
+   "files": {
+    "params.npz": "d78501a8e8be1afce9bbcd774f716e86bc8c74214518da888849012993d57825"
+   },
+   "version": 1
+  },
+  "news_click_semantic": {
+   "card_sha256": "e8e82672fe7b0893586a32312d5635137f26b596834916311a4cc91aca893059",
+   "files": {
+    "params.npz": "f5deeeb821dcad332f51121cf2bc5f4f7a47feb0c7cd3136380aa7fc080ee80d"
+   },
+   "version": 1
+  },
+  "product_demand": {
+   "card_sha256": "f45c7a2c142bc07a7e8bb086368798330b1b254eb36f9ff58eaea161a4676119",
+   "files": {
+    "params.npz": "6925a79a2808b019ec3fa5ba5428a2ed2c971c8dabd0c070057abe75fb8f7f9c"
+   },
+   "version": 1
+  },
+  "repo_participation_return": {
+   "card_sha256": "91af133989a245301a6885c25d230665f405d4b1e94cf4a47eca7290b0500822",
+   "files": {
+    "params.npz": "36cfde25f72a645fd2cb383460d51cadd8e0317a097a7540ebc4836c37d20ac0"
+   },
+   "version": 1
+  },
+  "return_daily": {
+   "card_sha256": "f31559b9df98b07cca67a90b3ad3823727e58ad650ef283ecfd8043af4fe6749",
+   "files": {
+    "params.npz": "1db2287048fd76cdea61cb07300331782d26dd4b26091241dd100a11e0210ed2"
+   },
+   "version": 1
+  },
+  "session_length": {
+   "card_sha256": "b0f893ce1745e289b87bae80589d3fab1ec39d7f4f64a6bb699d5927360da642",
+   "files": {
+    "params.npz": "b74f4f467cb384df381d6c67c75c1c8b33a340b4b4832f036c44e3c16c581e47"
+   },
+   "version": 1
+  },
+  "session_rate": {
+   "card_sha256": "24e9d3640650a7111ceb3057d8db96bc6682c56711ea4e222bb26645b6fc120e",
+   "files": {
+    "params.npz": "65da1d299403dd80d301b38fbddd2690728c1919bd514fc22a8f61c1e5880f39"
+   },
+   "version": 1
+  },
+  "software_deep_engagement": {
+   "card_sha256": "45aea181b4a053f03a6afc6a16c78ff5bdd43fa8e7648de72fcd0c2abf1f7555",
+   "files": {
+    "software_deep_engagement.npz": "f7766cb0163f86637095c80293084e695520a7a17bc438f0f507fe17e664c422"
+   },
+   "version": 1
+  },
+  "software_repo_growth": {
+   "card_sha256": "608cf930e1c2f31722e5f9d44a7cc921cee3e07bffc60b69c5211ec9d7329e0c",
+   "files": {
+    "software_repo_growth.npz": "8abdc0196a2617cc997df2cbd844646cbcd010d97e28eb5b8876a54194c918d3"
+   },
+   "version": 1
+  },
+  "star_cascade": {
+   "card_sha256": "52689d33be51b84b6e391bbd47b205ba86da15df87766f3f181e4d3f626a254a",
+   "files": {
+    "params.npz": "4e4d78a99a5436031f625ece83b733f50c70369a89e48a2a6fc065cb4895e7b5"
+   },
+   "version": 1
+  },
+  "watch_duration": {
+   "card_sha256": "a52a394ee18e13c331f3c2488e6951e6b78b93958ac853e8bf71d4b6eb1de97d",
+   "files": {
+    "params.npz": "56b7daeacbd9d0f760d52ddcc545a09acd2b9b855342399d200523aa45c53951"
+   },
+   "version": 1
+  }
+ },
+ "schema": "crucible.v5.calibration.registry_index/1"
+}

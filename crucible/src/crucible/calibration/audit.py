@@ -107,7 +107,8 @@ def calibration_values(rep: dict | None) -> dict[str, float]:
     """Scalar held-out calibration measures of a report view (ECE, Brier, PIT KS, coverage, ... per outcome)."""
     cal = (rep or {}).get("calibration") or {}
     return {k: float(v) for k, v in cal.items()
-            if _is_calibration_key(k) and isinstance(v, (int, float)) and not isinstance(v, bool)}
+            if _is_calibration_key(k) and isinstance(v, (int, float)) and not isinstance(v, bool)
+            and v == v and abs(v) != float("inf")}            # NaN or infinite values are not calibration reports
 
 
 def calibration_tables(rep: dict | None) -> dict[str, int]:
@@ -149,7 +150,10 @@ def examine(name: str, ds: dict | None = None, models_dir: str | None = None) ->
     rec["card"] = card
     rec["view"] = view
     bad = R.verify_files(card, d)
-    rec["hash_mismatches"] = len(bad)
+    ip = R.index_problems(name, models_dir)
+    if ip:
+        rec["problems"].append(f"registry index: {ip}")
+    rec["hash_mismatches"] = len(bad) + (1 if ip else 0)
     files = view["files"]
     rec["checkpoint"] = bool(files) and all(os.path.isfile(os.path.join(d, f)) and
                                             os.path.getsize(os.path.join(d, f)) <= R.MAX_CHECKPOINT_BYTES
@@ -175,16 +179,45 @@ def examine(name: str, ds: dict | None = None, models_dir: str | None = None) ->
     rec.update(schema=view["schema"], domain=view["domain"], domain_label=view["domain_label"],
                identification=view["identification"], datasets=names, real_datasets=real, report=rep,
                report_raw=raw, heldout=ho, loaded=loaded, kept_is_baseline=sel["kept_is_baseline"])
-    rec["qualifies"] = loaded and not bad and bool(real) and bool(ho) and rec["domain"] in R.DOMAINS
+    consistent = report_consistency(card, rep)
+    if consistent:
+        rec["problems"] += [f"report: {x}" for x in consistent]
+    rec["qualifies"] = loaded and not bad and not ip and bool(real) and bool(ho) and rec["domain"] in R.DOMAINS \
+        and not consistent
     if rec["domain"] not in R.DOMAINS:
         rec["problems"].append(f"domain {rec['domain']!r} is not one of registry.DOMAINS")
     bc = (rep or {}).get("baseline_comparison") or {}
     rec["baseline_compared"] = bool(rep) and all(k in bc for k in ("kept_test", "baseline_test", "baseline")) and \
-        bc.get("baseline") in (sel["baselines"] or [bc.get("baseline")])
+        bc.get("baseline") in (sel["baselines"] or [bc.get("baseline")]) and \
+        all(isinstance(bc.get(k), (int, float)) and bc[k] == bc[k] for k in ("kept_test", "baseline_test"))
+    sign = 1 if sel["lower_is_better"] else -1
+    rec["kept_beats_baseline"] = bool(rec["baseline_compared"]) and (
+        sel["kept_is_baseline"] or sign * (bc["kept_test"] - bc["baseline_test"]) < 0)
     rec["calibration_reported"] = bool(calibration_values(rep)) or bool(calibration_tables(rep))
     limits_rep = (rep or {}).get("extrapolation_limits") or ""
     rec["limits_documented"] = len(view["limits"]) >= MIN_LIMITS_CHARS and len(limits_rep) >= MIN_LIMITS_CHARS
     return rec
+
+
+def report_consistency(card: dict, rep: dict | None) -> list[str]:
+    """Does the held-out report agree with the card it belongs to (kept candidate, kept and baseline test metrics)?
+    A report rewritten to say something the card does not (audit E skeptic s2) disqualifies the model."""
+    if not rep:
+        return []
+    sel = R.card_view(card)["selection"]
+    probs = []
+    bc = rep.get("baseline_comparison") or {}
+    rsel = rep.get("selection") or {}
+    if rsel.get("kept") is not None and rsel.get("kept") != sel["kept"]:
+        probs.append(f"report keeps {rsel.get('kept')}, the card {sel['kept']}")
+    if bc.get("kept") is not None and bc.get("kept") != sel["kept"]:
+        probs.append("baseline comparison names another kept candidate")
+    for key, cand in (("kept_test", sel["kept"]), ("baseline_test", bc.get("baseline"))):
+        if key in bc and cand in sel["test"]:
+            v = bc[key]
+            if not isinstance(v, (int, float)) or v != v or abs(v - sel["test"][cand]) > 1e-9 * max(1.0, abs(v)):
+                probs.append(f"{key} {v} differs from the card's test metric of {cand} {sel['test'][cand]}")
+    return probs
 
 
 def all_records(models_dir: str | None = None) -> list[dict]:
@@ -221,6 +254,8 @@ def gate_f_metrics(records: list[dict] | None = None, datasets_scope: str = "reg
                                                      any(x in r["identification"] for x in RANDOMIZED) for r in q),
         "heldout_reports": sum(1 for r in q if r["heldout"]),
         "baseline_comparisons": sum(1 for r in q if r["baseline_compared"]),
+        "kept_models_losing_to_their_baseline": sum(1 for r in q if r["baseline_compared"] and
+                                                    not r["kept_beats_baseline"]),
         "calibration_metric_reports": sum(1 for r in q if r["calibration_reported"]),
         "checkpoints_saved": sum(1 for r in recs if r.get("checkpoint")),
         "checkpoint_hash_mismatches": sum(int(r.get("hash_mismatches", 0)) for r in recs),

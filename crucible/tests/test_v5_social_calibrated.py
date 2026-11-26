@@ -21,7 +21,8 @@ crucible.load_all_modules()
 DAY = 86400
 PLAT = {"posts": {"k": 8, "recommenders": [{"name": "interest"}, {"name": "social"}]},
         "articles": {"k": 8, "recommenders": [{"name": "interest"}, {"name": "search"}, {"name": "fresh"}]}}
-DECLARED = {"articles": {"open": "article_open_semantic@1", "affinity_space": "minilm-l6-cosine"}}
+DECLARED = {"articles": {"open": "article_open_semantic@1", "affinity_space": "minilm-l6-cosine",
+                         "content_kind": "article"}}
 
 
 def _spec(feed):
@@ -42,7 +43,10 @@ def worlds():
 
 def test_retired_and_undeclared_configurations_are_refused():
     # the batch-rank news_click@1 path is retired; an undeclared affinity space is outside the model's contract
-    for cal in ({"articles": {"open": "news_click@1"}}, {"articles": {"open": "article_open_semantic@1"}}):
+    for cal in ({"articles": {"open": "news_click@1"}}, {"articles": {"open": "article_open_semantic@1"}},
+                # a news-article model on a platform of social posts is outside its scope (card limit 1)
+                {"posts": {"open": "article_open_semantic@1", "affinity_space": "minilm-l6-cosine",
+                           "content_kind": "post"}}):
         with pytest.raises((ContractError, ProtocolError)):
             World.create(_spec({"calibrated": cal}), strict=True)
 

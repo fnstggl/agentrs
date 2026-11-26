@@ -80,6 +80,7 @@ class Spec:
     status_reason: str = ""
     output_doc: str = ""
     params: dict = field(default_factory=dict)
+    scope: dict = field(default_factory=dict)     # machine-readable allowed use, e.g. {"content_kinds": [...]}
 
     @property
     def fidelity_id(self) -> str:
@@ -89,7 +90,7 @@ class Spec:
         return {"id": self.id, "model": self.model, "fidelity_id": self.fidelity_id, "use": self.use,
                 "output": self.output, "output_doc": self.output_doc, "status": self.status,
                 "status_reason": self.status_reason, "inputs": [i.as_dict() for i in self.inputs],
-                "params": dict(self.params), "limits": self.limits}
+                "params": dict(self.params), "scope": dict(self.scope), "limits": self.limits}
 
 
 def _f(d: dict, name: str) -> np.ndarray:
@@ -259,7 +260,7 @@ def _base_specs() -> dict[str, Spec]:
              "(consumes it beyond ~7 s). Fitted on randomly inserted videos, so it is the individual's response to "
              "an item it did not select, not the recommender's selection."),
         output="probability", inputs=tuple(KR_INPUTS[n] for n in _KR_CHOICE_IN), build=_kr_build,
-        limits=_KR_LIMITS, params={"count_scale": 1.0},
+        limits=_KR_LIMITS, params={"count_scale": 1.0}, scope={"content_kinds": ["video_short"]},
         output_doc="P(consume) per row")
     S["content_open_recommender_target@1"] = Spec(
         "content_open_recommender_target@1", "content_consumption_feed@1",
@@ -268,7 +269,8 @@ def _base_specs() -> dict[str, Spec]:
              "observed under random exposure"),
         output="probability", inputs=tuple(KR_INPUTS[n] for n in _KR_CHOICE_IN), build=_kr_build,
         limits=_KR_LIMITS + " Contains the production recommender's selection on unobserved preferences.",
-        params={"count_scale": 1.0}, output_doc="P(consume | recommender-selected exposure) per row")
+        params={"count_scale": 1.0}, scope={"content_kinds": ["video_short"], "use": ["recommender_target"]},
+        output_doc="P(consume | recommender-selected exposure) per row")
     S["watch_time@1"] = Spec(
         "watch_time@1", "watch_duration@1",
         use=("watch time of an item the individual was shown, given whether it consumed it (draw content_open@1 "
@@ -276,7 +278,8 @@ def _base_specs() -> dict[str, Spec]:
         output="quantiles", inputs=tuple(KR_INPUTS[n] for n in _KR_WATCH_IN), build=_kr_build,
         limits=_KR_LIMITS + " Watch times beyond about 4x the duration (replays) are not reproduced; on "
                             "recommender-selected exposures alone it under-predicts long watches.",
-        params={"count_scale": 1.0}, output_doc="quantiles of watch seconds at the card's quantile levels")
+        params={"count_scale": 1.0}, scope={"content_kinds": ["video_short"]},
+        output_doc="quantiles of watch seconds at the card's quantile levels")
     S["daily_return@1"] = Spec(
         "daily_return@1", "return_daily@1",
         use="whether an individual is active on the platform on a simulated day, given its recent activity",
@@ -493,6 +496,16 @@ class DecisionModel:
 
     def contract(self) -> dict:
         return self.spec.as_dict()
+
+    def check_scope(self, content_kind: str | None = None, use: str | None = None) -> None:
+        """Refuse a use outside the decision model's machine-readable scope (card limits, audit E skeptic s8)."""
+        kinds = self.spec.scope.get("content_kinds")
+        if kinds is not None and content_kind not in kinds:
+            raise ContractError(f"{self.id}: fitted on {kinds} only; content kind {content_kind!r} is outside its "
+                                f"scope ({self.spec.limits[:160]}...)")
+        uses = self.spec.scope.get("use")
+        if uses is not None and use not in uses:
+            raise ContractError(f"{self.id}: allowed uses are {uses}, not {use!r}")
 
     # ------------------------------------------------------------ inputs
     def _validate(self, inputs: dict) -> tuple[dict, int]:

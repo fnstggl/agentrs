@@ -34,7 +34,14 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 5. **Provenance.** `res.provenance()` = {decision, model, version, fidelity (register id), served, rows,
    extrapolated}. `served` is `K` for the fitted checkpoint, or the contender the E3 review kept (`S` the
    simulator's rule, `B` the simple baseline): the runtime serves the reviewed choice and says so.
-6. **Fidelity.** Every decision model has the register record `runtime:<id>`; a world that wires one must update the
+6. **Scope.** Decision models over content items carry a machine-readable scope (`spec["scope"]`, e.g.
+   `{"content_kinds": ["video_short"]}`); a consumer calls `dm.check_scope(content_kind, use)` at install time and
+   a use outside the scope raises (a news-article model on a posts platform, a recommender target used as a choice
+   rule).
+7. **Integrity.** `registry.load` checks the checkpoint hashes and the pinned card and checkpoint hashes in
+   `docs/v5/calibration/registry_index.json` (outside the model directories), so the card fields a decision model
+   reads (feature order, quantiles, prior rate, selection, response tables) cannot change unnoticed.
+8. **Fidelity.** Every decision model has the register record `runtime:<id>`; a world that wires one must update the
    in-world records (population.*, feed.*, commerce.*) with an `opt-in:` or `default:` claim, and a `default:` claim
    needs an in-world probe (`fidelity.INWORLD_PROBES`) that observes the model being evaluated.
 

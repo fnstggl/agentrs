@@ -142,7 +142,13 @@ def test_F_4_baseline_comparisons(state):
         if r.get("qualifies"):
             bc = r["report"]["baseline_comparison"]
             metrics[f"{r['name']}.difference_vs_{bc['baseline']}"] = float(bc["difference"])
-    record("F.4", metrics, command=CMD, artifacts=_artifacts(recs))
+    metrics["kept_models_losing_to_their_baseline"] = m["kept_models_losing_to_their_baseline"]
+    record("F.4", metrics, command=CMD, artifacts=_artifacts(recs),
+           notes="a comparison counts only when the report agrees with the card (audit.report_consistency); the "
+                 "simulator's rule-based behaviour is compared in the E3 reviews and the E4 reports")
+    # every learned model that is kept beats its best simple baseline on the held-out primary metric
+    assert m["kept_models_losing_to_their_baseline"] == 0
+    assert all(r["kept_beats_baseline"] for r in recs if r.get("qualifies"))
     _assert_met("F.4", metrics)
 
 
@@ -190,8 +196,23 @@ def test_F_6_checkpoints_saved_and_hash_verified(state, tmp_path, monkeypatch):
         with pytest.raises(IOError):
             R.load(name)
         tampered.append(audit.examine(name))
+    # the behavioural card fields are pinned too (registry index outside the model directories): a copy whose card
+    # changes feature_quantiles / prior_rate / selection, with an intact checkpoint, is refused
+    card_fake = tmp_path / "card_models"
+    for name in schemas.values():
+        shutil.copytree(R.model_dir(name), card_fake / name)
+        cp = card_fake / name / "model_card.json"
+        c = __import__("json").loads(cp.read_text())
+        c["selection"]["kept"] = "tampered"
+        c["prior_rate"] = 0.4
+        cp.write_text(__import__("json").dumps(c))
+    monkeypatch.setattr(R, "MODELS_DIR", str(card_fake))
+    for name in schemas.values():
+        with pytest.raises(IOError):
+            R.load(name)
+        tampered.append(audit.examine(name))
     monkeypatch.undo()
-    assert all(t["hash_mismatches"] == 1 and not t["qualifies"] for t in tampered)
+    assert all(t["hash_mismatches"] >= 1 and not t["qualifies"] for t in tampered)
     metrics = {"checkpoints_saved": m["checkpoints_saved"], "checkpoint_hash_mismatches":
                m["checkpoint_hash_mismatches"], "tamper_detected": True,
                "largest_checkpoint_bytes": max(R.verify_checkpoint(r["name"])["largest_bytes"] for r in recs)}
@@ -230,7 +251,24 @@ def test_F_7_dataset_provenance_and_checksums(state):
 
 def test_F_8_extrapolation_limits_documented(state):
     recs, m = state
+    from crucible.calibration import runtime as RT
     metrics = {"extrapolation_limit_sections": m["extrapolation_limit_sections"], **_context(m)}
+    # limits are machine-readable where a use can be checked: a decision model refuses content outside its scope
+    refused = 0
+    for sid, sp in RT.specs().items():
+        assert len(sp["limits"]) >= 80, sid
+        kinds = sp["scope"].get("content_kinds")
+        if kinds:
+            use = (sp["scope"].get("use") or [None])[0]
+            with pytest.raises(RT.ContractError):
+                RT.get(sid).check_scope("not-a-" + kinds[0], use)
+            if sp["scope"].get("use"):
+                with pytest.raises(RT.ContractError):
+                    RT.get(sid).check_scope(kinds[0], "individual_choice")   # a recommender target is not a choice rule
+            RT.get(sid).check_scope(kinds[0], use)
+            refused += 1
+    metrics["decision_models_with_enforced_scope"] = refused
+    assert refused >= 4
     for r in recs:
         if r.get("qualifies"):
             md = os.path.join(R.CRUCIBLE_ROOT, r["card"]["report"][:-5] + ".md")

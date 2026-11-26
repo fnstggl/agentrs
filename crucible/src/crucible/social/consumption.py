@@ -157,21 +157,23 @@ class CalibratedOpen:
       item_age_hours, slate_size
 
     The model's text affinity is a cosine in the shared MiniLM-L6 space. A world must declare that its interest and
-    item vectors live in that space (feed config ``calibrated: {"<platform>": {"open": "article_open_semantic@1",
-    "affinity_space": "minilm-l6-cosine"}}``). The default C2 representation (lexical random indexing) and the
+    item vectors live in that space and which content kind the platform carries (feed config ``calibrated:
+    {"<platform>": {"open": "article_open_semantic@1", "affinity_space": "minilm-l6-cosine", "content_kind":
+    "article"}}``); a content kind outside the model's scope (e.g. "post") is refused. The default C2 representation (lexical random indexing) and the
     `aud` semantic random projection are not that space, so a calibrated platform without the declaration raises
     `ContractError` at install instead of using the model outside its contract (wave 2, D-16, provides the space).
     """
 
     SPACE = "minilm-l6-cosine"
 
-    def __init__(self, decision: str, affinity_space: str | None = None):
+    def __init__(self, decision: str, affinity_space: str | None = None, content_kind: str | None = None):
         from ..calibration import runtime
         if affinity_space != self.SPACE:
             raise runtime.ContractError(
                 f"{decision}: its text affinity is a cosine in the {self.SPACE} space; this world's feed does not "
                 f"declare that space (affinity_space={affinity_space!r}), so the fitted model cannot be used here")
         self.dm = runtime.get(decision)
+        self.dm.check_scope(content_kind)          # e.g. news articles only: a posts platform is refused
         self.name = decision
         self.model = self.dm.fitted
 
@@ -231,7 +233,7 @@ class Engine:
                 from ..calibration.runtime import ContractError
                 raise ContractError(f"feed.calibrated.{p}: {c['open']} is retired from the in-world path: "
                                     f"{RETIRED_OPEN[c['open']]}")
-            self.calibrated[p] = CALIBRATED_OPEN[c["open"]](c["open"], c.get("affinity_space"))
+            self.calibrated[p] = CALIBRATED_OPEN[c["open"]](c["open"], c.get("affinity_space"), c.get("content_kind"))
 
     # ------------------------------------------------------------------ distribution
     def build_feed(self, ctx, platform: str, idx: np.ndarray, rng):

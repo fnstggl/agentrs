@@ -118,7 +118,7 @@ class Feed(Module):
         if unknown:
             raise ProtocolError(f"feed: unknown behaviour parameters {sorted(unknown)}")
         for p, c in self.cfg["calibrated"].items():
-            if p not in self.cfg["platforms"] or set(c) - {"open", "affinity_space"} or \
+            if p not in self.cfg["platforms"] or set(c) - {"open", "affinity_space", "content_kind"} or \
                     c.get("open") not in CALIBRATED_OPEN:
                 raise ProtocolError(f"feed: calibrated must map a platform to {{'open': one of "
                                     f"{sorted(CALIBRATED_OPEN)}, 'affinity_space': ...}}, not {p!r}: {c!r} "

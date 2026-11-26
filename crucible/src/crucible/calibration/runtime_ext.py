@@ -289,5 +289,6 @@ def specs() -> dict:
             limits=("MIND-small (US Microsoft News, 2019-11-09..15), production-recommender exposure (observational); "
                     "news articles only; no dwell time; non-commercial licence, acquisition route unresolved "
                     "(BLOCKERS B-1)."),
+            scope={"content_kinds": ["article", "newsletter"]},
             output_doc="P(open) per slot")
     return S
