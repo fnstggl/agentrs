@@ -177,7 +177,8 @@ class Crisis(Module):
         for t, ix in (("cr_assets", ("kind", "district")), ("cr_crews", ("owner",)), ("cr_trucks", ("owner",)),
                       ("cr_parts", ("owner",)), ("cr_orders", ("owner",)), ("cr_known", ("observer",)),
                       ("cr_operators", ()), ("cr_help", ("operator",)), ("cr_requests", ("operator",)),
-                      ("cr_reports", ("district",)), ("cr_invest", ("owner",)), ("cr_stores", ())):
+                      ("cr_reports", ("district",)), ("cr_invest", ("owner",)), ("cr_stores", ()),
+                      ("cr_hist", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -1329,9 +1330,13 @@ class Crisis(Module):
 
     @applier("crisis.state")
     def ap_state(self, ev):
-        self.world.state.put("cr_operators", "_up", {"up": dict(ev.payload["up"]), "services": ev.payload["services"],
-                                                     "on_backup": list(ev.payload.get("on_backup") or []),
-                                                     "t": ev.t, "kind": "_state"})
+        st = self.world.state
+        st.put("cr_operators", "_up", {"up": dict(ev.payload["up"]), "services": ev.payload["services"],
+                                       "on_backup": list(ev.payload.get("on_backup") or []),
+                                       "t": ev.t, "kind": "_state"})
+        # the facility-state history the evaluator integrates (recorded state: equal on a world rebuilt from the log)
+        st.put("cr_hist", f"{int(ev.t):012d}|{len(st.tables['cr_hist']):06d}",
+               {"t": int(ev.t), "services": ev.payload["services"], "up": dict(ev.payload["up"])})
 
     @applier("crisis.flood")
     def ap_flood(self, ev):
@@ -1462,13 +1467,18 @@ def households(world) -> dict[str, int]:
     return {name: int((d == k).sum()) for k, name in enumerate(mod.districts)}
 
 
+def history(world) -> list[tuple]:
+    """The recorded facility-state history (t, services per district, facilities up), from world state."""
+    return [(r["t"], r["services"], r["up"]) for _, r in sorted(world.state.scan("cr_hist"))]
+
+
 def restoration(world, t_from: int, t_to: int) -> dict:
     """Household service-hours lost, hospital downtime and the restored share, integrated over the recorded
-    facility states between t_from and t_to (evaluator side)."""
-    led = _ledger(world)
+    facility states between t_from and t_to (evaluator side; state only, so a world rebuilt from its log gives the
+    same numbers)."""
     hh = households(world)
     tot_h = sum(hh.values())
-    states = led["states"]
+    states = history(world)
     lost = {s: 0.0 for s in SERVICES}
     hosp = 0.0
     for k, (t, svc, up) in enumerate(states):
@@ -1576,7 +1586,7 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
         if ev.type == "crisis.priority":
             reasons[ev.payload["reason"]] = reasons.get(ev.payload["reason"], 0) + 1
     mod = world.modules["crisis"]
-    r = restoration(world, int(mod.c["at_h"]) * HOUR, world.now) if led["states"] else None
+    r = restoration(world, int(mod.c["at_h"]) * HOUR, world.now) if history(world) else None
     # scarcity binds when more assets are damaged at once than there are crews to work on them
     # (per trade: more damaged assets of a trade at once than crews of that trade on hand)
     damaged: dict[str, str] = {}

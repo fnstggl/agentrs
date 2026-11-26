@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from crucible.domains import _dom3 as K
+from crucible.domains import base
 from crucible.domains import information as I
 
 
@@ -93,10 +94,10 @@ def test_service_tools_ownership_verification_cost_and_capacity():
     acct = bank.primary_account(w.state, a)
     b0 = bank.balance(w.state, acct)
     ent = w.modules["infoeco"].ents[0]
-    res = env.execute(a, {"tool": "info.verify", "args": {"entity": ent["id"], "attribute": "open"}})
+    res = env.execute(a, {"tool": "info.inquire", "args": {"entity": ent["id"], "attribute": "open"}})
     assert res["ok"] and res["result"]["value"] == w.state.tables["info_facts"][f"{ent['id']}|open"]["text"]
     assert bank.balance(w.state, acct) == b0 - 400
-    n_ok = sum(env.execute(a, {"tool": "info.verify", "args": {"entity": ent["id"], "attribute": "close"}})["ok"]
+    n_ok = sum(env.execute(a, {"tool": "info.inquire", "args": {"entity": ent["id"], "attribute": "close"}})["ok"]
                for _ in range(15))
     assert n_ok == 11                                           # 12 calls a day in total
 
@@ -138,3 +139,11 @@ def test_reference_is_tool_only_and_the_definition_is_valid():
     w = base.world("information", "local_wiki_shocks", 0)
     fp = I.structure(w)
     assert fp["fact_change_process"] == "correlated" and "wiki" in fp["publishers"]
+
+
+def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
+    """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
+    no in-memory history) it gives the same verdict (framework evaluator_report)."""
+    rep = base.evaluator_report(I.DOMAIN, "local_hazard", 0, 6)
+    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+

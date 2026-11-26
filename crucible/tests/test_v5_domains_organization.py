@@ -84,3 +84,11 @@ def test_same_seed_same_log_with_council_decisions():
         digests.append((w.digest(), w.events_range(w.seq - 1, w.seq)[0].hash))
         assert not w.check_invariants()
     assert digests[0] == digests[1]
+
+
+def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
+    """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
+    no in-memory history) it gives the same verdict (framework evaluator_report)."""
+    rep = base.evaluator_report(O.DOMAIN, "four_goals", 0, 6)
+    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+

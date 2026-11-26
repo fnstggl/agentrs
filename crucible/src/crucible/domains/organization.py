@@ -136,7 +136,7 @@ class OrgEco(Module):
     def install(self, world):
         st = world.state
         for t, ix in (("org_members", ("goal",)), ("org_backbone", ()), ("org_projects", ("status",)),
-                      ("org_hours", ()), ("org_consider", ())):
+                      ("org_hours", ()), ("org_consider", ()), ("org_use", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -610,6 +610,11 @@ class OrgEco(Module):
                  extra={"t": int(now), "use": recs, "subscriptions": subs})
         if req_by:
             ctx.emit("orgs.requests", {"by": {k: int(v) for k, v in sorted(req_by.items())}}, vis="internal")
+        if recs:
+            # what this session's customers asked and got (the evaluator's record, kept as world state)
+            ctx.emit("orgs.usage", {"t": int(now), "requests": int(sum(r[2] for r in recs)),
+                                    "ok": int(sum(r[3] for r in recs)),
+                                    "users": sorted({int(r[0]) for r in recs if r[2] > 0})}, vis="internal")
         attention.spend(ctx, idx, np.full(m, 6.0), activity="online")
         return util
 
@@ -656,6 +661,11 @@ class OrgEco(Module):
     @applier("orgs.act")
     def ap_act(self, ev):
         return None
+
+    @applier("orgs.usage")
+    def ap_usage(self, ev):
+        st = self.world.state
+        st.put("org_use", f"{int(ev.payload['t']):012d}|{len(st.tables['org_use']):06d}", dict(ev.payload))
 
     @applier("orgs.vote_reason")
     def ap_vote_reason(self, ev):
@@ -717,14 +727,12 @@ def evaluate(world, principal: str, objective: dict) -> dict:
     st = world.state
     now = world.now
     t0 = now - int(objective.get("window_days", 14)) * DAY
-    use = []
-    for ev in world.events_range(0):
-        if ev.type == "cols.batch" and ev.payload.get("kind") == "orgs.online" and ev.t >= t0:
-            use.extend((ev.payload.get("extra") or {}).get("use") or [])
-    req = sum(r[2] for r in use)
-    okn = sum(r[3] for r in use)
+    # the customers' sessions in the window, from world state (equal on a world rebuilt from its log)
+    use = [u for _, u in st.scan("org_use") if u["t"] >= t0]
+    req = sum(u["requests"] for u in use)
+    okn = sum(u["ok"] for u in use)
     success = okn / req if req else 0.0
-    users = len({r[0] for r in use if r[2] > 0})
+    users = len({i for u in use for i in u["users"]})
     mem = [m for _, m in st.scan("org_members") if not m["convener"]]
     active = sum(1 for m in mem if m["status"] == "active")
     b = st.tables["org_backbone"]["backbone"]

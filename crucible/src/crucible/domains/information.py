@@ -30,7 +30,7 @@ World physics (module config, generated per instance by `build`; never returned 
   hosting costs per query and per indexed document, and an operator's log of its own traffic and the feedback its
   users chose to give. Individuals learn of services from a services directory search, from documents a service's
   owner published, and from contacts.
-* **Verification.** `info.verify` asks the entity directly (a paid, capacity-limited inquiry line): the one way to
+* **Asking the source.** `info.inquire` asks the entity directly (a paid, capacity-limited inquiry line): the one way to
   learn a current value other than reading. Nothing else returns a true value.
 
 The independent evaluator (`evaluate`) reads the recorded log only: lookups of independent population members
@@ -282,7 +282,7 @@ class InfoEco(Module):
         for t, ix in (("info_entities", ("region",)), ("info_facts", ("entity",)), ("info_sources", ("kind",)),
                       ("info_mem", ("source",)), ("info_prov", ("owner",)), ("info_services", ("owner", "status")),
                       ("info_served", ("service",)), ("info_feedback", ("service",)), ("info_verify", ("who",)),
-                      ("info_reads", ()), ("info_sched", ())):
+                      ("info_reads", ()), ("info_sched", ()), ("info_looks", ()), ("info_web", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -596,7 +596,7 @@ class InfoEco(Module):
 
     def _reporter(self, ctx, org, s):
         """A desk checks `capacity` facts a day: those its readers read most, then those it checked longest ago. A
-        check is a call to the entity (it learns the current value, as `info.verify` would); a change against what
+        check is a call to the entity (it learns the current value, as `info.inquire` would); a change against what
         it last published becomes a new dated article."""
         st = ctx.state
         day = int(ctx.now // DAY)
@@ -938,9 +938,9 @@ class InfoEco(Module):
                  vis="public")
         return {"ok": True}
 
-    @endpoint("verify", S.obj({"entity": S.s_str("entity id or name", maxLength=80),
+    @endpoint("inquire", S.obj({"entity": S.s_str("entity id or name", maxLength=80),
                                "attribute": S.s_str(maxLength=20)}, ["entity", "attribute"]), cost_s=600)
-    def ep_verify(self, ctx, entity, attribute):
+    def ep_inquire(self, ctx, entity, attribute):
         """Ask the entity directly through the inquiry line (paid; a limited number of calls per day): returns the
         value in effect now."""
         st = ctx.state
@@ -1163,6 +1163,12 @@ class InfoEco(Module):
             "need_at": need_at, "ch_n": ch_n, "ch_ok": ch_ok, "aware": aware, "last_ch": last_ch,
             "last_ok_ch": last_ok, "n_look": n_look, "n_ok": n_ok, "n_wrong": n_wrong, "n_none": n_none},
             table=TABLE, model_id=MODEL_ID, fidelity_id=FIDELITY, extra={"t": int(now), "lookups": recs})
+        if recs:
+            # the evaluator's record of this session's look-ups (retrieval services' in full, the open web's as a
+            # count), kept as world state so that a world rebuilt from its log is judged the same
+            web = [r for r in recs if r[1] == 0]
+            ctx.emit("info.looks", {"t": int(now), "svc": [r for r in recs if r[1] > 0],
+                                    "web": [len(web), sum(1 for r in web if r[9] == "ok")]}, vis="internal")
         for i, eid, a, truth in edits:
             p = ids.ensure_principal(ctx, i)
             try:
@@ -1172,6 +1178,19 @@ class InfoEco(Module):
         return util
 
     # ------------------------------------------------------------------ appliers
+    @applier("info.looks")
+    def ap_looks(self, ev):
+        st = self.world.state
+        p = ev.payload
+        for r in p["svc"]:
+            st.put("info_looks", f"{int(p['t']):012d}|{len(st.tables['info_looks']):07d}",
+                   {"t": int(p["t"]), "user": int(r[0]), "ch": int(r[1]), "entity": r[2], "attr": r[3], "q": r[4],
+                    "results": list(r[5]), "versions": list(r[6]), "opened": list(r[7]), "claim": r[8],
+                    "outcome": r[9]})
+        if p["web"][0]:
+            st.put("info_web", f"{int(p['t']):012d}|{len(st.tables['info_web']):06d}",
+                   {"t": int(p["t"]), "n": int(p["web"][0]), "ok": int(p["web"][1])})
+
     @applier("info.entity")
     def ap_entity(self, ev):
         p = ev.payload
@@ -1183,7 +1202,8 @@ class InfoEco(Module):
         st = self.world.state
         old = st.get("info_facts", p["id"])
         st.put("info_facts", p["id"], {"entity": p["entity"], "attr": p["attr"], "value": p["value"],
-                                       "text": p["text"], "t": ev.t, "n": (old["n"] + 1) if old else 0})
+                                       "text": p["text"], "t": ev.t, "n": (old["n"] + 1) if old else 0,
+                                       "hist": list(old["hist"] if old else []) + [[int(ev.t), p["text"]]]})
 
     @applier("info.sched")
     def ap_sched(self, ev):
@@ -1373,12 +1393,30 @@ def service_slots(world, principal: str) -> dict[int, str]:
     return {s["slot"]: sid for sid, s in st.scan("info_services") if s["owner"] in mine}
 
 
+def _state_ledger(world) -> dict:
+    """The evaluator's view from recorded world state: every fact's value history (`info_facts`), the retrieval
+    services' look-ups (`info_looks`) and the open web's look-up counts (`info_web`); equal on a world rebuilt from
+    its log."""
+    st = world.state
+    led = world.runtime.get("info.sledger")
+    key = (id(st), int(world.seq))
+    if led is not None and led.get("key") == key:
+        return led
+    rel = led["rel"] if led is not None and led.get("key", (None,))[0] == id(st) else {}
+    led = {"key": key, "rel": rel,
+           "facts": {fid: [(int(t), v) for t, v in f.get("hist") or []] for fid, f in st.scan("info_facts")},
+           "lookups": [dict(r) for _, r in sorted(st.scan("info_looks"))],
+           "web": [dict(r) for _, r in sorted(st.scan("info_web"))]}
+    world.runtime["info.sledger"] = led
+    return led
+
+
 @K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     """Independent outcome of the objective: lookups by independent population members through the participant's
     services in the window, their success, the open web search's success in the same window, and verified
     retrieval performance (MRR, precision@1) of the participant's result lists."""
-    led = _ledger(world)
+    led = _state_ledger(world)
     win = int(objective.get("window_days", 10)) * DAY
     t0 = world.now - win
     slots = service_slots(world, principal)
@@ -1392,10 +1430,11 @@ def evaluate(world, principal: str, objective: dict) -> dict:
         return rel_cache[p]
     recent = [r for r in led["lookups"] if r["t"] >= t0]
     mine = [r for r in recent if r["ch"] in slots and independent(r["user"])]
-    web = [r for r in recent if r["ch"] == 0]
+    web_n = sum(r["n"] for r in led["web"] if r["t"] >= t0)
+    web_ok = sum(r["ok"] for r in led["web"] if r["t"] >= t0)
     ok = sum(r["outcome"] == "ok" for r in mine)
     succ = ok / len(mine) if mine else 0.0
-    web_succ = sum(r["outcome"] == "ok" for r in web) / len(web) if web else 0.0
+    web_succ = web_ok / web_n if web_n else 0.0
     rr, p1 = [], []
     for r in mine:
         rel = relevance(world, led, r)
@@ -1415,7 +1454,7 @@ def evaluate(world, principal: str, objective: dict) -> dict:
                            min(1.0, mrr / need["mrr"])]))
     return {"success": all(checks.values()), "score": round(score, 4),
             "details": {"independent_users": users, "lookups": len(mine), "success_rate": round(succ, 4),
-                        "web_success_rate": round(web_succ, 4), "web_lookups": len(web), "mrr": round(mrr, 4),
+                        "web_success_rate": round(web_succ, 4), "web_lookups": int(web_n), "mrr": round(mrr, 4),
                         "precision_at_1": round(float(np.mean(p1)) if p1 else 0.0, 4),
                         "returning_users": returning, "services": sorted(slots.values()), "checks": checks}}
 
@@ -1619,7 +1658,7 @@ class InfoCurator(K.ReadingReference):
                 age = (t - v[1]) / DAY if v else 60.0
                 cand.append((-(dem * (1.0 + age)), e["entity"], a))
         for _, eid, a in sorted(cand)[: max(0, min(3, 12 - self.calls))]:
-            out.append(K.A("info.verify", f"verify:{eid}:{a}", entity=eid, attribute=a))
+            out.append(K.A("info.inquire", f"verify:{eid}:{a}", entity=eid, attribute=a))
             self.calls += 1
         for e in self.ents:
             eid = e["entity"]
