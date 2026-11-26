@@ -1135,10 +1135,13 @@ class World:
         return outs[i]["out"]
 
     @classmethod
-    def regenerate(cls, spec: WorldSpec, events: list[dict], world_id: str = "regen") -> "World":
+    def regenerate(cls, spec: WorldSpec, events: list[dict], world_id: str = "regen", store=None) -> "World":
         """Re-execute the recorded commands and clock advances through the handlers (not the appliers), with
         recorded external outcomes injected. If the kernel and modules are deterministic, the resulting event
-        log is identical to the original (same hashes)."""
+        log is identical to the original (same hashes).
+
+        5.0: `store` is where recorded outcomes kept as blobs (recorded neural inference outputs) can be read - the
+        store of the recorded world, e.g. in a fresh process; the regenerated world itself never writes to it."""
         evs = [Event.from_dict(d) for d in events]
         ext_by_cmd: dict[Any, list] = {}
         for e in evs:   # recorded external outcomes, keyed by the first seq of their transaction
@@ -1151,6 +1154,8 @@ class World:
                 if k is not None:
                     ext_by_cmd.setdefault(k, []).extend(e.payload["ext"])
         w = cls.create(spec, world_id=world_id)
+        if store is not None:
+            w.runtime["blob_sources"] = [store]
         w._regen = ext_by_cmd
         i = 0
         n_gen = w.seq

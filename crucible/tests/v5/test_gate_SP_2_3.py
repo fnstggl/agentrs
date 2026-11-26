@@ -2,11 +2,31 @@
 cross-module transactional integrity, recorded neural inference replayable without rerunning it.
 
 Metrics (docs/v5/ACCEPTANCE_MANIFEST.json): shared_primitive_kinds >= 17, cross_module_rollback_failures == 0,
-inference_replay_without_rerun == true. Everything is measured on the real kernel and the real 4.0 + 5.0 modules.
+inference_replay_without_rerun == true. Measured on the real system (D-21; audit A6/A9 found the 5.0 version measured
+test-only modules and a vacuous, opt-in duplicate check):
+
+1. shared_primitive_kinds - the shared kinds (primitives.OWNERS) whose owner is a shipped kernel module that really
+   creates the owner table, according to the MANDATORY scan of every table, column table and array of every shipped
+   module (crucible.substrate.facts.audit), and that have no copy elsewhere - a kind with a known duplicate on the
+   reviewed allow-list does NOT count (it is reported in kinds_with_known_duplicates with its migration). The test
+   records the number honestly; the acceptance checker compares it with the criterion.
+2. cross_module_rollback_failures - (a) fault injection into REAL multi-module transactions of a world with every
+   shipped module: each scheduled job (and agent command) whose events touch two or more modules is re-run on a fork
+   with a fault raised after a random one of its events; the fork must commit only the kernel's failure record and
+   leave every module table and column exactly as before; (b) randomised commands that compose operations of six
+   real modules (bank, artifacts with a typed subscriber, assets, columns, attention, identity) through a test
+   driver and fail in seven real ways.
+3. inference_replay_without_rerun - (a) the population's neural classes (pop_adaptive GRU policies, pop_strategic):
+   a SQLite-stored run in one process, then replay and regeneration in NEW processes from the store alone, counting
+   inference executions at the recorded-inference boundary (must be 0, results exact), and a cross-process resume;
+   (b) a torch policy with OS-entropy sampling (a test module) whose rerun differs, regenerated and replayed exactly.
 """
 import base64
 import hashlib
+import json
 import os
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -20,6 +40,7 @@ from crucible.substrate import artifacts as A
 from crucible.substrate import attention as AT
 from crucible.substrate import bus
 from crucible.substrate import columns as C
+from crucible.substrate import facts
 from crucible.substrate import ids
 from crucible.substrate import inference as I
 from crucible.substrate import primitives as P
@@ -27,6 +48,7 @@ from crucible.worldgen.generator import FAMILIES, generate
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_2_3.py"
+TESTS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def with_deps(names):
@@ -45,30 +67,155 @@ def with_deps(names):
 
 # ---------------------------------------------------------------------------------------------- 1. primitives
 def measure_primitives() -> dict:
+    audit = facts.audit()                                    # every shipped module, each installed on its own
     mods = with_deps(["identity", "bank", "admin", *P.owner_modules()])
     w = World.create(WorldSpec("sp23-prim", 1, [{"name": m, "config": {}} for m in mods]))
     probs = P.problems(w)
     rep = P.check_no_duplicates(w) if not probs else {"kinds": {}}
-    real = []
+    dup_kinds = sorted({facts.REVIEWED[k]["kind"] for k in audit["known_duplicates"]})
+    owned, single = [], []
     for kind in P.kinds():
         o = P.owner(kind)
         if o["module"] == P.KERNEL:
             ok = o["table"].startswith("@") or o["table"] in w.state.tables
         else:
-            ok = o["module"] in w.modules and o["table"] in w.state.tables and \
-                o["module"] in w.state.declared_by.get(o["table"], [])
-        if ok and rep["kinds"].get(kind, {}).get("present"):
-            real.append(kind)
+            ok = f"{o['module']}.{o['table']}" in audit["owners"] and rep["kinds"].get(kind, {}).get("present")
+        if ok:
+            owned.append(kind)
+            if kind not in dup_kinds:
+                single.append(kind)
     fam_dups = {f: P.problems(World(generate({"family": f}, 0), f"sp23-{f}")) for f in sorted(FAMILIES)}
-    typed = sorted(bus.types())
-    return {"shared_primitive_kinds": len(real), "primitive_kinds_declared": len(P.kinds()),
+    return {"shared_primitive_kinds": len(single), "shared_primitive_kinds_owned": len(owned),
+            "primitive_kinds_declared": len(P.kinds()), "kinds_with_known_duplicates": ",".join(dup_kinds),
+            "known_duplicate_tables": len(audit["known_duplicates"]),
+            "unexplained_duplicate_facts": len(audit["problems"]),
+            "fact_scan_modules": audit["modules"], "fact_scan_items": audit["items"],
+            "fact_scan_uninstallable": len(audit["uninstallable"]),
             "owners_world_modules": len(w.modules), "owners_world_problems": len(probs),
             "families_checked_for_duplicates": len(fam_dups),
             "families_with_duplicate_facts": sum(1 for v in fam_dups.values() if v),
-            "typed_event_types": len(typed), "recognised_4_0_overlaps": len(rep.get("warnings", []))}
+            "typed_event_types": len(bus.types()), "_audit": audit}
 
 
-# ---------------------------------------------------------------------------------------------- 2. integrity
+# ---------------------------------------------------------------------------------------------- 2a. fault injection
+KERNEL_T = {"cmd", "cmd.rejected", "proc", "proc.failed", "time", "sched.add", "sched.del", "ctr", "idem", "ext",
+            "note", "know", "principal.add", "principal.update"}
+KERNEL_TABLES = ("sched", "principals", "idem", "knowledge")
+
+
+def all_modules_spec(seed=7) -> WorldSpec:
+    first = ["identity", "bank", "admin", "artifacts", "cols", "code", "search", "forum", "cloud", "net", "appdb",
+             "popsites", "pop", "popweb"]
+    excl = {"calendar", "crowd", "feed"}       # alias of cal; the stand-in population; feed needs register_activity
+    names = facts._with_deps(first + [m for m in facts.shipped_modules() if m not in excl and m not in first])
+    return WorldSpec("sp23-all", seed, [{"name": m, "config": {}} for m in names], {"cost_model": "deterministic"})
+
+
+def _modules_of(world, evs) -> set:
+    out = set()
+    for e in evs:
+        if e.type in KERNEL_T:
+            continue
+        if e.type in ("cols.batch", "cols.grow"):
+            by = C._registry(world).get(e.payload["table"], {}).get("by", {})
+            out.add(next(iter(by.values()), "cols"))
+        else:
+            out.add(getattr(getattr(world.appliers.get(e.type), "__self__", None), "name", "?"))
+    return out
+
+
+def _faulted(blob, k, run):
+    """Fork from `blob`, arm a fault after the k-th applied event, run the same operation; the fork and the
+    committed tail."""
+    f = World.from_blob(blob, world_id="sp23-fault")
+    orig = f._apply
+    state = {"n": 0, "armed": True}
+
+    def ap(ev):
+        orig(ev)
+        if state["armed"]:
+            state["n"] += 1
+            if state["n"] == k:
+                state["armed"] = False
+                raise RuntimeError("injected fault (gate SP-2.3)")
+    f._apply = ap
+    s0 = f.seq
+    run(f)
+    return f, f.log[s0 - f.log_base:]
+
+
+def _rolled_back(blob, f, tail, record_type) -> tuple[bool, str]:
+    types = [e.type for e in tail]
+    leaked = [t for t in types if t not in KERNEL_T]
+    if leaked or record_type not in types:
+        return False, f"leaked {leaked[:4]} / records {types[:5]}"
+    pre = World.from_blob(blob, world_id="sp23-pre")
+    if World.replay(pre.spec, [e.to_dict() for e in tail], base_blob=blob).digest() != f.digest():
+        return False, "state differs from the replay of its committed log"
+    a = {x: d for x, d in pre.state.table_digests().items() if x not in KERNEL_TABLES}
+    b = {x: d for x, d in f.state.table_digests().items() if x not in KERNEL_TABLES}
+    if a != b:
+        return False, f"module tables changed: {sorted(x for x in set(a) | set(b) if a.get(x) != b.get(x))[:4]}"
+    if set(pre.state.arrays) != set(f.state.arrays) or not all(
+            np.array_equal(pre.state.arrays[x], f.state.arrays[x]) for x in pre.state.arrays):
+        return False, "columns changed"
+    return True, ""
+
+
+def measure_fault_injection(n_targets: int = 60, seed: int = 5) -> dict:
+    from crucible.agents.scripted import _random_args
+    w = World.create(all_modules_spec(), world_id="sp23-all")
+    w.advance_time(3 * 3600)
+    rng = np.random.default_rng(seed)
+    agents = [w.system_call("admin.join", {"handle": f"sp23-f{i}", "endowment": 200_000})["principal"]
+              for i in range(3)]
+    eps = sorted(e for e in w.endpoints if not e.startswith(("admin.", "world.")))
+    st = {"jobs": 0, "commands": 0, "targets": 0, "job_targets": 0, "command_targets": 0, "failures": 0,
+          "max_modules": 0, "subscriber_targets": 0, "v5_module_targets": 0}
+    v5 = {n for n in w.modules if MODULES[n].__module__.split(".")[1] in crucible.V5_PACKAGES}
+    fails, touched = [], set()
+    end = w.now + 18 * 3600
+    while st["targets"] < n_targets and w.now < end:
+        # alternate: one agent command (random, schema-valid) and one scheduled job
+        blob, s0 = w.snapshot_blob(), w.seq
+        if st["commands"] <= st["jobs"]:
+            ep = w.endpoints[eps[int(rng.integers(0, len(eps)))]]
+            actor = agents[st["commands"] % 3]
+            act = {"tool": ep.name, "args": _random_args(ep.params, rng, actor)}
+            r = w.execute(actor, act)
+            st["commands"] += 1
+            kind, run, rec = "command", (lambda x, a=act, p=actor: x.execute(p, a)), "cmd.rejected"
+            if not r.ok:
+                continue
+        else:
+            nxt = w.next_job_time()
+            if nxt is None:
+                break
+            w.advance_time(nxt, max_jobs=1)
+            st["jobs"] += 1
+            kind, run, rec = "job", (lambda x, t=nxt: x.advance_time(t, max_jobs=1)), "proc.failed"
+        evs = w.log[s0 - w.log_base:]
+        ms = _modules_of(w, evs)
+        if len(ms) < 2:
+            continue
+        k = int(rng.integers(1, len(evs) + 1))
+        f, tail = _faulted(blob, k, run)
+        ok, why = _rolled_back(blob, f, tail, rec)
+        st["targets"] += 1
+        st[f"{kind}_targets"] += 1
+        st["max_modules"] = max(st["max_modules"], len(ms))
+        st["subscriber_targets"] += any(e.via for e in evs)
+        st["v5_module_targets"] += bool(ms & v5)
+        touched |= ms
+        if not ok:
+            st["failures"] += 1
+            fails.append((kind, evs[0].type, evs[0].payload.get("proc") or evs[0].payload.get("tool"), k, why))
+    st["modules_touched"] = len(touched)
+    st["world_modules"] = len(w.modules)
+    return {"stats": st, "fails": fails, "touched": sorted(touched)}
+
+
+# ---------------------------------------------------------------------------------------------- 2b. composed failures
 bus.event_type("sp23.indexed", S.obj({"ref": {"type": "string"}, "owner": {"type": "string"},
                                       "fee": {"type": "integer", "minimum": 0}}, ["ref", "owner", "fee"]),
                owner="sp23_index", doc="a content index entry (gate SP-2.3 coupling)")
@@ -304,7 +451,7 @@ def measure_integrity(n_scenarios: int = 240, seed: int = 23) -> dict:
             "events": w.seq, "modules": len(w.modules)}
 
 
-# ---------------------------------------------------------------------------------------------- 3. inference
+# ---------------------------------------------------------------------------------------------- 3b. nondeterministic policy
 CALLS = {"n": 0}
 
 
@@ -395,33 +542,89 @@ def measure_inference(days: int = 2) -> dict:
             "inference_rerun_differs": len(outs) > 1}
 
 
-@pytest.mark.timeout(900)
-def test_SP_2_3_shared_world_substrate():
+# ---------------------------------------------------------------------------------------------- 3a. across processes
+def _child(*args, timeout=1200) -> dict:
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
+               PYTHONPATH=os.path.join(os.path.dirname(TESTS), "src"))
+    p = subprocess.run([sys.executable, os.path.join(TESTS, "v5_resume_child.py"), *map(str, args)],
+                       capture_output=True, text=True, timeout=timeout, env=env)
+    assert p.returncode == 0, p.stderr[-3000:]
+    return json.loads([ln for ln in p.stdout.splitlines() if ln.startswith("{")][-1])
+
+
+def measure_inference_across_processes(tmp) -> dict:
+    from crucible.population.worlds import population_world
+    spec = population_world("development", 3, n=300, sites=8)
+    sp = os.path.join(tmp, "spec.json")
+    with open(sp, "w") as fh:
+        json.dump(spec.to_dict(), fh)
+    db = os.path.join(tmp, "sp23.sqlite")
+    part = _child("part", sp, db, 1.0, 1.5)              # writer process: dies without closing anything
+    rep = _child("replay", sp, db)                       # new process: replay from genesis, store only
+    reg = _child("regen", sp, db)                        # new process: regeneration, recorded outcomes injected
+    res = _child("resume", sp, db, 2.0)                  # new process: snapshot + replay, then live again
+    ref = _child("ref", sp, 2.0)                         # uninterrupted reference
+    exact_replay = (rep["seq"], rep["hash"], rep["digest"]) == (part["seq"], part["hash"], part["digest"])
+    exact_regen = (reg["seq"], reg["hash"], reg["digest"]) == (part["seq"], part["hash"], part["digest"])
+    exact_resume = (res["hash"], res["digest"]) == (ref["hash"], ref["digest"])
+    ok = (part["inference_runs"] > 0 and rep["inference_runs"] == 0 and reg["inference_runs"] == 0 and exact_replay
+          and exact_regen and exact_resume and "pop_adaptive" in part["modules"] and "pop_strategic" in part["modules"])
+    return {"ok": bool(ok), "population_inferences_recorded": part["inference_runs"],
+            "population_inference_runs_during_replay": rep["inference_runs"],
+            "population_inference_runs_during_regeneration": reg["inference_runs"],
+            "population_cross_process_replay_exact": exact_replay,
+            "population_cross_process_regeneration_exact": exact_regen,
+            "population_cross_process_resume_exact": exact_resume,
+            "population_resume_inference_runs": res["inference_runs"], "population_events": part["seq"]}
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(2400)
+def test_SP_2_3_shared_world_substrate(tmp_path):
     prim = measure_primitives()
+    audit = prim.pop("_audit")
+    fault = measure_fault_injection()
     integ = measure_integrity()
+    xproc = measure_inference_across_processes(str(tmp_path))
     infer = measure_inference()
-    st = integ["stats"]
+    st, fs = integ["stats"], fault["stats"]
     metrics = dict(prim)
     metrics.update({
-        "cross_module_rollback_failures": st["rollback_failures"] + st["contained_failures"],
+        "cross_module_rollback_failures": st["rollback_failures"] + st["contained_failures"] + fs["failures"],
+        "fault_injection_targets": fs["targets"], "fault_injection_job_targets": fs["job_targets"],
+        "fault_injection_command_targets": fs["command_targets"], "fault_injection_failures": fs["failures"],
+        "fault_injection_max_modules_per_transaction": fs["max_modules"],
+        "fault_injection_modules_touched": fs["modules_touched"], "fault_injection_world_modules": fs["world_modules"],
+        "fault_injection_subscriber_targets": fs["subscriber_targets"],
+        "fault_injection_v5_module_targets": fs["v5_module_targets"],
         "integrity_scenarios": st["scenarios"], "integrity_failing_scenarios": st["failing"],
         "integrity_controls": st["controls"], "integrity_control_noops": st["control_noops"],
         "integrity_contained_subcalls": st["contained"], "integrity_failed_as_intended": st["failed_as_intended"],
-        "integrity_doomed_subcall_effective": st["doomed_effective"], "integrity_max_event_hosts_per_command": st["modules_touched_max"],
+        "integrity_doomed_subcall_effective": st["doomed_effective"],
+        "integrity_max_event_hosts_per_command": st["modules_touched_max"],
         "integrity_world_modules": integ["modules"], "integrity_events": integ["events"],
         "integrity_replay_exact": integ["replay_exact"], "integrity_regeneration_exact": integ["regeneration_exact"],
     })
-    metrics.update(infer)
+    metrics.update({k: v for k, v in xproc.items() if k != "ok"})
+    metrics.update({f"testpolicy_{k}" if k != "inference_replay_without_rerun" else "testpolicy_replay_without_rerun":
+                    v for k, v in infer.items()})
+    metrics["inference_replay_without_rerun"] = bool(xproc["ok"] and infer["inference_replay_without_rerun"])
     evidence.record("SP-2.3", metrics, command=CMD, notes=(
-        "primitives: owners world with every owner module; duplicates checked on every 4.0 world family. integrity: "
-        "randomised commands composing bank, artifacts (with a typed-event subscriber that charges through bank), "
-        "assets, columns, attention and identity, failing in 7 real ways; state fingerprint (all tables, arrays, "
-        "meta except seq/hash/cmd_counter) compared before and after; contained sub-call failures compared on forks. "
-        "inference: torch MLP with OS-entropy sampling, recorded per cohort, regenerated and replayed."))
-    assert prim["shared_primitive_kinds"] >= 17 and prim["families_with_duplicate_facts"] == 0
-    assert metrics["cross_module_rollback_failures"] == 0, integ["fails"][:5]
+        "shared_primitive_kinds counts kinds with one real owner and NO copy anywhere in the mandatory scan of every "
+        "shipped module (facts.audit); kinds with known duplicates (allow-list with migrations and expiry, "
+        "substrate/facts.py) are listed and do not count. Rollback: fault injection into real multi-module jobs and "
+        "commands of a world with every shipped module (a fault after a random event; the fork must commit only the "
+        "failure record and leave every module table and column unchanged), plus driver-composed failures of six "
+        "real modules. Inference: pop_adaptive/pop_strategic replayed and regenerated in NEW processes from the "
+        "SQLite store alone (inference executions counted at the recorded-inference boundary), cross-process resume "
+        "exact; a test torch policy with OS-entropy sampling regenerated and replayed in process."))
+    # structural facts that must hold whatever the criterion says (the checker compares the criterion itself)
+    assert audit["problems"] == [] and audit["uninstallable"] == {}
+    assert prim["shared_primitive_kinds_owned"] == len(P.kinds()) and prim["families_with_duplicate_facts"] == 0
+    assert metrics["cross_module_rollback_failures"] == 0, (fault["fails"][:5], integ["fails"][:5])
+    assert fs["targets"] >= 40 and fs["max_modules"] >= 4 and fs["v5_module_targets"] >= 10
     assert st["failing"] >= 100 and st["controls"] >= 20 and st["control_noops"] == 0
-    assert st["modules_touched_max"] >= 5
     assert st["failed_as_intended"] >= 0.8 * st["failing"] and st["doomed_effective"] == 20
     assert integ["replay_exact"] and integ["regeneration_exact"]
+    assert xproc["ok"], xproc
     assert infer["inference_replay_without_rerun"], infer

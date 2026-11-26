@@ -311,6 +311,11 @@ def _read_bytes(world, h: str) -> bytes | None:
         if found is not None and world.store is None:
             _lease(world).hold(h)
     if found is None:
+        for s in world.runtime.get("blob_sources", ()):     # read-only sources (World.regenerate(store=...))
+            found = read_store_blob(s, h)
+            if found is not None:
+                break
+    if found is None:
         for r in list(_SOURCES):
             s = r()
             if s is None or s is world.store:

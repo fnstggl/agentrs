@@ -9,6 +9,8 @@
                                                                        on to DAYS
     python tests/v5_resume_child.py replay SPEC.json DB               a NEW process: replay the whole stored log from
                                                                        genesis with the store's blobs only
+    python tests/v5_resume_child.py regen  SPEC.json DB               a NEW process: regenerate the stored log (handlers
+                                                                       re-run, recorded outcomes injected)
 
 Every mode prints one JSON line: seq, last hash, digest, invariant violations, and how many recorded neural
 inferences were (re-)executed in this process (`inference_runs`, counted at the recorded-inference boundary).
@@ -86,6 +88,13 @@ def main(argv):
         st = SQLiteStore(argv[3])
         w = World.replay(spec, st.read_events("resume"), world_id="resume-replay", store=st)
         report(w)
+    elif mode == "regen":
+        # re-execute every recorded command and process through the handlers, recorded outcomes injected
+        st = SQLiteStore(argv[3])
+        evs = st.read_events("resume")
+        recs = sum(1 for e in evs if e["type"] in ("ext", "cmd.rejected", "proc.failed"))
+        w = World.regenerate(spec, evs, world_id="resume-regen", store=st)
+        report(w, recorded_ext_events=recs)
     else:
         raise SystemExit(f"unknown mode {mode}")
 
