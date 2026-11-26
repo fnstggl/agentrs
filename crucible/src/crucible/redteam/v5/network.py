@@ -322,6 +322,11 @@ def media_launches(rows: list) -> list[dict]:
         if tool is None:
             continue
         jailed = any(os.path.realpath(w) == os.path.realpath(JAIL) for w in argv[:6])
+        # a version query (`ffmpeg -version`, `sox --version`: the tools' recorded identity) parses no participant
+        # bytes; every other launch is counted (input files, pipes, filter graphs are all participant-controlled)
+        query = len(argv) <= 3 and any(a in ("-version", "--version", "-buildconf") for a in argv[1:])
+        if query and not jailed:
+            continue
         out.append({"tool": tool, "jailed": jailed, "argv0": os.path.basename(argv[0]) if argv else exe})
     return out
 

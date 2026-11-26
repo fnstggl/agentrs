@@ -148,7 +148,7 @@ class _EnvParticipant:
                        {"type": "event", "payload": e} for e in (o.get("events") or [])]
         return o
 
-    def act(self, actor, tool, **args):
+    def act(self, actor, tool, /, **args):
         r = self.env.execute(actor, {"tool": tool, "args": args})
         return _Result(bool(r.get("ok")), r.get("result"), r.get("error"))
 
@@ -182,86 +182,68 @@ class _Tier2(V5Probe):
         return drive(env, {me: d.reference_policy(me, obj)}, days=1.0, dt=int(getattr(d, "dt", 3600)), trace=False)
 
 
-class Tier2DomainOffline(_Tier2):
-    attack_class = "network/egress"
-    gates = ("W.8",)
+class Tier2OfflineAndIsolated(_Tier2):
+    attack_class = "evaluator_independence/hidden_answer"
+    gates = ("W.2", "W.8")
 
     def __init__(self, domain: str, config: str):
         super().__init__(domain, config)
-        self.name = f"v5.tier2.{domain}.{config}.world_is_offline"
-        self.description = (f"Tier 2 domain {domain}, evaluation configuration {config}: the world is built through the "
-                            "learner's path and the domain's scripted reference acts for one simulated day, all under "
-                            "the network guard. Checked: no network attempt.")
+        self.name = f"v5.tier2.{domain}.{config}.offline_and_evaluator_isolated"
+        self.description = (f"Tier 2 domain {domain}, evaluation configuration {config}, built through the learner's own "
+                            "path: under the network guard the domain's scripted reference acts for a simulated day; "
+                            "the evaluator's measurements of the seat (Domain.evaluate and the environment's "
+                            "verify()) are then taken as canaries and the seat sweeps every read-only tool it has "
+                            "with every identifier it finds and reads its observation stream. Checked: no network "
+                            "attempt at all, and no evaluator value reaches the seat.")
 
     def attack(self, a: Attacker) -> None:
         from ...realworld import NetworkGuard
+        self.canaries, self.received, self.drive = {}, [], {}
         with NetworkGuard() as g:
             try:
                 d, env, me, obj = self._env()
                 try:
                     self.drive = self._reference_day(d, env, me, obj)
+                    # the evaluator's own measurements only (verify()'s bookkeeping - event count, digest - is public)
+                    res = {"evaluate": d.evaluate(env.world, me, obj),
+                           "verify_evaluation": (env.verify().get("evaluation") or {})}
+
+                    def walk(x, path):
+                        if isinstance(x, dict):
+                            for k, v in x.items():
+                                walk(v, f"{path}.{k}")
+                        elif isinstance(x, (list, tuple)):
+                            for i, v in enumerate(x[:50]):
+                                walk(v, f"{path}[{i}]")
+                        elif isinstance(x, (int, float)) and not isinstance(x, bool):
+                            dd = distinctive(x)
+                            if dd:
+                                self.canaries.setdefault(dd, path)
+                    walk(res, "evaluator")
+                    self.received = sweep_read_only(_EnvParticipant(env), me, rounds=1, max_calls=1200)
                 finally:
                     env.close()
             finally:
                 self.attempts = list(g.attempts)
 
     def verdict(self, ev: Evaluator) -> Verdict:
+        hits = scan_hits(self.received, self.canaries)
         acted = sum(int(x.get("actions") or 0) for x in (self.drive.get("agents") or {}).values())
-        evd = {"network_attempts": self.attempts[:20], "network_escapes": len(self.attempts), "reference_actions": acted}
+        evd = {"network_attempts": self.attempts[:20], "network_escapes": len(self.attempts), "reference_actions": acted,
+               "canaries": len(self.canaries), "hits": dict(list(hits.items())[:10]), "evaluator_leaks": len(hits),
+               "texts_examined": len(self.received)}
         if self.attempts:
             from ..framework import INTEGRITY_BREAK
             return Verdict(INTEGRITY_BREAK, f"a Tier 2 world tried to reach the network: {self.attempts[:3]}", evd,
                            severity="critical")
-        return Verdict(HELD, f"no name resolution, connection or datagram left the world process ({acted} reference "
-                             "actions in a day)", evd)
-
-
-class Tier2EvaluatorNotReadable(_Tier2):
-    attack_class = "evaluator_independence/hidden_answer"
-    gates = ("W.2",)
-
-    def __init__(self, domain: str, config: str):
-        super().__init__(domain, config)
-        self.name = f"v5.tier2.{domain}.{config}.evaluator_measurements_not_readable"
-        self.description = (f"Tier 2 domain {domain}, evaluation configuration {config}: after the scripted reference "
-                            "acts for a simulated day, the evaluator's measurements of the seat (Domain.evaluate and "
-                            "the environment's verify()) are taken as canaries; the seat then sweeps every read-only "
-                            "tool it has with every identifier it finds and reads its observation stream. Checked: "
-                            "no evaluator value appears.")
-
-    def attack(self, a: Attacker) -> None:
-        d, env, me, obj = self._env()
-        try:
-            self._reference_day(d, env, me, obj)
-            res = {"evaluate": d.evaluate(env.world, me, obj), "verify": env.verify()}
-            self.canaries = {}
-
-            def walk(x, path):
-                if isinstance(x, dict):
-                    for k, v in x.items():
-                        walk(v, f"{path}.{k}")
-                elif isinstance(x, (list, tuple)):
-                    for i, v in enumerate(x[:50]):
-                        walk(v, f"{path}[{i}]")
-                elif isinstance(x, (int, float)) and not isinstance(x, bool):
-                    dd = distinctive(x)
-                    if dd:
-                        self.canaries.setdefault(dd, path)
-            walk(res, "evaluator")
-            self.received = sweep_read_only(_EnvParticipant(env), me, rounds=1, max_calls=1500)
-        finally:
-            env.close()
-
-    def verdict(self, ev: Evaluator) -> Verdict:
-        hits = scan_hits(self.received, self.canaries)
-        evd = {"canaries": len(self.canaries), "hits": dict(list(hits.items())[:10]), "evaluator_leaks": len(hits),
-               "texts_examined": len(self.received)}
-        if not self.canaries:
-            raise NotApplicable("the evaluator returned no distinctive value to look for")
         if hits:
             return Verdict(LEAK, f"{len(hits)} evaluator measurement(s) of the domain reached the participant", evd,
                            severity="high")
-        return Verdict(HELD, f"none of {len(self.canaries)} evaluator values appeared in any participant tool", evd)
+        if not self.canaries:
+            return Verdict(HELD, f"offline ({acted} reference actions in a day); the evaluator's outcome after a day "
+                                 "held no distinctive value to look for (the isolation half is vacuous here)", evd)
+        return Verdict(HELD, f"offline ({acted} reference actions in a day); none of {len(self.canaries)} evaluator "
+                             "values appeared in any participant tool", evd)
 
 
 class Tier2NoMetricWriteTools(NoMetricWriteTools):
@@ -276,18 +258,54 @@ class Tier2NoMetricWriteTools(NoMetricWriteTools):
                             "measured quantity. Checked: none exists or each is refused.")
 
 
-def tier2_probes() -> list:
-    """Offline, evaluator-isolation and metric-write probes per registered Tier 2 domain configuration of the
-    evaluation splits (the configurations a learner is evaluated in; test fixtures excluded)."""
+class Tier2DomainDoesNotLoad(V5Probe):
+    """A domain module that cannot be imported (or registered) is reported as an error of the Gate W categories its
+    probes would measure - never silently left out of the catalogue."""
+    attack_class = "network/egress"
+    gates = ("W.2", "W.8")
+    target, owner = "domains", "I"
+    world = {"v5": "substrate"}
+
+    def __init__(self, module: str, error: str):
+        self.module, self.error = module, error
+        self.name = f"v5.tier2.{module}.does_not_load"
+        self.description = f"Tier 2 domain module {module} could not be loaded, so its configurations cannot be probed."
+
+    def setup(self, op: Operator) -> None:
+        raise RuntimeError(f"domain module crucible.domains.{self.module} does not load: {self.error}")
+
+
+def _load_domains() -> tuple[dict, list]:
+    """Import every domain module of `crucible.domains` one by one (each registers itself); returns (registry,
+    [(module, error)] of the modules that failed)."""
+    import importlib
+    import pkgutil
     from ... import domains
-    out = []
-    for name, d in sorted(domains.load_all().items()):
+    skip = set(getattr(domains, "_FRAMEWORK", ())) | {"base"}
+    failed = []
+    for info in pkgutil.iter_modules(domains.__path__):
+        if info.name in skip or info.name.startswith("_"):
+            continue
+        try:
+            importlib.import_module(f"{domains.__name__}.{info.name}")
+        except Exception as e:  # noqa: BLE001 - reported as an erroring probe, never dropped
+            failed.append((info.name, f"{type(e).__name__}: {str(e)[:300]}"))
+    return dict(domains.REGISTRY), failed
+
+
+def tier2_probes() -> list:
+    """Per registered Tier 2 domain (test fixtures excluded): an offline + evaluator-isolation probe for each
+    configuration of the evaluation splits (the configurations a learner is evaluated in) and a metric-write probe
+    on the domain's tools; an erroring probe per domain module that does not load."""
+    reg, failed = _load_domains()
+    out = [Tier2DomainDoesNotLoad(m, e) for m, e in failed]
+    for name, d in sorted(reg.items()):
         if getattr(d, "fixture", False):
             continue
-        for c in d.configs:
-            if c.split != "train":
-                out += [Tier2DomainOffline(name, c.name), Tier2EvaluatorNotReadable(name, c.name),
-                        Tier2NoMetricWriteTools(name, c.name)]
+        evals = [c for c in d.configs if c.split != "train"]
+        out += [Tier2OfflineAndIsolated(name, c.name) for c in evals]
+        if evals:                                       # the tool set is the domain's: one configuration suffices
+            out.append(Tier2NoMetricWriteTools(name, evals[0].name))
     return out
 
 

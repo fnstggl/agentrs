@@ -138,6 +138,72 @@ def _src_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+def _traversable(path: str, uid: int) -> bool:
+    """Whether `uid` (no supplementary groups, gid = uid) may search every directory down to and including `path`."""
+    d = os.path.realpath(path)
+    while True:
+        try:
+            st = os.stat(d)
+        except OSError:
+            return False
+        if not (st.st_mode & 0o001 or (st.st_uid == uid and st.st_mode & 0o100)
+                or (st.st_gid == uid and st.st_mode & 0o010)):
+            return False
+        if d == "/":
+            return True
+        d = os.path.dirname(d)
+
+
+def _reachable_copy(src: str, uid: int) -> str:
+    """`src` itself when the jail uid can reach it; otherwise a copy of the tree (hard links where the filesystem
+    allows, no extra disk) under the jail base, keyed by the files' paths, sizes and modification times - a checkout
+    below a root-only directory (an agent scratchpad, a fresh clone in a private temporary directory) is otherwise
+    unreadable to the jail (the same DAC limit as DEFECTS DEF-P-16)."""
+    if _traversable(src, uid):
+        return src
+    h = hashlib.sha256(os.path.realpath(src).encode())
+    for root, dirs, files in os.walk(src):
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        for f in sorted(files):
+            if f.endswith(".pyc"):
+                continue
+            st = os.stat(os.path.join(root, f))
+            h.update(f"{os.path.relpath(os.path.join(root, f), src)}|{st.st_size}|{st.st_mtime_ns}\n".encode())
+    dst = os.path.join(isolation._base(), f"src-{h.hexdigest()[:16]}")
+    if os.path.exists(os.path.join(dst, ".complete")):
+        return dst
+    for old in os.listdir(isolation._base()):          # copies of earlier source states, a day old
+        p = os.path.join(isolation._base(), old)
+        try:
+            if old.startswith("src-") and time.time() - os.stat(p).st_mtime > 86400:
+                shutil.rmtree(p, ignore_errors=True)
+        except OSError:
+            pass
+    tmp = f"{dst}.tmp{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+
+    def link(s, d):
+        try:
+            os.link(s, d)
+        except OSError:
+            shutil.copy2(s, d)
+    shutil.copytree(src, tmp, copy_function=link, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for root, dirs, files in os.walk(tmp):
+        os.chmod(root, 0o755)
+        for f in files:
+            p = os.path.join(root, f)
+            if not os.stat(p).st_mode & 0o004:
+                shutil.copy2(p, p + ".r")
+                os.replace(p + ".r", p)
+                os.chmod(p, 0o644)
+    try:
+        os.rename(tmp, dst)
+    except OSError:                       # another process finished first
+        shutil.rmtree(tmp, ignore_errors=True)
+    open(os.path.join(dst, ".complete"), "w").close()
+    return dst
+
+
 class LearnerHost:
     """One learner in its own jailed process (module docstring). `entry` is ``"module:factory"`` (importable from the
     crucible sources or `code_dirs`), called as ``factory(**kw)`` inside the jail to build the learner. `participant`
@@ -156,8 +222,8 @@ class LearnerHost:
         self.out_dir = tempfile.mkdtemp(prefix="learner-out-")          # host side, root only
         py = os.path.realpath(sys.executable)
         paths = sysconfig.get_paths()
-        site = _site_packages()
-        src = _src_root()
+        site = _reachable_copy(_site_packages(), self.uid)
+        src = _reachable_copy(_src_root(), self.uid)
         ro = isolation.RO_SYSTEM + [paths["stdlib"], paths["platstdlib"], os.path.join(paths["stdlib"], "lib-dynload"),
                                     site, src, os.path.dirname(py), os.path.join(sys.base_prefix, "lib"),
                                     *[os.path.realpath(d) for d in code_dirs]]
