@@ -98,3 +98,22 @@ def test_the_event_counter_counts_decisions_and_public_events():
     ec(E("forum.post", {}, vis="public", actor="p2"))
     assert ec.decisions == 7 and ec.sessions == 4 and ec.activations == 5 and ec.public == 1
     assert ec.decisions_by["pop.adaptive:0"] == 3 and ec.event_bytes > 0
+
+
+def test_rollout_world_env_defaults_to_observation_only_regression_def_m_5():
+    """DEF-M-5 (audit M_performance finding 4): the 4.0 farm's WorldEnv returned the account-balance change as its
+    reward by default (12345.0 for an exogenous deposit with no action). The default is observation_only: the scalar
+    reward is 0.0 while the balance change stays observable; the shaped reward exists only when selected."""
+    import crucible
+    from crucible.scale.rollout import WorldEnv
+    crucible.load_all_modules()
+    out = {}
+    for mode in (None, "legacy_shaped_reward"):
+        env = WorldEnv({"family": "tiny", "seed": 0, "overrides": {"n_consumers": 40}}, reward_mode=mode)
+        env.reset()
+        before = env._balance()
+        env.world.system_call("admin.endow", {"principal": env.actor, "amount": 12345})
+        obs, r, done, info = env.step(None)
+        out[mode] = (env.reward_mode, r, env._balance() - before)
+    assert out[None][0] == "observation_only" and out[None][1] == 0.0 and out[None][2] >= 12345
+    assert out["legacy_shaped_reward"][1] == float(out["legacy_shaped_reward"][2]) >= 12345

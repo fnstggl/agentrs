@@ -100,6 +100,8 @@ class EventCounter:
         self.infer = Counter()
         self.actors = set()
         self.event_bytes = 0
+        self.semantic_calls = 0               # recorded semantic-service batches (semantic.inference events)
+        self.semantic_rows = 0
         from ..core.canonical import canonical_bytes
         self._cb = canonical_bytes
 
@@ -129,6 +131,9 @@ class EventCounter:
             for o in ev.payload.get("outcomes") or ():
                 if isinstance(o, dict) and str(o.get("kind", "")).startswith("infer."):
                     self.infer[o["kind"]] += 1
+        elif ev.type == "semantic.inference":
+            self.semantic_calls += 1
+            self.semantic_rows += int(ev.payload.get("n", 0))
 
 
 # ====================================================================== the world
@@ -228,6 +233,33 @@ def class_activity(world, n_sessions0, ec: EventCounter) -> dict:
         out[c]["policy_decisions"] = int(n)
     for c in out:
         out[c]["acting"] = out[c]["active"] > 0 or out[c].get("policy_decisions", 0) > 0
+    return out
+
+
+def batching(w, ec: EventCounter) -> dict:
+    """Batched decisions per learning class (SP-13.1, V.4): recorded model calls and the decisions they made.
+    The shared batching service (crucible.substrate.inference_batch) accounts per class directly; callers that
+    still record their own batches are counted from their records: class 2 from the adaptive policies' counters,
+    class 3 from its recorded `pop.strategic.*` calls and one `pop_strategic.exp` event per member decision,
+    class 4 from the semantic service's recorded batches (`semantic.inference`, rows = requests)."""
+    from ..substrate import inference_batch as IB
+    svc = IB.report(IB.stats(w))
+    by = svc.get("by_class", {})
+    ad = dict(w.runtime.get("pop_adaptive.stats") or {})
+    strat_calls = sum(n for k, n in ec.infer.items() if k.startswith("infer.pop.strategic"))
+    strat_dec = int(ec.types.get("pop_strategic.exp", 0)) if strat_calls else 0
+    legacy = {"class2": (int(ad.get("calls", 0)), int(ad.get("decisions", 0)), int(ad.get("max_batch", 0))),
+              "class3": (int(strat_calls), strat_dec, 0),
+              "class4": (int(ec.semantic_calls), int(ec.semantic_rows), 0)}
+    out = {}
+    for c, (calls, dec, mx) in legacy.items():
+        s = by.get(c[-1], {})
+        calls += int(s.get("calls", 0))
+        dec += int(s.get("rows", 0))
+        out[c] = {"calls": calls, "decisions": dec, "max_batch": max(mx, int(s.get("max_rows", 0))),
+                  "mean_batch": round(dec / max(1, calls), 3), "via_service_calls": int(s.get("calls", 0)),
+                  "merged_calls": int(s.get("merged_calls", 0))}
+    out["service"] = svc
     return out
 
 
@@ -338,17 +370,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     rep["peak_vram_mb"], rep["cuda_used"] = round(vram, 1), used_cuda
     rep["model_parameter_counts"] = model_parameters(w)
     rep["inference_token_counts"] = inference_tokens(ec)
-    ad = dict(w.runtime.get("pop_adaptive.stats") or {})
-    strat_calls = sum(n for k, n in ec.infer.items() if "strategic" in k)
-    strat_dec = sum(n for k, n in ec.decisions_by.items() if "strategic" in k)
-    sem_calls = sum(n for k, n in ec.infer.items() if "semantic" in k)
-    rep["batching"] = {"class2": {"calls": int(ad.get("calls", 0)), "decisions": int(ad.get("decisions", 0)),
-                                  "max_batch": int(ad.get("max_batch", 0)),
-                                  "mean_batch": round(ad.get("decisions", 0) / max(1, ad.get("calls", 0)), 3)},
-                       "class3": {"calls": int(strat_calls), "decisions": int(strat_dec),
-                                  "mean_batch": round(strat_dec / max(1, strat_calls), 3)},
-                       "class4": {"calls": int(sem_calls),
-                                  "decisions": int(sum(n for k, n in ec.decisions_by.items() if "semantic" in k))}}
+    rep["batching"] = batching(w, ec)
     rep["principals"] = int(len(w.state.tables.get("principals", {})))
     if snapshot:
         ts = time.time()

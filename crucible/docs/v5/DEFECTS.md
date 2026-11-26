@@ -1187,35 +1187,40 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-M-1 (critical, open): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
+### DEF-M-1 (critical, fixed): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "c5c/w3-perf (merged 3ffbcdb) + c5c/w3b-perf: v5 benchmark harness crucible.scale.bench5 (12 quantities per profile on the civ world, 4.0 equivalent workload), gatev (event-driven, cache, 10M capacity), approx (estimated cohort mode), backends (backend matrix); gate tests tests/v5/test_gate_V.py (V.1-V.9, V.n1), test_gate_SP_13_7.py, test_gate_SP_13_8.py and the other M gates; machine targets docs/v5/performance/targets.json adopted by DECISION_LOG D-27 before any official run",
  "id": "DEF-M-1",
  "owner": "M",
+ "regression_tests": "tests/v5/test_gate_V.py, tests/v5/test_gate_SP_13_7.py, tests/v5/test_gate_SP_13_8.py, tests/test_v5_perf_units.py::test_targets_are_checked_against_the_target_world",
  "requirements": [
   "SP-13.7",
   "SP-13.8"
  ],
+ "resolution_note": "The defect was the absence of the workstream's harness, gate tests and targets; they exist and run. Whether each requirement is MET is decided by its gate test (V.1 and SP-13.1 still fail until class 4 is bound; see docs/v5/workstreams/M.json).",
  "severity": "critical",
  "source": {
   "audit": "M_performance",
   "file": "docs/v5/audit/M_performance.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; all 12 M requirements unmet."
 }
 ```
 
-### DEF-M-2 (critical, open): crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB;
+### DEF-M-2 (critical, fixed): crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB;
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "c5c/w3-perf (merged 3ffbcdb): crucible.scale.slots/governor enforce all seven dimensions (affinity + re-pinning, summed-PSS RAM watchdog, torch allocator cap + reporter, GPU-seconds, disk growth + RLIMIT_FSIZE, inference tokens, active-world registry), FIFO with stored budget, zombie-aware liveness, subreaper supervision; c5c/w3b-perf: backfill that never delays an earlier request, pid-identity liveness, pidfd signalling",
  "id": "DEF-M-2",
  "owner": "M",
+ "regression_tests": "tests/v5/test_gate_SP_13_7.py (adversarial probes: 7 dimensions stopped, 9 scheduling rules held; passed unofficially 2026-11-26 on 55433e7), tests/test_v5_slots.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1223,7 +1228,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB; affinity 48 CPUs, no rlimits; 13/219 logged jobs exceeded reserved CPU; no FIFO; zombies keep slots; simulation never consults it."
 }
 ```
@@ -1268,13 +1273,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-M-5 (critical, open): Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (ro
+### DEF-M-5 (critical, fixed): Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (ro
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "4a2d27e (workstream L): WorldEnv(reward_mode=None) -> check_mode(None) = observation_only (D-19); the shaped balance-change reward only when selected",
  "id": "DEF-M-5",
  "owner": "M",
+ "regression_tests": "tests/test_v5_perf_units.py::test_rollout_world_env_defaults_to_observation_only_regression_def_m_5, tests/v5/test_gate_OO.py, tests/v5/test_gate_R.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1282,7 +1289,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (rollout.py:128); probe returned reward 12345.0 for an exogenous deposit with no action."
 }
 ```
