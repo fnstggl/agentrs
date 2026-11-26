@@ -81,6 +81,8 @@ class Rollout:
     final_obs: Any = None
     sim_seconds: int = 0
     wall_s: float = 0.0           # worker wall-clock seconds for the task
+    started_at: float = 0.0       # worker-side wall-clock time (time.time()) when the task started / ended: lets
+    ended_at: float = 0.0         # the parent measure real overlap of environments across processes
     policy_s: float = 0.0         # ... of which inside policy.act
     env_s: float = 0.0            # ... of which inside env.step
     setup_s: float = 0.0          # ... of which building the world and the policy
@@ -116,17 +118,18 @@ class WorldEnv:
     ``objective.step_reward(world, actor)`` when an objective factory is given (`goals.contracts.RewardContract`
     protocol: `begin`, `step_reward`); otherwise the change of the participant's own account balances, in cents.
 
-    `reward_mode` (Crucible 5.0, `crucible.experience.modes`): ``legacy_shaped_reward`` (default) is the behaviour
-    above; ``observation_only`` returns 0.0 on every step (the objective, if any, is still stepped so its verifier
-    keeps running; `verify()` returns its status); ``verified_terminal_outcome`` returns 1.0 once, at the first step
+    `reward_mode` (Crucible 5.0, `crucible.experience.modes`; Clarification 2): ``observation_only`` (the default)
+    returns 0.0 on every step (the objective, if any, is still stepped so its verifier keeps running; `verify()`
+    returns its status) and builds the world with evaluator data hidden from the participant;
+    ``legacy_shaped_reward``, selected explicitly, is the 4.0 behaviour above; ``verified_terminal_outcome`` returns 1.0 once, at the first step
     where the objective's status reports success, else 0.0 (0.0 always without an objective).
     """
 
     def __init__(self, ref: dict, *, handle: str = "learner", endowment: int = 3_000_000, think_s: int = 600,
                  horizon_days: float | None = None, objective: str | None = None, objective_kwargs: dict | None = None,
                  max_events: int = 30, imports: tuple = (), strict: bool = False,
-                 reward_mode: str = "legacy_shaped_reward"):
-        from ..experience.modes import check_mode
+                 reward_mode: str | None = None):
+        from ..experience.modes import check_mode, prepare_spec, prepare_world
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
         ensure_registered(imports)
@@ -143,11 +146,11 @@ class WorldEnv:
                 blob = f.read()
             head = pickle.loads(zlib.decompress(blob))
             ensure_modules([m["name"] for m in head["spec"]["modules"]])
-            self.world = World.from_blob(blob, world_id=f"{head['world_id']}.e{head['seq']}", fork=True,
-                                         strict=strict)
+            self.world = prepare_world(World.from_blob(blob, world_id=f"{head['world_id']}.e{head['seq']}", fork=True,
+                                                       strict=strict), self.reward_mode)
         else:
             cfg = {k: ref[k] for k in ("family", "overrides", "extra_modules", "drop_modules") if k in ref}
-            spec = generate(cfg, int(ref.get("seed", 0)))
+            spec = prepare_spec(generate(cfg, int(ref.get("seed", 0))), self.reward_mode)
             ensure_modules([m["name"] for m in spec.modules])
             self.world = World.create(spec, strict=strict)
         w = self.world
@@ -266,6 +269,7 @@ class _RolloutHandler:
     def handle(self, task: dict) -> dict:
         import numpy as np
         t_wall = time.perf_counter()
+        t_start = time.time()
         cfg = self.cfg
         if task["params"] is not None:
             self.params, self.version, self.shared = task["params"], task["version"], None
@@ -354,7 +358,8 @@ class _RolloutHandler:
                 "sim_t": sim_t, "final_obs": (obs_fn(obs) if obs_fn else obs) if record_obs else None,
                 "sim_seconds": int(sum(sim_dt)), "wall_s": time.perf_counter() - t_wall, "policy_s": policy_s,
                 "env_s": env_s, "setup_s": setup_s, "param_version": self.version, "params_hash": self.params_hash,
-                "closed": closed, "evicted": evicted, "worker_pid": os.getpid(),
+                "closed": closed, "evicted": evicted, "worker_pid": os.getpid(), "started_at": t_start,
+                "ended_at": time.time(),
                 "worker_steps_total": self.steps_total, "live_worlds": len(self.envs)}
 
     def _close(self, key: str) -> None:
@@ -647,7 +652,7 @@ class RolloutFarm:
                 r = Rollout(ok=True, **base, **{k: p[k] for k in (
                     "param_version", "params_hash", "fresh_world", "done", "truncated", "steps", "obs", "actions",
                     "rewards", "results", "sim_dt", "sim_t", "final_obs", "sim_seconds", "wall_s", "policy_s",
-                    "env_s", "setup_s")})
+                    "env_s", "setup_s")}, started_at=float(p.get("started_at", 0.0)), ended_at=float(p.get("ended_at", 0.0)))
                 self._c["ok"] += 1
                 self._c["steps"] += r.steps
                 self._c["sim_seconds"] += r.sim_seconds

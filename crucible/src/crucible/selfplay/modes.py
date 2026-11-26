@@ -67,12 +67,13 @@ MODES: dict[str, ModeSpec] = {
 _ENVS: dict[tuple, SelfPlayEnv] = {}
 
 
-def _env(task: Task, n: int, spec: EnvSpec | None = None) -> SelfPlayEnv:
-    key = (task.family, task.seed, task.mech_seed, int(n), (spec or EnvSpec()))
+def _env(task: Task, n: int, spec: EnvSpec | None = None, reward_mode: str | None = None) -> SelfPlayEnv:
+    from ..experience.modes import check_mode
+    key = (task.family, task.seed, task.mech_seed, int(n), (spec or EnvSpec()), check_mode(reward_mode))
     if key not in _ENVS:
         if len(_ENVS) > 32:
             _ENVS.clear()
-        _ENVS[key] = SelfPlayEnv([task] * int(n), spec)
+        _ENVS[key] = SelfPlayEnv([task] * int(n), spec, reward_mode=reward_mode)
     return _ENVS[key]
 
 
@@ -81,10 +82,10 @@ def noise_of(seed: int, n: int) -> list[int]:
 
 
 def evaluate(task: Task, individuals: Sequence[Individual | None], seeds: Sequence[int] = EVAL_SEEDS, n_slots: int = 8,
-             spec: EnvSpec | None = None, tag: str = "eval") -> dict:
+             spec: EnvSpec | None = None, tag: str = "eval", reward_mode: str | None = None) -> dict:
     """Frozen play (no exploration, no learning) of the individuals in their seats on the given noise seeds.
     Returns `summarise` of the matches plus the per-match rows (`rows`: per-seat net per tick and joint net)."""
-    env = _env(task, n_slots, spec)
+    env = _env(task, n_slots, spec, reward_mode)
     recs = []
     for s in seeds:
         recs += play(env, individuals, noise=noise_of(s, n_slots), learn=False, explore=False, tag=tag)
@@ -143,11 +144,12 @@ def train(league: SelfPlayLeague, seats: Sequence[str], iters: int, *, start: in
 
 def best_response(task: Task, target: Individual, seat: int, root: str, algo: str = "spsa", seed: int = 0,
                   iters: int = 30, n_slots: int = 8, spec: EnvSpec | None = None, warm: Individual | None = None,
-                  eval_seeds: Sequence[int] = EVAL_SEEDS, seed_offset: int = 50_000, **options) -> dict:
+                  eval_seeds: Sequence[int] = EVAL_SEEDS, seed_offset: int = 50_000, reward_mode: str | None = None,
+                  **options) -> dict:
     """Exploitability probe: a learner trained in `seat` against the frozen `target` (in the other seat of a
     two-seat world), from scratch or, with `warm`, starting from a copy of that individual's weights. Returns
     what the best response earns against the target, what the target then earns, and the training curve."""
-    lg = SelfPlayLeague(root, task, spec, "competition", n_slots)
+    lg = SelfPlayLeague(root, task, spec, "competition", n_slots, reward_mode=reward_mode)
     was = target.learner.frozen
     target.learner.freeze(True)
     try:
@@ -173,7 +175,7 @@ def best_response(task: Task, target: Individual, seat: int, root: str, algo: st
         seats = [br.id, target.id] if seat == 0 else [target.id, br.id]
         curve = train(lg, seats, iters, seed_offset=seed_offset, eval_every=max(1, iters // 6), eval_seeds=eval_seeds)
         inds = [lg.get(p) for p in seats]
-        ev = evaluate(task, inds, eval_seeds, n_slots, spec)
+        ev = evaluate(task, inds, eval_seeds, n_slots, spec, reward_mode=reward_mode)
     finally:
         target.seat = t_seat
         target.learner.freeze(was)
@@ -210,7 +212,8 @@ def commons_position(joint: float, joint_restrain: float, joint_grab: float) -> 
 
 
 def cross_play(task: Task, seat0: Sequence[Individual], seat1: Sequence[Individual],
-               seeds: Sequence[int] = EVAL_SEEDS, n_slots: int = 8, spec: EnvSpec | None = None) -> dict:
+               seeds: Sequence[int] = EVAL_SEEDS, n_slots: int = 8, spec: EnvSpec | None = None,
+               reward_mode: str | None = None) -> dict:
     """The full cross-play matrix: `seat0[i]` with `seat1[j]` for every i, j, frozen, on the same noise.
     `seat0[i]` and `seat1[i]` are assumed to have been trained together (the diagonal). Returns the matrices of
     joint net and of each seat's net, and the cross-play gap: diagonal mean minus off-diagonal mean, for the
@@ -222,7 +225,7 @@ def cross_play(task: Task, seat0: Sequence[Individual], seat1: Sequence[Individu
     joint, n0, n1 = np.zeros((n, n)), np.zeros((n, n)), np.zeros((n, n))
     for i, a in enumerate(seat0):
         for j, b in enumerate(seat1):
-            ev = evaluate(task, [a, b], seeds, n_slots, spec, tag="cross_play")
+            ev = evaluate(task, [a, b], seeds, n_slots, spec, tag="cross_play", reward_mode=reward_mode)
             joint[i, j], n0[i, j], n1[i, j] = ev["joint_net_per_tick"], ev["net_per_tick"][0], ev["net_per_tick"][1]
     off = ~np.eye(n, dtype=bool)
 
@@ -262,18 +265,19 @@ def seat_bound(task: Task) -> bool:
 def run_pair(mode: str, task: Task, root: str, *, algos: Sequence[str] = ("spsa", "spsa"), seeds: Sequence[int] = (1, 2),
              iters: int = 30, n_slots: int = 8, objective: Any = None, eval_every: int = 5,
              snapshot_every: int | None = 10, spec: EnvSpec | None = None, seed_offset: int = 0,
-             options: Sequence[dict] | None = None, view: Callable | None = None) -> dict:
+             options: Sequence[dict] | None = None, view: Callable | None = None,
+             reward_mode: str | None = None) -> dict:
     """Competitive, cooperative and mixed-motive training of one pair: the three modes differ in the objective
     the individuals are given, in how a match is scored for ratings, and in the analysis attached below."""
     ms = MODES[mode]
-    lg = SelfPlayLeague(root, task, spec, ms.league_mode, n_slots)
+    lg = SelfPlayLeague(root, task, spec, ms.league_mode, n_slots, reward_mode=reward_mode)
     obj = ms.objective if objective is None else objective
     ids = _pair(lg, algos, seeds, obj, seat_bound(task), options)
     curve = train(lg, ids, iters, eval_every=eval_every, snapshot_every=snapshot_every, seed_offset=seed_offset,
                   view=view)
     inds = [lg.get(p) for p in ids]
-    final = evaluate(task, inds, n_slots=n_slots, spec=spec)
-    base = evaluate(task, [None] * task.n_seats, n_slots=n_slots, spec=spec)
+    final = evaluate(task, inds, n_slots=n_slots, spec=spec, reward_mode=reward_mode)
+    base = evaluate(task, [None] * task.n_seats, n_slots=n_slots, spec=spec, reward_mode=reward_mode)
     out = {"mode": mode, "task": task.id, "objective": inds[0].objective.describe(), "individuals": ids,
            "arch": [i.arch for i in inds], "iters": iters, "n_slots": n_slots, "curve": curve,
            "final": light(final), "defaults": light(base), "league": lg}
@@ -283,8 +287,8 @@ def run_pair(mode: str, task: Task, root: str, *, algos: Sequence[str] = ("spsa"
         b = np.array([r["action"][1] for r in curve])
         out["lagged"] = {f"lever{j}": lagged_response(a[:, j], b[:, j]) for j in range(min(a.shape[1], b.shape[1]))}
     if mode == "cooperative":
-        solo = [evaluate(task, [inds[0], None], n_slots=n_slots, spec=spec),
-                evaluate(task, [None, inds[1]], n_slots=n_slots, spec=spec)]
+        solo = [evaluate(task, [inds[0], None], n_slots=n_slots, spec=spec, reward_mode=reward_mode),
+                evaluate(task, [None, inds[1]], n_slots=n_slots, spec=spec, reward_mode=reward_mode)]
         out["with_default_partner"] = [light(s) for s in solo]
         out["joint_gain_over_best_single"] = final["joint_net_per_tick"] - max(s["joint_net_per_tick"] for s in solo)
     if mode == "mixed_motive":
@@ -294,7 +298,7 @@ def run_pair(mode: str, task: Task, root: str, *, algos: Sequence[str] = ("spsa"
         ref = {}
         for nm in (lo, hi):
             ref[nm] = light(evaluate(task, [profile_individual(task, s, nm, spec) for s in range(task.n_seats)],
-                                     n_slots=n_slots, spec=spec))
+                                     n_slots=n_slots, spec=spec, reward_mode=reward_mode))
         out["both_grab"], out["both_restrain"] = ref[lo], ref[hi]
         out["position"] = commons_position(final["joint_net_per_tick"], ref[hi]["joint_net_per_tick"],
                                            ref[lo]["joint_net_per_tick"])
@@ -303,7 +307,7 @@ def run_pair(mode: str, task: Task, root: str, *, algos: Sequence[str] = ("spsa"
 
 def run_population(task: Task, root: str, *, members: Sequence[dict], iters: int = 30, n_slots: int = 8,
                    matchmaking: str = "uniform", spec: EnvSpec | None = None, seed: int = 0, eval_every: int = 10,
-                   snapshot_every: int | None = None, seed_offset: int = 0) -> dict:
+                   snapshot_every: int | None = None, seed_offset: int = 0, reward_mode: str | None = None) -> dict:
     """Population-based self-play: `members` (each `{"id", "algo", "seed", ...learner options}`; different
     algorithms and versions) live in one pool. Every iteration the pool is split into pairs by the matchmaking
     rule (`uniform`: a random perfect matching; `pfsp` / `recent`: each individual in turn draws its opponent
@@ -311,7 +315,7 @@ def run_population(task: Task, root: str, *, members: Sequence[dict], iters: int
     Only for worlds whose seats share one surface."""
     if seat_bound(task):
         raise ValueError("population matchmaking needs a world whose seats have the same surface")
-    lg = SelfPlayLeague(root, task, spec, "competition", n_slots, seed=seed)
+    lg = SelfPlayLeague(root, task, spec, "competition", n_slots, seed=seed, reward_mode=reward_mode)
     ids = []
     for m in members:
         m = dict(m)
@@ -354,7 +358,7 @@ def run_population(task: Task, root: str, *, members: Sequence[dict], iters: int
 def run_historical(task: Task, root: str, *, algos: Sequence[str] = ("spsa", "spsa"), seeds: Sequence[int] = (1, 2),
                    iters: int = 30, n_slots: int = 8, snapshot_every: int = 5, p_archive: float = 0.5,
                    sampling: str = "pfsp", spec: EnvSpec | None = None, seed: int = 0, seed_offset: int = 0,
-                   eval_every: int = 5) -> dict:
+                   eval_every: int = 5, reward_mode: str | None = None) -> dict:
     """Historical-policy self-play: two current learners. Every iteration each of them plays one training
     match: with probability `p_archive` against an archived stage (of either lineage) drawn by `sampling`
     (`pfsp`: weight (1 - P[learner beats it])^2 from the recorded matches, `uniform`, or `recent`), otherwise
@@ -362,7 +366,7 @@ def run_historical(task: Task, root: str, *, algos: Sequence[str] = ("spsa", "sp
     stage never learns. Only for worlds whose seats share one surface."""
     if seat_bound(task):
         raise ValueError("historical matchmaking needs a world whose seats have the same surface")
-    lg = SelfPlayLeague(root, task, spec, "competition", n_slots, seed=seed)
+    lg = SelfPlayLeague(root, task, spec, "competition", n_slots, seed=seed, reward_mode=reward_mode)
     ids = _pair(lg, algos, seeds, "own", False)
     rng = np.random.default_rng([seed, 0x4157])
     curve, k = [], 0
@@ -419,7 +423,7 @@ def history_ratings(league: SelfPlayLeague, root_id: str, seeds: Sequence[int] =
 
 
 def run_cross_play(task: Task, root: str, *, pairs: Sequence[dict], iters: int = 30, n_slots: int = 8,
-                   objective: Any = "own", spec: EnvSpec | None = None) -> dict:
+                   objective: Any = "own", spec: EnvSpec | None = None, reward_mode: str | None = None) -> dict:
     """Train `pairs` (each `{"algos": (a, b), "seeds": (s0, s1)}`) independently, each in its own league
     directory under `root`, then evaluate the full cross-play matrix."""
     import os
@@ -428,12 +432,12 @@ def run_cross_play(task: Task, root: str, *, pairs: Sequence[dict], iters: int =
         mode = "cooperative" if objective == "joint" else "competitive"
         runs.append(run_pair(mode, task, os.path.join(root, f"pair{k}"), algos=pr["algos"], seeds=pr["seeds"],
                              iters=iters, n_slots=n_slots, objective=objective, spec=spec, seed_offset=1000 * k,
-                             snapshot_every=None))
+                             snapshot_every=None, reward_mode=reward_mode))
     s0 = [r["league"].get(r["individuals"][0]) for r in runs]
     s1 = [r["league"].get(r["individuals"][1]) for r in runs]
     for k, (a, b) in enumerate(zip(s0, s1)):         # ids must be distinct across the independently made pairs
         a.id, b.id = f"p{k}:{a.id}", f"p{k}:{b.id}"
-    cp = cross_play(task, s0, s1, n_slots=n_slots, spec=spec)
+    cp = cross_play(task, s0, s1, n_slots=n_slots, spec=spec, reward_mode=reward_mode)
     return {"mode": "cross_play", "task": task.id, "pairs": [dict(p) for p in pairs], "iters": iters,
             "matrix": cp, "runs": runs}
 

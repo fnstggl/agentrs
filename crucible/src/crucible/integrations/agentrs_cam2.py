@@ -24,8 +24,9 @@
   ``reset`` with the same task continues the same world (persistent actor; only the episode counters and the reward
   contract's baseline restart).
 * **Snapshots.** `snapshot`/`restore` use the kernel's world snapshot blob plus the adapter's evaluator state.
-* **Reward modes** (Crucible 5.0, `crucible.experience.modes`). ``reward_mode="legacy_shaped_reward"`` (default) is
-  the behaviour above. ``"observation_only"``: reward 0.0, no ``progress``/``score``/``success``/``eval`` in ``info``
+* **Reward modes** (Crucible 5.0, `crucible.experience.modes`; Clarification 2). The default is
+  ``"observation_only"`` (the world also hides evaluator tools and fields from the actor, `core.evaluator_only`).
+  ``reward_mode="legacy_shaped_reward"``, selected explicitly, is the behaviour above. ``"observation_only"``: reward 0.0, no ``progress``/``score``/``success``/``eval`` in ``info``
   and no termination on verified outcomes (truncation only); `evaluate()` (operator side) is unchanged.
   ``"verified_terminal_outcome"``: reward 1.0 once at the first verified success, else 0.0; ``info["eval"]`` at the
   end of an episode carries only ``success``/``failed``.
@@ -100,7 +101,7 @@ class CrucibleAdapter(EnvironmentAdapter):
     def __init__(self, max_steps: int = 10, dt: int = 3600, max_events: int = 10, history: int = 3,
                  lifetime: str = "fresh", split: str = "dev", prefix_kw: Optional[dict] = None,
                  handle: str = "agent", overrides: Optional[dict] = None,
-                 reward_mode: str = "legacy_shaped_reward"):
+                 reward_mode: str | None = None):
         from ..experience.modes import check_mode
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
@@ -132,6 +133,8 @@ class CrucibleAdapter(EnvironmentAdapter):
             self.goal, self.world, self.actor, self.pinfo = make_goal_world(
                 fam["goal_family"], fam["world_family"], int(task.seed), fam["level"], split=self.split,
                 prefix=fam["prefix"], prefix_kw=self.prefix_kw, handle=self.handle, overrides=self.overrides)
+            from ..experience.modes import prepare_world
+            prepare_world(self.world, self.reward_mode)
             self.view = ActorView(self.world, self.actor, max_events=max(40, self.max_events))
             self.hist: list = []
             self.last_result = None
@@ -289,7 +292,8 @@ class CrucibleAdapter(EnvironmentAdapter):
 
     def restore(self, snap) -> Observation:
         from ..core.kernel import World
-        self.world = World.from_blob(snap["blob"], world_id=snap["world_id"] + "-r")
+        from ..experience.modes import prepare_world
+        self.world = prepare_world(World.from_blob(snap["blob"], world_id=snap["world_id"] + "-r"), self.reward_mode)
         self.view.rebind(self.world)
         self.view.cursor = snap["cursor"]
         self.contract = pickle.loads(snap["contract"])

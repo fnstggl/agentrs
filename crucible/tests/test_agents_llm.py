@@ -141,7 +141,7 @@ CAM_SMALL = {"d": 64, "integ_layers": 1, "heads": 4, "core_dim": 64, "wm_hidden"
 def _cam_env(**kw):
     from crucible.integrations.agentrs_cam2 import CrucibleAdapter
     from agentrs.cam2.envs.base import TaskRef
-    env = CrucibleAdapter(**{"max_steps": 6, **kw})
+    env = CrucibleAdapter(**{"max_steps": 6, "reward_mode": "legacy_shaped_reward", **kw})   # the 4.0 adapter, named
     obs = env.reset(TaskRef("crucible", "service:tiny:0", 7))
     return env, obs
 
@@ -233,7 +233,7 @@ def test_cam2_runner_pipeline_counts_invalid_json_with_tiny_random_llm(tmp_path)
     from agentrs.cam2.envs.pool import EnvPool
     from agentrs.cam2.trainer import RunConfig, Runner, Trainer
     from crucible.integrations.agentrs_cam2 import smoke_run  # noqa: F401  (import check)
-    pool = EnvPool("crucible", 2, {"max_steps": 3})
+    pool = EnvPool("crucible", 2, {"max_steps": 3, "reward_mode": "legacy_shaped_reward"})   # 4.0 adapter, named
     try:
         rc = RunConfig(run_dir=str(tmp_path / "r"), env="crucible", llm="tiny-random", workers=2, max_steps=3,
                        train_families=["service:tiny:0"], eval_every=0, ckpt_every=0, cam=dict(CAM_SMALL),

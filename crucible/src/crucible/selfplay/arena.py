@@ -24,11 +24,14 @@ One individual lives in one persistent world: the hidden mechanism of a task. Ma
 their per-tick noise (`with_noise`), never in the mechanism, so what an individual has learned stays meaningful
 from match to match. Claims are made over several worlds and learner seeds.
 
-`reward_mode` (Crucible 5.0, `crucible.experience.modes`) works as in `research.envs.MechVecEnv`: the default
-``legacy_shaped_reward`` is the 4.0 behaviour; ``observation_only`` returns zero rewards for every seat and leaves
-every seat's reward slot of the observation at 0 (each seat's own revenue, cost and balance stay observable);
-``verified_terminal_outcome`` returns, on the tick that ends a match, 1.0 for a seat whose own net reached the
-task's public objective, else 0.
+`reward_mode` (Crucible 5.0, `crucible.experience.modes`; Clarification 2) works as in `research.envs.MechVecEnv`:
+the default ``observation_only`` returns zero rewards for every seat, leaves every seat's reward slot of the
+observation at 0 (each seat's own revenue, cost and balance stay observable) and keeps the mechanism's objective
+quantity (`info["score"]`) on the evaluator side; ``legacy_shaped_reward``, selected explicitly, is the 4.0
+behaviour; ``verified_terminal_outcome`` returns, on the tick that ends a match, 1.0 for a seat whose own net reached
+the task's public objective, else 0. In `play`, outside legacy mode the training signal of an individual is computed
+on the learner's side from its own observation (its observed revenue minus cost, objective "own"); objectives that
+need privileged data (another seat's private net, the mechanism's objective quantity) are refused.
 """
 from __future__ import annotations
 
@@ -150,7 +153,7 @@ class SelfPlayEnv:
     """
 
     def __init__(self, tasks: Sequence[Task], spec: EnvSpec | None = None, funds: Sequence[Sequence[int | None]] | None = None,
-                 trace: bool = False, reward_mode: str = LEGACY):
+                 trace: bool = False, reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         self.spec = spec or EnvSpec()
         self.n = len(tasks)
@@ -364,8 +367,10 @@ class SelfPlayEnv:
                     for s in range(S):
                         reward[s, i] = 1.0 if self.tasks[i].success(float(ep["net"][s])) else 0.0
         self.sim_seconds += time.perf_counter() - t0
-        return ([o.copy() for o in self._obs], reward, self.done.copy(),
-                {"net_cents": net, "revenue_cents": rev_a, "cost_cents": cost_a, "score": score, "status": status})
+        info = {"net_cents": net, "revenue_cents": rev_a, "cost_cents": cost_a, "status": status}
+        if self.reward_mode == LEGACY:
+            info["score"] = score            # the mechanism's objective quantity: evaluator data outside legacy mode
+        return [o.copy() for o in self._obs], reward, self.done.copy(), info
 
     def _finish(self, i: int) -> None:
         task, ep, S = self.tasks[i], self._ep[i], self.n_seats
@@ -422,11 +427,12 @@ class KernelSelfPlayEnv:
 
     def __init__(self, task: Task, spec: EnvSpec | None = None, handles: Sequence[str] | None = None,
                  funds: Sequence[int] | None = None, store=None, strict: bool = True, extra_handles: Sequence[str] = (),
-                 reward_mode: str = LEGACY):
+                 reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         import crucible
         crucible.load_all_modules()
         from ..core.kernel import World
+        from ..experience.modes import prepare_spec
         from ..worldgen import generate
         self.task, self.spec = task, spec or EnvSpec()
         self.n_seats = S = int(task.n_seats)
@@ -434,8 +440,9 @@ class KernelSelfPlayEnv:
         if len(self.handles) != S or len(set(self.handles)) != S:
             raise ValueError("one distinct handle per seat")
         cfg, seed = task.world_config(holders=self.handles)
-        self.world = World.create(generate(cfg, seed), world_id=f"selfplay-{task.family}-{task.seed}-{task.world_seed}",
-                                  store=store, strict=strict)
+        self.world = World.create(prepare_spec(generate(cfg, seed), self.reward_mode),
+                                  world_id=f"selfplay-{task.family}-{task.seed}-{task.world_seed}", store=store,
+                                  strict=strict)
         self.funds0 = [int(task.endowment)] * S if funds is None else [int(f) for f in funds]
         self.actors = []
         for h, f in zip(self.handles, self.funds0):
@@ -738,13 +745,28 @@ def play(env: SelfPlayEnv, individuals: Sequence[Individual | None], *, noise: S
         if ind is not None:
             ind.learner.reset_context(n)
     scale_score = np.asarray(env._scale)
+    legacy = getattr(env, "reward_mode", LEGACY) == LEGACY
+    if not legacy:
+        bad = sorted({ind.objective.kind for s, ind in enumerate(individuals)
+                      if ind is not None and learn_s[s] and ind.objective.kind != "own"})
+        if bad:
+            raise ValueError(f"objective(s) {bad} need privileged data (another seat's private net or the "
+                             f"mechanism's objective quantity); outside legacy_shaped_reward only 'own' is available, "
+                             f"computed from the individual's own observation")
+    sc0 = env.spec.scalars.start
     while not env.done.all():
         acts: list[np.ndarray | None] = []
         for s, ind in enumerate(individuals):
             acts.append(None if ind is None else
                         np.asarray(ind.learner.act(obs[s], explore=explore_s[s]), dtype=np.float32))
         nxt, rew, done, info = env.step(acts)
-        score = (info["score"] / scale_score).astype(np.float32)
+        if legacy:
+            score = (info["score"] / scale_score).astype(np.float32)
+        else:
+            # the learner's own signal from its own observation: observed revenue minus observed cost (money units)
+            rew = np.stack([np.asarray(nxt[s][:, sc0 + 1] - nxt[s][:, sc0 + 2], dtype=np.float32)
+                            for s in range(S)])
+            score = None
         for s, ind in enumerate(individuals):
             if ind is not None and learn_s[s]:
                 ind.learner.observe(obs[s], acts[s], ind.objective.reward(s, rew, score).astype(np.float32), done,

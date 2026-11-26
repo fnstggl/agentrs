@@ -1,9 +1,13 @@
 """Gate R: observation-only operation (workstream L). One test per requirement; each measures the real system and
 records evidence with `crucible.acceptance.v5.evidence.record`.
 
-The reward paths exercised (crucible.experience.leakage): MechVecEnv, KernelMechEnv, SelfPlayEnv,
-KernelSelfPlayEnv, Gymnasium CrucibleEnv, PettingZoo CrucibleParallelEnv, scale.rollout.WorldEnv, and the
-experience adapters (Tier 1 and kernel worlds, with the numeric view of Tier 1).
+Two batteries run: the reward-path battery (`crucible.experience.leakage`: MechVecEnv, KernelMechEnv, SelfPlayEnv,
+KernelSelfPlayEnv, Gymnasium CrucibleEnv, PettingZoo CrucibleParallelEnv, scale.rollout.WorldEnv, the experience
+adapters - zero rewards, key names, canaries, invariance to evaluator-side data and to the non-legacy mode), and the
+information-flow probes (`crucible.experience.probes`: exact-value, free-text, regression, counterfactual,
+predicate-oracle, termination, tool-sweep, ... over the rapid and mechanism adapters, kernel worlds with v5 modules,
+the innovation registry, self-play, numeric, Gymnasium/PettingZoo and AGENTRS surfaces), which try to RECOVER
+evaluator values from everything a participant reaches - the defence key names and invariance cannot provide.
 """
 import json
 
@@ -25,58 +29,87 @@ def battery():
 
 
 @pytest.fixture(scope="module")
+def probe_run():
+    from crucible.experience import probes
+    return probes.run_all(errors="record")
+
+
+def _probe_leaks(run, *kinds) -> int:
+    return sum(run["by_kind"][k]["leaks"] for k in kinds) + len(run["errors"])
+
+
+@pytest.fixture(scope="module")
 def learner_run():
     """The reference learner through the observation-only interface (Tier 1 and a kernel economy)."""
     out = {}
-    for label, tier, name, kw in (("tier1", 1, "mech:scm_additive", {}),
+    for label, tier, name, kw in (("tier1", 1, "mech:scm_additive", {}), ("tier1_rapid", 1, "rapid:net_routing", {}),
                                   ("kernel", 0, "tiny", {"agents": ["learner"]})):
         env = make(tier, name, 3, "observation_only", **kw)
         L = ReferenceLearner(seed=0, reward_mode=env.reward_mode)
         before = L.params_hash()
         s = run_learner(env, L, 160 if tier == 1 else 64, update_every=32, think_s=None if tier == 1 else 3600)
+        s["signal_sum"] = sum(float(u.get("signal_sum") or 0.0) for u in s["update_log"])
         obs = env.observe(env.agents()[0])
         out[label] = {"summary": s, "before": before, "after": L.params_hash(), "obs": obs, "env": env}
     return out
 
 
-def test_R1_native_intermediate_reward_disabled(battery, learner_run):
+def test_R1_native_intermediate_reward_disabled(battery, learner_run, probe_run):
     paths = [k for k, r in battery.items() if "nonzero_native_reward_steps" in r["metrics"]]
     nonzero = sum(battery[k]["metrics"]["nonzero_native_reward_steps"] for k in paths)
     steps = sum(int(battery[k]["metrics"].get("steps", 0)) for k in paths)
     legacy_nonzero = sum(int(battery[k]["metrics"].get("legacy_nonzero_reward_steps", 0)) for k in paths)
     lr = sum(r["summary"]["nonzero_rewards"] for r in learner_run.values())
     lsteps = sum(r["summary"]["steps"] for r in learner_run.values())
-    metrics = {"nonzero_native_reward_steps": nonzero + lr, "reward_paths_checked": len(paths),
-               "steps_checked": steps + lsteps, "legacy_nonzero_reward_steps_same_inputs": legacy_nonzero}
-    record("R.1", metrics, command=CMD, notes="observation_only on every reward path; legacy mode with the same inputs "
+    default_mode = probe_run["metrics"]["nonzero_scalar_rewards_default_mode"]
+    metrics = {"nonzero_native_reward_steps": nonzero + lr + default_mode, "reward_paths_checked": len(paths),
+               "steps_checked": steps + lsteps + probe_run["by_kind"]["reward_scalar"]["checked"],
+               "legacy_nonzero_reward_steps_same_inputs": legacy_nonzero,
+               "default_constructed_reward_paths_nonzero": default_mode}
+    record("R.1", metrics, command=CMD, notes="observation_only on every reward path, and every environment of the "
+           "probe surfaces constructed with its DEFAULT mode; legacy mode, selected explicitly with the same inputs, "
            "pays nonzero rewards on the counted steps, so the zero is the mode's doing. Paths: " + ", ".join(paths))
     assert metrics["nonzero_native_reward_steps"] == 0, metrics
     assert legacy_nonzero > 0
 
 
-def test_R2_no_privileged_progress_values(battery, learner_run):
+def test_R2_no_privileged_progress_values(battery, learner_run, probe_run):
     keys = ("test_gym", "test_pettingzoo", "test_tier1_invariance", "test_kernel_invariance")
     found = sum(battery[k]["metrics"]["privileged_progress_fields"] for k in keys)
     in_learner = sum(len(leakage.find_keys(r["obs"])) for r in learner_run.values())
     oterm = sum(battery[k]["metrics"].get("outcome_terminations", 0) for k in ("test_gym", "test_pettingzoo"))
-    metrics = {"privileged_progress_fields": found + in_learner + oterm, "surfaces_scanned": len(keys) + 2}
-    record("R.2", metrics, command=CMD, notes="scanned: Gymnasium infos, PettingZoo infos (and outcome-based "
-           "termination), every observation/result/tool list of the Tier 1 and kernel experience envs, the "
-           f"reference learner's final observations. Keys: {sorted(leakage.PRIVILEGED_KEYS)}")
-    assert metrics["privileged_progress_fields"] == 0, [battery[k]["metrics"].get("privileged_paths") for k in keys]
+    recovered = _probe_leaks(probe_run, "key_name", "exact_value", "free_text", "regression", "predicate_oracle",
+                             "termination")
+    metrics = {"privileged_progress_fields": found + in_learner + oterm + recovered,
+               "surfaces_scanned": len(keys) + 2 + probe_run["metrics"]["surfaces_probed"],
+               "probe_recoveries_of_evaluator_values": recovered,
+               "probe_checks": sum(probe_run["by_kind"][k]["checked"] for k in ("key_name", "exact_value", "free_text",
+                                                                                "regression", "predicate_oracle",
+                                                                                "termination"))}
+    record("R.2", metrics, command=CMD, notes="key names in Gymnasium/PettingZoo infos (and outcome-based "
+           "termination), the Tier 1 and kernel experience envs and the reference learner's observations; and the "
+           "information-flow probes that try to recover verifier progress, the mechanism's objective quantity, "
+           "integrity-netted metrics (independent revenue, via goals/exp/charter/commitment predicates), outcome "
+           f"termination: {probe_run['by_kind']}")
+    assert metrics["privileged_progress_fields"] == 0, ([battery[k]["metrics"].get("privileged_paths") for k in keys],
+                                                       [l for s_ in probe_run["surfaces"] for l in s_["leaks"]][:5])
 
 
-def test_R3_no_hidden_evaluator_data(battery):
+def test_R3_no_hidden_evaluator_data(battery, probe_run):
     k, t, rig = battery["test_kernel_invariance"], battery["test_tier1_invariance"], battery["test_rig_hidden_canary"]
-    planted = k["metrics"]["canaries_planted"] + 1 + rig["metrics"]["canaries_planted"]
+    planted = k["metrics"]["canaries_planted"] + 1 + rig["metrics"]["canaries_planted"] + \
+        probe_run["by_kind"]["canary"]["checked"]
     hits = k["metrics"]["canary_hits"] + t["metrics"]["canary_hits"] + rig["metrics"]["canary_hits"]
     differ = k["metrics"]["observation_differences"] + t["metrics"]["observation_differences"]
-    metrics = {"hidden_evaluator_fields": hits + differ, "canaries_planted": planted, "canary_hits": hits,
-               "invariance_differences": differ}
+    probe = _probe_leaks(probe_run, "canary", "counterfactual", "tool_sweep")
+    metrics = {"hidden_evaluator_fields": hits + differ + probe, "canaries_planted": planted, "canary_hits": hits,
+               "invariance_differences": differ, "probe_hidden_data_leaks": probe}
     record("R.3", metrics, command=CMD, notes="canaries: evaluator runtime state, recommender-private slot, internal "
            "event, another participant's private mail, world-spec evaluator parameter, goal evaluator parameter, "
-           "Tier 1 task private reference numbers, hidden mechanism configuration, internal rig filing; plus "
-           "invariance of everything the agent receives to those data and to the reward mode")
+           "Tier 1 task private reference numbers, hidden mechanism configuration, internal rig filing, other "
+           "participants' private rapid messages, rapid objective thresholds; plus invariance of everything the agent "
+           "receives to those data and to the non-legacy reward mode, and the probes' tool sweep (evaluator tools absent "
+           "and refused) and counterfactual worlds")
     assert metrics["hidden_evaluator_fields"] == 0 and planted >= 5, metrics
 
 
@@ -135,23 +168,35 @@ def test_R6_shaped_baselines_executable():
 
 
 def test_R7_reference_learner_updates_observation_only(learner_run):
-    s1, s2 = learner_run["tier1"], learner_run["kernel"]
-    n = s1["summary"]["params_changed_updates"] + s2["summary"]["params_changed_updates"]
+    s1, s2, s3 = learner_run["tier1"], learner_run["kernel"], learner_run["tier1_rapid"]
+    n = sum(r["summary"]["params_changed_updates"] for r in learner_run.values())
     metrics = {"reference_learner_updates_observation_only": n,
-               "optimizer_steps": s1["summary"]["updates"] + s2["summary"]["updates"],
-               "reward_sum_seen": s1["summary"]["reward_sum"] + s2["summary"]["reward_sum"],
-               "params_changed_tier1": s1["before"] != s1["after"], "params_changed_kernel": s2["before"] != s2["after"]}
+               "optimizer_steps": sum(r["summary"]["updates"] for r in learner_run.values()),
+               "reward_sum_seen": sum(r["summary"]["reward_sum"] for r in learner_run.values()),
+               "params_changed_tier1": s1["before"] != s1["after"], "params_changed_kernel": s2["before"] != s2["after"],
+               "params_changed_tier1_rapid": s3["before"] != s3["after"],
+               "own_signal_nonzero_tier1_rapid": abs(s3["summary"]["signal_sum"]) > 0}
     record("R.7", metrics, command=CMD, notes="ReferenceLearner (not CAM) through make(..., 'observation_only'): its "
            "signal is its own (change of its observed balance) plus the self-supervised world-model loss; the "
            "environment paid 0.0 reward")
     assert n >= 1 and metrics["reward_sum_seen"] == 0.0
 
 
-def test_Rn1_explicit_reward_leakage_tests(battery):
+def test_Rn1_explicit_reward_leakage_tests(battery, probe_run):
+    from crucible.experience import probes
     passed = [k for k, r in battery.items() if r["passed"]]
     failed = {k: r["metrics"] for k, r in battery.items() if not r["passed"]}
-    metrics = {"reward_leakage_tests_passed": len(passed), "reward_leakage_tests_run": len(battery)}
-    record("R.n1", metrics, command=CMD, notes="tests: " + ", ".join(f"{k}: {battery[k]['name']}" for k in battery)
-           + (f"; failed: {failed}" if failed else ""))
-    assert not failed, failed
-    assert len(passed) >= 5
+    surf_ok = [s_["name"] for s_ in probe_run["surfaces"] if s_["n_leaks"] == 0]
+    surf_bad = {s_["name"]: s_["leaks"][:3] for s_ in probe_run["surfaces"] if s_["n_leaks"]}
+    surf_bad.update(probe_run["errors"])
+    pc = probes.positive_control()
+    metrics = {"reward_leakage_tests_passed": len(passed) + len(surf_ok),
+               "reward_leakage_tests_run": len(battery) + len(probes.SURFACES),
+               "probe_kinds": probe_run["metrics"]["reward_leak_probe_kinds"],
+               "positive_control_leak_kinds": len(pc["kinds_with_leaks"])}
+    record("R.n1", metrics, command=CMD, notes="battery: " + ", ".join(f"{k}: {battery[k]['name']}" for k in battery)
+           + f"; probe surfaces without leaks: {surf_ok}; positive control (the probes on the 4.0 contract) found "
+             f"{pc['n_leaks']} leaks of kinds {pc['kinds_with_leaks']}"
+           + (f"; failed: {failed} {surf_bad}" if failed or surf_bad else ""))
+    assert not failed and not surf_bad, (failed, surf_bad)
+    assert metrics["reward_leakage_tests_passed"] >= 5 and len(pc["kinds_with_leaks"]) >= 3

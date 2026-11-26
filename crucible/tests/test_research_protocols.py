@@ -33,6 +33,7 @@ from crucible.research import tasks as T  # noqa: E402
 from crucible.research.accounting import Cost, Meter  # noqa: E402
 from crucible.research.baselines import HoldLearner, RandomLearner  # noqa: E402
 from crucible.research.learner import EnvSpec, Learner  # noqa: E402
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 
 SPEC = EnvSpec()
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -442,19 +443,19 @@ def test_frozen_evaluation_is_paired_by_task_restores_the_flag_and_never_teaches
     short = hand_task("hand_short", 0, peak_mech(0.7, horizon=20), {"a": 0.7, "c": 0.0})
     tasks = fam_a["eval"][:5] + [short] + fam_a["eval"][5:]              # another horizon in the middle
     spy = Spy(SPEC)
-    hold = P.evaluate(spy, tasks, n_envs=4)
+    hold = P.evaluate(spy, tasks, n_envs=4, reward_mode=LEGACY)
     assert [r["task"] for r in hold["records"]] == [t.id for t in tasks] == hold["tasks"]
     assert spy.calls["observe"] == 0 and spy.calls["update"] == 0
     assert spy.frozen is False and spy.freezes == [True, False]
     spy.freeze(True)
-    P.evaluate(spy, tasks[:2])
+    P.evaluate(spy, tasks[:2], reward_mode=LEGACY)
     assert spy.frozen is True                                            # restored to what it was, not to False
     # every row a learner was asked to act on was a live episode: act rows == environment steps
     assert hold["cost"]["env_steps"] == sum(t.horizon for t in tasks) == 12 * H + 20
     assert spy.calls["act_rows"] == hold["cost"]["env_steps"] + 2 * H
     assert all(r["score"] == 0.0 and r["ticks_moved"] == 0 and r["success"] is False for r in hold["records"])
 
-    ctx = P.evaluate(ContextLearner(SPEC), tasks, n_envs=4)
+    ctx = P.evaluate(ContextLearner(SPEC), tasks, n_envs=4, reward_mode=LEGACY)
     d = S.paired_diff(P._scores(ctx), P._scores(hold))
     assert d["n"] == len(tasks) and d["lo"] > 0.5 and d["frac_better"] == 1.0
     a = ctx["aggregate"]
@@ -471,19 +472,19 @@ def test_frozen_evaluation_is_paired_by_task_restores_the_flag_and_never_teaches
         assert np.mean(r["segment_scores"][:2]) == pytest.approx(r["score_first_half"])
         assert r["adaptation"] == pytest.approx(r["segment_scores"][-1] - r["segment_scores"][0])
     # clearing the context every tick removes everything this learner can do; every 6 ticks, most of it
-    cut1 = P.evaluate(ContextLearner(SPEC), tasks, reset_every=1)
-    cut6 = P.evaluate(ContextLearner(SPEC), tasks, reset_every=6)
+    cut1 = P.evaluate(ContextLearner(SPEC), tasks, reset_every=1, reward_mode=LEGACY)
+    cut6 = P.evaluate(ContextLearner(SPEC), tasks, reset_every=6, reward_mode=LEGACY)
     assert cut1["aggregate"]["score"]["mean"] == 0.0
     assert 0.0 < cut6["aggregate"]["score"]["mean"] < a["score"]["mean"] - 0.1
     with pytest.raises(ValueError, match="distinct"):
-        P.evaluate(spy, tasks + tasks[:1])
+        P.evaluate(spy, tasks + tasks[:1], reward_mode=LEGACY)
     json.dumps(P._js(ctx), allow_nan=False)
 
 
 def test_frozen_evaluation_catches_a_learner_whose_weights_change(fam_a, tmp_path):
-    ok = P.evaluate(WeightLearner(SPEC), fam_a["eval"][:4])
+    ok = P.evaluate(WeightLearner(SPEC), fam_a["eval"][:4], reward_mode=LEGACY)
     assert ok["frozen"]["unchanged"] is True and ok["frozen"]["method"] == "structured"
-    bad = P.evaluate(LeakyLearner(SPEC), fam_a["eval"][:4])
+    bad = P.evaluate(LeakyLearner(SPEC), fam_a["eval"][:4], reward_mode=LEGACY)
     assert bad["frozen"]["unchanged"] is False and bad["frozen"]["hash_before"] != bad["frozen"]["hash_after"]
 
     # the hash is of the long-term state: accounting and generator state stored in a checkpoint are not weights
@@ -537,7 +538,7 @@ _KEEP: dict = {}            # results worth rendering again in the report tests
 @pytest.mark.parametrize("name", list(EXPECTED))
 def test_timescales_attribute_each_learners_gain_to_the_right_timescale(name, fam_a):
     cls, want = EXPECTED[name]
-    r = _KEEP[f"timescales/{name}"] = P.timescales(F(cls), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS)
+    r = _KEEP[f"timescales/{name}"] = P.timescales(F(cls), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert r["attribution"] == want, (r["attribution"], r["p_holm"])
     assert r["disjoint"]["ok"] and r["disjoint"]["checked_training_tasks"] == 48 and r["frozen_unchanged"]
     gain = r["parametric"]["gain"]["mean_diff"]
@@ -581,7 +582,7 @@ STEP_NAMES = ["evaluate_original_weights", "learning_interactions", "update_weig
 
 
 def test_internalisation_runs_its_eight_steps_and_finds_what_the_weight_learner_internalised(fam_a):
-    r = P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS)
+    r = P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert [s["step"] for s in r["steps"]] == list(range(1, 9)) and [s["name"] for s in r["steps"]] == STEP_NAMES
     assert r["verdict"] == "internalised" and r["valid"] and r["violations"] == []
     assert r["gain"]["n"] == 12 and r["gain"]["lo"] > 0.9 and r["gain"]["p_value"] < 0.01
@@ -604,7 +605,7 @@ def test_internalisation_runs_its_eight_steps_and_finds_what_the_weight_learner_
 
 @pytest.mark.parametrize("cls", [ContextLearner, Memoriser, HoldLearner])
 def test_internalisation_reports_no_gain_when_nothing_went_into_the_weights(cls, fam_a):
-    r = P.internalisation(F(cls), fam_a["train"], fam_a["eval"], 3 * BATCH, n_envs=N_ENVS)
+    r = P.internalisation(F(cls), fam_a["train"], fam_a["eval"], 3 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert [s["name"] for s in r["steps"]] == STEP_NAMES             # reported in full although nothing improved
     assert r["valid"] and r["verdict"] == "no_gain_detected"
     assert r["gain"]["n"] == 12 and r["gain"]["mean_diff"] == 0.0 and r["gain"]["p_value"] == 1.0
@@ -621,7 +622,7 @@ def test_internalisation_reports_no_gain_when_nothing_went_into_the_weights(cls,
 
 def test_a_memoriser_gains_on_what_it_stored_and_loses_that_gain_when_frozen(fam_a):
     sets = {"seen": fam_a["train"], "fresh": fam_a["eval"][:6]}
-    honest = P.lifetime(Memoriser(SPEC), fam_a["train"], 3 * BATCH, BATCH, sets, n_envs=N_ENVS)
+    honest = P.lifetime(Memoriser(SPEC), fam_a["train"], 3 * BATCH, BATCH, sets, n_envs=N_ENVS, reward_mode=LEGACY)
     tr = [p["train"]["score"] for p in honest["points"][1:]]
     assert tr[0] < 0.45 and min(tr[1:]) > 0.75                     # the apparent gain: replaying these very tasks
     for name in ("seen", "fresh"):
@@ -630,47 +631,47 @@ def test_a_memoriser_gains_on_what_it_stored_and_loses_that_gain_when_frozen(fam
     assert honest["disjoint"]["seen"]["ok"] is False and len(honest["disjoint"]["seen"]["overlap"]) == 8
     assert honest["disjoint"]["fresh"]["ok"] is True
     # a memoriser that retrieves although frozen keeps its gain on the stored tasks only
-    cheat = P.lifetime(Memoriser(SPEC, cheat=True), fam_a["train"], 3 * BATCH, BATCH, sets, n_envs=N_ENVS)
+    cheat = P.lifetime(Memoriser(SPEC, cheat=True), fam_a["train"], 3 * BATCH, BATCH, sets, n_envs=N_ENVS, reward_mode=LEGACY)
     seen = [p["eval"]["seen"]["score"]["mean"] for p in cheat["points"]]
     fresh = [p["eval"]["fresh"]["score"]["mean"] for p in cheat["points"]]
     assert seen[-1] > 0.75 and seen[-1] - seen[0] > 0.7 and max(fresh) == min(fresh)
     # which is why the internalisation protocol evaluates on fresh tasks and checks that they are fresh
-    r = P.internalisation(F(Memoriser, cheat=True), fam_a["train"], fam_a["eval"], 3 * BATCH, n_envs=N_ENVS)
+    r = P.internalisation(F(Memoriser, cheat=True), fam_a["train"], fam_a["eval"], 3 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert r["verdict"] == "no_gain_detected" and r["gain"]["mean_diff"] == 0.0 and r["update_count"] > 0
     with pytest.raises(P.ProtocolViolation, match="overlap"):
-        P.internalisation(F(Memoriser, cheat=True), fam_a["train"], fam_a["train"][:4], 2 * BATCH, n_envs=N_ENVS)
+        P.internalisation(F(Memoriser, cheat=True), fam_a["train"], fam_a["train"][:4], 2 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
 
 
 def test_overlapping_training_and_evaluation_tasks_are_rejected(fam_a):
     with pytest.raises(P.ProtocolViolation, match="overlap"):
-        P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"][:3] + fam_a["train"][:1], BATCH, n_envs=N_ENVS)
+        P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"][:3] + fam_a["train"][:1], BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     # the same hidden mechanism under another task id is the same task
     one = hand_task("hand_x", 1, peak_mech(0.66), {"a": 0.66, "c": 0.0})
     twin = hand_task("hand_y", 2, peak_mech(0.66), {"a": 0.66, "c": 0.0})
     assert one.id != twin.id and P.mech_fingerprint(one) == P.mech_fingerprint(twin)
     assert P.overlap([one], [twin]) == [one.id] and P.overlap(fam_a["train"], fam_a["eval"]) == []
     with pytest.raises(P.ProtocolViolation, match="overlap"):
-        P.internalisation(F(WeightLearner), fam_a["train"] + [one], fam_a["eval"][:3] + [twin], BATCH, n_envs=N_ENVS)
+        P.internalisation(F(WeightLearner), fam_a["train"] + [one], fam_a["eval"][:3] + [twin], BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     # a stream cannot be checked in advance: the offending task is caught as it is consumed
 
     def stream():
         yield from fam_a["train"]
         yield from fam_a["eval"]
     with pytest.raises(P.ProtocolViolation, match="also in evaluation set"):
-        P.internalisation(F(WeightLearner), stream(), fam_a["eval"], 4 * BATCH, n_envs=N_ENVS)
+        P.internalisation(F(WeightLearner), stream(), fam_a["eval"], 4 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     with pytest.raises(P.ProtocolViolation):
-        P.timescales(F(WeightLearner), fam_a["train"], fam_a["train"][:2], BATCH, n_envs=N_ENVS)
+        P.timescales(F(WeightLearner), fam_a["train"], fam_a["train"][:2], BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     with pytest.raises(P.ProtocolViolation):
         P.lifetime(WeightLearner(SPEC), fam_a["train"], BATCH, BATCH, fam_a["train"][:2], n_envs=N_ENVS,
-                   require_disjoint=True)
+                   require_disjoint=True, reward_mode=LEGACY)
     with pytest.raises(P.ProtocolViolation):
         P.transfer(F(WeightLearner), fam_a["train"], {"t": {"category": "within", "eval": fam_a["train"][:2],
                                                             "train": None}},
-                   source_budget=BATCH, adapt_budget=BATCH, eval_every=BATCH, n_envs=N_ENVS)
+                   source_budget=BATCH, adapt_budget=BATCH, eval_every=BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
 
 
 def test_internalisation_is_invalid_when_weights_change_during_frozen_evaluation(fam_a):
-    r = P.internalisation(F(LeakyLearner), fam_a["train"], fam_a["eval"], 2 * BATCH, n_envs=N_ENVS)
+    r = P.internalisation(F(LeakyLearner), fam_a["train"], fam_a["eval"], 2 * BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert r["valid"] is False and r["verdict"] == "invalid"
     assert any("changed during the frozen evaluation" in v for v in r["violations"])
     assert r["frozen_unchanged"]["trained"] is False and r["steps"][6]["hash_before"] != r["steps"][6]["hash_after"]
@@ -680,7 +681,7 @@ def test_internalisation_is_invalid_when_weights_change_during_frozen_evaluation
 def test_retention_measures_how_much_of_the_first_family_survives_the_second(fam_a, fam_b):
     r = P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS,
                           retention={"train_tasks": fam_b["train"], "budget_env_steps": 6 * BATCH,
-                                     "eval_tasks": fam_b["eval"][:8]})
+                                     "eval_tasks": fam_b["eval"][:8]}, reward_mode=LEGACY)
     _KEEP["internalisation"] = r
     ret = r["retention"]
     assert r["verdict"] == "internalised" and r["valid"]
@@ -695,19 +696,19 @@ def test_retention_measures_how_much_of_the_first_family_survives_the_second(fam
     # control: more of the same family afterwards loses nothing
     more = peak_tasks("hand_a", range(300, 308), 0.62, 0.78)
     same = P.internalisation(F(WeightLearner), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS,
-                             retention={"train_tasks": more, "budget_env_steps": 2 * BATCH})["retention"]
+                             retention={"train_tasks": more, "budget_env_steps": 2 * BATCH}, reward_mode=LEGACY)["retention"]
     assert same["kept_fraction"]["defined"] and same["kept_fraction"]["ratio"] > 0.97
     assert same["forgetting_verdict"] != "gain" or same["forgetting"]["mean_diff"] < 0.02
     # a learner that gained nothing has nothing to retain, and the protocol says so instead of dividing by zero
     none = P.internalisation(F(HoldLearner), fam_a["train"], fam_a["eval"], BATCH, n_envs=N_ENVS,
-                             retention={"train_tasks": fam_b["train"], "budget_env_steps": BATCH})["retention"]
+                             retention={"train_tasks": fam_b["train"], "budget_env_steps": BATCH}, reward_mode=LEGACY)["retention"]
     assert none["kept_fraction"]["defined"] is False and none["kept_fraction"]["ratio"] is None
 
 
 # ====================================================================== 2. lifetime / learning curve
 def _life(fam_a, d, seed=3, budget=6 * BATCH, **kw):
     return P.lifetime(WeightLearner(SPEC, seed=seed), fam_a["train"], budget, BATCH, {"fresh": fam_a["eval"]},
-                      n_envs=N_ENVS, checkpoint_dir=d, **kw)
+                      n_envs=N_ENVS, checkpoint_dir=d, **kw, reward_mode=LEGACY)
 
 
 @pytest.fixture(scope="module")
@@ -796,7 +797,7 @@ def test_an_interrupted_lifetime_resumes_from_its_last_checkpoint_with_the_same_
         [p["eval"]["fresh"]["scores"] for p in full["points"]]
     # stopping early says so
     part = P.lifetime(WeightLearner(SPEC, seed=3), fam_a["train"], 6 * BATCH, BATCH, {"fresh": fam_a["eval"][:3]},
-                      n_envs=N_ENVS, max_points=2)
+                      n_envs=N_ENVS, max_points=2, reward_mode=LEGACY)
     assert part["complete"] is False and len(part["points"]) == 2 and part["points"][-1]["checkpoint"] is None
 
 
@@ -827,7 +828,7 @@ def test_training_batches_have_one_horizon_a_fixed_size_and_resume_exactly(fam_a
     # a learner trained on a mixed stream only ever sees whole batches of live episodes
     spy = Spy(SPEC)
     cost = Cost()
-    out = P._train(spy, P.TaskSource(at, 4), 400, cost, spec=SPEC, n_envs=4, update_every=1, explore=True, segments=4)
+    out = P._train(spy, P.TaskSource(at, 4), 400, cost, spec=SPEC, n_envs=4, update_every=1, explore=True, segments=4, reward_mode=LEGACY)
     assert cost.env_steps == 4 * H + 4 * 20 + 4 * H == spy.calls["act_rows"] and out["episodes"] == 12
     assert spy.calls["observe"] == H + 20 + H == spy.calls["update"] and spy.calls["reset"] == 3
 
@@ -888,7 +889,7 @@ def targets(fam_a, fam_b):
 
 def test_transfer_efficiency_is_above_one_with_a_useful_prior_and_negative_transfer_is_flagged(fam_a, targets):
     r = _KEEP["transfer"] = P.transfer(F(WeightLearner, lr=0.3), fam_a["train"], targets, source_budget=12 * BATCH,
-                                       adapt_budget=4 * BATCH, eval_every=BATCH, n_envs=N_ENVS)
+                                       adapt_budget=4 * BATCH, eval_every=BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     assert r["categories"] == {"within": ["within"], "compositional": ["near"], "structural": ["moved"],
                                "cross_impl": []}
     w = r["targets"]["within"]
@@ -920,14 +921,14 @@ def test_transfer_efficiency_is_one_for_a_learner_with_nothing_to_transfer(fam_a
     # nothing in a context-only learner survives its source training: the two adaptation curves are the same curve
     only["within"] = dict(only["within"], eval=only["within"]["eval"][:6])
     kw = dict(source_budget=BATCH, adapt_budget=2 * BATCH, eval_every=BATCH, n_envs=N_ENVS, workdir=str(tmp_path / "t"))
-    r = P.transfer(F(ContextLearner), fam_a["train"], only, **kw)
+    r = P.transfer(F(ContextLearner), fam_a["train"], only, **kw, reward_mode=LEGACY)
     ad = r["targets"]["within"]["adaptation"]
     assert ad["auc"]["ratio"]["defined"] and ad["auc"]["ratio"]["ratio"] == 1.0
     assert ad["auc"]["ratio"]["lo"] == ad["auc"]["ratio"]["hi"] == 1.0 and ad["auc"]["diff"]["mean_diff"] == 0.0
     assert r["targets"]["within"]["zero_shot"]["gain"]["mean_diff"] == 0.0
     assert r["targets"]["within"]["negative_transfer"] is False and r["negative_transfer"] == []
     # with a working directory the protocol continues where it stopped: a second call finds everything done
-    again = P.transfer(F(ContextLearner), fam_a["train"], only, **kw)
+    again = P.transfer(F(ContextLearner), fam_a["train"], only, **kw, reward_mode=LEGACY)
     assert r["source"]["runs"][0]["reused"] is False and again["source"]["runs"][0]["reused"] is True
     assert again["targets"]["within"]["adaptation"]["curves"] == ad["curves"]
     # a weight learner whose source taught it nothing relevant (the useful lever did nothing there): about one
@@ -938,7 +939,7 @@ def test_transfer_efficiency_is_one_for_a_learner_with_nothing_to_transfer(fam_a
                          outcome={"terms": [{"kind": "linear", "src": "x", "w": 1.0}], "bias": 1.0, "cap": 4.0},
                          horizon=H, income_cents_per_tick=4001)) for s in range(8)]
     r2 = P.transfer(F(WeightLearner, lr=0.3), flat, only, source_budget=3 * BATCH, adapt_budget=4 * BATCH,
-                    eval_every=BATCH, n_envs=N_ENVS, seeds=(0, 1))
+                    eval_every=BATCH, n_envs=N_ENVS, seeds=(0, 1), reward_mode=LEGACY)
     ad2 = r2["targets"]["within"]["adaptation"]
     assert r2["targets"]["within"]["n_pairs"] == 12 and r2["seeds"] == [0, 1]
     assert ad2["auc"]["ratio"]["defined"] and 0.85 < ad2["auc"]["ratio"]["ratio"] < 1.15
@@ -954,7 +955,7 @@ def comparison(fam_a):
     learners = {"weights": F(WeightLearner), "context": F(ContextLearner), "twin": F(ContextLearner),
                 "hold": F(HoldLearner)}
     return P.compare(learners, fam_a["train"], {"fresh": fam_a["eval"]}, 3 * BATCH, BATCH, seeds=(0, 1),
-                     reference="context", n_envs=N_ENVS, keep_runs=True)
+                     reference="context", n_envs=N_ENVS, keep_runs=True, reward_mode=LEGACY)
 
 
 def test_comparison_under_equal_budgets_is_paired_and_corrected(comparison):
@@ -1022,7 +1023,7 @@ def test_comparison_says_what_the_records_establish_about_failures(comparison):
 
 def test_failure_diagnosis_tells_the_ways_of_failing_apart(fam_a):
     def classes(learner, tasks):
-        ev = P.evaluate(learner, tasks, n_envs=N_ENVS)
+        ev = P.evaluate(learner, tasks, n_envs=N_ENVS, reward_mode=LEGACY)
         return [P.diagnose_episode(r) for r in ev["records"]], ev
     tasks = fam_a["eval"][:4]
     got, _ = classes(HoldLearner(SPEC), tasks)
@@ -1076,7 +1077,7 @@ def gen_tasks():
 
 def test_protocols_run_on_generated_tasks_and_training_streams(gen_tasks, tmp_path):
     ev = P.evaluate_many({"hold": [HoldLearner(SPEC)], "random": [RandomLearner(SPEC, 1), RandomLearner(SPEC, 2)]},
-                         gen_tasks, reference="hold", n_envs=4)
+                         gen_tasks, reference="hold", n_envs=4, reward_mode=LEGACY)
     assert ev["versions"]["task"] == T.TASK_VERSION and ev["families"] == ["scm_additive", "scm_invu"]
     per = ev["per_learner"]
     assert set(per["hold"]["by_transfer"]) == {"within", "structural"} and per["hold"]["by_transfer"]["within"]["n"] == 2
@@ -1089,10 +1090,10 @@ def test_protocols_run_on_generated_tasks_and_training_streams(gen_tasks, tmp_pa
     d = str(tmp_path / "gen")
     kw = dict(n_envs=4, checkpoint_dir=d)
     r = P.lifetime(WeightLearner(SPEC, batch=96), P.task_stream(["scm_additive"]), 2 * 4 * 96, 4 * 96,
-                   {"val": gen_tasks}, require_disjoint=True, max_points=2, **kw)
+                   {"val": gen_tasks}, require_disjoint=True, max_points=2, **kw, reward_mode=LEGACY)
     assert r["complete"] is False and [p["env_steps"] for p in r["points"]] == [0, 384]
     r = P.lifetime(WeightLearner(SPEC, batch=96), P.task_stream(["scm_additive"]), 2 * 4 * 96, 4 * 96,
-                   {"val": gen_tasks}, require_disjoint=True, **kw)
+                   {"val": gen_tasks}, require_disjoint=True, **kw, reward_mode=LEGACY)
     assert r["complete"] and r["resumed"] == [1] and [p["env_steps"] for p in r["points"]] == [0, 384, 768]
     assert r["train_tasks"] == {"n": 8, "digest": r["train_tasks"]["digest"], "families": {"scm_additive": 8}}
     assert r["points"][1]["train"]["score"] is None and r["points"][1]["train"]["reward_per_tick"] is not None
@@ -1102,15 +1103,15 @@ def test_protocols_run_on_generated_tasks_and_training_streams(gen_tasks, tmp_pa
 
 def test_a_numeric_learner_is_diagnosed_through_tool_calls_in_a_kernel_world(gen_tasks):
     t = gen_tasks[0]
-    k = P.kernel_diagnosis(HoldLearner(SPEC), t)
-    sim = P.evaluate(HoldLearner(SPEC), [t])["records"][0]
+    k = P.kernel_diagnosis(HoldLearner(SPEC), t, reward_mode=LEGACY)
+    sim = P.evaluate(HoldLearner(SPEC), [t], reward_mode=LEGACY)["records"][0]
     assert k["score"] == pytest.approx(sim["score"]) and k["success"] == sim["success"]   # the same problem, by tools
     assert k["tool_calls"] >= 2 * t.horizon and k["classes"].get("ok_effect", 0) + k["classes"].get("ok_read", 0) > 0
     assert k["cash"]["max"] >= t.endowment and k["difficulty"] == "absent"      # the task is known to be feasible
     # holding one setting is, as tool calls, the same call repeated without new information
     assert any(f["kind"] == "loop" for f in k["findings"])
     # varied settings that miss the objective on a feasible task: a failure of strategy, and it is named
-    r = P.kernel_diagnosis(RandomLearner(SPEC, 1), t)
+    r = P.kernel_diagnosis(RandomLearner(SPEC, 1), t, reward_mode=LEGACY)
     assert r["success"] is False and r["primary"] == "strategic_failure" and "reference succeeded" in r["primary_reason"]
     assert r["cash"]["spent_by_kind"]["rig_settle"] > k["cash"]["spent_by_kind"]["rig_settle"]
     json.dumps(P._js([k, r]), allow_nan=False)
@@ -1220,7 +1221,7 @@ def test_sealed_sets_are_unreachable_from_learner_and_world_code(sealed_dir, fam
                 "guarded", sealed.SEALED_ACK, "tune on the test set")
             return super().act(obs, explore)
     with pytest.raises(sealed.SealedSetError, match="not reachable"):
-        P.evaluate(Sneaky(SPEC), fam_a["eval"][:1], verify_frozen=False)
+        P.evaluate(Sneaky(SPEC), fam_a["eval"][:1], verify_frozen=False, reward_mode=LEGACY)
     with pytest.raises(sealed.SealedSetError, match="not reachable"):
         Sneaky(SPEC).act(np.zeros((1, SPEC.obs_dim), np.float32))           # called directly, without any harness
     ns = {"__name__": "crucible.research.learners.fake", "sealed": sealed}
@@ -1291,11 +1292,11 @@ def test_reports_have_a_table_and_a_figure_per_quantity(comparison, life_weight,
     md = _check_report(report.render(bundle, out, "set"), 2 + 4)
     assert "sd " in md and "over 2 seeds" in md
     base = P.baseline({"context_only": F(ContextLearner), "hold": F(HoldLearner), "spender": F(Spender)},
-                      fam_a["eval"], reference="hold", n_envs=N_ENVS)
+                      fam_a["eval"], reference="hold", n_envs=N_ENVS, reward_mode=LEGACY)
     json_path = P.save_result(base, os.path.join(out, "base.json"))
     md = _check_report(report.render(json_path, out), 3)                     # from the file, as the runner does
     assert "success [Wilson 95%]" in md and "segment 4" in md and "never_found: 12" in md
-    ev = P.evaluate(ContextLearner(SPEC), fam_a["eval"][:4])
+    ev = P.evaluate(ContextLearner(SPEC), fam_a["eval"][:4], reward_mode=LEGACY)
     _check_report(report.render(ev, out, "ev"), 1)
     with pytest.raises(ValueError, match="no report"):
         report.render({"protocol": "nothing"}, out)
@@ -1311,13 +1312,13 @@ def test_reports_of_the_timescale_internalisation_and_transfer_protocols(fam_a, 
     from crucible.research import report
     out = str(tmp_path)
     ts = _KEEP.get("timescales/meta_only") or P.timescales(F(MetaLearner), fam_a["train"], fam_a["eval"], 6 * BATCH,
-                                                          n_envs=N_ENVS)
+                                                          n_envs=N_ENVS, reward_mode=LEGACY)
     md = _check_report(report.render(ts, out, "ts"), 4)
     assert "fast adaptation" in md and "parametric learning" in md and "meta-learning" in md
     assert "by segment 1 of 4" in md and md.count("| yes |") == 3
     it = _KEEP.get("internalisation") or P.internalisation(
         F(WeightLearner), fam_a["train"], fam_a["eval"], 6 * BATCH, n_envs=N_ENVS,
-        retention={"train_tasks": fam_b["train"], "budget_env_steps": 6 * BATCH, "eval_tasks": fam_b["eval"][:8]})
+        retention={"train_tasks": fam_b["train"], "budget_env_steps": 6 * BATCH, "eval_tasks": fam_b["eval"][:8]}, reward_mode=LEGACY)
     md = _check_report(report.render(it, out, "int"), 3)
     assert "**Verdict: internalised.**" in md and "evaluate on fresh tasks" in md and "of the first gain is kept" in md
     assert all(f"| {k} |" in md for k in range(1, 9))
@@ -1330,7 +1331,7 @@ def test_reports_of_the_timescale_internalisation_and_transfer_protocols(fam_a, 
     if tr is None:
         tr = P.transfer(F(WeightLearner, lr=0.3), fam_a["train"],
                         {"within": {"category": "within", "eval": fam_a["eval"][:8], "train": fam_a["train"]}},
-                        source_budget=6 * BATCH, adapt_budget=2 * BATCH, eval_every=BATCH, n_envs=N_ENVS)
+                        source_budget=6 * BATCH, adapt_budget=2 * BATCH, eval_every=BATCH, n_envs=N_ENVS, reward_mode=LEGACY)
     md = _check_report(report.render(tr, out, "tr"), 3)
     assert "AUC ratio (efficiency)" in md and "zero-shot gain" in md
     if "moved" in tr["targets"]:
@@ -1414,16 +1415,16 @@ def test_a_registry_learner_with_a_torch_checkpoint_passes_through_the_harness(f
         pytest.skip("the registry has no ppo_gru")
     make = P.from_registry("ppo_gru", SPEC, hidden=16, rollout_steps=BATCH)
     lr = make(0)
-    ev = P.evaluate(lr, fam_a["eval"][:4], n_envs=4)
+    ev = P.evaluate(lr, fam_a["eval"][:4], n_envs=4, reward_mode=LEGACY)
     assert ev["frozen"] == dict(ev["frozen"], unchanged=True, method="structured") and ev["learner"]["name"] == "ppo_gru"
     assert ev["learner"]["params"] > 0 and ev["cost"]["infer_cpu_s"] > 0
-    again = P.evaluate(lr, fam_a["eval"][:4], n_envs=4)
+    again = P.evaluate(lr, fam_a["eval"][:4], n_envs=4, reward_mode=LEGACY)
     assert [r["score"] for r in again["records"]] == [r["score"] for r in ev["records"]]      # frozen: reproducible
     d = str(tmp_path / "ppo")
     kw = dict(n_envs=N_ENVS, checkpoint_dir=d)
-    part = P.lifetime(make(0), fam_a["train"], 2 * BATCH, BATCH, {"fresh": fam_a["eval"][:4]}, max_points=2, **kw)
+    part = P.lifetime(make(0), fam_a["train"], 2 * BATCH, BATCH, {"fresh": fam_a["eval"][:4]}, max_points=2, **kw, reward_mode=LEGACY)
     assert part["points"][1]["updates"] > 0 and part["points"][0]["weights_hash"] != part["points"][1]["weights_hash"]
-    full = P.lifetime(make(0), fam_a["train"], 2 * BATCH, BATCH, {"fresh": fam_a["eval"][:4]}, **kw)
+    full = P.lifetime(make(0), fam_a["train"], 2 * BATCH, BATCH, {"fresh": fam_a["eval"][:4]}, **kw, reward_mode=LEGACY)
     assert full["resumed"] == [1] and full["complete"] and full["frozen_unchanged"]
     assert full["points"][2]["updates"] > full["points"][1]["updates"] == part["points"][1]["updates"]
     assert full["points"][2]["train_cpu_s"] > 0 and full["cost"]["train"]["reported"]["train_cpu_s"] > 0

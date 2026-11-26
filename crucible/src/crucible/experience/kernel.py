@@ -17,11 +17,16 @@ and observations are assembled from what the agent may see:
   public events), `missing` (pending results of the agent's own experiments and self-goals, hidden mechanisms
   present in this world, truncation notices), `objective` (the public description of the agent's goal).
 
-Reward modes: an agent's objective is a `goals.contracts.GoalContract` (or any object with
-`begin/step_reward/status`). ``legacy_shaped_reward`` pays the 4.0 `RewardContract` (potential shaping on verified
-progress plus a success bonus; without an objective, the change of the agent's own balances, as the 4.0 `WorldEnv`
-does); ``verified_terminal_outcome`` pays 1.0 once when the verifier confirms success; ``observation_only`` pays 0.0.
-In every mode the verifier runs after each `advance` and `execute`; its status is returned only by `verify()`.
+Reward modes (Clarification 2): ``observation_only`` is the default - it pays 0.0 and the world is built (or adopted)
+with ``evaluator_access="evaluator"`` (`crucible.core.evaluator_only`), so evaluator tools such as `goals.check_now`
+and `use.report` are refused, evaluator fields (relatedness verdicts, the mechanism's objective quantity) are removed
+from tool results, events and summaries, and no participant-authored predicate can read an evaluator metric. An
+agent's objective is a `goals.contracts.GoalContract` (or any object with `begin/step_reward/status`); only its public
+text is shown. ``verified_terminal_outcome`` (explicit) pays 1.0 once when the verifier confirms success;
+``legacy_shaped_reward`` (explicit) pays the 4.0 `RewardContract` (potential shaping on verified progress plus a
+success bonus; without an objective, the change of the agent's own balances, as the 4.0 `WorldEnv` does) and keeps
+the 4.0 evaluator-access contract. In every mode the verifier runs after each `advance` and `execute`; its status is
+returned only by `verify()`, which also reports evaluator-side outcome measures when no objective is set.
 """
 from __future__ import annotations
 
@@ -29,10 +34,11 @@ import copy
 from bisect import bisect_right
 from typing import Any, Callable, Iterable
 
+from ..core import evaluator_only as EO
 from .env import BaseExperienceEnv, error_result
 from .features import annotate_tools, artifact_refs, entities, flatten, texts
-from .modes import LEGACY, OBSERVATION_ONLY, VERIFIED, RewardGate, check_mode
-from .observation import Observation, json_copy
+from .modes import LEGACY, OBSERVATION_ONLY, VERIFIED, RewardGate, check_mode, prepare_spec, prepare_world
+from .observation import TIME_UNIT, Observation, json_copy
 
 # What each module keeps from its participants (stated in `missing` when the module is present). Facts about the
 # world's rules, never values.
@@ -56,7 +62,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
     kind = "kernel"
 
     def __init__(self, world: Any, seed: int = 0, *, agents: Iterable[str] | int = ("agent",), endowment: int = 1_000_000,
-                 reward_mode: str = LEGACY, objectives: Any = None, tier: int = 0, name: str | None = None,
+                 reward_mode: str | None = None, objectives: Any = None, tier: int = 0, name: str | None = None,
                  extra_modules: Iterable[str] = (), experiments: bool = True, store=None, strict: bool = False,
                  max_events: int = 500, max_text: int = 200, max_artifacts: int = 200, join_kind: str = "agent",
                  evaluator: Callable[[Any, str], dict] | None = None, world_id: str | None = None,
@@ -65,12 +71,13 @@ class KernelExperienceEnv(BaseExperienceEnv):
         import crucible
         crucible.load_all_modules()
         self.tier = int(tier)
+        mode = check_mode(reward_mode)
         if isinstance(world, World):
-            self.world = world
+            self.world = prepare_world(world, mode)
             label = name or world.spec.family
         else:
             spec = self._spec(world, seed)
-            spec = copy.deepcopy(spec)
+            spec = prepare_spec(copy.deepcopy(spec), mode)
             have = {m["name"] for m in spec.modules}
             # self-generated experiments need identities (every world with participants has them)
             for m in list(extra_modules) + (["exp"] if experiments and "identity" in have else []):
@@ -81,7 +88,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
             ensure_modules([m["name"] for m in spec.modules])
             self.world = World.create(spec, world_id=world_id, store=store, strict=strict)
             label = name or spec.family
-        super().__init__(check_mode(reward_mode), label, self.world.spec.seed)
+        super().__init__(mode, label, self.world.spec.seed)
         self.max_events, self.max_text, self.max_artifacts = int(max_events), int(max_text), int(max_artifacts)
         self._encode = _semantic_encoder() if semantic in ("auto", True) else None
         if semantic is True and self._encode is None:
@@ -208,7 +215,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
             self._public = [x for x in self._public if x[0] >= cut]
 
     def _event(self, agent: str, seq: int) -> dict:
-        e = self.world.events_range(seq - 1, seq)[0]
+        e = self.world.participant_event(self.world.events_range(seq - 1, seq)[0])
         return {"seq": e.seq, "t": e.t, "type": e.type, "actor": e.actor, "payload": json_copy(e.payload),
                 "cause": dict(self._cause[agent][seq]) if seq in self._cause[agent] else None}
 
@@ -319,6 +326,9 @@ class KernelExperienceEnv(BaseExperienceEnv):
         numbers["world.time_s"] = int(w.now)
         numbers["world.day"] = int(w.now // 86400)
         missing: list[str] = []
+        if EO.hidden(w):
+            missing.append("evaluator: goal progress, verified quality, relatedness verdicts and integrity metrics are "
+                           "evaluator data and are not observable (outcomes are verified separately)")
         txt = texts(summary, "summary", [])
         for e in events:
             texts(e["payload"], f"event[{e['seq']}].{e['type']}", txt)
@@ -342,7 +352,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
         hour = w.now // 3600
         cnt = self._counts[agent]
         accounts = w.state.find_ids("accounts", "owner", agent) if "accounts" in w.state.tables else []
-        resources = {"actions": int(p.get("actions", 0)), "time_used_s": int(p.get("time_used", 0)),
+        resources = {"time_unit": TIME_UNIT, "actions": int(p.get("actions", 0)),
+                     "time_used_s": int(p.get("time_used", 0)),
                      "actions_this_hour": int(p.get("hour_actions", 0)) if p.get("hour") == hour else 0,
                      "action_limit_per_hour": limit, "executes": cnt["executes"], "rejected": cnt["rejected"],
                      "cost_s_total": cnt["cost_s"], "balance_cents": self._balance(agent), "accounts": len(accounts)}
@@ -398,9 +409,11 @@ class KernelExperienceEnv(BaseExperienceEnv):
         domain evaluator's verdict when one was given, invariants, and the world's digest."""
         w = self.world
         self.verifications += 1
-        out = {"verifier": "goals.contracts.GoalVerifier" if self._objectives else None, "t": int(w.now),
+        out = {"verifier": "goals.contracts.GoalVerifier" if self._objectives else
+               "crucible.experience.kernel evaluator measures", "t": int(w.now),
                "seq": int(w.seq), "digest": w.digest(), "invariant_violations": w.check_invariants(),
-               "agents": {a: dict(self._status.get(a) or {}) for a in self._agents}}
+               "agents": {a: dict(self._status.get(a) or {}) for a in self._agents},
+               "measures": {a: self._measures(a) for a in self._agents}}
         if self.evaluator is not None:
             out["evaluation"] = {a: self.evaluator(w, a) for a in self._agents}
             out["verifier"] = out["verifier"] or "domain evaluator"
@@ -409,12 +422,28 @@ class KernelExperienceEnv(BaseExperienceEnv):
             out["world_evaluation"] = hook(w, None)
         return out
 
+    def _measures(self, agent: str) -> dict:
+        """Evaluator-side outcome measures of a participant that hold with or without an objective: its own cash and,
+        for every organisation it administers, the evaluator's independent revenue over the last 30 days and the
+        organisation's status. Computed from authoritative state (never shown to participants)."""
+        from ..goals.metrics import METRICS, evaluate_metric
+        w = self.world
+        out: dict = {}
+        if "cash" in METRICS:
+            out["cash_cents"] = float(evaluate_metric(w, "cash", {"principal": agent}))
+        orgs = sorted(p for p in w.principals_of(agent) if p != agent and p.startswith("o:"))
+        if orgs and "independent_revenue" in METRICS:
+            out["orgs"] = {o: {"independent_revenue_30d_cents": float(evaluate_metric(
+                w, "independent_revenue", {"principal": o, "window_s": 30 * 86400}))} for o in orgs}
+        return out
+
     def digest(self) -> str:
         return self.world.digest()
 
     def describe(self) -> dict:
         d = super().describe()
-        d.update(world_id=self.world.world_id, spec_hash=self.world.spec.hash(), family=self.world.spec.family,
+        d.update(time_unit=TIME_UNIT, evaluator_access=EO.policy(self.world),
+                 world_id=self.world.world_id, spec_hash=self.world.spec.hash(), family=self.world.spec.family,
                  agents=list(self._agents), seq=int(self.world.seq), t=int(self.world.now))
         return d
 

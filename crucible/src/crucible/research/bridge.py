@@ -10,8 +10,9 @@ the batched simulator and an agent using tools face the same problem with the sa
 `ToolLog` records every tool call the learner's actions were translated into, so a run is an ordinary agent
 trajectory in the world's event log (replayable, auditable, diagnosable with `research.diagnostics`).
 
-`reward_mode` (Crucible 5.0) has the meaning of `MechVecEnv`'s: the default ``legacy_shaped_reward`` is the 4.0
-behaviour; ``observation_only`` returns zero reward and leaves the reward slot of the observation at 0;
+`reward_mode` (Crucible 5.0) has the meaning of `MechVecEnv`'s: the default ``observation_only`` returns zero reward,
+leaves the reward slot of the observation at 0 and builds the world with evaluator data hidden from the participant
+(`core.evaluator_only`); an explicitly selected ``legacy_shaped_reward`` is the 4.0 behaviour;
 ``verified_terminal_outcome`` returns 1.0 on the last tick if the public objective was reached, else 0.
 """
 from __future__ import annotations
@@ -28,16 +29,17 @@ class KernelMechEnv:
     n = 1
 
     def __init__(self, task: Task, spec: EnvSpec | None = None, handle: str = "agent", tools: bool = False,
-                 store=None, strict: bool = True, reward_mode: str = LEGACY):
+                 store=None, strict: bool = True, reward_mode: str | None = None):
         self.reward_mode = check_mode(reward_mode)
         import crucible
         crucible.load_all_modules()
         from ..core.kernel import World
+        from ..experience.modes import prepare_spec
         from ..worldgen import generate
         self.task, self.spec = task, spec or EnvSpec()
         cfg, seed = task.world_config(tools=tools, holders=(handle,))
-        self.world = World.create(generate(cfg, seed), world_id=f"task-{task.family}-{task.seed}-{handle}",
-                                  store=store, strict=strict)
+        self.world = World.create(prepare_spec(generate(cfg, seed), self.reward_mode),
+                                  world_id=f"task-{task.family}-{task.seed}-{handle}", store=store, strict=strict)
         r = self.world.system_call("admin.join", {"handle": handle, "endowment": int(task.endowment)})
         self.actor = r["principal"]
         self.calls: list[dict] = []

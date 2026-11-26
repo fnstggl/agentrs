@@ -10,12 +10,19 @@ Every place where Crucible computes a reward for a learner is exercised in obser
 and checked three ways: (1) the reward and the reward slot are zero at every step; (2) no evaluator key (goal
 progress, streak, success time, objective status, private task numbers) appears anywhere in what the learner gets;
 (3) **invariance**: what the learner gets is identical when only evaluator-side data differ (the task's private
-reference numbers, the goal's evaluator parameters, the reward mode itself), and none of the canaries planted in
+reference numbers, the goal's evaluator parameters, the non-legacy reward mode), and none of the canaries planted in
 evaluator-side or other participants' private data shows up in it. Legitimate consequences (revenue, cost, balance,
-readings, events, tools) must still be there and equal to what legacy mode shows.
+readings, events) must still be there and equal to what legacy mode shows; legacy mode itself may show more (the 4.0
+contract's evaluator tools and fields, e.g. `goals.check_now`, the mechanism's `score`), so it is compared on the
+legitimate fields only.
+
+Key names and invariance cannot see a tool that hands out evaluator data identically in every mode; the
+information-flow probes in `crucible.experience.probes` (exact-value, regression, predicate-oracle, tool-sweep, ...)
+cover that, and Gate R runs both.
 
 `legacy_check` runs the 4.0 implementation of each environment (loaded from the 4.0 commit `c07098b` with `git
-show`) next to the current one in legacy mode and requires byte-identical observations and rewards.
+show`) next to the current one in an explicitly selected legacy mode and requires byte-identical observations and
+rewards (OO.8: historical reward-based experiments stay reproducible).
 """
 from __future__ import annotations
 
@@ -225,7 +232,11 @@ def _gym_metrics(runs: dict, multi: bool) -> dict:
     nonzero = sum(1 for r in oo["rewards"] if (any(x != 0 for x in r) if multi else r != 0))
     priv = find_keys(oo["infos"])
     term = sum(1 for t in oo["term"] if t)
-    legit = sum(1 for a, b in zip(leg["obs"], oo["obs"]) if dump(a) != dump(b))
+    # legitimate consequences: the events each step delivered (the rendered text also lists the tools, and legacy
+    # mode's tool list carries the 4.0 evaluator tools)
+    def evs(infos):
+        return [(i.get("events") if not multi else {a: x.get("events") for a, x in i.items()}) for i in infos]
+    legit = sum(1 for a, b in zip(evs(leg["infos"]), evs(oo["infos"])) if dump(a) != dump(b))
     verified = 1 if (oo["verify"] and (("progress" in oo["verify"]) if not multi else
                                        all("progress" in v for v in oo["verify"].values()))) else 0
     legacy_nonzero = sum(1 for r in leg["rewards"] if (any(x != 0 for x in r) if multi else r != 0))
@@ -346,17 +357,21 @@ def test_tier1_invariance(steps: int = 30) -> dict:
         got = _drive_tier1(env, steps)
         outs[label] = (dump(got), env._rewards_seen, env)
     nonzero = sum(1 for r in outs["obs"][1] + outs["obs_canary"][1] if r != 0)
-    differ = sum(int(outs[k][0] != outs["obs"][0]) for k in ("legacy", "verified", "obs_canary"))
+    differ = sum(int(outs[k][0] != outs["obs"][0]) for k in ("verified", "obs_canary"))
+    legit_missing = _legit_missing_tier1(json.loads(outs["legacy"][0]), json.loads(outs["obs"][0]))
     hits = canary_hits([outs["obs_canary"][0]], [repr(canary_val), "7777.12"])
     priv = find_keys(json.loads(outs["obs"][0]))
     vec = outs["obs"][2].numeric()
     slot_nonzero = int(np.any(vec._obs[:, vec.spec.scalars.start] != 0))
     m = {"steps": steps, "nonzero_native_reward_steps": nonzero + slot_nonzero, "observation_differences": differ,
          "canary_hits": len(hits), "privileged_progress_fields": len(priv), "privileged_paths": priv[:5],
-         "legacy_nonzero_reward_steps": sum(1 for r in outs["legacy"][1] if r != 0)}
-    return _verdict("Tier 1 experience env: observations invariant to mode and private task data", m,
+         "legacy_nonzero_reward_steps": sum(1 for r in outs["legacy"][1] if r != 0),
+         "legitimate_fields_missing": legit_missing}
+    return _verdict("Tier 1 experience env: observations invariant to the non-legacy mode and private task data; "
+                    "legitimate fields equal to legacy's", m,
                     ok=lambda x: x["nonzero_native_reward_steps"] == 0 and x["observation_differences"] == 0
-                    and x["canary_hits"] == 0 and x["privileged_progress_fields"] == 0)
+                    and x["canary_hits"] == 0 and x["privileged_progress_fields"] == 0
+                    and x["legitimate_fields_missing"] == 0)
 
 
 def _drive_kernel(env, steps: int, payee: str) -> list:
@@ -413,7 +428,8 @@ def test_kernel_invariance(steps: int = 8) -> dict:
         rewards = [env.reward(env.agents()[0])]
         status = env.verify()
         outs[label] = (got, rewards, status)
-    differ = sum(int(dump(outs[k][0]) != dump(outs["obs"][0])) for k in ("legacy", "verified", "obs_canary"))
+    differ = sum(int(dump(outs[k][0]) != dump(outs["obs"][0])) for k in ("verified", "obs_canary"))
+    legit_missing = _legit_missing_kernel(outs["legacy"][0], outs["obs"][0])
     canaries = list(canary.values())
     hits = canary_hits(outs["obs_canary"][0], canaries)
     priv = find_keys([g for g in outs["obs"][0]])
@@ -421,11 +437,45 @@ def test_kernel_invariance(steps: int = 8) -> dict:
     m = {"steps": steps, "nonzero_native_reward_steps": sum(1 for r in outs["obs"][1] if r != 0),
          "legacy_nonzero_reward_steps": sum(1 for r in outs["legacy"][1] if r != 0),
          "observation_differences": differ, "canaries_planted": len(canaries), "canary_hits": len(hits),
-         "privileged_progress_fields": len(priv), "privileged_paths": priv[:5], "verifier_outcomes_recorded": verified}
-    return _verdict("Kernel experience env: invariance to mode and evaluator data; canaries absent", m,
+         "privileged_progress_fields": len(priv), "privileged_paths": priv[:5], "verifier_outcomes_recorded": verified,
+         "legitimate_fields_missing": legit_missing}
+    return _verdict("Kernel experience env: invariance to the non-legacy mode and evaluator data; canaries absent; "
+                    "legitimate fields equal to legacy's", m,
                     ok=lambda x: x["nonzero_native_reward_steps"] == 0 and x["observation_differences"] == 0
                     and x["canary_hits"] == 0 and x["privileged_progress_fields"] == 0
-                    and x["verifier_outcomes_recorded"] == 1)
+                    and x["verifier_outcomes_recorded"] == 1 and x["legitimate_fields_missing"] == 0)
+
+
+LEGIT_T1 = ("revenue_cents", "cost_cents", "net_cents", "shortfall_cents", "ticks_done", "readings", "settings",
+            "balance")
+
+
+def _legit_missing_tier1(leg: list, obs: list) -> int:
+    """Legitimate observation numbers (revenue, cost, net, readings, balances, settings) of legacy mode that the
+    observation-only run lacks or shows differently (the 4.0 `score` is evaluator data and not compared)."""
+    def nums(got):
+        out = {}
+        for i, o in enumerate(got):
+            if isinstance(o, dict) and "numbers" in o:
+                for k, v in o["numbers"].items():
+                    if any(t in k for t in LEGIT_T1) and not k.endswith(".score"):
+                        out[(i, k)] = v
+        return out
+    a, b = nums(leg), nums(obs)
+    return sum(1 for k, v in a.items() if b.get(k) != v)
+
+
+def _legit_missing_kernel(leg: list, obs: list) -> int:
+    """Balances, resources and the events' consequence payloads of legacy mode that the observation-only run lacks:
+    observations are compared field by field except `tools` (legacy lists the 4.0 evaluator tools) and `missing`
+    (observation-only states that evaluator data are not observable)."""
+    n = 0
+    for x, y in zip(leg, obs):
+        if isinstance(x, dict) and "numbers" in x and isinstance(y, dict):
+            for f in ("numbers", "resources", "events", "entities", "analytics"):
+                if dump(x.get(f)) != dump(y.get(f)):
+                    n += 1
+    return n
 
 
 def test_rig_hidden_canary(steps: int = 6) -> dict:
@@ -533,23 +583,24 @@ def legacy_check(n_steps: int = 30) -> list[dict]:
 
     old_envs = v4_module("research/envs.py", "crucible.research", "_v4_envs")
     from ..research.envs import MechVecEnv
-    numeric("MechVecEnv", lambda: old_envs.MechVecEnv([one, one]), lambda: MechVecEnv([one, one]))
     numeric("MechVecEnv(reward_mode=legacy)", lambda: old_envs.MechVecEnv([one, one]),
             lambda: MechVecEnv([one, one], reward_mode=LEGACY))
     old_bridge = v4_module("research/bridge.py", "crucible.research", "_v4_bridge")
     from ..research.bridge import KernelMechEnv
-    numeric("KernelMechEnv", lambda: old_bridge.KernelMechEnv(one), lambda: KernelMechEnv(one), n=1)
+    numeric("KernelMechEnv(reward_mode=legacy)", lambda: old_bridge.KernelMechEnv(one),
+            lambda: KernelMechEnv(one, reward_mode=LEGACY), n=1)
     old_arena = v4_module("selfplay/arena.py", "crucible.selfplay", "_v4_arena")
     from ..selfplay.arena import KernelSelfPlayEnv, SelfPlayEnv
-    numeric("SelfPlayEnv", lambda: old_arena.SelfPlayEnv([two]), lambda: SelfPlayEnv([two]), seats=2, n=1)
-    numeric("KernelSelfPlayEnv", lambda: old_arena.KernelSelfPlayEnv(two), lambda: KernelSelfPlayEnv(two), seats=2,
-            n=1)
+    numeric("SelfPlayEnv(reward_mode=legacy)", lambda: old_arena.SelfPlayEnv([two]),
+            lambda: SelfPlayEnv([two], reward_mode=LEGACY), seats=2, n=1)
+    numeric("KernelSelfPlayEnv(reward_mode=legacy)", lambda: old_arena.KernelSelfPlayEnv(two),
+            lambda: KernelSelfPlayEnv(two, reward_mode=LEGACY), seats=2, n=1)
     # learners from the 4.0 registry, run on the 4.0 and the current environment
     from ..research import learners
     from ..research.envs import run_episodes
     for name in ("hill_climb", "probe_exploit", "ppo_gru"):
         res = []
-        for env_cls in (old_envs.MechVecEnv, MechVecEnv):
+        for env_cls in (old_envs.MechVecEnv, lambda ts: MechVecEnv(ts, reward_mode=LEGACY)):
             L = learners.make(name, seed=0)
             recs = run_episodes(env_cls([one, one]), L, explore=True, learn=True)
             L.update()
@@ -561,8 +612,9 @@ def legacy_check(n_steps: int = 30) -> list[dict]:
     from ..goals.contracts import RewardContract
     res = []
     for cls in (old_gym.CrucibleEnv, CrucibleEnv):
+        kw = {} if cls is old_gym.CrucibleEnv else {"reward_mode": LEGACY}
         env = cls(spec={"family": "tiny", "overrides": {"n_consumers": 100}}, seed=4, endowment=1_500_000,
-                  objective=RewardContract(cash_goal()), dt=3600, max_steps=8)
+                  objective=RewardContract(cash_goal()), dt=3600, max_steps=8, **kw)
         env.server.join_world(env.world_id, "payee", endowment=0)
         w = env.server.world(env.world_id)
         acct = w.modules["bank"].primary_account(w.state, env.principal)
@@ -573,14 +625,15 @@ def legacy_check(n_steps: int = 30) -> list[dict]:
                                                                        "amount": 1000 + k, "memo": "x"}})))
         env.close()
         res.append(rec)
-    out.append({"name": "Gymnasium CrucibleEnv", "identical": res[0] == res[1], "steps": 8})
+    out.append({"name": "Gymnasium CrucibleEnv(reward_mode=legacy)", "identical": res[0] == res[1], "steps": 8})
     old_pz = v4_module("api/pettingzoo_env.py", "crucible.api", "_v4_pettingzoo_env")
     from ..api.pettingzoo_env import CrucibleParallelEnv
     res = []
     for cls in (old_pz.CrucibleParallelEnv, CrucibleParallelEnv):
+        kw = {} if cls is old_pz.CrucibleParallelEnv else {"reward_mode": LEGACY}
         env = cls(spec={"family": "tiny", "overrides": {"n_consumers": 100}}, seed=5, agents=["ann", "ben"],
                   endowment=1_500_000, objectives={"ann": RewardContract(cash_goal()),
-                                                   "ben": RewardContract(cash_goal())}, dt=3600, max_steps=6)
+                                                   "ben": RewardContract(cash_goal())}, dt=3600, max_steps=6, **kw)
         w = env.server.world(env.world_id)
         accts = {a: w.modules["bank"].primary_account(w.state, i.principal) for a, i in env.identities.items()}
         obs, infos = env.reset()
@@ -592,12 +645,13 @@ def legacy_check(n_steps: int = 30) -> list[dict]:
             rec.append(dump(env.step(acts)))
         env.close()
         res.append(rec)
-    out.append({"name": "PettingZoo CrucibleParallelEnv", "identical": res[0] == res[1], "steps": 6})
+    out.append({"name": "PettingZoo CrucibleParallelEnv(reward_mode=legacy)", "identical": res[0] == res[1], "steps": 6})
     old_roll = v4_module("scale/rollout.py", "crucible.scale", "_v4_rollout")
     from ..scale.rollout import WorldEnv
     res = []
     for cls in (old_roll.WorldEnv, WorldEnv):
-        env = cls({"family": "tiny", "seed": 2, "overrides": {"n_consumers": 100}}, think_s=3600)
+        kw = {} if cls is old_roll.WorldEnv else {"reward_mode": LEGACY}
+        env = cls({"family": "tiny", "seed": 2, "overrides": {"n_consumers": 100}}, think_s=3600, **kw)
         env.world.system_call("admin.join", {"handle": "payee", "endowment": 0})
         acct = env.world.modules["bank"].primary_account(env.world.state, env.actor)
         rec = [dump(env.reset())]
@@ -606,5 +660,5 @@ def legacy_check(n_steps: int = 30) -> list[dict]:
                                                                        "amount": 500 + k, "memo": "x"}})))
         env.close()
         res.append(rec)
-    out.append({"name": "scale.rollout.WorldEnv", "identical": res[0] == res[1], "steps": 6})
+    out.append({"name": "scale.rollout.WorldEnv(reward_mode=legacy)", "identical": res[0] == res[1], "steps": 6})
     return out

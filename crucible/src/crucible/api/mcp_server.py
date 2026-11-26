@@ -12,6 +12,10 @@ observation (new events, status, tool changes) unless disabled. After a ``tools/
 tool list (e.g. it discovered a new service host), the stdio server emits ``notifications/tools/list_changed``;
 over HTTP the result carries ``_meta["crucible/toolsListChanged"] = true`` instead.
 
+Reward mode (Clarification 2): MCP carries no reward; ``reward_mode`` (default ``observation_only``, CLI
+``--reward-mode``) sets what the bound world shows the actor - evaluator tools and fields are hidden unless
+``legacy_shaped_reward`` is named (`crucible.core.evaluator_only`).
+
 Run:  ``python -m crucible.api.mcp_server --store sqlite:///world.db --world W --token cru_...``
 (the token may instead be given in ``$CRUCIBLE_TOKEN``; ``--import pkg.mod`` loads extra world modules).
 """
@@ -54,9 +58,13 @@ class MCPHandler:
 
     def __init__(self, server: WorldServer, world_id: str, actor: ActorIdentity | str | Callable[[], Any], *,
                  name_style: str = "dots", observe_tool: bool = True, advance_dt: int = 0,
-                 server_name: str = "crucible"):
+                 server_name: str = "crucible", reward_mode: str | None = None):
         if name_style not in ("dots", "underscores"):
             raise ValueError("name_style must be 'dots' or 'underscores'")
+        from ..experience.modes import check_mode, prepare_world
+        self.reward_mode = check_mode(reward_mode)
+        if world_id is not None:
+            prepare_world(server.world(world_id), self.reward_mode)
         self.server = server
         self.world_id = world_id
         self._actor_src = actor
@@ -236,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--name-style", choices=["dots", "underscores"], default="dots")
     ap.add_argument("--advance-dt", type=int, default=0, help="advance the clock this many seconds per call")
     ap.add_argument("--no-observe-tool", action="store_true")
+    ap.add_argument("--reward-mode", choices=["observation_only", "verified_terminal_outcome", "legacy_shaped_reward"],
+                    default="observation_only", help="what the bound world shows the actor (Clarification 2)")
     ap.add_argument("--lease-ttl", type=float, default=600.0, help="writer lease seconds (0 disables)")
     a = ap.parse_args(argv)
     if not a.token:
@@ -247,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         ident = server.authenticate(a.world, a.token)
         print(f"crucible mcp: {ident.principal} in {ident.world_id}", file=sys.stderr, flush=True)
         handler = MCPHandler(server, a.world, a.token, name_style=a.name_style,
-                             observe_tool=not a.no_observe_tool, advance_dt=a.advance_dt)
+                             observe_tool=not a.no_observe_tool, advance_dt=a.advance_dt, reward_mode=a.reward_mode)
         serve_stdio(handler)
     finally:
         server.close()

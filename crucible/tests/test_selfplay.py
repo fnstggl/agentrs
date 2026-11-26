@@ -26,6 +26,7 @@ from crucible.selfplay.league import SelfPlayLeague
 from crucible.selfplay.learners import (ClimberLearner, FixedLearner, PGLearner, SPSALearner, learner_config,
                                         make_learner)
 
+LEGACY = "legacy_shaped_reward"   # 4.0 baseline: the shaped reward is selected explicitly (Clarification 2, OO.8)
 SPEC = EnvSpec()
 
 
@@ -85,7 +86,7 @@ def _run(env, acts0, acts1, funds=None):
 
 # ====================================================================== 1. the arena
 def test_each_seat_sees_only_its_own_view_and_nothing_of_the_other_leaks(iso_task):
-    env = SelfPlayEnv([iso_task], SPEC)
+    env = SelfPlayEnv([iso_task], SPEC, reward_mode=LEGACY)
     rng = np.random.default_rng(0)
     n = iso_task.horizon
     a0 = rng.uniform(-1, 1, (n, 1, SPEC.act_dim)).astype(np.float32)
@@ -116,7 +117,7 @@ def test_each_seat_sees_only_its_own_view_and_nothing_of_the_other_leaks(iso_tas
     with pytest.raises(ValueError):
         env.step([a0[0]])                                     # one action array per seat
     with pytest.raises(ValueError):
-        SelfPlayEnv([iso_task, arena_task("scm_additive", 0)], SPEC)   # mixed numbers of seats
+        SelfPlayEnv([iso_task, arena_task("scm_additive", 0)], SPEC, reward_mode=LEGACY)   # mixed numbers of seats
 
 
 def test_seat_view_matches_the_single_agent_environment_layout():
@@ -124,10 +125,10 @@ def test_seat_view_matches_the_single_agent_environment_layout():
     of a match (nothing has happened, both hold the defaults) the two are equal."""
     for fam in ("tech_handoff", "abm_duopoly"):
         t = arena_task(fam, 0)
-        arena = SelfPlayEnv([t], SPEC)
+        arena = SelfPlayEnv([t], SPEC, reward_mode=LEGACY)
         obs = arena.reset()
         for seat in (0, 1):
-            single = MechVecEnv([t], SPEC, seat=seat)
+            single = MechVecEnv([t], SPEC, seat=seat, reward_mode=LEGACY)
             assert np.array_equal(obs[seat], single.reset())
         hold = [np.asarray(o[:, SPEC.last_action]) for o in obs]
         o2, r, _, info = arena.step(hold)
@@ -146,7 +147,7 @@ def test_kernel_hosted_match_equals_the_arena_tick_for_tick(fam, noise):
     observations and rewards of the kernel-free arena, for both seats, at every tick."""
     t = with_noise(arena_task(fam, 0), noise)
     ticks = 30
-    arena, kernel = SelfPlayEnv([t], SPEC), KernelSelfPlayEnv(t, SPEC, handles=("ana", "ben"))
+    arena, kernel = SelfPlayEnv([t], SPEC, reward_mode=LEGACY), KernelSelfPlayEnv(t, SPEC, handles=("ana", "ben"), reward_mode=LEGACY)
     la = [RandomLearner(SPEC, seed=5 + s, hold=3) for s in range(2)]
     lb = [RandomLearner(SPEC, seed=5 + s, hold=3) for s in range(2)]
     oa, ob = arena.reset(), kernel.reset()
@@ -173,7 +174,7 @@ def test_kernel_hosted_match_equals_the_arena_tick_for_tick(fam, noise):
 
 
 def _trace(task, learners, ticks):
-    env = SelfPlayEnv([task], SPEC, trace=True)
+    env = SelfPlayEnv([task], SPEC, trace=True, reward_mode=LEGACY)
     ls = [RandomLearner(SPEC, seed=l.seed, hold=l.hold) for l in learners]
     obs = env.reset()
     for _ in range(ticks):
@@ -200,13 +201,13 @@ class _Spy(FixedLearner):
 
 def test_an_individual_is_given_its_own_observation_and_its_own_objective_only():
     t = arena_task("tech_handoff", 0)
-    env = SelfPlayEnv([t, t], SPEC, trace=True)
+    env = SelfPlayEnv([t, t], SPEC, trace=True, reward_mode=LEGACY)
     own = Individual("own", _Spy(SPEC, 0.3), "own", seat=0)
     joint = Individual("joint", _Spy(SPEC, -0.3), "joint", seat=1)
     recs = play(env, [own, joint], noise=[4, 5])
     assert own.learner.resets == joint.learner.resets == 1 and len(own.learner.seen) == t.horizon
     # replay the same two worlds by hand to know what each seat's observations were
-    ref = SelfPlayEnv([with_noise(t, 4), with_noise(t, 5)], SPEC)
+    ref = SelfPlayEnv([with_noise(t, 4), with_noise(t, 5)], SPEC, reward_mode=LEGACY)
     obs = ref.reset()
     cent = 1.0 / ref._scale[0]
     for k in range(t.horizon):
@@ -236,7 +237,7 @@ def test_an_individual_is_given_its_own_observation_and_its_own_objective_only()
 
 def test_individuals_share_no_weights_buffers_or_state():
     t = arena_task("tech_handoff", 0)
-    env = SelfPlayEnv([t] * 4, SPEC)
+    env = SelfPlayEnv([t] * 4, SPEC, reward_mode=LEGACY)
     for algo, cls in (("pg", PGLearner), ("spsa", SPSALearner)):
         cfg = learner_config(algo, 3)
         a = Individual("a", make_learner(SPEC, **cfg), "own", seat=0, config=cfg)
@@ -278,7 +279,7 @@ def test_individuals_share_no_weights_buffers_or_state():
 @pytest.mark.parametrize("algo", ["spsa", "pg", "climber"])
 def test_checkpoints_restore_an_individual_and_training_resumes_exactly(algo, tmp_path):
     t = arena_task("tech_shared_pool", 0)
-    env = SelfPlayEnv([t] * 4, SPEC)
+    env = SelfPlayEnv([t] * 4, SPEC, reward_mode=LEGACY)
 
     def fresh():
         ca, cb = learner_config(algo, 1), learner_config(algo, 2)
@@ -319,7 +320,7 @@ def test_checkpoints_restore_an_individual_and_training_resumes_exactly(algo, tm
 
 def test_budgets_are_per_individual_and_an_individual_that_goes_broke_idles():
     t = arena_task("tech_shared_pool", 0)
-    env = SelfPlayEnv([t, t], SPEC)
+    env = SelfPlayEnv([t, t], SPEC, reward_mode=LEGACY)
     hi = np.ones(SPEC.act_dim, dtype=np.float32)                                    # everything at maximum: costly
     burner = Individual("burner", FixedLearner(SPEC, action=hi), "own", seat=0, bankroll=int(0.8 * t.endowment))
     saver = Individual("saver", HoldLearner(SPEC), "own", seat=1, funds_scale=0.5)
@@ -349,13 +350,13 @@ def test_independent_learners_improve_a_joint_outcome_neither_reaches_alone():
     and above what either trained member reaches with a partner that leaves its half alone."""
     t = arena_task("tech_handoff", 0)
     for algos in (("spsa", "spsa"), ("pg", "pg")):
-        env = SelfPlayEnv([t] * 6, SPEC)
+        env = SelfPlayEnv([t] * 6, SPEC, reward_mode=LEGACY)
         inds = [Individual(f"{a}{s}", make_learner(SPEC, a, 10 + s), "joint", seat=s) for s, a in enumerate(algos)]
         for it in range(14):
             play(env, inds, noise=1000 + 6 * it)
-        pair = M.evaluate(t, inds, n_slots=6)
-        base = M.evaluate(t, [None, None], n_slots=6)
-        solo = [M.evaluate(t, [inds[0], None], n_slots=6), M.evaluate(t, [None, inds[1]], n_slots=6)]
+        pair = M.evaluate(t, inds, n_slots=6, reward_mode=LEGACY)
+        base = M.evaluate(t, [None, None], n_slots=6, reward_mode=LEGACY)
+        solo = [M.evaluate(t, [inds[0], None], n_slots=6, reward_mode=LEGACY), M.evaluate(t, [None, inds[1]], n_slots=6, reward_mode=LEGACY)]
         assert pair["joint_net_per_tick"] > base["joint_net_per_tick"] + 30, (algos, pair["joint_net_per_tick"])
         assert pair["joint_net_per_tick"] > max(s["joint_net_per_tick"] for s in solo), algos
 
@@ -370,7 +371,7 @@ def test_what_a_learner_learns_depends_on_the_opponent_it_was_trained_against():
     j = [lv.name for lv in M._env(t, 6).sims[0].engine.levers(0)].index(cache)
     trained, net = {}, {}
     for opp in ("grab", "restraint"):
-        env = SelfPlayEnv([t] * 6, SPEC)
+        env = SelfPlayEnv([t] * 6, SPEC, reward_mode=LEGACY)
         me = Individual(f"vs_{opp}", make_learner(SPEC, "spsa", 5), "own", seat=0)
         other = P.profile_individual(t, 1, opp, SPEC)
         for it in range(24):
@@ -378,7 +379,7 @@ def test_what_a_learner_learns_depends_on_the_opponent_it_was_trained_against():
         trained[opp] = me
     for tr, me in trained.items():
         for opp in ("grab", "restraint"):
-            net[(tr, opp)] = M.evaluate(t, [me, P.profile_individual(t, 1, opp, SPEC)], n_slots=6)["net_per_tick"][0]
+            net[(tr, opp)] = M.evaluate(t, [me, P.profile_individual(t, 1, opp, SPEC)], n_slots=6, reward_mode=LEGACY)["net_per_tick"][0]
     th = {k: v.learner.theta[j] for k, v in trained.items()}
     assert th["restraint"] > th["grab"] + 0.1, th               # more cache when the partner leaves room for it
     own = net[("grab", "grab")] + net[("restraint", "restraint")]
@@ -389,7 +390,7 @@ def test_what_a_learner_learns_depends_on_the_opponent_it_was_trained_against():
 
 def test_learner_contract_details():
     t = arena_task("tech_handoff", 0)
-    env = SelfPlayEnv([t] * 3, SPEC)
+    env = SelfPlayEnv([t] * 3, SPEC, reward_mode=LEGACY)
     obs = env.reset()
     sp = SPSALearner(SPEC, seed=1)
     sp.reset_context(3)
@@ -420,7 +421,7 @@ def test_learner_contract_details():
     assert pg.buffer == [] and pg.update()["updates"] == 0
     # the scripted climber reads its own net from its observation, so it adapts with or without `observe`
     cl = ClimberLearner(SPEC, seed=3, block=4, persist=False)
-    env1 = SelfPlayEnv([t], SPEC)
+    env1 = SelfPlayEnv([t], SPEC, reward_mode=LEGACY)
     o = env1.reset()
     cl.reset_context(1)
     acts = []
@@ -442,7 +443,7 @@ def test_registry_learners_are_individuals_like_any_other(tmp_path):
     if not need <= set(reg.available()):
         pytest.skip(f"registry does not have {sorted(need - set(reg.available()))} yet")
     t = arena_task("tech_handoff", 0)
-    env = SelfPlayEnv([t, t], SPEC)
+    env = SelfPlayEnv([t, t], SPEC, reward_mode=LEGACY)
     ca = learner_config("ppo_gru", 1, rollout_steps=2 * t.horizon)
     a = Individual("ppo", make_learner(SPEC, **ca), "joint", seat=0, config=ca)
     b = Individual("climb", make_learner(SPEC, "hill_climb", 2), "own", seat=1, config=learner_config("hill_climb", 2))
@@ -450,12 +451,12 @@ def test_registry_learners_are_individuals_like_any_other(tmp_path):
         recs = play(env, [a, b], noise=2 * it)
     assert a.arch == "ppo_gru" and a.learner.usage().updates >= 1 and a.history[-1]["updates"] >= 1
     assert any(abs(x) > 1e-3 for r in recs for x in np.array(r["seats"][1]["mean_action"])
-               - np.array(M.evaluate(t, [None, None], n_slots=2)["mean_action"][1]))        # the climber moved levers
+               - np.array(M.evaluate(t, [None, None], n_slots=2, reward_mode=LEGACY)["mean_action"][1]))        # the climber moved levers
     a.save(str(tmp_path / "ppo"))
     back = Individual.load(str(tmp_path / "ppo"), SPEC)
     probe = Individual("probe", make_learner(SPEC, "probe_exploit", 3), "own", seat=1)
-    e1 = M.evaluate(t, [a, probe], n_slots=2)
-    e2 = M.evaluate(t, [back, probe], n_slots=2)
+    e1 = M.evaluate(t, [a, probe], n_slots=2, reward_mode=LEGACY)
+    e2 = M.evaluate(t, [back, probe], n_slots=2, reward_mode=LEGACY)
     assert e1["net_per_tick"] == e2["net_per_tick"] and back.learner is not a.learner
 
 
@@ -463,7 +464,7 @@ def test_registry_learners_are_individuals_like_any_other(tmp_path):
 @pytest.fixture(scope="module")
 def league(tmp_path_factory):
     t = arena_task("abm_duopoly", 1)
-    lg = SelfPlayLeague(str(tmp_path_factory.mktemp("league")), t, SPEC, "competition", n_slots=2)
+    lg = SelfPlayLeague(str(tmp_path_factory.mktemp("league")), t, SPEC, "competition", n_slots=2, reward_mode=LEGACY)
     lg.new("a", "spsa", 1)
     lg.new("b", "pg", 2)
     M.train(lg, ["a", "b"], 2, eval_every=0, snapshot_every=1)
@@ -597,41 +598,41 @@ def test_the_six_interaction_modes_run_with_their_own_objectives_and_analyses(tm
     assert set(M.MODES) == set(M.MODE_NAMES) and len(M.MODES) == 6
     duo, hand, pool = arena_task("abm_duopoly", 0), arena_task("tech_handoff", 0), arena_task("tech_shared_pool", 0)
     kw = dict(iters=3, n_slots=2)
-    comp = M.run_mode("competitive", duo, str(tmp_path / "comp"), algos=("spsa", "pg"), snapshot_every=1, **kw)
+    comp = M.run_mode("competitive", duo, str(tmp_path / "comp"), algos=("spsa", "pg"), snapshot_every=1, **kw, reward_mode=LEGACY)
     assert comp["objective"] == "own net income (rig_net)" and comp["arch"] == ["spsa", "pg"]
     assert len(comp["curve"]) == 3 and set(comp["lagged"]["lever0"]) == {"lags", "corr", "n"}
     assert comp["league"].mode == "competition" and len(comp["league"].archive()) == 8
-    coop = M.run_mode("cooperative", hand, str(tmp_path / "coop"), **kw)
+    coop = M.run_mode("cooperative", hand, str(tmp_path / "coop"), **kw, reward_mode=LEGACY)
     assert coop["objective"].startswith("mean net income of all seats") and coop["league"].mode == "cooperation"
     assert len(coop["with_default_partner"]) == 2 and "joint_gain_over_best_single" in coop
     rec = coop["league"].records[0]
     assert rec.scores[rec.participants[0]] == rec.scores[rec.participants[1]] == pytest.approx(2 * rec.joint_net_per_tick / 2 * 1.0)
-    mixed = M.run_mode("mixed_motive", pool, str(tmp_path / "mixed"), **kw)
+    mixed = M.run_mode("mixed_motive", pool, str(tmp_path / "mixed"), **kw, reward_mode=LEGACY)
     assert mixed["both_restrain"]["joint_net_per_tick"] > mixed["both_grab"]["joint_net_per_tick"]
     assert mixed["position"] is not None and mixed["league"].mode == "mixed"
     members = [{"id": "s1", "algo": "spsa", "seed": 1}, {"id": "s2", "algo": "spsa", "seed": 2, "c": 0.2},
                {"id": "p1", "algo": "pg", "seed": 3}, {"id": "c1", "algo": "climber", "seed": 4}]
-    pop = M.run_mode("population", duo, str(tmp_path / "pop"), members=members, **kw)
+    pop = M.run_mode("population", duo, str(tmp_path / "pop"), members=members, **kw, reward_mode=LEGACY)
     assert sorted(pop["arch"]) == ["climber", "pg", "spsa", "spsa"] and len(pop["ratings"]) == 4
     assert all(len(r["pairs"]) == 2 and sorted(sum(r["pairs"], [])) == ["c1", "p1", "s1", "s2"] for r in pop["curve"])
     assert sum(r["games"] for r in pop["ratings"]) == 2 * 2 * 3 and np.array(pop["head_to_head"]["net"]).shape == (4, 4)
-    hist = M.run_mode("historical", duo, str(tmp_path / "hist"), snapshot_every=1, p_archive=1.0, iters=3, n_slots=2)
+    hist = M.run_mode("historical", duo, str(tmp_path / "hist"), snapshot_every=1, p_archive=1.0, iters=3, n_slots=2, reward_mode=LEGACY)
     opps = [o for r in hist["curve"] for o in r["opponents"].values()]
     assert all("@" in o for o in opps) and hist["sampling"] == "pfsp"            # only archived stages were met
     assert hist["history"]["stages"] == [0, 1, 2, 3] and len(hist["history"]["elo"]) == 4
     lg = hist["league"]
     assert all(not lg.get(o).learns for o in set(opps))
     cross = M.run_mode("cross_play", hand, str(tmp_path / "cross"), objective="joint", iters=2, n_slots=2,
-                       pairs=[{"algos": ("spsa", "spsa"), "seeds": (1, 2)}, {"algos": ("pg", "pg"), "seeds": (3, 4)}])
+                       pairs=[{"algos": ("spsa", "spsa"), "seeds": (1, 2)}, {"algos": ("pg", "pg"), "seeds": (3, 4)}], reward_mode=LEGACY)
     m = cross["matrix"]
     j = np.array(m["joint"])
     assert j.shape == (2, 2) and m["gap_joint"] == pytest.approx(np.diag(j).mean() - (j[0, 1] + j[1, 0]) / 2)
     assert m["arch0"] == ["spsa", "pg"] and np.allclose(np.array(m["net0"]) + np.array(m["net1"]), j)
     json.dumps(M.strip(cross)), json.dumps(M.strip(pop)), json.dumps(M.strip(hist))
     with pytest.raises(ValueError):
-        M.run_mode("population", hand, str(tmp_path / "bad"), members=members, **kw)   # seats differ in that world
+        M.run_mode("population", hand, str(tmp_path / "bad"), members=members, **kw, reward_mode=LEGACY)   # seats differ in that world
     with pytest.raises(ValueError):
-        M.run_mode("friendly", duo, str(tmp_path / "bad2"))
+        M.run_mode("friendly", duo, str(tmp_path / "bad2"), reward_mode=LEGACY)
 
 
 def test_mode_analysis_functions():
@@ -674,7 +675,7 @@ def test_no_transfer_between_participants_moves_the_objective(fam):
            {"t": 13, "from": "org:alpha", "to": "org:beta", "owner": 0, "dst_owner": 1, "amount": e // 6},
            {"t": 14, "from": "org:beta", "to": 0, "owner": 1, "amount": e // 8},              # ... and back to A
            {"t": 20, "from": 1, "to": 0, "amount": 1}]
-    r = AU.transfer_invariance(t, _schedule(t), pay, ticks=24, funds=[big, big], extra=["carol"])
+    r = AU.transfer_invariance(t, _schedule(t), pay, ticks=24, funds=[big, big], extra=["carol"], reward_mode=LEGACY)
     assert r["payments"] == len(pay) and not r["binding"] and r["invariants"] == []
     assert r["objective_moved_cents"] == [0.0, 0.0]
     assert r["rig_net_with"] == r["rig_net_without"] and r["revenue_with"] == r["revenue_without"]
@@ -702,7 +703,7 @@ def test_money_from_a_partner_changes_what_a_broke_seat_can_run_not_where_revenu
     sched = lambda seat, tick: hi                               # noqa: E731 - everything at maximum: expensive
     poor = int(0.02 * t.endowment)
     r = AU.transfer_invariance(t, sched, [{"t": 0, "from": 1, "to": 0, "amount": 5 * t.endowment}], ticks=20,
-                               funds=[poor, 10 * t.endowment])
+                               funds=[poor, 10 * t.endowment], reward_mode=LEGACY)
     assert r["binding"] and r["objective_moved_cents"][0] != 0
     base, paid = r["runs"]
     assert any(s != "ok" for s in base["status"][0]) and all(s == "ok" for s in paid["status"][0])
@@ -715,7 +716,7 @@ def test_joint_outcomes_never_exceed_what_independent_demand_paid():
     recs = []
     for fam in ("abm_duopoly", "abm_commons", "abm_complement", "tech_handoff", "tech_shared_pool"):
         t = arena_task(fam, 0)
-        env = SelfPlayEnv([t, t], SPEC)
+        env = SelfPlayEnv([t, t], SPEC, reward_mode=LEGACY)
         for k, pair in enumerate(([RandomLearner(SPEC, seed=1, hold=5), RandomLearner(SPEC, seed=2, hold=5)],
                                   [FixedLearner(SPEC, action=-np.ones(SPEC.act_dim)), FixedLearner(SPEC, action=np.ones(SPEC.act_dim))])):
             inds = [Individual(f"x{s}", l, "own") for s, l in enumerate(pair)]

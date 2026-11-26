@@ -91,11 +91,12 @@ def check_predicate_scope(world, p: Any, parties) -> list[str]:
     party owns or administers, a host or repository of a party or of such an organisation). This is the rule a
     contract deliverable must satisfy - otherwise any metric of anyone could be read by signing a contract with
     oneself and watching which deliverables hold."""
+    from ..core import evaluator_only as EO
     st = world.state
     mine: set[str] = set()
     for q in parties:
         mine |= world.principals_of(q)
-    errs = []
+    errs = EO.metric_errors(world, predicate_leaves(p))    # 5.0 (D-19): evaluator-only metrics are never readable
     for lf in predicate_leaves(p):
         name = lf.get("metric")
         subj = METRIC_SUBJECTS.get(name)

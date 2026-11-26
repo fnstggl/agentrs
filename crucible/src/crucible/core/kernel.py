@@ -27,6 +27,7 @@ from . import schema as S
 from .canonical import canonical_bytes, chain_hash, digest, to_jsonable
 from .errors import (CrucibleError, Forbidden, InvalidAction, InvariantViolation, ProtocolError, RateLimited,
                      Unauthenticated, UnknownTool)
+from . import evaluator_only as EO
 from .state import StateStore
 
 KERNEL_VERSION = "crucible-kernel/1"
@@ -140,6 +141,7 @@ class Endpoint:
     owner: str = SYSTEM   # principal operating the service (for deployed services: its service principal)
     builtin: bool = True
     version: str = "1"    # interface version of this endpoint (defaults to its module's version)
+    evaluator_only: bool = False   # 5.0 (D-19): an evaluator tool; hidden from participants (core/evaluator_only.py)
 
     def spec(self) -> dict:
         return {"name": self.name, "description": self.doc, "inputSchema": self.params,
@@ -148,10 +150,13 @@ class Endpoint:
 
 
 def endpoint(name: str, params: dict | None = None, *, doc: str = "", cost_s: int = 1, read_only: bool = False,
-             returns: str = "", version: str | None = None):
+             returns: str = "", version: str | None = None, evaluator_only: bool = False):
+    """Declare an endpoint. `evaluator_only=True` (5.0, D-19) marks a tool that computes evaluator quantities: in a
+    world whose evaluator-access policy hides them (`core.evaluator_only`) participants can neither see nor call it."""
     def deco(fn):
         fn.__crucible_endpoint__ = dict(name=name, params=params or S.obj(), doc=doc or (fn.__doc__ or "").strip(),
-                                        cost_s=cost_s, read_only=read_only, returns=returns, version=version)
+                                        cost_s=cost_s, read_only=read_only, returns=returns, version=version,
+                                        evaluator_only=bool(evaluator_only))
         return fn
     return deco
 
@@ -300,6 +305,8 @@ class Ctx:
         ep = self.world.resolve(tool, principal)
         if ep.host == "admin" and principal != SYSTEM:
             raise Forbidden("admin tools are reserved for the simulator operator")
+        if not EO.participant_tool_allowed(self.world, principal, tool, ep):
+            raise Forbidden(f"{tool} is an evaluator tool; participants cannot call it", law="evaluator-only")
         args = _sorted_keys(S.with_defaults(ep.params, args or {}))
         errs = S.validate(ep.params, args)
         if errs:
@@ -310,7 +317,9 @@ class Ctx:
         mark = self.state.savepoint()
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
         try:
-            return ep.handler(sub, **args)
+            out = ep.handler(sub, **args)
+            # a chain a participant started receives participant views (5.0, D-19); in-world processes do not
+            return EO.participant_result(self.world, tool, out) if self.origin != SYSTEM else out
         except CrucibleError as e:
             self.state.rollback_to(mark)
             del self.events[n_ev:]          # drop events emitted by the failed sub-call
@@ -492,7 +501,8 @@ class World:
                 if full in self.endpoints:
                     raise ProtocolError(f"duplicate endpoint {full}")
                 self.endpoints[full] = Endpoint(full, host, e["params"], bound, e["doc"], e["cost_s"], e["read_only"],
-                                                e["returns"], version=str(e.get("version") or mod.version))
+                                                e["returns"], version=str(e.get("version") or mod.version),
+                                                evaluator_only=bool(e.get("evaluator_only")))
             if hasattr(fn, "__crucible_applier__"):
                 et = fn.__crucible_applier__
                 if et in self.appliers:
@@ -592,7 +602,8 @@ class World:
         raise UnknownTool(f"unknown tool {tool!r}")
 
     def endpoints_for_host(self, host: str, principal: str) -> list[Endpoint]:
-        out = [e for n, e in sorted(self.endpoints.items()) if e.host == host]
+        out = [e for n, e in sorted(self.endpoints.items()) if e.host == host
+               and EO.participant_tool_allowed(self, principal, n, e)]
         if not out:
             fn = self.hooks.get("host_endpoints")
             if fn:
@@ -601,7 +612,8 @@ class World:
 
     def available_tools(self, principal: str) -> list[dict]:
         """Built-in well-known tools plus every agent-deployed service the principal has discovered."""
-        tools = [e.spec() for _, e in sorted(self.endpoints.items()) if e.host != "admin" or principal == SYSTEM]
+        tools = [e.spec() for n, e in sorted(self.endpoints.items()) if (e.host != "admin" or principal == SYSTEM)
+                 and EO.participant_tool_allowed(self, principal, n, e)]
         fn = self.hooks.get("host_endpoints")
         if fn:
             for kid in self.state.find_ids("knowledge", "principal", principal):
@@ -755,14 +767,16 @@ class World:
         if key is not None:
             rec = self.state.get("idem", f"{actor}|{key}")
             if rec is not None:
-                return ActionResult(rec["ok"], to_jsonable(rec["result"]), rec.get("error"), [], 0, self.now,
-                                    replayed=True, tool=tool or "")
+                return ActionResult(rec["ok"], EO.participant_result(self, tool, to_jsonable(rec["result"])),
+                                    rec.get("error"), [], 0, self.now, replayed=True, tool=tool or "")
         if not isinstance(tool, str) or not isinstance(args, dict):
             return self._hinted(self._reject(actor, tool, args, InvalidAction(_MALFORMED)), actor, tool, args)
         try:
             ep = self.resolve(tool, actor)
             if ep.host == "admin":
                 raise Forbidden("admin tools are reserved for the simulator operator")
+            if not EO.participant_tool_allowed(self, actor, tool, ep):
+                raise Forbidden(f"{tool} is an evaluator tool; participants cannot call it", law="evaluator-only")
         except CrucibleError as e:
             return self._hinted(self._reject(actor, tool, args, e), actor, tool, args)
         # canonical argument order: live execution and regeneration (args read back from sorted JSON) must see
@@ -792,7 +806,8 @@ class World:
             if key is not None:
                 ctx.emit("idem", {"id": f"{actor}|{key}", "ok": True, "result": result}, vis="internal")
             self._commit(ctx)
-            return ActionResult(True, result, None, [e.seq for e in ctx.events], ep.cost_s, self.now, tool=tool)
+            return ActionResult(True, EO.participant_result(self, tool, result), None, [e.seq for e in ctx.events],
+                                ep.cost_s, self.now, tool=tool)
         except CrucibleError as e:
             ext = list(ctx.ext)
             self._rollback()
@@ -846,6 +861,8 @@ class World:
         ep = self.resolve(tool, actor)
         if not ep.read_only or ep.host == "admin":
             raise Forbidden(f"{tool} is not a read-only query")
+        if not EO.participant_tool_allowed(self, actor, tool, ep):
+            raise Forbidden(f"{tool} is an evaluator tool; participants cannot call it", law="evaluator-only")
         args = S.with_defaults(ep.params, args or {})
         errs = S.validate(ep.params, args)
         if errs:
@@ -853,7 +870,7 @@ class World:
         self._begin()
         try:
             ctx = Ctx(self, actor, None)
-            return to_jsonable(ep.handler(ctx, **args))
+            return EO.participant_result(self, tool, to_jsonable(ep.handler(ctx, **args)))
         finally:
             self._rollback()
 
@@ -1017,9 +1034,18 @@ class World:
         self.flush()
         return [Event.from_dict(d) for d in self.store.read_events(self.world_id, from_seq, to_seq)]
 
+    def participant_event(self, ev: Event) -> Event:
+        """The event as a participant receives it: without its evaluator-only payload fields when the world keeps
+        them on the evaluator side (5.0, D-19). The authoritative event is never changed."""
+        pl = EO.participant_payload(self, ev.type, ev.payload)
+        if pl is ev.payload:
+            return ev
+        return Event(ev.seq, ev.t, ev.type, ev.actor, ev.cmd, pl, ev.vis, ev.hash)
+
     def visible_events(self, actor: str, since_seq: int, limit: int = 50) -> tuple[list[Event], int]:
         ps = self.principals_of(actor)
-        evs = [e for e in self.events_range(max(since_seq, self.log_base)) if self.visible(e, ps)]
+        evs = [self.participant_event(e) for e in self.events_range(max(since_seq, self.log_base))
+               if self.visible(e, ps)]
         dropped = max(0, len(evs) - limit)
         return evs[-limit:], dropped
 
@@ -1028,7 +1054,7 @@ class World:
         for name, mod in self.modules.items():
             o = mod.observe(self, actor)
             if o:
-                out[name] = o
+                out[name] = EO.participant_summary(self, name, o) if actor != SYSTEM else o
         return out
 
     # ------------------------------------------------------------------ persistence

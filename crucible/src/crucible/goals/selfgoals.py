@@ -36,6 +36,10 @@ class SelfGoals(Module):
         m = p["metric"]
         if m not in ALLOWED:
             raise Forbidden(f"metric {m} is not observable by agents")
+        from ..core import evaluator_only as EO
+        errs = EO.metric_errors(ctx.world, [p])          # 5.0 (D-19): integrity-netted metrics stay evaluator-side
+        if errs:
+            raise Forbidden(errs[0], law="evaluator-only")
         arg = (p.get("args") or {}).get(ALLOWED[m])
         mine = ctx.world.principals_of(ctx.actor)
         st = ctx.state
@@ -77,9 +81,11 @@ class SelfGoals(Module):
         return [dict(g, id=gid) for gid in ctx.state.find_ids("self_goals", "owner", ctx.actor)
                 for g in [ctx.state.tables["self_goals"][gid]] if status is None or g["status"] == status]
 
-    @endpoint("check_now", S.obj({"goal": S.s_str(maxLength=40)}, ["goal"]), read_only=True)
+    @endpoint("check_now", S.obj({"goal": S.s_str(maxLength=40)}, ["goal"]), read_only=True, evaluator_only=True)
     def ep_check_now(self, ctx, goal):
-        """Evaluate one of your self-goals against the current state (no recording)."""
+        """Evaluate one of your self-goals against the current state (no recording). 5.0: an evaluator tool - an
+        on-demand predicate evaluator is a goal-progress oracle, so observation-only worlds keep it from
+        participants (their self-goals are checked at the due time and reported to them, `goals.mine`)."""
         g = ctx.state.get("self_goals", goal)
         if g is None or g["owner"] != ctx.actor:
             raise NotFound("no such goal")

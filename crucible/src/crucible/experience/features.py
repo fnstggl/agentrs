@@ -236,7 +236,15 @@ _BY_HOST = {
     "issues": "organization", "ops": "organization",
     "wf": "tool_composition", "caps": "tool_composition",
     "code": "file_creation", "db": "file_creation",
+    # 5.0 hosts
+    "prod": "financial", "xchg": "financial", "venture": "financial", "commit": "financial", "asset": "financial",
+    "inst": "organization", "labor": "organization", "needs": "research",
+    "media": "content_creation", "embed": "research", "artifacts": "file_creation", "art": "file_creation",
 }
+# Tier 1 rapid action kinds (`rapid.<kind>`): what each kind of action is
+_RAPID = {"levers": "experiments", "discrete": "experiments", "allocate": "financial", "experiment": "experiments",
+          "query": "research", "message": "communication", "program": "code_execution", "graph_edit": "organization",
+          "sequence": "tool_composition", "coordinate": "communication"}
 
 
 def tool_category(spec: dict) -> str:
@@ -248,6 +256,8 @@ def tool_category(spec: dict) -> str:
     if name in _BY_TOOL:
         return _BY_TOOL[name]
     host = ann.get("host") or name.split(".", 1)[0]
+    if host == "rapid":
+        return _RAPID.get(name.split(".", 1)[-1], "experiments")
     return _BY_HOST.get(host, "discovery" if host == "world" else "other")
 
 

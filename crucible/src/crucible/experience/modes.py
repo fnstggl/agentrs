@@ -1,17 +1,23 @@
-"""Reward modes (MASTER_SPEC 11.3).
+"""Reward modes (MASTER_SPEC 11.3, Clarification 2, decision D-19).
 
-    legacy_shaped_reward        the 4.0 reward contracts, unchanged (default everywhere, byte-identical)
-    verified_terminal_outcome   no intermediate reward; 1.0 once when the independent verifier confirms the
-                                public objective, else 0.0; outcome labels are only success/failed
-    observation_only            no reward at all (0.0 always, documented as not a learning signal), no goal
-                                progress, no objective satisfaction, no evaluator data in anything the learner sees;
-                                the verifier keeps running on the evaluator side (`verify()`)
+    observation_only            THE DEFAULT, everywhere (`check_mode(None)`). No reward at all (0.0 always,
+                                documented as not a learning signal), no goal progress, no objective satisfaction, no
+                                action-quality judgement, no evaluator data in anything the learner sees: the world is
+                                built with ``evaluator_access="evaluator"`` (`crucible.core.evaluator_only`), so
+                                evaluator tools are refused and evaluator fields, event metadata and metrics are kept
+                                from participants. The verifier keeps running on the evaluator side (`verify()`).
+    verified_terminal_outcome   explicitly selected: no intermediate reward; 1.0 once when the independent verifier
+                                confirms the public objective at the terminal outcome, else 0.0; outcome labels are
+                                only success/failed. Evaluator data are hidden as in observation_only.
+    legacy_shaped_reward        explicitly selected: the 4.0 reward contracts and the 4.0 evaluator-access contract,
+                                unchanged and byte-identical (historical baselines, OO.8)
 
 Observable world consequences (balances, revenue, costs, readings, analytics a participant could see) stay in the
 observations in every mode: they are what the world shows, not what the evaluator thinks.
 
 `RewardGate` is the one place an adapter turns the legacy reward stream and the verifier's terminal outcome into
-what the learner receives in a given mode.
+what the learner receives in a given mode. `prepare_spec` / `prepare_world` give a world the evaluator-access policy
+of a mode; every learner-facing constructor calls one of them.
 """
 from __future__ import annotations
 
@@ -19,6 +25,7 @@ LEGACY = "legacy_shaped_reward"
 VERIFIED = "verified_terminal_outcome"
 OBSERVATION_ONLY = "observation_only"
 REWARD_MODES = (LEGACY, VERIFIED, OBSERVATION_ONLY)
+DEFAULT_MODE = OBSERVATION_ONLY
 
 # Keys of the evaluator's goal status (goals.contracts.GoalVerifier.status) and of operator-side task and episode
 # records. None of them may reach a learner outside legacy mode; in verified mode only `success` and `failed` of a
@@ -31,10 +38,42 @@ OPERATOR_RECORD_KEYS = ("score", "success", "random_score", "score_first_half", 
 
 
 def check_mode(mode: str | None) -> str:
-    m = LEGACY if mode is None else str(mode)
+    """The reward mode, validated. ``None`` (nothing selected) is observation-only: legacy and verified modes exist
+    only when a caller names them."""
+    m = DEFAULT_MODE if mode is None else str(mode)
     if m not in REWARD_MODES:
         raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {mode!r}")
     return m
+
+
+def is_explicit_legacy(mode: str | None) -> bool:
+    return mode is not None and str(mode) == LEGACY
+
+
+def evaluator_access(mode: str | None) -> str:
+    """The world evaluator-access policy a reward mode implies: the 4.0 contract only for legacy."""
+    from ..core import evaluator_only as EO
+    return EO.PARTICIPANTS if check_mode(mode) == LEGACY else EO.EVALUATOR
+
+
+def prepare_spec(spec, mode: str | None):
+    """Give a `WorldSpec` (before `World.create`) the evaluator-access policy of `mode`. Legacy leaves a spec
+    without the parameter untouched (byte-identical 4.0 worlds); an explicit parameter is respected. Returns the
+    spec."""
+    from ..core import evaluator_only as EO
+    from ..core.kernel import WorldSpec
+    if EO.PARAM in spec.params or check_mode(mode) == LEGACY:
+        return spec
+    return WorldSpec(spec.family, spec.seed, spec.modules, dict(spec.params, **{EO.PARAM: EO.EVALUATOR}), spec.kernel)
+
+
+def prepare_world(world, mode: str | None):
+    """Give an existing `World` the policy of `mode` (a runtime override when its spec keeps the 4.0 contract and
+    the mode is not legacy; see `core.evaluator_only.set_policy`). Returns the world."""
+    from ..core import evaluator_only as EO
+    if check_mode(mode) != LEGACY and not EO.hidden(world):
+        EO.set_policy(world, EO.EVALUATOR)
+    return world
 
 
 def terminal_labels(status: dict | None) -> dict:
@@ -60,7 +99,7 @@ class RewardGate:
     records the verifier's terminal outcome. `take(agent)` returns what the learner receives since the last call:
     the legacy sum (legacy), 1.0 once on the first verified success (verified) or 0.0 (observation-only)."""
 
-    def __init__(self, mode: str):
+    def __init__(self, mode: str | None = None):
         self.mode = check_mode(mode)
         self._legacy: dict[str, float] = {}
         self._terminal: dict[str, float] = {}
