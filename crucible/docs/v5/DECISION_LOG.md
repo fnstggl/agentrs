@@ -66,3 +66,62 @@ file once (fixed in a4d06b3), which is why.
 `crucible.domains.base` was written by the orchestrator before the domain workstreams started, so twelve domains
 built in parallel share one registration, split and reference-isolation scheme. Evaluation configurations use the
 splits `v5eval_compositional` and `v5eval_structural`, distinct from 4.0's `val` and `test`.
+
+## D-14 Recovery audit and the "one world" redesign (2026-11-26, Clarification 3)
+Fifteen independent auditors (one per workstream) and fifteen skeptics re-examined the recovered implementation
+(`docs/v5/audit/*.md|json`). Their common finding: most v5 subsystems work in isolation but are not one world. There
+are at least six disjoint populations (4.0 consumers/shoppers, commerce `patrons`, social `crowd`, innovation adopters,
+`pop`, semantic agents); the social engine was gated against a stand-in population and cannot run with `pop`; loading
+all modules into one kernel world runs 30 days with every v5 commerce/social/innovation table empty; fitted models are
+loaded then discarded; content is judged by lexical hash vectors; demand exists only for predefined formats with
+hidden-truth verifiers. Decision: keep the kernel, substrate, artifact store, columns, audience accounting,
+recommenders, studio, calibration fits, commerce ledgers and Tier 1 engines where audited sound, and REDESIGN the
+integration layer around D-15 to D-21. Rules out: gating any v5 requirement on a stand-in population or a lean
+single-purpose world.
+
+## D-15 One population is the source of every simulated human decision (2026-11-26)
+`crucible.population` (`pop`, columnar) is the only population in v5 Tier 2 and Tier 3 worlds. Subsystems publish
+*opportunities* (content via platform feeds/search, product offers and subscriptions, services and packages,
+communities, messages, jobs, courses, marketplace listings); one decision engine allocates each individual's finite
+attention, time and money across them from the individual's own state, using fitted models where data exist
+(Gate F) and recorded, fidelity-registered models elsewhere. Every decision is a recorded batch event carrying the
+decision-model id and version (decision provenance). `crowd`, `patrons`, innovation adopters and 4.0 consumers remain
+only for 4.0 regression families and their own historical tests.
+
+## D-16 One shared semantic space (2026-11-26)
+Content is represented only through pretrained encoders (text, image, audio, video, code), cached per
+(artifact hash, encoder, version, derived preprocessing), projected into one shared interest space in which
+individuals' interests also live (initialised from embeddings of real topic corpora, updated by experience).
+Artifact-intrinsic features (e.g. language-model coherence/perplexity, information content, duration, production
+features) are computed from the artifact, never declared by its creator. Lexical random indexing is retired from
+distribution and choice.
+
+## D-17 Tier 2 domains are configurations of the civilization generator (2026-11-26)
+`crucible.civ` generates every v5 world: a Tier 3 civilization enables every subsystem; a Tier 2 domain configuration
+enables a subset, chooses mechanism variants, couplings, topology and population, and adds the domain objective,
+evaluator and hidden reference. The canonical domain contract is `crucible.domains.base.Domain`; `crucible.experience`
+consumes it (the registry contract of INTERFACE_CONTRACTS section 9 is superseded).
+
+## D-18 Usefulness through activities, not hidden truth (2026-11-26)
+Participants perform activities (consume, work, build, sell, learn, research) whose outcomes depend on capabilities and
+resources. Services and packages provide capabilities through typed interfaces; participants try them on their own
+activity inputs and adopt them according to their own measured outcomes (time, cost, failures, downstream acceptance).
+Needs arise from activity bottlenecks through one reusable relation graph. No participant reads a generator's hidden
+truth.
+
+## D-19 Observation-only everywhere; evaluator oracles are not participant tools (2026-11-26, Clarification 2)
+`reward_mode` defaults to `observation_only` in every constructor, adapter and wrapper (`check_mode(None)` returns it).
+In that mode any tool or field that exposes an evaluator-computed quantity (goal progress, verified quality, integrity
+verdicts, related-party flags, evaluator metrics) is unavailable to participants. Leakage is tested by information-flow
+probes that try to recover verifier values, not by key names.
+
+## D-20 Metering outside the measured process (2026-11-26)
+Sandbox CPU/memory/instruction metering and adoption tracing are measured by the parent (rusage/procfs, parent-side
+tracing), clamped non-negative, and recorded as external events so replay stays exact. Nothing the agent process
+reports is trusted for billing, capacity, program cost or adoption.
+
+## D-21 Kernel and substrate repairs (2026-11-26)
+Module `on_load` runs after the store is attached (cross-process resume); typed-bus subscribers draw from their own
+derived RNG streams so observers never perturb a trajectory (required for counterfactual removal); batch blobs get
+retention/compaction; the duplicate-fact check becomes mandatory over all tables (not opt-in), and D-11 is resolved
+(`product` owned by `products`).
