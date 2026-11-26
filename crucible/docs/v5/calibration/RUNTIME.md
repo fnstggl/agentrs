@@ -56,13 +56,105 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 | sessions per active day | `extra_sessions@1` | S (C2 rule kept by the E3 review) | none beyond the day's activity |
 | session length (attention allocation) | `session_minutes@1` | K (the E4 rule kept the own-history quantile baseline) | per individual: mean log minutes and count of earlier sessions, items per session, time since the last session |
 | return to a creator | `creator_return@1` | K (weak: AUC 0.51) | per pair: views of the creator before / today, first-view day, follow and like flags, watch fraction |
-| respond to an advertising campaign | `ad_response@1` | B (constant ITT effect; review compute rule) | per individual: a response type drawn once (kept for when K is served) and the campaign arm |
+| visit an advertiser's offer when its display or feed campaign is shown | `ad_response@2` (E5; `ad_response@1` is superseded, offline only) | K | per (individual, campaign, period): the individual's organic visit probability from the world's own discovery mechanism, its displays of the campaign and, per display, the attention model's inputs; incremental visits flagged by the coupled draw |
 | buy again from a shop within 90 days | `customer_return@1` | K | per (customer, shop): order days, spend, lines, products, cancellations |
 | weekly product demand and price response | `product_weekly_demand@1` | K | per product: weekly units, price, reference price, distinct buyers in 4 weeks |
 | take part again in a community | `participation_return@1` | K | per community: 24 h counts of threads, contributions, participants, maintainer events, endorsements; per individual: 24 h activity |
 | endorsement arrivals (diffusion) | `endorsement_rate@1` | K | per item: hourly endorsement history (1 h, 3 h, 24 h, decays 2 h and 12 h) |
 | star -> contribution on a repository | `repo_deep_engagement@1` | K | code-hosting event counts of the repository and the developer in 24 h |
 | next-day repository endorsements | `repo_star_growth@1` | K | daily repository activity counts |
+
+## Advertising response (E5 redesign of audit E skeptic S5)
+
+`ad_response@2` replaces the response-type table of `ad_response@1` as the in-world advertising mechanism. Plan
+`plans/E5_ad_exposure_plan.json` (committed before the fit, revised once before any real fit; history in git), model
+`ad_exposure_response@1`, report `reports/ad_exposure_response.json`.
+
+**What is estimated, and how.** Criteo's randomised eligibility is the instrument for being *displayed* the campaign
+(one-sided non-compliance: no control user is displayed). Within 8 strata of a pre-treatment score the never-takers'
+visit rate, the displayed compliers' organic (no-ad) visit rate and their visit rate under display are identified;
+one log-odds shift shared by all strata is fitted by maximum likelihood with the stratum nuisances profiled out. Kept:
+`M1_constant_log_odds`, shift **1.39** (fit bootstrap 95% CI 1.22-1.61; odds x4.0). A shift that varies linearly with
+the baseline (slope -0.02) is not better on validation; per-stratum unconstrained shifts on test are all positive
+(none has an interval below 0). Held-out: test excess log loss 4.3e-5 per displayed row vs 2.8e-3 for the
+constant-difference rule (the old served `ad_response@1`, interval of the difference -3.1e-3..-2.2e-3) and 4.1e-3 for
+no effect.
+
+**How a world uses it.** For an individual i, an advertiser and a campaign period:
+
+```python
+from crucible.calibration import runtime
+dm = runtime.get("ad_response@2"); dm.check_scope(use="feed_campaign")      # or "display_campaign"
+att = runtime.get("content_open@1")                                          # attention per display (video feeds)
+a = att.evaluate(display_inputs).values                                     # one row per display of the campaign
+A = runtime.at_least_one(a, owner_row_of_each_display, n)                   # P(>= 1 attended display) per individual
+res = dm.evaluate({"organic_visit_probability": p0, "attended_probability": A})
+visit, incremental = dm.sample({...}, ctx.rng("ads.visit")).T             # one coupled uniform per row
+# conversion: the world's own price-dependent purchase decision for every visit; an incremental visit converts with
+# that probability times dm.spec.params["incremental_conversion_ratio"] (2.76, capped at 1)
+```
+
+* **Individual state.** The effect is a shift of the individual's *own* organic visit log-odds `p0`, which the world
+  computes from the individual's needs, interests, history and contacts (its discovery mechanism). The absolute
+  increment therefore depends on the individual: largest for intermediate propensities, small for individuals who
+  would (almost) never or (almost) always visit. This is the empirical result that targeting the likeliest buyers is
+  not the same as targeting the largest uplift.
+* **Content and relevance** act only through attention: `A` comes from a registered attention model evaluated on
+  each display's own features (for video ads in a short-video feed `content_open@1`: topic match of the creative with
+  the individual's history in the shared space, creator familiarity, whether the creative was seen before). No
+  attention, no effect (the instrument's exclusion restriction). There is no fitted attention model for text or
+  display banners outside article slates; such placements need their own registered attention model.
+* **Frequency.** Several displays raise only the probability of attending at least one (saturating, concave), and the
+  attention model lowers a repeated creative's per-display attention through its seen-before input. Wear-in,
+  wear-out, carry-over between periods and ad-load annoyance are not identified by any registered data and are not
+  modelled.
+* **Price.** The data do not observe price. Conversion after a visit is the world's own purchase decision at the
+  offer's price and the individual's willingness to pay. The data identify one conversion fact used here: visits the
+  campaign caused convert 2.76 times as often as organic visits (fit 95% CI 2.03-3.47; test 2.44, CI 2.08-2.93) -
+  Criteo's displays reach high-intent users (retargeting).
+* **Negative effects.** None: the shift is constrained to be >= 0 and no stratum's held-out interval lies below 0.
+  The 18% negative-responder mass of the old type table was an artifact (audit E skeptic s3).
+* **Transport (documented assumption).** Absolute levels are the world's own (`p0`); only the log-odds shift and the
+  conversion ratio are taken from Criteo. The shift is invariant to the publisher's sub-sampling if that sampling
+  depended only on the outcome or the arm (case-control property of odds ratios), not if it depended on exposure. It
+  is the effect of a *targeted* display on users Criteo's bidder reached; displays an agent sends to individuals a
+  bidder would not have chosen are an extrapolation. `A_ref = 1` (params `reference_attention`) declares a Criteo
+  display an attended exposure, so an attended world display never exceeds a Criteo display's effect
+  (conservative). Search advertising is out of scope (`check_scope(use="search_result")` raises); `economy.work`'s
+  sponsored-search clicks use a hand-set probability (fidelity record `work.sponsored_click`).
+
+## In-world validation (SP-5.5b; `crucible.calibration.inworld`)
+
+`inworld.model_only_reports()` forward-simulates `daily_return@1` + `extra_sessions@1` from the burn-in history of
+KuaiRand's 4,026 held-out users (to 2022-05-01) over 05-02..05-08 and 60 more days, and compares with their real
+activity. Tolerances are prespecified in `inworld.TOLERANCE`. Measured at this commit:
+
+| report | statistic | value | tolerance | within |
+|---|---|---|---|---|
+| activity distribution | TV distance of active days in 7 / of sessions per active day | 0.051 / 0.213 | 0.10 / 0.10 | no (sessions: the served C2 constant rate has no heterogeneity) |
+| retention curve | weighted max abs difference of the 7-day curves by prior-activity bin | 0.086 | 0.05 | no |
+| heterogeneity | KS of per-user active share; sd ratio | 0.051; 0.96 | 0.10; 0.8-1.25 | yes |
+| long-horizon drift | mean abs difference of the daily active share; 60 days beyond the data | 0.033; +0.061 (0.73 -> 0.79) | 0.03; 0.05 | no (an upward drift through the model's own feedback) |
+
+`inworld.in_world_reports(world)` computes the same four reports from a running world. What the population must record
+for it (and for the experiments), through `population.record_decisions` with the decision provenance named:
+
+| decision | provenance `model_id` | batch columns |
+|---|---|---|
+| daily activation | `daily_return@1` (or `return_daily@1`) | `active` (bool) |
+| sessions on an active day | `extra_sessions@1` (or `session_rate@1`) | `sessions` (int) |
+| open a feed item | `content_open@1` | `opened` (bool), `own_topic` (bool, user_tag_lift > 0) |
+| visit an advertised offer | `ad_response@2` | `visit`, `displayed` (bool), `organic_visit_probability` (float) |
+
+A randomised experiment labels its batches `extra.experiment = {"id": "random_exposure", "arm": "random"}` (items the
+platform inserts at random) or `{"id": "ad_holdout", "arm": "eligible" | "holdout"}` (campaign eligibility drawn at
+random by the ad mechanism). `random_exposure_experiment` compares the in-world open rate and own-topic odds ratio with
+KuaiRand's random-exposure test rows (open rate 0.186, log odds ratio 0.40 +- 0.018); `ad_holdout_experiment` re-runs
+the E5 estimator in the world and compares the shift with the fitted interval. A world that records none of these is
+reported as not wired, never as validated. `inworld.provenance_metrics(world)` gives the SP-5.0 numbers (fitted models
+used by recorded decisions, population decision batches without provenance) and `inworld.out_of_scope_uses()` counts
+world source files that load a fitted checkpoint directly instead of through this runtime (at this commit:
+`population/models.py`, the silent plug-in rule 4 forbids).
 
 ## Extrapolation limits (read before wiring)
 
@@ -71,14 +163,15 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
   GitHub (four weekdays of October 2024), one UK online gift retailer (2009-2011). Behaviour of other populations,
   cultures, platforms or eras is an extrapolation; a world should treat the models as one empirically anchored
   population type, not as "humans".
-* **Identification.** Only `content_open@1` (random exposure) and `ad_response@1` (randomised campaigns) identify
+* **Identification.** Only `content_open@1` (random exposure) and `ad_response@2` (randomised campaigns) identify
   responses to an intervention. Every other model is observational: its feature effects are associations and must
   not be read as the effect of changing that feature in the world (for example the price coefficient of
   `product_weekly_demand@1` is not a causal elasticity, and the self-excitation of `endorsement_rate@1` mixes
   contagion with outside referrals and trending feedback).
 * **Content.** No model responds to what content is about except through the inputs named (topic shares, MiniLM
   cosine for articles). Quality, correctness, negation and sentiment are not inputs (and the encoders are weak on
-  them, audit D). Ad response does not depend on ad content, price or relevance.
+  them, audit D). Ad response (`ad_response@2`) depends on content and relevance only through the attention model, and
+  on price only through the world's own purchase decision (section 'Advertising response').
 * **Scale mismatches.** KuaiRand counts cover pool videos only (declared `count_scale`); retail money is GBP of
   2010-2011 (declared currency factor); GitHub counts are per repository and hour of a very large platform. None of
   these may be rescaled from the batch.
@@ -95,7 +188,7 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 
 * use: response to a randomised advertising intervention: an individual carries a persistent latent response type (drawn once with draw_types) and, in each campaign period, visits / converts with its type's treated probabilities when it is in the campaign's treated group, else with its control probabilities
 * output: arm_probabilities (columns p_visit, p_conversion for the row's arm)
-* status: ready
+* status: offline_only - superseded by ad_response@2 (audit E skeptic S5 redesign): a latent type drawn independently of the individual's state, a response to eligibility rather than to a display, and an 18% mass of negative responders the held-out data do not support; worlds use ad_response@2
 * fidelity record: `runtime:ad_response@1`
 * parameters: none
 
@@ -105,6 +198,21 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 | `treated` | context | flag | [0, 1] | 1 if the individual is in the campaign's treated (eligible) group this period |
 
 Extrapolation limits: Criteo Uplift v2.1 randomized incrementality tests (13,979,592 users, period and advertisers undisclosed, released 2018): intention-to-treat effects of campaign eligibility, identified by randomisation. Absolute rates and effect sizes are not representative (non-uniform sub-sampling); the response does NOT depend on ad content, price, relevance or frequency (not identified by the data) - a world that wants those must compose this with another fitted model and register the composition; negative predicted effects are not confirmed; transport() assumes constant per-type odds ratios.
+
+## `ad_response@2` -> `ad_exposure_response@1`
+
+* use: advertising: the probability that an individual visits an advertiser's offer during a campaign period when the campaign is displayed to it (display or feed placements), as a fitted log-odds shift of the individual's own organic visit probability, scaled by the probability that it attends at least one of its displays; draw once per individual and campaign period
+* output: ad_visit (columns p_visit, p_visit_organic, p_incremental; sample() returns [visit, incremental] from one coupled uniform)
+* status: ready
+* fidelity record: `runtime:ad_response@2`
+* parameters: {'reference_attention': 1.0, 'incremental_conversion_ratio': 2.7605437161313673}
+
+| input | kind | unit | domain | meaning |
+|---|---|---|---|---|
+| `organic_visit_probability` | individual | probability | [0, 1] | the individual's probability of visiting the advertiser's offer during the period without the campaign, from the world's own discovery mechanism and the individual's state (needs, interests, history, contacts) |
+| `attended_probability` | individual | probability | [0, 1] | probability that the individual attends at least one of its displays of the campaign in the period: runtime.at_least_one over per-display probabilities from a registered attention decision model evaluated on each display's own features (relevance in the shared space, repetition, familiarity, time); 0 when not displayed |
+
+Extrapolation limits: Criteo Uplift v2.1 (randomised eligibility as the instrument for display; advertisers, countries and dates undisclosed; released 2018). Identified: the log-odds shift of a targeted display on users Criteo's bidder reached, as a function of their organic propensity. NOT identified (assumptions, own fidelity record advertising.attention_composition): the dependence on attention, relevance and repetition (through the attention model and A_ref = 1, conservative: an attended world display never exceeds a Criteo display's effect), frequency beyond 'at least one attended display' (no wear-in or wear-out), carry-over between periods, ad content or price. Never negative. Absolute levels come from the world's own organic propensities; the shift is invariant to the publisher's sub-sampling only if that sampling depended on the outcome or the arm, not on exposure. Not for search ads (use 'search_result' is refused).
 
 ## `article_open@1` -> `news_click@1`
 
