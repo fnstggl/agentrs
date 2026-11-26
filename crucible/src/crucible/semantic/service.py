@@ -216,7 +216,7 @@ class SemanticService:
                  max_new_tokens: int = 128, *, revision: str | None = None, dtype: str | None = None,
                  quantization: str | None = None, max_context: int = 2048, prefix_cache: bool = True,
                  min_prefix_tokens: int = 32, prefix_cache_entries: int = 8, enable_thinking: bool = False,
-                 max_choice_rows: int = 64):
+                 max_choice_rows: int = 64, kv_token_budget: int = 12288):
         self.model_id = model_id
         self.device = _resolve_device(device)
         self.revision = revision or local_revision(model_id)
@@ -226,6 +226,11 @@ class SemanticService:
         self.prefix_cache, self.min_prefix_tokens = bool(prefix_cache), int(min_prefix_tokens)
         self.prefix_cache_entries, self.enable_thinking = int(prefix_cache_entries), bool(enable_thinking)
         self.max_choice_rows = int(max_choice_rows)
+        # bound on the key/value cache rows of one forward pass (prompts x tokens; option rows x prompt tokens): the
+        # option rows of a choice each carry a copy of their prompt's cache, so long participant prompts with many
+        # options must be scored in smaller chunks (a standard-civilisation run with Qwen3-1.7B ran out of its
+        # 9 GB slot otherwise)
+        self.kv_token_budget = int(kv_token_budget)
         self.key = (model_id, self.revision, self.device, self.dtype, self.quantization)
         self._w: _Weights | None = None
         self._null_scores: dict[tuple, float] = {}
@@ -529,8 +534,16 @@ class SemanticService:
             groups.setdefault(k, []).append(i)
         for _, idx in sorted(groups.items()):
             idx.sort(key=lambda i: len(enc[i][0]))
-            for c in range(0, len(idx), self.max_batch):
-                chunk = idx[c:c + self.max_batch]
+            chunks, cur = [], []
+            for i in idx:                   # at most max_batch rows and kv_token_budget cache rows per batch
+                need = len(enc[i][0]) + int(reqs[i].get("max_new_tokens") or self.max_new_tokens)
+                if cur and (len(cur) >= self.max_batch or (len(cur) + 1) * need > self.kv_token_budget):
+                    chunks.append(cur)
+                    cur = []
+                cur.append(i)
+            if cur:
+                chunks.append(cur)
+            for chunk in chunks:
                 res = self._decode_batch([reqs[i] for i in chunk], [enc[i][0] for i in chunk], pref[chunk[0]])
                 for i, rr in zip(chunk, res):
                     rr["truncated"] = enc[i][2]
@@ -617,9 +630,10 @@ class SemanticService:
             c = 0
             while c < len(idx):
                 # as many prompts as fit max_batch, and their options within max_choice_rows
-                chunk, n_rows = [], 0
+                chunk, n_rows, n_tok = [], 0, 0
                 while c < len(idx) and len(chunk) < self.max_batch and \
-                        (not chunk or n_rows + len(opts[idx[c]]) <= self.max_choice_rows):
+                        (not chunk or (n_rows + len(opts[idx[c]]) <= self.max_choice_rows and
+                                       (len(chunk) + 1) * len(enc[idx[c]][0]) <= self.kv_token_budget)):
                     chunk.append(idx[c])
                     n_rows += len(opts[idx[c]])
                     c += 1
@@ -641,8 +655,9 @@ class SemanticService:
         w = self.weights
         sums = [float(lp0[o[0]]) for o in opts]
         multi = [k for k, o in enumerate(opts) if len(o) > 1]
-        for c in range(0, len(multi), self.max_choice_rows):
-            ks = multi[c:c + self.max_choice_rows]
+        step = max(1, min(self.max_choice_rows, self.kv_token_budget // max(1, int(last_pos) + 1)))
+        for c in range(0, len(multi), step):
+            ks = multi[c:c + step]
             n = len(ks)
             Lc = max(len(opts[k]) for k in ks) - 1
             inp = torch.full((n, Lc), w.pad_id, dtype=torch.long)

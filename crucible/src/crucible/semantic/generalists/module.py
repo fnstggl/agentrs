@@ -169,7 +169,21 @@ class SemanticGeneralists(Module):
         for a in agents:
             self._deposit(ctx, a.i)
         if agents:
-            M.activate(ctx, agents, self.brain(w), self.mind_config())
+            n0, seq0, mark = len(ctx.events), w.seq, ctx.state.savepoint()
+            try:
+                M.activate(ctx, agents, self.brain(w), self.mind_config())
+            except Exception as e:  # noqa: BLE001 - a fault of the runtime itself (e.g. the model ran out of memory)
+                # undo this activation exactly (as a refused call is undone) and record the fault, so the
+                # participants keep their schedule instead of the population's tick failing and retrying them at
+                # every tick (a standard civilisation froze every class-4 participant after day 1 this way)
+                ctx.state.rollback_to(mark)
+                del ctx.events[n0:]
+                w.seq = seq0
+                fault = f"{type(e).__name__}: {str(e)[:200]}"
+                agents = [M.Agent.from_row(r) for r in rows if r is not None]
+                for a in agents:
+                    a.count("activation_faults")
+                    a.step_log.append({"fault": fault})
         nxt = self._next_times(ctx, np.asarray(idx, np.int64), now)
         by = {a.i: a for a in agents}
         for k, i in enumerate(np.asarray(idx, np.int64).tolist()):
