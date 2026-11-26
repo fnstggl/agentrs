@@ -33,6 +33,7 @@ SCRIPT_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.S | re.I)
 HREF_RE = re.compile(r"""href\s*=\s*["']([^"'#]+)""", re.I)
 TITLE_RE = re.compile(r"<title>(.*?)</title>", re.I | re.S)
 PRICE_RE = re.compile(r"Buy for \$([0-9]+(?:\.[0-9]{1,2})?)")
+ANCHOR_RE = re.compile(r"""<a\s[^>]*href\s*=\s*["']([^"'#]+)["'][^>]*>(.*?)</a>""", re.I | re.S)
 NNZ = 8
 
 STOPWORDS = frozenset("""a about above after again all also am an and any are as at be because been before being below
@@ -124,7 +125,7 @@ def parse_page(body: str, content_type: str = "text/html") -> dict:
     if not isinstance(body, str):
         body = ""
     if content_type != "text/html":
-        return {"text": body[:20000], "title": "", "paths": [], "hosts": [], "prices": []}
+        return {"text": body[:20000], "title": "", "paths": [], "hosts": [], "prices": [], "arts": []}
     m = TITLE_RE.search(body)
     title = m.group(1).strip()[:200] if m else ""
     paths, hosts = [], []
@@ -139,8 +140,17 @@ def parse_page(body: str, content_type: str = "text/html") -> dict:
             if p not in paths and len(p) <= 120:
                 paths.append(p)
     prices = [int(round(float(x) * 100)) for x in PRICE_RE.findall(body)[:20]]
+    # the article slate a reader sees: internal article links with their visible anchor text (headlines)
+    arts, seen = [], set()
+    for href, inner in ANCHOR_RE.findall(body)[:120]:
+        h = href.strip().split("?")[0]
+        if h.startswith("/a/") and h not in seen and len(h) <= 120:
+            label = re.sub(r"\s+", " ", _html.unescape(TAG_RE.sub(" ", inner))).strip()[:160]
+            if label and label.lower() != "next article":
+                seen.add(h)
+                arts.append([h, label])
     return {"text": page_text(body)[:20000], "title": title, "paths": paths[:40], "hosts": sorted(set(hosts))[:20],
-            "prices": prices}
+            "prices": prices, "arts": arts[:16]}
 
 
 @lru_cache(maxsize=64)

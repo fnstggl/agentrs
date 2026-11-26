@@ -131,7 +131,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     unused = [k for k, r in st.tables["pop_examples"].items() if r.get("used") is None]
     if unused:
         batch = ad._load_examples(w, unused)
-        out["heldout_examples"] = int(len(batch["reward"]))
+        out["heldout_examples"] = int(sum(len(b["reward"]) for b in batch.values() if b is not None))
+        out["heldout_examples_by_kind"] = {k: int(len(b["reward"])) if b is not None else 0 for k, b in batch.items()}
         out["heldout_mse"] = {a: float(ad.policy(w, g).loss_on(batch)) for a, g in gid.items()}
         out["_heldout"] = {"batch": batch, "policies": {a: ad.policy(w, g) for a, g in gid.items()}}
     mem = columns.col(w, "pop", "memory")[columns.col(w, "pop", "class") == 2].astype(np.float32)
@@ -145,7 +146,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     days, rounds = {}, {}
     cls = columns.col(w, "pop", "class")
     for e in w.log:
-        if e.type == "cols.batch" and e.payload["kind"] == "pop.session":
+        # individuals who took a session (the population's learning batch of the session's takers)
+        if e.type == "cols.batch" and e.payload["kind"] == "pop.learn":
             idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
             a2 = idx[cls[idx] == 2]
             t = int(e.payload["extra"]["t"])
@@ -191,9 +193,9 @@ def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, model: str = 
     parameters and milliseconds per decision."""
     import torch
     h = run.get("_heldout")
-    if not h:
+    if not h or h["batch"].get("web") is None:
         return []
-    b = h["batch"]
+    b = h["batch"]["web"]
     rng = np.random.default_rng(seed)
     ix = np.sort(rng.choice(len(b["reward"]), size=min(n, len(b["reward"])), replace=False))
     sub = {k: v[ix] for k, v in b.items()}
@@ -204,8 +206,8 @@ def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, model: str = 
             obs = torch.from_numpy(sub["obs"].astype(np.float32))
             mem = torch.from_numpy(sub["mem"].astype(np.float32)) if pol.use_memory else \
                 torch.zeros(len(ix), pol.mem_dim)
-            hh, m2 = pol.net.memory(obs, mem)
-            pred = pol.net.score(hh, m2, torch.from_numpy(sub["cand"].astype(np.float32))[:, None, :])[:, 0].numpy()
+            pred = pol.net.score(pol.net.encode(obs), mem,
+                                 torch.from_numpy(sub["cand"].astype(np.float32))[:, None, :])[:, 0].numpy()
         dt = (time.time() - t0) / max(1, len(ix)) * 1000
         rows.append({"model": f"compact_{name}", "params": int(pol.params), "spearman": _spearman(pred, sub["reward"]),
                      "ms_per_decision": dt, "n": int(len(ix))})

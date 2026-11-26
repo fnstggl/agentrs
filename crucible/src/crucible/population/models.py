@@ -1,21 +1,25 @@
 """Class 1: vectorised behavioural decision models (MASTER_SPEC Part 3.2, class 1).
 
-Each `Decision` maps named feature arrays (one row per individual in a cohort) to a probability. The features come
-from the individual's own state (preferences, satisfaction, habits, history, money, attention), the opportunity in
-front of it (the page it read, the price it saw), its history with that opportunity and its social context, so two
-individuals in the same situation decide differently and the same individual decides differently as its state
-evolves.
+Two kinds of decision model drive class 1 (and the class 2 decisions their policy does not take):
 
-Calibration plug-in (workstream E, contract section 5). `Decision.calibration` lists fitted-model names to try
-through `crucible.calibration.load(name)`. A fitted model is used when every name in its `features` list is a
-feature this decision documents (`FEATURES[name]`): X is built column by column in the fitted model's order and
-`FittedModel.predict(X)` gives the probability. Otherwise the decision's own model is used. `status(world)` says which
-is in use. Until E's checkpoints exist, every decision is the clearly labelled plausible model below (fidelity
-"plausible, unvalidated"; see docs/v5/FIDELITY_REGISTER.md).
+* **Fitted runtime decision models** (workstream E, `crucible.calibration.runtime`, contracts in
+  docs/v5/calibration/RUNTIME.md), used through the runtime only - never `calibration.load`, never a silent fallback
+  (RUNTIME.md rule 4): `daily_return@1` (active today) and `extra_sessions@1` (sessions per active day) in
+  `population.activation`; `article_open_semantic@1` (which article of a page's slate is opened, scope
+  `content_kind="article"`) and `customer_return@1` (whether a customer buys from the same shop again within 90 days)
+  in `population.web`. `FITTED` lists them with the population decision each one takes.
+* **Plausible decisions** below (`Decision`): logistic models with hand-set coefficients for the decisions no fitted
+  model covers (fidelity "plausible, unvalidated", register rows `pop.decision.<name>`). Each maps named feature
+  arrays (one row per individual) to a probability from the individual's own state (preferences, satisfaction,
+  habits, history, money, attention), the opportunity in front of it (the page it read, the price it saw), its
+  history with that opportunity and its social context, so two individuals in the same situation decide differently
+  and the same individual decides differently as its state evolves.
+
+`status(world)` says which model each decision uses in a world.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -67,18 +71,18 @@ class Decision:
     doc: str
     coef: dict[str, float]
     bias: float
-    calibration: tuple[str, ...] = ()
     fidelity: str = "plausible, unvalidated"
-    fitted: object | None = field(default=None, repr=False)
 
     @property
     def features(self) -> tuple[str, ...]:
         return tuple(self.coef)
 
     def model_id(self) -> str:
-        if self.fitted is not None:
-            return f"fitted:{getattr(self.fitted, 'name', '?')}@{getattr(self.fitted, 'version', '?')}"
         return f"plausible:{self.name}@1"
+
+    @property
+    def fidelity_id(self) -> str:
+        return f"pop.decision.{self.name}"
 
     def logit(self, F: dict[str, np.ndarray]) -> np.ndarray:
         n = len(next(iter(F.values())))
@@ -88,9 +92,6 @@ class Decision:
         return z
 
     def prob(self, F: dict[str, np.ndarray]) -> np.ndarray:
-        if self.fitted is not None:
-            X = np.stack([np.asarray(F[f], np.float64) for f in self.fitted.features], axis=1)
-            return np.clip(np.asarray(self.fitted.predict(X), np.float64).reshape(-1), 0.0, 1.0)
         return sigmoid(self.logit(F))
 
     def sample(self, F: dict[str, np.ndarray], rng: np.random.Generator) -> np.ndarray:
@@ -101,14 +102,10 @@ class Decision:
 def _decisions() -> dict[str, Decision]:
     D = Decision
     return {d.name: d for d in [
-        D("session_start", "start a session when activated",
-          {"attention_ratio": 2.2, "satisfaction": 0.9, "habit_max": 0.35, "in_commitment": -1.6, "woken": 1.5,
-           "experience_log": 0.12, "hour_cos": -0.3},
-          bias=-0.6, calibration=("browse_session@1",)),
         D("continue", "read another page of the same site",
           {"page_utility": 1.6, "attention_ratio": 1.2, "quality_sensitivity": 0.4, "novelty_seeking": 0.3,
            "page_richness": 0.6},
-          bias=-0.9, calibration=("content_consumption@1", "continue_watching@1")),
+          bias=-0.9),
         D("evaluate_product", "open a product's page when a site lists products",
           {"page_relevance": 1.4, "goal_buy": 1.4, "impulsiveness": 0.8, "shopping_skill": 0.4,
            "attention_ratio": 0.6},
@@ -116,10 +113,10 @@ def _decisions() -> dict[str, Decision]:
         D("purchase", "buy the product evaluated",
           {"price_ratio": 1.4, "page_relevance": 1.2, "goal_buy": 1.1, "wallet_cover_log": 0.35,
            "price_sensitivity": -1.1, "resource_satisfaction": 0.8, "belief_shops": 0.9, "impulsiveness": 0.7},
-          bias=-4.6, calibration=("commercial_response@1", "purchase@1")),
+          bias=-4.6),
         D("abandon", "leave a resource that no longer provides value",
           {"tolerance_gap": 6.0, "loyalty": -1.2, "resource_visits_log": -0.25},
-          bias=-0.4, calibration=("churn@1",)),
+          bias=-0.4),
         D("recommend", "recommend a resource to contacts",
           {"page_utility": 2.2, "sociability": 1.5, "resource_satisfaction": 0.8},
           bias=-4.2),
@@ -135,34 +132,24 @@ def _decisions() -> dict[str, Decision]:
     ]}
 
 
+# the fitted runtime decision models the population uses by default: runtime decision id -> population decision
+FITTED = {"daily_return@1": "active today (population.activation, batch pop.day_active)",
+          "extra_sessions@1": "sessions on an active day (population.activation, batch pop.day_sessions)",
+          "article_open_semantic@1": "open an article of the page's slate (population.web, scope content_kind=article)",
+          "customer_return@1": "buy again from the same shop within 90 days (population.web, intention + wake-up)"}
+
+
 def build(cfg: dict | None = None) -> dict[str, Decision]:
-    """The decisions of this world, with fitted models plugged in where `crucible.calibration.load` offers one whose
-    features are all documented here (config `calibration: false` turns the lookup off)."""
-    ds = _decisions()
-    if (cfg or {}).get("calibration", True) is False:
-        return ds
-    try:
-        from .. import calibration as cal
-        load = getattr(cal, "load", None)
-    except ImportError:
-        load = None
-    if load is None:
-        return ds
-    for d in ds.values():
-        for name in d.calibration:
-            try:
-                m = load(name)
-            except Exception:        # noqa: BLE001 - absent checkpoint: keep the plausible model
-                continue
-            feats = list(getattr(m, "features", []) or [])
-            if feats and all(f in FEATURES for f in feats):
-                d.fitted = m
-                d.fidelity = "empirically fitted (crucible.calibration)"
-                break
-    return ds
+    """The plausible class 1 decisions of this world (the fitted ones are used through crucible.calibration.runtime
+    by the code that takes them; see FITTED)."""
+    return _decisions()
 
 
 def status(world) -> dict:
-    """{decision: {model, fidelity, features}} in use in this world."""
+    """{decision: {model, fidelity, features}} in use in this world (plausible decisions and fitted runtime ones)."""
     ds = world.runtime.get("pop.models") or {}
-    return {k: {"model": d.model_id(), "fidelity": d.fidelity, "features": list(d.features)} for k, d in ds.items()}
+    out = {k: {"model": d.model_id(), "fidelity": d.fidelity, "features": list(d.features)} for k, d in ds.items()}
+    for rid, what in FITTED.items():
+        out[rid] = {"model": f"runtime:{rid}", "fidelity": "empirically fitted (crucible.calibration.runtime)",
+                    "features": [], "decision": what}
+    return out

@@ -42,7 +42,14 @@ from ..core.errors import CrucibleError, NotFound
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import artifacts, attention, columns, ids
 from . import semantics, core, schema, text
+from .api import record_decisions
 from .schema import NONE_I32, RES_TABLE, TABLE
+
+VISIT_MODEL = ("popweb.visit", "1")
+PG_TABLE = "webpg"
+TOPIC_TABLE = "webtopic"
+ARTICLE_OPEN = "article_open_semantic@1"
+CUSTOMER_RETURN = "customer_return@1"
 
 DAY = 86400
 INVOICE_RE = re.compile(r"(inv_[0-9]+)")
@@ -88,8 +95,15 @@ class PopWeb(Module):
         st.declare_table("pop_res", index=("owner",))
         st.declare_table("pop_pages", index=("host",))
         st.declare_table("pop_boards")
+        st.declare_table("pop_pagerow")
+        # per article page: opens by the population (inputs of article_open_semantic@1); per topic: views on the web
+        columns.declare(world, PG_TABLE, 0, {"opens": ("int64", (), 0), "t0": ("int64", (), -1)})
+        columns.declare(world, TOPIC_TABLE, len(semantics.topic_names()), {"views": ("int64", (), 0)})
         self.ttl = int(self.config.get("page_ttl_s", 3 * 3600))
         self.max_depth = int(self.config.get("max_depth", 3))
+        self.max_visits = int(self.config.get("max_visits", 3))
+        # money: world cents per GBP-equivalent unit for customer_return@1 (the contract's declared currency factor)
+        self.gbp_cents = float(self.config.get("currency_cents_per_gbp", 100.0))
         core.register_activity(world, "web", self.act_web, owner=self.name, prior=1.0, goals=(1, 2, 4))
         core.register_activity(world, "search", self.act_search, owner=self.name, prior=0.5, goals=(1, 2))
         self.forum_on = bool(self.config.get("forum", True)) and any(m["name"] == "forum" for m in world.spec.modules)
@@ -97,7 +111,7 @@ class PopWeb(Module):
             core.register_activity(world, "forum", self.act_forum, owner=self.name, prior=0.1, goals=(3, 1))
 
     def on_load(self, world):
-        for k in ("popweb.posts", "popweb.hosts", "popweb.search"):
+        for k in ("popweb.posts", "popweb.hosts", "popweb.search", "popweb.post_reps", "popweb.active24"):
             world.runtime.pop(k, None)
 
     # ------------------------------------------------------------------ what people already know at the start
@@ -211,16 +225,113 @@ class PopWeb(Module):
         parsed = text.parse_page(body, r.get("content_type", "")) if status == 200 else \
             {"text": "", "title": "", "paths": [], "hosts": [], "prices": []}
         page_text = (parsed["title"] + " " + parsed["text"]).strip()
-        stt = {"uniq": semantics.text_features(page_text)["distinct_ratio"]}
+        tf = semantics.text_features(page_text)
         vec = self._coords(ctx, [page_text])[0] if status == 200 and page_text else np.zeros(self.D, np.float32)
+        arts = parsed.get("arts") or []
+        # the slate of article headlines a reader sees on the page, represented in the shared space
+        av = self._coords(ctx, [a[1] for a in arts]) if (status == 200 and arts) else np.zeros((0, self.D), np.float32)
         dep_id, why = self._dep_state(st, host)
         out = {"key": key, "host": host, "path": path, "status": status, "digest": text.body_digest(body),
                "dep": dep_id, "why": why, "title": parsed["title"], "vec": [round(float(x), 3) for x in vec],
-               "chars": len(parsed["text"]), "uniq": round(float(stt["uniq"]), 3), "paths": parsed["paths"][:30],
+               "chars": len(parsed["text"]), "uniq": round(float(tf["distinct_ratio"]), 3),
+               "leg": round(float(semantics.legibility(tf)), 4), "paths": parsed["paths"][:30],
                "hosts": [h for h in parsed["hosts"] if h != host][:12], "prices": parsed["prices"][:10],
-               "kind": kind_of(parsed["title"]), "visitor": p}
+               "kind": kind_of(parsed["title"]), "visitor": p,
+               "arts": [a[0] for a in arts], "art_vecs": [[round(float(x), 3) for x in v] for v in av],
+               "art_topics": [int(t) for t in (semantics.nearest_topic(av) if len(av) else [])]}
         ctx.emit("popweb.page", out, vis="internal")
         return st.get("pop_pages", key)
+
+    def _page_rows(self, ctx: Ctx, keys: list[str]) -> np.ndarray:
+        """Rows of article pages (host|path) in the page table, created when a page is first opened."""
+        st = ctx.state
+        out = np.full(len(keys), -1, np.int64)
+        new = []
+        for j, k in enumerate(keys):
+            r = st.get("pop_pagerow", k)
+            if r is not None:
+                out[j] = r["row"]
+            elif k not in new:
+                new.append(k)
+        if new:
+            n0 = columns.rows(ctx.world, PG_TABLE)
+            columns.grow(ctx, PG_TABLE, len(new))
+            for q, k in enumerate(new):
+                ctx.emit("popweb.pagerow", {"key": k, "row": n0 + q}, vis="internal")
+            columns.batch(ctx, PG_TABLE, "popweb.page_seen", np.arange(n0, n0 + len(new)),
+                          {"t0": np.full(len(new), ctx.now, np.int64)})
+            pos = {k: n0 + q for q, k in enumerate(new)}
+            for j, k in enumerate(keys):
+                if out[j] < 0:
+                    out[j] = pos[k]
+        return out
+
+    def _active_24h(self, world) -> int:
+        """Individuals who browsed the web in the previous 24 h (a world count, cached per tick)."""
+        c = world.runtime.get("popweb.active24")
+        if c is not None and c[0] == world.now:
+            return c[1]
+        v = int(np.count_nonzero(columns.col(world, TABLE, "web_last_at") >= world.now - DAY))
+        world.runtime["popweb.active24"] = (world.now, v)
+        return v
+
+    def _article_open(self, ctx: Ctx, idx: np.ndarray, inter: np.ndarray, recs: list, which: np.ndarray, rng
+                      ) -> tuple[np.ndarray, dict]:
+        """The fitted article-open decision (article_open_semantic@1, scope content_kind="article") for readers
+        `idx` looking at the article slates of pages `recs[which[j]]`: per reader, the opened article (path index in
+        its page's slate, -1 none) and the evaluation record. One evaluation for all (reader, slot) rows."""
+        from ..calibration import runtime
+        w = ctx.world
+        n = idx.size
+        rr, kk = [], []
+        for j in range(n):
+            m = len(recs[which[j]].get("arts") or [])
+            rr += [j] * m
+            kk += list(range(m))
+        pick = np.full(n, -1, np.int64)
+        if not rr:
+            return pick, {}
+        rr, kk = np.array(rr, np.int64), np.array(kk, np.int64)
+        V = np.array([recs[which[j]]["art_vecs"][k] for j, k in zip(rr, kk)], np.float32).reshape(rr.size, self.D)
+        vn = np.linalg.norm(V, axis=1)
+        cos = np.where(vn > 1e-6, np.einsum("nd,nd->n", inter[rr], V) / np.maximum(vn, 1e-6), 0.0)
+        cos = np.clip(cos, -1.0, 1.0)
+        # within the reader's OWN slate
+        size = np.bincount(rr, minlength=n).astype(np.float64)
+        mu = np.bincount(rr, weights=cos, minlength=n) / np.maximum(size, 1)
+        sd = np.sqrt(np.bincount(rr, weights=(cos - mu[rr]) ** 2, minlength=n) / np.maximum(size, 1))
+        z = np.where(sd[rr] > 1e-9, (cos - mu[rr]) / np.where(sd[rr] > 1e-9, sd[rr], 1.0), 0.0)
+        topic = np.array([recs[which[j]]["art_topics"][k] for j, k in zip(rr, kk)], np.int64)
+        wt = columns.col(w, TABLE, "wtopic")[idx].astype(np.int64)
+        wn = columns.col(w, TABLE, "wtopic_n")[idx].astype(np.float64)
+        own_t = ((wt[rr] == topic[:, None]) * wn[rr]).sum(axis=1)
+        views = columns.col(w, TABLE, "web_views")[idx].astype(np.float64)
+        tv = columns.col(w, TOPIC_TABLE, "views").astype(np.float64)
+        T = tv.size
+        share = (tv[topic] + 1.0) / (tv.sum() + T)
+        keys = [f"{recs[which[j]]['host']}|{recs[which[j]]['arts'][k]}" for j, k in zip(rr, kk)]
+        prow = self._page_rows(ctx, keys)
+        opens = columns.col(w, PG_TABLE, "opens")[prow].astype(np.float64)
+        t0 = columns.col(w, PG_TABLE, "t0")[prow].astype(np.float64)
+        age_h = np.maximum(ctx.now - t0, 0.0) / 3600.0
+        inputs = {"text_cos": cos, "text_cos_z": z, "own_topic_views": own_t, "own_views_total": views[rr],
+                  "topic_population_share": share, "item_opens_24h": opens * np.minimum(1.0, 24.0 / np.maximum(age_h, 1.0)),
+                  "active_individuals_24h": np.full(rr.size, float(self._active_24h(w))),
+                  "item_age_hours": age_h, "slate_size": size[rr]}
+        dm = runtime.get(ARTICLE_OPEN).scoped(content_kind="article")
+        res = dm.evaluate(inputs)
+        opened = rng.random(rr.size) < res.values
+        # the reader goes on with the opened article it found most attractive (the first of several in its slate)
+        score = np.where(opened, res.values, -1.0)
+        best = np.full(n, -1.0)
+        np.maximum.at(best, rr, score)
+        hit = opened & (score >= best[rr]) & (best[rr] >= 0)
+        for r_, k_ in zip(rr[hit], kk[hit]):
+            if pick[r_] < 0:
+                pick[r_] = k_
+        info = {"rows": rr, "slot": kk, "p": res.values, "opened": opened, "topic": topic, "page_row": prow,
+                "provenance": res.provenance()}
+        return pick, info
 
     # ------------------------------------------------------------------ choosing what to visit
     def _choose(self, ctx: Ctx, idx: np.ndarray, now: int, rng) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -313,7 +424,10 @@ class PopWeb(Module):
 
     # ------------------------------------------------------------------ the visit pipeline
     def _visit(self, ctx: Ctx, idx: np.ndarray, rows: np.ndarray, via: np.ndarray, frm: np.ndarray, now: int,
-               activity: str) -> np.ndarray:
+               activity: str, *, budget: np.ndarray | None = None, start: list | None = None,
+               intent: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """One visit per individual to resource `rows[j]` (from `start[j]`, default the home page), within the
+        session's minutes `budget[j]` and the attention left today. Returns (utility, minutes used)."""
         w = ctx.world
         ds = w.runtime["pop.models"]
         c = lambda name: columns.col(w, TABLE, name)[idx]  # noqa: E731
@@ -328,9 +442,13 @@ class PopWeb(Module):
         beliefs = c("beliefs").astype(np.float64)
         buyer = (c("goals") == 2).any(axis=1).astype(np.float64)
         wtp_s = c("wtp_scale").astype(np.float64)
+        income = c("income_cents").astype(np.float64)
         bud = c("attention_budget_min").astype(np.float64)
         left = c("attention_left_min").astype(np.float64)
-        path = ["/"] * n
+        if budget is not None:
+            left = np.minimum(left, np.asarray(budget, np.float64))
+        intent = np.zeros(n, bool) if intent is None else np.asarray(intent, bool)
+        path = list(start) if start is not None else ["/"] * n
         active = rows >= 0
         u_sum = np.zeros(n)
         pages = np.zeros(n, np.int64)
@@ -339,9 +457,13 @@ class PopWeb(Module):
         consumed = np.zeros((n, D), np.float32)
         bought = np.zeros(n, bool)
         paid = np.zeros(n, np.int64)
+        prod_of = np.full(n, -1, np.int64)
         evaluated = np.zeros(n, bool)
         match0 = np.zeros(n, np.float32)     # interest match with the entry page, at the time of the decision
         new_seen = {}            # row -> latest entry-page record (refreshes the res table)
+        reads = {"rows": [], "topic": [], "page_row": []}       # articles opened through the fitted slate decision
+        slate_rows = np.zeros(n, bool)
+        art_prov = None
         for depth in range(self.max_depth + 1):
             act = np.flatnonzero(active & (left > 0.2))
             if not act.size:
@@ -353,17 +475,22 @@ class PopWeb(Module):
             P_V = np.array([r["vec"] for r in recs], np.float32).reshape(len(recs), D)
             P_chars = np.array([r["chars"] for r in recs], np.float64)
             P_uniq = np.array([r["uniq"] for r in recs], np.float64)
+            P_leg = np.array([float(r.get("leg", 0.5)) for r in recs], np.float64)
             P_prods = [[p for p in r["paths"] if p.startswith("/p/")] for r in recs]
             P_arts = [[p for p in r["paths"] if p.startswith("/a/") or p == "/shop"] for r in recs]
+            P_slate = np.array([bool(r.get("arts")) and r["status"] == 200 for r in recs])
             P_price = np.array([(r["prices"][0] if r["prices"] and r["path"].startswith("/p/") else -1) for r in recs])
             for k, r in enumerate(recs):
                 if r["path"] == "/":
                     new_seen[int(rows[act[first_i[k]]])] = r
-            ok, V, chars, uniq = P_ok[inv], P_V[inv], P_chars[inv], P_uniq[inv]
+            ok, V, chars, uniq, leg = P_ok[inv], P_V[inv], P_chars[inv], P_uniq[inv], P_leg[inv]
             rel = np.einsum("nd,nd->n", inter[act], V.astype(np.float32)) * ok
             if depth == 0:
                 match0[act] = rel
-            rich = np.sqrt(np.minimum(1.0, chars / 2000.0)) * np.clip(uniq * 1.6, 0, 1)
+            # what a reader gets from a page: relevance to its interests (shared space) x how much readable content
+            # it holds (length and the text's intrinsic legibility: real words, natural function-word use, little
+            # repetition - keyword lists and word salads score low), plus novelty for those who seek it
+            rich = np.sqrt(np.minimum(1.0, chars / 2000.0)) * leg
             nov = 1.0 - np.clip((know[act] * np.abs(V)).sum(axis=1) / np.maximum(np.abs(V).sum(axis=1), 1e-6), 0, 1)
             qs, tol, nseek = prefs[act, 3], prefs[act, 2], prefs[act, 1]
             u_ok = (0.1 + 1.5 * rel) * (0.3 + 0.7 * rich * (0.5 + qs)) + 0.15 * nov * nseek - 0.05 \
@@ -377,7 +504,8 @@ class PopWeb(Module):
             pages[act] += 1
             okp[act] += ok
             consumed[act] += V * np.maximum(u, 0)[:, None].astype(np.float32)
-            # a visitor on a product page decides whether to buy it (through the site's checkout)
+            # a visitor on a product page decides whether to buy it (through the site's checkout); a customer who came
+            # back to buy again (customer_return@1 intention) buys what it intended to if it can
             price = P_price[inv]
             on_prod = np.flatnonzero(ok & (price > 0) & ~bought[act])
             if on_prod.size:
@@ -385,43 +513,111 @@ class PopWeb(Module):
                 evaluated[j] = True
                 pr = price[on_prod].astype(np.float64)
                 wallet = core.spendable(w, idx[j]).astype(np.float64)
-                wtp = 2500.0 * wtp_s[j] * (1.0 + 1.5 * np.maximum(rel[on_prod], 0.0))
+                # willingness to pay: a share of the individual's own daily income, scaled by how well the product's
+                # own description matches its interests
+                wtp = np.maximum(0.4 * income[j] * wtp_s[j] * (1.0 + 1.5 * np.maximum(rel[on_prod], 0.0)), 50.0)
                 F = {"price_ratio": np.clip((wtp - pr) / wtp, -3, 1), "page_relevance": rel[on_prod],
                      "goal_buy": buyer[j], "wallet_cover_log": np.clip(np.log(np.maximum(wallet, 1) / pr), -5, 5),
                      "price_sensitivity": prefs[j, 0], "resource_satisfaction": self._sat_of(c, j, rows[j]),
                      "belief_shops": beliefs[j, 3], "impulsiveness": prefs[j, 7]}
-                buy = ds["purchase"].sample(F, rng) & (wallet >= pr)
+                buy = (ds["purchase"].sample(F, rng) | intent[j]) & (wallet >= pr)
                 for jj, a, pp in zip(j[buy], on_prod[buy], pr[buy]):
                     got = self._purchase(ctx, int(idx[jj]), hosts_all[rows[jj]], path[jj], int(pp))
                     if got:
                         bought[jj] = True
                         paid[jj] = got
-                        u_sum[jj] += 0.4 + 0.4 * float(np.clip((wtp[a == on_prod][0] - pp) / wtp[a == on_prod][0], -1, 1))
-            # continue reading?  (evaluate a product, read another article)
+                        try:
+                            prod_of[jj] = int(path[jj].split("/")[2])
+                        except (IndexError, ValueError):
+                            prod_of[jj] = -1
+                        wa = wtp[a == on_prod][0]
+                        u_sum[jj] += 0.4 + 0.4 * float(np.clip((wa - pp) / wa, -1, 1))
+            # continue reading? On a page with an article slate the fitted article-open decision says which headline
+            # (if any) the reader opens; elsewhere (an article, a shop) the plausible continue/evaluate decisions
+            nxt_path = [None] * act.size
+            sl = np.flatnonzero(P_slate[inv] & ok & (depth < self.max_depth) & (left[act] > 0.2))
+            if sl.size:
+                slate_rows[act[sl]] = True
+                pk, info = self._article_open(ctx, idx[act[sl]], inter[act[sl]], recs, inv[sl], rng)
+                art_prov = info.get("provenance") or art_prov
+                for q, (a, k_) in enumerate(zip(sl, pk)):
+                    if k_ >= 0:
+                        nxt_path[a] = recs[inv[a]]["arts"][int(k_)]
+                if info:
+                    hit = info["opened"]
+                    # the article each reader goes on with (its pick) counts as a view of its topic and page
+                    for r_, k_, t_, pg in zip(info["rows"], info["slot"], info["topic"], info["page_row"]):
+                        if pk[r_] == k_:
+                            reads["rows"].append(int(act[sl[r_]]))
+                            reads["topic"].append(int(t_))
+                            reads["page_row"].append(int(pg))
+                    del hit
             Fc = {"page_utility": u, "attention_ratio": left[act] / np.maximum(bud[act], 1e-3),
                   "quality_sensitivity": qs, "novelty_seeking": nseek, "page_richness": rich}
-            cont = ds["continue"].sample(Fc, rng) & ok & (depth < self.max_depth)
-            Fe = {"page_relevance": rel, "goal_buy": buyer[act], "impulsiveness": prefs[act, 7],
+            cont = ds["continue"].sample(Fc, rng) & ok & (depth < self.max_depth) & ~P_slate[inv]
+            Fe = {"page_relevance": rel, "goal_buy": np.maximum(buyer[act], intent[act]), "impulsiveness": prefs[act, 7],
                   "shopping_skill": skills[act, 3], "attention_ratio": left[act] / np.maximum(bud[act], 1e-3)}
-            want = ds["evaluate_product"].sample(Fe, rng)
+            want = ds["evaluate_product"].sample(Fe, rng) | intent[act]
             r_pick = rng.random(act.size)
             active[:] = False
-            for a in np.flatnonzero(cont):
-                k = inv[a]
-                lst = P_prods[k] if (want[a] and P_prods[k]) else P_arts[k]
-                if lst:
-                    nxt = lst[int(r_pick[a] * len(lst))]
-                    j = act[a]
-                    if nxt != path[j]:
-                        path[j] = nxt
-                        active[j] = True
+            for a in range(act.size):
+                j = act[a]
+                nxt = nxt_path[a]
+                if nxt is None and cont[a]:
+                    k = inv[a]
+                    lst = P_prods[k] if (want[a] and P_prods[k]) else P_arts[k]
+                    if lst:
+                        nxt = lst[int(r_pick[a] * len(lst))]
+                if nxt is not None and nxt != path[j]:
+                    path[j] = nxt
+                    active[j] = True
         U = np.where(pages > 0, u_sum / np.maximum(pages, 1), -0.1)
         self._record(ctx, idx, rows, via, frm, U, pages, okp, minutes, consumed, bought, paid, evaluated, new_seen,
-                     now, activity, rng, match0)
+                     now, activity, rng, match0, prod_of=prod_of, intent=intent)
+        if art_prov is not None:
+            self._record_reads(ctx, idx, slate_rows, reads, art_prov, now)
+        items = w.runtime.get("pop.tick.items")
+        if items is not None:
+            for i, p_ in zip(idx[pages > 0].tolist(), pages[pages > 0].tolist()):
+                items[int(i)] = items.get(int(i), 0) + int(p_)
         ad = w.modules.get("pop_adaptive")
         if ad is not None:
             ad.reward(ctx, idx, U)          # adaptive participants learn from the utility they experienced
-        return U
+        return U, minutes
+
+    def _record_reads(self, ctx: Ctx, idx: np.ndarray, slate_rows: np.ndarray, reads: dict, prov: dict, now: int):
+        """The article-open decisions of a visit (article_open_semantic@1): the readers' reading history (views, the
+        topics they read), the pages' and topics' open counts."""
+        w = ctx.world
+        who = np.flatnonzero(slate_rows)
+        if not who.size:
+            return
+        views = columns.col(w, TABLE, "web_views")[idx[who]].astype(np.int64)
+        wt = columns.col(w, TABLE, "wtopic")[idx[who]].astype(np.int64).copy()
+        wn = columns.col(w, TABLE, "wtopic_n")[idx[who]].astype(np.int64).copy()
+        pos = {int(j): q for q, j in enumerate(who)}
+        for j, t in zip(reads["rows"], reads["topic"]):
+            q = pos[int(j)]
+            views[q] += 1
+            hit = np.flatnonzero(wt[q] == t)
+            if hit.size:
+                wn[q, hit[0]] += 1
+            else:                                  # the least read of the four tracked topics makes room
+                k = int(np.argmin(np.where(wt[q] >= 0, wn[q], -1)))
+                wt[q, k], wn[q, k] = t, 1
+        from .activation import provenance_args
+        record_decisions(ctx, "popweb.article_open", idx[who], {
+            "web_views": np.minimum(views, 2**31 - 1).astype(np.int32), "wtopic": wt.astype(np.int16),
+            "wtopic_n": np.minimum(wn, 65535).astype(np.uint16), "web_last_at": np.full(who.size, now, np.int64)},
+            **provenance_args(prov), extra={"t": int(now), "readers": int(who.size), "opened": len(reads["rows"]),
+                                            "served": prov.get("served"), "extrapolated": int(prov.get("extrapolated", 0))})
+        if reads["page_row"]:
+            pr, cnt = np.unique(np.array(reads["page_row"], np.int64), return_counts=True)
+            columns.batch(ctx, PG_TABLE, "popweb.page_opens", pr, {"opens": cnt.astype(np.int64)}, mode="add",
+                          extra={"t": int(now)})
+            tp, tc = np.unique(np.array(reads["topic"], np.int64), return_counts=True)
+            columns.batch(ctx, TOPIC_TABLE, "popweb.topic_views", tp, {"views": tc.astype(np.int64)}, mode="add",
+                          extra={"t": int(now)})
 
     def _sat_of(self, c, j: np.ndarray, rows: np.ndarray) -> np.ndarray:
         kn = c("known")[j]
@@ -456,7 +652,7 @@ class PopWeb(Module):
 
     # ------------------------------------------------------------------ recording what happened
     def _record(self, ctx, idx, rows, via, frm, U, pages, okp, minutes, consumed, bought, paid, evaluated, new_seen,
-                now, activity, rng, match0):
+                now, activity, rng, match0, *, prod_of=None, intent=None):
         w = ctx.world
         ds = w.runtime["pop.models"]
         c = lambda name: columns.col(w, TABLE, name)[idx]  # noqa: E731
@@ -577,14 +773,16 @@ class PopWeb(Module):
                 "skills": skills.astype(np.float16)}
         if bought.any():
             b_ix = np.flatnonzero(bought)
-            purchased = c("purchased").copy()
-            purchased[b_ix, 1:] = purchased[b_ix, :-1]
-            purchased[b_ix, 0] = rows[b_ix]
             goals = c("goals").copy()
             goals[b_ix, 0] = np.where(goals[b_ix, 0] == 2, 4, goals[b_ix, 0])        # a buying goal is met
-            vals.update({"purchased": purchased, "goals": goals,
-                         "n_purchases": (c("n_purchases") + bought).astype(np.int32),
+            vals.update({"goals": goals, "n_purchases": (c("n_purchases") + bought).astype(np.int32),
                          "spent_cents": (c("spent_cents") + paid).astype(np.int64)})
+        intent = np.zeros(n, bool) if intent is None else np.asarray(intent, bool)
+        if intent.any():                       # a repurchase intention is used up by the visit it caused
+            vals.update({"intent_res": np.where(intent, NONE_I32, c("intent_res")).astype(np.int32),
+                         "intent_at": np.where(intent, core.NEVER, c("intent_at")).astype(np.int64),
+                         "intent_prod": np.where(intent, -1, c("intent_prod")).astype(np.int16)})
+        vals["web_last_at"] = np.where(has, now, c("web_last_at")).astype(np.int64)
         for k in ("suggest_from", "suggest_src", "contact_trust", "abandoned", "prefs"):
             if np.array_equal(vals[k], c(k)):
                 del vals[k]            # unchanged columns are not rewritten
@@ -600,9 +798,12 @@ class PopWeb(Module):
                "paid": paid[v], "evaluated": evaluated[v], "cls": cls[v], "minutes": minutes[v].astype(np.float32),
                "match": match0[v]}
         ref = artifacts.put_array_blob(ctx, log) if v.size else None
-        columns.batch(ctx, TABLE, f"popweb.{activity}", idx, vals, mode="set",
-                      extra={"t": int(now), "visits": int(v.size), "first": int(first.sum()),
-                             "abandoned": int(abandoned.sum()), "bought": int(bought.sum()), "visits_ref": ref})
+        record_decisions(ctx, f"popweb.{activity}", idx, vals, mode="set", model_id=VISIT_MODEL[0],
+                         model_version=VISIT_MODEL[1], fidelity_id="pop.decision.visit_outcome",
+                         extra={"t": int(now), "visits": int(v.size), "first": int(first.sum()),
+                                "abandoned": int(abandoned.sum()), "bought": int(bought.sum()), "visits_ref": ref})
+        if bought.any():
+            self._repurchase(ctx, idx, rows, bought, paid, prod_of, now, rng)
         if v.size:
             u_rows, inv = np.unique(rows[v], return_inverse=True)
             agg = {k: np.zeros(u_rows.size, np.int64) for k in
@@ -644,15 +845,132 @@ class PopWeb(Module):
                 to, fr, rs_ = to[free], fr[free], rs_[free]
                 if to.size:
                     o = np.argsort(to, kind="stable")
-                    columns.batch(ctx, TABLE, "popweb.recommend", to[o], {
+                    # the recommenders decided (they are in the session cohort); the recipients' suggestion slots
+                    # are where the recommendation lands (delivery)
+                    record_decisions(ctx, "popweb.recommend", to[o], {
                         "suggest": rs_[o].astype(np.int32), "suggest_from": fr[o].astype(np.int32),
-                        "suggest_src": np.full(to.size, 2, np.uint8)}, extra={"t": int(now), "n": int(to.size)})
+                        "suggest_src": np.full(to.size, 2, np.uint8)}, model_id="pop.recommend", model_version="1",
+                        fidelity_id="pop.decision.recommend", extra={"t": int(now), "n": int(to.size),
+                                                                     "by": [int(x) for x in fr[o][:64]]})
+
+    # ------------------------------------------------------------------ repurchase (customer_return@1)
+    def _repurchase(self, ctx: Ctx, idx, rows, bought, paid, prod_of, now: int, rng) -> None:
+        """Customers who bought today: their order history with the shop (`purchased` slots and `pur_*`) and the
+        fitted decision whether they order from the same shop again within 90 days (customer_return@1, UCI Online
+        Retail II). A customer who will return gets a repurchase intention (the shop, the product, a day within 90
+        drawn from its own mean gap between orders, or 30 days for a first order) and a wake-up then; the return
+        visit and the purchase go through the site's own pages and checkout, so a shop that stopped working loses
+        the order."""
+        from ..calibration import runtime
+        from .activation import month, provenance_args
+        w = ctx.world
+        b = np.flatnonzero(bought)
+        ii = idx[b]
+        today = int(now // DAY)
+        P = columns.col(w, TABLE, "purchased")[ii].astype(np.int64).copy()
+        cols_ = {k: columns.col(w, TABLE, k)[ii].astype(np.int64).copy()
+                 for k in ("pur_n", "pur_first", "pur_last", "pur_spend", "pur_gapsum", "pur_prod")}
+        slot = np.zeros(b.size, np.int64)
+        for q in range(b.size):
+            hit = np.flatnonzero(P[q] == rows[b[q]])
+            if hit.size:
+                slot[q] = hit[0]
+            else:                          # a new shop: the oldest slot makes room
+                P[q, 1:] = P[q, :-1]
+                for k in cols_:
+                    cols_[k][q, 1:] = cols_[k][q, :-1]
+                P[q, 0] = rows[b[q]]
+                cols_["pur_n"][q, 0] = 0
+                cols_["pur_first"][q, 0] = -1
+                cols_["pur_last"][q, 0] = -1
+                cols_["pur_spend"][q, 0] = 0
+                cols_["pur_gapsum"][q, 0] = 0
+                slot[q] = 0
+        r = np.arange(b.size)
+        n_before = cols_["pur_n"][r, slot].astype(np.float64)
+        last = cols_["pur_last"][r, slot]
+        first = cols_["pur_first"][r, slot]
+        same_day = (last == today) & (n_before > 0)
+        orders_before = np.where(same_day, n_before - 1, n_before)
+        gaps = cols_["pur_gapsum"][r, slot].astype(np.float64) + np.where((last >= 0) & ~same_day, today - last, 0)
+        spend_today_c = paid[b].astype(np.float64)
+        spend_total_c = cols_["pur_spend"][r, slot].astype(np.float64) + spend_today_c
+        inputs = {"orders_before": orders_before,
+                  "tenure_days": np.where(first >= 0, today - first, 0).astype(np.float64),
+                  "recency_days": np.where((last >= 0) & ~same_day, today - last, 0).astype(np.float64),
+                  "mean_gap_days": np.where(orders_before >= 2, gaps / np.maximum(orders_before, 1), 0.0),
+                  "spend_today": spend_today_c / self.gbp_cents, "spend_total": spend_total_c / self.gbp_cents,
+                  "lines_today": np.ones(b.size), "products_today": np.ones(b.size), "cancel_share": np.zeros(b.size),
+                  "home_market": np.ones(b.size), "month": np.full(b.size, float(month(today)))}
+        dm = runtime.get(CUSTOMER_RETURN)
+        res = dm.evaluate(inputs)
+        again = rng.random(b.size) < res.values
+        # update the order history (one order day per day)
+        cols_["pur_n"][r, slot] = np.where(same_day, n_before, n_before + 1).astype(np.int64)
+        cols_["pur_first"][r, slot] = np.where(first >= 0, first, today)
+        cols_["pur_gapsum"][r, slot] = gaps.astype(np.int64)
+        cols_["pur_last"][r, slot] = today
+        cols_["pur_spend"][r, slot] = spend_total_c.astype(np.int64)
+        cols_["pur_prod"][r, slot] = np.asarray(prod_of, np.int64)[b]
+        mean_gap = np.where(orders_before >= 1, np.maximum(gaps / np.maximum(orders_before, 1), 1.0), 30.0)
+        day_ahead = np.clip(np.ceil(rng.exponential(mean_gap)), 1, 90).astype(np.int64)
+        at = now + day_ahead * DAY + rng.integers(0, 6 * 3600, b.size)
+        cur_at = columns.col(w, TABLE, "intent_at")[ii].astype(np.int64)
+        cur_res = columns.col(w, TABLE, "intent_res")[ii].astype(np.int64)
+        cur_prod = columns.col(w, TABLE, "intent_prod")[ii].astype(np.int64)
+        take = again & (at < cur_at)              # the earliest intention is kept
+        vals = {"purchased": P.astype(np.int32), "pur_n": np.minimum(cols_["pur_n"], 65535).astype(np.uint16),
+                "pur_first": cols_["pur_first"].astype(np.int32), "pur_last": cols_["pur_last"].astype(np.int32),
+                "pur_spend": cols_["pur_spend"].astype(np.int64), "pur_gapsum": cols_["pur_gapsum"].astype(np.int32),
+                "pur_prod": cols_["pur_prod"].astype(np.int16),
+                "intent_res": np.where(take, rows[b], cur_res).astype(np.int32),
+                "intent_at": np.where(take, at, cur_at).astype(np.int64),
+                "intent_prod": np.where(take, np.asarray(prod_of, np.int64)[b], cur_prod).astype(np.int16)}
+        pv = res.provenance()
+        record_decisions(ctx, "popweb.repurchase", ii, vals, **provenance_args(pv),
+                         extra={"t": int(now), "customers": int(b.size), "will_return": int(again.sum()),
+                                "served": pv.get("served"), "extrapolated": int(pv.get("extrapolated", 0))})
+        if take.any():
+            for k in np.flatnonzero(take):
+                core.wake(ctx, ii[k:k + 1], int(at[k]), "web")
 
     # ------------------------------------------------------------------ activities
     def act_web(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
+        """A web session: up to `max_visits` visits while the session's minutes last (`pop.session_budget_min`, the
+        population's session-length decision) and attention is left; a customer whose repurchase intention is due
+        goes to that shop's product first."""
+        w = ctx.world
         rng = ctx.rng("popweb.choose")
-        rows, via, frm = self._choose(ctx, idx, now, rng)
-        return self._visit(ctx, idx, rows, via, frm, now, "web")
+        n = idx.size
+        budget = core.session_budget(w, idx).astype(np.float64)
+        U_sum = np.zeros(n)
+        n_vis = np.zeros(n)
+        live = np.ones(n, bool)
+        for k in range(max(1, self.max_visits)):
+            sel = np.flatnonzero(live & (budget > (0.0 if k == 0 else 1.0)))
+            if not sel.size:
+                break
+            ii = idx[sel]
+            rows, via, frm = self._choose(ctx, ii, ctx.now, rng)
+            start, intent = None, None
+            if k == 0:
+                ir = columns.col(w, TABLE, "intent_res")[ii].astype(np.int64)
+                ia = columns.col(w, TABLE, "intent_at")[ii].astype(np.int64)
+                ip = columns.col(w, TABLE, "intent_prod")[ii].astype(np.int64)
+                intent = (ir >= 0) & (ia <= ctx.now)
+                if intent.any():
+                    rows = np.where(intent, ir, rows)
+                    via = np.where(intent, 0, via)
+                    frm = np.where(intent, NONE_I32, frm)
+                    start = [f"/p/{int(p)}" if (it and p >= 0) else "/" for it, p in zip(intent, ip)]
+            U, mins = self._visit(ctx, ii, rows, via, frm, now, "web", budget=budget[sel], start=start, intent=intent)
+            budget[sel] = budget[sel] - mins
+            got = rows >= 0
+            U_sum[sel] += np.where(got, U, 0.0)
+            n_vis[sel] += got
+            # a frustrating visit (or nothing to visit) ends the session
+            live[sel] = got & (U > -0.2) & (mins > 0)
+        return np.where(n_vis > 0, U_sum / np.maximum(n_vis, 1), -0.1)
 
     def _search(self, ctx: Ctx, q: str, lim: int, version) -> list[tuple[str, np.ndarray]]:
         """Organic search results for `q` among indexed web pages: [(host, snippet vector)]. Cached per version of
@@ -717,7 +1035,8 @@ class PopWeb(Module):
             rank[sel[avail]] = best[avail]
             n_res[sel] = (~blocked).sum(axis=1)
         via = np.full(idx.size, 3, np.int64)
-        U = self._visit(ctx, idx, target, via, np.full(idx.size, NONE_I32, np.int64), now, "search")
+        U, _ = self._visit(ctx, idx, target, via, np.full(idx.size, NONE_I32, np.int64), now, "search",
+                           budget=core.session_budget(w, idx))
         U = np.where(target >= 0, U, -0.2)
         sk = c("skills").astype(np.float32)
         be = c("beliefs").astype(np.float32)
@@ -725,24 +1044,34 @@ class PopWeb(Module):
         be[:, 1] = 0.85 * be[:, 1] + 0.15 * (U > 0.3)
         ref = artifacts.put_array_blob(ctx, {"ind": idx.astype(np.int32), "query": qinv.astype(np.int32),
                                              "n_results": n_res, "rank": rank, "res": target.astype(np.int32)})
-        columns.batch(ctx, TABLE, "popweb.searched", idx, {"skills": sk.astype(np.float16),
-                                                           "beliefs": be.astype(np.float16)},
-                      extra={"t": int(now), "queries": [str(q) for q in uq], "searches_ref": ref,
-                             "with_results": int((n_res > 0).sum())})
+        record_decisions(ctx, "popweb.searched", idx, {"skills": sk.astype(np.float16),
+                                                       "beliefs": be.astype(np.float16)},
+                         model_id="pop.search_learning", model_version="1",
+                         fidelity_id="pop.decision.search_learning",
+                         extra={"t": int(now), "queries": [str(q) for q in uq], "searches_ref": ref,
+                                "with_results": int((n_res > 0).sum())})
         return U
 
     # ------------------------------------------------------------------ the forum (4.0 forum module)
     def _post_vecs(self, ctx: Ctx, posts: list) -> list[tuple[np.ndarray, float]]:
-        """(vector in the interest coordinates, richness) of forum posts, from their text."""
+        """(vector in the interest coordinates, richness) of forum posts, from their text. Cached per process and
+        world by the post's text (a pure function of it: the vector comes from the space's recorded representation,
+        the richness from the text's intrinsic features), so a feed read by many individuals is represented once."""
+        cache = ctx.world.runtime.setdefault("popweb.post_reps", {})
         texts = [(p["title"] + " " + p.get("body", "")).strip() or "post" for p in posts]
-        V = self._coords(ctx, texts) if texts else np.zeros((0, self.D), np.float32)
-        out = []
-        for j, p in enumerate(posts):
-            stt = semantics.text_features(texts[j])
-            rich = math.sqrt(min(1.0, len(p.get("body", "")) / 1200.0)) * min(1.0, stt["distinct_ratio"] * 1.6) * \
-                (0.3 + 0.7 * semantics.legibility(stt))
-            out.append((V[j], rich))
-        return out
+        miss = sorted({t for t in texts if t not in cache})
+        if miss:
+            V = self._coords(ctx, miss)
+            for j, t in enumerate(miss):
+                stt = semantics.text_features(t)
+                body_len = len(t)
+                rich = math.sqrt(min(1.0, body_len / 1200.0)) * min(1.0, stt["distinct_ratio"] * 1.6) * \
+                    (0.3 + 0.7 * semantics.legibility(stt))
+                cache[t] = (V[j], rich)
+            if len(cache) > 20000:
+                for k in list(cache)[:5000]:
+                    cache.pop(k, None)
+        return [cache[t] for t in texts]
 
     def _coords(self, ctx: Ctx, texts: list[str]) -> np.ndarray:
         """Interest-space coordinates of texts (recorded text encoder, population.semantics)."""
@@ -769,7 +1098,7 @@ class PopWeb(Module):
         skills = c("skills").astype(np.float64)
         goal_social = (c("goals") == 3).any(axis=1).astype(np.float64)
         comm = c("communities").copy()
-        left = c("attention_left_min").astype(np.float64)
+        left = core.session_budget(w, idx).astype(np.float64)
         acts = {"read": 0, "reply": 0, "post": 0, "follow": 0, "join": 0, "vote": 0}
         U = np.full(n, -0.05)
         minutes = np.zeros(n)
@@ -783,7 +1112,8 @@ class PopWeb(Module):
         read = [None] * n
         own = [j for j in range(n) if f"p{int(idx[j])}" in st.tables["principals"]
                and st.find_ids("forum_follows", "follower", f"p{int(idx[j])}")]
-        groups = {None: [j for j in range(n) if j not in set(own)]}
+        own_set = set(own)
+        groups = {None: [j for j in range(n) if j not in own_set]}
         for j in own:
             groups[j] = [j]
         for key, js in groups.items():
@@ -872,7 +1202,8 @@ class PopWeb(Module):
                 "suggest_from": sfrom.astype(np.int32), "skills": sk.astype(np.float16)}
         if readers.size and not np.array_equal(contacts, c("contacts")):
             vals.update({"contacts": contacts, "contact_trust": trust})
-        columns.batch(ctx, TABLE, "popweb.forum", idx, vals, extra={"t": int(now), **acts})
+        record_decisions(ctx, "popweb.forum", idx, vals, model_id="pop.forum", model_version="1",
+                         fidelity_id="pop.decision.forum", extra={"t": int(now), **acts})
         return U
 
     def _call(self, ctx, i, tool, args, acts, label) -> bool:
@@ -935,6 +1266,10 @@ class PopWeb(Module):
     def ap_page(self, ev):
         p = ev.payload
         self.world.state.put("pop_pages", p["key"], {**p, "t": ev.t})
+
+    @applier("popweb.pagerow")
+    def ap_pagerow(self, ev):
+        self.world.state.put("pop_pagerow", ev.payload["key"], {"row": ev.payload["row"], "t": ev.t})
 
     @applier("popweb.board")
     def ap_board(self, ev):

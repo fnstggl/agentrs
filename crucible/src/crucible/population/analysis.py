@@ -100,10 +100,15 @@ def sessions_by_day(world, events=None) -> dict[int, int]:
 
 
 def session_individuals(world, events=None) -> np.ndarray:
-    """Distinct individuals that were activated by the population scheduler (row indices)."""
+    """Distinct individuals that took at least one session (row indices): the takers of the population's sessions
+    (`pop.learn` batches) and the rows a class runtime activated (`pop.session` batches of classes 3-4)."""
     seen = set()
-    for e in batches(world, schema.TABLE, "pop.session", events):
-        seen.update(artifacts.get_array_blob(world, e.payload["ref"])["idx"].tolist())
+    for e in _events(world, events):
+        if e.type != "cols.batch" or e.payload["table"] != schema.TABLE:
+            continue
+        k = e.payload["kind"]
+        if k == "pop.learn" or (k == "pop.session" and (e.payload.get("extra") or {}).get("class")):
+            seen.update(artifacts.get_array_blob(world, e.payload["ref"])["idx"].tolist())
     return np.array(sorted(seen), np.int64)
 
 

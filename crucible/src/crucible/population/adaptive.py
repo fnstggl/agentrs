@@ -6,15 +6,25 @@ one batched forward pass:
 
     action_i ~ policy_theta_k(observation_i, memory_i, preferences_i, goals_i, resources_i)
 
-`act_batch(features, memory)` returns the chosen candidate and the new memory (a GRU of the old memory and the
-current observation, which includes the outcome of the previous visit). The decision is the resource-visit choice of
-the `web` activity (module `popweb`): which known resource to visit, or to explore something new.
+Two decisions of a class-2 individual are taken by its group's network (both are batched forward passes over the
+cohort of the group's members deciding at that time):
 
-Learning is online, from each member's own experience. After every visit the realised utility is paired with the
-decision's inputs into an example blob (content-addressed, referenced by event `pop_adaptive.examples`). The
-process `pop_adaptive.learn` (default every 6 simulated hours) trains the group's network on its unused examples
-(regression of predicted on realised utility; Adam, a fresh optimizer each round) and records `pop.policy_update
-{group, step, loss_before, loss, weights_hash, n_examples, examples, checkpoint?}`. The update is deterministic (CPU,
+* **which activity a session is spent on** (`choose_activity`, called by the population's tick): every registered
+  activity is a candidate with the individual's habit for it, whether it serves one of the individual's goals,
+  whether it was the last one, and the class-1 preference for it; this decision also steps the individual's
+  personal memory (a GRU of the old memory and the current observation, which includes the outcome of the previous
+  session), once per session;
+* **which web resource to visit** (`choose`, called by `popweb`): which known resource, or to explore something new,
+  scored with the current memory.
+
+Learning is online, from each member's own experience. The realised utility of a session (activity decisions) and of
+a visit (resource decisions) is paired with the decision's inputs into example blobs (content-addressed, event
+`pop_adaptive.examples`, `kind` 1 / 0). The process `pop_adaptive.learn` (default every 6 simulated hours) trains the
+group's network on its unused examples: regression of predicted on realised utility (Adam, a fresh optimizer each
+round); the activity examples of each member are replayed as a SEQUENCE through the GRU (backpropagation through
+time over up to `bptt` consecutive sessions, starting from the memory stored before the first), so the personal
+memory learns to carry what the individual's own history says beyond its observation. Every update records
+`pop.policy_update {group, step, loss_before, loss, weights_hash, n_examples, examples, checkpoint?}`. The update is deterministic (CPU,
 one thread, minibatches drawn from a generator keyed by group and step), so loading a snapshot rebuilds the weights
 from the last checkpoint plus the logged updates and checks every weights hash. Inference goes through
 `substrate.inference.recorded` (regeneration does not rerun it).
@@ -37,6 +47,25 @@ from . import text
 from .schema import RES_TABLE, TABLE
 
 N_KINDS = 7
+MAX_ACT = 32
+ACT_DIM = 4 + MAX_ACT
+
+
+def _sequences(act: dict, L: int) -> list:
+    """Indices of each member's activity examples in time order, cut into runs of at most L consecutive sessions."""
+    order = np.lexsort((act["t"], act["ind"]))
+    out = []
+    cur, last = [], None
+    for q in order.tolist():
+        i = int(act["ind"][q])
+        if i != last or len(cur) >= L:
+            if cur:
+                out.append(cur)
+            cur, last = [], i
+        cur.append(q)
+    if cur:
+        out.append(cur)
+    return out
 
 
 def _torch():
@@ -45,9 +74,11 @@ def _torch():
 
 
 bus.event_type("pop_adaptive.examples", S.obj({"group": {"type": "integer"}, "ref": {"type": "string"},
-                                               "n": {"type": "integer"}, "t": {"type": "integer"}},
+                                               "n": {"type": "integer"}, "t": {"type": "integer"},
+                                               "kind": {"type": "integer"}},
                                               ["group", "ref", "n", "t"]), owner="pop_adaptive",
-               doc="training examples (decision inputs + realised utility) of one adaptive policy group")
+               doc="training examples (decision inputs + realised utility) of one adaptive policy group; kind 0: "
+                   "resource choice, 1: activity choice")
 bus.event_type("pop_adaptive.group", S.obj({"group": {"type": "integer"}, "learning": {"type": "boolean"},
                                             "memory": {"type": "boolean"}, "hidden": {"type": "integer"},
                                             "seed": {"type": "integer"}, "copy_of": {"type": ["integer", "null"]},
@@ -60,11 +91,12 @@ class AdaptivePolicy:
     learn(batch) -> {loss, weights_hash, n})."""
 
     def __init__(self, group: int, obs_dim: int, cand_dim: int, mem_dim: int, hidden: int = 256, seed: int = 0,
-                 memory: bool = True):
+                 memory: bool = True, bptt: int = 12):
         nets = _torch()
         self.group, self.obs_dim, self.cand_dim, self.mem_dim = group, obs_dim, cand_dim, mem_dim
         self.use_memory = memory
-        self.net = nets.AdaptiveNet(obs_dim, cand_dim, mem_dim, hidden)
+        self.bptt = int(bptt)
+        self.net = nets.AdaptiveNet(obs_dim, cand_dim, mem_dim, hidden, ACT_DIM)
         nets.init_params(self.net, np.random.default_rng(seed))
         self.net.eval()
         self._hash = None
@@ -87,13 +119,27 @@ class AdaptivePolicy:
         self._hash = None
 
     def scores(self, obs: np.ndarray, mem: np.ndarray, cand: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Resource scores with the CURRENT memory (the memory is stepped once per session, by the activity
+        decision); returns (scores [B, K], memory unchanged)."""
         import torch
         nets = _torch()
         with torch.no_grad(), nets.deterministic():
             m = torch.from_numpy(mem.astype(np.float32)) if self.use_memory else torch.zeros(len(obs), self.mem_dim)
-            s, m2 = self.net(torch.from_numpy(obs.astype(np.float32)), m, torch.from_numpy(cand.astype(np.float32)))
-        m2 = m2.numpy() if self.use_memory else np.zeros((len(obs), self.mem_dim), np.float32)
-        return s.numpy().astype(np.float32), m2.astype(np.float32)
+            h = self.net.encode(torch.from_numpy(obs.astype(np.float32)))
+            s = self.net.score(h, m, torch.from_numpy(cand.astype(np.float32)))
+        return s.numpy().astype(np.float32), (mem if self.use_memory else np.zeros_like(mem)).astype(np.float32)
+
+    def act_scores(self, obs: np.ndarray, mem: np.ndarray, acand: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Activity scores and the stepped memory: (scores [B, A], new memory [B, M])."""
+        import torch
+        nets = _torch()
+        with torch.no_grad(), nets.deterministic():
+            m = torch.from_numpy(mem.astype(np.float32)) if self.use_memory else torch.zeros(len(obs), self.mem_dim)
+            h, m2 = self.net.memory(torch.from_numpy(obs.astype(np.float32)), m)
+            if not self.use_memory:
+                m2 = torch.zeros_like(m2)
+            s = self.net.score_act(h, m2, torch.from_numpy(acand.astype(np.float32)))
+        return s.numpy().astype(np.float32), m2.numpy().astype(np.float32)
 
     def act_batch(self, features: dict, memory: np.ndarray, rng: np.random.Generator | None = None,
                   temperature: float = 0.15) -> tuple[np.ndarray, np.ndarray]:
@@ -104,47 +150,109 @@ class AdaptivePolicy:
         return np.argmax(s, axis=1), m2
 
     def loss_on(self, batch: dict) -> float:
+        """Mean squared error of the predicted utilities on `batch` (`_load_examples` form: {"web": ..., "act": ...}
+        or a bare web batch), weighted by examples."""
         import torch
         nets = _torch()
+        b = batch if "web" in batch or "act" in batch else {"web": batch}
         with torch.no_grad(), nets.deterministic():
-            return float(self._loss(batch, np.arange(len(batch["reward"]))).item())
+            tot, n = 0.0, 0
+            w = b.get("web")
+            if w is not None and len(w["reward"]):
+                tot += float(self._web_loss(w, np.arange(len(w["reward"]))).item()) * len(w["reward"])
+                n += len(w["reward"])
+            a = b.get("act")
+            if a is not None and len(a["reward"]):
+                seqs = _sequences(a, self.bptt)
+                l, k = self._act_loss(a, seqs, np.arange(len(seqs)))
+                tot += float(l.item()) * k
+                n += k
+        return tot / max(n, 1)
 
-    def _loss(self, batch, ix):
+    def _web_loss(self, batch, ix):
         import torch
         obs = torch.from_numpy(batch["obs"][ix].astype(np.float32))
         mem = torch.from_numpy(batch["mem"][ix].astype(np.float32)) if self.use_memory else \
             torch.zeros(len(ix), self.mem_dim)
         cand = torch.from_numpy(batch["cand"][ix].astype(np.float32))[:, None, :]
         r = torch.from_numpy(batch["reward"][ix].astype(np.float32))
-        h, m2 = self.net.memory(obs, mem)
-        if not self.use_memory:
-            m2 = torch.zeros_like(m2)
-        pred = self.net.score(h, m2, cand)[:, 0]
+        pred = self.net.score(self.net.encode(obs), mem, cand)[:, 0]
         return torch.mean((pred - r) ** 2)
 
+    def _act_loss(self, batch, seqs: list, which: np.ndarray):
+        """Sequence loss of activity examples: each sequence (one member's consecutive sessions) is replayed through
+        the GRU from the memory stored before its first session (backpropagation through time)."""
+        import torch
+        sel = [seqs[int(q)] for q in which]
+        L = max(len(x) for x in sel)
+        B = len(sel)
+        pos = np.full((B, L), -1, np.int64)
+        for q, x in enumerate(sel):
+            pos[q, :len(x)] = x
+        valid = pos >= 0
+        p0 = np.where(valid, pos, pos[:, :1])
+        obs = torch.from_numpy(batch["obs"][p0].astype(np.float32))            # B, L, obs
+        ac = torch.from_numpy(batch["acand"][p0].astype(np.float32))           # B, L, act_dim
+        r = torch.from_numpy(batch["reward"][p0].astype(np.float32))           # B, L
+        vm = torch.from_numpy(valid.astype(np.float32))
+        m = torch.from_numpy(batch["mem"][pos[:, 0]].astype(np.float32)) if self.use_memory else \
+            torch.zeros(B, self.mem_dim)
+        se = torch.zeros(())
+        for k in range(L):
+            h, m2 = self.net.memory(obs[:, k], m)
+            if not self.use_memory:
+                m2 = torch.zeros_like(m2)
+            pred = self.net.score_act(h, m2, ac[:, k][:, None, :])[:, 0]
+            se = se + (((pred - r[:, k]) ** 2) * vm[:, k]).sum()
+            # a padded step keeps the memory of the last real session
+            m = torch.where(vm[:, k:k + 1] > 0, m2, m)
+        k = int(valid.sum())
+        return se / max(k, 1), k
+
     def learn(self, batch: dict, steps: int = 16, batch_size: int = 256, lr: float = 1e-3, seed: int = 0) -> dict:
-        """Train on `batch` {obs, mem, cand (chosen candidate features), reward}: `steps` Adam steps on minibatches
-        drawn by a numpy generator from `seed`. Deterministic. Returns {loss, loss_before, weights_hash, n, steps}."""
+        """Train on `batch` ({"web": {obs, mem, cand (chosen candidate), reward}, "act": {obs, mem, acand, reward,
+        ind, t}} or a bare web batch): `steps` Adam steps, each on a minibatch of web examples plus a minibatch of
+        members' activity sequences, drawn by a numpy generator from `seed`. Deterministic. Returns {loss,
+        loss_before, weights_hash, n, steps}."""
         import torch
         nets = _torch()
-        n = len(batch["reward"])
+        b = batch if "web" in batch or "act" in batch else {"web": batch}
+        web, act = b.get("web"), b.get("act")
+        nw = len(web["reward"]) if web is not None else 0
+        seqs = _sequences(act, self.bptt) if act is not None and len(act["reward"]) else []
+        na = len(act["reward"]) if seqs else 0
         rng = np.random.default_rng(seed)
+
+        def total(iw, ia):
+            parts, ws = [], []
+            if nw and iw is not None:
+                parts.append(self._web_loss(web, iw))
+                ws.append(len(iw))
+            if seqs and ia is not None:
+                la, k = self._act_loss(act, seqs, ia)
+                parts.append(la)
+                ws.append(k)
+            if not parts:
+                return torch.zeros(())
+            return sum(p * (w_ / sum(ws)) for p, w_ in zip(parts, ws))
         with nets.deterministic():
             self.net.train()
             opt = torch.optim.Adam(self.net.parameters(), lr=lr)
             with torch.no_grad():
-                before = float(self._loss(batch, np.arange(n)).item())
+                before = float(total(np.arange(nw) if nw else None, np.arange(len(seqs)) if seqs else None).item())
             for _ in range(int(steps)):
-                ix = rng.choice(n, size=min(batch_size, n), replace=n < batch_size)
+                iw = rng.choice(nw, size=min(batch_size, nw), replace=nw < batch_size) if nw else None
+                ia = rng.choice(len(seqs), size=min(64, len(seqs)), replace=len(seqs) < 64) if seqs else None
                 opt.zero_grad()
-                loss = self._loss(batch, ix)
+                loss = total(iw, ia)
                 loss.backward()
                 opt.step()
             self.net.eval()
             with torch.no_grad():
-                after = float(self._loss(batch, np.arange(n)).item())
+                after = float(total(np.arange(nw) if nw else None, np.arange(len(seqs)) if seqs else None).item())
         self._hash = None
-        return {"loss": after, "loss_before": before, "weights_hash": self.weights_hash(), "n": n, "steps": int(steps)}
+        return {"loss": after, "loss_before": before, "weights_hash": self.weights_hash(), "n": nw + na,
+                "steps": int(steps), "web": nw, "act": na}
 
 
 def _cand_features(w, feats: dict, K: int) -> tuple[np.ndarray, np.ndarray]:
@@ -212,7 +320,8 @@ class PopAdaptive(Module):
         world.state.declare_table("pop_examples", index=("group",))
         world.state.declare_table("pop_groups")
         self.cfg = {"learn_every_s": 21600, "steps": 16, "batch": 256, "lr": 1e-3, "min_examples": 64,
-                    "checkpoint_every": 4, "temperature": 0.15, "hidden": 256, **self.config}
+                    "checkpoint_every": 4, "temperature": 0.15, "hidden": 256, "bptt": 12, "activities": True,
+                    **self.config}
         self.cfg["groups"] = list(self.config.get("groups") or [{"id": 0, "share": 1.0}])
         bus.enforce(world, owner=self.name)
 
@@ -246,7 +355,8 @@ class PopAdaptive(Module):
 
     def _new_policy(self, w, rec) -> AdaptivePolicy:
         pol = AdaptivePolicy(rec["group"], self.obs_dim, self.cand_dim, self.M, rec["hidden"],
-                             seed=int(rec["seed"]) + 7919 * int(w.spec.seed), memory=rec["memory"])
+                             seed=int(rec["seed"]) + 7919 * int(w.spec.seed), memory=rec["memory"],
+                             bptt=int(self.cfg["bptt"]))
         self._rt(w)[rec["group"]] = pol
         return pol
 
@@ -314,29 +424,102 @@ class PopAdaptive(Module):
         mem = columns.col(w, TABLE, "memory")[idx].astype(np.float32)
         groups = columns.col(w, TABLE, "policy_group")[idx].astype(np.int64)
         pick = np.full(idx.size, K, np.int64)
-        new_mem = mem.copy()
         stats = self._stats(w)
         for gid in sorted(set(groups.tolist())):
             sel = np.flatnonzero(groups == gid)
             pol = self.policy(w, gid)
             inp = {"obs": obs[sel], "mem": mem[sel], "cand": cand[sel], "mask": mask[sel]}
             out = inference.recorded(ctx, f"pop.adaptive.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp,
-                                     lambda pol=pol, inp=inp: dict(zip(("scores", "memory"),
-                                                                       pol.scores(inp["obs"], inp["mem"], inp["cand"]))))
+                                     lambda pol=pol, inp=inp: {"scores": pol.scores(inp["obs"], inp["mem"],
+                                                                                    inp["cand"])[0]})
             s = np.where(mask[sel], out["scores"] + rng.gumbel(size=out["scores"].shape) *
                          float(self.cfg["temperature"]), -np.inf)
             pick[sel] = np.argmax(s, axis=1)
-            new_mem[sel] = out["memory"]
             stats["max_batch"] = max(stats["max_batch"], int(sel.size))
             stats["calls"] += 1
             stats["decisions"] += int(sel.size)
-        columns.batch(ctx, TABLE, "pop_adaptive.memory", idx, {"memory": new_mem.astype(np.float16)},
-                      extra={"t": int(ctx.now), "n": int(idx.size)})
         pend = w.runtime.setdefault("pop_adaptive.pending", {})
         pend.clear()
         pend["seq"] = w.seq
         pend["rows"] = {int(i): (obs[j], mem[j], cand[j, pick[j]], int(groups[j])) for j, i in enumerate(idx)}
         return pick
+
+    def choose_activity(self, ctx: Ctx, idx: np.ndarray, slots: np.ndarray, base_logits: np.ndarray, rng
+                        ) -> np.ndarray:
+        """The activity of a session for adaptive participants `idx` (called by the population's tick): one batched
+        forward pass per policy group over every registered activity, which also steps each member's personal
+        memory (written as one recorded batch). Returns the chosen activity slot per row. With config
+        `activities: false` the class-1 choice (`base_logits`) is kept and only the memory is stepped."""
+        from .api import record_decisions
+        w = ctx.world
+        reg = w.runtime.get("pop.activities") or {"order": [], "spec": {}}
+        A = int(len(slots))
+        obs = obs_features(w, idx)
+        mem = columns.col(w, TABLE, "memory")[idx].astype(np.float32)
+        groups = columns.col(w, TABLE, "policy_group")[idx].astype(np.int64)
+        habit = columns.col(w, TABLE, "habit")[idx].astype(np.float32)
+        goals = columns.col(w, TABLE, "goals")[idx]
+        last = columns.col(w, TABLE, "last_activity")[idx].astype(np.int64)
+        ac = np.zeros((idx.size, A, ACT_DIM), np.float32)
+        for j, sl in enumerate(np.asarray(slots).tolist()):
+            name = reg["order"][j] if j < len(reg["order"]) else None
+            gs = reg["spec"][name]["goals"] if name else ()
+            ac[:, j, 0] = habit[:, sl] / 4.0
+            ac[:, j, 1] = np.isin(goals, list(gs)).any(axis=1) if gs else 0.0
+            ac[:, j, 2] = last == sl
+            ac[:, j, 3] = np.asarray(base_logits[:, j], np.float32) / 4.0
+            ac[:, j, 4 + min(int(sl), MAX_ACT - 1)] = 1.0
+        pick = np.argmax(base_logits, axis=1)
+        new_mem = mem.copy()
+        stats = self._stats(w)
+        for gid in sorted(set(groups.tolist())):
+            sel = np.flatnonzero(groups == gid)
+            pol = self.policy(w, gid)
+            inp = {"obs": obs[sel], "mem": mem[sel], "acand": ac[sel]}
+            out = inference.recorded(ctx, f"pop.adaptive_act.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp,
+                                     lambda pol=pol, inp=inp: dict(zip(("scores", "memory"), pol.act_scores(
+                                         inp["obs"], inp["mem"], inp["acand"]))))
+            if self.cfg.get("activities", True):
+                s_ = out["scores"] + rng.gumbel(size=out["scores"].shape) * float(self.cfg["temperature"])
+                pick[sel] = np.argmax(s_, axis=1)
+            new_mem[sel] = out["memory"]
+            stats["max_batch_act"] = max(stats.get("max_batch_act", 0), int(sel.size))
+            stats["act_decisions"] = stats.get("act_decisions", 0) + int(sel.size)
+        record_decisions(ctx, "pop_adaptive.memory", idx, {"memory": new_mem.astype(np.float16)},
+                         model_id="adaptive_policy", model_version="2", fidelity_id="pop.decision.adaptive_policy",
+                         extra={"t": int(ctx.now), "n": int(idx.size),
+                                "groups": sorted(int(g) for g in set(groups.tolist()))})
+        pend = w.runtime.setdefault("pop_adaptive.pending_act", {})
+        pend.clear()
+        sl_arr = np.asarray(slots)
+        pend["rows"] = {int(i): (obs[j], mem[j], ac[j], int(groups[j]), sl_arr) for j, i in enumerate(idx)}
+        return sl_arr[pick]
+
+    def reward_activity(self, ctx: Ctx, idx: np.ndarray, U: np.ndarray, chosen: np.ndarray | None = None) -> None:
+        """Pair the session decisions of `idx` with the utility of the session they took (the activity actually
+        used, `chosen` slots, which a triggered wake-up may have forced); one example blob per group."""
+        pend = ctx.world.runtime.get("pop_adaptive.pending_act") or {}
+        rows = pend.get("rows") or {}
+        if not rows:
+            return
+        by: dict[int, list] = {}
+        for j, i in enumerate(np.asarray(idx).tolist()):
+            r = rows.pop(int(i), None)
+            if r is None:
+                continue
+            obs, mem, ac, g, sl_arr = r
+            k = int(np.flatnonzero(sl_arr == int(chosen[j]))[0]) if chosen is not None and \
+                np.any(sl_arr == int(chosen[j])) else None
+            if k is None:
+                continue
+            by.setdefault(g, []).append((int(i), obs, mem, ac[k], float(U[j])))
+        for gid, lst in sorted(by.items()):
+            arr = {"ind": np.array([x[0] for x in lst], np.int32), "obs": np.stack([x[1] for x in lst]),
+                   "mem": np.stack([x[2] for x in lst]), "acand": np.stack([x[3] for x in lst]),
+                   "reward": np.array([x[4] for x in lst], np.float32), "t": np.full(len(lst), ctx.now, np.int64)}
+            ref = artifacts.put_array_blob(ctx, arr)
+            bus.emit(ctx, "pop_adaptive.examples", {"group": int(gid), "ref": ref, "n": len(lst), "t": int(ctx.now),
+                                                    "kind": 1}, vis="internal")
 
     def _stats(self, w) -> dict:
         return w.runtime.setdefault("pop_adaptive.stats", {"max_batch": 0, "calls": 0, "decisions": 0})
@@ -357,12 +540,20 @@ class PopAdaptive(Module):
                    "mem": np.stack([x[1][1] for x in lst]), "cand": np.stack([x[1][2] for x in lst]),
                    "reward": np.array([x[2] for x in lst], np.float32), "t": np.full(len(lst), ctx.now, np.int64)}
             ref = artifacts.put_array_blob(ctx, arr)
-            bus.emit(ctx, "pop_adaptive.examples", {"group": int(gid), "ref": ref, "n": len(lst), "t": int(ctx.now)},
-                     vis="internal")
+            bus.emit(ctx, "pop_adaptive.examples", {"group": int(gid), "ref": ref, "n": len(lst), "t": int(ctx.now),
+                                                    "kind": 0}, vis="internal")
 
     def _load_examples(self, world, refs: list[str]) -> dict:
+        """{"web": {obs, mem, cand, reward, ind, t} | None, "act": {obs, mem, acand, reward, ind, t} | None}."""
         parts = [artifacts.get_array_blob(world, r) for r in refs]
-        return {k: np.concatenate([p[k] for p in parts]) for k in ("obs", "mem", "cand", "reward", "ind")}
+        web = [p for p in parts if "cand" in p]
+        act = [p for p in parts if "acand" in p]
+        out = {"web": None, "act": None}
+        if web:
+            out["web"] = {k: np.concatenate([p[k] for p in web]) for k in ("obs", "mem", "cand", "reward", "ind", "t")}
+        if act:
+            out["act"] = {k: np.concatenate([p[k] for p in act]) for k in ("obs", "mem", "acand", "reward", "ind", "t")}
+        return out
 
     # ------------------------------------------------------------------ learning
     @process("learn")
@@ -445,7 +636,8 @@ class PopAdaptive(Module):
     @applier("pop_adaptive.examples")
     def ap_examples(self, ev):
         p = ev.payload
-        self.world.state.put("pop_examples", p["ref"], {"group": p["group"], "n": p["n"], "t": p["t"], "used": None})
+        self.world.state.put("pop_examples", p["ref"], {"group": p["group"], "n": p["n"], "t": p["t"], "used": None,
+                                                        "kind": int(p.get("kind", 0))})
 
     @applier("pop_adaptive.used")
     def ap_used(self, ev):

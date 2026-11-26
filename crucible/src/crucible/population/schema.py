@@ -104,8 +104,26 @@ def columns(d: dict) -> dict:
         "communities": ("int32", (d["Q"],), NONE_I32),
         # class 2 personal memory
         "memory": ("float16", (M,), 0.0),
+        # article reading history on the web (inputs of article_open_semantic@1): views, the four most read topics
+        "web_views": ("int32", (), 0),
+        "wtopic": ("int16", (4,), -1),
+        "wtopic_n": ("uint16", (4,), 0),
+        "web_last_at": ("int64", (), -1),
+        # order history with the shops in `purchased` (inputs of customer_return@1), one entry per purchased slot
+        "pur_n": ("uint16", (d["U"],), 0),            # days with an order
+        "pur_first": ("int32", (d["U"],), -1),        # day of the first order
+        "pur_last": ("int32", (d["U"],), -1),         # day of the last order
+        "pur_spend": ("int64", (d["U"],), 0),         # cents spent in total
+        "pur_gapsum": ("int32", (d["U"],), 0),        # sum of the days between successive orders
+        "pur_prod": ("int16", (d["U"],), -1),         # product index of the last order (the /p/<i> page)
+        # a repurchase intention (customer_return@1): which shop, when
+        "intent_res": ("int32", (), NONE_I32),
+        "intent_at": ("int64", (), NEVER),
+        "intent_prod": ("int16", (), -1),
     }
     cols.update(attention.COLUMNS)
+    from .activation import COLUMNS as ACTIVATION
+    cols.update(ACTIVATION)
     return cols
 
 
@@ -145,11 +163,11 @@ FIELDS = {
     "trust_relationships": ["contact_trust"],
     "social_connections": ["contacts"],
     "habits": ["habit"],
-    "product_usage_history": ["known", "known_sat", "known_n", "purchased"],
+    "product_usage_history": ["known", "known_sat", "known_n", "purchased", "pur_n", "pur_spend"],
     "community_memberships": ["communities"],
     "employment": ["employer"],
     "satisfaction": ["satisfaction"],
     "beliefs": ["beliefs"],
     "current_commitments": ["commit_start_min", "commit_len_min", "wake_at"],
-    "behavioral_history": ["recent", "n_sessions", "last_activity", "n_purchases"],
+    "behavioral_history": ["recent", "n_sessions", "last_activity", "n_purchases", "hist_sess", "last_active_day"],
 }

@@ -13,16 +13,18 @@ Stable API (other workstreams import only these names):
     class_members(world, cls) -> np.ndarray
     record_decisions(ctx, kind, idx, values, *, model_id, model_version, fidelity_id, mode="set", table=None) -> str
     experience(ctx, idx, activity, utility, *, item_vecs=None, satisfaction=None)
+    session_budget(world, idx) -> np.ndarray             minutes the current session may still take (session length)
 
 plus `interest_coords` / `to_coords` (the compact coordinates the population stores) and the evaluator-side
 `check_provenance`. Kernel modules live in `population/modules.py` (`crucible.load_all_modules()` imports it).
 """
 from .core import (activities, activity_slot, class_members, features, n_individuals, register_activity,  # noqa: F401
-                   register_class_runtime, spendable, wake)
+                   register_class_runtime, session_budget, spendable, wake)
 from .api import (check_provenance, experience, interest_coords, interests, pay, participant_decision,  # noqa: F401
                   record_decisions, to_coords)
 from . import semantics  # noqa: F401
 
 __all__ = ["register_activity", "n_individuals", "features", "interests", "spendable", "pay", "wake",
            "class_members", "record_decisions", "experience", "interest_coords", "to_coords", "check_provenance",
-           "activities", "activity_slot", "participant_decision", "semantics", "register_class_runtime"]
+           "activities", "activity_slot", "participant_decision", "semantics", "register_class_runtime",
+           "session_budget"]

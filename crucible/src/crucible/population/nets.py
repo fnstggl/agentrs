@@ -59,17 +59,27 @@ def load_arrays(module: nn.Module, arrays: dict[str, np.ndarray]) -> None:
 
 
 class AdaptiveNet(nn.Module):
-    def __init__(self, obs_dim: int, cand_dim: int, mem_dim: int, hidden: int = 256):
+    """Class 2: observation encoder, GRU personal memory, a resource scorer (which web resource to visit) and an
+    activity scorer (which activity to spend a session on); both scorers predict the utility the individual will
+    experience. One network per policy group, shared by its members."""
+
+    def __init__(self, obs_dim: int, cand_dim: int, mem_dim: int, hidden: int = 256, act_dim: int = 36):
         super().__init__()
-        self.obs_dim, self.cand_dim, self.mem_dim, self.hidden = obs_dim, cand_dim, mem_dim, hidden
+        self.obs_dim, self.cand_dim, self.mem_dim, self.hidden, self.act_dim = obs_dim, cand_dim, mem_dim, hidden, \
+            act_dim
         self.enc = nn.Linear(obs_dim, hidden)
         self.gru = nn.GRUCell(hidden, mem_dim)
         self.s1 = nn.Linear(hidden + mem_dim + cand_dim, hidden)
         self.s2 = nn.Linear(hidden, hidden)
         self.s3 = nn.Linear(hidden, 1)
+        self.a1 = nn.Linear(hidden + mem_dim + act_dim, hidden // 2)
+        self.a2 = nn.Linear(hidden // 2, 1)
+
+    def encode(self, obs: torch.Tensor) -> torch.Tensor:
+        return torch.relu(self.enc(obs))
 
     def memory(self, obs: torch.Tensor, mem: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        h = torch.relu(self.enc(obs))
+        h = self.encode(obs)
         return h, self.gru(h, mem)
 
     def score(self, h: torch.Tensor, mem: torch.Tensor, cand: torch.Tensor) -> torch.Tensor:
@@ -77,6 +87,12 @@ class AdaptiveNet(nn.Module):
         B, K, _ = cand.shape
         x = torch.cat([h[:, None, :].expand(B, K, h.shape[1]), mem[:, None, :].expand(B, K, mem.shape[1]), cand], -1)
         return self.s3(torch.relu(self.s2(torch.relu(self.s1(x))))).squeeze(-1)
+
+    def score_act(self, h: torch.Tensor, mem: torch.Tensor, acand: torch.Tensor) -> torch.Tensor:
+        """h [B, hidden], mem [B, M], acand [B, A, act_dim] -> predicted session utility [B, A]."""
+        B, A, _ = acand.shape
+        x = torch.cat([h[:, None, :].expand(B, A, h.shape[1]), mem[:, None, :].expand(B, A, mem.shape[1]), acand], -1)
+        return self.a2(torch.relu(self.a1(x))).squeeze(-1)
 
     def forward(self, obs, mem, cand):
         h, m2 = self.memory(obs, mem)
