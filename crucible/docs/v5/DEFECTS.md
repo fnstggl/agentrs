@@ -1877,7 +1877,7 @@ B_population verdict) and P's own findings.
   "finding": null
  },
  "status": "open",
- "summary": "Gate A.5, settled by measurement (wave 3): the committed 4.0 record docs/experiments/demo_lifetime.json (bazaar, seed 7, 30 days; 73,617 events, final digest dc8a6794) is stale in 4.0 itself: c07098b regenerates 78,353 events, digest 9b08db59, identically in two runs, and the commit that last wrote the record (3df5faf) regenerates 73,617 events but digest 2b679e64, so even there the digest does not reproduce. Independently, v5 changes 4.0's own trajectory (bisected over the first-parent merges): 7ce3db0 (kernel, wave 1) equals c07098b; 1c3d69d (observation-only L, D-19) keeps 78,353 events but changes the final state digest (6fa80946, unchanged through 2d0f4ce); 33b5f2b (security O, D-20 parent-measured metering) changes the trajectory to 74,735 events; the wave-2a merges give 74,280 events, digest 753ff574, at 87a6c54. Classification: the record is v4-self-irreproducible, and the merged tree is a genuine mismatch against c07098b caused by D-19 (state) and D-20 (billing by measured CPU time instead of executed lines), i.e. a requirement conflict between A.5 and D-19/D-20 like A.1's (DEF-P-24); A.5 cannot pass without a decision."
+ "summary": "Gate A.5, settled by measurement (wave 3): the committed 4.0 record docs/experiments/demo_lifetime.json (bazaar, seed 7, 30 days; 73,617 events, final digest dc8a6794) is stale in 4.0 itself: c07098b regenerates 78,353 events, digest 9b08db59, identically in two runs, and the commit that last wrote the record (3df5faf) regenerates 73,617 events but digest 2b679e64, so even there the digest does not reproduce. Independently, v5 changes 4.0's own trajectory (bisected over the first-parent merges): 7ce3db0 (kernel, wave 1) equals c07098b; 1c3d69d (observation-only L, D-19) keeps 78,353 events but changes the final state digest (6fa80946, unchanged through 2d0f4ce); 33b5f2b (security O, D-20 parent-measured metering) changes the trajectory to 74,735 events; the wave-2a merges give 74,280 events, digest 753ff574, at 87a6c54. Classification: the record is v4-self-irreproducible, and the merged tree is a genuine mismatch against c07098b caused by D-19 (state) and D-20 (billing by measured CPU time instead of executed lines), i.e. a requirement conflict between A.5 and D-19/D-20 like A.1's (DEF-P-24); A.5 cannot pass without a decision. Full Gate A.5 on 87a6c54 (21 min, 1 CPU): 148 of 148 4.0 world trajectories in 4.0's deterministic mode equal c07098b's (0 nondeterministic); of 18 attempted records 10 reproduce exactly, 1 is v4-self-irreproducible, 7 mismatch (acceptance records A, B, G, H, I, M and demo_lifetime), and demo_lifetime gave 78,900 events in that run against 74,280 in another fresh process at the same commit: see DEF-P-27."
 }
 ```
 
@@ -2266,5 +2266,27 @@ B_population verdict) and P's own findings.
  },
  "status": "open",
  "summary": "4.0 test tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living is order-dependent on the merged tree 87a6c54: it passes alone but fails when tests/test_learners.py ran earlier in the same process (the junk service gets long_term_adoption 1.0 instead of 0.0); at c07098b the same pair passes (71 passed). Suspected cause: process-wide state introduced since 4.0, most likely the D-20 deterministic-cost memo (crucible.sandbox.metering.MEMO, keyed by world lineage, which bills the first parent-side measurement of a computation for every later identical one in the process) or measured-CPU billing replacing the executed-line count; not yet confirmed."
+}
+```
+
+### DEF-P-27 (critical, open): Since the D-20 merge (33b5f2b), 4.0 open worlds whose agents run sandboxed programs are no longer reproducible
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-27",
+ "owner": "O (D-20 metering) / orchestrator decision",
+ "requirements": [
+  "A.5",
+  "A.1",
+  "SP-13.7"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "workstream P wave 3 (c5c/w3-qa): adversarial verification",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "Since the D-20 merge (33b5f2b), 4.0 open worlds whose agents run sandboxed programs are no longer reproducible across processes: the 'deterministic' cost model bills the first parent-measured CPU time of a computation (crucible.sandbox.metering.MEMO, per process), so each fresh process bills differently. Measured: demo_lifetime at the same commit 87a6c54 gives 74,280 events in one fresh process and 78,900 in another (4.0: 78,353 in every run; 2d0f4ce, just before the D-20 merge: 78,353); Gate A.5 finds 6 of the 16 4.0 acceptance records changed by small amounts (e.g. A_real_software_creation requests_metered 15,629 vs 15,458; M_reproducibility events 7,362 vs 7,367). 4.0's reproducibility claim (record M) no longer holds in the merged tree. Needs a decision: keep a deterministic, measurement-free work count (4.0's executed-line model or a parent-side instruction count) for the deterministic cost model and use parent-measured CPU only for billing real hosts, or accept and document the loss under change control."
 }
 ```
