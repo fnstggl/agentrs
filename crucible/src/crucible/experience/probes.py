@@ -446,7 +446,7 @@ def probe_rapid(single: tuple = ("net_routing", "hc_confounded", "ch_sign_revers
         if "rapid.query" not in names:
             continue
         env.execute(a, {"tool": "rapid.query", "args": {"target": "spec"}})
-        if env.multi:
+        if getattr(env, "multi", False):
             env.advance(env.tick_s)
         res = env.observe(a)["last_result"] or {}
         P.check("key_name")
