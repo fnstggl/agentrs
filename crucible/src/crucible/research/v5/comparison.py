@@ -1,6 +1,8 @@
 """The A/B/C/D training-diversity comparison and its controls (MASTER_SPEC Part 15.5; U.5, SP-15.5, SP-14.2).
 
-Arms (one identical learner, identical seeds, matched budgets):
+Arms (one identical learner, identical seeds, matched budgets; the lever learners act only in Tier 1, so arms C and D
+are run with the architecture-neutral `crucible.experience.ReferenceLearner` (``learner="reference"``), which acts
+in every tier through the tools of the world it is in):
 
     A  the original six 4.0 training families of CAM 7.0 (abm_congestion, abm_utility, abm_wom, scm_additive,
        scm_delay, scm_gate; Tier 1 4.0 mechanism tasks, the rig.* interface)
@@ -104,6 +106,58 @@ def train_arm(arm: str, learner, *, mode: str, budget: float, seed: int, registr
             "sampler": s.shares()}
 
 
+NEUTRAL = "reference"          # the architecture-neutral learner (`crucible.experience.ReferenceLearner`)
+NEUTRAL_STEPS = 48            # decisions per episode of the neutral learner in a world without a tick horizon
+
+
+def _neutral_steps(env) -> int:
+    a = env.agents()[0]
+    left = (env.observe(a).get("numbers") or {}).get("world.ticks_left")
+    return int(left) if isinstance(left, (int, float)) and left > 0 else NEUTRAL_STEPS
+
+
+def train_arm_neutral(arm: str, learner, *, mode: str, budget: float, seed: int, registry: Registry,
+                      eval_families: Sequence[str]) -> dict:
+    """`train_arm` for the architecture-neutral learner, which acts in every tier through the tool schemas of the
+    world it is put in (rapid levers, the 4.0 rig, kernel tools of domains and civilisations): arms C and D train
+    one identical learner across tiers. Experience is counted in decisions (one per tick in Tier 1)."""
+    from ...experience.loop import run_learner
+    if mode not in BUDGET_MODES:
+        raise ValueError(mode)
+    s = Sampler(registry, arm_mixture(arm, registry, eval_families), seed=seed)
+    ticks, cpu, episodes, per_tier = 0, 0.0, 0, {}
+    while (ticks if mode == "experience" else cpu) < budget:
+        spec = s.next()
+        c0 = time.process_time()
+        env = make_env(spec, registry)
+        steps = _neutral_steps(env)
+        summ = run_learner(env, learner, steps)
+        used = time.process_time() - c0
+        s.report(spec, cpu_s=used, interactions=int(summ.get("world_changes", 0)), wall_s=float(summ.get("wall_s",
+                                                                                                         0.0)))
+        ticks += steps
+        cpu += used
+        episodes += 1
+        per_tier[spec["tier"]] = per_tier.get(spec["tier"], 0) + 1
+    return {"arm": arm, "mode": mode, "budget": budget, "ticks": ticks, "cpu_s": cpu, "episodes": episodes,
+            "overshoot": (ticks if mode == "experience" else cpu) - budget, "episodes_per_tier": per_tier,
+            "sampler": s.shares()}
+
+
+def score_set_neutral(registry: Registry, learner, worlds) -> list[float]:
+    """Normalised verified scores of the frozen neutral learner on Tier 1 evaluation worlds."""
+    from ...experience.loop import run_learner
+    from .episodes import verified_value
+    learner.freeze(True)
+    out = []
+    for f, sd in worlds:
+        env = build_env(registry[f], sd, {}, {"mode": "assigned"})
+        run_learner(env, learner, _neutral_steps(env), learn=False)
+        out.append(normalised(verified_value(env.verify()), references(registry[f], sd)))
+    learner.freeze(False)
+    return out
+
+
 def eval_set(registry: Registry, families: Sequence[str], seeds: Sequence[int] = (1_000_901, 1_000_902)) -> list:
     return [(f, s) for f in families for s in seeds]
 
@@ -132,6 +186,13 @@ def compare(arms: Sequence[str] = ARMS, *, learner: str = "meta", mode: str = "e
         rows, tr = [], []
         try:
             for sd in seeds:
+                if learner == NEUTRAL:
+                    from ...experience.reference import ReferenceLearner
+                    L = ReferenceLearner(seed=sd)
+                    tr.append(train_arm_neutral(arm, L, mode=mode, budget=budget, seed=sd, registry=reg,
+                                                eval_families=held))
+                    rows.append(score_set_neutral(reg, L, worlds))
+                    continue
                 L = LR.make(learner, sd)
                 tr.append(train_arm(arm, L, mode=mode, budget=budget, seed=sd, registry=reg, eval_families=held))
                 rows.append(score_set(reg, L, worlds, np.random.default_rng(77 + sd)))

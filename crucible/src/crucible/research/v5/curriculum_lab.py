@@ -206,9 +206,9 @@ def targeted_training_experiment(planted: Sequence[str] = tuple(PLANTED),
                                  seeds: Sequence[int] = (0, 1, 2), budget: int = 96, n_probe: int = 10,
                                  reference: Mapping | None = None) -> dict:
     """For each planted weakness: a `TargetableMeta` learner starting with that strategy is trained for `budget`
-    episodes either on curriculum-generated worlds (the curriculum measures it first and targets what it finds) or on
-    uniformly random generated worlds; both are scored before and after on held-out probes of the category the
-    curriculum targeted most. Statistic: improvement(targeted) - improvement(untargeted), paired by seed; p-value of
+    episodes either on worlds generated for the category the curriculum targets after measuring it (the
+    curriculum's targeted generator, `targeted_structure`; its random share is not part of this arm) or on uniformly
+    random generated worlds; both are scored before and after on held-out probes of that category. Statistic: improvement(targeted) - improvement(untargeted), paired by seed; p-value of
     a one-sided sign-flip permutation test over all (weakness, seed) pairs."""
     ref = dict(reference or reference_profile())
     pairs = []
@@ -227,10 +227,9 @@ def targeted_training_experiment(planted: Sequence[str] = tuple(PLANTED),
                 before = np.mean([_score(e, s, L, rng) for e, s in probes])
                 r2 = np.random.default_rng(300 + sd)
                 for i in range(budget):
-                    if arm == "targeted":
-                        it = cur.next()
-                        s = it.get("structure") or random_structure(r2)
-                    else:
+                    if arm == "targeted":            # worlds the curriculum's generator makes for its target
+                        s = targeted_structure(target, r2)
+                    else:                            # uniformly drawn worlds of the grammar
                         s = random_structure(r2)
                     e = generated_entry(s, proposer="training")
                     try:

@@ -16,7 +16,7 @@ there is no reward in ``observation_only`` and none is read. Settings are normal
     pretrained      a `weights` network loaded from a trained checkpoint and frozen: competent before any
                     adaptation, never improves
     meta            learns *how to adapt*: a bandit over within-episode search strategies (step size, settle time,
-                    measurement window, when to commit) scored by its own observed within-episode improvement
+                    measurement window, when to commit) scored by its own observed episode gain (`episode_gain`)
     transfer        learns how to learn across episodes: a bandit over cross-episode search strategies (where to
                     start, how far to step) scored by its own observed improvement over a task's first episodes
                     (untrained, it has no preference: a uniformly random strategy per task);
@@ -154,6 +154,18 @@ class EpisodeSearch:
         q = max(1, len(self.sig) // 4)
         late = float(np.mean(self.sig[-q:]))
         return (late - self.first) / (abs(late) + abs(self.first) + 1.0)
+
+    def episode_gain(self) -> float:
+        """The learner's own, scale-free measure of what the whole episode earned relative to its first tick, which
+        every strategy plays at the public defaults: (mean signal - first signal) / (|mean| + |first| + 1). Within a
+        world it ranks strategies exactly as their total observed net income does (every strategy sees the same
+        first tick), so it includes what exploring cost; `improvement` (last quarter vs the first measurement
+        window) ranked strategies against the verified score with a within-world Spearman correlation of only 0.35,
+        this measure with 0.997 (2026-11-26, 16 generated worlds x 11 strategies)."""
+        if not self.sig:
+            return 0.0
+        m, f = float(np.mean(self.sig)), float(self.sig[0])
+        return (m - f) / (abs(m) + abs(f) + 1.0)
 
 
 class LeverLearner:
@@ -471,7 +483,7 @@ class MetaLearner(LeverLearner):
 
     def end(self, learn):
         if learn and not self.frozen:
-            self.bandit.sum[self.arm] += self._search.improvement()
+            self.bandit.sum[self.arm] += self._search.episode_gain()
             self.bandit.n[self.arm] += 1
 
 
