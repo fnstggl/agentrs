@@ -1,7 +1,7 @@
 """Kernel module `embed` (host `embed`): the world's record of content embeddings.
 
 `encode(world, ref, modality, ctx=ctx)` stores every vector it records in this world in table `embeddings` (one
-`embed.recorded` event per batch, internal visibility), keyed by `cache_key(ref, modality)`. Later calls in the same
+`embed.recorded` event per batch, internal visibility), keyed by `world_key(ref, modality)` (no machine part). Later calls in the same
 world - and replays, regenerations, snapshots and forks of it - read the recorded vector instead of running a model,
 so a world's representations never drift with hardware or library versions.
 
@@ -22,7 +22,7 @@ import numpy as np
 from ...core import schema as S
 from ...core.errors import InvalidAction, NotFound
 from ...core.kernel import Module, applier, endpoint, register_module
-from . import MODALITIES, TABLE, EncodingError, cache_key, encode, encoder, similarity
+from . import MODALITIES, TABLE, EncodingError, encode, encoder, similarity, world_key
 
 REF_PATTERN = "^sha256:[0-9a-f]{64}$"
 
@@ -52,7 +52,7 @@ class Embeddings(Module):
         out = {}
         for m in MODALITIES:
             e = encoder(m)
-            out[m] = {"id": e.id, "version": e.version(), "dim": int(e.dim), "preprocessing_hash": e.preprocessing_hash()}
+            out[m] = {"id": e.id, "version": e.version(), "dim": int(e.dim), "preprocessing_hash": e.params_hash()}
         return {"encoders": out}      # nothing about what others encoded (the table is world-internal)
 
     @endpoint("compare", S.obj({"a": S.s_str("artifact reference sha256:<hex>", pattern=REF_PATTERN),
@@ -86,7 +86,7 @@ class Embeddings(Module):
             elif not np.all(np.isfinite(np.frombuffer(raw, dtype="<f4"))):
                 errs.append(f"embedding {key[:60]} is not finite")
             try:
-                if cache_key(rec["ref"], rec["modality"]).split("|")[0] != key.split("|")[0]:
+                if world_key(rec["ref"], rec["modality"]).split("|")[0] != key.split("|")[0]:
                     errs.append(f"embedding {key[:60]} is filed under the wrong artifact")
             except EncodingError:
                 errs.append(f"embedding {key[:60]} has a bad reference")

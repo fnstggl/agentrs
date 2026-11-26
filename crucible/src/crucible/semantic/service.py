@@ -12,11 +12,16 @@ What it does
   finish (end of turn or their own token bound) leave the batch, so short answers do not pay for long ones.
 * **Bounded generation.** Every request is capped at ``max_new_tokens`` (its own value, never more than the
   service's), prompts at ``max_context`` tokens (head and tail are kept and the request is flagged ``truncated``).
-* **Prefix (KV) caching.** A request may say that its first ``prefix_messages`` messages are shared (for example the
-  common system prompt of all participants). The key/value cache of that prefix is computed once, kept in a small
-  LRU on the shared weights, and expanded to the batch instead of recomputing the prefix for every row. Groups of
-  requests without a hint share their longest common token prefix when it is long enough. `choose` always computes
-  a prompt once and scores all its options against that one cache. `measure_prefix_cache` measures the effect.
+* **Prefix (KV) caching, exact by construction.** A request may say that its first ``prefix_messages`` messages are
+  shared (for example the common system prompt of all participants). Such a prompt is *always* evaluated in two
+  phases - the prefix alone (batch of one), then the rest of every row on top of the prefix's key/value cache - so
+  the arithmetic is the same whether the prefix KV comes from the LRU cache on the shared weights or is computed
+  afresh: switching the cache on or off cannot change an output (bitwise equal logits, also in bfloat16; tested).
+  The cache only removes the repeated prefix computation (`measure_prefix_cache` reports the speedup on the
+  workload it is given; it pays where prefill dominates: option scoring, short replies after long shared
+  prompts). Requests without a declared prefix are evaluated in one phase and never use a cached prefix (an
+  automatic longest-common-prefix would make results depend on which requests share a batch). `choose` computes a
+  prompt once and scores all its options against that one cache.
 * **Scoring options.** `choose(ctx_or_none, requests)` returns, for each request ``{messages, choices}``, the log
   probability the model assigns to every option as the reply (mean per token by default) and the best one. This is
   how a participant picks among a short list of tools or moves without free-form parsing.
@@ -213,7 +218,8 @@ class SemanticService:
         self._null_scores: dict[tuple, float] = {}
         self.stats = {"generate_calls": 0, "choose_calls": 0, "requests": 0, "batches": 0, "rows": 0,
                       "prompt_tokens": 0, "gen_tokens": 0, "prefill_s": 0.0, "decode_s": 0.0, "choose_s": 0.0,
-                      "prefix_hits": 0, "prefix_misses": 0, "prefix_tokens_reused": 0, "truncated": 0,
+                      "prefix_hits": 0, "prefix_misses": 0, "prefix_tokens_reused": 0, "prefix_computed_uncached": 0,
+                      "truncated": 0,
                       "padding_tokens": 0, "recorded_calls": 0}
         _register(self)
 
@@ -327,10 +333,19 @@ class SemanticService:
                  "n_choices": len(r["choices"]) if r.get("choices") is not None else None} for r in requests]
 
     def usage(self) -> dict:
+        """Counters plus measured memory: peak GPU memory (CUDA), peak host resident memory of the process, the
+        weights' size, generated tokens per second and mean latency per request."""
+        import resource
         s = dict(self.stats)
         dec = s["decode_s"] + s["prefill_s"]
         s["tokens_per_s"] = round(s["gen_tokens"] / dec, 2) if dec > 0 else None
         s["peak_vram_mb"] = peak_vram_mb(self.device)
+        s["peak_host_rss_mb"] = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1)
+        if self._w is not None:
+            s["weights_mb"] = round(sum(p.numel() * p.element_size() for p in self._w.model.parameters()) / 2 ** 20, 1)
+        busy = s["decode_s"] + s["prefill_s"] + s["choose_s"]
+        s["mean_latency_s_per_request"] = round(busy / s["requests"], 4) if s["requests"] else None
+        s["device"] = self.device
         return s
 
     # ------------------------------------------------------------------ request handling
@@ -389,65 +404,58 @@ class SemanticService:
     def _prefix_key(self, ids: Sequence[int]) -> str:
         return hashlib.sha256(_canon(list(ids))).hexdigest()
 
-    def _lookup_prefix(self, ids: list[int]) -> _Prefix | None:
-        w = self.weights
-        best = None
-        for p in w.prefixes.values():
-            n = len(p.ids)
-            if n <= len(ids) and (best is None or n > len(best.ids)) and tuple(ids[:n]) == p.ids:
-                best = p
-        return best
-
     def _get_prefix(self, ids: list[int]) -> _Prefix:
-        import torch
-        from transformers import DynamicCache
         w = self.weights
         key = self._prefix_key(ids)
         p = w.prefixes.get(key)
         if p is not None:
             w.prefixes.move_to_end(key)
             return p
+        p = self._compute_prefix(ids)
+        w.prefixes[key] = p
+        while len(w.prefixes) > self.prefix_cache_entries:
+            w.prefixes.popitem(last=False)
+        return p
+
+    def _compute_prefix(self, ids: list[int]) -> _Prefix:
+        """The KV cache of a prefix (batch of one), the same computation whether it is then cached or not."""
+        import torch
+        from transformers import DynamicCache
+        w = self.weights
         t0 = time.time()
         inp = torch.tensor([ids], device=self.device)
         cache = DynamicCache(config=w.model.config)
         with torch.inference_mode():
             out = w.model(input_ids=inp, past_key_values=cache, use_cache=True, logits_to_keep=1)
         self.stats["prefill_s"] += time.time() - t0
-        p = _Prefix(tuple(ids), out.past_key_values, out.logits[:, -1, :].float())
-        w.prefixes[key] = p
-        while len(w.prefixes) > self.prefix_cache_entries:
-            w.prefixes.popitem(last=False)
-        return p
+        return _Prefix(tuple(ids), out.past_key_values, out.logits[:, -1, :].float())
 
     def _plan_prefix(self, encoded: list[tuple[list[int], int, bool]]) -> list[_Prefix | None]:
-        """Per request: the cached prefix to start from (declared prefixes first, then cached common prefixes,
-        then the longest common prefix of the group when it is long enough)."""
-        if not self.prefix_cache:
-            return [None] * len(encoded)
+        """Per request: the prefix it is evaluated on (its declared prefix when long enough, else None). The prefix
+        KV comes from the LRU when `prefix_cache` is on, otherwise it is computed afresh (once per call and prefix);
+        either way the request is evaluated prefix-first, so the cache never changes a result."""
         out: list[_Prefix | None] = []
+        fresh: dict[str, _Prefix] = {}
         for ids, pfx, _ in encoded:
             p = None
             if pfx >= self.min_prefix_tokens and pfx < len(ids):
-                p = self._get_prefix(ids[:pfx])
-            else:
-                q = self._lookup_prefix(ids)
-                if q is not None and len(q.ids) < len(ids):
-                    p = q
+                if self.prefix_cache:
+                    key = self._prefix_key(ids[:pfx])
+                    hit = key in self.weights.prefixes
+                    p = self._get_prefix(ids[:pfx])
+                    if hit:
+                        p.hits += 1
+                        self.stats["prefix_hits"] += 1
+                        self.stats["prefix_tokens_reused"] += len(p.ids)
+                    else:
+                        self.stats["prefix_misses"] += 1
+                else:
+                    key = self._prefix_key(ids[:pfx])
+                    if key not in fresh:
+                        fresh[key] = self._compute_prefix(ids[:pfx])
+                        self.stats["prefix_computed_uncached"] = self.stats.get("prefix_computed_uncached", 0) + 1
+                    p = fresh[key]
             out.append(p)
-        if len(encoded) >= 2 and all(p is None for p in out):
-            seqs = [e[0] for e in encoded]
-            n = _lcp(seqs)
-            n = min(n, min(len(s) for s in seqs) - 1)
-            if n >= self.min_prefix_tokens:
-                p = self._get_prefix(seqs[0][:n])
-                out = [p] * len(encoded)
-        for p in out:
-            if p is None:
-                self.stats["prefix_misses"] += 1
-            else:
-                p.hits += 1
-                self.stats["prefix_hits"] += 1
-                self.stats["prefix_tokens_reused"] += len(p.ids)
         return out
 
     # ------------------------------------------------------------------ prefill (shared by generate and choose)
@@ -647,31 +655,37 @@ class SemanticService:
         return {"choice": best, "logprobs": [round(s, 5) for s in scores], "option_tokens": [len(o) for o in opts]}
 
     # ------------------------------------------------------------------ measurements
-    def measure_prefix_cache(self, requests: list[dict]) -> dict:
-        """Run the same batch with and without prefix caching (after a warm-up) and report wall times and outputs
-        agreement. The cache entries created by the measurement stay (they are ordinary cache entries)."""
-        reqs = [self._norm(r) for r in requests]
-        self._generate(reqs[:1])                         # warm-up (kernels, allocator)
+    def measure_prefix_cache(self, requests: list[dict], *, kind: str = "generate", calls: int = 4) -> dict:
+        """Run the same workload (`calls` separate calls of `requests`, as successive decisions of participants
+        sharing a system prompt) with the prefix cache off and on, after a warm-up; report wall times, the
+        speedup, and whether every output is identical (texts for generate; options and log probabilities for
+        choose). The cache is cleared before the cached run, so its first call computes the prefix."""
+        reqs = [self._norm(r, choices=(kind == "choose")) for r in requests]
+        run = self._choose_any if kind == "choose" else self._generate
+        run(reqs[:1])                                    # warm-up (kernels, allocator)
         res = {}
-        for mode in (False, True):
-            saved = self.prefix_cache
-            self.prefix_cache = mode
-            if mode:
+        saved = self.prefix_cache
+        try:
+            for mode in (False, True):
+                self.prefix_cache = mode
                 self.weights.prefixes.clear()
-                self._generate(reqs[:1])                 # the shared prefix is computed once ...
-            _sync(self.device)
-            t0 = time.time()
-            outs = self._generate(reqs)                  # ... and reused by the measured batch
-            _sync(self.device)
-            res["with_prefix" if mode else "without_prefix"] = {"wall_s": round(time.time() - t0, 4),
-                                                                "texts": [o["text"] for o in outs],
-                                                                "prefix_tokens": [o["prefix_tokens"] for o in outs]}
+                _sync(self.device)
+                t0 = time.time()
+                outs = [run(reqs) for _ in range(calls)]
+                _sync(self.device)
+                res[mode] = (time.time() - t0, outs)
+        finally:
             self.prefix_cache = saved
-        a, b = res["without_prefix"], res["with_prefix"]
-        same = sum(1 for x, y in zip(a["texts"], b["texts"]) if x == y)
-        return {"n": len(reqs), "without_prefix_s": a["wall_s"], "with_prefix_s": b["wall_s"],
-                "speedup": round(a["wall_s"] / b["wall_s"], 3) if b["wall_s"] > 0 else None,
-                "prefix_tokens": max(b["prefix_tokens"] or [0]), "identical_outputs": same}
+        def sig(o):
+            return o["text"] if kind == "generate" else (o["choice"], tuple(o["logprobs"]))
+        a, b = res[False], res[True]
+        flat_a = [sig(o) for outs in a[1] for o in outs]
+        flat_b = [sig(o) for outs in b[1] for o in outs]
+        same = sum(1 for x, y in zip(flat_a, flat_b) if x == y)
+        pt = [o.get("prefix_tokens", 0) for o in b[1][-1]] if kind == "generate" else [0]
+        return {"kind": kind, "n": len(flat_a), "calls": calls, "without_prefix_s": round(a[0], 4),
+                "with_prefix_s": round(b[0], 4), "speedup": round(a[0] / b[0], 3) if b[0] > 0 else None,
+                "prefix_tokens": max(pt or [0]), "identical_outputs": same, "outputs": len(flat_a)}
 
 
 # ====================================================================== helpers
