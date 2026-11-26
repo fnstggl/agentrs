@@ -31,9 +31,25 @@
    "team_commons",
    "team_discovery",
    "team_formation",
-   "team_schedule"
+   "team_schedule",
+   "plan_portfolio",
+   "pe_cascade_guard",
+   "net_diffusion",
+   "ch_constraint_tightens",
+   "ch_demand_shift",
+   "ch_sign_reversal"
   ],
-  "continuation_note": "Continuation agent (after the usage-limit stop): each family above was re-measured with the full admission on seeds 0-2 and 10-12 after its change (single-CPU probes, not evidence). The registry-wide run is queued through the slot scheduler."
+  "continuation_note": "Continuation agent (after the usage-limit stop): each family above was re-measured with the full admission on seeds 0-2 and 10-12 after its change (single-CPU probes, not evidence). The registry-wide run is queued through the slot scheduler.",
+  "tried_and_reverted_continuation": [
+   "cx_overdose (lagged prediction)",
+   "cx_reactive_history (lagged prediction)",
+   "plan_supply_chain (demand regimes, holding costs)",
+   "net_routing (capacity incidents, AIMD reference)",
+   "strat_price_war (two learning rivals)",
+   "des_inventory (stronger season, forecasting reference)",
+   "ch_drifting_ideal (sharper peak with dither tracker; end-state prediction with window and drift-shift references)",
+   "net_cascade (zone heat waves)"
+  ]
  },
  "requirements": {
   "M.1": {
