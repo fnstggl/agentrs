@@ -240,6 +240,13 @@ _BY_HOST = {
     "prod": "financial", "xchg": "financial", "venture": "financial", "commit": "financial", "asset": "financial",
     "inst": "organization", "labor": "organization", "needs": "research",
     "media": "content_creation", "embed": "research", "artifacts": "file_creation", "art": "file_creation",
+    # wave 3b: hosts of the civilisation's social internet and of the Tier 2 domains
+    "sci": "experiments", "learn": "research", "fleet": "program_deployment", "work": "agent_services",
+    "space": "research", "studio": "content_creation", "posts": "content_creation", "blog": "content_creation",
+    "pics": "content_creation", "shorts": "content_creation", "tube": "content_creation", "pods": "content_creation",
+    "letters": "communication", "community": "communication", "creators": "content_creation",
+    "launch": "content_creation", "dev": "content_creation", "kb": "content_creation", "feed": "browser",
+    "industry": "financial", "freight": "financial", "firms": "organization",
 }
 # Tier 1 rapid action kinds (`rapid.<kind>`): what each kind of action is
 _RAPID = {"levers": "experiments", "discrete": "experiments", "allocate": "financial", "experiment": "experiments",
