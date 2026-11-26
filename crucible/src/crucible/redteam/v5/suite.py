@@ -133,6 +133,9 @@ FIXED: dict[str, str] = {
     "another world's program": "v5.crossworld.file_locks_do_not_cross_worlds",
     "O wave 3b review: inotify watches on read-only standard-library files (a long-lived service worker's queue) "
     "received another world's program's opens: a 16-bit secret crossed": "v5.crossworld.file_watches_do_not_cross_worlds",
+    "O wave 3b review: memory files (memfd) are not counted by RLIMIT_AS (640 MiB under a 256 MiB cap in the sandbox, "
+    "512 MiB held by a learner process) and a learner process's directory had no quota":
+        "v5.sandbox.hosted_learner_memory_and_disk_are_capped",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

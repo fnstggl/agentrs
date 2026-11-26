@@ -312,9 +312,10 @@ are billed the remainder of their encoding as the program's work. (3) The machin
 lineage. Consequence: bills of programs exchanging large messages rise slightly; deterministic-model anchors (raw
 nanoseconds) stay valid, so cross-process reproducibility on a machine is unchanged.
 Amendment (wave 3b continuation, same workstream): (4) kernel objects that are not paths are closed to sandboxed
-programs and jailed processes (System V IPC, POSIX message queues; inotify/fanotify in the sandbox and tool-mode jails;
-descriptor ownership F_SETOWN/F_SETSIG/FIOSETOWN everywhere): each carried data between worlds or between learner
-processes (DEFECTS DEF-O-14..17). (5) Advisory locks in the sandbox and in tool-mode jails succeed without effect
+programs and jailed processes (System V IPC, POSIX message queues; inotify/fanotify and memfd in the sandbox and
+tool-mode jails; descriptor ownership F_SETOWN/F_SETSIG/FIOSETOWN everywhere): each carried data between worlds or
+between learner processes, or held memory outside the address-space cap (DEFECTS DEF-O-14..18); a jailed learner's
+private directory has a quota enforced by a watchdog (default 2 GiB). (5) Advisory locks in the sandbox and in tool-mode jails succeed without effect
 (flock, F_SETLK/F_SETLKW/F_OFD_SETLK/F_OFD_SETLKW return 0) while lock queries stay real: a sandboxed program's files
 are private to it, so a lock could only ever exclude another tenant (a channel); sqlite3 (WAL included) and dbm keep
 working. Rules out refusing locks outright (sqlite3 WAL fails with "disk I/O error" when F_GETLK is refused). (6) Every

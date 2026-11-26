@@ -84,6 +84,19 @@ def matrix(args, caller):
             os.close(r)
             os.close(w)
     t("fcntl_setown_parent", setown)
+    def memfd_hog():
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        fd = libc.syscall(319, b"m", 0)
+        if fd < 0:
+            raise OSError(ctypes.get_errno(), "refused")
+        try:
+            for _ in range(8):                   # below RLIMIT_FSIZE: one file of many a program could hold
+                os.write(fd, b"x" * (1 << 20))
+            return "8 MiB unmapped"
+        finally:
+            os.close(fd)
+    t("memfd_beyond_the_memory_cap", memfd_hog)
     t("inotify_watch_stdlib", lambda: (lambda l: (lambda fd: fd if fd >= 0 and l.inotify_add_watch(fd, os.__file__.encode(), 0x20) >= 0 else (_ for _ in ()).throw(OSError("refused")))(l.inotify_init1(0)))(__import__("ctypes").CDLL(None, use_errno=True)))
     # expected to work inside the sandbox
     t("write_workdir", lambda: open("ok.txt", "w").write("x"))
@@ -198,14 +211,15 @@ class SandboxEscapeMatrix(V5Probe):
     target, owner = "sandbox", "O"
     needs_sandbox = True
     world = {"v5": "commerce"}
-    description = ("Agent code run with `code.run` tries 37 ways out: host files (passwd, environment, /root, "
+    description = ("Agent code run with `code.run` tries 38 ways out: host files (passwd, environment, /root, "
                    "/workspace, other processes' environments, the sandbox base directory, /dev/shm), writes outside "
                    "its directory, symlink and hard-link escapes, sockets (inet, unix, raw syscall), DNS, HTTP to the "
                    "metadata address, subprocesses, exec, fork, spawn, signals to the parent / init / everyone, "
                    "setuid, ptrace, unshare, importing the simulator, running as root, System V shared memory / "
                    "message queues / semaphores and POSIX message queues (kernel objects outside the world that "
                    "outlive the program), owning a descriptor for the parent (F_SETOWN: the kernel signals the "
-                   "owner on I/O) and watching a shared file (inotify). Checked: every one is "
+                   "owner on I/O), watching a shared file (inotify) and holding memory outside the address-space cap "
+                   "(memfd). Checked: every one is "
                    "refused, and the two ordinary operations (writing its own directory, numpy) still work.")
 
     def setup(self, op: Operator) -> None:
@@ -960,10 +974,59 @@ class HostedLearnersCannotReachEachOther(V5Probe):
         return Verdict(HELD, "no kernel IPC, no descriptor-owner signal, no pid oracle; three distinct uids", evd)
 
 
+class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
+    name = "v5.sandbox.hosted_learner_memory_and_disk_are_capped"
+    attack_class = "unbounded_resources/learner_process"
+    gates = ("W.7",)
+    target, owner = "sandbox (learner host)", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("A jailed learner process (`crucible.sandbox.learnerhost`) with a 512 MiB address-space cap and a "
+                   "32 MiB directory quota (1) writes 8 x 64 MiB into anonymous memory files (memfd: pages that are not "
+                   "mapped, so RLIMIT_AS does not count them) and keeps them, and (2) fills its private directory with "
+                   "4 MiB files (RLIMIT_FSIZE bounds one file, not the directory). Checked: the memory files are "
+                   "refused, and the learner is stopped before its directory holds much more than its quota.")
+    QUOTA_MB = 32
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("hogger", 10)
+
+    def attack(self, a: Attacker) -> None:
+        from ...sandbox.learnerhost import LearnerHost, LearnerHostError
+        self.out = {}
+        with LearnerHost(None, mem_mb=512, disk_quota_mb=self.QUOTA_MB) as h:
+            self.out["memfd"] = h.function("crucible.redteam.v5.adversaries:memfd_hog", {"n": 8, "mb": 64})
+        with LearnerHost(None, mem_mb=512, disk_quota_mb=self.QUOTA_MB) as h:
+            try:
+                self.out["disk"] = h.function("crucible.redteam.v5.adversaries:disk_hog",
+                                              {"files": 64, "mb": 4, "pause_s": 0.05}, timeout=120)
+                self.out["disk_stopped"] = None
+            except LearnerHostError as e:
+                self.out["disk_stopped"] = str(e)[:300]
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        o = self.out
+        held_mb = (o.get("memfd") or {}).get("bytes", 0) / 2**20
+        disk = o.get("disk") or {}
+        bad = {}
+        if held_mb > 0:
+            bad["memory_outside_the_cap_mib"] = round(held_mb, 1)
+        if o.get("disk_stopped") is None:
+            bad["directory_beyond_quota_mib"] = round(disk.get("bytes", 0) / 2**20, 1)
+        elif "quota" not in o["disk_stopped"]:
+            bad["learner_stopped_for_another_reason"] = o["disk_stopped"]
+        evd = {"attack": o, "findings": bad, "resource_limit_escapes": len(bad)}
+        if bad:
+            return Verdict(INTEGRITY_BREAK, f"a jailed learner process exceeded its caps: {bad}", evd, severity="high",
+                           fix="sandbox/jail.py seccomp: refuse memfd_create in tool mode; learnerhost: directory "
+                               "quota enforced by a watchdog")
+        return Verdict(HELD, "memory files refused; the learner was stopped at its directory quota", evd)
+
+
 def probes() -> list:
     return ([SandboxEscapeMatrix()] + [MeterForgery(v) for v in sorted(FORGERIES)] +
             [WorkDeliveredThenExit(), BuiltinsAreNotFree(), BackgroundThreadOutlivesRequest(),
              ForgedCompletionKeepsWorking(), ForgedCompletionThenExit(), DiskQuota(),
              MemoryCpuAndTimeLimits(), TenantIsolationBetweenWorlds(), HostPathsNotDisclosed(),
              MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime(),
-             HostedLearnersCannotReachEachOther()])
+             HostedLearnersCannotReachEachOther(), HostedLearnerMemoryAndDiskAreCapped()])

@@ -30,8 +30,8 @@ checkpoint is the two files the weights-only protocol loads (``arch.json``, ``pa
 following links, size-capped and hashed by the host; the learner's own manifest is never read.
 
 Limits: process-level isolation on a shared kernel (no VM); the learner may use the CPU, memory and time its
-rlimits allow and may write within its private directory (quota by RLIMIT_FSIZE per file); it reads the crucible
-sources (public code, no secrets). Learners that need a GPU or extra system paths are out of scope here.
+rlimits allow and may write within its private directory (RLIMIT_FSIZE per file, a watchdog-enforced quota for the
+directory); it reads the crucible sources (public code, no secrets). Learners that need a GPU or extra system paths are out of scope here.
 """
 from __future__ import annotations
 
@@ -55,6 +55,7 @@ from . import isolation
 MAX_REPLY = 16 * 2**20           # a control reply larger than this is a protocol violation
 MAX_CKPT_FILE = 256 * 2**20      # largest arch.json / params.npz the host copies out of the jail
 NPROC = 512                      # tasks (threads) a learner process's own uid may hold
+DISK_POLL_S = 0.25               # how often the host measures the learner's private directory
 
 _BOOT = r"""
 import json, os, sys
@@ -240,7 +241,8 @@ class LearnerHost:
 
     def __init__(self, entry: str | None, kw: dict | None = None, *, participant=None,
                  protocol: str = "research-evaluator", code_dirs: tuple[str, ...] = (), kind: str = "learner-host",
-                 mem_mb: int = 3072, cpu_s: int = 3600, start_timeout: float = 120.0, op_timeout: float = 900.0):
+                 mem_mb: int = 3072, cpu_s: int = 3600, start_timeout: float = 120.0, op_timeout: float = 900.0,
+                 disk_quota_mb: int = 2048, max_entries: int = 10000):
         ok, why = isolation.available()
         if not ok:
             raise isolation.JailUnavailable(why)
@@ -294,6 +296,27 @@ class LearnerHost:
             self.close()
             raise LearnerHostError(f"the learner process did not start: {err}")
         self.pid, self.jail_uid = int(hello["pid"]), int(hello["uid"])
+        # The private directory has no per-directory rlimit (RLIMIT_FSIZE bounds one file): a watchdog measures it
+        # while the process lives - also between operations, when a learner's own threads may keep writing - and
+        # stops the learner beyond its quota (wave-3b review: a learner could fill the machine's disk).
+        self.disk_quota = int(disk_quota_mb) * 2**20
+        self.max_entries = int(max_entries)
+        self.dead_reason: str | None = None
+        import threading
+        self._watch = threading.Thread(target=self._watchdog, name="learner-disk-watchdog", daemon=True)
+        self._watch.start()
+
+    def _watchdog(self) -> None:
+        from . import metering as M
+        while self.proc.poll() is None:
+            b, n = M.dir_usage(self.work, self.max_entries)
+            if b > self.disk_quota or n > self.max_entries:
+                self.dead_reason = (f"the learner's private directory exceeded its quota ({b} bytes, {n} entries; "
+                                    f"quota {self.disk_quota} bytes, {self.max_entries} entries)")
+                self.kill()
+                shutil.rmtree(self.work, ignore_errors=True)
+                return
+            time.sleep(DISK_POLL_S)
 
     # ------------------------------------------------------------------ protocol
     def _read(self, timeout: float) -> dict:
@@ -309,7 +332,8 @@ class LearnerHost:
                 continue
             chunk = os.read(fd, 1 << 16)
             if not chunk:
-                raise LearnerHostError(f"the learner process exited: {self.stderr_tail()[-600:]}")
+                why = getattr(self, "dead_reason", None)
+                raise LearnerHostError(f"the learner process exited: {why or self.stderr_tail()[-600:]}")
             self._buf += chunk
             if len(self._buf) > MAX_REPLY:
                 self.kill()
@@ -327,7 +351,8 @@ class LearnerHost:
 
     def _call(self, req: dict, timeout: float | None = None) -> dict:
         if self.proc.poll() is not None:
-            raise LearnerHostError(f"the learner process is not running: {self.stderr_tail()[-600:]}")
+            why = getattr(self, "dead_reason", None)
+            raise LearnerHostError(f"the learner process is not running: {why or self.stderr_tail()[-600:]}")
         self.proc.stdin.write((json.dumps(req) + "\n").encode())
         self.proc.stdin.flush()
         return self._read(timeout or self.op_timeout)
@@ -392,6 +417,7 @@ class LearnerHost:
                 params = {k: np.array(z[k]) for k in z.files}
         except (ValueError, OSError, UnicodeDecodeError) as e:
             raise LearnerHostError(f"the checkpoint cannot be read safely: {type(e).__name__}")
+        shutil.rmtree(src, ignore_errors=True)        # copied out: it no longer counts against the learner's quota
         return {"dir": dst, "arch_sha256": hashlib.sha256(arch_bytes).hexdigest(), "params_hash": params_hash(params),
                 "arch": arch.get("arch") if isinstance(arch, dict) else None,
                 "n_params": int(sum(a.size for a in params.values())), "hashed_by": "host"}

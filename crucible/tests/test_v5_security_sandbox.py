@@ -532,3 +532,19 @@ def test_file_watches_on_shared_files_are_refused():
            "    fd = libc.inotify_init1(0)\n    return ctypes.get_errno() if fd < 0 else 'created'\n")
     r = run_program({"w.py": src}, "w:f", None)
     assert r["ok"] and r["result"] == 1, r
+
+
+@needs_sandbox
+def test_memory_files_are_refused_and_learner_directories_have_a_quota():
+    """Wave-3b review: memfd pages are not mapped, so RLIMIT_AS does not count them (640 MiB written under a 256 MiB
+    cap in the sandbox; 512 MiB held by a learner process under a 512 MiB cap), and a learner process's private
+    directory had no quota (RLIMIT_FSIZE bounds one file). memfd is refused; a watchdog stops the learner at its quota."""
+    from crucible.sandbox.learnerhost import LearnerHost, LearnerHostError
+    src = ("import ctypes\ndef f(a, c):\n    libc = ctypes.CDLL(None, use_errno=True)\n"
+           "    fd = libc.syscall(319, b'm', 0)\n    return ctypes.get_errno() if fd < 0 else 'created'\n")
+    r = run_program({"m.py": src}, "m:f", None, cfg=SandboxConfig(mem_mb=256))
+    assert r["ok"] and r["result"] == 1, r
+    with LearnerHost(None, mem_mb=512, disk_quota_mb=16) as h:
+        assert h.function("crucible.redteam.v5.adversaries:memfd_hog", {"n": 2, "mb": 8})["bytes"] == 0
+        with pytest.raises(LearnerHostError, match="quota"):
+            h.function("crucible.redteam.v5.adversaries:disk_hog", {"files": 40, "mb": 2, "pause_s": 0.05}, timeout=60)

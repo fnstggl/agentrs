@@ -553,3 +553,45 @@ def recall_everywhere(participant, key: int, previous_cwd: str = "") -> dict:
             out["files"][d] = f"errno {e.errno}"
     out["ipc"] = ipc_recall(participant, key)
     return out
+
+
+# ------------------------------------------------------------------ learner processes against the machine (W.7)
+def memfd_hog(participant, n: int, mb: int) -> dict:
+    """Hold n anonymous memory files of `mb` MiB each: their pages are not mapped, so an address-space cap does not
+    count them."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    out, blk, keep = {"files": 0, "bytes": 0}, b"x" * (1 << 20), []
+    for i in range(int(n)):
+        fd = libc.syscall(319, b"rt", 0)                   # memfd_create
+        if fd < 0:
+            out["error"] = f"errno {ctypes.get_errno()}"
+            break
+        keep.append(fd)
+        try:
+            for _ in range(int(mb)):
+                os.write(fd, blk)
+                out["bytes"] += len(blk)
+        except OSError as e:
+            out["error"] = f"errno {e.errno}"
+            break
+        out["files"] += 1
+    _hidden()["memfd"] = keep                              # stay held after the call
+    return out
+
+
+def disk_hog(participant, files: int, mb: int, pause_s: float = 0.05) -> dict:
+    """Fill the learner's private directory with `files` files of `mb` MiB each (one file per rlimit)."""
+    out, blk = {"files": 0, "bytes": 0}, b"y" * (1 << 20)
+    for i in range(int(files)):
+        try:
+            with open(f"fill-{i}.bin", "wb") as f:
+                for _ in range(int(mb)):
+                    f.write(blk)
+            out["files"] += 1
+            out["bytes"] += int(mb) << 20
+        except OSError as e:
+            out["error"] = f"errno {e.errno}"
+            break
+        time.sleep(float(pause_s))
+    return out

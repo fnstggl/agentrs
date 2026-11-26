@@ -2568,3 +2568,28 @@ B_population verdict) and P's own findings.
  "summary": "inotify was a channel between worlds: watches need only read access, so a long-lived service worker in one world armed watches on 16 rarely used standard-library source files and its queue received the opens made by a program of another world - the exact 16-bit secret crossed (store-and-forward: the sender need not run at the same time as the receiver's request)."
 }
 ```
+
+### DEF-O-18 (high, fixed): Memory and disk caps could be exceeded: anonymous memory files (memfd_create) hold pages that are not mapped, 
+
+```json
+{
+ "area": "O_security",
+ "fixed_by": "c5c/w3b-sec: sandbox/boot.py and the tool-mode jail refuse memfd_create/memfd_secret; sandbox/learnerhost.py measures the learner's private directory with a watchdog (every 0.25 s, also between operations) and stops the learner beyond disk_quota_mb (default 2 GiB) or max_entries; checkpoints copied out are removed from the directory",
+ "id": "DEF-O-18",
+ "owner": "O",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W7_resource_limits (v5.sandbox.hosted_learner_memory_and_disk_are_capped), tests/v5/test_gate_W.py::test_W1_sandbox (escape matrix memfd_beyond_the_memory_cap), tests/test_v5_security_sandbox.py::test_memory_files_are_refused_and_learner_directories_have_a_quota",
+ "requirements": [
+  "W.7",
+  "W.1",
+  "SP-16b",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Memory and disk caps could be exceeded: anonymous memory files (memfd_create) hold pages that are not mapped, so RLIMIT_AS does not count them - a sandboxed program wrote 640 MiB under a 256 MiB address-space cap (up to NOFILE x FSIZE = 1 GiB per worker, kept by long-lived service workers) and a jailed learner process held 512 MiB under its 512 MiB cap (up to 256 x 256 MiB = 64 GiB); and a learner process's private directory had no quota at all (RLIMIT_FSIZE bounds one file: it wrote 256 MiB in 64 files and could fill the machine's disk)."
+}
+```

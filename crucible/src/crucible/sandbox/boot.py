@@ -116,7 +116,10 @@ DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4"
         # file watches need only read access, and every tenant reads the standard library: a long-lived service
         # worker's inotify queue received the opens of another world's program (16 bits crossed; same review, probe
         # v5.crossworld.file_watches_do_not_cross_worlds)
-        "inotify_init", "inotify_init1", "inotify_add_watch", "inotify_rm_watch", "fanotify_init", "fanotify_mark"]
+        "inotify_init", "inotify_init1", "inotify_add_watch", "inotify_rm_watch", "fanotify_init", "fanotify_mark",
+        # anonymous shared memory files: their pages are not mapped, so RLIMIT_AS does not count them - 640 MiB
+        # written under a 256 MiB address-space cap (same review; escape matrix memfd_beyond_the_memory_cap)
+        "memfd_create", "memfd_secret"]
 # Syscalls that name a target process: allowed only when the target is this process itself. (syscall, index of
 # the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process").
 SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt_sigqueueinfo", 0, "pid"),

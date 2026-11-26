@@ -237,7 +237,10 @@ TOOL_DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "acc
              # file watches on shared read-only files observe other processes' opens (a channel between worlds in
              # the sandbox; wave-3b review). Tools and learner processes do not need them; the browser keeps them.
              "inotify_init", "inotify_init1", "inotify_add_watch", "inotify_rm_watch", "fanotify_init",
-             "fanotify_mark"]
+             "fanotify_mark",
+             # memfd pages are not counted by RLIMIT_AS: a learner process could hold NOFILE x FSIZE (64 GiB) of
+             # memory outside its cap (same review). The browser keeps memfd (its own shared memory).
+             "memfd_create", "memfd_secret"]
 SELF_ONLY = [("kill", 0), ("tkill", 0), ("tgkill", 0), ("rt_sigqueueinfo", 0), ("rt_tgsigqueueinfo", 0)]
 
 

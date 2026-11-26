@@ -5,7 +5,7 @@ Reviewer: workstream O (security), wave 3b, on branch `c5c/w3b-sec` from the int
 research instrument (N), the media/social call sites (C, D), the package ablation (G) or the kernel memo (A/K3), and it
 re-measured the earlier security workstreams' own claims instead of trusting them. Every verdict below rests on a probe
 or control that is part of the gate suite, so it is re-executed (and ablated) whenever the gate runs:
-`crucible.redteam.v5` (Gate W, 82 probes on this branch; Tier 2 probes grow with the domain registry: 129 on the check merge, 45 of them Tier 2) and `crucible.redteam.v5.instrument` (SP-15.8, 10 controls).
+`crucible.redteam.v5` (Gate W, 83 probes on this branch; Tier 2 probes grow with the domain registry: 129 on the check merge, 45 of them Tier 2) and `crucible.redteam.v5.instrument` (SP-15.8, 10 controls).
 
 Targets named by the assignment: metering, ablation-based adoption, media/JavaScript isolation, network isolation,
 cross-tenant state, and the research instrument's evaluator.
@@ -35,6 +35,7 @@ the review asked what else two tenants share on one kernel. Each row: found with
 | DEF-O-15 (high) | learner processes | learner A stashes a canary in SysV IPC and exits; a FRESH learner process B reads it; B makes the kernel SIGKILL learner V (F_SETOWN + F_SETSIG on an O_ASYNC pipe; FIOSETOWN on its participant socket); F_SETOWN's ESRCH as a pid oracle; all three share one uid | canary carried to the fresh process; V killed (rc -9); pid oracle answered; one uid | all refused; V alive; three uids | `v5.sandbox.hosted_learners_cannot_reach_each_other` |
 | DEF-O-16 (high) | advisory locks | a service (long-lived worker) in world A locks a 16-bit pattern of standard-library files (flock), of /dev/null byte ranges (record write locks) and read-locks files (visible to F_GETLK with the holder's pid); world B's program reads | 9 of 9 set bits through each of the three | lock-taking succeeds without effect (D-77 amendment), queries real; 0 bits; sqlite3 WAL still works | `v5.crossworld.file_locks_do_not_cross_worlds` |
 | DEF-O-17 (high) | inotify | a service in world A arms watches on 16 rarely used standard-library files; world B's program opens the files of a secret; A's next request reads its queue | the exact 16-bit secret | inotify/fanotify refused | `v5.crossworld.file_watches_do_not_cross_worlds` |
+| DEF-O-18 (high) | memory files, learner directory | a program writes memfd files (pages not mapped: not counted by RLIMIT_AS); a jailed learner fills its private directory with files (RLIMIT_FSIZE bounds one file) | sandbox: 640 MiB under a 256 MiB cap; learner: 512 MiB held under 512 MiB, 256 MiB written with no directory quota | memfd refused (sandbox, tool-mode jail); learner directory quota enforced by a watchdog: stopped at 40 MiB for a 32 MiB quota | `v5.sandbox.hosted_learner_memory_and_disk_are_capped`, escape matrix `memfd_beyond_the_memory_cap` |
 
 Checked and not a channel here: access times of standard-library files (overlay lower layer: reads do not update
 atime); /dev/shm and /tmp (Landlock); sockets (seccomp); signals and scheduling of other processes (seccomp self-only
