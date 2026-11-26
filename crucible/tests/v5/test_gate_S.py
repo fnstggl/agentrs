@@ -69,6 +69,7 @@ def _tier_run(tier: int, names: list[str], steps: int) -> dict:
     return {"actions": acts, "changes": changes, "worlds": worlds}
 
 
+@pytest.mark.timeout(5400)                     # 120 learner hours in every Part 9 domain
 def test_S2_reference_learner_acts_in_tier2():
     doms = domains()
     if not doms:

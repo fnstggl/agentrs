@@ -22,7 +22,7 @@ from crucible.experience.loop import run_learners
 from crucible.experience.reference import ReferenceLearner
 from crucible.experience.registry import make
 
-pytestmark = pytest.mark.timeout(2400)
+pytestmark = pytest.mark.timeout(5400)                # concurrent learners in every Part 9 domain
 CMD = "PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_1b.py"
 HOUR = 3600
 CIV = "balanced"

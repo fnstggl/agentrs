@@ -52,6 +52,8 @@ def _fail_tiers(errors: dict) -> str:
 
 
 # ====================================================================== OO.1
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(7200)
 def test_OO1_observation_only_is_the_default_everywhere():
     from crucible import rapid
     from crucible.mechanisms.base import MECH_FAMILIES
@@ -203,12 +205,27 @@ def test_OO2_no_native_or_privileged_reward_reaches_the_learner():
 def _consequences(env) -> dict:
     """Seven kinds of consequence, each read from the participant's OWN observations in a kernel world (any tier):
     a builder deploys a service a client pays for, a neighbour replies to the builder's post, the builder's own
-    experiment resolves days later, a failed transfer comes back as a typed error."""
+    experiment resolves days later, a failed transfer comes back as a typed error.
+
+    A Tier 2 domain world composes only its configuration's subsystems (D-48): a kind whose mechanism the world does
+    not contain is None (not present - never counted as observed): customer behaviour and technical measurements
+    need a hosted service (cloud + code + business), social responses a forum (else a direct message, `msg`). The
+    client then pays the builder by bank transfer, so transactions, resource changes, failures and delayed outcomes
+    are present in every world (bank, exp). Every kind that IS present must be observed (D-68)."""
     from crucible.experience.scripted import call, deploy_service, discover, need_input
     b, c, n = env.agents()[:3]
-    deploy_service(env, b, handle="obsco", host="obssvc", price=4)
-    discover(env, c, "obssvc")
-    post = call(env, b, "forum.post", board="general", title="obssvc is live", body="sorting, 4 cents a call")
+    mods = set(env.world.modules)
+    service = {"cloud", "code", "business"} <= mods
+    social = "forum" if "forum" in mods else ("msg" if "msg" in mods else None)
+    theirs = []
+    if service:
+        deploy_service(env, b, handle="obsco", host="obssvc", price=4)
+        discover(env, c, "obssvc")
+    else:
+        theirs = [x for x in call(env, c, "bank.accounts") if x["owner"] == c]
+        assert theirs, "the client has no bank account"
+    post = call(env, b, "forum.post", board="general", title="obssvc is live", body="sorting, 4 cents a call") \
+        if social == "forum" else None
     reg = env.execute(b, {"tool": "exp.register", "args": {
         "hypothesis": "my balance rises within 3 days", "measure": {"tool": "bank.accounts", "where": {"owner": "$self"},
                                                                     "field": "balance", "aggregate": "sum"},
@@ -216,27 +233,41 @@ def _consequences(env) -> dict:
     assert reg["ok"], reg
     env.observe(b)
     for d in range(4):
-        r = env.execute(c, {"tool": "obssvc.solve", "args": need_input("sort.records", d)})
+        if service:
+            r = env.execute(c, {"tool": "obssvc.solve", "args": need_input("sort.records", d)})
+        else:
+            r = env.execute(c, {"tool": "bank.transfer", "args": {"from_account": theirs[0]["account"], "to": b,
+                                                                  "amount": 400 + d, "memo": f"invoice {d}"}})
         assert r["ok"], r
-        env.execute(n, {"tool": "forum.reply", "args": {"post": post["post"], "body": f"tried it, day {d}"}})
+        if social == "forum":
+            env.execute(n, {"tool": "forum.reply", "args": {"post": post["post"], "body": f"tried it, day {d}"}})
+        elif social == "msg":
+            r = env.execute(n, {"tool": "msg.send", "args": {"to": b, "text": f"saw your work, day {d}"}})
+            assert r["ok"], r
         env.advance(DAY)
     fail = env.execute(b, {"tool": "bank.transfer", "args": {"from_account": "acct_nope", "to": c, "amount": 1,
                                                              "memo": "x"}})
     obs = env.observe(b)
     evs = env.observe_since(b, 0)[0]
-    status = call(env, b, "cloud.status", host="obssvc", days=7)
     types = {e["type"] for e in evs}
-    return {"transactions": any(t.startswith("bank.") for t in types),
-            "customer_behaviour": sum(d.get("requests", 0) for d in status["days"]) >= 4,
-            "technical_measurements": any(k in json.dumps(status) for k in ("cpu", "latency", "errors")),
-            "social_responses": any(e["type"].startswith("forum.") and e["actor"] == n for e in evs),
-            "resource_changes": obs["resources"].get("balance_cents") is not None and
-            any(k.startswith("bank.balances.") for k in obs["numbers"]),
-            "failures": not fail["ok"] and isinstance(fail["error"], dict),
-            "delayed_outcomes": any(e["type"] == "exp.resolved" and (e["cause"] or {}).get("action_seq") ==
-                                    reg["action_seq"] for e in evs)}
+    out = {"transactions": any(t.startswith("bank.") for t in types),
+           "customer_behaviour": None, "technical_measurements": None, "social_responses": None,
+           "resource_changes": obs["resources"].get("balance_cents") is not None and
+           any(k.startswith("bank.balances.") for k in obs["numbers"]),
+           "failures": not fail["ok"] and isinstance(fail["error"], dict),
+           "delayed_outcomes": any(e["type"] == "exp.resolved" and (e["cause"] or {}).get("action_seq") ==
+                                   reg["action_seq"] for e in evs)}
+    if service:
+        status = call(env, b, "cloud.status", host="obssvc", days=7)
+        out["customer_behaviour"] = sum(d.get("requests", 0) for d in status["days"]) >= 4
+        out["technical_measurements"] = any(k in json.dumps(status) for k in ("cpu", "latency", "errors"))
+    if social is not None:
+        out["social_responses"] = any(e["type"].startswith(social + ".") and e["actor"] == n for e in evs)
+    return out
 
 
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(5400)
 def test_OO3_real_observable_consequences_remain():
     per, errors = {}, {}
     # tier 0 (4.0 kernel world, reported separately)
@@ -261,11 +292,18 @@ def test_OO3_real_observable_consequences_remain():
                 "failures": not bad["ok"] and isinstance(bad["error"], dict),
                 "action_results": r["ok"] and om["last_result"] is not None}
 
+    t2_errors = {}
+
     def tier2():
         out = {}
-        for name in _tier2_names():
-            out[name] = _consequences(make(2, name, 3, agents=["builder", "client", "neighbour"],
-                                           endowment=3_000_000))
+        for name in _tier2_names():          # every Part 9 domain; one that cannot run is named, the others measured
+            r, err = _attempt(lambda name=name: _consequences(make(2, name, 3, agents=["builder", "client",
+                                                                                       "neighbour"],
+                                                                   endowment=3_000_000)))
+            if err:
+                t2_errors[name] = err
+            else:
+                out[name] = r
         return out
 
     def tier3():
@@ -278,16 +316,36 @@ def test_OO3_real_observable_consequences_remain():
             per.update({f"tier2 {k}": v for k, v in r.items()})
         else:
             per[f"tier{t}"] = r
-    kernel = {k: v for k, v in per.items() if not k.startswith("tier1")}
-    covered = [t for t in (1, 2, 3) if any(k.startswith(f"tier{t}") and all(v.values()) for k, v in per.items())]
-    kinds = min((sum(1 for x in v.values() if x) for v in kernel.values()), default=0)
+    if t2_errors:
+        errors[2] = f"domains that could not run the scenario: {t2_errors}"
+    # a world loses a consequence when a kind its mechanisms produce is not observed (False); None = the world does
+    # not compose that mechanism (restricted Tier 2 worlds, D-68). A tier counts when one of its worlds shows all
+    # seven kinds and none of its worlds loses one; consequence_kinds_observable is, over the kernel tiers (0, 2, 3),
+    # the fewest kinds shown by the most complete world of the tier.
+    lost = {k: sorted(x for x, ok in v.items() if ok is False) for k, v in per.items()}
+    lost = {k: v for k, v in lost.items() if v}
+    absent = {k: sorted(x for x, ok in v.items() if ok is None) for k, v in per.items()}
+    absent = {k: v for k, v in absent.items() if v}
+
+    def best(t):
+        return max((sum(1 for x in v.values() if x) for k, v in per.items() if k.startswith(f"tier{t}")), default=0)
+    def complete(t):          # Tier 1 adapters have their own five kinds (readings, revenue/cost, ...): all of them
+        return best(t) == 7 if t != 1 else any(k.startswith("tier1") and all(v.values()) for k, v in per.items())
+    covered = [t for t in (1, 2, 3) if complete(t) and not any(k.startswith(f"tier{t}") for k in lost) and
+               t not in errors]
+    kinds = min(best(t) for t in (0, 2, 3))
     metrics = {"consequence_kinds_observable": kinds, "tiers_covered": len(covered),
+               "worlds_losing_a_consequence": len(lost), "worlds_measured": len(per),
                "kernel40_consequence_kinds": sum(1 for x in per["tier0 tiny"].values() if x),
                "tier1_consequence_kinds": sum(1 for x in per.get("tier1", {}).values() if x),
+               "tier2_consequence_kinds": best(2),
                "tier3_consequence_kinds": sum(1 for x in per.get("tier3", {}).values() if x)}
     record("OO.3", metrics, command=CMD, notes=f"consequence kinds read from the participant's own observations, per "
-           f"world (all must be present for a tier to count): {per}; consequence_kinds_observable = the fewest kinds "
-           f"of any kernel world measured. Tiers not measured: {_fail_tiers(errors)}")
+           f"world (True observed, False lost, None the world has no such mechanism): {per}; worlds that lost a kind "
+           f"they produce: {lost}; kinds not composed in restricted domain worlds: {absent}; "
+           f"consequence_kinds_observable = over tiers 0, 2, 3 the fewest kinds of the tier's most complete world. "
+           f"Tiers not measured: {_fail_tiers(errors)}")
+    assert not lost, lost
     assert metrics["consequence_kinds_observable"] >= 7, per
     assert len(covered) == 3, f"consequences observable in tiers {covered}; " + _fail_tiers(errors)
 
@@ -344,6 +402,8 @@ def _hosted(ref: dict) -> tuple[bool, bool, int]:
     return bool(match), bool(reach), sum(refused)
 
 
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(5400)
 def test_OO4_independent_verification_through_a_separate_interface():
     per, errors, refused, reach_any = {}, {}, 0, False
 
@@ -530,6 +590,8 @@ def _imports(path: str) -> list[str]:
     return bad
 
 
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(5400)
 def test_OO6_an_external_learner_supplies_its_own_rewards():
     import hashlib
     src = os.path.join(ROOT, "src", "crucible")
@@ -766,6 +828,8 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
 
 
 # ====================================================================== OO.10
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(5400)
 def test_OO10_assigned_objectives_delivered_progress_never():
     """In every tier an objective is assigned; the learner receives its public text and nothing of its progress;
     the evaluator verifies it."""
@@ -854,6 +918,8 @@ def _self_experiment(env, number_or_measure, deadline_s: int, waits: int, dt: in
     return {"resolved": len(evs), "rewards_paid": sum(1 for x in rewards if x != 0.0)}
 
 
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(3600)
 def test_OO11_self_generated_experiments_in_every_tier_unrewarded():
     per, errors = {}, {}
     bank = {"tool": "bank.accounts", "where": {"owner": "$self"}, "field": "balance", "aggregate": "sum"}
@@ -941,6 +1007,8 @@ def tier_probes():
     return PT.run_tiers()
 
 
+# every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
+@pytest.mark.timeout(9000)
 def test_OO14_leak_channels_probed_per_tier(tier_probes):
     res = tier_probes
     per = {t: {"channels": r["channels_probed"], "leaks": r["n_leaks"], "kinds": r["kinds"]}
