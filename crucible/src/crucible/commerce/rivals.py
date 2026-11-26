@@ -33,8 +33,9 @@ tickets, its service's overloads in `cloud.metrics`) and the public market (comp
 * **marketplaces** (wave 3b, worlds with `xchg`) - it sells a 30-day pass of its service on one open exchange: the
   venue with the most buyers in the last 30 days by the venue's public statistics (ties: the lowest take rate), at
   its cheapest monthly price x `pass_markup`, grossed up for the venue's take rate; it re-lists when its monthly
-  price moved by more than 5% or the venue raised its take rate, and leaves a venue that refunded more than half of
-  its orders in 30 days (and does not return to it for 30 days).
+  price moved by more than 5% or the venue raised its take rate, and leaves a venue where more than half of the
+  value of its own last-30-day sales there (at least 4 orders) was refunded (and does not return to it for 30 days)
+  - its own books, so a venue that refunds other sellers' bad orders does not drive it away.
 
 These rules are explicit and labelled scripted (learned competitors are wave 3). The state they keep - when the
 last change happened and the subscriber history - is their own memory, recorded by `rivals.observed`.
@@ -290,7 +291,7 @@ class Rivals(Module):
             actions.append(["offered", best["application"], r["offer"]])
 
     def _list_pass(self, ctx, inc, pid: str, price: int, actions: list, mem: dict) -> None:
-        """The marketplace rule (module docstring), from public venue statistics only."""
+        """The marketplace rule (module docstring), from public venue statistics and its own sales."""
         today = ctx.now // DAY
         left = {k: d for k, d in (mem.get("left_venues") or {}).items() if today - int(d) < 30}
         venues = [v for v in self._do(ctx, inc, "xchg.exchanges", limit=50) if v["operator"] != inc["org"]]
@@ -299,9 +300,17 @@ class Rivals(Module):
         def target(v):
             return int(round(price * float(self.cfg("pass_markup")) / (1.0 - int(v["take_rate_bps"]) / 10_000)))
         by_id = {v["exchange"]: v for v in venues}
+        # its own sales there (its books): the value of the last 30 days' orders and what was refunded of it
+        own = [o for o in self._do(ctx, inc, "xchg.mine", role="seller")
+               if o["seller"] == inc["org"] and ctx.now - int(o["t"]) <= 30 * DAY]
+
+        def refunds_most(eid: str) -> bool:
+            os_ = [o for o in own if o["exchange"] == eid]
+            amt = sum(int(o["amount"]) for o in os_)
+            return len(os_) >= 4 and amt > 0 and sum(int(o["refunded"]) for o in os_) > 0.5 * amt
         for x in mine:
             v = by_id.get(x["exchange"])
-            bad = v is None or (v["orders_30d"] >= 4 and v["disputes_refunded_30d"] > 0.5 * v["orders_30d"])
+            bad = v is None or refunds_most(x["exchange"])
             moved = v is not None and abs(int(x["price_cents"]) - target(v)) > 0.05 * target(v)
             if bad or moved:
                 self._do(ctx, inc, "xchg.delist", listing=x["listing"])
