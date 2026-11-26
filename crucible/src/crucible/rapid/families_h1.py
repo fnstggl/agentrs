@@ -86,7 +86,7 @@ def pe_rule_induction(rng, d):
     hid = {"theta": u(rng, 3.0, 7.0), "k1": u(rng, 0.5, 1.5), "k2": u(rng, 0.12, 0.3), "p": u(rng, 1.5, 2.5),
            "off": [u(rng, -3.0, 3.0) for _ in range(3)], "slope": [u(rng, 0.3, 1.5) for _ in range(3)]}
     hid["validation"] = [rec(0, 10, 0, 5) for _ in range(30)]
-    hid["holdout"] = [rec(7, 15, 2, 7) for _ in range(50)]
+    hid["holdout"] = [rec(10.5, 15, 2, 7) for _ in range(50)]        # beyond the probe box in the first field
     cfg = {"engine": "program_exec", "scenario": "rule_induction", "horizon": int(d["horizon"]), "fields": fields,
            "categories": cats, "box": box, "probe_cost": float(d["experiment_cost"]), "submit_cost": 4.0,
            "budget": float(d["resources"]), "probe_sd": 0.25 * float(d["observation_noise"]), "tol": 0.3,

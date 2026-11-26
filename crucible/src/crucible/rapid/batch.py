@@ -43,8 +43,12 @@ class BatchRapid:
         self.reset()
 
     def reset(self) -> None:
-        sts = [e.init_state(tick_rng(w, "r1", "init")) for e, w in zip(self.singles, self.world_seeds)]
-        self.state = {k: np.concatenate([np.asarray(s[k]) for s in sts], axis=0) for k in sts[0]}
+        # an initial state (including any pre-arrival history) is a pure function of the world seed, so it is built
+        # once and copied on every later reset
+        if getattr(self, "_init", None) is None:
+            sts = [e.init_state(tick_rng(w, "r1", "init")) for e, w in zip(self.singles, self.world_seeds)]
+            self._init = {k: np.concatenate([np.asarray(s[k]) for s in sts], axis=0) for k in sts[0]}
+        self.state = {k: np.array(v, copy=True) for k, v in self._init.items()}
         self.t = 0
 
     def step(self, values: np.ndarray) -> dict[str, np.ndarray]:

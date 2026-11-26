@@ -269,7 +269,55 @@ LOOKALIKE = {"mk_elastic", "mk_signal", "mk_gate", "mk_drift"}
 # "module:function" taking a seed and returning {"ok", ...})
 PAIR_PROTOCOLS: dict[frozenset, str] = {
     frozenset(("sci_dose_response", "sci_competing_hypotheses")): "crucible.rapid.distinct:law_turns_over",
+    frozenset(("des_inventory", "des_perishable")): "crucible.rapid.distinct:overstock_expires",
+    frozenset(("net_routing", "net_topology_shift")): "crucible.rapid.distinct:latency_profile_changes",
 }
+
+
+def _expired_after_overstock(family: str, seed: int) -> int:
+    """Units that expired after the order lever was held at its top for three ticks and the world then left alone
+    to the horizon (evaluator side: the engine's expiry count)."""
+    env = make(family, seed)
+    sp = env.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    name = sorted(props)[0]
+    for _ in range(3):
+        env.step({"kind": "levers", "values": {name: float(props[name]["maximum"])}})
+    while not env.done:
+        env.step({"kind": "levers", "values": {name: 0.0}})
+    return int(env._state.get("expired", 0))
+
+
+def overstock_expires(seed: int) -> dict:
+    """des_inventory vs des_perishable (fingerprints differ in a decay motif): the same intervention - order the
+    most for three ticks, then nothing - leaves expired units in the perishable world and none in the other."""
+    a, b = _expired_after_overstock("des_perishable", seed), _expired_after_overstock("des_inventory", seed)
+    return {"ok": a > 0 and b == 0, "expired_perishable": a, "expired_inventory": b}
+
+
+def _latency_shift(family: str, seed: int) -> float:
+    """Largest change, between the first and the last third of the episode, of a route's mean latency relative to
+    the mean over routes, with the traffic split held even (public readings; the same intervention in any routing
+    world)."""
+    env = make(family, seed)
+    sp = env.action_space()
+    names = sorted(sp.kinds["levers"]["properties"]["values"]["properties"])
+    rows = []
+    while not env.done:
+        r = env.step({"kind": "levers", "values": {n: 1.0 / len(names) for n in names}})
+        rows.append(list(r["observation"]["numbers"].values())[1:])
+    R = np.asarray(rows, dtype=float)
+    k = len(R) // 3
+    e, l_ = R[3:k].mean(axis=0), R[-k:].mean(axis=0)
+    return float(np.max(np.abs(l_ / max(l_.mean(), 1e-9) - e / max(e.mean(), 1e-9))))
+
+
+def latency_profile_changes(seed: int) -> dict:
+    """net_routing vs net_topology_shift (fingerprints differ in a regime change of the network): under an even
+    split held for the whole episode, the routes' relative latencies change between the first and last third in
+    the rewired network, by far more than in the static one."""
+    a, b = _latency_shift("net_topology_shift", seed), _latency_shift("net_routing", seed)
+    return {"ok": a > 3.0 * b and a > 0.1, "relative_latency_change_shift": a, "relative_latency_change_static": b}
 
 
 def _law_shape(family: str, seed: int) -> dict:
