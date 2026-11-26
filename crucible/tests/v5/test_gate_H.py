@@ -221,10 +221,22 @@ def test_H_n1_smallest_effective_models(society):
         acc[model] = res["splits"]["test"]["accuracy"]
     default = routing.DEFAULT
     esc = [c for c in routing.TABLE if routing.route(c) != default]
+    # what the standard run actually used: requests served per model (every class-4 decision goes through one of
+    # these process-wide services), so a reader sees how much of the work the escalation model did
+    req = {mdl: int(s.usage()["requests"]) for mdl, s in society["services"].items()}
+    total = max(1, sum(req.values()))
     m = {"semantic_model_params": routing.PARAMS[default], "default_model": default,
          "smaller_alternatives_benchmarked": len(acc), "smaller_alternative_accuracy": json.dumps(acc),
          "models_used": ",".join(sorted(society["services"])), "escalated_capabilities": ",".join(esc),
-         "escalation_model_params": max([routing.PARAMS.get(routing.route(c), 0) for c in esc] or [0])}
-    record("H.n1", m, command=CMD, notes="Default model of every capability where it is effective (SP-3.2b); "
-                                         "capabilities escalated to a larger model are listed with its size.")
+         "escalation_model_params": max([routing.PARAMS.get(routing.route(c), 0) for c in esc] or [0]),
+         "requests_by_model": json.dumps(req),
+         "request_share_above_1_1b_params": round(sum(n for mdl, n in req.items()
+                                                      if routing.PARAMS.get(mdl, 0) > 1_100_000_000) / total, 4),
+         "largest_model_params_used": max([routing.PARAMS.get(mdl, 0) for mdl, n in req.items() if n] or [0])}
+    record("H.n1", m, command=CMD, notes="semantic_model_params is the default model (D-36): the smallest model "
+                                         "effective on held-out templates for content understanding and tool "
+                                         "choice. Capabilities for which SP-3.2b found no effective model of at "
+                                         "most 1.1B parameters are escalated; listed with the escalation model's "
+                                         "size, the requests each model served in the standard run and the share "
+                                         "served by a model above 1.1B parameters.")
     assert m["semantic_model_params"] <= 1_100_000_000 and m["smaller_alternatives_benchmarked"] >= 2
