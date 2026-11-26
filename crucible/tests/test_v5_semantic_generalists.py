@@ -131,9 +131,14 @@ def test_recorded_inference_regenerates_without_running_a_model():
     import torch
     from crucible.semantic import service as SV
     torch.set_num_threads(1)
-    w = _world("lm", seed=5, routes={c: SMALL for c in routing.TABLE}, steps=1, gap_s=[3 * 86400, 4 * 86400])
-    for _ in range(12):            # until the population's tick has activated a participant (as in any world)
-        w.advance_time(w.now + 7200)
+    from crucible.semantic.generalists.world import ensure_module
+    from crucible.social.worlds import social_world
+    sp = ensure_module(social_world("development", 5, n=200, classes={"adaptive": 0, "strategic": 0, "semantic": 2}),
+                       {"brain": "lm", "routes": {c: SMALL for c in routing.TABLE}, "steps": 1,
+                        "gap_s": [3 * 86400, 4 * 86400]})
+    w = World.create(sp)
+    for _ in range(16):            # until the population's tick has activated a participant (as in any world)
+        w.advance_time(w.now + 3600)
         if any(r["counts"].get("activations") for r in G.members(w)):
             break
     rows = G.members(w)
