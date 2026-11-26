@@ -358,8 +358,13 @@ def _invention_setup(w, ctx):
     search, try the declared capability on their own work, adopt it by their own accepted outcomes, pay per call."""
     from ..economy.needs import NEEDS
     from ..innovation.reference import ServiceCreator
+    from ..innovation.worlds import FORMAT_SCHEMAS
     fams = (w.modules["work"].config.get("families") or []) if "work" in w.modules else []
-    need = sorted(f["need"] for f in fams)[0]
+    # the first of the world's published work formats whose interface an operator can declare (a public schema)
+    cands = sorted(f["need"] for f in fams if f.get("need") in FORMAT_SCHEMAS)
+    if not cands:
+        raise ValueError(f"no work format of this civilisation has a public interface schema: {fams}")
+    need = cands[0]
     tier = len(NEEDS[need].tiers) - 1
     ag = ServiceCreator(INVENTOR["handle"], need, INVENTOR["host"], tier=tier, price=INVENTOR["price"], at=w.now,
                         cores=1, announce=True)
