@@ -111,6 +111,32 @@ def enforce(world, owner: str | None = None) -> int:
     return n
 
 
+def enforce_world(world) -> int:
+    """Typed worlds (`params["typed_events"]`): validate every event of every registered type owned by a module of
+    this world (or the kernel), the 4.0 owners' shared-fact events included. Called by the kernel when such a world
+    is constructed. Validators are passive same-transaction subscribers: they draw no randomness and emit nothing,
+    so a typed world runs exactly the trajectory of the same world untyped (D-21) - an invalid payload is the only
+    thing that changes the outcome (the command is refused). Returns the number of types enforced."""
+    from . import primitives
+    primitives.register_owner_events()
+    n = 0
+    for name, t in sorted(_TYPES.items()):
+        if name in FORBIDDEN or not (t["owner"] == "kernel" or t["owner"] in world.modules):
+            continue
+        subscribe(world, name, _validator(name), owner="kernel")
+        n += 1
+    return n
+
+
+def coverage(world, events=None) -> dict:
+    """Which emitted event types of a world are typed: {emitted, typed, untyped: [...]} over `events` (default the
+    in-memory log). Kernel bookkeeping types (FORBIDDEN, note, time, ...) are not counted."""
+    kernel = FORBIDDEN | {"note", "time", "principal.update", "know", "proc.failed"}
+    seen = sorted({e.type for e in (world.log if events is None else events)} - kernel)
+    typed = [t for t in seen if t in _TYPES]
+    return {"emitted": len(seen), "typed": len(typed), "untyped": [t for t in seen if t not in _TYPES]}
+
+
 _VALIDATORS: dict[str, Callable] = {}
 
 

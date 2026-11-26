@@ -332,6 +332,11 @@ def _run(job: dict) -> dict:
         ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}
     except BaseException as e:  # noqa: BLE001 - user code may raise anything
         ok, result = False, None
+        if counting:
+            # stop counting before the traceback is formatted: that is the sandbox's work, not the program's, and
+            # it depends on this worker's warm caches (linecache), so a fresh worker (after a resume or a pool
+            # eviction) would record another cost for the same request (5.0, exact cross-process resume)
+            _count_off()
         tb = traceback.format_exc(limit=6)
         err = {"type": type(e).__name__, "message": str(e)[:2000], "traceback": tb[-4000:]}
     finally:

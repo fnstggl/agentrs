@@ -13,8 +13,9 @@ in one call are served in order) and records the whole cohort as ONE `cols.batch
 `attention.<activity>`. `reset(ctx, idx=None)` is the daily reset the population runs (`attention.reset`).
 
 Invariant (`check`, also run by `Cols.check_invariants`, so `InvariantMonitor` reports it as `module.cols`):
-left >= 0, spent >= 0, spent <= budget and left <= budget (with float32 rounding tolerance), and no reset dated in the
-future. `violations(world)` returns the same findings as `crucible.evaluation.invariants.Violation` objects.
+left >= 0, spent >= 0, spent <= budget and left <= budget (with float32 rounding tolerance), no reset dated in the
+future, and conservation: left + spent == budget for every individual reset at least once. The columns are written
+only through `spend` and `reset` (the `attention` interface of crucible.substrate.columns). `violations(world)` returns the same findings as `crucible.evaluation.invariants.Violation` objects.
 """
 from __future__ import annotations
 
@@ -34,6 +35,8 @@ COLUMNS = {
     "attention_day": ("int32", (), -1),
 }
 DAY = 86400
+# 5.0 (skeptic S8): the ledger's columns are written only through spend() and reset(), by any module
+columns.register_interface("attention", COLUMNS)
 REL_TOL = 1e-5      # float32 accumulation over a day of many small grants
 ABS_TOL = 1e-3      # minutes
 
@@ -99,7 +102,8 @@ def spend(ctx: Ctx, idx: np.ndarray, minutes: np.ndarray, *, activity: str, tabl
     g_tot = np.minimum(left[u].astype(np.float64), req_tot).astype(np.float32)
     columns.batch(ctx, table, f"attention.{activity}", u, {"attention_left_min": -g_tot, "attention_spent_min": g_tot},
                   mode="add", extra={"activity": activity, "requests": int(ix.size),
-                                     "requested_min": float(m.sum()), "granted_min": float(g_tot.astype(np.float64).sum())})
+                                     "requested_min": float(m.sum()), "granted_min": float(g_tot.astype(np.float64).sum())},
+                  _iface="attention")
     return g.astype(np.float32)
 
 
@@ -121,7 +125,8 @@ def reset(ctx: Ctx, idx: np.ndarray | None = None, *, budget: np.ndarray | float
             "attention_day": np.full(ix.size, today, np.int32)}
     if budget is not None:
         vals["attention_budget_min"] = bud
-    return columns.batch(ctx, table, "attention.reset", ix, vals, mode="set", extra={"day": int(today)})
+    return columns.batch(ctx, table, "attention.reset", ix, vals, mode="set", extra={"day": int(today)},
+                         _iface="attention")
 
 
 def check(world, table: str = TABLE) -> list[dict]:
@@ -146,6 +151,11 @@ def check(world, table: str = TABLE) -> list[dict]:
     v("attention.left_above_budget", left.astype(np.float64) > budget.astype(np.float64) + tol,
       "more attention left than the daily budget", left=left, budget=budget)
     v("attention.future_reset", day > world.now // DAY, "attention reset dated in the future", day=day)
+    # conservation (skeptic S8): since its last reset, an individual's minutes left plus minutes spent equal its
+    # budget - attention can be spent, never minted or destroyed
+    cons = np.abs(left.astype(np.float64) + spent.astype(np.float64) - budget.astype(np.float64))
+    v("attention.not_conserved", (day >= 0) & (cons > tol), "minutes left + spent differ from the budget since the "
+      "last reset", left=left, spent=spent, budget=budget)
     return out
 
 

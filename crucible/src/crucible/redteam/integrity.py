@@ -10,6 +10,7 @@ import signal
 import numpy as np
 
 from ..core.canonical import canonical_bytes, chain_hash
+from ..core.kernel import event_body
 from ..core.errors import InvariantViolation
 from ..core.kernel import World
 from .framework import (DAY, HELD, HOUR, INTEGRITY_BREAK, MONEY_CREATED, Attacker, Evaluator, NotApplicable, Operator,
@@ -532,7 +533,7 @@ class TamperDetection(Probe):
         t[k]["payload"]["postings"][1][1] += 10**6
         res["amount_changed"] = self._verify(w.spec, t)
         prev = t[k - 1]["hash"]
-        body = {x: t[k][x] for x in ("seq", "t", "type", "actor", "cmd", "payload", "vis")}
+        body = event_body(t[k])
         t[k]["hash"] = chain_hash(prev, canonical_bytes(body))
         res["amount_changed_and_own_hash_recomputed"] = self._verify(w.spec, t)
         t = copy.deepcopy(orig)
@@ -579,7 +580,7 @@ class SuffixRewrite(Probe):
         t[k]["payload"]["postings"][1][1] += 77
         h = t[k - 1]["hash"]
         for e in t[k:]:
-            h = chain_hash(h, canonical_bytes({x: e[x] for x in ("seq", "t", "type", "actor", "cmd", "payload", "vis")}))
+            h = chain_hash(h, canonical_bytes(event_body(e)))
             e["hash"] = h
         res = {}
         try:

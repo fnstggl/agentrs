@@ -516,6 +516,30 @@ class Population(Module):
                                             "t": ev.t, "last_checkpoint": ck, "checkpoints": cks,
                                             "updates": (old or {}).get("updates", 0) + 1})
 
+    # ------------------------------------------------------------------ blob retention (crucible.substrate.retention)
+    def blob_roots(self, world):
+        """Blobs the neural classes rebuild their weights from (adaptive.py/strategic.py `_rebuild`): the latest
+        checkpoint of every policy group and the example batches of the updates logged after it."""
+        st = world.state
+        out = []
+        for g, meta in sorted(st.tables.get("pop_policies", {}).items()):
+            cks = meta.get("checkpoints") or []
+            if not cks:
+                continue
+            step0 = cks[-1][0]
+            out.append(cks[-1][1])
+            for key in st.find_ids("pop_policy_log", "group", g):
+                lg = st.tables["pop_policy_log"][key]
+                if lg["step"] > step0:
+                    out.extend(r for r in lg.get("examples") or [] if isinstance(r, str) and r.startswith("sha256:"))
+        return out
+
+    def superseded_blobs(self, world):
+        """Checkpoints replaced by a later checkpoint of the same group: no rebuild from this state on reads them
+        (their weights hashes stay in the hash-chained log and in pop_policies)."""
+        return [ck[1] for _g, meta in sorted(world.state.tables.get("pop_policies", {}).items())
+                for ck in (meta.get("checkpoints") or [])[:-1]]
+
     @applier("pop.genesis")
     def ap_genesis(self, ev):
         self.world.state.meta_set("pop.profile", ev.payload["profile"])

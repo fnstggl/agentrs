@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS crucible_snapshots (
   id TEXT PRIMARY KEY, world_id TEXT NOT NULL, seq BIGINT NOT NULL, hash TEXT NOT NULL,
   created DOUBLE PRECISION NOT NULL, bytes BIGINT NOT NULL, blob BYTEA NOT NULL);
 CREATE TABLE IF NOT EXISTS crucible_blobs (key TEXT PRIMARY KEY, data BYTEA NOT NULL);
+ALTER TABLE crucible_events ADD COLUMN IF NOT EXISTS via TEXT;
 """
 
 
@@ -94,22 +95,33 @@ class PostgresStore(Store):
                     if e["seq"] != last + 1 + i:
                         raise StoreConflict(f"non-contiguous append to {world_id}: {e['seq']} after {last + i}")
                 with c.cursor() as cur:
-                    with cur.copy("COPY crucible_events (world_id, seq, t, type, actor, cmd, payload, vis, hash) FROM STDIN") as cp:
+                    with cur.copy("COPY crucible_events (world_id, seq, t, type, actor, cmd, payload, vis, hash, via) "
+                                  "FROM STDIN") as cp:
                         for e in events:
                             cp.write_row((world_id, e["seq"], e["t"], e["type"], e["actor"], e["cmd"],
-                                          dumps(e["payload"]), dumps(e["vis"]), e["hash"]))
+                                          dumps(e["payload"]), dumps(e["vis"]), e["hash"], e.get("via")))
         except psycopg.errors.UniqueViolation as e:
             raise StoreConflict(str(e)) from e
 
-    def read_events(self, world_id, from_seq=0, to_seq=None):
-        q = "SELECT seq, t, type, actor, cmd, payload, vis, hash FROM crucible_events WHERE world_id=%s AND seq>%s"
+    def read_events(self, world_id, from_seq=0, to_seq=None, types=None):
+        q = ("SELECT seq, t, type, actor, cmd, payload, vis, hash, via FROM crucible_events "
+             "WHERE world_id=%s AND seq>%s")
         a: list = [world_id, from_seq]
         if to_seq is not None:
             q += " AND seq<=%s"
             a.append(to_seq)
+        if types is not None:
+            q += " AND type = ANY(%s)"
+            a.append(sorted(set(types)))
         q += " ORDER BY seq"
-        return [{"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": r[5], "vis": r[6],
-                 "hash": r[7]} for r in self._conn().execute(q, a)]
+        out = []
+        for r in self._conn().execute(q, a):
+            d = {"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": r[5], "vis": r[6],
+                 "hash": r[7]}
+            if r[8] is not None:
+                d["via"] = r[8]
+            out.append(d)
+        return out
 
     def last_seq(self, world_id):
         c = self._conn()
@@ -150,6 +162,17 @@ class PostgresStore(Store):
     def get_blob(self, key):
         r = self._conn().execute("SELECT data FROM crucible_blobs WHERE key=%s", (key,)).fetchone()
         return bytes(r[0]) if r else None
+
+    def delete_snapshot(self, sid):
+        self._conn().execute("DELETE FROM crucible_snapshots WHERE id=%s", (sid,))
+
+    def delete_blob(self, key):
+        self._conn().execute("DELETE FROM crucible_blobs WHERE key=%s", (key,))
+
+    def blob_sizes(self, prefix=""):
+        rs = self._conn().execute("SELECT key, octet_length(data) FROM crucible_blobs WHERE starts_with(key, %s) "
+                                  "ORDER BY key", (prefix,))
+        return {r[0]: int(r[1]) for r in rs}
 
     def close(self):
         c = getattr(self._local, "c", None)

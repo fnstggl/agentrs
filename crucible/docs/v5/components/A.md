@@ -186,3 +186,41 @@ passes in the foreground).
 * Attention invariant tolerance: spent <= budget with a relative tolerance of 1e-5 plus 1e-3 minutes (float32).
 * SP-2.1 is partial: only Mode A is operational (4.0 mechanisms); Mode A gains `crucible.rapid` and Modes B/C become
   operational only when workstreams H, I and J register providers.
+
+## 5.0-complete repairs (D-21, recovery audit A_J_substrate_civ)
+
+| audit item | repair | where | test |
+|---|---|---|---|
+| K1 `on_load` before the store was attached | `World.replay` builds from the snapshot with `from_blob(load=False)`, attaches the store, applies the events, then runs every `on_load` once | `core/kernel.py` | `tests/test_v5_substrate_resume.py` (three processes: crash after a snapshot, resume in a new process with identical hashes; replay and regeneration in new processes with 0 inference runs) |
+| K2 subscribers advanced the emitter's RNG | same-transaction subscribers run in *side* contexts: their events carry `Event.via` (hashed only when set), their draws come from their own stream `("sub", owner, main-line position, event type, i)`; main-line draws and external-outcome keys use `World.main_seq` (= seq minus side events, `meta["side_events"]`); counters allocated only by side contexts go to a side `ctr` event | `core/kernel.py`, `core/state.py`, stores (`via` column) | `tests/test_v5_substrate_streams.py` (passive observer: identical events; emitting observer: identical main line and state; typed validation: identical simulation) |
+| K3 run-to-run hash differences | worker replies no longer contain the per-process sandbox directory (`runner.WORKDIR_ALIAS`); deterministic line counting stops before a traceback is formatted (it depended on the worker's warm linecache, so a resumed world billed a fresh worker differently) | `sandbox/runner.py`, `sandbox/boot.py` | `tests/test_v5_substrate_streams.py::test_same_spec_and_seed_give_the_same_hashes_run_to_run`, resume test |
+| A2 unbounded blob growth, `_POOL` leak | `substrate/retention.py`: `pack` (LZMA chunks, pointers, hash-verified reads), `collect` (drops module-declared superseded blobs no retained snapshot roots), `prune_snapshots`, `compact`, `stats`; snapshots record their `blob_roots`; `Module.blob_roots` / `superseded_blobs` hooks (implemented by `pop`); process pool reference-counted per store-less world (released on close or GC); SQLite stores payloads > 2 KiB compressed | `substrate/retention.py`, `substrate/artifacts.py`, `storage/*` | `tests/test_v5_substrate_retention.py` |
+| A5 schemas registered as an import side effect; typed run changed the trajectory | `primitives.register_owner_events()` called explicitly from `substrate/modules.py`; `params.typed_events` makes the kernel call `bus.enforce_world` (every registered type of the world's modules, 4.0 owners included); `bus.coverage(world)` | `substrate/bus.py`, `substrate/primitives.py` | streams test (typed vs untyped identical) |
+| A6 vacuous duplicate check | `substrate/facts.py`: mandatory scan of every table, column table, column and dense array of every shipped module (`audit()`), classification (owner / reviewed part, extension, private, duplicate / unreviewed), reviewed allow-list `KNOWN_DUPLICATES` with decision, target owner, workstream, migration, expiry; `primitives.problems` runs it on every world; data-level row counts per copy. D-11 resolved (`product` -> `products.products`; new kind `listing` = `market.listings`); new kinds `subscription`, `employment`, `population`, `need` | `substrate/facts.py`, `substrate/primitives.py` | `tests/test_v5_substrate_facts.py` |
+| P.* historical queries | `substrate/history.py`: `state_at(t|seq)` (nearest snapshot + verified replay, read-only store), `events_of(entity)` (incl. a population row's cohort decisions), `record_history`, `column_history`, `mainline` / `mainline_digest` | `substrate/history.py` | `tests/test_v5_substrate_history.py` |
+| A9 Mode A only via 4.0, Mode C check accepted any world | Mode A provider `rapid` (one family per engine, seeded random policy, determinism + responsiveness); Mode C check adds `composition(world)` (engaged domains >= 12 of 17, population reach >= 6, >= 8 shared kinds written cross-module incl. population and money, >= 12 initiator->owner pairs, no fact problems) | `substrate/modes.py` | `tests/test_v5_substrate_modes.py` (population world and all-module world refused) |
+
+Store growth, 30-day development-profile population world (seed 11, SQLite, 281,747 events both runs):
+
+| | before (a881d18 code) | after (weekly snapshot + `compact(prune=True)`) |
+|---|---|---|
+| blob bytes in the store | 161.9 MB (36,820 blobs) | 65.8 MB (36,818 blobs: 36,683 packed into 22.7 MB of chunks + 4.3 MB pointers; 38.9 MB unpacked roots/checkpoints) |
+| event payload bytes | 101.4 MB | 58.9 MB |
+| snapshots | 5, 14.6 MB | 4, 12.4 MB |
+| SQLite file | 351.8 MB | 182.5 MB (vacuumed) |
+| replay from genesis / resume, store only | - | exact (53.5 s) / exact (6.7 s) |
+
+Cohort blobs compress about 5x; neural checkpoints (3.3-4.7 MB of float32 each) do not, and are kept while the
+current state or a retained snapshot roots them. The event log remains the largest linear term.
+
+### Skeptic review (S1-S8) of the same audit
+
+| finding | repair | test |
+|---|---|---|
+| S1 columns had no writer ownership; integer values wrapped | every column is owned by its declaring module; a batch may write it only from the owner, a module of the owner's package, or a granted module (`columns.grant`); `Ctx.module` names the running module; the writer is recorded in the event (`by`) and re-checked by the applier in live execution (hand-emitted `cols.batch` cannot bypass it); integer casts and `add` sums are range-checked and refused | `tests/test_v5_substrate_columns.py` (ownership, forged writer, wrap tests) |
+| S2 regeneration could not run cross-process; replay re-trains | `World.regenerate(..., store=)` reads recorded outputs from the store (fresh-process regeneration exact, 0 inference runs). Re-training on load (adaptive `on_load` rebuild from an older checkpoint plus logged updates) is counted (`backward_passes` in `tests/v5_resume_child.py`) and reported; removing it needs a checkpoint per learning step in `population/adaptive.py` (workstream B), which retention now makes affordable | gate SP-2.3 metrics `population_training_backward_passes_*` |
+| S4 handle `p7` could be squatted | `p<i>` handles are reserved for population individuals (create_person/create_org refuse them, resolution never falls back to a squatter); identity invariant: one principal per handle | `tests/test_v5_substrate_columns.py::test_population_handles_are_reserved_and_cannot_be_squatted` |
+| S6 a self-attested or trivial provider raised execution_modes | a provider's check only adds requirements (the registry's check always runs); modes B/C must build kernel worlds; Mode B needs >= 2 engaged domains, Mode C the composition criteria | `tests/test_v5_substrate_modes.py` |
+| S7 (K7) an event could commit without its subscribers | the savepoint is taken before the triggering event is applied; a failing subscriber undoes the event too, even if the emitter swallows the error | `tests/test_v5_substrate_bus.py` |
+| S5 (K5) `_unflushed` grew without a store; trimmed logs counted as "replay not checked" | store-less worlds keep no second copy; the mode check reads a trimmed log from the store or fails | `tests/test_v5_substrate_bus.py`, modes |
+| S8 attention could be minted invisibly | conservation invariant (left + spent == budget since the last reset); attention columns written only through `spend`/`reset` (or by their declaring module when it creates rows) | `tests/test_v5_substrate_columns.py` |

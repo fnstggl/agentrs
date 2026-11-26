@@ -186,3 +186,62 @@ def test_no_subscriber_means_identical_logs():
             w.execute("p:ann", {"tool": "bsrc.ping", "args": {"n": n}})
         w.advance_time(3600)
     assert a.last_hash == b.last_hash and a.digest() == b.digest()
+
+
+def test_an_event_never_commits_without_its_subscribers_even_when_the_emitter_swallows_the_error():
+    """Skeptic S7 (K7): the savepoint is taken before the triggering event is applied."""
+    from crucible.core import schema as S
+    from crucible.core.errors import Forbidden
+    from crucible.core.kernel import Module, World, WorldSpec, applier, endpoint, register_module
+
+    @register_module
+    class AtomEmitter(Module):
+        name = "atom_emitter"
+        host = "atom"
+
+        def install(self, world):
+            world.state.declare_table("atom_posts")
+            world.state.declare_table("atom_index")
+            bus.subscribe(world, "atom.post", self.index, owner=self.name)
+
+        def index(self, ctx, ev):
+            ctx.emit("atom.indexed", {"id": ev.payload["id"]}, vis="internal")
+            if ev.payload["id"].endswith("bad"):
+                raise Forbidden("the index refuses it")
+
+        @endpoint("post_many", S.obj({"ids": S.s_arr(S.s_str(maxLength=20))}, ["ids"]))
+        def post_many(self, ctx, ids):
+            for i in ids:
+                try:                                   # the emitter swallows the subscriber's refusal
+                    ctx.emit("atom.post", {"id": i}, vis="public")
+                except Forbidden:
+                    pass
+            return {"n": len(ids)}
+
+        @applier("atom.post")
+        def ap_post(self, ev):
+            self.world.state.put("atom_posts", ev.payload["id"], {})
+
+        @applier("atom.indexed")
+        def ap_indexed(self, ev):
+            self.world.state.put("atom_index", ev.payload["id"], {})
+
+    w = World.create(WorldSpec("atom", 1, [{"name": m, "config": {}} for m in
+                                           ("identity", "bank", "admin", "atom_emitter")]))
+    p = w.system_call("admin.join", {"handle": "atom-user", "endowment": 0})["principal"]
+    r = w.execute(p, {"tool": "atom.post_many", "args": {"ids": ["a", "b-bad", "c", "d-bad"]}})
+    assert r.ok
+    assert sorted(w.state.tables["atom_posts"]) == sorted(w.state.tables["atom_index"]) == ["a", "c"]
+    assert [e.type for e in w.log if e.type.startswith("atom.")] == ["atom.post", "atom.indexed"] * 2
+    assert World.replay(w.spec, [e.to_dict() for e in w.log]).digest() == w.digest()
+
+
+def test_a_storeless_world_keeps_no_second_copy_of_its_events():
+    """Audit K5: _unflushed grew without bound without a store; trimming the log then freed nothing."""
+    import crucible
+    from crucible.core.kernel import World
+    from crucible.worldgen.generator import generate
+    crucible.load_all_modules()
+    w = World.create(generate({"family": "tiny"}, 1))
+    w.advance_time(86400)
+    assert w._unflushed == [] and w.seq > 100

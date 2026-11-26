@@ -295,7 +295,16 @@ class Worker:
 
     def run(self, job: dict, rpc: Callable[[str, dict], tuple[bool, Any]] | None = None,
             timeout: float | None = None, max_rpc: int = 50) -> dict:
-        """Run one job. `rpc(tool, args) -> (ok, result_or_error)` serves nested world calls."""
+        """Run one job. `rpc(tool, args) -> (ok, result_or_error)` serves nested world calls.
+
+        The reply never contains this worker's host directory (`<base>/<pid>-<n>-<ms>`, different in every
+        process): it is replaced by the fixed `WORKDIR_ALIAS` everywhere (tracebacks, messages, stdout, results), so
+        the recorded outcome - and with it the event hashes - is the same run to run (5.0, audit K3)."""
+        wd = self.workdir
+        out = self._run(job, rpc, timeout, max_rpc)
+        return _scrub(out, wd) if wd else out
+
+    def _run(self, job: dict, rpc, timeout, max_rpc) -> dict:
         if not self.alive():
             return {"ok": False, "error": {"type": "WorkerDead", "message": self.dead_reason or "not running"},
                     "result": None, "stdout": "", "cpu_ms": 0.0, "wall_ms": 0.0, "rpc_calls": 0}
@@ -359,6 +368,20 @@ class Worker:
                 self.proc.wait(timeout=5)
             except (ProcessLookupError, OSError, subprocess.TimeoutExpired):
                 pass
+
+
+WORKDIR_ALIAS = "/sandbox/work"
+
+
+def _scrub(x: Any, wd: str) -> Any:
+    """`x` with every occurrence of the host directory `wd` in strings replaced by WORKDIR_ALIAS."""
+    if isinstance(x, str):
+        return x.replace(wd, WORKDIR_ALIAS) if wd in x else x
+    if isinstance(x, dict):
+        return {_scrub(k, wd): _scrub(v, wd) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_scrub(v, wd) for v in x]
+    return x
 
 
 def run_program(files: dict[str, str], target: str, args: Any = None, caller: Any = None,
