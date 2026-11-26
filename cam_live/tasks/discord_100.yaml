@@ -1,0 +1,104 @@
+# CAM Live — first live objective (spec Part 13).
+#
+# This file states WHAT is to be achieved, how success is verified independently of CAM, which resources and
+# interfaces are authorized, the experiment boundaries, the measurement protocol and the data permissions.
+# It contains no way of achieving the objective, and the loader rejects any that is added.
+#
+# Every value written REQUIRED must be filled in by the operator. `cam-live run` refuses to start a live run
+# while any of them is unset; `cam-live run --task tasks/discord_100.yaml --preflight-only` lists them.
+version: 1
+objective_id: discord-100
+mode: live
+family: community/membership
+
+objective: "Create and operate a genuinely useful Discord community that attracts 100 distinct real human members who voluntarily choose to join, within the authorized experimental constraints."
+
+# ---- independently defined success criteria (read by the verifier process, never by the learner) ------------
+success:
+  verifier: membership
+  metric: membership.confirmed
+  target: 100
+  confidence: 0.95
+  definition: >-
+    A member counts when the platform lists the account as a current member of the authorized guild, the account
+    belongs to a human who joined through their own action, and no exclusion rule below applies. Success is
+    reported only when the lower confidence bound of the count of legitimate members reaches the target.
+  evidence_source: REQUIRED          # "<module>:<factory>" of the live membership source for the authorized guild
+  exclusions:
+    exclude_bots: true
+    test_account_ids: REQUIRED       # list of operator-declared test accounts (may be empty: [])
+    count_departed: false
+    exclude_flags: [purchased, artificial, fabricated_activity, prohibited_engagement, added_without_consent, duplicate]
+    uncertain_flags: [automation_suspected, authenticity_unknown]
+    pending_screening: uncertain     # accounts that have not passed the platform's membership screening
+    suspect_invite_codes: []         # operator-flagged indicators of purchased membership
+    suspect_member_ids: []
+    min_account_age_s: 0
+    uncertain_p_range: [0.0, 1.0]
+
+# ---- secondary measurements: reported separately, never part of the objective status -------------------------
+secondary_metrics:
+  - secondary.retention_7d
+  - secondary.participation.members
+  - secondary.participation.interactions
+  - secondary.feedback.consented
+  - secondary.resource_use
+  - secondary.operating_cost
+  - secondary.time_elapsed_s
+
+# ---- authorized resources ---------------------------------------------------------------------------------
+resources:
+  discord_guild_id: REQUIRED                 # the one guild this experiment may operate
+  discord_bot_credential_name: REQUIRED      # NAME of the bot credential in the vault (never the value)
+  owned_site: REQUIRED                       # base URL of the site the operator owns and authorizes
+  operator_authorization_record: REQUIRED    # identifier of the operator's authorization record for live operation
+  authorized_tools: REQUIRED                 # list of tool names / tool families CAM may use
+  authorized_destinations: REQUIRED          # list of accounts and destinations CAM may act on
+  currency: REQUIRED
+  publishing:
+    authorized: REQUIRED                     # true or false
+    approval_required: true
+    destinations: REQUIRED
+
+# ---- permitted environment interfaces -------------------------------------------------------------------------
+interfaces: [structured_browser, visual, code, api, skill, internal]
+
+# ---- experiment boundaries: nothing is assumed unlimited ---------------------------------------------------------
+limits:
+  duration_s: REQUIRED
+  money: REQUIRED
+  compute_s: REQUIRED
+  max_external_actions: REQUIRED
+  max_decisions: REQUIRED
+
+stop_conditions:
+  - verified_success
+  - verified_failure
+  - duration_exhausted
+  - money_exhausted
+  - compute_exhausted
+  - external_actions_exhausted
+  - decisions_exhausted
+  - operator_stop
+  - emergency_stop
+  - authorization_revoked
+
+# ---- outcome measurement protocol ----------------------------------------------------------------------------
+measurement:
+  primary: membership.confirmed
+  secondary_kept_separate: true
+  verify_interval_s: 3600
+  evidence_poll_interval_s: 900
+  protocol: >-
+    The independent verifier reads the member list of the authorized guild through the official bot interface,
+    applies the exclusion rules of this file, signs the result and appends it to its hash-chained log. Only
+    aggregate counts leave the verifier. Where authenticity cannot be established with the stated confidence the
+    result is reported as undetermined with its uncertainty, not as success.
+
+# ---- data permissions ---------------------------------------------------------------------------------------
+data_permissions:
+  store_message_content: false
+  train_on_message_content: false
+  store_member_identifiers: false            # identifiers are hashed before they reach any log
+  store_aggregate_metrics: true
+  collect_feedback_with_consent: REQUIRED    # true or false

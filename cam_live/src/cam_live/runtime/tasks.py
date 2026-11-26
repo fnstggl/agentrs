@@ -40,7 +40,7 @@ REJECTED_KEYS = tuple(TaskSpec.FORBIDDEN_KEYS) + (
 _SCHEMA_SAFE_KEYS = ("max_external_actions",)
 #: text patterns that read as a way of achieving the objective (label -> regex)
 REJECTED_TEXT: Dict[str, str] = {
-    "enumerated procedure": r"(?im)(?:^|\s)(?:step\s*\d+\b|\d+[.)]\s+[a-z])",
+    "enumerated procedure": r"(?im)^\s*\d+[.)]\s+\S|\bstep\s*\d+\b",
     "ordered instruction": r"(?i)\bfirst\b[^.]{0,80}\b(?:then|next|after that|finally)\b",
     "directive to the agent": r"(?i)\b(?:you|cam|the agent|the model)\s+(?:should|must|shall|ought to|needs? to|has to|is to)\b",
     "timing directive": r"(?i)\b(?:every|each)\s+(?:day|week|hour|morning|evening|night|weekday|weekend|"
@@ -179,11 +179,11 @@ def run_problems(raw: Dict[str, Any]) -> List[str]:
     mode = raw.get("mode", "staging")
     if mode == "live":
         return [f"{m['item']}: {m['detail']}" for m in live_requirements(raw)]
-    out: List[str] = []
+    out: List[str] = [f"{p}: unset (marked REQUIRED in the task file)" for p in unset_paths(raw)]
     limits = raw.get("limits") or {}
     for f in ("duration_s", "max_decisions"):
         v = limits.get(f)
-        if is_unset(v) or not isinstance(v, (int, float)) or v <= 0:
+        if not is_unset(v) and (not isinstance(v, (int, float)) or v <= 0) or f not in limits:
             out.append(f"limits.{f}: must be an explicit positive number in every mode")
     if not str(raw.get("objective") or "").strip():
         # autonomous learning (spec 11.4): no objective, but a complete fixed budget

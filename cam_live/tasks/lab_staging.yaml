@@ -1,0 +1,44 @@
+# LabWorld objective for diagnostic and staging runs of the runtime (controlled world with known ground truth).
+# Results carry provenance "diagnostic"; this is never live evidence. No way of achieving the objective appears here.
+version: 1
+objective_id: lab-staging
+mode: diagnostic
+family: lab/base
+
+objective: "Reach 30 adopters in the lab world before time runs out."
+
+success:
+  verifier: labworld
+  metric: lab.adopters.total
+  target: 30
+  definition: The lab world's own count of arrived adopters at or before the deadline.
+
+secondary_metrics: [lab.budget.spent]
+
+resources:
+  authorized_tools: [lab.act, lab.probe, lab.unlock, lab.noise, wait]
+  publishing:
+    authorized: false
+
+interfaces: [api, internal]
+
+limits:
+  duration_s: 1209600
+  money: 100
+  compute_s: 3600
+  max_external_actions: 500
+  max_decisions: 10000
+
+stop_conditions: [verified_success, verified_failure, duration_exhausted, money_exhausted, decisions_exhausted, operator_stop]
+
+measurement:
+  primary: lab.adopters.total
+  source: LabVerifier
+  protocol: The lab verifier reads the world state directly and signs the result.
+
+data_permissions:
+  store_message_content: false
+  train_on_message_content: false
+  store_member_identifiers: false
+  store_aggregate_metrics: true
+  collect_feedback_with_consent: false

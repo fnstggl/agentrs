@@ -65,3 +65,60 @@ class ApprovalPolicy(AllowAllPolicy):
             return AuthorizationDecision(AuthVerdict.ALLOW, e["action_hash"], ["approved by " + by], grant="diag",
                                          approval_id=approval_id)
         return AuthorizationDecision(AuthVerdict.DENY, e["action_hash"], ["rejected by " + by + (": " + note if note else "")])
+
+
+# --------------------------------------------------------------------------------------------------------------
+# a LabWorld that outlives the runtime process (served over the project's RPC) — used by the kill -9 tests
+# --------------------------------------------------------------------------------------------------------------
+class LabHost:
+    """Holds the world, verifier, policy and clock in the test process. ``execute`` de-duplicates by action id,
+    which is the environment-side guarantee the runtime relies on when it resolves an in-flight action."""
+    ENV = ("observe", "discover_tools", "validate_action", "execute", "poll_events", "get_resource_state",
+           "get_pending_outcomes", "get_observable_metrics", "get_capabilities", "measure")
+    METHODS = ENV + ("v_verify", "v_check_signature", "v_measure", "p_authorize", "p_check_grant", "p_record",
+                     "p_approvals", "p_resolve_approval", "p_stopped", "p_limits_state", "clock_now",
+                     "clock_advance")
+
+    def __init__(self, lab_cfg: LabConfig):
+        self.clock = SimClock()
+        self.world = LabWorld(lab_cfg, self.clock)
+        self.verifier = LabVerifier(self.world)
+        self.policy = AllowAllPolicy()
+        self.results: Dict[str, Any] = {}             # action id -> stored result
+        self.execute_calls: Dict[str, int] = {}       # action id -> times the runtime asked
+        self.real_executions: Dict[str, int] = {}     # action id -> times the world actually ran it
+        self.issued_queries: List[str] = []
+
+    def __getattr__(self, name: str):
+        if name in ("observe", "discover_tools", "validate_action", "poll_events", "get_resource_state",
+                    "get_pending_outcomes", "get_observable_metrics", "measure"):
+            return getattr(self.world, name)
+        raise AttributeError(name)
+
+    def get_capabilities(self):
+        return {**self.world.get_capabilities(), "idempotent_actions": True}
+
+    def execute(self, action, authorization):
+        aid = action.action_id
+        self.execute_calls[aid] = self.execute_calls.get(aid, 0) + 1
+        if aid in self.results:
+            return self.results[aid]
+        res = self.world.execute(action, authorization)
+        self.real_executions[aid] = self.real_executions.get(aid, 0) + 1
+        self.results[aid] = res
+        self.issued_queries += [q.query_id for q in res.expected_outcomes]
+        return res
+
+    def v_verify(self, task): return self.verifier.verify(task)
+    def v_check_signature(self, outcome): return self.verifier.check_signature(outcome)
+    def v_measure(self, queries): return self.verifier.measure(queries)
+    def p_authorize(self, action, task, context=None): return self.policy.authorize(action, task, context)
+    def p_check_grant(self, action, decision): return self.policy.check_grant(action, decision)
+    def p_record(self, action, result): return self.policy.record(action, result)
+    def p_approvals(self): return self.policy.approvals()
+    def p_resolve_approval(self, approval_id, approve, by, note=""):
+        return self.policy.resolve_approval(approval_id, approve, by, note)
+    def p_stopped(self): return self.policy.stopped()
+    def p_limits_state(self): return self.policy.limits_state()
+    def clock_now(self): return self.clock.now()
+    def clock_advance(self, dt): return self.clock.advance(dt)

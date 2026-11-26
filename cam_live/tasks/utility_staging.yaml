@@ -1,0 +1,56 @@
+# A second, clearly different objective for transfer evaluation: a software-utility objective on the local staging
+# services, with its own verifier configuration. No way of achieving the objective appears here.
+version: 1
+objective_id: staging-utility
+mode: staging
+family: software/utility
+
+objective: "Create and operate a small software utility on the authorized staging site that at least 20 distinct staging client sessions use successfully, within the authorized experimental constraints."
+
+success:
+  verifier: metric_threshold
+  metric: utility.distinct_successful_sessions
+  target: 20
+  definition: >-
+    A session counts when the staging service log shows a distinct client session that requested the utility and
+    received a successful response.
+  evidence_source: REQUIRED          # "json:<metrics file written by the staging service>" or "<module>:<factory>"
+
+secondary_metrics:
+  - utility.requests_total
+  - utility.error_rate
+  - utility.median_latency_ms
+  - secondary.time_elapsed_s
+
+resources:
+  staging_site: REQUIRED             # base URL of the local staging site
+  authorized_tools: [structured_browser, code, api, internal]
+  publishing:
+    authorized: true
+    approval_required: false
+    destinations: [staging_site]
+
+interfaces: [structured_browser, code, api, internal]
+
+limits:
+  duration_s: 86400
+  money: 0
+  compute_s: 14400
+  max_external_actions: 2000
+  max_decisions: 5000
+
+stop_conditions: [verified_success, verified_failure, duration_exhausted, compute_exhausted, external_actions_exhausted, decisions_exhausted, operator_stop, emergency_stop]
+
+measurement:
+  primary: utility.distinct_successful_sessions
+  verify_interval_s: 60
+  protocol: >-
+    The independent verifier reads the metrics the staging service records about client sessions and signs the
+    result. The staging clients are operated by the staging service, not by CAM.
+
+data_permissions:
+  store_message_content: false
+  train_on_message_content: false
+  store_member_identifiers: false
+  store_aggregate_metrics: true
+  collect_feedback_with_consent: false

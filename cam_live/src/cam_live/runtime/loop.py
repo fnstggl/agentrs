@@ -106,7 +106,8 @@ class LiveRuntime:
         self.agent, self.env, self.policy, self.verifier = agent, env, policy, verifier
         self.task, self.clock, self.actor_id = task, clock, actor_id
         self.run_dir = os.path.abspath(run_dir)
-        self.cfg = RuntimeConfig.from_any(cfg)
+        self._base_cfg = RuntimeConfig.from_any(cfg)
+        self.cfg = self._with_measurement(task)
         os.makedirs(self.run_dir, exist_ok=True)
         self._wake = wake or threading.Event()
         self.sleeper = make_sleeper(clock, self._wake, self.cfg.control_poll_s)
@@ -161,6 +162,14 @@ class LiveRuntime:
         self._wal_path = os.path.join(self.run_dir, WAL_FILE)
         self._state_path = os.path.join(self.run_dir, RunFiles.STATE)
 
+    def _with_measurement(self, task: TaskSpec) -> RuntimeConfig:
+        """The operator's measurement protocol (task file) sets the verification and evidence-poll intervals."""
+        m, over = task.measurement or {}, {}
+        for key, field_name in (("verify_interval_s", "verify_every_s"), ("evidence_poll_interval_s", "evidence_poll_s")):
+            if isinstance(m.get(key), (int, float)) and not isinstance(m.get(key), bool) and m[key] >= 0:
+                over[field_name] = float(m[key])
+        return dataclasses.replace(self._base_cfg, **over)
+
     # ==========================================================================================================
     # start / resume
     # ==========================================================================================================
@@ -212,6 +221,7 @@ class LiveRuntime:
     def _restore(self, st: Dict[str, Any]) -> None:
         self.status, self.status_reason = st["status"], st.get("status_reason", "")
         self.task = TaskSpec.from_dict(st["task"])
+        self.cfg = self._with_measurement(self.task)
         self.log.provenance = self.task.mode
         self.log.redact.set_permissions(self.task.data_permissions)
         self.started_at, self.paused_at = float(st.get("started_at", 0.0)), float(st.get("paused_at", 0.0))
@@ -522,6 +532,7 @@ class LiveRuntime:
         entry = {"task": task.to_dict(), "path": path, "by": by, "assigned_at": self.clock.now()}
         if task.objective_id == self.task.objective_id:
             self.task = task                            # updated boundaries for the same objective
+            self.cfg = self._with_measurement(task)
             self.log.redact.set_permissions(task.data_permissions)
             atomic_write_json(os.path.join(self.run_dir, TASK_FILE), task.to_dict(), durable=self._durable)
             if self.status in TERMINAL and not self._exhausted():
@@ -536,6 +547,7 @@ class LiveRuntime:
 
     def _switch_objective(self, entry: Dict[str, Any]) -> None:
         self.task = TaskSpec.from_dict(entry["task"])
+        self.cfg = self._with_measurement(self.task)
         self.log.provenance = self.task.mode
         self.log.redact.set_permissions(self.task.data_permissions)
         self.counters = dict(_COUNTERS)
