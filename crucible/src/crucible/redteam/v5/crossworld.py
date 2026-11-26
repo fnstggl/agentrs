@@ -204,6 +204,56 @@ class ReplayIgnoresForeignStore(V5Probe):
         return Verdict(HELD, "replay is exact and contains nothing of the other world", evd)
 
 
+class MemoEvictionIsPerLineage(V5Probe):
+    name = "v5.crossworld.meter_memo_eviction_is_per_lineage"
+    attack_class = "cross_world/sandbox_state"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    world = {"v5": "substrate"}
+    description = ("The deterministic cost model's anchors live in one machine-level memo file shared by every world "
+                   "and process (metering.DiskMemo), so that a replication in a new process bills exactly. The file is "
+                   "bounded. A victim world's program runs a few computations; an attacker world then runs far more "
+                   "distinct computations than the file keeps (in this probe the real class with its bounds scaled "
+                   "down 1000x: 2,000 rows, 200 per lineage; in a world: many distinct cheap jobs). Checked: every "
+                   "victim anchor survives, so the victim's replication still bills its first measurements.")
+
+    def setup(self, op: Operator) -> None:
+        import tempfile
+        self.dir = tempfile.mkdtemp(prefix="crucible-rt-memo-")
+
+    def attack(self, a: Attacker) -> None:
+        import os
+        import sqlite3
+        from ...sandbox import metering as M
+        path = os.path.join(self.dir, "memo.sqlite")
+        victim = M.DiskMemo(path, max_rows=2_000, scope_max=200, check_every=100)
+        attacker = M.DiskMemo(path, max_rows=2_000, scope_max=200, check_every=100)   # another process, same file
+        self.vkeys = [M.computation_key("victim-lineage", "f" * 8, {"kind": "call", "args": i}, [], {"ok": True})
+                      for i in range(50)]
+        for k in self.vkeys:
+            victim.first(k, 7_000_000, "victim-lineage")
+        for i in range(20_000):
+            attacker.first(M.computation_key("attacker-lineage", "a" * 8, {"kind": "call", "args": i}, [],
+                                             {"ok": True}), 1, "attacker-lineage")
+        check = M.DiskMemo(path, max_rows=2_000, scope_max=200)
+        self.kept = sum(1 for k in self.vkeys if check.first(k, 1, "victim-lineage") == (7_000_000, False))
+        con = sqlite3.connect(path)
+        self.rows = con.execute("SELECT scope, count(*) FROM memo GROUP BY scope").fetchall()
+        con.close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        import shutil
+        shutil.rmtree(self.dir, ignore_errors=True)
+        evd = {"victim_anchors": len(self.vkeys), "victim_anchors_kept": self.kept, "rows_by_lineage": self.rows,
+               "cross_world_leaks": len(self.vkeys) - self.kept}
+        if self.kept < len(self.vkeys):
+            return Verdict(INTEGRITY_BREAK, f"another lineage's computations evicted {len(self.vkeys) - self.kept} of "
+                           f"{len(self.vkeys)} victim anchors from the shared memo file", evd, severity="low",
+                           fix="sandbox/metering.py: DiskMemo evicts per lineage")
+        return Verdict(HELD, "every victim anchor survived another lineage's flood; the flood evicted only its own "
+                             "rows", evd)
+
+
 def probes() -> list:
     return [ArtifactsDoNotCrossWorlds(), ClosedWorldBytesAreReleased(), SandboxStateIsPerWorld(),
-            ReplayIgnoresForeignStore()]
+            ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage()]

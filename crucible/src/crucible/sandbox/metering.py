@@ -36,8 +36,9 @@ differ (an experiment's arms that add or remove a module) share a lineage with `
 Units. ``work_units`` are CPU nanoseconds divided by ``NS_PER_WORK_UNIT`` (calibrated on the reference need solvers:
 about one of their executed CPython lines, including the C work it triggers, on the build host - so magnitudes of
 realistic service code stay those of the retired executed-line model), after subtracting the protocol work of the job
-(``JOB_OVERHEAD_NS`` plus ``PROTO_NS_PER_BYTE`` per byte of the job message and of its result message, both sizes
-known to the parent). Unlike the retired line count they include work done in C (builtins, numpy), which is real
+(``JOB_OVERHEAD_NS`` plus ``PROTO_NS_PER_BYTE`` per byte of the messages exchanged with the parent, all sizes known
+to the parent; the per-byte rate is below the cheapest JSON encoding, so a program cannot pad its messages to hide
+work). Unlike the retired line count they include work done in C (builtins, numpy), which is real
 compute; simple arithmetic loops cost fewer units than lines, C-heavy calls many more.
 """
 from __future__ import annotations
@@ -52,7 +53,11 @@ from typing import Any
 
 NS_PER_WORK_UNIT = 350.0         # CPU ns per work unit: ~ one executed line of the reference need solvers, build host
 JOB_OVERHEAD_NS = 30_000         # fixed protocol overhead of one job (dispatch, output capture), never billed
-PROTO_NS_PER_BYTE = 20           # decoding the job and encoding the result (CPython json ~30-40 ns/byte), never billed
+PROTO_NS_PER_BYTE = 1.5          # protocol allowance per byte of the job's messages, never billed: below the fastest
+                                 # CPython JSON rate (long strings, ~2 ns/byte encode or decode; structured data
+                                 # 13-21 ns/byte), so no message shape a program chooses carries free work. It was
+                                 # 20 ns/byte: padding 20 world calls with 7 MB strings hid 0.15 s of CPU completely
+                                 # (wave 3b review, probe v5.sandbox.protocol_allowance_farming)
 LOAD_FREE_NS = 3_000_000         # load-time CPU never billed: the import system finding and compiling a small
                                  # program (~2 ms measured). Trusted imports the program names (stdlib modules of
                                  # runner.PRELOAD_STDLIB, approved packages such as numpy, ~65 ms) are preloaded by
@@ -172,7 +177,8 @@ def digest(x: Any) -> str:
                            digest_size=16).hexdigest()
 
 
-MEMO_DISK_MAX = 2_000_000       # anchors kept in a machine-level memo file (the oldest are dropped beyond)
+MEMO_DISK_MAX = 2_000_000       # anchors kept in a machine-level memo file in all
+MEMO_SCOPE_MAX = 200_000        # anchors one world lineage keeps there (its own oldest are dropped beyond)
 
 
 def default_memo_path() -> str | None:
@@ -187,18 +193,29 @@ def default_memo_path() -> str | None:
 
 class DiskMemo:
     """The first measurement of each computation, shared by every process of this machine (workstream A, D-21 / K3
-    after D-20): an SQLite table ``memo(key, ns)`` where the first writer wins (``INSERT OR IGNORE``), so concurrent
-    processes agree on one anchor. Without it a NEW process measured every computation afresh and the same spec and
-    seed gave different event hashes run to run (cross-process resume, replication); with it a rerun, a resumed run
-    or an independent replication on this machine bills the anchor exactly as the in-process memo does. Keys already
-    contain the world lineage (`computation_key`), so worlds never share anchors unless they share a lineage. The
-    file is written by the host process only (sandboxed workers cannot reach it)."""
+    after D-20): an SQLite table ``memo(key, ns, scope)`` where the first writer wins (``INSERT OR IGNORE``), so
+    concurrent processes agree on one anchor. Without it a NEW process measured every computation afresh and the same
+    spec and seed gave different event hashes run to run (cross-process resume, replication); with it a rerun, a
+    resumed run or an independent replication on this machine bills the anchor exactly as the in-process memo does.
+    Keys already contain the world lineage (`computation_key`), so worlds never share anchors unless they share a
+    lineage. The file is written by the host process only (sandboxed workers cannot reach it).
 
-    def __init__(self, path: str):
+    Eviction is per lineage (``scope``): a lineage keeps at most `scope_max` anchors (its own oldest go first), and
+    when the file holds more than `max_rows` the largest lineage gives up its oldest. The first version dropped the
+    oldest rows of the whole file, so one world that ran many distinct computations evicted every other world's
+    anchors and their replications in new processes stopped being exact (wave 3b review, probe
+    v5.crossworld.meter_memo_eviction_is_per_lineage). Rows written before the scope column existed form one legacy
+    group."""
+
+    def __init__(self, path: str, max_rows: int | None = None, scope_max: int | None = None,
+                 check_every: int = 10_000):
         self.path = path
+        self.max_rows = int(max_rows if max_rows is not None else MEMO_DISK_MAX)
+        self.scope_max = int(scope_max if scope_max is not None else MEMO_SCOPE_MAX)
+        self.check_every = max(1, int(check_every))
         self._con = None
         self._pid = None
-        self._n = 0
+        self._n: dict[str, int] = {}
 
     def _conn(self):
         import sqlite3
@@ -209,18 +226,44 @@ class DiskMemo:
             con = sqlite3.connect(self.path, timeout=30.0, isolation_level=None, check_same_thread=False)
             con.execute("PRAGMA journal_mode=WAL")
             con.execute("PRAGMA synchronous=NORMAL")
-            con.execute("CREATE TABLE IF NOT EXISTS memo (key TEXT PRIMARY KEY, ns INTEGER NOT NULL)")
+            con.execute("CREATE TABLE IF NOT EXISTS memo (key TEXT PRIMARY KEY, ns INTEGER NOT NULL, scope TEXT)")
+            cols = {r[1] for r in con.execute("PRAGMA table_info(memo)")}
+            if "scope" not in cols:                              # a memo file of the first version
+                try:
+                    con.execute("ALTER TABLE memo ADD COLUMN scope TEXT")
+                except sqlite3.OperationalError:                 # another process added it meanwhile
+                    pass
+            con.execute("CREATE INDEX IF NOT EXISTS memo_scope ON memo(scope)")
             self._con, self._pid = con, os.getpid()
         return self._con
 
-    def first(self, key: str, fresh_ns: int) -> tuple[int, bool]:
+    def _evict(self, con, scope: str) -> None:
+        n = con.execute("SELECT count(*) FROM memo WHERE scope = ?", (scope,)).fetchone()[0]
+        if n > self.scope_max:
+            con.execute("DELETE FROM memo WHERE rowid IN (SELECT rowid FROM memo WHERE scope = ? ORDER BY rowid "
+                        "LIMIT ?)", (scope, n - self.scope_max))
+        total = con.execute("SELECT count(*) FROM memo").fetchone()[0]
+        while total > self.max_rows:
+            big, cnt = con.execute("SELECT scope, count(*) AS c FROM memo GROUP BY scope ORDER BY c DESC "
+                                   "LIMIT 1").fetchone()
+            drop = min(total - self.max_rows, max(1, cnt // 2))
+            if big is None:
+                con.execute("DELETE FROM memo WHERE rowid IN (SELECT rowid FROM memo WHERE scope IS NULL ORDER BY "
+                            "rowid LIMIT ?)", (drop,))
+            else:
+                con.execute("DELETE FROM memo WHERE rowid IN (SELECT rowid FROM memo WHERE scope = ? ORDER BY "
+                            "rowid LIMIT ?)", (big, drop))
+            total -= drop
+
+    def first(self, key: str, fresh_ns: int, scope: str | None = None) -> tuple[int, bool]:
         """(the computation's anchor, whether `fresh_ns` just became it)."""
         con = self._conn()
-        if con.execute("INSERT OR IGNORE INTO memo(key, ns) VALUES (?, ?)", (key, int(fresh_ns))).rowcount == 1:
-            self._n += 1
-            if self._n % 10_000 == 0:
-                hi = con.execute("SELECT max(rowid) FROM memo").fetchone()[0] or 0
-                con.execute("DELETE FROM memo WHERE rowid <= ?", (hi - MEMO_DISK_MAX,))
+        sc = str(scope or "")
+        if con.execute("INSERT OR IGNORE INTO memo(key, ns, scope) VALUES (?, ?, ?)",
+                       (key, int(fresh_ns), sc)).rowcount == 1:
+            self._n[sc] = self._n.get(sc, 0) + 1
+            if self._n[sc] % self.check_every == 0 or sum(self._n.values()) % self.check_every == 0:
+                self._evict(con, sc)
             return int(fresh_ns), True
         row = con.execute("SELECT ns FROM memo WHERE key = ?", (key,)).fetchone()
         return (int(row[0]), False) if row is not None else (int(fresh_ns), True)
@@ -239,43 +282,47 @@ def _disk(path: str | None) -> DiskMemo | None:
 
 
 class Memo:
-    """First measurement of each computation per world lineage (bounded, least-recently-used eviction), optionally
-    backed by a machine-level `DiskMemo` (``disk=`` path) so that other processes bill the same anchors."""
+    """First measurement of each computation per world lineage (bounded per lineage, least-recently-used eviction
+    within the lineage), optionally backed by a machine-level `DiskMemo` (``disk=`` path) so that other processes
+    bill the same anchors."""
 
     def __init__(self, max_entries: int = MEMO_MAX):
         self.max = max_entries
-        self._d: OrderedDict[str, int] = OrderedDict()
+        self._d: dict[str, OrderedDict[str, int]] = {}
         self._lock = threading.Lock()
         self.hits = self.misses = self.exceeded = 0
         self.disk_errors = 0
 
-    def bill(self, key: str, fresh_ns: int, disk: str | None = None) -> tuple[int, str]:
+    def _put(self, scope: str, key: str, ns: int) -> None:
+        d = self._d.setdefault(scope, OrderedDict())
+        d[key] = ns
+        if len(d) > self.max:
+            d.popitem(last=False)
+
+    def bill(self, key: str, fresh_ns: int, disk: str | None = None, scope: str | None = None) -> tuple[int, str]:
         fresh_ns = max(0, int(fresh_ns))
+        sc = str(scope or "")
         with self._lock:
-            rec = self._d.get(key)
+            rec = self._d.get(sc, {}).get(key)
             dm = _disk(disk) if rec is None else None
             if dm is not None:
                 try:
-                    anchor, mine = dm.first(key, fresh_ns)
+                    anchor, mine = dm.first(key, fresh_ns, sc)
                 except Exception:  # noqa: BLE001 - an unusable memo file degrades to the in-process memo
                     self.disk_errors += 1
                     _DISKS[disk] = None
                     anchor, mine = None, True
                 if anchor is not None:
-                    self._d[key] = anchor
-                    if len(self._d) > self.max:
-                        self._d.popitem(last=False)
+                    self._put(sc, key, anchor)
                     if mine:
                         self.misses += 1
                         return fresh_ns, "first"
                     rec = anchor          # another process measured it first: the same tolerance rule applies
             if rec is None:
-                self._d[key] = fresh_ns
-                if len(self._d) > self.max:
-                    self._d.popitem(last=False)
+                self._put(sc, key, fresh_ns)
                 self.misses += 1
                 return fresh_ns, "first"
-            self._d.move_to_end(key)
+            self._d[sc].move_to_end(key)
             if fresh_ns <= rec * MEMO_TOL + MEMO_SLACK_NS:
                 self.hits += 1
                 return rec, "remembered"

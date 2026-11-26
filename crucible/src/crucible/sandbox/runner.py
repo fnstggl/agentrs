@@ -16,7 +16,12 @@ Layers (all verified by tests/test_sandbox.py):
 8. accounting from outside (D-20, `crucible.sandbox.metering`): CPU, wall time, memory, threads and disk are measured
    by the parent; the process only supplies the program's output. Threads that outlive a job, work done while idle
    and a working directory over its quota kill the worker; per-tenant uids (`SandboxConfig.tenant`) keep one world's
-   processes out of another world's process budget.
+   processes out of another world's process budget;
+9. nested jobs (a program's world call that runs another sandboxed program, at any depth) share the enclosing job's
+   time limit: the time a program spends in world calls is not counted against its own limit, so without this a
+   fan-out of nested runs of sleeping programs held the single-threaded world for hours at no CPU cost (wave 3b
+   review, probe v5.sandbox.nested_runs_multiply_wall_time). A whole call tree finishes within twice the outer
+   job's limit (its own time plus the nested jobs').
 
 If Landlock or seccomp is unavailable the runner refuses to start unless `allow_weak=True` is passed explicitly.
 """
@@ -89,6 +94,26 @@ class SandboxConfig:
 
 class SandboxUnavailable(RuntimeError):
     pass
+
+
+# ---------------------------------------------------------------------------------------------- nested time limits
+NEST_MIN_S = 0.05               # a nested job with less time than this left is refused without starting
+_NEST = threading.local()       # absolute monotonic deadline of the enclosing job's call tree (None: not nested)
+
+
+def nest_left() -> float | None:
+    """Seconds left to the enclosing job's call tree, or None when no sandboxed job is running on this thread (the
+    caller is a top-level command, a process tick or trusted code)."""
+    d = getattr(_NEST, "deadline", None)
+    return None if d is None else d - time.monotonic()
+
+
+def nested_refusal(left: float) -> dict:
+    """The outcome of a nested job refused because the enclosing job's time limit is spent (nothing ran)."""
+    return {"ok": False, "result": None, "stdout": "", "cpu_ms": 0.0, "wall_ms": 0.0, "rpc_calls": 0,
+            "error": {"type": "Timeout", "message": "the calling program's time limit is spent (nested runs share "
+                                                    f"it; {max(0.0, left):.2f}s left)"},
+            "meter": {"cpu_ns": 0, "billed_ns": 0, "killed": None, "nested_refused": True}}
 
 
 def tenant_ids(cfg: SandboxConfig) -> tuple[int, int]:
@@ -431,7 +456,8 @@ class Worker:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
             billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
-                                                         outcome), cpu, disk=self.cfg.memo_path)
+                                                         outcome), cpu, disk=self.cfg.memo_path,
+                                       scope=self.cfg.meter_scope)
         meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
                  **({"memo": memo} if memo else {})}
         out = {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,
@@ -456,7 +482,20 @@ class Worker:
                                 cpu=bg, job=job, transcript=[], wall_s=0.0, meter={**empty, "background_ns": bg})
         pid = self.proc.pid
         timeout = timeout or self.cfg.job_wall_s
+        tree = getattr(_NEST, "deadline", None)          # set when this job is nested in another sandboxed job
+        if tree is not None:
+            left = tree - time.monotonic()
+            if left < NEST_MIN_S:
+                return nested_refusal(left)
+            timeout = min(float(timeout), left)
         transcript: list = []
+        _NEST.deadline = (time.monotonic() + float(timeout)) if tree is None else tree
+        try:
+            return self._run_job(job, rpc, timeout, max_rpc, t0, pid, transcript, tree, empty)
+        finally:
+            _NEST.deadline = tree
+
+    def _run_job(self, job, rpc, timeout, max_rpc, t0, pid, transcript, tree, empty) -> dict:
         # 1. work done since the previous job's result (threads or code left running): billed here, worker killed.
         # A predecessor's background work (carry_ns, the pool's debt of a worker it already killed) is billed with
         # this job too, but does not stop this fresh worker.
@@ -543,7 +582,10 @@ class Worker:
                     pause = time.monotonic()
                     ok, val = rpc(str(msg.get("tool", "")), msg.get("args") if isinstance(msg.get("args"), dict) else {})
                     spent = time.monotonic() - pause
-                    deadline += spent                 # time spent in the broker is not the program's
+                    if tree is None:                  # time spent in the broker is not the program's own ...
+                        deadline += spent
+                    else:                             # ... but a nested job never outlives its call tree
+                        deadline = min(deadline + spent, tree)
                     broker_s += spent
                 transcript.append([str(msg.get("tool", "")), M.digest(msg.get("args")), bool(ok), M.digest(val)])
                 reply = {"op": "rpc_result", "id": rid, "ok": ok, **({"result": val} if ok else {"error": val})}

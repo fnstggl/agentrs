@@ -105,6 +105,12 @@ def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, 
             if rpc_results is not None:
                 rpc_results.append((r["tool"], r["args"], ok, val))
         return ctx.fill(slot, kind, rec)
+    from .runner import NEST_MIN_S, nest_left, nested_refusal
+    left = nest_left()
+    if left is not None and left < NEST_MIN_S:
+        # nested in a sandboxed job whose time limit is spent: refused without starting a worker (recorded, so
+        # replay and regeneration see the same refusal)
+        return ctx.fill(slot, kind, recorded_outcome(nested_refusal(left), [], None))
     log: list = []
     w = worker_fn()
     try:

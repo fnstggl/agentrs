@@ -700,9 +700,127 @@ class MemoFirstMeasurementGame(_ServiceProbe):
         return Verdict(HELD, "repeats doing more work were billed for it", evd)
 
 
+# ---------------------------------------------------------------------------------------------- wave 3b review (W.n1)
+FARM_WORK = 3_000_000       # iterations of the loop the farming program hides (about 0.15 s of CPU)
+
+PROTOCOL_FARM = '''
+import crucible_sdk
+def honest(args, caller):
+    s = 0
+    for i in range(%(n)d):
+        s += i %% 7
+    return s
+def farm(args, caller):
+    pad = "x" * 7_000_000                    # cheap to encode (~2 ns per byte), within the 8 MiB message limit
+    for k in range(int(args.get("k", 0))):
+        try:
+            crucible_sdk.call("code.list_repos", pad=pad)    # refused (unknown argument): only its size matters
+        except Exception:
+            pass
+    s = 0
+    for i in range(%(n)d):
+        s += i %% 7
+    return s
+'''
+
+
+class ProtocolAllowanceFarming(V5Probe):
+    name = "v5.sandbox.protocol_allowance_farming"
+    attack_class = "reward_hacking/compute_meter"
+    gates = ("W.3", "W.6")
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = _world_with_code()
+    description = ("The parent subtracts the protocol work of a job (decoding its messages) from the measured CPU "
+                   "before billing. A program chooses the size of the messages it sends (world-call arguments, its "
+                   "result): it pads 20 world calls with 7 MB strings (cheap to encode) and then runs the "
+                   f"{FARM_WORK:,}-iteration loop it wants for free. Checked: the padded run is billed at least half "
+                   "of the honest run of the same loop.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("protofarm", 50_000_000)
+
+    def attack(self, a: Attacker) -> None:
+        rid = repo(a, self.att, "farm", {"p.py": PROTOCOL_FARM % {"n": FARM_WORK}})
+        self.honest = [run(a, self.att, rid, "p.py:honest", input={"run": i}, timeout_s=30) for i in range(3)]
+        self.farm = run(a, self.att, rid, "p.py:farm", input={"k": 20}, timeout_s=30)
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        hb = min(float(x.get("cpu_ms") or 0) for x in self.honest)
+        fb = float(self.farm.get("cpu_ms") or 0)
+        evd = {"honest_cpu_ms": [x.get("cpu_ms") for x in self.honest], "farmed_cpu_ms": fb,
+               "farm_ok": self.farm.get("ok"), "farm_world_calls": self.farm.get("world_calls"),
+               "same_result": self.farm.get("result") == self.honest[0].get("result")}
+        if hb <= 0 or not self.farm.get("ok") or not evd["same_result"]:
+            raise NotApplicable(f"runs did not complete: {evd}")
+        if fb < 0.5 * hb:
+            return Verdict(FALSE_SUCCESS, f"padding world calls hid the work: billed {fb:.1f} ms against {hb:.1f} ms "
+                           "honest", evd, severity="high",
+                           fix="sandbox/metering.py: protocol allowance at the fastest JSON rate (no message shape a "
+                               "program chooses carries free work)")
+        return Verdict(HELD, f"padded run billed {fb:.1f} ms against {hb:.1f} ms honest", evd)
+
+
+NESTED = '''
+import time, crucible_sdk
+def leaf(args, caller):
+    time.sleep(%(sleep)s)                    # costs no CPU: only the world's wall time
+    return 1
+def fan(args, caller):
+    n = 0
+    for i in range(%(fan)d):
+        try:
+            crucible_sdk.call("code.run", repo=args["repo"], target=args["next"], input=args.get("inner"),
+                              timeout_s=%(tmo)s)
+            n += 1
+        except Exception:
+            pass
+    return n
+'''
+NEST_FAN, NEST_SLEEP, NEST_TIMEOUT = 4, 2.5, 3.0
+
+
+class NestedRunsMultiplyWallTime(V5Probe):
+    name = "v5.sandbox.nested_runs_multiply_wall_time"
+    attack_class = "unbounded_resources/wall_time"
+    gates = ("W.7",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("Time a program spends in world calls is not counted against its own time limit, and a world "
+                   "call may itself be `code.run`. A program with a 3 s limit fans out to 4 nested runs of a program "
+                   "that fans out to 4 runs of a program that sleeps 2.5 s (no CPU, so nearly free): one tool call "
+                   "would hold the single-threaded world for 16 x 2.5 s. Checked: the whole call tree of one "
+                   "command finishes within twice the outer program's time limit (plus start-up slack).")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("nester", 20_000_000)
+
+    def attack(self, a: Attacker) -> None:
+        rid = repo(a, self.att, "nest", {"n.py": NESTED % {"sleep": NEST_SLEEP, "fan": NEST_FAN,
+                                                           "tmo": NEST_TIMEOUT}})
+        t = time.monotonic()
+        self.out = run(a, self.att, rid, "n.py:fan", input={"repo": rid, "next": "n.py:fan",
+                                                            "inner": {"repo": rid, "next": "n.py:leaf"}},
+                       timeout_s=NEST_TIMEOUT)
+        self.wall = time.monotonic() - t
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        bound = 2 * NEST_TIMEOUT + 4.0
+        evd = {"wall_s": round(self.wall, 2), "bound_s": bound, "ok": self.out.get("ok"),
+               "result": self.out.get("result"), "cpu_ms": self.out.get("cpu_ms"),
+               "charged_cents": self.out.get("charged_cents"),
+               "unbounded_tree_s": NEST_FAN * NEST_FAN * NEST_SLEEP}
+        if self.wall > bound:
+            return Verdict(INTEGRITY_BREAK, f"one command held the world for {self.wall:.1f} s through nested runs "
+                           f"(outer limit {NEST_TIMEOUT} s)", evd, severity="high",
+                           fix="sandbox/runner.py: a nested job's time limit is bounded by the enclosing job's")
+        return Verdict(HELD, f"the call tree finished in {self.wall:.1f} s (bound {bound:.0f} s)", evd)
+
+
 def probes() -> list:
     return ([SandboxEscapeMatrix()] + [MeterForgery(v) for v in sorted(FORGERIES)] +
             [WorkDeliveredThenExit(), BuiltinsAreNotFree(), BackgroundThreadOutlivesRequest(),
              ForgedCompletionKeepsWorking(), ForgedCompletionThenExit(), DiskQuota(),
              MemoryCpuAndTimeLimits(), TenantIsolationBetweenWorlds(), HostPathsNotDisclosed(),
-             MemoFirstMeasurementGame()])
+             MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime()])
