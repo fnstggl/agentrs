@@ -256,13 +256,15 @@ def main(argv=None) -> int:
     ap.add_argument("--hours", type=float, default=24.0)
     ap.add_argument("--n", type=int, default=10_000_000)
     ap.add_argument("--work", default=None)
+    ap.add_argument("--max-hours", type=int, default=30)
+    ap.add_argument("--target", type=int, default=10_000_000)
     a = ap.parse_args(argv)
     if a.what == "event_driven":
         rep = event_driven(a.world, a.profile, a.seed, a.hours)
     elif a.what == "cache":
         rep = cache_workload(os.path.join(a.work, "cache"), a.work, a.world, a.profile, a.hours)
     else:
-        rep = capacity(a.n, a.seed)
+        rep = capacity(a.n, a.seed, max_hours=a.max_hours, target_events=a.target)
     with open(a.out + ".tmp", "w") as fh:
         json.dump(rep, fh, default=str)
     os.replace(a.out + ".tmp", a.out)

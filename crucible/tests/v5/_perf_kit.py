@@ -109,7 +109,7 @@ def approximation() -> dict:
 def event_driven() -> dict:
     def compute():
         out = os.path.join(WORK, "event_driven.json")
-        r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "event_driven", "--world", "population",
+        r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "event_driven", "--world", "civ",
                                  "--profile", "standard", "--hours", "24", "--out", out], out,
                                 "M: event-driven vs dense", "standard")
         return {"ok": r is not None, "result": r, "usage": rec}
@@ -121,7 +121,7 @@ def cache_workload() -> dict:
     def compute():
         out = os.path.join(WORK, "cache.json")
         work = os.path.join(WORK, "cachework")
-        r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "cache", "--world", "population",
+        r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "cache", "--world", "civ",
                                  "--profile", "development", "--hours", "12", "--work", work, "--out", out], out,
                                 "M: representation cache over three worlds", "standard")
         return {"ok": r is not None, "result": r, "usage": rec}
