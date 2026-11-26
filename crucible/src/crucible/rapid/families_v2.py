@@ -280,7 +280,7 @@ def sci_selection_bias(rng, d):
     y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": a}, role="outcome",
                 x=[(x1, 0, b1), (x2, 0, b2)])
     sd = u(rng, 2.0, 3.0)
-    cut = u(rng, 1.0, 3.0)
+    cut = a + 3.0 * (b1 + b2) + u(rng, -1.0, 1.0)          # truncation bites in the middle of the settable range
     gy = gb.gauge(y, [("selection_effect", {"n": 64, "sd": sd, "c": cut}),
                       ("measurement_noise", {"sd": float(d["observation_noise"]) * 0.3})])
     held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
@@ -306,7 +306,7 @@ def sci_selection_bias(rng, d):
                          "law, unlike instantaneous laws",
         axes={"horizon": 120, "observation_noise": 0.3}, objective="predict_heldout",
         claims=(CV + "response_is_delayed_and_lagged",), identify=CV + "identify_dead_time",
-        reference=RV + "discover_settled")
+        reference="crucible.rapid.refs_adapt:settled_law_predict")
 def sci_slow_response(rng, d):
     gb = GraphBuilder(rng)
     x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)

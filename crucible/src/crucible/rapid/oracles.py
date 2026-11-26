@@ -432,7 +432,8 @@ def science_oracle(env) -> dict:
     from .engines.primitive_graph import true_response
     eng, st, c = inside(env)
     obj = c["objective"]
-    vals = true_response(eng, obj["heldout"], obj["gauge"])
+    # the same noise-free steady response the score uses (slow processes are scored where they settle)
+    vals = true_response(eng, obj["heldout"], obj["gauge"], ticks=int(obj.get("settle_ticks", 1)))
     preds = [{"set": cond, "value": float(v)} for cond, v in zip(obj["heldout"], vals)]
 
     def fn(e):

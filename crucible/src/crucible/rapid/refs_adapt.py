@@ -283,3 +283,107 @@ def interleaved_additive_predict(view, env) -> None:
                "content": {"predictions": [{"set": c, "value": pred(c)} for c in held]}})
     while not view.done:
         view.step(None)
+
+
+def _fit_additive_sat(X: np.ndarray, y: np.ndarray, names: list[str]):
+    import itertools
+    halves = np.r_[np.linspace(0.3, 8.0, 24), 1e6]
+    best = None
+    for hs in itertools.product(halves, repeat=len(names)):
+        F = np.c_[np.ones(len(X)), [[x / (x + h) if h < 1e5 else x for x, h in zip(row, hs)] for row in X]]
+        coef, *_ = np.linalg.lstsq(F, y, rcond=None)
+        err = float(np.mean((F @ coef - y) ** 2))
+        if best is None or err < best[0]:
+            best = (err, hs, coef)
+    _, hs, coef = best
+
+    def pred(c):
+        f = [1.0] + [c[n] / (c[n] + h) if h < 1e5 else c[n] for n, h in zip(names, hs)]
+        return float(np.dot(f, coef))
+    return pred
+
+
+def settled_law_predict(view, env) -> None:
+    """Scripted public reference for prediction objectives on a slow process (a dead time, then a first-order
+    approach to where the reading settles): a step test from rest identifies the dead time (first tick the reading
+    moves) and the approach rate (least squares on the step response); the design is then run with each condition
+    held a few ticks, and the settled value behind every tick is recovered by inverting the identified dynamics
+    (y' = y + r (s - y), s = where it settles); an additive saturating law is fitted to those values and its
+    predictions for the held-out conditions are filed."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = {n: float(props[n]["minimum"]) for n in names}
+    hi = {n: float(props[n]["maximum"]) for n in names}
+
+    def read(r):
+        nums = r["observation"]["numbers"]
+        return list(nums.values())[0] if nums else None
+    rest = {n: lo[n] for n in names}
+    top = {n: hi[n] for n in names}
+    ys, xs = [], []
+    for _ in range(3):
+        ys.append(read(view.step({"kind": "levers", "values": rest})))
+        xs.append(rest)
+    step = []
+    for _ in range(24):
+        if view.done:
+            return
+        v = read(view.step({"kind": "levers", "values": top}))
+        step.append(v)
+        ys.append(v)
+        xs.append(top)
+    y0 = float(np.mean([v for v in ys[:3] if v is not None]))
+    st = np.asarray([v if v is not None else np.nan for v in step])
+    noise = float(np.nanstd(np.diff(st[-6:]))) + 1e-6
+    dead = next((k for k, v in enumerate(st) if abs(v - y0) > 3 * noise + 0.3), 1)
+    best = None
+    for r in np.linspace(0.04, 0.6, 57):
+        for dd in range(max(0, dead - 1), dead + 2):
+            # with the input switched at the first step tick, after dd ticks of dead time the reading approaches s
+            pred_shape = np.array([0.0 if k < dd else 1.0 - (1.0 - r) ** (k - dd + 1) for k in range(len(st))])
+            ok = ~np.isnan(st)
+            A = np.c_[np.ones(ok.sum()), pred_shape[ok]]
+            coef, *_ = np.linalg.lstsq(A, st[ok], rcond=None)
+            err = float(np.mean((A @ coef - st[ok]) ** 2))
+            if best is None or err < best[0]:
+                best = (err, r, dd)
+    _, rate, dead = best
+    design = []
+    for n in names:
+        for f in np.linspace(0.0, 1.0, 5):
+            mid = {m: 0.5 * (lo[m] + hi[m]) for m in names}
+            design.append(dict(mid, **{n: float(lo[n] + f * (hi[n] - lo[n]))}))
+    k = 0
+    hold = 4
+    while view.t < view.horizon - 2 and not view.done:
+        s = design[(k // hold) % len(design)]
+        k += 1
+        ys.append(read(view.step({"kind": "levers", "values": s})))
+        xs.append(s)
+    # invert the dynamics: the settled value targeted at tick t is s_t = y_t + (y_{t+1} - y_t) / r, driven by the
+    # setting `dead` ticks earlier
+    X, S = [], []
+    for t in range(dead + 1, len(ys) - 1):
+        if ys[t] is None or ys[t + 1] is None:
+            continue
+        src = xs[t - dead] if t - dead >= 0 else xs[0]
+        X.append([src[n] for n in names])
+        S.append(ys[t] + (ys[t + 1] - ys[t]) / rate)
+    if len(S) < 10 or view.done:
+        while not view.done:
+            view.step(None)
+        return
+    X, S = np.asarray(X), np.asarray(S)
+    # robustness: average the recovered values per setting before fitting (noise is amplified by 1/r)
+    keys = {}
+    for x, s_ in zip(map(tuple, X), S):
+        keys.setdefault(x, []).append(s_)
+    Xm = np.asarray(list(keys))
+    Sm = np.asarray([float(np.median(v)) for v in keys.values()])
+    pred = _fit_additive_sat(Xm, Sm, names)
+    view.step({"kind": "message", "to": "journal",
+               "content": {"predictions": [{"set": c, "value": pred(c)} for c in held]}})
+    while not view.done:
+        view.step(None)
