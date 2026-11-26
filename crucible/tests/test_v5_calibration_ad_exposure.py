@@ -128,3 +128,55 @@ def test_at_least_one_attended_display_is_per_individual():
     # repetition saturates: more displays raise the probability with diminishing increments
     steps = [RT.at_least_one(np.full(k, 0.3), np.zeros(k, int), 1)[0] for k in range(1, 6)]
     assert np.all(np.diff(steps) > 0) and np.all(np.diff(np.diff(steps)) < 0)
+
+
+# ---------------------------------------------------------------- in-world validation harness (model-only driver)
+def test_model_only_driver_compares_fitted_behaviour_with_heldout_users():
+    from crucible.calibration import inworld as IW
+    r = IW.model_only_reports(beyond_days=30)
+    assert r["_meta"]["individuals"] > 1000
+    for k in ("activity_distribution", "retention_curve", "heterogeneity", "long_horizon_drift"):
+        assert isinstance(r[k]["within_tolerance"], bool)
+    # the statistics are measured, not constant: total variation and KS are inside (0, 1)
+    assert 0 < r["activity_distribution"]["active_days_tv"] < 1
+    assert 0 < r["heterogeneity"]["user_active_share_ks"] < 1
+    assert r["long_horizon_drift"]["beyond_data"]["days"] == 37
+
+
+def test_compare_detects_a_distorted_simulation():
+    """A simulation that is the reference with one in three active days removed is outside the tolerances."""
+    from crucible.calibration import inworld as IW
+    rng = np.random.default_rng(0)
+    A = rng.random((3000, 21)) < 0.7
+    S = np.where(A, 1 + rng.poisson(1.0, A.shape), 0)
+    ref = IW.activity_stats(A, S, 14, 7)
+    B = A & (rng.random(A.shape) > 0.33)
+    sim = IW.activity_stats(B, np.where(B, S, 0), 14, 7)
+    r = IW.compare(sim, ref)
+    assert not r["activity_distribution"]["within_tolerance"] and not r["long_horizon_drift"]["within_tolerance"]
+    same = IW.compare(ref, ref)
+    assert same["activity_distribution"]["within_tolerance"] and same["heterogeneity"]["within_tolerance"]
+
+
+def test_world_without_wired_models_is_reported_not_validated():
+    from crucible.calibration import inworld as IW
+    import crucible
+    crucible.load_all_modules()
+    from crucible.core.kernel import World, WorldSpec
+    w = World.create(WorldSpec("inworld-test", 1, [{"name": "identity"}, {"name": "bank"}, {"name": "admin"}]),
+                     "w-inworld")
+    w.advance_time(3600)
+    try:
+        with pytest.raises(IW.NotWired):
+            IW.world_activity(w)
+        m = IW.provenance_metrics(w)
+        assert m["fitted_models_used_in_world"] == 0
+    finally:
+        w.close()
+
+
+def test_out_of_scope_check_counts_direct_checkpoint_loads():
+    from crucible.calibration import inworld as IW
+    r = IW.out_of_scope_uses()
+    assert set(r["direct_checkpoint_loads"]) <= {"population/models.py"}     # the population's silent plug-in
+    assert r["out_of_card_scope_uses"] == len(r["direct_checkpoint_loads"])
