@@ -811,6 +811,7 @@ class SkillLibrary:
         self.stale_after, self.max_repairs, self.min_validations = stale_after, max_repairs, min_validations
         self.forgetting = forgetting          # older evidence about reliability is discounted: interfaces change
         self._skills: Dict[str, Skill] = {}
+        self._index_text = ""
         self._load()
 
     # ---- storage -------------------------------------------------------------------------------------------
@@ -833,8 +834,11 @@ class SkillLibrary:
         os.makedirs(d, exist_ok=True)
         _atomic_write(os.path.join(d, f"v{skill.version}.json"), skill.to_json())
         self._skills[skill.skill_id] = skill
-        index = {sid: {"version": s.version, "status": s.status, "name": s.name} for sid, s in self._skills.items()}
-        _atomic_write(self._index_path(), json.dumps(index, sort_keys=True, indent=1))
+        index = json.dumps({sid: {"version": s.version, "status": s.status, "name": s.name}
+                            for sid, s in self._skills.items()}, sort_keys=True, indent=1)
+        if index != self._index_text:                    # the index changes only with a version or a status
+            _atomic_write(self._index_path(), index)
+            self._index_text = index
 
     def log_rejected(self, skill: Skill, report: Dict[str, Any]) -> None:
         with open(os.path.join(self.dir, "rejected.jsonl"), "a", encoding="utf-8") as f:
@@ -1213,10 +1217,13 @@ class SkillExecutor:
                 return terminal
             before = [o for o in sub.observations if o.kind != "error"]
             state["start_obs"] = before[-1].obs_id if before else ""
-            if sub.status != ResultStatus.OK:
-                observations.extend(sub.observations)
-                return fail(FailureEvidence(target_missing=True, detail=f"the start state could not be observed: {sub.failure_detail}"),
-                            "probe_failed")
+            if sub.status != ResultStatus.OK:           # the fault is reported as it was classified, not re-read
+                state["termination"] = "probe_failed"
+                base = ActionResult(action_id=action.action_id, status=sub.status,
+                                    observations=[o for o in sub.observations if o.kind == "error"])
+                st = ResultStatus.TIMEOUT if sub.status == ResultStatus.TIMEOUT else ResultStatus.FAILED
+                return finish(base, st, sub.failure_class if sub.failure_class != FailureClass.NONE else FailureClass.UNKNOWN,
+                              f"the start state could not be observed: {sub.failure_detail}", None)
         for c in skill.preconditions:
             if evaluate_condition(c, before or [], args, info=info) is False:
                 return fail(FailureEvidence(target_missing=True, detail=f"precondition not met: {c.description}"),

@@ -29,7 +29,7 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import httpx
 
-from ..contracts import (ActionResult, ActionSpec, Cost, ExecContext, Level, Modality, Observation, OutcomeKind,
+from ..contracts import (ActionResult, ActionSpec, Cost, ExecContext, FailureClass, Level, Modality, Observation, OutcomeKind,
                          PrimitiveOp, Provenance, Quantity, ResultStatus, ToolDescriptor, Trust, new_id)
 from .failures import (FailureEvidence, RetryPolicy, authorization_result, classify, failed_result,
                        run_with_retries, wait)
@@ -463,7 +463,7 @@ class HttpApiExecutor:
             pause = self.limiter.wait_needed(host, clock.now())
             if pause > 0:
                 if pause > self.max_rate_wait_s or (ctx.deadline and clock.now() + pause > ctx.deadline):
-                    op.status, op.failure_class, op.ended = ResultStatus.FAILED, "resource_limit", clock.now()
+                    op.status, op.failure_class, op.ended = ResultStatus.FAILED, FailureClass.RESOURCE_LIMIT, clock.now()
                     op.note = "rate-limit window not yet reset; request not sent"
                     rep = classify(FailureEvidence(limit_exceeded=True, retry_after_s=pause, modality=Modality.API,
                                                    detail=f"rate limit of {host}: {pause:.1f}s until the window resets"))
@@ -473,7 +473,7 @@ class HttpApiExecutor:
             if send_auth:
                 value = resolve_secret(ctx.secrets, req.auth["secret"])
                 if value is None:
-                    op.status, op.failure_class, op.ended = ResultStatus.FAILED, "missing_permission", clock.now()
+                    op.status, op.failure_class, op.ended = ResultStatus.FAILED, FailureClass.MISSING_PERMISSION, clock.now()
                     rep = classify(FailureEvidence(exception=PermissionError(
                         f"secret {req.auth['secret']!r} is not available to this executor"), modality=Modality.API))
                     return failed_result(action, rep, clock, started, ops=ops)

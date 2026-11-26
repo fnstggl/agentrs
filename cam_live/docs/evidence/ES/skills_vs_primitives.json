@@ -1,0 +1,37 @@
+{
+ "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live",
+ "environment": "staging (loopback HTTP application in the test process); harness latency only, no model inference is included in either arm",
+ "n_tasks": 20,
+ "note": "The skill issues one more primitive operation per task than the primitive-only actor (it observes the state before as well as after, to check its postconditions) and persists its monitoring record after every run, so harness latency per task is not lower; what falls is the number of decisions the learner has to make (3 -> 1 per task).",
+ "primitive_only": {
+  "decisions": 60,
+  "decisions_per_task": 3.0,
+  "latency_s_mean": 0.01033381454180926,
+  "latency_s_total": 0.20680038863793015,
+  "primitive_ops": 60,
+  "primitive_ops_per_task": 3.0,
+  "success": 20
+ },
+ "skill_acquisition": {
+  "induce_and_validate_s": 0.024752628058195114,
+  "skill_reliability": {
+   "hi": 0.9971990572787257,
+   "level": 0.9,
+   "lo": 0.8488984470434755,
+   "mean": 0.9481521675795387,
+   "n": 17.28720938400036
+  },
+  "source_traces": 2,
+  "validation_runs": 1
+ },
+ "skill_based": {
+  "decisions": 20,
+  "decisions_per_task": 1.0,
+  "latency_s_mean": 0.0377115068025887,
+  "latency_s_total": 0.7548076566308737,
+  "primitive_ops": 80,
+  "primitive_ops_per_task": 4.0,
+  "success": 20
+ },
+ "task": "create an item, publish it, confirm from the listing that it is published (local HTTP application)"
+}

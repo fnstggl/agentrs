@@ -93,7 +93,7 @@ class NotesApp:
                 return 200, {"X-RateLimit-Limit": "1", "X-RateLimit-Remaining": "0",
                              "X-RateLimit-Reset-After": self.retry_after}, {"ok": True}
             if path == "/api/slow":
-                time.sleep(0.6)
+                time.sleep(0.3)
                 return 200, {}, {"ok": True}
             if path == "/api/redirect":
                 return 302, {"Location": "/api/items"}, {}
@@ -172,6 +172,7 @@ class AppServer:
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
+            disable_nagle_algorithm = True       # headers and body are separate writes; no 40 ms delayed-ACK stall
 
             def _serve(self):
                 n = int(self.headers.get("Content-Length") or 0)
@@ -186,8 +187,11 @@ class AppServer:
                     self.send_header(k, v)
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
-                if self.command != "HEAD":
-                    self.wfile.write(raw)
+                try:
+                    if self.command != "HEAD":
+                        self.wfile.write(raw)
+                except (BrokenPipeError, ConnectionResetError):
+                    return                                  # the client gave up (timeout tests)
 
             do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = _serve
 
@@ -197,7 +201,7 @@ class AppServer:
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.httpd.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread = threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         self.thread.start()
 
     def close(self) -> None:
@@ -293,3 +297,41 @@ def act(operation: str, arguments: Dict[str, Any], scope: str = "", modality: st
         scope = "http.read" if operation == "http.get" else "http.write" if operation.startswith("http.") else ""
     return ActionSpec(action_id=new_id("act"), operation=operation, modality=modality, arguments=arguments,
                       auth_scope=scope, **kw)
+
+
+# --------------------------------------------------------------------------------------------------------------
+# Workflows on the notes application, executed through the api executor (they are what skills are induced from)
+# --------------------------------------------------------------------------------------------------------------
+def listing_probe(url: str, generation: int = 1) -> ActionSpec:
+    return act("http.get", {"url": url + ("/api/items" if generation == 1 else "/api/v2/entries")})
+
+
+def create_and_publish(http, ctx, url: str, title: str, body: str, generation: int = 1,
+                       counter: Optional[List[int]] = None, observe_before: bool = True):
+    """The primitive-only way: create an item, publish it, look at the listing. Returns (trace pairs, before
+    observations, after observations). ``counter`` (a one-element list) counts the actions issued."""
+    from cam_live.contracts import ResultStatus
+
+    def run(a):
+        if counter is not None:
+            counter[0] += 1
+        r = http.execute(a, ctx)
+        assert r.status == ResultStatus.OK, (r.failure_class, r.failure_detail)
+        return r
+
+    # the state before (used to derive conditions when a skill is induced); not part of the task itself
+    before_obs = http.execute(listing_probe(url, generation), ctx).observations if observe_before else []
+    if generation == 1:
+        a1 = act("http.request", {"method": "POST", "url": url + "/api/items", "json": {"title": title, "body": body}})
+        r1 = run(a1)
+        item = r1.observations[0].data["json"]["id"]
+        a2 = act("http.request", {"method": "POST", "url": f"{url}/api/items/{item}/publish"})
+    else:
+        a1 = act("http.request", {"method": "POST", "url": url + "/api/v2/entries", "json": {"name": title, "text": body}})
+        r1 = run(a1)
+        item = r1.observations[0].data["json"]["entry_id"]
+        a2 = act("http.request", {"method": "POST", "url": f"{url}/api/v2/entries/{item}/state",
+                                  "json": {"state": "published"}})
+    r2 = run(a2)
+    after = run(listing_probe(url, generation))
+    return [(a1, r1), (a2, r2)], before_obs, after.observations
