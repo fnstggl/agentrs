@@ -1373,3 +1373,61 @@ def held_dose_predict(view, env, hold: int = 7, use: int = 2, seed: int = 0) -> 
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
+
+
+def held_hub_predict(view, env, hold: int = 6, use: int = 2, seed: int = 0) -> None:
+    """Scripted public reference for predicting the settled reading of two settings that act together through one
+    saturating channel after a delay: random conditions are held for `hold` ticks and only the last `use` readings
+    of every hold are kept; the reading is modelled as y = z or y = cap z / (z + K), z = c0 + c1 sat(w1 x1 + w2 x2; h),
+    with the direction (w1, w2), h and the link from grids and the c's by least squares."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = np.array([float(props[n]["minimum"]) for n in names])
+    hi = np.array([float(props[n]["maximum"]) for n in names])
+    X, y = [], []
+    while view.t < view.horizon - 2 and not view.done:
+        s = lo + rng.random(len(names)) * (hi - lo)
+        vals = []
+        for _ in range(hold):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {n: float(v) for n, v in zip(names, s)}})
+            vals.append(float(r["observation"]["numbers"].get(gauge, np.nan)))
+        if len(vals) == hold:
+            for v in vals[-use:]:
+                X.append(s.copy())
+                y.append(v)
+    X, y = np.asarray(X), np.asarray(y)
+    ok = np.isfinite(y)
+    X, y = X[ok], y[ok]
+    if len(y) >= 12 and not view.done and X.shape[1] == 2:
+        ymax = float(np.max(y))
+        links = [(None, None)] + [(ymax * m, k) for m in (1.2, 1.6, 2.5) for k in (10.0, 25.0, 50.0)]
+        best = None
+        for th in np.linspace(0.05, np.pi / 2 - 0.05, 12):
+            idx = X @ np.array([np.cos(th), np.sin(th)])
+            for h in np.geomspace(0.5, 40.0, 10):
+                F_ = np.c_[np.ones(len(y)), idx / (idx + h)]
+                for cap, K in links:
+                    tz = y if cap is None else K * np.minimum(y, 0.98 * cap) / (cap - np.minimum(y, 0.98 * cap))
+                    coef, *_ = np.linalg.lstsq(F_, tz, rcond=None)
+                    zh = F_ @ coef
+                    yh = zh if cap is None else cap * np.maximum(zh, 0.0) / (np.maximum(zh, 0.0) + K)
+                    err = float(np.sum((yh - y) ** 2))
+                    if best is None or err < best[0]:
+                        best = (err, th, h, coef, cap, K)
+        _, th, h, coef, cap, K = best
+        w = np.array([np.cos(th), np.sin(th)])
+        out = []
+        for c in held:
+            idx = float(np.array([float(c[nm]) for nm in names]) @ w)
+            z = coef[0] + coef[1] * idx / (idx + h)
+            v = z if cap is None else cap * max(z, 0.0) / (max(z, 0.0) + K)
+            out.append({"set": c, "value": float(v)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)

@@ -92,12 +92,14 @@ def cx_competing_causes(rng, d):
 @_pg("cx_reactive_history", category="8.1", item="8.1.1", split="train",
         doc="The previous operator raised spending whenever sales had just fallen, and sales swing with a hidden "
             "demand shock: in the records more spending goes with lower sales, although spending raises sales "
-            "a few ticks later.",
+            "a few ticks later. Predict where sales settle at settings partly outside what can be set.",
         distinct_because="reverse causation in the historical regime (the lever's passive mechanism reads the lagged "
                          "outcome: a cycle through the natural regime) with lagged effects through a hub; the passive "
                          "association is negative and the interventional effect positive",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "reactive_reversal",), identify=C + "lever_raises_sales_any", lever_view=True)
+        axes={"horizon": 120, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "reactive_reversal",), identify=C + "lever_raises_sales_any", lever_view=True,
+        reference="crucible.rapid.refs_adapt:held_hub_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def cx_reactive_history(rng, d):
     c = Composed(rng, _base(d, topology="hub", motifs=["saturation"], temporal="lagged"))
     a, b = c.levers
@@ -116,6 +118,15 @@ def cx_reactive_history(rng, d):
     nd = cfg["nodes"][int(a[1:])]
     nd["natural"] = {"ports": {"x": [[c.sold, 1, -kap]]}, "bias": {"x": 2.5 + kap * s_bar}, "sd": 0.3}
     price_key_and_costly(cfg, a, u(rng, 7.0, 9.0), b, u(rng, 1.5, 2.0))
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 2.0), (14.0, 9.0), (0.5, 13.0), (11.0, 15.0), (16.0, 5.0), (1.0, 1.0), (13.0, 12.0))]
+    text = ("Predict where units sold settle if the two spending levers were held at these values (partly outside "
+            f"what you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 12}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
