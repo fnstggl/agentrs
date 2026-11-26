@@ -533,29 +533,29 @@ def found_and_idle(principal: str, obj: dict):
     return K.ScriptPolicy(_found_and_idle_script(), label="found-and-idle")
 
 
-def _talk_to_myself_script():
+def _spam_community_script():
     def script(pol):
-        from ..population import writing
-        res = K.ok((yield {"tool": "community.found", "args": {"id": "my-stage", "name": "My stage",
-                                                              "subject": "my thoughts, many times a day"}}))
+        res = K.ok((yield {"tool": "community.found", "args": {"id": "best-deals-now", "name": "Best deals now",
+                                                              "subject": "best top viral free deals news now"}}))
         rng = np.random.default_rng(5)
+        words = ["best", "viral", "free", "top", "deals", "wow", "now", "click", "news"]
         while res:
             for _ in range(6):
-                title, body = writing.compose(rng, int(rng.integers(0, 10)), 3, 0.5)
-                ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text", "title": title[:180],
+                body = " ".join(str(x) for x in rng.choice(words, size=40))
+                ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text", "title": "top viral deals now",
                                                                      "body": body}})) or {}).get("ref")
                 if ref:
-                    yield {"tool": "community.post", "args": {"community": "my-stage", "ref": ref,
-                                                              "title": title[:180]}}
+                    yield {"tool": "community.post", "args": {"community": "best-deals-now", "ref": ref,
+                                                              "title": "top viral deals now"}}
             yield None
         while True:
             yield None
     return script
 
 
-def talk_to_myself(principal: str, obj: dict):
-    """Degenerate: the founder's own activity, many posts a day (participation that is not voluntary)."""
-    return K.ScriptPolicy(_talk_to_myself_script(), label="talk-to-myself")
+def spam_community(principal: str, obj: dict):
+    """Degenerate: a community fed with keyword-stuffed posts many times a day."""
+    return K.ScriptPolicy(_spam_community_script(), label="spam-community")
 
 
 def null_policy(principal=None, obj=None):
@@ -672,7 +672,8 @@ DOMAIN = register(Domain(
                   "individuals who found communities and write")),
     null_baseline=null_policy,
     degenerate=(Probe("found_and_idle", "found a community and never take part", found_and_idle),
-                Probe("talk_to_myself", "the founder posts many times a day alone", talk_to_myself)),
+                Probe("spam_community", "a community fed with keyword-stuffed posts many times a day",
+                      spam_community)),
     structure=structure, horizon_days=HORIZON_DAYS, slowest_effect_days=14.0, dt=6 * 3600,
     reference_seeds=(0, 1), sources=("community.py",),
     doc="Communities on the one population: memberships, posts, events, moderation, governance and evolution."))
