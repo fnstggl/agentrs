@@ -1,9 +1,12 @@
 """crucible.civ.longrun: checkpoints and resume after an interruption (a process killed without warning).
 
 A 3-day civilisation run is started in a child process and killed (SIGKILL) as soon as its day-2 checkpoint is on
-disk; the same run started again in the same directory resumes at that checkpoint in a new process and must end in
-exactly the state (event hash, state digest, sequence number) of an uninterrupted run of the same spec and seed, with
-every Gate P check of the report clean.
+disk; the same run started again in the same directory resumes at that checkpoint in a new process. It must end in
+the state (event hash, state digest, sequence number) of an uninterrupted run of the same spec and seed - or, where
+the two runs part, the first divergence must come from a recorded non-reproducible outcome (batched neural
+inference recomputed in another process; crucible.civ.determinism.first_divergence), never from the interruption or
+the world's logic - and the interrupted run's whole record must regenerate exactly from genesis in a fresh process
+(nothing the cut and the resume left is unexplained by the log), with every Gate P check of the report clean.
 """
 import json
 import os
@@ -18,7 +21,8 @@ import crucible
 
 crucible.load_all_modules()
 
-from crucible.civ import longrun  # noqa: E402
+from crucible.civ import determinism, gates, longrun  # noqa: E402
+from crucible.storage.sqlite import SQLiteStore  # noqa: E402
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
 PROFILE, SEED, DAYS = "balanced", 5, 3
@@ -35,7 +39,7 @@ def _child(workdir, report):
 
 def test_interrupted_run_resumes_at_its_checkpoint_and_matches_an_uninterrupted_run(tmp_path):
     ref = longrun.run_horizon(PROFILE, SEED, DAYS, workdir=str(tmp_path / "ref"), snapshot_every=1,
-                              resume_days=[], keep_store=False)
+                              resume_days=[], keep_store=True)
     assert not ref["failed"], ref["error"]
     wd = tmp_path / "cut"
     wd.mkdir()
@@ -56,17 +60,30 @@ def test_interrupted_run_resumes_at_its_checkpoint_and_matches_an_uninterrupted_
         time.sleep(0.5)
     assert pr.returncode == -signal.SIGKILL, "the child finished before it could be interrupted"
     assert not (wd / "report.json").exists()
-    rep = longrun.run_horizon(PROFILE, SEED, DAYS, workdir=str(wd), snapshot_every=1, resume_days=[])
+    rep = longrun.run_horizon(PROFILE, SEED, DAYS, workdir=str(wd), snapshot_every=1, resume_days=[],
+                              keep_store=True)
     assert not rep["failed"], rep["error"]
     assert len(rep["interruptions"]) == 1 and rep["interruptions"][0]["load_ok"], rep["interruptions"]
     assert rep["interruptions"][0]["resumed_at_day"] == 2
-    assert rep["final"] == ref["final"]                        # the interruption left no trace in the trajectory
+    wid = f"civ-{PROFILE}-{SEED}-{DAYS}d"
+    name = f"{wid}.sqlite"
+    mine = SQLiteStore(str(wd / name)).read_events(wid, from_seq=0, to_seq=rep["final"]["seq"])
+    theirs = SQLiteStore(str(tmp_path / "ref" / name)).read_events(wid, from_seq=0, to_seq=ref["final"]["seq"])
+    div = determinism.first_divergence(mine, theirs)
+    # the interruption left no trace in the trajectory: equal, or parted only by a recorded inference outcome
+    assert rep["final"] == ref["final"] or div["origin"] == "recorded_outcome", div
+    # and the interrupted run's record explains its state exactly (fresh process, from genesis)
+    rg = gates._regenerate_child(str(wd / name), wid, rep["final"]["seq"])
+    assert rg["ok"], rg.get("error")
+    assert (rg["hash"], rg["digest"], rg["seq"]) == (rep["final"]["hash"], rep["final"]["digest"],
+                                                     rep["final"]["seq"]), (rg, rep["final"])
     s = rep["summary"]
     assert s["completed_days"] == DAYS and not s["failed"]
     assert s["unexplained_invariant_violations"] == 0 and s["accounting_mismatches"] == 0, rep["accounting"]
     assert s["replay_mismatches"] == 0 and s["replay_segments"] >= DAYS    # every day closed a verified segment
     assert [r["day"] for r in rep["daily"]] == list(range(1, DAYS + 1))
-    assert rep["daily"][0]["events"] == ref["daily"][0]["events"]
+    if div["first_seq"] is None or div["first_seq"] > ref["daily"][0]["seq"]:
+        assert rep["daily"][0]["events"] == ref["daily"][0]["events"]
 
 
 def test_suite_skips_complete_runs_and_reports_missing_ones(tmp_path, monkeypatch):

@@ -84,13 +84,34 @@ def _backup(src_store, dst_path: str) -> None:
     dst.close()
 
 
-def _resume_child(copy_path: str, world_id: str, until: int, timeout_s: int = 3600) -> dict:
+def _resume_child(copy_path: str, world_id: str, until: int, timeout_s: int = 3600, events_out: str = "-") -> dict:
+    """Free resume: a NEW process loads the world from a copy of the store and advances it to `until`, recomputing
+    every inference; its continuation's events (hashes; payloads of `ext` events) go to `events_out`."""
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
-    pr = subprocess.run([sys.executable, "-m", "crucible.civ.longrun", "resume", copy_path, world_id, str(until)],
-                        env=env, capture_output=True, timeout=timeout_s)
+    pr = subprocess.run([sys.executable, "-m", "crucible.civ.longrun", "resume", copy_path, world_id, str(until),
+                         events_out], env=env, capture_output=True, timeout=timeout_s)
     if pr.returncode != 0:
         return {"ok": False, "error": pr.stderr.decode(errors="replace")[-1500:]}
     return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
+
+
+def _regen_resume_child(copy_path: str, world_id: str, at_seq: int, live_path: str, to_seq: int,
+                        timeout_s: int = 3600) -> dict:
+    """Exact resume (contract 1.7): a NEW process cuts the copy back to `at_seq`, loads the world from it
+    (`World.load`: snapshot plus events) and re-executes the live run's recorded continuation (at_seq, to_seq]
+    through the handlers with its recorded external outcomes (crucible.civ.determinism.regenerate_continuation)."""
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    pr = subprocess.run([sys.executable, "-m", "crucible.civ.longrun", "resume-regen", copy_path, world_id,
+                         str(at_seq), live_path, str(to_seq)], env=env, capture_output=True, timeout=timeout_s)
+    if pr.returncode != 0:
+        return {"ok": False, "error": pr.stderr.decode(errors="replace")[-1500:]}
+    return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
+
+
+def _rm_store(path: str) -> None:
+    for p in (path, path + "-wal", path + "-shm"):
+        if os.path.exists(p):
+            os.remove(p)
 
 
 def _read_json(path: str):
@@ -241,12 +262,7 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                                           "detail": bad})
                 row["accounting_mismatches"] = rep["accounting"][-1]["mismatches"]
             if pending_resume is not None and pending_resume["until"] == w.now:
-                child = pending_resume["child"]
-                ok = child.get("ok") and child["hash"] == w.last_hash and child["digest"] == w.digest()
-                rep["resume"].append({"from_day": pending_resume["day"], "to_day": d + 1, "ok": bool(ok),
-                                      "child": {k: child.get(k) for k in ("ok", "hash", "digest", "seq", "error",
-                                                                          "wall_s")},
-                                      "live": {"hash": w.last_hash, "digest": w.digest(), "seq": w.seq}})
+                rep["resume"].append(_resume_compare(w, store, path, wid, pending_resume, d + 1))
                 pending_resume = None
             rep["daily"].append(row)
             if (d + 1) % snapshot_every == 0 or d + 1 in resume_days or d + 1 == days:
@@ -266,11 +282,12 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                     w.flush()
                     cp = os.path.join(workdir, f"resume-copy-{d + 1}.sqlite")
                     _backup(store, cp)
-                    child = _resume_child(cp, wid, (d + 2) * DAY)
-                    for p in (cp, cp + "-wal", cp + "-shm"):
-                        if os.path.exists(p):
-                            os.remove(p)
-                    pending_resume = {"day": d + 1, "until": (d + 2) * DAY, "child": child}
+                    evo = cp + ".events.json"
+                    child = _resume_child(cp, wid, (d + 2) * DAY, events_out=evo)
+                    # the copy is kept until the live world has recorded the same day: the exact check
+                    # re-executes the live record on it (`_resume_compare`)
+                    pending_resume = {"day": d + 1, "until": (d + 2) * DAY, "child": child, "copy": cp,
+                                      "events": evo, "at_seq": w.seq}
                 _checkpoint(progress_path, rep, w, acc, snaps, d + 1, pending_resume, t_start)
             if log:
                 log(json.dumps(row))
@@ -410,6 +427,49 @@ def _ratio(series: list[float], window: int) -> float:
     return float(late / early) if early > 0 else (0.0 if late == 0 else float("inf"))
 
 
+def _resume_compare(w, store, path: str, wid: str, pend: dict, day: int) -> dict:
+    """One cross-process resume check, when the live world `w` reached the day the resumed child ran to.
+
+    `ok` (counted by Gate P) is the exact check: a new process loads the world from the copy of the store taken at
+    the resume day and re-executes the live run's recorded continuation through the handlers with its recorded
+    external outcomes; it must reach the live hash, state digest and sequence number. `free_ok` reports whether the
+    free resume (the child that recomputed every inference) reached the same; when it did not, `free_divergence`
+    says where and whether the first divergence came from a recorded non-reproducible outcome (inference numerics)
+    or from the world's logic (crucible.civ.determinism.first_divergence)."""
+    from .determinism import first_divergence
+    child = pend["child"]
+    live = {"hash": w.last_hash, "digest": w.digest(), "seq": w.seq}
+    free_ok = bool(child.get("ok") and child["hash"] == live["hash"] and child["digest"] == live["digest"])
+    out = {"from_day": pend["day"], "to_day": day, "free_ok": free_ok,
+           "child": {k: child.get(k) for k in ("ok", "hash", "digest", "seq", "error", "wall_s")}, "live": live}
+    evo = pend.get("events")
+    if not free_ok and evo and os.path.exists(evo) and pend.get("at_seq") is not None:
+        try:
+            with open(evo) as fh:
+                theirs = json.load(fh)
+            mine = [{"seq": e.seq, "type": e.type, "hash": e.hash, "payload": e.payload if e.type == "ext" else None}
+                    for e in w.events_range(int(pend["at_seq"]))]
+            out["free_divergence"] = first_divergence(mine, theirs)
+        except (OSError, ValueError) as e:
+            out["free_divergence"] = {"error": f"{type(e).__name__}: {e}"}
+    cp = pend.get("copy")
+    if cp and os.path.exists(cp) and pend.get("at_seq") is not None:
+        w.flush()
+        rg = _regen_resume_child(cp, wid, int(pend["at_seq"]), path, w.seq)
+        out["regen"] = {k: rg.get(k) for k in ("ok", "hash", "digest", "seq", "error", "wall_s", "events")}
+        out["ok"] = bool(rg.get("ok") and rg["hash"] == live["hash"] and rg["digest"] == live["digest"]
+                         and rg["seq"] == live["seq"])
+    else:
+        # the copy did not survive an interruption of this process: no exact check; the free one decides
+        out["regen"] = None
+        out["ok"] = free_ok
+    if cp:
+        _rm_store(cp)
+    if evo and os.path.exists(evo):
+        os.remove(evo)
+    return out
+
+
 def summarize(rep: dict) -> dict:
     daily = rep.get("daily") or []
     eco = [r["economic"] for r in daily[1:]] or [r["economic"] for r in daily]
@@ -422,6 +482,10 @@ def summarize(rep: dict) -> dict:
             "accounting_mismatches": sum(a["mismatches"] for a in rep.get("accounting") or []),
             "resume_checks": len(rep.get("resume") or []),
             "resume_mismatches": sum(0 if r["ok"] else 1 for r in rep.get("resume") or []),
+            "resume_exact_checks": sum(1 for r in rep.get("resume") or [] if r.get("regen")),
+            "free_resume_equal": sum(1 for r in rep.get("resume") or [] if r.get("free_ok", r.get("ok"))),
+            "free_resume_divergence_origins": sorted({(r.get("free_divergence") or {}).get("origin") or "?"
+                                                      for r in rep.get("resume") or [] if not r.get("free_ok", True)}),
             "replay_mismatches": (rep["replay"] or {}).get("mismatches") if rep.get("replay") else None,
             "replay_segments": (rep.get("replay") or {}).get("segments", 0),
             "late_over_early_economic": _ratio(eco, 30), "late_over_early_social": _ratio(soc, 30),
@@ -532,10 +596,36 @@ def _main(argv) -> int:
         from ..core.kernel import World
         from ..storage.sqlite import SQLiteStore
         path, wid, until = argv[1], argv[2], int(argv[3])
+        evo = argv[4] if len(argv) > 4 and argv[4] != "-" else None
         t = time.time()
         w = World.load(SQLiteStore(path), wid)
+        s0 = w.seq
         w.advance_time(until)
+        if evo:
+            _write_json(evo, [{"seq": e.seq, "type": e.type, "hash": e.hash,
+                               "payload": e.payload if e.type == "ext" else None} for e in w.events_range(s0)])
         print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq,
+                          "wall_s": round(time.time() - t, 1)}))
+        return 0
+    if argv and argv[0] == "resume-regen":
+        import torch
+        torch.set_num_threads(1)
+        from ..core.kernel import World
+        from ..storage.sqlite import SQLiteStore
+        from .determinism import regenerate_continuation
+        cp, wid, at_seq, live_path, to_seq = argv[1], argv[2], int(argv[3]), argv[4], int(argv[5])
+        t = time.time()
+        st = SQLiteStore(cp)
+        _truncate_after(st, wid, at_seq)          # the free resume recorded its own continuation in this copy
+        w = World.load(st, wid)
+        if w.seq != at_seq:
+            raise RuntimeError(f"the copy loads at seq {w.seq}, not at {at_seq}")
+        live = SQLiteStore(live_path)
+        evs = live.read_events(wid, from_seq=at_seq, to_seq=to_seq)
+        # recorded outcomes kept as blobs (array outputs of inference) were written to the live store after the copy
+        w.runtime["blob_sources"] = [*w.runtime.get("blob_sources", ()), live]
+        regenerate_continuation(w, evs)
+        print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq, "events": len(evs),
                           "wall_s": round(time.time() - t, 1)}))
         return 0
     if argv and argv[0] == "verify":
@@ -558,6 +648,7 @@ def _main(argv) -> int:
         return 0 if not rep["failed"] else 1
     print("usage: python -m crucible.civ.longrun run <profile> <seed> <days> <population> <workdir> <report.json> "
           "[--keep] [--prune] [--snapshot-every=N] [--resume-days=a,b] | resume <store.sqlite> <world_id> <until_t> "
+          "[<events_out.json>] | resume-regen <copy.sqlite> <world_id> <at_seq> <live.sqlite> <to_seq> "
           "| verify <store.sqlite> <world_id> <seq0> <snapshot0|-> <seq1> <snapshot1>")
     return 2
 

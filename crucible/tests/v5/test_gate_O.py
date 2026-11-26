@@ -61,10 +61,13 @@ def test_O_2_shared_state_and_identities(run):
     m = {"duplicate_shared_facts": d["duplicate_shared_facts"],
          "identity_consistency_violations": i["identity_consistency_violations"],
          "persons_outside_population": i["persons_outside_population"]}
-    evidence.record("O.2", m, command=CMD, notes=_note(run) + f"; kinds held in several tables: "
-                    f"{d['kinds_in_several_tables']}; facts duplicated: {d['duplicate_facts']}; identity detail: "
-                    f"{i['detail'][:5]}")
-    assert d["duplicate_shared_facts"] == 0, d["kinds_in_several_tables"]
+    kc = d.get("kernel_check", {})
+    evidence.record("O.2", m, command=CMD, notes=_note(run) + f"; duplicate kinds: {d.get('duplicate_kinds')}; "
+                    f"kinds held in several tables: {d['kinds_in_several_tables']}; facts duplicated: "
+                    f"{d['duplicate_facts']}; kernel check (crucible.substrate.facts): second copies holding facts "
+                    f"{[(x['table'], x['rows'], x['owner'], x['owner_rows']) for x in kc.get('known_duplicates_holding_facts', [])]}"
+                    f", problems {kc.get('problems')}; identity detail: {i['detail'][:5]}")
+    assert d["duplicate_shared_facts"] == 0, (d.get("duplicate_kinds"), d["kinds_in_several_tables"], kc)
     assert i["identity_consistency_violations"] == 0, i["detail"]
 
 

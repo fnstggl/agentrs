@@ -4,14 +4,22 @@ participants, organisations, relationships, products, technologies and instituti
 
 Measured on one store-backed civilisation (crucible.civ.gates.persistence, profile balanced, 8 simulated days):
 
-    fork_divergence_supported          an unchanged fork reproduces its parent exactly (hash and digest), a fork with an
-                                       intervention (a coupling removed) diverges, and the parent is untouched
+    fork_divergence_supported          forks are exact copies at the fork (hash, digest, seq), the parent is untouched
+                                       by them, a fork with an intervention (a coupling removed) diverges, and an
+                                       unchanged fork reproduces its parent's continuation - or, where it parts, the
+                                       first divergence comes from a recorded non-reproducible outcome (batched neural
+                                       inference recomputed; crucible.civ.determinism), never from the fork
     historical_query_kinds             kinds of crucible.civ.history queries whose answers were verified against an
                                        independent source (state at a past time vs the snapshot recorded then, an
                                        entity's timeline, per-day activity vs the record, a past balance from postings
                                        vs the rebuilt state, provenance back from an event)
-    independent_replications           fresh processes that rebuild the same spec and seed and reach the same event
-                                       hash and state digest after one simulated day
+    independent_replications           fresh processes that re-execute the first simulated day from the spec and the
+                                       record alone (World.regenerate: every handler, process, population decision
+                                       and random draw run again; only the outcomes contract 1.7 records because they
+                                       are not bit-reproducible - neural inference, measured sandbox CPU time - are
+                                       handed back) and reach the same event hash, state digest and sequence number.
+                                       Free reruns (fresh processes that also recompute every inference) are run and
+                                       recorded as `free_reruns_exact` (DECISION_LOG D-47)
     entity_kinds_persisting_and_evolving  kinds of entity with entities present at day 1 and at the end and changed or
                                        added in between (state records compared, not events counted)
 
@@ -38,10 +46,12 @@ def test_SP_10_0_forks_history_replication_persistence():
          "entity_kinds_persisting_and_evolving": r["entity_kinds_persisting_and_evolving"],
          "standalone_mode_A_environments": r["standalone_environments"].get("A", 0),
          "standalone_mode_B_environments": r["standalone_environments"].get("B", 0),
-         "tier3_profiles": r["tier3_profiles"]}
+         "tier3_profiles": r["tier3_profiles"],
+         "free_reruns_exact": r.get("free_reruns_exact", -1), "free_reruns": len(r.get("free_reruns") or [])}
     evidence.record("SP-10.0", m, command=CMD, notes=f"run {r['params']}; forks {r['forks']}; history "
                     f"{ {k: v for k, v in r['history'].items() if k != 'historical_query_kinds'} }; replications "
-                    f"{r['replications']} vs day-1 {r['day1']}; entity kinds {r['entity_kinds']}")
+                    f"{r['replications']} vs day-1 {r['day1']}; free reruns {r.get('free_reruns')}; entity kinds "
+                    f"{r['entity_kinds']}")
     assert m["fork_divergence_supported"] is True, r["forks"]
     assert m["historical_query_kinds"] >= 3, r["history"]
     assert m["independent_replications"] >= 3, r["replications"]

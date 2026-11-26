@@ -14,7 +14,11 @@ Everything here is measured on data flow in the world, not on which modules happ
   mini-environment (O.n1).
 * `duplicate_facts(world)` - a data-level scan (not declarations): for each kind of shared fact, the tables of the
   world that hold facts of that kind; a kind held in more than one populated table, and every single fact present
-  in two tables, is a duplicate (O.2).
+  in two tables, is a duplicate (O.2). The kernel's mandatory check (`crucible.substrate.facts.world_report`) is
+  added: a reviewed second copy of a shared kind that holds facts in this world, and every problem the check
+  reports, count as well. The kernel's mandatory check (`crucible.substrate.facts.world_report`) is
+  added: a reviewed second copy of a shared kind that holds facts in this world, and every problem the check
+  reports, count as well.
 * `identity_violations(world)` - dangling references to principals or accounts, population principals without a
   population row, organisation members that are not persons, accounts without an owner (O.2).
 * `ledger_violations(world)` - bank invariants and the ledger recomputed from postings (O.3).
@@ -219,9 +223,22 @@ def duplicate_facts(world) -> dict:
         kinds["energy_price"]["industry.grid"] = sum(1 for r in _rows(st, "regions").values() if r.get("grid"))
         kinds["energy_price"]["fleet.tariff"] = 1
     multi = {k: v for k, v in kinds.items() if len(v) > 1}
-    n_dup = len(multi) + sum(len(v) for v in dups.values())
-    return {"duplicate_shared_facts": n_dup, "kinds_in_several_tables": multi, "duplicate_facts": dict(dups),
-            "kinds": {k: dict(v) for k, v in kinds.items()}}
+    # the kernel's mandatory check over every table of every module of this world (crucible.substrate.facts, D-21):
+    # a reviewed second copy of a shared kind that HOLDS facts here is a duplicate whatever its allow-list entry says
+    # (the allow-list records a planned migration, not a single version of the fact), and every problem it reports
+    # (unreviewed tables, split legacy facts, expired entries) counts too
+    from ..substrate import facts as F
+    rep = F.world_report(world)
+    held = [{"kind": d["kind"], "table": d["table"], "rows": d["rows"], "owner": d["owner"],
+             "owner_rows": d["owner_rows"], "workstream": d.get("workstream"), "migration": d.get("migration")}
+            for d in rep["known_duplicates"] if d.get("rows")]
+    dup_kinds = set(multi) | {d["kind"] for d in held}
+    n_dup = len(dup_kinds) + sum(len(v) for v in dups.values()) + len(rep["problems"])
+    return {"duplicate_shared_facts": n_dup, "duplicate_kinds": sorted(dup_kinds),
+            "kinds_in_several_tables": multi, "duplicate_facts": dict(dups),
+            "kinds": {k: dict(v) for k, v in kinds.items()},
+            "kernel_check": {"known_duplicates_holding_facts": held, "problems": rep["problems"][:20],
+                             "unreviewed": rep["unreviewed"][:20], "owners": rep["owners"]}}
 
 
 def identity_violations(world) -> dict:

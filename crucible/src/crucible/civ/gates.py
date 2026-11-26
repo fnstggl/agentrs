@@ -120,7 +120,10 @@ def _strip(r: dict) -> dict:
 
 
 # --------------------------------------------------------------------------------------------- SP-2.1b
-INVENTION_SEEDS = (51, 52, 53)
+# six seeds: with three, a paired 95% interval (t = 4.30) did not exclude zero although every seed's factual arm
+# had the effect and no counterfactual arm had it (adopters 118/130/5 vs 0/0/0 at e77fef3: one seed's population
+# found the service late); more seeds, not a weaker test
+INVENTION_SEEDS = (51, 52, 53, 54, 55, 56)
 
 
 def invention(seeds=INVENTION_SEEDS) -> dict:
@@ -320,7 +323,7 @@ def couplings_battery(seed: int | None = None, warm_days: int | None = None, arm
 
 
 # --------------------------------------------------------------------------------------------- SP-10.0
-PERSIST_RUN = {"profile": "balanced", "seed": 41, "days": 8, "replications": 3, "fork_day": 4}
+PERSIST_RUN = {"profile": "balanced", "seed": 41, "days": 8, "replications": 3, "free_reruns": 2, "fork_day": 4}
 # entity kind -> state tables holding entities of that kind (Part 10.4: participants, organisations, relationships,
 # products, technologies, institutions; communities and content as well)
 ENTITY_TABLES = {
@@ -336,6 +339,8 @@ ENTITY_TABLES = {
 
 
 def _replicate_child(profile: str, seed: int, until: int) -> dict:
+    """A free rerun: a fresh process builds the same spec and seed and runs it again, recomputing every neural
+    inference (reported, not counted: see `_regenerate_child`)."""
     import subprocess
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     code = ("import json,sys,torch; torch.set_num_threads(1); import crucible; crucible.load_all_modules(); "
@@ -345,6 +350,29 @@ def _replicate_child(profile: str, seed: int, until: int) -> dict:
     pr = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, timeout=3600)
     if pr.returncode != 0:
         return {"ok": False, "error": pr.stderr.decode(errors="replace")[-800:]}
+    return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
+
+
+def _regenerate_child(store_path: str, world_id: str, to_seq: int) -> dict:
+    """An independent replication under contract 1.7 (crucible.substrate.inference): a fresh process reads only the
+    spec and the recorded log of the run from its store and re-executes it from genesis through the handlers
+    (`World.regenerate`): every module's handlers and processes, every population decision and every random draw
+    run again; only the outcomes that are recorded because they are not bit-reproducible (neural inference, measured
+    sandbox CPU time: kernel `ext` events) are handed back from the record. It must reach the run's event hash and
+    state digest."""
+    import subprocess
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    code = ("import json,sys,time,torch; torch.set_num_threads(1); import crucible; crucible.load_all_modules(); "
+            "from crucible.core.kernel import World; from crucible.storage.sqlite import SQLiteStore; "
+            "from crucible.civ import history as H; "
+            f"st=SQLiteStore({store_path!r}); sp=H._spec(st,{world_id!r}); "
+            f"evs=st.read_events({world_id!r},from_seq=0,to_seq={int(to_seq)}); t=time.time(); "
+            "g=World.regenerate(sp,evs,world_id='sp100-regen',store=st); "
+            "print(json.dumps({'hash':g.last_hash,'digest':g.digest(),'seq':g.seq,'events_read':len(evs),"
+            "'wall_s':round(time.time()-t,1)}))")
+    pr = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, timeout=3600)
+    if pr.returncode != 0:
+        return {"ok": False, "error": pr.stderr.decode(errors="replace")[-1500:]}
     return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
 
 
@@ -405,19 +433,30 @@ def persistence(profile: str | None = None, seed: int | None = None, days: int |
             c1 = _census(w)
             w.advance_time(int(p["fork_day"]) * DAY)
             w.snapshot()
-            # forks
-            before = w.digest()
+            # forks: an exact copy at the fork, independent of its parent, diverging under an intervention; an
+            # unchanged fork reproduces its parent's continuation unless a recorded non-reproducible outcome
+            # (inference numerics) differs first - the fork itself must never be the origin of a divergence
+            before, h_before, s_fork = w.digest(), w.last_hash, w.seq
             f_same, f_int = w.fork("sp100-same"), w.fork("sp100-int")
+            exact_copy = all(f.digest() == before and f.last_hash == h_before and f.seq == s_fork
+                             for f in (f_same, f_int))
             C.remove(f_int, "goods_wom")
             t_f = w.now + DAY
             f_same.advance_time(t_f)
             f_int.advance_time(t_f)
-            parent_untouched = w.digest() == before
+            parent_untouched = w.digest() == before and w.last_hash == h_before
             w.advance_time(t_f)
-            forks = {"parent_untouched": parent_untouched, "unchanged_fork_equals_parent": f_same.digest() ==
-                     w.digest() and f_same.last_hash == w.last_hash, "intervened_fork_diverges":
-                     f_int.digest() != f_same.digest()}
-            forks["fork_divergence_supported"] = all(forks.values())
+            same_equal = f_same.digest() == w.digest() and f_same.last_hash == w.last_hash
+            from .determinism import first_divergence
+            div = first_divergence(list(w.events_range(s_fork)), list(f_same.events_range(s_fork)))
+            forks = {"parent_untouched": parent_untouched, "fork_exact_copy": exact_copy,
+                     "unchanged_fork_equals_parent": same_equal,
+                     "unchanged_fork_divergence": div,
+                     "unchanged_fork_consistent": same_equal or div["origin"] == "recorded_outcome",
+                     "intervened_fork_diverges": f_int.digest() != f_same.digest()}
+            forks["fork_divergence_supported"] = bool(forks["parent_untouched"] and exact_copy and
+                                                      forks["unchanged_fork_consistent"] and
+                                                      forks["intervened_fork_diverges"])
             f_same.close()
             f_int.close()
             w.advance_time(max(int(p["days"]), int(p["fork_day"]) + 2) * DAY)
@@ -433,8 +472,14 @@ def persistence(profile: str | None = None, seed: int | None = None, days: int |
                 kinds[kind] = {"at_day_1": len(a), "at_end": len(b), "persisted": persisted, "changed": changed,
                                "new": new, "persists_and_evolves": persisted > 0 and (changed + new) > 0}
             w.close()
-            reps = [_replicate_child(p["profile"], p["seed"], DAY) for _ in range(int(p["replications"]))]
-            rep_ok = [r for r in reps if r.get("ok") and r["hash"] == day1["hash"] and r["digest"] == day1["digest"]]
+            # independent replications: fresh processes regenerate the first simulated day from the record (counted);
+            # free reruns that recompute every inference are run as well and reported (GPU numerics of batched
+            # inference are not bit-reproducible, which is why contract 1.7 records those outcomes)
+            reps = [_regenerate_child(store.path, "sp100", day1["seq"]) for _ in range(int(p["replications"]))]
+            rep_ok = [r for r in reps if r.get("ok") and r["hash"] == day1["hash"] and r["digest"] == day1["digest"]
+                      and r["seq"] == day1["seq"]]
+            free = [_replicate_child(p["profile"], p["seed"], DAY) for _ in range(int(p["free_reruns"]))]
+            free_ok = [r for r in free if r.get("ok") and r["hash"] == day1["hash"] and r["digest"] == day1["digest"]]
             from ..substrate import modes as M
             M.discover()
             standalone = {}
@@ -449,6 +494,7 @@ def persistence(profile: str | None = None, seed: int | None = None, days: int |
             return {"params": p, "forks": forks, "fork_divergence_supported": forks["fork_divergence_supported"],
                     "history": hist, "historical_query_kinds": hist["historical_query_kinds"],
                     "replications": reps, "independent_replications": len(rep_ok), "day1": day1,
+                    "free_reruns": free, "free_reruns_exact": len(free_ok),
                     "entity_kinds": kinds,
                     "entity_kinds_persisting_and_evolving": sum(1 for v in kinds.values()
                                                                 if v["persists_and_evolves"]),
