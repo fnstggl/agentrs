@@ -76,3 +76,23 @@ def test_curriculum_policy_learns_to_prefer_goals_with_higher_learning_gain():
     lgp = LearningGainPredictor(16, 32)
     mu, sd = lgp(b, feats[:, 0], torch.zeros(B, 4))
     assert mu.shape == (B,) and bool((sd > 0).all())
+
+
+def test_hindsight_relabels_verified_partial_successes_without_touching_the_original_failure(tmp_path):
+    from superlearner.cam_unified.autonomy.hindsight import relabel_episode
+    from superlearner.cam_unified.envs.labels import LabelRecord, LabelStore
+    gc = GoalCompiler(scales=(1.0, 4.0), horizons=(10.0,))
+    for v in (100.0, 110.0, 90.0, 105.0):
+        gc.observe([num("rev", v)])
+    snaps = [(0.0, [num("rev", 100.0)]), (2.0, [num("rev", 125.0)]), (5.0, [num("rev", 150.0)])]
+    labs = relabel_episode("w#0", 3, snaps, original_goal="reach rev 10000", compiler=gc)
+    assert labs and all(l.kind == "hindsight_relabel" and l.status == "success" for l in labs)
+    assert all(l.meta["original_goal"] == "reach rev 10000" for l in labs)
+    exceeded = [l for l in labs if l.meta["text"].startswith("exceed rev")]
+    assert exceeded and min(l.t_resolved_days for l in exceeded) == 2.0
+    s = LabelStore(str(tmp_path))
+    assert s.append(LabelRecord("w#0", 3, "failure", 0.01, 150.0, 10.0, "crucible", goal_id="orig"))
+    for l in labs:
+        assert s.append(l)
+    orig = [r for r in s.iterate() if r.goal_id == "orig"]
+    assert len(orig) == 1 and orig[0].status == "failure"
