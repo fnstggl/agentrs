@@ -8,7 +8,9 @@ step over the 128 collected decisions (core/bench.benchmark_full).
     the core changes
 
 Marked slow + gpu: it needs the GPU (it takes runs/cam_unified/gpu_heavy.lock itself, around the GPU part only,
-for about 10 minutes) and the locally cached Qwen3-4B weights. The step is measured in the plan configuration
+for about 10 minutes) and the locally cached Qwen3-4B weights. Free-memory gate: after taking the lock it skips
+(with the reason) unless >= 36 GB are free (CAM_GPU_WAIT_S seconds of waiting, default 0), so other tenants never
+make it OOM. The step is measured in the plan configuration
 available before the owners' merges: EMA target removed (shared online core; W6 deletes it), AdamW for the core and
 Adafactor for the satellites (the plan's fallback), the not-yet-wired DOM adapters' parameters included
 (--planned-adapters). Measured numbers of every variant tried are in docs/evidence/dom/W1/."""
@@ -24,6 +26,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.gpu]
 LOCK = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "runs", "cam_unified",
                                     "gpu_heavy.lock"))
 BUDGET_GB = 40.0
+MIN_FREE_GB = 36.0          # free-memory gate: other tenants of the shared GPU must leave room for the 1B step
 VARIANT = "share_ema+adafactor"
 
 
@@ -57,8 +60,12 @@ def bench():
     if not os.path.isdir(os.path.join(hub, "models--Qwen--Qwen3-4B")):
         pytest.skip("Qwen3-4B weights not cached")
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-    from superlearner.cam_unified.core.bench import benchmark_full
+    from superlearner.cam_unified.core.bench import benchmark_full, wait_free
     with gpu_lock():
+        gate = wait_free(MIN_FREE_GB, float(os.environ.get("CAM_GPU_WAIT_S", "0")))
+        if not gate["ok"]:
+            pytest.skip(f"GPU contention: {gate['free_GB']} GB free < {MIN_FREE_GB} GB (other tenants); the budget "
+                        "check needs the GPU to itself (set CAM_GPU_WAIT_S to wait)")
         return benchmark_full("dom", B=16, K=4, rounds=8, microbatch=4, planned_adapters=True, variants=[VARIANT])
 
 

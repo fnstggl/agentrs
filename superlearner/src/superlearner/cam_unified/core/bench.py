@@ -346,6 +346,47 @@ def full_optimiser_step(system, *, microbatch: int = 4, world: bool = True, adap
 PARTIAL_OUT: Optional[str] = None             # benchmark_full writes its results so far here after every phase
 
 
+class PhaseTimer:
+    """Wall time (CUDA-synchronised) of the sub-steps of CamUnifiedModel.decide, by monkeypatching the component
+    methods while active: encode_step (tokenizer + core + reasoner), tokenizer.tools, action_generator.sample (Qwen
+    decoding), planner.plan, world_model.prior, predict_outcomes, value_head."""
+
+    TARGETS = (("model", "encode_step"), ("tokenizer", "tools"), ("action_generator", "sample"), ("planner", "plan"),
+               ("world_model", "prior"), ("model", "predict_outcomes"), ("value_head", "forward"))
+
+    def __init__(self, model):
+        self.model = model
+        self.t: dict = {}
+        self._saved: list = []
+
+    def __enter__(self):
+        for owner, name in self.TARGETS:
+            obj = self.model if owner == "model" else getattr(self.model, owner, None)
+            if obj is None or not hasattr(obj, name):
+                continue
+            fn = getattr(obj, name)
+            key = f"{owner}.{name}"
+
+            def wrap(*a, _fn=fn, _key=key, **k):
+                torch.cuda.synchronize()
+                t = time.perf_counter()
+                out = _fn(*a, **k)
+                torch.cuda.synchronize()
+                self.t[_key] = self.t.get(_key, 0.0) + time.perf_counter() - t
+                return out
+            self._saved.append((obj, name, obj.__dict__.get(name)))
+            setattr(obj, name, wrap)
+        return self
+
+    def __exit__(self, *exc):
+        for obj, name, prev in reversed(self._saved):
+            if prev is None:
+                delattr(obj, name)
+            else:
+                setattr(obj, name, prev)
+        self._saved = []
+
+
 def wait_free(need_GB: float, max_wait_s: float, own_GB: float = 0.0) -> dict:
     """Wait (polling every 5 s, at most max_wait_s) until the GPU has `need_GB` free beyond what this process holds
     already counted in `own_GB`; -> {"free_GB", "waited_s", "ok"} (the GPU is shared; other jobs' memory is not ours)."""
@@ -355,6 +396,11 @@ def wait_free(need_GB: float, max_wait_s: float, own_GB: float = 0.0) -> dict:
         if free >= need_GB - own_GB or time.perf_counter() - t0 >= max_wait_s:
             return {"free_GB": free, "waited_s": time.perf_counter() - t0, "ok": free >= need_GB - own_GB}
         time.sleep(5)
+
+
+def wait_free_gpu(need_GB: float, timeout_s: float = 0.0) -> dict:
+    """wait_free for callers outside the bench (tests): {"free_GB", "waited_s", "ok"} after at most timeout_s."""
+    return wait_free(need_GB, timeout_s)
 
 
 def _partial(res: dict) -> None:
@@ -455,15 +501,26 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
         st = model.init_state(rowsK, device=agent.device, seed=seed)
         times = []
         torch.cuda.reset_peak_memory_stats()
+        phases = {}
         for r in range(decide_reps + 1):
             st = model.init_state(rowsK, device=agent.device, seed=seed + r)
             torch.cuda.synchronize()
             t = time.perf_counter()
-            model.decide(st, [list(o) for o in obs.observations] * K, [float(x) for x in obs.t] * K, tools * K,
-                         list(goals) * K, generator=torch.Generator().manual_seed(r))
+            with PhaseTimer(model) as pt:
+                model.decide(st, [list(o) for o in obs.observations] * K, [float(x) for x in obs.t] * K, tools * K,
+                             list(goals) * K, generator=torch.Generator().manual_seed(r))
             torch.cuda.synchronize()
             times.append(time.perf_counter() - t)
-        res["decide_BK"] = {"rows": rowsK, "decide_s": times, "decide_s_warm_median": sorted(times[1:])[len(times[1:]) // 2],
+            phases = pt.t
+        st = model.init_state(nb, device=agent.device, seed=seed)
+        with PhaseTimer(model) as pt:
+            torch.cuda.synchronize()
+            t = time.perf_counter()
+            model.decide(st, [list(o) for o in obs.observations], [float(x) for x in obs.t], tools, list(goals),
+                         generator=torch.Generator().manual_seed(0))
+            torch.cuda.synchronize()
+        res["decide_B_phases"] = {"rows": nb, "decide_s": time.perf_counter() - t, "phases_s": pt.t}
+        res["decide_BK"] = {"rows": rowsK, "decide_s": times, "phases_s_last": phases, "decide_s_warm_median": sorted(times[1:])[len(times[1:]) // 2],
                             "peak_GB": torch.cuda.max_memory_allocated() / GB,
                             "note": "one batched decide of B*K rows; K-candidate decoding (W5) not merged"}
         _partial(res)
