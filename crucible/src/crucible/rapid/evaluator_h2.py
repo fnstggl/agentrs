@@ -1386,7 +1386,8 @@ def identify_bargain(env) -> dict:
 def claim_bargain(env) -> dict:
     """Private preferences make trade-offs pay: at the last round of a deal with a time-dependent counterpart, terms
     built from its weights are accepted while uniform terms worth the same to you are rejected; a tit-for-tat
-    counterpart rejects a moderate offer made cold but accepts it after you have conceded to it."""
+    counterpart keeps rejecting a moderate offer repeated cold but accepts it once you have conceded to it (tough
+    terms first, then the moderate ones)."""
     eng, st, c = inside(env)
     w = c["my_w"]
     K = int(c["rounds"])
@@ -1421,9 +1422,13 @@ def claim_bargain(env) -> dict:
         x = lp_offer(w, c["cp_v"][j], vt)
         f1, f2 = fork(e), fork(e)
         n0 = e._state["deals_made"]
-        f1.step(_bg_act(c, x))
-        f2.step(_bg_act(c, [1.0] * len(w)))
-        f2.step(_bg_act(c, x))
+        # same noise, three proposals each: the moderate terms three times (no concession), or tough terms first and
+        # then the moderate ones twice (a concession, which a tit-for-tat counterpart answers by lowering its
+        # aspiration after the rejection it is offered in)
+        for step in (x, x, x):
+            f1.step(_bg_act(c, step))
+        for step in ([1.0] * len(w), x, x):
+            f2.step(_bg_act(c, step))
         out["tft_cold_accepted"] = f1._state["deals_made"] > n0
         out["tft_after_concession_accepted"] = f2._state["deals_made"] > n0
     ok = "tradeoff_accepted" in out and "tft_cold_accepted" in out and out["tradeoff_accepted"] \

@@ -54,9 +54,9 @@ def test_same_seed_and_actions_give_the_same_world_and_valid_observations(family
     assert traces[0] == traces[1]
 
 
-# families whose own mechanism claims do not hold on seed 0 (recorded defects, not admitted; see the workstream H
-# report): the dead-time controller comparison, the fleet service claim, the bargaining counterpart claim
-KNOWN_CLAIM_FAILURES = {"pe_deadtime_control", "pe_fleet_policy", "strat_bargain"}
+# families whose own mechanism claims do not hold on seed 0 (recorded defects, not admitted): none at present - the
+# dead-time, fleet-service and bargaining claims were repaired (workstream H, wave 3)
+KNOWN_CLAIM_FAILURES: set[str] = set()
 
 
 @pytest.mark.parametrize("family", [pytest.param(f, marks=pytest.mark.xfail(strict=True, reason="known failing claim"))

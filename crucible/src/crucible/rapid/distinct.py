@@ -267,7 +267,35 @@ def _interface_check(fa: str, fb: str) -> dict | None:
 LOOKALIKE = {"mk_elastic", "mk_signal", "mk_gate", "mk_drift"}
 # pairwise difference protocols: families whose difference a dedicated intervention shows (evaluator side,
 # "module:function" taking a seed and returning {"ok", ...})
-PAIR_PROTOCOLS: dict[frozenset, str] = {}
+PAIR_PROTOCOLS: dict[frozenset, str] = {
+    frozenset(("sci_dose_response", "sci_competing_hypotheses")): "crucible.rapid.distinct:law_turns_over",
+}
+
+
+def _law_shape(family: str, seed: int) -> dict:
+    """The noise-free law of a prediction world along its first setting (second setting at its minimum), from the
+    settable range out to twice its top - a controlled intervention beyond what any participant can set (evaluator
+    side): whether the response turns over (falls by more than 2% of its range after its maximum)."""
+    from .engines.primitive_graph import true_response
+    env = make(family, seed)
+    eng = env._engine
+    lv = eng.public_levers()
+    a, b = lv[0], lv[1]
+    xs = np.linspace(a["min"], 2.0 * a["max"], 25)
+    y = np.asarray(true_response(eng, [{a["name"]: float(x), b["name"]: float(b["min"])} for x in xs],
+                                 env._config["objective"]["gauge"]), dtype=float)
+    k = int(np.argmax(y))
+    drop = float(y[k] - y[k:].min())
+    return {"turns_over": bool(drop > 0.02 * (np.ptp(y) + 1e-9)), "argmax": float(xs[k]), "drop": drop}
+
+
+def law_turns_over(seed: int) -> dict:
+    """sci_dose_response vs sci_competing_hypotheses: both are prediction worlds with two settings whose fingerprints
+    differ in their motifs (a rise-and-fall response vs a saturating or power law). Verified when, driven past the
+    settable range, the dose world's law turns over and the hypotheses world's law (either hypothesis) does not."""
+    d = _law_shape("sci_dose_response", seed)
+    h = _law_shape("sci_competing_hypotheses", seed)
+    return {"ok": d["turns_over"] and not h["turns_over"], "dose": d, "hypotheses": h}
 
 
 def _observation_check(fa: str, fb: str) -> dict | None:
