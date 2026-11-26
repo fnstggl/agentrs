@@ -229,6 +229,11 @@ class Worker:
         self._idle_cpu: int | None = None     # process CPU when the last job's result arrived
         self._loaded: set[str] = set()
         self.carry_ns = 0                     # background work of a predecessor worker, billed with the next job
+        # why this worker's program loads happen (workstream A, D-80): "always" (one-shot workers and workers not
+        # managed by a WorkerPool: every load is billed), "process" (the pool's first worker for its key in this
+        # host process - a platform cold start), "restart" (the pool had a worker for the key before: it died, was
+        # killed or evicted)
+        self.cold = "always"
         self.uid: int | None = None
         self._last_bytes = 0
 
@@ -421,21 +426,25 @@ class Worker:
         return None
 
     def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
-                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0, load: int = 0) -> dict:
+                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0, load: int = 0,
+                fold: int = 0) -> dict:
         """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo.
-        `load` is the program's billable load CPU when this job loaded it (already anchored, see `run`): it is added
-        to the bill but kept out of the job's own anchor and tolerance check (workstream A, kcal wave 3b)."""
+        Workstream A (kcal wave 3b, D-80): `load` is the program's anchored billable load CPU when this job loaded it
+        in a restarted or unmanaged worker - added to the bill, kept out of the job's own anchor and tolerance check;
+        `fold` is that load when the job ran on a platform cold start (the pool's first worker for its key in this
+        host process) - it joins the job's FIRST measurement (its anchor) and never its tolerance check, so the job
+        costs what its first measurement cost whether this host process started cold or warm there."""
         error = self._clean(error) if error else None
         stdout = self._clean(stdout or "")[: self.cfg.out_bytes]
         cpu = max(0, int(cpu))
-        load = max(0, int(load))
-        billed, memo = cpu, None
+        load, fold = max(0, int(load)), max(0, int(fold))
+        billed, memo = cpu + fold, None
         if self.cfg.count_lines:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
             billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
-                                                         outcome), cpu, disk=self.cfg.memo_path)
-        billed, cpu = billed + load, cpu + load
+                                                         outcome), cpu + fold, disk=self.cfg.memo_path, check_ns=cpu)
+        billed, cpu = billed + load, cpu + fold + load
         meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
                  **({"memo": memo} if memo else {})}
         out = {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,
@@ -482,6 +491,8 @@ class Worker:
                                 transcript=transcript, wall_s=time.monotonic() - t0,
                                 meter={**empty, "background_ns": bg, "killed": reason})
 
+        fold = 0
+
         def died(reason: str, etype: str = "WorkerDied", c_start: int | None = None, extra: int = 0) -> dict:
             self.dead_reason = reason
             c = M.cpu_ns(pid)                 # first: a terminated process is readable until it is reaped
@@ -491,7 +502,8 @@ class Worker:
                 c = c2
             used = max(0, (c or 0) - (c_start or 0)) if c is not None and c_start is not None else 0
             err = {"type": etype, "message": reason, **({"stderr": tail[-800:]} if tail and etype != "Timeout" else {})}
-            return self._finish(False, None, err, "", cpu=used + bg, load=extra, job=job, transcript=transcript,
+            return self._finish(False, None, err, "", cpu=used + bg, load=extra, fold=fold, job=job,
+                                transcript=transcript,
                                 wall_s=time.monotonic() - t0, meter={**empty, "background_ns": bg, "killed": reason})
 
         # 2. load the program (its import-time work is measured apart; only what exceeds LOAD_FREE_NS is billed)
@@ -520,16 +532,23 @@ class Worker:
         if load_ns and self.cfg.count_lines:
             # Workstream A (kcal, wave 3b; K1/K2 determinism, D-80): the deterministic cost model anchors the program's
             # load CPU like a job's - the first measurement per lineage, program files and target, the same tolerance
-            # rule (a load more than MEMO_TOL x the anchor + MEMO_SLACK_NS is billed fresh, so import-time work cannot
-            # grow unbilled). Before, a fresh load measurement straddling LOAD_FREE_NS (2.9 vs 5.8 ms on a loaded
-            # machine) made the same request cost 0.1 or 2.9 ms in two runs of one spec and seed, and the job memo's
-            # tolerance check then billed the noisy figure ("exceeded"): another event hash.
-            anchored, _ = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest,
-                                                        {"kind": "load", "target": target}, [], {}),
-                                      load_ns, disk=self.cfg.memo_path)
+            # rule (a load more than MEMO_TOL x max(anchor, LOAD_FREE_NS) + MEMO_SLACK_NS is billed fresh, so
+            # import-time work cannot grow unbilled; noise around a sub-allowance anchor is not growth). Before, a
+            # fresh load measurement straddling LOAD_FREE_NS (2.9 vs 5.8 ms on a loaded machine) made the same request
+            # cost 0.1 or 2.9 ms in two runs of one spec and seed, and the job memo's tolerance check then billed the
+            # noisy figure ("exceeded"): another event hash.
+            anchored, lv = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest,
+                                                         {"kind": "load", "target": target}, [], {}),
+                                       load_ns, disk=self.cfg.memo_path, floor_ns=M.LOAD_FREE_NS)
         else:
-            anchored = load_ns
+            anchored, lv = load_ns, None
         load_bill = max(0, anchored - M.LOAD_FREE_NS)
+        if load_bill and self.cold == "process" and lv in ("first", "remembered"):
+            # a platform cold start (a new host process, a fork's fresh pool) is not the program's doing: its load
+            # joins the job's first measurement instead of every run's bill, so a resumed or forked world bills a
+            # request as the uninterrupted world did (D-80). A load above its anchor's tolerance ("exceeded") and
+            # every restart after a death or an eviction stay billed on their own.
+            fold, load_bill = load_bill, 0
         # 3. the job
         self.jobs += 1
         jid = self.jobs
@@ -597,6 +616,7 @@ class Worker:
                 if q:
                     ok, err = False, {"type": "DiskQuota", "message": q}
                 return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg, load=load_bill,
+                                    fold=fold,
                                     job=job, transcript=transcript, wall_s=time.monotonic() - t0 - broker_s,
                                     meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""))
             reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
@@ -646,6 +666,7 @@ class WorkerPool:
         self.starts = 0
         self.debt: dict[str, int] = {}
         self.swept: list[dict] = []
+        self._seen: set[str] = set()          # keys this pool has started a worker for (D-80)
 
     def _bill_idle(self, k: str, w: Worker, why: str) -> None:
         used = w.idle_cpu_ns()
@@ -676,7 +697,10 @@ class WorkerPool:
             while len(self.workers) >= self.max_workers:
                 old = min(self.last_used, key=self.last_used.get)
                 self.drop(old)
-            w = Worker(files_fn(), self.cfg, key).start()
+            w = Worker(files_fn(), self.cfg, key)
+            w.cold = "restart" if key in self._seen else "process"     # D-80: why its loads happen
+            self._seen.add(key)
+            w.start()
             w.carry_ns = self.debt.pop(key, 0)
             self.workers[key] = w
             self.starts += 1

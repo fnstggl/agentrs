@@ -249,8 +249,15 @@ class Memo:
         self.hits = self.misses = self.exceeded = 0
         self.disk_errors = 0
 
-    def bill(self, key: str, fresh_ns: int, disk: str | None = None) -> tuple[int, str]:
+    def bill(self, key: str, fresh_ns: int, disk: str | None = None, check_ns: int | None = None,
+             floor_ns: int = 0) -> tuple[int, str]:
+        """(billed ns, "first" | "remembered" | "exceeded"). The first measurement of `key` becomes its anchor; later
+        ones bill the anchor unless `check_ns` (default `fresh_ns`; workstream A, D-80: the job's CPU without a
+        platform cold start's load) exceeds MEMO_TOL x max(anchor, `floor_ns`) + MEMO_SLACK_NS - then `fresh_ns` is
+        billed. `floor_ns` (D-80: LOAD_FREE_NS for program loads) keeps measurement noise around a small anchor from
+        counting as grown work."""
         fresh_ns = max(0, int(fresh_ns))
+        check = fresh_ns if check_ns is None else max(0, int(check_ns))
         with self._lock:
             rec = self._d.get(key)
             dm = _disk(disk) if rec is None else None
@@ -276,7 +283,7 @@ class Memo:
                 self.misses += 1
                 return fresh_ns, "first"
             self._d.move_to_end(key)
-            if fresh_ns <= rec * MEMO_TOL + MEMO_SLACK_NS:
+            if check <= max(rec, int(floor_ns)) * MEMO_TOL + MEMO_SLACK_NS:
                 self.hits += 1
                 return rec, "remembered"
             self.exceeded += 1

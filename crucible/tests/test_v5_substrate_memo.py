@@ -139,3 +139,66 @@ def test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job(monkeypatch):
     # import-time work that really grows (far beyond the tolerance) is still billed fresh
     grown = run(60_000_000)
     assert grown["cpu_ms"] >= first["cpu_ms"] + 50.0
+
+
+def test_a_platform_cold_start_bills_a_request_as_the_warm_run_did(monkeypatch):
+    """K1 after the merge (wave 3b, D-80): a world resumed in a NEW process (or forked onto a fresh pool) starts
+    every sandboxed site cold where the uninterrupted run had warm workers; billing that load (anchored, 2.9-5.8 ms
+    measured, above LOAD_FREE_NS) gave the resumed run other `cloud.usage` events than the uninterrupted one. A
+    platform cold start's load now joins the job's FIRST measurement (its anchor) and never its tolerance check, so a
+    request costs what its first measurement cost whether this host process started cold or warm there; a restart
+    after the worker died (or was evicted) still bills its load on top. Load noise is injected as in the test above
+    (only while the program loads)."""
+    import sys as _sys
+    from crucible.sandbox import runner
+    caps = capabilities()
+    assert caps["landlock_abi"] >= 1 and caps["seccomp"], f"this test needs the sandbox: {caps}"
+    files = {"m.py": "s = 0\nfor i in range(2000):\n    s += i\n\ndef f(n, c):\n    return n + s\n"}
+    real_cpu, real_settle, extra = M.cpu_ns, M.settle, {"on": False}
+    noise = int(M.LOAD_FREE_NS * 1.5)                    # every load measures ~4.5 ms more: billable above 3 ms
+
+    def noisy(pid):
+        v = real_cpu(pid)
+        return v + noise if (v is not None and extra["on"]) else v
+
+    def settle(pid, max_s=0.005):
+        if "jid" not in _sys._getframe(1).f_locals:     # the settle that ends a program load (no job yet)
+            extra["on"] = True
+        return real_settle(pid, max_s)
+    real_run = runner.Worker.run
+
+    def run(self, *a, **kw):
+        extra["on"] = False
+        return real_run(self, *a, **kw)
+    monkeypatch.setattr(M, "cpu_ns", noisy)
+    monkeypatch.setattr(M, "settle", settle)
+    monkeypatch.setattr(runner.Worker, "run", run)
+    cfg = runner.SandboxConfig(count_lines=True, meter_scope=f"cold-start-{os.getpid()}", memo_path=None)
+    X = {"kind": "call", "target": "m:f", "args": 1, "caller": None}
+    Y = {"kind": "call", "target": "m:f", "args": 2, "caller": None}
+    first = runner.WorkerPool(4, cfg)                     # the uninterrupted run's host process
+    try:
+        w = first.get("site", lambda: files)
+        assert w.cold == "process"
+        x1 = w.run(dict(X))                               # cold: its load joins X's anchor
+        y1 = w.run(dict(Y))                               # warm: Y's anchor is the job alone
+        assert x1["ok"] and y1["ok"] and x1["meter"]["load_ns"] > M.LOAD_FREE_NS and y1["meter"]["load_ns"] == 0
+        assert x1["cpu_ms"] > y1["cpu_ms"] + 1.0          # the first cold measurement carries the load
+    finally:
+        first.close()
+    resumed = runner.WorkerPool(4, cfg)                   # a NEW host process resumes the world before Y
+    try:
+        w2 = resumed.get("site", lambda: files)
+        y2 = w2.run(dict(Y))                              # cold here, warm in the uninterrupted run
+        x2 = w2.run(dict(X))                              # warm here, cold in the uninterrupted run
+        assert y2["meter"]["load_ns"] > M.LOAD_FREE_NS and x2["meter"]["load_ns"] == 0
+        assert (y2["cpu_ms"], y2["work_lines"]) == (y1["cpu_ms"], y1["work_lines"])
+        assert (x2["cpu_ms"], x2["work_lines"]) == (x1["cpu_ms"], x1["work_lines"])
+        # a restart after the worker died is the program's or the pool's doing: its load is billed on top
+        w2._kill()
+        w3 = resumed.get("site", lambda: files)
+        assert w3 is not w2 and w3.cold == "restart"
+        y3 = w3.run(dict(Y))
+        assert y3["ok"] and y3["cpu_ms"] >= y1["cpu_ms"] + 1.0
+    finally:
+        resumed.close()
