@@ -48,6 +48,7 @@ from torch import Tensor
 
 CUT_LOG_RHO = -1.0e4                      # exp() == 0: ρ = c = 0 (bootstrap / non-trained step)
 VALIDATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lag_validation.json")
+CAM_VALIDATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lag_validation_cam.json")
 
 
 def validated_max_lag(path: str = VALIDATION_FILE) -> tuple:
@@ -119,13 +120,15 @@ class LagReport:
 class LagRouter:
     """Routes decisions by policy lag. ``mode="vtrace"`` trains 0 <= lag <= max_lag (lag > 0 V-trace corrected);
     ``mode="discard"`` trains only lag 0 (strictly on-policy training). ``max_lag=None`` loads the validated value
-    (`validated_max_lag`)."""
+    (`validated_max_lag`) of ``validation_file`` (default: the toy validation, `VALIDATION_FILE`; the CAM learner's
+    is `CAM_VALIDATION_FILE`)."""
 
-    def __init__(self, max_lag: Optional[int] = None, mode: str = "vtrace", allow_deterministic: bool = True):
+    def __init__(self, max_lag: Optional[int] = None, mode: str = "vtrace", allow_deterministic: bool = True,
+                 validation_file: Optional[str] = None):
         if mode not in ("vtrace", "discard"):
             raise ValueError(mode)
         if max_lag is None:
-            self.max_lag, self.max_lag_source = validated_max_lag()
+            self.max_lag, self.max_lag_source = validated_max_lag(validation_file or VALIDATION_FILE)
         else:
             self.max_lag, self.max_lag_source = int(max_lag), {"source": "explicit"}
         self.mode = mode
