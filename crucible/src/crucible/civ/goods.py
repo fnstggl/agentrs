@@ -71,7 +71,7 @@ class Goods(Module):
             "region": ("int16", (), -1), "aware": ("int32", (K,), -1), "last": ("int32", (), -1),
             "w": ("float16", (4,), 0.25), "beta": ("float16", (), 1.0), "u0": ("float16", (), 3.5),
             "bought_n": ("int32", (), 0), "spent": ("int64", (), 0), "stockouts": ("int32", (), 0),
-            "last_t": ("int64", (), -1)})
+            "last_t": ("int64", (), -1), "last_seq": ("int64", (), -1)})
         world.state.declare_table("goods_slots", index=("slot",))
         popapi.register_activity(world, "goods", self.act_goods, owner=self.name, prior=float(self.cfg["prior"]),
                                  goals=(2,))
@@ -159,6 +159,7 @@ class Goods(Module):
         region, aware, last = col("region").astype(np.int64), col("aware").astype(np.int64), col("last")
         wts, beta, u0 = col("w").astype(np.float64), col("beta").astype(np.float64), col("u0").astype(np.float64)
         bought_n, spent, stockouts = col("bought_n"), col("spent"), col("stockouts")
+        last_seq = col("last_seq")
         live = np.zeros(L, bool)
         price = np.zeros(L, np.float64)
         avail = np.zeros(L, np.int64)
@@ -199,8 +200,11 @@ class Goods(Module):
                     if cont.size:
                         other = int(cont[rng.integers(0, cont.size)])
                         lb = int(columns.col(w, TABLE, "last")[other])
-                        if lb >= 0:
+                        if lb >= 0 and lb < L and lb not in aware[j]:
                             learn.append(lb)
+                            src = int(columns.col(w, TABLE, "last_seq")[other])
+                            ctx.emit("goods.wom", {"learner": int(idx[j]), "source": other, "retail": slots[lb],
+                                                   "refs": [src] if src > 0 else []}, vis="internal")
                 for s_ in learn:
                     row = aware[j]
                     if s_ in row:
@@ -250,6 +254,7 @@ class Goods(Module):
                 continue
             avail[k] -= 1
             last[j] = k
+            last_seq[j] = w.seq
             bought_n[j] += 1
             spent[j] += int(price[k])
             purchases.append([i, rid, int(price[k])])
@@ -257,7 +262,7 @@ class Goods(Module):
         popapi.record_decisions(ctx, "goods.session", idx, {
             "aware": aware.astype(np.int32), "last": last.astype(np.int32), "bought_n": bought_n.astype(np.int32),
             "spent": spent.astype(np.int64), "stockouts": stockouts.astype(np.int32),
-            "last_t": np.full(m, now, np.int64)}, table=TABLE, model_id=MODEL_ID, model_version="1",
+            "last_t": np.full(m, now, np.int64), "last_seq": last_seq.astype(np.int64)}, table=TABLE, model_id=MODEL_ID, model_version="1",
             fidelity_id="civ.goods.choice",
             extra={"t": int(now), "sessions": int(m), "purchases": purchases[:2000], "stockouts": sold_out[:2000],
                    "listings": int(live.sum())})
@@ -267,6 +272,10 @@ class Goods(Module):
     @process("day")
     def pr_day(self, ctx):
         ctx.world.modules["industry"].retail_close_day(ctx, ctx.now // DAY - 1)
+
+    @applier("goods.wom")
+    def ap_wom(self, ev):
+        pass
 
     @applier("goods.slot")
     def ap_slot(self, ev):

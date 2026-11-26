@@ -85,12 +85,12 @@ CATALOGUE: dict[str, Coupling] = {c.id: c for c in [
              "public papers and replication reports on a phenomenon that is a machine model's process physics",
              "process settings of producers using that machine model (trialled, kept if own yield improves)",
              "crucible.civ.couplings.rnd_routine (society mind routine 'rnd')",
-             {"every_days": 3, "min_gain": 0.03, "trial_runs": 3, "grid": 21}),
+             {"every_days": 3, "min_gain": 0.03, "trial_runs": 3, "grid": 21, "max_rel_err": 0.12}),
     Coupling("compute_energy", 3, "loads", "computing_infrastructure", "energy",
              "powered cores and metered compute units of each provider's deployments (cloud instances, svc_hours)",
              "energy drawn from the datacenter region's grid (capacity, utilisation price) and paid by the provider",
              "civlinks.hour -> industry.draw_energy",
-             {"idle_kwh_per_core_hour": 0.9, "kwh_per_core_hour_used": 2.4}),
+             {"idle_kwh_per_core_hour": 0.1, "kwh_per_1000_cu": 50.0}),
     Coupling("grid_curtailment", 4, "constrains", "energy", "computing_infrastructure",
              "a refused datacenter energy draw (grid capacity used up today)",
              "the provider's datacenter is curtailed for the hour: its deployments fail requests (software "
@@ -158,11 +158,14 @@ def _bindings(world) -> dict[str, dict]:
     return {b["model"]: b for b in (mod.config.get("bindings") or [])} if mod else {}
 
 
-def _paper_support(st, pid: str) -> tuple:
+def _paper_support(st, pid: str, tol: float) -> tuple:
+    """(independent replications whose relative error is within `tol`, minus their mean relative error).
+    Graded validity: the institution's chi-square verdict tests the model as an exact law, which an approximate
+    but useful model fails; what a producer needs is that the model predicts independent data well."""
     reps = [st.tables["sci_reps"][r] for r in st.find_ids("sci_reps", "paper", pid)]
-    ind_ok = sum(1 for r in reps if r["verdict"] == "consistent" and r["independent"])
-    refuted = sum(1 for r in reps if r["verdict"] == "refuted")
-    return ind_ok, -refuted, len(reps)
+    errs = [float(r["rel_err"]) for r in reps if r["independent"] and r.get("rel_err") is not None]
+    close = [e for e in errs if e <= tol]
+    return len(close), -(float(np.mean(errs)) if errs else 1e9)
 
 
 def _optimum(model_text: str, phen: dict, grid: int):
@@ -224,6 +227,9 @@ def rnd_routine(soc, ctx, mid, m, rng):
                                                        "temp": tr["from"][1]})
             soc.remember(ctx, mid, dict(st.tables["minds"][mid]), "rnd_trial", tr["paper"],
                          {"kept": bool(keep), "base_yield": round(tr["base_yield"], 4), "yield": round(y_new, 4)})
+            ctx.emit("links.rnd_result", {"org": m["org"], "design": plan["design"], "paper": tr["paper"],
+                                          "kept": bool(keep), "base_yield": round(tr["base_yield"], 4),
+                                          "yield": round(y_new, 4)}, vis=(m["org"],))
             trials.pop(plan["design"])
             changed = True
             continue
@@ -236,13 +242,14 @@ def rnd_routine(soc, ctx, mid, m, rng):
                  if p["phenomenon"] == b["phenomenon"] and p_id not in tried]
         if not cands:
             continue
-        cands.sort(key=lambda x: (_paper_support(st, x[0]), -float((x[1].get("fit") or {}).get("rel_err") or 1e9),
-                                  x[0]), reverse=True)
+        tol = float(par["max_rel_err"])
+        cands = [c for c in cands if _paper_support(st, c[0], tol)[0] >= 1]
+        if not cands:
+            continue                     # nothing independently reproduced yet: wait (papers stay untried)
+        cands.sort(key=lambda x: (_paper_support(st, x[0], tol), x[0]), reverse=True)
         pid, paper = cands[0]
         tried.append(pid)
         changed = True
-        if _paper_support(st, pid)[0] < 1:
-            continue                     # no independent consistent replication yet: not trusted
         opt = _optimum(paper["model"], phen, int(par["grid"]))
         if opt is None:
             continue
@@ -266,6 +273,7 @@ def rnd_routine(soc, ctx, mid, m, rng):
             trials[plan["design"]] = {"paper": pid, "t": ctx.now, "base_yield": base,
                                       "from": [float(d["speed"]), float(d["temp"])]}
             ctx.emit("links.rnd", {"org": m["org"], "design": plan["design"], "paper": pid,
+                                   "from": [float(d["speed"]), float(d["temp"])],
                                    "to": [round(s_new, 4), round(t_new, 4)]}, vis=(m["org"],))
     if changed or day != cfg.get("last_day"):
         m2 = dict(st.tables["minds"][mid])
@@ -324,6 +332,7 @@ class CivLinks(Module):
         st = world.state
         st.declare_table("civ_links")
         st.declare_table("civ_dc")
+        st.declare_table("civ_rnd", index=("org",))
         for cid in self.config.get("couplings") or []:
             if cid not in CATALOGUE:
                 raise ProtocolError(f"civlinks: unknown coupling {cid!r}; known: {coupling_ids()}")
@@ -373,6 +382,29 @@ class CivLinks(Module):
         ctx.emit("links.restored", {"id": coupling}, vis="internal")
         return {"restored": coupling}
 
+    @endpoint("links_placebo", S.obj({"n": S.s_int(minimum=1, maximum=50)}, ["n"]), cost_s=0)
+    def ep_placebo(self, ctx, n):
+        """Operator: record `n` no-op events (the placebo arm of a counterfactual experiment: the same kind of
+        footprint in the event log as an intervention, no change to the world)."""
+        if ctx.actor != SYSTEM:
+            raise Forbidden("operator only")
+        for k in range(int(n)):
+            ctx.emit("links.placebo", {"k": k}, vis="internal")
+        return {"placebo": int(n)}
+
+    @endpoint("civ_grid", S.obj({"region": S.s_str(maxLength=10), "capacity_kwh_day": S.s_int(minimum=0)},
+                                ["region", "capacity_kwh_day"]), cost_s=0)
+    def ep_grid(self, ctx, region, capacity_kwh_day):
+        """Operator intervention (experiments only): set a regional grid's daily capacity (a disruption)."""
+        if ctx.actor != SYSTEM:
+            raise Forbidden("operator only")
+        r = ctx.state.get("regions", region) if "regions" in ctx.state.tables else None
+        if not r or not r.get("grid"):
+            raise NotFound(f"no grid in region {region}")
+        g = r["grid"]
+        ctx.world.modules["industry"].add_grid(ctx, region, g["owner"], int(capacity_kwh_day), g["base_price"])
+        return {"region": region, "capacity_kwh_day": int(capacity_kwh_day)}
+
     # ------------------------------------------------------------------ hourly: datacenter energy
     @process("hour")
     def pr_hour(self, ctx):
@@ -392,7 +424,8 @@ class CivLinks(Module):
             inst = st.tables["instances"][iid]
             cores[inst["provider"]] = cores.get(inst["provider"], 0) + int(inst["cores"])
         used: dict[str, float] = {}
-        for dep_id, dep in st.scan("deployments"):
+        loads: dict[str, list] = {}
+        for dep_id, dep in sorted(st.scan("deployments")):
             h = st.get("svc_hours", f"{dep['host']}|{hour}")
             if h is None or not h.get("cu"):
                 continue
@@ -400,22 +433,26 @@ class CivLinks(Module):
             if inst is None:
                 continue
             used[inst["provider"]] = used.get(inst["provider"], 0.0) + float(h["cu"])
-        from ..services.cloud import CU_PER_CORE_HOUR
+            loads.setdefault(inst["provider"], []).append([dep_id, round(float(h["cu"]), 3)])
         for prov, rec in sorted(st.scan("civ_dc")):
             p = st.get("providers", prov)
             if p is None or p["status"] != "active":
                 continue
             kwh = cores.get(prov, 0) * float(par["idle_kwh_per_core_hour"]) + \
-                used.get(prov, 0.0) / CU_PER_CORE_HOUR * float(par["kwh_per_core_hour_used"])
+                used.get(prov, 0.0) / 1000.0 * float(par["kwh_per_1000_cu"])
             if kwh <= 0:
                 continue
             acct = bank.primary_account(st, prov)
             if acct is None:
                 continue
             region = rec["region"]
+            # what this hour's draw powers (provenance: the deployments whose metered compute it includes)
+            info = {"provider": prov, "region": region, "kwh": round(kwh, 3), "hour": int(hour),
+                    "powered_cores": int(cores.get(prov, 0)), "loads": loads.get(prov, [])}
             try:
                 ctx.run_as(prov, lambda sub: ind.draw_energy(sub, region, kwh, acct, f"datacenter {prov} hour {hour}",
                                                              consumer=prov))
+                ctx.emit("links.energy", info, vis=(prov,))
                 continue
             except CapacityExceeded:
                 pass
@@ -425,19 +462,16 @@ class CivLinks(Module):
                 continue
             if curtail:
                 ctx.emit("cloud.outage", {"id": prov, "start": ctx.now, "until": ctx.now + HOUR}, vis="public")
-                ctx.emit("links.curtailed", {"provider": prov, "region": region, "kwh": round(kwh, 3),
-                                             "hour": int(hour)}, vis=(prov,))
+                ctx.emit("links.curtailed", info, vis=(prov,))
             else:
                 g = st.tables["regions"][region]["grid"]
                 cost = max(1, int(math.ceil(kwh * g["base_price"] * backup)))
                 try:
                     bank.move(ctx, acct, "acct_external", cost, "energy", f"backup generation {prov} hour {hour}")
-                    ctx.emit("links.backup", {"provider": prov, "region": region, "kwh": round(kwh, 3),
-                                              "cost": cost}, vis=(prov,))
+                    ctx.emit("links.backup", dict(info, cost=cost), vis=(prov,))
                 except CrucibleError:
                     ctx.emit("cloud.outage", {"id": prov, "start": ctx.now, "until": ctx.now + HOUR}, vis="public")
-                    ctx.emit("links.curtailed", {"provider": prov, "region": region, "kwh": round(kwh, 3),
-                                                 "hour": int(hour), "reason": "cannot pay backup"}, vis=(prov,))
+                    ctx.emit("links.curtailed", dict(info, reason="cannot pay backup"), vis=(prov,))
 
     # ------------------------------------------------------------------ daily: what coordination costs
     @process("day")
@@ -478,6 +512,23 @@ class CivLinks(Module):
 
     @applier("links.rnd")
     def ap_rnd(self, ev):
+        p = ev.payload
+        self.world.state.put("civ_rnd", p["design"], {"org": p["org"], "paper": p["paper"], "from": p["from"],
+                                                      "to": p["to"], "t": ev.t, "kept": None})
+
+    @applier("links.rnd_result")
+    def ap_rnd_result(self, ev):
+        p = ev.payload
+        if self.world.state.has("civ_rnd", p["design"]):
+            self.world.state.patch("civ_rnd", p["design"], kept=bool(p["kept"]), yield_after=p["yield"],
+                                   yield_before=p["base_yield"])
+
+    @applier("links.energy")
+    def ap_energy(self, ev):
+        pass
+
+    @applier("links.placebo")
+    def ap_placebo(self, ev):
         pass
 
     @applier("links.curtailed")

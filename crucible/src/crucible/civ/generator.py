@@ -234,8 +234,10 @@ def recipe(profile: str | P.Profile, seed: int, *, population: str = "developmen
             mods.remove(m)
     for m, c in (ov.pop("module_config", {}) or {}).items():
         cfgs[m] = {**cfgs.get(m, {}), **c}
+    # sandbox_max_workers: one warm worker per hosted site (the default pool of 24 is smaller than a civilisation's
+    # web, and restarting evicted workers dominated the cost of a simulated day: 26 s -> 9-13 s per day)
     params = {"cost_model": "deterministic", "civ_profile": prof.name, "civ_population": population,
-              "log_retain": 3_000_000, **ov.pop("params", {})}
+              "log_retain": 3_000_000, "sandbox_max_workers": 64, **ov.pop("params", {})}
     if ov:
         raise ValueError(f"unknown overrides {sorted(ov)} (drop_modules, module_config, params)")
     subs = {s: [m for m in d["modules"] if m in mods] for s, d in SUB.SUBSYSTEMS.items()}
