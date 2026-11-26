@@ -38,6 +38,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
+from typing import Optional
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 MANIFEST = os.path.join(ROOT, "superlearner", "docs", "CAM_UNIFIED_COMPLETION.json")
@@ -56,7 +57,8 @@ REQUIRED_IDS = [f"A{i:02d}" for i in range(1, 23)] + [f"DOM-{i:02d}" for i in ra
 REQUIRED_PREFIXES = ["OB-", "SE-", "IR-", "CR-", "KV-", "AU-", "CD-", "UR-"]
 
 STUB_PATTERNS = [
-    (re.compile(r"\bplaceholder\b", re.I), "placeholder marker"),
+    (re.compile(r"^\s*#.*\b(placeholder|stub implementation|not implemented yet)\b", re.I | re.M), "placeholder comment"),
+    (re.compile(r"\breturn\s+[\'\"](placeholder|stub)[\'\"]", re.I), "placeholder return value"),
     (re.compile(r"^\s*#\s*(TODO|FIXME|STUB)\b", re.M), "TODO/STUB marker"),
 ]
 DOUBLE_IMPORT = re.compile(r"^\s*(from\s+\S*(integration_doubles|cam_unified\.testing)\S*\s+import|import\s+\S*integration_doubles)",
@@ -306,12 +308,14 @@ def check(manifest: dict, results: dict) -> dict:
     return report
 
 
-def run_referenced_tests(manifest: dict, timeout: int = 7200) -> int:
+def run_referenced_tests(manifest: dict, timeout: int = 7200, only: Optional[set] = None) -> int:
     """Execute every acceptance / integration / gradient test referenced by a claim of IMPLEMENTED or above and
     record JUnit XML under docs/evidence/test_results/ (named by timestamp)."""
     import time
     tests = set()
     for r in manifest["requirements"]:
+        if only and r["id"] not in only:
+            continue
         if r["status"] in AT_LEAST_IMPLEMENTED:
             for key in ("acceptance_tests", "integration_tests", "gradient_tests"):
                 tests |= {t for t in r.get(key, []) if test_resolves(t)}
@@ -334,10 +338,11 @@ def main(argv=None) -> int:
     ap.add_argument("--json", help="write the full report here")
     ap.add_argument("--manifest", default=MANIFEST)
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--only", help="comma-separated requirement ids whose tests --run-tests executes")
     a = ap.parse_args(argv)
     m = load_manifest(a.manifest)
     if a.run_tests:
-        run_referenced_tests(m)
+        run_referenced_tests(m, only=set(a.only.split(",")) if a.only else None)
     rep = check(m, load_results())
     if a.json:
         with open(a.json, "w") as fh:

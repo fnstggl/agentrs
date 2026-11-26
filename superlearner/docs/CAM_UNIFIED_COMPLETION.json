@@ -2100,12 +2100,16 @@
    "title": "Crucible 5.0 observation_only mode exists and is the default reward_mode for every new CAM run",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2, 16",
    "workstream": "OB",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/experience.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_observation_only_is_the_default_and_legacy_needs_declaration"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -2115,16 +2119,25 @@
    "title": "Native shaped rewards disabled and reward/progress/verifier/hidden-mechanism leakage through observations, info and tool results eliminated (audited by an executable leakage test over every env family CAM trains on)",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.2, 16",
    "workstream": "OB",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/experience.py"
+   ],
    "dependencies": [
     "OB-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_no_family_seed_reward_or_verifier_leakage_across_families",
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_actor_adapter_is_an_envadapter_without_evaluator_surface"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "Found and closed CAM-side: Crucible 5.0 mech rig.episode payload {task: family:seed} (25/25 families) and rapid query{target:spec} identity (36/73 families). Leakage scan over 10 rapid families + mech at seeds 0 and 3, every enumerated query target: zero hits."
+   ],
+   "limitations": [
+    "Upstream Crucible still leaks; kernel (OpenWorld) tier not in the scan yet; in-process separation (a determined actor could reach closures) - process separation via dist actors is the hard boundary."
+   ],
    "verified_by": null
   },
   {
@@ -2132,14 +2145,19 @@
    "title": "Independent outcome verification functional with three separate channels: actor observations, released training outcome labels, private evaluation state (actor cannot read the latter)",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.3, 2.4, 16",
    "workstream": "OB",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/experience.py"
+   ],
    "dependencies": [
     "OB-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_labels_are_released_only_after_resolution_and_pending_is_not_failure",
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_actor_runtime_modules_never_call_the_evaluator_channel"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -2166,12 +2184,17 @@
    "title": "Delayed outcomes represented correctly: pending vs verified-success vs verified-failure vs uncertain, never pending->failure",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 2.3, 4.1, 11.2",
    "workstream": "OB",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/envs/experience.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_delayed_consequences_link_to_the_causing_action",
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_labels_are_released_only_after_resolution_and_pending_is_not_failure"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -2259,17 +2282,26 @@
    "title": "Goal-conditioned success predictor p_t=V_success(b_t,e_g,horizon,policy_context) trained with BCE-with-logits on independently verified eventual outcomes over many trajectory prefixes",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.1",
    "workstream": "SE",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/selfeval/evaluator.py"
+   ],
    "dependencies": [
     "OB-03",
     "OB-05"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_evaluator_learns_calibrated_success_predictions",
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_pending_outcomes_never_train_success_as_failure"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "Synthetic: Brier 0.2034 vs oracle 0.2013, calibration slope 1.01, ECE 0.03 with 25% pending labels excluded from the success loss."
+   ],
+   "limitations": [
+    "Not yet trained on real verified outcomes; not yet in the runtime."
+   ],
    "verified_by": null
   },
   {
@@ -2277,16 +2309,24 @@
    "title": "Distributional outcome predictions: magnitude, time-to-success (censoring-aware survival), resource consumption, potential losses, sustainability, uncertainty",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.2",
    "workstream": "SE",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/selfeval/evaluator.py"
+   ],
    "dependencies": [
     "SE-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_pending_outcomes_never_train_success_as_failure"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "Discrete-hazard time-to-success with right censoring; magnitude/resource quantile heads (pinball on symlog); loss probability."
+   ],
+   "limitations": [
+    "Distributional heads tested only for loss mechanics so far."
+   ],
    "verified_by": null
   },
   {
@@ -2294,14 +2334,20 @@
    "title": "Pending outcomes never labelled as failures; censored targets handled",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.1, 16",
    "workstream": "SE",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/selfeval/evaluator.py",
+    "superlearner/src/superlearner/cam_unified/envs/experience.py"
+   ],
    "dependencies": [
     "SE-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_pending_outcomes_never_train_success_as_failure",
+    "superlearner/tests/cam_unified/envs/test_experience_adapter.py::test_labels_are_released_only_after_resolution_and_pending_is_not_failure"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -2311,16 +2357,22 @@
    "title": "Calibration measured on independent trajectories with predictions recorded before outcomes: NLL, Brier, reliability diagram, ECE, calibration slope/intercept, by domain/horizon/difficulty; prevalence and frozen-model baselines",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 4.3, Exp A",
    "workstream": "SE",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/selfeval/evaluator.py"
+   ],
    "dependencies": [
     "SE-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_calibration_report_on_known_cases"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IN_PROGRESS",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "calibration_report implemented and tested; calibration on independent real trajectories not yet measured (Exp A)."
+   ],
    "verified_by": null
   },
   {
@@ -2362,16 +2414,22 @@
    "title": "Trainable intrinsic reward generator r=R_psi(b_t,e_a,b_next,e_g,uncertainty,outcome_evidence,learning_context), bounded, versioned, recorded separately from verified outcomes, works with and without a goal",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.1",
    "workstream": "IR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/selfeval/intrinsic.py"
+   ],
    "dependencies": [
     "UR-02"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_intrinsic_reward_is_bounded_versioned_and_goal_free_capable"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "Network exists; not yet consuming real latent experience in the runtime."
+   ],
    "verified_by": null
   },
   {
@@ -2449,16 +2507,26 @@
    "title": "Meta-gradient correctness: exact vs truncated on small problems, finite-difference direction check, removing the meta-gradient removes the pathway",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 5.5, Exp J",
    "workstream": "IR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/credit/meta_exact.py"
+   ],
    "dependencies": [
     "IR-04"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/credit/test_credit_meta_exact.py::test_exact_meta_gradient_matches_finite_difference_and_detaching_removes_it",
+    "superlearner/tests/cam_unified/credit/test_credit_meta_exact.py::test_sampled_truncated_meta_gradient_agrees_with_exact",
+    "superlearner/tests/cam_unified/credit/test_credit_meta_exact.py::test_meta_learned_reward_values_costly_exploration_and_beats_extrinsic_reward"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "Exact meta-gradient through K=1,2,4 inner updates matches central finite differences (<1e-6 rel); detaching the inner reward gives exactly zero meta-gradient; sampled truncated estimator cosine 0.9997 with exact (30 draws); meta-training on key-to-door learns +1.26 reward for the immediately costly key pickup and J_outer 1.53 vs 1.12 for training on the extrinsic reward."
+   ],
+   "limitations": [
+    "Tabular reference problem; CAM-scale functional inner loop is IR-03."
+   ],
    "verified_by": null
   },
   {
@@ -2534,16 +2602,28 @@
    "title": "RUDDER-style sequence return predictor F_xi(H_t,g) on verified outcomes; redistribution c_t=F(H_{t+1})-F(H_t) with offsets/residual; conservation verified (undiscounted and the discounted/variable-duration condition); unresolved trajectories separated",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 6.2",
    "workstream": "CR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/credit/heads.py",
+    "superlearner/src/superlearner/cam_unified/credit/estimators.py",
+    "superlearner/src/superlearner/cam_unified/credit/exact.py"
+   ],
    "dependencies": [
     "CR-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_return_decomposer_conserves_discounted_and_undiscounted_returns",
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_return_decomposer_learns_which_early_event_matters",
+    "superlearner/tests/cam_unified/credit/test_credit_exact.py::test_estimators_are_unbiased_and_rudder_conserves_return"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "ReturnDecomposer conserves sum_t gamma^tau c_t = G to 1e-3 (undiscounted and discounted); learned redistribution puts >50% of non-offset credit on the decisive early event; exact RUDDER redistribution conserves to 1e-15 and its policy gradient is unbiased (z<5)."
+   ],
+   "limitations": [
+    "Not yet trained on archived CAM trajectories with verified outcomes; not yet in the canonical learner."
+   ],
    "verified_by": null
   },
   {
@@ -2551,16 +2631,26 @@
    "title": "COCOA contribution coefficients w(s,a,u)=h(a|s,u)/pi(a|s)-1 with a trained hindsight action model h_kappa(a|b_t,u_future,goal,policy_context); behaviour probabilities recorded",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.2, 7.3",
    "workstream": "CR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/credit/heads.py",
+    "superlearner/src/superlearner/cam_unified/credit/exact.py"
+   ],
    "dependencies": [
     "CR-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/selfeval/test_selfeval_heads.py::test_hindsight_model_recovers_contribution_coefficients",
+    "superlearner/tests/cam_unified/credit/test_credit_exact.py::test_contribution_coefficients_have_zero_policy_mean_and_hindsight_normalises"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "Learned hindsight model recovers exact contribution coefficients within 0.12 on a 3-action synthetic problem; exact coefficients satisfy E_pi[w]=0 and hindsight normalises (1e-9)."
+   ],
+   "limitations": [
+    "Trained only on synthetic data so far."
+   ],
    "verified_by": null
   },
   {
@@ -2568,16 +2658,27 @@
    "title": "COCOA policy-gradient estimator implemented (sum over alternative actions) and verified against exact gradients on small finite-action environments",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.4",
    "workstream": "CR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/credit/estimators.py",
+    "superlearner/src/superlearner/cam_unified/credit/exact.py"
+   ],
    "dependencies": [
     "CR-03"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/credit/test_credit_exact.py::test_estimators_are_unbiased_and_rudder_conserves_return",
+    "superlearner/tests/cam_unified/credit/test_credit_exact.py::test_cocoa_reduces_variance_on_key_to_door",
+    "superlearner/tests/cam_unified/credit/test_credit_exact.py::test_exact_gradient_matches_finite_differences"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "COCOA estimator (immediate score-function term + sum over alternative actions of grad pi * w * future rewards) unbiased vs exact enumerated gradient on key-to-door (noise 0 and 1) and random trees; variance 1.57 vs REINFORCE 19.75 (key-to-door d6, noise-free) and 5.28 vs 38.3 with reward noise 1."
+   ],
+   "limitations": [
+    "Tabular reference; the CAM-scale candidate-policy estimator is CR-06."
+   ],
    "verified_by": null
   },
   {
@@ -2585,16 +2686,20 @@
    "title": "Rewarding outcome representations u (outcome encoder) with measured approximation error / bias",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 7.5",
    "workstream": "CR",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/credit/heads.py"
+   ],
    "dependencies": [
     "CR-03"
    ],
    "acceptance_tests": [],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IN_PROGRESS",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "OutcomeEncoder exists; approximation error / bias vs exact outcome partitions not yet measured."
+   ],
    "verified_by": null
   },
   {
@@ -2736,14 +2841,20 @@
    "title": "Self-generated goals (semantic/structured: outcome, entities, actions, limits, horizon, evidence, expected learning benefit) compiled to verifiable predicates; self-assertion never certifies success",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.2",
    "workstream": "AU",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/autonomy/goals.py"
+   ],
    "dependencies": [
     "AU-01"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/autonomy/test_autonomy_goals.py::test_candidates_come_from_observed_quantities_and_are_not_trivially_true",
+    "superlearner/tests/cam_unified/autonomy/test_autonomy_goals.py::test_verifier_resolves_on_world_observations_only_at_or_before_deadline",
+    "superlearner/tests/cam_unified/autonomy/test_autonomy_goals.py::test_trivial_unverifiable_and_duplicate_goals_earn_nothing"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -2753,17 +2864,23 @@
    "title": "Trainable curriculum policy g_self ~ C_chi(b_t, lifetime_state, uncertainty, resources) trained on subsequent measured learning/transfer gain (not on self-goal completion, not on difficulty)",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 9.3",
    "workstream": "AU",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/autonomy/curriculum.py"
+   ],
    "dependencies": [
     "AU-02",
     "KV-02"
    ],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/autonomy/test_autonomy_goals.py::test_curriculum_policy_learns_to_prefer_goals_with_higher_learning_gain"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IN_PROGRESS",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "Not yet trained on measured learning gains of real CAM experience."
+   ],
    "verified_by": null
   },
   {
@@ -3147,12 +3264,16 @@
    "title": "Executable completion checker `python -m superlearner.verify_completion` that fails on missing files/tests/integration/gradient pathways/experiments/verification and distinguishes engineering completion from scientific success",
    "spec_ref": "CAM_UNIFIED_SPEC_META_REWARDS.md 0.4",
    "workstream": "H",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/verify_completion.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/test_manifest.py::test_claims_are_backed_by_files_and_tests"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
    "limitations": [],
    "verified_by": null
@@ -3162,14 +3283,23 @@
    "title": "Approximately 1B genuinely trainable CAM core parameters (excluding the semantic model), measured",
    "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 2",
    "workstream": "DM",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/semantic_xattn.py",
+    "superlearner/src/superlearner/cam_unified/config.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dom/test_dom_semantic_xattn.py::test_superlearner_scale_has_about_one_billion_trainable_core_parameters"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
-   "evidence": [],
-   "limitations": [],
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
+   "evidence": [
+    "superlearner scale core: 1,081,244,162 trainable params (blocks 906.1M, gated semantic xattn 163.7M), excluding the semantic model."
+   ],
+   "limitations": [
+    "Core only; heads and decoder conditioning are counted separately at assembly."
+   ],
    "verified_by": null
   },
   {
@@ -3194,14 +3324,22 @@
    "title": "Multilayer latent conditioning of the semantic decoder: H'_l = H_l + alpha_l CrossAttn_l(H_l, P_l(Z_t)) at several depths with bounded trainable gates; decoder output measurably depends on Z_t",
    "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 A",
    "workstream": "DM",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/semantic/decoder_xattn.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dom/test_dom_decoder_xattn.py::test_decoder_output_depends_on_cam_latent_and_preserves_pretrained_behaviour",
+    "superlearner/tests/cam_unified/dom/test_dom_decoder_xattn.py::test_gradients_flow_through_frozen_decoder_into_cam_latent_and_gates",
+    "superlearner/tests/cam_unified/dom/test_dom_decoder_xattn.py::test_kv_cached_generation_reads_the_latent_at_every_step"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "Not yet wired into the action generator."
+   ],
    "verified_by": null
   },
   {
@@ -3224,14 +3362,22 @@
    "title": "CAM-controlled gated semantic cross-attention inside CAM layers: Z_{l+1}=Z_l+R_l+g_l*C_l, g_l=sigmoid(Gate(Z_l,C_l,B,G))",
    "spec_ref": "CAM_UNIFIED_SPEC_DOM.md 3 C",
    "workstream": "DM",
-   "files": [],
+   "files": [
+    "superlearner/src/superlearner/cam_unified/core/semantic_xattn.py"
+   ],
    "dependencies": [],
-   "acceptance_tests": [],
+   "acceptance_tests": [
+    "superlearner/tests/cam_unified/dom/test_dom_semantic_xattn.py::test_gradients_reach_every_block_projection_attention_and_gate",
+    "superlearner/tests/cam_unified/dom/test_dom_semantic_xattn.py::test_output_depends_on_semantic_content_and_gate_controls_it",
+    "superlearner/tests/cam_unified/dom/test_dom_semantic_xattn.py::test_without_semantic_input_it_is_exactly_the_unified_core"
+   ],
    "integration_tests": [],
-   "status": "NOT_STARTED",
-   "commit": null,
+   "status": "IMPLEMENTED",
+   "commit": "0302dd17b04059c706cda280e116fb42730f7001",
    "evidence": [],
-   "limitations": [],
+   "limitations": [
+    "Not yet the core of the assembled model."
+   ],
    "verified_by": null
   },
   {
