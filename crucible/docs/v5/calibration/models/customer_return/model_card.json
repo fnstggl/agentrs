@@ -1,0 +1,430 @@
+{
+ "domain": "product_retention",
+ "features": [
+  "log_orders_before",
+  "log_tenure_days",
+  "log_recency_days",
+  "log_mean_gap_days",
+  "log_spend_today",
+  "log_spend_total",
+  "log_lines_today",
+  "log_products_today",
+  "cancel_share",
+  "uk",
+  "month_sin",
+  "month_cos"
+ ],
+ "target": "returned: another order within 90 days",
+ "feature_map": {
+  "log_orders_before": "log_orders_before: see the E4 plan, models.customer_return.feature_definitions",
+  "log_tenure_days": "log_tenure_days: see the E4 plan, models.customer_return.feature_definitions",
+  "log_recency_days": "log_recency_days: see the E4 plan, models.customer_return.feature_definitions",
+  "log_mean_gap_days": "log_mean_gap_days: see the E4 plan, models.customer_return.feature_definitions",
+  "log_spend_today": "log_spend_today: see the E4 plan, models.customer_return.feature_definitions",
+  "log_spend_total": "log_spend_total: see the E4 plan, models.customer_return.feature_definitions",
+  "log_lines_today": "log_lines_today: see the E4 plan, models.customer_return.feature_definitions",
+  "log_products_today": "log_products_today: see the E4 plan, models.customer_return.feature_definitions",
+  "cancel_share": "cancel_share: see the E4 plan, models.customer_return.feature_definitions",
+  "uk": "uk: see the E4 plan, models.customer_return.feature_definitions",
+  "month_sin": "month_sin: see the E4 plan, models.customer_return.feature_definitions",
+  "month_cos": "month_cos: see the E4 plan, models.customer_return.feature_definitions"
+ },
+ "metrics": {
+  "n": 1013,
+  "log_loss": 0.41790817243458045,
+  "brier": 0.13965425375369128,
+  "ece": 0.040656384303209135,
+  "auc": 0.8392767530698565,
+  "mean_pred": 0.7658524766171956,
+  "mean_obs": 0.7443237907206318
+ },
+ "baseline_metrics": {
+  "n": 1013,
+  "log_loss": 0.45885734137169015,
+  "brier": 0.15486846612607838,
+  "ece": 0.08910463456567791,
+  "auc": 0.8167917823090237,
+  "mean_pred": 0.7802035698117709,
+  "mean_obs": 0.7443237907206318,
+  "baseline": "B1_recency_frequency"
+ },
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 1160,
+    "log_loss": 0.6799174090532739,
+    "brier": 0.24268960108360568,
+    "ece": 0.07895406867250954,
+    "auc": 0.5,
+    "mean_pred": 0.6953333790173372,
+    "mean_obs": 0.6163793103448276
+   },
+   "test": {
+    "n": 1013,
+    "log_loss": 0.5743410425550298,
+    "brier": 0.19270594572675923,
+    "ece": 0.04899041170329477,
+    "auc": 0.5,
+    "mean_pred": 0.695333379017337,
+    "mean_obs": 0.7443237907206318
+   }
+  },
+  "B1_recency_frequency": {
+   "complexity": "baseline: logistic on 2 features",
+   "n_params": 3,
+   "val": {
+    "n": 1160,
+    "log_loss": 0.5897928408011175,
+    "brier": 0.2072053171488371,
+    "ece": 0.11977221590489451,
+    "auc": 0.7783719651135381,
+    "mean_pred": 0.7315973248988896,
+    "mean_obs": 0.6163793103448276
+   },
+   "test": {
+    "n": 1013,
+    "log_loss": 0.45885734137169015,
+    "brier": 0.15486846612607838,
+    "ece": 0.08910463456567791,
+    "auc": 0.8167917823090237,
+    "mean_pred": 0.7802035698117709,
+    "mean_obs": 0.7443237907206318
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 12 features",
+   "n_params": 13,
+   "val": {
+    "n": 1160,
+    "log_loss": 0.5388279271585628,
+    "brier": 0.18575482487800862,
+    "ece": 0.08380621998258313,
+    "auc": 0.7970456509782352,
+    "mean_pred": 0.6947856294827287,
+    "mean_obs": 0.6163793103448276
+   },
+   "test": {
+    "n": 1013,
+    "log_loss": 0.4274166388317068,
+    "brier": 0.14300710834552102,
+    "ece": 0.04939486997482971,
+    "auc": 0.833398195467161,
+    "mean_pred": 0.7763098834441374,
+    "mean_obs": 0.7443237907206318
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 119 trees",
+   "n_params": 10829,
+   "val": {
+    "n": 1160,
+    "log_loss": 0.5323963547452887,
+    "brier": 0.18212969629939527,
+    "ece": 0.04754425365323736,
+    "auc": 0.7883193211283099,
+    "mean_pred": 0.6512320182715632,
+    "mean_obs": 0.6163793103448276
+   },
+   "test": {
+    "n": 1013,
+    "log_loss": 0.41790817243458045,
+    "brier": 0.13965425375369128,
+    "ece": 0.040656384303209135,
+    "auc": 0.8392767530698565,
+    "mean_pred": 0.7658524766171956,
+    "mean_obs": 0.7443237907206318
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.6799174090532739,
+   "B1_recency_frequency": 0.5897928408011175,
+   "M1_logistic": 0.5388279271585628,
+   "M2_gbdt": 0.5323963547452887
+  },
+  "test": {
+   "B0_constant": 0.5743410425550298,
+   "B1_recency_frequency": 0.45885734137169015,
+   "M1_logistic": 0.4274166388317068,
+   "M2_gbdt": 0.41790817243458045
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_recency_frequency"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_recency_frequency",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_recency_frequency",
+   "B0_constant"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.0019698275317405834,
+   "B1_recency_frequency": 0.02856711567989711,
+   "M1_logistic": 0.043575860688398624,
+   "M2_gbdt": 17.797663920269958
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_recency_frequency",
+   "B0_constant"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.07048330314290392,
+   "B1_recency_frequency": 0.11638267249421208,
+   "M1_logistic": 0.08262432896188007,
+   "M2_gbdt": 0.05403407835327092
+  },
+  "long_horizon_reference": "M2_gbdt",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_recency_frequency",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "uncertainty": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_recency_frequency",
+  "kept_test": 0.41790817243458045,
+  "baseline_test": 0.45885734137169015,
+  "difference": -0.0409491689371097,
+  "ci95": [
+   -0.057603936738920065,
+   -0.02551625931483061
+  ],
+  "kept_ci95": [
+   0.35080528382297815,
+   0.47974325574228965
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 391
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "online_retail_ii"
+  ],
+  "identification": "observational",
+  "population": "5,942 customers of one UK online gift retailer",
+  "platform": "the retailer's non-store online shop",
+  "period": "2009-12-01..2011-12-09",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+   "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+   "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+   "committed_at": "2026-11-26T10:15:33+00:00"
+  },
+  "fit": {
+   "commit": "096fdcb069ffb43fd615c476d60425f6d38660ad",
+   "seconds": 3.999748468399048,
+   "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model customer_return"
+  },
+  "domain": "product_retention",
+  "kept_candidate": "M2_gbdt"
+ },
+ "limits": "UCI Online Retail II: 5,942 customers of one UK online gift-ware retailer (many of them wholesalers), 2009-12-01..2011-12-09. The simulator may use this model for the probability that a customer who bought from a shop today buys from the same shop again within 90 days, given its order history (frequency, recency, tenure, spend, basket breadth, returns). It may NOT infer: (1) retention for subscriptions, digital products or consumers of other shops (one retailer, mostly business customers); (2) responses to price, service quality or marketing (not features; observational); (3) horizons other than 90 days; (4) behaviour after 2011 or outside the UK-centred customer base; lines without a customer id (23%) are excluded, so guest buyers are not represented.",
+ "report": "docs/v5/calibration/reports/customer_return.json",
+ "fitted_at": "2026-11-26T10:25:13Z",
+ "mechanisms": [
+  "commerce.customer_retention"
+ ],
+ "prior_rate": 0.695333379017337,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "log_orders_before": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.386294,
+   2.079442,
+   2.890372,
+   3.433987,
+   4.344838,
+   4.820282
+  ],
+  "log_tenure_days": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   2.639057,
+   4.859812,
+   5.587249,
+   5.894403,
+   6.016157,
+   6.146329,
+   6.186209
+  ],
+  "log_recency_days": [
+   0.693147,
+   0.693147,
+   1.386294,
+   1.94591,
+   2.833213,
+   3.806662,
+   5.283204,
+   5.993961,
+   5.993961,
+   5.993961,
+   6.146329
+  ],
+  "log_mean_gap_days": [
+   0.693147,
+   1.592926,
+   1.94591,
+   2.413063,
+   3.202746,
+   4.056123,
+   5.993961,
+   5.993961,
+   5.993961,
+   5.993961,
+   5.993961
+  ],
+  "log_spend_today": [
+   0.0,
+   2.772589,
+   4.350768,
+   4.724907,
+   5.210851,
+   5.753842,
+   6.248333,
+   6.805829,
+   7.186636,
+   8.230464,
+   11.253955
+  ],
+  "log_spend_total": [
+   0.0,
+   4.25703,
+   5.050087,
+   5.468946,
+   6.237504,
+   7.194024,
+   8.190917,
+   9.206796,
+   9.885084,
+   11.243809,
+   12.699933
+  ],
+  "log_lines_today": [
+   0.693147,
+   0.693147,
+   1.098612,
+   1.386294,
+   2.302585,
+   2.944439,
+   3.465736,
+   3.988984,
+   4.276666,
+   4.820282,
+   6.104793
+  ],
+  "log_products_today": [
+   0.693147,
+   0.693147,
+   0.693147,
+   1.386294,
+   2.197225,
+   2.890372,
+   3.433987,
+   3.912023,
+   4.174387,
+   4.682131,
+   5.605802
+  ],
+  "cancel_share": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.024291,
+   0.060936,
+   0.106484,
+   0.253014,
+   0.833333
+  ],
+  "uk": [
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "month_sin": [
+   -1.0,
+   -1.0,
+   -1.0,
+   -0.866025,
+   -0.5,
+   -0.0,
+   0.866025,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "month_cos": [
+   -1.0,
+   -1.0,
+   -1.0,
+   -0.866025,
+   -0.5,
+   0.5,
+   0.866025,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ "module": "crucible.calibration.predictors_e4",
+ "schema": "crucible.v5.model_card/1",
+ "name": "customer_return",
+ "version": 1,
+ "kind": "gbdt_binary",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "8c71274c3bd1f51acb07ed9aa7a5c1f670b441c68693fdcb52dd6183d8d5e0d1"
+ }
+}

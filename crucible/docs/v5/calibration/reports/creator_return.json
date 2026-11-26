@@ -1,0 +1,287 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "creator_return",
+ "version": 1,
+ "domain": "repeat_consumption",
+ "datasets": [
+  "kuairand_pure"
+ ],
+ "identification": "observational",
+ "estimand": "P(an individual plays another video of a creator within the next 7 days | it played a video of that creator today), including re-exposure by the production recommender",
+ "population": "27,285 Kuaishou users (selected sample)",
+ "platform": "Kuaishou short-video app",
+ "period": "2022-04-08..05-08",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+  "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "train users, d = 2022-04-08..04-24",
+   "rows": 402027,
+   "users": 18204
+  },
+  "val": {
+   "definition": "validation users, d = 2022-04-18..04-24",
+   "rows": 13620,
+   "users": 3079
+  },
+  "test": {
+   "definition": "test users, d = 2022-04-25..05-01",
+   "rows": 15996,
+   "users": 3127
+  }
+ },
+ "heldout_splits": [
+  "test"
+ ],
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 13620,
+    "log_loss": 0.023076539921684,
+    "brier": 0.002969139313823712,
+    "ece": 0.006395848947353559,
+    "auc": 0.5,
+    "mean_pred": 0.009332706509761783,
+    "mean_obs": 0.002936857562408223
+   },
+   "test": {
+    "n": 15996,
+    "log_loss": 0.018708569474482187,
+    "brier": 0.00205025937474929,
+    "ece": 0.007332206384730524,
+    "auc": 0.5,
+    "mean_pred": 0.009332706509761783,
+    "mean_obs": 0.002000500125031258
+   }
+  },
+  "B1_familiarity": {
+   "complexity": "baseline: logistic on 2 features",
+   "n_params": 3,
+   "val": {
+    "n": 13620,
+    "log_loss": 0.022981607908180955,
+    "brier": 0.0029679209345603143,
+    "ece": 0.006410607496018323,
+    "auc": 0.515954528718704,
+    "mean_pred": 0.009347465058426546,
+    "mean_obs": 0.002936857562408223
+   },
+   "test": {
+    "n": 15996,
+    "log_loss": 0.018486968095953345,
+    "brier": 0.0020464223063176566,
+    "ece": 0.007246680635112921,
+    "auc": 0.5410131780881985,
+    "mean_pred": 0.00924718076014418,
+    "mean_obs": 0.002000500125031258
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 10 features",
+   "n_params": 11,
+   "val": {
+    "n": 13620,
+    "log_loss": 0.023495122595894324,
+    "brier": 0.0029930680873035036,
+    "ece": 0.005815478400799111,
+    "auc": 0.4107603092783505,
+    "mean_pred": 0.008752335963207333,
+    "mean_obs": 0.002936857562408223
+   },
+   "test": {
+    "n": 15996,
+    "log_loss": 0.019020525821208892,
+    "brier": 0.0020704318529039412,
+    "ece": 0.007030045996499585,
+    "auc": 0.40685487659734404,
+    "mean_pred": 0.009030546121530843,
+    "mean_obs": 0.002000500125031258
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 335 trees",
+   "n_params": 30485,
+   "val": {
+    "n": 13620,
+    "log_loss": 0.022641239997067766,
+    "brier": 0.0030201331756374893,
+    "ece": 0.004404727017662981,
+    "auc": 0.5024714653902799,
+    "mean_pred": 0.007341584580071204,
+    "mean_obs": 0.002936857562408223
+   },
+   "test": {
+    "n": 15996,
+    "log_loss": 0.017550239967786402,
+    "brier": 0.002109945136483626,
+    "ece": 0.005004018217976726,
+    "auc": 0.5060399570909546,
+    "mean_pred": 0.0070045183430079835,
+    "mean_obs": 0.002000500125031258
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.023076539921684,
+   "B1_familiarity": 0.022981607908180955,
+   "M1_logistic": 0.023495122595894324,
+   "M2_gbdt": 0.022641239997067766
+  },
+  "test": {
+   "B0_constant": 0.018708569474482187,
+   "B1_familiarity": 0.018486968095953345,
+   "M1_logistic": 0.019020525821208892,
+   "M2_gbdt": 0.017550239967786402
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_familiarity"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_familiarity",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "B0_constant",
+   "B1_familiarity",
+   "M1_logistic"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.00036733222252821954,
+   "B1_familiarity": 0.014043619607338647,
+   "M1_logistic": 0.044462994484999456,
+   "M2_gbdt": 62.32727298488439
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "B0_constant",
+   "B1_familiarity",
+   "M1_logistic"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.006010109611871979,
+   "B1_familiarity": 0.006042966714447881,
+   "M1_logistic": 0.004969418527044812,
+   "M2_gbdt": 0.0039024854301022297
+  },
+  "long_horizon_reference": "M2_gbdt",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_familiarity",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "baseline_comparison": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_familiarity",
+  "kept_test": 0.017550239967786402,
+  "baseline_test": 0.018486968095953345,
+  "difference": -0.0009367281281669436,
+  "ci95": [
+   -0.0015432115225766298,
+   -0.00022483846755579092
+  ],
+  "kept_ci95": [
+   0.013765532847356527,
+   0.02176914990527873
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 3127
+  }
+ },
+ "calibration": {
+  "ece": 0.005004018217976726,
+  "brier": 0.002109945136483626,
+  "mean_pred": 0.0070045183430079835,
+  "mean_obs": 0.002000500125031258,
+  "reliability": [
+   {
+    "lo": 0.0,
+    "hi": 0.06666666666666667,
+    "n": 15943,
+    "mean_pred": 0.006628078970047746,
+    "mean_obs": 0.0020071504735620646
+   },
+   {
+    "lo": 0.06666666666666667,
+    "hi": 0.13333333333333333,
+    "n": 37,
+    "mean_pred": 0.09448480865813962,
+    "mean_obs": 0.0
+   },
+   {
+    "lo": 0.13333333333333333,
+    "hi": 0.2,
+    "n": 11,
+    "mean_pred": 0.15812152759050752,
+    "mean_obs": 0.0
+   },
+   {
+    "lo": 0.2,
+    "hi": 0.26666666666666666,
+    "n": 5,
+    "mean_pred": 0.22750753428754678,
+    "mean_obs": 0.0
+   }
+  ]
+ },
+ "heldout_extra": {},
+ "rule_comparison": {
+  "mapping": "no direct simulator rule: in the simulator repeat consumption of a creator arises from re-exposure plus the open rule's familiarity (+0.6) and following (+0.9) terms; the B1 familiarity baseline is its closest fitted analogue. The open rule itself, at affinity 0.2, sat 0.5 and a 120 s duration, gives one constant per-exposure probability, which is reported as P(at least one play in 7 days) assuming the user's own number of exposures to the author in the previous 7 days repeats",
+  "per_exposure_open_probability": 0.22945345816421178,
+  "test": {
+   "n": 15996,
+   "log_loss": 0.26314380697004214,
+   "brier": 0.05375945244533649,
+   "ece": 0.22749717023440452,
+   "auc": 0.49987471811576045,
+   "mean_pred": 0.2294976703594358,
+   "mean_obs": 0.002000500125031258
+  }
+ },
+ "long_horizon_test": {
+  "stability_days": {
+   "B0_constant": 0.0072797751221190116,
+   "B1_familiarity": 0.007194343119964008,
+   "M1_logistic": 0.006458880259208692,
+   "M2_gbdt": 0.004496756808061488
+  }
+ },
+ "identification_note": "Observational: the outcome mixes the recommender's re-exposure and the individual's choice; feature effects are associations.",
+ "extrapolation_limits": "KuaiRand-Pure: 27,285 users of the Kuaishou short-video app (China), featured feed, 2022-04-08..05-08. The simulator may use this model for the probability that an individual who consumed a creator's item today consumes another item of the same creator within 7 days, given its familiarity, follow and like signals and both sides' activity. It may NOT infer: (1) the individual's preference net of exposure (re-exposure by the production recommender and by follow feeds is part of the outcome); (2) item-level repeat consumption (rare in the data); (3) other platforms, content kinds or periods; (4) horizons other than 7 days; plays count only pool videos.",
+ "feature_map": {
+  "log_plays_author_before": "log_plays_author_before: see the E4 plan, models.creator_return.feature_definitions",
+  "log_plays_author_today": "log_plays_author_today: see the E4 plan, models.creator_return.feature_definitions",
+  "log_days_since_first_play": "log_days_since_first_play: see the E4 plan, models.creator_return.feature_definitions",
+  "author_log_pop_7d": "author_log_pop_7d: see the E4 plan, models.creator_return.feature_definitions",
+  "user_log_plays_7d": "user_log_plays_7d: see the E4 plan, models.creator_return.feature_definitions",
+  "user_log_authors_7d": "user_log_authors_7d: see the E4 plan, models.creator_return.feature_definitions",
+  "follows_author": "follows_author: see the E4 plan, models.creator_return.feature_definitions",
+  "liked_author_today": "liked_author_today: see the E4 plan, models.creator_return.feature_definitions",
+  "watch_fraction_today": "watch_fraction_today: see the E4 plan, models.creator_return.feature_definitions",
+  "weekend": "weekend: see the E4 plan, models.creator_return.feature_definitions"
+ },
+ "fit": {
+  "commit": "096fdcb069ffb43fd615c476d60425f6d38660ad",
+  "seconds": 39.686341524124146,
+  "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model creator_return"
+ }
+}

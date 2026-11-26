@@ -1,0 +1,398 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "repo_participation_return",
+ "version": 1,
+ "domain": "community_participation",
+ "datasets": [
+  "gharchive_2024-10-07_96h"
+ ],
+ "identification": "observational",
+ "estimand": "P(a developer who participates in a repository's discussion (opens or comments on an issue, opens or reviews a pull request) participates there again within 24 h)",
+ "population": "public GitHub accounts (non-bot, non-owner) participating in public repositories",
+ "platform": "GitHub (github.com) issues and pull requests",
+ "period": "2024-10-07..10 UTC",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+  "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "first events at hours 24-48",
+   "rows": 117830
+  },
+  "val": {
+   "definition": "hours 48-60",
+   "rows": 44721
+  },
+  "test": {
+   "definition": "hours 60-72",
+   "rows": 51783
+  },
+  "test_new_developers": {
+   "definition": "test rows of developers with no event in hours 0-48 (reported)",
+   "rows": 26127
+  }
+ },
+ "heldout_splits": [
+  "test",
+  "test_new_developers"
+ ],
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6935648976996116,
+    "brier": 0.2502088564126448,
+    "ece": 0.039239953340099554,
+    "auc": 0.5,
+    "mean_pred": 0.5027582109819233,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6936222891692364,
+    "brier": 0.2502375518563757,
+    "ece": 0.0444417750859728,
+    "auc": 0.5,
+    "mean_pred": 0.5027582109819232,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "B1_event_type": {
+   "complexity": "baseline: logistic on 4 features",
+   "n_params": 5,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6622675402837344,
+    "brier": 0.23481980232042524,
+    "ece": 0.03000390192857287,
+    "auc": 0.6339897411974413,
+    "mean_pred": 0.49352215957039663,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6667505835648826,
+    "brier": 0.23693955184557872,
+    "ece": 0.039741445119752215,
+    "auc": 0.6270760712630931,
+    "mean_pred": 0.49805788101570253,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 16 features",
+   "n_params": 17,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6568049489097858,
+    "brier": 0.2322651830313041,
+    "ece": 0.031047445661944863,
+    "auc": 0.6514364598127496,
+    "mean_pred": 0.4942183544906737,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6606954921197021,
+    "brier": 0.2340710117073487,
+    "ece": 0.03185674922723771,
+    "auc": 0.6434788695358862,
+    "mean_pred": 0.48974233363874087,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 213 trees",
+   "n_params": 19383,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6453901324914132,
+    "brier": 0.2270851094594419,
+    "ece": 0.03151682995423,
+    "auc": 0.6711812654405473,
+    "mean_pred": 0.4939798478139059,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6482913910805241,
+    "brier": 0.228357039851992,
+    "ece": 0.029470031404112508,
+    "auc": 0.6657858109976158,
+    "mean_pred": 0.4875308441473464,
+    "mean_obs": 0.4583164358959504
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.6935648976996116,
+   "B1_event_type": 0.6622675402837344,
+   "M1_logistic": 0.6568049489097858,
+   "M2_gbdt": 0.6453901324914132
+  },
+  "test": {
+   "B0_constant": 0.6936222891692364,
+   "B1_event_type": 0.6667505835648826,
+   "M1_logistic": 0.6606954921197021,
+   "M2_gbdt": 0.6482913910805241
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_event_type"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_event_type",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_event_type",
+   "B0_constant"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.00027522549017504447,
+   "B1_event_type": 0.0276899417603939,
+   "M1_logistic": 0.05931560178273895,
+   "M2_gbdt": 33.621443305392404
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_event_type",
+   "B0_constant"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.039638972216858366,
+   "B1_event_type": 0.028952190584785247,
+   "M1_logistic": 0.03066787166197779,
+   "M2_gbdt": 0.031131974225025227
+  },
+  "long_horizon_reference": "B1_event_type",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_event_type",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "baseline_comparison": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_event_type",
+  "kept_test": 0.6482913910805241,
+  "baseline_test": 0.6667505835648826,
+  "difference": -0.018459192484358455,
+  "ci95": [
+   -0.022265023871514328,
+   -0.01605400022639915
+  ],
+  "kept_ci95": [
+   0.6443864723059998,
+   0.6512327071314865
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 44197
+  }
+ },
+ "calibration": {
+  "ece": 0.029470031404112508,
+  "brier": 0.228357039851992,
+  "mean_pred": 0.4875308441473464,
+  "mean_obs": 0.4583164358959504,
+  "reliability": [
+   {
+    "lo": 0.06666666666666667,
+    "hi": 0.13333333333333333,
+    "n": 72,
+    "mean_pred": 0.12380811428125162,
+    "mean_obs": 0.125
+   },
+   {
+    "lo": 0.13333333333333333,
+    "hi": 0.2,
+    "n": 131,
+    "mean_pred": 0.1693352120780894,
+    "mean_obs": 0.08396946564885496
+   },
+   {
+    "lo": 0.2,
+    "hi": 0.26666666666666666,
+    "n": 2177,
+    "mean_pred": 0.24620127396852487,
+    "mean_obs": 0.23013321084060634
+   },
+   {
+    "lo": 0.26666666666666666,
+    "hi": 0.3333333333333333,
+    "n": 5480,
+    "mean_pred": 0.3013021947935728,
+    "mean_obs": 0.2718978102189781
+   },
+   {
+    "lo": 0.3333333333333333,
+    "hi": 0.4,
+    "n": 8785,
+    "mean_pred": 0.3680349205628179,
+    "mean_obs": 0.3365964712578258
+   },
+   {
+    "lo": 0.4,
+    "hi": 0.4666666666666667,
+    "n": 7563,
+    "mean_pred": 0.4328823854323126,
+    "mean_obs": 0.4085680285600952
+   },
+   {
+    "lo": 0.4666666666666667,
+    "hi": 0.5333333333333333,
+    "n": 6409,
+    "mean_pred": 0.49691993289912567,
+    "mean_obs": 0.4521766266188173
+   },
+   {
+    "lo": 0.5333333333333333,
+    "hi": 0.6,
+    "n": 9053,
+    "mean_pred": 0.5686905604610181,
+    "mean_obs": 0.5301005191649177
+   },
+   {
+    "lo": 0.6,
+    "hi": 0.6666666666666666,
+    "n": 6464,
+    "mean_pred": 0.6325413887289164,
+    "mean_obs": 0.6064356435643564
+   },
+   {
+    "lo": 0.6666666666666666,
+    "hi": 0.7333333333333333,
+    "n": 3715,
+    "mean_pred": 0.6942843380371241,
+    "mean_obs": 0.6834454912516824
+   },
+   {
+    "lo": 0.7333333333333333,
+    "hi": 0.8,
+    "n": 1317,
+    "mean_pred": 0.7634528085901207,
+    "mean_obs": 0.768413059984814
+   },
+   {
+    "lo": 0.8,
+    "hi": 0.8666666666666667,
+    "n": 544,
+    "mean_pred": 0.8262466629472532,
+    "mean_obs": 0.8180147058823529
+   },
+   {
+    "lo": 0.8666666666666667,
+    "hi": 0.9333333333333333,
+    "n": 73,
+    "mean_pred": 0.8828118697553998,
+    "mean_obs": 0.8493150684931506
+   }
+  ]
+ },
+ "heldout_extra": {
+  "test_new_developers": {
+   "B0_constant": {
+    "n": 26127,
+    "log_loss": 0.6940760028596525,
+    "brier": 0.25046440640041157,
+    "ece": 0.08556526881481635,
+    "auc": 0.5,
+    "mean_pred": 0.5027582109819232,
+    "mean_obs": 0.41719294216710684
+   },
+   "B1_event_type": {
+    "n": 26127,
+    "log_loss": 0.6608331707312125,
+    "brier": 0.2340028080133042,
+    "ece": 0.06584530538819035,
+    "auc": 0.6326899465760663,
+    "mean_pred": 0.48303824755529723,
+    "mean_obs": 0.41719294216710684
+   },
+   "M1_logistic": {
+    "n": 26127,
+    "log_loss": 0.6528322308449334,
+    "brier": 0.23029017867120583,
+    "ece": 0.043961709681172426,
+    "auc": 0.6439793931952116,
+    "mean_pred": 0.46026259119977236,
+    "mean_obs": 0.41719294216710684
+   },
+   "M2_gbdt": {
+    "n": 26127,
+    "log_loss": 0.6441219190404747,
+    "brier": 0.226284289983363,
+    "ece": 0.038360782260351806,
+    "auc": 0.6579347886992143,
+    "mean_pred": 0.4553940004696694,
+    "mean_obs": 0.41719294216710684
+   }
+  }
+ },
+ "rule_comparison": {
+  "mapping": "the population's participate decision (pop.decision.participate) at the population's mean preferences (sociability 0.5, writing skill 0.5, page utility 0, goal_social 0) gives one constant probability per read, evaluated as the probability of a further participation; communities have no population participation path",
+  "rule_probability": 0.06913842034334682,
+  "test": {
+   "n": 51783,
+   "log_loss": 1.263267425297141,
+   "brier": 0.39972200827304605,
+   "ece": 0.38917801555260356,
+   "auc": 0.5,
+   "mean_pred": 0.06913842034334682,
+   "mean_obs": 0.4583164358959504
+  },
+  "kept_minus_rule_log_loss": -0.6149760342166168
+ },
+ "long_horizon_test": {
+  "stability_4h_blocks": {
+   "B0_constant": 0.04552488659826423,
+   "B1_event_type": 0.04003755556364735,
+   "M1_logistic": 0.032691829114030645,
+   "M2_gbdt": 0.029503754335852894
+  }
+ },
+ "identification_note": "Observational: who participates where is self-selected; associations of activity with return are not effects of making a community more active.",
+ "extrapolation_limits": "GH Archive public GitHub events, 2024-10-07..10 UTC (Monday to Thursday): participation by non-bot, non-owner accounts in public issue and pull-request discussions. The simulator may use this model for the probability that an individual who has just taken part in a community or project discussion takes part again in the same community within a day, as a function of the community's recent activity and maintainer activity and of the individual's own activity. It may NOT infer: (1) participation in non-software communities, private spaces or other platforms; (2) horizons beyond 24 h or retention over weeks (the window has four days); (3) causal effects of maintainer responses or community size (observational: active repositories attract active developers); (4) the content or quality of contributions (only event types are seen); 'first participation' is first within the window, so earlier history before 2024-10-07 is unknown (left-censored).",
+ "feature_map": {
+  "first_is_issue_open": "first_is_issue_open: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_issue_comment": "first_is_issue_comment: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_pr_open": "first_is_pr_open: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_pr_review": "first_is_pr_review: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_issue_events_24h": "repo_issue_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_pr_events_24h": "repo_pr_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_participants_24h": "repo_participants_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_owner_events_24h": "repo_owner_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_stars_24h": "repo_stars_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_pushes_24h": "repo_pushes_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_org": "repo_org: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_events_24h": "actor_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_participation_repos_24h": "actor_participation_repos_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_repo_events_24h": "actor_repo_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "hour_sin": "hour_sin: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "hour_cos": "hour_cos: see the E4 plan, models.repo_participation_return.feature_definitions"
+ },
+ "fit": {
+  "commit": "096fdcb069ffb43fd615c476d60425f6d38660ad",
+  "seconds": 45.376060485839844,
+  "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model repo_participation_return"
+ }
+}
