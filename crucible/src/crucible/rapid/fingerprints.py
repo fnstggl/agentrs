@@ -1,61 +1,68 @@
 """Structural fingerprints of world families (MASTER_SPEC Part 7.5) and a distance between them.
 
-A fingerprint is measured from instantiated worlds - the engine's hidden structure (`truth`, `motifs`) and a short
-run through the public interface - never from a family's own labels. It has eight components:
+A fingerprint is measured from instantiated worlds - the engine's hidden structure (`truth`, `motifs`), its action
+spaces and a short run through the public interface - never from a family's free-text labels. It is purely
+structural: every component is a set of categorical descriptors or a categorical value, and no component holds a
+count, a size, a coefficient, a horizon or a bucket of any of them. Nine components:
 
-    motifs            mechanism motifs present (primitive vocabulary), and for causal graphs which primitive feeds
-                      which (`motif_edges`)
-    topology          graph class and size buckets (nodes, edges, in-degree, depth, cycles, clustering)
-    temporal          lag buckets, number of stateful mechanisms, regime changes, horizon bucket
-    observation       observation channels, number of readings, history, on-demand sensors, arrays, entities
+    engine            the transition implementation (engine kind, and the scenario code path inside it)
+    motifs            mechanism motifs of the core mechanism (primitive vocabulary)
+    motif_edges       which kind of mechanism feeds which, with the sign of the influence (core mechanism only)
+    topology          the class of the core causal graph (chain / tree / dag / cyclic / network) and its structural
+                      properties (feedback, common causes, colliders) - never its size
+    temporal          whether influences are instantaneous or lagged, whether the mechanism is stateful, whether the
+                      causal regime changes, whether a pre-arrival history exists
+    observation       the observation channels (noise, delay, missingness, selection, aggregation, on demand), what
+                      kinds of observation are present (readings, arrays, entity kinds, resource kinds, text)
     action_interface  the action kinds and the kinds of query target offered
     objective         the objective type
-    participants      other participant policy families and the number of participants
-    engine            the transition implementation
+    participants      the policy families of the other participants and whether there are several learner seats
 
-Names, seeds and numerical coefficients never enter a fingerprint, so a renamed family or a parameter variant has
-distance 0 to its original and does not count as a new family (`counted`).
+The core mechanism excludes distractor variables (nodes whose role is `distractor`, which the `n_variables` axis
+adds) and their gauges. Hence a renamed family, a reseeded family, a parameter variant, a horizon variant, a size
+variant (`graph_size`, `hidden_state_complexity`, `action_complexity`, `resources`) and a distractor variant all
+have distance exactly 0 to their family (`counted` drops them), and the distance between two families is positive
+only when one of the nine structural components differs. Claimed differences are checked with controlled
+interventions on the public interface by `crucible.rapid.distinct` (evaluator side).
 """
 from __future__ import annotations
 
-import math
 from typing import Any
 
-FP_VERSION = "rapid-fp/1"
+FP_VERSION = "rapid-fp/2"
 WEIGHTS = {"engine": 1.0, "motifs": 2.0, "motif_edges": 1.0, "topology": 1.0, "temporal": 1.0, "observation": 1.0,
            "action_interface": 1.5, "objective": 1.0, "participants": 0.5}
 PROBE_SEEDS = (0, 1, 2)
-
-
-def _bucket(n: float) -> str:
-    n = int(n)
-    if n <= 0:
-        return "0"
-    return f"2^{int(math.log2(n))}"
+STATEFUL = {"hidden_confounding", "delay", "stock", "decay", "hysteresis", "feedback", "path_dependence",
+            "adaptive_opponent", "regime_change", "endogenous_demand", "learning_behaviour"}
+CHANNEL_PRIMS = {"measurement_noise", "missing_observation", "selection_effect", "partial_observability"}
+EXCLUDED_ROLES = {"distractor"}
 
 
 def _query_kind(target: str) -> str:
-    if target in ("tools", "history", "spec"):
+    """The kind of a query target, without its instance name: `station:s3` -> `query:station*`."""
+    if target in ("tools", "history", "spec", "probe", "catalogue"):
         return f"query:{target}"
     if ":" in target:
         return "query:" + target.split(":", 1)[0].rstrip("0123456789") + "*"
-    if target in ("probe", "catalogue"):
-        return f"query:{target}"
     return "query:sensor"
 
 
-def _graph_shape(nodes: list, edges: list[dict]) -> dict:
-    """Topology descriptors of a directed graph given as node ids and edges {src, dst, lag?}."""
-    ids = [n if not isinstance(n, dict) else n["id"] for n in nodes]
+def graph_class(nodes: list, edges: list[dict]) -> dict:
+    """Structural class of a directed graph (node ids, edges {src, dst}): chain / tree / dag / cyclic, plus whether
+    it has feedback, a common cause (a node with two or more children) and a collider (two or more parents)."""
+    ids = list(dict.fromkeys(n if not isinstance(n, dict) else n["id"] for n in nodes))
     succ: dict = {i: set() for i in ids}
     indeg: dict = {i: 0 for i in ids}
+    self_loop = False
     for e in edges:
-        if e["src"] in succ and e["dst"] in succ and e["src"] != e["dst"]:
-            if e["dst"] not in succ[e["src"]]:
-                succ[e["src"]].add(e["dst"])
-                indeg[e["dst"]] += 1
-    self_loops = any(e["src"] == e["dst"] for e in edges)
-    # cycle detection and longest path (on the condensation-free graph when acyclic)
+        s, d = e["src"], e["dst"]
+        if s == d:
+            self_loop = True
+            continue
+        if s in succ and d in succ and d not in succ[s]:
+            succ[s].add(d)
+            indeg[d] += 1
     color: dict = {}
     cyc = [False]
 
@@ -70,28 +77,33 @@ def _graph_shape(nodes: list, edges: list[dict]) -> dict:
     for v in ids:
         if v not in color:
             dfs(v)
-    depth = 0
-    if not cyc[0]:
-        memo: dict = {}
-
-        def longest(v):
-            if v not in memo:
-                memo[v] = 1 + max((longest(w) for w in succ[v]), default=0)
-            return memo[v]
-        depth = max((longest(v) for v in ids), default=0)
-    m = sum(len(s) for s in succ.values())
     maxin = max(indeg.values(), default=0)
-    outdeg = {v: len(s) for v, s in succ.items()}
-    if cyc[0] or self_loops:
+    maxout = max((len(s) for s in succ.values()), default=0)
+    if not edges:
+        cls = "none"
+    elif cyc[0] or self_loop:
         cls = "cyclic"
-    elif maxin <= 1 and max(outdeg.values(), default=0) <= 1:
+    elif maxin <= 1 and maxout <= 1:
         cls = "chain"
     elif maxin <= 1:
         cls = "tree"
     else:
         cls = "dag"
-    return {"class": cls, "nodes": _bucket(len(ids)), "edges": _bucket(m), "max_in": _bucket(maxin),
-            "depth": _bucket(depth), "feedback": bool(cyc[0] or self_loops)}
+    return {"class": cls, "feedback": bool(cyc[0] or self_loop), "common_cause": maxout >= 2,
+            "collider": maxin >= 2}
+
+
+def _pg_core(tr: dict) -> tuple[set, list[dict], list[dict]]:
+    """Core node ids, core causal edges and core gauges of a primitive graph (distractors removed)."""
+    excluded = {n["id"] for n in tr["nodes"] if n.get("role") in EXCLUDED_ROLES}
+    ids = {n["id"] for n in tr["nodes"] if n["id"] not in excluded}
+    edges = [e for e in tr["edges"] if e["kind"] in ("causal", "natural") and e["src"] in ids and e["dst"] in ids]
+    gauges = [g for g in tr["gauges"] if any(s in ids for s in g["src"])]
+    return ids, edges, gauges
+
+
+def _kind_of(n: dict) -> str:
+    return n["prim"].split("@")[0] if n.get("prim") else n["type"]
 
 
 def instance_fingerprint(env) -> dict:
@@ -101,86 +113,93 @@ def instance_fingerprint(env) -> dict:
     tr = eng.truth()
     motifs = set(eng.motifs())
     medges: set[str] = set()
-    temporal: dict[str, Any] = {"horizon": "<=40" if eng.horizon <= 40 else ("<=80" if eng.horizon <= 80 else ">80")}
+    temporal: dict[str, Any] = {"history": bool(cfg.get("warmup")) or bool(eng.history(env._state))}
     if eng.kind == "primitive_graph":
-        kinds = {n["id"]: (n["prim"].split("@")[0] if n.get("prim") else n["type"]) for n in tr["nodes"]}
-        causal = [e for e in tr["edges"] if e["kind"] in ("causal", "natural")]
+        ids, causal, gauges = _pg_core(tr)
+        kinds = {n["id"]: _kind_of(n) for n in tr["nodes"]}
+        # motifs of the core: primitives on core nodes (hidden confounding as the engine measures it) and the
+        # channel primitives of core gauges; a distractor's primitive never counts
+        core_kinds = {kinds[i] for i in ids if kinds[i] not in ("lever", "discrete")}
+        chans = {p.split("@")[0] for g in gauges for p in g["chain"]}
+        motifs = {m for m in motifs if m in core_kinds or m in chans}
         for e in causal:
-            medges.add(f"{kinds[e['src']]}>{kinds[e['dst']]}")
-        topo = _graph_shape([n["id"] for n in tr["nodes"]], causal)
-        lags = sorted({_lag_bucket(e["lag"]) for e in causal})
-        stateful = sum(1 for n in tr["nodes"] if n.get("prim") and n["prim"].split("@")[0] in STATEFUL)
-        temporal.update(lags=lags, stateful=_bucket(stateful), regimes="regime_change" in motifs)
+            sign = "+" if e.get("sign", 1) >= 0 else "-"
+            medges.add(f"{kinds[e['src']]}>{kinds[e['dst']]}{sign}")
+        topo = graph_class(sorted(ids), causal)
         if topo["feedback"]:
             motifs.add("feedback")
-        obs = {"channels": sorted({p.split("@")[0] for g in tr["gauges"] for p in g["chain"]}),
-               "readings": _bucket(sum(1 for g in tr["gauges"] if not g["on_demand"])),
-               "on_demand": any(g["on_demand"] for g in tr["gauges"]),
-               "delayed": any(g["lag"] > 0 for g in tr["gauges"]),
-               "aggregated": any(len(g["src"]) > 1 for g in tr["gauges"]), "history": bool(cfg.get("warmup"))}
+        lags = {("lagged" if e["lag"] > 0 else "instant") for e in causal}
+        temporal.update(lags=sorted(lags), stateful=bool(core_kinds & STATEFUL),
+                        regimes=bool(tr.get("regimes")) or "regime_change" in motifs)
+        obs = {"channels": sorted(chans | ({"delayed"} if any(g["lag"] > 0 for g in gauges) else set())
+                                  | ({"on_demand"} if any(g["on_demand"] for g in gauges) else set())
+                                  | ({"aggregated"} if any(len(g["src"]) > 1 for g in gauges) else set())),
+               **_observed_structure(env)}
     else:
         nodes = tr.get("nodes") or [e["src"] for e in tr.get("edges", [])] + [e["dst"] for e in tr.get("edges", [])]
         nodes = list(dict.fromkeys(n if not isinstance(n, dict) else n["id"] for n in nodes))
         edges = [e for e in tr.get("edges", []) if "src" in e and "dst" in e]
         if eng.kind == "graph_dynamical":
-            # a drawn random network: its class and size, not the particular edges a seed produced
-            topo = {"class": "network", "nodes": _bucket(tr["graph"]["nodes"])}
+            topo = {"class": "network", "generator": str(tr.get("graph", {}).get("kind", "drawn"))}
+        elif eng.kind == "state_machine":
+            # the transition structure of a hidden-state machine: its class, not how many states it has (more
+            # states add branching, which is the hidden_state_complexity axis)
+            g = graph_class(nodes, edges) if nodes else {"class": "none", "feedback": False}
+            topo = {"class": g["class"], "feedback": g["feedback"]}
         else:
-            topo = _graph_shape(nodes, edges) if nodes else {"class": "none"}
-        topo["scenario_structure"] = tr.get("scenario")
-        if eng.kind == "state_machine":
-            topo["states"] = _bucket(tr["states"])
+            topo = graph_class(nodes, edges) if nodes else {"class": "none"}
         for e in edges:
-            medges.add(f"{tr.get('scenario')}:{e.get('kind', 'edge')}")
-        lags = sorted({_lag_bucket(e.get("lag", 0)) for e in edges}) or ["0"]
-        temporal.update(lags=lags, stateful=_bucket(len(motifs & STATEFUL)),
+            medges.add(str(e.get("kind", "edge")))
+        lags = {("lagged" if int(e.get("lag", 0) or 0) > 0 else "instant") for e in edges} or {"instant"}
+        temporal.update(lags=sorted(lags), stateful=bool(motifs & STATEFUL),
                         regimes=bool(tr.get("regimes")) or "regime_change" in motifs)
         obs = _observed_structure(env)
-    kinds: set[str] = set()
+    kinds_offered: set[str] = set()
     for a in eng.agents:
         sp = eng.action_space(a)
         for k, sch in sp.kinds.items():
             if k == "query":
-                kinds |= {_query_kind(t) for t in sch["properties"]["target"]["enum"]}
+                kinds_offered |= {_query_kind(t) for t in sch["properties"]["target"]["enum"]}
             else:
-                kinds.add(k)
+                kinds_offered.add(k)
     if getattr(eng, "dynamic_space", False):
-        kinds.add("dynamic_actions")
-    if (cfg.get("experiment") or {}).get("instruments"):
-        kinds.add("experiment:instrument_choice")
-    parts = sorted(set(env_family_participants(env)) | {f"agents:{len(eng.agents)}"})
-    return {"engine": eng.kind, "motifs": sorted(motifs), "motif_edges": sorted(medges), "topology": topo,
-            "temporal": temporal, "observation": obs, "action_interface": sorted(kinds),
+        kinds_offered.add("dynamic_actions")
+    if (cfg.get("experiment") or {}).get("instruments") or cfg.get("instruments"):
+        kinds_offered.add("experiment:instrument_choice")
+    parts = sorted(set(participant_policies(env)) | {"seats:multi" if len(eng.agents) > 1 else "seats:single"})
+    engine = eng.kind if eng.kind == "primitive_graph" else f"{eng.kind}/{tr.get('scenario') or cfg.get('scenario')}"
+    return {"engine": engine, "motifs": sorted(motifs), "motif_edges": sorted(medges), "topology": topo,
+            "temporal": temporal, "observation": obs, "action_interface": sorted(kinds_offered),
             "objective": (cfg.get("objective") or {}).get("type", "maximize_net"), "participants": parts}
 
 
-STATEFUL = {"hidden_confounding", "delay", "stock", "decay", "hysteresis", "feedback", "path_dependence",
-            "adaptive_opponent", "regime_change", "endogenous_demand", "learning_behaviour"}
-
-
-def _lag_bucket(lag: int) -> str:
-    """Instantaneous, one tick, or several ticks: how long a delay is is a coefficient, whether there is one is
-    structure."""
-    lag = int(lag)
-    return "0" if lag == 0 else ("1" if lag == 1 else "2+")
-
-
 def _observed_structure(env) -> dict:
-    """What the public observations of a world contain, from a reset and two waiting ticks."""
+    """What kinds of observation a world's public observations contain (from a reset and two waiting ticks):
+    whether there are readings and arrays, which entity kinds and which resource kinds. Kinds only, never how many
+    (event text depends on what happened in the first ticks, so it is not part of the structure)."""
     import copy
     e = copy.deepcopy(env)
     obs = [e.reset()]
     for _ in range(2):
         if not e.done:
             obs.append(e.step(None)["observation"])
-    nums = max(len(o["numbers"]) for o in obs)
-    return {"readings": _bucket(nums), "arrays": any(o["arrays"] for o in obs),
-            "entities": sorted({x.get("kind", "?") for o in obs for x in o["entities"]}),
-            "text": any(len(o["text"]) > 1 for o in obs[:1]) or any(o["text"] for o in obs[1:]),
-            "resources": sorted({k for o in obs for k in o["resources"]})}
+    return {"readings": any(o["numbers"] for o in obs), "arrays": any(o["arrays"] for o in obs),
+            "entities": sorted({str(x.get("kind") or "entity") for o in obs for x in o["entities"]}),
+            "resources": sorted({_resource_kind(k) for o in obs for k in o["resources"]})}
 
 
-def env_family_participants(env) -> list[str]:
+def _resource_kind(key: str) -> str:
+    """Resource keys name kinds (`cash_cents`, `experiment_budget`); a key that carries an instance name after a
+    colon is reduced to its kind."""
+    return key.split(":", 1)[0]
+
+
+def participant_policies(env) -> list[str]:
+    """Policy families of the other participants: an engine that measures them (`participants()`) is asked; else
+    the family's declaration."""
+    fn = getattr(env._engine, "participants", None)
+    if callable(fn):
+        return sorted(str(x) for x in fn())
     from .families import FAMILIES
     f = FAMILIES.get(env.family)
     return list(f.participants) if f else []
@@ -212,7 +231,7 @@ _CACHE: dict[tuple, dict] = {}
 
 def family_fingerprint(name: str, seeds=PROBE_SEEDS, **difficulty) -> dict:
     from .families import FAMILIES, make
-    key = (name, tuple(seeds), tuple(sorted(difficulty.items())), FAMILIES[name].version)
+    key = (name, tuple(seeds), tuple(sorted(difficulty.items())), FAMILIES[name].version, id(FAMILIES[name].build))
     if key not in _CACHE:
         _CACHE[key] = merge([instance_fingerprint(make(name, s, **difficulty)) for s in seeds])
     return _CACHE[key]
@@ -276,29 +295,104 @@ def nearest(name: str, fps: dict[str, dict]) -> dict:
         if best is None or d < best[1]:
             best = (k, d)
     if best is None:
-        return {"nearest": None, "distance": None, "differs_in": []}
-    return {"nearest": best[0], "distance": best[1], "differs_in": differing(fps[name], fps[best[0]])}
+        return {"nearest": None, "distance": None, "differs_in": [], "difference": {}}
+    diff = differing(fps[name], fps[best[0]])
+    return {"nearest": best[0], "distance": best[1], "differs_in": diff,
+            "difference": {c: {"this": fps[name].get(c), "nearest": fps[best[0]].get(c)} for c in diff}}
+
+
+# ====================================================================== 4.0 families in the v5 vocabulary
+# 4.0 motif names mapped onto the primitive vocabulary, so the mechanisms of the 4.0 validation and sealed test
+# families can be compared with v5 training families (D-9, mechanism-level non-contamination). Motifs with no
+# primitive counterpart (graph-shape words, costs, distractors, deadlines) map to nothing.
+LEGACY_VOCAB = {
+    "confounder": "hidden_confounding", "feedback": "feedback", "regime": "regime_change",
+    "regime_change": "regime_change", "local_network_effects": "network_effect",
+    "network_word_of_mouth": "network_effect", "lock_in": "path_dependence", "path_dependence": "path_dependence",
+    "shared_pool": "resource_competition", "shared_attention_pool": "resource_competition",
+    "commons": "resource_competition", "gate": "threshold", "rating_threshold_gate": "threshold",
+    "thrash_threshold": "threshold", "delay": "delay", "lagged_gauge": "delay", "startup_lag": "delay",
+    "stock": "stock", "saturation": "saturation", "batch_knee": "saturation", "invu": "non_monotonic",
+    "interaction": "multiplicative", "bundle_of_complements": "complementarity",
+    "weakest_link_quality": "complementarity", "queue": "congestion", "bottleneck": "congestion",
+    "back_pressure": "congestion", "capacity_rationing": "congestion", "metastable_collapse": "cascading_failure",
+    "retry_storm": "cascading_failure", "adaptive_incumbents": "adaptive_opponent",
+    "two_seat_rivalry": "strategic_interaction", "switching_cost": "hysteresis",
+    "private_gauges": "partial_observability", "experience_memory": "learning_behaviour",
+    "satisfaction_referral_loop": "feedback", "wait_churn_loop": "feedback", "cold_start": "threshold",
+    "two_segments": "hidden_confounding", "retry": "feedback", "redundant_paths": "substitution",
+    "unequal_reliability": "state_dependent_effect", "cache": "state_dependent_effect",
+}
 
 
 def legacy_fingerprint(family: str, seeds=(0, 1)) -> dict:
-    """Fingerprint of a Crucible 4.0 mechanism family (scm, abm, techsys) from its `truth()` and public spec, so
-    distinctness from the existing training and evaluation worlds can be measured."""
+    """Fingerprint of a Crucible 4.0 mechanism family (scm, abm, techsys) in the v5 vocabulary, from its `truth()`
+    and public spec."""
     from ..mechanisms.base import build_engine, make_mechanism
     from ..mechanisms.sim import ensure_engines
     ensure_engines()
-    fps = []
+    fps, raw_all = [], set()
     for s in seeds:
         eng = build_engine(make_mechanism(family, s))
         tr = eng.truth()
+        raw = set(tr.get("motifs", []))
+        raw_all |= raw
+        motifs = sorted({LEGACY_VOCAB[m] for m in raw if m in LEGACY_VOCAB})
         nodes = [n["id"] for n in tr["nodes"]]
-        topo = _graph_shape(nodes, tr["edges"])
-        spec = eng.public_spec(0)
-        lags = sorted({_lag_bucket(e.get("lag", 0)) for e in tr["edges"]})
-        fps.append({"engine": eng.engine, "motifs": sorted(set(tr.get("motifs", []))),
+        topo = graph_class(nodes, tr["edges"])
+        lags = sorted({("lagged" if int(e.get("lag", 0) or 0) > 0 else "instant") for e in tr["edges"]})
+        fps.append({"engine": f"4.0:{eng.engine}", "motifs": motifs,
                     "motif_edges": sorted({f"{e.get('kind', 'edge')}" for e in tr["edges"]}), "topology": topo,
-                    "temporal": {"horizon": "<=40" if eng.horizon <= 40 else ("<=80" if eng.horizon <= 80 else ">80"),
-                                 "lags": lags, "regimes": bool(tr.get("regimes"))},
-                    "observation": {"readings": _bucket(len(spec["gauges"]))},
-                    "action_interface": ["levers"], "objective": "maximize_net",
-                    "participants": [f"agents:{eng.n_seats}"]})
-    return merge(fps)
+                    "temporal": {"lags": lags, "regimes": bool(tr.get("regimes")) or "regime_change" in motifs,
+                                 "stateful": bool(set(motifs) & STATEFUL), "history": False},
+                    "observation": {"readings": True}, "action_interface": ["levers"], "objective": "maximize_net",
+                    "participants": ["seats:multi" if eng.n_seats > 1 else "seats:single"]})
+    out = merge(fps)
+    out["legacy_motifs"] = sorted(raw_all)
+    return out
+
+
+_LEGACY_TEST: dict | None = None
+
+
+def legacy_sealed() -> dict:
+    """The 4.0 validation and sealed test families in the v5 vocabulary: name -> {split, motifs, novel}, where
+    `novel` are the mapped motifs absent from every 4.0 training family (what the 4.0 split holds out)."""
+    global _LEGACY_TEST
+    if _LEGACY_TEST is None:
+        from ..mechanisms.sim import ensure_engines
+        ensure_engines()
+        from ..mechanisms.base import mech_families
+        train = set()
+        for f in mech_families(split="train"):
+            train |= set(legacy_fingerprint(f)["motifs"])
+        out = {}
+        for split in ("val", "test"):
+            for f in mech_families(split=split):
+                fp = legacy_fingerprint(f)
+                out[f] = {"split": split, "motifs": fp["motifs"], "novel": sorted(set(fp["motifs"]) - train),
+                          "fingerprint": fp}
+        _LEGACY_TEST = out
+    return _LEGACY_TEST
+
+
+LEVER_LIKE = {"levers", "sequence", "discrete"}
+
+
+def legacy_recreation(fp: dict) -> dict:
+    """D-9 at the mechanism level, for a v5 training family's fingerprint. `recreates`: 4.0 sealed test families
+    whose mechanism the v5 family reproduces - the same mechanism motif set in the shared vocabulary (observation
+    channels aside) offered through a lever-like interface (levers, discrete settings, sequences and queries only)
+    - so a learner trained on it would meet that sealed mechanism again. `exposes_novel`: 4.0 validation or test
+    families whose held-out motifs the v5 family contains at all (recorded: the 4.0 split no longer holds those
+    motifs out for a learner trained on v5-train)."""
+    mech = set(fp["motifs"]) - CHANNEL_PRIMS
+    iface = {k.split(":")[0] for k in fp["action_interface"]} - {"query"}
+    recreates, exposes = [], []
+    for name, rec in legacy_sealed().items():
+        lm = set(rec["motifs"]) - CHANNEL_PRIMS
+        if rec["novel"] and set(rec["novel"]) <= mech:
+            exposes.append(name)
+        if rec["split"] == "test" and lm and mech == lm and iface <= LEVER_LIKE:
+            recreates.append(name)
+    return {"recreates": sorted(recreates), "exposes_novel": sorted(exposes)}

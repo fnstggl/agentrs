@@ -1,29 +1,37 @@
-"""World admission (MASTER_SPEC Part 7.4): ten checks every family must pass on generated worlds before it counts.
+"""World admission (MASTER_SPEC Part 7.4): the checks every family must pass on generated worlds before it counts.
 
     consistency           same seed and actions give the same observations; observations are valid section-11
                           Observations; states stay finite; malformed actions are refused; the config is not mutated
     conservation          every engine's accounting identities (jobs, stock, flow, budgets, money) hold every tick,
                           and cash = endowment + revenue - cost
     controllability       outcomes under different policies differ by more than the world's own noise
-    achievable            on the same world, the private oracle does clearly better (by more than 1%) than leaving
-                          it alone, and at least as well as every trivial strategy
+    achievable            on the same world, the best evaluator-side upper reference (the private oracle, or any
+                          policy that did better than it) clearly improves on leaving the world alone
     informative           under a fixed policy (waiting, or seeded random actions), time-averaged observations vary
                           between instances of the family (different hidden parameters) far more than between noise
                           draws of one instance (the F statistic of a one-way analysis of variance); for hidden-state
                           machines, alternatively, the hidden state is predictable from the current readings
     identifiability       the family's experimental question is answered correctly from public actions and
                           observations (`identify`)
-    no_dominant_strategy  no constant canonical action and no random policy gets close to the oracle
-    difficulty            a scripted public-information reference reaches a meaningful but not saturated share of the
-                          oracle's improvement; every difficulty axis the family declares changes the world
-    no_leakage            no hidden parameter appears in anything a participant receives, no observation key names
-                          evaluator data, and world code cannot import evaluator code (static check)
-    distinct              the fingerprint differs from every other registered v5 family and every Crucible 4.0
-                          mechanism family
+    no_dominant_strategy  black-box search over the full action space with a fixed budget (`dominance`): no constant
+                          setting (grid, random, coordinate search), threshold/reactive rule or explore-then-commit
+                          policy reaches more than 0.8 of the gain of the family's adaptive public reference
+    difficulty            the scripted public-information reference reaches a meaningful share of the upper
+                          reference's improvement; every difficulty axis the family declares changes the world
+    no_leakage            no hidden parameter (numbers, names, codes) appears in anything a participant receives,
+                          no observation key names evaluator data, nothing received names the family, its split or
+                          its category, and world code cannot import evaluator code (static check)
+    distinct              the structural fingerprint differs from every other registered v5 family and every Crucible
+                          4.0 mechanism family; the difference to the nearest family is verified by a controlled
+                          intervention (`distinct.verify`); a training family does not recreate the mechanism of a
+                          4.0 sealed test family (D-9)
+    mechanism             every intervention test the family claims (`claims`) passes: a family whose own mechanism
+                          claims fail is not admitted
 
 Oracles, references, intervention tests and identification run only here, on copies of worlds, evaluator side.
 Checks that are statistical (controllability, informative, identifiability, no_dominant_strategy, difficulty) must
-pass on at least two thirds of the seeds; the others on every seed. `admit(family, seeds)` returns the report.
+pass on at least two thirds of the seeds; the others on every seed. `admit(family, seeds)` returns the report;
+`admit_robust(family)` requires admission on the admission seeds (0-2) and on held-out seeds (10-12).
 """
 from __future__ import annotations
 
@@ -42,18 +50,22 @@ from .env import Env
 from .families import DIFFICULTY_AXES, FAMILIES, build_config, make
 
 CHECKS = ("consistency", "conservation", "controllability", "achievable", "informative", "identifiability",
-          "no_dominant_strategy", "difficulty", "no_leakage", "distinct")
+          "no_dominant_strategy", "difficulty", "no_leakage", "distinct", "mechanism")
 SOFT = ("controllability", "informative", "identifiability", "no_dominant_strategy", "difficulty")
-DOMINANCE_MAX = 0.75          # a trivial strategy may reach at most this share of the oracle's improvement
-REFERENCE_RANGE = (0.05, 0.98)
+REFERENCE_MIN = 0.05          # the public reference reaches at least this share of the upper reference's improvement
+ADMISSION_SEEDS = (0, 1, 2)
+HOLDOUT_SEEDS = (10, 11, 12)
 EVALUATOR_MODULES = ("crucible.rapid.oracles", "crucible.rapid.admission", "crucible.rapid.claims",
                      "crucible.rapid.identify", "crucible.rapid.references", "crucible.rapid.fingerprints",
                      "crucible.rapid.primitive_checks", "crucible.rapid.report", "crucible.mechanisms.evaluator",
                      "crucible.mechanisms.validity", "crucible.rapid.eval_program_exec",
-                     "crucible.rapid.eval_experiment_lab", "crucible.rapid.evaluator_h2")
+                     "crucible.rapid.eval_experiment_lab", "crucible.rapid.evaluator_h2", "crucible.rapid.dominance",
+                     "crucible.rapid.distinct", "crucible.rapid.goals_eval", "crucible.rapid.refs_h3",
+                     "crucible.rapid.claims_h3", "crucible.rapid.refs_v2")
 WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid.families", "crucible.rapid.actions",
                  "crucible.rapid.observation", "crucible.rapid.mechview", "crucible.rapid.batch",
-                 "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives")
+                 "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives",
+                 "crucible.rapid.goals")
 
 # config keys that hold hidden answers, by engine (numbers under them must never reach a participant)
 SECRET_KEYS = {
@@ -92,14 +104,31 @@ def _floats(x, out: set, keyok: bool):
         out.add(repr(x))
 
 
+def _tokens(x, out: set):
+    """Hidden strings (as JSON string tokens) and integer codes (lists of three or more integers, as JSON
+    arrays) under a secret key: answers such as a hidden cell, a hidden option or an unlock code."""
+    if isinstance(x, dict):
+        for v in x.values():
+            _tokens(v, out)
+    elif isinstance(x, list):
+        if len(x) >= 3 and all(isinstance(v, int) and not isinstance(v, bool) for v in x):
+            out.add(json.dumps(x))
+        for v in x:
+            _tokens(v, out)
+    elif isinstance(x, str) and len(x) >= 3:
+        out.add(json.dumps(x))
+
+
 def secrets(env) -> set[str]:
-    """Hidden numbers of a world (repr strings), minus any number that is part of the public spec or schemas."""
+    """Hidden values of a world (repr strings of floats, JSON tokens of strings and integer codes), minus any value
+    that is part of the public spec or schemas."""
     cfg = env._config
     keys = tuple(SECRET_KEYS.get(cfg["engine"], ())) + tuple(getattr(env._engine, "SECRET_KEYS", ()))
     out: set[str] = set()
     for k in keys:
         if k in cfg:
             _floats(cfg[k], out, True)
+            _tokens(cfg[k], out)
     if cfg["engine"] == "primitive_graph":
         for nd in cfg["nodes"]:
             for k in ("params", "ports", "bias", "natural"):
@@ -109,10 +138,29 @@ def secrets(env) -> set[str]:
             for item in g.get("chain", []):
                 _floats(item.get("params", {}), out, True)
     pub: set[str] = set()
+    pub_text = json.dumps([env.spec, [env.action_space(a).public() for a in env.agents()],
+                           [env.observe(a) for a in env.agents()]], default=str)
     _floats(json.loads(json.dumps(env.spec, default=str)), pub, True)
     for a in env.agents():
         _floats(env.action_space(a).public(), pub, True)
-    return out - pub
+    return {x for x in out - pub if x not in pub_text}
+
+
+def identity_leaks(env, texts: list[str]) -> list[str]:
+    """Anything a participant received that names the family (its name describes the mechanism), its split or its
+    category."""
+    from .families import FAMILIES
+    fam = FAMILIES.get(env.family)
+    bad = []
+    for t in texts:
+        if env.family in t:
+            bad.append(f"family name {env.family!r}")
+        for key in ('"split":', '"category":', '"family":', '"partition":'):
+            if key in t:
+                bad.append(f"identity key {key}")
+        if fam is not None and f'"{FAMILIES[env.family].item}"' in t:
+            bad.append(f"spec item {fam.item}")
+    return sorted(set(bad))
 
 
 def leak_scan(texts: list[str], secret: set[str]) -> list[str]:
@@ -154,17 +202,34 @@ def legacy_fingerprints() -> dict:
     return _LEGACY_FP
 
 
-def distinctness(family: str) -> dict:
-    from .fingerprints import distance, family_fingerprint, nearest
+_VERIFIED: dict[tuple, dict] = {}
+
+
+def distinctness(family: str, verify: bool = True) -> dict:
+    from .fingerprints import distance, family_fingerprint, legacy_recreation, nearest
     fps = {n: family_fingerprint(n) for n in FAMILIES}
     own = fps[family]
     v5 = nearest(family, fps)
     leg = legacy_fingerprints()
     d_leg = {k: distance(own, fp) for k, fp in leg.items()}
     lk = min(d_leg, key=d_leg.get) if d_leg else None
-    ok = (v5["distance"] is None or v5["distance"] > 0) and (lk is None or d_leg[lk] > 0)
+    apart = (v5["distance"] is None or v5["distance"] > 0) and (lk is None or d_leg[lk] > 0)
+    ver = None
+    if verify and v5["nearest"]:
+        key = tuple(sorted((family, v5["nearest"]))) + (FAMILIES[family].version, FAMILIES[v5["nearest"]].version)
+        if key not in _VERIFIED:
+            from .distinct import verify as _verify
+            try:
+                _VERIFIED[key] = _verify(family, v5["nearest"])
+            except Exception as e:  # noqa: BLE001 - an unverifiable difference is reported as such
+                _VERIFIED[key] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        ver = _VERIFIED[key]
+    d9 = legacy_recreation(own) if FAMILIES[family].split == "train" else {"recreates": [], "exposes_novel": []}
+    ok = apart and (ver is None or bool(ver.get("ok"))) and not d9["recreates"]
     return {"ok": bool(ok), "nearest_v5": v5["nearest"], "distance_v5": v5["distance"],
-            "differs_in": v5["differs_in"], "nearest_4_0": lk, "distance_4_0": d_leg.get(lk) if lk else None}
+            "differs_in": v5["differs_in"], "verification": ver, "nearest_4_0": lk,
+            "distance_4_0": d_leg.get(lk) if lk else None, "recreates_4_0_sealed": d9["recreates"],
+            "exposes_4_0_novel_motifs": d9["exposes_novel"]}
 
 
 # ====================================================================== per-seed checks
@@ -368,6 +433,9 @@ def _axes_effective(family, seed) -> dict:
 
 
 def seed_report(family: str, seed: int, difficulty: dict | None = None) -> dict:
+    from .claims import run as claims_run
+    from .dominance import check as dom_check
+    from .dominance import search as dom_search
     from .identify import run as identify_run
     from .oracles import oracle
     from .references import play
@@ -379,63 +447,73 @@ def seed_report(family: str, seed: int, difficulty: dict | None = None) -> dict:
     ck["consistency"] = _consistency(family, seed, difficulty)
     ck["conservation"] = _conservation(lambda: make(family, seed, **difficulty))
     others = {a: P.random_policy for a in env.agents()[1:]}
-    v_def = _value(env, P.wait)
-    triv = {lab: _value(env, P.constant(a)) for lab, a in P.canonical_actions(env.action_space())}
-    triv["random"] = _value(env, P.random_policy, 1, others)
-    triv["wait"] = v_def
+    simple = dom_search(make(family, seed, **difficulty), seed=seed)
+    v_def = float(simple["default"])
+    v_rand = _value(env, P.random_policy, 1, others)
     orc = oracle(_fork(env))
     v_or = float(orc["value"])
     v_ref = float(play(make(family, seed, **difficulty))["value"])
+    v_simple = float(simple["best_value"])
+    upper = max(v_or, v_ref, v_simple, v_rand)
     reps = [_value(_replicate(env, r), P.random_policy, 1, others) for r in range(3)] + \
         [_value(_replicate(env, r), P.wait) for r in range(3)]
     noise_sd = float(np.std(reps[:3]) + np.std(reps[3:])) / 2.0
-    vals = list(triv.values()) + [v_or, v_ref]
+    vals = [v_def, v_rand, v_simple, v_or, v_ref]
     spread = float(max(vals) - min(vals))
-    gap = v_or - v_def
+    gap = upper - v_def
     ck["controllability"] = {"ok": spread > 3.0 * noise_sd + 1e-9 and spread > 1e-6, "outcome_spread": spread,
                              "noise_sd": noise_sd}
-    margin = 0.01 * (abs(v_def) + abs(v_or)) / 2 + 1e-6
-    ck["achievable"] = {"ok": gap > margin and v_or >= max(triv.values()), "oracle": v_or, "default": v_def,
+    margin = 0.01 * (abs(v_def) + abs(upper)) / 2 + 1e-6
+    ck["achievable"] = {"ok": gap > margin, "upper_reference": upper, "oracle": v_or, "default": v_def,
+                        "oracle_is_upper_bound": bool(v_or >= max(v_ref, v_simple, v_rand) - 1e-9),
                         "margin": margin, "how": orc.get("how"), "objective": env._config["objective"]["type"]}
     ck["informative"] = _informative(family, seed, difficulty)
     ident = identify_run(family, seed, **difficulty)
     ck["identifiability"] = {"ok": bool(ident.get("ok")), **{k: ident.get(k) for k in ("question", "estimate",
                                                                                          "truth")}}
-    shares = {k: (v - v_def) / gap if gap > 0 else float("inf") for k, v in triv.items()}
-    worst = max(shares, key=shares.get)
-    ck["no_dominant_strategy"] = {"ok": gap > 0 and shares[worst] <= DOMINANCE_MAX, "best_trivial": worst,
-                                  "best_trivial_share": float(shares[worst]) if gap > 0 else None,
-                                  "threshold": DOMINANCE_MAX}
+    ck["no_dominant_strategy"] = dom_check(v_def, v_ref, simple)
     s_ref = (v_ref - v_def) / gap if gap > 0 else float("nan")
     axes = _axes_effective(family, seed)
-    ck["difficulty"] = {"ok": gap > 0 and REFERENCE_RANGE[0] <= s_ref <= REFERENCE_RANGE[1]
-                        and all(v is True for v in axes.values()), "reference_share": float(s_ref)
-                        if s_ref == s_ref else None, "range": list(REFERENCE_RANGE), "axes_effective": axes}
-    # leakage: everything a participant received in the reference and random runs
+    ck["difficulty"] = {"ok": gap > 0 and s_ref >= REFERENCE_MIN and all(v is True for v in axes.values()),
+                        "reference_share_of_upper": float(s_ref) if s_ref == s_ref else None,
+                        "minimum": REFERENCE_MIN, "axes_effective": axes}
+    # leakage: everything a participant received in two seeded random runs
     sec = secrets(env)
     texts = []
     for e in (make(family, seed, **difficulty), make(family, seed, **difficulty)):
-        if e is not None:
-            rng = np.random.default_rng(5)
-            obs = {a: e.observe(a) for a in e.agents()}
-            texts.append(json.dumps(obs, default=str))
-            while not e.done:
-                acts = {a: P.random_policy(obs[a], e.action_space(a), rng) for a in e.agents()}
-                r = e.step(acts if len(e.agents()) > 1 else acts[e.agents()[0]])
-                obs = r.get("observations") or {e.agents()[0]: r["observation"]}
-                texts.append(json.dumps(r, default=str))
-            texts.append(json.dumps(e.spec, default=str))
-            texts.append(json.dumps([e.action_space(a).public() for a in e.agents()], default=str))
+        rng = np.random.default_rng(5)
+        obs = {a: e.observe(a) for a in e.agents()}
+        texts.append(json.dumps(obs, default=str))
+        while not e.done:
+            acts = {a: P.random_policy(obs[a], e.action_space(a), rng) for a in e.agents()}
+            r = e.step(acts if len(e.agents()) > 1 else acts[e.agents()[0]])
+            obs = r.get("observations") or {e.agents()[0]: r["observation"]}
+            texts.append(json.dumps(r, default=str))
+        texts.append(json.dumps(e.spec, default=str))
+        texts.append(json.dumps([e.action_space(a).public() for a in e.agents()], default=str))
+        if "query" in e.action_space().kinds:
+            q = make(family, seed, **difficulty)
+            texts.append(json.dumps(q.step({"kind": "query", "target": "spec"}), default=str))
     found = leak_scan(texts, sec)
+    ident_leaks = identity_leaks(env, texts)
     key_errs = [x for t in texts[:1] for x in O.check(json.loads(t)[env.agents()[0]])] if texts else []
-    ck["no_leakage"] = {"ok": not found and not key_errs, "secrets_checked": len(sec), "leaked": found[:5],
-                        "key_errors": key_errs[:3]}
-    rep["values"] = {"default": v_def, "oracle": v_or, "reference": v_ref, "trivial": triv}
+    ck["no_leakage"] = {"ok": not found and not key_errs and not ident_leaks, "secrets_checked": len(sec),
+                        "leaked": found[:5], "key_errors": key_errs[:3], "identity_leaks": ident_leaks[:5]}
+    cl = claims_run(family, seed, **difficulty)
+    ck["mechanism"] = {"ok": bool(cl) and all(bool(r.get("ok")) for r in cl.values()), "claims": len(cl),
+                       "failed": sorted(k for k, r in cl.items() if not r.get("ok")),
+                       "results": {k: _short(r) for k, r in cl.items()}}
+    rep["values"] = {"default": v_def, "oracle": v_or, "reference": v_ref, "best_simple": v_simple,
+                     "random": v_rand, "upper": upper, "best_simple_policy": simple["best_label"]}
     rep["cpu_s"] = time.process_time() - t0
     return rep
 
 
-def admit(family: str, seeds=(0, 1, 2), **difficulty) -> dict:
+def _short(r: dict) -> dict:
+    return {k: v for k, v in r.items() if isinstance(v, (bool, int, float, str)) or k == "error"}
+
+
+def admit(family: str, seeds=ADMISSION_SEEDS, **difficulty) -> dict:
     """The Part 7.4 checks on `seeds`; evaluator side. Returns {"family", "admitted", "feasible", "checks",
     "seeds", "cpu_s"}."""
     t0 = time.process_time()
@@ -452,13 +530,19 @@ def admit(family: str, seeds=(0, 1, 2), **difficulty) -> dict:
                         "per_seed": [r["checks"][name] for r in reps]}
     feasible = all(checks[k]["ok"] for k in ("consistency", "conservation", "achievable"))
     return {"family": family, "engine": FAMILIES[family].engine, "split": FAMILIES[family].split,
-            "category": FAMILIES[family].category, "admitted": all(c["ok"] for c in checks.values()),
-            "feasible": feasible, "checks": checks, "seeds": list(seeds),
-            "values": [r["values"] for r in reps], "cpu_s": time.process_time() - t0,
+            "category": FAMILIES[family].category, "item": FAMILIES[family].item,
+            "admitted": all(c["ok"] for c in checks.values()), "feasible": feasible, "checks": checks,
+            "seeds": list(seeds), "values": [r["values"] for r in reps], "cpu_s": time.process_time() - t0,
             "difficulty_axes": sorted(DIFFICULTY_AXES)}
 
 
-def admit_all(families: list[str] | None = None, seeds=(0, 1, 2)) -> dict[str, dict]:
+def admit_robust(family: str, seeds=ADMISSION_SEEDS, holdout=HOLDOUT_SEEDS) -> dict:
+    """Admission on the admission seeds and, independently, on held-out seeds; admitted only if both pass."""
+    a, h = admit(family, seeds), admit(family, holdout)
+    return {"family": family, "admitted": a["admitted"] and h["admitted"], "admission": a, "holdout": h}
+
+
+def admit_all(families: list[str] | None = None, seeds=ADMISSION_SEEDS) -> dict[str, dict]:
     from .families import families as all_families
     return {f: admit(f, seeds) for f in (families or all_families())}
 
