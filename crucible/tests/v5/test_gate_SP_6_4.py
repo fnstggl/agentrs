@@ -12,8 +12,9 @@ Measured:
   two-step activity, the second step becomes the bottleneck (adoption creates a need); a service whose use grows
   past its rented capacity creates a supply need (`consumes` + `constrains` + `produces`);
 * generality: relations supplied as data with no code change - a skill an activity requires (education), a
-  transport link whose capacity binds (`loads` + `constrains`), organisational coordination load (`requires`), a
-  content community's moderation tool, and a verified-advisory constraint - are labelled by the same rules;
+  transport link whose capacity binds (`loads` + `constrains`), storage a new content form fills (`consumes` +
+  `constrains`), organisational coordination load (`requires`), a content community's moderation tool, and a
+  verified-advisory constraint - are labelled by the same rules;
 * `special_case_need_triggers`: needs whose rule is not one of the generic rules or whose path is not made of
   graph edges, plus string literals in the rule code that name an entity, a format or a principal, plus
   differences in the labels when every node of the data scenario is renamed.
@@ -48,6 +49,13 @@ def _data_world(names=None, seed=7):
          "dst_kind": "resource"},
         {"src": nm("service/freight"), "src_kind": "service", "rel": "produces", "dst": nm("access/coastal-market"),
          "dst_kind": "capability"},
+        # content: a new content form fills the storage a hosting service consumes (its capacity binds)
+        {"src": nm("service/clipshost"), "src_kind": "service", "rel": "consumes", "dst": nm("resource/storage"),
+         "dst_kind": "resource"},
+        {"src": nm("capacity/storage"), "src_kind": "constraint", "rel": "constrains", "dst": nm("resource/storage"),
+         "dst_kind": "resource"},
+        {"src": nm("service/clipshost"), "src_kind": "service", "rel": "produces", "dst": nm("capability/clip-hosting"),
+         "dst_kind": "capability"},
         # coordination: a growing organisation's coordination load
         {"src": nm("activity/acme-ops"), "src_kind": "activity", "rel": "requires", "dst": nm("capability/coordination"),
          "dst_kind": "capability", "obs": {"time_share": 0.45, "holders": [nm("p:acme-a"), nm("p:acme-b")]}},
@@ -64,6 +72,8 @@ def _data_world(names=None, seed=7):
          "dst_kind": "package", "attrs": {"affects": [nm("repo/a/app"), nm("repo/b/app")]}},
     ]
     nodes = {nm("transport/route7"): {"utilisation": 0.99, "refused_share": 0.2},
+             nm("resource/storage"): {"utilisation": 0.97},
+             nm("service/clipshost"): {"holders": [nm("p30"), nm("p31")]},
              nm("service/freight"): {"holders": [nm("p20"), nm("p21"), nm("p22")]}}
     spec = WorldSpec("relations-data", seed, [{"name": "identity", "config": {}}],
                      {"relations": rels, "relation_nodes": nodes})
@@ -108,7 +118,9 @@ def test_SP_6_4_emerging_needs_from_reusable_relations():
     names = {"activity/analytics": "activity/x1", "skill/python": "skill/x2", "transport/route7": "transport/x3",
              "service/freight": "service/x4", "access/coastal-market": "access/x5", "capability/coordination": "c/x6",
              "activity/acme-ops": "activity/x7", "capability/moderation": "c/x8", "package/vec": "package/x9",
-             "repo/a/app": "repo/x10", "repo/b/app": "repo/x11", "advisory/1": "advisory/x12"}
+             "repo/a/app": "repo/x10", "repo/b/app": "repo/x11", "advisory/1": "advisory/x12",
+             "service/clipshost": "service/x13", "resource/storage": "resource/x14", "capacity/storage": "c/x15",
+             "capability/clip-hosting": "c/x16"}
     rw = _data_world(names)
     renamed = R.label(rw)
     rename_diff = int(_shape(data_needs) != _shape(renamed, names))
@@ -131,4 +143,4 @@ def test_SP_6_4_emerging_needs_from_reusable_relations():
     assert len(used_rels) >= 5 and special == 0, m
     assert emerged, "needs arise from changed conditions in the population world"
     assert {"skill/python", "access/coastal-market", "capability/coordination", "capability/moderation",
-            "package/vec"} <= set(data_targets), data_targets
+            "package/vec", "capability/clip-hosting"} <= set(data_targets), data_targets

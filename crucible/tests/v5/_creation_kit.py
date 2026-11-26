@@ -13,8 +13,8 @@ crucible.load_all_modules()
 from crucible.innovation import experiments as X  # noqa: E402
 
 SEED = 3
-N = 900
-DAYS = 28
+N = 600
+DAYS = 26
 ARMS = ("factual", "no_saas", "no_novelty", "garbage")
 
 
