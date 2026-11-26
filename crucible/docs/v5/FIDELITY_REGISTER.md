@@ -26,6 +26,17 @@ How the register is read and checked (`crucible.calibration.fidelity`, gate test
   in-world probe that observes the model being evaluated. An in-world mechanism may not be labelled empirically
   fitted while its in-world use is `none`.
 
+**Wave 3 (workstream E, 2026-11-26).** The merged wave-2 register rows were converted to id records (the union merge
+had re-added superseded 6-column rows); the important mechanisms now also include every kernel module that records
+population decisions (`work`) and every fidelity id carried by recorded decisions. Two world uses of fitted models
+outside their cards were removed: `economy.work` drew sponsored-search clicks from the Criteo type table
+(`work.sponsored_click`, now one hand-set probability) and `domains.common.SlateClicks` applied `news_click@1` with a
+within-slate rank mapping to lesson search (`learn.slate_open`, now a hand-set absolute logit). The advertising
+mechanism was redesigned (plan E5, `model:ad_exposure_response@1`, `runtime:ad_response@2`; `ad_response@1` is
+superseded). `crucible.calibration.inworld` measures in-world use and validation (SP-5.0, SP-5.5b); at this commit no
+world records a decision made by a fitted model, and `population/models.py` still loads checkpoints directly (its
+plug-in discards them).
+
 **Status on 2026-11-26 (workstream E, recovery cycle).** The fitted models are genuine offline models with
 reproducible held-out reports, and they are now exposed to the simulator through the runtime decision-model API
 `crucible.calibration.runtime` (contracts in `docs/v5/calibration/RUNTIME.md`). **No default world consumes any fitted

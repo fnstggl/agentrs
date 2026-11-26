@@ -7,6 +7,22 @@ now one registry. `crucible.calibration.load("<name>@<version>")` loads all nine
 the same rules, whichever toolchain fitted it. No model was refitted and no card was rewritten: every fitted
 parameter, held-out metric and checkpoint hash is unchanged.
 
+## Wave 3 (continuation): what changed and where
+
+| piece | files | what it does |
+|---|---|---|
+| advertising redesign (audit E skeptic S5) | `fit_e5.py`, `predictors_e5.py`, plan `plans/E5_ad_exposure_plan.json`, model `models/ad_exposure_response/`, report `reports/ad_exposure_response.json`, runtime `AdDecision` (`ad_response@2`) | Criteo eligibility as the instrument for display; joint three-arm likelihood per stratum with profiled nuisances; kept one log-odds shift 1.39 (CI 1.22-1.61) of the individual's own organic visit probability; attention per display (relevance, repetition) through a registered attention model; no negative effects; incremental visits convert 2.76x; RUNTIME.md "Advertising response" |
+| in-world validation harness | `inworld.py` | model-only driver (runtime models forward-simulated from KuaiRand held-out users' history) and in-world driver (decisions a world recorded with fitted provenance); four reports (activity distribution, retention by prior activity, heterogeneity, long-horizon drift) with prespecified tolerances; random-exposure and ad-holdout experiment analyses; SP-5.0 provenance metrics; static card-scope check |
+| SP-5.1 / SP-5.3 measurements | `audit_sp5.py` | licence records, raw-identifier check of every GH Archive id value on disk, uncertainty, holdout kinds, identification labels; rule comparisons, selection with stability and cost, coverage of the six Part 5.3 behaviours |
+| fidelity register | `FIDELITY_REGISTER.md`, `fidelity.py` | repaired after the wave-2 union merge; decision-recording modules and provenance fidelity ids are important mechanisms |
+| out-of-scope uses removed | `economy/work.py`, `domains/common.py` (minimal edits) | no Criteo type table for search clicks; no news model with rank mapping for lesson search |
+
+Gate tests: `tests/v5/test_gate_F.py` (all ten pass on this tree, F.3 includes the E5 reproducer),
+`test_gate_SP_5_1.py`, `test_gate_SP_5_3.py`, `test_gate_SP_5_4.py`, `test_gate_SP_5_5.py` (pass),
+`test_gate_SP_5_0.py` and `test_gate_SP_5_5b.py` (slow; fail until the population wires the runtime models and
+`civ.generate` builds again - they never skip). Unit tests: `tests/test_v5_calibration_ad_exposure.py` (estimator on
+synthetic trials with a known shift and with none, predictor, runtime `ad_response@2`, harness).
+
 ## World code: one entry point
 
 ```python
