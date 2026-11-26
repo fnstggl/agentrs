@@ -85,7 +85,8 @@ CATALOGUE: dict[str, Coupling] = {c.id: c for c in [
              "public papers and replication reports on a phenomenon that is a machine model's process physics",
              "process settings of producers using that machine model (trialled, kept if own yield improves)",
              "crucible.civ.couplings.rnd_routine (society mind routine 'rnd')",
-             {"every_days": 3, "min_gain": 0.03, "trial_runs": 3, "grid": 21, "max_rel_err": 0.12}),
+             {"every_days": 3, "min_gain": 0.03, "trial_runs": 4, "grid": 21, "max_rel_err": 0.12,
+              "tolerance": 0.03}),
     Coupling("compute_energy", 3, "loads", "computing_infrastructure", "energy",
              "powered cores and metered compute units of each provider's deployments (cloud instances, svc_hours)",
              "energy drawn from the datacenter region's grid (capacity, utilisation price) and paid by the provider",
@@ -214,8 +215,10 @@ def rnd_routine(soc, ctx, mid, m, rng):
         b = binds.get(mach["model"])
         if b is None:
             continue
+        # the firm's own evidence: yields of its completed runs on this machine (a run interrupted by a breakdown
+        # says nothing about the operating point)
         runs = sorted(((r["t0"], rid, r) for rid, r in st.scan("runs")
-                       if r["machine"] == plan["machine"] and r["status"] in ("done", "broke") and r["units"] > 0),
+                       if r["machine"] == plan["machine"] and r["status"] == "done" and r["units"] > 0),
                       key=lambda x: (x[0], x[1]))
         tr = trials.get(plan["design"])
         if tr is not None:
@@ -223,7 +226,7 @@ def rnd_routine(soc, ctx, mid, m, rng):
             if len(after) < int(par["trial_runs"]):
                 continue
             y_new = float(np.mean([r["made"] / r["units"] for r in after[-int(par["trial_runs"]):]]))
-            keep = y_new >= tr["base_yield"] * (1.0 - 0.01)
+            keep = y_new >= tr["base_yield"] * (1.0 - float(par["tolerance"]))
             if not keep:
                 soc.act(ctx, m["owner"], "make.tune", {"design": plan["design"], "speed": tr["from"][0],
                                                        "temp": tr["from"][1]})

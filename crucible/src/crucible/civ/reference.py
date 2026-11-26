@@ -153,13 +153,12 @@ class ResearcherAgent:
                 design = [{"at": {names[0]: round(float(a), 4), names[1]: round(float(b), 4)}, "n": 1}
                           for a in axes[0] for b in axes[1]]
                 stds = [{"standard": s["id"], "n": 3} for s in ph.get("standards", [])]
-                r1, err = _do(world, who, "sci.run", {"apparatus": aid, "design": design})
-                r2, _ = _do(world, who, "sci.run", {"apparatus": aid, "design": stds}) if stds else (None, None)
+                # one run per phenomenon: the grid and the certified standards (its own calibration)
+                r1, err = _do(world, who, "sci.run", {"apparatus": aid, "design": design + stds})
                 if r1 is None:
                     self.log.append({"phenomenon": ph["id"], "error": err})
                     continue
-                self.studies.append({"ph": ph, "names": names, "runs": [r1["run"]] + ([r2["run"]] if r2 else []),
-                                     "done": False})
+                self.studies.append({"ph": ph, "names": names, "runs": [r1["run"]], "done": False})
             self.state = "measuring" if self.studies else "failed"
             return
         if self.state == "measuring":
@@ -169,7 +168,7 @@ class ResearcherAgent:
                 if st["done"] or not set(st["runs"]) <= done:
                     continue
                 data, _ = _do(world, who, "sci.data", {"run": st["runs"][0]})
-                cal = _do(world, who, "sci.data", {"run": st["runs"][1]})[0] if len(st["runs"]) > 1 else None
+                cal = data
                 self.ph, self.names = st["ph"], st["names"]
                 model = self._fit(data, cal)
                 st["model"], st["done"] = model, True
@@ -178,7 +177,7 @@ class ResearcherAgent:
                         "phenomenon": st["ph"]["id"],
                         "title": f"The operating optimum of {st['ph']['title'].split()[-1]}",
                         "abstract": "A grid study of the quality response; it peaks at one operating point.",
-                        "model": model, "data": st["runs"][:1], "calibration_runs": st["runs"][1:]})
+                        "model": model, "data": st["runs"][:1], "calibration_runs": st["runs"][:1]})
                     if r is not None:
                         self.papers.append(r["paper"])
                     else:

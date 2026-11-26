@@ -247,6 +247,14 @@ def _main(argv):
     import crucible
     crucible.load_all_modules()
     what = argv[0] if argv else "integration"
+    if what == "experiment":          # one experiment into the cache: experiment <name> effect|chain
+        from . import experiments as X
+        kind = argv[2] if len(argv) > 2 else ("chain" if X.EXPERIMENTS[argv[1]].chain else "effect")
+        seeds = CHAIN_SEEDS if kind == "chain" else EFFECT_SEEDS
+        r = _safe(argv[1], kind, seeds)
+        print(json.dumps({"experiment": argv[1], "confirmed": r.get("confirmed"), "error": r.get("error"),
+                          "effects": r.get("effects")}, indent=1, default=str)[:20000])
+        return 0
     fn = {"integration": integration, "effects": effects, "chains": chain_results, "structure": structure,
           "long": long_horizon}[what]
     r = fn()
