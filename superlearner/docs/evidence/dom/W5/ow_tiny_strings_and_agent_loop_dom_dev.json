@@ -1,0 +1,69 @@
+{
+ "preset": "dom_dev",
+ "commit": "dd88be78cb91febab2b0a612ec82c1449f790d77",
+ "device": "cuda",
+ "n_tools": 145,
+ "B": 4,
+ "K": 4,
+ "trials": 4,
+ "string_holes_decoded_in_candidates": 85,
+ "replay_max_abs_diff": [
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "decide_s": [
+  9.946680948603898,
+  9.355403027962893,
+  9.04351874999702,
+  7.358531573787332
+ ],
+ "executed_tools": [
+  "market.browse",
+  "cal.create",
+  "id.grant",
+  "biz.company",
+  "code.ls",
+  "goals.check_now",
+  "issues.assigned",
+  "jobs.submit",
+  "cloud.providers",
+  "docs.history",
+  "issues.assign",
+  "market.inventory",
+  "issues.get",
+  "market.confirm",
+  "ads.pause",
+  "mail.delete"
+ ],
+ "unauthorized_batches": 0,
+ "decoder_cond_api": {
+  "sample": false,
+  "score": false
+ },
+ "agent_loop": {
+  "rounds": 24,
+  "B": 8,
+  "executed": 192,
+  "unstamped": 0,
+  "updates": 3,
+  "updated": 3,
+  "losses_last_update": {
+   "actor": -0.013345680199563503,
+   "value": 5.481046199798584
+  },
+  "returns": [
+   16.0,
+   8.0,
+   7.0,
+   8.0,
+   9.0,
+   6.0,
+   6.0,
+   11.0
+  ],
+  "seconds": 52.773493382148445
+ },
+ "peak_gpu_gb": 6.294989109039307
+}
