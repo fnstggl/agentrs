@@ -20,9 +20,9 @@ import importlib
 import pkgutil
 
 from .base import (API_VERSION, PART9, REGISTRY, Actor, Domain, DomainConfig, Idle, Mechanic, Probe,  # noqa: F401
-                   RandomTools, ScriptedReference, Seat, act_, check, civ_recipe, drive, fingerprint, make_env,
+                   RandomTools, ScriptedReference, Seat, act_, check, independent_revenue, civ_recipe, drive, fingerprint, make_env,
                    mechanics_exercised, ordered_spec, part9_domains, recipe, register, run, section_metrics, spec,
-                   structure_report, summary, tier3_spec, unregister, validate, world)
+                   seat_orgs, structure_report, summary, tier3_spec, unregister, validate, world)
 
 # framework and kernel-module files that define no domain (load_all imports the others)
 _FRAMEWORK = {"base", "modes", "modules", "seats", "common", "lawlang", "concepts"}

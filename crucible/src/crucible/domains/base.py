@@ -731,6 +731,20 @@ def run(domain: str, config: str, seed: int = 0, *, policy: str = "reference", d
     return out
 
 
+# ============================================================================================ evaluator helpers
+def seat_orgs(world: World, principal: str) -> list[str]:
+    """Organisations a seat acts for (evaluator side): the `o:` principals among `world.principals_of(principal)`."""
+    return sorted(p for p in world.principals_of(principal) if p != principal and p.startswith("o:"))
+
+
+def independent_revenue(world: World, principal: str, window_s: int) -> float:
+    """Revenue from unrelated payers of a seat's organisations over a window (evaluator side;
+    `goals.metrics.independent_revenue`: transfers among related parties count for nothing)."""
+    from ..goals.metrics import evaluate_metric
+    return float(sum(evaluate_metric(world, "independent_revenue", {"principal": o, "window_s": int(window_s)})
+                     for o in seat_orgs(world, principal)))
+
+
 # ============================================================================================ measurements
 def _match(pattern: str, etype: str, ekind: str | None) -> bool:
     if pattern.startswith("cols.batch:"):

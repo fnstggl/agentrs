@@ -135,6 +135,11 @@ by calling read-only tools like any learner. Rules, checked by `check`:
 * not guaranteed (SP-9.16): the null baseline fails on every reference instance; every declared degenerate probe
   and `RandomTools` fail.
 
+Evaluator helpers: `base.seat_orgs(world, seat)` (the organisations a seat acts for) and
+`base.independent_revenue(world, seat, window_s)` (revenue of those organisations from unrelated payers,
+`goals.metrics.independent_revenue`). Evaluators may use any `crucible.goals.metrics` metric; they are evaluator-side
+and hidden from participants in observation_only.
+
 Typical degenerate probes: paying yourself through a related organisation (independent-revenue evaluators ignore
 related payers - `goals.metrics.independent_revenue`), listing without stock, publishing without data, deploying a
 no-op controller, firing all staff (when the horizon is shorter than the consequences, the evaluator is wrong:
