@@ -720,7 +720,7 @@ def oracle_portfolio(env) -> dict:
     return best_of(env, pols)
 
 
-def reference_portfolio(view, env):
+def reference_portfolio(view, env, focus: int = 3, audit_every: int = 0):
     """Public: staff every project evenly for three periods, audit them all (exact work done) and read the progress
     reports to estimate each project's work content and its team's productivity; then put all staff on the project
     with the best estimated pay per period (if it still pays after wages), re-estimating work content from the
@@ -745,7 +745,7 @@ def reference_portfolio(view, env):
     obs = r["observation"]
     while not view.done:
         x = nums(obs)
-        best, bn = 0.0, None
+        score = {}
         for n in names:
             if x[f"{n}.status"] != 0:
                 continue
@@ -755,13 +755,31 @@ def reference_portfolio(view, env):
             T = max(0.0, W[n] - done[n]) / (rate[n] * S ** beta)
             late = max(0.0, T - x[f"{n}.periods_to_deadline"])
             pay = value[n] * max(0.0, 1.0 - late / 15.0) - T * S * float(c["wage"])
-            if pay > 0 and pay / max(T, 1.0) > best:
-                best, bn = pay / max(T, 1.0), n
-        if bn is None:
+            if pay > 0:
+                score[n] = pay / max(T, 1.0)
+        if not score:
             obs = view.step({"kind": "allocate", "amounts": {}})["observation"]
             continue
-        done[bn] += rate[bn] * S ** beta
-        obs = view.step({"kind": "allocate", "amounts": {bn: S}})["observation"]
+        # progress is concave in staff, so split the staff over the best projects in proportion to how much each
+        # earns per period of work (top `focus`), not all on one
+        top = sorted(score, key=score.get, reverse=True)[:focus]
+        w = {n: score[n] ** (1.0 / (1.0 - beta)) for n in top}
+        tot = sum(w.values())
+        alloc = {n: S * w[n] / tot for n in top}
+        for n, a in alloc.items():
+            done[n] += rate[n] * a ** beta
+        if audit_every and view.t % audit_every == 0:
+            # audit the projects being worked on: exact work done, and the rate it implies
+            steps = [{"kind": "allocate", "amounts": alloc}] + \
+                [{"kind": "query", "target": "audit", "args": {"project": n}} for n in top]
+            r = view.step({"kind": "sequence", "steps": steps})
+            if r["result"]["ok"]:
+                for d_ in r["result"]["results"][1:]:
+                    n = d_["project"]
+                    done[n] = float(d_["work_done"])
+            obs = r["observation"]
+            continue
+        obs = view.step({"kind": "allocate", "amounts": alloc})["observation"]
 
 
 def identify_portfolio(env) -> dict:
