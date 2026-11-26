@@ -29,7 +29,7 @@ r per feed a slot after the share inbox holds an item drawn uniformly at random 
 the last `max_age_days` days instead of a recommendation (impression source ``random``). The open decisions on
 inserted slots carry ``extra.experiment = {"id": "random_exposure", "arm": "random"}``, the others arm
 ``recommended``; `crucible.calibration.inworld.random_exposure_experiment` compares the random arm with KuaiRand's
-random-exposure log. Fidelity: FIDELITY_REGISTER `social-content-open-kuairand`, `social-random-exposure`.
+random-exposure log. Fidelity: FIDELITY_REGISTER `runtime:content_open@1`, `social-random-exposure`.
 """
 from __future__ import annotations
 

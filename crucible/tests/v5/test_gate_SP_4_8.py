@@ -172,11 +172,12 @@ def test_SP_4_8_population_discovers_buys_uses_and_reviews():
     from crucible.core.kernel import World
     from crucible.population import semantics, writing
     from crucible.social import audience as AUD
-    from crucible.social.worlds import social_world
+    from crucible.social.worlds import MIXTURES, social_world
     from crucible.substrate import ids
     spec = social_world("development", 48, n=1500, platforms=["posts", "blog", "launch"],
                         extra=[{"name": "docs", "config": {}}, {"name": "products", "config": {}},
-                               {"name": "subs", "config": {}}], feed={"platforms": {"launch": {"k": 6}}})
+                               {"name": "subs", "config": {}}],
+                        feed={"platforms": {"launch": {"k": 6, "recommenders": MIXTURES["launch"]}}})
     w = World.create(spec, strict=True)
     maker = w.system_call("admin.join", {"handle": "maker", "endowment": 10_000, "password": "pw-m"})["principal"]
     M = Actor(w, maker)

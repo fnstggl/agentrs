@@ -53,7 +53,10 @@ MIXTURES = {
 SUBSCRIPTION = ["letters"]
 #: platform settings beside the mixture: the short-video platform runs a random-exposure experiment (a share of its
 #: feeds holds one uniformly drawn recent item; social.contentopen) ...
-PLATFORM_EXTRAS = {"shorts": {"random_insert": {"rate": 0.05, "max_age_days": 30}}}
+PLATFORM_EXTRAS = {"shorts": {"random_insert": {"rate": 0.05, "max_age_days": 30}},
+                   # the text-post platform reweights its own mixture every day from its measured feedback (the
+                   # share of each mechanism's impressions that became views; recsys.service.Feed.pr_adapt)
+                   "posts": {"adapt": {"every_s": 86400, "eta": 0.6, "min_impressions": 200}}}
 #: ... and decides whether a viewer keeps watching a short video with workstream E's fitted KuaiRand model
 #: (content_open@1 through crucible.calibration.runtime; watch time stays built-in)
 CALIBRATED = {"shorts": {"open": "content_open@1", "content_kind": "video_short"}}
@@ -99,7 +102,9 @@ def social_world(profile: str = "development", seed: int = 0, *, n: int | None =
     for k, v in (feed or {}).items():
         if k == "platforms":
             for p, pc in v.items():
-                fcfg["platforms"].setdefault(p, {}).update(pc)
+                # a platform configured by the caller is the caller's (its recommenders, settings, adaptation);
+                # the defaults of feed_config apply to the other platforms
+                fcfg["platforms"][p] = dict(pc)
         else:
             fcfg[k] = v
     mods.append({"name": "feed", "config": fcfg})
