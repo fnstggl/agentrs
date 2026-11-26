@@ -48,3 +48,31 @@ def test_verifier_resolves_on_world_observations_only_at_or_before_deadline():
     v.check([num("q", 6.0)], 2.0)
     res = dict((gid, st) for gid, st, _ in v.check([num("q", 7.0)], 3.0))
     assert res[keep.goal_id] == SUCCESS
+
+
+def test_curriculum_policy_learns_to_prefer_goals_with_higher_learning_gain():
+    """Candidates differ in a descriptor feature; measured gain is high only for one region. Policy gradient on the
+    gain moves probability mass there; completion is not part of the signal."""
+    import torch
+    from superlearner.cam_unified.autonomy.curriculum import CurriculumPolicy, LearningGainPredictor
+    torch.manual_seed(0)
+    pol = CurriculumPolicy(16, 64)
+    opt = torch.optim.Adam(pol.parameters(), 3e-3)
+    B, C = 64, 8
+    feats = torch.zeros(B, C, 5)
+    feats[:, :, 2] = torch.linspace(0, 1, C)       # 'scale' of the goal
+    gain_of = lambda idx: torch.exp(-((feats[0, idx, 2] - 0.6) ** 2) / 0.02)   # informative middle difficulty
+    mask = torch.ones(B, C, dtype=torch.bool)
+    b = torch.randn(B, 16)
+    life = torch.zeros(B, 6)
+    p0 = pol.choose(b, life, feats, mask).probs.mean(0)
+    for _ in range(300):
+        ch = pol.choose(b, life, feats, mask)
+        L = pol.loss(b, life, feats, mask, ch.index, gain_of(ch.index))
+        opt.zero_grad(); L.backward(); opt.step()
+    p1 = pol.choose(b, life, feats, mask, greedy=True).probs.mean(0)
+    best = int(torch.argmax(gain_of(torch.arange(C))))
+    assert float(p1[best]) > 0.5 > float(p0[best])
+    lgp = LearningGainPredictor(16, 32)
+    mu, sd = lgp(b, feats[:, 0], torch.zeros(B, 4))
+    assert mu.shape == (B,) and bool((sd > 0).all())
