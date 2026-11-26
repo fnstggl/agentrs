@@ -918,8 +918,10 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
            "goal": g["id"] if g else None, "kind": KIND_OF_HOST.get(name.split(".", 1)[0], "other"), "decision": dec}
     a.count("calls")
     n0, seq0, mark = len(ctx.events), ctx.world.seq, ctx.state.savepoint()
+    n1 = None
     try:
         args = compose_artifacts(ctx, a, args, g)
+        n1 = len(ctx.events)
         res = ctx.call(name, args, as_principal=a.principal)
         rec["ok"] = True
         evs = ctx.events[n0:]
@@ -947,6 +949,15 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         if g:
             g["ok"] += 1
     except CrucibleError as e:
+        if n1 is not None and n1 > n0:
+            # the whole decision is undone, including the text it stored for this call (compose_artifacts): Ctx.call
+            # undoes only the refused call itself; the facts it keeps about the refusal are kept
+            keep = [(ev.type, ev.payload, ev.vis) for ev in ctx.events[n1:]]
+            ctx.state.rollback_to(mark)
+            del ctx.events[n0:]
+            ctx.world.seq = seq0
+            for t_, p_, v_ in keep:
+                ctx.emit(t_, p_, v_)
         rec["code"] = type(e).__name__
         rec["error"] = clip(str(e), 200)
         a.remember(now, "act", f"You called {name} {cjson(args, 200)} -> FAILED ({rec['code']}): {rec['error']}")

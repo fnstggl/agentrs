@@ -151,3 +151,31 @@ def test_recorded_inference_regenerates_without_running_a_model():
     assert after == before                          # no model request was served during regeneration
     g.close()
     w.close()
+
+
+def test_a_refused_publication_undoes_the_text_it_stored(ablated):
+    """A publication whose text the participant wrote in the call (mind.COMPOSE) is undone as a whole when the
+    publishing call is refused: no stored artifact remains outside a recorded decision (SP-3.2d provenance)."""
+    w = ablated
+    row = G.members(w)[0]
+    a = M.Agent.from_row(row)
+    tool = next(t for t in w.available_tools(a.principal) if t["name"] == "blog.publish")
+    out = {}
+
+    def run(ctx):
+        n0 = len(ctx.events)
+        M.execute(ctx, a, tool, {"ref": {M.COMPOSED: "A short article about baking bread at home with rye flour."},
+                                 "title": "Bread", "kind": "not-a-kind"}, ctx.now, M.Config())
+        out["types"] = [e.type for e in ctx.events[n0:]]
+    w._run_system("test.refused", run)
+    assert a.history[-1]["ok"] is False and "artifact.stored" not in out["types"]
+    ok = {}
+
+    def run_ok(ctx):
+        n0 = len(ctx.events)
+        M.execute(ctx, a, tool, {"ref": {M.COMPOSED: "A short article about baking bread at home with rye flour."},
+                                 "title": "Bread"}, ctx.now, M.Config())
+        ok["types"] = [e.type for e in ctx.events[n0:]]
+    w._run_system("test.published", run_ok)
+    assert a.history[-1]["ok"] is True and "artifact.stored" in ok["types"]
+    assert a.history[-1]["seq"][0] <= a.history[-1]["seq"][1]
