@@ -213,8 +213,9 @@ def test_periodic_compaction_reads_only_what_was_written_since_the_last_one(tmp_
     # each collect read the cols.batch events after the previous one, never the whole log again
     assert len(reads) == 3 and [r[0] for r in reads] == sorted(r[0] for r in reads) and reads[0][0] == 0
     assert reads[1][0] > 0 and reads[2][0] > reads[1][0]
-    full = {e["payload"]["ref"] for e in orig_read("inc", 0, None, types=["cols.batch"])}
-    assert w.runtime["retention.batch_refs"][2] == full and len(full) == sum(n for _, n in reads)
+    every = orig_read("inc", 0, None, types=["cols.batch"])
+    assert len(every) == sum(n for _, n in reads)           # each event read exactly once over the three calls
+    assert w.runtime["retention.batch_refs"][2] == {e["payload"]["ref"] for e in every}
     # every snapshot was unpickled at most once for its metadata, however many compactions looked at it
     assert len(unpickled) == len(set(unpickled)) <= 3
     # the results are those of a cold computation: a fresh process (empty caches) agrees on what is needed
