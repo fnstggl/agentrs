@@ -645,8 +645,9 @@ def _self_adoption_script():
         repo = (K.ok((yield {"tool": "code.create_repo", "args": {"name": "mylib", "visibility": "public",
                                                                   "license": "open"}})) or {}).get("repo") \
             or f"{handle}/mylib"
-        yield {"tool": "code.commit", "args": {"repo": repo, "files": {"lib.py": library_source(["slugify"])}}}
-        yield {"tool": "pkg.register", "args": {"name": "mylib", "repo": repo, "description": "slugify"}}
+        yield {"tool": "code.commit", "args": {"repo": repo, "files": {
+            "lib.py": "def helper(x):\n    return [x, len(str(x))]\n"}}}
+        yield {"tool": "pkg.register", "args": {"name": "mylib", "repo": repo, "description": "my helper"}}
         yield {"tool": "pkg.release", "args": {"package": "mylib", "version": "1.0.0"}}
         for k in range(5):
             app = (K.ok((yield {"tool": "code.create_repo", "args": {"name": f"app{k}"}})) or {}).get("repo") \
@@ -654,7 +655,7 @@ def _self_adoption_script():
             dep = K.ok((yield {"tool": "pkg.depend", "args": {"repo": app, "package": "mylib"}})) or {}
             imp = dep.get("import", "deps.mylib.lib")
             yield {"tool": "code.commit", "args": {"repo": app, "files": {
-                "app.py": f"from {imp} import slugify\n\ndef main(args, caller):\n    return slugify(args)\n"}}}
+                "app.py": f"from {imp} import helper\n\ndef main(args, caller):\n    return helper(args)\n"}}}
         while True:
             for k in range(5):
                 yield {"tool": "pkg.exec", "args": {"repo": f"{handle}/app{k}", "target": "app:main",

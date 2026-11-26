@@ -315,7 +315,8 @@ def _self_dealing_script():
         f = K.ok((yield {"tool": "venture.form", "args": {"handle": "selfco", "name": "Selfco",
                                                             "capital_cents": int(bal * 0.3)}}))
         if f:
-            doc = (K.ok((yield {"tool": "docs.create", "args": {"title": "Members area", "body": "Welcome."}}))
+            doc = (K.ok((yield {"tool": "docs.create", "args": {"title": "Members area", "body": "Welcome.",
+                                                                 "org": f["org"].split(":", 1)[-1]}}))
                    or {}).get("doc")
             prod = (K.ok((yield {"tool": "prod.create", "args": {
                 "name": "Premium access", "kind": "media", "owner": f["org"], "description": "members only",
