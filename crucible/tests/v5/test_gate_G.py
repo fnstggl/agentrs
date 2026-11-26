@@ -57,11 +57,16 @@ def test_G1_256_simultaneously_active_adaptive(shared):
     assert m["adaptive_rows"] == 256
 
 
-def test_G2_distinct_persistent_personal_states(shared):
-    m = {"distinct_personal_states": int(shared["distinct_personal_states"])}
+def test_G2_distinct_persistent_personal_states(runs, shared):
+    m = {"distinct_personal_states": int(min(r["distinct_personal_states"] for r in runs)),
+         "per_seed_10_days": ",".join(str(r["distinct_personal_states"]) for r in runs),
+         "shared_group_4_days": int(shared["distinct_personal_states"])}
     evidence.record("G.2", m, command=CMD, notes="Distinct GRU memory rows (exact float16 values) of the 256 class-2 "
-                                                 "individuals at the end of the run; memory is a column of the "
-                                                 "population table, persistent across sessions, snapshots, forks.")
+                                                 "individuals at the end of each 10-day run (minimum over 3 seeds); "
+                                                 "memory is a column of the population table, persistent across "
+                                                 "sessions, snapshots and forks, and changes only when the individual "
+                                                 "takes a web decision with its policy (individuals whose sessions "
+                                                 "were all other activities keep the initial state).")
     assert m["distinct_personal_states"] > 1
 
 
