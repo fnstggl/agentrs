@@ -28,7 +28,7 @@ so the separate gate files of one commit share one measured suite instead of rep
 Single pieces:
 
     python -m crucible.scale.slots --hardware                     # inspected hardware
-    python -m crucible.scale.slots --status                       # budget, held slots, FIFO queue
+    python -m crucible.scale.slots --status                       # budget, held slots (live use), FIFO queue
     python -m crucible.scale.govprobe                             # attack every dimension on a private ledger
     python -m crucible.scale.bench5 run --world civ --profile development --days 30 --store-dir D --out r.json
     python -m crucible.scale.bench5 v4 --consumers 1000 --days 30 --work W --out v4.json
@@ -49,6 +49,15 @@ Single pieces:
   signals go through a pidfd after the same identity check, so the governor cannot signal a process that took over
   a member's pid.
 * The ledger is rewritten only when it changed (dozens of waiters poll it).
+* Each supervisor publishes what its job uses now and at peak (`jobs/<job>/live.json`, every 10 s); `--status` shows
+  it beside each held grant and sums it (`ram_mb_in_use_reported`), so a request can be sized from a running job.
+  On 2026-11-26 the queue was RAM-bound (67 of 69 GB reserved, 48 waiting) while measured peaks were a sixth of the
+  grants: request about 1.5x the measured peak (`/tmp/crucible-slots/usage.jsonl`, `peak_rss_mb`).
+* SP-1.2's census counts processes with a CUDA context (device open and the driver's control or unified-memory
+  device mapped). A process that only asked whether a GPU exists (`torch.cuda.is_available()`, which every process
+  importing the shared semantic space evaluates) holds no context and no GPU memory; it is reported apart.
+* World-pool workers check for a GPU through NVML (`PYTORCH_NVML_BASED_CUDA_CHECK=1`), so importing the shared space
+  does not start the CUDA driver's thread in every CPU-only world worker.
 
 ## Definitions
 
@@ -75,7 +84,7 @@ Single pieces:
 
 * GPU memory per process cannot be read from outside this container (nvidia-smi reports host pids): it is capped and
   reported inside each Python process of a GPU job by the interpreter hook; a non-Python CUDA process in a GPU job is
-  detected (GPU device open) but not metered.
+  detected (CUDA context mapped) but not metered.
 * Enforcement is by sampling (default 1 s): a job can overshoot its RAM or disk grant by what it allocates or writes
   within one sampling interval before it is stopped.
 * Older copies of the scheduler in other worktrees share the ledger but not the FIFO queue or the stored budget.
