@@ -128,10 +128,10 @@ def standard_members(semantic: int = 2, semantic_every: int = 4) -> list[Member]
     # goals in the words of the tools a builder uses (a semantic generalist ranks the world's hundreds of tools
     # against its goal text before choosing; "build a tool" alone sends it to the factories of the industrial
     # economy)
-    goals = ["Start a software business: create a code repository, commit working code, register and release it as "
-             "a package, and sell it to other people as a product.",
-             "Write open-source code in a repository, release it as a package other developers can depend on, and "
-             "invite other builders into your organisation."]
+    goals = ["Start a software company: create a repo, commit code, register it as a package and release it, then "
+             "create a product and sell it.",
+             "Write open-source code: create a repo, commit code, release it as a package other developers can depend "
+             "on, and invite other builders into your organisation."]
     for k in range(semantic):
         ms.append(Member(f"sem{k}", "semantic", f"ctrl:semantic{k}", goal=goals[k % 2], every=int(semantic_every)))
     return ms
