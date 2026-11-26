@@ -4,7 +4,8 @@ vectors, cached by (artifact SHA-256, encoder id, encoder version, preprocessing
     encode(world, ref, modality, *, ctx=None, data=None) -> np.ndarray        float32 [dim]
     encode_many(world, refs, modality, *, ctx=None, data=None) -> np.ndarray  float32 [n, dim]
     encoder_info(modality) -> {id, version, dim, params, preprocessing_hash, ...}
-    cache_key(ref, modality) -> "{ref}|{encoder_id}@{version}|{preprocessing_hash}"
+    world_key(ref, modality) -> "{ref}|{encoder_id}@{version}|{params_hash}"            (world records)
+    cache_key(ref, modality) -> "{world_key}|{machine hash}"                             (machine-wide cache)
     encode_bytes(data, modality) -> np.ndarray                                 (no world: tools, calibration, tests)
 
 | modality | encoder | dim |
@@ -76,10 +77,17 @@ def encoder(modality: str) -> Encoder:
         raise EncodingError(f"unknown modality {modality!r} (one of {', '.join(MODALITIES)})") from None
 
 
-def cache_key(ref: str, modality: str) -> str:
+def world_key(ref: str, modality: str) -> str:
+    """Key of a vector in a world's record: artifact, encoder id and derived version, derived parameter hash (no
+    machine part: a world regenerated on another device finds its recorded vectors)."""
     _hex(ref)
     e = encoder(modality)
-    return f"{ref}|{e.id}@{e.version()}|{e.preprocessing_hash()}"
+    return f"{ref}|{e.id}@{e.version()}|{e.params_hash()}"
+
+
+def cache_key(ref: str, modality: str) -> str:
+    """Key of a vector in the machine-wide cache: the world key plus the machine (device class, library versions)."""
+    return world_key(ref, modality) + "|" + encoder(modality).preprocessing_hash()
 
 
 def encoder_info(modality: str) -> dict:
@@ -210,13 +218,15 @@ def encode_many(world, refs: Sequence[str], modality: str, *, ctx=None,
     """[n, dim] float32 vectors of artifacts `refs` (see the module doc for where each vector comes from)."""
     enc = encoder(modality)
     refs = list(refs)
-    keys = [cache_key(r, modality) for r in refs]
+    wkeys = [world_key(r, modality) for r in refs]
+    mach = enc.preprocessing_hash()
+    keys = [k + "|" + mach for k in wkeys]
     if data is not None and len(data) != len(refs):
         raise EncodingError("data must align with refs")
     out = np.zeros((len(refs), enc.dim), dtype=np.float32)
     missing: dict[str, list[int]] = {}
-    for i, k in enumerate(keys):
-        v = _world_vector(world, k)
+    for i, (wk, k) in enumerate(zip(wkeys, keys)):
+        v = _world_vector(world, wk)
         if v is not None:
             out[i] = v
             with _LOCK:
@@ -232,14 +242,15 @@ def encode_many(world, refs: Sequence[str], modality: str, *, ctx=None,
 
         def compute() -> np.ndarray:
             return _vectors(world, u_refs, uniq, modality, u_data, cache)
-        mat = _record(ctx, modality, uniq, compute) if ctx is not None else compute()
+        u_wkeys = [wkeys[i] for i in first]
+        mat = _record(ctx, modality, u_wkeys, compute) if ctx is not None else compute()
         for j, k in enumerate(uniq):
             for i in missing[k]:
                 out[i] = mat[j]
         if ctx is not None and "embed" in ctx.world.modules:
             items = [{"key": k, "ref": u_refs[j], "modality": modality, "encoder": enc.id, "version": enc.version(),
-                      "prep": enc.preprocessing_hash(), "dim": int(enc.dim), "sha256": vector_sha256(mat[j]),
-                      "vec": _b64(mat[j])} for j, k in enumerate(uniq)]
+                      "prep": enc.params_hash(), "dim": int(enc.dim), "sha256": vector_sha256(mat[j]),
+                      "vec": _b64(mat[j])} for j, k in enumerate(u_wkeys)]
             ctx.emit("embed.recorded", {"items": items}, vis="internal")
     out.setflags(write=False)
     return out
@@ -261,4 +272,5 @@ def fetch() -> dict[str, str]:
 
 
 __all__ = ["MODALITIES", "encode", "encode_many", "encode_bytes", "encode_bytes_many", "encoder_info", "cache_key",
+           "world_key",
            "ref_of", "stats", "similarity", "fetch", "EncodingError", "encoder"]

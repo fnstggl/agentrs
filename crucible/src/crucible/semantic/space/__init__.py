@@ -365,16 +365,18 @@ def comprehension(features: dict) -> float:
     """Probability-like index in [0, 1] that a reader can extract meaning from a text artifact (or the speech or
     subtitles of an audio/video artifact), from its intrinsic features relative to real professional text: the LM
     log-likelihood of its novel tokens as a z-score against MIND news (`prior` text norms), shifted by two standard
-    deviations and passed through the normal CDF, times the share of valid words (relative to 0.8). Gibberish, word
+    deviations and passed through the normal CDF; times the share of valid words (relative to 0.8); times the share
+    of tokens that are new information (not completing a 4-gram already seen, relative to 0.8). Gibberish, word
     salad and keyword stuffing score low; ordinary prose about 1. Artifacts without language (pictures, music)
     return 1.0: their value is not limited by comprehension of text. A modelling assumption (functional form),
     with data-derived scale; registered in the fidelity register by its consumers."""
     from . import prior
     m = features.get("modality")
+    novel = features.get("lm_novel_token_share")
     if m in ("text", None):
         lp, val = features.get("lm_novel_logprob_per_token"), features.get("language_validity")
     elif m in ("audio", "video") and features.get("transcript_lm_logprob_per_token") is not None:
-        lp, val = features.get("transcript_lm_logprob_per_token"), 1.0
+        lp, val, novel = features.get("transcript_lm_logprob_per_token"), 1.0, None
     else:
         return 1.0
     if lp is None or not np.isfinite(lp):
@@ -382,7 +384,10 @@ def comprehension(features: dict) -> float:
     norms = prior.load(SPACE_VERSION)["meta"]["text_norms"]
     z = (float(lp) - norms["lm_novel_logprob_mean"]) / max(1e-6, norms["lm_novel_logprob_sd"])
     q = 0.5 * (1.0 + math.erf((z + 2.0) / math.sqrt(2.0)))
-    return float(q * min(1.0, max(0.0, float(val if val is not None else 1.0)) / 0.8))
+    q *= min(1.0, max(0.0, float(val if val is not None else 1.0)) / 0.8)
+    if novel is not None and np.isfinite(novel):
+        q *= min(1.0, max(0.0, float(novel)) / 0.8)
+    return float(q)
 
 
 def similarity(a: np.ndarray, b: np.ndarray) -> float:
