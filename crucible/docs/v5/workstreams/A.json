@@ -192,5 +192,10 @@
   "Typed events: worlds with params.typed_events validate every registered type of their modules (incl. the 4.0 owner schemas); validators are passive subscribers and do not change the trajectory. bus.coverage(world) reports typed vs emitted types: other workstreams should register their event types (coverage was 11 of 77 in the audit).",
   "Long runs (J, M): call retention.compact(world, prune=True) after periodic snapshots; history.state_at for historical queries; World.load for resume. In store-less multi-world processes call World.close() (or drop references) so pool bytes are released.",
   "Do not edit tests/v5_kernel_scenarios.py goldens: kernel changes must keep 4.0 worlds byte-identical."
- ]
+ ],
+ "test_runs": {
+  "integrated_tree_worktree": "307 passed, 7 failed (tests/test_kernel.py, test_kernel_props.py, test_invariants.py, test_storage.py, test_sandbox.py, test_v5_security_sandbox.py, test_hardening.py, every tests/test_v5_substrate_*.py, tests/v5/test_gate_SP_2_1.py and test_gate_SP_2_3.py). The 7 failures all run a population world, which the duplicate `space` module breaks: facts data-level report, memo cross-process world, resume, retention x3, history. The two gates pass on this tree, but SP-2.3's population part then measures an inert population (every pop.tick fails) - only the mirror numbers below are meaningful.",
+  "integrated_tree_sandbox_users": "110 passed (tests/test_behavior.py with the 4.0 legacy digests, test_entry.py, test_tooling.py, test_discovery.py, test_diagnostics.py, test_v5_commerce_modules.py)",
+  "scratch_mirror_with_space_fix_emulated": "40 passed, 0 failed: gates SP-2.3 and SP-2.1 and test_v5_substrate_streams, _resume, _retention, _history, _facts, _modes, _memo (mirror = this branch + population.semantics.Space re-registered as `space`; never committed)"
+ }
 }
