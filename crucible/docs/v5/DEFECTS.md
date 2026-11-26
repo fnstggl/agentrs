@@ -2182,13 +2182,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-P-25 (high, open): crucible.load_all_modules() now imports huggingface_hub at import time in every process (semantic/space/__init
+### DEF-P-25 (high, fixed): crucible.load_all_modules() now imports huggingface_hub at import time in every process (semantic/space/__init
 
 ```json
 {
  "area": "P_acceptance",
+ "fixed_by": "c5c/w3b-sem 5790a4b: the space version is derived without importing huggingface_hub (service.hub_cache_dir resolves HF_HUB_CACHE from the environment exactly as the hub library does) and without lm.identity() (whose device() called torch.cuda.is_available(), which starts a CUDA driver thread); load_all_modules() leaves the process with one thread",
  "id": "DEF-P-25",
  "owner": "D (CORE-SEM) / INT",
+ "regression_tests": "tests/test_scale.py::test_workers_are_recycled_after_a_fixed_number_of_jobs (passes again); tests/test_v5_semantic_encoders.py::test_space_import_starts_no_thread_and_no_hub_import",
  "requirements": [
   "A.1",
   "SP-13.7"
@@ -2198,7 +2200,7 @@ B_population verdict) and P's own findings.
   "audit": "workstream P wave 3 (c5c/w3-qa): adversarial verification",
   "finding": null
  },
- "status": "open",
+ "status": "fixed",
  "summary": "crucible.load_all_modules() now imports huggingface_hub at import time in every process (semantic/space/__init__.py _version() -> semantic/space/lm.identity() -> semantic/service.local_revision()), which starts a native thread: 4.0 pool workers are no longer single-threaded and tests/test_scale.py::test_workers_are_recycled_after_a_fixed_number_of_jobs fails (threads == 2; passes at c07098b). Import-time model-identity resolution also adds start-up cost to every 4.0 process; resolve it lazily."
 }
 ```

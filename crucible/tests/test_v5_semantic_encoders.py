@@ -353,3 +353,14 @@ def test_paired_permutation_test_detects_real_effects_only():
     assert 0.2 < float(np.mean(ps)) < 0.8                      # roughly uniform under the null
     assert EF.paired_permutation_pvalue(np.zeros(50)) == 1.0
     assert EF.two_sample_permutation_pvalue(rng.normal(0, 1, 100), rng.normal(1, 1, 100), n_perm=2000) < 0.001
+
+
+def test_space_import_starts_no_thread_and_no_hub_import():
+    """DEF-P-25: deriving SPACE_VERSION at import imports neither huggingface_hub nor probes CUDA (which starts a
+    driver thread), so 4.0 pool workers stay single-threaded after crucible.load_all_modules()."""
+    import subprocess
+    code = ("import os, sys, crucible; crucible.load_all_modules(); from crucible.semantic import space; "
+            "print(len(os.listdir('/proc/self/task')), 'huggingface_hub' in sys.modules, space.SPACE_VERSION)")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=300,
+                         env=dict(os.environ, OMP_NUM_THREADS="1")).stdout.split()
+    assert out[0] == "1" and out[1] == "False" and len(out[2]) == 16
