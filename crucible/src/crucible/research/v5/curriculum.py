@@ -82,7 +82,7 @@ def _t_experiment(rng, s):
 
 
 def _t_flex(rng, s):
-    s["drivers"] = [str(rng.choice(["regime_shift", "wear_latch"]))]
+    s["drivers"] = [str(rng.choice(["regime_shift", "wear_latch", "drifting_optimum"]))]
     return s
 
 
@@ -153,7 +153,7 @@ def category_of(structure: Mapping) -> str:
         return "delayed_credit"
     if "hidden_state" in d or "missing" in s["channels"]:
         return "memory"
-    if d & {"regime_shift", "wear_latch"}:
+    if d & {"regime_shift", "wear_latch", "drifting_optimum"}:
         return "strategic_flexibility"
     if "confounded_history" in d or "aggregated" in s["channels"]:
         return "causal_discovery"

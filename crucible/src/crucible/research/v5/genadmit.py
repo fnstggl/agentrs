@@ -15,6 +15,8 @@ placed and their roles), run on forks of the world like every rapid claim:
     rival_adapts_to_price      with adaptive rivals, a high versus a low price moves the rivals' price over time,
                                not on the first tick
     wear_degrades_health       with a wear latch, overdriving the key lever lowers the health node later
+    ideal_drifts               with a drifting optimum, the best constant key-lever setting early and late differ by
+                               at least a fifth of the lever's range
 
 `admit_generated(structures, seeds, jobs)` returns every world's checks; a world is validated when all eleven pass.
 Nothing here is imported by world code.
@@ -105,6 +107,24 @@ def wear_degrades_health(env) -> dict:
     return {"ok": float(over[-1]) < float(calm[-1]) - 1e-6, "health_end": [float(calm[-1]), float(over[-1])]}
 
 
+def ideal_drifts(env) -> dict:
+    """With a drifting optimum, the constant key-lever setting that maximises the market-response node early in the
+    episode differs from the one late in it by at least a fifth of the lever's range (forks over a grid)."""
+    name, lo, hi, cl = _key(env)
+    nodes = _role_nodes(env, "ideal")
+    if not nodes:
+        return {"ok": False, "error": "no ideal node"}
+    H = env.horizon
+    grid = np.linspace(lo, hi, 11)
+    early, late = [], []
+    for x in grid:
+        s = _series(env, lambda k, x=float(x): {name: x}, H, nodes[0])
+        early.append(float(s[1:6].mean()))
+        late.append(float(s[H - 5:].mean()))
+    be, bl = float(grid[int(np.argmax(early))]), float(grid[int(np.argmax(late))])
+    return {"ok": abs(bl - be) >= 0.2 * (hi - lo), "best_early": be, "best_late": bl}
+
+
 def claims_for(structure: dict) -> tuple[str, ...]:
     d = set(structure.get("drivers") or [])
     pop = (structure.get("population") or {}).get("kind")
@@ -117,6 +137,8 @@ def claims_for(structure: dict) -> tuple[str, ...]:
         out.append(f"{CLAIMS_MOD}:rival_adapts_to_price")
     if "wear_latch" in d:
         out.append(f"{CLAIMS_MOD}:wear_degrades_health")
+    if "drifting_optimum" in d:
+        out.append(f"{CLAIMS_MOD}:ideal_drifts")
     return tuple(out)
 
 

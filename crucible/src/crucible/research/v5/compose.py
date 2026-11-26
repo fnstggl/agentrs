@@ -44,15 +44,16 @@ from ...core.canonical import digest
 from ...rapid import families as RF
 from ...rapid.generator import CHANNELS, TEMPORAL, TOPOLOGIES, GraphBuilder, topo_order
 
-COMPOSE_VERSION = "n-compose/2"
+COMPOSE_VERSION = "n-compose/3"
 MOTIFS = ("saturation", "threshold", "non_monotonic", "linear_nonlinear", "decay", "delay", "hysteresis", "feedback",
           "path_dependence")
 COMBINERS = ("sum", "complementarity", "multiplicative", "substitution")
 DRIVERS = ("regime_shift", "delayed_payoff", "wear_latch", "hidden_state", "confounded_history", "pilot_experiments",
-           "long_horizon")
+           "long_horizon", "drifting_optimum")
 POPULATIONS = ("none", "rivals", "learning_customers", "word_of_mouth", "mixed")
 # the Part 8 category a generated family is filed under, by its first driver (or population)
-CATEGORY_OF = {"regime_shift": "8.10", "delayed_payoff": "8.6", "wear_latch": "8.6", "hidden_state": "8.5",
+CATEGORY_OF = {"regime_shift": "8.10", "drifting_optimum": "8.10", "delayed_payoff": "8.6", "wear_latch": "8.6",
+               "hidden_state": "8.5",
                "confounded_history": "8.1", "pilot_experiments": "8.2", "long_horizon": "8.6", "rivals": "8.8",
                "mixed": "8.8", "learning_customers": "8.10", "word_of_mouth": "8.4", "none": "8.1"}
 GEN_PREFIX = "gen_"
@@ -310,6 +311,16 @@ def _compose_once(rng, s: dict, d: dict) -> dict:
         flip = gb.prim("regime_change", {"before": 1.0, "after": -_u(rng, 0.4, 0.9), "at": at, "trig": 1e18},
                        role="regime", bias={"x": -m0}, x=[(drive, 0, 1.0)], trigger=[])
         drive = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": m0}, x=[(flip, 0, 1.0)])
+    if "drifting_optimum" in drivers:                    # the drive level the market likes best drifts during the
+        up = bool(rng.random() < 0.5)                    # episode (up in some worlds, down in others): a setting that
+        shift = _u(rng, 4.0, 6.0)                        # was right early is wrong late, gradually (no abrupt switch)
+        d0 = _u(rng, 1.5, 3.0) if up else _u(rng, 7.0, 8.5)
+        rate = _u(rng, 0.03, 0.05)
+        reach = 1.0 - (1.0 - rate) ** H                  # share of the drift stock's asymptote reached by the end
+        D = gb.prim("decay", {"rate": rate, "init": 0.0}, role="taste", bias={"x": shift * rate / reach}, x=[])
+        peak = _u(rng, 2.5, 4.0)
+        drive = gb.prim("non_monotonic", {"peak": peak, "height": 10.0}, role="ideal", bias={"x": peak - d0},
+                        x=[(drive, 0, 1.0), (D, 0, -1.0 if up else 1.0)])
     if "delayed_payoff" in drivers:                      # the drive builds capacity through a construction delay
         lagd = int(rng.integers(max(3, H // 12), max(4, H // 6) + 1))
         pipe = gb.prim("delay", {"lag": lagd, "init": 0.0}, x=[(drive, 0, 1.0)])
