@@ -190,7 +190,7 @@ def measure_fault_injection(n_targets: int = 60, seed: int = 5) -> dict:
           "max_modules": 0, "subscriber_targets": 0, "v5_module_targets": 0}
     v5 = {n for n in w.modules if MODULES[n].__module__.split(".")[1] in crucible.V5_PACKAGES}
     fails, touched = [], set()
-    end = w.now + 18 * 3600
+    end = w.now + 48 * 3600           # until n_targets multi-module transactions were found (or two days)
     while st["targets"] < n_targets and w.now < end:
         # alternate: one agent command (random, schema-valid) and one scheduled job
         blob, s0 = w.snapshot_blob(), w.seq
