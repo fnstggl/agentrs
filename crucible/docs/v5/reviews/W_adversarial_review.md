@@ -19,6 +19,16 @@ cross-tenant state, and the research instrument's evaluator.
 | DEF-O-9 (low) | cross-tenant state | The machine-level meter memo (A/K3 `DiskMemo`, shared by every world and process) evicted its oldest rows globally; a world running many distinct computations floods it. | 100 of 100 victim anchors evicted (scaled demonstration) | eviction per lineage: 50 of 50 survive | `v5.crossworld.meter_memo_eviction_is_per_lineage` |
 | DEF-P-16 (high) | jail | Jailed Chromium below a root-only TMPDIR (agent scratchpads are mode 700). | every jailed-browser test failed | profile relocated into the jail's home; 26 browser tests pass | `test_jailed_browser_starts_below_a_root_only_tmpdir` |
 
+Hardening without a demonstrated exploit: every jailed browser launch now gets a private HOME/TMPDIR/XDG directory
+(concurrent browsers of one kind share a uid; they used to share the kind's home, i.e. writable profile and cache
+state across worlds) - `test_concurrent_jailed_browsers_of_one_kind_get_private_homes`.
+
+## 1b. Evaluated learners of the experience package (W.2, owner L)
+
+| id | attack | result |
+|---|---|---|
+| DEF-O-13 (high, open) | an adversarial learner function (`fn(participant)`, the `remote.evaluate` contract) looks for the evaluator and sealed material from its own process | **LEAK**: on this branch the only path drives it in the process holding the RemoteEvaluator (gc reaches it, and the World); on a check merge with c5c/w3b-obs, `remote.evaluate` runs it in its own process but as root, and it reads the 4.0 sealed salt, sealed sets and sealed task files under ~/.crucible and other processes' environments. Hosted by `crucible.sandbox.learnerhost` (protocol `experience-remote`) the same adversary reaches nothing (`v5.isolation.evaluated_learner_reaches_no_sealed_material`, `test_learner_host_runs_an_experience_remote_learner_function_jailed`) |
+
 ## 2. Research instrument (SP-15.8): attacks by adversarial learners
 
 | control | attack | result |
@@ -61,7 +71,28 @@ threads, forged completion, delivery-then-exit, C builtins) all billed. DEF-P-27
 worlds with agent programs) holds on one machine with the shared memo (identical event hashes in two new processes;
 diverging without it); the remaining difference from c07098b is the A.5/D-20 requirement conflict, not a metering bug.
 
-## 5. Residual risks (stated, not fixed here)
+## 5. Check merge with the wave-3b siblings (read-only on their branches)
+
+A scratch clone of this branch with c5c/w3b-soc, -sem, -obs, -econ2, -domfw, -dom1, -dom2, -dom3 and -research merged
+(their heads at 18:49 UTC; only DECISION_LOG.md conflicted, resolved as a union), measured with this branch's probes:
+
+* fixed by their owners there (the probes hold): image decoders run outside the world process (C, D); media tools at
+  the participant call sites are jailed (C; one launch the probe counted was `ffmpeg -version`, which parses no
+  participant bytes - the probe now ignores version queries); sybils with a fake footprint (C); adoption by reading
+  the package source (G: attested package boundary).
+* still open there: the in-process learner reads the hidden grader (L), the evaluated learner reaches sealed
+  material (L, DEF-O-13), SP-15.8 checkpoint shapes, interaction budget and in-harness driver (N, DEF-O-10..12).
+* NEW there (MUST_HOLD probe `v5.isolation.world_code_cannot_import_evaluator_side_code` fails): world code reaches
+  `crucible.rapid.oracles` through core.kernel -> substrate.bus -> substrate.primitives -> substrate.facts ->
+  crucible.domains -> domains.base -> experience.registry -> crucible.rapid -> rapid.admission -> rapid.references ->
+  rapid.oracles (domain framework import in substrate.facts; rapid/__init__ imports admission eagerly), and
+  `crucible.semantic.capbench` (test splits) through semantic.generalists.module -> generalists.brain ->
+  semantic.routing -> capbench.run (D's routing reads the capbench report through the package). Owners I-fw/A, H, D.
+* Tier 2: 9 domains register (18 evaluation configurations); 4 modules of c5c/w3b-dom3 do not register against
+  framework v2 (each an erroring probe, `v5.tier2.<module>.does_not_load`); results of the Tier 2 probes are in
+  workstreams/O.json.
+
+## 6. Residual risks (stated, not fixed here)
 
 * Deterministic billing that is both exact across machines and tamper-proof is not available in-process: any count
   kept inside the measured process is forgeable (with ctypes, even raw memory), and the parent's CPU measurement is

@@ -14,7 +14,8 @@ Measured on the real system:
   - verification seeds (`caps.verify`): the inputs an independent suite generates from the world's fresh seeds do
     not appear in anything the provider could read before the verification, and a second verification draws new ones;
   - sealed sets (`crucible.research.sealed`): not importable from world code; the salt directory is not readable by
-    sandboxed code;
+    sandboxed code, nor by an evaluated learner (`v5.isolation.evaluated_learner_reaches_no_sealed_material`: the
+    experience package's evaluation path; the open W.2 finding of owner L counts as an extraction while it is open);
 * agent-reported metering: every metering / adoption-trace forgery probe of the 5.0 red team (counter rewrites,
   forged completions, work at import time, self-kill after delivering, background work, capacity, Tier 1 program
   cost, tracer writes, nondeterministic adoption) and a source check that the sandbox's in-process boot module counts
@@ -199,7 +200,8 @@ METERING = ("v5.sandbox.meter_forgery.", "v5.sandbox.work_delivered_through_a_wo
             "v5.innovation.adoption_by_nondeterministic_output")
 ISOLATION = ("v5.isolation.world_code_cannot_import_evaluator_side_code",
              "v5.isolation.remote_participant_cannot_run_code_in_the_world",
-             "v5.isolation.in_process_learner_reads_hidden_grader")
+             "v5.isolation.in_process_learner_reads_hidden_grader",
+             "v5.isolation.evaluated_learner_reaches_no_sealed_material")
 
 
 @pytest.fixture(scope="module")
@@ -237,6 +239,7 @@ def test_SP16c_hidden_answers_metering_and_the_v4_ratchet(red_team):
     static_held = static["result"] == "held"
     remote = red_team["v5.isolation.remote_participant_cannot_run_code_in_the_world"]
     inproc = red_team["v5.isolation.in_process_learner_reads_hidden_grader"]
+    evl = red_team["v5.isolation.evaluated_learner_reaches_no_sealed_material"]
     kinds = {
         "tier1_holdout": {"measured": t1["canaries"] >= 20 and t1["texts"] >= 20 and remote["result"] in ("held", "leak"),
                           "extracted": len(t1["hits"]) + int(remote["result"] != "held") + int(inproc["result"] != "held")},
@@ -247,7 +250,8 @@ def test_SP16c_hidden_answers_metering_and_the_v4_ratchet(red_team):
                                "extracted": len(vs["hits"]) + int(not vs["fresh_inputs_each_verification"])},
         "sealed_sets": {"measured": "crucible.research.sealed" in forbidden,
                         "extracted": int(not static_held) + int(sb["sealed_module"] != "refused")
-                        + int(sb["sealed_dir"] != "refused") + int(sb["import crucible.research.sealed"] != "refused")},
+                        + int(sb["sealed_dir"] != "refused") + int(sb["import crucible.research.sealed"] != "refused")
+                        + int(evl["result"] != "held")},
     }
     meter_rows = {n: r for n, r in red_team.items() if n.startswith(METERING)}
     trusted = sorted(n for n, r in meter_rows.items() if r["result"] != "held")
@@ -262,6 +266,7 @@ def test_SP16c_hidden_answers_metering_and_the_v4_ratchet(red_team):
         "tier1_participant_bytes": t1["bytes"], "tier1_channel_hits": len(t1["hits"]),
         "tier1_in_process_object_graph_leak": inproc["result"] != "held",
         "tier1_remote_pipe_code_injection": remote["result"] != "held",
+        "evaluated_learner_reaches_sealed_material": evl["result"] != "held",
         "verification_input_canaries": vs["canaries"], "verification_fresh_inputs": vs["fresh_inputs_each_verification"],
         "metering_probes": len(meter_rows), "metering_probes_held": len(meter_rows) - len(trusted),
         "sandbox_boot_counts_nothing": boot_ok, "v4_redteam_summary": v4["summary"][:200],
