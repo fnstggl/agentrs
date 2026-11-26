@@ -64,9 +64,11 @@ Single pieces:
 * Throughput targets are in simulated days per CPU-hour of the world process and its children (other tenants' load
   does not move them); wall-clock rates are reported next to them.
 * Storage growth: raw = event rows as the store holds them (one SQL aggregate per simulated day, outside the measured
-  CPU) + array-blob bytes written; resident = store growth after workstream A's retention
-  (`substrate.retention.compact`, LZMA-packed blobs), a final VACUUM and a WAL checkpoint (without it the WAL holds a
-  second copy of the database and the file sizes count it twice).
+  CPU) + array-blob bytes written; resident = growth of the database pages in use ((page_count - freelist_count) x
+  page_size) after workstream A's retention (`substrate.retention.compact`, LZMA-packed blobs) and a WAL checkpoint.
+  No VACUUM: it writes a second copy of the store (into the WAL in WAL mode), so a 30-day standard store of 758 MB
+  needed 1.85 GB of disk and its run was stopped by its disk grant at the very end (2026-11-26); pages in use are an
+  upper bound of what VACUUM would leave (it can also repack partly filled pages).
 * World-generation cost: `World.create` plus the first simulated day's CPU beyond a median day (deployments and
   warm-up the world's first processes do); T5 is checked on the sum.
 * Benchmark runs start with a cold machine cache of their own (`$CRUCIBLE_CACHE` in the run's store directory): a run

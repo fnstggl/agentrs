@@ -14,7 +14,7 @@ blobs are compacted by workstream A's retention after every day (crucible.substr
 | peak VRAM | torch's peak reserved memory when the process initialised CUDA (0.0 measured otherwise) |
 | model parameter counts | counted on the loaded objects: the shared class-2 policies, class-3 policy groups, the shared-space encoders and language model, the semantic service when loaded |
 | inference token counts | tokens the shared space's language model scored, items each encoder computed, recorded inference calls by kind, generated tokens of the semantic service |
-| event storage growth | bytes per simulated day and per individual-day: raw = event rows as the store holds them (read with one SQL aggregate per day, outside the measured CPU) + array-blob bytes written (before compaction); resident = store growth after compaction and VACUUM |
+| event storage growth | bytes per simulated day and per individual-day: raw = event rows as the store holds them (read with one SQL aggregate per day, outside the measured CPU) + array-blob bytes written (before compaction); resident = growth of the database pages in use after compaction and a WAL checkpoint (no VACUUM: it needs a second copy of the store on disk) |
 | snapshot size | bytes and seconds of `World.snapshot_blob()` at the end; a fork from it must have the same state digest |
 | world-generation cost | wall and CPU seconds, events and RSS of `World.create`, plus the first simulated day's CPU beyond a median day (deployments and warm-up the world's first processes do; the T5 check uses the sum) |
 | approximation error | from crucible.scale.approx (the estimated large-population mode against individual simulation) |
@@ -53,10 +53,12 @@ QUANTITIES = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", 
 #: on the GPU when the job is granted one (crucible.semantic.space.lm "selective GPU"); on CPU they dominate a run.
 #: RAM grants are about 1.6-2x the measured peak (2026-11-26: development 2.7 GB over 30 days, standard 3.1 GB and
 #: large 3.9 GB over their first days) so that a run reserves no more of the shared RAM budget than it can use.
-#: Disk grants (store growth) leave room for two large runs at once within the machine's ~11 GB of free disk.
+#: Disk grants (store growth, the run's cold machine cache included): measured 2026-11-26 on 30-day civ runs, standard
+#: 758 MB and large about 120 MB per simulated day (3.6 GB at 30 days), so large is granted 5 GB; with ~10 GB free on
+#: the machine, the governor's free-disk admission lets at most two large runs hold their grants at once.
 #: The internet profile (the 10M capacity run, V.2) measured 16.4 GB summed PSS and 1.4 GB of GPU memory on
 #: 2026-11-26 (596 s); its grant is 1.5x / 1.8x that, below T4's 32 GB ceiling, which is a target, not a grant.
-GRANTS = {"development": (4500, 1500, 3500), "standard": (6000, 1500, 3500), "large": (8000, 4000, 3500),
+GRANTS = {"development": (4500, 1500, 3500), "standard": (6000, 1500, 3500), "large": (8000, 5000, 3500),
           "internet": (25000, 5120, 2500)}
 GPU_S = 4 * 86400                     # GPU-time grant of one run: seconds of held CUDA context (the run's wall time)
 
@@ -317,10 +319,22 @@ def stored_event_bytes(store, world_id: str, seq_from: int, seq_to: int) -> int:
 
 
 def _settle(store) -> None:
-    """VACUUM the store and fold the write-ahead log into the database file: VACUUM in WAL mode writes every page
-    to the log again, so without the final checkpoint the file sizes count the database about twice."""
-    store.compact_file()
+    """Fold the write-ahead log into the database file (checkpoint, WAL truncated). No VACUUM: VACUUM writes a second
+    copy of the database (into the WAL in WAL mode), so measuring a 30-day standard store of 758 MB needed 1.85 GB of
+    disk and the run was stopped by its disk grant at the very end (2026-11-26); `_live_bytes` gives the resident
+    size without it."""
     store._conn().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
+def _live_bytes(store) -> int:
+    """Bytes of the database pages in use after a checkpoint: (page_count - freelist_count) x page_size, i.e. the
+    file without the pages that retention freed (what VACUUM would return to the file system; VACUUM can be smaller
+    still by repacking partly filled pages, so this resident size is an upper bound)."""
+    c = store._conn()
+    pages = int(c.execute("PRAGMA page_count").fetchone()[0])
+    free = int(c.execute("PRAGMA freelist_count").fetchone()[0])
+    size = int(c.execute("PRAGMA page_size").fetchone()[0])
+    return max(0, pages - free) * size
 
 
 def _store_bytes(path: str) -> int:
@@ -353,7 +367,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     ec = EventCounter(count_bytes=False)
     w.listeners.append(ec)
     _settle(store)
-    bytes0 = _store_bytes(db)
+    bytes0 = _live_bytes(store)
     unpacked0 = retention.stats(w)["blob_bytes_unpacked"]
     seq0, tx0 = w.seq, w.stats["commands"] + w.stats["procs"]
     series = []
@@ -385,7 +399,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
             compact_cpu += cpu_s() - cc
             row["compact_s"] = round(time.time() - tc, 3)
             next_compact = w.now + int(compact_every * DAY)
-        row["store_bytes"] = _store_bytes(db)
+        row["store_bytes"] = _store_bytes(db)           # the files on disk (database, WAL, shared memory)
         series.append(row)
         if partial_out:
             done = (w.now - (end - int(days * DAY))) / DAY
@@ -408,10 +422,10 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     w.listeners.remove(ec)
     sim_days = (w.now - (end - int(days * DAY))) / DAY
     tc, cc = time.time(), cpu_s()
-    _settle(store)                             # the resident size: free pages returned, WAL folded in
+    _settle(store)                             # the resident size: WAL folded in, pages freed by retention excluded
     compact_cpu += cpu_s() - cc
     st = retention.stats(w)
-    resident = _store_bytes(db) - bytes0
+    resident = _live_bytes(store) - bytes0
     raw_written = raw_blob + ec.event_bytes
     ind_days = max(1.0, n_ind * sim_days)
     rep.update({

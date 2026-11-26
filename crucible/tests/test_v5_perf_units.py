@@ -181,3 +181,26 @@ def test_batch_sizes_are_read_from_the_recorded_outputs():
     b = bench5.batching(w, ec)
     assert b["class2"]["sizes"] == {"3": 2, "7": 1} and b["class3"]["sizes"] == {"2": 1}
     w.close()
+
+
+def test_resident_store_size_is_measured_without_a_second_copy(tmp_path):
+    """bench5 measures the resident store as the database pages in use after a WAL checkpoint (no VACUUM, which
+    needs a second copy of the store on disk): deleting rows frees pages, which the measure excludes, and it never
+    exceeds the file."""
+    from crucible.storage.sqlite import SQLiteStore
+    db = str(tmp_path / "s.sqlite")
+    st = SQLiteStore(db)
+    c = st._conn()
+    c.execute("CREATE TABLE junk (k INTEGER PRIMARY KEY, v BLOB)")
+    c.executemany("INSERT INTO junk VALUES (?, ?)", [(i, os.urandom(4000)) for i in range(2000)])
+    c.commit()
+    bench5._settle(st)
+    full = bench5._live_bytes(st)
+    assert full >= 2000 * 4000 and full <= os.path.getsize(db)
+    assert not os.path.exists(db + "-wal") or os.path.getsize(db + "-wal") == 0     # checkpoint folded the WAL
+    c.execute("DELETE FROM junk WHERE k >= 500")
+    c.commit()
+    bench5._settle(st)
+    after = bench5._live_bytes(st)
+    assert after < 0.4 * full and os.path.getsize(db) >= full                     # freed pages excluded, file kept
+    st.close()
