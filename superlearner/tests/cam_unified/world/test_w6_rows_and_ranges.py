@@ -201,7 +201,7 @@ def test_filter_sequence_passes_the_semantic_context_to_core_reasoner_and_world_
     m.core.forward, m.reasoner.forward, m.world_model.loss = core_forward, reasoner_forward, loss
     seq = rand_sequence(2, 5, m.cfg)
     sem = object()
-    filt = train_seq.filter_sequence(m, seq, None, sem=sem)
+    filt = train_seq.filter_window(m, seq, None, sem=sem)
     assert seen["core"] == 5 and seen["reasoner"] == 5 and filt.sem is sem
     train_seq.world_loss(m, seq, filt)
     assert seen["loss"] is sem
@@ -209,3 +209,13 @@ def test_filter_sequence_passes_the_semantic_context_to_core_reasoner_and_world_
     seen.update(core=0, reasoner=0)
     train_seq.filter_sequence(m, seq, None)
     assert seen["core"] == 0 and seen["reasoner"] == 0
+    # the seam signature filter_sequence(model, seq, aux) reads the context from the replay aux
+
+    class Aux:
+        option_prev = option_steps_prev = None
+        retrieved = [[] for _ in range(5)]
+        now = [0.0] * 5
+    aux = Aux()
+    aux.sem = sem
+    m.option_policy = None
+    assert train_seq.filter_sequence(m, seq, aux).sem is sem and seen["core"] == 5

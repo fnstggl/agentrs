@@ -95,11 +95,11 @@ def reason_fn_of(model) -> Optional[Callable]:
 
 # ============================================================================ filter
 
-def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None,
-                    burn_in: Optional[int] = None, *, sem=None, sem_rows=None) -> "FilterResult":
-    """`filter_window` (burn-in None = the configured one, `burn_in_for`; the signature
-    `CamUnifiedModel.filter_sequence` delegates to)."""
-    return filter_window(model, seq, aux, burn_in, sem=sem, sem_rows=sem_rows)
+def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None) -> "FilterResult":
+    """`filter_window` with the configured burn-in (`burn_in_for`) and the window's semantic context from
+    ``aux.sem`` / ``seq.sem`` (`window_sem`); the seam signature `CamUnifiedModel.filter_sequence` delegates to
+    (test_seam_structure pins it). `filter_window` takes an explicit burn-in, ``sem`` and ``sem_rows``."""
+    return filter_window(model, seq, aux, None)
 
 
 def _sem_kw(fn, sem, sem_rows) -> dict:
