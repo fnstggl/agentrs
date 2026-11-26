@@ -30,7 +30,14 @@ What is measured where (this checkout):
   counterfactual fork of the pre-change state, and the hidden-parameter probes of a participant and a creator. The
   formulas are those of tests/v5/test_gate_D.py on the helpers it uses (`crucible.social.experiments`,
   `crucible.social.audience`).
-* E, G, H, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
+* G - Gate G's adaptation experiment on a civilisation (`g_arm`, three seeds): the civilisation's population with
+  256 class-2 adaptive individuals in two policy groups of IDENTICAL initial weights (one learns online from its
+  members' own experienced utilities, the other is frozen), the civilisation's web replaced by the experimenter's ten
+  sites of `crucible.population.experiments` (labelled scripted, as in Gate G) so that after phase 1 the two most
+  visited rich sites fail and the two broken ones become rich; measured with the formulas of tests/v5/test_gate_G.py
+  on the same helpers (`crucible.population.analysis`, the adaptive module's policies, `compact_vs_language` for
+  G.7); G.4 from the civilisation's own class-3 strategic groups.
+* E, H, Q - not measured on a civilisation in this checkout (reasons in NOT_MEASURED).
 """
 from __future__ import annotations
 
@@ -47,11 +54,10 @@ CREATION = {"profile": "balanced", "seed": 3, "days": 26, "saas_day": 8}
 ARMS = ("factual", "no_saas", "no_novelty", "garbage")
 AUTONOMOUS = {"profile": "balanced", "seed": 71, "days": 30}
 D_RUN = {"profile": "balanced", "seed": 13, "switch_day": 3}
+G_RUN = {"profile": "balanced", "seeds": [0, 1, 2], "phase_days": 5}
 NOT_MEASURED = {
     "E": "Gate E's encoder battery is world-independent and its E.3 probe is a reading world; no controlled artifact "
          "pairs are planted into a civilisation's platforms",
-    "G": "the civilisation's development population has 32 adaptive and 8 strategic individuals; G.1/G.2 need 256 "
-         "adaptive participants (standard profile) and G.6 a controlled new condition",
     "H": "the development population has 2 semantic participants; H.1-H.3 need 8",
     "Q": "Gate Q (civilisation-wide self-play) has no implementation in this checkout (workstream K)",
 }
@@ -647,6 +653,184 @@ def _d_probes(w) -> dict:
             "markers_searched": len(markers), "probe_actors": 2}
 
 
+# --------------------------------------------------------------------------------------------- G
+def g_arm(seed: int, profile: str = "balanced", phase_days: int = 5, *, compare: bool = False) -> dict:
+    """One seed of Gate G's adaptation experiment in a civilisation (mirrors crucible.population.experiments
+    .adaptation; see the module docstring)."""
+    import numpy as np
+    import torch
+    torch.set_num_threads(1)
+    from ..population import analysis as A, experiments as PX
+    from ..substrate import artifacts, columns
+    from . import generator
+    arms = {"learning": {"id": 0, "share": 0.5, "seed": 5},
+            "frozen": {"id": 1, "share": 0.5, "seed": 5, "learning": False}}
+    names, specs = PX._site_specs(seed)
+    ov = {"module_config": {"pop": {"classes": {"adaptive": 256}, "adaptive_window_s": 14400},
+                            "pop_adaptive": {"groups": list(arms.values()), "min_examples": 32},
+                            "popsites": {"sites": specs}}}
+    t0 = time.time()
+    w = generator.generate(profile, seed, overrides=ov)
+    ad = w.modules["pop_adaptive"]
+    gid = {a: int(c["id"]) for a, c in arms.items()}
+    out = {"seed": seed, "phase_days": phase_days, "arms": arms, "profile": profile,
+           "scripted": "site specifications and the switch at the end of phase 1 (experimenter)"}
+    hashes = lambda: {a: ad.policy(w, g).weights_hash() for a, g in gid.items()}  # noqa: E731
+    out["hash_genesis"] = hashes()
+    cls = columns.col(w, "pop", "class")
+    days, rounds = {}, {}
+    strat: dict[str, list] = {}
+
+    def scan(s_from):
+        for e in w.events_range(s_from):
+            if e.type == "cols.batch" and e.payload["kind"] == "pop.session":
+                idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
+                a2 = idx[cls[idx] == 2]
+                t = int(e.payload["extra"]["t"])
+                days.setdefault(t // DAY, set()).update(a2.tolist())
+                rounds[t] = rounds.get(t, 0) + int(a2.size)
+            elif e.type == "pop.policy_update" and str(e.payload["group"]).startswith("strategic"):
+                strat.setdefault(e.payload["group"], []).append(e.payload["weights_hash"])
+    logs, ups = [], []
+    s = 0
+    for d in range(phase_days):          # day by day: the civilisation's log keeps a bounded window
+        w.advance_time((d + 1) * DAY)
+        scan(s)
+        logs.append(A.visit_log(w, w.events_range(s)))
+        ups += [e.payload for e in w.events_range(s) if e.type == "pop.policy_update"]
+        s = w.seq
+    out["hash_switch"] = hashes()
+    log1 = {k: np.concatenate([lg[k] for lg in logs]) for k in logs[0]}
+    hosts = A.res_hosts(w)
+    row = {h: r for r, h in enumerate(hosts)}
+    vis = {h: int((log1["res"] == row[h]).sum()) if h in row else 0 for h in names}
+    rich = sorted([h for h, b in zip(names, PX.BEHAVIOURS) if b == "rich"], key=lambda h: (-vis[h], h))
+    to_broken, to_rich = rich[:2], [h for h, b in zip(names, PX.BEHAVIOURS) if b == "broken"]
+
+    def switch(ctx):
+        for h in to_broken:
+            PX.redeploy(ctx, h, specs[names.index(h)], "broken")
+        for h in to_rich:
+            PX.redeploy(ctx, h, specs[names.index(h)], "rich")
+    w._run_system("experiment.switch", switch)
+    t_switch = w.now
+    for d in range(phase_days, 2 * phase_days):
+        w.advance_time((d + 1) * DAY)
+        scan(s)
+        logs.append(A.visit_log(w, w.events_range(s)))
+        ups += [e.payload for e in w.events_range(s) if e.type == "pop.policy_update"]
+        s = w.seq
+    out["hash_end"] = hashes()
+    out["switch"] = {"to_broken": to_broken, "to_rich": to_rich}
+    for a, g in gid.items():
+        u_ = [u for u in ups if u["group"] == f"adaptive:{g}"]
+        out.setdefault("updates", {})[a] = max(0, len(u_) - 1)
+        out.setdefault("optimizer_steps", {})[a] = int(sum(int(u.get("optimizer_steps") or 0) for u in u_))
+    log = {k: np.concatenate([lg[k] for lg in logs]) for k in logs[0]}
+    pg = columns.col(w, "pop", "policy_group").astype(int)
+    m2 = (log["cls"] == 2) & (log["activity"] == "web")
+    grp = pg[log["ind"].astype(int)]
+    bad_after = {row[h] for h in to_broken if h in row} | \
+        {row[h] for h, b in zip(names, PX.BEHAVIOURS) if b in ("thin", "spam") and h in row}
+    util = {}
+    for a, g in gid.items():
+        r = {}
+        for ph, sel in (("phase1", log["t"] < t_switch), ("phase2", log["t"] >= t_switch)):
+            m = m2 & (grp == g) & sel
+            r[ph] = {"visits": int(m.sum()), "mean_util": float(log["util"][m].mean()) if m.any() else 0.0}
+            if ph == "phase2":
+                r[ph]["share_failing"] = float(np.isin(log["res"][m], list(bad_after)).mean()) if m.any() else 0.0
+            util[(a, ph)] = log["util"][m].astype(np.float64)
+        out.setdefault("behaviour", {})[a] = r
+    out["phase2_difference"] = PX._boot(util[("learning", "phase2")], util[("frozen", "phase2")])
+    out["phase1_difference"] = PX._boot(util[("learning", "phase1")], util[("frozen", "phase1")], seed=1)
+    st = w.state
+    unused = [k for k, r in st.tables["pop_examples"].items() if r.get("used") is None]
+    heldout = None
+    if unused:
+        batch = ad._load_examples(w, unused)
+        out["heldout_examples"] = int(len(batch["reward"]))
+        out["heldout_mse"] = {a: float(ad.policy(w, g).loss_on(batch)) for a, g in gid.items()}
+        heldout = {"batch": batch, "policies": {a: ad.policy(w, g) for a, g in gid.items()}}
+    mem = columns.col(w, "pop", "memory")[cls == 2].astype(np.float32)
+    out["distinct_personal_states"] = int(np.unique(mem, axis=0).shape[0])
+    out["adaptive_rows"] = int(mem.shape[0])
+    nets = w.runtime.get("pop_adaptive.nets", {})
+    out["policy_objects"] = len(nets)
+    # weight copies per policy group: network objects that serve one group (each group's members share one)
+    out["copies_per_group"] = int(-(-len(nets) // max(1, len(gid)))) if nets else 0
+    out["adaptive_stats"] = {k: (v if isinstance(v, (int, float)) else str(v))
+                             for k, v in dict(w.runtime.get("pop_adaptive.stats", {})).items()}
+    out["max_adaptive_active_same_day"] = max((len(v) for v in days.values()), default=0)
+    ds = sorted(days)
+    out["max_adaptive_active_two_days"] = max((len(days[d] | days.get(d + 1, set())) for d in ds), default=0)
+    out["max_adaptive_per_decision_round"] = max(rounds.values(), default=0)
+    out["strategic_hashes"] = {g: [h[0], h[-1], len(set(h))] for g, h in strat.items()}
+    out["strategic_updates"] = sum(len(h) for h in strat.values())
+    if compare:
+        out["compact_vs_language"] = PX.compact_vs_language({"_heldout": heldout} if heldout else {}, seed=0)
+    out["proc_failed"] = sum(1 for e in w.log if e.type == "proc.failed")
+    out["invariants"] = w.check_invariants()[:5]
+    out["events"] = w.seq
+    out["wall_s"] = round(time.time() - t0, 1)
+    w.close()
+    return json.loads(json.dumps(out, default=str))
+
+
+def g_runs(p: dict | None = None, workers: int = 1) -> list[dict]:
+    p = {**G_RUN, **(p or {})}
+    tmp = tempfile.mkdtemp(prefix="civ-redemo-g-")
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    pending, running, out = list(p["seeds"]), [], {}
+    while pending or running:
+        while pending and len(running) < max(1, workers):
+            sd = pending.pop(0)
+            path = os.path.join(tmp, f"g{sd}.json")
+            pr = subprocess.Popen([sys.executable, "-m", "crucible.civ.redemo", "g", str(sd), p["profile"],
+                                   str(p["phase_days"]), "1" if sd == p["seeds"][0] else "0", path], env=env,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+            running.append((pr, path, sd))
+        pr, path, sd = running.pop(0)
+        _, err = pr.communicate()
+        if pr.returncode != 0:
+            raise RuntimeError(f"G seed {sd} failed: {err.decode(errors='replace')[-2000:]}")
+        with open(path) as fh:
+            out[sd] = json.load(fh)
+    return [out[s_] for s_ in p["seeds"]]
+
+
+def g_metrics(runs: list[dict]) -> dict:
+    """Gate G's metrics (formulas of tests/v5/test_gate_G.py) from the civilisation runs."""
+    import numpy as np
+    r0 = runs[0]
+    out = {"G.1": {"simultaneously_active_adaptive": int(max(r["max_adaptive_active_two_days"] for r in runs)),
+                   "adaptive_rows": int(r0["adaptive_rows"])},
+           "G.2": {"distinct_personal_states": int(min(r["distinct_personal_states"] for r in runs))},
+           "G.3": {"shared_weight_copies": int(r0["copies_per_group"]),
+                   "max_inference_batch": int(float(r0["adaptive_stats"].get("max_batch", 0) or 0)),
+                   "policy_objects": int(r0["policy_objects"]), "policy_groups": 2},
+           "G.4": {"independent_strategic_groups": int(sum(1 for h in r0["strategic_hashes"].values() if h[2] > 1)),
+                   "distinct_group_weight_hashes": int(len({h[1] for h in r0["strategic_hashes"].values()})),
+                   "strategic_policy_updates": int(r0["strategic_updates"])}}
+    if all("heldout_mse" in r for r in runs):
+        out["G.5"] = {"weight_hash_changed": bool(r0["hash_end"]["learning"] != r0["hash_genesis"]["learning"]),
+                      "frozen_hash_unchanged": bool(r0["hash_end"]["frozen"] == r0["hash_genesis"]["frozen"]),
+                      "optimizer_updates": int(sum(x["optimizer_steps"]["learning"] for x in runs)),
+                      "loss_decrease": float(np.mean([x["heldout_mse"]["frozen"] - x["heldout_mse"]["learning"]
+                                                      for x in runs]))}
+    else:
+        out["G.5"] = "a seed kept no held-out examples"
+    lows = [r["phase2_difference"]["ci95"][0] for r in runs]
+    out["G.6"] = {"new_condition_improvement_ci_low": float(min(lows)),
+                  "new_condition_improvement_mean": float(np.mean([r["phase2_difference"]["mean"] for r in runs])),
+                  "phase1_improvement_mean": float(np.mean([r["phase1_difference"]["mean"] for r in runs]))}
+    out["G.n1"] = {"adaptation_effect_ci_low": float(min(lows)), "seeds": len(runs)}
+    rows = [x for x in r0.get("compact_vs_language") or [] if not x.get("error")]
+    out["G.7"] = {"compact_vs_language_comparison_rows": len(rows),
+                  **{f"{x['model']}_spearman": round(float(x["spearman"]), 4) for x in rows}}
+    return out
+
+
 # --------------------------------------------------------------------------------------------- all gates
 def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | None = None) -> dict:
     t = time.time()
@@ -654,7 +838,10 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
     jm, lm = j_metrics(A), l_metrics(A)
     au = autonomous_run(autonomous)
     dm = d_battery()
+    gr = g_runs(workers=workers)
+    gm = g_metrics(gr)
     measured = {"D": {k: v for k, v in dm.items() if k.startswith("D.")},
+                "G": gm,
                 "J": {k: v for k, v in jm.items() if not k.startswith("_")},
                 "L": {k: v for k, v in lm.items() if not k.startswith("_")},
                 "B": {k: v for k, v in au.items() if k.startswith("B.")},
@@ -667,6 +854,9 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
             "creation_runs": {a: {k: A[a][k] for k in ("events", "proc_failed", "invariants", "wall_s")} for a in A},
             "j_rows": jm["_rows"], "l_effects": lm["_effects"], "autonomous_run": au.get("_run"),
             "d_run": dm.get("_run"),
+            "g_runs": [{k: r.get(k) for k in ("seed", "events", "proc_failed", "invariants", "wall_s",
+                                               "phase2_difference", "phase1_difference", "behaviour", "switch")}
+                       for r in gr],
             "wall_s": round(time.time() - t, 1)}
 
 
@@ -674,6 +864,12 @@ def _main(argv) -> int:
     if argv and argv[0] == "arm":
         seed, arm, profile, days, saas_day, path = int(argv[1]), argv[2], argv[3], int(argv[4]), int(argv[5]), argv[6]
         r = creation_arm(seed, arm, profile=profile, days=days, saas_day=saas_day)
+        with open(path, "w") as fh:
+            json.dump(r, fh)
+        return 0
+    if argv and argv[0] == "g":
+        seed, profile, days, compare, path = int(argv[1]), argv[2], int(argv[3]), argv[4] == "1", argv[5]
+        r = g_arm(seed, profile, days, compare=compare)
         with open(path, "w") as fh:
             json.dump(r, fh)
         return 0

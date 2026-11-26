@@ -517,7 +517,8 @@ def vertical_slices() -> dict:
 def redemonstration() -> dict:
     """SP-17.1: crucible.civ.redemo.run_all (world gates measured with their own code on civilisations)."""
     from . import redemo
-    return cached("redemo", {"creation": redemo.CREATION, "autonomous": redemo.AUTONOMOUS, "d": redemo.D_RUN},
+    return cached("redemo", {"creation": redemo.CREATION, "autonomous": redemo.AUTONOMOUS, "d": redemo.D_RUN,
+                             "g": redemo.G_RUN},
                   lambda: redemo.run_all(workers=workers()))
 
 
