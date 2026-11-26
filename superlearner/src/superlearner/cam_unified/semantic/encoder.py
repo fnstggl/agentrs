@@ -141,6 +141,10 @@ class QwenSemantic:
             w = self.input_embeddings().weight[: len(self.tok)].float()
             self.embedding_rms = float(w.pow(2).mean().sqrt())          # per-element RMS of real token rows
             self.embedding_row_norm = float(w.norm(dim=1).mean())
+        # merged-LoRA acting keeps a merged copy of every adapted weight (~1.9 GB at 4B; audit 2026-11-26): it is used
+        # only when cfg.sem_merged_acting is True, or - when the config leaves it unset (None) - for models < 3B params
+        flag = getattr(cfg, "sem_merged_acting", None)
+        self.merged_acting_allowed = bool(flag) if flag is not None else self.n_pretrained < 3e9
         self.conditioning = None                                     # DOM Mechanism A (decoder_xattn.py)
         every = int(getattr(cfg, "dec_xattn_every", 0) or 0)
         if every > 0:
@@ -504,10 +508,11 @@ class QwenSemantic:
     def acting(self, merged: bool = True):
         """Acting-path decoder: the LoRA adapter disabled and each adapted linear layer's weight replaced by its merged
         weight W + scale * B A for the duration (fewer kernels per decode step). The logits equal the LoRA path's up to
-        the rounding of the merged weight (bit-identical while every LoRA delta is zero); callers that report a
+        the rounding of the merged weight (bit-identical while every LoRA delta is zero); off (the plain LoRA path)
+        unless `merged_acting_allowed` (cfg.sem_merged_acting, default: models < 3B parameters); callers that report a
         behaviour log-probability recompute it on the learner path (ActionGenerator.sample rescoring). The frozen base
         weights are restored on exit, so the encoder path and its hidden-state cache are unaffected."""
-        if not merged or self.peft is None:
+        if not merged or self.peft is None or not self.merged_acting_allowed:
             yield
             return
         swaps = self.merged_weights()

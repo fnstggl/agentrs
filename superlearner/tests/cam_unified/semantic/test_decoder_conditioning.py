@@ -152,3 +152,31 @@ def test_cond_requires_attached_conditioning(enc):
     assert enc.conditioning is None
     with pytest.raises(ValueError):
         enc.decoder_hidden(emb, att, pos, cond=(torch.zeros(1, 2, enc.cfg.d_model, device=enc.device), None))
+
+
+
+def test_merged_acting_is_off_unless_allowed(enc):
+    """Merged-LoRA acting (a merged copy of every adapted weight, ~1.9 GB at 4B) runs only when allowed: by
+    cfg.sem_merged_acting, else for models < 3B parameters (Qwen3-0.6B here)."""
+    assert enc.merged_acting_allowed == (enc.n_pretrained < 3e9)
+    lay = next(iter(enc._lora_layers()), None)
+    if lay is None:
+        pytest.skip("encoder without LoRA")
+    m, A, Bw, _ = lay
+    base = m.get_base_layer()
+    saved = Bw.data.clone()
+    allowed = enc.merged_acting_allowed
+    try:
+        with torch.no_grad():
+            Bw.data.normal_(0, 1e-3)                         # a non-zero delta: the merged weight differs from W
+        ptr = base.weight.data_ptr()
+        with enc.acting(True):
+            merged_inside = base.weight.data_ptr() != ptr
+        assert merged_inside == allowed and base.weight.data_ptr() == ptr
+        enc.merged_acting_allowed = False
+        with enc.acting(True):
+            assert base.weight.data_ptr() == ptr                       # the plain LoRA path, nothing merged
+    finally:
+        enc.merged_acting_allowed = allowed
+        with torch.no_grad():
+            Bw.data.copy_(saved)
