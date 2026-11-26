@@ -178,7 +178,26 @@ Every T4 limit is met with margin; 0 violations in the job's seven dimensions. T
 count grows with the cascade's reach (hour 6: 0.59M, hour 7: 3.5M, hour 8: 9.0M, hour 9: 13.1M; 260 CPU-s for the
 last hour). From this run on the internet grant is 25 GB / 2.5 GB GPU (1.5x / 1.8x the measured peaks).
 
-## 8. Pending
+## 8. Civilisation world, standard and large profiles, 30 simulated days (job started 2026-11-26 21:05)
 
-The 30-day standard (3 seeds) and large (1 seed) civ runs and the population-only standard row are queued as one
-governed job; their results replace this paragraph.
+One governed job (2 CPUs, 7 GB GPU, 14 GB RAM) runs governed sub-runs from a scratch snapshot of this branch, cold
+machine cache each: civ standard seeds 0, 1, 2 one after the other, next to civ large seed 0, then the
+population-only standard row. Results so far (from the runs' per-day partial reports):
+
+Standard, seed 0 (10,296 individuals, 30 days complete): **45.5 simulated days per CPU-hour** (T2 >= 15: met), 33.0
+per wall hour, 2,375 CPU-s, peak RAM 3.58 GB, 592,171 sessions, 1,074,730 recorded decisions, 764,050 events.
+The daily cost grows through the run: 55-74 CPU-s per day on days 1-18, 83-117 CPU-s on days 19-30 (day 28: 117 CPU-s,
+31 simulated days per CPU-hour), so the 30-day mean hides a doubling; the growth is the subject of R1 (the shopping
+search index) and R2. Store on disk (no VACUUM) 758 MB after 30 days (about 24 MB per day, 2,454 B per
+individual-day of files; T6 550 B: missed). The run then stopped at its final VACUUM: VACUUM wrote a second copy of
+the 758 MB store and the store directory grew to 1,851 MB against the 1,500 MB disk grant, so its final report
+(class activity, batch histograms, snapshot and fork) was lost. From 294c83c on, bench5 measures the resident store
+as the pages in use after a WAL checkpoint, without VACUUM (seed 0 and 1 and large seed 0 had started on the
+earlier code; seed 2 and the population row use the fix).
+
+Large, seed 0 (101,120 individuals), first days: generation 7.9 CPU-s (1.8 GB); day 1 225 CPU-s (cold cache), days
+2-4 741, 739 and 806 CPU-s: 5.7 simulated days per CPU-hour over 4 days (T3 >= 3.75: met so far, about 4.9 on days
+2-4), peak RAM 3.87 GB, store 120 MB per simulated day (705 MB after 4 days). The shopping search is about 70% of a
+large day (R1).
+
+Still pending in this job: standard seeds 1 and 2, the remaining large days and the population-only standard row.
