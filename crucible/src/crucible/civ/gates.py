@@ -221,6 +221,9 @@ COUPLING_TRACE = {
     "datacenter_siting": ("infrastructure_constrained", lambda w, e: e.type == "links.dc"
                           and bool(e.payload.get("moved_from"))),
 }
+# a condition the experimenter sets at the end of the warm-up, before the fork, in every arm alike: the energy and
+# siting couplings act only on a binding grid, so the datacenter regions' grids are cut to 10% of their capacity
+COUPLING_CONDITIONS = {"infrastructure_constrained": ("datacenter region grids cut to 10% before the fork", 0.1)}
 SCRIPTED_MODULES = ("shocks",)                  # scheduled exogenous narrative (never part of a civilisation)
 COUPLING_RUN = {"seed": 31, "warm_days": 2, "arm_days": 4}
 
@@ -266,6 +269,9 @@ def couplings_battery(seed: int | None = None, warm_days: int | None = None, arm
         for prof, cids in sorted(by_prof.items()):
             w = generator.generate(prof, p["seed"])
             w.advance_time(int(p["warm_days"]) * DAY)
+            if prof in COUPLING_CONDITIONS:
+                from .experiments import cut_datacenter_grids
+                cut_datacenter_grids(COUPLING_CONDITIONS[prof][1])(w)
             t0 = w.now
             for sid, j in w.state.scan("sched"):
                 if j["proc"].startswith("civlinks.") and not j.get("period"):
@@ -304,7 +310,8 @@ def couplings_battery(seed: int | None = None, warm_days: int | None = None, arm
         removable = [c for c in executable if arms_out[c]["removable"]]
         n_scripted = len(scripted["profiles_with_scripted_modules"]) + len(scripted["one_off_coupling_jobs"]) + \
             int(scripted["scripted_events"])
-        return {"params": p, "executable": executable, "pending": pending, "uses": uses, "reusable": reusable,
+        return {"params": p, "conditions": {k: v[0] for k, v in COUPLING_CONDITIONS.items()},
+                "executable": executable, "pending": pending, "uses": uses, "reusable": reusable,
                 "reusable_couplings": len(reusable), "removable": removable,
                 "couplings_removable_fraction": round(len(removable) / max(1, len(executable)), 4),
                 "scripted_consequence_paths": n_scripted, "scripted_detail": scripted, "arms": arms_out,

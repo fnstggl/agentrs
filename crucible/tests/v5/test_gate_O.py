@@ -4,7 +4,8 @@ Every metric is measured on a generated civilisation (crucible.civ.generate) wit
 (event provenance), not on which modules are loaded (crucible.civ.integration, crucible.civ.gates):
 
     O.1   subsystems_in_one_world      Mode C subsystems present AND active AND connected to another subsystem by
-                                       provenance in one run (raw present/active counts are recorded too)
+                                       provenance in one run (raw present/active counts are recorded too, and per
+                                       subsystem whether the population's own decisions carry activity in it)
     O.2   duplicate_shared_facts       data-level scan of the world's tables for the same kind of fact in two places
           identity_consistency_violations  dangling principals/accounts, population principals without a row
     O.3   ledger_invariant_violations  bank invariants plus every balance recomputed from its postings
@@ -44,10 +45,12 @@ def _note(run):
 def test_O_1_all_subsystems_in_one_world(run):
     s = run["subsystems"]
     m = {"subsystems_in_one_world": s["strict"], "subsystems_present": s["present"], "subsystems_active": s["active"],
-         "not_active_or_not_connected": ",".join(s["missing"]) or "none"}
+         "not_active_or_not_connected": ",".join(s["missing"]) or "none",
+         "subsystems_with_population_activity": len(s["with_population_activity"]),
+         "present_without_population_activity": ",".join(s["without_population_activity"]) or "none"}
     evidence.record("O.1", m, command=CMD, notes=_note(run) + "; per subsystem: " + "; ".join(
-        f"{k}: present={v['present']} events={v['events']} cross_edges={v['cross_edges']}"
-        for k, v in s["subsystems"].items()))
+        f"{k}: present={v['present']} events={v['events']} cross_edges={v['cross_edges']} "
+        f"population_events={v['population_events']}" for k, v in s["subsystems"].items()))
     assert s["strict"] >= 17, s["missing"]
 
 

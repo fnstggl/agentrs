@@ -16,9 +16,10 @@ store and checks, as it goes:
 * recorded replay - as soon as a snapshot closes a segment, the segment is replayed from the store's events on top
   of the previous snapshot (genesis for the first) and must give the new snapshot's state digest; the last
   snapshot is taken at the end of the run and must equal the live world (digest and hash). With
-  `prune_verified_blobs`, the bytes of `cols.batch` blobs (and of the array blobs their `extra` cites) of segments
-  that were verified and are older than the last two are then removed from the store (a retention policy for long runs on a small disk; the report states how
-  many bytes were pruned; full replay from genesis is then no longer possible, segment-wise verification was).
+  `prune_verified_blobs`, the events of segments that were verified and are older than the last two, the bytes of
+  their `cols.batch` blobs (and of the array blobs their `extra` cites) and their opening snapshots are then removed
+  from the store (a retention policy for long runs on a small disk; the report states how many bytes were pruned;
+  full replay from genesis is then no longer possible, segment-wise verification was).
 
 Interruption (usage limits stop processes without warning): every snapshot is a checkpoint - after its segment was
 replayed, `<workdir>/progress.json` records the report so far, the accountant's counters and the snapshot list. A
@@ -368,6 +369,11 @@ def _prune(w, store, wid, a, b) -> float:
             con.execute("DELETE FROM blobs WHERE key=?", (key,))
             c.persisted.discard(h)        # identical bytes recorded later are written again
             freed += int(r[0])
+    # the segment's events too: it was replayed against its closing snapshot, and resume starts from a later one
+    r = con.execute("SELECT COALESCE(SUM(LENGTH(payload)), 0), COUNT(*) FROM events WHERE world_id=? AND seq>? "
+                    "AND seq<=?", (wid, int(s0), int(s1))).fetchone()
+    con.execute("DELETE FROM events WHERE world_id=? AND seq>? AND seq<=?", (wid, int(s0), int(s1)))
+    freed += int(r[0])
     return round(freed / 2**20, 2)
 
 

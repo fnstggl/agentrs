@@ -265,3 +265,25 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-45 Civilisations are typed and strict; long runs checkpoint and resume (2026-11-26, workstream J)
+Every world `crucible.civ.generate` builds is a typed world (`params.typed_events`: every registered event type of
+its modules is validated when emitted; the flag is part of the spec, so snapshots, forks, cross-process resume and
+replay stay typed) and, by default, a strict world (a handler exception that is not a CrucibleError is raised to
+the caller). Long runs (`crucible.civ.longrun`) build non-strict worlds and count every `proc.failed` as an
+unexplained violation, so one module's bug is reported with its day instead of ending a 365-day run. The
+civilisation modules' own event types are registered (`crucible.civ.events`). Long runs write a checkpoint at every
+snapshot and resume there in a new process after an interruption (usage limits stop agents without warning); suites
+keep every run in a persistent directory outside the repository keyed by the digest of the whole `crucible` package
+(`longrun.code_key`), and gate caches (`crucible.civ.gates.cached`) use the same digest, so a result is reused only
+by exactly the code that produced it. Rules out: resuming a run on changed code, caching keyed by one package.
+
+## D-46 What counts as a coupling, a re-demonstrated gate and a vertical slice (2026-11-26, workstream J)
+SP-10.2 counts the executable records of `crucible.civ.couplings.CATALOGUE`; a record whose mechanism waits for
+another workstream (`pending`, today `education_skills`) is listed in the evidence and not counted (it is not a
+coupling of any world). Removability is measured, not declared: each coupling is removed at a fork of a world whose
+mechanism exercises it, against a control fork with the same footprint, and must leave no trace of its mechanism.
+SP-17.1 counts a world gate only when every requirement of that gate was measured with the gate's own measurement
+code on worlds built by `crucible.civ.generate` and meets the manifest's current criteria; a requirement without a
+civilisation measurement is `not_measured` and fails its gate. SP-19.3 slices 5 and 6 use
+`crucible.experience.ReferenceLearner` through the public experience interface (Clarification 1).
