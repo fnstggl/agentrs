@@ -200,12 +200,23 @@ def compare(arms: Sequence[str] = ARMS, *, learner: str = "meta", mode: str = "e
             out["arms"][arm] = {"executed": False, "why": str(e)}
             continue
         mats[arm] = np.array(rows)
+        from .episodes import SCORE_RANGE
+        M = mats[arm]
         out["arms"][arm] = {"executed": True, "training": tr, "mean_score": float(np.mean(rows)),
-                            "ticks": [t["ticks"] for t in tr], "cpu_s": [t["cpu_s"] for t in tr]}
+                            "ticks": [t["ticks"] for t in tr], "cpu_s": [t["cpu_s"] for t in tr],
+                            # scores clipped at the floor carry no information about training: reported, so a
+                            # comparison whose learner sits at the floor is not read as "no effect of diversity"
+                            "floor_share": float(np.mean(M <= SCORE_RANGE[0] + 1e-12)),
+                            "ceiling_share": float(np.mean(M >= SCORE_RANGE[1] - 1e-12))}
     done = sorted(mats)
     for i, a in enumerate(done):
         for b in done[i + 1:]:
             out["differences"][f"{b}-{a}"] = HS.crossed_diff(mats[a], mats[b], paired_seeds=True)
+    if done:
+        stacked = np.stack([mats[a] for a in done])
+        out["floor_share"] = float(np.mean(stacked <= -1.0 + 1e-12))
+        out["arms_identical"] = bool(all(np.array_equal(stacked[0], x) for x in stacked[1:]))
+        out["informative"] = bool(not out["arms_identical"] and out["floor_share"] < 0.5)
     return out
 
 

@@ -5,7 +5,10 @@ seven listed controls (MASTER_SPEC Part 15.5; workstream N).
 which acts in every tier - the lever learners act only in Tier 1) with three learner seeds on each arm under a
 matched experience budget and a matched compute budget, and scores every arm on the same held-out worlds; an arm
 whose tiers do not exist in this checkout is reported as not executed (never replaced). `comparison.run_controls`
-runs the seven control kinds on the same worlds. Nothing assumes that D beats A.
+runs the seven control kinds on the same worlds. Nothing assumes that D beats A. The share of evaluation scores at
+the floor of the score range and whether all arms scored identically are recorded: a learner at the floor makes
+the comparison uninformative (development run 2026-11-26: every arm identical, the neutral learner at -1.0 on most
+evaluation worlds), which is reported, not read as "diversity has no effect".
 """
 from __future__ import annotations
 
@@ -25,7 +28,10 @@ def test_SP15_5_abcd_comparison_and_controls():
     kinds = [k for k, v in ctl["kinds"].items() if v["executed"]]
     record("SP-15.5", {"comparison_arms": len(arms), "arms_defined": len(CMP.ARMS), "control_kinds": len(kinds),
                        "budget_modes": 2, "arm_A_mean": float(exp["arms"]["A"].get("mean_score", 0.0)),
-                       "arm_B_mean": float(exp["arms"]["B"].get("mean_score", 0.0))},
+                       "arm_B_mean": float(exp["arms"]["B"].get("mean_score", 0.0)),
+                       "neutral_scores_at_floor_share": exp.get("floor_share"),
+                       "arms_identical": exp.get("arms_identical"),
+                       "comparison_informative": exp.get("informative")},
            notes=f"Arms executed: {arms}; not executed: "
                  f"{({a: exp['arms'][a].get('why') for a in CMP.ARMS if not exp['arms'][a]['executed']})}; "
                  f"differences (experience) {exp['differences']}; controls {ctl['kinds']}")
