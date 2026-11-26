@@ -31,10 +31,13 @@ def _inputs(ctx, idx, now):
 
 def _declare(world, cols, owner):
     """The decision columns the harness reads, declared on the population table by the fixture (the population
-    declares its own when it wires the models); the population's tick may write them."""
+    declares its own when it wires the models); the population's tick may write them, and so may the fixture where
+    the population already owns one of them (c5c/w3b-pop declares `active` and `sessions` itself: without the grant
+    every population tick of the fixture world failed on the merged tree, 'may not write column pop.active')."""
     from crucible.substrate import columns
     columns.declare(world, "pop", columns.rows(world, "pop"), cols)
     columns.grant(world, "pop", list(cols), "pop")
+    columns.grant(world, "pop", list(cols), owner)
 
 
 @register_module
@@ -135,10 +138,18 @@ def test_wired_world_decisions_count_and_agree_with_check_provenance(wired):
     # the population's own provenance check sees the same organic rows (Audit raises when they diverge)
     cp = P.check_provenance(w, events=w.events_range(0), prefixes=("calibwired.",))
     assert cp["organic_population_rows"] > 0 and cp["forced_rows"] == 0
-    # the population's own session and activation decisions carry no provenance yet: counted, by kind
-    assert m["decision_events_without_model_provenance"] > 0
-    assert {"pop.session", "pop.activation"} & set(m["_without_by_kind"])
+    # every population-table decision batch without provenance is counted, by kind - recounted here from the log
+    # (on a tree where the population records its own session/activation decisions without provenance they are
+    # counted; c5c/w3b-pop records them with provenance, and the count is then 0); bookkeeping kinds never count
+    from collections import Counter
+    raw = Counter(e.payload["kind"] for e in w.log if e.type == "cols.batch" and e.payload["table"] == "pop"
+                  and IW.non_decision_reason(e.payload["kind"]) is None
+                  and not isinstance((e.payload.get("extra") or {}).get("decision"), dict))
+    assert m["decision_events_without_model_provenance"] == sum(raw.values())
+    assert m["_without_by_kind"] == dict(raw)
     assert not any(k.startswith(("attention.", "pop.init")) for k in m["_without_by_kind"])
+    # the recount is not vacuous: the population ran sessions (recorded as pop.session batches) in this world
+    assert any(e.type == "cols.batch" and e.payload["kind"] == "pop.session" for e in w.log)
 
 
 def test_wired_world_gives_four_reports_and_the_ad_holdout_matches(wired):
