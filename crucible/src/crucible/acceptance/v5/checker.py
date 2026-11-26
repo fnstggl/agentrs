@@ -23,12 +23,23 @@ Per requirement, independently of the manifest's `status` string:
 7. an independent review is committed, bound to this requirement text, criteria version, evidence hash and commit;
    its reviewer is a different agent and session; it carries its own reproduction (committed run record, complete
    passing JUnit, reproduced record) whose metrics the checker compares with the evidence within tolerance;
-8. every dependency is VERIFIED (greatest fixed point; X depends on everything except X, SP-18 and SP-20).
+8. every dependency is VERIFIED (greatest fixed point; X depends on everything except X, SP-18 and SP-20);
+9. nothing but the committed code was measured: the record's interpreter ran without user site-packages and with no
+   start-up hook outside the reference list (docs/v5/baselines/python_site_hooks.json), imported no module from
+   outside the clone and the interpreter, held no function patched from such a file and no injection variable; no
+   sitecustomize / usercustomize / .pth file was in the tree at the commit; the conftest files on the tests' paths
+   cannot rewrite outcomes or patch the code (`testscan.harness_findings`); and no conftest, pytest configuration,
+   file the process read (`files_read`) or declared dataset changed since (staleness beyond imports);
+10. the review ablated the implementation: with every function of the listed implementation modules raising, the
+   producing test did not record the same metrics (a measurement that survives ablation measures nothing).
 
-`verify_all(reproduce=True)` additionally re-executes every VERIFIED requirement's tests in a fresh clone itself.
-Project status: CRUCIBLE_5_COMPLETE only if there is no project-level problem and every requirement is VERIFIED;
-INCOMPLETE_BLOCKED if there is no project-level problem and every unverified requirement is BLOCKED by an open blocker
-of BLOCKERS.md; otherwise IN_PROGRESS.
+`verify_all(reproduce=True)` is the release check: it re-executes every VERIFIED requirement's tests in a fresh clone
+of HEAD - the tree being released, not the evidence commit, so no change since the evidence can escape it - and
+ablates it again there. Project status: CRUCIBLE_5_COMPLETE only if the release check ran, there is no project-level
+problem and every requirement is VERIFIED; INCOMPLETE_BLOCKED if the release check ran, there is no project-level
+problem and every unverified requirement is BLOCKED by an open blocker of BLOCKERS.md whose text names it; otherwise
+IN_PROGRESS. Static checks alone never produce a terminal status: a forger with write access can make every file
+consistent, and only re-execution exposes that.
 """
 from __future__ import annotations
 
@@ -41,13 +52,22 @@ import xml.etree.ElementTree as ET
 
 from . import manifest as M
 from . import testscan
-from .evidence import (REVIEW_SCHEMA, RUN_SCHEMA, SCHEMA, canonical, evidence_relpath, git_blob_id, sha256_file,
-                       sha256_text)
+from .evidence import (ALLOWED_PY_ENV, REVIEW_SCHEMA, RUN_SCHEMA, SCHEMA, STARTUP_HOOK_NAMES, canonical,
+                       dataset_checksums, evidence_relpath, git_blob_id, sha256_file, sha256_text)
 
 OPS = {">=": lambda a, b: a >= b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, "<": lambda a, b: a < b,
        "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
 PROJECT_STATUSES = ("IN_PROGRESS", "INCOMPLETE_BLOCKED", "CRUCIBLE_5_COMPLETE")
 X_EXCLUDED = ("SP-18", "SP-20")
+SITE_HOOKS_BASELINE = "docs/v5/baselines/python_site_hooks.json"
+HARNESS_CONFIG = ("pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini", "conftest.py")
+# acceptance bookkeeping rewritten by the machinery itself after every run: never a reason for staleness through
+# files_read (a requirement that measures them lists them as implementation files)
+BOOKKEEPING = ("docs/v5/ACCEPTANCE_MANIFEST.json", "docs/v5/ACCEPTANCE_LEDGER.jsonl", "docs/v5/evidence/",
+               "docs/v5/reviews/", "docs/v5/PROGRESS.json")
+CODE_SUFFIXES = (".py", ".pth", ".so", ".pyc", ".pyd")
+RELEASE_NOTE = ("the project status is decided only by the release check (--verify-all --reproduce re-executes and "
+                "ablates every VERIFIED requirement at HEAD); static checks cannot exclude a consistent forgery")
 
 
 def _git_ok(*args: str, cwd: str) -> bool:
@@ -136,8 +156,11 @@ class Ctx:
                 self.dirty.add(os.path.relpath(os.path.join(top, p), os.path.realpath(root)))
         self.sections = M.L.decision_sections(M.docs_dir(root))
         self.open_blockers = open_blockers(root)
+        self.hidden = hidden_changes(root)
+        self.site_hooks = _load(os.path.join(root, SITE_HOOKS_BASELINE)) or {}
         self._anc: dict = {}
         self._tree: dict = {}
+        self._harness: dict = {}
 
     def committed(self, rel: str) -> bool:
         return rel in self.tracked and rel not in self.dirty
@@ -157,6 +180,13 @@ class Ctx:
                 out[name] = meta.split()[2]
         return out
 
+    def tree_files(self, commit: str) -> list[str]:
+        if commit not in self._tree:
+            self._tree[commit] = _git("ls-tree", "-r", "--name-only", "--full-tree", commit, cwd=self.root).splitlines()
+            prefix = _git("rev-parse", "--show-prefix", cwd=self.root)
+            self._tree[commit] = [p[len(prefix):] for p in self._tree[commit] if p.startswith(prefix)]
+        return self._tree[commit]
+
     def changed_since(self, commit: str, paths: list[str]) -> list[str]:
         out = []
         for i in range(0, len(paths), 200):
@@ -165,13 +195,57 @@ class Ctx:
         return out
 
 
-def open_blockers(root: str) -> set[str]:
+def open_blockers(root: str) -> dict[str, str]:
+    """BLK-<n> -> the text of its section under "## Open blockers" of BLOCKERS.md."""
     try:
         text = open(os.path.join(M.docs_dir(root), "BLOCKERS.md"), encoding="utf-8").read()
     except OSError:
-        return set()
+        return {}
     m = re.search(r"^## Open blockers\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
-    return set(re.findall(r"^###\s+(BLK-\d+)\b", m.group(1), re.M)) if m else set()
+    if not m:
+        return {}
+    out = {}
+    for part in re.split(r"^(?=###\s+BLK-\d+\b)", m.group(1), flags=re.M):
+        h = re.match(r"###\s+(BLK-\d+)\b", part)
+        if h:
+            out[h.group(1)] = out.get(h.group(1), "") + part
+    return out
+
+
+def is_startup_hook(path: str) -> bool:
+    b = os.path.basename(path)
+    return b.endswith(".pth") or b in {f"{n}.py" for n in STARTUP_HOOK_NAMES}
+
+
+def hidden_changes(root: str) -> list[str]:
+    """What `git status` does not show but can change what runs: index flags that hide edits of tracked files,
+    ignored code files in src/ and tests/, and start-up hooks anywhere in the tree (tracked or ignored)."""
+    probs = []
+    flagged = []
+    for line in _git("ls-files", "-v", cwd=root).splitlines():
+        if len(line) > 2 and (line[0].islower() or line[0] == "S"):
+            flagged.append(line[2:])
+    if flagged:
+        probs.append(f"{len(flagged)} tracked files carry assume-unchanged/skip-worktree flags that hide working-tree "
+                     f"changes from git status: {flagged[:3]}")
+    ignored = []
+    for line in subprocess.run(["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "."], cwd=root,
+                               capture_output=True, text=True).stdout.splitlines():
+        if not line.startswith("!! "):
+            continue
+        top = os.path.realpath(_git("rev-parse", "--show-toplevel", cwd=root))
+        rel = os.path.relpath(os.path.join(top, line[3:].strip().strip('"')), os.path.realpath(root))
+        parts = rel.split(os.sep)
+        code = rel.endswith(CODE_SUFFIXES) and parts[0] in ("src", "tests") and "__pycache__" not in parts
+        if is_startup_hook(rel) or code:
+            ignored.append(rel)
+    if ignored:
+        probs.append(f"{len(ignored)} ignored code files or startup hooks in the tree (git status does not show them, "
+                     f"but they run): {ignored[:3]}")
+    hooks = [f for f in _git("ls-files", cwd=root).splitlines() if is_startup_hook(f)]
+    if hooks:
+        probs.append(f"interpreter startup hooks committed in the tree (sitecustomize/usercustomize/.pth): {hooks[:3]}")
+    return probs
 
 
 def _load(path: str):
@@ -301,6 +375,80 @@ def integrity_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
     return probs
 
 
+def env_problems(ctx: Ctx, rec: dict) -> list[str]:
+    """Was anything but the committed code measured? (interpreter, start-up hooks, foreign code, patches, injection
+    variables of the recording process)"""
+    probs = []
+    if rec.get("schema") != SCHEMA:
+        return [f"record schema {rec.get('schema')!r} predates the environment checks ({SCHEMA})"]
+    interp = rec.get("interpreter") or {}
+    if not (interp.get("flags") or {}).get("no_user_site"):
+        probs.append("the measured process ran with user site-packages enabled (not started by the official runner)")
+    allowed = {(k, v) for k, v in (ctx.site_hooks.get("pth") or {}).items()}
+    hooks = rec.get("site_hooks") or {}
+    unknown = [p for p, h in sorted((hooks.get("pth") or {}).items()) if (os.path.basename(p), h) not in allowed]
+    if unknown:
+        probs.append(f"unrecognised interpreter startup hooks (.pth files not in {SITE_HOOKS_BASELINE}): {unknown[:3]}")
+    loaded = [f"{k}={v}" for k, v in sorted((hooks.get("customize") or {}).items()) if v]
+    if loaded:
+        probs.append(f"an interpreter startup hook module was loaded: {loaded[:2]}")
+    if rec.get("foreign_modules"):
+        probs.append(f"foreign code: modules imported from outside the clone and the interpreter: "
+                     f"{rec['foreign_modules'][:3]}")
+    if rec.get("patched_functions"):
+        probs.append(f"functions patched with code from outside the tree and the interpreter: "
+                     f"{rec['patched_functions'][:3]}")
+    inj = sorted(k for k in (rec.get("python_env") or {}) if k not in ALLOWED_PY_ENV)
+    if inj:
+        probs.append(f"code-injection variables in the measured process: {inj[:5]}")
+    return probs
+
+
+def harness_paths(e: dict) -> list[str]:
+    """conftest.py and __init__.py files on the paths of the requirement's tests, and the pytest configuration files
+    of the root: they run or configure the tests without being test files."""
+    out = set(HARNESS_CONFIG)
+    for t in e["tests"]:
+        d = os.path.dirname(t)
+        while d:
+            out.add(os.path.join(d, "conftest.py"))
+            out.add(os.path.join(d, "__init__.py"))
+            d = os.path.dirname(d)
+    return sorted(out)
+
+
+def harness_problems(ctx: Ctx, e: dict, commit: str) -> list[str]:
+    key = (commit, tuple(e["tests"]))
+    if key in ctx._harness:
+        return ctx._harness[key]
+    probs = []
+    for f in harness_paths(e):
+        if not f.endswith(".py"):
+            text = _show(ctx.root, commit, f)
+            if text and re.search(r"addopts[^\n]*(?<!\S)-p\s*(?!no:)\S", text):
+                probs.append(f"{f} loads pytest plugins through addopts at the evidence commit")
+            continue
+        src = _show(ctx.root, commit, f)
+        if src is None:
+            continue
+        try:
+            found = testscan.harness_findings(src)
+        except SyntaxError:
+            found = ["syntax error"]
+        if found:
+            probs.append(f"conftest/harness file {f} at the evidence commit can change outcomes or the measured code: "
+                         f"{', '.join(found)}")
+    hooks = [f for f in ctx.tree_files(commit) if is_startup_hook(f)]
+    if hooks:
+        probs.append(f"interpreter startup hooks in the tree at the evidence commit: {hooks[:3]}")
+    ctx._harness[key] = probs
+    return probs
+
+
+def _bookkeeping(rel: str) -> bool:
+    return any(rel == b or (b.endswith("/") and rel.startswith(b)) for b in BOOKKEEPING)
+
+
 def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
     probs = []
     mods = rec.get("modules") or {}
@@ -315,16 +463,73 @@ def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
     impl_py = [f for f in e["implementation_files"] if f.endswith(".py")]
     if impl_py and not any(f in mods for f in impl_py):
         probs.append("the producing process imported none of the listed implementation modules")
-    files = sorted(set(mods) | {f for f in e["implementation_files"] + e["tests"]
-                                if os.path.exists(os.path.join(ctx.root, f))})
+    tree = set(ctx.tree_files(commit))
+    reads = {p: b for p, b in (rec.get("files_read") or {}).items() if p in tree and p not in mods}
+    rblobs = ctx.blobs(commit, sorted(p for p, b in reads.items() if b))
+    wrong_r = [p for p, b in reads.items() if b and rblobs.get(p) != b]
+    if wrong_r:
+        probs.append(f"files the process read do not match the commit's files: {wrong_r[:3]}")
+    files = sorted(set(mods) | {p for p in reads if not _bookkeeping(p)} | set(harness_paths(e)) |
+                   {f for f in e["implementation_files"] + e["tests"] if os.path.exists(os.path.join(ctx.root, f))})
     changed = ctx.changed_since(commit, files)
     if changed:
-        probs.append(f"stale evidence: {len(changed)} imported/listed files changed after the evidence commit "
-                     f"({changed[:3]})")
+        probs.append(f"stale evidence: {len(changed)} imported/read/listed/harness files changed after the evidence "
+                     f"commit ({changed[:3]})")
+    for name, d in sorted((rec.get("datasets") or {}).items()):
+        if d.get("missing"):
+            probs.append(f"dataset {name} was missing when the evidence was recorded")
+            continue
+        now = dataset_checksums({name: d["path"]}).get(name) or {}
+        if now.get("missing"):
+            probs.append(f"dataset {name} ({d['path']}) is not available to verify the evidence")
+        elif now.get("sha256") != d.get("sha256"):
+            probs.append(f"stale evidence: dataset {name} ({d['path']}) changed since the evidence was recorded")
     return probs
 
 
 # ------------------------------------------------------------------------------------------------- review
+def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> list[str]:
+    """The review's ablation run: every listed implementation module ablated at the evidence commit, the producing
+    test run alone, and its measurement did not survive."""
+    from .official import ablatable, ablation_sensitive
+    files = ablatable(ctx.root, e, commit)
+    if not files:
+        return []
+    ab = rv.get("ablation") or {}
+    if not ab.get("applicable"):
+        return ["the review did not ablate the implementation modules"]
+    probs = []
+    run_rel = ab.get("run_path") or ""
+    run = _load(os.path.join(ctx.root, run_rel)) if run_rel else None
+    if run is None:
+        return ["ablation: the review carries no ablation run record"]
+    if not ctx.committed(run_rel):
+        probs.append("ablation: the ablation run record is not committed")
+    abl = run.get("ablation") or {}
+    if run.get("schema") != RUN_SCHEMA or run.get("kind") != "ablation" or run.get("commit") != commit:
+        probs.append("ablation: the run record is not an ablation of the evidence commit")
+    if sorted(abl.get("functions_ablated") or {}) != files:
+        probs.append(f"ablation: the ablated files {sorted(abl.get('functions_ablated') or {})} are not the "
+                     f"implementation modules {files}")
+    if run.get("nodes") != [ev.get("produced_by")]:
+        probs.append("ablation: the ablation did not run the producing test")
+    if (run.get("identity") or {}).get("agent") != (rv.get("reviewer") or {}).get("agent"):
+        probs.append("ablation: not run by the reviewer")
+    rec_rel = ab.get("record_path")
+    got = None
+    if (run.get("evidence") or {}).get(e["id"]):
+        got = _load(os.path.join(ctx.root, rec_rel)) if rec_rel else None
+        if got is None or sha256_file(os.path.join(ctx.root, rec_rel)) != run["evidence"][e["id"]]:
+            probs.append("ablation: the ablated run's record is missing or changed")
+            got = got or {}
+        elif not ctx.committed(rec_rel):
+            probs.append("ablation: the ablated run's record is not committed")
+    if not ablation_sensitive(ev.get("metrics") or {}, got, e.get("tolerance")):
+        probs.append("ablation: the producing test records the same metrics when every function of the implementation "
+                     "modules raises - the measurement does not depend on the implementation")
+    return probs
+
+
 def review_problems(ctx: Ctx, e: dict, ev: dict, ev_rel: str) -> list[str]:
     from .official import compare_metrics
     rv_rel = f"docs/v5/reviews/{e['id']}.json"
@@ -353,8 +558,11 @@ def review_problems(ctx: Ctx, e: dict, ev: dict, ev_rel: str) -> list[str]:
         probs.append("review names no reviewer")
     elif who.get("agent") == (prod.get("agent") or ev.get("author")):
         probs.append("the reviewer is the evidence's producer (same agent name)")
-    if who.get("session_sha256") and who.get("session_sha256") == prod.get("session_sha256"):
+    if not who.get("session_sha256") or not prod.get("session_sha256"):
+        probs.append("the review or the evidence carries no session identity: independence cannot be established")
+    elif who.get("session_sha256") == prod.get("session_sha256"):
         probs.append("the reviewer is the evidence's producer (same session)")
+    probs += ablation_problems(ctx, e, ev, rv, commit)
     rp = rv.get("reproduction") or {}
     rep_rel = rp.get("evidence_path")
     rep = _load(os.path.join(ctx.root, rep_rel)) if rep_rel else None
@@ -370,6 +578,7 @@ def review_problems(ctx: Ctx, e: dict, ev: dict, ev_rel: str) -> list[str]:
         probs.append("the reproduction is the evidence's own run")
     rprobs, rrun = run_problems(ctx, e, rep, (rep.get("run") or {}).get("path"), "reproduction", commit, rep_rel)
     probs += [f"reproduction: {p}" for p in rprobs]
+    probs += [f"reproduction: {p}" for p in env_problems(ctx, rep)]
     probs += [f"reproduction: {p}" for p in junit_problems(ctx, e, rep, rrun, commit)]
     if rrun is not None and (rrun.get("identity") or {}).get("agent") != who.get("agent"):
         probs.append("the reproduction was not run by the reviewer")
@@ -396,11 +605,14 @@ def check_requirement(e: dict, ctx: Ctx) -> dict:
         problems.append(f"unknown status {e['status']!r}")
     blocked = False
     if e["status"] == "BLOCKED":
-        if e.get("blocker") in ctx.open_blockers:
+        text = ctx.open_blockers.get(e.get("blocker") or "")
+        if text is None:
+            problems.append(f"BLOCKED without an open blocker in BLOCKERS.md ({e.get('blocker')!r})")
+        elif not M.L.mentions(text, e["id"]):
+            problems.append(f"BLOCKED by {e['blocker']}, whose text in BLOCKERS.md does not name {e['id']}")
+        else:
             blocked = True
             problems.append(f"blocked: {e['blocker']}")
-        else:
-            problems.append(f"BLOCKED without an open blocker in BLOCKERS.md ({e.get('blocker')!r})")
     impl = e["implementation_files"]
     if not impl:
         problems.append("no implementation files listed")
@@ -460,6 +672,8 @@ def check_requirement(e: dict, ctx: Ctx) -> dict:
         problems += junit_problems(ctx, e, ev, run, commit)
         problems += integrity_problems(ctx, e, ev, commit)
         problems += module_problems(ctx, e, ev, commit)
+        problems += env_problems(ctx, ev)
+        problems += harness_problems(ctx, e, commit)
     for a in ev.get("artifacts", []):
         p = a.get("external") or os.path.join(root, a["path"])
         if not os.path.exists(p):
@@ -508,6 +722,7 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
     if ctx.dirty:
         global_problems.append(f"the working tree has uncommitted changes ({sorted(ctx.dirty)[:3]}): only a "
                                "committed tree can be verified")
+    global_problems += ctx.hidden
     entries = [e for e in m.get("requirements", []) if isinstance(e, dict) and "id" in e]
     rows = [check_requirement(e, ctx) for e in entries]
     by_id = {r["id"]: r for r in rows}
@@ -549,20 +764,26 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
                     changed = True
                     break
     if reproduce:
-        from .official import reproduce as _repro, require_agent
+        from .official import ablate as _ablate, reproduce as _repro, require_agent
         who = require_agent(agent or "acceptance-checker")
         for r in rows:
             if r["status"] != "VERIFIED":
                 continue
             e = entry_by[r["id"]]
             ev = _load(os.path.join(root, r["evidence"]))
-            rp = _repro(root, e, ev, agent=who, scratch=scratch, install=False)
-            r["reproduction"] = {"run_id": rp["run_id"], "pytest_rc": rp["pytest_rc"], "mismatches": rp["mismatches"],
-                                 "criteria_failures": rp["criteria_failures"]}
+            rp = _repro(root, e, ev, agent=who, scratch=scratch, install=False, commit=head)
+            ab = _ablate(root, e, ev, agent=who, scratch=scratch, install=False, commit=head)
+            r["reproduction"] = {"run_id": rp["run_id"], "commit": rp["commit"], "pytest_rc": rp["pytest_rc"],
+                                 "mismatches": rp["mismatches"], "criteria_failures": rp["criteria_failures"],
+                                 "ablation": {k: ab.get(k) for k in ("applicable", "run_id", "pytest_rc",
+                                                                     "record_produced", "sensitive")}}
             if rp["pytest_rc"] != 0 or rp["mismatches"] or rp["criteria_failures"]:
                 r["status"] = "FAILED"
-                r["problems"].append(f"clean-checkout reproduction failed: {(rp['mismatches'] + rp['criteria_failures'])[:3]}"
-                                     f" (pytest exit {rp['pytest_rc']})")
+                r["problems"].append(f"clean-checkout reproduction at HEAD failed: "
+                                     f"{(rp['mismatches'] + rp['criteria_failures'])[:3]} (pytest exit {rp['pytest_rc']})")
+            if ab.get("sensitive") is False:
+                r["status"] = "FAILED"
+                r["problems"].append("release ablation at HEAD: the measurement survives the ablated implementation")
     claimed = {e["id"]: e.get("status") for e in entries}
     for r in rows:
         if claimed.get(r["id"]) == "VERIFIED" and r["status"] != "VERIFIED":
@@ -576,6 +797,9 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
     elif not global_problems and rows and all(r["status"] == "BLOCKED" for r in unverified):
         status = "INCOMPLETE_BLOCKED"
     else:
+        status = "IN_PROGRESS"
+    if status != "IN_PROGRESS" and not reproduce:
+        global_problems.append(RELEASE_NOTE)
         status = "IN_PROGRESS"
     return {"ok": status == "CRUCIBLE_5_COMPLETE", "head": head, "requirements": len(rows), "counts": counts,
             "rows": rows, "project_status": status, "global_problems": global_problems, "reproduced": reproduce}

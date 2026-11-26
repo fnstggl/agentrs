@@ -33,11 +33,12 @@ ROOT = M.crucible_root()
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-21 --agent <name>"
 
 
-def _cli(root: str) -> int:
-    env = dict(os.environ, PYTHONPATH=os.path.join(root, "src"))
+def _cli(root: str, *extra: str) -> int:
+    env = dict(os.environ, PYTHONPATH=os.path.join(root, "src"), CRUCIBLE_V5_SESSION="s-release-cli",
+               CRUCIBLE_V5_SCRATCH=os.path.join(root, "..", "..", "scratch"))
     env.pop("CRUCIBLE_V5_RUN_ID", None)
     env.pop("CRUCIBLE_V5_EVIDENCE_OUT", None)
-    return subprocess.run([sys.executable, "-m", "crucible.acceptance.v5", "--verify-all", "--out",
+    return subprocess.run([sys.executable, "-m", "crucible.acceptance.v5", "--verify-all", *extra, "--out",
                            os.path.join(root, "..", "..", "report.json")], cwd=root, env=env,
                           capture_output=True, text=True).returncode
 
@@ -66,8 +67,8 @@ def test_SP_21_checker_rejects_fabrications_and_exits_nonzero(tmp_path):
     for k in ("CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT"):
         env.pop(k, None)
     subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=",
-                    f"--junitxml={junit}", "tests/test_v5_acceptance_checker.py", "-k", "test_P"],
-                   cwd=ROOT, env=env, capture_output=True, text=True)
+                    f"--junitxml={junit}", "tests/test_v5_acceptance_checker.py", "tests/test_v5_acceptance_probes.py",
+                    "-k", "test_P"], cwd=ROOT, env=env, capture_output=True, text=True)
     cases = [(tc.get("name"), tc.find("failure") is None and tc.find("error") is None and tc.find("skipped") is None)
              for tc in ET.parse(junit).getroot().iter("testcase")]
     probes_run = len(cases)
@@ -79,27 +80,32 @@ def test_SP_21_checker_rejects_fabrications_and_exits_nonzero(tmp_path):
         r = Repo(str(tmp_path / "statuses"), e, items=items)
         os.makedirs(r.scratch, exist_ok=True)
         r.honest()
-        statuses = {r.verify()[0]["project_status"]}
-        rc_unverified = _cli(r.root)
+        e.setenv("CRUCIBLE_V5_SESSION", "s-release")
+        release = dict(reproduce=True, agent="release-check", scratch=r.scratch)
+        statuses = {r.verify(**release)[0]["project_status"]}
+        rc_unverified = _cli(r.root, "--reproduce")
         m = r.manifest()
         next(x for x in m["requirements"] if x["id"] == "Z.2").update(status="BLOCKED", blocker="BLK-1")
         r.save_manifest(m)
         r.commit("blocked")
-        statuses.add(r.verify()[0]["project_status"])
+        statuses.add(r.verify(**release)[0]["project_status"])
         one = Repo(str(tmp_path / "complete"), e)
         one.honest()
-        statuses.add(one.verify()[0]["project_status"])
-        rc_verified = _cli(one.root)
+        e.setenv("CRUCIBLE_V5_SESSION", "s-release")
+        statuses.add(one.verify(reproduce=True, agent="release-check", scratch=one.scratch)[0]["project_status"])
+        rc_static = _cli(one.root)                    # static checks alone never complete
+        rc_verified = _cli(one.root, "--reproduce")
     finally:
         e.restore()
     cons = M.consistency(ROOT)
     anchored = not cons["per_id"] and all("uncommitted" in p for p in cons["global"])
     metrics = {"fabrication_probes_run": probes_run, "fabrication_probes_reaching_verified": len(reaching),
                "checker_rejects_fabricated_evidence": probes_run >= 14 and not reaching,
-               "checker_nonzero_when_unverified": rc_unverified != 0 and rc_verified == 0,
+               "checker_nonzero_when_unverified": rc_unverified != 0 and rc_static != 0 and rc_verified == 0,
                "project_statuses_supported": len(statuses), "manifest_anchored_to_derivation": anchored}
     record("SP-21", metrics, command=CMD, notes=f"probes reaching VERIFIED: {reaching}; statuses {sorted(statuses)}; "
-                                                f"exit codes unverified {rc_unverified}, verified {rc_verified}")
+                                                f"exit codes unverified {rc_unverified}, verified without the release check "
+                                                f"{rc_static}, verified with it {rc_verified}")
     bad = unmet("SP-21", metrics)
     assert not bad, (bad, reaching, sorted(statuses))
 
@@ -129,14 +135,16 @@ def test_SP_21b_release_check_covers_tree_regression_and_reproduction(tmp_path):
     try:
         r = Repo(str(tmp_path / "repo"), e, test_src=src)
         r.honest()
-        before = r.verify()[0]["project_status"]
+        e.setenv("CRUCIBLE_V5_SESSION", "s-release")
+        release = dict(reproduce=True, agent="release-check", scratch=r.scratch)
+        before = r.verify(**release)[0]["project_status"]
         r.write("src/widgets/__init__.py", r.read("src/widgets/__init__.py") + "\n# uncommitted edit\n")
-        dirty = r.verify()[0]["project_status"]
+        dirty = r.verify(**release)[0]["project_status"]
         subprocess.run(["git", "checkout", "--", "."], cwd=r.root, check=True)
         ext.write_text("11")                          # the world outside the tree changed: only reproduction sees it
-        e.setenv("CRUCIBLE_V5_SESSION", "s-release")
-        static = r.verify()[0]["project_status"]
-        repro, rows = r.verify(reproduce=True, agent="release-check", scratch=r.scratch)
+        static_res, static_rows = r.verify()
+        static = static_rows["Z.1"]["status"]
+        repro, rows = r.verify(**release)
     finally:
         e.restore()
     ids = {x["id"]: x for x in M.load(ROOT)["requirements"]}
@@ -144,9 +152,12 @@ def test_SP_21b_release_check_covers_tree_regression_and_reproduction(tmp_path):
         any(c["metric"] == "integration_branch_test_failures" for c in ids["X.4"]["criteria"])
     m = {"verify_all_checks_committed_tree": before == "CRUCIBLE_5_COMPLETE" and dirty != "CRUCIBLE_5_COMPLETE",
          "verify_all_checks_regression": regression_required,
-         "verify_all_reproduces_in_clean_checkout": static == "CRUCIBLE_5_COMPLETE" and
-         repro["project_status"] != "CRUCIBLE_5_COMPLETE" and rows["Z.1"]["status"] == "FAILED"}
-    record("SP-21b", m, command=CMD, notes=f"statuses: clean {before}, dirty {dirty}, static after an external change "
-                                           f"{static}, with reproduction {repro['project_status']}")
+         "verify_all_reproduces_in_clean_checkout": static == "VERIFIED" and
+         static_res["project_status"] != "CRUCIBLE_5_COMPLETE" and
+         repro["project_status"] != "CRUCIBLE_5_COMPLETE" and rows["Z.1"]["status"] == "FAILED" and
+         rows["Z.1"]["reproduction"]["commit"] == static_res["head"]}
+    record("SP-21b", m, command=CMD, notes=f"release statuses: clean {before}, dirty {dirty}; after an external change "
+                                           f"the static row is {static} (project {static_res['project_status']}), the "
+                                           f"release check (re-execution at HEAD) gives {repro['project_status']}")
     bad = unmet("SP-21b", m)
     assert not bad, (bad, before, dirty, static, repro["project_status"])

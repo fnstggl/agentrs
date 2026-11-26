@@ -382,6 +382,61 @@ def merge_workstreams(root: str | None = None) -> dict:
     return {"added": added, "skipped": skipped, "unknown_ids": unknown}
 
 
+# ------------------------------------------------------------------------------------------------- history
+def canonical_json(obj) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+_HIST_CACHE: dict = {}
+
+
+def history_problems(root: str, fresh: list[dict]) -> tuple[list[str], dict[str, list[str]]]:
+    """Every committed version of the manifest in HEAD's history (including versions that predate the ledger): no
+    requirement it lists may be missing from derive(), and today's criteria must imply each criteria version it
+    records (current criteria and criteria_history)."""
+    import subprocess
+    rel = "docs/v5/ACCEPTANCE_MANIFEST.json"
+    run = lambda *a: subprocess.run(["git", *a], cwd=root, capture_output=True, text=True)
+    commits = run("rev-list", "--full-history", "HEAD", "--", rel).stdout.split()
+    want = {e["id"]: e for e in fresh}
+    g: list[str] = []
+    per: dict[str, list[str]] = {}
+    removed: dict[str, str] = {}
+    seen = set()
+    for c in commits:
+        blob = run("rev-parse", "--verify", "-q", f"{c}:./{rel}").stdout.strip()
+        if not blob or blob in seen:
+            continue
+        seen.add(blob)
+        if blob not in _HIST_CACHE:
+            try:
+                _HIST_CACHE[blob] = json.loads(run("cat-file", "blob", blob).stdout)
+            except ValueError:
+                _HIST_CACHE[blob] = None
+        m = _HIST_CACHE[blob]
+        if not isinstance(m, dict):
+            continue
+        for e in m.get("requirements") or []:
+            rid = e.get("id") if isinstance(e, dict) else None
+            if not rid:
+                continue
+            if rid not in want:
+                removed.setdefault(rid, c[:9])
+                continue
+            versions = [e.get("criteria") or []] + [h.get("criteria") or [] for h in e.get("criteria_history") or []]
+            for crit in versions:
+                weaker = L.not_implied(want[rid]["criteria"], crit)
+                if weaker:
+                    msg = (f"criteria are weaker than those committed in manifest history at {c[:9]}: nothing implies "
+                           + "; ".join(f"{x.get('metric')} {x.get('op')} {x.get('value')!r}" for x in weaker[:3]))
+                    if msg not in per.get(rid, []):
+                        per.setdefault(rid, []).append(msg)
+    if removed:
+        g.append(f"{len(removed)} requirements committed in manifest history are missing from derive() (removed): "
+                 f"{sorted(removed)[:8]}")
+    return g, per
+
+
 # ------------------------------------------------------------------------------------------------- consistency
 def consistency(root: str | None = None, m: dict | None = None) -> dict:
     """Everything that anchors the manifest: returns {"global": [...], "per_id": {id: [...]}, "derived": [...]}.
@@ -428,12 +483,15 @@ def consistency(root: str | None = None, m: dict | None = None) -> dict:
     want_sha = getattr(RQ, "MASTER_SPEC_SHA256", None)
     entries = L.read(root_)
     st = L.state(entries)
-    anch = st["__anchors__"].get("MASTER_SPEC.md")
+    anch = st["__anchors__"].get("MASTER_SPEC.md")             # the first anchor: anchors never change
+    for aid, vals in L.anchor_history(entries).items():
+        if len({canonical_json(v) for v in vals}) > 1:
+            g.append(f"the ledger re-anchors {aid} ({len(vals)} anchor entries): anchors are immutable")
     if RQ.GATE_ITEMS:
         if not want_sha or sha != want_sha:
             g.append("MASTER_SPEC.md does not match the verbatim anchor (requirements.MASTER_SPEC_SHA256)")
-        if anch != sha:
-            g.append("MASTER_SPEC.md does not match the ledger's anchor")
+    if (RQ.GATE_ITEMS or anch is not None) and anch != sha:
+        g.append("MASTER_SPEC.md does not match the ledger's anchor")
     # the ledger
     if not entries:
         g.append(f"no change-control ledger ({L.LEDGER_REL})")
@@ -449,6 +507,10 @@ def consistency(root: str | None = None, m: dict | None = None) -> dict:
     unrecorded = sorted(set(want) - led_ids)
     if unrecorded:
         g.append(f"{len(unrecorded)} requirements are not recorded in the ledger: {unrecorded[:8]}")
+    hg, hper = history_problems(root_, fresh)
+    g += hg
+    for rid, ps in hper.items():
+        per.setdefault(rid, []).extend(ps)
     for rid, e in want.items():
         r = st.get(rid)
         if r is None:

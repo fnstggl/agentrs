@@ -9,12 +9,21 @@ collected node ids, exit codes, environment, identity) and the JUnit file whose 
 requirement's tests in another fresh clone of the evidence commit, compares the reproduced metrics with the evidence
 within the requirement's declared tolerance, checks the criteria on the reproduction, and writes a review bound to the
 requirement text, criteria version, evidence hash and commit, plus the reproduction's own run record, JUnit and
-records. The reviewer commits them; the checker re-verifies all of it (`checker.py`).
+records. The review also ablates the implementation: a third fresh clone in which every function of the requirement's
+listed implementation modules raises; the producing test is run there alone, and the measurement must not survive
+(no record, or different metrics) - a test whose metrics do not depend on its implementation measures nothing. The
+reviewer commits all of it; the checker re-verifies all of it (`checker.py`).
+
+The measured process gets a scrubbed environment: no PYTHON* variable except the clone's PYTHONPATH and the runner's
+own settings, no PYTEST_* variable, no LD_PRELOAD / LD_AUDIT, no user site-packages (`python -s`,
+PYTHONNOUSERSITE=1), so nothing outside the committed tree is injected through the environment (the P skeptic's S1
+attack); what remains - the interpreter and its start-up hooks - is recorded in every evidence record.
 
 Both commands only write inside `docs/v5/evidence/` and `docs/v5/reviews/` of the checkout they are run from.
 """
 from __future__ import annotations
 
+import ast
 import datetime as _dt
 import json
 import math
@@ -31,6 +40,12 @@ from .evidence import (MARKER, REPRO_DIR, REVIEW_SCHEMA, RUN_SCHEMA, RUNS_DIR, c
                        identity, sha256_file, sha256_text)
 
 DEFAULT_REL, DEFAULT_ABS = 1e-6, 1e-9
+ABLATIONS_DIR = "docs/v5/reviews/ablations"
+ABLATION_EXC = "__CrucibleAblated__"
+SCRUB_PREFIXES = ("PYTHON", "PYTEST_", "CRUCIBLE_V5_", "COV_CORE_")
+SCRUB_NAMES = ("LD_PRELOAD", "LD_AUDIT", "COVERAGE_PROCESS_START")
+PYTEST = ["-s", "-m", "pytest", "-p", "crucible.acceptance.v5.evidence"]   # -s: no user site; the plugin installs
+#                                                                         the files-read audit hook before collection
 
 
 def _git(cwd: str, *args: str, check: bool = True) -> str:
@@ -49,6 +64,14 @@ def require_agent(agent: str | None) -> str:
     if not a.strip():
         raise SystemExit("an official run or review needs an agent name: --agent NAME or CRUCIBLE_V5_AGENT")
     return a.strip()
+
+
+def require_session() -> str:
+    s = identity()["session_sha256"]
+    if not s:
+        raise SystemExit("an official run or review needs a session identity (CRUCIBLE_V5_SESSION or "
+                         "CLAUDE_CODE_SESSION_ID): without one, a self-review under a second name is indistinguishable")
+    return s
 
 
 def clone(root: str, commit: str, dest: str, run_id: str, kind: str) -> str:
@@ -72,16 +95,21 @@ def _status(cwd: str) -> list[str]:
     return [ln for ln in out.splitlines() if ln.strip()]
 
 
-def _child_env(clone_root: str, run_id: str, out: str, agent: str) -> dict:
-    env = {k: v for k, v in os.environ.items()
-           if not (k.startswith("CRUCIBLE_V5_") or k.startswith("PYTEST_") or k == "PYTHONPATH")}
+def scrubbed(env: dict) -> tuple[dict, list[str]]:
+    """The environment without code-injection variables, and the names removed."""
+    gone = sorted(k for k in env if k.startswith(SCRUB_PREFIXES) or k in SCRUB_NAMES)
+    return {k: v for k, v in env.items() if k not in gone}, gone
+
+
+def _child_env(clone_root: str, run_id: str, out: str, agent: str) -> tuple[dict, list[str]]:
+    env, gone = scrubbed(dict(os.environ))
     env.update({"PYTHONPATH": os.path.join(clone_root, "src"), "PYTHONDONTWRITEBYTECODE": "1",
-                "CRUCIBLE_V5_RUN_ID": run_id, "CRUCIBLE_V5_EVIDENCE_OUT": out, "CRUCIBLE_V5_AGENT": agent,
-                "CRUCIBLE_V5_AUTHOR": agent})
+                "PYTHONNOUSERSITE": "1", "CRUCIBLE_V5_RUN_ID": run_id, "CRUCIBLE_V5_EVIDENCE_OUT": out,
+                "CRUCIBLE_V5_AGENT": agent, "CRUCIBLE_V5_AUTHOR": agent})
     for k in ("CRUCIBLE_V5_SESSION",):
         if os.environ.get(k):
             env[k] = os.environ[k]
-    return env
+    return env, [k for k in gone if not k.startswith("CRUCIBLE_V5_")]
 
 
 def parse_collected(text: str) -> list[str]:
@@ -89,10 +117,51 @@ def parse_collected(text: str) -> list[str]:
             not ln.startswith("=") and not ln.lower().startswith(("error", "warning"))]
 
 
+def ablate_source(src: str, label: str) -> tuple[str, int]:
+    """`src` with the body of every function and method replaced by `raise __CrucibleAblated__(...)` (a BaseException,
+    so `except Exception` in the measured code cannot absorb it); module-level code and class bodies are kept."""
+    tree = ast.parse(src)
+    count = 0
+
+    class _T(ast.NodeTransformer):
+        def visit_FunctionDef(self, node):
+            nonlocal count
+            count += 1
+            doc = node.body[:1] if (node.body and isinstance(node.body[0], ast.Expr) and
+                                    isinstance(node.body[0].value, ast.Constant) and
+                                    isinstance(node.body[0].value.value, str)) else []
+            node.body = doc + [ast.Raise(exc=ast.Call(func=ast.Name(ABLATION_EXC, ast.Load()),
+                                                      args=[ast.Constant(f"{label}:{node.name}")], keywords=[]),
+                                         cause=None)]
+            return node                                 # nested definitions go with the body
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+    tree = _T().visit(tree)
+    i = 1 if (tree.body and isinstance(tree.body[0], ast.Expr) and isinstance(tree.body[0].value, ast.Constant)
+              and isinstance(tree.body[0].value.value, str)) else 0
+    while i < len(tree.body) and isinstance(tree.body[i], ast.ImportFrom) and tree.body[i].module == "__future__":
+        i += 1
+    tree.body.insert(i, ast.parse(f"class {ABLATION_EXC}(BaseException):\n    pass\n").body[0])
+    ast.fix_missing_locations(tree)
+    return ast.unparse(tree) + "\n", count
+
+
+def ablatable(root: str, e: dict, commit: str) -> list[str]:
+    """The requirement's implementation modules (Python files) present at `commit`."""
+    out = []
+    for f in e["implementation_files"]:
+        if f.endswith(".py") and subprocess.run(["git", "cat-file", "-e", f"{commit}:./{f}"], cwd=root,
+                                                capture_output=True).returncode == 0:
+            out.append(f)
+    return sorted(out)
+
+
 def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "evidence", agent: str,
             requirement_ids: list[str], scratch: str | None = None, keep: bool = False,
-            pytest_args: list[str] = ()) -> dict:
-    """Clone, collect, run. Returns {"record": run record, "out": output dir, "junit": path} (files not installed)."""
+            pytest_args: list[str] = (), nodes: list[str] | None = None, ablate: list[str] | None = None) -> dict:
+    """Clone, collect, run. Returns {"record": run record, "out": output dir, "junit": path} (files not installed).
+    `nodes`: run only these node ids. `ablate`: implementation files to ablate in the clone (committed there, so the
+    clone is clean and its records are official for the ablated commit)."""
     run_id = uuid.uuid4().hex[:16]
     base = scratch or os.environ.get("CRUCIBLE_V5_SCRATCH") or tempfile.gettempdir()
     os.makedirs(base, exist_ok=True)
@@ -102,19 +171,36 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
     t0 = time.time()
     croot = clone(root, commit, dest, run_id, kind)
     sha = _git(croot, "rev-parse", "HEAD")
+    ablation = None
+    if ablate:
+        done = {}
+        for f in ablate:
+            fp = os.path.join(croot, f)
+            new, n = ablate_source(open(fp, encoding="utf-8").read(), f)
+            with open(fp, "w", encoding="utf-8") as fh:
+                fh.write(new)
+            done[f] = n
+        _git(dest, "-c", "user.name=crucible-v5-ablation", "-c", "user.email=ablation@invalid", "commit", "-qam",
+             "ablation (never pushed)")
+        ablated_sha = _git(croot, "rev-parse", "HEAD")
+        gd = _git(dest, "rev-parse", "--absolute-git-dir")
+        with open(os.path.join(gd, MARKER), "w") as fh:
+            json.dump({"run_id": run_id, "commit": ablated_sha, "kind": kind, "created_at": _now()}, fh)
+        ablation = {"base_commit": sha, "ablated_commit": ablated_sha, "functions_ablated": done}
     before = _status(dest)
     present = [t for t in tests if os.path.exists(os.path.join(croot, t))]
     missing = [t for t in tests if t not in present]
-    env = _child_env(croot, run_id, out, agent)
+    env, removed = _child_env(croot, run_id, out, agent)
     junit = os.path.join(out, "junit.xml")
     suite = f"crucible-v5-{run_id}"
     col_rc, collected, run_rc = None, [], None
+    targets = list(nodes) if nodes else present
     if present:
-        col = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider",
-                              *present], cwd=croot, env=env, capture_output=True, text=True)
+        col = subprocess.run([sys.executable, *PYTEST, "--collect-only", "-q", "-p", "no:cacheprovider", *targets],
+                             cwd=croot, env=env, capture_output=True, text=True)
         col_rc, collected = col.returncode, parse_collected(col.stdout)
-        run_rc = subprocess.call([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                                  "-o", f"junit_suite_name={suite}", f"--junitxml={junit}", *pytest_args, *present],
+        run_rc = subprocess.call([sys.executable, *PYTEST, "-q", "-p", "no:cacheprovider",
+                                  "-o", f"junit_suite_name={suite}", f"--junitxml={junit}", *pytest_args, *targets],
                                  cwd=croot, env=env)
     after = _status(dest)
     rec = {"schema": RUN_SCHEMA, "run_id": run_id, "kind": kind, "requirement_ids": list(requirement_ids),
@@ -122,10 +208,14 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
            "clone": {"path": dest, "method": "git clone --shared --no-checkout + detached checkout",
                      "clean_before": not before, "status_before": before[:20], "status_after": after[:20]},
            "tests": present, "tests_missing_at_commit": missing,
-           "command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", f"junit_suite_name={suite}",
-                       "--junitxml=<junit>", *pytest_args, *present],
+           "command": ["python", *PYTEST, "-q", "-p", "no:cacheprovider", "-o", f"junit_suite_name={suite}",
+                       "--junitxml=<junit>", *pytest_args, *targets],
            "env": {"PYTHONPATH": env["PYTHONPATH"], "CUDA_VISIBLE_DEVICES": env.get("CUDA_VISIBLE_DEVICES"),
-                   "OMP_NUM_THREADS": env.get("OMP_NUM_THREADS")},
+                   "OMP_NUM_THREADS": env.get("OMP_NUM_THREADS"), "removed": removed,
+                   "crucible": {k: v for k, v in sorted(env.items()) if k.startswith("CRUCIBLE_") and
+                                not k.startswith("CRUCIBLE_V5_")}},
+           "interpreter": {"executable": os.path.realpath(sys.executable), "prefix": sys.prefix},
+           "nodes": list(nodes) if nodes else None, "ablation": ablation,
            "collect_rc": col_rc, "collected": collected, "pytest_rc": run_rc,
            "junit_suite": suite, "identity": identity() | {"agent": agent},
            "started_at": _dt.datetime.fromtimestamp(t0, _dt.timezone.utc).isoformat(), "finished_at": _now(),
@@ -194,6 +284,7 @@ def run(root: str | None = None, *, requirement: str | None = None, gate: str | 
         commit: str = "HEAD", scratch: str | None = None, keep: bool = False) -> dict:
     root = root or M.crucible_root()
     agent = require_agent(agent)
+    require_session()
     m = M.load(root)
     reqs = select(m, requirement, gate)
     if not reqs:
@@ -240,10 +331,12 @@ def compare_metrics(ev: dict, rep: dict, tolerance: dict | None = None) -> list[
 
 
 def reproduce(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = None, install: bool = True,
-              keep: bool = False) -> dict:
-    """Re-execute the requirement's tests at the evidence commit in a fresh clone and compare."""
+              keep: bool = False, commit: str | None = None) -> dict:
+    """Re-execute the requirement's tests in a fresh clone (default: at the evidence commit; the release check passes
+    HEAD) and compare with the evidence."""
     from .checker import criterion_met
-    res = execute(root, list(e["tests"]), commit=ev["tree"]["commit"], kind="reproduction", agent=agent,
+    at = commit or ev["tree"]["commit"]
+    res = execute(root, list(e["tests"]), commit=at, kind="reproduction", agent=agent,
                   requirement_ids=[e["id"]], scratch=scratch, keep=keep)
     rec = res["record"]
     rep_path = os.path.join(res["out"], "evidence", f"gate_{gate_of(e['id'])}", f"{e['id']}.json")
@@ -255,13 +348,45 @@ def reproduce(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None =
     if not keep:
         shutil.rmtree(res["work"], ignore_errors=True)
     return {"run_id": rec["run_id"], "pytest_rc": rec["pytest_rc"], "record": rec, "reproduced": rep,
-            "mismatches": mism, "criteria_failures": crit, "installed": installed}
+            "mismatches": mism, "criteria_failures": crit, "installed": installed, "commit": rec["commit"]}
+
+
+def ablation_sensitive(ev_metrics: dict, ablated: dict | None, tolerance: dict | None) -> bool:
+    """The measurement depends on the implementation: the ablated run recorded nothing, or something different."""
+    return ablated is None or bool(compare_metrics(ev_metrics, ablated.get("metrics") or {}, tolerance))
+
+
+def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = None, install: bool = True,
+           commit: str | None = None) -> dict:
+    """Run the producing test alone in a fresh clone (default: the evidence commit) whose implementation modules are
+    ablated; `sensitive` is true when the evidence's measurement does not survive."""
+    at = commit or ev["tree"]["commit"]
+    files = ablatable(root, e, at)
+    node = ev.get("produced_by") or ""
+    if not files:
+        return {"applicable": False, "why": "no implementation module (.py) listed", "ablated_files": [],
+                "sensitive": None}
+    res = execute(root, [node.split("::", 1)[0]], commit=at, kind="ablation", agent=agent,
+                  requirement_ids=[e["id"]], scratch=scratch, nodes=[node], ablate=files)
+    rec = res["record"]
+    path = os.path.join(res["out"], "evidence", f"gate_{gate_of(e['id'])}", f"{e['id']}.json")
+    got = json.load(open(path)) if os.path.exists(path) else None
+    installed = _install_records(root, res, {e["id"]}, ABLATIONS_DIR, evidence_layout=False) if install else {}
+    shutil.rmtree(res["work"], ignore_errors=True)
+    return {"applicable": True, "run_id": rec["run_id"], "run_path": f"{ABLATIONS_DIR}/{rec['run_id']}.json",
+            "commit": rec["commit"], "ablated_commit": (rec.get("ablation") or {}).get("ablated_commit"),
+            "ablated_files": files, "functions_ablated": sum((rec.get("ablation") or {}).get("functions_ablated",
+                                                                                          {}).values()),
+            "node": node, "pytest_rc": rec["pytest_rc"], "record_produced": got is not None,
+            "record_path": installed.get(e["id"]),
+            "sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"))}
 
 
 def review(root: str | None = None, *, requirement: str, agent: str | None = None, verdict: str = "approved",
            notes: str = "", scratch: str | None = None) -> dict:
     root = root or M.crucible_root()
     agent = require_agent(agent)
+    require_session()
     m = M.load(root)
     e = next((x for x in m["requirements"] if x["id"] == requirement), None)
     if e is None:
@@ -278,7 +403,8 @@ def review(root: str | None = None, *, requirement: str, agent: str | None = Non
     if me["session_sha256"] and me["session_sha256"] == prod.get("session_sha256"):
         raise SystemExit("the reviewer must not be the evidence's producer (same session)")
     rp = reproduce(root, e, ev, agent=agent, scratch=scratch)
-    ok = rp["pytest_rc"] == 0 and not rp["mismatches"] and not rp["criteria_failures"]
+    ab = ablate(root, e, ev, agent=agent, scratch=scratch)
+    ok = rp["pytest_rc"] == 0 and not rp["mismatches"] and not rp["criteria_failures"] and ab["sensitive"] is not False
     final = "approved" if (verdict == "approved" and ok) else "rejected"
     rec = {"schema": REVIEW_SCHEMA, "requirement": requirement,
            "requirement_sha256": sha256_text(e["requirement"]),
@@ -290,6 +416,7 @@ def review(root: str | None = None, *, requirement: str, agent: str | None = Non
                             "mismatches": rp["mismatches"], "criteria_failures": rp["criteria_failures"],
                             "metrics_sha256": sha256_text(canonical(rp["reproduced"]["metrics"]))
                             if rp["reproduced"] else None},
+           "ablation": ab,
            "reviewer": me, "requested_verdict": verdict, "verdict": final, "notes": notes, "reviewed_at": _now()}
     d = os.path.join(root, "docs", "v5", "reviews")
     os.makedirs(d, exist_ok=True)

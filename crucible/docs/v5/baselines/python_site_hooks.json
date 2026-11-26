@@ -1,0 +1,13 @@
+{
+ "captured_at": "2026-11-26T14:28:20+00:00",
+ "captured_by": "workstream P (wave 3)",
+ "contents": {
+  "_cuda_bindings_redirector.pth": "# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.\n# SPDX-License-Identifier: Apache-2.0\n\nimport _cuda_bindings_redirector\n",
+  "distutils-precedence.pth": "import os; var = 'SETUPTOOLS_USE_DISTUTILS'; enabled = os.environ.get(var, 'local') == 'local'; enabled and __import__('_distutils_hack').add_shim(); \n"
+ },
+ "pth": {
+  "_cuda_bindings_redirector.pth": "85a35d0fa0411036458d81dc56ae69bda1059d83882b7e2fe1bc3a5874213421",
+  "distutils-precedence.pth": "2638ce9e2500e572a5e0de7faed6661eb569d1b696fcba07b0dd223da5f5d224"
+ },
+ "what": "interpreter start-up hooks (.pth files of the site directories) of the reference Python environment (/venv/main, Python 3.12.15; see requirements.lock.txt). The checker rejects evidence recorded by an interpreter with any other start-up hook: a .pth file can run arbitrary code before the measured tests (environment injection). Add an entry only after reading the hook, under change control."
+}

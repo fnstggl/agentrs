@@ -64,6 +64,10 @@ def test_the_honest_pipeline_verifies_and_completes(repo):
     repo.commit("review")
     res, rows = repo.verify()
     assert rows["Z.1"]["status"] == "VERIFIED", rows["Z.1"]["problems"]
+    # static checks never decide the project status: only the release check (re-execution at HEAD) does
+    assert not res["ok"] and res["project_status"] == "IN_PROGRESS" and res["global_problems"] == [checker.RELEASE_NOTE]
+    repo.mp.setenv("CRUCIBLE_V5_SESSION", "s-release")
+    res, rows = repo.verify(reproduce=True, agent="release-check", scratch=repo.scratch)
     assert res["ok"] and res["project_status"] == "CRUCIBLE_5_COMPLETE" and not res["global_problems"]
 
 
@@ -409,6 +413,9 @@ def test_incomplete_blocked_only_when_every_unverified_requirement_cites_an_open
     r.save_manifest(m)
     r.commit("blocked by an open blocker")
     res, rows = r.verify()
+    assert rows["Z.2"]["status"] == "BLOCKED" and res["project_status"] == "IN_PROGRESS"   # terminal only on release
+    monkeypatch.setenv("CRUCIBLE_V5_SESSION", "s-release")
+    res, rows = r.verify(reproduce=True, agent="release-check", scratch=r.scratch)
     assert rows["Z.2"]["status"] == "BLOCKED" and res["project_status"] == "INCOMPLETE_BLOCKED" and not res["ok"]
 
 
@@ -518,7 +525,8 @@ def test_the_real_checker_exit_code_follows_the_project_status():
                        capture_output=True, text=True)
     res = json.load(open(out))
     assert p.returncode == {"CRUCIBLE_5_COMPLETE": 0, "IN_PROGRESS": 1, "INCOMPLETE_BLOCKED": 3}[res["project_status"]]
-    assert (p.returncode == 0) == all(r["status"] == "VERIFIED" for r in res["rows"])
+    assert p.returncode != 0 or all(r["status"] == "VERIFIED" for r in res["rows"])
+    assert res["project_status"] == "IN_PROGRESS" or res["reproduced"]       # static checks never complete
 
 
 def test_a_merge_that_drops_ledger_entries_of_one_parent_is_detected(tmp_path):

@@ -98,8 +98,8 @@ def state(entries: list[dict]) -> dict:
     st: dict = {"__anchors__": {}}
     for e in entries:
         rid, kind, val = e["id"], e["kind"], e["value"]
-        if kind == "anchor":
-            st["__anchors__"][rid] = val
+        if kind == "anchor":                     # anchors are immutable: the first one counts
+            st["__anchors__"].setdefault(rid, val)
             continue
         if kind == "add":
             st.setdefault(rid, {"added": e["seq"], "text": None, "criteria_history": [], "tests": None,
@@ -123,6 +123,15 @@ def state(entries: list[dict]) -> dict:
             if old is not None:
                 r["changes"].append((kind, old, val, e["decision"]))
     return st
+
+
+def anchor_history(entries: list[dict]) -> dict[str, list]:
+    """Every value each anchor id was given, in ledger order (more than one distinct value is a re-anchoring)."""
+    out: dict[str, list] = {}
+    for e in entries:
+        if e.get("kind") == "anchor":
+            out.setdefault(e["id"], []).append(e["value"])
+    return out
 
 
 # ------------------------------------------------------------------------------------------------- strictness
