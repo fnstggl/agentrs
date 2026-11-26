@@ -314,16 +314,28 @@ Every sandboxed page request of a population world loads its site program in a f
 above `LOAD_FREE_NS` (3 ms) is billed with the request (D-20, so import-time work is not free). On the shared machine
 the same load measured 2.9 ms in one run and 5.8 ms in the next: the same request then cost 0.1 ms or 2.9 ms, the
 job memo's tolerance rule billed the noisy figure ("exceeded"), and two runs of one spec and seed differed in
-`cloud.usage` (the K2 observer test and the K1 cross-process resume failed after the wave-3a merge). Decision: under
-the deterministic cost model the load CPU is anchored like a job - the first measurement per lineage, program files
-and target (machine-level memo, first writer wins), billed for every later load unless a fresh load exceeds
-`MEMO_TOL` x the anchor + `MEMO_SLACK_NS` (then billed fresh and flagged, so import-time work cannot grow unbilled) -
-and it is kept out of the job's own anchor and tolerance check (`Worker._finish(load=...)`). The parent's raw load
-measurement stays in `meter.load_ns`. Limit: a cold start that one run has and another does not (a new process
-resuming at a point where the uninterrupted run had warm workers) still bills the anchored load once more where it
-exceeds `LOAD_FREE_NS`; programs whose anchored load is within the allowance bill identically even then (site
-program loads measured 2.9-5.8 ms on the loaded machine, so this limit is live: measured by the K1 test). Minimal edit in `sandbox/runner.py` (owner: security workstream), regression test
-`tests/test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job`.
+`cloud.usage` (the K2 observer test and the K1 cross-process resume failed after the wave-3a merge). Decision, under
+the deterministic cost model:
+1. the load CPU is anchored like a job - the first measurement per lineage, program files and target (machine-level
+   memo, first writer wins), billed for every later load unless a fresh load exceeds `MEMO_TOL` x max(anchor,
+   `LOAD_FREE_NS`) + `MEMO_SLACK_NS` (then billed fresh and flagged, so import-time work cannot grow unbilled; the
+   floor keeps noise around a small anchor from counting as growth);
+2. why a load happens decides where it is billed (`Worker.cold`, set by `WorkerPool`): a *platform cold start* - the
+   pool's first worker for its key in this host process (a resumed process, a fork's fresh pool) - is not the
+   program's doing, so its load joins the job's FIRST measurement (the computation's anchor) and never the
+   tolerance check (`Memo.bill(check_ns=...)`): the request costs what its first measurement cost whether this host
+   process started cold or warm there, i.e. what the uninterrupted world paid; a *restart* (the pool had a worker for
+   the key: it died, was killed or was evicted) and every unmanaged or one-shot worker bill the anchored load on top
+   of the job, kept out of the job's anchor.
+The parent's raw load measurement stays in `meter.load_ns`. Measured: a 6-hour population world and its observer arm
+bill all 22 jobs identically ("remembered"; before: one "exceeded", 2.954 vs 0.097 ms); a 1-day adaptive population
+world (150 individuals, 6 sites) resumed in a new process from a snapshot continues with the uninterrupted run's last
+hash and digest, twice (before: 13, then 2 differing events). Limits: eviction points of a pool with more active
+deployments than `sandbox_max_workers` depend on the host process's history, so such a world bills evictions
+differently after a resume; a program whose first measured load was taken warm-cached pays later cold loads only
+beyond the tolerance. Minimal edits in `sandbox/runner.py` and `sandbox/metering.py` (owner: security workstream);
+regression tests `tests/test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job` and
+`::test_a_platform_cold_start_bills_a_request_as_the_warm_run_did`.
 
 ## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
 Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
