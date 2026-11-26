@@ -97,3 +97,45 @@ def test_the_same_world_in_two_new_processes_gives_the_same_event_hashes(tmp_pat
     assert (a["seq"], a["hash"], a["digest"]) == (b["seq"], b["hash"], b["digest"])
     c, d = run("off"), run("off")
     assert c["hash"] != d["hash"]
+
+
+def test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job(monkeypatch):
+    """K2/K1 after the merge (wave 3b): every page request of a population world loads its site program in a fresh
+    worker first; the load CPU above LOAD_FREE_NS is billed with the request. On a loaded machine the same load
+    measured 2.9 ms in one run and 5.8 ms in the next, so the same request cost 0.1 ms (load free) or 2.9 ms, the
+    job memo's tolerance check billed the noisy figure ("exceeded") and two runs of one spec and seed differed in
+    `cloud.usage`. The load is now anchored like a job (first measurement per lineage, program and target; same
+    tolerance rule) and kept out of the job's own anchor. Load noise is injected here by inflating every CPU-clock
+    reading from the end of the load on (job CPU is a difference of two later readings, so only the load grows)."""
+    from crucible.sandbox import runner
+    caps = capabilities()
+    assert caps["landlock_abi"] >= 1 and caps["seccomp"], f"this test needs the sandbox: {caps}"
+    files = {"m.py": "s = 0\nfor i in range(2000):\n    s += i\n\ndef f(n, c):\n    return n + s\n"}
+    real_cpu, real_settle, extra = M.cpu_ns, M.settle, {"ns": 0, "on": False}
+
+    def noisy(pid):                   # every reading from the end of the load on is offset by the noise
+        v = real_cpu(pid)
+        return v + extra["ns"] if (v is not None and extra["on"]) else v
+
+    def settle(pid, max_s=0.005):     # first called when the worker reports the program loaded
+        extra["on"] = True
+        return real_settle(pid, max_s)
+    monkeypatch.setattr(M, "cpu_ns", noisy)
+    monkeypatch.setattr(M, "settle", settle)
+    cfg = runner.SandboxConfig(count_lines=True, meter_scope=f"load-anchor-{os.getpid()}", memo_path=None)
+
+    def run(noise_ns):
+        extra.update(ns=noise_ns, on=False)
+        r = runner.run_program(files, "m:f", 7, cfg=cfg)
+        assert r["ok"] and r["result"] == 7 + sum(range(2000)), r
+        return r
+    first = run(0)
+    assert first["meter"]["load_ns"] < M.LOAD_FREE_NS          # a small program: its load is free
+    noisy_runs = [run(int(M.LOAD_FREE_NS * 0.9)) for _ in range(3)]   # +2.7 ms of load noise each time
+    assert all(r["meter"]["load_ns"] > M.LOAD_FREE_NS for r in noisy_runs)   # measured above the free allowance
+    # ...yet billed exactly like the first run: the anchor, not the noise
+    assert {(r["cpu_ms"], r["work_lines"]) for r in noisy_runs} == {(first["cpu_ms"], first["work_lines"])}
+    assert all(r["meter"]["memo"] == "remembered" for r in noisy_runs)
+    # import-time work that really grows (far beyond the tolerance) is still billed fresh
+    grown = run(60_000_000)
+    assert grown["cpu_ms"] >= first["cpu_ms"] + 50.0

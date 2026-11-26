@@ -421,17 +421,21 @@ class Worker:
         return None
 
     def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
-                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0) -> dict:
-        """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo."""
+                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0, load: int = 0) -> dict:
+        """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo.
+        `load` is the program's billable load CPU when this job loaded it (already anchored, see `run`): it is added
+        to the bill but kept out of the job's own anchor and tolerance check (workstream A, kcal wave 3b)."""
         error = self._clean(error) if error else None
         stdout = self._clean(stdout or "")[: self.cfg.out_bytes]
         cpu = max(0, int(cpu))
+        load = max(0, int(load))
         billed, memo = cpu, None
         if self.cfg.count_lines:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
             billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
                                                          outcome), cpu, disk=self.cfg.memo_path)
+        billed, cpu = billed + load, cpu + load
         meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
                  **({"memo": memo} if memo else {})}
         out = {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,
@@ -487,7 +491,7 @@ class Worker:
                 c = c2
             used = max(0, (c or 0) - (c_start or 0)) if c is not None and c_start is not None else 0
             err = {"type": etype, "message": reason, **({"stderr": tail[-800:]} if tail and etype != "Timeout" else {})}
-            return self._finish(False, None, err, "", cpu=used + bg + extra, job=job, transcript=transcript,
+            return self._finish(False, None, err, "", cpu=used + bg, load=extra, job=job, transcript=transcript,
                                 wall_s=time.monotonic() - t0, meter={**empty, "background_ns": bg, "killed": reason})
 
         # 2. load the program (its import-time work is measured apart; only what exceeds LOAD_FREE_NS is billed)
@@ -513,7 +517,19 @@ class Worker:
             load_ns = max(0, (c1 or 0) - (c0 or 0))
             if msg.get("ok") is True:
                 self._loaded.add(target)
-        load_bill = max(0, load_ns - M.LOAD_FREE_NS)
+        if load_ns and self.cfg.count_lines:
+            # Workstream A (kcal, wave 3b; K1/K2 determinism, D-79): the deterministic cost model anchors the program's
+            # load CPU like a job's - the first measurement per lineage, program files and target, the same tolerance
+            # rule (a load more than MEMO_TOL x the anchor + MEMO_SLACK_NS is billed fresh, so import-time work cannot
+            # grow unbilled). Before, a fresh load measurement straddling LOAD_FREE_NS (2.9 vs 5.8 ms on a loaded
+            # machine) made the same request cost 0.1 or 2.9 ms in two runs of one spec and seed, and the job memo's
+            # tolerance check then billed the noisy figure ("exceeded"): another event hash.
+            anchored, _ = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest,
+                                                        {"kind": "load", "target": target}, [], {}),
+                                      load_ns, disk=self.cfg.memo_path)
+        else:
+            anchored = load_ns
+        load_bill = max(0, anchored - M.LOAD_FREE_NS)
         # 3. the job
         self.jobs += 1
         jid = self.jobs
@@ -580,7 +596,7 @@ class Worker:
                 ok, err = msg["ok"], msg.get("error")
                 if q:
                     ok, err = False, {"type": "DiskQuota", "message": q}
-                return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg + load_bill,
+                return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg, load=load_bill,
                                     job=job, transcript=transcript, wall_s=time.monotonic() - t0 - broker_s,
                                     meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""))
             reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
