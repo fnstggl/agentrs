@@ -528,12 +528,13 @@ def cxc_balancing_constraint(rng, d):
 @_pg("cxc_competing_rule", category="8.10", item="8.10.6", split="val",
      doc="Two levers moved together in the previous operator's records with a hidden demand cycle; at first only "
          "one of them causes sales. At a hidden tick the platform's rule changes and the other lever becomes the "
-         "one that pays, while the first stops.",
+         "one that pays, while the first starts to lower sales.",
      distinct_because="compositional evaluation family: the collinear confounded history and inert-lever chain of "
                       "cx_competing_causes with the opposite timed switches of ch_rule_change on the two lever "
                       "paths; no training family has historical confounding together with a regime switch",
      axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-     claims=(C + "competing_rule",), identify=C + "rule_change_time")
+     claims=(C + "competing_rule",), identify=C + "rule_change_time",
+     reference="crucible.rapid.refs_adapt:drop_switch_tracker", version="2")
 def cxc_competing_rule(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="chain", motifs=["saturation", "linear_nonlinear"]))
@@ -546,7 +547,9 @@ def cxc_competing_rule(rng, d):
     c.add_input(m1, "x", U, 0, u(rng, 2.0, 3.0))
     at = _switch_tick(rng, H)
     lo = u(rng, 0.05, 0.12)
-    ra = c.splice(m0, "regime_change", {"before": 1.0, "after": lo, "at": at, "trig": 1e18}, trigger=[])
+    # after the rule change the first lever is penalised, not merely ignored (it lowers sales)
+    ra = c.splice(m0, "regime_change", {"before": 1.0, "after": -u(rng, 0.3, 0.5), "at": at, "trig": 1e18},
+                  trigger=[])
     pb = c.prim("saturation", dict(c.node(m0)["params"]), x=[(b, 0, 1.0)])
     rb = c.prim("regime_change", {"before": 0.0, "after": 1.0, "at": at, "trig": 1e18}, x=[(pb, 0, 1.0)], trigger=[])
     c.add_input(m1, "x", rb, 0, 1.0)
