@@ -275,8 +275,8 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "harness implemented; expected to FAIL until civ.generate works and class 4 is bound to a runtime",
-   "notes": "3 profiles x 3 seeds x 30 days of the civ world (and the population world as a second row), governed sub-jobs; a profile counts only if all four classes act. No in-tree code binds class 4 (population.register_class_runtime has no caller), so classes_acting_min is 3 at best."
+   "status_claim": "harness runs on the civ world; development measured (3 seeds x 30 days, 277-330 sim days per CPU-hour); standard/large pending; FAILS until class 4 acts (unbound on 55433e7)",
+   "notes": "3 profiles x 3 seeds x 30 days of the civ world (and the population world as a second row), governed sub-jobs; a profile counts only if all four classes act. No in-tree code binds class 4 (population.register_class_runtime has no caller), so classes_acting_min is 3 at best. Wave 3b: class 3 counted as acting from its member decisions (pop_strategic.exp); world-generation cost includes the first day's excess CPU; resident store size folds the WAL after VACUUM (it was counted twice)."
   },
   "V.2": {
    "implementation_files": [
@@ -306,7 +306,7 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "implemented; measured unofficially: batched vs per-participant 8.8x at B=32, 10.0x at B=256 (1 CPU thread)",
+   "status_claim": "backend matrix measured (8 backends); in-world class-2 batches in the civ development world are tiny (mean 1.29-1.48, max 4): in-world speedup 1.41 < 2 - FAILS until B aggregates class-2 decisions (OPTIMISATION_REQUESTS R7)",
    "notes": "The gate's speedup is computed at the in-world class-2 batch sizes of the suite runs."
   },
   "V.5": {
@@ -316,7 +316,7 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "implemented; not yet measured on a working population world",
+   "status_claim": "measured on the civ standard world (24 h): policy-compute speedup 28.1, 200 pop.wake trigger batches; the first run's two forks diverged (equal_outcomes false); the comparison now uses three forks and reports forks_reproducible",
    "notes": "Dense observer evaluates the population's decision policies for every eligible individual each tick vs for the activated ones; equal hash chains; also requires activations caused by recorded population.wake triggers."
   },
   "V.6": {
@@ -326,7 +326,7 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "implemented; not yet measured",
+   "status_claim": "measured on three 12-hour civ development worlds: hit rate 0.67 (first lookups only; one encoder run per artifact, 156 items reused across worlds via the disk cache); the workload now runs 96-hour worlds (30-day worlds show 0.97 world-record hits)",
    "notes": "Three worlds (two replicas of a seed, another seed) in separate processes on one fresh cache directory; hit rate over all lookups; encoder runs per artifact; cross-world reuse."
   },
   "V.7": {
@@ -357,7 +357,7 @@
    "tests": [
     "tests/v5/test_gate_V.py"
    ],
-   "status_claim": "implemented (estimated cohort mode + validation); not yet measured",
+   "status_claim": "validation crashed on the integrated tree (web resources created during a run); fixed in approx.outcomes with a regression test; rerun pending",
    "notes": "Errors for the 7 quantities with 95% intervals over 3 target seeds; fit at 400, predict 1,600 individuals and a shop-share intervention."
   },
   "SP-13.8": {
@@ -457,6 +457,17 @@
    "notes": ""
   }
  },
- "limitations": [],
- "integration_notes": []
+ "limitations": [
+  "Class 4 is not bound to a runtime on 55433e7 (D's pop_semantic is in progress on c5c/w3b-sem): V.1 and SP-13.1 fail until it acts; class 3 is never batched in the civ world (one member per recorded call).",
+  "The shared batching service is verified with the real class-2, class-3 and class-4 models in unit tests; no population or semantic code calls it yet (B and D own those call sites: BATCHING.md).",
+  "GPU contention: with 4 GPU job slots shared by ~18 engineers, the population/civ benchmarks (all need the GPU text path) wait for hours; the long standard/large suite runs are scheduled once.",
+  "cProfile with the CPU timer inflates call-heavy functions about 5x; the optimisation requests use it for ranking and the light per-function accumulators for shares."
+ ],
+ "integration_notes": [
+  "Merge the governor change early: on 2026-11-26 at 18:00 three of nine CPUs idled while five CPU-only jobs waited behind a GPU job at the head of the strict-FIFO queue (every worktree still runs the wave-3a slots.py). Wave 3b adds EASY backfilling (slots.fits_behind), pid-identity liveness, pidfd signalling, a disk-wait limit and a write-if-changed ledger; CLI flags unchanged.",
+  "SP-1.2: at 18:00 the GPU census found processes holding GPU contexts with no scheduler grant in their environment (a scratch script of w3b-dom1 and a pytest of tests/v5/test_gate_SP_6_6.py); SP-1.2 fails while anyone runs GPU work outside crucible.scale.slots.",
+  "B (population): adopt crucible.substrate.inference_batch in adaptive.choose and strategic.pr_decide and drive tick handlers with IB.gather (BATCHING.md); aggregate class-2 web decisions and align class-3 decision times (OPTIMISATION_REQUESTS R7).",
+  "D (semantic): bind class 4 through register_class_runtime with IB.semantic_request inside the tick's ctx; expose SemanticService.normalize; batch the space's per-text LM forward passes and stop recomputing preprocessing_hashes per lookup (R3).",
+  "See docs/v5/performance/OPTIMISATION_REQUESTS.md for the measured requests to the 4.0 search service (R1), C (R2), kcal (R4, R5, R6) and J (R8)."
+ ]
 }
