@@ -589,6 +589,42 @@ def assemble_video(images: Sequence[bytes], audio: bytes | None = None, *, secon
         return w.read("out.mp4")
 
 
+def slides_video(slides: Sequence[bytes], durations: Sequence[float], audio: bytes | None = None, *,
+                 fps: int = 5) -> bytes:
+    """H.264/AAC MP4 of equally sized PNG slides, each shown for its own duration (FFmpeg's concat demuxer, jailed),
+    with an optional audio track. The slides are handed to FFmpeg as they are (no decoding in this process): the
+    caller renders them at the video's size (population creators, `crucible.social.popmedia`)."""
+    if not slides or len(slides) != len(durations) or len(slides) > 600:
+        raise MediaError("1 to 600 slides, one duration each")
+    durs = [float(d) for d in durations]
+    if min(durs) < 0.1 or max(durs) > 600:
+        raise MediaError("slide durations must be 0.1..600 s")
+    total = sum(durs)
+    if total > MAX_VIDEO_S:
+        raise MediaError(f"video longer than {MAX_VIDEO_S}s")
+    if not 1 <= int(fps) <= 60:
+        raise MediaError("fps must be 1..60")
+    inputs = {f"s{i:04d}.png": bytes(b) for i, b in enumerate(slides)}
+    if audio is not None:
+        inputs["a.wav"] = audio
+    with _Work(inputs) as w:
+        names = sorted(n for n in inputs if n.endswith(".png"))
+        lst = "".join(f"file '{n}'\nduration {d:.3f}\n" for n, d in zip(names, durs)) + f"file '{names[-1]}'\n"
+        with open(os.path.join(w.dir, "list.txt"), "w") as fh:
+            fh.write(lst)
+        argv = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error", "-threads", "1",
+                "-protocol_whitelist", "file,pipe", "-f", "concat", "-safe", "0", "-i", "list.txt"]
+        if audio is not None:
+            argv += ["-protocol_whitelist", "file,pipe", "-i", "a.wav"]
+        argv += ["-vf", f"fps={int(fps)},format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
+                 "-x264-params", "threads=1", "-t", f"{total:.3f}"]
+        argv += (["-c:a", "aac", "-b:a", "32k", "-af", "apad"] if audio is not None else ["-an"])
+        argv += ["-fflags", "+bitexact", "-flags:v", "+bitexact", "-map_metadata", "-1", "-movflags", "+faststart",
+                 "out.mp4"]
+        run_tool(argv, w.dir)
+        return w.read("out.mp4")
+
+
 def edit_video(data: bytes, *, start_s: float = 0.0, duration_s: float | None = None, width: int | None = None,
                height: int | None = None, mute: bool = False) -> bytes:
     """Trim (start, duration), rescale and optionally mute a video; re-encoded to H.264/AAC MP4."""

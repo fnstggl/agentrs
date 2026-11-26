@@ -35,7 +35,7 @@ MIMES = {
     "text": ("text/plain", "text/markdown"),
     "html": ("text/html",),
     "image": ("image/png", "image/jpeg", "image/gif", "image/webp"),
-    "audio": ("audio/wav", "audio/x-wav", "audio/wave"),
+    "audio": ("audio/wav", "audio/x-wav", "audio/wave", "audio/ogg"),
     "video": ("video/mp4", "video/quicktime", "video/webm"),
     "app": ("application/vnd.crucible.app+json",),
     "page": ("text/html",),
@@ -192,6 +192,26 @@ def wav_info(data: bytes) -> dict:
             "frames": int(got), "duration_s": round(got / sr, 3)}
 
 
+def ogg_info(data: bytes) -> dict:
+    """An Ogg (Opus or Vorbis) audio file: probed by FFmpeg's ffprobe in the media-tool jail (participant bytes are
+    never parsed by a native decoder in the world process)."""
+    if data[:4] != b"OggS":
+        raise FormatError("not an Ogg file")
+    from ..semantic import media as MD
+    try:
+        info = MD.probe(data)
+    except MD.MediaError as e:
+        raise FormatError(f"bad Ogg audio: {e}") from None
+    a = next((x for x in info.get("streams", []) if x.get("type") == "audio"), None)
+    if a is None or any(x.get("type") == "video" for x in info.get("streams", [])):
+        raise FormatError("an Ogg audio file needs exactly an audio stream")
+    dur = float(a.get("duration_s") or info.get("duration_s") or 0.0)
+    if not dur > 0:
+        raise FormatError("Ogg audio has no duration")
+    return {"audio_format": "ogg", "codec": a.get("codec"), "sample_rate": int(a.get("sample_rate") or 0),
+            "channels": int(a.get("channels") or 0), "duration_s": round(dur, 3)}
+
+
 def _mp4_boxes(data: bytes, start: int, end: int):
     i = start
     while i + 8 <= end:
@@ -299,7 +319,7 @@ def inspect(data: bytes, fmt: str, mime: str) -> dict:
     elif fmt == "image":
         out.update(image_info(data))
     elif fmt == "audio":
-        out.update(wav_info(data))
+        out.update(ogg_info(data) if mime == "audio/ogg" else wav_info(data))
     elif fmt == "video":
         out.update(webm_info(data) if mime == "video/webm" else mp4_info(data))
     elif fmt == "document":

@@ -206,7 +206,7 @@ def index_item(ctx: Ctx, ref: str, kind: str, platform: str, creator: str, title
                           "creator_code": code, "title": title, "tags": tags, "duration_s": duration_s,
                           "content_id": content_id, "terms": terms, "words": int(words),
                           "emb": [round(float(x), 6) for x in emb], "legib": round(float(legib), 6), "rep": rep},
-             vis="public")
+             vis="internal")         # the platform's representation of the item (emb, terms) is never observable
     return item
 
 
@@ -228,7 +228,7 @@ def reindex_item(ctx: Ctx, item: int, ref: str, *, title: str | None = None, tag
     ctx.emit("aud.item_updated", {"item": int(item), "ref": ref, "title": title, "tags": tags,
                                   "duration_s": float(duration_s), "terms": terms, "words": int(words),
                                   "emb": [round(float(x), 6) for x in emb], "legib": round(float(legib), 6),
-                                  "rep": rep}, vis="public")
+                                  "rep": rep}, vis="internal")
 
 
 def remove_item(ctx: Ctx, item: int) -> None:

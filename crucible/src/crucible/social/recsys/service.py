@@ -51,7 +51,7 @@ DEFAULT_MIX = [{"name": "interest", "weight": 1.0}, {"name": "social", "weight":
 DEFAULTS = {"platforms": {"posts": {"recommenders": DEFAULT_MIX}, "articles": {"recommenders": DEFAULT_MIX}},
             "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {},
             "activity_prior": 0.3, "adapt": {}}
-_PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule", "adapt"}
+_PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule", "adapt", "random_insert"}
 
 
 def _mod(world) -> "Feed":
@@ -112,6 +112,10 @@ class Feed(Module):
                     raise ProtocolError(f"feed: platform {p}: schedule days must be increasing and > 0")
                 vers.append((d, _check_entries(ent["recommenders"])))
             self.versions[p] = vers
+            ri = pc.get("random_insert")
+            if ri is not None and (not isinstance(ri, dict) or set(ri) - {"rate", "max_age_days"} or
+                                   not 0.0 <= float(ri.get("rate", 0.0)) <= 1.0):
+                raise ProtocolError(f"feed: platform {p}: random_insert is {{'rate': 0..1, 'max_age_days': ...}}")
         self.R = int(self.cfg["inbox"])
         if not 1 <= self.R <= 32:
             raise ProtocolError("feed: inbox must be in [1, 32]")
@@ -190,6 +194,10 @@ class Feed(Module):
         world.state.declare_table("feed_private")
         world.state.declare_table("feed_models")
         self.engine = Engine(self)
+        from ..contentopen import ContentOpen, declare
+        self.content_open = sorted(p for p, c in self.engine.calibrated.items() if isinstance(c, ContentOpen))
+        for p in self.content_open:
+            declare(world, p, int(self.aud.cfg["max_items"]))
         self._private(world)
         if "crowd" in world.modules:
             from ..scale import register_activity
@@ -215,6 +223,8 @@ class Feed(Module):
             ctx.schedule(ti, "feed.train", {}, prio=55, period=ti, key="feed.train")
         if any(len(v) > 1 for v in self.versions.values()):
             ctx.schedule(DAY, "feed.daily", {}, prio=5, period=DAY, key="feed.daily")
+        if self.content_open:
+            ctx.schedule(DAY, "feed.daystart", {}, prio=3, period=DAY, key="feed.daystart")
         for p in self.platforms:
             a = self.adapt_cfg(p)
             if a:
@@ -266,6 +276,13 @@ class Feed(Module):
                 if d == day and j > 0:
                     ctx.emit("feed.mixture", {"platform": p, "version": f"v{j}", "day": day,
                                               "names": [e["name"] for e in ents]}, vis="internal")
+
+    @process("daystart")
+    def pr_daystart(self, ctx):
+        """Day-start snapshots of the history counters a fitted open decision reads ('before today')."""
+        from ..contentopen import daystart
+        for p in self.content_open:
+            daystart(ctx, p)
 
     @process("adapt")
     def pr_adapt(self, ctx, platform: str):

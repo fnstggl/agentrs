@@ -51,7 +51,8 @@ COMMUNITY_MODEL = {"model_id": "pop-community", "model_version": "1", "fidelity_
 SHOP_MODEL = {"model_id": "pop-shop", "model_version": "1", "fidelity_id": "population-product-discovery-model"}
 DEFAULTS = {"prior": -1.2, "platforms": {"short": "posts", "long": "blog"}, "minutes": [10.0, 45.0],
             "topic_noise": 0.08, "community_prior": -0.2, "explore": 0.15, "found_threshold": 0.32,
-            "found_prob": 0.04, "leave_value": -0.04, "creator_share": 1.0}
+            "found_prob": 0.04, "leave_value": -0.04, "creator_share": 1.0, "inbox_prior": -0.6,
+            "newsletter_followers": 5, "tier_followers": 15}
 _STOP = frozenset("""the a an and or of to in on for with at by from is are was were be been it its this that as
 after over about into new how why what who says said will would could more most than his her their they you your
 our we he she not but have has had up out off one two first last year years day week according monday tuesday
@@ -76,12 +77,23 @@ class PopSocial(Module):
 
     def install(self, world):
         n = columns.rows(world, "pop")
+        import functools
+        from . import popcreate, popinbox
+        from .platforms import PLATFORMS
         columns.declare(world, "pop", n, {"soc_items": ("int32", (), 0), "soc_seen_views": ("int64", (), 0),
-                                          "soc_last_item": ("int32", (), -1)})
+                                          "soc_last_item": ("int32", (), -1), **popcreate.columns_spec(),
+                                          **popinbox.columns_spec()})
         population.register_activity(world, "social.create", self.act_create, owner="pop_social",
                                      prior=float(self.cfg["prior"]), goals=(3, 5))
-        if any(m["name"] == "launch" for m in world.spec.modules):
-            world.hooks.setdefault("feed.after_session", {})["launch"] = self.after_launch
+        names = {m["name"] for m in world.spec.modules}
+        if "msg" in names:
+            population.register_activity(world, "social.inbox", self.act_inbox, owner="pop_social",
+                                         prior=float(self.cfg["inbox_prior"]), goals=(3,))
+        # what viewers do next with what they saw, on every platform (subscriptions, memberships, Q&A votes;
+        # product discovery on launch)
+        hooks = world.hooks.setdefault("feed.after_session", {})
+        for plat in PLATFORMS:
+            hooks[plat] = functools.partial(self.followup, platform=plat)
         if "community" in world.modules or any(m["name"] == "community" for m in world.spec.modules):
             population.register_activity(world, "social.community", self.act_community, owner="pop_social",
                                          prior=float(self.cfg["community_prior"]), goals=(3, 1))
@@ -377,6 +389,21 @@ def _found(self, ctx: Ctx, i: int, rng) -> str | None:
         return None
 
 
+from . import popcreate as _popcreate  # noqa: E402
+from . import popinbox as _popinbox  # noqa: E402
+
+
+def _followup(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
+    u = _popinbox.after_session(self, ctx, out, platform)
+    if platform == "launch":
+        u = u + np.asarray(self.after_launch(ctx, out), np.float64)
+    return u
+
+
+PopSocial.act_create = _popcreate.act_create
+PopSocial.act_inbox = _popinbox.act_inbox
+PopSocial.followup = _followup
+PopSocial.creator_channels = _popinbox.creator_channels
 PopSocial.act_community = _act_community
 PopSocial._found = _found
 PopSocial.engine = lambda self: self.world.modules["feed"].engine

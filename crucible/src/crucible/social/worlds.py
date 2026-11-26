@@ -20,8 +20,10 @@ BASE = ["identity", "bank", "admin", "artifacts", "cols", "space", "code", "sear
         "appdb"]
 C1 = ["social_ids", "social_rows", "content", "studio", "social", "shorts", "tube", "posts", "pics", "blog", "pods",
       "community", "msg", "creators", "letters", "launch", "dev", "kb"]
-#: platforms whose public items are distributed by feeds (aud + feed)
-DISTRIBUTED = ["posts", "blog", "pics", "shorts", "tube", "pods", "launch", "dev", "kb", "community", "social"]
+#: platforms whose public items are distributed by feeds (aud + feed); `letters` (newsletters) delivers issues to the
+#: subscribers' inboxes and is browsed like the others
+DISTRIBUTED = ["posts", "blog", "pics", "shorts", "tube", "pods", "launch", "dev", "kb", "community", "social",
+               "letters"]
 #: each platform's own distribution: genuinely different mechanisms (Part 4.5)
 MIXTURES = {
     "posts": [{"name": "social", "weight": 1.0}, {"name": "chronological", "weight": 0.8},
@@ -42,8 +44,29 @@ MIXTURES = {
             {"name": "chronological", "weight": 0.4}],
     "kb": [{"name": "search", "weight": 1.0}, {"name": "diversity", "weight": 0.5}],
     "community": [{"name": "chronological", "weight": 1.0}, {"name": "social", "weight": 0.5}],
-    "social": [{"name": "social", "weight": 1.0}, {"name": "chronological", "weight": 1.0}],
+    "social": [{"name": "social", "weight": 1.0}, {"name": "chronological", "weight": 1.0},
+               {"name": "interest", "weight": 0.4}],
+    # newsletter issues reach subscribers through the inbox (letters.send delivers them); the rest is browsing
+    "letters": [{"name": "chronological", "weight": 1.0}, {"name": "search", "weight": 0.4}],
 }
+#: subscription channels among them (issues are delivered to the subscribers' inboxes)
+SUBSCRIPTION = ["letters"]
+#: platform settings beside the mixture: the short-video platform runs a random-exposure experiment (a share of its
+#: feeds holds one uniformly drawn recent item; social.contentopen) ...
+PLATFORM_EXTRAS = {"shorts": {"random_insert": {"rate": 0.05, "max_age_days": 30}}}
+#: ... and decides whether a viewer keeps watching a short video with workstream E's fitted KuaiRand model
+#: (content_open@1 through crucible.calibration.runtime; watch time stays built-in)
+CALIBRATED = {"shorts": {"open": "content_open@1", "content_kind": "video_short"}}
+
+
+def feed_config(platforms: list[str]) -> dict:
+    """The `feed` module config of these platforms: each platform's mixture and settings, and its fitted decisions."""
+    out = {"platforms": {p: {"recommenders": copy.deepcopy(MIXTURES.get(p, MIXTURES["posts"])),
+                             **copy.deepcopy(PLATFORM_EXTRAS.get(p, {}))} for p in platforms}}
+    cal = {p: dict(c) for p, c in CALIBRATED.items() if p in platforms}
+    if cal:
+        out["calibrated"] = cal
+    return out
 
 
 def social_world(profile: str = "development", seed: int = 0, *, n: int | None = None,
@@ -56,6 +79,9 @@ def social_world(profile: str = "development", seed: int = 0, *, n: int | None =
     if n is not None:
         pcfg["n"] = int(n)
     pcfg["classes"] = dict(classes) if classes is not None else {"adaptive": 0, "strategic": 0, "semantic": 0}
+    if profile != "internet":
+        # every platform, the creation, communities and messages are activities: room for all of them
+        pcfg["dims"] = {"H": 24, **(pcfg.get("dims") or {})}
     counts = profiles.resolve(pcfg)["counts"]
     plats = list(platforms or DISTRIBUTED)
     mods = [{"name": m, "config": {}} for m in BASE]
@@ -69,7 +95,7 @@ def social_world(profile: str = "development", seed: int = 0, *, n: int | None =
     mods += [{"name": m, "config": {}} for m in C1]
     acfg = {"platforms": plats, "max_items": 4096, "max_creators": 1024, **(aud or {})}
     mods.append({"name": "aud", "config": acfg})
-    fcfg = {"platforms": {p: {"recommenders": copy.deepcopy(MIXTURES.get(p, MIXTURES["posts"]))} for p in plats}}
+    fcfg = feed_config(plats)
     for k, v in (feed or {}).items():
         if k == "platforms":
             for p, pc in v.items():

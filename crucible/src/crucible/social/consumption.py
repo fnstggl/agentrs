@@ -61,7 +61,7 @@ BUILTIN = {
     "sat_lr": 0.12, "sat_ref_affinity": 0.2, "sat_skip": -0.004, "habit_lr": 0.5, "habit_decay": 0.02,
     "taste_drift": 0.02, "scroll_s": 2.0, "notice_prob": 0.3, "gap_mean_s": 6 * 3600.0, "gap_sat": 1.0, "need_weight": 0.3,
 }
-DEFAULT_PLATFORM = {"k": 10, "pool": 300, "pool_days": 7, "inbox_slots": 2}
+DEFAULT_PLATFORM = {"k": 10, "pool": 300, "pool_days": 7, "inbox_slots": 2, "random_insert": None}
 
 
 def _sigmoid(x):
@@ -229,7 +229,9 @@ class CalibratedOpen:
         return out
 
 
-CALIBRATED_OPEN = {"article_open_semantic@1": CalibratedOpen}
+from .contentopen import ContentOpen, insert_random  # noqa: E402
+
+CALIBRATED_OPEN = {"article_open_semantic@1": CalibratedOpen, "content_open@1": ContentOpen}
 RETIRED_OPEN = {"news_click@1": "its inputs were mapped by rank within the session batch (no absolute effect of "
                                 "content); use article_open_semantic@1 with a declared minilm-l6-cosine space"}
 
@@ -258,6 +260,7 @@ class Engine:
         pc = {**DEFAULT_PLATFORM, **self.feed.platform_cfg(platform)}
         k = int(pc["k"])
         V = idx.size
+        own_feed = pool is None and mixture is None
         if pool is None:
             pool = candidate_pool(w, platform, int(pc["pool"]), float(pc["pool_days"]))
         else:
@@ -309,6 +312,11 @@ class Engine:
             feed = np.where(fill, np.take_along_axis(recs, sp, axis=1), feed)
             src = np.where(fill, np.take_along_axis(rsrc, sp, axis=1), src)
             gen = np.where(fill, 0, gen).astype(np.uint8)
+        ri = pc.get("random_insert")
+        if ri and own_feed:
+            # the platform's random-exposure experiment (evaluator-side configuration; contentopen.insert_random)
+            insert_random(w, platform, feed, src, gen, n_in, ctx.rng("feed.random_insert", platform),
+                          float(ri.get("rate", 0.0)), float(ri.get("max_age_days", 30.0)))
         return feed, src, gen, used_inbox
 
     # ------------------------------------------------------------------ the session
@@ -374,12 +382,14 @@ class Engine:
         followed = np.zeros((V, k), dtype=bool)
         value = np.zeros(V)
         n_open = np.zeros(V)
+        decided = np.zeros((V, k), dtype=bool)
         scroll = float(b["scroll_s"])
         for p in range(k):
             hp = active & has_item[:, p] & (elapsed + scroll <= L)
             reached[:, p] = hp
             elapsed = np.where(hp, elapsed + scroll, elapsed)
             o = hp & (R[:, p, 0] < p_open[:, p])
+            decided[:, p] = o
             bnc = R[:, p, 1] < p_bounce[:, p]
             T = np.where(bnc, 1.0 + 5.0 * R[:, p, 2], -np.log(np.maximum(R[:, p, 2], 1e-300)) / lam[:, p])
             T = np.minimum(np.minimum(T, dur[:, p]), np.maximum(L - elapsed, 0.0))
@@ -407,8 +417,12 @@ class Engine:
             cont = R[:, p, 6] < _sigmoid(b["continue_bias"] + b["continue_sat"] * (sat - 0.5) +
                                          b["continue_view"] * vw + b["continue_minutes"] * elapsed / 60.0)
             active = active & np.where(hp, cont, True) & (elapsed < L - 1e-9)
-        return self._record(ctx, platform, idx, feed, src, gen, used_inbox, reached, opened, watch, comp, liked,
-                            shared, followed, view, elapsed, L, sat, value, n_open, rng)
+        out = self._record(ctx, platform, idx, feed, src, gen, used_inbox, reached, opened, watch, comp, liked,
+                           shared, followed, view, elapsed, L, sat, value, n_open, rng)
+        cal = self.calibrated.get(platform)
+        if isinstance(cal, ContentOpen) and pool is None and mixture is None:
+            cal.record(ctx, platform, idx, feed, src, reached, decided, view)
+        return out
 
     def _record(self, ctx, platform, idx, feed, src, gen, used_inbox, reached, opened, watch, comp, liked, shared,
                 followed, view, elapsed, L, sat, value, n_open, rng) -> dict:
