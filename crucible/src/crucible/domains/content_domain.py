@@ -234,12 +234,19 @@ def _copycat_script():
             for p in ("posts", "blog", "pics", "kb"):
                 items = K.ok((yield {"tool": "content.list", "args": {"platform": p, "limit": 20}})) or []
                 for it in (items if isinstance(items, list) else items.get("items", []))[:3]:
-                    if it.get("creator") == pol.actor or not it.get("ref"):
+                    if it.get("creator") == pol.actor or not it.get("id"):
                         continue
-                    got = K.ok((yield {"tool": "content.get", "args": {"id": it["id"]}})) or {}
-                    ref = got.get("ref") or it.get("ref")
-                    yield {"tool": "content.publish", "args": {"ref": ref, "kind": it.get("kind", "post"),
-                                                               "platform": p, "title": str(it.get("title", "x"))[:180]}}
+                    got = K.ok((yield {"tool": "content.open", "args": {"id": it["id"]}})) or {}
+                    text = got.get("text") or ""
+                    if not text:
+                        continue
+                    ref = (K.ok((yield {"tool": "studio.write", "args": {"format": "text",
+                                                                         "title": str(it.get("title", "x"))[:180],
+                                                                         "body": text}})) or {}).get("ref")
+                    if ref:
+                        yield {"tool": "content.publish", "args": {"ref": ref, "kind": it.get("kind", "post"),
+                                                                   "platform": p,
+                                                                   "title": str(it.get("title", "x"))[:180]}}
             for _ in range(3):
                 yield None
     return script
