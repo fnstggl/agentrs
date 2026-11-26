@@ -384,10 +384,13 @@ def sealed(root: str | None = None, workload: str = "1:mech:scm_additive", steps
 
 # ------------------------------------------------------------------------------------------------- A.5
 ACCEPTANCE_RECORDS = "docs/experiments/acceptance"
-DEMOS = {   # deterministic 4.0 demo records with their reproduction command (from each script's docstring)
-    "docs/experiments/demo_social_org.json": ["examples/demo_social_org.py"],
+DEMOS = {   # deterministic 4.0 demo records with their reproduction command (from each script's docstring);
+    # demo_social_org writes its record in place (inside the fresh clone), demo_lifetime takes --out/--store
+    "docs/experiments/demo_social_org.json": ["examples/demo_social_org.py", "30"],
     "docs/experiments/demo_lifetime.json": ["examples/demo_lifetime.py", "--days", "30"],
 }
+PROVENANCE_KEYS = ("recorded_at", "failure", "logs", "commit")   # where/when a record was made, not what it measured
+DURATION_TEXT = re.compile(r"\s+in\s+\d+(\.\d+)?s(\s+\(\d+:\d+:\d+\))?")
 NOT_REPRODUCIBLE = {   # prior records without an executable reproduction, with the reason (reported, never hidden)
     "docs/experiments/demo_lifetime_v1_overscaling.json": "superseded record of the pre-fix v1 scaling (kept for history)",
     "docs/experiments/demo_llm_lifetime.json": "needs the local Qwen model on a GPU; reproduced only with a GPU slot",
@@ -421,7 +424,7 @@ def compare_records(expected, got, path="") -> list[str]:
     out = []
     if isinstance(expected, dict) and isinstance(got, dict):
         for k, v in expected.items():
-            if _is_timing(str(k)) or k in ("recorded_at", "failure", "logs"):
+            if _is_timing(str(k)) or k in PROVENANCE_KEYS:
                 continue
             if k not in got:
                 out.append(f"{path}{k}: missing")
@@ -438,6 +441,9 @@ def compare_records(expected, got, path="") -> list[str]:
             if abs(float(expected) - float(got)) > max(1e-9, 1e-6 * max(abs(float(expected)), abs(float(got)))):
                 out.append(f"{path}: {expected!r} vs {got!r}")
         except (TypeError, ValueError):
+            out.append(f"{path}: {expected!r} vs {got!r}")
+    elif isinstance(expected, str) and isinstance(got, str):
+        if DURATION_TEXT.sub("", expected) != DURATION_TEXT.sub("", got):   # "68 passed in 50.19s": the count counts
             out.append(f"{path}: {expected!r} vs {got!r}")
     elif expected != got:
         out.append(f"{path}: {expected!r} vs {got!r}")
@@ -480,10 +486,12 @@ def prior_results(root: str | None = None, only: list[str] | None = None, timeou
                                     {"measured": got.get("measured", {}), "outcome": got.get("outcome")})
             r.update(attempted=True, rc=p.returncode, mismatches=diffs[:20], n_mismatches=len(diffs))
         else:
-            out = os.path.join(work, os.path.basename(c["record"]))
-            cmd = [sys.executable, *c["cmd"], "--out", out]
             if "demo_lifetime" in c["record"]:
-                cmd += ["--store", os.path.join(work, "demo_lifetime.db")]
+                out = os.path.join(work, os.path.basename(c["record"]))
+                cmd = [sys.executable, *c["cmd"], "--out", out, "--store", os.path.join(work, "demo_lifetime.db")]
+            else:
+                out = os.path.join(clone, c["record"])
+                cmd = [sys.executable, *c["cmd"]]
             p = subprocess.run(cmd, cwd=clone, env=env, capture_output=True, text=True, timeout=timeout)
             got = json.load(open(out)) if os.path.exists(out) else {}
             exp = c["expected"]
