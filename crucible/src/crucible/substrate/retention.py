@@ -9,8 +9,9 @@ bounds that growth without giving up anything replay, regeneration or recounting
   chunks `pack/<sha256 of the chunk>` (LZMA by default) in creation order, and replaces each blob's own key by a
   fixed-size pointer. Every read still checks the blob's SHA-256 (and the chunk's), so packing never changes a
   byte any world reads; replay from genesis, regeneration and audience recounts stay exact. Blobs that a module
-  will rebuild runtime state from (`Module.blob_roots`, e.g. the latest neural checkpoints) stay unpacked: they are
-  read on every load, are mostly incompressible weights, and are the ones that may be retired later.
+  will rebuild runtime state from (`Module.blob_roots`, e.g. the latest neural checkpoints, now or at a retained
+  snapshot) and blobs already declared superseded stay unpacked: they are read on every load, are mostly
+  incompressible weights, and are the ones that may be retired later.
 * `collect(world)` drops blobs their owner module declares superseded (`Module.superseded_blobs`, e.g. a
   checkpoint replaced by a later one) - never a blob that a `cols.batch` event applies, never a root of the current
   state or of any retained snapshot (each snapshot records its roots), and nothing at all when the store holds
@@ -107,7 +108,12 @@ def pack(world, *, chunk_bytes: int = 32 * MiB, codec: str = "lzma", level: int 
         raise ProtocolError(f"codec must be one of {sorted(CODECS)}")
     world.flush()
     sizes = store.blob_sizes("art/")
-    keep = {r[len(A.REF_PREFIX):] for r in roots(world)}
+    # never packed: blobs a load rebuilds from (now or from a retained snapshot) and blobs already superseded -
+    # they are the ones collect() may drop later, and neural weights hardly compress anyway
+    keep_refs = roots(world) | superseded(world)
+    for snap in store.list_snapshots(world.world_id):
+        keep_refs |= snapshot_roots(store, snap["id"]) or set()
+    keep = {r[len(A.REF_PREFIX):] for r in keep_refs}
     todo = []
     for _t, h in _sys_batch(world):
         n = sizes.get(A.blob_key(h))

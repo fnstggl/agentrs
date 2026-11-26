@@ -426,14 +426,19 @@ def _install(name: str):
     return None, "; ".join(errs)
 
 
-def scan_registry(names=None) -> dict:
-    """{module: [items it creates]} for every registered module (or `names`), each installed on its own with its
-    dependencies; modules that cannot be installed at all are listed under '!uninstallable' with the reason."""
+def shipped_modules() -> list[str]:
+    """Every kernel module the crucible package registers (test modules registered by test files excluded)."""
     import crucible
     from ..core.kernel import MODULES
     crucible.load_all_modules()
+    return sorted(n for n, cls in MODULES.items() if cls.__module__.startswith("crucible."))
+
+
+def scan_registry(names=None) -> dict:
+    """{module: [items it creates]} for every shipped module (or `names`), each installed on its own with its
+    dependencies; modules that cannot be installed at all are listed under '!uninstallable' with the reason."""
     out: dict = {"!uninstallable": {}}
-    for name in sorted(names or MODULES):
+    for name in sorted(names or shipped_modules()):
         w, err = _install(name)
         if w is None:
             out["!uninstallable"][name] = err
