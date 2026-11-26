@@ -337,3 +337,32 @@ def _main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_main(sys.argv[1:]))
+
+
+def run_mixture(registry: Registry, mixture: Mixture, episodes: int, *, steps: int = 24, seed: int = 0) -> dict:
+    """Execute a mixture: draw `episodes` specs, build each world and run the architecture-neutral reference
+    learner (`crucible.experience.ReferenceLearner`, which acts in every tier) for `steps` decisions, measuring the
+    CPU seconds (compute) and executed actions (experience) of every episode separately. Returns the realised
+    shares and the episodes built per tier."""
+    import time
+    from ...experience.loop import run_learner
+    from ...experience.reference import ReferenceLearner
+    smp = Sampler(registry, mixture, seed=seed)
+    L = ReferenceLearner(seed=seed)
+    from .integrity import classify_failure
+    built = {t: 0 for t in smp.targets}
+    failures = []
+    for _ in range(int(episodes)):
+        sp = smp.next()
+        c0, w0 = time.process_time(), time.perf_counter()
+        try:
+            env = make_env(sp, registry)
+            r = run_learner(env, L, steps)
+        except Exception as e:  # noqa: BLE001 - a failed episode is classified and reported, its compute counted
+            failures.append({"entry": sp["entry"], "seed": sp["seed"], **classify_failure(e)})
+            smp.report(sp, cpu_s=time.process_time() - c0, interactions=0, wall_s=time.perf_counter() - w0)
+            continue
+        built[sp["tier"]] += 1
+        smp.report(sp, cpu_s=time.process_time() - c0, interactions=int(r.get("actions", steps)),
+                   wall_s=time.perf_counter() - w0)
+    return {"shares": smp.shares(), "built": built, "missing": smp.missing_tiers, "failures": failures}
