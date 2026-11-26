@@ -18,7 +18,9 @@ import time
 WORKERS_ENV = "CRUCIBLE_CIV_WORKERS"
 CACHE_ENV = "CRUCIBLE_CIV_CACHE"
 INTEGRATION_RUN = {"profile": "balanced", "seed": 7, "days": 5}
-EFFECT_SEEDS = (11, 12, 13)
+# six seeds (as the invention experiment): at e77fef3 with three, sign-consistent effects in every seed (goods bought
+# after a supply disruption: -10.5/-3/-28.5) stayed unconfirmed because the paired interval's t(2) = 4.30
+EFFECT_SEEDS = (11, 12, 13, 14, 15, 16)
 CHAIN_SEEDS = (21, 22, 23)
 
 
