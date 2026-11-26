@@ -293,11 +293,15 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                 log(json.dumps(row))
         w.flush()
         if replay:
-            from ..core.kernel import World as _W
-            last = _W.from_blob(store.get_snapshot(snaps[-1][1])[1], world_id=f"{wid}-last")
-            if snaps[-1][0] != w.seq or last.digest() != w.digest() or last.last_hash != w.last_hash:
+            # the last snapshot against the live world, loaded in a child (no second state in the live process)
+            env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+            pr = subprocess.run([sys.executable, "-m", "crucible.civ.longrun", "snapshot", store.path, wid,
+                                 snaps[-1][1]], env=env, capture_output=True, timeout=3600)
+            last = json.loads(pr.stdout.decode().strip().splitlines()[-1]) if pr.returncode == 0 else \
+                {"error": pr.stderr.decode(errors="replace")[-800:]}
+            if snaps[-1][0] != w.seq or last.get("digest") != w.digest() or last.get("hash") != w.last_hash:
                 rep["replay"]["mismatches"] += 1
-                rep["replay"]["detail"].append({"segment": "end", "snapshot": last.digest(), "live": w.digest()})
+                rep["replay"]["detail"].append({"segment": "end", "snapshot": last, "live": w.digest()})
         rep["final"] = {"seq": w.seq, "hash": w.last_hash, "digest": w.digest()}
         rep["entities"] = entity_census(w)
         w.close()
@@ -376,10 +380,28 @@ def _verify_child(path, wid, s0, sid0, s1, sid1) -> dict:
     evs = store.read_events(wid, from_seq=int(s0), to_seq=int(s1))
     base = store.get_snapshot(sid0)[1] if sid0 != "-" else None
     rw = World.replay(World_spec(store, wid), evs, world_id=f"{wid}-replay", base_blob=base, store=store)
+    got = {"replayed": rw.digest(), "seq": rw.seq, "events": len(evs)}
+    # one world at a time in this process (the peak is one state, not two: long runs verify near the job's RAM grant)
+    rw.close()
+    del rw, evs, base
+    import gc
+    gc.collect()
     # the recorded snapshot is loaded with the store attached (its modules' on_load read blobs, e.g. the adaptive
     # population's weights); nothing is written to the store (no event is applied or flushed)
-    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check", store=store).digest()
-    return {"replayed": rw.digest(), "recorded": want, "seq": rw.seq, "events": len(evs)}
+    chk = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check", store=store)
+    got["recorded"] = chk.digest()
+    got["recorded_hash"] = chk.last_hash
+    chk.close()
+    return got
+
+
+def _snapshot_child(path, wid, sid) -> dict:
+    """The digest, hash and seq of one recorded snapshot, loaded with the store attached in its own process."""
+    from ..core.kernel import World
+    from ..storage.sqlite import SQLiteStore
+    store = SQLiteStore(path)
+    chk = World.from_blob(store.get_snapshot(sid)[1], world_id=f"{wid}-last", store=store)
+    return {"digest": chk.digest(), "hash": chk.last_hash, "seq": chk.seq}
 
 
 def World_spec(store, wid):
@@ -529,8 +551,11 @@ def complete(rep: dict | None) -> bool:
 def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: str | None = None,
           population: str | None = None, workers: int = 1, workdir: str | None = None, base_seed: int = 101,
           keep_stores: bool = False, prune: bool = True, log=None, timeout_s: int = 24 * 3600,
-          only_existing: bool = False) -> list[dict]:
+          only_existing: bool = False, max_long: int | None = None, long_from: int = 365) -> list[dict]:
     """Every (horizon, seed) run in its own process, `workers` at a time; independent seeds (distinct per horizon).
+    `max_long` caps how many runs of `long_from` days or more run at once (a run's memory grows with its simulated
+    days and its verification child holds one more state: at day 365 one run and its child need about twice the
+    memory of a 180-day run), the others fill the remaining workers.
 
     Runs live in `job_dir(...)` (persistent, outside the repository): a run whose report is complete is not run
     again; an interrupted one (no report, or a process stopped by a time or usage limit) resumes from its last
@@ -559,7 +584,12 @@ def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: s
             pending.append((h, s, wd))
     while pending or running:
         while pending and len(running) < max(1, workers):
-            h, s, wd = pending.pop(0)
+            n_long = sum(1 for x in running if x[2] >= long_from)
+            pick = next((k for k, (h_, _, _) in enumerate(pending)
+                         if max_long is None or h_ < long_from or n_long < max_long), None)
+            if pick is None:
+                break
+            h, s, wd = pending.pop(pick)
             os.makedirs(wd, exist_ok=True)
             rp = os.path.join(wd, "report.json")
             args = [sys.executable, "-m", "crucible.civ.longrun", "run", profile, str(s), str(h), population, wd, rp]
@@ -627,6 +657,11 @@ def _main(argv) -> int:
         regenerate_continuation(w, evs)
         print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq, "events": len(evs),
                           "wall_s": round(time.time() - t, 1)}))
+        return 0
+    if argv and argv[0] == "snapshot":
+        import torch
+        torch.set_num_threads(1)
+        print(json.dumps(_snapshot_child(*argv[1:4])))
         return 0
     if argv and argv[0] == "verify":
         import torch

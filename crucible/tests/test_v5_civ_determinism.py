@@ -101,3 +101,22 @@ def test_resume_compare_counts_the_exact_check(tmp_path):
     json.dumps(out)
     w.close()
     store.close()
+
+
+def test_segment_replay_and_snapshot_checks_run_in_children(tmp_path):
+    """The long-run verification children (one state at a time): a recorded segment replays onto its opening
+    snapshot to the closing snapshot's digest, and the closing snapshot loads to the live world."""
+    path = str(tmp_path / "live.sqlite")
+    store = SQLiteStore(path)
+    w = generator.generate("balanced", 4, store=store, world_id="seg")
+    a = (w.seq, w.snapshot())
+    w.advance_time(H)
+    b = (w.seq, w.snapshot())
+    acc = {"segments": 0, "events": 0, "mismatches": 0, "detail": [], "wall_s": 0.0}
+    longrun._replay_segment(w, store, "seg", a, b, acc)
+    assert acc["segments"] == 1 and acc["mismatches"] == 0, acc["detail"]
+    assert acc["events"] == b[0] - a[0]
+    snap = longrun._snapshot_child(path, "seg", b[1])
+    assert snap == {"digest": w.digest(), "hash": w.last_hash, "seq": w.seq}
+    w.close()
+    store.close()

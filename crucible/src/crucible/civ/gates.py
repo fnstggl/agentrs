@@ -554,7 +554,7 @@ def long_horizon(horizons=P_HORIZONS, seeds_per_horizon: int = 2) -> dict:
     from . import longrun
 
     def run():
-        reps = longrun.suite(horizons, seeds_per_horizon, workers=workers(),
+        reps = longrun.suite(horizons, seeds_per_horizon, workers=workers(), max_long=1,
                              log=lambda m: print(m, file=sys.stderr, flush=True))
         for r in reps:
             r.pop("daily", None)
