@@ -47,6 +47,10 @@ N_BOOT = 200
 CANDS = ("B0_no_effect", "B1_constant_difference", "M1_constant_log_odds", "M2_linear_log_odds")
 BASELINES = ["B0_no_effect", "B1_constant_difference"]
 PRIMARY = "excess_log_loss"
+# The plan labels the data's design (randomised eligibility: "randomized_controlled_trial"); the kept estimand is the
+# effect of display, identified with eligibility as its instrument, so the model's identification label is the IV one
+# (registry.IDENTIFICATION; label corrected after the fit, verifier note of the wave-3 repair pass).
+IDENTIFICATION = "randomized_encouragement_iv"
 
 
 def spec() -> dict:
@@ -493,7 +497,8 @@ def run(cmd: str = "python -m crucible.calibration.fit_e5", d: dict | None = Non
                               "the simulator the individual's own organic visit probability (ad_response@2 input "
                               "organic_visit_probability)")}
     rep = {"schema": "crucible.v5.calibration_report/1", "model": NAME, "version": VERSION, "domain": s["domain"],
-           "datasets": [s["dataset"]], "identification": s["identification"], "estimand": s["estimand"],
+           "datasets": [s["dataset"]], "identification": IDENTIFICATION, "identification_plan_label": s["identification"],
+           "estimand": s["estimand"],
            "population": "13,979,592 users reachable by Criteo display advertising (pooled incrementality tests)",
            "platform": "Criteo display advertising (retargeting and prospecting campaigns of undisclosed advertisers)",
            "period": "undisclosed; released 2018", "plan": plan, "splits": splits, "heldout_splits": ["test"],

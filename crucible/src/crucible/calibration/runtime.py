@@ -33,12 +33,18 @@ Rules this module enforces (and `tests/test_v5_calibration_runtime.py` checks):
   model whose contract cannot be computed in a simulated world (``status: offline_only``) raises; nothing returns a
   plausible default instead.
 * **Provenance.** `Result.provenance()` is JSON-native: {decision, model, version, fidelity, rows, extrapolated}.
+* **Declared scope at use.** A decision model with a machine-readable scope (``spec.scope``: content kinds, uses) is
+  used through `dm.scoped(content_kind=..., use=...)`, which refuses a use outside the scope and tags every row the
+  bound handle evaluates with the declared use. The process-wide ledger `scope_usage()` counts rows per declared
+  use, rows of a scoped model evaluated WITHOUT a declared use (``"unscoped"``: the runtime cannot tell whether that
+  use was inside the card) and refused attempts; `crucible.calibration.inworld.out_of_scope_uses` counts both.
 
 The extrapolation limits of every decision model are in `spec["limits"]` and, in full, in its model card and
 held-out report; `docs/v5/calibration/RUNTIME.md` documents every contract for the population workstream.
 """
 from __future__ import annotations
 
+import contextvars
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -363,6 +369,10 @@ def _base_specs() -> dict[str, Spec]:
 _SPECS: dict[str, Spec] | None = None
 _LOADED: dict[str, "DecisionModel"] = {}
 _USAGE: dict[str, int] = {}
+_SCOPE_USED: dict[tuple, int] = {}      # (decision id, declared use key or "unscoped") -> rows evaluated
+_SCOPE_REFUSED: dict[tuple, int] = {}   # (decision id, requested use key) -> refused attempts
+_ACTIVE_SCOPE: contextvars.ContextVar = contextvars.ContextVar("calibration_scope", default=None)
+UNSCOPED = "unscoped"
 _EXTRA: list = []          # callables returning {id: Spec}; registered by later calibration modules
 
 
@@ -414,8 +424,65 @@ def usage() -> dict[str, int]:
     return dict(_USAGE)
 
 
+def scope_usage() -> dict:
+    """The scope ledger of this process: {"used": {decision id: {use key: rows}}, "refused": {decision id: {use key:
+    attempts}}} for decision models that carry a machine-readable scope. The use key is "content_kind=<k>;use=<u>"
+    for rows evaluated through `scoped(...)` and "unscoped" for rows evaluated on the bare model."""
+    used, refused = {}, {}
+    for (d, k), n in sorted(_SCOPE_USED.items()):
+        used.setdefault(d, {})[k] = int(n)
+    for (d, k), n in sorted(_SCOPE_REFUSED.items()):
+        refused.setdefault(d, {})[k] = int(n)
+    return {"used": used, "refused": refused}
+
+
 def reset_usage() -> None:
     _USAGE.clear()
+    _SCOPE_USED.clear()
+    _SCOPE_REFUSED.clear()
+
+
+def _scope_key(content_kind, use) -> str:
+    return f"content_kind={content_kind};use={use}"
+
+
+def _note_rows(dm: "DecisionModel", n: int) -> None:
+    _USAGE[dm.id] = _USAGE.get(dm.id, 0) + int(n)
+    if dm.spec.scope and n:
+        k = (dm.id, _ACTIVE_SCOPE.get() or UNSCOPED)
+        _SCOPE_USED[k] = _SCOPE_USED.get(k, 0) + int(n)
+
+
+class ScopedDecision:
+    """A decision model bound to one declared use inside its machine-readable scope (`DecisionModel.scoped`).
+    `evaluate`, `sample` and `evaluate_features` tag the rows they evaluate with that use in the scope ledger; every
+    other attribute is the model's."""
+
+    def __init__(self, dm: "DecisionModel", content_kind, use):
+        self._dm, self.content_kind, self.use = dm, content_kind, use
+        self.scope_key = _scope_key(content_kind, use)
+
+    def __getattr__(self, name):
+        return getattr(self._dm, name)
+
+    def __repr__(self) -> str:
+        return f"ScopedDecision({self._dm.id}, {self.scope_key})"
+
+    def _call(self, fn, *a, **k):
+        tok = _ACTIVE_SCOPE.set(self.scope_key)
+        try:
+            return fn(*a, **k)
+        finally:
+            _ACTIVE_SCOPE.reset(tok)
+
+    def evaluate(self, inputs: dict, strict: bool = False) -> "Result":
+        return self._call(self._dm.evaluate, inputs, strict)
+
+    def sample(self, inputs: dict, rng: np.random.Generator) -> np.ndarray:
+        return self._call(self._dm.sample, inputs, rng)
+
+    def evaluate_features(self, X: np.ndarray, checkpoint: bool = False) -> "Result":
+        return self._call(self._dm.evaluate_features, X, checkpoint)
 
 
 # ---------------------------------------------------------------- results and models
@@ -503,15 +570,27 @@ class DecisionModel:
     def contract(self) -> dict:
         return self.spec.as_dict()
 
-    def check_scope(self, content_kind: str | None = None, use: str | None = None) -> None:
-        """Refuse a use outside the decision model's machine-readable scope (card limits, audit E skeptic s8)."""
+    def check_scope(self, content_kind: str | None = None, use: str | None = None) -> "ScopedDecision":
+        """Refuse a use outside the decision model's machine-readable scope (card limits, audit E skeptic s8); a
+        refused attempt is counted in the scope ledger. Returns the handle bound to the declared use (`scoped`)."""
         kinds = self.spec.scope.get("content_kinds")
-        if kinds is not None and content_kind not in kinds:
-            raise ContractError(f"{self.id}: fitted on {kinds} only; content kind {content_kind!r} is outside its "
-                                f"scope ({self.spec.limits[:160]}...)")
         uses = self.spec.scope.get("use")
-        if uses is not None and use not in uses:
-            raise ContractError(f"{self.id}: allowed uses are {uses}, not {use!r}")
+        bad = None
+        if kinds is not None and content_kind not in kinds:
+            bad = (f"{self.id}: fitted on {kinds} only; content kind {content_kind!r} is outside its "
+                   f"scope ({self.spec.limits[:160]}...)")
+        elif uses is not None and use not in uses:
+            bad = f"{self.id}: allowed uses are {uses}, not {use!r}"
+        if bad is not None:
+            k = (self.id, _scope_key(content_kind, use))
+            _SCOPE_REFUSED[k] = _SCOPE_REFUSED.get(k, 0) + 1
+            raise ContractError(bad)
+        return ScopedDecision(self, content_kind, use)
+
+    def scoped(self, content_kind: str | None = None, use: str | None = None) -> "ScopedDecision":
+        """The model bound to one declared use (content kind and/or use) inside its machine-readable scope; refuses
+        a use outside it. World code uses a scoped decision model only through such a handle."""
+        return self.check_scope(content_kind, use)
 
     # ------------------------------------------------------------ inputs
     def _validate(self, inputs: dict) -> tuple[dict, int]:
@@ -584,7 +663,7 @@ class DecisionModel:
         return np.asarray(self.fitted.card.get("quantile_levels") or [], dtype=np.float64)
 
     def _result(self, values, X, cols) -> Result:
-        _USAGE[self.id] = _USAGE.get(self.id, 0) + int(values.shape[0])
+        _note_rows(self, int(values.shape[0]))
         return Result(self.id, self.model_id, self.version, self.fidelity_id, values, self._extrapolated(X), cols,
                       self.served)
 
@@ -709,7 +788,7 @@ class AdDecision(DecisionModel):
         ref = float(self.spec.params.get("reference_attention", 1.0))
         p = np.minimum(1.0, p0 + (A / ref) * (q - p0))
         vals = np.column_stack([p, p0, p - p0]) if n else np.zeros((0, 3))
-        _USAGE[self.id] = _USAGE.get(self.id, 0) + int(n)
+        _note_rows(self, int(n))
         return Result(self.id, self.model_id, self.version, self.fidelity_id, vals, ex,
                       ("p_visit", "p_visit_organic", "p_incremental"), self.served)
 

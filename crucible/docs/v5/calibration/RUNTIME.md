@@ -34,10 +34,14 @@ Rules (enforced by the code and `tests/test_v5_calibration_runtime.py`):
 5. **Provenance.** `res.provenance()` = {decision, model, version, fidelity (register id), served, rows,
    extrapolated}. `served` is `K` for the fitted checkpoint, or the contender the E3 review kept (`S` the
    simulator's rule, `B` the simple baseline): the runtime serves the reviewed choice and says so.
-6. **Scope.** Decision models over content items carry a machine-readable scope (`spec["scope"]`, e.g.
-   `{"content_kinds": ["video_short"]}`); a consumer calls `dm.check_scope(content_kind, use)` at install time and
-   a use outside the scope raises (a news-article model on a posts platform, a recommender target used as a choice
-   rule).
+6. **Scope.** Decision models over content items or placements carry a machine-readable scope (`spec["scope"]`,
+   e.g. `{"content_kinds": ["video_short"]}`, `{"use": ["display_campaign", "feed_campaign"]}`). World code binds
+   the declared use once, `h = runtime.get(id).scoped(content_kind=..., use=...)` (a use outside the scope raises:
+   a news-article model on a posts platform, a recommender target used as a choice rule, an ad model for search
+   results), and evaluates through `h.evaluate` / `h.sample`, which tag every row with the declared use in the
+   runtime's scope ledger (`runtime.scope_usage()`). Rows of a scoped model evaluated on the bare model are tagged
+   `unscoped`; SP-5.5b counts them as uses outside the card (their scope cannot be verified), and counts every
+   refused attempt. `check_scope` is the same check and returns the same handle.
 7. **Integrity.** `registry.load` checks the checkpoint hashes and the pinned card and checkpoint hashes in
    `docs/v5/calibration/registry_index.json` (outside the model directories), so the card fields a decision model
    reads (feature order, quantiles, prior rate, selection, response tables) cannot change unnoticed.
@@ -84,7 +88,7 @@ no effect.
 
 ```python
 from crucible.calibration import runtime
-dm = runtime.get("ad_response@2"); dm.check_scope(use="feed_campaign")      # or "display_campaign"
+dm = runtime.get("ad_response@2").scoped(use="feed_campaign")             # or "display_campaign"
 att = runtime.get("content_open@1")                                          # attention per display (video feeds)
 a = att.evaluate(display_inputs).values                                     # one row per display of the campaign
 A = runtime.at_least_one(a, owner_row_of_each_display, n)                   # P(>= 1 attended display) per individual
@@ -109,9 +113,14 @@ visit, incremental = dm.sample({...}, ctx.rng("ads.visit")).T             # one 
   wear-out, carry-over between periods and ad-load annoyance are not identified by any registered data and are not
   modelled.
 * **Price.** The data do not observe price. Conversion after a visit is the world's own purchase decision at the
-  offer's price and the individual's willingness to pay. The data identify one conversion fact used here: visits the
-  campaign caused convert 2.76 times as often as organic visits (fit 95% CI 2.03-3.47; test 2.44, CI 2.08-2.93) -
-  Criteo's displays reach high-intent users (retargeting).
+  offer's price and the individual's willingness to pay. The data give one conversion ratio used here, rho =
+  (ITT on conversions / ITT on visits) / (conversions per visit in the control arm) = 2.76 (fit 95% CI 2.03-3.47;
+  test 2.44, CI 2.08-2.93). It equals "visits the campaign caused convert 2.76 times as often as organic visits"
+  only under an assumption the data cannot check: being displayed does not change the conversion probability of
+  individuals who would have visited anyway (organic visitors). If displays also raise organic visitors'
+  conversion, rho mixes the two effects and overstates the conversion of caused visits; the runtime applies rho to
+  incremental visits only, so under that alternative the world understates displayed organic visitors' purchases
+  and overstates incremental ones by the same total. Criteo's displays reach high-intent users (retargeting).
 * **Negative effects.** None: the shift is constrained to be >= 0 and no stratum's held-out interval lies below 0.
   The 18% negative-responder mass of the old type table was an artifact (audit E skeptic s3).
 * **Transport (documented assumption).** Absolute levels are the world's own (`p0`); only the log-odds shift and the
@@ -120,7 +129,15 @@ visit, incremental = dm.sample({...}, ctx.rng("ads.visit")).T             # one 
   is the effect of a *targeted* display on users Criteo's bidder reached; displays an agent sends to individuals a
   bidder would not have chosen are an extrapolation. `A_ref = 1` (params `reference_attention`) declares a Criteo
   display an attended exposure, so an attended world display never exceeds a Criteo display's effect
-  (conservative). Search advertising is out of scope (`check_scope(use="search_result")` raises); `economy.work`'s
+  (conservative), and a world display attended with probability A has A times its effect on the visit
+  probability. The in-world ad-holdout validation therefore targets the same estimand, the shift per attended
+  display (each stratum's displayed-complier effect divided by its recorded mean A / A_ref), not the raw shift per
+  display, which at the KuaiRand random-exposure open rate (about 0.19 per display) is about a quarter of Criteo's
+  by construction.
+* **Support of the organic propensity.** The served support of `p0` is the range of the strata's complier
+  baselines, about 0.013-0.39 (`res.extrapolated` flags the rest). Criteo's outcome is a visit during the campaign
+  window, so `p0` must be the individual's organic probability over a comparable campaign period, not per tick:
+  evaluate once per individual and campaign period. Per-tick probabilities below 1.3% are extrapolations. Search advertising is out of scope (`check_scope(use="search_result")` raises); `economy.work`'s
   sponsored-search clicks use a hand-set probability (fidelity record `work.sponsored_click`).
 
 ## In-world validation (SP-5.5b; `crucible.calibration.inworld`)
@@ -133,28 +150,62 @@ activity. Tolerances are prespecified in `inworld.TOLERANCE`. Measured at this c
 |---|---|---|---|---|
 | activity distribution | TV distance of active days in 7 / of sessions per active day | 0.051 / 0.213 | 0.10 / 0.10 | no (sessions: the served C2 constant rate has no heterogeneity) |
 | retention curve | weighted max abs difference of the 7-day curves by prior-activity bin | 0.086 | 0.05 | no |
-| heterogeneity | KS of per-user active share; sd ratio | 0.051; 0.96 | 0.10; 0.8-1.25 | yes |
+| heterogeneity | KS of individuals' own mean sessions per active day; sd ratio | 0.259; 0.48 | 0.10; 0.8-1.25 | no (the constant session rate gives every individual the same intensity: half the real spread) |
 | long-horizon drift | mean abs difference of the daily active share; 60 days beyond the data | 0.033; +0.061 (0.73 -> 0.79) | 0.03; 0.05 | no (an upward drift through the model's own feedback) |
 
+0 of 4 within tolerance. The heterogeneity statistic was the KS of individuals' active-day shares until the repair
+pass; that statistic is a function of the active-days histogram the activity report already compares (its KS equalled
+the activity TV, 0.0507, in the earlier run), so it was replaced by session intensity after the earlier model-only run
+had been seen (tolerances unchanged). Honest reading: the fitted return model reproduces how many days individuals
+are active, but neither the review-kept constant session rate nor the return model reproduces how individuals differ
+in session intensity or how activity depends on recent history, and the coupled models drift upward under their own
+feedback beyond the data's week.
+
 `inworld.in_world_reports(world)` computes the same four reports from a running world. What the population must record
-for it (and for the experiments), through `population.record_decisions` with the decision provenance named:
+for it (and for the experiments), through `population.record_decisions` with the decision provenance named
+(`model_id` / `model_version` as in `Result.provenance()`: the runtime decision id or the fitted id):
 
 | decision | provenance `model_id` | batch columns |
 |---|---|---|
 | daily activation | `daily_return@1` (or `return_daily@1`) | `active` (bool) |
 | sessions on an active day | `extra_sessions@1` (or `session_rate@1`) | `sessions` (int) |
 | open a feed item | `content_open@1` | `opened` (bool), `own_topic` (bool, user_tag_lift > 0) |
-| visit an advertised offer | `ad_response@2` | `visit`, `displayed` (bool), `organic_visit_probability` (float) |
+| visit an advertised offer | `ad_response@2` | `visit`, `displayed` (bool), `organic_visit_probability`, `attended_probability` (float) |
+
+**Which decisions count** (`inworld.audit(world)`). A batch counts only when (a) it is an organic population decision
+or a participant's own decision under the population's provenance rules (`population.check_provenance`: its ref is
+listed by the population's own `pop.session` batch and every row is in that session's cohort, or it was recorded by
+a tool command of that individual with the participant model), re-derived batch by batch and cross-checked against
+`check_provenance`'s totals (a divergence raises), and (b) the runtime decision named by its provenance (or a decision
+serving the fitted model it names) evaluated at least as many rows in this process as the counted batches claim
+(`runtime.usage()`; reset before the world is built). A batch stamped with fitted provenance by a system call or by
+module code outside the session is forced; a batch the runtime never evaluated is unbacked; neither counts. Note for
+the population: rows outside the session cohort count as forced, so a daily-activation decision over individuals
+who did not start a session must be recorded inside a cohort that contains them.
 
 A randomised experiment labels its batches `extra.experiment = {"id": "random_exposure", "arm": "random"}` (items the
 platform inserts at random) or `{"id": "ad_holdout", "arm": "eligible" | "holdout"}` (campaign eligibility drawn at
 random by the ad mechanism). `random_exposure_experiment` compares the in-world open rate and own-topic odds ratio with
-KuaiRand's random-exposure test rows (open rate 0.186, log odds ratio 0.40 +- 0.018); `ad_holdout_experiment` re-runs
-the E5 estimator in the world and compares the shift with the fitted interval. A world that records none of these is
-reported as not wired, never as validated. `inworld.provenance_metrics(world)` gives the SP-5.0 numbers (fitted models
-used by recorded decisions, population decision batches without provenance) and `inworld.out_of_scope_uses()` counts
-world source files that load a fitted checkpoint directly instead of through this runtime (at this commit:
-`population/models.py`, the silent plug-in rule 4 forbids).
+KuaiRand's random-exposure test rows (open rate 0.186, log odds ratio 0.40 +- 0.018). `ad_holdout_experiment`
+(`ad_holdout_estimate`) re-runs the E5 likelihood in the world with eligibility as the instrument for display, each
+stratum's displayed-complier effect scaled by the recorded mean attention `A / A_ref` of its displayed individuals,
+and matches the shift per attended display with Criteo's by a two-sample z test (|z| < 1.96, standard errors from the
+two 95% intervals); the unadjusted shift, the intention-to-treat difference, an arm-balance z of the organic
+propensity and protocol violations (displays in the holdout, attention without display) are reported alongside. On
+draws of `ad_response@2` itself (500,000 individuals, 30% of the eligible displayed) the adjusted shift is 1.39, 1.39,
+1.41, 1.45 and 1.47 at mean attention 1, 0.8, 0.5, 0.3 and 0.19 (all matching; the unadjusted shift falls to 0.39),
+and a world without display effect gives 0.06 (CI 0-0.19, not matching).
+
+A world that records none of these is reported as not wired, never as validated. `inworld.provenance_metrics(world)`
+gives the SP-5.0 numbers: fitted models used by counted decisions; register claims of in-world use that fail
+verification or (for `default:` claims) that this world did not exercise; population-table batches without
+provenance, every kind except the declared non-decision kinds (`inworld.NON_DECISION_KINDS`: genesis, research-design
+assignment, scheduling, attention and money bookkeeping, deliveries). `inworld.out_of_scope_uses()` counts (i) world
+source files that use a fitted checkpoint outside this runtime, from their syntax trees (imports of calibration
+modules other than `runtime`, absolute, relative or aliased; `calibration.load` / `getattr`; dynamic imports;
+`evaluate_features`; `.fitted.predict`; checkpoint file names; docstrings and comments never count; at this commit:
+`population/models.py`, the silent plug-in rule 4 forbids), (ii) scoped decision models evaluated without a declared
+use in the run, and (iii) refused out-of-scope attempts.
 
 ## Extrapolation limits (read before wiring)
 

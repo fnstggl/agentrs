@@ -3,10 +3,14 @@ decisions in the running integrated world, every runtime use the fidelity regist
 events carry the model id and version (decision provenance).
 
 Measured on a generated civilisation (`crucible.civ.generate("balanced", 3, population="development")`) run for two
-simulated days: the fitted models named by the decision provenance of the recorded population decision batches
-(`extra.decision.model_id`, a fitted model id or a runtime decision id that serves one), the register's in-world
-claims that fail verification, and the population's own decision batches (session and activation decisions, web
-choices) recorded without provenance. The population workstream wires the runtime models (D-15); until it does, and
+simulated days (`crucible.calibration.inworld.provenance_metrics`): the fitted models named by the decision
+provenance (`extra.decision`, a fitted model id or a runtime decision id that serves one) of batches that are organic
+population decisions or participants' own decisions under the population's provenance rules (re-derived batch by
+batch and cross-checked against `population.check_provenance`) and whose rows the runtime really evaluated in this
+run (`runtime.usage()`, reset before the world is built); the register's in-world claims that fail verification or
+that this world does not exercise; and every population-table batch outside the declared non-decision kinds
+(`inworld.NON_DECISION_KINDS`: genesis, scheduling, attention and money bookkeeping, deliveries) recorded without
+provenance. The population workstream wires the runtime models (D-15); until it does, and
 until civ.generate builds again (the integration fix of the duplicate 'space' module), this test FAILS - it never
 skips."""
 import pytest
@@ -42,7 +46,9 @@ def test_SP_5_0_fitted_models_drive_decisions_in_the_integrated_world():
     metrics = {k: v for k, v in m.items() if not k.startswith("_")}
     record("SP-5.0", metrics, command=CMD,
            notes=f"fitted models used: {m['_used']}; population decision batches without provenance by kind: "
-                 f"{m['_without_by_kind']}")
+                 f"{m['_without_by_kind']}; provenance classes: {m['_provenance_classes']}; forced batches with "
+                 f"fitted provenance: {m['_forced_with_fitted_provenance']}; unverified claims: "
+                 f"{m['_unverified_claims']}")
     # the measurement saw the world's decisions (not an empty event log)
     assert m["decision_events_with_model_provenance"] + m["decision_events_without_model_provenance"] > 0
     fails = [msg for c in _criteria("SP-5.0") for ok, msg in [criterion_met(c, metrics)] if not ok]

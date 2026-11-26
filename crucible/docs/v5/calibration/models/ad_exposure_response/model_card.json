@@ -210,7 +210,7 @@
   "datasets": [
    "criteo_uplift_v2.1"
   ],
-  "identification": "randomized_controlled_trial",
+  "identification": "randomized_encouragement_iv",
   "population": "13,979,592 users reachable by Criteo display advertising (pooled incrementality tests)",
   "platform": "Criteo display advertising (retargeting and prospecting campaigns of undisclosed advertisers)",
   "period": "undisclosed; released 2018",
@@ -226,7 +226,9 @@
    "command": "python -m crucible.calibration.fit_e5"
   },
   "domain": "advertising_response",
-  "kept_candidate": "M1_constant_log_odds"
+  "kept_candidate": "M1_constant_log_odds",
+  "identification_plan_label": "randomized_controlled_trial",
+  "identification_label_revision": "Label corrected after the fit (2026-11-26, wave-3 repair pass): the plan and the original card said 'randomized_controlled_trial', the design of the data; the kept estimand is a complier (IV) effect of display with randomised eligibility as the instrument, which also rests on the exclusion restriction (identification_note). Nothing was refitted."
  },
  "limits": "Criteo Uplift v2.1 (13,979,592 users of pooled randomised incrementality tests of Criteo display advertising; advertisers, countries and dates undisclosed; released 2018; sub-sampled non-uniformly by the publisher). The simulator may use this model for: the visit probability of an individual who is displayed (and, through ad_response@2, attends) an advertiser's display or feed campaign during a campaign period, as a log-odds shift of that individual's own organic visit probability. It may NOT infer: (1) effects for compliers unlike Criteo's - the displayed users were chosen by Criteo's bidder (exposure rises from about 0.1% to 15% of eligible users with the baseline score), so the effect is that of a targeted display on users a bidder reached; (2) effects of ad content, creative quality, price or relevance (not observed; ad_response@2 adds relevance and repetition only through a separate attention model and a declared assumption); (3) frequency, wear-in, wear-out, carry-over or repeated campaigns (no timestamps, one period per user); (4) negative effects (floored at 0); (5) absolute rates: the publisher's sub-sampling distorts levels; the log-odds shift is invariant to sub-sampling that depends on the outcome or on the arm only, not to sub-sampling that depends on exposure; (6) search advertising (a click on a sponsored result is a different decision). Strata are bins of a pre-treatment score; within-stratum heterogeneity is averaged, and the complier baseline of each stratum is a moment estimate (noisy where exposure is rare; clipped to [1e-4, 0.999]).",
  "report": "docs/v5/calibration/reports/ad_exposure_response.json",

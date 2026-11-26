@@ -139,7 +139,7 @@ def test_model_only_driver_compares_fitted_behaviour_with_heldout_users():
         assert isinstance(r[k]["within_tolerance"], bool)
     # the statistics are measured, not constant: total variation and KS are inside (0, 1)
     assert 0 < r["activity_distribution"]["active_days_tv"] < 1
-    assert 0 < r["heterogeneity"]["user_active_share_ks"] < 1
+    assert 0 < r["heterogeneity"]["user_session_intensity_ks"] < 1
     assert r["long_horizon_drift"]["beyond_data"]["days"] == 37
 
 
@@ -177,6 +177,6 @@ def test_world_without_wired_models_is_reported_not_validated():
 
 def test_out_of_scope_check_counts_direct_checkpoint_loads():
     from crucible.calibration import inworld as IW
-    r = IW.out_of_scope_uses()
+    r = IW.out_of_scope_uses({"used": {}, "refused": {}})          # static part only (tests/test_v5_calibration_inworld)
     assert set(r["direct_checkpoint_loads"]) <= {"population/models.py"}     # the population's silent plug-in
     assert r["out_of_card_scope_uses"] == len(r["direct_checkpoint_loads"])

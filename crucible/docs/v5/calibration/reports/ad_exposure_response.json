@@ -6,7 +6,9 @@
  "datasets": [
   "criteo_uplift_v2.1"
  ],
- "identification": "randomized_controlled_trial",
+ "identification": "randomized_encouragement_iv",
+ "identification_plan_label": "randomized_controlled_trial",
+ "identification_label_revision": "Label corrected after the fit (2026-11-26, wave-3 repair pass): the plan and the original card said 'randomized_controlled_trial', the design of the data; the kept estimand is a complier (IV) effect of display with randomised eligibility as the instrument, which also rests on the exclusion restriction (identification_note). Nothing was refitted.",
  "estimand": "the complier effect of being displayed an advertiser's campaign during the test period on the log-odds of visiting the advertiser, as a function of the displayed individual's organic (no-ad) visit log-odds. Identified by the randomised eligibility (treatment) as an instrument for display (exposure): exclusion restriction (eligible users who were never displayed are unaffected) and one-sided non-compliance (no control user is displayed; checked in the conversion record: exposed_in_control = 0)",
  "population": "13,979,592 users reachable by Criteo display advertising (pooled incrementality tests)",
  "platform": "Criteo display advertising (retargeting and prospecting campaigns of undisclosed advertisers)",
