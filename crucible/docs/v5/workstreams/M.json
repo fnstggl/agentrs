@@ -254,7 +254,7 @@
     "tests/v5/test_gate_SP_13_7.py",
     "tests/test_v5_slots.py"
    ],
-   "status_claim": "implemented; gate test passed unofficially on 55433e7 (2026-11-26); wave 3b adds backfill (FIFO that never delays an earlier request), pid-identity liveness and pidfd signalling, with probes",
+   "status_claim": "implemented; gate test passed unofficially on ffc79f1 (2026-11-26 22:24, governed job: 7 dimensions enforced, 9 of 9 scheduling rules held, 0 violations); wave 3b adds backfill, pid-identity liveness, pidfd signalling, a disk-wait limit, live per-job use in --status and the CUDA-context census",
    "notes": "Enforcing governor: CPU (affinity to disjoint CPUs, thread caps, per-task re-pinning, kill after 3 strikes), RAM (summed PSS watchdog, kill), GPU memory (GPU hidden at 0; torch allocator cap + per-process reporter injected by the interpreter hook; kill on summed overrun), GPU time (seconds of held CUDA contexts, kill), disk (directory growth watchdog + RLIMIT_FSIZE + free-disk admission), inference concurrency (per-job flock tokens used by substrate.inference.recorded), active worlds (World.__init__ registers, job-wide registry, ResourceLimitExceeded). FIFO queue, budget stored with the ledger (env cannot widen it), oversize clamped, zombie-aware liveness, child-subreaper supervision (detached grandchildren stay in the job and are stopped after the orphan grace), signals only the job's own tree, nested ledgers inside a job. CLI flags of the first version unchanged."
   },
   "V.n1": {
@@ -454,7 +454,7 @@
    "tests": [
     "tests/v5/test_gate_SP_13_7b.py"
    ],
-   "status_claim": "implemented",
+   "status_claim": "implemented; gate test passed unofficially on ffc79f1 (budgets before stress tests, 0 tenant interference incidents, 0 external compute, 0 outbound connections)",
    "notes": ""
   }
  },
