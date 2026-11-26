@@ -118,3 +118,20 @@ def test_generator_has_no_fixed_rule_shortcut():
     r = A.calibration_shortcut(n_structures=8, seeds=(0,))
     assert r["worlds"] >= 6
     assert r["passed"], r["median_share_of_oracle"]
+
+
+def test_control_labels_control_false_labels_and_keep_power():
+    """The instrument's own statistics, adversarially: on crossed null data (seed and world effects, no learner
+    effect) a label is given in at most 1% of batteries at `instrument.LABEL_LEVEL`; an effect of 0.3 on the
+    normalised scale (the size of the controls' established capabilities) is labelled in at least 90%."""
+    from crucible.research.v5 import instrument as I
+    rng = np.random.default_rng(11)
+    T, fp, hit = 1500, 0, 0
+    for _ in range(T):
+        noise = rng.normal(0, 0.15, (5, 1)) + rng.normal(0, 0.5, (1, 50)) + rng.normal(0, 0.1, (5, 50))
+        r0 = I._one(noise)
+        r1 = I._one(noise + 0.3)
+        fp += int(r0["lo"] > 0 and r0["estimate"] >= 0.03)
+        hit += int(r1["lo"] > 0 and r1["estimate"] >= 0.10)
+    assert fp / T <= 0.01, fp / T
+    assert hit / T >= 0.9, hit / T

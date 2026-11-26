@@ -13,7 +13,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Calibrated generated structures counted when their measured rapid fingerprint differs from every other generated structure and every registered rapid family (distance > 0).",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial, integrated tree with domains, in-shell): 64 fingerprint-distinct calibrated generated structures (>= 50), 8 topologies"
   },
   "T.2": {
    "implementation_files": [
@@ -23,7 +23,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Population configurations of the grammar counted when the measured participant fingerprint and the outcome of the same policy differ from the population-free world. Populations are equation primitives (adaptive opponents, learning customers, endogenous demand) inside one causal graph, not autonomous policies of crucible.population (Tier 1).",
-   "status_claim": "PASSED (unofficial run): 5 population configurations with measured mechanism and outcome differences"
+   "status_claim": "PASSED (unofficial, integrated tree): 5 population configurations with measured participant and outcome differences"
   },
   "T.3": {
    "implementation_files": [
@@ -33,7 +33,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Goals of the independent generator (crucible.rapid.goals, five types) drawn from the public face of generated worlds, validated feasible evaluator side (goals_eval.validate); chi-square independence of goal type and structure category.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial, integrated tree): 5 goal types feasible on >= 3 structures; goal type independent of structure category (chi2 18.5, dof 16)"
   },
   "T.4": {
    "implementation_files": [
@@ -65,7 +65,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Random-diversity share 0.3 (>= 0.2 enforced), entropy floor.",
-   "status_claim": "PASSED (unofficial run): realised random share 0.26 (configured 0.3), normalised category entropy 0.77"
+   "status_claim": "PASSED (unofficial, integrated tree): realised random share 0.29 (configured 0.3), category entropy 0.75"
   },
   "T.7": {
    "implementation_files": [
@@ -79,7 +79,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Nine leak vectors probed: sampler stream, forged spec, curriculum view, proposals naming partitions, training-log audit, participant channel, confirmation item without preregistration, hand-made sealed seed, salt in the learner environment.",
-   "status_claim": "PASSED (unofficial run): 0 leaks over 10 vectors"
+   "status_claim": "PASSED (unofficial, integrated tree): 0 leaks over 10 vectors"
   },
   "T.8": {
    "implementation_files": [
@@ -192,7 +192,7 @@
     "tests/v5/test_gate_I.py"
    ],
    "notes": "Clause-level scanner over the whole corpus with planted claims and disclaimers.",
-   "status_claim": "PASSED (unofficial run): 0 unsupported realism claims over ~620 files, planted controls correct"
+   "status_claim": "PASSED (unofficial, integrated tree): 0 unsupported realism claims, planted controls correct"
   },
   "K.n2": {
    "implementation_files": [
@@ -202,7 +202,7 @@
     "tests/v5/test_gate_K.py"
    ],
    "notes": "commerce.reference.LABELS attached to every reference result and to the K.n1 evidence record; corpus scan for reference-as-learning claims. The test runs the reference briefly; it fails while the startup world cannot be built (Forbidden: module work may not write column pop.wake_act).",
-   "status_claim": "IMPLEMENTED; the reference run builds the startup world now (Forbidden pop.wake_act fixed upstream); gate run pending"
+   "status_claim": "PASSED (unofficial, integrated tree): reference results and the K.n1 record labelled scripted; 0 reference-as-learning claims over 658 files (the startup world builds again; test_Kn2 NameError fixed)"
   },
   "S.n1": {
    "implementation_files": [
@@ -212,7 +212,7 @@
     "tests/v5/test_gate_S.py"
    ],
    "notes": "Corpus scan plus Gate S evidence labels.",
-   "status_claim": "PASSED (unofficial run): 0 integration-as-learning claims"
+   "status_claim": "PASSED (unofficial, integrated tree): 0 integration-as-learning claims"
   },
   "SP-14.1": {
    "implementation_files": [
@@ -223,7 +223,7 @@
     "tests/v5/test_gate_SP_14_1.py"
    ],
    "notes": "Eight reuse vectors all blocked; registry_kinds counts kinds with entries: 8 of 9 while Tier 2 domain configurations are absent (crucible.domains.base.REGISTRY empty).",
-   "status_claim": "FAILS HONESTLY: registry_kinds 8 < 9 while no Tier 2 domain registers (domfw merged, no domain yet)"
+   "status_claim": "PASSED (unofficial, integrated tree with 9 Tier 2 domains): registry_kinds 9/9 (45 domain configurations), 8/8 reuse vectors blocked, 0 non-training items in 20,000 draws"
   },
   "SP-14.1b": {
    "implementation_files": [
@@ -244,7 +244,7 @@
     "tests/v5/test_gate_SP_14_2.py"
    ],
    "notes": "Deficit scheduling over measured CPU seconds; the default mixture refuses to start without Tier 2.",
-   "status_claim": "FAILS HONESTLY: the default 50/30/20 mixture refuses to start without Tier 2 training worlds"
+   "status_claim": "IMPLEMENTED; Tier 2 now present (9 domains): compute-budgeted default mixture (900 CPU-s) pending in the GPU slot queue"
   },
   "SP-14.4": {
    "implementation_files": [
@@ -276,7 +276,7 @@
     "tests/v5/test_gate_SP_15_5.py"
    ],
    "notes": "Arms C and D are not executed while Tier 2 is absent; seven control kinds run.",
-   "status_claim": "FAILS HONESTLY: arms A, B executed with the architecture-neutral learner; C, D need Tier 2; seven control kinds"
+   "status_claim": "IMPLEMENTED; arms A-D with the architecture-neutral learner (Tier 2 present); gate run pending"
   },
   "SP-15.6": {
    "implementation_files": [
@@ -318,7 +318,7 @@
     "tests/v5/test_gate_SP_14_2b.py"
    ],
    "notes": "Compute and experience accounted separately; 1 of 3 tiers instantiable in this checkout.",
-   "status_claim": "FAILS HONESTLY: 2 of 3 tiers instantiable (Tier 2 absent)"
+   "status_claim": "IMPLEMENTED; all three tiers build (Tier 2 domains merged); gate run pending"
   },
   "SP-14.3": {
    "implementation_files": [
@@ -330,7 +330,7 @@
     "tests/v5/test_gate_SP_14_3.py"
    ],
    "notes": "Ten categories, four measures; sealed access counted by the evaluator, the curriculum and an audit hook.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial, integrated tree): 10 categories, 4 measures, 0 sealed accesses, offered evaluation/sealed results refused"
   },
   "SP-15.0": {
    "implementation_files": [
@@ -352,7 +352,7 @@
     "tests/v5/test_gate_SP_15_1.py"
    ],
    "notes": "Corpus scan; no Level 6 experiment exists.",
-   "status_claim": "PASSED (unofficial run): 0 unsupported real-world claims, planted controls correct"
+   "status_claim": "PASSED (unofficial, integrated tree): 0 unsupported real-world claims"
   },
   "SP-15.2": {
    "implementation_files": [
@@ -414,7 +414,7 @@
   }
  },
  "limitations": [
-  "Tier 2: crucible.domains registers no domain on this branch (c5c/w3b-domfw merged; dom1-dom3 not merged: dom1's committed research domain does not satisfy the domfw contract yet, so merging it made crucible.domains.load_all raise). SP-14.1 (registry_kinds 8/9), SP-14.2, SP-14.2b (tiers 2/3) and SP-15.5 (arms C, D) fail honestly until a Tier 2 domain registers; the registry now reports a Tier 2 package that fails to load (Registry.unavailable) instead of failing the whole instrument.",
+  "Tier 2 on this branch: c5c/w3b-domfw, dom1 and dom2 merged (9 domains register: community, content, education, industry, infrastructure, labor, research, software, startup; 27 training and 18 evaluation configurations). dom3's four domains (commercialization, crisis, information, marketplace) do not satisfy the domains-framework/2 contract at its current head and make crucible.domains.load_all raise for every domain, so dom3 was not merged; the registry reports such a failure (Registry.unavailable) instead of failing the instrument. Results with Tier 2 depend on those domains' state.",
   "T.4: generated worlds are validated by the full Part 7.4 admission, and no_dominant_strategy rejects almost all of them: a hindsight-tuned constant or two-setting reactive threshold rule reaches 0.66-1.07 of the oracle's gain (median about 0.95, 16-structure probe), while the generic adaptive reference reaches far less; the new drifting_optimum driver does not change that (reactive rules track the drift: simple/oracle 0.82-0.96). Passing needs mechanism-specific public references for generated families and dynamics in which the right action is not a function of one current reading - not built in this wave.",
   "T.8: targeted versus untargeted training of TargetableMeta (a global bandit over search strategies) on worlds generated for the curriculum's target; per-category best strategies differ by 0.1-0.35 normalised score, but with 96 episodes the realised advantage of targeted training is small and noisy (development checks: +0.19, -0.07, +0.02, -0.02).",
   "Positive controls are lever-interface learners on rapid primitive-graph families (the normalised score needs the evaluator-side lever oracle); five training families qualify after face-distinct, mixed-regime establishment (the pool of distinct-faced established families is small).",
@@ -424,6 +424,7 @@
   "The 4.0 research harness (research/protocols.py etc.) is unchanged and legacy-bound; v5 protocols live in research/v5."
  ],
  "integration_notes": [
+  "Orchestrator: this branch merged c5c/w3b-domfw (bcef0ab), c5c/w3b-dom1 (85fd0c1) and c5c/w3b-dom2 (53115db); DECISION_LOG conflicts resolved by keeping every entry in number order. c5c/w3b-dom3 (81a6cfc) was NOT merged: its domains fail domains.base.register under domfw (mechanics must be Mechanic probes; no degenerate-strategy probe; no Actor/seat), which makes load_all raise and removes Tier 2 entirely.",
   "O (security, SP-15.8): call crucible.research.v5.adversarial.run_controls(workdir) in tests/v5/test_gate_SP_15_8.py and record evaluator_adversarial_controls_passed = result['passed'] (7 controls defined: process_stash, file_stash, config_smuggle, memory_in_params, pickle_checkpoint, arch_edit, calibration_shortcut; each entry has 'passed' and its measurements; ~3 CPU-min single thread). Implementation files: src/crucible/research/v5/adversarial.py, fresh.py, learners.py.",
   "O/sandbox: research.v5.fresh runs the weights-only child through crucible.sandbox.jail (isolation.RO_SYSTEM, _write_cfg, _loaders, uid_for('weights-only-eval')); a change of those private helpers of isolation.py breaks it - please keep them or offer a public equivalent.",
   "I (domains): research.v5.distribution consumes crucible.experience.registry.domains() (Domain.configs: name, split, structure; Domain.spec_part). Once a domain registers on the integration branch, SP-14.1 registry_kinds reaches 9, SP-14.2/14.2b get Tier 2 training worlds and SP-15.5 arms C/D run with the architecture-neutral learner (comparison.NEUTRAL). No N change is needed then; re-run those gates.",
