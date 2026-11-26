@@ -206,13 +206,17 @@ class _World:
             raise ValueError(f"{spec.name}: multi-agent rapid adapter is broken upstream (BROKEN_MULTIAGENT_RAPID)")
         self.spec = spec
         self.reward_mode = reward_mode
-        self.env = make(spec.tier, spec.name, seed=spec.seed, reward_mode=reward_mode, **dict(spec.kw))
+        if spec.tier == -1 and spec.name.startswith("integrity:"):
+            from .integrity import IntegrityWorld          # CAM-side adversarial diagnostic worlds (Exp F)
+            self.env = IntegrityWorld(spec.name.split(":", 1)[1], spec.seed, reward_mode=reward_mode, **dict(spec.kw))
+        else:
+            self.env = make(spec.tier, spec.name, seed=spec.seed, reward_mode=reward_mode, **dict(spec.kw))
         self.agent = self.env.agents()[0]
         self.episode = 0
         self.refs: Optional[dict] = None
         self.env_id = f"{spec.name}#{spec.seed}"
         # Tier 1 rapid worlds count time in ticks (one tick per decision / advance); 4.0-derived worlds in seconds.
-        self.sec_per_t = 3600.0 if spec.name.startswith("rapid:") else 1.0
+        self.sec_per_t = 3600.0 if spec.name.startswith("rapid:") else 1.0     # integrity worlds count seconds
         self.max_advance_s = KERNEL_MAX_ADVANCE_S if spec.tier == 0 else None
 
 
@@ -320,6 +324,10 @@ class ExperienceOperator:
         if key in self._ref_cache:
             return self._ref_cache[key]
         refs = None
+        if hasattr(w.env, "oracle_value"):
+            refs = {"null": float(w.env.null_value()), "oracle": float(w.env.oracle_value()), "how": "price grid"}
+            self._ref_cache[key] = refs
+            return refs
         inner = getattr(w.env, "env", None)
         if w.spec.name.startswith("rapid:") and inner is not None:
             try:
