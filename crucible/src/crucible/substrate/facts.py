@@ -142,8 +142,14 @@ REVIEWED: dict[str, dict] = {
                                                   "REFs)"),
     "aud.cols:aud_items": _r("content_artifact", _X, "audience accounting per catalogue item (exposures, "
                                                      "viewers, completions), keyed by catalogue index"),
-    "aud.aud_item_info": _r("content_artifact", _D, "creator, platform, kind, duration and title of content items "
-                                                    "copied from the catalogue at indexing"),
+    # workstream C (wave 3b, D-21 content_artifact migration): aud no longer copies the catalogue's metadata - for a
+    # catalogue item the row holds only audience attributes (content id, creator code, measured duration, search
+    # terms, word count, removal from distribution) and `social.audience.info` reads ref/kind/platform/creator/title/
+    # tags/published_at from content.content; the metadata is kept only for items with no catalogue record (the crowd
+    # stand-in's scale path), where it is the one copy. Enforced on data by aud.check_invariants.
+    "aud.aud_item_info": _r("content_artifact", _X, "audience attributes of distributed items keyed by audience "
+                                                    "item id (content id, creator code, duration, terms, words); "
+                                                    "catalogue metadata is read from content.content"),
     "space.space_items": _r("content_artifact", _X, "recorded shared-space representations of artifacts (vector, "
                                                     "chunks, intrinsic features) keyed by artifact REF + encoder: "
                                                     "derived from the bytes, never a second copy of the artifact"),
@@ -311,10 +317,7 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                         "industry)", "expires": _WAVE2,
                         "migration": "industrial supply offers become listings of goods (sku, facility) or stay in "
                                      "4.0 industrial families only"},
-    "aud.aud_item_info": {"target_owner": "content.content", "decision": "D-16/D-21", "workstream": "C+D",
-                          "expires": _WAVE2,
-                          "migration": "audience accounting reads item metadata from the catalogue (content.content "
-                                       "and the artifact) by catalogue index instead of keeping a copy"},
+    # "aud.aud_item_info" migrated by workstream C in wave 3b (see REVIEWED): no longer a duplicate
     "jobs.postings": {"target_owner": "contracts.contracts", "decision": "D-21", "workstream": "F",
                       "expires": _WAVE2,
                       "migration": "v5 worlds post work through the labour market (labor posts -> offers -> "

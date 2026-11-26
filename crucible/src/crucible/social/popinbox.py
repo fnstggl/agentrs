@@ -102,7 +102,7 @@ def act_inbox(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                         linked.append(int(rec["aud_item"]))
                 if linked and feed is not None:
                     for it in sorted(set(linked)):
-                        plat = st.tables["aud_item_info"][str(it)]["platform"]
+                        plat = AUD.info(w, it)["platform"]
                         if plat in feed.platforms:
                             # the link opens the item's platform with it on top of the feed (the share inbox)
                             feed.engine.deliver(ctx, np.array([i]), np.array([it]), np.array([1], np.uint8),
@@ -126,7 +126,7 @@ def act_inbox(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         # 2. recommend: the last thing one read through and liked, to the contact it suits best
         it = int(last_c[j])
         if it >= 0 and now - int(last_t[j]) < 3 * DAY and last_ws[j] >= float(AUD.view_threshold(dur_all[it])):
-            info = st.tables["aud_item_info"].get(str(it))
+            info = AUD.info(w, it)
             cid = None if info is None else info.get("content_id")
             cj = contacts[j][(contacts[j] >= 0) & (contacts[j] != i)]
             aff = float(coords[j] @ emb[it].astype(np.float32))
@@ -215,7 +215,7 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
     for a, b in zip(vv.tolist(), pp.tolist()):
         i = int(idx[a])
         item = int(feed[a, b])
-        info = st.tables["aud_item_info"].get(str(item))
+        info = AUD.info(w, item)
         if info is None:
             continue
         creator = info["creator"]
@@ -344,7 +344,7 @@ def _service_leads(ctx: Ctx, out: dict, vv, pp, rng) -> int:
         i = int(out["idx"][a])
         if fam[i] < 0 or not act[i]:
             continue
-        info = st.tables["aud_item_info"].get(str(int(out["feed"][a, b])))
+        info = AUD.info(w, int(out["feed"][a, b]))
         cid = None if info is None else info.get("content_id")
         if not cid:
             continue

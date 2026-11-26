@@ -33,7 +33,7 @@ def _sys(w, fn):
 def test_decision_validation(world):
     w = world
     ni = AUD.n_items(w)
-    post = next(i for i in range(ni) if w.state.tables["aud_item_info"][str(i)]["platform"] == "posts")
+    post = next(i for i in range(ni) if AUD.info(w, i)["platform"] == "posts")
     dur = float(AUD.item_col(w, "duration_s")[post])
     shown = AUD.exposed(w, post)
     fresh = next(i for i in range(AUD.n_people(w)) if i not in set(shown.tolist()))
@@ -75,7 +75,7 @@ def test_no_tool_writes_a_counter(world):
     w = World.from_blob(world.snapshot_blob(), world_id="t-aud-fork", fork=True)
     rec = sorted(w.state.tables["crowd_creators"].items(), key=lambda kv: int(kv[0]))[0][1]
     creator = rec["principal"]
-    mine = [int(i) for i in w.state.find_ids("aud_item_info", "creator", creator)]
+    mine = AUD.items_of(w, creator)
     before = {i: AUD.audience(w, i) for i in mine}
     for tool, ep in sorted(w.endpoints.items()):
         if ep.host not in ("aud", "feed"):
@@ -117,7 +117,7 @@ def test_analytics_are_delayed_noisy_and_private(world):
     w = world
     rec = sorted(w.state.tables["crowd_creators"].items(), key=lambda kv: int(kv[0]))[0][1]
     creator = rec["principal"]
-    mine = [int(i) for i in w.state.find_ids("aud_item_info", "creator", creator)]
+    mine = AUD.items_of(w, creator)
     i = max(mine, key=lambda x: AUD.audience(w, x)["views"])
     exact = AUD.audience(w, i)
     seen = AUD.audience(w, i, principal=creator)

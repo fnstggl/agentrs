@@ -451,7 +451,7 @@ class Feed(Module):
         """The platforms of this world and the kinds of content each distributes."""
         out = []
         for p in self.platforms:
-            kinds = sorted({ctx.state.tables["aud_item_info"][str(int(i))]["kind"]
+            kinds = sorted({AUD.info(ctx.world, int(i))["kind"]
                             for i in AUD.items_on(ctx.world, p)[:200]})
             out.append({"platform": p, "kinds": kinds, "items": int(AUD.items_on(ctx.world, p).size)})
         return {"platforms": out}
@@ -490,7 +490,7 @@ class Feed(Module):
         i = self._me(ctx)
         if item >= AUD.n_items(ctx.world) or bool(AUD.item_col(ctx.world, "removed")[item]):
             raise NotFound(f"no item {item}")
-        rec = ctx.state.tables["aud_item_info"][str(int(item))]
+        rec = AUD.info(ctx.world, int(item))
         AUD.impressions(ctx, rec["platform"], np.array([i]), np.array([item]), np.array([0]),
                         source=np.array([AUD.SOURCE_CODE["direct"]]))
         self._spend(ctx, i, float(self.engine.b["scroll_s"]), f"feed.{rec['platform']}")
@@ -533,7 +533,7 @@ class Feed(Module):
             raise NotFound(f"no item {item}")
         if not idset.contains(ctx.state, idset.key("ex", int(item)), np.array([i]))[0]:
             raise InvalidAction("you have not been shown this item (open it first)")
-        rec = ctx.state.tables["aud_item_info"][str(int(item))]
+        rec = AUD.info(ctx.world, int(item))
         dur = float(AUD.item_col(ctx.world, "duration_s")[item])
         want = float(np.float32(min(float(seconds), dur)))
         got = self._spend(ctx, i, want, f"feed.{rec['platform']}")

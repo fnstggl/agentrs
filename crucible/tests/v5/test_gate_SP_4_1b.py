@@ -96,7 +96,7 @@ def test_SP_4_1b_tool_reads_are_consumption():
     w.advance_time(w.now + 2 * int(w.modules["aud"].cfg["analytics_interval_s"]) + 60)
     rc2 = AUD.recount(w, events=w.events_range(0))
     read_items = sorted({it for _, it, _ in expected})
-    pub_views = sum(AUD.audience(w, it, principal=st.tables["aud_item_info"][str(it)]["creator"])["views"]
+    pub_views = sum(AUD.audience(w, it, principal=AUD.info(w, it)["creator"])["views"]
                     for it in read_items)
     views_from_reads = sum(1 for v, it, s in expected
                            if s >= float(AUD.view_threshold(AUD.item_col(w, "duration_s")[it])))

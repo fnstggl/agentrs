@@ -232,7 +232,7 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
             for a, b in zip(vv, pp):
                 i = int(out["idx"][a])
                 item = int(out["feed"][a, b])
-                info = st.tables["aud_item_info"][str(item)]
+                info = AUD.info(w, item)
                 cid = info.get("content_id")
                 if not cid:
                     continue
@@ -304,11 +304,11 @@ def _found(self, ctx: Ctx, i: int, rng) -> str | None:
     tok = lambda t: {x for x in re.findall(r"[a-z][a-z'-]{3,}", t.lower()) if x not in _STOP and "'" not in x}  # noqa
     mine = collections.Counter()
     for it in seen[-30:]:
-        mine.update(tok(st.tables["aud_item_info"][str(it)]["title"]))
+        mine.update(tok(AUD.info(w, it)["title"]))
     df = collections.Counter()
     sample = recent[-400:]
     for it in sample:
-        df.update(tok(st.tables["aud_item_info"][str(int(it))]["title"]))
+        df.update(tok(AUD.info(w, int(it))["title"]))
     score = {x: c * math.log((1 + len(sample)) / (1 + df[x])) for x, c in mine.items()}
     top = [x for x, _ in sorted(score.items(), key=lambda kv: (-(mine[kv[0]] >= 2), -kv[1], kv[0]))[:3]]
     if len(top) < 2:
@@ -370,7 +370,7 @@ def _after_launch(self, ctx: Ctx, out: dict) -> np.ndarray:
     for a, b in zip(vv.tolist(), pp.tolist()):
         i = int(idx[a])
         item = int(out["feed"][a, b])
-        cid = st.tables["aud_item_info"][str(item)].get("content_id")
+        cid = AUD.info(w, item).get("content_id")
         L = st.get("launches", cid) if cid else None
         if L is None or L["link"] != "product":
             continue

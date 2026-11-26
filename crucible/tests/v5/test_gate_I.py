@@ -156,7 +156,7 @@ def test_I6_positive_control_cascade(positive_control):
     m = positive_control["m"]
     w = positive_control["world"]
     it = positive_control["item"]
-    rec = w.state.tables["aud_item_info"][str(it)]
+    rec = AUD.info(w, it)
     evidence.record("I.6", {"positive_control_unique_viewers": m["item_unique_viewers"],
                             "positive_control_unique_exposed": m["item_unique_exposed"],
                             "positive_control_item": it, "top_item": m["top_item"],

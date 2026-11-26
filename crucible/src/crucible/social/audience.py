@@ -140,6 +140,34 @@ def item_col(world, name: str) -> np.ndarray:
     return columns.col(world, ITEMS, name)[:n_items(world)]
 
 
+#: what the content catalogue owns about a distributed item (`content.content`); the audience module keeps a copy only
+#: for items without a catalogue record (the crowd stand-in's scale path)
+CATALOGUE_FIELDS = ("ref", "kind", "platform", "creator", "title", "tags", "published_at")
+
+
+def info(world, item) -> dict | None:
+    """An item's facts: the audience module's own attributes (content_id, creator code, duration, terms, words,
+    removed) and, for a catalogue item, its catalogue record's metadata (ref, kind, platform, creator, title, tags,
+    published_at) read from `content.content` - the one owner (D-21 content_artifact migration; no copy here)."""
+    rec = world.state.get("aud_item_info", str(int(item)))
+    if rec is None:
+        return None
+    cid = rec.get("content_id")
+    if cid is not None and "title" not in rec:
+        c = world.state.tables["content"][cid]
+        rec = {**rec, "ref": c["ref"], "kind": c["kind"], "platform": c["platform"], "creator": c["creator"],
+               "title": c["title"], "tags": list(c["tags"]), "published_at": int(c["published_at"])}
+    return dict(rec)
+
+
+def items_of(world, principal: str) -> list[int]:
+    """Item ids of a creator (from the per-item creator codes)."""
+    code = creator_code(world, principal)
+    if code is None:
+        return []
+    return [int(i) for i in np.flatnonzero(item_col(world, "creator") == int(code))]
+
+
 def creator_col(world, name: str) -> np.ndarray:
     return columns.col(world, CREATORS, name)[:int(world.state.meta.get("aud.n_creators", 0))]
 
@@ -215,7 +243,7 @@ def reindex_item(ctx: Ctx, item: int, ref: str, *, title: str | None = None, tag
     """A new version of a distributed item (content.update): its representation, terms, words, legibility and
     duration are recomputed from the new bytes, so distribution and choice follow what the item is now."""
     mod = _mod(ctx.world)
-    rec = ctx.state.get("aud_item_info", str(int(item)))
+    rec = info(ctx.world, item)
     if rec is None:
         raise NotFound(f"no item {item}")
     a = artifacts.info(ctx.world, ref)
@@ -232,7 +260,7 @@ def reindex_item(ctx: Ctx, item: int, ref: str, *, title: str | None = None, tag
 
 
 def remove_item(ctx: Ctx, item: int) -> None:
-    rec = ctx.state.get("aud_item_info", str(int(item)))
+    rec = info(ctx.world, item)
     if rec is None:
         raise NotFound(f"no item {item}")
     if rec["removed"]:
@@ -377,7 +405,7 @@ def audience(world, item: int, *, principal: str | None = None) -> dict:
     """Audience of one item. Exact for the evaluator (principal None); for the item's creator the delayed, noisy
     published analytics; for anyone else the public (delayed, noisy) view count only."""
     item = int(item)
-    rec = world.state.get("aud_item_info", str(item))
+    rec = info(world, item)
     if rec is None:
         raise NotFound(f"no item {item}")
     if principal is None:
@@ -572,11 +600,13 @@ class Audience(Module):
         i = p["item"]
         if i != n_items(self.world):
             raise InvariantViolation(f"aud.item {i} out of order")
-        st.insert("aud_item_info", str(i), {"ref": p["ref"], "kind": p["kind"], "platform": p["platform"],
-                                            "creator": p["creator"], "creator_code": p["creator_code"],
-                                            "title": p["title"], "tags": p["tags"], "duration_s": p["duration_s"],
-                                            "content_id": p["content_id"], "terms": p["terms"], "words": p["words"],
-                                            "published_at": ev.t, "removed": False})
+        own = {"creator_code": p["creator_code"], "duration_s": p["duration_s"], "content_id": p["content_id"],
+               "terms": p["terms"], "words": p["words"], "removed": False}
+        if p["content_id"] is None or not st.has("content", p["content_id"]):
+            # no catalogue record (the crowd stand-in's scale path): this is the only record of the item's metadata
+            own.update({"ref": p["ref"], "kind": p["kind"], "platform": p["platform"], "creator": p["creator"],
+                        "title": p["title"], "tags": p["tags"], "published_at": ev.t})
+        st.insert("aud_item_info", str(i), own)
         r = np.array([i])
         for c, v in (("creator", p["creator_code"]), ("platform", self.platform_code(p["platform"])),
                      ("kind", KINDS.index(p["kind"])), ("duration_s", p["duration_s"]), ("published_at", ev.t)):
@@ -591,8 +621,11 @@ class Audience(Module):
         p = ev.payload
         st = self.world.state
         i = int(p["item"])
-        st.patch("aud_item_info", str(i), ref=p["ref"], title=p["title"], tags=p["tags"], duration_s=p["duration_s"],
-                 terms=p["terms"], words=p["words"])
+        if "title" in st.tables["aud_item_info"][str(i)]:          # an item without a catalogue record
+            st.patch("aud_item_info", str(i), ref=p["ref"], title=p["title"], tags=p["tags"],
+                     duration_s=p["duration_s"], terms=p["terms"], words=p["words"])
+        else:                                                        # the catalogue holds ref, title and tags
+            st.patch("aud_item_info", str(i), duration_s=p["duration_s"], terms=p["terms"], words=p["words"])
         r = np.array([i])
         st.array_rows_mut(f"{ITEMS}.emb", r)[i] = np.asarray(p["emb"], dtype=np.float16)
         st.array_rows_mut(f"{ITEMS}.legib", r)[i] = float(p.get("legib", 1.0))
@@ -780,13 +813,13 @@ class Audience(Module):
 
     # ------------------------------------------------------------------ tools
     def _item_rec(self, ctx, item):
-        rec = ctx.state.get("aud_item_info", str(int(item)))
+        rec = info(ctx.world, item)
         if rec is None or int(item) >= n_items(ctx.world):
             raise NotFound(f"no item {item}")
         return rec
 
     def public_item(self, world, item: int) -> dict:
-        rec = world.state.get("aud_item_info", str(int(item)))
+        rec = info(world, item)
         return {"item": int(item), "title": rec["title"], "creator": rec["creator"], "platform": rec["platform"],
                 "kind": rec["kind"], "ref": rec["ref"], "duration_s": rec["duration_s"], "tags": list(rec["tags"]),
                 "published_at": rec["published_at"], "removed": rec["removed"], "views": _pub(world, int(item), "views")}
@@ -817,7 +850,7 @@ class Audience(Module):
         item analytics)."""
         mine = []
         for p in sorted(ctx.world.principals_of(ctx.actor)):
-            mine += [int(r) for r in ctx.state.find_ids("aud_item_info", "creator", p)]
+            mine += items_of(ctx.world, p)
         mine.sort()
         page = mine[offset:offset + limit]
         return {"total": len(mine), "items": [dict(self.public_item(ctx.world, i),
@@ -828,6 +861,11 @@ class Audience(Module):
     def check_invariants(self, world):
         errs = []
         ni = n_items(world)
+        copies = [k for k, r in world.state.tables.get("aud_item_info", {}).items()
+                  if r.get("content_id") is not None and world.state.has("content", r["content_id"])
+                  and any(f in r for f in CATALOGUE_FIELDS)]
+        if copies:
+            errs.append(f"aud: {len(copies)} catalogue items keep a copy of the catalogue's metadata (e.g. {copies[0]})")
         if ni == 0:
             return errs
         st = world.state

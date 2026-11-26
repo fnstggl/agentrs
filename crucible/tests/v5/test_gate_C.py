@@ -238,7 +238,7 @@ def test_C_2_discovery_channels(pop_run):
     ok = uk[pos] == vk if uk.size else np.zeros(vk.size, bool)
     ch = Counter(AUD.SOURCES[int(x)] for x in src_first[pos][ok])
     used = sorted(c for c, n in ch.items() if n >= 30)
-    plats = Counter(w.state.tables["aud_item_info"][str(int(i))]["platform"] for i in views["item"][views["is_view"]])
+    plats = Counter(AUD.info(w, int(i))["platform"] for i in views["item"][views["is_view"]])
     metrics = {"discovery_channels_used": len(used), "channels": ",".join(used),
                "views_attributed": int(ok.sum()), "platforms_with_views": len([p for p, n in plats.items() if n > 0])}
     metrics.update({f"views_via_{c}": int(n) for c, n in ch.items()})
@@ -257,7 +257,7 @@ def test_C_3_consumption_produces_analytics(pop_run):
     mism = int(rc["total_mismatches"]) + int(rc["views_without_prior_exposure"])
     # what the creators see: their delayed, noisy analytics follow the exact audience
     items = np.flatnonzero(AUD.item_col(w, "views") > 0)
-    pub = np.array([AUD.audience(w, int(i), principal=w.state.tables["aud_item_info"][str(int(i))]["creator"])
+    pub = np.array([AUD.audience(w, int(i), principal=AUD.info(w, int(i))["creator"])
                     ["views"] for i in items[:500]], np.float64)
     exact = AUD.item_col(w, "views")[items[:500]].astype(np.float64)
     corr = float(np.corrcoef(pub, exact)[0, 1]) if items.size > 2 else 0.0
@@ -317,7 +317,7 @@ def test_C_5_social_mechanisms_affect_future_interactions():
     n = AUD.n_people(w)
     out = {}
     # --- follow: a creator the sample does not follow; outcome: viewed one of the creator's next items
-    info = w.state.tables["aud_item_info"]
+    info = {k: AUD.info(w, int(k)) for k in w.state.tables["aud_item_info"]}
     recent = w.now - 3 * DAY
     creators = Counter(r["creator"] for r in info.values() if ids.index(r["creator"]) is not None
                        and r["published_at"] >= recent)
@@ -329,13 +329,13 @@ def test_C_5_social_mechanisms_affect_future_interactions():
     dst = nodes.node_of(f, cre)
     f._run_system("experiment.assign", lambda ctx: G.follow_batch(ctx, treat, np.full(treat.size, dst), via="other"))
     t0 = f.now
-    mine0 = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre]
+    mine0 = AUD.items_of(f, cre)
     before = np.zeros(n, bool)
     for it in mine0:
         before[AUD.viewers_of(f, it)] = True
     f.advance_time(t0 + 4 * DAY)
-    mine = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre]
-    later = [i for i in mine if f.state.tables["aud_item_info"][str(i)]["published_at"] > t0]
+    mine = AUD.items_of(f, cre)
+    later = [i for i in mine if AUD.info(f, i)["published_at"] > t0]
     viewed = np.zeros(n, bool)
     for it in mine:
         viewed[AUD.viewers_of(f, it)] = True

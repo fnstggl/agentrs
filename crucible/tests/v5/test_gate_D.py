@@ -223,7 +223,7 @@ def _scan(obj, markers) -> list[str]:
 
 def test_D4_hidden_parameters_are_not_reachable(base):
     w = World.from_blob(base["world"].snapshot_blob(), world_id="gate-D-probe", fork=True)
-    info = w.state.tables["aud_item_info"]
+    info = {i: AUD.info(w, int(i)) for i in w.state.tables["aud_item_info"]}
     creators = sorted({r["creator"] for r in info.values() if ids.index(r["creator"]) is not None},
                       key=lambda p: ids.index(p))
     creator = creators[0]
@@ -245,7 +245,7 @@ def test_D4_hidden_parameters_are_not_reachable(base):
             leaks += 1
             detail.append(f"{name}: {hit}")
 
-    my_item = int(w.state.find_ids("aud_item_info", "creator", creator)[0])
+    my_item = int(AUD.items_of(w, creator)[0])
     for actor in (viewer, creator):
         r = w.execute(actor, {"tool": "feed.home", "args": {"platform": "posts", "k": 10}})
         probe(f"{actor} feed.home", r.to_dict())
@@ -299,8 +299,8 @@ def test_D4_hidden_parameters_are_not_reachable(base):
         leaks += 1
         detail.append("analytics noise differs between repeated queries (averageable)")
     probes += 1
-    other = next((int(i) for i in w.state.tables["aud_item_info"] if
-                  w.state.tables["aud_item_info"][i]["creator"] != creator), None)
+    other = next((int(i) for i in w.state.tables["aud_item_info"] if AUD.info(w, int(i))["creator"] != creator),
+                 None)
     r = w.execute(creator, {"tool": "aud.analytics", "args": {"item": other}})
     if r.ok:
         leaks += 1

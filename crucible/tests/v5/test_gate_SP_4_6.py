@@ -43,7 +43,7 @@ def world():
 
 def _individual(w, items, exclude=()):
     """A non-creator individual never shown any of `items`, made a principal (so it can use the feed tools)."""
-    creators = {ids.index(r["creator"]) for r in w.state.tables["aud_item_info"].values()}
+    creators = {ids.index(AUD.info(w, int(k))["creator"]) for k in w.state.tables["aud_item_info"]}
     shown = set(np.concatenate([AUD.exposed(w, it) for it in items]).tolist())
     i = next(i for i in range(AUD.n_people(w)) if i not in creators and i not in exclude and i not in shown)
     w._run_system("sp46.principal", lambda ctx: ids.ensure_principal(ctx, i))
@@ -79,7 +79,7 @@ def test_audience_quantities_and_view_threshold(world):
     # (a population member, acting through the tools as a scripted author for this check, so that its own
     # self-view can be tested too)
     au = next(i for i in range(AUD.n_people(w) - 1, 0, -1)
-              if ids.pid(i) not in {r["creator"] for r in w.state.tables["aud_item_info"].values()})
+              if ids.pid(i) not in {AUD.info(w, int(k))["creator"] for k in w.state.tables["aud_item_info"]})
     w._run_system("sp46.author", lambda ctx: ids.ensure_principal(ctx, au))
     lab = ids.pid(au)
     a_ = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Harbour almanac",
@@ -89,7 +89,7 @@ def test_audience_quantities_and_view_threshold(world):
     ni = AUD.n_items(w)
     assert float(AUD.item_col(w, "duration_s")[art]) >= 60
     post = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] < 50 and
-                w.state.tables["aud_item_info"][str(i)]["platform"] == "posts")
+                AUD.info(w, i)["platform"] == "posts")
     i1, p1 = _individual(w, (art, post))
     i2, p2 = _individual(w, (art, post), exclude=(i1,))
     checks = {}
@@ -129,7 +129,7 @@ def test_audience_quantities_and_view_threshold(world):
     pa = AUD.audience(w, post)
     checks["half_of_short_item_is_a_view"] = (rlow.ok and not rlow.result["counted_as_view"] and rhalf.ok and
                                               rhalf.result["counted_as_view"] and pa["views"] == pb["views"] + 1)
-    creator = w.state.tables["aud_item_info"][str(art)]["creator"]
+    creator = AUD.info(w, art)["creator"]
     ci = ids.index(creator)
     assert w.execute(creator, {"tool": "feed.open", "args": {"item": art}}).ok
     cb = AUD.audience(w, art)

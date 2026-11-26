@@ -597,5 +597,5 @@ class Engine:
                 # the notification brings the recipient back to the platform of the shared item (its inbox
                 # entries open that platform's feed)
                 from ..population import wake
-                plat = platform or w.state.tables["aud_item_info"][str(int(items[0]))]["platform"]
+                plat = platform or AUD.info(w, int(items[0]))["platform"]
                 wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity=f"feed.{plat}")

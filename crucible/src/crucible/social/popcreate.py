@@ -104,8 +104,8 @@ def views_by_medium(world, i: int) -> np.ndarray:
     p = ids.pid(i)
     out = np.zeros(NM, np.int64)
     st = world.state
-    for r in st.find_ids("aud_item_info", "creator", p):
-        rec = st.tables["aud_item_info"][r]
+    for r in AUD.items_of(world, p):
+        rec = AUD.info(world, r)
         m = medium_of(rec["platform"], rec["kind"])
         if m is not None:
             out[m] += int(AUD.audience(world, int(r), principal=p)["views"])
@@ -280,7 +280,7 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         if nitems[j] and not learn:
             p_ = ids.pid(i)
             tot = int(sum(int(AUD.audience(w, int(r), principal=p_)["views"])
-                          for r in w.state.find_ids("aud_item_info", "creator", p_)))
+                          for r in AUD.items_of(w, p_)))
             g_all = max(0, tot - int(seen_tot[j]))
             seen_tot[j] = tot
         elif nitems[j]:
