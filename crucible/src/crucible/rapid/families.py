@@ -160,6 +160,7 @@ def _load() -> None:
     from . import families_h1  # noqa: F401
     from . import families_h2  # noqa: F401
     from . import families_h3  # noqa: F401
+    from . import families_v2  # noqa: F401
 
 
 _load()

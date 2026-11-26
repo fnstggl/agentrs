@@ -1,0 +1,362 @@
+"""Mechanism claims (controlled interventions on copies of worlds) and public identification procedures for the
+`families_v2` families (evaluator side; nothing in a world imports this module).
+
+Claims return {"ok", ...what was measured}; identification procedures play through a `PublicView` only and return
+{"ok", "question", "estimate", "truth"}.
+"""
+from __future__ import annotations
+
+import numpy as np
+
+from .identify import PublicView
+from .oracles import fork
+
+
+def _lever(env, nid: str) -> str:
+    eng = env._engine
+    return eng.config["nodes"][eng.idx[nid]]["lever"]["name"]
+
+
+def _node_series(env, act, ticks: int, nid: str) -> np.ndarray:
+    """Values of node `nid` over `ticks` ticks of a fork, action act(k) at tick k (evaluator side)."""
+    e = fork(env)
+    i = e._engine.idx[nid]
+    out = []
+    for k in range(ticks):
+        e.step(act(k))
+        out.append(float(e._state["h"][0, -1, i]))
+    return np.asarray(out)
+
+
+def _gauge_series(env, act, ticks: int) -> np.ndarray:
+    e = fork(env)
+    out = []
+    for k in range(ticks):
+        r = e.step(act(k))
+        out.append(list(r["observation"]["numbers"].values())[0])
+    return np.asarray(out)
+
+
+def _hidden_series(env, nid: str, ticks: int) -> np.ndarray:
+    """The trajectory of a hidden source node while waiting (sources do not depend on actions)."""
+    return _node_series(env, lambda k: None, ticks, nid)
+
+
+# ====================================================================== ch_wandering_taste
+def taste_moves_the_optimum(env) -> dict:
+    """(1) The hidden taste wanders: the best design (the peak of the fit, at x = taste) moves by more than three
+    units over the episode. (2) Controlled intervention on the same noise: holding the design that was best in the
+    first fifth sells less in the last fifth than holding the design that is best in the last fifth."""
+    c = env._config["claim"]
+    H = env.horizon
+    T = _hidden_series(env, c["taste"], H)
+    k = max(4, H // 5)
+    early, late = float(np.clip(T[:k].mean(), 0, 10)), float(np.clip(T[-k:].mean(), 0, 10))
+    x = _lever(env, c["lever"])
+    s_early = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: early}}, H)[-k:].mean()
+    s_late = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: late}}, H)[-k:].mean()
+    return {"ok": bool(T.max() - T.min() > 3.0 and abs(late - early) > 0.5 and s_late > s_early),
+            "taste_range": float(T.max() - T.min()), "best_early": early, "best_late": late,
+            "late_sales_holding_early_best": float(s_early), "late_sales_holding_late_best": float(s_late)}
+
+
+def identify_taste_drift(env) -> dict:
+    """Question: did the best design move up or down between the first and the last fifth of the episode? Public
+    procedure: sweep the design in the first and the last fifth, compare where sales peak."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = view.horizon
+    grid = [0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+
+    def sweep():
+        best, bv = None, -np.inf
+        for g in grid:
+            vals = []
+            for _ in range(3):
+                if view.done:
+                    break
+                n = view.step({"kind": "levers", "values": {x: g}})["observation"]["numbers"]
+                vals.append(list(n.values())[0])
+            if len(vals) >= 2 and np.mean(vals[1:]) > bv:
+                best, bv = g, float(np.mean(vals[1:]))
+        return best
+    b0 = sweep()
+    while view.t < H - 3 * len(grid):
+        view.step({"kind": "levers", "values": {x: b0}})
+    b1 = sweep()
+    T = _hidden_series(fork_start(env), c["taste"], H)
+    k = max(4, H // 5)
+    truth = bool(T[-k:].mean() > T[:k].mean())
+    est = bool(b1 > b0) if b1 != b0 else None
+    return {"ok": est == truth if est is not None else abs(T[-k:].mean() - T[:k].mean()) < 1.0,
+            "question": "did the best design move up", "estimate": est, "truth": truth}
+
+
+def fork_start(env):
+    from .env import Env
+    return Env(env.family, env.seed, env._config, env.difficulty, world_seed=env.world_seed, env_id=env.env_id)
+
+
+# ====================================================================== ch_silent_reversal
+def reversal_is_level_neutral(env) -> dict:
+    """Controlled interventions on the same noise: (1) before the hidden switch, holding the lever high sells more
+    than holding it low; after it, less (the effect's sign flips); (2) at the pivot setting, sales before and
+    after the switch are the same (the switch does not show in levels)."""
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = env.horizon
+    at = int(c["at"])
+    hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0}}, H)
+    lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 0.0}}, H)
+    mid = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: c["pivot"]}}, H)
+    pre, post = slice(2, at), slice(at + 1, H)
+    d_pre, d_post = float((hi - lo)[pre].mean()), float((hi - lo)[post].mean())
+    lvl = float(mid[post].mean() - mid[pre].mean())
+    sd = float(np.std(mid[pre])) + 1e-9
+    return {"ok": bool(d_pre > 3 * sd and d_post < -3 * sd and abs(lvl) < 1.5 * sd), "effect_before": d_pre,
+            "effect_after": d_post, "pivot_level_change": lvl, "noise_sd": sd, "switch_tick": at}
+
+
+def identify_reversal(env) -> dict:
+    """Question: at which tick does the lever's effect change sign? Public procedure: alternate the lever between
+    its ends two ticks at a time and find the first window where high sells less than low."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    est = None
+    diffs = []
+    while not view.done:
+        vals = {}
+        for g in (10.0, 0.0):
+            v = []
+            for _ in range(2):
+                if view.done:
+                    break
+                n = view.step({"kind": "levers", "values": {x: g}})["observation"]["numbers"]
+                v.append(list(n.values())[0])
+            vals[g] = v[-1] if v else None
+        if vals.get(10.0) is None or vals.get(0.0) is None:
+            break
+        diffs.append((view.t, vals[10.0] - vals[0.0]))
+        if est is None and len(diffs) >= 2 and diffs[-1][1] < 0 and diffs[-2][1] < 0:
+            est = diffs[-2][0] - 2
+    truth = int(c["at"])
+    return {"ok": est is not None and abs(est - truth) <= 10, "question": "when does the effect reverse",
+            "estimate": est, "truth": truth}
+
+
+def track_moving_peak(view, env) -> None:
+    """Scripted public reference (perturb and observe, as solar trackers do): first find a good promotion level
+    and a starting design by a coarse sweep; then every two ticks move the design one step in the current
+    direction and reverse the direction whenever sales fell after the move. Public information only: the lever
+    names (the brief lists the design setting first), the readings and the ranges in the schema."""
+    sp = view.action_space()
+    names = sorted(sp.kinds["levers"]["properties"]["values"]["properties"])
+    c = env._config["claim"]
+    x, p = _lever(env, c["lever"]), _lever(env, c["second"])
+    del names
+
+    def sales(r):
+        return list(r["observation"]["numbers"].values())[0]
+    best, bv = 5.0, -np.inf
+    for g in (1.0, 3.0, 5.0, 7.0, 9.0):
+        if view.done:
+            return
+        view.step({"kind": "levers", "values": {x: g, p: 3.0}})
+        v = sales(view.step({"kind": "levers", "values": {x: g, p: 3.0}}))
+        if v > bv:
+            best, bv = g, v
+    xv, direction, step, last = best, 1.0, 0.6, None
+    while not view.done:
+        view.step({"kind": "levers", "values": {x: xv, p: 3.0}})
+        if view.done:
+            return
+        v = sales(view.step({"kind": "levers", "values": {x: xv, p: 3.0}}))
+        if last is not None and v < last:
+            direction = -direction
+        last = v
+        xv = float(np.clip(xv + direction * step, 0.0, 10.0))
+
+
+# ====================================================================== ch_format_switch
+def _decision(env, nid: str) -> tuple[str, list[str]]:
+    eng = env._engine
+    o = eng.config["nodes"][eng.idx[nid]]["options"]
+    return o["name"], list(o["choices"])
+
+
+def option_effect_flips(env) -> dict:
+    """Controlled interventions on the same noise: holding the first format sells more than holding the second
+    before the hidden switch and less after it, and the two formats' average is the same before and after (the
+    rule change does not show in the market's overall level)."""
+    c = env._config["claim"]
+    name, opts = _decision(env, c["decision"])
+    H = env.horizon
+    at = int(c["at"])
+    a = _gauge_series(env, lambda t: {"kind": "discrete", "decision": name, "choice": opts[0]}, H)
+    b = _gauge_series(env, lambda t: {"kind": "discrete", "decision": name, "choice": opts[1]}, H)
+    pre, post = slice(2, at), slice(at + 1, H)
+    d_pre, d_post = float((a - b)[pre].mean()), float((a - b)[post].mean())
+    avg = (a + b) / 2
+    lvl = float(avg[post].mean() - avg[pre].mean())
+    sd = float(np.std(avg[pre])) + 1e-9
+    return {"ok": bool(d_pre > 3 * sd and d_post < -3 * sd and abs(lvl) < 1.5 * sd), "first_minus_second_before":
+            d_pre, "first_minus_second_after": d_post, "average_level_change": lvl, "noise_sd": sd, "switch_tick": at}
+
+
+def identify_option_flip(env) -> dict:
+    """Question: at which tick does the better format change? Public procedure: alternate the two formats three
+    ticks at a time and find the first two consecutive rounds in which the first format sells less."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    name, opts = _decision(env, c["decision"])
+    est, diffs = None, []
+    while not view.done:
+        vals = {}
+        for o in opts:
+            v = []
+            for _ in range(3):
+                if view.done:
+                    break
+                n = view.step({"kind": "discrete", "decision": name, "choice": o})["observation"]["numbers"]
+                v.append(list(n.values())[0])
+            vals[o] = float(np.mean(v[1:])) if len(v) > 1 else None
+        if vals.get(opts[0]) is None or vals.get(opts[1]) is None:
+            break
+        diffs.append((view.t, vals[opts[0]] - vals[opts[1]]))
+        if est is None and len(diffs) >= 2 and diffs[-1][1] < 0 and diffs[-2][1] < 0:
+            est = diffs[-2][0] - 4
+    truth = int(c["at"])
+    return {"ok": est is not None and abs(est - truth) <= 10, "question": "when does the better format change",
+            "estimate": est, "truth": truth}
+
+
+def probe_and_switch(view, env) -> None:
+    """Scripted public reference for an option whose value can change: find a good price by a coarse sweep, then
+    keep the better option, try the other one for two ticks every eight, and switch after two probes in a row
+    in which the other did better (observed units sold, the only gauge)."""
+    sp = view.action_space()
+    (dname, opts), = sp.limits["decisions"].items()
+    (pname, pp), = sp.kinds["levers"]["properties"]["values"]["properties"].items()
+
+    def units(r):
+        return list(r["observation"]["numbers"].values())[0]
+
+    def net(r):
+        res = r["observation"]["resources"]
+        return res.get("revenue_cents_last_tick", 0.0) - res.get("cost_cents_last_tick", 0.0)
+    best_p, bv = 5.0, -np.inf
+    for g in np.linspace(pp["minimum"], pp["maximum"], 6)[1:]:
+        if view.done:
+            return
+        view.step({"kind": "sequence", "steps": [{"kind": "levers", "values": {pname: float(g)}},
+                                                {"kind": "discrete", "decision": dname, "choice": opts[0]}]})
+        v = net(view.step(None))
+        if v > bv:
+            best_p, bv = float(g), v
+    view.step({"kind": "levers", "values": {pname: best_p}})
+    cur, other = opts[0], opts[1]
+    wins, k = 0, 0
+    while not view.done:
+        k += 1
+        if k % 8 == 0:
+            seen = []
+            for o in (other, other):
+                if view.done:
+                    return
+                seen.append(units(view.step({"kind": "discrete", "decision": dname, "choice": o})))
+            if view.done:
+                return
+            base = units(view.step({"kind": "discrete", "decision": dname, "choice": cur}))
+            wins = wins + 1 if seen[-1] > base else 0
+            if wins >= 2:
+                cur, other, wins = other, cur, 0
+        else:
+            view.step({"kind": "discrete", "decision": dname, "choice": cur})
+
+
+# ====================================================================== hc_hidden_state_sign
+def sign_follows_hidden_state(env) -> dict:
+    """Controlled interventions on the same noise: the effect of holding the lever high rather than low has the
+    sign of (set point - hidden state) tick by tick (it changes sign as the state wanders), and it changes sign
+    at least twice per episode; the footfall gauge correlates with the state."""
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = env.horizon
+    S = _hidden_series(env, c["state"], H)
+    hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0}}, H)
+    lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 0.0}}, H)
+    d = hi - lo
+    want = np.sign(c["setpoint"] - S)
+    big = np.abs(c["setpoint"] - S) > 0.1
+    agree = float(np.mean(np.sign(d[big]) == want[big])) if big.any() else 0.0
+    flips = int(np.sum(np.diff(want[big]) != 0)) if big.sum() > 1 else 0
+    return {"ok": bool(agree > 0.9 and flips >= 2), "sign_agreement": agree, "sign_changes": flips}
+
+
+def identify_state_sign(env) -> dict:
+    """Question: is the lever's effect positive in the last fifth of the episode? Public procedure: hold the lever
+    at the middle; in the last fifth alternate high and low two ticks at a time and compare sales."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = view.horizon
+    while view.t < H - max(8, H // 5):
+        view.step({"kind": "levers", "values": {x: 5.0}})
+    diffs = []
+    while not view.done:
+        vals = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(2):
+                if view.done:
+                    break
+                v = list(view.step({"kind": "levers", "values": {x: g}})["observation"]["numbers"].values())[0]
+            vals[g] = v
+        if vals.get(10.0) is None or vals.get(0.0) is None:
+            break
+        diffs.append(vals[10.0] - vals[0.0])
+    S = _hidden_series(fork_start(env), c["state"], H)
+    k = max(8, H // 5)
+    truth = bool(np.mean(c["setpoint"] - S[-k:]) > 0)
+    est = bool(np.mean(diffs) > 0) if diffs else None
+    return {"ok": est == truth, "question": "is the effect positive at the end", "estimate": est, "truth": truth}
+
+
+def sign_tracker(view, env) -> None:
+    """Scripted public reference for a lever whose effect can change sign: in every block of ten ticks, hold the
+    lever high for two ticks and low for two (the second tick of each counts, so a one-tick lag does not
+    mislead), then hold the better end for the rest of the block. The cost-only second lever is held at a
+    moderate level found by a short sweep at the start."""
+    c = env._config["claim"]
+    x, q = _lever(env, c["lever"]), _lever(env, c["second"])
+
+    def sales(r):
+        return list(r["observation"]["numbers"].values())[0]
+
+    def net(r):
+        res = r["observation"]["resources"]
+        return res.get("revenue_cents_last_tick", 0.0) - res.get("cost_cents_last_tick", 0.0)
+    best_q, bv = 0.0, -np.inf
+    for g in (0.0, 2.0, 4.0, 6.0):
+        if view.done:
+            return
+        view.step({"kind": "levers", "values": {q: g, x: 5.0}})
+        v = net(view.step({"kind": "levers", "values": {q: g, x: 5.0}}))
+        if v > bv:
+            best_q, bv = g, v
+    while not view.done:
+        seen = {}
+        for g in (10.0, 0.0):
+            v = None
+            for _ in range(2):
+                if view.done:
+                    return
+                v = sales(view.step({"kind": "levers", "values": {x: g, q: best_q}}))
+            seen[g] = v
+        end = 10.0 if seen[10.0] >= seen[0.0] else 0.0
+        for _ in range(6):
+            if view.done:
+                return
+            view.step({"kind": "levers", "values": {x: end, q: best_q}})

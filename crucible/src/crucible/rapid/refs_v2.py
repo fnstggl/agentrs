@@ -47,7 +47,9 @@ class _SeatLearner:
         self.delta = 0.15
 
     def _setting(self, sign: int) -> dict:
-        u = np.clip(self.u + sign * self.delta * self.p, 0.0, 1.0) if len(self.u) else self.u
+        # the probe size follows the step size: large while the optimum is far or moving, small near it
+        d = np.clip(self.step, 0.04, self.delta) if len(self.u) else 0.0
+        u = np.clip(self.u + sign * d * self.p, 0.0, 1.0) if len(self.u) else self.u
         z = self.z + sign * 0.6 * self.pz if len(self.z) else self.z
         w = np.exp(z - z.max()) if len(z) else z
         return {"u": [float(x) for x in u], "d": dict(self.choice),
