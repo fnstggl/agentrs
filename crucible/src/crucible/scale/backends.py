@@ -409,13 +409,28 @@ def bench_service(sites: int = 6, rows: int = 4, reps: int = 3, semantic: bool =
             if isinstance(o, list):
                 return np.asarray([x["logprobs"] for x in o], np.float64)
             return np.asarray(o, np.float64)
+        def choices(o):
+            if isinstance(o, list):                  # class 4: the option the participant acts on
+                return [int(x["choice"]) for x in o]
+            if isinstance(o, dict):                  # class 2 / 3: the argmax of each row's first output head
+                v = np.asarray(o[sorted(o)[0]], np.float64)
+                return list(np.argmax(v.reshape(len(v), -1), 1))
+            v = np.asarray(o, np.float64)
+            return list(np.argmax(v.reshape(len(v), -1), 1))
         a = np.concatenate([flat(o) for o in res["out_separate"]])
         b = np.concatenate([flat(o) for o in res["out_merged"]])
+        ca = [c for o in res["out_separate"] for c in choices(o)]
+        cb = [c for o in res["out_merged"] for c in choices(o)]
         out["cases"][name] = {"separate_wall_s": round(sep[0], 5), "merged_wall_s": round(mer[0], 5),
                               "separate_cpu_s": round(sep[1], 5), "merged_cpu_s": round(mer[1], 5),
                               "calls_separate": sites, "calls_merged": 1,
                               "speedup_wall": round(sep[0] / max(mer[0], 1e-12), 3),
-                              "max_abs_diff": float(np.max(np.abs(a - b))) if a.size else 0.0}
+                              "max_abs_diff": float(np.max(np.abs(a - b))) if a.size else 0.0,
+                              # grouping changes floating-point reduction order (bfloat16 on the GPU: logprob
+                              # differences of ~0.1-0.3 nats measured 2026-11-26); what a participant does follows
+                              # the chosen option, so the agreement of choices is the behavioural check
+                              "choice_agreement": round(sum(x == y for x, y in zip(ca, cb)) / max(1, len(ca)), 4),
+                              "rows": len(ca)}
     st = IB.report(IB.stats(w))
     out["service_stats"] = {"calls": st["calls"], "merged_calls": st["merged_calls"], "by_class": st["by_class"]}
     w.close()

@@ -107,6 +107,56 @@ Fork reproducibility probe (development, snapshot at 8 h, three 6-hour forks: pl
 all three hash chains equal (6,383 events each), so on this world the observer does not perturb the trajectory and
 forks are exact.
 
-## 6. Pending reruns
+## 6. Reruns of the gate workloads (snapshot dc8f900 / dca1c0c, 2026-11-26 19:00-19:20)
 
-PENDING_SECTION
+Event-driven computation (V.5; `gatev event_driven`, civ standard, 10,296 individuals, 24 h, three forks plain /
+dense observer / plain): all three hash chains equal (`8157a78443dfd5bb`), so `equal_outcomes` and
+`forks_reproducible` are both true (the first run's two-fork divergence did not recur; its cause was not
+identified, so the three-fork design stays). Decision-policy CPU 0.076 s for the 23,452 activated rows vs 2.144 s for every eligible
+row at every tick (984,576 rows): **event-driven speedup 28.2** (activation ratio 42.0; 244 vs 10,256 rows per tick).
+200 `pop.wake` trigger batches; world CPU per activation 0.66 ms; the whole world with the dense observer costs 1.10x
+the plain world (the population's policy is a small share of a civ world's CPU).
+
+Representation cache (V.6; `gatev cache`, three 96-hour civ development worlds in separate processes on one fresh
+cache: two replicas of seed 0 and seed 1): 15,115 lookups, 14,382 hits: **hit rate 0.952**; 733 distinct items, each
+encoded exactly once (encoder runs per artifact 1.0); the second replica was served all 353 of its items from the disk
+cache (no encoder run) and the other seed 5 of its 385; 358 items reused across worlds. World 1: 4,436 world-record
+hits, 353 misses; world 2: 4,436 world-record hits, 353 disk hits, 0 misses; world 3: 5,152 world-record hits, 5 disk
+hits, 380 misses.
+
+Estimated cohort mode (V.9; `approx.validate`, fit at 400 individuals on seed 0, predict 1,600 individuals on seeds
+1-3 and a shop-share intervention 0.4 -> 0.7, 4 days; 1,099 s): error (mean over the 3 target seeds, 95% interval)
+
+| quantity | error measure | mean | 95% interval |
+|---|---|---:|---|
+| adoption trajectory | max abs difference of the daily active share | 0.012 | 0.003-0.020 |
+| audience distribution | KS distance of per-resource audience shares | 0.906 | 0.813-1.000 |
+| revenue | relative error of total revenue | 0.623 | 0.389-0.856 |
+| network diffusion | mean abs difference of the top resource's daily reach | 0.379 | 0.321-0.438 |
+| retention | abs difference of retention | 0.002 | 0.001-0.003 |
+| intervention effect | relative error of the shop-share effect on revenue | 0.992 | 0.389-1.595 |
+| rare-event frequency | relative error of rare individual-days | 0.018 | 0.007-0.030 |
+
+Reading: the cohort mode reproduces aggregate activity (adoption, retention, rare-event frequency within 2%) and
+nothing that depends on who meets what: audience distributions, revenue, diffusion and above all intervention effects
+are wrong by 40-100%. It is therefore labelled `estimated`, is never used inside a world, and must not be used to
+answer counterfactual or distributional questions (FIDELITY_REGISTER `scale.approx_cohort`).
+
+Shared batching service (V.4, SP-13.1; `backends.bench_service`, 6 call sites x 4 rows of one shared model each,
+recorded as 6 separate calls vs grouped into 1, inside a world transaction):
+
+| model (class) | separate s / round | grouped s / round | speedup | max abs output difference |
+|---|---:|---:|---:|---:|
+| AdaptiveNet (2) | 0.00520 | 0.00176 | 2.96 | 1.5e-7 |
+| StrategicGRU (3) | 0.02576 | 0.00876 | 2.94 | 2.1e-7 |
+| StrategicMLP (3) | 0.00855 | 0.00251 | 3.41 | 1.8e-7 |
+| Qwen3-0.6B option scoring, bfloat16 on the GPU (4) | 0.1958 | 0.0689 | 2.84 | 0.256 nats |
+
+The class-4 logprobs change with the batch composition in bfloat16 (different GEMM tilings round differently); the
+calls are recorded, so replay is exact, and from this version on the benchmark also reports the agreement of the
+chosen options (`choice_agreement`), which is what a participant acts on.
+
+## 7. Pending
+
+The 30-day standard (3 seeds) and large (1 seed) civ runs, the population-only standard row and the 10M capacity
+run (V.2) are queued as governed jobs; their results replace this paragraph.

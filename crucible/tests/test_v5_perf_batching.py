@@ -288,5 +288,6 @@ def test_service_benchmark_groups_call_sites_on_the_real_models():
     assert set(r["cases"]) == {"class2_adaptive", "class3_strategic_gru", "class3_strategic_mlp"}
     for v in r["cases"].values():
         assert v["calls_separate"] == 3 and v["calls_merged"] == 1 and v["max_abs_diff"] < 1e-4
+        assert v["choice_agreement"] == 1.0 and v["rows"] == 6
         assert v["separate_wall_s"] > 0 and v["merged_wall_s"] > 0
     assert r["service_stats"]["merged_calls"] > 0 and set(r["service_stats"]["by_class"]) == {"2", "3"}
