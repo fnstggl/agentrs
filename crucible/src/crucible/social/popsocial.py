@@ -44,7 +44,7 @@ CREATE_MODEL = {"model_id": "pop-create", "model_version": "1", "fidelity_id": "
 COMMUNITY_MODEL = {"model_id": "pop-community", "model_version": "1", "fidelity_id": "population-community-model"}
 DEFAULTS = {"prior": -1.2, "platforms": {"short": "posts", "long": "blog"}, "minutes": [10.0, 45.0],
             "topic_noise": 0.08, "community_prior": -0.2, "explore": 0.15, "found_threshold": 0.32,
-            "found_prob": 0.04, "leave_value": -0.04}
+            "found_prob": 0.04, "leave_value": -0.04, "creator_share": 1.0}
 _STOP = frozenset("""the a an and or of to in on for with at by from is are was were be been it its this that as
 after over about into new how why what who says said will would could more most than his her their they you your
 our we he she not but have has had up out off one two first last year years day week according monday tuesday
@@ -107,10 +107,17 @@ class PopSocial(Module):
         seen_new = columns.col(w, "pop", "soc_seen_views")[idx].astype(np.int64).copy()
         last_item = columns.col(w, "pop", "soc_last_item")[idx].astype(np.int64).copy()
         nitems = columns.col(w, "pop", "soc_items")[idx].astype(np.int64).copy()
+        # only some people ever write for an audience (creator_share: the most skilled writers)
+        share = float(self.cfg["creator_share"])
+        if share < 1.0:
+            from scipy.stats import beta as _beta          # skills are Beta(2.5, 2.5) (population genesis)
+            writer = skill >= min(0.975, float(_beta.ppf(1.0 - share, 2.5, 2.5)))
+        else:
+            writer = np.ones(n, bool)
         for j in range(n):
             i = int(idx[j])
-            if minutes[j] < lo * 0.5:
-                u[j] = -0.05
+            if minutes[j] < lo * 0.5 or not writer[j]:
+                u[j] = -0.3 if not writer[j] else -0.05
                 continue
             # what the creator learns from the platforms about its earlier pieces
             views = self._views_seen(w, i) if nitems[j] else 0

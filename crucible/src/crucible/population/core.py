@@ -392,9 +392,12 @@ class Population(Module):
         if st_ix.size:
             goals = c("goals")[st_ix]
             logits = np.zeros((st_ix.size, len(slots)))
+            derived = self.prof["init"] == "derived"
             for j, a in enumerate(reg["order"]):
                 sp = reg["spec"][a]
                 logits[:, j] = habit[st_ix, sp["slot"]]
+                if derived:            # derived initial state: the activities' priors were not known at install
+                    logits[:, j] += sp["prior"] - 0.3
                 for g in sp["goals"]:
                     logits[:, j] += 0.5 * (goals == g).any(axis=1)
             logits += rng.gumbel(size=logits.shape) * (0.6 + 0.6 * prefs[st_ix, 1:2])
