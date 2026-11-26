@@ -114,6 +114,31 @@ def test_state_at_init_is_not_a_constant_and_depends_on_observations():
     assert lc > 0.95 and lf < 0.05 and lh < 0.05, out["legacy"]
 
 
+def test_reasoner_reads_the_gated_state_scale_free():
+    """With the gated state the reasoner reads Z RMS-normalised (R_0 at the iteration embedding's scale), so R
+    carries Z's observation content at init (the raw small-scale Z under the 0.5-std iteration embedding gave ~1%);
+    without the gate the input is Z itself (pre-DOM)."""
+    from superlearner.cam_unified.core.reasoning import Reasoner
+    dep = {}
+    for name, over in (("dom", {}), ("legacy", dict(state_gate=False, state_emb_std=0.5))):
+        core = _dom_dev_core(0, **over).eval()
+        rs = Reasoner(core.cfg, core).eval()
+        D, B = core.cfg.d_model, 8
+        A, Bc = _ctxs(1, B, 24, D, 1)[0], _ctxs(1, B, 24, D, 2)[0]
+        goal = TokenSet.from_dense(torch.randn(B, 3, D, generator=torch.Generator().manual_seed(3)),
+                                   int(TokenKind.GOAL))
+        with torch.no_grad():
+            Z0 = core.init_state(B)
+            za, zb = core(Z0, A)[0], core(Z0, Bc)[0]
+            dep[name] = relative_change(rs(za, goal)[0], rs(zb, goal)[0])
+            zin = rs.state_input(za)
+        if name == "dom":
+            assert torch.allclose(zin.pow(2).mean(-1), torch.ones(B, core.cfg.n_state), atol=1e-2)
+        else:
+            assert zin is za
+    assert dep["dom"] > 0.10 and dep["legacy"] < 0.03, dep
+
+
 def test_gated_state_is_bounded_over_a_long_lifetime():
     core = _dom_dev_core(2).eval()
     D, B = core.cfg.d_model, 2

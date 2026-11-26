@@ -2,6 +2,8 @@
 
     R_0 = Z_t,   R_{j+1} = Reason_theta(R_j, [Z_t; B_t; M_t; G_t])
 
+(with the core's gated state, Z_t enters RMS-normalised: `Reasoner.state_input`)
+
 Reason_theta is the last `cfg.reason_layers` blocks of the shared backbone (same weights), applied to
 [R_j + IterEmb(j) + KindEmb(REASON) + StatePos; anchor Z_t (kind STATE) ; context tokens], followed by the backbone's
 output norm. The context (Z_t anchor + belief / memory / goal tokens) is embedded once per call and its residual
@@ -199,6 +201,17 @@ class Reasoner(nn.Module):
             return self._step_impl(R, hctx, mask, j)
         return self._step_impl(R, hctx, mask, j, None, sem, gate_log)
 
+    def state_input(self, Z: Tensor) -> Tensor:
+        """The latent state as the reasoner reads it (R_0 and the anchor). With the core's gated state
+        (`cfg.state_gate`) Z's scale is a persistence artefact (it starts near the 0.02-scale initial state and grows
+        as the gates write), so the reasoner reads its content RMS-normalised per token (no learned gain): R_0 is then
+        at the scale of the iteration embedding and of every later R_j (out_norm). Without the gate Z is already
+        out_norm'd and is used as is (pre-DOM behaviour)."""
+        if getattr(self.core, "state_gate", None) is None:
+            return Z
+        Zf = Z.float()
+        return torch.nn.functional.rms_norm(Zf, (Zf.shape[-1],), eps=1e-6)
+
     def _iterate(self, R, j, hctx, cmask, kv: Optional[SemanticKV], log: Optional[dict]) -> tuple:
         # without a semantic context `step` is called exactly as before (spies and subclasses keep working)
         if kv is None:
@@ -239,6 +252,7 @@ class Reasoner(nn.Module):
         self._ckpt_now = self._use_iter_checkpoint(adaptive)
         log: dict = {}
         try:
+            Z = self.state_input(Z)
             with self.core._autocast_ctx(dev):
                 hctx, cmask = self._context(Z, ctx, code_rows)
                 kv = self.core.project_semantic(sem, B, code_rows, sem_rows) if sem is not None else None
