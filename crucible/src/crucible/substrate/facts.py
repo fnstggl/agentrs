@@ -110,6 +110,12 @@ REVIEWED: dict[str, dict] = {
     "business.companies": _r("organization", _X, "company registration and equity of an organisation"),
     "business.shares": _r("asset", _X, "equity shares of companies (4.0 asset class owner)"),
     "ventures.ventures": _r("organization", _X, "business lifecycle (books, wind-down) of an organisation"),
+    "firms.firms": _r("organization", _X, "policy state (goal, band, books) of Tier 2 autonomous firms, keyed by "
+                                          "their identity organisation"),
+    "firms.firms_decisions": _r(None, _V, "decision log of the autonomous firms", "firms.firms"),
+    "firms.firms_sales": _r(None, _V, "sales of the firms' internal work to the rest of the world", "firms.firms"),
+    "fleet.fleet_jobs": _r(None, _V, "batch compute jobs of the infrastructure world's tenants (workloads, not "
+                                     "employment)"),
     # ---------------------------------------------------------------- product / listing / subscription
     "products.prod_offers": _r("product", _P, "price plans of a product", "products.products"),
     "products.prod_entitlements": _r("product", _P, "access entitlements to products", "products.products"),
@@ -426,12 +432,30 @@ def _install(name: str):
     return None, "; ".join(errs)
 
 
+_SKIP_PACKAGES = ("crucible.redteam",)     # adversarial probe modules: not world mechanics
+
+
 def shipped_modules() -> list[str]:
-    """Every kernel module the crucible package registers (test modules registered by test files excluded)."""
+    """Every kernel module the crucible package registers: `load_all_modules`, the Tier 2 domain modules, and any
+    other module class found by importing every submodule of the package (modules registered by test files and by
+    the red-team probes are excluded)."""
+    import importlib
+    import pkgutil
+
     import crucible
     from ..core.kernel import MODULES
     crucible.load_all_modules()
-    return sorted(n for n, cls in MODULES.items() if cls.__module__.startswith("crucible."))
+    from .. import domains
+    domains.load_all()
+    for info in pkgutil.walk_packages(crucible.__path__, "crucible."):
+        if info.name.startswith(_SKIP_PACKAGES) or info.name.endswith("__main__"):
+            continue
+        try:
+            importlib.import_module(info.name)
+        except Exception:   # noqa: BLE001 - optional dependencies (psycopg, playwright, ...): nothing to register
+            pass
+    return sorted(n for n, cls in MODULES.items()
+                  if cls.__module__.startswith("crucible.") and not cls.__module__.startswith(_SKIP_PACKAGES))
 
 
 def scan_registry(names=None) -> dict:
