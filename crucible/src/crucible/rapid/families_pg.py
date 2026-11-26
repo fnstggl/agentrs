@@ -328,12 +328,14 @@ def eng_delayed_controller(rng, d):
 # ====================================================================== 8.8 strategic games
 @family("game_adaptive_rival", engine="primitive_graph", category="8.8", item="8.8.1", split="train",
         doc="Repeated price competition against a rival that learns the shop's typical price and undercuts it; how "
-            "fast it learns is the opponent's capability.",
+            "fast it learns is the opponent's capability. Predict the long-run sales of holding a price, once the "
+            "rival has adapted to it: the short-run response to a price change overstates it.",
         distinct_because="logit strategic interaction with an adaptive (learning) opponent whose action is a state "
                          "driven by the participant's past actions",
-        axes={"horizon": 60, "observation_noise": 0.15, "opponent_capability": 0.2}, objective="maximize_net",
+        axes={"horizon": 60, "observation_noise": 0.15, "opponent_capability": 0.2}, objective="predict_heldout",
         participants=("adaptive_opponent:undercut",), claims=(C + "rival_adapts",), identify=I + "lever_sign",
-        lever_view=True)
+        lever_view=True, reference="crucible.rapid.refs_adapt:rival_model_predict",
+        oracle="crucible.rapid.oracles:science_oracle", version="2")
 def game_adaptive_rival(rng, d):
     gb = GraphBuilder(rng)
     p = gb.lever(1.0, 10.0, 4.0, cost=0.0)
@@ -344,11 +346,18 @@ def game_adaptive_rival(rng, d):
     units = gb.prim("strategic_interaction", {"market": 100.0, "beta": u(rng, 0.6, 0.9), "outside": 0.3},
                     role="units", own=[(p, 0, 1.0)], rival=[(opp, 0, 1.0)])
     rev = gb.prim("multiplicative", {"k": 10.0}, role="outcome", a=[(units, 0, 1.0)], b=[(p, 0, 1.0)])
-    gb.gauge(units, [("measurement_noise", {"sd": float(d["observation_noise"]) * 10})])
+    gu = gb.gauge(units, [("measurement_noise", {"sd": float(d["observation_noise"]) * 10})])
     gb.gauge(opp, [("measurement_noise", {"sd": 0.05})])
+    held = [{gb.name_of(p): v} for v in (1.5, 3.0, 4.5, 6.0, 7.5, 9.0, 11.0, 12.5)]
+    text = ("Predict how many units you would sell per period once the rival has adapted, if you held your price "
+            f"at each of these values from the start (partly outside what you can set): {held}. File predictions "
+            "with the journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, "
+            "\"value\": <number>}, ...]}. Only the last filing counts.")
     return gb.build(horizon=int(d["horizon"]), money={"revenue_node": rev, "price": 1.0, "cap": 20_000.0},
-                    affordances=["levers"], endowment=200_000,
-                    objective={"type": "maximize_net", "text": "Maximise your net income over the horizon."},
+                    affordances=["levers", "message"], endowment=200_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gu, "text": text,
+                               "settle_ticks": 80},
+                    journal=True,
                     brief="You set your price each tick against one rival. Gauges: your units sold and the "
                           "rival's posted price.",
                     claim={"lever": p, "opponent": opp, "outcome": rev})

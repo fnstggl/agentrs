@@ -1062,3 +1062,70 @@ def market_predict(view, env, seed: int = 0, gain: float = 0.04) -> None:
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== adaptive rival: the long-run outcome of a price
+def rival_model_predict(view, env, seed: int = 0, hold: tuple = (1, 4)) -> None:
+    """Scripted public reference (D-64: it models the opponent's policy class): prices are held at random levels for
+    a few ticks each; the rival's posted price is modelled as following an average of your past prices that it
+    remembers at an unknown rate (chosen by fit from a grid): o' = a + b o + c m, m' = m + r (x - m); your units are
+    modelled as a logit choice between your price, the rival's and not buying (market size, price sensitivity and
+    the outside option fitted on grids and by least squares). Holding a price p, the rival settles at
+    o* = (a + c p) / (1 - b), and the filed prediction is the units law at (p, o*)."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    name = next(iter(held[0]))
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo, hi = float(props[name]["minimum"]), float(props[name]["maximum"])
+    P, U, O = [], [], []
+    other = None
+    while view.t < view.horizon - 2 and not view.done:
+        x = float(lo + rng.random() * (hi - lo))
+        for _ in range(int(rng.integers(hold[0], hold[1] + 1))):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {name: x}})
+            nums = r["observation"]["numbers"]
+            if other is None:
+                other = next(k for k in nums if k != gauge)
+            P.append(x)
+            U.append(float(nums.get(gauge, np.nan)))
+            O.append(float(nums.get(other, np.nan)))
+    P, U, O = np.asarray(P), np.asarray(U), np.asarray(O)
+    if len(P) >= 20 and not view.done:
+        best = None
+        for rate in np.linspace(0.03, 0.6, 20):
+            m = np.zeros(len(P))
+            mm = O[0]
+            for t in range(len(P)):
+                m[t] = mm
+                mm = mm + rate * (P[t] - mm)          # the rival remembers prices up to the last one
+            Y = O[1:]
+            Xr = np.c_[np.ones(len(Y)), O[:-1], m[1:]]
+            coef, *_ = np.linalg.lstsq(Xr, Y, rcond=None)
+            err = float(np.sum((Xr @ coef - Y) ** 2))
+            if best is None or err < best[0]:
+                best = (err, coef)
+        a, b, c = best[1]
+        ok = np.isfinite(U) & np.isfinite(O)
+        fit = None
+        for beta in np.linspace(0.2, 1.6, 15):
+            for K in np.geomspace(0.01, 5.0, 14):
+                share = np.exp(-beta * P[ok]) / (np.exp(-beta * P[ok]) + np.exp(-beta * O[ok]) + K)
+                Mk = float(np.sum(share * U[ok]) / max(np.sum(share * share), 1e-12))
+                err = float(np.sum((Mk * share - U[ok]) ** 2))
+                if fit is None or err < fit[0]:
+                    fit = (err, beta, K, Mk)
+        _, beta, K, Mk = fit
+        out = []
+        for cond in held:
+            p_ = float(cond[name])
+            o_ = (a + c * p_) / max(1e-6, 1.0 - b)
+            o_ = float(np.clip(o_, min(O.min(), lo), max(O.max(), hi)))
+            v = Mk * np.exp(-beta * p_) / (np.exp(-beta * p_) + np.exp(-beta * o_) + K)
+            out.append({"set": cond, "value": float(v)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)
