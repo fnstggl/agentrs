@@ -23,6 +23,45 @@ def specs() -> dict:
     have = set(list_models())
     S = {}
 
+    if "ad_exposure_response@1" in have:
+        from .registry import read_card
+        from .runtime import AdDecision
+        card = read_card("ad_exposure_response")
+        S["ad_response@2"] = Spec(
+            "ad_response@2", "ad_exposure_response@1",
+            use=("advertising: the probability that an individual visits an advertiser's offer during a campaign "
+                 "period when the campaign is displayed to it (display or feed placements), as a fitted log-odds "
+                 "shift of the individual's own organic visit probability, scaled by the probability that it "
+                 "attends at least one of its displays; draw once per individual and campaign period"),
+            output="ad_visit", model_class=AdDecision,
+            inputs=(Input("organic_visit_probability", "the individual's probability of visiting the advertiser's "
+                          "offer during the period without the campaign, from the world's own discovery mechanism "
+                          "and the individual's state (needs, interests, history, contacts)", "probability",
+                          "individual", 0, 1),
+                    Input("attended_probability", "probability that the individual attends at least one of its "
+                          "displays of the campaign in the period: runtime.at_least_one over per-display "
+                          "probabilities from a registered attention decision model evaluated on each display's own "
+                          "features (relevance in the shared space, repetition, familiarity, time); 0 when not "
+                          "displayed", "probability", "individual", 0, 1)),
+            build=lambda d, m, s: np.column_stack([np.log(np.clip(_f(d, "organic_visit_probability"), 1e-6, 1 - 1e-6))
+                                                   - np.log1p(-np.clip(_f(d, "organic_visit_probability"), 1e-6,
+                                                                       1 - 1e-6))]),
+            params={"reference_attention": float(card.get("reference_attention", 1.0)),
+                    "incremental_conversion_ratio": float(card.get("served_conversion_ratio", 1.0))},
+            scope={"use": ["display_campaign", "feed_campaign"]},
+            limits=("Criteo Uplift v2.1 (randomised eligibility as the instrument for display; advertisers, countries "
+                    "and dates undisclosed; released 2018). Identified: the log-odds shift of a targeted display on "
+                    "users Criteo's bidder reached, as a function of their organic propensity. NOT identified "
+                    "(assumptions, own fidelity record advertising.attention_composition): the dependence on "
+                    "attention, relevance and repetition (through the attention model and A_ref = 1, conservative: "
+                    "an attended world display never exceeds a Criteo display's effect), frequency beyond 'at least "
+                    "one attended display' (no wear-in or wear-out), carry-over between periods, ad content or "
+                    "price. Never negative. Absolute levels come from the world's own organic propensities; the "
+                    "shift is invariant to the publisher's sub-sampling only if that sampling depended on the outcome "
+                    "or the arm, not on exposure. Not for search ads (use 'search_result' is refused)."),
+            output_doc=("columns p_visit, p_visit_organic, p_incremental; sample() returns [visit, incremental] "
+                        "from one coupled uniform"))
+
     if "session_length@1" in have:
         def b_sess(d, m, s):
             hs, hc = _hour(_f(d, "local_hour"))

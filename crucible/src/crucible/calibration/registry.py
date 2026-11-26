@@ -80,9 +80,12 @@ DOMAIN_ALIASES = {
     "software_collaboration_and_adoption": "software_adoption",
 }
 # How a model's effect estimates are identified (MASTER_SPEC 5.2: keep observational and experimental apart).
-IDENTIFICATION = ("observational", "randomized_exposure", "randomized_controlled_trial")
+IDENTIFICATION = ("observational", "randomized_exposure", "randomized_controlled_trial", "randomized_encouragement_iv")
 # A randomised experiment that assigns the intervention (Criteo's incrementality tests) is a randomised controlled
-# trial; randomized_exposure is reserved for randomly inserted content, whose effect is not an intervention arm.
+# trial when the estimand is the effect of assignment (intention to treat); randomized_exposure is reserved for
+# randomly inserted content, whose effect is not an intervention arm; randomized_encouragement_iv is an effect of the
+# treatment actually received (display) identified with the randomised assignment (eligibility) as its instrument: a
+# complier effect that additionally rests on the exclusion restriction (assignment acts only through the treatment).
 IDENTIFICATION_ALIASES = {"randomized_experiment": "randomized_controlled_trial",
                           "randomised_experiment": "randomized_controlled_trial"}
 

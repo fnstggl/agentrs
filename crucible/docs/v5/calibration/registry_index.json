@@ -1,5 +1,12 @@
 {
  "models": {
+  "ad_exposure_response": {
+   "card_sha256": "2399920b65fcc5c1297087c8a3055a8d82bf5e17a30ded74c45b6892e1dac715",
+   "files": {
+    "params.npz": "fde6743904823f6628e8854d476e92ef259a77458aca1d651c0b9a1f1e1c6243"
+   },
+   "version": 1
+  },
   "commercial_response": {
    "card_sha256": "c4c3978340428b5d3f1104b0e0a98d498989ee70baac6c3242e2d4a62f3017b8",
    "files": {

@@ -62,7 +62,10 @@ Both are described by their committed manifests in `datasets/` (licence, provena
 
 GH Archive privacy (MASTER_SPEC 5.1). Since extractor version 2 (2026-11-26) the extracted hour tables hold **no GitHub
 id**: actor and repository ids are replaced at extraction by keyed 63-bit pseudonyms (blake2b under a 32-byte secret
-salt in `$CRUCIBLE_DATA/gharchive_2024-10-07_96h/pseudonym_key`, mode 0600, never committed or logged). The 96
+salt, mode 0600, never committed or logged, kept apart from the data in `$CRUCIBLE_KEYS` (default ~/.crucible_keys,
+never inside the data root or the repository; until the wave-3 repair pass it sat in the dataset directory next to the
+pseudonyms, where anyone holding that directory and the public archive could recompute them; it was moved unchanged,
+and SP-5.1 counts every value pseudonymised under a key found inside the data root as re-identifiable). The 96
 extractor-1 tables were converted in place after each was checked against its recorded digest, the derived table
 `tables_v1.npz` (dense ranks of raw ids) was deleted and rebuilt as `tables_v2.npz` from the pseudonymised events, and
 the software reproducers return the same held-out metrics (abs diff 0.0 and 1e-16). Verification uses digests in

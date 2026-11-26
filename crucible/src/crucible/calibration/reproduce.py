@@ -254,6 +254,30 @@ def reproduce_news_semantic() -> dict:
                                                                            _rt(f.id, X)), len(X), "dev day")}
 
 
+# ---------------------------------------------------------------- E5 (fit_e5, plan E5_ad_exposure_plan.json)
+def reproduce_ad_exposure() -> dict:
+    """ad_exposure_response@1: the test split's excess log loss (profile likelihood of the three stratum cells),
+    with the displayed visit probability taken from the runtime's served predictor (ad_response@2), strata and
+    cells rebuilt from the verified Criteo arrays and the prespecified splits."""
+    if not _registered("ad_exposure_response"):
+        return {}
+    from . import fit_e5 as E5
+    from . import runtime
+    f = load("ad_exposure_response")
+    S = E5.prepare(splits=("fit", "test"))
+    if not np.allclose(S["edges"], np.asarray(f.card["strata_edges_p0_hat"]), rtol=0, atol=1e-12):
+        raise ValueError("ad_exposure_response: strata edges differ from the card's")
+    dm = runtime.decision_for("ad_exposure_response@1")
+
+    def qfun(v):
+        return np.asarray(dm.evaluate_features(np.asarray(v, float).reshape(-1, 1), checkpoint=True).values, float)
+    kept = f.card["selection"]["kept"]
+    rec = E5.excess_log_loss(kept, None, S["cells"]["test"], qfun=qfun)
+    r = _row("ad_exposure_response", rec, int(S["cells"]["test"]["nte"].sum()))
+    r["scope"] = "whole test split (displayed rows), profile likelihood through the runtime predictor"
+    return {"ad_exposure_response": r}
+
+
 def _registered(name: str) -> bool:
     from .registry import list_models
     return any(m.split("@")[0] == name for m in list_models())
@@ -261,7 +285,8 @@ def _registered(name: str) -> bool:
 
 REPRODUCERS = {"kuairand": reproduce_kuairand, "news": reproduce_news, "commercial": reproduce_commercial,
                "software": reproduce_software, "retail": reproduce_retail, "github_e4": reproduce_github_e4,
-               "kuairand_e4": reproduce_kuairand_e4, "news_semantic": reproduce_news_semantic}
+               "kuairand_e4": reproduce_kuairand_e4, "news_semantic": reproduce_news_semantic,
+               "ad_exposure": reproduce_ad_exposure}
 
 
 def reproduce_all() -> dict:

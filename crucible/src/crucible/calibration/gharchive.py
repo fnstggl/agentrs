@@ -7,7 +7,9 @@ committed manifest (or recorded on first acquisition), reduced to a compact nume
 Privacy (MASTER_SPEC 5.1: no reconstruction of individual real-world identities). No logins, names, e-mail
 addresses or text are kept, and since extractor version 2 no GitHub id either: actor and repository ids are replaced
 at extraction by keyed pseudonyms, blake2b-64 of the id under a 32-byte secret salt (`pseudonym_key`), created once
-per dataset directory with mode 0600 and never committed, logged or copied into any repository file. The pseudonyms
+per dataset directory with mode 0600 and kept apart from the data (`key_dir()`, default ~/.crucible_keys; never in
+the dataset directory, the data root or the repository) and never committed, logged or copied into any repository
+file. The pseudonyms
 keep only equality (same developer, same repository) inside this window, which is all the features use; they cannot
 be inverted or looked up through GitHub's API without the salt. Deleting the salt file makes the pseudonyms
 unlinkable even for the operator (a later re-extraction then creates new pseudonyms; verification does not depend
@@ -108,16 +110,59 @@ def content_digest_v1(arrays: dict[str, np.ndarray]) -> str:
     return h.hexdigest()
 
 
+KEY_DIR_ENV = "CRUCIBLE_KEYS"
+
+
+def key_dir() -> str:
+    """Where pseudonym keys live: `$CRUCIBLE_KEYS`, default ~/.crucible_keys. Never inside the data root (whoever
+    copies a dataset directory must not get the key that re-identifies it) nor inside the repository."""
+    d = os.path.abspath(os.environ.get(KEY_DIR_ENV) or os.path.join(os.path.expanduser("~"), ".crucible_keys"))
+    from .registry import CRUCIBLE_ROOT
+    for forbidden in (os.path.abspath(data_root()), os.path.abspath(os.path.join(CRUCIBLE_ROOT, ".."))):
+        if d == forbidden or d.startswith(forbidden + os.sep):
+            raise ValueError(f"the pseudonym key directory {d} must lie outside {forbidden}")
+    return d
+
+
+def key_path(dest: str | None = None) -> str:
+    """The key file of one dataset directory (named by the directory and a hash of its absolute path)."""
+    d = os.path.abspath(dataset_dir(dest))
+    tag = hashlib.sha256(d.encode()).hexdigest()[:12]
+    return os.path.join(key_dir(), f"{os.path.basename(d)}-{tag}.pseudonym_key")
+
+
+def legacy_key_path(dest: str | None = None) -> str:
+    """Where keys were kept until the wave-3 repair pass: inside the dataset directory, next to the pseudonyms."""
+    return os.path.join(dataset_dir(dest), SALT_FILE)
+
+
+def _write_new(p: str, key: bytes) -> None:
+    os.makedirs(os.path.dirname(p), mode=0o700, exist_ok=True)
+    fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(key)
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
 def pseudonym_key(dest: str | None = None, create: bool = True) -> bytes:
-    """The dataset's secret salt (32 bytes, file mode 0600, outside the repository)."""
-    p = os.path.join(dataset_dir(dest), SALT_FILE)
+    """The dataset's secret salt (32 bytes, file mode 0600) in `key_dir()`, apart from the data. A key still kept in
+    the dataset directory (before the repair pass) is moved there on first use."""
+    p, old = key_path(dest), legacy_key_path(dest)
+    if os.path.exists(old):
+        with open(old, "rb") as fh:
+            legacy = fh.read()
+        if os.path.exists(p):
+            with open(p, "rb") as fh:
+                if fh.read() != legacy:
+                    raise ValueError(f"two different pseudonym keys for {dataset_dir(dest)}: {old} and {p}")
+        else:
+            _write_new(p, legacy)
+        os.unlink(old)
     if not os.path.exists(p):
         if not create:
             raise FileNotFoundError(p)
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(os.urandom(32))
+        _write_new(p, os.urandom(32))
     with open(p, "rb") as fh:
         key = fh.read()
     if len(key) != 32:

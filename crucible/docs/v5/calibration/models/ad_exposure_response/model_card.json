@@ -1,0 +1,290 @@
+{
+ "domain": "advertising_response",
+ "features": [
+  "organic_logit"
+ ],
+ "target": "visit: the displayed individual visits the advertiser during the campaign period",
+ "feature_map": {
+  "organic_logit": "log-odds of the displayed individual's organic (no-ad) probability of visiting the advertiser during the campaign period: in the data the stratum's complier baseline, in the simulator the individual's own organic visit probability (ad_response@2 input organic_visit_probability)"
+ },
+ "metrics": {
+  "n": 85844,
+  "log_loss": 0.5377976598531312,
+  "brier": 0.1710573279931095,
+  "ece": 0.02356320548198969,
+  "auc": 0.800292608371663,
+  "mean_pred": 0.3978536415990575,
+  "mean_obs": 0.4127370579190159,
+  "excess_log_loss": 4.3226650228109524e-05
+ },
+ "baseline_metrics": {
+  "n": 85844,
+  "log_loss": 0.6060678076510669,
+  "brier": 0.20982222834163552,
+  "ece": 0.1695396895078227,
+  "auc": 0.800292608371663,
+  "mean_pred": 0.2431973684111932,
+  "mean_obs": 0.4127370579190159,
+  "excess_log_loss": 0.0027574216888408736,
+  "baseline": "B1_constant_difference"
+ },
+ "candidates": {
+  "B0_no_effect": {
+   "complexity": "baseline: no effect",
+   "n_params": 0,
+   "val": {
+    "n": 34249,
+    "log_loss": 0.6977168511081107,
+    "brier": 0.24294146130787553,
+    "ece": 0.23329383384006622,
+    "auc": 0.7986216817377687,
+    "mean_pred": 0.18114162412950954,
+    "mean_obs": 0.41443545796957576,
+    "excess_log_loss": 0.004374334432647078
+   },
+   "test": {
+    "n": 85844,
+    "log_loss": 0.7051649864186771,
+    "brier": 0.22920291293401482,
+    "ece": 0.2193727214372567,
+    "auc": 0.800292608371663,
+    "mean_pred": 0.19336433648175919,
+    "mean_obs": 0.4127370579190159,
+    "excess_log_loss": 0.004100708566191624
+   }
+  },
+  "B1_constant_difference": {
+   "complexity": "baseline: one difference",
+   "n_params": 1,
+   "val": {
+    "n": 34249,
+    "log_loss": 0.6297115396539655,
+    "brier": 0.22217331423777126,
+    "ece": 0.18346080191063224,
+    "auc": 0.7986216817377687,
+    "mean_pred": 0.2309746560589435,
+    "mean_obs": 0.41443545796957576,
+    "excess_log_loss": 0.0031825200031592718
+   },
+   "test": {
+    "n": 85844,
+    "log_loss": 0.6060678076510669,
+    "brier": 0.20982222834163552,
+    "ece": 0.1695396895078227,
+    "auc": 0.800292608371663,
+    "mean_pred": 0.2431973684111932,
+    "mean_obs": 0.4127370579190159,
+    "excess_log_loss": 0.0027574216888408736
+   }
+  },
+  "M1_constant_log_odds": {
+   "complexity": "one log-odds shift",
+   "n_params": 1,
+   "val": {
+    "n": 34249,
+    "log_loss": 0.5214638445992968,
+    "brier": 0.17195286816366598,
+    "ece": 0.030739927393110114,
+    "auc": 0.7986216817377687,
+    "mean_pred": 0.4068594304374438,
+    "mean_obs": 0.41443545796957576,
+    "excess_log_loss": 0.00011405886960825839
+   },
+   "test": {
+    "n": 85844,
+    "log_loss": 0.5377976598531312,
+    "brier": 0.1710573279931095,
+    "ece": 0.02356320548198969,
+    "auc": 0.800292608371663,
+    "mean_pred": 0.3978536415990575,
+    "mean_obs": 0.4127370579190159,
+    "excess_log_loss": 4.3226650228109524e-05
+   }
+  },
+  "M2_linear_log_odds": {
+   "complexity": "linear log-odds shift",
+   "n_params": 2,
+   "val": {
+    "n": 34249,
+    "log_loss": 0.5219009289045599,
+    "brier": 0.17211176793708535,
+    "ece": 0.033820806331299844,
+    "auc": 0.7986216817377687,
+    "mean_pred": 0.40942762160743335,
+    "mean_obs": 0.41443545796957576,
+    "excess_log_loss": 0.00012182347357363096
+   },
+   "test": {
+    "n": 85844,
+    "log_loss": 0.5363545784086682,
+    "brier": 0.17091712648105584,
+    "ece": 0.02064072863536419,
+    "auc": 0.800292608371663,
+    "mean_pred": 0.3994994653009477,
+    "mean_obs": 0.4127370579190159,
+    "excess_log_loss": 3.72127052339904e-05
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "excess_log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_no_effect": 0.004374334432647078,
+   "B1_constant_difference": 0.0031825200031592718,
+   "M1_constant_log_odds": 0.00011405886960825839,
+   "M2_linear_log_odds": 0.00012182347357363096
+  },
+  "test": {
+   "B0_no_effect": 0.004100708566191624,
+   "B1_constant_difference": 0.0027574216888408736,
+   "M1_constant_log_odds": 4.3226650228109524e-05,
+   "M2_linear_log_odds": 3.72127052339904e-05
+  },
+  "baselines": [
+   "B0_no_effect",
+   "B1_constant_difference"
+  ],
+  "candidates": [
+   "B0_no_effect",
+   "B1_constant_difference",
+   "M1_constant_log_odds",
+   "M2_linear_log_odds"
+  ],
+  "ranked_on_validation": [
+   "M1_constant_log_odds",
+   "M2_linear_log_odds",
+   "B1_constant_difference",
+   "B0_no_effect"
+  ],
+  "compute_us_per_row": {
+   "B0_no_effect": 0.0031959641164764183,
+   "B1_constant_difference": 0.004116178475619023,
+   "M1_constant_log_odds": 0.009227228851582054,
+   "M2_linear_log_odds": 0.009199947781390721
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M1_constant_log_odds",
+   "M2_linear_log_odds",
+   "B1_constant_difference",
+   "B0_no_effect"
+  ],
+  "long_horizon_validation": {
+   "B0_no_effect": null,
+   "B1_constant_difference": null,
+   "M1_constant_log_odds": null,
+   "M2_linear_log_odds": null
+  },
+  "long_horizon_reference": null,
+  "drift_rejected": {},
+  "selected_on_validation": "M1_constant_log_odds",
+  "best_baseline_on_test": "B1_constant_difference",
+  "kept": "M1_constant_log_odds",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "uncertainty": {
+  "metric": "excess_log_loss",
+  "kept": "M1_constant_log_odds",
+  "baseline": "B1_constant_difference",
+  "kept_test": 4.3226650228109524e-05,
+  "baseline_test": 0.0027574216888408736,
+  "difference": -0.002714195038612764,
+  "ci95": [
+   -0.0031441725326700155,
+   -0.0021814580972394303
+  ],
+  "kept_ci95": [
+   2.7979619574381204e-05,
+   0.0001578680755251733
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "kind": "Poisson bootstrap of the stratum cells (iid users)"
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "criteo_uplift_v2.1"
+  ],
+  "identification": "randomized_encouragement_iv",
+  "population": "13,979,592 users reachable by Criteo display advertising (pooled incrementality tests)",
+  "platform": "Criteo display advertising (retargeting and prospecting campaigns of undisclosed advertisers)",
+  "period": "undisclosed; released 2018",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E5_ad_exposure_plan.json",
+   "sha256": "76162a59da0402aff5fcdc0c01d866c4f70de3e25df1c0e85f6dfa07688ac6b6",
+   "commit": "790e3ff5f5c6036b2eb48b7230182efc9b6ff5b9",
+   "committed_at": "2026-11-26T14:33:24+00:00"
+  },
+  "fit": {
+   "commit": "5880c2d7256acd52fdac73a60b27c840e5113117",
+   "seconds": 524.1337020397186,
+   "command": "python -m crucible.calibration.fit_e5"
+  },
+  "domain": "advertising_response",
+  "kept_candidate": "M1_constant_log_odds",
+  "identification_plan_label": "randomized_controlled_trial",
+  "identification_label_revision": "Label corrected after the fit (2026-11-26, wave-3 repair pass): the plan and the original card said 'randomized_controlled_trial', the design of the data; the kept estimand is a complier (IV) effect of display with randomised eligibility as the instrument, which also rests on the exclusion restriction (identification_note). Nothing was refitted."
+ },
+ "limits": "Criteo Uplift v2.1 (13,979,592 users of pooled randomised incrementality tests of Criteo display advertising; advertisers, countries and dates undisclosed; released 2018; sub-sampled non-uniformly by the publisher). The simulator may use this model for: the visit probability of an individual who is displayed (and, through ad_response@2, attends) an advertiser's display or feed campaign during a campaign period, as a log-odds shift of that individual's own organic visit probability. It may NOT infer: (1) effects for compliers unlike Criteo's - the displayed users were chosen by Criteo's bidder (exposure rises from about 0.1% to 15% of eligible users with the baseline score), so the effect is that of a targeted display on users a bidder reached; (2) effects of ad content, creative quality, price or relevance (not observed; ad_response@2 adds relevance and repetition only through a separate attention model and a declared assumption); (3) frequency, wear-in, wear-out, carry-over or repeated campaigns (no timestamps, one period per user); (4) negative effects (floored at 0); (5) absolute rates: the publisher's sub-sampling distorts levels; the log-odds shift is invariant to sub-sampling that depends on the outcome or on the arm only, not to sub-sampling that depends on exposure; (6) search advertising (a click on a sponsored result is a different decision). Strata are bins of a pre-treatment score; within-stratum heterogeneity is averaged, and the complier baseline of each stratum is a moment estimate (noisy where exposure is rare; clipped to [1e-4, 0.999]).",
+ "report": "docs/v5/calibration/reports/ad_exposure_response.json",
+ "fitted_at": "2026-11-26T14:42:09Z",
+ "module": "crucible.calibration.predictors_e5",
+ "mechanisms": [
+  "advertising_intervention_response",
+  "advertising_response_heterogeneity",
+  "advertising.attention_composition"
+ ],
+ "prior_rate": 0.4146501594447571,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "organic_logit": [
+   -4.344112,
+   -4.344112,
+   -4.344112,
+   -3.860201,
+   -3.059105,
+   -2.08709,
+   -0.444681,
+   -0.444681,
+   -0.444681,
+   -0.444681,
+   -0.444681
+  ]
+ },
+ "served_conversion_ratio": 2.7605437161313673,
+ "reference_attention": 1.0,
+ "strata_edges_p0_hat": [
+  0.0006562810807667601,
+  0.001047718654041213,
+  0.0026148043127936556,
+  0.00437426652663452,
+  0.009044754232677123,
+  0.02392422160558378,
+  0.10829046069955901
+ ],
+ "schema": "crucible.v5.model_card/1",
+ "name": "ad_exposure_response",
+ "version": 1,
+ "kind": "ad_exposure",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "fde6743904823f6628e8854d476e92ef259a77458aca1d651c0b9a1f1e1c6243"
+ }
+}

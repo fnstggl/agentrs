@@ -33,12 +33,18 @@ Rules this module enforces (and `tests/test_v5_calibration_runtime.py` checks):
   model whose contract cannot be computed in a simulated world (``status: offline_only``) raises; nothing returns a
   plausible default instead.
 * **Provenance.** `Result.provenance()` is JSON-native: {decision, model, version, fidelity, rows, extrapolated}.
+* **Declared scope at use.** A decision model with a machine-readable scope (``spec.scope``: content kinds, uses) is
+  used through `dm.scoped(content_kind=..., use=...)`, which refuses a use outside the scope and tags every row the
+  bound handle evaluates with the declared use. The process-wide ledger `scope_usage()` counts rows per declared
+  use, rows of a scoped model evaluated WITHOUT a declared use (``"unscoped"``: the runtime cannot tell whether that
+  use was inside the card) and refused attempts; `crucible.calibration.inworld.out_of_scope_uses` counts both.
 
 The extrapolation limits of every decision model are in `spec["limits"]` and, in full, in its model card and
 held-out report; `docs/v5/calibration/RUNTIME.md` documents every contract for the population workstream.
 """
 from __future__ import annotations
 
+import contextvars
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -81,6 +87,7 @@ class Spec:
     output_doc: str = ""
     params: dict = field(default_factory=dict)
     scope: dict = field(default_factory=dict)     # machine-readable allowed use, e.g. {"content_kinds": [...]}
+    model_class: object = None                    # a DecisionModel subclass for composite outputs (ad_response@2)
 
     @property
     def fidelity_id(self) -> str:
@@ -326,6 +333,10 @@ def _base_specs() -> dict[str, Spec]:
                 Input("treated", "1 if the individual is in the campaign's treated (eligible) group this period",
                       "flag", "context", 0, 1)),
         build=lambda d, m, s: np.column_stack([_f(d, "response_type"), _f(d, "treated")]),
+        status="offline_only",
+        status_reason=("superseded by ad_response@2 (audit E skeptic S5 redesign): a latent type drawn independently of "
+                       "the individual's state, a response to eligibility rather than to a display, and an 18% mass "
+                       "of negative responders the held-out data do not support; worlds use ad_response@2"),
         limits=("Criteo Uplift v2.1 randomized incrementality tests (13,979,592 users, period and advertisers "
                 "undisclosed, released 2018): intention-to-treat effects of campaign eligibility, identified by "
                 "randomisation. Absolute rates and effect sizes are not representative (non-uniform sub-sampling); "
@@ -358,6 +369,10 @@ def _base_specs() -> dict[str, Spec]:
 _SPECS: dict[str, Spec] | None = None
 _LOADED: dict[str, "DecisionModel"] = {}
 _USAGE: dict[str, int] = {}
+_SCOPE_USED: dict[tuple, int] = {}      # (decision id, declared use key or "unscoped") -> rows evaluated
+_SCOPE_REFUSED: dict[tuple, int] = {}   # (decision id, requested use key) -> refused attempts
+_ACTIVE_SCOPE: contextvars.ContextVar = contextvars.ContextVar("calibration_scope", default=None)
+UNSCOPED = "unscoped"
 _EXTRA: list = []          # callables returning {id: Spec}; registered by later calibration modules
 
 
@@ -391,7 +406,8 @@ def get(decision_id: str) -> "DecisionModel":
     if decision_id not in S:
         raise ContractError(f"unknown decision model {decision_id!r}; known: {sorted(S)}")
     if decision_id not in _LOADED:
-        _LOADED[decision_id] = DecisionModel(S[decision_id], _load(S[decision_id].model))
+        cls = S[decision_id].model_class or DecisionModel
+        _LOADED[decision_id] = cls(S[decision_id], _load(S[decision_id].model))
     return _LOADED[decision_id]
 
 
@@ -408,8 +424,65 @@ def usage() -> dict[str, int]:
     return dict(_USAGE)
 
 
+def scope_usage() -> dict:
+    """The scope ledger of this process: {"used": {decision id: {use key: rows}}, "refused": {decision id: {use key:
+    attempts}}} for decision models that carry a machine-readable scope. The use key is "content_kind=<k>;use=<u>"
+    for rows evaluated through `scoped(...)` and "unscoped" for rows evaluated on the bare model."""
+    used, refused = {}, {}
+    for (d, k), n in sorted(_SCOPE_USED.items()):
+        used.setdefault(d, {})[k] = int(n)
+    for (d, k), n in sorted(_SCOPE_REFUSED.items()):
+        refused.setdefault(d, {})[k] = int(n)
+    return {"used": used, "refused": refused}
+
+
 def reset_usage() -> None:
     _USAGE.clear()
+    _SCOPE_USED.clear()
+    _SCOPE_REFUSED.clear()
+
+
+def _scope_key(content_kind, use) -> str:
+    return f"content_kind={content_kind};use={use}"
+
+
+def _note_rows(dm: "DecisionModel", n: int) -> None:
+    _USAGE[dm.id] = _USAGE.get(dm.id, 0) + int(n)
+    if dm.spec.scope and n:
+        k = (dm.id, _ACTIVE_SCOPE.get() or UNSCOPED)
+        _SCOPE_USED[k] = _SCOPE_USED.get(k, 0) + int(n)
+
+
+class ScopedDecision:
+    """A decision model bound to one declared use inside its machine-readable scope (`DecisionModel.scoped`).
+    `evaluate`, `sample` and `evaluate_features` tag the rows they evaluate with that use in the scope ledger; every
+    other attribute is the model's."""
+
+    def __init__(self, dm: "DecisionModel", content_kind, use):
+        self._dm, self.content_kind, self.use = dm, content_kind, use
+        self.scope_key = _scope_key(content_kind, use)
+
+    def __getattr__(self, name):
+        return getattr(self._dm, name)
+
+    def __repr__(self) -> str:
+        return f"ScopedDecision({self._dm.id}, {self.scope_key})"
+
+    def _call(self, fn, *a, **k):
+        tok = _ACTIVE_SCOPE.set(self.scope_key)
+        try:
+            return fn(*a, **k)
+        finally:
+            _ACTIVE_SCOPE.reset(tok)
+
+    def evaluate(self, inputs: dict, strict: bool = False) -> "Result":
+        return self._call(self._dm.evaluate, inputs, strict)
+
+    def sample(self, inputs: dict, rng: np.random.Generator) -> np.ndarray:
+        return self._call(self._dm.sample, inputs, rng)
+
+    def evaluate_features(self, X: np.ndarray, checkpoint: bool = False) -> "Result":
+        return self._call(self._dm.evaluate_features, X, checkpoint)
 
 
 # ---------------------------------------------------------------- results and models
@@ -497,15 +570,27 @@ class DecisionModel:
     def contract(self) -> dict:
         return self.spec.as_dict()
 
-    def check_scope(self, content_kind: str | None = None, use: str | None = None) -> None:
-        """Refuse a use outside the decision model's machine-readable scope (card limits, audit E skeptic s8)."""
+    def check_scope(self, content_kind: str | None = None, use: str | None = None) -> "ScopedDecision":
+        """Refuse a use outside the decision model's machine-readable scope (card limits, audit E skeptic s8); a
+        refused attempt is counted in the scope ledger. Returns the handle bound to the declared use (`scoped`)."""
         kinds = self.spec.scope.get("content_kinds")
-        if kinds is not None and content_kind not in kinds:
-            raise ContractError(f"{self.id}: fitted on {kinds} only; content kind {content_kind!r} is outside its "
-                                f"scope ({self.spec.limits[:160]}...)")
         uses = self.spec.scope.get("use")
-        if uses is not None and use not in uses:
-            raise ContractError(f"{self.id}: allowed uses are {uses}, not {use!r}")
+        bad = None
+        if kinds is not None and content_kind not in kinds:
+            bad = (f"{self.id}: fitted on {kinds} only; content kind {content_kind!r} is outside its "
+                   f"scope ({self.spec.limits[:160]}...)")
+        elif uses is not None and use not in uses:
+            bad = f"{self.id}: allowed uses are {uses}, not {use!r}"
+        if bad is not None:
+            k = (self.id, _scope_key(content_kind, use))
+            _SCOPE_REFUSED[k] = _SCOPE_REFUSED.get(k, 0) + 1
+            raise ContractError(bad)
+        return ScopedDecision(self, content_kind, use)
+
+    def scoped(self, content_kind: str | None = None, use: str | None = None) -> "ScopedDecision":
+        """The model bound to one declared use (content kind and/or use) inside its machine-readable scope; refuses
+        a use outside it. World code uses a scoped decision model only through such a handle."""
+        return self.check_scope(content_kind, use)
 
     # ------------------------------------------------------------ inputs
     def _validate(self, inputs: dict) -> tuple[dict, int]:
@@ -578,7 +663,7 @@ class DecisionModel:
         return np.asarray(self.fitted.card.get("quantile_levels") or [], dtype=np.float64)
 
     def _result(self, values, X, cols) -> Result:
-        _USAGE[self.id] = _USAGE.get(self.id, 0) + int(values.shape[0])
+        _note_rows(self, int(values.shape[0]))
         return Result(self.id, self.model_id, self.version, self.fidelity_id, values, self._extrapolated(X), cols,
                       self.served)
 
@@ -659,6 +744,74 @@ class DecisionModel:
         if self.spec.output != "arm_probabilities":
             raise ContractError(f"{self.id} has no latent types")
         return self.fitted.sample_types(rng, n)
+
+
+def at_least_one(per_display: np.ndarray, owner: np.ndarray, n: int) -> np.ndarray:
+    """P(at least one of an individual's displays is attended) = 1 - prod_j (1 - a_j) over that individual's own
+    displays (`owner[j]` = row of the individual, 0 <= owner < n). Aggregates only within an individual."""
+    a = np.clip(np.asarray(per_display, dtype=np.float64), 0.0, 1.0)
+    owner = np.asarray(owner, dtype=np.int64)
+    if a.shape != owner.shape:
+        raise ContractError("one owner row per display")
+    if owner.size and (owner.min() < 0 or owner.max() >= n):
+        raise ContractError("owner rows outside [0, n)")
+    log_miss = np.bincount(owner, weights=np.log1p(-np.minimum(a, 1 - 1e-12)), minlength=int(n))
+    return np.clip(-np.expm1(log_miss), 0.0, 1.0)
+
+
+class AdDecision(DecisionModel):
+    """ad_response@2: visit probability of an individual displayed an advertiser's display or feed campaign during
+    a campaign period (fitted model ad_exposure_response@1; plan E5). Per row:
+
+        p = min(1, p0 + (A / A_ref) (q(p0) - p0)),   q(p0) = sigmoid(logit p0 + D(logit p0)),  D >= 0
+
+    p0 = the individual's organic visit probability (world state), A = probability that at least one of its displays
+    is attended (`at_least_one` over per-display probabilities from a registered attention decision model evaluated
+    on each display's own features), A_ref = `reference_attention` (declared, default 1). Outputs p_visit,
+    p_visit_organic and p_incremental. `sample` draws one coupled uniform per row: a visit when u < p, and the visit
+    is incremental (caused by the campaign) when p0 <= u < p; incremental visits convert with the world's own
+    purchase probability times `incremental_conversion_ratio`."""
+
+    def _parts(self, inputs: dict):
+        d, n = self._validate(inputs)
+        p0 = np.clip(d["organic_visit_probability"], 1e-6, 1 - 1e-6)
+        A = d["attended_probability"]
+        X = logit_np(p0)[:, None]
+        return p0, A, X, n
+
+    def evaluate(self, inputs: dict, strict: bool = False) -> Result:
+        p0, A, X, n = self._parts(inputs)
+        ex = self._extrapolated(X)
+        if strict and np.any(ex):
+            raise ContractError(f"{self.id}: {int(ex.sum())} rows outside the data's feature support")
+        q = np.asarray(self.fitted.predict(X), dtype=np.float64) if n else np.zeros(0)
+        ref = float(self.spec.params.get("reference_attention", 1.0))
+        p = np.minimum(1.0, p0 + (A / ref) * (q - p0))
+        vals = np.column_stack([p, p0, p - p0]) if n else np.zeros((0, 3))
+        _note_rows(self, int(n))
+        return Result(self.id, self.model_id, self.version, self.fidelity_id, vals, ex,
+                      ("p_visit", "p_visit_organic", "p_incremental"), self.served)
+
+    def _predict(self, X: np.ndarray) -> tuple[np.ndarray, tuple]:
+        # held-out evaluation in the fitted feature space: displayed (attended) individuals at organic log-odds X
+        return np.asarray(self.fitted.predict(X), dtype=np.float64), ("q_displayed",)
+
+    def sample(self, inputs: dict, rng: np.random.Generator) -> np.ndarray:
+        res = self.evaluate(inputs)
+        u = rng.random(res.n)
+        visit = u < res.values[:, 0]
+        incremental = visit & (u >= res.values[:, 1])
+        return np.column_stack([visit, incremental])
+
+    def shift(self, organic_visit_probability) -> np.ndarray:
+        """The fitted log-odds shift of an attended display at these organic probabilities (>= 0)."""
+        p0 = np.clip(np.asarray(organic_visit_probability, dtype=np.float64), 1e-6, 1 - 1e-6)
+        return np.asarray(self.fitted.predictor.shift(logit_np(p0)), dtype=np.float64)
+
+
+def logit_np(p) -> np.ndarray:
+    p = np.clip(np.asarray(p, dtype=np.float64), 1e-12, 1 - 1e-12)
+    return np.log(p) - np.log1p(-p)
 
 
 def contract_markdown() -> str:

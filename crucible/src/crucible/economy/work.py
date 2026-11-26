@@ -40,8 +40,10 @@ Activities registered with the population (`popbridge.register_activity`):
   capability declaration whose input schema its input satisfies), estimates each one's value from its beliefs
   and the public prices, and - if one beats doing it itself - subscribes (a trial when offered, from its own
   account through a bank mandate), buys, or tries a declared capability on its own input and adopts it if the
-  outcome was accepted. Responses to sponsored results use the fitted commercial-response model
-  (`calibration` `commercial_response@1`, response types re-based to a search click rate).
+  outcome was accepted. A sponsored result is opened with the hand-set probability `ads_click_rate` (fidelity
+  record `work.sponsored_click`, plausible, unvalidated): the fitted commercial-response model
+  (`commercial_response@1`, display-campaign eligibility over a test period) does not describe search-result clicks
+  and is not used here (audit E S5; the in-world ad mechanism is `calibration.runtime` `ad_response@2`).
 
 Daily process `work.day`: deposits the accrued income of individuals that pay standing charges, wakes
 professionals for their next working day, and lets an occupation's need end now and then (exogenous churn).
@@ -201,22 +203,9 @@ class Work(Module):
                             nd.spec_text() + f"\nKeywords: {' '.join(nd.keywords)}\n", "public")
 
     def _ad_types(self, rng, n) -> np.ndarray:
-        m = self._ad_model()
-        if m is None:
-            return np.zeros(n, np.int16)
-        return m.sample_types(rng, n).astype(np.int16)
-
-    def _ad_model(self):
-        if getattr(self, "_admodel", None) is None:
-            try:
-                from ..calibration import registry
-                m = registry.load("commercial_response@1")
-                self._admodel = m
-                self._adtab = m.transport(control_visit_rate=float(self.cfg("ads_click_rate")))
-            except Exception:  # noqa: BLE001 - a world without the fitted artefact responds without ad uplift
-                self._admodel = False
-                self._adtab = None
-        return self._admodel or None
+        """Reserved column (no latent ad-response types: search clicks follow the position rule, see the module
+        docstring); kept so the table schema of existing worlds is unchanged."""
+        return np.zeros(n, np.int16)
 
     # ------------------------------------------------------------------ helpers
     def _col(self, name):
@@ -674,12 +663,10 @@ class Work(Module):
                            as_principal=p)["results"]
         except CrucibleError:
             res = []
-        tab = getattr(self, "_adtab", None)
-        t = int(self._col("ad_type")[i])
         rank = 0
         for rres in res:
             if rres.get("sponsored"):
-                pv = float(tab["p1_visit"][t]) if tab is not None else float(self.cfg("ads_click_rate"))
+                pv = float(self.cfg("ads_click_rate"))     # hand-set (fidelity record work.sponsored_click)
             else:
                 pv = 0.9 / (1.0 + 0.35 * rank)
                 rank += 1
