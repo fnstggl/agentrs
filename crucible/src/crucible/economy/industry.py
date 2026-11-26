@@ -315,6 +315,32 @@ class Industry(Module):
         u = min(1.5, (used + extra) / max(1, g["capacity"]))
         return g["base_price"] * (1 + 2 * u * u)
 
+    def draw_energy(self, ctx, region: str, kwh: float, account: str, memo: str, *, consumer: str) -> dict:
+        """5.0 (crucible.civ, coupling `compute_energy`): draw `kwh` from a regional grid for a load that is not a
+        production run (a datacenter). Same grid capacity and utilisation price as production runs: refused with
+        CapacityExceeded when today's capacity is used up; otherwise paid from `account` to the grid owner at the
+        marginal price and recorded in today's grid use (`make.energy`), which production runs then see."""
+        st = ctx.state
+        reg = st.get("regions", region)
+        g = (reg or {}).get("grid")
+        if not g:
+            raise NotFound(f"no grid in region {region}")
+        kwh = float(kwh)
+        if not math.isfinite(kwh) or kwh <= 0:
+            raise InvalidAction("kwh must be positive")
+        day = ctx.now // DAY
+        used = (st.get("grid_days", f"{region}|{day}") or {}).get("used", 0)
+        if used + kwh > g["capacity"]:
+            raise CapacityExceeded(f"grid {region} cannot supply {kwh:.0f} kWh today ({g['capacity'] - used:.0f} left)")
+        price = self.energy_price(st, region, kwh / 2)
+        cost = max(1, int(math.ceil(kwh * price)))
+        bank = ctx.world.modules["bank"]
+        dst = bank.primary_account(st, g["owner"]) or "acct_external"
+        bank.move(ctx, account, dst, cost, "energy", memo, ref=region)
+        ctx.emit("make.energy", {"region": region, "kwh": round(kwh, 3), "cost": cost, "consumer": consumer},
+                 vis=(consumer, g["owner"]))
+        return {"kwh": round(kwh, 3), "cost_cents": cost, "price_cents_per_kwh": round(price, 4)}
+
     # ------------------------------------------------------------------ facilities & machines
     @endpoint("build_facility", S.obj({"org": S.s_str(maxLength=40), "region": S.s_str(maxLength=10),
                                        "name": S.s_str(maxLength=60), "account": S.s_str(maxLength=40)},
@@ -996,6 +1022,43 @@ class Industry(Module):
         ctx.emit("make.retail_status", {"id": retail, "status": "closed"}, vis="public")
         return {"ok": True}
 
+    def retail_sale(self, ctx, retail: str, qty: int, account: str, *, buyer: str) -> dict:
+        """5.0 (crucible.civ.goods): a household purchase from a retail listing by a member of the population.
+        Takes the units from the listing's facility stock (refused with InsufficientFunds when it holds fewer),
+        moves the listed price from the buyer's own `account` to the seller, and records the units in the listing's
+        sales of the day (`make.retail_sold`), which the producers' routines read as `sold_y` the next day."""
+        st = ctx.state
+        r = st.get("retail", retail)
+        if r is None or r["status"] != "active":
+            raise NotFound(f"no active retail listing {retail}")
+        qty = int(qty)
+        if qty <= 0:
+            raise InvalidAction("qty must be positive")
+        self.take_stock(ctx, r["fac"], r["sku"], qty)
+        bank = ctx.world.modules["bank"]
+        dst = bank.primary_account(st, r["seller"])
+        if dst is None:
+            raise InvalidAction("the seller has no account")
+        amount = int(qty * r["price"])
+        bank.move(ctx, account, dst, amount, "sale", f"{qty} x {r['sku']}", ref=retail)
+        ctx.emit("make.retail_sold", {"id": retail, "qty": qty, "cents": amount, "buyer": buyer},
+                 vis=(buyer, r["seller"]))
+        return {"retail": retail, "qty": qty, "cents": amount}
+
+    def retail_close_day(self, ctx, day: int) -> None:
+        """5.0 (crucible.civ.goods): end of a sales day: `sold_y` of every active listing becomes the units it sold
+        on `day` (0 when it sold none), as the 4.0 household model did once a day."""
+        st = ctx.state
+        upd = {}
+        for rid, r in st.scan("retail"):
+            if r["status"] != "active":
+                continue
+            v = int(r.get("sold_today", 0)) if r.get("sold_day") == int(day) else 0
+            if v != r.get("sold_y", 0):
+                upd[rid] = v
+        if upd:
+            ctx.emit("make.retail_day", {"day": int(day), "sold_y": upd}, vis="internal")
+
     # ------------------------------------------------------------------ daily upkeep
     @process("daily")
     def pr_daily(self, ctx):
@@ -1181,6 +1244,15 @@ class Industry(Module):
         lab = st.tables["labor_days"].get(k2) or {"org": ev.payload["owner"], "day": day, "used": 0.0}
         st.put("labor_days", k2, dict(lab, used=round(lab["used"] + ev.payload["labor_h"], 4)))
 
+    @applier("make.energy")
+    def ap_energy(self, ev):
+        st = self.world.state
+        p = ev.payload
+        day = ev.t // 86400
+        k = f"{p['region']}|{day}"
+        g = st.tables["grid_days"].get(k) or {"region": p["region"], "day": day, "used": 0.0}
+        st.put("grid_days", k, dict(g, used=round(g["used"] + p["kwh"], 3)))
+
     @applier("make.run_done")
     def ap_run_done(self, ev):
         st = self.world.state
@@ -1248,6 +1320,22 @@ class Industry(Module):
     @applier("make.retail_status")
     def ap_retail_status(self, ev):
         self.world.state.patch("retail", ev.payload["id"], status=ev.payload["status"])
+
+    @applier("make.retail_sold")
+    def ap_retail_sold(self, ev):
+        st = self.world.state
+        p = ev.payload
+        r = st.tables["retail"][p["id"]]
+        day = ev.t // DAY
+        today = int(r.get("sold_today", 0)) if r.get("sold_day") == day else 0
+        st.patch("retail", p["id"], sold_day=day, sold_today=today + int(p["qty"]),
+                 sold_total=int(r.get("sold_total", 0)) + int(p["qty"]))
+
+    @applier("make.retail_day")
+    def ap_retail_day(self, ev):
+        st = self.world.state
+        for rid, v in ev.payload["sold_y"].items():
+            st.patch("retail", rid, sold_y=int(v))
 
     def check_invariants(self, world):
         errs = []

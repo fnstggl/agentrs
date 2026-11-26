@@ -335,9 +335,11 @@ class Science(Module):
     def ep_runs(self, ctx, status=None):
         """Your runs (newest last): apparatus, size, cost, status and when it is or was ready."""
         out = []
-        for r in ctx.state.find("sci_runs", "owner", ctx.actor):
+        st = ctx.state
+        for rid in st.find_ids("sci_runs", "owner", ctx.actor):     # (rows carry no id: the id is the key)
+            r = st.tables["sci_runs"][rid]
             if status is None or r["status"] == status:
-                out.append({"run": r["id"], "apparatus": r["apparatus"], "phenomenon": r["phenomenon"],
+                out.append({"run": rid, "apparatus": r["apparatus"], "phenomenon": r["phenomenon"],
                             "measurements": r["n"], "cost_cents": r["cost"], "status": r["status"],
                             "ready_at": r["ready_at"], "dataset": r["dataset"], "shared": r["shared"]})
         return out
@@ -439,8 +441,8 @@ class Science(Module):
             raise NotFound(f"no paper {paper}")
         out = self._public_paper(ctx.state, paper, p)
         out["abstract"] = p["abstract"]
-        out["reports"] = [self._public_rep(r) for r in
-                          (ctx.state.tables["sci_reps"][x] for x in ctx.state.find_ids("sci_reps", "paper", paper))]
+        out["reports"] = [self._public_rep(dict(ctx.state.tables["sci_reps"][x], id=x))
+                          for x in ctx.state.find_ids("sci_reps", "paper", paper)]
         return out
 
     def _public_rep(self, r):
@@ -491,9 +493,9 @@ class Science(Module):
     @endpoint("replications", S.obj({"reporter": S.s_str(maxLength=60)}), read_only=True)
     def ep_replications(self, ctx, reporter=None):
         """Replication reports (all, or by one reporter)."""
-        rows = ctx.state.find("sci_reps", "reporter", reporter) if reporter else \
-            [r for _, r in ctx.state.scan("sci_reps")]
-        return [self._public_rep(r) for r in rows]
+        st = ctx.state
+        ids = st.find_ids("sci_reps", "reporter", reporter) if reporter else [k for k, _ in st.scan("sci_reps")]
+        return [self._public_rep(dict(st.tables["sci_reps"][k], id=k)) for k in ids]
 
     # ------------------------------------------------------------------ processes
     @process("complete")
