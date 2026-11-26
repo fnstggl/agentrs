@@ -95,25 +95,33 @@ def hc_conditional(rng, d):
 
 @family("hc_feedback_hidden", engine="primitive_graph", category="8.1", item="8.1.5", split="val",
         doc="Sales build a hidden reputation stock that raises later sales: the long-run effect of a lever is about "
-            "twice its immediate effect, through an intermediate variable nobody observes.",
+            "twice its immediate effect, through an intermediate variable nobody observes. Predict where weekly "
+            "sales settle at marketing levels partly outside what can be set; short tests understate the answer.",
         distinct_because="a positive feedback loop through an unobserved decaying stock with lag (cycle in the "
-                         "causal graph); the observed short-run response understates the long-run one",
-        axes={"horizon": 80, "observation_noise": 0.3}, objective="maximize_net",
-        claims=(C + "feedback_amplifies",), identify=I + "lever_sign", lever_view=True)
+                         "causal graph); the observed short-run response understates the long-run one; scored by "
+                         "predictions of the settled response at held-out conditions",
+        axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(C + "feedback_amplifies",), identify=I + "lever_sign",
+        reference="crucible.rapid.refs_adapt:arx_settled_predict", version="2")
 def hc_feedback_hidden(rng, d):
     gb = GraphBuilder(rng)
-    M = gb.lever(0.0, 10.0, 0.5, cost=u(rng, 450, 550))
+    M = gb.lever(0.0, 10.0, 0.5, cost=0.0)
     sat = gb.prim("saturation", {"cap": u(rng, 25, 35), "half": u(rng, 3.5, 4.5)}, x=[(M, 0, 1.0)])
     rep = gb.prim("decay", {"rate": 0.1, "init": 0.0}, role="reputation", x=[])
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
                     bias={"x": u(rng, 15, 25)}, x=[(sat, 0, 1.0), (rep, 1, u(rng, 4.5, 5.5))])
     gb.nodes[int(rep[1:])]["ports"]["x"] = [[sales, 2, 0.01]]
-    gb.gauge(sales, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
+    gy = gb.gauge(sales, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
     gb.gauge(sat, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
+    held = [{gb.name_of(M): p} for p in (0.0, 1.5, 4.0, 11.0, 13.0, 16.0)]
+    text = ("Predict where weekly units sold would settle if marketing were held at these values (partly outside "
+            f"what you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
     cfg = gb.build(horizon=int(d["horizon"]), money={"revenue_node": sales, "price": 100.0, "cap": 400.0},
-                   affordances=["levers"], endowment=500_000,
-                   objective={"type": "maximize_net", "text": "Maximise your net income over the horizon."},
-                   brief="A shop with a marketing lever. Gauges: units sold and leads.",
+                   affordances=["levers", "message"], endowment=500_000,
+                   objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text,
+                              "settle_ticks": 300},
+                   journal=True, brief="A shop with a marketing lever. Gauges: units sold and leads.",
                    claim={"lever": M, "outcome": sales, "hidden": rep})
     return cfg
 
