@@ -324,6 +324,18 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     rep["peak_vram_mb"], rep["cuda_used"] = round(vram, 1), used_cuda
     rep["model_parameter_counts"] = model_parameters(w)
     rep["inference_token_counts"] = inference_tokens(ec)
+    ad = dict(w.runtime.get("pop_adaptive.stats") or {})
+    strat_calls = sum(n for k, n in ec.infer.items() if "strategic" in k)
+    strat_dec = sum(n for k, n in ec.decisions_by.items() if "strategic" in k)
+    sem_calls = sum(n for k, n in ec.infer.items() if "semantic" in k)
+    rep["batching"] = {"class2": {"calls": int(ad.get("calls", 0)), "decisions": int(ad.get("decisions", 0)),
+                                  "max_batch": int(ad.get("max_batch", 0)),
+                                  "mean_batch": round(ad.get("decisions", 0) / max(1, ad.get("calls", 0)), 3)},
+                       "class3": {"calls": int(strat_calls), "decisions": int(strat_dec),
+                                  "mean_batch": round(strat_dec / max(1, strat_calls), 3)},
+                       "class4": {"calls": int(sem_calls),
+                                  "decisions": int(sum(n for k, n in ec.decisions_by.items() if "semantic" in k))}}
+    rep["principals"] = int(len(w.state.tables.get("principals", {})))
     if snapshot:
         ts = time.time()
         blob = w.snapshot_blob()
@@ -468,30 +480,61 @@ def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: i
                          inference=2, worlds=4, gpu_s=(3600 if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
 
 
+def cache_dir() -> str | None:
+    """Where runs of a clean committed tree are kept, keyed by commit: separate gate test files of one commit reuse
+    one measured run instead of repeating hours of simulation. None (no reuse) for a tree with uncommitted changes."""
+    from ..acceptance.v5 import evidence
+    try:
+        st = evidence.tree_state()
+    except Exception:                      # noqa: BLE001 - not a git checkout: no reuse
+        return None
+    if not st["clean"]:
+        return None
+    root = os.environ.get("CRUCIBLE_BENCH5_CACHE") or os.path.join("/tmp", "crucible-bench5-cache")
+    d = os.path.join(root, st["commit"])
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
 def suite(kinds=("civ",), profiles=PROFILES, seeds=(0, 1, 2), days: float = 30, work: str | None = None,
           parallel: int = 3) -> dict:
     """Every (world kind, profile, seed) as a governed sub-job, `parallel` at a time; returns reports and the
-    usage records of the jobs."""
+    usage records of the jobs. A run already measured for this commit (cache_dir) is reused, with its own usage
+    record."""
     import tempfile
     from concurrent.futures import ThreadPoolExecutor
     work = work or tempfile.mkdtemp(prefix="bench5-")
+    cache = cache_dir()
     jobs = [(k, p, s) for k in kinds for p in profiles for s in seeds]
-    out = {"runs": [], "failed": [], "usage": [], "work": work}
+    out = {"runs": [], "failed": [], "usage": [], "work": work, "cache": cache, "reused": 0}
 
     def one(j):
         k, p, s = j
+        name = f"run-{k}-{p}-{s}-{days:g}d"
+        if cache and os.path.exists(os.path.join(cache, name + ".json")):
+            try:
+                got = json.load(open(os.path.join(cache, name + ".json")))
+                got["run"]["reused_from_cache"] = True
+                return j, got["run"], got["usage"]
+            except (OSError, ValueError, KeyError):
+                pass
         sd = os.path.join(work, f"store-{k}-{p}-{s}")
-        f = os.path.join(work, f"run-{k}-{p}-{s}.json")
-        rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days}d", sd)
+        f = os.path.join(work, name + ".json")
+        rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days:g}d", sd)
         shutil.rmtree(sd, ignore_errors=True)
         try:
             r = json.load(open(f))
         except (OSError, ValueError):
             r = None
+        if r is not None and rec.get("rc") == 0 and cache:
+            with open(os.path.join(cache, name + ".json.tmp"), "w") as fh:
+                json.dump({"run": r, "usage": rec}, fh, default=str)
+            os.replace(os.path.join(cache, name + ".json.tmp"), os.path.join(cache, name + ".json"))
         return j, r, rec
     with ThreadPoolExecutor(max_workers=max(1, parallel)) as ex:
         for (k, p, s), r, rec in ex.map(one, jobs):
             out["usage"].append(rec)
+            out["reused"] += int(bool(r and r.get("reused_from_cache")))
             if r is None or rec.get("rc") != 0:
                 out["failed"].append({"world": k, "profile": p, "seed": s, "rc": rec.get("rc"),
                                       "killed_by": rec.get("killed_by")})
