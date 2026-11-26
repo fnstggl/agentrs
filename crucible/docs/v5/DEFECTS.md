@@ -431,13 +431,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-E-4 (critical, open): CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniform
+### DEF-E-4 (critical, fixed): CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniform
 
 ```json
 {
  "area": "E_calibration",
+ "fixed_by": "98f28cb (wave 2, minimal edit by E in social/consumption.py): CalibratedOpen evaluates the runtime decision model article_open_semantic@1 row-wise on absolute inputs (cosine, its z-score against the viewer's own history, world counts); the batch-rank quantile mapping and the news_click@1 in-world path are retired; an undeclared affinity space is refused",
  "id": "DEF-E-4",
  "owner": "E",
+ "regression_tests": "tests/test_v5_social_calibrated.py::test_calibrated_open_is_row_wise_and_absolute (one viewer's probabilities do not depend on the batch; uniformly more relevant content raises them), ::test_retired_and_undeclared_configurations_are_refused (3 passed on c5c/w3b-kcal, wave 3b)",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -445,7 +447,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/E_calibration.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniformly better content (max |dp| = 0) and depends on other viewers in the batch, a non-transferable simulator artifact."
 }
 ```
