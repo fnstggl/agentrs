@@ -1441,6 +1441,27 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-N-7 (medium, open): The A/B/C/D comparison with the architecture-neutral learner is uninformative: the ReferenceLearner scores at the floor on Tier 1 evaluation worlds whatever it was trained on
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-7",
+ "owner": "L, N",
+ "requirements": [
+  "SP-15.5",
+  "U.1"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream N wave 3b (c5c/w3b-research): integrated gate run",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "SP-15.5 on the integrated tree (9 Tier 2 domains, Tier 3): arms A-D trained with crucible.experience.ReferenceLearner (experience and compute budgets, 3 seeds) gave identical evaluation scores to 16 digits (every difference 0.0, se 0.0); the frozen learner scores -1.0 (the floor of the normalised score) on held-out Tier 1 worlds untrained and after 600 training decisions alike (about half its tool calls are rejected). The gate's criteria (4 arms executed, 7 control kinds) pass, but the experiment cannot measure an effect of training diversity; Level 5's measured transfer is near zero for the same reason. comparison.compare now reports floor_share, arms_identical and informative, and the gate records them. Needs a neutral learner that is competent in Tier 1 lever worlds (L) or a cross-tier learner of the instrument (N)."
+}
+```
+
 ### DEF-O-1 (critical, open): Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg
 
 ```json
