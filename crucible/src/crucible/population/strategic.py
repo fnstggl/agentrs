@@ -86,6 +86,19 @@ def market_topics() -> list[int]:
     return [int(t) for t in np.argsort(-p, kind="stable")[:N_TOPICS]]
 
 
+def feasible(m: dict) -> np.ndarray:
+    """Which action kinds a member can take given its own ventures (what it knows about itself): launching needs a
+    free site slot, everything that works on a site needs a live one."""
+    live = sum(1 for s in m.get("sites") or [] if s.get("live"))
+    f = np.ones(len(ACTIONS), bool)
+    if live >= MAX_SITES:
+        f[ACTIONS.index("launch")] = False
+    if live == 0:
+        for a in ("write", "product", "reprice", "promote", "link", "close"):
+            f[ACTIONS.index(a)] = False
+    return f
+
+
 def venture_host(member: int, k: int) -> str:
     return f"v{int(member)}s{int(k)}"
 
@@ -103,7 +116,8 @@ bus.event_type("pop_strategic.exp", S.obj({"id": {"type": "string"}, "group": {"
                                            "obs": {"type": "array"}, "hist": {"type": "array"},
                                            "act": {"type": "object", "additionalProperties": True},
                                            "logp": {"type": "number"}, "balance": {"type": "integer"},
-                                           "outcome": {"type": "string"}, "detail": {"type": "string"}},
+                                           "outcome": {"type": "string"}, "detail": {"type": "string"},
+                                           "mask": {"type": "array"}},
                                           ["id", "group", "member", "t", "obs", "act", "balance"]),
                owner="pop_strategic", doc="one strategic decision (observation, chosen actions, what happened)")
 bus.event_type("pop_strategic.reward", S.obj({"id": {"type": "string"}, "reward": {"type": "number"}},
@@ -122,7 +136,7 @@ DEFAULT_GROUPS = [
     {"group": "A", "arch": "mlp", "hidden": 1024, "algo": "reinforce", "lr": 3e-4, "seed": 11, "objective": "profit"},
     {"group": "A0", "arch": "mlp", "hidden": 1024, "algo": "reinforce", "lr": 3e-4, "seed": 11, "objective": "profit",
      "learning": False, "copy_of": "A"},
-    {"group": "B", "arch": "gru", "hidden": 576, "algo": "a2c", "lr": 5e-4, "seed": 23, "objective": "reach"},
+    {"group": "B", "arch": "gru", "hidden": 576, "algo": "a2c", "lr": 1e-4, "seed": 23, "objective": "reach"},
     {"group": "C", "arch": "mlp", "hidden": 1000, "algo": "ppo", "lr": 3e-4, "seed": 37, "objective": "profit"},
 ]
 
@@ -175,7 +189,7 @@ class StrategicGroup:
             out, v = self.net(torch.from_numpy(obs.astype(np.float32)), h)
         return {**{k: t.numpy().astype(np.float32) for k, t in out.items()}, "value": v.numpy().astype(np.float32)}
 
-    def learn(self, obs, hist, acts: dict, reward, logp_old=None, *, steps: int, seed: int) -> dict:
+    def learn(self, obs, hist, acts: dict, reward, logp_old=None, mask=None, *, steps: int, seed: int) -> dict:
         """One update of the group's policy on its completed decisions (deterministic). Rewards are standardised
         over the batch. REINFORCE: advantage = reward minus a running baseline; A2C: reward minus the value head
         (critic loss on the standardised reward); PPO: clipped ratio against the logged decision log-probabilities,
@@ -196,9 +210,13 @@ class StrategicGroup:
             o = torch.from_numpy(np.asarray(obs, np.float32))
             h = None if (hist is None or self.arch == "mlp") else torch.from_numpy(np.asarray(hist, np.float32))
             a = {k: torch.from_numpy(np.asarray(v, np.int64)) for k, v in acts.items()}
+            neg = None if mask is None else torch.from_numpy(np.where(np.asarray(mask, bool), 0.0, -1e9
+                                                                       ).astype(np.float32))
 
             def loss_fn(ix):
                 out, val = self.net(o[ix], None if h is None else h[ix])
+                if neg is not None:                    # infeasible actions were masked when the member decided
+                    out = {**out, "act": out["act"] + neg[ix]}
                 logp = sum(torch.log_softmax(out[k], -1).gather(1, a[k][ix][:, None])[:, 0] for k in HEADS)
                 ent = sum(-(torch.softmax(out[k], -1) * torch.log_softmax(out[k], -1)).sum(-1) for k in HEADS)
                 if algo == "reinforce":
@@ -363,7 +381,8 @@ class PopStrategic(Module):
         acts = {k: np.array([r["act"][k] for r in recs], np.int64) for k in HEADS}
         rew = np.array([r["reward"] for r in recs], np.float32)
         lp = np.array([float(r.get("logp") or 0.0) for r in recs], np.float32)
-        return obs, hist, acts, rew, lp
+        mk = np.array([r.get("mask") or [True] * len(ACTIONS) for r in recs], bool)
+        return obs, hist, acts, rew, lp, mk
 
     # ------------------------------------------------------------------ observing (through tools, as the member)
     def _market(self, ctx: Ctx, p: str) -> np.ndarray:
@@ -466,8 +485,11 @@ class PopStrategic(Module):
                     bus.emit(ctx, "pop_strategic.reward", {"id": m["last_exp"], "reward": float(rew)}, vis="internal")
                     m["last_reward"] = float(rew)
                 act, logp = {}, 0.0
+                feas = feasible(m)
                 for k in sorted(HEADS):
                     lg = out[k][j].astype(np.float64)
+                    if k == "act":
+                        lg = np.where(feas, lg, -1e9)
                     pr = np.exp(lg - lg.max())
                     pr = pr / pr.sum()
                     act[k] = int(rng.choice(len(pr), p=pr))
@@ -478,6 +500,7 @@ class PopStrategic(Module):
                                                     "obs": [round(float(x), 5) for x in O[j]],
                                                     "hist": [[round(float(x), 5) for x in r] for r in H[j]],
                                                     "act": act, "logp": round(float(logp), 6), "balance": int(bals[j]),
+                                                    "mask": [bool(x) for x in feas],
                                                     "outcome": res.pop("outcome", "ok"),
                                                     "detail": str(res.pop("detail", ""))}, vis="internal")
                 m.update(res)
