@@ -197,11 +197,16 @@ def cx_balancing_loop(rng, d):
                          "causal structure depends on a path-dependent hidden state, not on the current setting "
                          "(unlike a memoryless threshold gate)",
         axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "latch_memory",), identify=C + "latch_threshold", lever_view=True)
+        claims=(C + "latch_memory",), identify=C + "latch_threshold", lever_view=True,
+        reference="crucible.rapid.refs_adapt:latch_open_and_hold")
 def cx_latched_pathway(rng, d):
     c = Composed(rng, _base(d, topology="collider", motifs=["hysteresis", "saturation"], temporal="lagged"))
     a, b = c.levers
     hy, sb, prod = c.motifs
+    # a wide hysteresis band: the latch opens only when the first lever is pushed high and stays open down to a
+    # low setting, so keeping it open costs far less than opening it (a constant setting pays the opening level
+    # all the time)
+    c.set_params(hy, lo=u(rng, 1.0, 2.5), hi=u(rng, 6.5, 8.5))
     c.set_lever(a, default=u(rng, 0.5, 1.5))
     cfg = c.finish(brief="A unit with two levers. Gauges: output and a combined process reading.",
                    objective={"type": "maximize_net", "text": SHOP},

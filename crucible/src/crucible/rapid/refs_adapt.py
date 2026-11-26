@@ -549,3 +549,66 @@ def arx_settled_predict(view, env, order: int = 2, lags: int = 2, hold: tuple = 
                "content": {"predictions": [{"set": c, "value": steady(c)} for c in held]}})
     while not view.done:
         view.step(None)
+
+
+def latch_open_and_hold(view, env=None, hold: int = 5) -> None:
+    """Scripted public reference for a pathway behind a hidden latch (hysteresis). Push both levers to the top
+    (whichever lever is the latch, this opens it), then lower each lever in turn to mid-range for a few ticks: the
+    one whose lowering leaves revenue where it was is the latch (a latch stays on above a lower level), the other
+    is the gated lever. Then walk the latch lever down in steps while revenue stays up and hold the lowest setting
+    that kept the pathway open (re-opening it if a step closed it), and tune the gated lever by small trials on
+    net income. Every hold lasts several ticks and is read on its last ticks, so lagged effects count."""
+    sp = view.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    names = sorted(props)
+    lo = {n: float(props[n]["minimum"]) for n in names}
+    hi = {n: float(props[n]["maximum"]) for n in names}
+
+    def run(setting, ticks=hold):
+        out = []
+        for _ in range(ticks):
+            if view.done:
+                break
+            out.append(view.step({"kind": "levers", "values": setting}))
+        return out
+
+    def rev(rs, k=2):
+        v = [float(r["observation"]["resources"].get("revenue_cents_last_tick", 0.0)) for r in rs[-k:]]
+        return float(np.mean(v)) if v else 0.0
+
+    def net(rs, k=2):
+        v = [_net(r) for r in rs[-k:]]
+        return float(np.mean(v)) if v else 0.0
+    top = dict(hi)
+    base = rev(run(top))
+    n1, n2 = names[0], names[1]
+    half = {n: 0.5 * (lo[n] + hi[n]) for n in names}
+    r1 = rev(run(dict(top, **{n1: half[n1]}), hold - 1))          # the first lever to mid-range
+    r2 = rev(run({n1: half[n1], n2: half[n2]}, hold - 1))          # then the second as well
+    if view.done:
+        return
+    # lowering the latch lever leaves revenue where it was; lowering the gated lever lowers it
+    A = n1 if base - r1 < r1 - r2 else n2
+    B = [m for m in names if m != A][0]
+    xb = lo[B] + 0.7 * (hi[B] - lo[B])
+    keep = 0.5 * (lo[A] + hi[A])
+    step = 0.1 * (hi[A] - lo[A])
+    open_rev = base
+    x = keep
+    while x - step >= lo[A] - 1e-9 and not view.done:
+        rs = run({A: x - step, B: xb})
+        if not rs:
+            return
+        if rev(rs) < 0.7 * open_rev:                     # it closed: open again and hold the last good level
+            run({A: hi[A], B: xb}, 4)
+            break
+        x -= step
+        keep = x
+    db = 0.08 * (hi[B] - lo[B])
+    while not view.done:                                 # tune the gated lever on net income
+        up = run({A: keep, B: min(hi[B], xb + db)}, 3)
+        dn = run({A: keep, B: max(lo[B], xb - db)}, 3)
+        if not up or not dn:
+            return
+        xb = min(hi[B], xb + db) if net(up, 1) > net(dn, 1) else max(lo[B], xb - db)
+        run({A: keep, B: xb}, 4)
