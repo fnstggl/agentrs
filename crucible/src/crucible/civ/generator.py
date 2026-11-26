@@ -30,8 +30,9 @@ POPULATION_PROFILES = ("development", "standard", "large", "internet")
 
 # The modules of a civilisation, in the order their genesis must run (dependencies are moved before their users).
 ORDER = [
-    # substrate, identity, money, the 4.0 internet services
-    "identity", "bank", "admin", "artifacts", "cols", "assets", "code", "search", "forum", "docs", "mail", "issues",
+    # substrate (incl. the ONE shared semantic space, `space`: crucible.semantic.space), identity, money, the 4.0
+    # internet services
+    "identity", "bank", "admin", "artifacts", "cols", "space", "assets", "code", "search", "forum", "docs", "mail", "issues",
     "support", "contracts", "business", "jobs", "ops", "cloud", "net", "appdb", "wf", "caps", "gov", "deal",
     "commit",
     # the one population and the web it uses

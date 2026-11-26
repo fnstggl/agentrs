@@ -2,7 +2,8 @@
 population; every platform of the social internet (C1 sites, the content catalogue, the follow graph, communities,
 messaging, creator subscriptions, newsletters, product discovery, developer and knowledge platforms) and the
 distribution and consumption engine (`aud`, `feed`) run on it, with content and interests in the shared semantic
-space (`space`, population.semantics). The crowd stand-in (`crowd`) is not used by v5 worlds.
+space (`crucible.semantic.space`, kernel module `space`; population.semantics holds the population's topic
+subspace on it). The crowd stand-in (`crowd`) is not used by v5 worlds.
 
 `social_world(profile, seed, ...)` composes: the 4.0 services the platforms need, the substrate, `space`, `pop`
 (optionally `popsites` + `popweb`, the population's web browsing, and `pop_adaptive`), every C1 module, `aud` with

@@ -55,10 +55,16 @@ def test_interests_live_in_the_shared_space(world):
     u = P.interests(world, np.arange(n))
     assert u.shape == (n, semantics.DIM) and u.dtype == np.float32
     assert np.allclose(np.linalg.norm(u, axis=1), 1.0, atol=1e-3)
-    # an affinity on projected item coordinates equals the full-space cosine
+    # ONE space: the population's DIM is the shared space's, and interests live in its topic block
+    from crucible.semantic import space
+    assert semantics.DIM == space.DIM and semantics.SPACE_ID == space.SPACE_ID
+    assert np.allclose(u[:, semantics.TOPIC.stop:], 0.0)
+    # an affinity on projected item coordinates equals the cosine of the interest with the item's topic block,
+    # computed in the full space
     e = semantics.text_vectors(world, ["The quarterback threw three touchdowns in the fourth quarter.",
                                        "Bake the bread for forty minutes until golden brown."])
-    full = u @ e.T
+    assert e.shape == (2, space.DIM)
+    full = u @ semantics.topic(e).T
     proj = P.interest_coords(world, np.arange(n)) @ P.to_coords(world, e).T
     assert np.allclose(full, proj, atol=5e-3)
     # heterogeneous: individuals do not share one interest

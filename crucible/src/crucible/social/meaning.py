@@ -39,17 +39,18 @@ def _pseudo_words(rng, n: int) -> list[str]:
 
 
 def adversarial_gibberish(world, target: np.ndarray, n_words: int, rng, *, pool: int = 240) -> str:
-    """Greedy token optimisation against the platform's encoder: add the pseudo-word that most raises the cosine of
-    the post's vector with `target` (a full-space vector), `n_words` times (the adversary runs the public encoder
-    itself; nothing is recorded in the world)."""
+    """Greedy token optimisation against the platform's encoder: add the pseudo-word that most raises the affinity
+    the platform computes - the cosine of the post's topic block (crucible.semantic.space) with `target` (a unit
+    space vector, here a topic centroid) - `n_words` times (the adversary runs the public encoder itself; nothing is
+    recorded in the world)."""
     cand = _pseudo_words(rng, pool)
-    V = semantics.text_vectors(world, cand)
+    V = semantics.topic(semantics.text_vectors(world, cand))
     order = np.argsort(-(V @ target))[:40]
     words: list[str] = []
     best = [cand[int(j)] for j in order[:8]]
     while len(words) < n_words:
         trials = [" ".join(words + [b]) for b in best]
-        tv = semantics.text_vectors(world, trials)
+        tv = semantics.topic(semantics.text_vectors(world, trials))
         words.append(best[int(np.argmax(tv @ target))])
     return " ".join(words)
 

@@ -96,7 +96,7 @@ SUBSYSTEMS: dict[str, dict] = {
 
 POPULATION_MODULES = ["pop", "popweb", "pop_adaptive", "pop_strategic", "civgoods"]
 CIV_MODULES = ["civlinks"]          # the coupling engine (not a domain of its own)
-SUBSTRATE_MODULES = ["admin", "artifacts", "cols", "assets"]
+SUBSTRATE_MODULES = ["admin", "artifacts", "cols", "assets", "space"]   # space: the one shared semantic space (D-16)
 
 # Modules that keep a second population of simulated people (or scripted narrative). Never part of a civilisation.
 EXCLUDED: dict[str, str] = {

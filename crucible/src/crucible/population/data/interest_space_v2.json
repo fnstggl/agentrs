@@ -1,4 +1,9 @@
 {
+ "block": "topic",
+ "block_slice": [
+  0,
+  384
+ ],
  "categories": [
   "video",
   "autos",
@@ -96,33 +101,61 @@
  ],
  "corpus_per_topic": 40,
  "energy": {
-  "16": 0.7241795201685315,
-  "32": 0.8272615391458914,
-  "48": 0.8833165737441707,
-  "64": 0.9110020696311429,
-  "8": 0.5963449302181596
+  "16": 0.7248591791947897,
+  "32": 0.8276457201519779,
+  "48": 0.8837380192382354,
+  "64": 0.911192422215074,
+  "8": 0.5973459734855079
  },
  "k_max": 64,
- "name": "interest_space_v1",
+ "name": "interest_space_v2",
  "provenance": {
-  "basis": "top right-singular vectors of the uncentred matrix of sampled item embeddings",
+  "basis": "top right-singular vectors of the uncentred matrix of the sampled items' unit topic blocks",
   "dataset": "MIND-small (Microsoft News Dataset), train split, news.tsv",
   "dataset_rows": 51282,
   "dataset_sha256": "cd49d7da275e9c405f627d75a0de9d4ec6ad43ff8a8db5d23a447591676e09d6",
   "encoded_items": 5511,
-  "encoder": {
-   "dim": 384,
-   "id": "crucible.text.minilm-l6-v2",
-   "model_hash": "65ff65a9182ac3b1fe6b13e3e38334f7a5a374519d8fb7a1983992c6910e15be",
-   "preprocessing_hash": "4cee7eaf9ce82cf4",
-   "version": "1110a243fdf4.c1"
-  },
   "items_per_topic": 60,
   "licence": "MIND: Microsoft Research License Terms (research use); see calibration/datasets.py for the acquisition route",
   "min_items_per_topic": 40,
-  "sampling_seed": 20261126
+  "sampling_seed": 20261126,
+  "space": {
+   "id": "crucible.space.minilm384+affect4+quant34",
+   "layout": {
+    "affect": [
+     "valence",
+     "negation",
+     "hedging",
+     "questions"
+    ],
+    "blocks": {
+     "affect": [
+      384,
+      388
+     ],
+     "quantity": [
+      388,
+      422
+     ],
+     "topic": [
+      0,
+      384
+     ]
+    },
+    "dim": 422,
+    "weights": {
+     "affect": 0.1,
+     "quantity": 0.12,
+     "topic": 0.78
+    }
+   },
+   "represented_by": "crucible.semantic.space.vectors_of_bytes (modality text)",
+   "version": "6cc04f5e24cdce0a"
+  }
  },
- "space_dim": 384,
+ "space_dim": 422,
+ "space_id": "crucible.space.minilm384+affect4+quant34",
+ "space_version": "6cc04f5e24cdce0a",
  "topics": [
   "animals",
   "autosclassics",
