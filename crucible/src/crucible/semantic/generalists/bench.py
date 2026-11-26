@@ -237,7 +237,7 @@ def evaluate(items: list[dict], brain, cfg=None, batch: int = 16) -> dict:
                 ts = [t for t in a.tools if catalog.host_of(t["name"]) == h]
                 tl = catalog.rank_tools([a.intent or it["goal"]], [ts], cfg.shortlist)[0]
                 if tl:
-                    ch += (1.0 / (len(hosts) + 2)) * sum(n in acc for n in tl) / len(tl)
+                    ch += (1.0 / (len(hosts) + len(M.endings(a)))) * sum(n in acc for n in tl) / len(tl)
             base = None
             if hosts:
                 ts = [t for t in a.tools if catalog.host_of(t["name"]) == hosts[0]]

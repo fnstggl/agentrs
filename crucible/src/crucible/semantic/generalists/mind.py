@@ -397,12 +397,22 @@ def tool_line(t: dict, n: int = 150) -> str:
     return f"- {t['name']}({args}): {clip(t.get('description', ''), n)}"
 
 
+def started(a: Agent) -> bool:
+    """Whether the participant has already acted on its active goal (stopping or waiting is offered only then: a goal
+    it has just set itself, with nothing done yet, cannot be achieved already)."""
+    g = a.goal()
+    return bool(g and int(g.get("steps", 0)) > 0)
+
+
 def intent_request(a: Agent, now: int, qv) -> dict:
     """The participant names its next action in general words (what kind of action, not its details): that phrase
-    is what the service directory is searched for."""
-    user = (f"{a.header(now, qv)}\n\nWhat single action do you take next for your goal? Describe it in general "
-            "terms, in at most six words, without names, numbers or other details (for example: \"reply to a "
-            "message\"). If your goal is achieved, answer \"stop\"; if you must wait for someone, answer \"wait\".")
+    is what the service directory is searched for. Once it has acted on the goal it may instead say that the goal
+    is achieved ("stop") or that it waits for someone ("wait")."""
+    alt = ("If your last actions above already achieved your goal, answer \"stop\" instead; if you are waiting for "
+           "someone's answer, answer \"wait\" instead.\n") if started(a) else ""
+    user = (f"{a.header(now, qv)}\n\n{alt}What single action do you take next for your goal? Describe it in "
+            "general terms, in at most six words, without names, numbers or other details (for example: \"reply to "
+            "a message\" or \"publish a blog post\"). Answer with the action only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
             "max_new_tokens": 16, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
 
@@ -414,14 +424,19 @@ def clean_intent(text: str) -> str:
     return clip(t, 80)
 
 
+def endings(a: Agent) -> list[str]:
+    """The non-actions offered beside the services: finish and wait once the participant has acted on its goal."""
+    return ["finish", "wait"] if started(a) else []
+
+
 def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -> dict:
     lines = "\n".join(catalog.host_line(h, summaries.get(h, ""), a.tools) for h in hosts)
     nxt = f"\nYour next action: {a.intent}" if a.intent else ""
-    user = (f"{a.header(now, qv)}{nxt}\n\nServices you can use:\n{lines}\n- finish: {FINISH['description']}\n"
-            f"- wait: {WAIT['description']}\n\nWhich service do you use for this step? Answer with the service name "
-            "only.")
+    ends = "".join(f"\n- {e}: {(FINISH if e == 'finish' else WAIT)['description']}" for e in endings(a))
+    user = (f"{a.header(now, qv)}{nxt}\n\nServices you can use:\n{lines}{ends}\n\nWhich service do you use for "
+            "this step? Answer with the service name only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-            "choices": list(hosts) + ["finish", "wait"], "normalize": "mean", "prefix_messages": 1}
+            "choices": list(hosts) + endings(a), "normalize": "mean", "prefix_messages": 1}
 
 
 def tool_request(a: Agent, now: int, host: str, shortlist: list[dict], qv) -> dict:
@@ -690,7 +705,11 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
     rest = []
     for a in live:                          # the participant itself said its goal is done / it must wait
         word = a.intent.lower().strip(" .!")
-        if word in ("stop", "wait"):
+        if word in ("stop", "wait") and not started(a):
+            a.intent = ""                   # not offered before the first action: the goal itself is the query
+            a.count("premature_stop")
+            rest.append(a)
+        elif word in ("stop", "wait"):
             a.step_log.append({"step": step, "intent": a.intent, "service": "finish" if word == "stop" else "wait"})
             if word == "stop":
                 g = a.goal()
@@ -713,7 +732,7 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
                                            for a, h, qv in zip(live, hsl, qvecs)])
     chosen = []
     for a, hs, p in zip(live, hsl, hp):
-        names = list(hs) + ["finish", "wait"]
+        names = list(hs) + endings(a)
         name = names[p] if 0 <= p < len(names) else "wait"
         a.step_log.append({"step": step, "intent": a.intent, "services": list(hs), "service": name})
         if name == "finish":
