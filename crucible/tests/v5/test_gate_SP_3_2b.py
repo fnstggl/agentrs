@@ -57,3 +57,4 @@ def test_SP_3_2b_semantic_model_benchmark():
            artifacts=[out],
            notes="Full report (per-capability intervals, p-values, held-out-template breakdown, dev-chosen scoring, "
                  f"examples) in the artifact. Recommendation: " + json.dumps(rep["recommendation"])[:2500])
+    assert m["model_sizes_compared"] >= 4 and m["capabilities_benchmarked"] >= 8, m
