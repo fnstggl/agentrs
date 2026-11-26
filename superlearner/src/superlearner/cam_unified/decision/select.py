@@ -12,7 +12,9 @@ recomputes sel_logp differentiably from re-evaluated Q with the recorded veto ma
 parameters are exactly 1.
 
 Authorization (DOM-04: "the execution layer must reject actions that lack the required CAM authorization"). Every
-action CAM selects carries `action.logp_parts["cam_eval"]` (STAMP_KEY): the candidate set, every Q, the selection
+action CAM selects carries `action.proposal["cam_eval"]` (STAMP_KEY; the interfaces v4 reserved key the canonical
+runtime's `cam_eval_stamp` reads; `stamp_of` still accepts the legacy location `logp_parts["cam_eval"]`): the
+candidate set, every Q (`q`), the chosen slot (`chosen` = `k`), `n_candidates`, the selection
 probabilities, gen/sel log-probabilities, the policy / reward-model versions and an HMAC-SHA256 digest over the
 action's identity and executable content (tool, arguments, code) plus the selection record, keyed by a per-process
 secret. `verify_stamp` recomputes the digest, so an unstamped action, a forged stamp or an action whose arguments were
@@ -27,6 +29,7 @@ import hmac
 import json
 import math
 import os
+from dataclasses import dataclass
 from typing import Optional, Sequence
 
 import torch
@@ -106,11 +109,15 @@ def select(Q: Tensor, gen_logp: Tensor, tau: float = 1.0, veto: Optional[float] 
     sel, ent = selection_log_prob(Q, idx, tau, vetoed, torch.full((B,), det, dtype=torch.bool, device=Q.device))
     recs = []
     for b in range(B):
+        ch = int(idx[b])
+        # the behaviour selection distribution over the slots (None = probability 0): one-hot when deterministic
+        lp_all = ([0.0 if k == ch else None for k in range(K)] if det else
+                  [float(x) if math.isfinite(float(x)) else None for x in lp[b]])
         recs.append({"q": [float(x) for x in Q[b]], "probs": [float(x) for x in probs[b]],
-                     "gen_logp": [float(x) for x in gen_logp[b]], "chosen": int(idx[b]), "tau": float(tau),
+                     "gen_logp": [float(x) for x in gen_logp[b]], "chosen": ch, "k": ch, "tau": float(tau),
                      "veto": None if veto is None else float(veto), "vetoed": [bool(x) for x in vmask[b]],
                      "veto_all": bool(allv[b]), "greedy": det, "sel_logp": float(sel[b]),
-                     "sel_entropy": float(ent[b]), "n": K})
+                     "sel_logp_all": lp_all, "sel_entropy": float(ent[b]), "n": K, "n_candidates": K})
     return idx, sel, recs
 
 
@@ -138,36 +145,45 @@ def stamp_digest(action, stamp: dict) -> str:
 
 
 def candidate_record(a) -> dict:
-    """A candidate's replay record (Action dict without its own stamp; the decode record stays attached)."""
+    """A candidate's replay record (Action dict without any stamp; the decode record stays attached)."""
     d = a.to_dict()
     lp = dict(d.get("logp_parts") or {})
     lp.pop(STAMP_KEY, None)
     d["logp_parts"] = lp
+    if isinstance(d.get("proposal"), dict) and STAMP_KEY in d["proposal"]:
+        d["proposal"] = {k: v for k, v in d["proposal"].items() if k != STAMP_KEY}
     return d
 
 
 def attach_stamp(action, record: dict, candidates: Sequence, versions: dict, extra: Optional[dict] = None):
-    """Write the cam_eval stamp into `action.logp_parts[STAMP_KEY]` (in place) and return the action. `record` is
-    the row's selection record from `select`; `candidates` the K candidate Actions (or their dicts)."""
-    reserved = {"v", "kind", "candidates", "versions", "digest"}
+    """Write the cam_eval stamp into `action.proposal[STAMP_KEY]` (in place; the v4 reserved location) and return
+    the action. `record` is the row's selection record from `select`; `candidates` the K candidate Actions (or their
+    dicts); `versions` {"policy", "weights_epoch", "reward_model"} (also exposed as `policy_version` /
+    `psi_version`)."""
+    reserved = {"v", "kind", "candidates", "versions", "digest", "policy_version", "psi_version"}
     clash = reserved & (set(record) | set(extra or {}))
     if clash or (extra and set(extra) & set(record)):
         raise ValueError(f"stamp fields clash with reserved / selection keys: "
                          f"{sorted(clash or (set(extra) & set(record)))}")
+    vers = dict(versions)
     st = {**record, **(extra or {}), "v": STAMP_VERSION, "kind": STAMP_KEY,
           "candidates": [c if isinstance(c, dict) else candidate_record(c) for c in candidates],
-          "versions": dict(versions)}
+          "versions": vers, "policy_version": vers.get("policy"), "psi_version": vers.get("reward_model")}
     st["digest"] = stamp_digest(action, st)
-    action.logp_parts[STAMP_KEY] = st
+    if isinstance(action.logp_parts, dict):
+        action.logp_parts.pop(STAMP_KEY, None)
+    action.proposal = {**(action.proposal if isinstance(action.proposal, dict) else {}), STAMP_KEY: st}
     return action
 
 
 def stamp_of(action) -> Optional[dict]:
-    lp = getattr(action, "logp_parts", None)
-    if not isinstance(lp, dict):
-        return None
-    st = lp.get(STAMP_KEY)
-    return st if isinstance(st, dict) else None
+    """The action's cam_eval stamp: `proposal["cam_eval"]` (canonical), else the legacy `logp_parts["cam_eval"]`."""
+    for holder in (getattr(action, "proposal", None), getattr(action, "logp_parts", None)):
+        if isinstance(holder, dict):
+            st = holder.get(STAMP_KEY)
+            if isinstance(st, dict):
+                return st
+    return None
 
 
 def verify_stamp(action) -> tuple:
@@ -207,3 +223,76 @@ def authorize(actions: Sequence) -> list:
         if a is not None:
             require_stamp(a)
     return list(actions)
+
+
+# ============================================================================ recorded candidate sets (credit)
+
+@dataclass
+class CandidateSet:
+    """The evaluated candidate set of B decisions, for candidate-conditional credit (W8 `credit/candidates.py`:
+    COCOA / R-HCA over recorded sets; selection is the slot choice given C_t).
+
+    emb [B,K,D] float: each candidate's pooled action-token embedding (masked mean of the tokens the evaluator scores;
+        detached) or None when not computed; mask [B,K] bool: valid slots (rows with fewer candidates are padded);
+    q [B,K]: the evaluated Q; sel_logp [B,K]: the behaviour selection log-probabilities (-inf = probability 0; one-hot
+    for a deterministic choice); gen_logp [B,K]: generator log-probabilities; chosen [B] long; vetoed [B,K] bool;
+    tau [B]; greedy [B] bool."""
+    emb: Optional[Tensor]
+    mask: Tensor
+    q: Tensor
+    sel_logp: Tensor
+    gen_logp: Tensor
+    chosen: Tensor
+    vetoed: Tensor
+    tau: Tensor
+    greedy: Tensor
+
+    def to(self, device) -> "CandidateSet":
+        return CandidateSet(*(None if v is None else v.to(device) for v in
+                              (self.emb, self.mask, self.q, self.sel_logp, self.gen_logp, self.chosen, self.vetoed,
+                               self.tau, self.greedy)))
+
+
+def candidate_set_from_stamps(stamps: Sequence[Optional[dict]], emb: Optional[Sequence[Optional[Tensor]]] = None,
+                              device=None) -> CandidateSet:
+    """CandidateSet from B stamps (None rows: no CAM selection -> all slots masked). `emb` [B] of [K_b, D] tensors or
+    None. Padded to K = max K_b. The selection log-probabilities are the recorded behaviour ones (`sel_logp_all`; for
+    a stamp without it, recomputed as log softmax(q / tau) over the non-vetoed slots, one-hot when greedy)."""
+    B = len(stamps)
+    Ks = [len((st or {}).get("candidates") or []) for st in stamps]
+    K = max(Ks + [1])
+    ninf = -math.inf
+    q = torch.zeros(B, K)
+    sl = torch.full((B, K), ninf)
+    gl = torch.zeros(B, K)
+    mask = torch.zeros(B, K, dtype=torch.bool)
+    vet = torch.zeros(B, K, dtype=torch.bool)
+    chosen = torch.zeros(B, dtype=torch.long)
+    tau = torch.ones(B)
+    greedy = torch.zeros(B, dtype=torch.bool)
+    D = None
+    if emb is not None:
+        D = next((int(e.shape[-1]) for e in emb if e is not None), None)
+    E = None if D is None else torch.zeros(B, K, D)
+    for b, st in enumerate(stamps):
+        n = Ks[b]
+        if not st or not n:
+            continue
+        mask[b, :n] = True
+        q[b, :n] = torch.tensor([float(x) for x in st["q"]])
+        gl[b, :n] = torch.tensor([float(x) for x in st.get("gen_logp") or [0.0] * n])
+        vet[b, :n] = torch.tensor([bool(x) for x in st.get("vetoed") or [False] * n])
+        chosen[b] = int(st["chosen"])
+        tau[b] = float(st.get("tau") or 1.0)
+        greedy[b] = bool(st.get("greedy"))
+        lp_all = st.get("sel_logp_all")
+        if lp_all is None:
+            if greedy[b]:
+                lp_all = [0.0 if k == int(st["chosen"]) else None for k in range(n)]
+            else:
+                lp_all = [float(x) for x in selection_log_probs(q[b:b + 1, :n], float(tau[b]), vet[b:b + 1, :n])[0]]
+        sl[b, :n] = torch.tensor([ninf if x is None else float(x) for x in lp_all])
+        if E is not None and emb[b] is not None:
+            E[b, :n] = emb[b].detach().float().cpu()
+    out = CandidateSet(E, mask, q, sl, gl, chosen, vet, tau, greedy)
+    return out if device is None else out.to(device)

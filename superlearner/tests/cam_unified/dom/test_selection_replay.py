@@ -90,7 +90,7 @@ def test_greedy_decision_is_deterministic(dom):
     env = cg._new_env(4, 88)
     dec = cg._decide(dom, env, greedy=True)
     for a in dec.actions:
-        st = a.logp_parts[SEL.STAMP_KEY]
+        st = SEL.stamp_of(a)
         assert st["n"] == 1 and st["greedy"] and a.logp_parts["selection"] == 0.0
         assert a.logp_parts["gen_logp"] == 0.0 and SEL.is_stamped(a)
         assert a.logp == pytest.approx(a.logp_parts.get("option", 0.0), abs=0)
@@ -115,3 +115,22 @@ def test_fast_set_functional_view_reproduces_the_policy(dom, decision):
             for k, v in fast.items()}
     out2 = F.functional_policy(dom, pert, feats, decision.actions)
     assert float((out2["logp"].detach() - out["logp"].detach()).abs().max()) > 1e-4
+
+
+def test_decision_records_the_candidate_set_for_credit(dom, decision):
+    """W8 credit/candidates.py: per decision the candidate embeddings, mask, Q, selection log-probs and chosen slot;
+    recomputable from the archived actions."""
+    cs = decision.candidate_set
+    B, K, D = len(decision.actions), int(dom.cfg.n_candidates), int(dom.cfg.d_model)
+    assert cs.emb.shape == (B, K, D) and bool(cs.mask.all())
+    assert float(cs.emb.abs().sum()) > 0
+    sel = torch.tensor([a.logp_parts["selection"] for a in decision.actions], device=cs.sel_logp.device)
+    assert torch.allclose(cs.sel_logp.gather(1, cs.chosen.view(-1, 1)).squeeze(1), sel.float(), atol=1e-6)
+    assert torch.allclose(cs.sel_logp.exp().sum(1), torch.ones(B, device=cs.sel_logp.device), atol=1e-5)
+    for b, a in enumerate(decision.actions):
+        assert a.proposal["cam_eval"]["k"] == int(cs.chosen[b])
+        assert cs.q[b].tolist() == pytest.approx(decision.evaluation[b]["q"], abs=0)
+    acts = [Action.from_dict(a.to_dict()) for a in decision.actions]
+    cs2 = dom.candidate_set_of(acts, decision.inputs.tools)
+    assert torch.equal(cs2.chosen, cs.chosen) and torch.equal(cs2.sel_logp, cs.sel_logp)
+    assert torch.allclose(cs2.emb, cs.emb, atol=1e-5)

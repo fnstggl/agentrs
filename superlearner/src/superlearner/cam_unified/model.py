@@ -779,6 +779,8 @@ class Decision:
     evaluation: list = field(default_factory=list)   # DOM: [B] selection record (q, probs, chosen, gen/sel logp,
                                                      # veto, versions) = the executed action's cam_eval stamp minus
                                                      # the candidate list
+    candidate_set: Optional[Any] = None      # DOM: decision.select.CandidateSet (emb [B,K,D], mask, q, sel_logp,
+                                             # gen_logp, chosen) for candidate-conditional credit (W8)
 
 
 @dataclass
@@ -953,6 +955,14 @@ class CamUnifiedModel(nn.Module):
         self._bayes_allocates = bayes is not None and hasattr(bayes, "assign_channels")
         self._core_sem = "sem" in _params_of(core.forward)
         self._reasoner_sem = reasoner is not None and "sem" in _params_of(reasoner.forward)
+        # entity type pathway (W3): free-text entity types embedded by the semantic model, when the encoder takes them
+        # and its type projection reads the semantic model's width
+        ee = entity_encoder
+        tdim = getattr(ee, "type_dim", None) or getattr(getattr(ee, "type_proj", None), "in_features", None)
+        self._entity_types = bool(
+            ee is not None and hasattr(ee, "make_type_tokens") and "type_tokens" in _params_of(ee.forward)
+            and semantic is not None and hasattr(semantic, "embed") and tdim is not None
+            and int(tdim) == int(getattr(semantic, "sem_dim", -1)))
         self.register_load_state_dict_post_hook(lambda module, incompatible: module.bump_weights_epoch())
 
     # ---------------------------------------------------------------- bookkeeping
@@ -1222,7 +1232,12 @@ class CamUnifiedModel(nn.Module):
         O = check_tokens(self.tokenizer.observations(inp.obs_lists, inp.registries, inp.now), B, D,
                          "tokenizer.observations")
         if self.entity_encoder is not None:
-            E = check_tokens(self.entity_encoder(O), B, D, "entity_encoder")
+            if self._entity_types:       # registries are bound by the tokenizer call above
+                types = self.entity_encoder.make_type_tokens(inp.registries, self.semantic, device=O.x.device)
+                self._count("entity_encoder.type_tokens")
+                E = check_tokens(self.entity_encoder(O, type_tokens=types), B, D, "entity_encoder")
+            else:
+                E = check_tokens(self.entity_encoder(O), B, D, "entity_encoder")
             O = TokenSet.cat(O, E)
         A_prev = check_tokens(self.tokenizer.action(inp.last_actions), B, D, "tokenizer.action")
         TIME = self._time_tokens(inp.dt_prev.to(inp.Z_prev.device))
@@ -1435,7 +1450,7 @@ class CamUnifiedModel(nn.Module):
         """Behaviour-policy provenance of an executed CAM action (spec 12.3). For a planner choice the recorded logp
         is the *generator's* proposal log-probability of the chosen candidate (+ option), not the probability of the
         argmax selection; the policy objective routes such decisions to an estimator that needs no behaviour ratio."""
-        st = (a.logp_parts or {}).get(_STAMP_KEY) if isinstance(a.logp_parts, dict) else None
+        st = _sel.stamp_of(a)
         if isinstance(st, dict):
             det = bool(st.get("greedy"))
             return {"policy": "cam_select", "logp_kind": "deterministic" if det else "exact",
@@ -1619,6 +1634,29 @@ class CamUnifiedModel(nn.Module):
         return check_tokens(self.tokenizer.action(cands, tool_lists=[tool_list] * K), K, self.cfg.d_model,
                             "tokenizer.action(candidates)")
 
+    @staticmethod
+    def _pool_tokens(ts: TokenSet) -> torch.Tensor:
+        """[K, N, D] TokenSet -> [K, D] masked mean (detached float32): a candidate's action embedding."""
+        m = ts.mask.unsqueeze(-1).float()
+        return ((ts.x.float() * m).sum(1) / m.sum(1).clamp_min(1.0)).detach()
+
+    @torch.no_grad()
+    def candidate_set_of(self, actions: list, tools: list):
+        """decision.select.CandidateSet of stored actions (their cam_eval stamps; rows without a stamp are fully
+        masked), with each recorded candidate's pooled action-token embedding recomputed by the current tokenizer
+        over the row's tool list (incl. the generator's built-ins), as in `decide`."""
+        _, lists = self.tool_tokens(tools)
+        stamps = [_sel.stamp_of(a) if a is not None else None for a in actions]
+        embs = []
+        with self._autocast():
+            for b, st in enumerate(stamps):
+                if not st or not st.get("candidates"):
+                    embs.append(None)
+                    continue
+                cands = [Action.from_dict(d) for d in st["candidates"]]
+                embs.append(self._pool_tokens(self._candidate_tokens(cands, lists[b])))
+        return _sel.candidate_set_from_stamps(stamps, embs, device=self.device)
+
     def _score_row(self, enc: StepEncoding, I: torch.Tensor, b: int, cands: list, tools_b: list,
                    pre: Optional[dict] = None) -> tuple:
         """Q [K] of row b's concrete candidates and preds {Z_hat [K,S,D], r_hat, phi, v, gamma, dt: [K]} (+ "act").
@@ -1784,13 +1822,15 @@ class CamUnifiedModel(nn.Module):
                       "prob": recs[b]["probs"][k], "vetoed": recs[b]["vetoed"][k], "source": c.source.value}
                      for k, c in enumerate(cands[b])] for b in range(B)]
         evaluation = [{**recs[b], "versions": vers} for b in range(B)]
+        cset = _sel.candidate_set_from_stamps([_sel.stamp_of(a) for a in actions],
+                                              [self._pool_tokens(preds[b]["act"]) for b in range(B)], device=dev)
         timings["total_s"] = _time.perf_counter() - t0
         return Decision(actions, inp, enc.Z.detach().float(), enc.R.detach().float(), Z_hat.detach().float(),
                         detach_tokens(A_tok), detach_tokens(enc.ctx), specs, mean, var, predicted, uncertainty,
                         value, logp, dt, reasoning, retrieved, cand_out, [[] for _ in range(B)],
                         belief_summary(None if state.fast is None else state.fast.logw) or [{} for _ in range(B)],
                         behavior, [{"ctx_tokens": dict(d)} for d in enc.dropped], None, timings,
-                        I.detach().float(), evaluation)
+                        I.detach().float(), evaluation, cset)
 
     def _dom_encode(self, inp: StepInputs) -> tuple:
         """Recompute (enc, option logp [B], option entropy [B], OPTION(o_t)) of stored decisions, as when acting."""

@@ -7,6 +7,7 @@ the generator in intent mode has no tool prior and refuses (R, goal, belief) con
 candidates and route gradients into the intent head, the core and the evaluator.
 """
 import importlib
+import math
 import os
 
 import pytest
@@ -101,13 +102,95 @@ def test_stamp_verifies_and_refuses_unstamped_tampered_and_forged_actions():
     with pytest.raises(SEL.UnauthorizedAction, match="digest"):
         SEL.require_stamp(t)
     f = Action.from_dict(a.to_dict())
-    f.logp_parts[SEL.STAMP_KEY]["q"] = [9.0, 0.1]                      # forged evaluation
+    SEL.stamp_of(f)["q"] = [9.0, 0.1]                      # forged evaluation
     assert not SEL.is_stamped(f)
     o = Action.from_dict(a.to_dict())
     o.tool = "noop"                                                    # swapped executable content
     assert not SEL.is_stamped(o)
     with pytest.raises(ValueError):
         SEL.attach_stamp(Action(tool="x"), {"v": 1}, [], {})           # reserved stamp keys cannot be overwritten
+
+
+def test_stamp_lives_in_the_v4_proposal_slot_with_the_runtime_fields():
+    a = _stamped(args={"n": 2})
+    st = a.proposal["cam_eval"]                                        # where runtime.cam_eval_stamp looks first
+    assert st is SEL.stamp_of(a) and "cam_eval" not in a.logp_parts
+    assert st["k"] == st["chosen"] == 0 and st["n_candidates"] == 2
+    assert st["policy_version"] == 3 and st["psi_version"] is None
+    assert st["sel_logp_all"] == [0.0, None]                          # greedy: one-hot behaviour selection
+    # candidate records never carry a stamp (neither location)
+    rec = SEL.candidate_record(a)
+    assert "cam_eval" not in (rec.get("proposal") or {}) and "cam_eval" not in rec["logp_parts"]
+    # legacy records (stamp in logp_parts) still verify
+    leg = Action.from_dict(a.to_dict())
+    leg.logp_parts["cam_eval"] = leg.proposal.pop("cam_eval")
+    assert SEL.stamp_of(leg) is leg.logp_parts["cam_eval"] and SEL.is_stamped(leg)
+
+
+def test_candidate_set_from_stamps_is_the_recorded_behaviour_distribution():
+    cands = [Action(tool=t, args={}, logp=-0.1 * i) for i, t in enumerate(["a", "b", "c"])]
+    Q = torch.tensor([[0.5, -0.2, 0.1]])
+    g = torch.Generator().manual_seed(0)
+    idx, sel, recs = SEL.select(Q, torch.tensor([[-0.0, -0.1, -0.2]]), tau=0.5, veto=0.0, generator=g)
+    a = Action.from_dict(cands[int(idx[0])].to_dict())
+    SEL.attach_stamp(a, recs[0], cands, {"policy": 1, "reward_model": 2})
+    emb = torch.randn(3, 8)
+    cs = SEL.candidate_set_from_stamps([SEL.stamp_of(a), None], [emb, None])
+    assert cs.mask.tolist() == [[True, True, True], [False, False, False]]
+    assert cs.emb.shape == (2, 3, 8) and torch.equal(cs.emb[0], emb) and float(cs.emb[1].abs().sum()) == 0
+    assert cs.vetoed[0].tolist() == [False, True, False]               # Q < veto
+    want = SEL.selection_log_probs(Q, 0.5, Q < 0.0)[0]
+    assert torch.allclose(cs.sel_logp[0], want) and cs.sel_logp[0, 1] == -math.inf
+    assert float(cs.sel_logp[0].exp().sum()) == pytest.approx(1.0, abs=1e-6)
+    assert int(cs.chosen[0]) == int(idx[0]) and float(cs.sel_logp[0, int(idx[0])]) == pytest.approx(float(sel[0]))
+    assert torch.equal(cs.q[0], Q[0]) and cs.gen_logp[0].tolist() == pytest.approx([0.0, -0.1, -0.2])
+    # a stamp without the per-slot record (older version) is recomputed from q / tau / veto
+    st = dict(SEL.stamp_of(a))
+    st.pop("sel_logp_all")
+    cs2 = SEL.candidate_set_from_stamps([st])
+    assert torch.allclose(cs2.sel_logp[0], cs.sel_logp[0]) and cs2.emb is None
+
+
+def test_entity_type_tokens_reach_an_entity_encoder_that_takes_them():
+    """W3 change request: encode_step passes make_type_tokens(registries, semantic) to the entity encoder (gated on
+    the encoder's API and type width = the semantic model's width). Doubles: tokenizer / core (integration_doubles),
+    a stand-in semantic `embed`; the entity encoder is the real one plus W3's make_type_tokens."""
+    from superlearner.cam_unified import integration_doubles as dbl
+    from superlearner.cam_unified.agent import CamUnifiedAgent
+    from superlearner.cam_unified.core.entities import EntityEncoder, entity_type_tokens
+    from superlearner.cam_unified.model import build_model
+
+    calls = []
+
+    class Sem:
+        sem_dim, version = 12, 0
+
+        def embed(self, texts):
+            calls.append(list(texts))
+            return torch.randn(len(texts), 12, generator=torch.Generator().manual_seed(len(calls)))
+
+    class TypedEE(EntityEncoder):
+        def make_type_tokens(self, registries, semantic, device=None):
+            return entity_type_tokens(registries, semantic.embed, device=device, cache=self.__dict__.setdefault("_c", {}))
+
+    cfg = tiny_config(imag_branches=3, imag_samples=2, imag_horizons=(2,), mem_top_k=4)
+    torch.manual_seed(0)
+    comps = dbl.double_components(cfg)
+    assert not build_model(cfg, components={**comps, "entity_encoder": TypedEE(cfg, type_dim=8),
+                                            "semantic": Sem()})._entity_types           # width mismatch: off
+    m = build_model(cfg, components={**comps, "entity_encoder": TypedEE(cfg, type_dim=12), "semantic": Sem()})
+    assert m._entity_types
+    env = dbl.ToyShopEnv(B=2, seed=0)
+    ag = CamUnifiedAgent(m, archive=dbl.DoubleArchive(), recorder=dbl.ListTraceRecorder(), seq_len=4, n_seqs=2)
+    ob = env.reset()
+    ag.reset(ob.env_ids)
+    ag.set_goals(env.goals())
+    for _ in range(2):
+        sub = ag.state.select([0, 1])
+        m.decide(sub, [list(o) for o in ob.observations], list(ob.t), env.available_tools(), ag.goals)
+        ag.state.scatter([0, 1], sub)
+    assert m.calls["entity_encoder.type_tokens"] == 2
+    assert calls == [["account", "product"]]                       # embedded once, then cached by type string
 
 
 # ============================================================================ candidate evaluator (CPU, real WM)
@@ -236,7 +319,7 @@ def test_real_dom_decision_is_stamped_evaluated_and_trains_the_bottleneck(dom):
     K = dom.cfg.n_candidates
     assert dec.intent.shape == (4, dom.cfg.n_intent, dom.cfg.d_model)
     for b, a in enumerate(dec.actions):
-        st = a.logp_parts[SEL.STAMP_KEY]
+        st = SEL.stamp_of(a)
         assert SEL.verify_stamp(a)[0] and st["n"] == K and len(st["candidates"]) == K
         assert a.logp == pytest.approx(a.logp_parts["gen_logp"] + a.logp_parts["selection"]
                                        + a.logp_parts.get("option", 0.0), abs=1e-5)

@@ -9,7 +9,8 @@
 * `evaluator.CandidateEvaluator` Q of every concrete candidate (world-model prior of the candidate's action tokens,
                                  a learned residual head, the reward model's potential and V_int)
 * `select`                       selection over the candidates, its exact log-probability and the cam_eval stamp the
-                                 execution layer checks (`require_stamp` / `authorize`)
+                                 execution layer checks (`require_stamp` / `authorize`; stored in
+                                 Action.proposal["cam_eval"]); `CandidateSet` the recorded candidate sets for credit
 * `fast.fast_params`             the fast parameter set phi of the meta-gradient (W8)
 
 The goal reaches the action only through Z_t / R_t / ctx_out / I_t: the generator in intent mode has no access to
@@ -17,5 +18,5 @@ raw goal, belief or tokenizer tool tokens and no R-independent tool prior (close
 tests/cam_unified/dom/test_dom_bottleneck.py).
 """
 from .intent import IntentHead, intent_tokens                                   # noqa: F401
-from .select import (STAMP_KEY, UnauthorizedAction, authorize, is_stamped, require_stamp, select,  # noqa: F401
-                     selection_log_prob, verify_stamp)
+from .select import (STAMP_KEY, CandidateSet, UnauthorizedAction, authorize, candidate_set_from_stamps,  # noqa: F401
+                     is_stamped, require_stamp, select, selection_log_prob, stamp_of, verify_stamp)

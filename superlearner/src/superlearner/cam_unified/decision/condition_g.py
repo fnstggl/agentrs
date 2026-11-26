@@ -262,12 +262,34 @@ def stamp_check(model, B: int = 4, seed: int = 505) -> dict:
     except SEL.UnauthorizedAction:
         out["tampered_refused"] = True
     f = Action.from_dict(dec.actions[0].to_dict())
-    f.logp_parts[SEL.STAMP_KEY]["digest"] = "0" * 64
+    SEL.stamp_of(f)["digest"] = "0" * 64
     try:
         SEL.require_stamp(f)
     except SEL.UnauthorizedAction:
         out["forged_refused"] = True
     return out
+
+
+def candidate_set_check(model, B: int = 8, seed: int = 515, generator=None) -> dict:
+    """The recorded candidate set of DOM decisions (W8 credit): emb [B,K,D], mask, Q, behaviour selection log-probs,
+    chosen slot; the stamp in Action.proposal["cam_eval"] (v4 slot); recomputed from archived actions."""
+    env = _new_env(B, seed)
+    dec = _decide(model, env, generator=generator)
+    cs = dec.candidate_set
+    sel = torch.tensor([a.logp_parts["selection"] for a in dec.actions], device=cs.sel_logp.device).float()
+    at_chosen = cs.sel_logp.gather(1, cs.chosen.view(-1, 1)).squeeze(1)
+    acts = [Action.from_dict(a.to_dict()) for a in dec.actions]
+    cs2 = model.candidate_set_of(acts, dec.inputs.tools)
+    return {"B": B, "emb_shape": list(cs.emb.shape), "mask_all": bool(cs.mask.all()),
+            "emb_abs_mean": float(cs.emb.abs().mean()),
+            "sel_logp_at_chosen_max_abs_diff": float((at_chosen - sel).abs().max()),
+            "sel_prob_row_sum_max_dev": float((cs.sel_logp.exp().sum(1) - 1).abs().max()),
+            "stamp_in_proposal_v4_slot": sum(int(isinstance((a.proposal or {}).get(SEL.STAMP_KEY), dict))
+                                             for a in dec.actions),
+            "stamp_in_logp_parts": sum(int(SEL.STAMP_KEY in (a.logp_parts or {})) for a in dec.actions),
+            "recomputed_from_archive": {"chosen_equal": bool(torch.equal(cs2.chosen, cs.chosen)),
+                                        "sel_logp_equal": bool(torch.equal(cs2.sel_logp, cs.sel_logp)),
+                                        "emb_max_abs_diff": float((cs2.emb - cs.emb).abs().max())}}
 
 
 def decide_timing(model, B: int = 16, reps: int = 3, seed: int = 707, generator=None) -> dict:
@@ -320,7 +342,7 @@ def ow_tiny_string_check(model, B: int = 4, trials: int = 4, seed: int = 0) -> d
             unauthorized += 1
         for a in dec.actions:
             tool_names.append(a.tool)
-            for c in a.logp_parts[SEL.STAMP_KEY]["candidates"]:
+            for c in SEL.stamp_of(a)["candidates"]:
                 holes += len((c["logp_parts"].get("decode") or {}).get("holes") or [])
         with torch.no_grad():
             out = model.policy_evaluate(dec.inputs, dec.actions)
@@ -356,7 +378,7 @@ def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device:
     res["trained"] = {"accuracy_sampled": accuracy(m, generator=g), "accuracy_greedy": accuracy(m, greedy=True),
                       "zero_intent": zero_intent_check(m), "kl": kl_under_permutation(m),
                       "condition_g": condition_g(m, generator=g), "replay": replay_check(m, generator=g),
-                      "stamps": stamp_check(m)}
+                      "stamps": stamp_check(m), "candidate_set": candidate_set_check(m, generator=g)}
     from .fast import fast_param_count
     res["fast_set"] = fast_param_count(m)
     res["decide_timing_B16_K4"] = decide_timing(m, B=16, generator=g)
@@ -370,6 +392,11 @@ def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device:
         "kl_permuted_gt_0.1": tr["kl"]["kl_tool_mean"] > 0.1,
         "replay_exact_same_batch": tr["replay"]["max_abs_diff_same_batch"] == 0.0,
         "no_execution_without_stamp": all(tr["stamps"].values()),
+        "candidate_set_recorded_and_recomputable": (
+            tr["candidate_set"]["mask_all"] and tr["candidate_set"]["sel_logp_at_chosen_max_abs_diff"] < 1e-5
+            and tr["candidate_set"]["recomputed_from_archive"]["chosen_equal"]
+            and tr["candidate_set"]["recomputed_from_archive"]["sel_logp_equal"]
+            and tr["candidate_set"]["stamp_in_proposal_v4_slot"] == tr["candidate_set"]["B"]),
     }
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
@@ -385,7 +412,7 @@ def agent_loop_check(agent, rounds: int = 24, B: int = 8, seed: int = 3, update_
     from .. import runtime
     from ..capabilities.envs import ScoreEvaluator
     env = TwoGoalEnv(B, seed=seed)
-    seen = {"executed": 0, "unstamped": 0}
+    seen = {"executed": 0, "unstamped": 0, "stamp_in_proposal_v4_slot": 0}
     orig = env.execute
 
     def gated(actions):
@@ -393,6 +420,7 @@ def agent_loop_check(agent, rounds: int = 24, B: int = 8, seed: int = 3, update_
             if a is not None:
                 seen["executed"] += 1
                 seen["unstamped"] += int(not SEL.is_stamped(a))
+                seen["stamp_in_proposal_v4_slot"] += int(isinstance((a.proposal or {}).get(SEL.STAMP_KEY), dict))
         SEL.authorize(actions)
         return orig(actions)
     env.execute = gated
