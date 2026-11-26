@@ -140,10 +140,12 @@ def verified_value(v: Mapping) -> float:
 
 
 def run_episode(env, learner, *, learn: bool, rng: np.random.Generator, budget: int | None = None,
-                agent: str | None = None) -> dict:
+                agent: str | None = None, verify: bool = True) -> dict:
     """One episode of `learner` in `env`. `learn` says whether the learner may update itself at the end;
     `budget` caps the informative interactions granted (later setting changes are not executed). Returns the
-    measured record (verified per-tick cumulative net, counts, compute)."""
+    measured record (verified per-tick cumulative net, counts, compute). With ``verify=False`` (an episode held by
+    the evaluator process, `evaluator.run_remote_episode`) the driver never calls the verifier; the evaluator records
+    the verified trajectory itself."""
     t0, c0 = time.perf_counter(), time.process_time()
     agent = agent or env.agents()[0]
     iface = LeverInterface(env, agent)
@@ -168,7 +170,8 @@ def run_episode(env, learner, *, learn: bool, rng: np.random.Generator, budget: 
         prev = cash
         sig.append(s)
         learner.observe(k, s)
-        traj.append(verified_value(env.verify()))
+        if verify:
+            traj.append(verified_value(env.verify()))
     learner.end(learn=learn)
     return {"verified_cum": traj, "value": traj[-1] if traj else 0.0, "ticks": iface.horizon,
             "interactions": interactions, "refused_beyond_budget": refused, "action_cost_s": cost_s,
@@ -212,11 +215,12 @@ def normalised(value: float, refs: Mapping) -> float:
 
 def lever_entries(registry: Registry | None = None, family_partition: str | None = None,
                   sources=("crucible.rapid",)) -> list[str]:
-    """Tier 1 entries with a continuous lever interface and a net-income objective (where lever learners and
-    normalised scores apply)."""
+    """Tier 1 entries with a continuous lever interface, a net-income objective and the primitive-graph engine
+    (where lever learners apply and the evaluator-side lever oracle gives a normalising upper reference)."""
     reg = registry or build_registry()
     return [w["id"] for w in reg.worlds(tier=1, family_partition=family_partition)
-            if w["source"] in sources and w.get("lever_view") and w["objective"] == "maximize_net"]
+            if w["source"] in sources and w.get("lever_view") and w["objective"] == "maximize_net"
+            and w["engine"] == "primitive_graph"]
 
 
 def world(registry: Registry, entry_id: str, seed: int, difficulty: Mapping | None = None) -> tuple[Any, dict]:

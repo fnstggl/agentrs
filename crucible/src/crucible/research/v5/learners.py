@@ -44,7 +44,7 @@ _PROCESS_STASH: dict[str, dict] = {}       # the stateful control's out-of-check
 META_ARMS = ((0.02, 0, 1, 0.25), (0.25, 1, 2, 0.7), (0.4, 1, 2, 0.6), (0.15, 2, 3, 0.75), (0.3, 3, 3, 0.8),
              (0.5, 0, 2, 0.5), (0.1, 1, 1, 0.9), (0.35, 2, 2, 0.7))
 # cross-episode search strategies: (start: 0 = defaults / 1 = centre, initial step, shrink)
-TRANSFER_ARMS = ((0, 0.04, 0.9), (0, 0.15, 0.7), (1, 0.25, 0.6), (1, 0.4, 0.6), (0, 0.4, 0.6), (1, 0.1, 0.8))
+TRANSFER_ARMS = ((0, 0.01, 0.95), (0, 0.1, 0.7), (0, 0.25, 0.6), (1, 0.25, 0.6), (0, 0.4, 0.6), (1, 0.1, 0.8))
 
 
 def params_hash(params: dict[str, np.ndarray]) -> str:
@@ -410,12 +410,14 @@ class _Bandit:
         m = np.where(self.n > 0, self.sum / np.maximum(self.n, 1), -np.inf)
         return int(np.argmax(m))
 
-    def pick(self, rng) -> int:
-        if (self.n == 0).any():
-            return int(np.flatnonzero(self.n == 0)[0])
-        t = self.n.sum()
-        ucb = self.sum / self.n + 0.5 * np.sqrt(np.log(t + 1) / self.n)
-        return int(np.argmax(ucb))
+    def pick(self, rng, warm: int = 2, eps: float = 0.1) -> int:
+        """Round robin over the arms for the first `warm` rounds each, then greedy with `eps` exploration."""
+        k, t = len(self.n), int(self.n.sum())
+        if t < warm * k:
+            return t % k
+        if rng.random() < eps:
+            return int(rng.integers(k))
+        return self.best()
 
 
 class MetaLearner(LeverLearner):
@@ -454,7 +456,7 @@ class TransferLearner(LeverLearner):
     """One setting per episode; a per-task cross-episode coordinate search (memory); the search strategy is
     learned across tasks (parameters)."""
     arch = "transfer"
-    SOURCE_EPISODES = 6
+    SOURCE_EPISODES = 4
 
     def __init__(self, seed=0, sham: bool = False, **cfg):
         self.bandit = _Bandit(len(TRANSFER_ARMS))
