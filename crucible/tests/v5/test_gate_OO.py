@@ -309,17 +309,29 @@ def _verify_goal(env) -> bool:
     return abs(st["progress"] - min(1.0, cash / 2_000_000)) < 1e-9 and not tool_reach
 
 
+ISOLATION = {}
+
+
 def _hosted(ref: dict) -> tuple[bool, bool, int]:
-    """A world in its own process: (verifier matches the world's own record, verifier reachable from the participant
-    handle, participant requests refused)."""
+    """A world in its own process: (verifier matches the world's own record, verifier reachable from the learner,
+    participant requests refused). Reachability is measured on the evaluation path (`remote.evaluate`): an
+    adversarial evaluated learner (`crucible.experience.isolation.adversary`) in its own process, holding only the
+    participant pipe of a world with a sealed seed, searches its process, the pipe and the other processes for the
+    verifier, the evaluator handle, the seed and the world's hidden values."""
     from crucible.experience import host
+    from crucible.experience import isolation as I
+    iso = I.probe({k: v for k, v in ref.items() if k != "seed"})
+    if not iso.get("examined"):
+        raise RuntimeError(f"the evaluated adversary did not run: {iso.get('evaluation')}")
+    ISOLATION[f"{ref['tier']}:{ref['name']}"] = iso["metrics"]
     part, ev = host(ref, timeout=900)
     try:
         a = part.agents()[0]
         for _ in range(3):
             part.advance(int(part.tick_s) if ref["tier"] == 1 else HOUR)
         refused = [part._raw(op)[0] == "error" for op in ("verify", "digest", "describe", "env", "world", "_obs")]
-        reach = (not all(refused)) or any(hasattr(part, x) for x in ("verify", "env", "world"))
+        reach = (not all(refused)) or any(hasattr(part, x) for x in ("verify", "env", "world")) or not iso["held"]
+        refused.extend([True] * (iso["metrics"]["evaluator_ops_tried"] - iso["metrics"]["evaluator_ops_accepted"]))
         v = ev.verify()
         if ref["tier"] == 1:
             o = v["outcome"]
@@ -365,14 +377,23 @@ def test_OO4_independent_verification_through_a_separate_interface():
         reach_any |= r[1]
         refused += r[2]
     covered = [t for t, ok in per.items() if ok]
+    iso = list(ISOLATION.values())
     metrics = {"tiers_covered": len(covered), "verifier_matches_ground_truth": bool(per) and all(per.values()) and
                tier0, "verifier_reachable_from_learner": bool(reach_any), "participant_requests_refused": refused,
-               "verifications_compared": len(per) + 1}
+               "verifications_compared": len(per) + 1, "evaluation_path_worlds_probed": len(iso),
+               "evaluation_path_hidden_values_checked": sum(m["hidden_values_checked"] for m in iso),
+               "evaluation_path_hidden_values_reached": sum(m["hidden_values_in_learner_material"] for m in iso),
+               "evaluation_path_evaluator_objects_in_learner": sum(m["evaluator_objects_in_learner"] for m in iso),
+               "evaluation_path_other_process_memory_read": sum(m["other_process_memory_read"] for m in iso),
+               "evaluation_path_protocol_channels_opened": sum(m["protocol_channels_opened"] for m in iso),
+               "evaluation_path_seed_reached": sum(int(m["seed_in_learner_material"]) for m in iso)}
     record("OO.4", metrics, command=CMD, notes="per tier, the world hosted in its own process "
            "(crucible.experience.remote): the participant pipe refuses verify/digest/describe/attribute access; the "
            "evaluator's verdict is recomputed independently (rapid outcome from its ledger; mechanism score from the "
            "task's private reference; kernel tiers: the evaluator's cash measure equals the balance the participant "
-           f"observes, and the GoalVerifier's progress equals a direct evaluation of its metric). Per tier: {per}; "
+           f"observes, and the GoalVerifier's progress equals a direct evaluation of its metric). Reachability: the "
+           f"evaluation path (crucible.experience.remote.evaluate; world, learner and evaluator in three processes, "
+           f"sealed seed) probed by an adversarial evaluated learner per world: {ISOLATION}. Per tier: {per}; "
            f"tier 0: {tier0}. Tiers not measured: {_fail_tiers(errors)}")
     assert metrics["verifier_matches_ground_truth"] and not metrics["verifier_reachable_from_learner"], metrics
     assert len(covered) == 3, f"verification measured in tiers {covered}; " + _fail_tiers(errors)

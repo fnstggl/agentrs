@@ -133,9 +133,18 @@ unless legacy is named; a raw `World.create` keeps the 4.0 contract):
   module process receive participant views (before wave 3 a deferred job returned the `score` a direct `rig.read`
   strips);
 * the verifier lives on the evaluator side. In one process Python cannot stop a learner from reading the object it
-  drives, so evaluated runs that need isolation host the world in its own process:
-  `part, ev = crucible.experience.host({"tier": 1, "name": ..., "seed": ...})` gives the learner `part` (the
-  participant protocol only; anything else is refused by the world's process) and the evaluator `ev.verify()`.
+  drives (the object `make()` returns leads to the world's hidden configuration and the grader's holdout), so
+  `make()` is the in-process **development** path and never an evaluation path. **Evaluation goes through
+  `crucible.experience.remote.evaluate(ref, "module:function", learner_kw)`** (CLI: `python -m crucible.experience
+  evaluate`): three processes - the world (with its verifier, hidden configuration and grader) in one, the learner in
+  another that holds nothing but the participant pipe (bounded JSON frames; every evaluator operation and attribute
+  access refused), the evaluator in the calling process, which verifies after the learner returns. The world gets a
+  **sealed seed** (62 random bits only the evaluator knows) unless the caller names one: a learner that can guess the
+  seed of a deterministic world rebuilds it in its own process and reads the hidden configuration (measured by
+  `crucible.experience.isolation`: with seed 3 the rebuild attack recovers all ten hidden parameters of the Tier 1
+  rule-induction world; with a sealed seed none). The learner function is called as `fn(participant, **learner_kw)`
+  and returns JSON; `crucible.experience.remote:reference_learner` drives the reference learner that way. The lower
+  level `part, ev = crucible.experience.host(ref)` hosts a world; keep `ev` out of the learner's process.
 
 Legitimate world observations stay: revenue, costs, balances, readings, requests, purchases, analytics a participant
 could compute. Leakage is tested by information-flow probes (`crucible.experience.probes` and
@@ -240,9 +249,12 @@ a participant can observe and report met/missed at their due time (`goals.mine`)
   Self-play leagues saved before reward modes existed reload in the mode they ran in (legacy).
 * **Tool-world policies** (`agents.base.Policy`) run under `Runner`/`AsyncRunner` as before; 4.0 world families,
   scripted agents and recorded logs are unchanged (a raw world keeps the 4.0 evaluator-access contract).
-* **AGENTRS superlearner**: families `crucible/<goal>` are observation-only (no native invalid-call penalty, no
-  termination on the verifier's outcome, `goal()` without the evaluator's metric name and target, `evaluate_goal`
-  reports the verified label only); `crucible-legacy/<goal>` are the 4.0 adapter.
+* **AGENTRS superlearner and CAM 2.0 adapters** (`crucible/integrations/agentrs_*.py`, 4.0 code that imports CAM
+  learner code): Crucible must not import CAM (RP.1, Clarification 1), so the v5 probes and tests no longer exercise
+  them; the QA workstream relocates them to the learner's side. Their observation-only behaviour (no native
+  invalid-call penalty, no termination on the verifier's outcome, no evaluator metric in the goal) is checked on the
+  architecture-neutral stand-in, the batched adapter of the CAM Unified shape in
+  `examples/experience_external_adapter.py` (probe surface `external`).
 
 ## 9. How a future CAM version connects
 
@@ -277,8 +289,9 @@ Compatibility gaps found by reading the CAM 7 checkout (read only, never importe
 
 To connect a new learner: write an adapter like `examples/experience_external_adapter.py` in the learner's own
 repository, importing only `crucible.experience`; decide what the learner values (it computes its own reward, as
-`examples/external_learner/curiosity_learner.py` does); drive it with your own loop or `run_learner`; host the world
-with `crucible.experience.host` when the evaluation must be isolated. No Crucible file changes
+`examples/external_learner/curiosity_learner.py` does); drive it with your own loop or `run_learner`; evaluate it with
+`crucible.experience.remote.evaluate` (the learner in its own process with only the participant pipe, a sealed world
+seed). No Crucible file changes
 (`tests/v5/test_gate_SP_11_6.py`, `tests/v5/test_gate_OO.py::test_OO6_an_external_learner_supplies_its_own_rewards`).
 
 ## 10. Commands
@@ -287,6 +300,8 @@ with `crucible.experience.host` when the evaluation must be isolated. No Crucibl
 PYTHONPATH=src python -m crucible.experience tiers
 PYTHONPATH=src python -m crucible.experience run --tier 1 --name rapid:net_routing --seed 0 --steps 300 \
     --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json           # observation_only by default
+PYTHONPATH=src python -m crucible.experience evaluate --tier 1 --name pe_rule_induction \
+    --learner crucible.experience.remote:reference_learner --learner-kw '{"steps": 200}'  # out of process, sealed seed
 PYTHONPATH=src python -m crucible.experience.probes                         # the information-flow probes
 PYTHONPATH=src python examples/external_learner/curiosity_learner.py 1 rapid:net_routing 200
 PYTHONPATH=src python -m pytest -q tests/v5/test_gate_R.py tests/v5/test_gate_OO.py tests/v5/test_gate_SP_11_6.py
