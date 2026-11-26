@@ -84,7 +84,9 @@ class LinearNonlinear(Primitive):
         elif form == "quadratic":
             f = v + _p(p, "c", 0.0) * v * v
         elif form == "power":
-            f = np.sign(v) * np.abs(v) ** _p(p, "k", 2.0)
+            # the exponent is broadcast to the inputs' shape, so a scalar exponent and per-instance exponents take
+            # the same floating-point path (a scalar 0.5 would otherwise be computed as a square root)
+            f = np.sign(v) * np.abs(v) ** (np.zeros_like(v) + _p(p, "k", 2.0))
         elif form == "logistic":
             f = sigmoid(_p(p, "c", 1.0) * (v - _p(p, "m", 0.0)))
         else:

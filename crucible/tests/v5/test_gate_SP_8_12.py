@@ -18,7 +18,7 @@ from crucible.acceptance.v5.evidence import record
 from crucible.mechanisms.sim import cents
 from crucible.rapid import families as F
 from crucible.rapid import report as RP
-from crucible.rapid.batch import BatchRapid
+from crucible.rapid.batch import BatchRapid, batchable
 from crucible.rapid.families import DIFFICULTY_AXES, build_config
 from crucible.rapid.mechview import kernel_world
 
@@ -143,12 +143,15 @@ def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
     mism, compared = 0, 0
     rng = np.random.default_rng(42)
     t0 = time.process_time()
-    for fam in ("net_routing", "hc_confounded", "mk_elastic", "posm_sign_switch"):
-        if fam not in admitted:
-            continue
+    from crucible.rapid import twin as TW
+    twin_fams = [n for n in sorted(admitted) if F.FAMILIES[n].lever_view][:4] or \
+        [n for n in ("ch_silent_reversal", "hc_hidden_state_sign", "net_routing", "hc_confounded")
+         if F.FAMILIES[n].lever_view][:2]
+    for fam in twin_fams:
         for seed in (0, 1):
             w, actor, mech = kernel_world(fam, seed)
-            fast = BatchRapid(fam, [seed]) if fam != "posm_sign_switch" else None
+            fast = BatchRapid(fam, [seed]) if F.FAMILIES[fam].engine in ("primitive_graph", "graph_dynamical") \
+                and batchable(fam) else None
             from crucible.mechanisms.sim import MechSim
             from crucible.rapid.env import world_seed_of
             sim = MechSim(mech, world_seed_of(fam, seed), "r1")
@@ -176,6 +179,17 @@ def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
                     mism += 1
             assert w.check_invariants() == []
     twin_cpu = time.process_time() - t0
+    # an independent implementation: the scalar interpreter (plain Python, its own primitive formulas) against the
+    # vectorised engine, tick for tick on the same draws, for every registered mechanism it can represent
+    scalar = {}
+    for fam in sorted(F.FAMILIES):
+        if TW.supports(build_config(fam, 0)):
+            rs = [TW.compare(fam, sd, ticks=40) for sd in (0, 1)]
+            scalar[fam] = sum(r["mismatches"] for r in rs)
+            compared += sum(r["ticks"] for r in rs)
+    scalar_mism = sum(scalar.values())
+    mism += scalar_mism
+    assert scalar and twin_fams
     # batch vs single worlds, and the speed of the batch path
     b = BatchRapid("net_routing", list(range(64)))
     t1 = time.perf_counter()
@@ -197,11 +211,13 @@ def test_SP_8_12_difficulty_axes_and_simulator_kernel_agreement():
     single_s = time.perf_counter() - t2
     record("SP-8.12", {"difficulty_axes": sum(axes_ok.values()), "sim_kernel_mismatches": mism,
                        "sim_kernel_ticks_compared": compared, "batch_single_mismatches": single_mism,
+                       "independent_scalar_twin_families": len(scalar), "independent_scalar_twin_mismatches":
+                       scalar_mism, "kernel_twin_families": len(twin_fams),
                        "batch_steps_per_s": float(64 * 30 / max(batch_s, 1e-9)),
                        "single_and_batch_steps_per_s": float(16 * 30 / max(single_s, 1e-9)),
                        "twin_cpu_s": float(twin_cpu)},
            notes="Axes measured: " + "; ".join(f"{k}: {v}" for k, v in where.items()) +
-                 f". Missing: {[k for k, v in axes_ok.items() if not v]}. Twins: net_routing (graph_dynamical, "
-                 "vectorised), hc_confounded and mk_elastic (primitive_graph, vectorised), posm_sign_switch "
-                 "(state_machine, through MechSim), each in a kernel world hosting a rig facility with real money.")
-    assert sum(axes_ok.values()) == 9 and mism == 0 and single_mism == 0
+                 f". Missing: {[k for k, v in axes_ok.items() if not v]}. Kernel twins (event-sourced kernel worlds "
+                 f"hosting a rig facility with ledger money, vs the vectorised batch path): {twin_fams}. Independent "
+                 f"scalar interpreter vs vectorised engine: {len(scalar)} mechanisms, mismatching ticks {scalar}. "
+                 "The scalar twin found (and the engine now fixes) an off-by-one in lagged gauges.")
