@@ -62,3 +62,36 @@ def test_seat_commission_creates_the_participants_project():
     com = LM._seat_commission(w)
     assert com is not None and com["offer"] and len(com["tasks"]) >= 5
     assert w.state.get("orgs", com["to"]) is not None
+
+
+def test_education_changes_workers_skills_and_their_job_profiles():
+    """Education is not inert for employment (INT.json): what individuals learn in the education subsystem raises the
+    occupational skills the labour market uses (real work quality, requirement gaps, shortlists) - at entry and again
+    in later job-search sessions after more study - and the same individuals without the education subsystem have
+    lower skills in the skills education draws on."""
+    from crucible.domains import firms as F
+    sp = base.spec(LM.NAME, "wide_certified", 0)
+    w = World.create(sp)
+    w.advance_time(12 * 86400)
+    upd = [e for e in w.log if e.type == "labor.worker_update" and "skills" in e.payload["changes"]]
+    assert len(upd) >= 5                                    # skills rose after study, in later search sessions
+    entry = {e.payload["person"]: e.payload["skills"] for e in w.log if e.type == "labor.worker"}
+    rose = [e for e in upd if any(e.payload["changes"]["skills"][k] > entry[e.payload["person"]][k]
+                                  for k in F.EDU)]
+    assert len(rose) == len(upd)                            # only skills education draws on rise
+    assert sum((e.payload.get("extra") or {}).get("education_updates", 0) for e in w.log
+               if e.type == "cols.batch" and e.payload["kind"] == "firms.jobsearch") == \
+        len([e for e in w.log if e.type == "labor.worker_update" and {"skills", "declared"} & set(e.payload["changes"])])
+    w0 = World.create(base.spec(LM.NAME, "wide_certified", 0, overrides={"drop_modules": ["learn"]}))
+    w0.advance_time(12 * 86400)
+    both = sorted(set(w.state.ids("labor_workers")) & set(w0.state.ids("labor_workers")))
+    both = [p for p in both if p.startswith("p") and not p.startswith("p:")]
+    assert len(both) > 100
+    edu = lambda x: sum(x.state.tables["labor_workers"][p]["skills"][k] for p in both for k in F.EDU)  # noqa: E731
+    non = lambda x: sum(x.state.tables["labor_workers"][p]["skills"][k] for p in both  # noqa: E731
+                        for k in F.SKILLS if k not in F.EDU)
+    assert edu(w) > edu(w0) + 0.5                            # education raised the skills it draws on
+    assert abs(non(w) - non(w0)) < 1e-6                      # and nothing else
+    assert not [e for e in w.log if e.type == "proc.failed"] and w.check_invariants() == []
+    w.close()
+    w0.close()

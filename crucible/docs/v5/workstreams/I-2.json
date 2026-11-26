@@ -18,7 +18,7 @@
     "tests/v5/test_gate_SP_9_6.py",
     "tests/test_v5_domains_invention.py"
    ],
-   "status_claim": "implemented; unofficial runs on this branch: reference forming_standard seeds 1, 2 succeed (gain 0.135, 0.084), seed 0 no adopter (2/3 majority); null, broken_program, freeze fail; all 7 mechanics exercised",
+   "status_claim": "implemented and verified (unofficial) on this branch at a061a47: tests/v5/test_gate_SP_9_6.py passed (115 s, direct single-thread run): 7/7 mechanics exercised in reference runs through experience.make(2, ...), observation_only default, reachable; reference forming_standard 2 of 3 runs succeed (seed 1: 1 adopter, expected-efficiency gain 0.135); controls: a program violating its interface 0 adopters with 2 constraint rejections, a no-op technology adopted after a lucky trial scores gain 0.0. base.check: implemented True (all verdicts) incl. Tier 3 composition.",
    "notes": "techmkt: executable process technologies (interface process_control/1, sandboxed, recorded outputs, range/type checks), plants' needs, trials on their own runs, adoption on their own measurements, licence fees. Evaluator: adopters plus noise-free expected-efficiency gain from the hidden physics."
   },
   "SP-9.7": {
@@ -31,7 +31,7 @@
     "tests/v5/test_gate_SP_9_7.py",
     "tests/test_v5_domains_infrastructure.py"
    ],
-   "status_claim": "implemented; unofficial: reference single_site_tou seeds 0, 1 succeed at difficulty 1 (cost reduction 0.136 / 0.076 at attainment loss < 0.001); null, fire_repair_crew (backlog 44 vs 16), starve_capacity (attainment 0.69) fail; all 9 mechanics exercised",
+   "status_claim": "implemented and verified (unofficial) at a061a47: tests/v5/test_gate_SP_9_7.py passed (167 s): 9/9 mechanics; reference single_site_tou seeds 0, 1 succeed (cost reduction 0.136 at attainment 0.9995); controls: no repair crew -> repair backlog 44 vs 8 (evaluator rejects), no headroom -> attainment 0.694. base.check: implemented True.",
    "notes": "fleet repaired (DEF-I-4): cost structure, replay-only experiments, population end users (activity apps), seats as operator engineers; evaluator against a deterministic shadow world (same spec, nobody acts)."
   },
   "SP-9.8": {
@@ -44,7 +44,7 @@
     "tests/v5/test_gate_SP_9_8.py",
     "tests/test_v5_domains_industry.py"
    ],
-   "status_claim": "implemented; unofficial: reference standard_ring seeds 0, 1 succeed at difficulty 1 (profit 3.13M / 1.70M cents in 45 days), fails difficulty 2 on seed 1; null, trade_only, no_operators fail; all 10 mechanics exercised",
+   "status_claim": "implemented and verified (unofficial) at a061a47: tests/v5/test_gate_SP_9_8.py passed (195 s): 10/10 mechanics; reference standard_ring seeds 0, 1 succeed (profit 3.13M cents with 61 own production runs); controls: no operators hired -> 0 production runs, buy-and-resell -> 0 manufacturing revenue. base.check: implemented True.",
    "notes": "civilisation industry slice + households (civgoods) + labour market; plantlabor makes factories' operators their labour-market employees; revenue counts only the company's own production."
   },
   "SP-9.9": {
@@ -57,8 +57,8 @@
     "tests/v5/test_gate_SP_9_9.py",
     "tests/test_v5_domains_labor.py"
    ],
-   "status_claim": "implemented; unofficial: reference pipeline_open seeds 0, 1 deliver 3/3 stages by the deadline (team 4-6 population workers); null, post_only, lowball fail; all 9 mechanics exercised",
-   "notes": "workers are population individuals (activity job_search, FR-FIRMS-JOBS); firms' revenue only from clients' bounded budgets (DEF-I-6 firms part); evaluator counts stages whose tasks have measured quality at the bar, done by the deadline by the seat company's employees."
+   "status_claim": "implemented and verified (unofficial) at a061a47: tests/v5/test_gate_SP_9_9.py passed (65 s): 9/9 mechanics; reference pipeline_open seeds 0, 1 deliver 3/3 stages (9/9 tasks, mean quality 0.81-0.82, teams of 4 and 2 population workers); controls: recruit without delegating -> 0 tasks done, a third of the market salary -> team 0; 2223 population job-search decisions. base.check: implemented True (after the predecessor's last labor fix; its earlier check had 0/2 reference successes).",
+   "notes": "workers are population individuals (activity job_search, FR-FIRMS-JOBS); firms' revenue only from clients' bounded budgets (DEF-I-6 firms part); evaluator counts stages whose tasks have measured quality at the bar, done by the deadline by the seat company's employees. Workers re-profile at later job-search sessions with what they learned since (firms._education_update): education raises exactly the skills it draws on (tests/test_v5_domains_labor.py::test_education_changes_workers_skills_and_their_job_profiles)."
   },
   "SP-9.10": {
    "implementation_files": [
@@ -72,14 +72,48 @@
     "tests/v5/test_gate_SP_9_10.py",
     "tests/test_v5_domains_education.py"
    ],
-   "status_claim": "implemented; unofficial: reference numeracy_search seed 0 succeeds (539 readers, effect 0.082, p 4e-26 at 42 days); content controls are measured by the gate test",
-   "notes": "learn v2 on the population (DEF-I-2): knowledge columns, study/teach activities, reading model, form-aware grading, Board tests and certificates, delayed new-problem evaluator."
+   "status_claim": "implemented; evaluator replaced by a counterfactual (9295ff4): readers' delayed new-problem score vs the same individuals in the same instance with the seat idle (digest-equal to the null run), one paper, common random numbers, paired t-test. Direct runs numeracy_search seed 0: reference 529 readers, effect +0.076 (p 9e-62, success); wrong answer keys 465 readers, effect -0.044 (fails); prose only 0 readers (fails). The gate test SP-9.10 (> 5 min) is queued in a slot - see tests_run.",
+   "notes": "learn v2 on the population (DEF-I-2): knowledge columns, study/teach activities, reading model, form-aware grading, Board tests and certificates, delayed new-problem evaluator. The first evaluator (readers' gains vs non-readers') was confounded by self-selection: wrong keys scored +0.005 there (D-54)."
   }
  },
  "history": {
-  "waves 1-3a": "the kernel modules fleet (infra_world.py), firms (firms.py, _kit.py) and learn (learning.py, concepts.py, common.py) were left by the interrupted agents I2-I4 of the first run; no domain definition existed (audit I_domains)."
+  "waves 1-3a": "the kernel modules fleet (infra_world.py), firms (firms.py, _kit.py) and learn (learning.py, concepts.py, common.py) were left by the interrupted agents I2-I4 of the first run; no domain definition existed (audit I_domains).",
+  "wave 3b (first agent, stopped by usage limit 19:05)": "built the five domains, learn v2, fleet/firms repairs, gate and unit tests, fidelity/defect/decision records (commits 3b23487..a18e4fe)",
+  "wave 3b (continuation)": "verified the predecessor's claims by re-running checks and gate tests; counterfactual education evaluator; education updates labour-market profiles; Tier 3 liveness test"
  },
- "limitations": [],
- "integration_notes": [],
- "tests_run": {}
+ "limitations": [
+  "All reference policies are scripted (labelled scripted in evidence); no learned policy has been shown to succeed in these five domains.",
+  "Behavioural parameters of the new mechanisms (FR-LEARN-1..6, FR-FIRMS-JOBS, FR-FLEET-USERS, FR-PLANT-LABOR, FR-TECH-ADOPT, FR-ELSEWHERE-1) are literature-grounded or plausible functional forms, not fitted in-world (category 'plausible, unvalidated' / 'deliberate simplification' in FIDELITY_REGISTER).",
+  "Education content is limited to arithmetic/number-theory/algebra concepts with executable generators and solvers (domains.concepts); lessons are read by a reading model of worked problems in curriculum notations, not by a language model.",
+  "Civilisations: study activity is low per day (4-15 sessions per 2 days in a development population, most first sessions are placement tests); hiring in civ starts only after day 2 (firms wait 2 days after posting).",
+  "Technology invention (techmkt) and factory staffing from the labour market (plantlabor) are composed into a civilisation only through Domain.tier3 of those domains, not by civ.generate (civ/generator.py is not dom2's file: see integration_notes).",
+  "Invention reference: 2 of 3 reference runs succeed (seed 0 has no adopter: plants keep a technology only on their own noisy measurements).",
+  "Evaluators of 9.7 and 9.10 simulate a counterfactual world (same spec, seat idle) on the evaluator side: verify() costs about one extra world run (60-150 s on one CPU for 9.10)."
+ ],
+ "integration_notes": [
+  "CIV (civ/generator.py ORDER): add 'techmkt' (domains.technology_invention) and 'plantlabor' (domains.industrial_economy) so technology declarations, trials, adoption and licence fees, and factories staffed from the population's labour market, exist in every generated civilisation (today only in the Tier 3 composition of SP-9.6/SP-9.8).",
+  "CIV / CORE-POP: with dom2's modules a civilisation registers 23 population activities (new: apps (fleet), job_search (firms), study and teach (learn)); the internet population profile has H=24 habit slots, so one more activity from any other domain needs H raised there (pop refuses worlds with more activities than slots).",
+  "F / services owner: services/contracts.py membership clauses accept population individuals ('p<i>', crucible.substrate.ids) as persons - a minimal, commented edit made on this branch so that population workers can sign employment memberships; please review.",
+  "DEF-I-6 (remaining part, not in dom2's files): worldgen/admission.py counts only 'internal error' tool results as crashes; it should also count proc.failed events of the admission run (after the random session: crashes += number of proc.failed events in w.log), so that module admission catches crashing processes.",
+  "QA: implementation_files for SP-9.6..SP-9.10 are listed per requirement here; the gate tests call the real implementation (base.section_metrics + intervention arms), so they fail under implementation ablation.",
+  "SP-9.10's gate test runs 2 reference runs, 4 content arms and 2 counterfactual worlds (~15-25 min on one CPU); run it in a slot (--cpu 1 --gpu-mb 0 is enough when the text cache is warm; --ram-mb 8000)."
+ ],
+ "tests_run": {
+  "tests/v5/test_gate_SP_9_6.py": "1 passed (a061a47, direct, 115 s)",
+  "tests/v5/test_gate_SP_9_7.py": "1 passed (a061a47, direct, 167 s)",
+  "tests/v5/test_gate_SP_9_8.py": "1 passed (a061a47, direct, 195 s)",
+  "tests/v5/test_gate_SP_9_9.py": "1 passed (a061a47, direct, 65 s)",
+  "tests/test_v5_domains_education.py": "5 passed",
+  "tests/test_v5_domains_labor.py": "5 passed (incl. the new education-employment test)",
+  "tests/test_v5_domains_industry.py": "1 passed",
+  "tests/test_v5_domains_invention.py": "1 passed",
+  "tests/test_v5_domains_infrastructure.py": "3 passed",
+  "tests/test_v5_domains_tier3_alive.py": "1 passed (66 s)",
+  "base.check (labor, invention; industry, infrastructure from the predecessor on identical domain code)": "verdicts implemented True for all four, tier3 composes, null fails, probes fail, dice 0"
+ },
+ "tier3_alive": {
+  "claim": "education and employment are alive in every civilisation profile (INT.json listed both as inert)",
+  "evidence": "civ.generate(<profile>, 0) x 2 days, all 11 profiles (direct runs, probe civlive.py): 0 failed processes, 0 invariant errors; per profile 4-15 study sessions, 65-82 placement tests, 13-20 teach decisions, 97-122 Board assessments, 33-49 job-search decisions, 49-87 applications. balanced seed 1 x 5 days: 48 study sessions, 37 lessons authored, 99 job searches, 9 offers, 1 hire, 4 measured work records. Test: tests/test_v5_domains_tier3_alive.py (passed, 66 s).",
+  "mechanism": "population activities study/teach (domains.learning) and job_search (domains.firms) registered through population.register_activity; civ composes learn and firms already (civ.generator ORDER); DEFAULT_FIRMS in population worlds."
+ }
 }

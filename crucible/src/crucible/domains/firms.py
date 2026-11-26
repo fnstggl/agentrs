@@ -1032,7 +1032,8 @@ class Firms(Module):
         labour market enters it with its own profile; then, unless it is employed and content, it reads the open
         postings for itself and applies to the (at most two) that are best for it - pay against its reservation
         wage, how far it meets the requirements, its interest in the work, the employer's public record. The labour
-        market decides the rest with it (offers, work, quitting). Returns the session's utility."""
+        market decides the rest with it (offers, work, quitting). A worker already in the market first updates its
+        profile with what it has learned since (`_education_update`). Returns the session's utility."""
         from .. import population as P
         w = ctx.world
         st = ctx.state
@@ -1046,9 +1047,14 @@ class Firms(Module):
         applied = columns.col(w, JOBS, "applied")
         new_reg, new_s, new_a, last = [], [], [], []
         posts = None
+        n_edu = 0
         for j, i in enumerate(idx.tolist()):
+            known = bool(reg[i])
             p = self.register_worker(ctx, i)
             wk = st.tables["labor_workers"][p]
+            if known and "learn" in w.modules:
+                wk, upd = self._education_update(ctx, p, i, wk)
+                n_edu += int(upd)
             n_app = 0
             content = wk["employer"] is not None and wk["satisfaction"] >= wk["patience"] + 0.1
             if content:
@@ -1083,9 +1089,28 @@ class Firms(Module):
         P.record_decisions(ctx, "firms.jobsearch", idx, {
             "registered": np.array(new_reg, np.uint8), "searches": np.array(new_s, np.int32),
             "applied": np.array(new_a, np.int32), "last_search": np.array(last, np.int64)}, table=JOBS, **JOB_MODEL,
-            extra={"applications": int(sum(new_a) - int(applied[idx].sum()))})
+            extra={"applications": int(sum(new_a) - int(applied[idx].sum())), "education_updates": n_edu})
         del reg
         return util
+
+    def _education_update(self, ctx, p: str, i: int, wk: dict) -> tuple[dict, bool]:
+        """What a worker learned since it entered the labour market (FR-FIRMS-JOBS): its occupational skills rise to
+        what its current mastery supports (`worker_profile`; they never fall here - forgetting of occupational skill
+        is not modelled) and its declared skills follow its profile when its strengths or certificates changed (it
+        updates its CV). Education thereby changes whom employers shortlist and the real quality of its work."""
+        prof = worker_profile(ctx.world, int(i))
+        cur = {k: float(wk["skills"].get(k, 0.0)) for k in SKILLS}
+        sk = {k: round(max(cur[k], float(prof["skills"][k])), 3) for k in SKILLS}
+        ch = {}
+        if any(sk[k] >= cur[k] + 0.02 for k in SKILLS):
+            ch["skills"] = sk
+        dec = list(prof["declared"])
+        if set(dec[:2]) != set(wk["declared"][:2]) or any(k not in wk["declared"] for k in prof["certified"]):
+            ch["declared"] = dec
+        if not ch:
+            return wk, False
+        ctx.world.modules["labor"]._upd(ctx, p, **ch)
+        return {**wk, **ch}, True
 
     # ------------------------------------------------------------------ appliers
     @applier("firms.firm")

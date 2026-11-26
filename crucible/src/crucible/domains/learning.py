@@ -977,10 +977,13 @@ class Learning(Module):
                 "sessions": row["sessions"]}
 
     # ------------------------------------------------------------------ evaluator side (never a tool)
-    def final_scores(self, world, at: int, salt: str, k: int = 6, who=None, concepts=None) -> dict[int, dict]:
+    def final_scores(self, world, at: int, salt: str, k: int = 6, who=None, concepts=None,
+                     exclude: set | None = None) -> dict[int, dict]:
         """A delayed test at time `at` (no further study assumed) on one fresh paper drawn with the evaluator's own
-        random stream, excluding every published problem. Pure: reads state only."""
-        exclude = self.published_keys(world)
+        random stream, excluding every published problem (or `exclude`, e.g. the problems published in either of two
+        worlds being compared: the same paper and the same answer draws then go to both, common random numbers).
+        Pure: reads state only."""
+        exclude = self.published_keys(world) if exclude is None else set(exclude)
         state = columns.col(world, TABLE, "state")
         rows = np.flatnonzero(state > 0) if who is None else np.asarray(who, np.int64)
         cs = list(concepts or self.cur)
