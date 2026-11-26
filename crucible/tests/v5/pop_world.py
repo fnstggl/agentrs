@@ -39,6 +39,10 @@ def launch_product(w, topic: str = "recipes", price: int = 400) -> str:
 
 @functools.lru_cache(maxsize=1)
 def integrated(days: int = 6, seed: int = 41):
+    """The world after `days` simulated days, its genesis state of the Part 3.1 columns, and the runtime decision
+    models' usage of this world's run (`runtime.usage()`, reset before the world is built) for in-world audits."""
+    from crucible.calibration import runtime
+    runtime.reset_usage()
     t0 = time.time()
     spec = social_world("development", seed, n=1500, web=True, sites=14, adaptive=True,
                         classes={"adaptive": 32, "strategic": 0, "semantic": 0}, platforms=PLATFORMS,
@@ -49,4 +53,4 @@ def integrated(days: int = 6, seed: int = 41):
     genesis = {c: A.columns.col(w, "pop", c).copy() for c in
                sorted({c for cs in A.schema.FIELDS.values() for c in cs if c in A.columns.tables(w)["pop"]["columns"]})}
     w.advance_time(days * DAY)
-    return {"world": w, "genesis": genesis, "wall_s": time.time() - t0}
+    return {"world": w, "genesis": genesis, "wall_s": time.time() - t0, "usage": dict(runtime.usage())}

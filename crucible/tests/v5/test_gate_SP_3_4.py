@@ -8,7 +8,8 @@ examples, losses, behavioural changes and evaluation outcomes, in worlds of the 
 3. independently learned policy groups - a third group with other initial weights learns on its own members only;
 4. frozen historical participants - `pop_adaptive.freeze_copy` of a learning group: the copy's hash stays fixed while
    the source keeps learning, and its members keep acting;
-5. independently trained competing architectures - class 3's two strategic groups (MLP/REINFORCE and GRU/A2C).
+5. independently trained competing architectures - class 3's strategic groups (MLP/REINFORCE, GRU/A2C, MLP/PPO and a
+   frozen copy of the first) competing in one market of ventures.
 
 learning_kinds_tested >= 5. A kind counts as TESTED when its experiment ran with recorded weight hashes and
 optimizer updates; whether it HELPED is reported separately (personal state: the CI of its benefit)."""
@@ -17,12 +18,14 @@ import pytest
 
 import crucible
 from crucible.acceptance.v5 import evidence
+from crucible.acceptance.v5 import manifest as MF
+from crucible.acceptance.v5.checker import criterion_met
 from crucible.core.kernel import World
 from crucible.population import experiments as PX
 from crucible.population.worlds import population_world
 
 crucible.load_all_modules()
-CMD = "PYTHONPATH=src python -m crucible.scale.slots --cpu 1 -- python -m pytest -q tests/v5/test_gate_SP_3_4.py"
+CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-3.4"
 DAY = 86400
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3 * 3600)]
 
@@ -63,15 +66,17 @@ def test_SP_3_4_independent_learning_kinds():
                                   "frozen_example_batches": frozen_acts, "members": fc["members"]}
     # competing architectures (class 3)
     w3 = World.create(population_world("development", 3, n=120, sites=6, tick_s=1800, adaptive=False,
-                                       classes={"adaptive": 0, "strategic": 8, "semantic": 0}))
+                                       classes={"adaptive": 0, "strategic": 12, "semantic": 0}))
     w3.advance_time(8 * DAY)
     ups = [e.payload for e in w3.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith("strategic")]
     by = {}
     for u in ups:
         by.setdefault(u["group"], set()).add(u["weights_hash"])
     archs = {u["group"]: u.get("arch") for u in ups}
-    kinds["competing_architectures"] = {"tested": bool(len([g for g, h in by.items() if len(h) > 1]) >= 2),
-                                        "groups": {g: archs.get(g) for g in by}, "updates": len(ups)}
+    learned = [g for g, h in by.items() if len(h) > 1]
+    kinds["competing_architectures"] = {"tested": bool(len(learned) >= 2 and len({archs[g] for g in learned}) >= 2),
+                                        "groups": {g: archs.get(g) for g in by}, "updates": len(ups),
+                                        "learned_groups": learned}
     m = {"learning_kinds_tested": int(sum(1 for k in kinds.values() if k["tested"]))}
     for k, v in kinds.items():
         m[f"{k}_tested"] = bool(v["tested"])
@@ -81,3 +86,6 @@ def test_SP_3_4_independent_learning_kinds():
     evidence.record("SP-3.4", m, command=CMD, notes=f"Per kind: {kinds}. Per seed (memory vs no-memory, phase 2 "
                                                     f"after the controlled change): {ps}")
     assert len(kinds) == 5
+    crit = next(e for e in MF.load()["requirements"] if e["id"] == "SP-3.4")["criteria"]
+    fails = [msg for c in crit for ok, msg in [criterion_met(c, m)] if not ok]
+    assert not fails, (fails, m)

@@ -5,7 +5,11 @@ ONE integrated world, the standard population profile (10,000 lightweight + 256 
 internet with generated web sites (popsites: rich, thin, broken, flaky, spam, off-topic), the population's web
 browsing, search and forum (popweb), and the whole social internet on the same population (content catalogue, posts,
 blog, communities, images, developer and knowledge platforms, product discovery, the consumption engine, exact
-audience accounting, members who write and publish). Nothing is initiated by a learner: no agent acts at all.
+audience accounting, members who write and publish). A learner acts in the world every simulated day through ordinary
+tools (it reads the forum feed, searches the web, fetches a page, posts) - and none of the population's consumer
+decisions happens inside its commands: the population browses on its own. The population's activity, sessions per
+active day and article openings come from workstream E's fitted runtime models (daily_return@1, extra_sessions@1,
+article_open_semantic@1; population.activation, population.web).
 
 At day 20 the world is forked into three controlled interventions (B.6): in each, two of the most visited useful
 (rich) sites are redeployed as broken through ordinary tools (code.commit + cloud.deploy by their operator), against
@@ -29,6 +33,8 @@ from scipy import stats
 
 import crucible
 from crucible.acceptance.v5 import evidence
+from crucible.acceptance.v5 import manifest as MF
+from crucible.acceptance.v5.checker import criterion_met
 from crucible.core.kernel import World
 from crucible.population import analysis as A
 from crucible.population import check_provenance
@@ -38,7 +44,7 @@ from crucible.social.worlds import social_world
 from crucible.substrate import columns
 
 crucible.load_all_modules()
-CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_B.py"
+CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement B.1"
 DAY = 86400
 DAYS = 30
 CUT_DAY = 20
@@ -50,6 +56,30 @@ def _spec(seed: int):
     return social_world("standard", seed, web=True, sites=16, adaptive=True,
                         classes={"adaptive": 256, "strategic": 0, "semantic": 0}, platforms=PLATFORMS,
                         params={"log_retain": 4_000_000})
+
+
+def _check(req, metrics):
+    crit = next(e for e in MF.load()["requirements"] if e["id"] == req)["criteria"]
+    fails = [msg for c in crit for ok, msg in [criterion_met(c, metrics)] if not ok]
+    assert not fails, (req, fails, metrics)
+
+
+def _learner_day(w, learner, d, rng):
+    """One simulated day of an active learner: ordinary tool calls (search, a page fetch, the forum). Returns the
+    number of commands it executed."""
+    hosts = A.res_hosts(w) or ["nowhere"]
+    calls = [{"tool": "search.query", "args": {"q": "recipes and travel", "kind": "page", "limit": 5}},
+             {"tool": "net.fetch", "args": {"url": f"http://{hosts[int(rng.integers(0, len(hosts)))]}.crucible/"}},
+             {"tool": "forum.feed", "args": {"limit": 10}}]
+    boards = sorted(w.state.tables.get("forum_boards", {}))
+    if boards:
+        calls.append({"tool": "forum.post", "args": {"board": boards[0], "title": f"Notes of day {d}",
+                                                     "body": "What I found useful on the web today."}})
+    n = 0
+    for c in calls:
+        r = w.execute(learner, c)
+        n += 1 if r.ok else 0
+    return n
 
 
 def _day_events(w, s0):
@@ -65,12 +95,17 @@ def _concat(logs):
 def run():
     t0 = time.time()
     w = World.create(_spec(5), strict=True)
+    learner = w.system_call("admin.join", {"handle": "learner", "endowment": 10_000, "password": "pw-l"})["principal"]
+    lrng = np.random.default_rng(9)
+    learner_cmds = 0
     labels = {}
     sessions, visit_logs, invariant_errors, provenance = {}, [], [], []
     learner = {"population_decision_events": 0, "learner_initiated": 0}
     cut = None
     s0 = 0
     for d in range(DAYS):
+        w.advance_time(d * DAY + 13 * 3600)
+        learner_cmds += _learner_day(w, learner, d, lrng)
         w.advance_time((d + 1) * DAY)
         ev = _day_events(w, s0)
         labels.update(A.site_labels(w, ev))
@@ -88,6 +123,7 @@ def run():
     log = _concat([lg for lg in visit_logs if len(lg["ind"])])
     return {"world": w, "labels": labels, "sessions": sessions, "log": log, "invariants": invariant_errors,
             "provenance": provenance, "learner": learner, "cut": cut, "wall_s": time.time() - t0,
+            "learner_commands": learner_cmds,
             "proc_failed": sum(1 for e in w.log if e.type == "proc.failed")}
 
 
@@ -108,6 +144,7 @@ def test_B1_world_with_10000_distinct_participants(run):
                           "the strategic and semantic classes) that took at least one autonomous session in the "
                           "integrated 30-day world.")
     assert metrics["population_rows"] >= 10_000
+    _check("B.1", metrics)
 
 
 def test_B2_autonomous_browsing_without_a_learner(run):
@@ -120,13 +157,15 @@ def test_B2_autonomous_browsing_without_a_learner(run):
                "population_decision_events": int(li["population_decision_events"]),
                "audience_decision_rows_with_provenance": int(sum(p["organic_population_rows"] for p in prov)),
                "audience_rows_forced": int(forced), "web_visits": int(len(run["log"]["ind"])),
-               "failed_processes": int(run["proc_failed"])}
+               "failed_processes": int(run["proc_failed"]), "learner_commands": int(run["learner_commands"])}
     evidence.record("B.2", metrics, command=CMD,
                     notes="Every population decision event of the run is checked for an in-world actor's command "
                           "(population.analysis.learner_initiated) and every audience decision batch for decision "
                           "provenance (population.check_provenance: listed by the population's own pop.session batch "
-                          "and inside its activated cohort). No learner or agent acts in this world.")
-    assert run["proc_failed"] == 0
+                          "and inside its activated cohort). A learner acted every day through ordinary tools "
+                          f"({run['learner_commands']} commands); consumer events inside its commands would count.")
+    assert run["proc_failed"] == 0 and run["learner_commands"] >= DAYS
+    _check("B.2", metrics)
 
 
 def test_B3_individual_preferences_affect_decisions(run):
@@ -138,6 +177,7 @@ def test_B3_individual_preferences_affect_decisions(run):
                           "content better returned more often: the pooled return-rate difference above vs below each "
                           "resource's median match, Cochran-Mantel-Haenszel test stratified by resource.")
     assert pe["pairs"] > 1000
+    _check("B.3", metrics)
 
 
 def test_B4_return_to_useful_and_leave_unsatisfactory(run):
@@ -152,6 +192,7 @@ def test_B4_return_to_useful_and_leave_unsatisfactory(run):
                           "unsatisfactory ones (broken, flaky, spam; the generator's evaluator-only labels), and the "
                           "rate of abandoning them; two-proportion z-tests.")
     assert ra["pairs_useful"] > 100 and ra["pairs_unsatisfactory"] > 100
+    _check("B.4", metrics)
 
 
 def test_B5_activity_persists_30_days(run):
@@ -168,6 +209,7 @@ def test_B5_activity_persists_30_days(run):
                                                        f"world invariants checked daily ({len(run['invariants'])} "
                                                        "errors).")
     assert not run["invariants"], run["invariants"][:5]
+    _check("B.5", metrics)
 
 
 def _intervene(f, hosts, labels, rng):
@@ -232,3 +274,4 @@ def test_B6_controlled_resource_changes_change_behaviour(run):
                           "(two-proportion z-test per replicate; the criterion is the largest of the three p-values). "
                           f"Replicates: {reps}")
     assert len(reps) == 3 and all(math.isfinite(g) for g in gaps)
+    _check("B.6", metrics)

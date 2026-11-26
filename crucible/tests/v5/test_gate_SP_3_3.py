@@ -12,12 +12,14 @@ import pytest
 
 import crucible
 from crucible.acceptance.v5 import evidence
+from crucible.acceptance.v5 import manifest as MF
+from crucible.acceptance.v5.checker import criterion_met
 from crucible.core.kernel import World, WorldSpec
 from crucible.population import profiles
 from crucible.substrate import columns
 
 crucible.load_all_modules()
-CMD = "PYTHONPATH=src python -m crucible.scale.slots --cpu 1 -- python -m pytest -q tests/v5/test_gate_SP_3_3.py"
+CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-3.3"
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
 
 
@@ -57,3 +59,6 @@ def test_SP_3_3_population_profiles():
         m[f"{n}_sessions_9h"] = r["sessions_9h"]
     evidence.record("SP-3.3", m, command=CMD, notes=f"Benchmarks (one process, 1 thread): {rep}")
     assert rep["internet"]["rows"] >= 10_000_000
+    crit = next(e for e in MF.load()["requirements"] if e["id"] == "SP-3.3")["criteria"]
+    fails = [msg for c in crit for ok, msg in [criterion_met(c, m)] if not ok]
+    assert not fails, (fails, m)

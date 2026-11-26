@@ -184,13 +184,17 @@ def _describe(c: np.ndarray) -> str:
             f"Share of your contacts who like it: {c[4]:.2f}.")
 
 
-def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, model: str = "HuggingFaceTB/SmolLM2-135M-Instruct"
+LANGUAGE_MODELS = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct", "Qwen/Qwen3-0.6B")
+
+
+def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, models=LANGUAGE_MODELS, device: str = "auto"
                         ) -> list[dict]:
-    """The same held-out class-2 decisions (the chosen candidate's features and the realised utility) valued by
-    the compact policies of the run (learned and its identical-init frozen twin) and by a small pretrained language
-    model asked zero-shot whether the visit is worthwhile (log P(yes) - log P(no) through crucible.semantic's
-    inference service, CPU). Returns one row per model: Spearman correlation of value and realised utility,
-    parameters and milliseconds per decision."""
+    """The same held-out class-2 resource decisions (the chosen candidate's features, the realised utility) valued
+    by the compact policies of the run (the learned one and its identical-init frozen twin) and by small pretrained
+    language models asked zero-shot whether the visit is worthwhile (log P(yes) - log P(no), through
+    crucible.semantic's inference service; local checkpoints, evaluator side, nothing enters a world). One row per
+    model: Spearman correlation of its value with the realised utility, parameters, milliseconds per decision; a
+    language model that cannot run here is a row with `error` (never dropped)."""
     import torch
     h = run.get("_heldout")
     if not h or h["batch"].get("web") is None:
@@ -209,22 +213,24 @@ def compact_vs_language(run: dict, seed: int = 0, *, n: int = 200, model: str = 
             pred = pol.net.score(pol.net.encode(obs), mem,
                                  torch.from_numpy(sub["cand"].astype(np.float32))[:, None, :])[:, 0].numpy()
         dt = (time.time() - t0) / max(1, len(ix)) * 1000
-        rows.append({"model": f"compact_{name}", "params": int(pol.params), "spearman": _spearman(pred, sub["reward"]),
-                     "ms_per_decision": dt, "n": int(len(ix))})
-    try:
-        from ..semantic.service import SemanticService
-        svc = SemanticService(model, device="cpu", max_batch=16)
-        reqs = [{"messages": [{"role": "system", "content": "Answer yes or no."},
-                              {"role": "user", "content": _describe(c) + " Is the visit likely to be worthwhile?"}],
-                 "choices": [" yes", " no"], "normalize": "sum"} for c in sub["cand"]]
-        t0 = time.time()
-        res = svc.choose(None, reqs)
-        dt = (time.time() - t0) / max(1, len(ix)) * 1000
-        val = np.array([r["logprobs"][0] - r["logprobs"][1] for r in res])
-        params = int(sum(p.numel() for p in svc.model.parameters())) if hasattr(svc, "model") else 134_515_008
-        rows.append({"model": "smollm2_135m_zero_shot", "params": params, "spearman": _spearman(val, sub["reward"]),
-                     "ms_per_decision": dt, "n": int(len(ix))})
-    except Exception as e:  # noqa: BLE001  (reported as a row: the language model could not run here)
-        rows.append({"model": "smollm2_135m_zero_shot", "params": 0, "spearman": 0.0, "ms_per_decision": 0.0,
-                     "n": 0, "error": f"{type(e).__name__}: {str(e)[:200]}"})
+        rows.append({"model": f"compact_{name}", "kind": "compact", "params": int(pol.params),
+                     "spearman": _spearman(pred, sub["reward"]), "ms_per_decision": dt, "n": int(len(ix))})
+    from ..semantic.service import SemanticService
+    for mid in models:
+        tag = mid.split("/")[-1].lower().replace("-instruct", "").replace("-", "_").replace(".", "_")
+        try:
+            svc = SemanticService(mid, device=device, max_batch=16)
+            reqs = [{"messages": [{"role": "system", "content": "Answer yes or no."},
+                                  {"role": "user", "content": _describe(c) + " Is the visit likely to be worthwhile?"}],
+                     "choices": [" yes", " no"], "normalize": "sum"} for c in sub["cand"]]
+            t0 = time.time()
+            res = svc.choose(None, reqs)
+            dt = (time.time() - t0) / max(1, len(ix)) * 1000
+            val = np.array([r["logprobs"][0] - r["logprobs"][1] for r in res])
+            params = int(sum(p.numel() for p in svc.model.parameters())) if hasattr(svc, "model") else 0
+            rows.append({"model": f"{tag}_zero_shot", "kind": "language", "params": params,
+                         "spearman": _spearman(val, sub["reward"]), "ms_per_decision": dt, "n": int(len(ix))})
+        except Exception as e:  # noqa: BLE001  (reported as a row with the error: the model could not run here)
+            rows.append({"model": f"{tag}_zero_shot", "kind": "language", "params": 0, "spearman": 0.0,
+                         "ms_per_decision": 0.0, "n": 0, "error": f"{type(e).__name__}: {str(e)[:200]}"})
     return rows

@@ -265,3 +265,45 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-30 Population activation and content choice from the fitted runtime models (2026-11-26, workstream B)
+The population's own session start (`pop.decision.session_start`, hand-set) and its log-normal rhythm are replaced by
+workstream E's runtime decision models, used only through `crucible.calibration.runtime` (RUNTIME.md; the direct
+`calibration.load` plug-in of `population/models.py` is removed): `daily_return@1` decides once per individual and
+simulated day whether it is active (batch `pop.day_active`, column `active`), `extra_sessions@1` how many sessions it
+takes (`pop.day_sessions`, column `sessions`), spread over the rest of its waking day (`pop.decision.schedule`).
+`article_open_semantic@1` (scope content_kind="article") decides which headline of a web page's slate a reader opens
+(`popweb.article_open`) and `customer_return@1` whether a buyer orders from the same shop again within 90 days (a
+repurchase intention with a wake-up; the return goes through the shop's own pages and checkout). `session_minutes@1`
+is NOT used: its minutes count KuaiRand pool videos only (median 0.06-0.2 min per session) and its contract declares
+no scale factor, so a session's length stays the individual's own log-normal (`pop.decision.session_length`), now a
+real budget that the population's web activity spends (several visits per session). Every population-table batch
+carries decision provenance; the session batch `pop.session` now covers the whole activated cohort so that a daily
+decision over individuals who do not start a session is inside its cohort (calibration.inworld). Individuals start
+with a 7-day burn-in history (`pop.decision.genesis_history`). Page utility uses the page text's intrinsic legibility
+(shared space reader model) instead of a distinct-token share, and willingness to pay is a share of the individual's
+own daily income scaled by the product page's relevance. Consequences: world hashes of population worlds change;
+`tests/test_v5_calibration_inworld.py::test_wired_world_decisions_count_and_agree_with_check_provenance` asserted that
+`pop.session`/`pop.activation` carry no provenance (no longer true; workstream E updates that line).
+
+## D-31 Class 3 redesign: strategic ventures built with ordinary tools (2026-11-26, workstream B)
+Class 3 is no longer a four-head choice of parameters for one generated "rich" site template. A strategic
+participant's policy chooses, decision after decision, one of eight venture actions (launch a site, write an
+article, put a product on sale, reprice, promote in the forum, link another venture's site, close a site, wait) with
+its topic (16 market topics of the population's corpus), length and price arguments, and carries it out with
+ordinary tools as itself; the site's content is text the participant writes (real corpus sentences, its own writing
+skill, attention spent), judged by the population's visitors. Four default policy groups share one market: A (MLP,
+REINFORCE with standardised rewards, objective profit), A0 (frozen copy of A's initial weights: the control), B (GRU,
+A2C, objective reach), C (MLP, PPO, objective profit). Decisions run inside the population's tick through
+`register_class_runtime(world, 3, ...)` (the same binding contract class 4 uses, documented there). Evaluator-side
+measurement of competition, cooperation (links between ventures), unrelated objectives and lifetime adaptation:
+`population.strategic.behaviour`.
+
+## D-32 Class 2 decides activities and trains its personal memory through time (2026-11-26, workstream B)
+The shared adaptive network takes two decisions: the activity of each session (every registered activity a
+candidate; this decision steps the personal GRU memory once per session) and the web resource to visit (with the
+current memory). Activity examples are replayed per member as sequences (backpropagation through time over up to 12
+sessions from the memory stored before the first), so the memory can learn to carry what an individual's own
+history says beyond its observation (unit test: a trait seen only in the first session is predicted later with
+memory and not without). G.7 compares the compact policies with three local language models (SmolLM2-135M,
+SmolLM2-360M, Qwen3-0.6B) zero-shot on the same held-out decisions; a comparison row is a language model that ran.

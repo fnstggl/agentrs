@@ -395,3 +395,108 @@ def social_behaviours(world, events=None) -> dict:
         elif p["table"] == schema.TABLE and k == "pop_social.shop":
             out["evaluate_products"] += int((p.get("extra") or {}).get("visits", 0))
     return out
+
+
+# ================================================================================ platforms (SP-4.0)
+#: the fifteen platforms of MASTER_SPEC Part 4 (introduction) and how each one's population activity is recognised:
+#: aud platform codes (impressions / consumption decision batches of the one population), relation tables of the
+#: social modules (decision batches), event types whose actor is a population member, population batch kinds
+SPEC_PLATFORMS = {
+    "short_form_video": {"aud": ["shorts"]},
+    "long_form_video": {"aud": ["tube"]},
+    "text_posts": {"aud": ["posts"]},
+    "images": {"aud": ["pics"]},
+    "articles_and_blogs": {"aud": ["blog"], "pop_kinds": ["popweb.article_open"]},
+    "discussion_forums": {"events": {"forum.post": "author", "forum.reply": "author"}, "pop_kinds": ["popweb.forum"]},
+    "social_networks": {"aud": ["social"], "tables": {"follow": ["social.follow"], "share": []}},
+    "communities": {"aud": ["community"], "tables": {"cmember": ["community.join", "community.leave"]},
+                    "pop_kinds": ["community.experience"]},
+    "messaging": {"events": {"msg.message": "sender"}},
+    "search": {"pop_kinds": ["popweb.searched"]},
+    "creator_subscriptions": {"events": {"creators.membership": "fan"}},
+    "newsletters": {"tables": {"nlsub": ["letters.subscribe", "letters.unsubscribe"]}},
+    "product_discovery": {"aud": ["launch"], "pop_kinds": ["pop_social.shop"]},
+    "developer_communities": {"aud": ["dev"]},
+    "knowledge_sharing": {"aud": ["kb"]},
+}
+
+
+def platform_activity(world, events=None) -> dict:
+    """Evaluator side: per Part 4 platform, recorded activity of the ONE population (rows of decision batches with
+    decision provenance and events whose actor is a population member). An aud platform counts its `impress.<p>` and
+    `consume.<p>` decision batches on the population table and items population members published on it."""
+    ev = list(_events(world, events))
+    pop_actor = lambda a: isinstance(a, str) and a[:1] == "p" and a[1:].isdigit()  # noqa: E731
+    aud = world.modules.get("aud")
+    plats = list(getattr(aud, "platforms", []) or [])
+    out = {k: 0 for k in SPEC_PLATFORMS}
+    by_aud: dict[str, int] = {}
+    for e in ev:
+        if e.type == "cols.batch":
+            p = e.payload
+            k = p["kind"]
+            for pre in ("impress.", "consume."):
+                if p["table"] == schema.TABLE and k.startswith(pre):
+                    by_aud[k[len(pre):]] = by_aud.get(k[len(pre):], 0) + int(p["n"])
+            for name, how in SPEC_PLATFORMS.items():
+                if p["table"] == schema.TABLE and k in how.get("pop_kinds", ()):
+                    out[name] += int(p["n"])
+                tb = how.get("tables") or {}
+                if p["table"] in tb and isinstance((p.get("extra") or {}).get("decision"), dict) and \
+                        (not tb[p["table"]] or k in tb[p["table"]]):
+                    out[name] += int(p["n"])
+        elif e.type == "content.published" and pop_actor(e.payload.get("creator")):
+            pl = e.payload.get("platform")
+            if isinstance(pl, str):
+                by_aud[pl] = by_aud.get(pl, 0) + 1
+        else:
+            for name, how in SPEC_PLATFORMS.items():
+                f = (how.get("events") or {}).get(e.type)
+                if f and pop_actor(e.payload.get(f)):
+                    out[name] += 1
+    for name, how in SPEC_PLATFORMS.items():
+        for pl in how.get("aud", ()):
+            out[name] += by_aud.get(pl, 0)
+    return {"platforms": out, "aud_platforms": plats, "by_aud_platform": by_aud,
+            "used": sorted(k for k, v in out.items() if v > 0), "unused": sorted(k for k, v in out.items() if v == 0)}
+
+
+def populations(world) -> dict:
+    """Evaluator side: modules of the world that keep a population of their own (a population table of individuals):
+    the one population `pop` and any stand-in (crowd, patrons, 4.0 consumers/shoppers/adopters)."""
+    stand_ins = ("crowd", "patrons", "consumers", "npcs")
+    found = ["pop"] if "pop" in world.modules else []
+    found += [m for m in sorted(world.modules) if m in stand_ins]
+    return {"population_modules": found, "n": len(found)}
+
+
+def attention_use(world, events=None) -> dict:
+    """Evaluator side: how much of their time individuals used. Per session (rows of `pop.duration` - the minutes the
+    session may take - matched with the session's `pop.learn` row - the minutes it took): the mean share of the
+    session's minutes used and the share of sessions that ended because their time was up (>= 95% used); per
+    individual-day: the share of active individual-days on which the daily attention budget was used up (>= 95%)."""
+    budgets = {}
+    for e in batches(world, schema.TABLE, "pop.duration", events):
+        a = artifacts.get_array_blob(world, e.payload["ref"])
+        t = int(e.payload["extra"]["t"])
+        for i, b in zip(a["idx"].tolist(), a["v.session_budget_min"].tolist()):
+            budgets[(t, int(i))] = float(b)
+    used, daily = [], {}
+    for e in batches(world, schema.TABLE, "pop.learn", events):
+        a = artifacts.get_array_blob(world, e.payload["ref"])
+        t = int(e.payload["extra"]["t"])
+        mins = (a["v.session_end_at"].astype(np.int64) - t) / 60.0
+        for i, m in zip(a["idx"].tolist(), mins.tolist()):
+            b = budgets.get((t, int(i)))
+            if b is not None and b > 0:
+                used.append((m, b))
+            k = (t // DAY, int(i))
+            daily[k] = daily.get(k, 0.0) + m
+    bud = columns.col(world, schema.TABLE, "attention_budget_min").astype(np.float64)
+    u = np.array(used) if used else np.zeros((0, 2))
+    d = np.array([daily[k] / max(bud[k[1]], 1e-3) for k in daily]) if daily else np.zeros(0)
+    return {"sessions": int(u.shape[0]),
+            "session_share_used": round(float(np.mean(np.minimum(u[:, 0] / u[:, 1], 1.0))), 4) if u.size else 0.0,
+            "sessions_time_up": round(float(np.mean(u[:, 0] >= 0.95 * u[:, 1])), 4) if u.size else 0.0,
+            "individual_days": int(d.size), "daily_budget_share_used": round(float(d.mean()), 4) if d.size else 0.0,
+            "individual_days_budget_exhausted": round(float(np.mean(d >= 0.95)), 4) if d.size else 0.0}

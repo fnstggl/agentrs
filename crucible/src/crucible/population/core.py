@@ -86,10 +86,25 @@ def register_activity(world, name: str, handler, *, owner: str, prior: float = 0
 
 
 def register_class_runtime(world, cls: int, handler, *, owner: str) -> None:
-    """Bind a participant class (3 strategic, 4 semantic) to a runtime of its own: due rows of that class are handed
-    to `handler(ctx, idx, now) -> next_active_at (int64 per row) or None` by the population's tick, inside the same
-    recorded session machinery (decision provenance, attention). Call in Module.install (before genesis) so the
-    class's rows get activation times. This is the hook the semantic participant runtime (class 4) binds to."""
+    """Bind a participant class (3 strategic, 4 semantic) to a runtime of its own. Binding contract (the class-4
+    semantic participant runtime of workstream D, `crucible.semantic.generalists`, and class 3, `pop_strategic`):
+
+    * Rows. The class's rows of the population table ARE the participants: identity (`ids.pid(i)`, principal
+      `p<i>`, materialised with `ids.ensure_principal`), interests (`interests` / `interest_coords`), preferences,
+      skills, beliefs, goals, money (`spendable`, `pay`, `money_deposit`), contacts, habits and history (`features`)
+      live there like every other individual's; a runtime keeps only its own mind state (its own state table) and
+      never a second copy of a per-person fact.
+    * Activation. Call in `Module.install` (before genesis) so the class's rows get a first activation time. The
+      population's tick hands the due rows (`next_active_at` or a pending `wake` reached) to
+      `handler(ctx, idx, now) -> next_active_at` (int64 per row; None = now + 6 h), running as `owner`.
+    * Session and provenance. The call runs inside a population session: every `record_decisions` batch the handler
+      records (on the population table or a relation table) is listed by the session batch `pop.session` that the
+      tick then records for `idx` (kind `pop.session`, provenance model `class<c>.<owner>`, fidelity
+      `pop.decision.class_runtime`, `extra.class`), so `check_provenance` counts those rows as organic. A runtime's
+      tool calls (`ctx.call(..., as_principal=p<i>)`) are the participant's own actions.
+    * Attention. Time a participant spends is drawn from its daily budget with `substrate.attention.spend`.
+    * Learning from outcomes. `experience(ctx, idx, activity, utility, item_vecs=...)` updates interests,
+      knowledge, satisfaction and habits from realised outcomes, as for every individual."""
     rt = world.runtime.setdefault("pop.class_runtimes", {})
     if int(cls) in rt and rt[int(cls)]["owner"] != owner:
         raise ProtocolError(f"class {cls} is bound to {rt[int(cls)]['owner']}")

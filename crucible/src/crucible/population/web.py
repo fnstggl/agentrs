@@ -72,6 +72,28 @@ def kind_of(title: str) -> int:
     return 0
 
 
+def resource_scores(F: dict) -> np.ndarray:
+    """Class-1 value of each candidate resource [n, K] plus the value of exploring something new [n, 1] (the
+    resource choice of a web visit, `PopWeb._choose`; a Gumbel draw then picks). Inputs per individual and known
+    resource: its own satisfaction with it (`known_sat`), how well its content matched the individual's interests
+    when last read (`match`, shared space), how often it visited it (`visits`: familiarity with the source),
+    `recency` of the last visit, the share of its contacts who like it (`social`); per individual: loyalty, social
+    conformity, novelty seeking, a pending suggestion and its source (`suggest`, `suggest_src`), trust in the
+    suggesting contact, beliefs about links and unknown sites. Pure function (plausible, unvalidated coefficients;
+    FIDELITY_REGISTER pop.decision.resource_choice)."""
+    ks, match, kc = F["known_sat"], F["match"], F["visits"]
+    valid = F["valid"]
+    V = 0.1 + 1.25 * ks + 1.4 * match + 0.25 * F["loyalty"][:, None] * np.log1p(kc) - 0.5 * F["recency"] + \
+        0.6 * F["social_conformity"][:, None] * F["social"]
+    V = np.where(valid, V, -np.inf)
+    best = np.where(valid.any(axis=1), np.max(np.where(valid, ks, -1.0), axis=1), 0.0)
+    sug, src = F["suggest"], F["suggest_src"]
+    explore = -0.15 + 0.8 * F["novelty_seeking"] + 0.5 * (1.0 - np.clip(best, 0, 1)) + \
+        np.where(sug >= 0, 0.3 + 0.6 * np.where(src == 2, F["trust"], F["belief_links"]),
+                 0.4 * F["belief_unknown"] - 0.2)
+    return np.concatenate([V, explore[:, None]], axis=1)
+
+
 def _member(a: np.ndarray, v: np.ndarray) -> np.ndarray:
     """Row-wise: is v[i] in a[i, :]? (a [n, k], v [n])."""
     return (a == v[:, None]).any(axis=1) if a.size else np.zeros(v.shape[0], bool)
@@ -366,9 +388,6 @@ class PopWeb(Module):
         social = (ck[:, None, :, :] == known[:, :, None, None]).any(axis=3).sum(axis=2) / \
             np.maximum(cvalid.sum(axis=1), 1)[:, None]
         recency = np.exp(-np.maximum(now - kl, 0) / (4 * 3600.0)) * (kl >= 0)
-        V = 0.1 + 1.25 * ks + 1.4 * match + 0.25 * prefs[:, 5:6] * np.log1p(kc) - 0.5 * recency + \
-            0.6 * prefs[:, 4:5] * social
-        V = np.where(valid, V, -np.inf)
         sug = c("suggest").astype(np.int64)
         sfrom = c("suggest_from").astype(np.int64)
         src = c("suggest_src").astype(np.int64)
@@ -377,10 +396,11 @@ class PopWeb(Module):
             slot = contacts == sfrom[:, None]
             tr = c("contact_trust").astype(np.float64)
             trust = np.where(slot.any(axis=1), (tr * slot).sum(axis=1) / np.maximum(slot.sum(axis=1), 1), 0.5)
-        best = np.where(valid.any(axis=1), np.max(np.where(valid, ks, -1.0), axis=1), 0.0)
-        explore = -0.15 + 0.8 * prefs[:, 1] + 0.5 * (1.0 - np.clip(best, 0, 1)) + \
-            np.where(sug >= 0, 0.3 + 0.6 * np.where(src == 2, trust, beliefs[:, 5]), 0.4 * beliefs[:, 0] - 0.2)
-        scores = np.concatenate([V, explore[:, None]], axis=1)
+        scores = resource_scores({"known_sat": ks, "match": match, "visits": kc, "recency": recency, "social": social,
+                                  "valid": valid, "loyalty": prefs[:, 5], "social_conformity": prefs[:, 4],
+                                  "novelty_seeking": prefs[:, 1], "suggest": sug, "suggest_src": src, "trust": trust,
+                                  "belief_links": beliefs[:, 5], "belief_unknown": beliefs[:, 0]})
+        V = scores[:, :-1]
         tau = 0.35 + 0.25 * prefs[:, 1:2]
         pick = np.argmax(scores + rng.gumbel(size=scores.shape) * tau, axis=1)
         # class 2 participants choose with their shared adaptive policy

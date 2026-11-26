@@ -157,7 +157,35 @@ def test_adaptive_policy_learns_from_examples():
     assert pol2.learn(batch, steps=200, batch_size=64, lr=3e-3, seed=7)["weights_hash"] == out["weights_hash"]
     act, mem = pol.act_batch({"obs": obs[:5], "cand": np.stack([cand[:5]] * 3, 1), "mask": np.ones((5, 3), bool)},
                              np.zeros((5, 6), np.float32), np.random.default_rng(1))
-    assert act.shape == (5,) and mem.shape == (5, 6) and np.abs(mem).sum() > 0
+    assert act.shape == (5,) and mem.shape == (5, 6)
+    # the activity decision steps the personal memory (once per session)
+    from crucible.population.adaptive import ACT_DIM
+    s, mem2 = pol.act_scores(obs[:5], np.zeros((5, 6), np.float32), rng.normal(size=(5, 4, ACT_DIM)).astype(np.float32))
+    assert s.shape == (5, 4) and np.abs(mem2).sum() > 0
+
+
+def test_adaptive_memory_learns_through_time():
+    """Activity examples are replayed as sequences through the GRU (BPTT): a reward that depends on what happened
+    several sessions earlier (not in the current observation) is learnable with memory and not without."""
+    from crucible.population.adaptive import ACT_DIM, AdaptivePolicy
+    rng = np.random.default_rng(3)
+    n_ind, L = 60, 8
+    obs = rng.normal(size=(n_ind * L, 10)).astype(np.float32)
+    key = rng.integers(0, 2, n_ind).astype(np.float32) * 2 - 1          # a hidden personal trait
+    obs.reshape(n_ind, L, 10)[:, 0, 0] = key                              # seen only at the first session
+    obs.reshape(n_ind, L, 10)[:, 1:, 0] = 0.0
+    ac = np.zeros((n_ind * L, ACT_DIM), np.float32)
+    ac[:, 0] = rng.integers(0, 2, n_ind * L) * 2 - 1
+    reward = (np.repeat(key, L) * ac[:, 0]).astype(np.float32)
+    batch = {"act": {"obs": obs, "mem": np.zeros((n_ind * L, 8), np.float32), "acand": ac, "reward": reward,
+                     "ind": np.repeat(np.arange(n_ind), L).astype(np.int32),
+                     "t": np.tile(np.arange(L), n_ind).astype(np.int64)}, "web": None}
+    res = {}
+    for mem in (True, False):
+        pol = AdaptivePolicy(0, obs_dim=10, cand_dim=4, mem_dim=8, hidden=32, seed=1, memory=mem, bptt=L)
+        out = pol.learn(batch, steps=300, lr=3e-3, seed=5)
+        res[mem] = out["loss"]
+    assert res[True] < 0.5 * res[False], res
 
 
 def test_policy_updates_are_recorded(run2):
@@ -174,11 +202,19 @@ def test_policy_updates_are_recorded(run2):
 
 
 def test_strategic_participants_act_through_tools(run2):
+    from crucible.population import strategic as STR
     _, w, _ = run2
-    ents = [e for e in w.log if e.type == "cloud.deployment" and e.payload["host"].startswith("ent")]
-    assert ents, "entrepreneurs deployed sites with code/cloud tools"
+    exps = list(w.state.tables["pop_strat_exp"].values())
+    assert exps and {r["group"] for r in exps} <= {"A", "B"}
+    ents = [e for e in w.log if e.type == "cloud.deployment" and STR.host_member(e.payload["host"]) is not None]
+    if any(r.get("outcome") == "ok" and STR.ACTIONS[r["act"]["act"]] == "launch" for r in exps):
+        assert ents, "ventures deployed sites with code/cloud tools"
     for e in ents:
         assert e.payload["owner"].startswith("o:ent") and e.payload["trusted"] is False
+    # decisions are recorded inside the population's own sessions (class runtime 3)
+    sess = [e for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.session" and
+            (e.payload["extra"] or {}).get("class") == 3]
+    assert sess
 
 
 def test_modules_pass_admission():

@@ -4,8 +4,10 @@ Class 2 runs in worlds of the one population (`crucible.population`, `population
 adaptive individuals share policy groups (one weight copy per group, batched inference), each with its own GRU memory;
 two groups start from IDENTICAL weights, one learns online from its members' own experienced utilities, the other is
 frozen. After phase 1 a controlled new condition (the two most visited rich sites fail, the two broken ones become
-rich) tests adaptation (G.6, G.n1). Three seeds. Class 3 (G.4) runs its two strategic policy groups in a world of
-its own. G.7 compares the compact policy with a small pretrained language model on the same held-out decisions.
+rich) tests adaptation (G.6, G.n1). Three seeds. Class-2 networks take two decisions: the activity of each session
+(which also steps the personal memory, trained through time) and the web resource to visit. Class 3 (G.4) runs its
+four strategic policy groups (population.strategic: ventures built through ordinary tools) in a world of its own.
+G.7 compares the compact policies with small pretrained language models on the same held-out decisions.
 
 Metrics (docs/v5/ACCEPTANCE_MANIFEST.json):
 G.1 simultaneously_active_adaptive >= 256          G.2 distinct_personal_states >= 256
@@ -22,10 +24,18 @@ import pytest
 
 import crucible
 from crucible.acceptance.v5 import evidence
+from crucible.acceptance.v5 import manifest as MF
+from crucible.acceptance.v5.checker import criterion_met
 from crucible.population import experiments as PX
 
 crucible.load_all_modules()
-CMD = "PYTHONPATH=src python -m crucible.scale.slots --cpu 1 -- python -m pytest -q tests/v5/test_gate_G.py"
+
+
+def _check(req, metrics):
+    crit = next(e for e in MF.load()["requirements"] if e["id"] == req)["criteria"]
+    fails = [msg for c in crit for ok, msg in [criterion_met(c, metrics)] if not ok]
+    assert not fails, (req, fails, metrics)
+CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement G.1"
 DAY = 86400
 SEEDS = (0, 1, 2)
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(3 * 3600)]
@@ -55,6 +65,7 @@ def test_G1_256_simultaneously_active_adaptive(shared):
                                                  "count and the count in the 2-day phase after the change are "
                                                  "reported too (a few individuals do not wake every day).")
     assert m["adaptive_rows"] == 256
+    _check("G.1", m)
 
 
 def test_G2_distinct_persistent_personal_states(runs, shared):
@@ -67,7 +78,7 @@ def test_G2_distinct_persistent_personal_states(runs, shared):
                                                  "sessions, snapshots and forks, and changes only when the individual "
                                                  "takes a web decision with its policy (individuals whose sessions "
                                                  "were all other activities keep the initial state).")
-    assert m["distinct_personal_states"] > 1
+    _check("G.2", m)
 
 
 def test_G3_shared_weight_batched_inference(shared):
@@ -79,6 +90,7 @@ def test_G3_shared_weight_batched_inference(shared):
                                                  "columns); the largest batch of one forward pass (decisions are "
                                                  "aggregated in 4-hour rounds).")
     assert m["members"] == 256
+    _check("G.3", m)
 
 
 def test_G5_parameter_changes_from_experience(runs):
@@ -97,6 +109,7 @@ def test_G5_parameter_changes_from_experience(runs):
                           "HELD-OUT value-prediction error of the initial weights (the frozen twin) minus that of the "
                           "learned weights, on examples never used for training (mean over 3 seeds).")
     assert m["frozen_hash_unchanged"]
+    _check("G.5", m)
 
 
 def test_G6_improvement_on_a_controlled_new_condition(runs):
@@ -113,6 +126,7 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
                           "difference is reported too: part of the improvement is general learning, not specific to "
                           f"the change. Per seed: {[r['phase2_difference'] for r in runs]}")
     assert len(lows) == 3
+    _check("G.6", m)
 
 
 def test_Gn1_actual_adaptation(runs):
@@ -124,33 +138,46 @@ def test_Gn1_actual_adaptation(runs):
                                                   "weights, the learning group against its frozen twin on the same "
                                                   "world after a controlled change, three seeds.")
     assert m["seeds"] == 3
+    _check("G.n1", m)
 
 
 def test_G4_independent_strategic_groups():
+    """Class 3 (population.strategic): four policy groups in one market - A (MLP, REINFORCE, objective profit), A0 (a
+    frozen copy of A's initial weights), B (GRU, A2C, objective reach), C (MLP, PPO, objective profit) - each
+    trained only on its own members' experience of building ventures with ordinary tools."""
     import torch
     torch.set_num_threads(1)
     from crucible.core.kernel import World
+    from crucible.population import strategic as STR
     from crucible.population.worlds import population_world
-    spec = population_world("development", 3, n=120, sites=6, tick_s=1800, adaptive=False,
-                            classes={"adaptive": 0, "strategic": 8, "semantic": 0})
+    spec = population_world("development", 3, n=200, sites=6, tick_s=1800, adaptive=False,
+                            classes={"adaptive": 0, "strategic": 16, "semantic": 0})
     w = World.create(spec)
-    st = w.modules["pop_strategic"]
-    groups = sorted(st.cfg.get("groups_ids", ["A", "B"])) if hasattr(st, "cfg") else ["A", "B"]
-    w.advance_time(w.now + 8 * DAY)
-    ups = [e.payload for e in w.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith(
-        "strategic")]
-    by = {}
-    for u in ups:
-        by.setdefault(u["group"], []).append(u["weights_hash"])
-    final = {g: h[-1] for g, h in by.items()}
-    m = {"independent_strategic_groups": int(sum(1 for h in by.values() if len(set(h)) > 1)),
-         "distinct_group_weight_hashes": int(len(set(final.values()))),
-         "strategic_policy_updates": int(len(ups)), "groups": ",".join(sorted(by))}
-    evidence.record("G.4", m, command=CMD, notes="Two class-3 strategic policy groups (different architectures and "
-                                                 "learning algorithms) update only from their own members' "
-                                                 "experience over 8 simulated days. Class 3 remains the 4-head "
-                                                 "template policy of the audit (strategic redesign is wave 3).")
-    assert m["strategic_policy_updates"] >= 0 and groups
+    try:
+        w.advance_time(w.now + 8 * DAY)
+        ups = [e.payload for e in w.log if e.type == "pop.policy_update" and str(e.payload["group"]).startswith(
+            "strategic")]
+        by = {}
+        for u in ups:
+            by.setdefault(u["group"], []).append(u["weights_hash"])
+        final = {g: h[-1] for g, h in by.items()}
+        b = STR.behaviour(w)
+        own = {g: sorted({r["member"] for r in w.state.tables["pop_strat_exp"].values() if r["group"] == g})
+               for g in w.state.tables["pop_strat_groups"]}
+        m = {"independent_strategic_groups": int(sum(1 for h in by.values() if len(set(h)) > 1)),
+             "distinct_group_weight_hashes": int(len(set(final.values()))),
+             "strategic_policy_updates": int(len(ups)), "groups": ",".join(sorted(by)),
+             "frozen_control_unchanged": bool(len(set(by.get("strategic:A0", ["x"]))) == 1),
+             "strategic_decisions": int(b["decisions"])}
+        evidence.record("G.4", m, command=CMD, notes=(
+            "Four class-3 strategic policy groups (different architectures, algorithms and objectives) in one market, "
+            "8 simulated days; each update uses only its own members' decisions (members per group: "
+            f"{ {g: len(v) for g, v in own.items()} }); A0 is a frozen copy of A's initial weights. Behaviour: "
+            f"{b['kinds']}, outcomes {b['outcomes']}, successful actions {b['actions_ok']}."))
+    finally:
+        w.close()
+    assert m["strategic_decisions"] > 0
+    _check("G.4", m)
 
 
 def test_G7_compact_vs_language_comparison(runs):
@@ -159,11 +186,17 @@ def test_G7_compact_vs_language_comparison(runs):
     weights are in the local cache): rank correlation of each model's value estimate with the realised utility,
     parameters and time per decision."""
     rows = PX.compact_vs_language(runs[0], seed=0)
-    ok = [r for r in rows if not r.get("error")]
-    m = {"compact_vs_language_comparison_rows": len(ok)}
+    lang = [r for r in rows if r.get("kind") == "language" and not r.get("error")]
+    comp = [r for r in rows if r.get("kind") == "compact"]
+    m = {"compact_vs_language_comparison_rows": len(lang) if comp else 0, "compact_rows": len(comp)}
     for r in rows:
         m[f"{r['model']}_spearman"] = round(float(r["spearman"]), 4)
         m[f"{r['model']}_params"] = int(r["params"])
         m[f"{r['model']}_ms_per_decision"] = round(float(r["ms_per_decision"]), 3)
-    evidence.record("G.7", m, command=CMD, notes=f"Rows: {rows}")
+    evidence.record("G.7", m, command=CMD, notes=(
+        "Each language-capable model (zero-shot, crucible.semantic's inference service on local checkpoints) and "
+        "each compact class-2 policy (learned, and its identical-init frozen twin) values the same held-out resource "
+        "decisions; a comparison row is a language model that ran, set against the compact policies "
+        f"(Spearman correlation with the realised utility, parameters, ms per decision). Rows: {rows}"))
     assert len(rows) >= 3
+    _check("G.7", m)
