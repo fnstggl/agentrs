@@ -293,3 +293,14 @@ with type-dependent hidden failure hazards) and 8.7.5 `net_balance` (three opera
 demands and costs) are new training families with their own claims, identification, oracle and public reference; each
 was designed to be solvable only by acting on information gathered during the episode (fidelity records
 `rapid.leads`, `rapid.ventures`, `rapid.commit`, `rapid.balance`).
+
+## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
+The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset
+now for purely experimental use and I will currently get the license for it." Decision: the pinned mirror copy of
+MIND-small (huyva/MIND-small, revision d771a250) is used for purely experimental, non-commercial research, including
+news_click@1/@2, the population interest prior and the semantic space's MIND validation; the owner is obtaining the
+official licence. Consequences: B-1 moves to the resolved section of BLOCKERS.md; the dataset entry records the owner's
+authorisation and that the official licence is pending (`datasets()["mind_small"]["license"]["acceptance_status"]`);
+derived artifacts stay marked non-commercial research only and no MIND data is redistributed (LICENSE_NOTICE.md). No
+agent accepted the licence on the owner's behalf or used a credential. Follow-up when the official files are available:
+verify the mirror against them (or re-fit) and record the acceptance (who, when, licence version).
