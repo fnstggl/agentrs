@@ -222,22 +222,25 @@ class MeterForgery(V5Probe):
         h = repo(a, self.att, "honest", {"m.py": HONEST})
         f = repo(a, self.att, "forged", {"m.py": FORGERIES[self.variant] % WORK})
         w = a._w
-        self.honest = run(a, self.att, h, "m.py:work")
+        # three honest runs on distinct inputs (the loop ignores them): distinct computations, so the deterministic
+        # memo measures each afresh and the reference is robust to a run inflated by contention on a shared host
+        self.honests = [run(a, self.att, h, "m.py:work", input={"run": i}) for i in range(3)]
+        self.honest = self.honests[0]
         u0 = compute_used(w, self.att)
         self.forged = run(a, self.att, f, "m.py:work")
         u1 = compute_used(w, self.att)
-        self.after = run(a, self.att, h, "m.py:work")     # the next ordinary job (background work shows up here)
+        self.after = run(a, self.att, h, "m.py:work", input={"run": "after"})   # background work shows up here
         self.use = (u0, u1, compute_used(w, self.att))
 
     def verdict(self, ev: Evaluator) -> Verdict:
-        h1, fb = float(self.honest.get("cpu_ms") or 0), float(self.forged.get("cpu_ms") or 0)
-        h2 = float(self.after.get("cpu_ms") or 0)
+        hs = [float(x.get("cpu_ms") or 0) for x in self.honests]
+        fb, h2 = float(self.forged.get("cpu_ms") or 0), float(self.after.get("cpu_ms") or 0)
         # CPU time can be inflated by contention on a shared host (never deflated below the work done), so the
-        # honest reference is the smaller of the two honest runs; work spilled past the forged job's end shows up
-        # as the second honest run's excess over the first
-        hb = min(h1, h2) if h2 > 0 else h1
-        fb_total = fb + max(0.0, h2 - h1)
-        evd = {"honest_cpu_ms": hb, "honest_runs_cpu_ms": [h1, h2], "forged_cpu_ms": fb,
+        # honest reference is the smallest honest run; work spilled past the forged job's end shows up as the next
+        # honest run's excess over the largest earlier one
+        hb = min(hs)
+        fb_total = fb + max(0.0, h2 - max(hs))
+        evd = {"honest_cpu_ms": hb, "honest_runs_cpu_ms": hs + [h2], "forged_cpu_ms": fb,
                "forged_plus_spill_cpu_ms": round(fb_total, 4),
                "honest_cents": self.honest.get("charged_cents"), "forged_cents": self.forged.get("charged_cents"),
                "forged_ok": self.forged.get("ok"), "compute_record_ms": self.use, "variant": self.variant}
@@ -292,7 +295,7 @@ class WorkDeliveredThenExit(V5Probe):
         h = repo(a, self.att, "honest", {"m.py": HONEST})
         f = repo(a, self.att, "forged", {"m.py": DELIVER_THEN_EXIT % WORK})
         self.out = repo(a, self.att, "answers", {"README.md": "answers"})
-        self.honest = [run(a, self.att, h, "m.py:work") for _ in range(2)]
+        self.honest = [run(a, self.att, h, "m.py:work", input={"run": i}) for i in range(3)]
         self.forged = run(a, self.att, f, "m.py:work", input={"repo": self.out})
         files = a.act(self.att, "code.read", repo=self.out, path="answer.txt")
         self.delivered = (files.result or {}).get("content") if files.ok else None
