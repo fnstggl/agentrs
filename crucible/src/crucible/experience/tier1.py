@@ -561,8 +561,9 @@ class RapidExperienceEnv(BaseExperienceEnv):
                 self._vis[a].append(seq)
         return seq
 
-    def _sync(self) -> None:
-        """Convert the rapid world's new raw events into the adapter's log (each once, with its own visibility)."""
+    def _sync(self, queued: dict | None = None, t_before: int | None = None) -> None:
+        """Convert the rapid world's new raw events into the adapter's log (each once, with its own visibility). An
+        event a participant itself produced in this tick (its message) names that participant's action as cause."""
         raw = self._raw_events()
         tick = int(getattr(self.env, "t", 0))
         for e in raw[self._raw_seen:]:
@@ -572,7 +573,11 @@ class RapidExperienceEnv(BaseExperienceEnv):
             et = e.pop("t", None)
             actor = str(e.pop("from", "world"))
             t = (int(et) if isinstance(et, (int, float)) else max(0, tick - 1)) * self.tick_s
-            self._emit(typ, json_copy(e), vis if vis == "public" else list(vis), actor=actor, t=t)
+            cause = None
+            if queued and actor in queued:
+                _, seq, tool = queued[actor]
+                cause = {"agent": actor, "action_seq": seq, "tool": tool, "t": int(t_before or 0), "via": "direct"}
+            self._emit(typ, json_copy(e), vis if vis == "public" else list(vis), actor=actor, t=t, cause=cause)
         self._raw_seen = len(raw)
 
     # ------------------------------------------------------------------ protocol
@@ -683,7 +688,7 @@ class RapidExperienceEnv(BaseExperienceEnv):
         if not isinstance(results, dict):
             r0 = dict(out.get("result") or {})
             results = {self._agents[0]: r0}
-        self._sync()
+        self._sync(queued, t_before)
         ret = {}
         for a in self._agents:
             self._obs[a] = self._raw_obs(a)
