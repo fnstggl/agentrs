@@ -60,6 +60,10 @@ Single pieces:
   second copy of the database and the file sizes count it twice).
 * World-generation cost: `World.create` plus the first simulated day's CPU beyond a median day (deployments and
   warm-up the world's first processes do); T5 is checked on the sum.
+* Benchmark runs start with a cold machine cache of their own (`$CRUCIBLE_CACHE` in the run's store directory): a run
+  of a seed that an earlier run already simulated would otherwise be served its text representations from the
+  machine-wide cache (measured: a standard civ day costs 27-29 CPU-s with them cached and 57 CPU-s when its 356 new
+  texts are encoded). Cross-world reuse is measured separately (V.6).
 * Event-driven speedup: CPU of the population's decision policies evaluated for every eligible individual at every
   tick (dense) over the same evaluation for the individuals each tick activated, both as observers of one world whose
   hash chain is unchanged (equal outcomes); activations, triggered wake-ups and world CPU per activation are reported.

@@ -556,8 +556,11 @@ def time_grant_s(profile: str, days: float, headroom: float = 3.0) -> float | No
 
 
 def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: int = 1, gpu_mb: int | None = None,
-             timeout_s: float | None = None) -> dict:
-    """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record."""
+             timeout_s: float | None = None, cold_cache: bool = False) -> dict:
+    """Run `cmd` as a governed job with declared grants in every dimension; returns the usage record. With
+    `cold_cache` the job gets a fresh machine cache of its own (`$CRUCIBLE_CACHE` inside `store_dir`): nothing an
+    earlier run computed on this machine (representations, metering anchors, weights hashes) is reused, so a
+    benchmark run pays the full cost of new content."""
     from . import slots
     ram, disk, gpu = GRANTS[profile]
     gpu_mb = gpu if gpu_mb is None else gpu_mb
@@ -565,6 +568,9 @@ def governed(cmd: list[str], profile: str, label: str, store_dir: str, *, cpu: i
     env = dict(os.environ)
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     env.setdefault("OMP_NUM_THREADS", "1")
+    if cold_cache:
+        env["CRUCIBLE_CACHE"] = os.path.join(store_dir, "machine-cache")
+        os.makedirs(env["CRUCIBLE_CACHE"], exist_ok=True)
     return slots.run_job(cmd, cpu=cpu, gpu_mb=gpu_mb, label=label, timeout_s=timeout_s, ram_mb=ram, disk_mb=disk,
                          disk_dirs=[store_dir],
                          inference=2, worlds=4, gpu_s=(GPU_S if gpu_mb else None), env=env, sample_s=2.0, poll_s=2.0)
@@ -611,7 +617,7 @@ def suite(kinds=("civ",), profiles=PROFILES, seeds=(0, 1, 2), days: float = 30, 
         sd = os.path.join(work, f"store-{k}-{p}-{s}")
         f = os.path.join(work, name + ".json")
         rec = governed(_run_cmd(k, p, s, days, sd, f), p, f"M: bench5 {k} {p} seed {s} {days:g}d", sd,
-                       timeout_s=time_grant_s(p, days))
+                       timeout_s=time_grant_s(p, days), cold_cache=True)
         shutil.rmtree(sd, ignore_errors=True)
         try:
             r = json.load(open(f))
