@@ -709,7 +709,7 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
                                                                  else 0.025},
                                           "pop": {"profile": "development", "n": n_pop, "tick_s": 1800,
                                                   "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}}},
-                           params={"target_phenomenon": "ph0"})
+                           params={"target_phenomenon": "ph0", "log_retain": 3_000_000})
 # ====================================================================== objective, evaluator
 THRESHOLD = {1: 0.10, 2: 0.05, 3: 0.025}
 REPLICATIONS = {1: 1, 2: 2, 3: 2}
