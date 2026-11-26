@@ -66,7 +66,7 @@ Gate Q (`harness.is_civilisation`).
 
 Unit tests (CPU, ~1 min): `tests/test_v5_selfplay_obsonly.py`, `tests/test_v5_selfplay_multiagent.py`.
 Gate tests (civilisation, GPU text path): `tests/v5/test_gate_Q.py` and `test_gate_SP_12_0.py` (full campaign: three
-demonstration worlds of 48 h, 8 epochs of cloning, a held-out GRU/PPO family, 96 simulated hours with 9 admitted
+demonstration worlds of 48 h, 12 epochs of cloning, a held-out GRU/PPO family, 96 simulated hours with 9 admitted
 identities, held-out evaluation on two sealed seeds, strategy switch) and `test_gate_SP_12_1/1b/2/3/3b.py` (24 h):
 
     PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 4000 --ram-mb 6000 --timeout 7200 \
