@@ -273,7 +273,7 @@
     "tests/v5/test_gate_SP_21.py"
    ],
    "status_claim": "implemented; measured locally: passes",
-   "notes": "Checked across git history as well: 0 requirements removed and 0 criteria weakened against all 6 committed manifest versions (11 commits) and all 5 derive() versions of requirements.py (11 commits) in HEAD's history; the check is now permanent (manifest.history_problems) and the spec anchor is immutable. merge-workstreams after the wave-1/2a merges appended 80 ledger entries (additions only)."
+   "notes": "Checked across git history as well: 0 requirements removed and 0 criteria weakened against all 6 committed manifest versions (11 commits) and all 5 derive() versions of requirements.py (11 commits) in HEAD's history; the check is now permanent (manifest.history_problems) and the spec anchor is immutable. merge-workstreams after the wave-1/2a merges appended 82 ledger entries (additions only)."
   },
   "SP-21b": {
    "implementation_files": [
@@ -361,7 +361,7 @@
   "Official evidence was not produced (by instruction: produced later on the integration branch)."
  ],
  "integration_notes": [
-  "Ledger: this branch appended 80 entries (merge-workstreams after the wave-1/2a merges). No other branch has touched the ledger since 87a6c54; if one does, take this branch's ledger and re-run merge-workstreams on the integration branch (never hand-merge the ledger).",
+  "Ledger: this branch appended 82 entries (merge-workstreams after the wave-1/2a merges and for P's report; additions only). No other branch has touched the ledger since 87a6c54; if one does, take this branch's ledger and re-run merge-workstreams on the integration branch (never hand-merge the ledger).",
   "D-26 is used here (acceptance hardening). If another branch also adds D-26, keep both texts under the heading (the checker concatenates sections with the same id) or renumber the other branch's; no ledger entry cites D-26.",
   "Evidence schema is now crucible.v5.evidence/3 (run/2, review/3): records of earlier schemas are rejected. Official runs and reviews need a session identity (CRUCIBLE_V5_SESSION or CLAUDE_CODE_SESSION_ID) and run pytest with -s -p crucible.acceptance.v5.evidence in a scrubbed environment; reviews now ablate the implementation (one extra short run).",
   "--verify-all without --reproduce never reports a terminal status (it adds a project problem saying so); progress milestones therefore always record IN_PROGRESS until the release check.",
