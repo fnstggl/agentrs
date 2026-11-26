@@ -15,8 +15,9 @@ from uniforms), so two copies of a world that differ only in decisions see exact
 
 Scenarios (one per family):
 
-    distribution  a depot replenished after a hidden lead time ships stock to sites with hidden demand rates;
-                  sales are censored by stock (inventory allocation with delayed replenishment, 8.4.1)
+    distribution  a depot replenished after a hidden lead time ships stock to sites whose hidden demand rates shift
+                  at hidden times (local regimes: a site heats up or goes quiet); sales are censored by stock
+                  (inventory allocation with delayed replenishment, 8.4.1)
     perishable    daily production of a good with a hidden shelf life; customers who take only fresh units,
                   flexible ones and bargain hunters drawn by a markdown; issuing order fifo/lifo (8.4.2)
     supply_chain  a serial chain of stages with hidden shipping and production lags and backlogs; customer demand
@@ -70,7 +71,7 @@ def _i(x) -> int:
 @register
 class Planning(RapidEngine):
     kind = "planning"
-    SECRET_KEYS = ("lam", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1",
+    SECRET_KEYS = ("lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1",
                    "t_change", "path", "t_jump", "build_lag", "recipe", "dem", "work", "prod", "beta", "dud",
                    "mu_amp", "mu_phase", "mu_mean", "true_time", "speed")
 
@@ -322,7 +323,7 @@ class Planning(RapidEngine):
         st["transit"] = [x for x in st["transit"] if x[0] != t]
         sold, short = [], []
         for i in range(M):
-            d = pois(float(u[i]), c["lam"][i])
+            d = pois(float(u[i]), self.site_rate(i, t))
             s = min(float(d), st["sites"][i])
             st["sites"][i] -= s
             sold.append(s)
@@ -437,6 +438,16 @@ class Planning(RapidEngine):
             nums[f"{n}.received"] = recv[k]
             nums[f"{n}.shipped"] = shipped[k]
         return {"obs": {a: {"numbers": nums}}, "revenue": {a: rev}, "cost": {a: cost}, "info": {}}
+
+    def site_rate(self, i: int, t: int) -> float:
+        """Mean demand of site i in period t in the distribution world (evaluator side): its base rate times the
+        multiplier of the local regime in force (`lam_sched[i]`: [[start period, multiplier], ...])."""
+        c = self.config
+        m = 1.0
+        for t0, x in (c.get("lam_sched") or [[]] * (i + 1))[i]:
+            if t >= t0:
+                m = float(x)
+        return float(c["lam"][i]) * m
 
     def demand_path(self, t: int) -> float:
         """Mean demand of period t in the capacity world (evaluator side; the hidden growth scenario)."""
@@ -672,7 +683,7 @@ class Planning(RapidEngine):
             nodes = ["supplier", "depot"] + [f"site{i}" for i in range(len(c["site_names"]))]
             edges = [{"src": "supplier", "dst": "depot", "kind": "replenish", "lag": int(c["lead"])}]
             edges += [{"src": "depot", "dst": f"site{i}", "kind": "ship", "lag": 1} for i in range(len(c["site_names"]))]
-            hidden = {"lam": c["lam"], "lead": c["lead"]}
+            hidden = {"lam": c["lam"], "lam_sched": c.get("lam_sched"), "lead": c["lead"]}
         elif sc == "perishable":
             nodes = ["oven", "shelf", "fresh_buyers", "flexible_buyers", "bargain_buyers", "bin"]
             edges = [{"src": "oven", "dst": "shelf", "kind": "make", "lag": 0},
@@ -724,7 +735,8 @@ class Planning(RapidEngine):
 
     def motifs(self) -> list[str]:
         return {
-            "distribution": ["delay", "stock", "resource_competition", "selection_effect", "partial_observability"],
+            "distribution": ["delay", "stock", "resource_competition", "selection_effect", "partial_observability",
+                             "regime_change"],
             "perishable": ["stock", "decay", "substitution", "endogenous_demand", "non_monotonic"],
             "supply_chain": ["delay", "stock", "feedback", "regime_change", "partial_observability"],
             "capacity": ["delay", "stock", "path_dependence", "regime_change", "saturation"],

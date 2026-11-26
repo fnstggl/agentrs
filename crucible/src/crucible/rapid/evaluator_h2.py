@@ -124,28 +124,43 @@ def _dist_act(lam, L, depot, on_order, stocks, z_d, z_s, cover, names, order_nam
     return {"kind": "sequence", "steps": steps}
 
 
+def _rates_ahead(eng, t: int, n: int) -> list[float]:
+    """Mean hidden demand rate of each site over periods t .. t+n-1 (evaluator only: the oracle's forecast)."""
+    M = len(eng.config["site_names"])
+    return [float(np.mean([eng.site_rate(i, t + k) for k in range(max(1, n))])) for i in range(M)]
+
+
 def oracle_distribution(env) -> dict:
     eng, st, c = inside(env)
     names = c["site_names"]
+    L = int(c["lead"])
 
     def pol(z_d, z_s, cover):
         def fn(e):
             s = e._state
-            return _dist_act(c["lam"], c["lead"], s["depot"], sum(q for _, q in s["pipe"]), s["sites"], z_d, z_s,
-                             cover, names, c["order_name"], c["ship_cap"])
+            ahead = _rates_ahead(e._engine, e.t + 1, int(L + 1 + cover))     # what the depot's order must cover
+            near = _rates_ahead(e._engine, e.t + 1, int(math.ceil(cover)))   # what a shipment must cover
+            act = _dist_act(ahead, L, s["depot"], sum(q for _, q in s["pipe"]), s["sites"], z_d, z_s, cover, names,
+                            c["order_name"], c["ship_cap"])
+            ship = _dist_act(near, L, s["depot"], sum(q for _, q in s["pipe"]), s["sites"], z_d, z_s, cover,
+                             names, c["order_name"], c["ship_cap"])
+            return {"kind": "sequence", "steps": act["steps"][:1] + ship["steps"][1:]}
         return fn
     return best_of(env, {f"base_stock z={zd},{zs} cover={cv}": pol(zd, zs, cv) for zd in (0.0, 1.0, 2.0)
                          for zs in (0.5, 1.5) for cv in (2.0, 2.5)})
 
 
 def reference_distribution(view, env):
-    """Public: learn each site's demand from censored sales (raised when a site ran out) and the lead time from the
-    first delivery to the depot; then a base-stock rule for the depot and order-up-to shipments to sites."""
+    """Public: track each site's demand from censored sales (a sold-out site's demand is at least what it sold, so
+    the estimate is raised; a run of sell-outs raises it faster) and learn the lead time from the first delivery to
+    the depot; then a base-stock rule for the depot and order-up-to shipments to sites. The tracker forgets old
+    sales quickly because a site's demand can shift at any time."""
     sp = view.action_space()
     order = _levers(sp)[0]
     names = _targets(sp)
     cap = float(sp.limits["allocate_total"])
     est = {n: 3.0 for n in names}
+    run = {n: 0 for n in names}
     L, first = None, None
     obs = view.observe()
     while not view.done:
@@ -153,16 +168,24 @@ def reference_distribution(view, env):
         if x:
             for n in names:
                 s = x[f"{n}.sold"]
-                d = s * 1.3 if x[f"{n}.stockout"] > 0 else s
-                est[n] = 0.8 * est[n] + 0.2 * d
+                if x[f"{n}.stockout"] > 0:              # censored: demand was at least the sales, probably more
+                    run[n] += 1
+                    d = s + max(1.0, 0.5 * s) * min(run[n], 3)
+                else:
+                    run[n] = 0
+                    d = s
+                est[n] = 0.65 * est[n] + 0.35 * d
             if L is None and first is not None and x["depot_received"] > 0:
                 L = view.t - 1 - first
         if first is None:
             first = view.t
         lam = [est[n] for n in names]
+        tot = sum(lam)
+        if tot > cap:                                  # the depot cannot ship more than its capacity per period
+            lam = [v * cap / tot for v in lam]
         stocks = [x.get(f"{n}.stock", 0.0) for n in names] if x else [0.0] * len(names)
         act = _dist_act(lam, L if L is not None else 3, x.get("depot_stock", 20.0) if x else 20.0,
-                        x.get("on_order", 0.0) if x else 0.0, stocks, 1.0, 1.0, 2.0, names, order, cap)
+                        x.get("on_order", 0.0) if x else 0.0, stocks, 0.5, 0.5, 1.5, names, order, cap)
         obs = view.step(act)["observation"]
 
 
@@ -194,7 +217,8 @@ def claim_distribution(env) -> dict:
         if nums(ra["observation"])["depot_stock"] != nums(rb["observation"])["depot_stock"]:
             first = k
             break
-    hi, lo = int(np.argmax(c["lam"])), int(np.argmin(c["lam"]))
+    rate = _rates_ahead(eng, env.t + 3, 5)                 # the sites' hidden rates over the measured periods
+    hi, lo = int(np.argmax(rate)), int(np.argmin(rate))
     sold = {}
     for lab, i in (("high", hi), ("low", lo)):
         # ship the same 20 units to one site and count the extra sales that site makes over the next four ticks,
@@ -213,6 +237,7 @@ def claim_distribution(env) -> dict:
                 tot += nums(e.step(None)["observation"]).get(key, 0.0) - nums(f.step(None)["observation"]).get(key, 0.0)
         sold[lab] = tot / 16.0
     return {"ok": first == int(c["lead"]) and sold["high"] > sold["low"], "lead": int(c["lead"]),
+            "rate_high_site": rate[hi], "rate_low_site": rate[lo],
             "first_difference_at": first, "extra_sales_rate_high_demand_site": sold["high"],
             "extra_sales_rate_low_demand_site": sold["low"]}
 
@@ -1503,37 +1528,82 @@ def oracle_blotto(env) -> dict:
                          for s in (0.25, 0.5) for b in (1.0, 0.8)})
 
 
+def _opp_model_predict(X, Y, r, B0, m):
+    """One-step predictions of a contest opponent that best-responds to an exponential moving average (weight m on
+    the newest period) of my allocations X, with relative site values inferred from the first-order conditions of
+    its observed efforts Y (a Tullock contest: value_k * r y^(r-1) x^r / (y^r + x^r)^2 is equal across the sites it
+    contests). Returns (predictions for periods 1..len(Y), relative values)."""
+    K = len(B0)
+    xbar = list(B0)
+    xs = []
+    for x in X:
+        xs.append(list(xbar))
+        xbar = [(1 - m) * a + m * b for a, b in zip(xbar, x)]
+    xs.append(list(xbar))                         # what the opponent will respond to next
+    logs = [[] for _ in range(K)]
+    for xb, y in zip(xs, Y):
+        for k in range(K):
+            if y[k] > 1e-6 and xb[k] > 1e-6:
+                logs[k].append(2 * math.log(y[k] ** r + xb[k] ** r) - math.log(r) - (r - 1) * math.log(y[k])
+                               - r * math.log(xb[k]))
+    have = [np.mean(v) for v in logs if v]
+    floor = (min(have) - 1.0) if have else 0.0
+    w = [math.exp(np.mean(v) - floor) if v else 1.0 for v in logs]
+    budget = float(np.mean([sum(y) for y in Y])) if Y else float(sum(B0))
+    from .engines.strategic import contest_br
+    preds = [contest_br(w, xb, budget, r) for xb in xs]
+    return preds, w
+
+
 def reference_blotto(view, env):
     """Public: estimate each site's prize from the income observed against the shares won (revenue = sum of prize x
-    share, least squares over the periods so far; prizes are not announced), the contest's decisiveness from
-    observed efforts and shares, predict the opponent's next efforts by its last ones, and best-respond."""
+    share, least squares; prizes are not announced) and the contest's decisiveness from observed efforts and
+    shares; model the opponent as a contest player that best-responds to a moving average of my past efforts -
+    its relative site values from the first-order conditions of the efforts it was seen to make, the averaging
+    weight by which weight predicts its observed efforts best - then predict its next efforts and best-respond to
+    the prediction."""
     sp = view.action_space()
     sites = _targets(sp)
+    K = len(sites)
     B = float(sp.limits["allocate_total"])
     r_est = []
     r = 1.5
-    obs = view.step({"kind": "allocate", "amounts": {s: B / len(sites) for s in sites}})["observation"]
-    last_x = {s: B / len(sites) for s in sites}
+    first = {s: B / K for s in sites}
+    obs = view.step({"kind": "allocate", "amounts": first})["observation"]
+    X, Y = [[first[s] for s in sites]], []
     S_rows, R_rows = [], []
     prize = {s: 100.0 for s in sites}
+    B0 = [B / K] * K                                  # the opponent's view of me before I have played
     while not view.done:
         x = nums(obs)
         S_rows.append([x[f"{s}.my_share"] for s in sites])
         R_rows.append(float(obs["resources"].get("revenue_cents_last_tick", 0.0)))
-        if len(S_rows) >= len(sites) + 2:
+        if len(S_rows) >= K + 2:
             est, *_ = np.linalg.lstsq(np.asarray(S_rows), np.asarray(R_rows), rcond=None)
             prize = {s: float(max(v, 1.0)) for s, v in zip(sites, est)}
         elif sum(S_rows[-1]) > 0:
             prize = {s: R_rows[-1] / sum(S_rows[-1]) for s in sites}
         y = [x[f"{s}.rival_effort"] for s in sites]
-        for s, yy in zip(sites, y):
-            sh = x[f"{s}.my_share"]
-            if 0.02 < sh < 0.98 and yy > 0 and last_x[s] > 0 and abs(math.log(last_x[s] / yy)) > 0.05:
-                r_est.append(math.log(sh / (1 - sh)) / math.log(last_x[s] / yy))
+        Y.append(y)
+        last = X[-1]
+        for k, yy in enumerate(y):
+            sh = S_rows[-1][k]
+            if 0.02 < sh < 0.98 and yy > 0 and last[k] > 0 and abs(math.log(last[k] / yy)) > 0.05:
+                r_est.append(math.log(sh / (1 - sh)) / math.log(last[k] / yy))
         if len(r_est) >= 3:
             r = float(np.clip(np.median(r_est), 0.5, 4.0))
-        alloc = _blotto_br([prize[s] for s in sites], y, r, B, 12.0, 0.5)
-        last_x = dict(zip(sites, alloc))
+        if len(Y) >= 3:
+            best = None
+            for m in (0.2, 0.4, 0.6, 0.8, 0.9, 1.0):
+                preds, _ = _opp_model_predict(X, Y, r, B0, m)
+                err = sum(sum((a - b) ** 2 for a, b in zip(p_, y_)) for p_, y_ in zip(preds[:-1], Y))
+                if best is None or err < best[0]:
+                    best = (err, preds[-1])
+            y_next = best[1]
+        else:
+            y_next = y
+        alloc = _blotto_br([prize[s] for s in sites], y_next, r, B, 12.0, 0.5)
+        X.append(list(alloc))
         obs = view.step({"kind": "allocate", "amounts": dict(zip(sites, alloc))})["observation"]
 
 

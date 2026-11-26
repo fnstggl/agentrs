@@ -30,12 +30,15 @@ def hooks(name: str) -> dict:
 
 
 # ====================================================================== planning engine: 8.4 resource allocation
+DIST_TERMS = (50.0, 32.0, 2.0, 0.5, 2.0)          # price, unit cost, shipping, holding at the depot and at a site
 @family("plan_distribution", engine="planning", category="8.4", item="8.4.1", split="train",
         doc="A depot replenished by a supplier after a hidden lead time ships stock to sites whose demand rates are "
-            "hidden; unmet demand is lost and sales are censored by stock.",
+            "hidden and shift at hidden times (a site heats up or goes quiet for a while); unmet demand is lost and "
+            "sales are censored by stock, so where demand is now has to be inferred from what sells out.",
         distinct_because="two-echelon distribution: an order lever with a hidden replenishment lag feeds a depot whose "
-                         "stock is split over sites by allocation; demand is only seen through censored sales",
-        axes={"graph_size": 3, "horizon": 50, "resources": 40}, objective="maximize_net", **hooks("distribution"))
+                         "stock is split over sites by allocation; site demand follows hidden local regimes and is "
+                         "only seen through censored sales",
+        axes={"graph_size": 3, "horizon": 50, "resources": 20}, objective="maximize_net", **hooks("distribution"))
 def plan_distribution(rng, d):
     M = int(d["graph_size"])
     names = neutral_names(rng, M + 1)
@@ -44,17 +47,32 @@ def plan_distribution(rng, d):
     ladder = [lo_ * (hi_ / lo_) ** (k / max(1, M - 1)) for k in range(M)]
     lam = [float(ladder[i]) for i in rng.permutation(M)]
     lead = int(rng.integers(2, 6))
-    return {"engine": "planning", "scenario": "distribution", "horizon": int(d["horizon"]), "site_names": names[:M],
-            "order_name": names[M], "lam": lam, "lead": lead, "price": 50.0, "unit_cost": 20.0, "ship_cost": 2.0,
-            "hold_depot": 0.4, "hold_site": 1.0, "max_order": float(20 * M), "ship_cap": float(d["resources"]),
-            "init_depot": 20.0, "init_sites": [float(round(2 * x)) for x in lam], "endowment": 100_000,
+    H = int(d["horizon"])
+    # local demand regimes: each site's rate is multiplied by a level that changes at hidden times (on average every
+    # third of the episode), so which site is hot - and how much the depot must order - keeps changing
+    sched = []
+    for _ in range(M):
+        segs, t0 = [[0, float(np.clip(np.exp(rng.normal(0.0, 0.7)), 0.3, 3.0))]], 0
+        while True:
+            t0 += int(max(5, rng.exponential(12.0)))
+            if t0 >= H:
+                break
+            segs.append([t0, float(np.clip(np.exp(rng.normal(0.0, 1.0)), 0.15, 4.0))])
+        sched.append(segs)
+    price, unit, ship, h_dep, h_site = DIST_TERMS
+    return {"engine": "planning", "scenario": "distribution", "horizon": H, "site_names": names[:M],
+            "order_name": names[M], "lam": lam, "lam_sched": sched, "lead": lead, "price": price, "unit_cost": unit,
+            "ship_cost": ship, "hold_depot": h_dep, "hold_site": h_site, "max_order": float(20 * M),
+            "ship_cap": float(d["resources"]),
+            "init_depot": 20.0, "init_sites": [float(round(2 * x * sched[i][0][1])) for i, x in enumerate(lam)],
+            "endowment": 100_000,
             "objective": {"type": "maximize_net", "text": "Maximise sales revenue minus purchase, shipping and "
                                                           "holding costs."},
             "brief": f"You run a depot that supplies {M} sites. Order units from the supplier (lever "
                      f"{names[M]}; they reach the depot after a lead time you do not know) and ship depot stock to "
                      "the sites (allocate; shipments arrive next period). Customers buy at the sites; demand that "
-                     "finds no stock is lost. Price 50, unit cost 20, shipping 2 per unit, holding 0.4 per unit at "
-                     "the depot and 1 at a site per period."}
+                     f"finds no stock is lost. Price {price:g}, unit cost {unit:g}, shipping {ship:g} per unit, holding "
+                     f"{h_dep:g} per unit at the depot and {h_site:g} at a site per period."}
 
 
 @family("plan_perishable", engine="planning", category="8.4", item="8.4.2", split="train",
