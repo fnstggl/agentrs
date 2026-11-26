@@ -1,16 +1,14 @@
 """Per-capability model routing and the selective-GPU policy of the shared semantic service.
 
 **Routing** (MASTER_SPEC 3.2 class 4: "use the smallest model or combination of models that meets each capability
-requirement"; DECISION_LOG D-10). `route(capability)` names the model for a decision of that capability:
-
-* default: ``Qwen/Qwen3-0.6B`` (smallest effective model for content understanding, situation interpretation, tool
-  choice, communication and incentive adaptation in SP-3.2b);
-* escalation to ``Qwen/Qwen3-1.7B`` for ``programming``, ``negotiation`` and ``strategic_decisions``, where the
-  SP-3.2b held-out results show the 0.6B model is not effective.
-
-When an SP-3.2b report is present (`$CRUCIBLE_DATA/semantic/capbench/sp32b.json`, written by `capbench.run`), its
-per-capability recommendation on held-out templates replaces this table entry by entry (`table()` says which
-source each entry came from). `service(capability)` returns the process-wide `SemanticService` of the routed model,
+requirement"; DECISION_LOG D-36, superseding D-10). `route(capability)` names the model for a decision of that
+capability. The committed decision `data/routing.json` is derived (`derive`) from the measured SP-3.2b report: per
+capability the smallest model effective on held-out templates, else the best-measured language model. On the
+report of 2026-11-26: content understanding and tool choice ``Qwen/Qwen3-0.6B``; communication
+``HuggingFaceTB/SmolLM2-135M-Instruct``; situation interpretation, incentive adaptation, negotiation, programming and
+strategic decisions ``Qwen/Qwen3-1.7B``. `TABLE` below (D-10: 0.6B default, 1.7B for programming, negotiation and
+strategy) is only the fallback when neither the committed decision nor a report
+(`$CRUCIBLE_DATA/semantic/capbench/sp32b.json`) is available; `table()` says which source each entry came from. `service(capability)` returns the process-wide `SemanticService` of the routed model,
 so every participant routed to a model shares one weight copy.
 
 **Selective GPU** (13.4). `device_for(model_id)` puts a model on the GPU only when the slot scheduler granted GPU
