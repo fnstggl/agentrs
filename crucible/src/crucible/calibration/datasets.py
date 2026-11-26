@@ -5,23 +5,33 @@ Datasets are never committed. `acquire(name)` downloads the files named here int
 safe `data` tar filter, verifies the SHA-256 of every extracted file it relies on and validates the schema (columns and
 row counts). World code never imports this module; it loads fitted checkpoints through `crucible.calibration.load`.
 
-Entries are plain dicts so other calibration workstreams can register their own datasets with `register(name, entry)`
-from their own modules (E2 does this for its datasets) without editing this file.
+Datasets come from three places, all served by the same `datasets()` / `acquire()` / `verify()`:
 
-Entry fields:
+* the recipes in this file (`_DATASETS`: KuaiRand-Pure, MIND-small);
+* committed dataset manifests ``docs/v5/calibration/datasets/<name>.json`` (schema
+  ``crucible.v5.calibration.dataset/1``: Criteo Uplift v2.1, the GH Archive window), normalised by `_from_manifest`;
+* `register(name, entry)` from any module ``crucible.calibration.datasets_<x>``, imported on first use.
+
+Entry fields (manifests keep their own fields as well; `_from_manifest` adds these):
 
 * ``title``, ``description``
 * ``files``: list of ``{path, url, sha256, size, md5?, extract?}``; ``path`` is relative to the dataset directory
 * ``extracted``: ``{relative path: sha256}`` for files produced by extraction that models depend on
-* ``schema``: ``{relative path: {format, columns, rows, header}}``
+* ``schema``: ``{relative path: {format, columns, rows, header}}`` (recipes) or the column description (manifests)
 * ``license``: ``{name, url, text_location, terms}``
 * ``provenance``: ``{publisher, source, landing_page, doi?, citation, population, platform, period, collection,
   mirror?, retrieved}``
 * ``synthetic``: False for every empirical dataset (gate F counts only non-synthetic datasets)
+* ``acquirer`` (optional): a module ``crucible.calibration.<x>`` for datasets that are not plain downloads (streamed
+  and reduced, or converted). It provides ``acquire_dataset(entry, dest) -> dir``, ``verify_dataset(entry, dest) ->
+  {file: ok|missing|mismatch}`` and optionally ``validate_dataset(entry, dest) -> [problems]``.
 """
 from __future__ import annotations
 
+import glob
 import hashlib
+import importlib
+import json
 import os
 import shutil
 import tarfile
@@ -30,6 +40,9 @@ import urllib.request
 import zipfile
 
 DEFAULT_ROOT = "/workspace/data/crucible"
+CRUCIBLE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+MANIFESTS_DIR = os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration", "datasets")
+MANIFEST_SCHEMA = "crucible.v5.calibration.dataset/1"
 
 
 def data_root() -> str:
@@ -204,10 +217,45 @@ def register(name: str, entry: dict) -> None:
     _DATASETS[name] = dict(entry, synthetic=bool(entry.get("synthetic", False)))
 
 
+def _from_manifest(m: dict, path: str) -> dict:
+    """A registry entry from a committed dataset manifest: every manifest field is kept, and the fields the entry
+    format names are added where the manifest spells them differently (``file`` / ``bytes`` -> ``path`` / ``size``,
+    ``license.spdx`` / ``text_locations`` -> ``name`` / ``text_location``, ``derived_files`` -> ``extracted``)."""
+    e = dict(m)
+    e["manifest"] = os.path.relpath(path, CRUCIBLE_ROOT)
+    e["manifest_schema"] = m.get("schema")
+    e["schema"] = m.get("schema_columns") or m.get("schema_extracted") or {}
+    e.setdefault("title", m["name"])
+    e["files"] = [dict(f, path=f.get("path") or f["file"], size=f.get("size", f.get("bytes")))
+                  for f in m.get("files", [])]
+    e["extracted"] = {f["file"]: f["sha256"] for f in m.get("derived_files", []) if f.get("sha256")}
+    lic = dict(m.get("license") or {})
+    locs = list(lic.get("text_locations") or [])
+    lic.setdefault("name", lic.get("spdx") or "")
+    lic.setdefault("text_location", "; ".join(locs))
+    lic.setdefault("url", locs[0] if locs else "")
+    lic.setdefault("terms", lic.get("summary", ""))
+    e["license"] = lic
+    if isinstance(m.get("size"), dict):
+        e["size_detail"] = m["size"]
+    return e
+
+
+def _load_manifests() -> None:
+    for p in sorted(glob.glob(os.path.join(MANIFESTS_DIR, "*.json"))):
+        with open(p, encoding="utf-8") as fh:
+            m = json.load(fh)
+        if m.get("schema") != MANIFEST_SCHEMA:
+            raise ValueError(f"{os.path.relpath(p, CRUCIBLE_ROOT)}: dataset manifest schema {m.get('schema')!r} "
+                             f"!= {MANIFEST_SCHEMA}")
+        if m.get("name") in _DATASETS and _DATASETS[m["name"]].get("manifest") is None:
+            raise ValueError(f"dataset {m['name']} is defined both in datasets.py and in {p}")
+        register(m["name"], _from_manifest(m, p))
+
+
 def _load_plugins() -> None:
     # Other calibration modules register their datasets on import; they are found by naming convention so this
     # file never needs editing: any module crucible.calibration.datasets_<x> is imported once.
-    import importlib
     import pkgutil
     from . import __path__ as pkg_path
     for m in pkgutil.iter_modules(pkg_path):
@@ -218,12 +266,24 @@ def _load_plugins() -> None:
 _PLUGINS_LOADED = False
 
 
-def datasets() -> dict[str, dict]:
-    """name -> {url, license, sha256 per file, size, schema, provenance, ...} (copies)."""
+def _ensure_loaded() -> None:
     global _PLUGINS_LOADED
     if not _PLUGINS_LOADED:
         _PLUGINS_LOADED = True
+        _load_manifests()
         _load_plugins()
+
+
+def _entry(name: str) -> dict:
+    _ensure_loaded()
+    if name not in _DATASETS:
+        raise KeyError(f"unknown dataset {name!r}; registered: {sorted(_DATASETS)}")
+    return _DATASETS[name]
+
+
+def datasets() -> dict[str, dict]:
+    """name -> {url, license, sha256 per file, size, schema, provenance, ...} (copies)."""
+    _ensure_loaded()
     out = {}
     for name, e in _DATASETS.items():
         d = dict(e)
@@ -236,6 +296,15 @@ def datasets() -> dict[str, dict]:
 
 def dataset_dir(name: str, dest: str | None = None) -> str:
     return dest or os.path.join(data_root(), name)
+
+
+def _acquirer(e: dict):
+    mod = e.get("acquirer")
+    if not mod:
+        return None
+    if not str(mod).startswith("crucible.calibration."):
+        raise ValueError(f"dataset acquirer must live in crucible.calibration, not {mod}")
+    return importlib.import_module(mod)
 
 
 def _download(url: str, path: str, sha256: str) -> None:
@@ -274,8 +343,11 @@ def _extract(archive: str, spec: dict, root: str) -> None:
 
 def verify(name: str, dest: str | None = None) -> dict:
     """Check every downloaded and extracted file against its SHA-256. Returns {path: ok|missing|mismatch}."""
-    e = _DATASETS[name] if name in _DATASETS else datasets()[name]
+    e = _entry(name)
     root = dataset_dir(name, dest)
+    mod = _acquirer(e)
+    if mod is not None:
+        return mod.verify_dataset(e, root)
     out = {}
     wanted = {f["path"]: f["sha256"] for f in e["files"]}
     wanted.update(e.get("extracted", {}))
@@ -290,8 +362,11 @@ def verify(name: str, dest: str | None = None) -> dict:
 
 def validate_schema(name: str, dest: str | None = None) -> list[str]:
     """Schema problems (columns, header, row counts); [] when the files match the recorded schema."""
-    e = datasets()[name]
+    e = _entry(name)
     root = dataset_dir(name, dest)
+    mod = _acquirer(e)
+    if mod is not None:
+        return list(mod.validate_dataset(e, root)) if hasattr(mod, "validate_dataset") else []
     errs = []
     for rel, sch in e.get("schema", {}).items():
         p = os.path.join(root, rel)
@@ -318,10 +393,13 @@ def validate_schema(name: str, dest: str | None = None) -> list[str]:
 
 def acquire(name: str, dest: str | None = None) -> str:
     """Download (if needed), verify checksums, extract and validate the schema; returns the dataset directory."""
-    e = _DATASETS[name] if name in _DATASETS else datasets()[name]
+    e = _entry(name)
     root = dataset_dir(name, dest)
     os.makedirs(root, exist_ok=True)
-    for f in e["files"]:
+    mod = _acquirer(e)
+    if mod is not None:                       # streamed / converted datasets: the module knows how
+        root = mod.acquire_dataset(e, root)
+    for f in ([] if mod is not None else e["files"]):
         p = os.path.join(root, f["path"])
         if not (os.path.exists(p) and sha256_file(p) == f["sha256"]):
             _download(f["url"], p, f["sha256"])

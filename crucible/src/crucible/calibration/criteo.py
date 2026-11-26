@@ -134,12 +134,30 @@ LICENSE = {
 }
 
 
+TITLE = "Criteo Uplift Prediction Dataset v2.1"
+DESCRIPTION = ("Pooled incrementality tests of Criteo display advertising: 13,979,592 users with 12 anonymised "
+               "features, a randomised treatment (eligibility for targeting), exposure, visit and conversion labels.")
+# Provenance facts that the calibration registry requires of every dataset (datasets.py, audit.provenance_complete).
+PROVENANCE = {
+    "publisher": "Criteo AI Lab (Diemert, Betlei, Renaudin, Amini)",
+    "citation": "Diemert, Betlei, Renaudin, Amini. A Large Scale Benchmark for Uplift Modeling. AdKDD 2018.",
+    "population": "users reached by the display-advertising campaigns of Criteo's advertisers in several pooled "
+                  "incrementality tests (advertisers, countries and dates not disclosed), sub-sampled non-uniformly "
+                  "by the publisher to 13,979,592 users",
+    "platform": "Criteo display advertising; outcomes are a visit to and a conversion on the advertiser's website",
+    "period": "collection period not disclosed by the publisher; released with Diemert et al. (AdKDD 2018)",
+    "identification": "randomized controlled trial of eligibility for targeting (exposure is not randomised)",
+    "retrieved": "2026-11-25",
+}
+
+
 def manifest(dest: str | None = None) -> dict:
     """The committed dataset manifest (built from a completed conversion record)."""
     with open(os.path.join(dataset_dir(dest), "converted.json")) as fh:
         conv = json.load(fh)
     return {
         "schema": "crucible.v5.calibration.dataset/1", "name": DATASET, "workstream": "E2", "synthetic": False,
+        "title": TITLE, "description": DESCRIPTION, "acquirer": __name__,
         "url": URL, "homepage": "https://ailab.criteo.com/criteo-uplift-prediction-dataset/",
         "mirror": {"kind": "huggingface", "repo": HF_REPO, "revision": HF_REVISION,
                    "note": "go.criteo.net/criteo-research-uplift-v2.1.csv.gz returned HTTP 404 on 2026-11-25; the "
@@ -159,6 +177,7 @@ def manifest(dest: str | None = None) -> dict:
                        "anonymised and randomly projected",
             "period_and_population": "not disclosed by the publisher (users of Criteo's advertisers' campaigns)",
             "acquired_by": "crucible.calibration.criteo.acquire",
+            **PROVENANCE,
         },
     }
 
@@ -169,11 +188,60 @@ def acquire(dest: str | None = None) -> str:
     return dataset_dir(dest)
 
 
+# ---------------------------------------------------------------- registry hooks (crucible.calibration.datasets)
+def acquire_dataset(entry: dict | None = None, dest: str | None = None) -> str:
+    """`datasets.acquire` hook: download (checksum-verified), validate the schema and convert once."""
+    return acquire(dest)
+
+
+def verify_dataset(entry: dict, dest: str | None = None) -> dict[str, str]:
+    """`datasets.verify` hook, {file: ok|missing|mismatch}: the downloaded file and the converted arrays against the
+    manifest's SHA-256."""
+    d = dataset_dir(dest)
+    want = {f["file"]: f["sha256"] for f in entry.get("files", [])}
+    want.update({f["file"]: f["sha256"] for f in entry.get("derived_files", [])})
+    out = {}
+    for fn, sha in want.items():
+        p = os.path.join(d, fn)
+        out[fn] = "missing" if not os.path.exists(p) else ("ok" if sha256_file(p) == sha else "mismatch")
+    return out
+
+
+def validate_dataset(entry: dict, dest: str | None = None) -> list[str]:
+    """`datasets.validate_schema` hook: the conversion record's schema checks (header, published row count, no NaN
+    feature, binary labels, no exposure in control, no conversion without a visit) agree with the manifest, and the
+    converted arrays have the published shapes."""
+    d = dataset_dir(dest)
+    p = os.path.join(d, "converted.json")
+    if not os.path.exists(p):
+        return [f"{p} missing: acquire the dataset"]
+    with open(p) as fh:
+        rec = json.load(fh)
+    errs = []
+    if rec.get("source_sha256") != SHA256:
+        errs.append("conversion record is not of the published file")
+    checks = rec.get("checks") or {}
+    if checks.get("rows") != ROWS:
+        errs.append(f"{checks.get('rows')} rows, published {ROWS}")
+    for k in ("nan_features", "non_binary_label_values", "exposed_in_control", "conversion_without_visit"):
+        if checks.get(k) != 0:
+            errs.append(f"{k} = {checks.get(k)}")
+    if entry.get("validation") and entry["validation"] != checks:
+        errs.append("conversion checks differ from the manifest's validation record")
+    for f, shape in [("features.npy", (ROWS, len(FEATURES)))] + [(f"{k}.npy", (ROWS,)) for k in LABELS]:
+        fp = os.path.join(d, f)
+        if not os.path.exists(fp):
+            errs.append(f"{f} missing")
+        elif np.load(fp, mmap_mode="r").shape != shape:
+            errs.append(f"{f} has shape {np.load(fp, mmap_mode='r').shape}, expected {shape}")
+    return errs
+
+
 def load(dest: str | None = None, mmap: bool = True) -> dict[str, np.ndarray]:
     d = dataset_dir(dest)
     for f in ["features.npy"] + [f"{k}.npy" for k in LABELS]:
         if not os.path.exists(os.path.join(d, f)):
-            raise FileNotFoundError(f"{d}/{f} missing: run crucible.calibration.registry_e2.acquire('{DATASET}')")
+            raise FileNotFoundError(f"{d}/{f} missing: run crucible.calibration.acquire('{DATASET}')")
     mode = "r" if mmap else None
     out = {"X": np.load(os.path.join(d, "features.npy"), mmap_mode=mode)}
     for k in LABELS:

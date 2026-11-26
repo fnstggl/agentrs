@@ -3,9 +3,13 @@
  "name": "gharchive_2024-10-07_96h",
  "workstream": "E2",
  "synthetic": false,
+ "title": "GH Archive: public GitHub events, 2024-10-07 to 2024-10-10 UTC (96 hourly dumps)",
+ "description": "Hourly dumps of the GitHub public events API archived by GH Archive, 2024-10-07T00 to 2024-10-11T00 UTC, streamed one hour at a time and reduced to a numeric event table (time, event type and action, numeric actor and repository ids, four derived flags, push size).",
+ "acquirer": "crucible.calibration.gharchive",
  "url": "https://data.gharchive.org/",
  "homepage": "https://www.gharchive.org/",
  "license": {
+  "name": "GitHub Terms of Service and Acceptable Use Policies (public events archived by GH Archive; GH Archive code MIT)",
   "summary": "Public GitHub events as archived by GH Archive. Use is governed by GitHub's Terms of Service and the Acceptable Use Policies' information-usage restrictions (research and archival use allowed; personal information must not be used for spamming, sold, or used to identify people). GH Archive's own code is MIT licensed.",
   "text_locations": [
    "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
@@ -851,6 +855,12 @@
   ],
   "acquired_by": "crucible.calibration.gharchive.acquire (streamed one hour at a time)",
   "population": "public GitHub accounts and public repositories whose events reached the public events API",
-  "privacy": "only numeric actor and repository ids as distributed, event type/action, derived flags and push size are kept; no logins, names, e-mails, commit messages or text"
+  "privacy": "only numeric actor and repository ids as distributed, event type/action, derived flags and push size are kept; no logins, names, e-mails, commit messages or text",
+  "publisher": "GH Archive (Ilya Grigorik), archiving the GitHub public events API",
+  "citation": "GH Archive, https://www.gharchive.org/ (Ilya Grigorik): hourly dumps 2024-10-07-0 to 2024-10-10-23",
+  "platform": "GitHub (github.com): public repositories and public accounts",
+  "period": "2024-10-07T00:00 to 2024-10-11T00:00 UTC (Monday to Thursday, 96 hours)",
+  "identification": "observational",
+  "retrieved": "2026-11-25"
  }
 }

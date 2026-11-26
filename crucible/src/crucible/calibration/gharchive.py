@@ -200,8 +200,10 @@ def acquire(dest: str | None = None, workers: int = 1, expected: dict[str, str] 
     summary = {"dataset": DATASET, "window_start": WINDOW_START.isoformat(), "hours": HOURS,
                "extractor_version": EXTRACTOR_VERSION, "files": metas,
                "events": int(sum(m["events"] for m in metas))}
-    with open(os.path.join(dest, "acquisition.json"), "w") as fh:
+    path = os.path.join(dest, "acquisition.json")
+    with open(path + ".tmp", "w") as fh:     # atomic: readers (verify_dataset, tests) never see a partial record
         json.dump(summary, fh, indent=1)
+    os.replace(path + ".tmp", path)
     raw_dir = os.path.join(dest, "raw")
     if os.path.isdir(raw_dir) and not os.listdir(raw_dir):
         os.rmdir(raw_dir)
@@ -209,6 +211,8 @@ def acquire(dest: str | None = None, workers: int = 1, expected: dict[str, str] 
 
 
 LICENSE = {
+    "name": "GitHub Terms of Service and Acceptable Use Policies (public events archived by GH Archive; GH Archive "
+            "code MIT)",
     "summary": "Public GitHub events as archived by GH Archive. Use is governed by GitHub's Terms of Service and the "
                "Acceptable Use Policies' information-usage restrictions (research and archival use allowed; personal "
                "information must not be used for spamming, sold, or used to identify people). GH Archive's own code is "
@@ -219,12 +223,28 @@ LICENSE = {
 }
 
 
+TITLE = "GH Archive: public GitHub events, 2024-10-07 to 2024-10-10 UTC (96 hourly dumps)"
+DESCRIPTION = ("Hourly dumps of the GitHub public events API archived by GH Archive, 2024-10-07T00 to 2024-10-11T00 "
+               "UTC, streamed one hour at a time and reduced to a numeric event table (time, event type and action, "
+               "numeric actor and repository ids, four derived flags, push size).")
+# Provenance facts that the calibration registry requires of every dataset (datasets.py, audit.provenance_complete).
+PROVENANCE = {
+    "publisher": "GH Archive (Ilya Grigorik), archiving the GitHub public events API",
+    "citation": "GH Archive, https://www.gharchive.org/ (Ilya Grigorik): hourly dumps 2024-10-07-0 to 2024-10-10-23",
+    "platform": "GitHub (github.com): public repositories and public accounts",
+    "period": "2024-10-07T00:00 to 2024-10-11T00:00 UTC (Monday to Thursday, 96 hours)",
+    "identification": "observational",
+    "retrieved": "2026-11-25",
+}
+
+
 def manifest(dest: str | None = None) -> dict:
     """The committed dataset manifest, built from a completed acquisition (acquisition.json)."""
     with open(os.path.join(dataset_dir(dest), "acquisition.json")) as fh:
         acq = json.load(fh)
     return {
         "schema": "crucible.v5.calibration.dataset/1", "name": DATASET, "workstream": "E2", "synthetic": False,
+        "title": TITLE, "description": DESCRIPTION, "acquirer": __name__,
         "url": BASE_URL, "homepage": "https://www.gharchive.org/",
         "license": LICENSE,
         "files": [{"file": f["file"], "url": f["url"], "sha256": f["raw_sha256"], "bytes": f["raw_bytes"],
@@ -242,8 +262,61 @@ def manifest(dest: str | None = None) -> dict:
             "population": "public GitHub accounts and public repositories whose events reached the public events API",
             "privacy": "only numeric actor and repository ids as distributed, event type/action, derived flags and push "
                        "size are kept; no logins, names, e-mails, commit messages or text",
+            **PROVENANCE,
         },
     }
+
+
+# ---------------------------------------------------------------- registry hooks (crucible.calibration.datasets)
+def acquire_dataset(entry: dict, dest: str | None = None) -> str:
+    """`datasets.acquire` hook: stream the window, checking each hour against the manifest's SHA-256."""
+    expected = {f["file"]: f["sha256"] for f in entry.get("files", [])}
+    return acquire(dest, workers=int(os.environ.get("CRUCIBLE_ACQUIRE_WORKERS", "1")), expected=expected)
+
+
+def _hour_files(entry: dict, dest: str | None):
+    d = dataset_dir(dest)
+    p = os.path.join(d, "acquisition.json")
+    acq = {}
+    if os.path.exists(p):
+        with open(p) as fh:
+            acq = {f["file"]: f for f in json.load(fh)["files"]}
+    for f in entry.get("files", []):
+        yield f, acq.get(f["file"]), os.path.join(d, "extracted", f"{f['file'][:-len('.json.gz')]}.npz")
+
+
+def verify_dataset(entry: dict, dest: str | None = None) -> dict[str, str]:
+    """`datasets.verify` hook, {hour file: ok|missing|mismatch}. The raw hourly files are deleted after extraction,
+    so an hour is ok when the SHA-256 of its raw file recorded while it was streamed (acquisition.json) and the
+    content digest of its extracted table both equal the manifest's."""
+    out = {}
+    for f, rec, npz in _hour_files(entry, dest):
+        if rec is None or not os.path.exists(npz):
+            out[f["file"]] = "missing"
+            continue
+        with np.load(npz) as z:
+            dig = content_digest({k: z[k] for k in z.files})
+        out[f["file"]] = "ok" if rec.get("raw_sha256") == f["sha256"] and dig == f.get("extract_digest") else "mismatch"
+    return out
+
+
+def validate_dataset(entry: dict, dest: str | None = None) -> list[str]:
+    """`datasets.validate_schema` hook: every extracted hour has the manifest's columns and dtypes and the number of
+    events recorded for it."""
+    want = entry.get("schema_extracted") or {name: str(np.dtype(dt)) for name, dt in COLUMNS}
+    errs = []
+    for f, _, npz in _hour_files(entry, dest):
+        if not os.path.exists(npz):
+            errs.append(f"{f['file']}: extracted table missing")
+            continue
+        with np.load(npz) as z:
+            got = {k: str(z[k].dtype) for k in z.files}
+            n = {int(z[k].shape[0]) for k in z.files}
+        if any(got.get(k) != v for k, v in want.items()):
+            errs.append(f"{f['file']}: columns {got} differ from {want}")
+        if n != {int(f.get("events", -1))}:
+            errs.append(f"{f['file']}: {sorted(n)} rows, manifest records {f.get('events')} events")
+    return errs
 
 
 def load_events(dest: str | None = None, hours: int = HOURS) -> dict[str, np.ndarray]:
@@ -253,7 +326,7 @@ def load_events(dest: str | None = None, hours: int = HOURS) -> dict[str, np.nda
     for name in hour_names(hours=hours):
         p = os.path.join(dest, "extracted", f"{name}.npz")
         if not os.path.exists(p):
-            raise FileNotFoundError(f"{p} missing: run crucible.calibration.registry_e2.acquire('{DATASET}')")
+            raise FileNotFoundError(f"{p} missing: run crucible.calibration.acquire('{DATASET}')")
         with np.load(p) as z:
             for col, _ in COLUMNS:
                 parts[col].append(z[col])

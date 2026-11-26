@@ -3,6 +3,9 @@
  "name": "criteo_uplift_v2.1",
  "workstream": "E2",
  "synthetic": false,
+ "title": "Criteo Uplift Prediction Dataset v2.1",
+ "description": "Pooled incrementality tests of Criteo display advertising: 13,979,592 users with 12 anonymised features, a randomised treatment (eligibility for targeting), exposure, visit and conversion labels.",
+ "acquirer": "crucible.calibration.criteo",
  "url": "https://huggingface.co/datasets/criteo/criteo-uplift/resolve/2424920019e49d52d72c13ac1143ec5d53af276b/criteo-research-uplift-v2.1.csv.gz",
  "homepage": "https://ailab.criteo.com/criteo-uplift-prediction-dataset/",
  "mirror": {
@@ -88,6 +91,13 @@
   "design": "randomised controlled trials: a random part of the population is prevented from being targeted",
   "privacy": "sub-sampled non-uniformly so that the original incrementality level cannot be deduced; features anonymised and randomly projected",
   "period_and_population": "not disclosed by the publisher (users of Criteo's advertisers' campaigns)",
-  "acquired_by": "crucible.calibration.criteo.acquire"
+  "acquired_by": "crucible.calibration.criteo.acquire",
+  "publisher": "Criteo AI Lab (Diemert, Betlei, Renaudin, Amini)",
+  "citation": "Diemert, Betlei, Renaudin, Amini. A Large Scale Benchmark for Uplift Modeling. AdKDD 2018.",
+  "population": "users reached by the display-advertising campaigns of Criteo's advertisers in several pooled incrementality tests (advertisers, countries and dates not disclosed), sub-sampled non-uniformly by the publisher to 13,979,592 users",
+  "platform": "Criteo display advertising; outcomes are a visit to and a conversion on the advertiser's website",
+  "period": "collection period not disclosed by the publisher; released with Diemert et al. (AdKDD 2018)",
+  "identification": "randomized controlled trial of eligibility for targeting (exposure is not randomised)",
+  "retrieved": "2026-11-25"
  }
 }
