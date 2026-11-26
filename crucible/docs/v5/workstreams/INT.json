@@ -61,7 +61,7 @@
    "tests": [
     "tests/test_v5_civ_core.py"
    ],
-   "status_claim": "all 11 profiles generate (population='development') and run 2 simulated days with 0 invariant errors and 0 failed processes; population, social, commerce and innovation tables populated (see civ_two_day_runs); 11-12 of 17 Mode C subsystems strict (present, active, connected) - not O.1",
+   "status_claim": "all 11 profiles generate (population='development') and run 2 simulated days with 0 invariant errors and 0 failed processes; population, social, commerce and innovation tables populated (see civ_two_day_runs); 11-12 of 17 Mode C subsystems strict (present, active, connected) - not O.1; balanced also 7 days (seed 2): 0 invariant errors, 0 failed processes, 12 strict subsystems",
    "notes": "Not gate-verified here: Gate O/P tests were not run by INT."
   }
  },
@@ -89,10 +89,10 @@
   "tests/test_v5_population_api.py tests/test_v5_population_core.py": "17 passed, 0 failed (GPU slot)",
   "tests/test_v5_social_audience.py, _calibrated, _idset, _meaning, _recsys": "21 passed, 0 failed (GPU slot)",
   "tests/test_v5_civ_core.py": "11 passed, 0 failed (GPU slot)",
-  "tests/test_v5_semantic_*.py (6 files)": "pending clean rerun; first slot run 60 passed, 3 failed (2 stale CORE-SEM key assertions, fixed and rerun: test_v5_semantic_encoders.py 19 passed; 1 Chromium test failed only because TMPDIR was a 0700 scratch dir, passes with /tmp)",
+  "tests/test_v5_semantic_*.py (6 files)": "63 passed, 0 failed (GPU slot, after updating two stale CORE-SEM key assertions; an earlier run with TMPDIR in a 0700 scratch dir failed the jailed-Chromium render test)",
   "tests/v5/test_gate_E.py": "pending",
-  "tests/v5/test_gate_B.py": "pending",
-  "tests/v5/test_gate_C.py": "pending"
+  "tests/v5/test_gate_B.py": "6 passed, 0 failed (GPU slot, 26.7 min; unofficial metrics: B.1 10,256 distinct participants; B.2 484,789 autonomous sessions, 0 learner-initiated, 0 forced audience rows, 0 failed processes; B.3 effect 0.155, p 0; B.4 return gap 0.173, abandon gap 0.262; B.5 30 days, last/first week 0.896, 0 invariant errors; B.6 3 seeds, p 2.5e-50). The first run (before the pop_wake rename) errored in the strict world at seq 2016.",
+  "tests/v5/test_gate_C.py": "7 passed, 0 failed (GPU slot, 9 min; unofficial metrics: C.2 7 discovery channels, 37,479 views; C.3 46,506 consumption events, 0 analytics mismatches, 0 rows without provenance; C.4 11 communities formed, 1 active after 30 days, 7 active from week 1 to the end; C.5 follow/share/subscription effects p 1.8e-54 / 4.5e-12 / 2.3e-27; C.6 8/8 browser steps; C.n1 0 direct counter writes)"
  },
  "civ_two_day_runs": {
   "balanced": {
@@ -138,6 +138,49 @@
    },
    "population_sessions": 169,
    "created_batches": 28
+  },
+  "balanced (seed 2, 168 h)": {
+   "hours": 168.0,
+   "wall_s": 103.3,
+   "events": 75649,
+   "invariant_errors": 0,
+   "proc_failed": 0,
+   "space_items": 573,
+   "strict_subsystems": 12,
+   "missing_subsystems": [
+    "education",
+    "employment",
+    "institutions",
+    "marketplaces",
+    "technology_invention"
+   ],
+   "population_nonempty_tables": 18,
+   "population_empty_tables": 1,
+   "social_nonempty_tables": 11,
+   "social_empty_tables": 28,
+   "commerce_nonempty_tables": 15,
+   "commerce_empty_tables": 34,
+   "innovation_nonempty_tables": 2,
+   "innovation_empty_tables": 26,
+   "key_counts": {
+    "content": 147,
+    "aud_item_info": 100,
+    "shares": 14,
+    "communities": 1,
+    "sub_subs": 166,
+    "mandates": 166,
+    "products": 5,
+    "work_exp": 166,
+    "needs_nodes": 99,
+    "cap_trials": 0,
+    "pkg_packages": 0,
+    "xchg_listings": 0,
+    "inst_projects": 0,
+    "labor_workers": 0,
+    "msg_messages": 0
+   },
+   "population_sessions": 582,
+   "created_batches": 92
   },
   "cooperative_institutions": {
    "hours": 48.0,
