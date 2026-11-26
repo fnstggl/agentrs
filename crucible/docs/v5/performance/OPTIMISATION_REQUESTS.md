@@ -20,14 +20,45 @@ Per-day costs without any profiler (bench5, 30-day runs): development 9-13 CPU-s
 Each request names the function, its measured cost, why it costs that, and a change that keeps every recorded
 outcome identical (pure memoisation, vectorisation or batching of row-independent work) unless stated otherwise.
 
-LIGHT_TABLE_PLACEHOLDER
+## Light attribution (`light`), civilisation world, standard profile (10,296 individuals), seed 0
+
+Inclusive CPU of the outermost call of each function (nested functions overlap: `_organic` is inside `act_shop`,
+`_compute` inside `item_vectors`). Days 2-3 (56.0 CPU-s) had their texts' representations in the machine-wide cache
+from earlier runs of this seed; day 4 (57.2 CPU-s) encoded 356 new texts, which is what a fresh run pays every day
+(benchmark runs therefore use a cold cache of their own from 96def85 on). Peak RAM 3.1 GB.
+
+| function (owner) | days 2-3: CPU s / share / calls | day 4 (356 new texts): CPU s / share | ms per call |
+|---|---:|---:|---:|
+| services/search.py `Search._organic` (4.0 service) | 10.77 / 19.2% / 5,554 | 4.21 / 7.4% | 2.059 |
+| economy/work.py `Work.act_shop` (ECON) | 12.38 / 22.1% / 160 | 4.49 / 7.8% | 70.586 |
+| social/consumption.py `Engine.run` (C) | 16.91 / 30.2% / 1,816 | 8.84 / 15.4% | 9.376 |
+| social/recsys/features.py `hash_normal` (C) | 4.47 / 8.0% / 2,466 | 2.16 / 3.8% | 1.781 |
+| semantic/space `_compute` - encoders + LM for new texts (D) | 0.00 / 0.0% / 0 | 27.64 / 48.3% | 77.654 |
+| semantic/space `item_vectors` (D) | 3.38 / 6.0% / 2,971 | 19.91 / 34.8% | 5.147 |
+| semantic/space `preprocessing_hashes` (D) | 3.08 / 5.5% / 3,304 | 1.43 / 2.5% | 0.896 |
+| substrate/columns.py `batch` (kcal) | 5.20 / 9.3% / 9,544 | 2.27 / 4.0% | 0.556 |
+| substrate/artifacts.py `put_array_blob` (kcal) | 3.25 / 5.8% / 10,116 | 1.43 / 2.5% | 0.328 |
+| substrate/artifacts.py `npz_bytes` (kcal) | 2.41 / 4.3% / 10,116 | 1.06 / 1.8% | 0.243 |
+| core/canonical.py `canonical_bytes` (kcal) | 2.01 / 3.6% / 91,728 | 0.85 / 1.5% | 0.022 |
+| core/kernel.py `World._commit` (kcal) | 1.53 / 2.7% / 1,240 | 0.67 / 1.2% | 1.182 |
+| sandbox/bridge.py `run_in_ctx` (O/kcal) | 3.70 / 6.6% / 2,708 | 2.60 / 4.5% | 1.536 |
+| sandbox/runner.py `Worker.start` (O) | 1.93 / 3.4% / 64 | 1.52 / 2.7% | 36.253 |
+| sandbox/metering.py `DiskMemo.first` (kcal K3) | 0.17 / 0.3% / 2,689 | 0.18 / 0.3% | 0.086 |
+| population/strategic.py `pr_decide` (B) | 2.42 / 4.3% / 48 | 2.55 / 4.5% | 69.111 |
+| services/net.py `page_authority` (4.0 service) | 2.37 / 4.2% / 263,190 | 0.55 / 1.0% | 0.009 |
+| population/semantics.py `text_features` (B/D) | 1.54 / 2.7% / 8,132 | 0.80 / 1.4% | 0.178 |
+| population/core.py `money_deposit` (B) | 0.22 / 0.4% / 487 | 0.05 / 0.1% | 0.446 |
+
+What it says: with new content the shared space's text path is about half of a standard day (78 ms per new text, one
+text per forward pass); the social consumption engine is 15-30%; shopping searches 7-19% (growing with the index);
+the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions 4% for 24 decisions a day.
 
 ## Requests
 
 ### R1 - services/search.py `Search._organic` (owner: the 4.0 services; caller `economy/work.py` ECON)
 
-* Cost (`cprof`, standard days 2-3): `Work.act_shop` 24% of the world's CPU, almost all of it in 5,554
-  `search.query` calls made by `Work._candidates` (3,449 calls: one search per shopping step). `_organic` scores every
+* Cost (`light`, standard days 2-3): `Work.act_shop` 22.1% of the world's CPU, of which `_organic` 19.2%: 5,554
+  `search.query` calls made by `Work._candidates` (3,449 calls: one search per shopping step); 7.4% on day 4. `_organic` scores every
   posting of every query token (537 documents per query on average) and calls the `rank_signal` hook chain for every
   scored document: 2.98M hook calls in two days (`market.rank_signal` -> `net.rank` -> `net.page_authority`, which
   walks `web_links` and calls `goals.metrics.is_related` per linking host: 174k calls).
@@ -43,8 +74,8 @@ LIGHT_TABLE_PLACEHOLDER
 
 ### R2 - social/consumption.py `Engine.run` / social/recsys (owner: C, social)
 
-* Cost (`cprof`): `Engine.run` 12% (1,816 calls, 17.5 ms each), of which `recsys.features.hash_normal` 2.2% (2,466
-  calls, 2.4 ms each) and `social.scale.splitmix64` (160k calls); `recsys.features.interests` 2.3%.
+* Cost (`light`, standard): `Engine.run` 30.2% on days 2-3 and 15.4% on day 4 (1,816 calls in two days, 9.4 ms each),
+  of which `recsys.features.hash_normal` 8.0% (2,466 calls, 1.8 ms each).
 * Why: `hash_normal(seed, idx, dims=422, salt)` loops over the 422 dimensions in steps of two and calls
   `splitmix64` twice per step: about 3,400 numpy operations per call however few rows it has.
 * Proposed change: one counter grid, bitwise identical output:
@@ -54,8 +85,10 @@ LIGHT_TABLE_PLACEHOLDER
 
 ### R3 - semantic/space `preprocessing_hashes()` and the text path (owner: D, semantic)
 
-* Cost (`cprof`): `preprocessing_hashes` 3.1% (3,304 calls from `space.reps`, 2.5 ms each): `preprocessing()` reads
-  every parameter module's constants, the encoders' attributes and the LM identity and hashes them on every call.
+* Cost (`light`): the text path for new texts (`space._compute`) is 48.3% of a standard day with fresh content (356
+  texts, 77.7 ms each, one text per LM forward pass); `preprocessing_hashes` 5.5% / 2.5% (3,304 calls in two days from
+  `space.reps`, 0.9 ms each): `preprocessing()` reads every parameter module's constants, the encoders' attributes
+  and the LM identity and hashes them on every call.
 * Why: the key must follow the live preprocessing (the skeptic's stale-key finding), but it is recomputed per
   lookup.
 * Proposed change: compute it once per transaction (cache on the `ctx`/`world.runtime` with the world's seq) or keep
@@ -73,7 +106,8 @@ LIGHT_TABLE_PLACEHOLDER
 ### R4 - sandbox metering memo `DiskMemo.first` (owner: kcal, D-21 / K3)
 
 * Cost (`wall`, standard day 1): 13.6 s of 81 s wall (17%) in `sqlite3.execute` under `sandbox.metering.bill ->
-  DiskMemo.first` (1,250 calls, 10.9 ms each); CPU share small (`light`).
+  DiskMemo.first` (1,250 calls, 10.9 ms each); its CPU share is 0.3% (`light`): the cost is waiting (wall clock,
+  so simulated days per wall hour), not CPU.
 * Why: every sandboxed page fetch inserts its first-measurement anchor into ONE machine-wide SQLite file
   (`~/.cache/crucible/meter/memo-v1.sqlite`, 18 MB + WAL) shared by every process of every engineer: lock waits.
 * Proposed change: keep the per-world in-process memo authoritative for a transaction and write anchors to the
@@ -83,13 +117,14 @@ LIGHT_TABLE_PLACEHOLDER
 
 ### R5 - kernel and substrate per-event costs (owner: kcal, A)
 
-* `core.canonical.canonical_bytes`: 145k calls / 2.6M `_norm` calls in two standard days (`cprof` 9%, about half of
-  it the benchmark's own event counter, which no longer hashes events). The kernel hashes every event body once at
+* `core.canonical.canonical_bytes`: 3.6% (`light`; 91,728 calls in two standard days, the kernel's event hashing
+  and inference input digests). The kernel hashes every event body once at
   commit; payloads are already JSON-native when emitted. Proposed: a fast path that `json.dumps(..., sort_keys=True,
   separators=...)` the payload directly when it holds only JSON-native types (one isinstance walk instead of
   rebuilding the tree in `_norm`), falling back to `_norm` otherwise; identical bytes.
-* `substrate.columns.batch` -> `artifacts.put_array_blob` -> `npz_bytes`: 10,116 blobs in two standard days, about
-  1 ms each in `np.savez` (zip container, per-array headers) for blobs of a few hundred bytes (`cprof` 3.6%).
+* `substrate.columns.batch` 9.3% (`light`, 9,544 batches in two standard days) -> `artifacts.put_array_blob` 5.8%
+  -> `npz_bytes` 4.3% (10,116 blobs, 0.24 ms each in `np.savez`: zip container and per-array headers for blobs of a
+  few hundred bytes).
   Proposed: a raw concatenated format (fixed header: names, dtypes, shapes; then bytes) for small batches; or
   aggregate the one-row batches (R7).
 * Scheduler bookkeeping: every periodic process firing writes three events (`sched.add`, `proc`, `sched.del`):
@@ -98,15 +133,23 @@ LIGHT_TABLE_PLACEHOLDER
 
 ### R6 - storage growth (DEF-M-3; owners: kcal for the event/blob formats, B, C, D for their event volume)
 
-* Measured (30-day development civ runs, 3 seeds): raw 7.3-7.6 KB per individual-day written (events as stored
-  2.9 KB + array blobs 4.6 KB), against target T6 of 550 B (after compaction). See MEASUREMENTS.md for the
-  per-type breakdown (`storage_breakdown.py`).
-* Largest event families (development, 30 days): `artifact.stored` 53k (one per blob), `cols.batch` 49k,
-  `bank.txn` 30k, scheduler bookkeeping 56k, `cloud.usage` 15k, `net.hit`/`net.rate` 13k each, `popweb.page` 9k,
-  `space.recorded` 1.4k (but each carries base64 vectors and chunks).
-* Proposed: fold `artifact.stored` into the `cols.batch` event that references the blob (one event instead of two);
-  one scheduler event per firing (R5); `space.recorded` without the vectors (the space_items table and the
-  inference record hold them); delta-only `set` batches (the skeptic measured 36% of `set` bytes unchanged).
+* Measured (`storage_breakdown.py`, store after daily retention compaction, VACUUM and WAL checkpoint):
+  development 7,843 B per individual-day (5 days; events 17.0 MB, blobs 15.1 MB resident of 18.0 MB written);
+  standard 2,846 B per individual-day (3 days; events 35.8 MB, blobs 36.5 MB resident of 48.0 MB written). Target
+  T6: 550 B (missed 5x at standard). Retention compaction keeps 84% (development) and 76% (standard) of the blob
+  bytes written.
+* Where the event bytes go (development, 5 days, 54,638 events): `cols.batch` 19.6%, `ext` (recorded inference and
+  sandbox outcomes, 5.9 KB each) 13.7%, `artifact.stored` 13.1% (8,988 events: one per blob, next to the
+  `cols.batch` event that references it), `space.recorded` 9.4% (400 events, 4 KB each: base64 vectors and chunks
+  that the space_items table and the `ext` record hold too), `popweb.page` 7.4%, `bank.txn` 6.9%, scheduler
+  bookkeeping 6.9% (`sched.add` + `proc` + `sched.del`, three events per process firing), `cloud.usage` 2.8%.
+* Batches: `pop.deposit` is the most frequent batch kind (867 one-row batches in 5 development days, R7); the most
+  rewritten columns are `pop.attention_left_min`/`attention_spent_min` (1,454 batches each) and the wake columns.
+* Proposed: fold `artifact.stored` into the `cols.batch` event that references the blob; one scheduler event per
+  firing; `space.recorded` and the `space.items` inference record without the vectors (keep them once, in the
+  space_items table or one blob); delta-only `set` batches (the skeptic measured 36% of `set` bytes unchanged);
+  deposits batched per tick. Together these address about half of the event bytes; T6 at the standard profile also
+  needs smaller blobs (raw formats instead of npz zip containers, R5).
 
 ### R7 - population (owner: B)
 
@@ -116,7 +159,8 @@ LIGHT_TABLE_PLACEHOLDER
   resource choice of every class-2 member that is due in the window in one round (`adaptive_window_s` aligned to
   the web activity), or route the choice through `inference_batch.gather` with the other activities of the tick.
 * Class 3 is never batched: 120 recorded `pop.strategic.*` calls for 120 member decisions in 30 days (mean batch
-  1.0): each member's `next` decision time is its own. Proposed: round `next` to a common decision grid per group
+  1.0): each member's `next` decision time is its own. `pr_decide` costs 69 ms per call (`light`, standard: 4.3% of
+  the day for 24 decisions), mostly observation building and carrying the decision out through tools. Proposed: round `next` to a common decision grid per group
   (e.g. `decide_every_s` boundaries) so all due members of a group decide in one forward pass (SP-13.1).
 * Class 4 is still unbound in the integrated tree (no `register_class_runtime(world, 4, ...)` caller on
   55433e7; D's `pop_semantic` runtime is in progress): V.1 and SP-13.1 fail until it acts.
