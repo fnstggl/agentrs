@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
+from torch.func import functional_call
 
 from ..nn.api import GROUP_REWARD
 from .integrity import bound_reward
@@ -233,3 +234,30 @@ class IntrinsicReward(nn.Module):
                 self.lifetime.state.copy_(hT.detach().to(self.lifetime.state.dtype))
                 self.lifetime.steps += x.shape[0]
         return r, ctx, hT
+
+    # ---------------------------------------------------------------------------------------- functional
+    def functional(self, psi: Mapping[str, Tensor], *, sequence: bool = False, **inputs: Any) -> Tensor:
+        """R evaluated with the parameters ``psi`` (a dict as returned by :meth:`psi`), graph-connected to them.
+        ``sequence=False``: :meth:`forward` on independent rows. ``sequence=True``: rows are consecutive steps of
+        the lifetime and the lifetime context is recomputed in-graph (:meth:`reward_sequence`, rewards only)."""
+        if not sequence:
+            return functional_call(self, dict(psi), (), inputs)
+        return functional_call(_SequenceView(self), {"r." + k: v for k, v in psi.items()}, (), inputs)
+
+    def as_reward_fn(self, inputs: str = "reward_inputs", sequence: bool = False
+                     ) -> Callable[[Mapping[str, Tensor], Mapping[str, Any]], Tensor]:
+        """``reward_fn(psi, batch)`` for ``reward.meta.policy_gradient_inner_loss``: ``batch[inputs]`` holds the
+        keyword arguments of :meth:`forward` (or of :meth:`reward_sequence` when ``sequence``)."""
+        return lambda psi, batch: self.functional(psi, sequence=sequence, **dict(batch[inputs])).reshape(-1)
+
+
+class _SequenceView(nn.Module):
+    """Exposes ``IntrinsicReward.reward_sequence`` (rewards only) as ``forward`` for ``functional_call``."""
+
+    def __init__(self, r: IntrinsicReward):
+        super().__init__()
+        self.r = r
+
+    def forward(self, **kw: Any) -> Tensor:
+        kw.pop("advance", None)                       # a functional evaluation never moves the lifetime state
+        return self.r.reward_sequence(**kw)[0]

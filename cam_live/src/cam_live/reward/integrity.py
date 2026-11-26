@@ -415,10 +415,11 @@ class NoisyTVGate:
 
 
 def noisy_tv_audit(rewards: Sequence[float], epistemic: Sequence[float], *, tail: float = 0.25,
-                   max_tail_ratio: float = 0.2, flat_rel_drop: float = 0.05) -> Dict[str, Any]:
-    """Audit a reward stream paid on one context: if epistemic uncertainty is flat over the last ``tail`` fraction
-    of the stream, the mean |reward| there must be at most ``max_tail_ratio`` of the mean |reward| at the start.
-    ``passed`` is False when reward keeps being paid for randomness that no longer teaches anything."""
+                   max_tail_ratio: float = 0.2, flat_rel_drop_per_step: float = 0.01) -> Dict[str, Any]:
+    """Audit a reward stream paid on one context: if epistemic uncertainty has (nearly) stopped falling over the
+    last ``tail`` fraction of the stream — a relative drop below ``flat_rel_drop_per_step`` per step — the mean
+    |reward| there must be at most ``max_tail_ratio`` of the mean |reward| at the start. ``passed`` is False when
+    reward keeps being paid for randomness that no longer teaches anything."""
     n = len(rewards)
     if n != len(epistemic) or n < 8:
         raise ValueError("need aligned streams of at least 8 steps")
@@ -426,7 +427,8 @@ def noisy_tv_audit(rewards: Sequence[float], epistemic: Sequence[float], *, tail
     head = sum(abs(x) for x in rewards[:k]) / k
     tail_r = sum(abs(x) for x in rewards[-k:]) / k
     e0, e1 = epistemic[-k], epistemic[-1]
-    flat = e0 <= 0 or (e0 - e1) / e0 < flat_rel_drop
+    rate = 0.0 if e0 <= 0 else (e0 - e1) / e0 / (k - 1)
+    flat = rate < flat_rel_drop_per_step
     ratio = tail_r / head if head > 0 else (0.0 if tail_r == 0 else float("inf"))
-    return {"epistemic_flat_in_tail": flat, "head_reward": head, "tail_reward": tail_r, "tail_ratio": ratio,
-            "passed": (not flat) or ratio <= max_tail_ratio}
+    return {"epistemic_flat_in_tail": flat, "epistemic_rel_drop_per_step": rate, "head_reward": head,
+            "tail_reward": tail_r, "tail_ratio": ratio, "passed": (not flat) or ratio <= max_tail_ratio}

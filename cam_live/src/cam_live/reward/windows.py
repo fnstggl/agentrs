@@ -34,12 +34,13 @@ OutcomeFilter = Callable[[ExperienceRecord, OutcomeObservation], bool]
 
 
 def independence_key(rec: ExperienceRecord) -> str:
-    """Experiment, else parent decision, else the decision itself."""
+    """Experiment, else parent decision, else the decision itself (``Decision.experiment_id``,
+    ``ActionSpec.experiment_id`` / ``ActionSpec.parent_decision_id``)."""
     d = rec.decision
-    if d.experiment_id:
-        return "exp:" + d.experiment_id
-    parent = d.diagnostics.get("parent_decision_id") if isinstance(d.diagnostics, dict) else None
-    return "dec:" + str(parent or d.decision_id)
+    exp = d.experiment_id or d.chosen.experiment_id
+    if exp:
+        return "exp:" + exp
+    return "dec:" + (d.chosen.parent_decision_id or d.decision_id)
 
 
 def _default_filter(rec: ExperienceRecord, o: OutcomeObservation) -> bool:
@@ -145,8 +146,10 @@ class WindowBuilder:
 
         def union(a: str, b: str) -> None:
             ra, rb = find(a), find(b)
-            if ra != rb:
-                parent[max(ra, rb)] = min(ra, rb)
+            if ra != rb:                                   # deterministic root: experiment < decision < event
+                rank = lambda k: ({"exp": 0, "dec": 1}.get(k[:3], 2), k)
+                lo, hi = sorted((ra, rb), key=rank)
+                parent[hi] = lo
         for r in rows:
             k = independence_key(r)
             find(k)
