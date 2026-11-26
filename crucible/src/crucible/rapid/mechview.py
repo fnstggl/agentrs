@@ -178,7 +178,7 @@ def kernel_world(family: str, seed: int, *, holder: str = "agent", tick_s: int =
                       holders=[holder])
     spec = WorldSpec(f"rapid_{family}", ws, [{"name": "identity", "config": {}}, {"name": "bank", "config": {}},
                                              {"name": "admin", "config": {}}, {"name": "rig", "config": {"rigs": [entry]}}],
-                     params={"family_split": FAMILIES[family].split})
+                     params={})                 # no family name or split: they identify evaluation worlds
     w = World.create(spec, world_id=f"rapid-{family}-{seed}", strict=True)
     r = w.system_call("admin.join", {"handle": holder, "endowment": int(endowment)})
     return w, r["principal"], mech

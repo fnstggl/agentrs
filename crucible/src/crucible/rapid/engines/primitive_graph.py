@@ -52,7 +52,9 @@ class PrimitiveGraph(RapidEngine):
         for nd in nodes:
             for terms in list(nd.get("ports", {}).values()) + list(nd.get("natural", {}).get("ports", {}).values()):
                 lags += [int(tm[1]) for tm in terms]
-        lags += [int(g.get("lag", 0)) for g in c.get("gauges", [])]
+        # a gauge with lag L reads the value of L ticks ago from the history after this tick's values are appended,
+        # so the history must hold L + 1 ticks
+        lags += [int(g.get("lag", 0)) + 1 for g in c.get("gauges", []) if int(g.get("lag", 0)) > 0]
         self.K = max(lags) if max(lags) >= 1 else 1
         self.lev_nodes = [i for i, nd in enumerate(nodes) if nd["type"] == "lever"]
         self.dec_nodes = [i for i, nd in enumerate(nodes) if nd["type"] == "discrete"]
@@ -288,7 +290,8 @@ class PrimitiveGraph(RapidEngine):
         for k, g in enumerate(self.gauges):
             lag = int(g.get("lag", 0))
             srcs = [self.idx[s] for s in g["src"]]
-            col = (lambda s: cur[:, s]) if lag == 0 else (lambda s: h[:, self.K - lag, s])
+            # `h` already holds this tick's values at its last position: L ticks ago is position K - 1 - L
+            col = (lambda s: cur[:, s]) if lag == 0 else (lambda s: h[:, self.K - 1 - lag, s])
             if len(srcs) > 1:
                 x: Any = {"xs": np.stack([col(s) for s in srcs], axis=1)}
             else:
@@ -544,7 +547,7 @@ def score_predictions(eng: PrimitiveGraph, journal: list[dict]) -> dict:
     obj = eng.config["objective"]
     conds = obj["heldout"]
     gauge = obj["gauge"]
-    truth = true_response(eng, conds, gauge)
+    truth = true_response(eng, conds, gauge, ticks=int(obj.get("settle_ticks", 1)))
     preds = None
     for m in journal:
         c = (m.get("content") or {}).get("predictions")

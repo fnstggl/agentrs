@@ -35,8 +35,14 @@ def cache_path(seeds) -> str:
     return os.path.join(base, "rapid", f"admission-{source_digest()}-{'-'.join(map(str, seeds))}.json")
 
 
-def admission_report(seeds=(0, 1, 2), use_cache: bool = True) -> dict:
-    from .admission import admit, static_isolation, summary
+def _admit_one(args):
+    name, seeds = args
+    from .admission import admit
+    return name, json.loads(json.dumps(admit(name, seeds), default=_jsonable))
+
+
+def admission_report(seeds=(0, 1, 2), use_cache: bool = True, jobs: int = 1) -> dict:
+    from .admission import static_isolation, summary
     from .families import FAMILIES, REGISTRY
     from .fingerprints import counted, nearest
     path = cache_path(seeds)
@@ -44,10 +50,21 @@ def admission_report(seeds=(0, 1, 2), use_cache: bool = True) -> dict:
         with open(path) as fh:
             return json.load(fh)
     t0 = time.process_time()
-    reps = {n: admit(n, seeds) for n in sorted(FAMILIES)}
-    fps = {n: REGISTRY[n]["fingerprint"] for n in sorted(FAMILIES)}
+    names = sorted(FAMILIES)
+    if jobs > 1:
+        import concurrent.futures as cf
+        import multiprocessing as mp
+        with cf.ProcessPoolExecutor(max_workers=jobs, mp_context=mp.get_context("fork")) as ex:
+            reps = dict(ex.map(_admit_one, [(n, tuple(seeds)) for n in names]))
+    else:
+        reps = dict(_admit_one((n, tuple(seeds))) for n in names)
+    fps = {n: REGISTRY[n]["fingerprint"] for n in names}
     kept, dup = counted(fps)
-    distinct = {n: dict(nearest(n, fps), distinct_because=FAMILIES[n].distinct_because) for n in fps}
+    distinct = {n: dict(nearest(n, fps), distinct_because=FAMILIES[n].distinct_because,
+                        verification=reps[n]["checks"]["distinct"].get("verification"),
+                        recreates_4_0_sealed=reps[n]["checks"]["distinct"].get("recreates_4_0_sealed"),
+                        exposes_4_0_novel_motifs=reps[n]["checks"]["distinct"].get("exposes_4_0_novel_motifs"))
+                for n in fps}
     out = {"seeds": list(seeds), "source_digest": source_digest(), "reports": reps, "summary": summary(reps),
            "fingerprints": fps, "counted": kept, "cosmetic_duplicates": dup, "distinctness": distinct,
            "static_isolation": static_isolation(), "cpu_s": time.process_time() - t0}
@@ -58,6 +75,18 @@ def admission_report(seeds=(0, 1, 2), use_cache: bool = True) -> dict:
         json.dump(out, fh)
     os.replace(tmp, path)
     return out
+
+
+def robust_report(seeds=(0, 1, 2), holdout=(10, 11, 12), use_cache: bool = True, jobs: int = 1) -> dict:
+    """Admission on the admission seeds and on held-out seeds: a family counts only if it is admitted on both and
+    its fingerprint is counted (not a cosmetic duplicate)."""
+    a = admission_report(seeds, use_cache, jobs)
+    h = admission_report(holdout, use_cache, jobs)
+    both = sorted(n for n in a["reports"] if a["reports"][n]["admitted"] and h["reports"].get(n, {}).get("admitted")
+                  and n in a["counted"])
+    return {"admission": a, "holdout": h, "robust": both,
+            "robust_train": [n for n in both if a["reports"][n]["split"] == "train"],
+            "robust_eval": [n for n in both if a["reports"][n]["split"] in ("val", "test")]}
 
 
 def _jsonable(x):
@@ -81,11 +110,19 @@ def main(argv=None) -> int:
     r.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     r.add_argument("--json", default=None)
     r.add_argument("--no-cache", action="store_true")
+    r.add_argument("--jobs", type=int, default=1)
+    r.add_argument("--robust", action="store_true", help="also admit on held-out seeds 10-12")
     f = sub.add_parser("families", help="the family registry with fingerprints and distinctness reasons")
     f.add_argument("--json", default=None)
     a = ap.parse_args(argv)
     if a.cmd == "report":
-        rep = admission_report(tuple(a.seeds), use_cache=not a.no_cache)
+        if a.robust:
+            rr = robust_report(tuple(a.seeds), use_cache=not a.no_cache, jobs=a.jobs)
+            rep = rr["admission"]
+            print(json.dumps({"robust_train": len(rr["robust_train"]), "robust_eval": len(rr["robust_eval"]),
+                              "robust": rr["robust"]}, indent=1))
+        else:
+            rep = admission_report(tuple(a.seeds), use_cache=not a.no_cache, jobs=a.jobs)
         print(json.dumps(rep["summary"], indent=1))
         if a.json:
             json.dump(rep, open(a.json, "w"), indent=1)

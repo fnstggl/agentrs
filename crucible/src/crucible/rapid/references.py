@@ -521,13 +521,16 @@ def practice_constant(env) -> dict | None:
 
 
 def play(env) -> dict:
-    """The family's reference on `env`; the generic one learns over practice episodes on copies of the world
-    (`practice_constant`), as a learner would across episodes, then plays the scored episode."""
+    """The family's reference on `env`: its mechanism-specific public-information policy, which plays the scored
+    episode once, from what it observes (closed loop). A family without one gets the generic adaptive learner
+    (`refs_v2.adaptive`: extremum seeking on levers and allocations, a discounted bandit on decisions), which knows
+    no mechanism. Nothing here replays copies of the scored world (`practice_constant` is a hindsight baseline kept
+    for comparison, not a reference)."""
     from .oracles import _family_hook
-    fn = SPECIFIC.get(env.family) or _family_hook(env, "reference")
+    fn = _family_hook(env, "reference") or SPECIFIC.get(env.family)
     if fn is not None:
         fn(PublicView(env), env)
         return env.outcome()
-    best = practice_constant(env)
-    _run(PublicView(env), lambda v: best)
+    from .refs_v2 import adaptive
+    adaptive(PublicView(env), env)
     return env.outcome()

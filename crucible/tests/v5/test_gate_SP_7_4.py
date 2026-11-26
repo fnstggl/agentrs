@@ -3,10 +3,13 @@
 A check counts when it ran on every registered family and it rejects at least one deliberately broken control
 world for the right reason (each control is built for one defect: a dominant constant strategy, a leaked hidden
 parameter, levers without effect, a renamed copy, a money flow that violates accounting, nondeterminism, blind
-observations). Oracle exposure is measured three ways: world-side modules import no evaluator module (fresh
+observations, a mechanism claim that its world does not bear out). The ten checks of Part 7.4 are joined by an
+eleventh, `mechanism`: a family's own controlled-intervention claims must pass. Oracle exposure is measured three ways: world-side modules import no evaluator module (fresh
 interpreter), no hidden number of any admitted family reached anything a participant received, and the kernel
 facility's tools return nothing of the hidden mechanism."""
 from __future__ import annotations
+
+import os
 
 import json
 
@@ -102,7 +105,19 @@ def b_blind(rng, d):
                     brief="control: what is seen does not depend on the hidden part")
 
 
+def b_false_claim(rng, d):
+    """A world built like ch_silent_reversal but without the reversal (the regime keeps the sign): its claimed
+    mechanism - the effect's sign flips at a hidden tick - is not there."""
+    from crucible.rapid.families_v2 import ch_silent_reversal
+    cfg = ch_silent_reversal(rng, dict(d, horizon=100, observation_noise=0.3, n_variables=0))
+    for nd in cfg["nodes"]:
+        if nd.get("prim", "").startswith("regime_change"):
+            nd["params"]["after"] = nd["params"]["before"]
+    return cfg
+
+
 CONTROLS = {
+    "ctl_false_claim": (b_false_claim, ("mechanism",)),
     "ctl_dominant": (b_dominant, ("no_dominant_strategy",)),
     "ctl_leaky": (b_leaky, ("no_leakage",)),
     "ctl_inert": (b_inert, ("controllability", "achievable", "identifiability", "difficulty")),
@@ -124,6 +139,11 @@ def controls():
                 f = F.FAMILIES["hc_confounded"]
                 F.FAMILIES[name] = F.Family(name, f.engine, "8.1", f.item, "train", f.doc, f.distinct_because, f.build,
                                             dict(f.axes), f.objective, (), (), f.identify)
+            elif name == "ctl_false_claim":
+                f = F.FAMILIES["ch_silent_reversal"]
+                F.FAMILIES[name] = F.Family(name, f.engine, "8.10", "control", "train", "negative control",
+                                            "negative control", build, {}, f.objective, (), f.claims, f.identify,
+                                            f.reference, f.oracle)
             else:
                 F.FAMILIES[name] = F.Family(name, ENGINE_KINDS.get(name, PrimitiveGraph).kind if name in ENGINE_KINDS
                                             else "primitive_graph", "8.1", "control", "train", "negative control",
@@ -142,7 +162,7 @@ def controls():
 
 
 def test_SP_7_4_admission_checks_with_evaluator_side_oracles(controls):
-    adm = RP.admission_report(seeds=(0, 1, 2))
+    adm = RP.admission_report(seeds=(0, 1, 2), jobs=int(os.environ.get("CRUCIBLE_RAPID_JOBS", "1")))
     reps = adm["reports"]
     ran_everywhere = [c for c in AD.CHECKS if all(c in r["checks"] for r in reps.values())]
     rejects = {}
@@ -174,4 +194,4 @@ def test_SP_7_4_admission_checks_with_evaluator_side_oracles(controls):
            notes="Checks: " + ", ".join(AD.CHECKS) + ". Each is rejected by a broken control world: " +
                  json.dumps(rejects) + ". Oracles, references, intervention tests and identification run only in "
                  "admission, on copies of worlds; world-side modules import none of them.")
-    assert len(counted) == 10 and findings == 0
+    assert len(counted) == len(AD.CHECKS) == 11 and findings == 0

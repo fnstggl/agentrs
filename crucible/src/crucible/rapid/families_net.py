@@ -143,7 +143,9 @@ def net_cascade(rng, d):
             "connected. A crew repairs one link per tick; new links can be built.",
         distinct_because="connectivity of origin-destination pairs over a failing graph (breadth of the surviving "
                          "network), repaired by discrete dispatch and graph edits",
-        axes={"graph_size": 12, "horizon": 60}, objective="maximize_net", claims=(C + "repair_restores",),
+        axes={"graph_size": 12, "horizon": 60}, objective="maximize_net",
+        claims=(C + "repair_restores", C + "built_link_carries_traffic"),
+        reference="crucible.rapid.claims_v2:learn_which_links_matter",
         identify=I + "repair_sign")
 def net_repair(rng, d):
     N = int(d["graph_size"])
@@ -175,3 +177,37 @@ def net_repair(rng, d):
             "brief": f"A network of {N} nodes and {len(edges)} links. Links break; each tick your crew can repair one "
                      "broken link, and you may build new links. You see which links are up and how much demand is "
                      "served."}
+
+
+@family("net_hidden_bottleneck_swap", engine="graph_dynamical", category="8.7", item="8.7.6", split="train",
+        doc="Traffic is split over two routes whose second hops differ greatly in capacity. Only end-to-end "
+            "measurements exist (flow delivered and the mean latency), never a route's own latency. At a hidden "
+            "time the network is rewired and the routes swap second hops, so the route that was fast becomes the "
+            "bottleneck; a participant must notice from end-to-end consequences of its own splits and move the "
+            "traffic.",
+        distinct_because="routing dynamics with a hidden topology change observed only through aggregate "
+                         "(end-to-end) measurements: the changed structure must be inferred by probing splits, "
+                         "unlike net_topology_shift, where each route's latency is shown",
+        axes={"horizon": 120, "observation_noise": 0.2}, objective="maximize_net",
+        claims=(C + "topology_shift", "crucible.rapid.claims_v2:swap_reverses_best_split"),
+        identify="crucible.rapid.claims_v2:identify_swap", reference="crucible.rapid.claims_v2:split_tracker")
+def net_hidden_bottleneck_swap(rng, d):
+    names = neutral_names(rng, 6)
+    H = int(d["horizon"])
+    fast, slow = u(rng, 12.0, 16.0), u(rng, 3.0, 5.0)
+    first_fast = int(rng.integers(2))
+    c2 = [fast, slow] if first_fast == 0 else [slow, fast]
+    c1 = [u(rng, 18.0, 22.0), u(rng, 18.0, 22.0)]
+    cfg = {"engine": "graph_dynamical", "scenario": "routing", "horizon": H, "K": 2, "J": 2, "assign": [0, 1],
+           "assign2": [1, 0], "rewire_at": int(rng.integers(int(0.3 * H), int(0.7 * H))), "c1": c1, "c2": c2,
+           "toll": [u(rng, 5.0, 10.0), u(rng, 5.0, 10.0)], "demand_mean": 0.9 * (fast + slow),
+           "demand_sd": 0.03 * (fast + slow), "demand_ar": 0.8, "price": 150.0, "hold": 5.0,
+           "noise": float(d["observation_noise"]), "w_default": [0.5, 0.5], "route_names": names[:2],
+           "gauge_names": names[2:5], "aggregate_only": True, "endowment": 300_000,
+           "objective": {"type": "maximize_net", "text": "Maximise your net income: delivered flow pays, route "
+                                                         "tolls and queued flow cost."},
+           "brief": "Traffic from one source to one sink over 2 routes. Levers: the share of demand you send on each "
+                    "route (shares adding up to more than one are scaled down; demand not sent is turned away). "
+                    "Gauges: flow delivered and the mean latency of delivered traffic."}
+    cfg["income_cents_per_tick"] = int(cfg["price"] * (fast + slow + 1)) + 1
+    return cfg

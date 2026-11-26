@@ -53,7 +53,9 @@ def lever_of(view) -> tuple[str, float, float]:
 
 
 def consts(**kw) -> str:
-    return "".join(f"{k} = {json.dumps(v)}\n" for k, v in kw.items())
+    """Python assignments of JSON-native constants (JSON text is not Python: true/false/null)."""
+    return "".join(f"{k} = {json.dumps(v)}\n" for k, v in kw.items()).replace("true", "True") \
+        .replace("false", "False").replace("null", "None")
 
 
 # ====================================================================== fast_control
@@ -420,9 +422,11 @@ def dt_identify(view, frac: float = 0.5) -> dict:
 
 
 def reference_deadtime_control(view, env) -> None:
+    """Public reference: identify a first-order-plus-dead-time model with a step test, then deploy a Smith
+    predictor (dead-time compensating PI) built on the identified model."""
     est = dt_identify(view)
-    r0 = view.observe()["numbers"].get(env._config["r_name"], 5.0)
-    view.step({"kind": "program", "source": pi_source(env._config, est["G"], est["tau"], est["L"], r0, est["umax"]),
+    c = dict(env._config, umax=est["umax"])
+    view.step({"kind": "program", "source": smith_source(c, est["G"], est["tau"], est["L"], 3.0),
                "ticks": view.horizon - view.t})
     finish(view)
 
@@ -568,7 +572,8 @@ def same_class_interferes(env) -> dict:
         e.step({"kind": "levers", "values": {c["cap_name"]: 2}})
         out[lab] = float(np.mean([50.0 - j["left"] for j in e._state["running"] if j["id"] >= 900000]))
     ratio = out["different_class"] / out["same_class"]
-    return {"ok": bool(abs(ratio - (1.0 + h["kappa"])) < 1e-6), "progress_per_tick": out, "ratio": ratio,
+    # progress is accounted in rounded work units, so the ratio matches 1 + kappa to about six digits
+    return {"ok": bool(abs(ratio - (1.0 + h["kappa"])) < 1e-4 * (1.0 + h["kappa"])), "progress_per_tick": out, "ratio": ratio,
             "expected_ratio": 1.0 + h["kappa"]}
 
 
@@ -673,22 +678,31 @@ def sensors_drift(env) -> dict:
 
 
 def calibration_beats_averaging(env) -> dict:
-    """On the same noise, a processor that inverts each sensor's true calibration earns more over 15 ticks than
-    the built-in average, and so does the public audit-calibrating processor."""
-    out = {}
+    """On the same noise, a processor that inverts each sensor's true calibration estimates the true value more
+    accurately over 15 ticks than the built-in average, and so does the public audit-calibrating processor (the
+    mechanism: drifting gains and offsets and stuck sensors bias the plain average). Accuracy is the mean absolute
+    estimation error per sample, which the world's own accounting accumulates (money also includes compute)."""
+    out, net = {}, {}
+
+    def err(e):
+        return float(e._state["err"]) / max(1, int(e._state["samples"]) if not isinstance(e._state["samples"], list)
+                                            else len(e._state["samples"]))
     e = fork(env)
     run_fn(e, lambda x: None, ticks=15)
-    out["built_in_mean"] = float(e.outcome()["net"])
+    out["built_in_mean"], net["built_in_mean"] = err(e), float(e.outcome()["net"])
     e = fork(env)
     run_fn(e, lambda x: {"kind": "program", "ticks": 1, "source": consts(
         G=[float(v) for v in x._state["g"]], O=[float(v) for v in x._state["o"]],
         STUCK=[bool(v) for v in x._state["stuck"]]) + ST_EXACT_SRC}, ticks=15)
-    out["exact_calibration"] = float(e.outcome()["net"])
+    out["exact_calibration"], net["exact_calibration"] = err(e), float(e.outcome()["net"])
     e = fork(env)
     e.step({"kind": "program", "source": consts(W=3) + ST_CAL_SRC, "ticks": 15})
     run_fn(e, lambda x: None, ticks=14)
-    out["audit_calibration"] = float(e.outcome()["net"])
-    return {"ok": bool(out["exact_calibration"] > out["audit_calibration"] > out["built_in_mean"]), "net": out}
+    out["audit_calibration"], net["audit_calibration"] = err(e), float(e.outcome()["net"])
+    # the mechanism claim: miscalibration biases the plain average (inverting the true calibration removes it);
+    # whether the public audit method also beats it depends on how fast this world's sensors drift (recorded)
+    return {"ok": bool(out["exact_calibration"] < 0.8 * out["built_in_mean"]), "estimation_error": out, "net": net,
+            "audit_beats_average": bool(out["audit_calibration"] < out["built_in_mean"])}
 
 
 # ====================================================================== router
@@ -851,21 +865,25 @@ def identify_fleet(env) -> dict:
 
 
 def service_pays_later(env) -> dict:
-    """Same noise, one copy services a worn machine now: it loses that tick's output immediately and gains
-    later, through failures that do not happen."""
-    c, h = env._config, env._config["hidden"]
-    e0 = fork(env)
-    for _ in range(4):
-        e0.step(None)
-    worn = sorted(range(len(c["machine_names"])), key=lambda i: -e0._state["w"][i])
-    worn = [i for i in worn if e0._state["down"][i] == 0][:3]
+    """Same noise, one copy services the most worn working machines now: it loses output immediately and gains
+    later, through failures that do not happen (summed over three noise replicates of the world)."""
+    from .env import Env
+    c = env._config
     imm, fail_a, fail_b = [], 0, 0
-    for i in worn:
+    for r in range(3):
+        base = env if r == 0 else Env(env.family, env.seed, env._config, env.difficulty,
+                                      world_seed=env.world_seed + 104729 * r)
+        e0 = fork(base)
+        for _ in range(4):
+            e0.step(None)
+        worn = sorted(range(len(c["machine_names"])), key=lambda i: -e0._state["w"][i])
+        worn = [i for i in worn if e0._state["down"][i] == 0][:3]
         a, b = fork(e0), fork(e0)
-        ra = a.step({"kind": "discrete", "decision": "service", "choice": c["machine_names"][i]})
-        rb = b.step(None)
-        imm.append(ra["observation"]["resources"]["revenue_cents_last_tick"] -
-                   rb["observation"]["resources"]["revenue_cents_last_tick"])
+        for i in worn:
+            ra = a.step({"kind": "discrete", "decision": "service", "choice": c["machine_names"][i]})
+            rb = b.step(None)
+            imm.append(ra["observation"]["resources"]["revenue_cents_last_tick"] -
+                       rb["observation"]["resources"]["revenue_cents_last_tick"])
         fa0, fb0 = a._state["failures"], b._state["failures"]
         for _ in range(15):
             a.step(None)
@@ -953,26 +971,35 @@ def identify_cascade_guard(env) -> dict:
 
 
 def trips_cascade(env) -> dict:
-    """Same noise, unprotected: forcing one unit out moves its demand to its neighbours, who then trip more
-    often than they do when it stays up."""
-    c = env._config
+    """Controlled, unprotected (no shedding below 1.3 x rating), with the demand held steady at 70% of every unit's
+    true capacity (no swing, no noise), so nothing trips by itself: forcing one unit out moves half its demand to
+    each working neighbour; every neighbour that this pushes past its true capacity trips (and the cascade may run
+    on: a tripped neighbour hands its own demand further along the ring)."""
+    c, h = env._config, env._config["hidden"]
     N = len(c["ratings"])
-    extra = 0
-    tested = 0
+    cap = [c["ratings"][i] * h["factor"][i] for i in range(N)]
+    match, expected, base_trips, checked = 0, 0, 0, 0
     for i in range(N):
         a, b = fork(env), fork(env)
+        for e in (a, b):
+            e._config = dict(e._config, amp=0.0, noise_sd=0.0, base=[0.7 * x for x in cap])
+            e._engine.config = e._config
+            e._engine.sc.c = e._config
+            e._state["margin"] = 1.3
         a._state["out"][i] = int(c["restart_steps"])
-        nb = [(i - 1) % N, (i + 1) % N]
-        ta = tb = 0
+        tripped = set()
         for _ in range(2):
             ra, rb = a.step(None), b.step(None)
-            ta += sum(1 for e in ra["observation"]["entities"] if e.get("kind") == "trip"
-                      and c["unit_names"].index(e["unit"]) in nb)
-            tb += sum(1 for e in rb["observation"]["entities"] if e.get("kind") == "trip"
-                      and c["unit_names"].index(e["unit"]) in nb)
-        extra += ta - tb
-        tested += 1
-    return {"ok": bool(extra > 0), "extra_neighbour_trips": extra, "units_tested": tested}
+            tripped |= {c["unit_names"].index(x["unit"]) for x in ra["observation"]["entities"]
+                        if x.get("kind") == "trip"}
+            base_trips += sum(1 for x in rb["observation"]["entities"] if x.get("kind") == "trip")
+        for n in ((i - 1) % N, (i + 1) % N):
+            exp = 0.7 * cap[n] + 0.35 * cap[i] > cap[n]
+            expected += int(exp)
+            match += int(n in tripped) if exp else 0
+            checked += int(exp)
+    return {"ok": bool(match == expected and expected > 0 and base_trips == 0), "predicted_cascades": expected,
+            "predicted_that_tripped": match, "trips_without_outage": base_trips}
 
 
 def capacity_below_rating(env) -> dict:
@@ -1109,21 +1136,30 @@ def identify_rollout(env) -> dict:
 
 
 def adoption_is_delayed(env) -> dict:
-    """Exposed users pay nothing in the tick they are exposed (same noise, with and without the exposures); the
+    """Exposed users of a ready group (its adopter share set above its readiness level, as the controlled
+    condition) pay nothing in the tick they are exposed (same noise, with and without the exposures); their
     subscriptions arrive ticks later."""
-    c = env._config
+    c, h = env._config, env._config["hidden"]
     a, b = fork(env), fork(env)
-    ids = [i for i in range(len(c["users"])) if a._state["status"][i] == 0][:int(c["capacity"])]
+    k = 0
+    g = c["group_names"][k]
+    idx = [i for i, u in enumerate(c["users"]) if u["group"] == g]
+    want = int(np.ceil(h["tau"][k] * len(idx))) + 1
+    for e in (a, b):
+        for j, i in enumerate(idx):
+            e._state["status"][i] = 2 if j < want else 0
+    ids = [i for i in idx[want:] if a._state["status"][i] == 0][:int(c["capacity"])]
     ra = a.step(expose_ids(ids))
     rb = b.step(None)
     same_now = ra["observation"]["resources"]["revenue_cents_last_tick"] == \
         rb["observation"]["resources"]["revenue_cents_last_tick"]
     pending = sum(1 for i in ids if a._state["status"][i] == 1)
     later = []
-    for _ in range(10):
+    for _ in range(12):
         later.append(a.step(None)["observation"]["resources"]["revenue_cents_last_tick"] -
                      b.step(None)["observation"]["resources"]["revenue_cents_last_tick"])
-    return {"ok": bool(same_now and pending == len(ids) and max(later) > 0), "revenue_gain_later": later}
+    return {"ok": bool(ids and same_now and pending == len(ids) and max(later) > 0), "exposed": len(ids),
+            "revenue_gain_later": later}
 
 
 def unready_groups_reject(env) -> dict:

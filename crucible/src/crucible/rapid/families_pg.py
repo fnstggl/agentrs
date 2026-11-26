@@ -210,7 +210,8 @@ def sci_instruments(rng, d):
         distinct_because="a pipeline delay into a depreciating stock feeding a saturating output (credit assignment "
                          "across the construction lag)",
         axes={"horizon": 60, "observation_noise": 0.3, "resources": 0.0}, objective="maximize_net",
-        claims=(C + "delayed_return",), identify=I + "lever_sign", lever_view=True)
+        claims=(C + "delayed_return",), identify=I + "lever_sign", lever_view=True,
+        reference="crucible.rapid.claims_v2:invest_learn_lag_then_stop")
 def dl_delayed_returns(rng, d):
     gb = GraphBuilder(rng)
     inv = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 550, 750))

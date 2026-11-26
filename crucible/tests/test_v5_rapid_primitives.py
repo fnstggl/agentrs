@@ -114,3 +114,59 @@ def test_instantaneous_cycles_are_refused():
              {"id": "b", "type": "prim", "ports": {"x": [["a", 0, 1.0]]}}]
     with pytest.raises(ValueError):
         topo_order(nodes)
+
+
+def _recorded_calls():
+    """Every (primitive, params, inputs, ticks, seed) call the 28 characteristic-behaviour experiments make."""
+    from crucible.rapid import primitive_checks as PC
+    calls, orig = [], PC.run
+
+    def rec(name, params, inputs, ticks=None, seed=0, state=None):
+        calls.append((name, dict(params), inputs, ticks, seed, state))
+        return orig(name, params, inputs, ticks=ticks, seed=seed, state=state)
+    PC.run = rec
+    try:
+        for n in P.PRIMITIVES:
+            getattr(PC, n)()
+    finally:
+        PC.run = orig
+    return calls
+
+
+def test_every_primitive_accepts_per_instance_parameters():
+    """The batch contract: any number-typed parameter may be a (B,) array of per-instance values. Replacing each scalar
+    parameter of every characteristic-experiment call by a (B,) array of the same value gives the same outputs;
+    and a batch of two instances with different per-instance values equals the two single-instance runs."""
+    exercised, mixed = set(), set()
+    for name, params, inputs, ticks, seed, state in _recorded_calls():
+        if state is not None:
+            continue
+        ref_out, _ = P.run(name, params, inputs, ticks=ticks, seed=seed)
+        ref_out = np.asarray(ref_out, dtype=float)
+        B = ref_out.shape[-1] if ref_out.ndim else 1
+        props = P.REGISTRY[name]["params"].get("properties", {})
+        # integer parameters (lags, unit counts) fix array shapes and are structural; every number parameter may
+        # vary per instance
+        pb = {k: (np.full(B, float(v)) if isinstance(v, float) and props.get(k, {}).get("type") == "number" else v)
+              for k, v in params.items()}
+        out, _ = P.run(name, pb, inputs, ticks=ticks, seed=seed)
+        assert np.allclose(np.nan_to_num(np.asarray(out, float), nan=1e99), np.nan_to_num(ref_out, nan=1e99)), name
+        exercised.add(name)
+    for name in ("selection_effect", "saturation", "threshold", "measurement_noise", "decay", "congestion"):
+        e = P.REGISTRY[name]
+        call = next(c for c in _recorded_calls() if c[0] == name and c[5] is None)
+        _, params, inputs, ticks, seed, _ = call
+        alt = {k: (v * 1.3 if isinstance(v, float) else v) for k, v in params.items()}
+        one = [np.asarray(P.run(name, p, {k: np.asarray(v, float)[..., :1] for k, v in inputs.items()},
+                                ticks=ticks, seed=seed)[0], float) for p in (params, alt)]
+        both_p = {k: (np.array([params[k], alt[k]]) if isinstance(params[k], float) else params[k]) for k in params}
+        both_in = {k: np.concatenate([np.asarray(v, float)[..., :1]] * 2, axis=-1) for k, v in inputs.items()}
+        both, _ = P.run(name, both_p, both_in, ticks=ticks, seed=seed)
+        both = np.asarray(both, float)
+        if name in ("selection_effect", "measurement_noise"):
+            # noise draws differ by instance row; the deterministic part must still broadcast per instance
+            assert both.shape[-1] == 2 and np.isfinite(np.nan_to_num(both)).all(), name
+        else:
+            assert np.allclose(both[..., 0], one[0][..., 0]) and np.allclose(both[..., 1], one[1][..., 0]), name
+        mixed.add(e["name"] if "name" in e else name)
+    assert len(exercised) >= 25 and mixed

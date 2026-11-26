@@ -23,12 +23,13 @@ def test_registry_entries_carry_the_contract_fields():
         assert e["category"] in F.CATEGORIES and e["split"] in ("train", "val", "test")
         assert e["distinct_because"] and e["action_kinds"] and set(e["axes"]) <= set(F.DIFFICULTY_AXES)
     cats = {e["category"] for e in F.REGISTRY.values()}
-    assert len(cats) == 10 and len({e["engine"] for e in F.REGISTRY.values()}) == 5
+    from crucible.rapid.engines import ENGINE_KINDS
+    assert len(cats) == 10 and {e["engine"] for e in F.REGISTRY.values()} == set(ENGINE_KINDS)
 
 
 def test_make_respects_difficulty_axes_and_refuses_unknown_ones():
     env = F.make("net_routing", 1, graph_size=6, horizon=30, observation_noise=0.5)
-    assert env.horizon == 30 and len(env._config["route_names"]) == 6 and env.spec["difficulty"]["graph_size"] == 6
+    assert env.horizon == 30 and len(env._config["route_names"]) == 6 and env.difficulty["graph_size"] == 6
     with pytest.raises(ValueError):
         F.make("net_routing", 1, opponent_capability=0.9)
     a, b = F.build_config("hc_confounded", 3), F.build_config("hc_confounded", 3)
@@ -54,6 +55,26 @@ def test_the_spec_object_holds_no_hidden_configuration():
         text = json.dumps(env.spec, default=str)
         assert not [s for s in secrets(env) if s in text]
         assert "claim" not in text and "truth" not in text
+        # no identity: the family name (which describes the mechanism), the seed, the engine, the category, the
+        # split (which marks evaluation worlds) and the difficulty setting stay evaluator side
+        assert fam not in text and not {"family", "seed", "engine", "category", "split", "difficulty"} & set(env.spec)
+        r = env.step({"kind": "query", "target": "spec"}) if "query" in env.action_space().kinds else None
+        if r is not None:
+            assert fam not in json.dumps(r, default=str) and '"val"' not in json.dumps(r["result"], default=str)
+
+
+def test_observation_only_is_the_default_and_objective_free_operation_works():
+    env = F.make("net_routing", 0)
+    assert env.reward_mode == "observation_only" and env.spec["experience_mode"] == "observation_only"
+    free = F.make("net_routing", 0, objective=None)
+    assert free.spec["objective"] == {"a0": None} and free.observe()["objective"] is None
+    for _ in range(free.horizon + 3):                                   # runs to the horizon and refuses after
+        r = free.step(None)
+        assert "reward" not in r and "reward" not in r["result"]
+    assert free.done and not r["result"]["ok"]
+    assert free.outcome()["objective_mode"] == "none"
+    with pytest.raises(ValueError):
+        F.make("net_routing", 0, reward_mode="no_such_mode")
 
 
 def test_fingerprints_ignore_names_seeds_and_coefficients_but_not_structure():
@@ -61,7 +82,9 @@ def test_fingerprints_ignore_names_seeds_and_coefficients_but_not_structure():
     b = FP.instance_fingerprint(F.make("hc_confounded", 7))
     assert FP.distance(FP.merge([a]), FP.merge([b])) == 0.0
     c = FP.instance_fingerprint(F.make("hc_confounded", 0, n_variables=3))
-    assert FP.distance(FP.merge([a]), FP.merge([c])) > 0          # more variables change the observation structure
+    assert FP.distance(FP.merge([a]), FP.merge([c])) == 0.0       # distractors are not structure (M.n1)
+    h = FP.instance_fingerprint(F.make("hc_confounded", 0, horizon=200))
+    assert FP.distance(FP.merge([a]), FP.merge([h])) == 0.0       # nor is the horizon
     fps = {n: F.REGISTRY[n]["fingerprint"] for n in F.REGISTRY}
     kept, dup = FP.counted(fps)
     assert not dup and len(kept) == len(fps)

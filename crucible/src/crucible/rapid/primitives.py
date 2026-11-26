@@ -84,7 +84,9 @@ class LinearNonlinear(Primitive):
         elif form == "quadratic":
             f = v + _p(p, "c", 0.0) * v * v
         elif form == "power":
-            f = np.sign(v) * np.abs(v) ** _p(p, "k", 2.0)
+            # the exponent is broadcast to the inputs' shape, so a scalar exponent and per-instance exponents take
+            # the same floating-point path (a scalar 0.5 would otherwise be computed as a square root)
+            f = np.sign(v) * np.abs(v) ** (np.zeros_like(v) + _p(p, "k", 2.0))
         elif form == "logistic":
             f = sigmoid(_p(p, "c", 1.0) * (v - _p(p, "m", 0.0)))
         else:
@@ -533,11 +535,21 @@ class SelectionEffect(Primitive):
     params = _schema({"n": {"type": "integer", "minimum": 1, "maximum": 256}, "sd": _NUM, "c": _NUM})
 
     def draws(self, p):
-        return int(p["n"]), 0
+        return int(np.max(np.asarray(p["n"]))), 0
 
     def apply(self, p, x, s, z, u, t):
-        y = x["x"][:, None] + p["sd"] * z[:, :int(p["n"])]
-        keep = y > (np.zeros_like(x["x"]) + p["c"])[:, None]
+        # parameters are scalars (one world) or per-instance (B,) arrays (the batch path); broadcast them against
+        # the (B, n) unit draws explicitly
+        n_arr = np.asarray(p["n"])
+        n = int(n_arr.max()) if n_arr.ndim else int(n_arr)
+        sd = np.asarray(p["sd"], dtype=float)
+        c = np.asarray(p["c"], dtype=float)
+        sd = sd[:, None] if sd.ndim == 1 else sd
+        c = c[:, None] if c.ndim == 1 else c
+        y = x["x"][:, None] + sd * z[:, :n]
+        keep = y > (np.zeros_like(x["x"])[:, None] + c)
+        if n_arr.ndim:
+            keep &= np.arange(n)[None, :] < n_arr[:, None]
         cnt = keep.sum(axis=1)
         tot = np.where(keep, y, 0.0).sum(axis=1)
         return np.where(cnt > 0, tot / np.maximum(cnt, 1), np.nan), s

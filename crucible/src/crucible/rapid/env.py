@@ -26,6 +26,7 @@ from typing import Any, Protocol
 import numpy as np
 
 from ..core.canonical import digest
+from ..experience.modes import OBSERVATION_ONLY, check_mode
 from ..mechanisms.base import tick_rng
 from ..mechanisms.sim import TickRng
 from . import observation as O
@@ -52,23 +53,48 @@ class Env:
     """The RapidEnv implementation shared by every engine."""
 
     def __init__(self, family: str, seed: int, config: dict, difficulty: dict | None = None,
-                 world_seed: int | None = None, env_id: str = "r1", meta: dict | None = None):
+                 world_seed: int | None = None, env_id: str = "r1", meta: dict | None = None,
+                 reward_mode: str | None = None, objective: Any = "assigned"):
         self.family, self.seed = family, int(seed)
         self._config = config
         self._engine: RapidEngine = build(config)
         self.world_seed = world_seed_of(family, seed) if world_seed is None else int(world_seed)
         self.env_id = env_id
         self.difficulty = dict(difficulty or {})
-        meta = dict(meta or {})
+        # Clarification 2: observation-only is the default; no mode adds a reward to anything this world returns
+        # (legacy and verified modes are interpreted by the experience adapters, never here)
+        self.reward_mode = OBSERVATION_ONLY if reward_mode is None else check_mode(reward_mode)
+        self._meta = dict(meta or {}, family=family, seed=self.seed, engine=config.get("engine"),
+                          difficulty=self.difficulty)                       # evaluator side, never in `spec`
+        if objective is None or objective == "none":
+            self.objective_mode, self.goal = "none", None
+        elif objective == "assigned":
+            self.objective_mode, self.goal = "assigned", None
+        elif isinstance(objective, dict) and objective.get("text"):
+            self.objective_mode, self.goal = "generated", dict(objective)
+        else:
+            raise ValueError("objective is 'assigned', None (objective-free) or a generated goal dict with 'text'")
         eng = self._engine
-        self.spec = {"family": family, "seed": self.seed, "difficulty": self.difficulty, "agents": eng.agents,
-                     "horizon_ticks": eng.horizon, "engine": eng.kind, "brief": {a: eng.brief(a) for a in eng.agents},
-                     "objective": {a: eng.objective_text(a) for a in eng.agents},
-                     "action_kinds": {a: sorted(eng.action_space(a).kinds) for a in eng.agents},
-                     "category": meta.get("category"), "split": meta.get("split")}
+        # the participant-visible description: what the world is and what can be done in it. It names no family,
+        # seed, engine, category, split or difficulty setting (a family name describes its mechanism and the split
+        # marks evaluation worlds)
+        self.spec = {"agents": eng.agents, "horizon_ticks": eng.horizon,
+                     "brief": {a: eng.brief(a) for a in eng.agents},
+                     "objective": {a: self.objective_text(a) for a in eng.agents},
+                     "objective_mode": self.objective_mode, "experience_mode": self.reward_mode,
+                     "action_kinds": {a: sorted(eng.action_space(a).kinds) for a in eng.agents}}
         self._rng = TickRng(self.world_seed, env_id)
         self._arng = TickRng(self.world_seed, env_id + "/act")
         self.reset()
+
+    def objective_text(self, agent: str) -> str | None:
+        """The objective a participant is told: the family's own (assigned), a generated goal's text, or nothing
+        (objective-free operation)."""
+        if self.objective_mode == "none":
+            return None
+        if self.objective_mode == "generated":
+            return str(self.goal["text"])
+        return self._engine.objective_text(agent)
 
     # ------------------------------------------------------------------ protocol
     @property
@@ -275,7 +301,7 @@ class Env:
         return O.make(t=self.t, agent=agent, numbers=nums, arrays=ob.get("arrays"), text=ob.get("text"),
                       tools=self._spaces[agent].tools() if tools else [], events=evs, entities=ob.get("entities"),
                       resources=res, analytics=ob.get("analytics"), last_result=last, missing=ob.get("missing"),
-                      cursor=cur, objective=self._engine.objective_text(agent))
+                      cursor=cur, objective=self.objective_text(agent))
 
     # ------------------------------------------------------------------ evaluator side
     def outcome(self) -> dict:
@@ -283,7 +309,7 @@ class Env:
         out = self._engine.outcome(self._state, self._ledger)
         obj = self._config.get("objective", {})
         out.update({"family": self.family, "seed": self.seed, "t": self.t, "horizon": self.horizon,
-                    "done": self.done, "objective": obj.get("type"),
+                    "done": self.done, "objective": obj.get("type"), "objective_mode": self.objective_mode,
                     "actions": dict(self._ledger["actions"]), "invalid_actions": dict(self._ledger["errors"])})
         thr = obj.get("target")
         out["success"] = None if thr is None else bool(out["value"] >= thr)
