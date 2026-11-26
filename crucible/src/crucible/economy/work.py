@@ -110,6 +110,7 @@ DEFAULTS = {"families": [], "professional_share": 0.6, "use_min": 2.0, "shop_p":
             "ticket_patience_days": 3, "refund_threshold": 0.35, "first_day": 1, "rate_after": 5,
             "publish_formats": False, "ask_p": 0.15, "ask_board": "help", "help_share": 0.3, "xchg_browse_p": 0.6,
             "complain_rejects": True, "display_holdout": 0.2, "display_impressions": 3, "display_days": 14}
+# the runtime decision ad_response@2 serves the fitted model ad_exposure_response@1 (calibration/RUNTIME.md)
 AD_MODEL = {"model_id": "ad_response@2", "model_version": "1", "fidelity_id": "runtime:ad_response@2"}
 
 
