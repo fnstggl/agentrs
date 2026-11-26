@@ -76,23 +76,41 @@ class PlantedAdapter(LR.Adapter):
 
 class TargetableMeta(LR.MetaLearner):
     """The meta learner over (search strategy, lever mask) arms; untrained behaviour = a planted deficiency;
-    training learns which arm to use from its own observed within-episode improvement."""
+    training learns which arm to use from its own observed episode gain (`EpisodeSearch.episode_gain`).
+
+    Allocation (wave 3b, D-69 addendum): one warm-up episode per arm, then UCB1 on the mean episode gain
+    (exploration constant `UCB_C`, on the gain's own scale of about +-0.5); frozen, it uses the arm with the best
+    mean among arms tried at least twice. The earlier epsilon-greedy allocation locked onto an early leader: with
+    96 episodes its final choice on the same training stream varied with the learner seed, and the targeted and
+    untargeted arms of T.8 differed by noise (development run 2026-11-26: mean difference +0.02, p 0.34)."""
     arch = "targetable_meta"
     ARMS = tuple((a, None) for a in LR.META_ARMS[1:]) + tuple(PLANTED.values())
+    UCB_C = 0.25
 
     def __init__(self, seed=0, prior: str = "lag_blind", **cfg):
         super().__init__(seed, **cfg)
         self.bandit = LR._Bandit(len(self.ARMS))
         self.prior = self.ARMS.index(PLANTED[prior])
 
+    def _ucb(self) -> int:
+        n, tot = self.bandit.n, float(self.bandit.n.sum())
+        if (n == 0).any():
+            return int(np.argmax(n == 0))
+        return int(np.argmax(self.bandit.sum / n + self.UCB_C * np.sqrt(np.log(tot) / n)))
+
+    def _best(self) -> int:
+        n = self.bandit.n
+        if n.sum() == 0:
+            return self.prior
+        m = np.where(n >= min(2.0, float(n.max())), self.bandit.sum / np.maximum(n, 1), -np.inf)
+        return int(np.argmax(m))
+
     def begin(self, ctx, rng):
         LR.LeverLearner.begin(self, ctx, rng)
-        # one warm-up round per arm, then epsilon-greedy (with two rounds over 11 arms most of a 40-episode budget
-        # went to warm-up, and neither arm of T.8 found its category's best strategy; 2026-11-26 run)
-        if self.bandit.n.sum() == 0:
-            self.arm = self.prior
+        if self.frozen:
+            self.arm = self._best()
         else:
-            self.arm = self.bandit.best() if self.frozen else self.bandit.pick(rng, warm=1)
+            self.arm = self._ucb()
         (st, se, me, co), mk = self.ARMS[self.arm]
         self._search = LR.EpisodeSearch(ctx["u0"], ctx["horizon"], st, se, me, co)
         self._mask = lever_mask(mk, ctx)
@@ -202,48 +220,74 @@ def rank_pvalue(ranks: Sequence[int], k: int) -> float:
     return float(dist[: s + 1].sum())
 
 
+T8_DESIGN = {"budget": 160, "n_probe": 10, "measure_items": 80, "seeds": (0, 1, 2, 3, 4)}
+
+
+def _probe_score(e: Mapping, sd: int, learner) -> float:
+    """A held-out probe's normalised score with common random numbers: the learner's rng is seeded by the probe, so
+    scores before and after training, and of the two training arms, differ only by what the learner does."""
+    return _score(e, sd, learner, np.random.default_rng([sd, 7]))
+
+
+def _training_pair(args) -> dict:
+    p, sd, budget, n_probe, n_measure, ref = args
+    import os
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    cur = Curriculum(seed=100 + sd, reference=ref, random_share=0.2)
+    probe_l = TargetableMeta(sd, prior=p)
+    measure(cur, probe_l, n_measure, seed=sd)
+    w = cur.weights()
+    target = max((c for c in TEMPLATES), key=lambda c: w[c])
+    probes = probe_worlds(target, n_probe, 5000 + sd)
+    res, arms_used = {}, {}
+    for arm in ("targeted", "untargeted"):
+        L = TargetableMeta(sd, prior=p)
+        rng = np.random.default_rng(sd)
+        before = np.mean([_probe_score(e, s, L) for e, s in probes])
+        r2 = np.random.default_rng(300 + sd)
+        for i in range(budget):
+            if arm == "targeted":            # worlds the curriculum's generator makes for its target
+                s = targeted_structure(target, r2)
+            else:                            # uniformly drawn worlds of the grammar
+                s = random_structure(r2)
+            e = generated_entry(s, proposer="training")
+            try:
+                run_episode(build_env(e, int(r2.integers(0, 1_000_000)), {}, {"mode": "assigned"}), L,
+                            learn=True, rng=rng, verify=False)
+            except Exception:  # noqa: BLE001 - an unbuildable draw costs its episode
+                continue
+        after = np.mean([_probe_score(e, s, L) for e, s in probes])
+        res[arm] = float(after - before)
+        L.frozen = True
+        arms_used[arm] = int(L._best())
+    return {"planted": p, "seed": sd, "target": target, **res, "difference": res["targeted"] - res["untargeted"],
+            "arm_after": arms_used, "prior_arm": TargetableMeta(sd, prior=p).prior}
+
+
 def targeted_training_experiment(planted: Sequence[str] = tuple(PLANTED),
-                                 seeds: Sequence[int] = (0, 1, 2), budget: int = 96, n_probe: int = 10,
-                                 reference: Mapping | None = None) -> dict:
+                                 seeds: Sequence[int] = T8_DESIGN["seeds"], budget: int = T8_DESIGN["budget"],
+                                 n_probe: int = T8_DESIGN["n_probe"], reference: Mapping | None = None,
+                                 n_measure: int = T8_DESIGN["measure_items"], jobs: int = 1) -> dict:
     """For each planted weakness: a `TargetableMeta` learner starting with that strategy is trained for `budget`
     episodes either on worlds generated for the category the curriculum targets after measuring it (the
     curriculum's targeted generator, `targeted_structure`; its random share is not part of this arm) or on uniformly
-    random generated worlds; both are scored before and after on held-out probes of that category. Statistic: improvement(targeted) - improvement(untargeted), paired by seed; p-value of
-    a one-sided sign-flip permutation test over all (weakness, seed) pairs."""
+    random generated worlds; both are scored before and after on held-out probes of that category (validation
+    seeds, common random numbers). Statistic: improvement(targeted) - improvement(untargeted), paired by (weakness,
+    seed); p-value of a one-sided sign-flip permutation test over all pairs. Design `T8_DESIGN`, fixed before the
+    gate run (D-69 addendum)."""
     ref = dict(reference or reference_profile())
-    pairs = []
-    for p in planted:
-        for sd in seeds:
-            cur = Curriculum(seed=100 + sd, reference=ref, random_share=0.2)
-            probe_l = TargetableMeta(sd, prior=p)
-            measure(cur, probe_l, 30, seed=sd)
-            w = cur.weights()
-            target = max((c for c in TEMPLATES), key=lambda c: w[c])
-            probes = probe_worlds(target, n_probe, 5000 + sd)
-            res = {}
-            for arm in ("targeted", "untargeted"):
-                L = TargetableMeta(sd, prior=p)
-                rng = np.random.default_rng(sd)
-                before = np.mean([_score(e, s, L, rng) for e, s in probes])
-                r2 = np.random.default_rng(300 + sd)
-                for i in range(budget):
-                    if arm == "targeted":            # worlds the curriculum's generator makes for its target
-                        s = targeted_structure(target, r2)
-                    else:                            # uniformly drawn worlds of the grammar
-                        s = random_structure(r2)
-                    e = generated_entry(s, proposer="training")
-                    try:
-                        run_episode(build_env(e, int(r2.integers(0, 1_000_000)), {}, {"mode": "assigned"}), L,
-                                    learn=True, rng=rng, verify=False)
-                    except Exception:  # noqa: BLE001 - an unbuildable draw costs its episode
-                        continue
-                after = np.mean([_score(e, s, L, rng) for e, s in probes])
-                res[arm] = float(after - before)
-            pairs.append({"planted": p, "seed": sd, "target": target, **res,
-                          "difference": res["targeted"] - res["untargeted"]})
+    tasks = [(p, int(sd), int(budget), int(n_probe), int(n_measure), ref) for p in planted for sd in seeds]
+    if jobs > 1:
+        import concurrent.futures as cf
+        import multiprocessing as mp
+        with cf.ProcessPoolExecutor(max_workers=jobs, mp_context=mp.get_context("spawn")) as ex:
+            pairs = list(ex.map(_training_pair, tasks))
+    else:
+        pairs = [_training_pair(t) for t in tasks]
     d = np.array([x["difference"] for x in pairs])
     return {"pairs": pairs, "mean_difference": float(d.mean()), "p_value": signflip_pvalue(d),
-            "targets": sorted({x["target"] for x in pairs})}
+            "targets": sorted({x["target"] for x in pairs}), "design": {k: list(v) if isinstance(v, tuple) else v
+                                                                     for k, v in T8_DESIGN.items()}}
 
 
 def signflip_pvalue(d: np.ndarray, trials: int = 20000, seed: int = 0) -> float:

@@ -8,15 +8,16 @@ substantial share of uniformly random draws from the whole training distribution
 Weakness categories (Part 14.3), each with the generator structures that exercise it (`TEMPLATES`):
 
     causal_discovery        confounded histories, aggregated readings, competing pathways
-    memory                  hidden drifting state, missing and delayed readings
+    memory                  hidden drifting state or a wandering market taste, missing and delayed readings
     delayed_credit          construction delays, lagged pathways, stocks
     experimentation         pilot experiments, on-demand measurements
-    strategic_flexibility   regime shifts and wear latches (a strategy that worked stops working)
+    strategic_flexibility   regime shifts, wear latches, drifting and wandering optima (a strategy that worked
+                            stops working)
     adaptive_competitors    adaptive rivals that learn the participant's price
     skill_combination       two drivers and complementary or multiplicative pathways
     forgetting              revisits of structures the learner did well on earlier (spaced review)
     generalization          the same structures at new seeds and harder difficulty levels
-    long_horizon            long horizons with drivers that pay off late
+    long_horizon            long horizons with drivers that pay off late or keep moving
 
 Measures per category (`WeaknessProfiler`): learning progress (slope of recent scores), regret (1 - mean score),
 uncertainty (standard error of the mean score) and task success (share of episodes at or above the competence
@@ -64,8 +65,12 @@ def _t_causal(rng, s):
 
 
 def _t_memory(rng, s):
-    s["drivers"] = ["hidden_state"]
+    # a hidden drifting factor, or a market taste that wanders (following it means remembering how recent settings
+    # were received)
+    s["drivers"] = [str(rng.choice(["hidden_state", "wandering_optimum"]))]
     s["channels"] = sorted({"missing", str(rng.choice(["delayed", "missing"]))})
+    if s["drivers"] == ["wandering_optimum"]:
+        s["n_levers"] = 1
     return s
 
 
@@ -82,7 +87,9 @@ def _t_experiment(rng, s):
 
 
 def _t_flex(rng, s):
-    s["drivers"] = [str(rng.choice(["regime_shift", "wear_latch", "drifting_optimum"]))]
+    s["drivers"] = [str(rng.choice(["regime_shift", "wear_latch", "drifting_optimum", "wandering_optimum"]))]
+    if s["drivers"] == ["wandering_optimum"]:
+        s["n_levers"] = 1
     return s
 
 
@@ -103,8 +110,10 @@ def _t_combine(rng, s):
 
 
 def _t_long(rng, s):
-    s["drivers"] = ["long_horizon", str(rng.choice(["delayed_payoff", "regime_shift"]))]
+    s["drivers"] = ["long_horizon", str(rng.choice(["delayed_payoff", "regime_shift", "wandering_optimum"]))]
     s["horizon"] = int(rng.integers(120, 241))
+    if "wandering_optimum" in s["drivers"]:
+        s["n_levers"] = 1
     return s
 
 
@@ -153,7 +162,7 @@ def category_of(structure: Mapping) -> str:
         return "delayed_credit"
     if "hidden_state" in d or "missing" in s["channels"]:
         return "memory"
-    if d & {"regime_shift", "wear_latch", "drifting_optimum"}:
+    if d & {"regime_shift", "wear_latch", "drifting_optimum", "wandering_optimum"}:
         return "strategic_flexibility"
     if "confounded_history" in d or "aggregated" in s["channels"]:
         return "causal_discovery"

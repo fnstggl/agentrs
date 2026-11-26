@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from contextlib import contextmanager
 from typing import Any
 
@@ -44,15 +45,16 @@ from ...core.canonical import digest
 from ...rapid import families as RF
 from ...rapid.generator import CHANNELS, TEMPORAL, TOPOLOGIES, GraphBuilder, topo_order
 
-COMPOSE_VERSION = "n-compose/3"
+COMPOSE_VERSION = "n-compose/4"
 MOTIFS = ("saturation", "threshold", "non_monotonic", "linear_nonlinear", "decay", "delay", "hysteresis", "feedback",
           "path_dependence")
 COMBINERS = ("sum", "complementarity", "multiplicative", "substitution")
 DRIVERS = ("regime_shift", "delayed_payoff", "wear_latch", "hidden_state", "confounded_history", "pilot_experiments",
-           "long_horizon", "drifting_optimum")
+           "long_horizon", "drifting_optimum", "wandering_optimum")
 POPULATIONS = ("none", "rivals", "learning_customers", "word_of_mouth", "mixed")
 # the Part 8 category a generated family is filed under, by its first driver (or population)
-CATEGORY_OF = {"regime_shift": "8.10", "drifting_optimum": "8.10", "delayed_payoff": "8.6", "wear_latch": "8.6",
+CATEGORY_OF = {"regime_shift": "8.10", "drifting_optimum": "8.10", "wandering_optimum": "8.10", "delayed_payoff": "8.6",
+               "wear_latch": "8.6",
                "hidden_state": "8.5",
                "confounded_history": "8.1", "pilot_experiments": "8.2", "long_horizon": "8.6", "rivals": "8.8",
                "mixed": "8.8", "learning_customers": "8.10", "word_of_mouth": "8.4", "none": "8.1"}
@@ -273,6 +275,39 @@ def _pathways(gb: GraphBuilder, rng, s: dict, levers: list[str]) -> tuple[str, l
     return drive, path, levers[0]
 
 
+def _wandering(gb, rng, drive: str, key: str) -> tuple[str, str]:
+    """Driver `wandering_optimum`: the key-lever setting at which what the facility makes fits the market (a taste,
+    a position, a specification) follows a hidden, smooth random path for the whole episode, and sales fall off
+    quickly away from it. The path is a low-pass filtered AR(1) process (hidden_confounding -> decay, unit gain, so
+    it is smooth on the scale of a few ticks and wanders by `A` lever units around its centre c0); the fit is a
+    bump of half-width about `w` around c0 + path (the product of two logistic edges, always in (0, 1)), which
+    multiplies the drive. A constant setting is right only while the path passes it, so the best constant in
+    hindsight earns far less than following the path, and a two-setting rule covers at most two places on it;
+    nothing observable reveals the path except how sales respond to the setting. The key lever carries no cost (its
+    economics are the fit), and its default is the noise-free best setting (the centre), so leaving it alone is the
+    best fixed choice in expectation and there is nothing to gain from where the default sits (DEF-N-6)."""
+    w = _u(rng, 1.0, 1.5)                                # half-width of the fit, lever units (range 0-10)
+    A = _u(rng, 2.0, 2.6)                                # stationary sd of the path, lever units
+    a = _u(rng, 0.85, 0.9)                               # AR(1) coefficient of the shocks
+    r = _u(rng, 0.08, 0.14)                              # low-pass rate (decay: level' = (1 - r) level + r v)
+    b = 1.0 - r
+    gain = r * math.sqrt((1 + a * b) / ((1 - a * b) * (1 - a * a) * (1 - b * b)))
+    shocks = gb.prim("hidden_confounding", {"mean": 0.0, "sd": A / gain, "ar": a}, role="taste_shock")
+    path = gb.prim("decay", {"rate": r, "init": 0.0}, role="taste", x=[(shocks, 0, r)])
+    c0 = _u(rng, 2.0, 3.0) if rng.random() < 0.5 else _u(rng, 7.0, 8.0)
+    k = 2.0 / w
+    lo_edge = gb.prim("linear_nonlinear", {"form": "logistic", "a": 1.0, "b": 0.0, "c": k, "m": 0.0},
+                      bias={"x": -(c0 - w)}, x=[(key, 0, 1.0), (path, 0, -1.0)])
+    hi_edge = gb.prim("linear_nonlinear", {"form": "logistic", "a": 1.0, "b": 0.0, "c": -k, "m": 0.0},
+                      bias={"x": -(c0 + w)}, x=[(key, 0, 1.0), (path, 0, -1.0)])
+    fit = gb.prim("multiplicative", {"k": 1.0}, role="ideal", a=[(lo_edge, 0, 1.0)], b=[(hi_edge, 0, 1.0)])
+    nd = gb.nodes[int(key[1:])]
+    nd["lever"]["default"] = float(c0)
+    nd["lever"]["cost"] = 0.0
+    out = gb.prim("multiplicative", {"k": 1.0}, a=[(drive, 0, 1.0)], b=[(fit, 0, 1.0)])
+    return out, key
+
+
 def compose(rng: np.random.Generator, structure: dict, difficulty: dict | None = None) -> dict:
     """One world (a `primitive_graph` config) of `structure`, coefficients drawn from `rng`, at `difficulty`
     (horizon, observation_noise, n_variables, opponent_capability, experiment_cost). Calibrated (module doc)."""
@@ -336,6 +371,9 @@ def _compose_once(rng, s: dict, d: dict) -> dict:
                           x=[(drive, 1, 1.0)])
         drive = gb.prim("learning_behaviour", {"lr": float(pop.get("capability", 0.15)), "prior": 1.0},
                         role="customers", x=[(drive, 0, 1.0)], o=[(fatigue, 0, 1.0)])
+    wander = None
+    if "wandering_optimum" in drivers:                   # the key-lever setting the market wants wanders (module doc)
+        drive, wander = _wandering(gb, rng, drive, key)
     units = gb.prim("saturation", {"cap": _u(rng, 60.0, 100.0), "half": _u(rng, 4.0, 12.0)}, role="output",
                     x=[(drive, 0, 1.0)])
     if pop["kind"] == "word_of_mouth":                   # demand grows with how well it was served
@@ -418,7 +456,8 @@ def _compose_once(rng, s: dict, d: dict) -> dict:
                    brief="You operate a facility with spending levers" + (" and a price" if price_lever else "") +
                          ". You are paid for what it sells; the levers cost money.",
                    claim={"lever": key, "outcome": rev_node},
-                   calib={"cost_levers": [gb.name_of(lv) for lv in levers], "all_levers": lever_names})
+                   calib={"cost_levers": [gb.name_of(lv) for lv in levers if lv != wander],
+                          "all_levers": lever_names, "wander_lever": gb.name_of(wander) if wander else None})
     cfg["order"] = topo_order(cfg["nodes"])
     return cfg
 
@@ -477,6 +516,14 @@ def calibrate(cfg: dict, rng: np.random.Generator) -> bool:
     cpos = [pub.index(n) for n in costed]
     span = (hi - lo)
     d0 = np.array([(lev_nodes[n]["lever"]["default"] - lo[j]) / span[j] for j, n in enumerate(pub)])
+    if not cpos:
+        # only a wandering-optimum lever (and possibly a price): no cost to set; the noise-free best constant must
+        # still be interior and away from the canonical settings
+        if not cfg["calib"].get("wander_lever"):
+            return False
+        best = F[int(np.argmax(rev))]
+        j = pub.index(cfg["calib"]["wander_lever"])
+        return bool(0.1 <= best[j] <= 0.9 and abs(best[j] - 0.5) >= 0.08)
     for _ in range(10):
         # interior optimum drawn continuously (a fixed set of fractions was a learnable generator artifact)
         target = rng.uniform(0.15, 0.85, size=L)
@@ -591,6 +638,13 @@ def family_spec(structure: dict, *, proposer: str | None = None) -> dict:
 _REFS: dict[str, int] = {}
 
 
+def reference_for(structure: dict) -> str | None:
+    """The family's mechanism-specific public reference ("module:function"), or None for the generic adaptive
+    learner (`rapid.refs_v2.adaptive`): generated worlds whose optimum wanders get the perturbation tracker of
+    `genref` (it knows that the optimum moves, nothing hidden)."""
+    return "crucible.research.v5.genref:play" if "wandering_optimum" in normalize(structure)["drivers"] else None
+
+
 @contextmanager
 def registered(structures: list[dict] | dict):
     """Register generated structures as rapid families (split train) for the duration of the block; restores the
@@ -609,7 +663,8 @@ def registered(structures: list[dict] | dict):
                 RF.FAMILIES[n] = RF.Family(n, "primitive_graph", sp["category"], "generated", "train", sp["doc"],
                                            sp["distinct_because"], _builder(sp["structure"], n), dict(sp["axes"]),
                                            "maximize_net", sp["participants"], claims_for(sp["structure"]),
-                                           "crucible.rapid.identify:lever_sign", None, None, True, "1")
+                                           "crucible.rapid.identify:lever_sign", reference_for(sp["structure"]),
+                                           None, True, "1")
             _REFS[n] = _REFS.get(n, 0) + 1
             added.append(n)
         yield [sp["name"] for sp in specs]

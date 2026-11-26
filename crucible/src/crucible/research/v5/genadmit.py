@@ -17,6 +17,9 @@ placed and their roles), run on forks of the world like every rapid claim:
     wear_degrades_health       with a wear latch, overdriving the key lever lowers the health node later
     ideal_drifts               with a drifting optimum, the best constant key-lever setting early and late differ by
                                at least a fifth of the lever's range
+    ideal_wanders              with a wandering optimum, the key-lever setting that fits the market best, tick by
+                               tick, moves over at least a fifth of the lever's range and through at least four
+                               distinct settings of an 11-point grid (it wanders; it does not just switch once)
 
 `admit_generated(structures, seeds, jobs)` returns every world's checks; a world is validated when all eleven pass.
 Nothing here is imported by world code.
@@ -125,6 +128,22 @@ def ideal_drifts(env) -> dict:
     return {"ok": abs(bl - be) >= 0.2 * (hi - lo), "best_early": be, "best_late": bl}
 
 
+def ideal_wanders(env) -> dict:
+    """With a wandering optimum, the key-lever setting maximising the fit node, tick by tick (forks at constant
+    settings on a grid), spans at least a fifth of the lever's range over the episode and takes at least four
+    distinct grid values."""
+    name, lo, hi, cl = _key(env)
+    nodes = _role_nodes(env, "ideal")
+    if not nodes:
+        return {"ok": False, "error": "no ideal node"}
+    grid = np.linspace(lo, hi, 11)
+    S = np.array([_series(env, lambda k, x=float(x): {name: x}, env.horizon, nodes[0]) for x in grid])
+    best = grid[np.argmax(S, axis=0)]
+    span = float(best.max() - best.min())
+    return {"ok": bool(span >= 0.2 * (hi - lo) and len(set(best.tolist())) >= 4), "span_of_best_setting": span,
+            "distinct_best_settings": len(set(best.tolist()))}
+
+
 def claims_for(structure: dict) -> tuple[str, ...]:
     d = set(structure.get("drivers") or [])
     pop = (structure.get("population") or {}).get("kind")
@@ -139,6 +158,8 @@ def claims_for(structure: dict) -> tuple[str, ...]:
         out.append(f"{CLAIMS_MOD}:wear_degrades_health")
     if "drifting_optimum" in d:
         out.append(f"{CLAIMS_MOD}:ideal_drifts")
+    if "wandering_optimum" in d:
+        out.append(f"{CLAIMS_MOD}:ideal_wanders")
     return tuple(out)
 
 

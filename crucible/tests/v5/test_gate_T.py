@@ -162,15 +162,40 @@ def test_T3_independently_varied_objectives(generated):
     assert chi2 < 3 * dof
 
 
-def test_T4_validated_generated_worlds(generated):
+# T.4 sample, fixed before the gate run (D-69 addendum): the first 200 structures of the generator stream used by
+# T.1 (alternating curriculum-targeted and uniformly random structures, seed 7), those calibrated at seed 0, each
+# at five world seeds. Every world of the sample is admitted; none is selected by its outcome.
+T4_SAMPLE = {"structures": 200, "structure_seed": 7, "world_seeds": (0, 1, 2, 3, 4)}
+
+
+def test_T4_validated_generated_worlds():
     """Full Part 7.4 admission (`crucible.rapid.admission.seed_report`, eleven checks) of generated worlds; a world
-    (structure, seed) is validated when every check passes on it."""
+    (structure, seed) is validated when every check passes on it. Static generated worlds (a fixed best setting)
+    fail no_dominant_strategy by construction of that check - the best constant in hindsight is then near-optimal;
+    worlds whose optimum keeps moving (driver wandering_optimum) are the ones in which adaptation pays."""
     from crucible.research.v5.genadmit import admit_generated
-    res = admit_generated([r["structure"] for r in generated], seeds=(0, 1, 2), jobs=JOBS)
+    structs = []
+    for s in _structures(T4_SAMPLE["structures"], T4_SAMPLE["structure_seed"]):
+        if rapid_world(D.generated_entry(s), 0, {}, None)._config.get("calibrated"):
+            structs.append(s)
+    res = admit_generated(structs, seeds=T4_SAMPLE["world_seeds"], jobs=JOBS)
     fails = collections.Counter(c for w in res["worlds"] for c, ok in w["checks"].items() if not ok)
+    by_id = {C.structure_id(s): s for s in structs}
+    kind = collections.Counter()
+    checked = collections.Counter()
+    for w in res["worlds"]:
+        k = "wandering_optimum" if "wandering_optimum" in by_id[w["structure_id"]]["drivers"] else "other"
+        checked[k] += 1
+        kind[k] += int(w["validated"])
+    errors = sum(1 for w in res["worlds"] if w.get("error"))
     record("T.4", {"generated_worlds_validated": res["validated"], "generated_worlds_checked": len(res["worlds"]),
-                   "structures_with_a_validated_world": res["structures_validated"]},
-           notes=f"Failed checks over all worlds: {dict(fails)}")
+                   "validated_share": res["validated"] / max(1, len(res["worlds"])),
+                   "structures_with_a_validated_world": res["structures_validated"],
+                   "structures_admitted": len(structs), "worlds_with_admission_errors": errors},
+           notes=f"Sample {T4_SAMPLE}; validated / checked by dynamics: "
+                 f"{({k: f'{kind[k]}/{checked[k]}' for k in checked})}; failed checks over all worlds: {dict(fails)}. "
+                 "The no_dominant_strategy reference of wandering-optimum worlds is the scripted public perturbation "
+                 "tracker research.v5.genref (labelled scripted); other generated worlds use rapid.refs_v2.adaptive.")
     assert res["validated"] >= 50, dict(fails)
 
 
@@ -245,10 +270,18 @@ def test_T7_evaluation_partitions_protected(tmp_path):
 
 
 def test_T8_generated_worlds_target_distinct_weaknesses(reference):
-    r = CL.targeted_training_experiment(seeds=(0, 1, 2), reference=reference)
+    """Design `curriculum_lab.T8_DESIGN` (fixed before this run, D-69 addendum): four planted weaknesses x five
+    learner seeds; each pair trains two identical `TargetableMeta` learners for the same number of episodes on worlds
+    generated for the curriculum's measured target or on uniformly drawn worlds, and compares their improvement on
+    held-out probes of the target (common random numbers)."""
+    r = CL.targeted_training_experiment(reference=reference, jobs=JOBS)
     record("T.8", {"targeted_weakness_improvement_pvalue": r["p_value"], "mean_improvement_difference":
-                   r["mean_difference"], "distinct_targeted_weaknesses": len(r["targets"]), "pairs": len(r["pairs"])},
-           notes=f"Pairs (planted, seed, target, improvement targeted / untargeted): "
-                 f"{[(x['planted'], x['seed'], x['target'], round(x['targeted'], 3), round(x['untargeted'], 3)) for x in r['pairs']]}")
+                   r["mean_difference"], "distinct_targeted_weaknesses": len(r["targets"]), "pairs": len(r["pairs"]),
+                   "pairs_targeted_better": sum(1 for x in r["pairs"] if x["difference"] > 0),
+                   "pairs_untargeted_better": sum(1 for x in r["pairs"] if x["difference"] < 0)},
+           notes=f"Design {r['design']}; pairs (planted, seed, target, improvement targeted / untargeted, arm after "
+                 f"training targeted / untargeted): "
+                 f"{[(x['planted'], x['seed'], x['target'], round(x['targeted'], 3), round(x['untargeted'], 3), x['arm_after']) for x in r['pairs']]}. "
+                 "Learners are scripted strategy bandits over within-episode search strategies (controls).")
     assert r["p_value"] <= 0.05
     assert len(r["targets"]) >= 3
