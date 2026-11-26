@@ -531,8 +531,6 @@ NOT_LIVE = {
     "coordination": "the coupling org_coordination makes coordination overhead world state (provider `orgs` reads "
                     "it: the share of operator hours lost, 1 - 1/(1 + k (n - 1))), but operator headcounts are fixed at "
                     "genesis (labour is inert in civilisations: nobody hires), so the overhead never grows into a need",
-    "content_communities_tools": "communities hold no tool requirement or moderation load the population produces "
-                                 "(population members join, leave and post; nobody reports or moderates)",
     "education_skill_availability": "the education module (domains/learning.py) is inert in civilisations (learn n=0), "
                                     "its learners never study in a standalone world on this branch (learn.study raises "
                                     "KeyError 'id' at learning.py:324) and it is being rewritten (learn v2, learners "
@@ -541,9 +539,9 @@ NOT_LIVE = {
 
 
 # relation providers whose edges start a need's derivation path -> the mechanism such a need shows. `cloud`: a
-# service's rented compute under its users' load (scarcity only). Providers of modules that are inert in
-# civilisations today (education `learn`, communities `community`, organisations `orgs`) are listed so that a
-# provider they register (`relations.register_provider`) is classified without a change here.
+# service's rented compute under its users' load (scarcity only); `community`: a community's moderation backlog
+# (reports its moderators leave open); `orgs`: organisations' coordination overhead; `learn` (education) is
+# listed so that a provider the education module registers (`relations.register_provider`) is classified.
 PROVIDER_MECHANISM = {"freight": "transport_market_access", "compute_market": "computing_demand",
                       "cloud": "reliability_bottleneck", "learn": "education_skill_availability",
                       "community": "content_communities_tools", "orgs": "coordination"}
@@ -568,7 +566,9 @@ def need_mechanisms(A: dict) -> dict:
     * the others by the relation provider whose edge starts the derivation path (`PROVIDER_MECHANISM`): transport
       (freight: a link's load against its daily capacity, shipments waiting for capacity), computing demand
       (compute_market: a provider's cores), reliability bottleneck (cloud: a service's rented compute under its
-      users' load, scarcity rule), and education, communities, coordination once their modules register providers."""
+      users' load, scarcity rule), content communities and their tools (community: moderation backlog of the reports
+      members file on what they read), coordination (orgs: operator hours lost to coordination overhead), and
+      education once its module registers a provider."""
     f = A["factual"]
     hist = f["history"]
     t0 = hist[0]["t"]

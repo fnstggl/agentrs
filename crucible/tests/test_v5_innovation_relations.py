@@ -87,3 +87,40 @@ def test_coordination_overhead_of_organisations_is_read_off_the_coupling():
         assert [n for n in R.label(w, {"bottleneck": low}) if n["path"][0]["provider"] == "orgs"]
     finally:
         w.close()
+
+
+def test_community_moderation_backlog_labels_a_need_for_moderation_tooling():
+    """Provider `community`: reports filed 2-9 days ago that moderators left open are the unserved share of the
+    community's moderation requirement; the generic bottleneck rule labels `provide capability/moderation` for their
+    reporters and the founder, and the need is gone once the reports are handled."""
+    from crucible.social.modules import social_internet_modules
+    w = World.create(WorldSpec("social-c1", 11, social_internet_modules(None), {}))
+    try:
+        P = {h: w.system_call("admin.join", {"handle": h, "endowment": 100_000, "password": f"pw-{h}"})["principal"]
+             for h in ("ann", "ben", "cat", "dan")}
+
+        def ok(h, tool, **args):
+            r = w.execute(P[h], {"tool": tool, "args": args})
+            assert r.ok, (tool, r.error)
+            return r.result
+        ok("ann", "community.found", id="tidepools", name="Tide pools", subject="rock pools and their creatures")
+        for h in ("ben", "cat", "dan"):
+            ok(h, "community.join", community="tidepools")
+        posts = []
+        for k in range(3):
+            ref = ok("dan", "studio.write", format="text", title=f"x{k}", body=f"zzqx {k} vvv qqq")["ref"]
+            posts.append(ok("dan", "community.post", community="tidepools", ref=ref, title=f"x{k}")["id"])
+        reps = [ok(h, "community.report", community="tidepools", target=p, reason="unreadable")["report"]
+                for h, p in zip(("ben", "cat", "cat"), posts)]
+        assert not [n for n in R.label(w) if n["path"][0]["provider"] == "community"]   # too recent to be a backlog
+        w.advance_time(w.now + 3 * DAY)
+        e = [x for x in R.graph(w) if x["provider"] == "community"]
+        assert len(e) == 1 and e[0]["attrs"]["obs"]["unserved_share"] == 1.0
+        need = [n for n in R.label(w) if n["path"][0]["provider"] == "community"]
+        assert need and need[0]["target"] == "capability/moderation" and need[0]["rule"] == "bottleneck"
+        assert set(need[0]["holders"]) == {P["ben"], P["cat"], P["ann"]}
+        for rid, p in zip(reps, posts):
+            ok("ann", "community.moderate", community="tidepools", action="remove", target=p, report=rid)
+        assert not [n for n in R.label(w) if n["path"][0]["provider"] == "community"]
+    finally:
+        w.close()

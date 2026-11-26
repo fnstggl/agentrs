@@ -496,6 +496,30 @@ def _org_relations(world) -> list[dict]:
     return out
 
 
+def _community_relations(world) -> list[dict]:
+    """Communities' moderation load (social `community`: members report unreadable posts, owners and moderators act
+    on reports when they visit): a community requires moderation; observed per individual, the reports filed 2-9
+    days ago that are still open are the unserved share, held by their reporters and the founder."""
+    st = world.state
+    if world.modules.get("community") is None or "community_reports" not in st.tables:
+        return []
+    now = world.now
+    out = []
+    for cid, c in sorted(st.scan("communities")):
+        if c["status"] != "active":
+            continue
+        reps = [r for r in st.find("community_reports", "community", cid) if now - 9 * DAY <= r["t"] <= now - 2 * DAY]
+        if not reps:
+            continue
+        waiting = [r for r in reps if r["status"] == "open"]
+        holders = sorted({r["by"] for r in reps} | {c["founder"]})
+        out.append(rel(f"activity/community:{cid}", "activity", "requires", "capability/moderation", "capability",
+                       obs={"unserved_share": round(len(waiting) / len(reps), 4),
+                            "bottleneck_holders": sorted({r["by"] for r in waiting} | ({c["founder"]} if waiting else set())),
+                            "holders": holders, "reports": len(reps)}))
+    return out
+
+
 register_provider("work", _work_relations)
 register_provider("cloud", _cloud_relations)
 register_provider("caps", _caps_relations)
@@ -507,6 +531,7 @@ register_observable("service", _cloud_obs)
 register_provider("compute_market", _compute_market_relations)
 register_provider("freight", _freight_relations)
 register_provider("orgs", _org_relations)
+register_provider("community", _community_relations)
 register_observable("compute_market", _compute_market_obs)
 register_observable("transport_link", _freight_obs)
 register_observable("carrier", _freight_obs)
