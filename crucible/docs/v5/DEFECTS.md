@@ -954,13 +954,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-K-1 (critical, open): Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_
+### DEF-K-1 (critical, fixed): Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "c5c/w3b-selfplay: crucible.multiagent (tool-level neural self-play in Tier 3 civilisations: harness, policy groups, registry, league, analysis, integrity, campaign) and gate tests tests/v5/test_gate_Q.py, test_gate_SP_12_0/1/1b/2/3/3b.py; civ_available() is True on the integrated tree",
  "id": "DEF-K-1",
  "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py, tests/v5/test_gate_Q.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -968,18 +970,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_SP_12_3.py do not exist, civ_available()=False, domains()={}; checker exits 'no test files exist yet'."
 }
 ```
 
-### DEF-K-2 (critical, open): Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, regi
+### DEF-K-2 (critical, fixed): Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, regi
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "observation_only defaults: workstream L (c5c/w3-obs); selfplay learners learn in observation_only: c5c/w3b-selfplay (climber reads observed revenue - cost, PG counts only policy-changing updates)",
  "id": "DEF-K-2",
  "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_obsonly.py::test_default_is_observation_only_and_nothing_of_another_seat_leaves_a_step, ::test_learners_learn_from_their_own_observed_income_in_observation_only, ::test_pg_counts_no_update_when_its_signal_is_identically_zero",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -987,18 +991,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, registry.make, PettingZoo/Gym default to legacy_shaped_reward; selfplay learners cannot learn in observation_only (pg 72 'updates', weights unchanged)."
 }
 ```
 
-### DEF-K-3 (critical, open): Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('sco
+### DEF-K-3 (critical, fixed): Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('sco
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "info['score'] only in legacy mode and Objective('score') refused outside it: workstream L (c5c/w3-obs); outside legacy the step info is now empty (no seat's money either): c5c/w3b-selfplay (D-62)",
  "id": "DEF-K-3",
  "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_obsonly.py::test_default_is_observation_only_and_nothing_of_another_seat_leaves_a_step, ::test_kernel_twin_hides_the_objective_quantity_and_other_seats, ::test_privileged_objectives_are_refused_outside_legacy",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1006,18 +1012,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('score'); a PG learner reaches legacy performance (eval 7629 vs 7579) in 'observation_only'. The leakage battery ignores info."
 }
 ```
 
-### DEF-K-4 (critical, open): The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e
+### DEF-K-4 (critical, fixed): The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "joint/mixed/score objectives refused outside legacy (workstream L); civilisation self-play has no shared or team reward at all and audits for it (multiagent.integrity.shared_reward_audit, positive control TeamObjective): c5c/w3b-selfplay",
  "id": "DEF-K-4",
  "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_obsonly.py::test_privileged_objectives_are_refused_outside_legacy, tests/test_v5_selfplay_multiagent.py::test_shared_reward_audit_flags_a_team_reward_and_not_own_signals, tests/v5/test_gate_SP_12_3b.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1025,18 +1033,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e-09): cooperation is manufactured by reward sharing, not emergent through permitted interactions (12.3)."
 }
 ```
 
-### DEF-K-5 (critical, open): Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner i
+### DEF-K-5 (critical, fixed): Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner i
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "c5c/w3b-selfplay: multiagent.harness admits every identity with its controller; evaluator outcomes through commerce.integrity; controlled_identity_accounting (D-61)",
  "id": "DEF-K-5",
  "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_controlled_identity_transfers_are_not_counted, tests/v5/test_gate_SP_12_3.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1044,18 +1054,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner identity's subscription counts as 2000c MRR / 1 independent customer; with a shared controller commerce.integrity excludes it."
 }
 ```
 
-### DEF-K-6 (critical, open): Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head 
+### DEF-K-6 (critical, fixed): Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head 
 
 ```json
 {
  "area": "K_selfplay",
+ "fixed_by": "c5c/w3b-selfplay: K's learned groups are crucible.multiagent policy groups choosing tools and arguments themselves (D-60), with cooperative and competitive world interactions measured from world state, held-out and cross-play evaluation; pop_strategic remains workstream B's in-world class 3 and counts as a population kind only",
  "id": "DEF-K-6",
  "owner": "K",
+ "regression_tests": "tests/v5/test_gate_Q.py, tests/v5/test_gate_SP_12_2.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1063,7 +1075,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/K_selfplay.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head template choice with no cooperative actions, no measured competition and no held-out/cross-play evaluation."
 }
 ```

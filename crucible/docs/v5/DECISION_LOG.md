@@ -265,3 +265,40 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-60 Civilisation self-play participants act with the world's ordinary tools; scripted demonstrations only initialise them (2026-11-26, workstream K)
+Gate Q rejects numeric facility self-play and the audit (K S.3) rejected template action cells whose learned part
+never chooses a tool. The self-play learners of `crucible.multiagent` therefore choose, at every decision, a host,
+a tool and one candidate per argument slot among exactly the tools whose schema they can fill from what they have
+seen (`multiagent.grammar`: candidates from JSON-schema types, generic field-name roles and the identity's own
+knowledge; three argument types without a usable schema - code commits, contract clause lists, service inputs - get
+a scripted *syntax* with learned choices, recorded in the fidelity register). They act through
+`crucible.experience` (`run_learners`) in observation-only worlds and compute their own training signal from their
+own observations (`multiagent.objectives`); the environment's reward is 0.0 and is never used. Random exploration
+over ~580 tools does not reach multi-step workflows (packaging, releasing, depending, selling) within the compute of
+a gate run, so groups are initialised by behaviour cloning on recorded decisions of a SCRIPTED demonstrator
+(`multiagent.demonstrator`, labelled scripted in every evidence record) in CPU training worlds that are never the
+evaluated civilisation, as supervised pre-training precedes self-play elsewhere; every behaviour in the civilisation
+is the learned policy's own, and learning claims count only reinforcement updates made there. Updates are
+evidence-scaled (no update without signal; a no-signal twin of every group must not change) and an update counts
+only when the weights hash changes.
+
+## D-61 Parties: identities are admitted with their controller; every self-play outcome is evaluator-side (2026-11-26, workstream K)
+Audit K 3.4 found a same-learner identity's subscription counted as independent revenue because no multi-agent
+harness passed a controller. `multiagent.harness.Match` admits every identity with `admin.join(controller=...)`:
+all identities of one policy group (and its historical checkpoints) share their group's controller; semantic and
+held-out participants have their own. All analyses (`multiagent.analysis`, `multiagent.evaluate`) count
+interactions between *parties* (controllers): two identities of one controller trading, negotiating or joining each
+other is one party and never cooperation, trade or competition. Outcomes are computed by the evaluator
+(`commerce.integrity.related_flows`, the ledger); the money an identity receives from identities of its own
+controller and still counts as independent revenue is reported (SP-12.3: must be 0). KernelExperienceEnv.add_agent
+has no controller parameter, so the harness admits through `admin.join` and adopts the principal
+(integration note: workstream L may add the parameter).
+
+## D-62 4.0 self-play arenas: no other seat's private record leaves a step outside legacy mode (2026-11-26, workstream K)
+`selfplay.arena.SelfPlayEnv.step` (and `KernelSelfPlayEnv.step`) returned every seat's net, revenue, cost and
+status with the per-seat observations; the skeptic review (K S.6) noted that a harness forwarding it hands one seat
+the other's private money. Outside `legacy_shaped_reward` the step info is now empty and the operator reads
+`env.last_info`; legacy mode keeps the 4.0 contract byte-for-byte (R.6 legacy reproducibility). The scripted
+`climber` reads its own income from its observed revenue minus cost (the reward slot is zero outside legacy), PG
+counts an update only when its policy changed, and `Individual.learns` no longer counts scripted operators.
