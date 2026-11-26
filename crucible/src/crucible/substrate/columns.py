@@ -16,6 +16,15 @@ digest), one array per column, named `"<table>.<column>"`; row `i` of every colu
 Writes inside a transaction journal only the touched rows (`StateStore.array_rows_mut`), so a cohort update of a
 10M-row column costs O(cohort), and a failed command rolls the columns back exactly.
 
+Write ownership (5.0, skeptic S1). Every column has an owner: the module that declared it. A batch may write a
+column only when the module running the context (`Ctx.module`: the endpoint's, the process's, the subscriber's) is
+its owner, a module of the same package as the owner (the population package's modules share the population
+table), or a module the owner granted it to (`grant`). Columns that belong to an approved interface
+(`register_interface`, e.g. the attention ledger) are written only through that interface (`attention.spend/reset`),
+by any module. System code without a module (operator tools) may write any column. The writer is recorded in the
+event (`by`), and the applier re-checks it in live execution, so emitting `cols.batch` by hand cannot bypass it.
+Integer values are range-checked: a cast or an `add` that would wrap is refused, never committed.
+
 Kernel module `cols` (no tools) owns the two appliers; a world that uses columns lists it (it depends on
 `artifacts`).
 """
@@ -25,11 +34,73 @@ import numpy as np
 
 from ..core import schema as S
 from ..core.canonical import canonical_bytes, to_jsonable
-from ..core.errors import InvalidAction, InvariantViolation, NotFound, ProtocolError
+from ..core.errors import Forbidden, InvalidAction, InvariantViolation, NotFound, ProtocolError
 from ..core.kernel import Ctx, Module, applier, register_module
 from . import artifacts, bus
 
 MODES = ("set", "add", "max", "min")
+#: column name -> interface that alone may write it (registered by crucible.substrate.attention)
+_IFACES: dict[str, str] = {}
+
+
+def register_interface(name: str, cols) -> None:
+    """Columns `cols` (by name, in any table) are written only through interface `name`."""
+    for c in cols:
+        _IFACES[c] = name
+
+
+def grant(world, table: str, cols, writer: str) -> None:
+    """Let module `writer` write columns `cols` of `table` (call in the owner module's install)."""
+    reg = _registry(world).get(table)
+    if not reg:
+        raise NotFound(f"no column table {table}")
+    for c in cols:
+        if c not in reg["columns"]:
+            raise NotFound(f"no column {table}.{c}")
+        reg.setdefault("grants", {}).setdefault(c, set()).add(writer)
+
+
+def _package(name: str | None) -> str | None:
+    from ..core.kernel import MODULES
+    cls = MODULES.get(name) if name else None
+    if cls is None:
+        return None
+    parts = cls.__module__.split(".")
+    return ".".join(parts[:2]) if parts[0] == "crucible" and len(parts) > 1 else cls.__module__
+
+
+def may_write(world, table: str, col: str, writer: str | None, iface: str | None = None) -> str | None:
+    """None if `writer` may write `table.col` (through `iface`), else the reason it may not."""
+    reg = _registry(world).get(table) or {}
+    need = _IFACES.get(col)
+    if need is not None:
+        return None if iface == need else f"column {table}.{col} is written only through the {need} interface"
+    if writer is None:
+        return None                     # system code (operator tools, genesis of the kernel)
+    owner = reg.get("by", {}).get(col)
+    if owner is None or writer == owner or writer in reg.get("grants", {}).get(col, ()):
+        return None
+    pw, po = _package(writer), _package(owner)
+    if pw is not None and pw == po:
+        return None
+    return f"module {writer} may not write column {table}.{col} (owned by {owner})"
+
+
+def _int_range_error(dt: np.dtype, v: np.ndarray) -> str | None:
+    if v.size == 0 or np.dtype(dt).kind not in "iu":
+        return None
+    info = np.iinfo(dt)
+    if v.dtype.kind == "f":
+        if not np.all(np.isfinite(v)):
+            return "not finite"
+        lo, hi = float(v.min()), float(v.max())
+    elif v.dtype.kind in "iu":
+        lo, hi = int(v.min()), int(v.max())
+    else:
+        return None
+    if lo < info.min or hi > info.max:
+        return f"outside the range of {np.dtype(dt)} [{info.min}, {info.max}]"
+    return None
 NAME_RE = r"[a-z][a-z0-9_]{0,47}"
 _INT_KINDS = "iub"
 
@@ -115,9 +186,10 @@ def _norm_idx(idx, n: int) -> np.ndarray:
 
 
 def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np.ndarray], *, mode: str = "set",
-          vis="internal", extra: dict | None = None) -> str:
+          vis="internal", extra: dict | None = None, _iface: str | None = None) -> str:
     """Record one cohort update of `table` as a content-addressed blob plus one `cols.batch` event; returns the blob
-    REF. `values[c]` has shape (len(idx), *trailing shape of c) and is cast to the column dtype."""
+    REF. `values[c]` has shape (len(idx), *trailing shape of c) and is cast to the column dtype. Refused (Forbidden)
+    when the running module may not write a column (see the module docstring)."""
     if mode not in MODES:
         raise InvalidAction(f"mode must be one of {MODES}")
     import re
@@ -136,10 +208,14 @@ def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np
         ix = ix[order]
     arrays = {"idx": ix.astype(np.int32) if n < 2**31 else ix}
     names = sorted(values)
+    writer = getattr(ctx, "module", None)
     for c in names:
         spec = reg["columns"].get(c)
         if spec is None:
             raise NotFound(f"no column {table}.{c}")
+        why = may_write(ctx.world, table, c, writer, _iface)
+        if why:
+            raise Forbidden(why)
         dt, shape, _ = spec
         v = np.asarray(values[c])
         if v.dtype.kind not in "iufb":
@@ -149,6 +225,9 @@ def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np
                 v = np.full(len(idx), v)
             else:
                 raise InvalidAction(f"values of {c} have shape {v.shape}, need {(len(idx), *shape)}")
+        bad = _int_range_error(np.dtype(dt), v)
+        if bad:
+            raise InvalidAction(f"values of {table}.{c} are {bad}")
         with np.errstate(over="ignore", invalid="ignore"):     # out-of-range values are refused just below
             v = v.astype(np.dtype(dt), copy=False)
         if v.dtype.kind == "f" and not np.all(np.isfinite(v)):
@@ -164,8 +243,13 @@ def batch(ctx: Ctx, table: str, kind: str, idx: np.ndarray, values: dict[str, np
     if not isinstance(extra, dict):
         raise InvalidAction("extra must be an object")
     ref = artifacts.put_array_blob(ctx, arrays)
-    ctx.emit("cols.batch", {"table": table, "kind": kind, "ref": ref, "n": int(ix.size), "cols": names, "mode": mode,
-                            "extra": extra}, vis)
+    payload = {"table": table, "kind": kind, "ref": ref, "n": int(ix.size), "cols": names, "mode": mode,
+               "extra": extra}
+    if writer is not None:
+        payload["by"] = writer
+    if _iface is not None:
+        payload["iface"] = _iface
+    ctx.emit("cols.batch", payload, vis)
     return ref
 
 
@@ -183,6 +267,15 @@ def _apply_rows(st, key: str, ix: np.ndarray, v: np.ndarray, mode: str) -> None:
     k = ix.size
     if k == 0:
         return
+    if mode == "add" and a.dtype.kind in "iu":
+        # integer sums must not wrap: checked in exact (int64) or float64 arithmetic before anything is written
+        rows_all = np.unique(ix)
+        acc = np.zeros((rows_all.size, *a.shape[1:]), dtype=np.float64 if a.dtype.itemsize >= 8 else np.int64)
+        np.add.at(acc, np.searchsorted(rows_all, ix), v.astype(acc.dtype))
+        tot = a[rows_all].astype(acc.dtype) + acc
+        bad = _int_range_error(a.dtype, tot)
+        if bad:
+            raise InvalidAction(f"column {key}: the sum would be {bad}")
     dup = bool(k > 1 and np.any(ix[1:] == ix[:-1]))
     if dup:
         last = np.ones(k, dtype=bool)
@@ -230,9 +323,11 @@ bus.event_type("cols.batch", S.obj({
     "table": {"type": "string", "pattern": NAME_RE}, "kind": {"type": "string", "pattern": r"[a-z][a-z0-9_.:-]{0,63}"},
     "ref": {"type": "string", "pattern": artifacts.REF_RE.pattern}, "n": {"type": "integer", "minimum": 0},
     "cols": {"type": "array", "items": {"type": "string", "pattern": NAME_RE}, "minItems": 1, "maxItems": 256},
-    "mode": {"type": "string", "enum": list(MODES)}, "extra": {"type": "object", "additionalProperties": True}},
+    "mode": {"type": "string", "enum": list(MODES)}, "extra": {"type": "object", "additionalProperties": True},
+    "by": {"type": "string", "pattern": r"[a-z][a-z0-9_]{0,63}"}, "iface": {"type": "string", "pattern": NAME_RE}},
     ["table", "kind", "ref", "n", "cols", "mode", "extra"]), owner="cols",
-    doc="one cohort update of a column table; the row indices and values are in the array blob `ref`")
+    doc="one cohort update of a column table; the row indices and values are in the array blob `ref`; `by` is the "
+        "module that wrote it, `iface` the approved interface it went through")
 bus.event_type("cols.grow", S.obj({"table": {"type": "string", "pattern": NAME_RE},
                                    "n_new": {"type": "integer", "minimum": 1},
                                    "n_before": {"type": "integer", "minimum": 0}},
@@ -272,6 +367,15 @@ class Cols(Module):
         if ix.size and (int(ix[0]) < 0 or int(ix[-1]) >= n):
             raise InvariantViolation(f"cols.batch seq {ev.seq}: row index out of range")
         st = w.state
+        live = getattr(w, "emitting", None)
+        if live is not None:
+            writer = getattr(live, "module", None)
+            if p.get("by") != writer and not (writer is None and "by" not in p):
+                raise Forbidden(f"cols.batch claims writer {p.get('by')!r} but {writer!r} emitted it")
+            for c in p["cols"]:
+                why = may_write(w, p["table"], c, writer, p.get("iface"))
+                if why:
+                    raise Forbidden(why)
         for c in p["cols"]:
             v = arrs.get(f"v.{c}")
             spec = reg["columns"].get(c)
@@ -314,3 +418,6 @@ class Cols(Module):
         from . import attention
         errs += [f"{v['kind']} at {v['where']}: {v['detail']} {v['amounts']}" for v in attention.check(world)]
         return errs
+
+
+from . import attention as _attention  # noqa: E402,F401  (registers the attention interface)

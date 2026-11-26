@@ -244,6 +244,9 @@ class Ctx:
         self._ext_i = 0
         self._rng_n = 0
         self.tool: str | None = None          # the tool this context is running (for institutional rules)
+        # 5.0: the kernel module whose code runs in this context (the endpoint's, the process's, the subscriber's,
+        # the module running genesis); None for system code. Used to enforce column write ownership.
+        self.module: str | None = None
         self.tool_args: dict | None = None
         self.read_only = False
         self.gov_approved: str | None = None  # set while executing an approved governance proposal
@@ -303,6 +306,7 @@ class Ctx:
             raise InvalidAction("; ".join(errs[:5]), tool=tool)
         sub = self._child(principal)
         sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = tool, args, ep.read_only, self.gov_approved
+        sub.module = self.world.module_of_host(ep.host)
         mark = self.state.savepoint()
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
         try:
@@ -325,6 +329,7 @@ class Ctx:
         sub = self._child(principal)
         sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = self.tool, self.tool_args, self.read_only, \
             self.gov_approved
+        sub.module = self.module
         mark = self.state.savepoint()
         n_ev, seq0 = len(self.events), self.world.seq
         try:
@@ -410,6 +415,7 @@ class World:
         self.subscribers: dict[str, list[tuple[str, Callable[["Ctx", Event], None]]]] = {}
         self.hooks: dict[str, Callable] = {}
         self.runtime: dict[str, Any] = {}  # non-state runtime resources (sandbox workers, caches)
+        self.emitting: Ctx | None = None   # the context whose event is being applied live (None during replay)
         self.stats = {"commands": 0, "rejected": 0, "events": 0, "procs": 0}
         self._install_core()
         for m in spec.modules:
@@ -503,6 +509,13 @@ class World:
     def module(self, name: str) -> Module:
         return self.modules[name]
 
+    def module_of_host(self, host: str) -> str | None:
+        """The kernel module serving tool host `host` (None for agent-deployed services and kernel hosts)."""
+        m = self.runtime.get("_host_modules")
+        if m is None:
+            m = self.runtime["_host_modules"] = {(mod.host or mod.name): name for name, mod in self.modules.items()}
+        return m.get(host)
+
     @classmethod
     def create(cls, spec: WorldSpec, world_id: str | None = None, store=None, strict: bool = False) -> "World":
         world_id = world_id or f"w-{spec.hash()[:12]}"
@@ -519,7 +532,9 @@ class World:
         ctx.emit("note", {"what": "genesis", "spec": self.spec.hash()}, vis="internal")
         self._ensure_principal(ctx, SYSTEM, "system", {"name": "Crucible kernel"})
         for mod in self.modules.values():
+            ctx.module = mod.name
             mod.genesis(ctx)
+        ctx.module = None
 
     # ------------------------------------------------------------------ randomness
     def rng_for(self, *keys: Any) -> np.random.Generator:
@@ -613,7 +628,11 @@ class World:
             mark, n_ev, seq0 = self.state.savepoint(), len(ctx.events), self.seq
         self.seq += 1
         ev = Event(self.seq, self.now, type, ctx.actor, ctx.cmd, payload, vis, "", ctx.via)
-        self._apply(ev)
+        prev, self.emitting = self.emitting, ctx     # live execution: appliers may check who emitted (columns)
+        try:
+            self._apply(ev)
+        finally:
+            self.emitting = prev
         ctx.events.append(ev)
         if subs:
             try:
@@ -646,6 +665,7 @@ class World:
             i = self._sub_n.get(k, 0)
             self._sub_n[k] = i + 1
             sub.via, sub.stream = owner, (owner, mpos, ev.type, i)
+            sub.module = owner if owner in self.modules else None
             mark = self.state.savepoint()
             n_ev, seq0 = len(ctx.events), self.seq
             self.state.side_depth += 1
@@ -762,6 +782,7 @@ class World:
         self._begin()
         ctx = Ctx(self, actor, cmd_no)
         ctx.tool, ctx.tool_args, ctx.read_only = tool, args, ep.read_only
+        ctx.module = self.module_of_host(ep.host)
         try:
             ctx.emit("cmd", {"n": cmd_no, "tool": tool, "args": args, "key": key, "cost_s": ep.cost_s})
             result = ep.handler(ctx, **args)
@@ -903,6 +924,7 @@ class World:
             ctx.emit("sched.del", {"id": sid}, vis="internal")
             if job.get("period"):
                 ctx.schedule(job["at"] + job["period"], job["proc"], job["args"], job["prio"], job["period"], key=sid)
+            ctx.module = job["proc"].split(".", 1)[0]
             fn(ctx, **job["args"])
             if ctx.ext:
                 ctx.emit("ext", {"outcomes": ctx.ext, "key": ctx.ext_key}, vis="internal")

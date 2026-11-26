@@ -244,12 +244,20 @@ def test_attention_invariant_holds_over_days_and_detects_violations():
     # an illegal direct write (not through spend) is caught, by kind, as an InvariantMonitor-compatible record
     w.state.arrays["pop.attention_spent_min"][3] = 1000.0
     found = AT.check(w)
-    assert [f["kind"] for f in found] == ["attention.overspent"] and found[0]["where"] == "pop[3]"
+    assert [f["kind"] for f in found] == ["attention.overspent", "attention.not_conserved"]
+    assert found[0]["where"] == found[1]["where"] == "pop[3]"
     assert any("attention.overspent" in m for m in w.check_invariants())
     from crucible.evaluation.invariants import InvariantMonitor
     kinds = {v.kind for v in InvariantMonitor(w).check()}
     assert "module.cols" in kinds
     assert AT.violations(w)[0].kind == "attention.overspent"
+    # minting within the budget (skeptic S8: refilling `left` for individuals who spent) breaks conservation only
+    w.state.arrays["pop.attention_spent_min"][3] = 0.0
+    assert AT.check(w) == []
+    w._run_system("spend", lambda ctx: AT.spend(ctx, np.array([5]), np.array([20.0]), activity="watch"))
+    assert AT.check(w) == [] and C.col(w, "pop", "attention_spent_min")[5] == 20
+    w.state.arrays["pop.attention_left_min"][5] = C.col(w, "pop", "attention_budget_min")[5]   # refilled: minted
+    assert [f["kind"] for f in AT.check(w)] == ["attention.not_conserved"]
 
 
 def test_ids_pid_index_and_ensure_principal_shares_column_state():
@@ -294,3 +302,99 @@ def test_ids_pid_index_and_ensure_principal_shares_column_state():
 def test_cols_and_population_modules_pass_admission():
     rep = admit(["artifacts", "cols", "coltest_pop"], steps=200, configs={"coltest_pop": {"n": 200, "k": 50}})
     assert rep.passed, (rep.checks, rep.errors[:5])
+
+
+# ---------------------------------------------------------------------------------------------- write ownership
+class _ColsIntruder(Module):
+    """A module of ANOTHER package that tries to write the population's columns."""
+    name = "coltest_intruder"
+    host = "intruder"
+    depends = ("coltest_pop",)
+
+    def install(self, world):
+        if self.config.get("granted"):
+            C.grant(world, "pop", ["wealth"], self.name)
+
+    @endpoint("rich", S.obj({"how": S.s_enum(["batch", "forged", "attention", "wrap_set", "wrap_add"])}, ["how"]))
+    def rich(self, ctx, how):
+        idx = np.array([1, 2])
+        if how == "batch":
+            C.batch(ctx, "pop", "aud.consumption", idx, {"wealth": np.array([10**6, 10**6])}, mode="add")
+        elif how == "forged":       # emit the event by hand, claiming to be the owner
+            ref = A.put_array_blob(ctx, {"idx": idx.astype(np.int32), "v.wealth": np.array([10**6, 10**6])})
+            ctx.emit("cols.batch", {"table": "pop", "kind": "coltest.earn", "ref": ref, "n": 2, "cols": ["wealth"],
+                                    "mode": "add", "extra": {}, "by": "coltest_pop"}, vis="internal")
+        elif how == "attention":
+            C.batch(ctx, "pop", "attention.refill", idx, {"attention_left_min": np.array([90.0, 90.0])})
+        elif how == "wrap_set":
+            C.batch(ctx, "pop", "coltest.set", idx, {"wealth": np.array([2.0 ** 63, 1.0])})
+        elif how == "wrap_add":
+            C.batch(ctx, "pop", "coltest.add", idx, {"wealth": np.array([2 ** 62, 2 ** 62])}, mode="add")
+            C.batch(ctx, "pop", "coltest.add", idx, {"wealth": np.array([2 ** 62, 2 ** 62])}, mode="add")
+        return {"ok": True}
+
+
+_ColsIntruder.__module__ = "intruder_package.module"        # not the population's package
+register_module(_ColsIntruder)
+
+
+@register_module
+class ColTestSmallInts(Module):
+    name = "coltest_ints"
+    host = "ints"
+    depends = ("cols",)
+
+    def install(self, world):
+        C.declare(world, "ints", 4, {"n": ("int32", (), 0), "u": ("uint8", (), 0)})
+
+    @endpoint("put", S.obj({"col": S.s_str(maxLength=4), "v": S.s_num(), "mode": S.s_str(maxLength=4)},
+                           ["col", "v", "mode"]))
+    def put(self, ctx, col, v, mode):
+        C.batch(ctx, "ints", "ints.put", np.array([0, 0]), {col: np.array([v, v])}, mode=mode)
+        return {"ok": True}
+
+
+def _ownership_world(granted=False):
+    w = World.create(WorldSpec("own", 3, [{"name": m, "config": c} for m, c in (
+        ("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}), ("coltest_pop", {"n": 20}),
+        ("coltest_intruder", {"granted": granted}), ("coltest_ints", {}))]))
+    w.advance_time(7200)
+    p = w.system_call("admin.join", {"handle": "own-user", "endowment": 0})["principal"]
+    return w, p
+
+
+@pytest.mark.parametrize("how", ["batch", "forged", "attention", "wrap_set"])
+def test_a_module_cannot_write_columns_it_does_not_own(how):
+    w, p = _ownership_world()
+    before = C.col(w, "pop", "wealth").copy(), C.col(w, "pop", "attention_left_min").copy()
+    r = w.execute(p, {"tool": "intruder.rich", "args": {"how": how}})
+    assert not r.ok and r.error["code"] in ("forbidden", "invalid_action"), r.error
+    assert np.array_equal(C.col(w, "pop", "wealth"), before[0])
+    assert np.array_equal(C.col(w, "pop", "attention_left_min"), before[1])
+    assert AT.check(w) == [] and w.check_invariants() == []
+
+
+def test_owners_grant_writes_and_every_batch_records_its_writer():
+    w, p = _ownership_world(granted=True)
+    r = w.execute(p, {"tool": "intruder.rich", "args": {"how": "batch"}})
+    assert r.ok and C.col(w, "pop", "wealth")[1] >= 10**6
+    ev = [e for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "aud.consumption"][-1]
+    assert ev.payload["by"] == "coltest_intruder"
+    att = [e for e in w.log if e.type == "cols.batch" and e.payload["kind"].startswith("attention.")]
+    assert att and all(e.payload["iface"] == "attention" and e.payload["by"] == "coltest_pop" for e in att)
+    # a granted writer still cannot forge the owner's name, nor wrap an integer column
+    for how in ("forged", "wrap_add"):
+        r = w.execute(p, {"tool": "intruder.rich", "args": {"how": how}})
+        assert not r.ok, how
+    assert World.replay(w.spec, [e.to_dict() for e in w.log]).digest() == w.digest()
+
+
+@pytest.mark.parametrize("col,v,mode", [("n", 3.0e9, "set"), ("n", -3.0e9, "set"), ("u", 256, "set"),
+                                        ("u", -1, "set"), ("n", 2 ** 31 - 1, "add"), ("u", 200, "add")])
+def test_integer_columns_never_wrap(col, v, mode):
+    w, p = _ownership_world()
+    r = w.execute(p, {"tool": "ints.put", "args": {"col": col, "v": v, "mode": mode}})
+    assert not r.ok and r.error["code"] == "invalid_action", r
+    assert int(C.col(w, "ints", col)[0]) == 0
+    ok = w.execute(p, {"tool": "ints.put", "args": {"col": col, "v": 100, "mode": "add"}})
+    assert ok.ok and int(C.col(w, "ints", col)[0]) == 200
