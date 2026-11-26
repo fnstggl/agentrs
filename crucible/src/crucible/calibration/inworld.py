@@ -20,12 +20,14 @@ In-world randomised experiments are analysed from recorded decisions that carry 
 
 * `random_exposure_experiment`: items inserted at random into feeds (arm ``random``), opened or not through
   content_open@1; compared with KuaiRand's random-exposure log (open rate, and the odds ratio between items of the
-  individual's own topics and other items);
+  individual's own topics and other items); a match also requires the world's estimate to detect the own-topic
+  preference (|LOR| > 1.96 se: `powered`);
 * `ad_holdout_experiment`: campaign eligibility randomised across individuals (arms ``eligible`` / ``holdout``),
   visits through ad_response@2; the in-world complier log-odds shift per attended display (eligibility as the
   instrument for display, the E5 likelihood with each stratum's displayed-complier effect scaled by the recorded
   mean attention A / A_ref of its displayed individuals) compared with Criteo's shift (model
-  ad_exposure_response@1) by a two-sample z test. Criteo's shift is, by the runtime's transport assumption
+  ad_exposure_response@1) by a two-sample z test; a match also requires the world's 95% interval to exclude a null
+  effect (`powered`). Criteo's shift is, by the runtime's transport assumption
   (A_ref = 1, record advertising.attention_composition), the effect of a fully attended display; the unadjusted
   in-world shift and the intention-to-treat difference are reported alongside.
 
@@ -501,19 +503,36 @@ def random_exposure_experiment(world, experiment: str = "random_exposure", au: A
         own.append(r["v.own_topic"].astype(bool) if "v.own_topic" in r else np.zeros(r["idx"].size, bool))
     if not ys:
         raise NotWired("the random-exposure experiment recorded no row of arm 'random'")
-    y, o = np.concatenate(ys), np.concatenate(own)
-    ref = kuairand_random_exposure_reference()
-    p = y.mean()
+    return random_exposure_estimate(np.concatenate(ys), np.concatenate(own))
+
+
+def random_exposure_estimate(opened, own_topic, ref: dict | None = None) -> dict:
+    """Open rate and own-topic log-odds ratio of randomly inserted items (`opened`, `own_topic`: one row per inserted
+    item) against KuaiRand's random-exposure log (`ref`, default `kuairand_random_exposure_reference()`), with z
+    tests; `matching` needs both within 1.96 and the world's own estimate to detect the own-topic preference."""
+    y, o = np.asarray(opened, float), np.asarray(own_topic, bool)
+    ref = ref or kuairand_random_exposure_reference()
+    if y.size == 0:
+        raise NotWired("the random-exposure experiment recorded no inserted item")
+    p = float(y.mean())
     z_rate = (p - ref["open_rate"]) / math.sqrt(p * (1 - p) / y.size + ref["open_rate_se"] ** 2)
-    out = {"rows": int(y.size), "open_rate": float(p), "reference": ref, "z_open_rate": float(z_rate)}
-    if o.any() and (~o).any():
-        p1, p0 = y[o].mean(), y[~o].mean()
+    out = {"rows": int(y.size), "open_rate": p, "reference": ref, "z_open_rate": float(z_rate)}
+    p1 = float(y[o].mean()) if o.any() else float("nan")
+    p0 = float(y[~o].mean()) if (~o).any() else float("nan")
+    if 0 < p1 < 1 and 0 < p0 < 1:
         lor = math.log(p1 / (1 - p1)) - math.log(p0 / (1 - p0))
         se = math.sqrt(1 / (o.sum() * p1 * (1 - p1)) + 1 / ((~o).sum() * p0 * (1 - p0)))
         out["own_topic_log_odds_ratio"] = lor
         out["z_log_odds_ratio"] = (lor - ref["own_topic_log_odds_ratio"]) / math.sqrt(
             se ** 2 + ref["own_topic_log_odds_ratio_se"] ** 2)
-    out["matching"] = bool(abs(out["z_open_rate"]) < 1.96 and abs(out.get("z_log_odds_ratio", 99.0)) < 1.96)
+        out["own_topic_log_odds_ratio_se"] = se
+    # a match must be informative (wave 3b): besides agreeing with KuaiRand (|z| < 1.96 for the open rate and for the
+    # own-topic log-odds ratio), the world's own estimate must detect the own-topic preference KuaiRand measures
+    # (|LOR| / se > 1.96) - an experiment too small to tell an effect from none can never "match"
+    out["powered"] = bool("own_topic_log_odds_ratio" in out and
+                          abs(out["own_topic_log_odds_ratio"]) > 1.96 * out["own_topic_log_odds_ratio_se"])
+    out["matching"] = bool(out["powered"] and abs(out["z_open_rate"]) < 1.96
+                           and abs(out.get("z_log_odds_ratio", 99.0)) < 1.96)
     return out
 
 
@@ -613,7 +632,11 @@ def match_criteo(est: dict) -> dict:
     se_c = (ci[1] - ci[0]) / 3.92
     se_w = (est["shift_ci95"][1] - est["shift_ci95"][0]) / 3.92
     zz = (est["shift_attention_adjusted"] - a) / math.sqrt(se_c ** 2 + se_w ** 2)
-    return {"criteo_shift": a, "criteo_ci95": ci, "z_shift": float(zz), "matching": bool(abs(zz) < 1.96)}
+    # informative (wave 3b): the world's own 95% interval must exclude a null display effect, so a campaign too small
+    # to detect any effect never "matches" through a wide interval
+    powered = bool(est["shift_ci95"][0] > 0.0)
+    return {"criteo_shift": a, "criteo_ci95": ci, "z_shift": float(zz), "powered": powered,
+            "matching": bool(powered and abs(zz) < 1.96)}
 
 
 # ====================================================================== SP-5.0 measurements on a world

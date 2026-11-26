@@ -234,6 +234,50 @@ def test_attention_adjusted_shift_matches_criteo_at_any_attention(attention):
         assert est["shift_unadjusted"] < 0.8 * m["criteo_shift"]
 
 
+def test_an_uninformative_campaign_never_matches():
+    """Wave 3b: a campaign too small to tell the display effect from none has a wide interval, which a z test alone
+    would accept; a match also requires the world's interval to exclude a null effect."""
+    est = _campaign(0.19, n=3000, seed=3)
+    m = IW.match_criteo(est)
+    assert est["shift_ci95"][0] == 0.0 and not m["powered"] and not m["matching"], (est, m)
+    big = IW.match_criteo(_campaign(0.19))
+    assert big["powered"] and big["matching"]
+
+
+# KuaiRand's random-exposure reference as measured (open rate 0.186, own-topic log-odds ratio 0.40 on 89,752 rows)
+KR_REF = {"open_rate": 0.18645, "open_rate_se": 0.0013, "own_topic_log_odds_ratio": 0.4015,
+          "own_topic_log_odds_ratio_se": 0.0181, "rows": 89752}
+
+
+def _inserted(n, lor, seed=0):
+    rng = np.random.default_rng(seed)
+    own = rng.random(n) < 0.45
+    base = 0.155                                            # other-topic open rate so that the mixture is ~0.186
+    logit = np.log(base / (1 - base)) + np.where(own, lor, 0.0)
+    return rng.random(n) < 1 / (1 + np.exp(-logit)), own
+
+
+@pytest.mark.parametrize("n,lor,match", [(60_000, 0.40, True), (60_000, 0.0, False)])
+def test_random_exposure_matches_only_an_informative_agreeing_world(n, lor, match):
+    """Wave 3b: KuaiRand-like random insertions match; a world without the own-topic preference does not."""
+    y, own = _inserted(n, lor)
+    r = IW.random_exposure_estimate(y, own, ref=KR_REF)
+    assert r["matching"] is match and r["powered"] is match, r
+
+
+def test_a_random_exposure_experiment_too_small_to_detect_anything_never_matches():
+    """Wave 3b: with 300 insertions the z tests accept KuaiRand's values for most draws (the interval is wide); the
+    world's estimate does not detect the own-topic preference there, so it is not a match."""
+    accepted = []
+    for seed in range(40):
+        r = IW.random_exposure_estimate(*_inserted(300, 0.40, seed), ref=KR_REF)
+        if abs(r["z_open_rate"]) < 1.96 and abs(r.get("z_log_odds_ratio", 99.0)) < 1.96:
+            accepted.append(r)
+    assert len(accepted) >= 20                      # a z test alone would call these matches
+    weak = [r for r in accepted if not r["powered"]]
+    assert weak and not any(r["matching"] for r in weak)
+
+
 def test_a_world_without_display_effect_does_not_match():
     est = _campaign(0.5, shift_world=False)
     assert not IW.match_criteo(est)["matching"]
