@@ -4,67 +4,114 @@
  "branch": "c5c/w3b-domfw",
  "api_version": "domains-framework/2",
  "ready_commit": "f9e9d96 (subject 'domains-framework: ready')",
- "decisions": ["D-48", "D-49", "D-50"],
+ "decisions": [
+  "D-48",
+  "D-49",
+  "D-50"
+ ],
  "requirements": {
   "N.1": {
-   "implementation_files": ["src/crucible/domains/base.py", "src/crucible/domains/__init__.py",
-                            "src/crucible/experience/registry.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_1_all_fifteen_domains_implemented"],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_1_all_fifteen_domains_implemented"
+   ],
    "status_claim": "measurement implemented and verified on the fixture (control_fixture_implemented True, planted always-failing evaluator detected); the requirement FAILS on this branch: 0 of 15 Part 9 sections have a domain (built concurrently by keys dom1-3)",
    "notes": "domains_implemented counts Part 9 sections whose domain passes every other Gate N criterion plus clean runs and observation-only defaults (base.verdicts, D-50)."
   },
   "N.2": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_2_multiple_structural_configurations"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_2_multiple_structural_configurations"
+   ],
    "status_claim": "measurement implemented (structure of BUILT worlds, magnitudes reduced to presence; D-49); fixture 3 distinct training structures, planted numbers-only configuration detected; FAILS until 15 domains exist",
    "notes": "a configuration whose structure changes with the seed is not counted"
   },
   "N.3": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_3_executable_mechanisms"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_3_executable_mechanisms"
+   ],
    "status_claim": "measurement implemented: required mechanics are recorded-event probes counted by the framework in reference runs (self-reports refused); fixture 5/5 exercised, planted unrecorded event reported missing; FAILS until 15 domains exist (missing_required_mechanics 129 = every Part 9 mechanic)",
    "notes": ""
   },
   "N.4": {
-   "implementation_files": ["src/crucible/domains/base.py", "src/crucible/experience/registry.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_4_independent_outcome_evaluation"],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_4_independent_outcome_evaluation"
+   ],
    "status_claim": "measurement implemented: evaluator re-run on a world replayed from the event log must agree, evaluator data hidden in observation_only, reference succeeds and null fails; fixture ok; FAILS until 15 domains exist",
    "notes": ""
   },
   "N.5": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_5_successful_feasible_reference"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_5_successful_feasible_reference"
+   ],
    "status_claim": "measurement implemented: tool-only references driven through experience.make(2, ...) (static AST check that the policy reads no world internals; planted world-reading reference flagged); fixture reference succeeds on 2/2 seeds (scripted); FAILS until 15 domains exist",
    "notes": "references are scripted (labelled scripted in evidence)"
   },
   "N.6": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_6_procedural_instances"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_6_procedural_instances"
+   ],
    "status_claim": "measurement implemented (distinct genesis digests of seeds 0-2 per configuration); fixture 3 instances for every configuration; FAILS until 15 domains exist",
    "notes": ""
   },
   "N.7": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_7_unfamiliar_evaluation_configurations"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_7_unfamiliar_evaluation_configurations"
+   ],
    "status_claim": "measurement implemented on fingerprint atoms (structural: an atom no training configuration has; compositional: no new atom, unseen combination); fixture 1 + 1, a copy of a training configuration is neither; FAILS until 15 domains exist",
    "notes": ""
   },
   "N.n1": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_N.py::test_N_n1_reference_not_exposed"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_N.py::test_N_n1_reference_not_exposed"
+   ],
    "status_claim": "scanner implemented with positive controls (spelled-out reference path and a tool naming the reference detected; sandbox cannot import crucible); asserted together with 15 scanned sections, so it FAILS (not vacuously passes) until 15 domains exist",
    "notes": "audit skeptic: reference_paths_exposed == 0 must not hold vacuously"
   },
   "SP-9.0": {
-   "implementation_files": ["src/crucible/domains/base.py", "src/crucible/domains/modules.py",
-                            "src/crucible/domains/seats.py"],
-   "tests": ["tests/v5/test_gate_SP_9_0.py"],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/modules.py",
+    "src/crucible/domains/seats.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_0.py"
+   ],
    "status_claim": "measurement implemented: autonomous actors and population activity decisions in null-baseline runs, open-ended tool interface, built-structure pairs, composition into the balanced civilisation (6 h, 0 failed processes); fixture passes all four, planted inert actor and numbers-only configuration detected; FAILS until 15 domains exist",
    "notes": ""
   },
   "SP-9.16": {
-   "implementation_files": ["src/crucible/domains/base.py"],
-   "tests": ["tests/v5/test_gate_SP_9_16.py"],
+   "implementation_files": [
+    "src/crucible/domains/base.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_16.py"
+   ],
    "status_claim": "measurement implemented: null baseline and declared degenerate probes plus RandomTools must fail while the reference succeeds; failure-dice scan of domain sources with FIDELITY_REGISTER pragma exemption; planted always-succeeding evaluator and planted dice detected; FAILS until 15 domains exist",
    "notes": ""
   }
@@ -90,11 +137,23 @@
   "P/QA: sync implementation_files of N.1-N.7, N.n1, SP-9.0, SP-9.16 from this file into the manifest (src/crucible/domains/base.py is the measuring implementation). The canonical gate files are tests/v5/test_gate_N.py, tests/v5/test_gate_SP_9_0.py, tests/v5/test_gate_SP_9_16.py.",
   "N (research/v5/distribution.py): entries keep working (Domain.configs, c.structure as the declared structure, spec_part); fixtures (Domain.fixture True) should be excluded from the distribution registry.",
   "J (civ): base.civ_recipe restricts crucible.civ.recipe (no change to civ); base.tier3_spec merges a domain configuration into a civilisation recipe and orders modules by dependencies (as civ.spec does). The undeclared runtime dependency society -> market (listings index) surfaced when restricting recipes; consider declaring it in society.depends.",
-  "Mode B (substrate/modes.py, SP-2.1): domains/modes.py now returns WorldSpecs (the registry creates the world) and lists only non-fixture domains; with no registered domain mode B lists nothing (not operational, never faked)."
+  "Mode B (substrate/modes.py, SP-2.1): domains/modes.py now returns WorldSpecs (the registry creates the world) and lists only non-fixture domains; with no registered domain mode B lists nothing (not operational, never faked).",
+  "A (substrate): tests/test_v5_substrate_modes.py::test_mode_c_requires_genuine_shared_state_composition fails when the whole file runs (passes alone) on the integration head 55433e7 too - an order dependence on the providers/worlds of earlier tests in the file, not caused by this branch."
  ],
  "tests_run": {
   "tests/test_v5_domains_framework.py": "25 passed (CPU, 71 s)",
-  "tests/test_v5_experience_oo.py -k tier2": "1 passed"
+  "tests/test_v5_experience_oo.py -k tier2": "1 passed",
+  "tests/test_kernel.py tests/test_invariants.py": "51 passed (CPU, 21 s)",
+  "tests/v5/test_gate_N.py (8 tests, each run alone on CPU)": "8 failed BY DESIGN at the final 15-section assertion (0 Part 9 domains on this branch); every positive control passed before it (unofficial evidence: control_fixture_implemented True, control_broken_evaluator_implemented False, numbers-only config detected, planted unrecorded mechanic event missing, evaluator replay equal, world-reading reference flagged, 3 instances per configuration, compositional 1 / structural 1, spelled-out path and named reference detected, sandbox cannot import crucible)",
+  "tests/v5/test_gate_SP_9_0.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture autonomous, open-ended, composes into balanced civ in 6 h, inert actor 0 events, numbers-only pair detected)",
+  "tests/v5/test_gate_SP_9_16.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture null fails, probes fail, reference feasible, 0 dice; planted always-succeeding evaluator makes the null succeed; planted failure dice detected)",
+  "tests/test_v5_experience_oo.py": "11 passed (CPU, 15 s)",
+  "tests/test_v5_experience_core.py": "all passed (run together with test_v5_substrate_modes.py: 18 of 19 passed, the 1 failure being the pre-existing one above)",
+  "tests/test_v5_substrate_modes.py": "7 passed, 1 failed (test_mode_c_requires_genuine_shared_state_composition) - PRE-EXISTING and order-dependent: the same failure occurs on the integration head 55433e7 when the whole file runs (1 failed, 7 passed), and the test passes alone on both trees"
  },
- "history": []
+ "history": [],
+ "compatibility_checks": {
+  "c5c/w3b-dom1 (read-only, their tree)": "research (9.5) and startup (9.1) validate with no problem; structure_report: 3 distinct stable training structures each, compositional 1 and structural 1 each, 0 errors (seeds 0-1)",
+  "c5c/w3b-dom2 (read-only, their tree)": "education (9.10) validates with no problem; structure_report (seed 0): 3 distinct training structures, compositional 1, structural 1, 0 errors"
+ }
 }
