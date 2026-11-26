@@ -155,5 +155,9 @@ class SemanticAgent:
             self.nonzero_env_rewards += 1
         if self.last_action is not None and result is not None:
             self.p.observe_result(self.last_action, result)
+            own = (getattr(self.p, "history", None) or [{}])[-1]       # the participant's own record of the call
+            err = result.get("error")
             self.history.append({"t": int(next_obs.get("t", 0)), "tool": self.last_action.get("tool"),
-                                 "ok": bool(result.get("ok"))})
+                                 "ok": bool(result.get("ok")), "read_only": bool(own.get("read_only")),
+                                 "error": None if result.get("ok") else
+                                 ((err or {}).get("code") if isinstance(err, dict) else str(err)[:40])})

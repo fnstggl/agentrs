@@ -18,9 +18,9 @@ TRAIN_SEED = 7
 
 # campaign sizes: "full" (Gate Q, SP-12.0) and "short" (the other SP-12 files)
 SIZES = {"full": {"demo_seeds": (21, 22, 23), "demo_hours": 48, "epochs": 12, "civ_hours": 96, "ho_hours": 24,
-                  "semantic": 2},
+                  "semantic": 2, "semantic_every": 4},
          "short": {"demo_seeds": (21,), "demo_hours": 36, "epochs": 6, "civ_hours": 24, "ho_hours": 12,
-                   "semantic": 1}}
+                   "semantic": 1, "semantic_every": 2}}
 
 
 def service():
@@ -47,7 +47,8 @@ def campaign(root: str, size: str = "full", *, semantic: bool = True, heldout: b
         g.frozen = True
         extra = {"extra_at": heldout_join_at, "extra_groups": {"heldout_eval": g},
                  "extra_members": [Member(f"ho{i}", "heldout", "ctrl:heldout", "heldout_eval") for i in range(2)]}
-    run = C.civ_run(env, reg, groups, C.standard_members(semantic=z["semantic"] if svc is not None else 0),
+    run = C.civ_run(env, reg, groups, C.standard_members(semantic=z["semantic"] if svc is not None else 0,
+                                                         semantic_every=z.get("semantic_every", 4)),
                     hours=z["civ_hours"], seed=seed, semantic_service=svc, historical_at=historical_at,
                     store_root=os.path.join(root, "experience") if store else None, before_run=before_run,
                     wrap=wrap, **extra)

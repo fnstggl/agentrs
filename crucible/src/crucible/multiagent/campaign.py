@@ -120,15 +120,20 @@ STANDARD_GROUPS = {"alpha": {"algo": "reinforce", "seed": 11}, "beta": {"algo": 
                    "gamma": {"algo": "a2c", "seed": 13}, "delta": {"algo": "a2c", "seed": 14}}
 
 
-def standard_members(semantic: int = 2) -> list[Member]:
+def standard_members(semantic: int = 2, semantic_every: int = 4) -> list[Member]:
     ms = [Member(f"alpha{i}", "current", "ctrl:alpha", "alpha") for i in range(3)] + \
          [Member(f"beta{i}", "current", "ctrl:beta", "beta") for i in range(2)] + \
          [Member("gamma0", "independent", "ctrl:gamma", "gamma", drive="reach"),
           Member("delta0", "independent", "ctrl:delta", "delta", drive="adoption")]
-    goals = ["Found a software company, build a useful developer tool and sell it to other people.",
-             "Publish an open-source package other developers depend on, and work with other builders."]
+    # goals in the words of the tools a builder uses (a semantic generalist ranks the world's hundreds of tools
+    # against its goal text before choosing; "build a tool" alone sends it to the factories of the industrial
+    # economy)
+    goals = ["Start a software business: create a code repository, commit working code, register and release it as "
+             "a package, and sell it to other people as a product.",
+             "Write open-source code in a repository, release it as a package other developers can depend on, and "
+             "invite other builders into your organisation."]
     for k in range(semantic):
-        ms.append(Member(f"sem{k}", "semantic", f"ctrl:semantic{k}", goal=goals[k % 2], every=4))
+        ms.append(Member(f"sem{k}", "semantic", f"ctrl:semantic{k}", goal=goals[k % 2], every=int(semantic_every)))
     return ms
 
 

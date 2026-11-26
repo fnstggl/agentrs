@@ -201,3 +201,31 @@ def test_canary_tap_exposes_only_the_protocol_its_participant_implements():
     tap.observe(0.0, {"ok": True}, {"t": 1}, False)
     assert tap.scanned == 3 and [x["canary"] for x in log] == ["cnryA"]
     assert I.CanaryTap(WithUpdate(), "ctrl:x", {}, []).update() == {"updated": True}
+
+
+def test_semantic_participant_record_tells_read_only_calls_from_actions():
+    """A semantic generalist 'acts' (SP-12.1 composition) only with accepted state-changing calls: its record carries
+    the read-only flag and the error code from the participant's own record of each call."""
+    from crucible.multiagent.agents import SemanticAgent
+
+    class Participant:                       # the SemanticParticipant protocol the agent relies on
+        def __init__(self):
+            self.history = []
+
+        def reset(self, principal, rng):
+            self.principal = principal
+
+        def act(self, obs, tools):
+            return {"tool": tools[0]["name"], "args": {}}
+
+        def observe_result(self, action, result):
+            ro = action["tool"] == "world.find_tools"
+            self.history.append({"tool": action["tool"], "ok": bool(result.get("ok")), "read_only": ro})
+    a = SemanticAgent("p:s", Participant(), every=1)
+    a.act({"t": 0}, [{"name": "world.find_tools"}])
+    a.observe(0.0, {"ok": True, "result": {}}, {"t": 60}, False)
+    a.act({"t": 60}, [{"name": "make.build_facility"}])
+    a.observe(0.0, {"ok": False, "error": {"code": "invalid_action"}}, {"t": 120}, False)
+    assert [(h["tool"], h["ok"], h["read_only"], h["error"]) for h in a.history] == [
+        ("world.find_tools", True, True, None), ("make.build_facility", False, False, "invalid_action")]
+    assert not any(h["ok"] and not h["read_only"] for h in a.history)
