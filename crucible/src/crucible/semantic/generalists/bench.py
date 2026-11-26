@@ -63,8 +63,9 @@ def _templates():
 
     @t("write_article", "dev")
     def _(rng, me, other):
+        # blog.publish takes the article's text in the same call (mind.COMPOSE), so it makes progress too
         return (f"I will write an article about {_r(rng, TOPICS_T)} and put it on my blog.", [],
-                {"studio.write", "docs.create"})
+                {"studio.write", "docs.create", "blog.publish"})
 
     @t("ask_forum", "dev")
     def _(rng, me, other):

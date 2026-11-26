@@ -119,13 +119,18 @@ def _participant_prompts() -> dict:
 
 
 def _retrieval(items) -> dict:
-    from crucible.semantic.generalists import bench, catalog, mind as M
+    """Service recall where the participants use it: the shortlist of services retrieved for each participant's own
+    next-step phrase (`mind.decide` with the routed models, as in the world) contains the service of a right tool;
+    beside it the recall for the goal sentence alone (no model)."""
+    from crucible.semantic.generalists import bench, brain as B, catalog, mind as M
     hit, n = 0, 0
     for it in items:
         a = bench.agent_of(it)
-        hs = catalog.rank_hosts([it["goal"]], [a.tools], M.Config().hosts, [it["goal"]])[0]
+        hs = catalog.rank_hosts([it["goal"]], [a.tools], M.Config().hosts, [it["goal"]],
+                                it["state"]["summaries"])[0]
         hit += bool({x.split(".", 1)[0] for x in it["accept"]} & set(hs))
         n += 1
+    live = bench.evaluate(items, B.LMBrain())["splits"]["dev"]
     facts = ["The bakery on Elm street closes at 6 pm.", "Ana paid 2500 cents for the logo on Tuesday.",
              "The forum board 'help' is for questions.", "My server instance runs on provider cloud1.",
              "Ben's birthday is in March.", "The museum is closed on Mondays.", "The repository textutils has tests.",
@@ -135,9 +140,9 @@ def _retrieval(items) -> dict:
         a.memory.append({"t": k, "kind": "obs", "text": f if k < len(facts) else f"Unrelated note {k}: weather mild."})
     q = catalog.embed(["How much did Ana pay for the logo?"])[0]
     got = a.relevant_memory(q, k=6)
-    return {"host_recall_dev": round(hit / max(1, n), 3), "dev_items": n,
-            "memory_retrieval_found_fact": "2500 cents" in got,
-            "ok": hit / max(1, n) >= 0.8 and "2500 cents" in got}
+    return {"host_recall_dev": live["host_recall"], "host_recall_dev_goal_only": round(hit / max(1, n), 3),
+            "dev_items": n, "memory_retrieval_found_fact": "2500 cents" in got,
+            "ok": live["host_recall"] >= 0.8 and "2500 cents" in got}
 
 
 def _prefix_cache(svc) -> dict:

@@ -20,6 +20,7 @@ The ranked shortlists of a step are recorded in the world (`crucible.substrate.i
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 import threading
@@ -108,9 +109,15 @@ _STOP = frozenset("next i will my me the a an to of for and in on with about at 
                   "now then so".split())
 
 
+_IDS = re.compile(r"\b(?:p\d{1,9}|[a-z]{2,8}_\d{3,9}|c\d{1,12}|sha256:[0-9a-f]{64}|\d+)\b")
+
+
 def strip(query: str) -> str:
-    """The content of an intention without its 'Next I will' frame."""
-    q = re.sub(r"^\s*next,?\s+i\s+(will|'ll|am going to)\s+", "", query.strip(), flags=re.I)
+    """The content of an intention for retrieval: without its 'I will' frame and without identifiers and numbers
+    (a person's id or an amount says nothing about which service does the job; on the DEV items this raised the
+    goal-only service recall from 0.71 to 0.75, 0.79 with service summaries)."""
+    q = re.sub(r"^\s*(next,?\s+)?i\s+(will|'ll|am going to)\s+", "", query.strip(), flags=re.I)
+    q = re.sub(r"\s+", " ", _IDS.sub("", q)).strip()
     return q or query
 
 
@@ -140,9 +147,11 @@ def host_of(name: str) -> str:
     return name.split(".", 1)[0]
 
 
-def rank_hosts(queries: list[str], tools: list[list[dict]], k: int, goals: list[str] | None = None) -> list[list[str]]:
-    """For each query, `k` services: by their best tool's similarity to the query (k - 3), to the goal (2), and by
-    lexical overlap with the query (1), then by query similarity again (no duplicates)."""
+def rank_hosts(queries: list[str], tools: list[list[dict]], k: int, goals: list[str] | None = None,
+               summaries: dict | None = None) -> list[list[str]]:
+    """For each query, `k` services: by their similarity to the query (k - 3), to the goal (2), and by lexical
+    overlap with the query (1), then by query similarity again (no duplicates). A service's similarity is that of
+    its best tool, or of its own summary (`summaries`: the world's service directory) when higher."""
     goals = list(goals) if goals is not None else [""] * len(queries)
     qs = [strip(q) for q in queries]
     qv = embed(qs) if qs else np.zeros((0, 384), np.float32)
@@ -157,12 +166,16 @@ def rank_hosts(queries: list[str], tools: list[list[dict]], k: int, goals: list[
         tv = embed([tool_text(t) for t in ts])
         owner = np.array([hi[host_of(t["name"])] for t in ts])
 
-        def best(sc):
+        sv = embed([f"{h}: {summaries.get(h, '')}"[:300] for h in hosts]) if summaries else None
+
+        def best(sc, v=None):
             b = np.full(len(hosts), -9.0)
             np.maximum.at(b, owner, sc)
+            if sv is not None and v is not None:
+                b = np.maximum(b, sv @ v)
             return b
-        by_q = _order(hosts, best(tv @ qv[j]))
-        by_g = _order(hosts, best(tv @ gv[j])) if goals[j] else []
+        by_q = _order(hosts, best(tv @ qv[j], qv[j]))
+        by_g = _order(hosts, best(tv @ gv[j], gv[j])) if goals[j] else []
         lex = best(lexical(qs[j], ts))
         by_lex = [h for h in _order(hosts, lex) if lex[hi[h]] > 0][:1]
         out.append(list(dict.fromkeys(by_q[: max(1, k - 3)] + by_g[:2] + by_lex + by_q))[:k])
@@ -217,10 +230,11 @@ def shortlists(ctx, queries: list[str], tools: list[list[dict]], k: int,
     return recorded(ctx, "semp.retrieve", inputs, lambda: rank(queries, tools, k, goals))
 
 
-def host_shortlists(ctx, queries, tools, k, goals=None) -> list[list[str]]:
+def host_shortlists(ctx, queries, tools, k, goals=None, summaries=None) -> list[list[str]]:
     inputs = {"k": int(k), "queries": [digest(q) for q in queries], "goals": [digest(g) for g in (goals or [])],
-              "tools": [digest("\n".join(tool_text(t) for t in ts)) for ts in tools]}
-    return recorded(ctx, "semp.retrieve_hosts", inputs, lambda: rank_hosts(queries, tools, k, goals))
+              "tools": [digest("\n".join(tool_text(t) for t in ts)) for ts in tools],
+              "summaries": digest(json.dumps(summaries or {}, sort_keys=True))}
+    return recorded(ctx, "semp.retrieve_hosts", inputs, lambda: rank_hosts(queries, tools, k, goals, summaries))
 
 
 def tool_shortlists(ctx, queries, tools, k) -> list[list[str]]:

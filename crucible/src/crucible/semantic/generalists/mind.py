@@ -769,7 +769,7 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
     queries = [a.intent or g for a, g in zip(live, goals)]
     qvecs = catalog.embed(queries)
     summaries = host_summaries(ctx.world) if ctx is not None else cfg.summaries
-    hsl = catalog.host_shortlists(ctx, queries, [a.tools for a in live], cfg.hosts, goals)
+    hsl = catalog.host_shortlists(ctx, queries, [a.tools for a in live], cfg.hosts, goals, summaries)
     hp = brain.choose(ctx, "tool_choice", [service_request(a, now, h, summaries, qv)
                                            for a, h, qv in zip(live, hsl, qvecs)])
     chosen = []
