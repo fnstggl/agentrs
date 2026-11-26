@@ -1051,7 +1051,8 @@ def structure(world) -> dict:
     and whether most traders are honest."""
     mod = world.modules["mktplace"]
     rules = sorted({"strict" if float(i["refund_share"]) >= 0.3 else "lenient" for i in mod.c["incumbents"]})
-    honest = sum(1 for s in mod.specs.values() if s["honest"]) * 2 > len(mod.specs)
+    # the traders' honesty regime of the world (the share it draws honest traders with), not the seed's draw
+    honest = float(mod.c["honest_share"]) > 0.5
     return {"categories": sorted(mod.cats), "incumbent_rules": rules,
             "incumbents": "one" if len(mod.c["incumbents"]) == 1 else "several", "honest_majority": honest}
 
