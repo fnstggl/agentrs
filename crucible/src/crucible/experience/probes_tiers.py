@@ -401,7 +401,53 @@ def probe_civ(seed: int = 7) -> dict:
              tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}), "tier3 identity",
                         fill=harvest_fill(harvest([env.observe(a)], {"principal": [a]})))]
     probe_identity(P, env, a, reach, "tier3 identity")
+    probe_population_private(P, env, a, reach, "tier3 population private state")
     return merge(r, P.result())
+
+
+def population_private_values(world, n: int = 64) -> dict[str, float]:
+    """Distinctive values of the population's private state (individuals' interests, satisfaction, habits,
+    attention, preferences, beliefs, skills, knowledge: "not observable", kernel HIDDEN["pop"]) for the first `n`
+    individuals - what a learner must never find among the numbers it reaches."""
+    try:
+        import crucible.population as pop
+    except ImportError:
+        return {}
+    if "pop" not in world.modules:
+        return {}
+    idx = np.arange(min(int(pop.n_individuals(world)), int(n)))
+    out: dict[str, float] = {}
+    feats = dict(pop.features(world, idx))
+    feats["interests"] = pop.interests(world, idx)
+    for k, v in sorted(feats.items()):
+        try:
+            arr = np.asarray(v, dtype=np.float64).ravel()
+        except (TypeError, ValueError):
+            continue
+        for j, x in enumerate(arr[:4096]):
+            x = float(x)
+            if np.isfinite(x) and not x.is_integer() and abs(x) > 1e-4 and len(repr(abs(x)).replace(".", "")) >= 6:
+                out[f"pop.{k}[{j}]"] = x
+    return out
+
+
+def probe_population_private(P: TierProbe, env, agent: str, reach: Any, label: str) -> None:
+    """The population's private state (individual interests, satisfaction, habits, attention, preferences, beliefs,
+    skills, knowledge) never appears among what the participant reached, as a number or in text."""
+    vals = population_private_values(env.world)
+    if not vals:
+        P.notes.append(f"{label}: no population in this world")
+        return
+    data = _plain(reach)
+    P.check("exact_value", len(vals))
+    from .probes import exact_hits, text_numbers
+    hits = exact_hits(vals, data)
+    for name, v, path, x in hits[:20]:
+        P.leak("exact_value", f"{label}: an individual's private value reached the participant", value=name, path=path)
+    P.check("free_text", len(vals))
+    for name, v, path, x in exact_hits(vals, data, text_numbers(data))[:20]:
+        P.leak("free_text", f"{label}: an individual's private value written in text", value=name, path=path)
+    P.notes.append(f"{label}: {len(vals)} private values of up to 64 individuals checked, {len(hits)} found")
 
 
 def _domain_env(name: str, seed: int, **kw):

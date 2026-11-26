@@ -760,6 +760,17 @@ def _predicate_oracles(P: Probe, env, a: str, ids: dict, truth: float) -> None:
         P.leak("predicate_oracle", "commit.offer accepted a deliverable over an evaluator-only metric")
     elif (r.get("error") or {}).get("code") != "forbidden":
         raise RuntimeError(f"commit.offer refused for another reason, the probe proves nothing: {r.get('error')}")
+    # 6 every evaluator-only metric of the registry union (commerce, social integrity, usefulness, rig, lab, ...)
+    # through the two agreement channels a participant authors alone: a self-goal and a commitment deliverable
+    from ..core import evaluator_only as EO
+    for m in sorted(EO.evaluator_metrics()):
+        leaf = {"metric": m, "args": {"principal": org, "org": org, "window_s": 30 * DAY}, "op": ">=", "value": 1}
+        P.check("predicate_oracle", 2)
+        if "goals.propose" in tools and ex("goals.propose", title=f"sweep {m}", predicate=leaf, due_in_s=3600)["ok"]:
+            P.leak("predicate_oracle", "goals.propose accepted an evaluator-only metric", metric=m)
+        t2 = dict(terms, milestones=[dict(terms["milestones"][0], deliverable={"kind": "predicate", "predicate": leaf})])
+        if "commit.offer" in tools and ex("commit.offer", to=other, terms=t2, as_org=org)["ok"]:
+            P.leak("predicate_oracle", "commit.offer accepted a deliverable over an evaluator-only metric", metric=m)
 
 
 # ====================================================================== surface: innovation registry
