@@ -112,7 +112,7 @@ def batch_throughput(rows: int = 1_000_000, table_rows: int = 10_000_000, store:
     t_tx = time.perf_counter() - t0
     w.flush()
     ev = [e for e in w.log if e.type == "cols.batch"][-1]
-    blob_bytes = w.state.tables["artifacts"][ev.payload["ref"]]["size"]
+    blob_bytes = len(artifacts.get(w, ev.payload["ref"]))
     # isolated apply cost (a second identical batch on top, measured inside a transaction)
     evs = [e.to_dict() for e in w.log]
     d0 = w.digest()

@@ -221,8 +221,12 @@ class _BlobReader:
 
     def arrays(self, ref: str) -> dict:
         from . import artifacts
-        if self.world is not None and self.world.state.has("artifacts", ref):
-            return artifacts.get_array_blob(self.world, ref)
+        if self.world is not None:
+            try:
+                return artifacts.get_array_blob(self.world, ref)     # its cache, store or lineage's pool (D-78)
+            except NotFound:
+                if self.src.store is None:
+                    raise
         h = artifacts.parse_ref(ref)
         data = artifacts.read_store_blob(self.src.store, h)
         if data is None:

@@ -20,15 +20,25 @@ bounds that growth without giving up anything replay, regeneration or recounting
 * `prune_snapshots(world, keep_last, keep_every_s)` keeps the most recent snapshots and one per period.
 * `compact(world)` = collect + pack (+ optional snapshot pruning); `stats(world)` reports the store's contents.
 
+Cost per compaction (D-78). System array blobs are not world state (`crucible.substrate.artifacts`): their REFs
+live only in the events that use them. Every compaction reads only the events written since the previous one
+(`_scan`: system-blob REFs in order of first appearance, and the REFs `cols.batch` applies) and looks up the sizes
+of exactly the blobs it considers (indexed key lookups), so a weekly compaction costs O(new events + pending blobs),
+not O(blobs) or O(log). The scan's position is also kept in the store (`ret/<world>/scan` and append-only
+`ret/<world>/batch/<i>` segments, checked against the event hash at that position), so the first compaction in a new
+process does not re-read the log.
+
 What is NOT bounded here, and why: the event log itself (the hash-chained record of every decision; SQLite stores
-large payloads compressed) and the state's metadata row per artifact. Both grow linearly with activity, as any exact
-record must.
+large payloads compressed) and the state's metadata row per participant artifact. Both grow linearly with activity,
+as any exact record must.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import lzma
 import pickle
+import re
 import zlib
 from typing import Iterable
 
@@ -50,14 +60,91 @@ def _store(world):
     return st
 
 
-def _sys_batch(world) -> list[tuple[int, str]]:
-    """(t, hex) of every system array blob the world's state records, oldest first."""
-    out = []
-    for ref, a in world.state.tables["artifacts"].items():
-        if a["owner"] == "sys" and a["kind"] == "batch":
-            out.append((int(a["t"]), ref[len(A.REF_PREFIX):]))
-    out.sort()
-    return out
+_REF_HEX = re.compile(r"sha256:([0-9a-f]{64})")
+_SCAN_WINDOW = 50_000          # events read per store query while scanning
+
+
+def _blob_size(store, key: str) -> int | None:
+    """Size of one blob by an indexed key lookup (blob_sizes with the full key as prefix)."""
+    return store.blob_sizes(key).get(key)
+
+
+def _system_hex(world, h: str) -> bool:
+    """Whether REF hex `h` can be a system array blob: the state records no participant artifact with these bytes
+    (rows of system batch blobs exist only in stores written before D-78)."""
+    a = world.state.tables["artifacts"].get(A.REF_PREFIX + h) if "artifacts" in world.state.tables else None
+    return a is None or (a["owner"] == "sys" and a["kind"] == "batch")
+
+
+def _scan_key(world) -> str:
+    return f"ret/{world.world_id}/scan"
+
+
+def _load_scan(world, store) -> dict | None:
+    """The scan position persisted in the store, if it still matches the world's log (same event hash there)."""
+    raw = store.get_blob(_scan_key(world))
+    if not raw:
+        return None
+    try:
+        d = json.loads(raw.decode())
+        seq = int(d["seq"])
+        if seq > world.seq:
+            return None
+        if seq > 0:
+            evs = store.read_events(world.world_id, seq - 1, seq)
+            if len(evs) != 1 or evs[0].get("hash") != d["hash"]:
+                return None
+        batch = set()
+        for i in range(int(d["segments"])):
+            seg = store.get_blob(f"ret/{world.world_id}/batch/{i}")
+            if seg is None or len(seg) % 32:
+                return None
+            batch.update(A.REF_PREFIX + seg[j:j + 32].hex() for j in range(0, len(seg), 32))
+        return {"store": store, "seq": seq, "hash": d["hash"], "pending": dict.fromkeys(d["pending"]),
+                "batch": batch, "segments": int(d["segments"]), "new_batch": []}
+    except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+        return None
+
+
+def _save_scan(world, store, sc: dict) -> None:
+    if sc["new_batch"]:
+        store.put_blob(f"ret/{world.world_id}/batch/{sc['segments']}",
+                       b"".join(bytes.fromhex(r[len(A.REF_PREFIX):]) for r in sc["new_batch"]))
+        sc["segments"] += 1
+        sc["new_batch"] = []
+    store.put_blob(_scan_key(world), json.dumps({"seq": sc["seq"], "hash": sc["hash"], "segments": sc["segments"],
+                                                 "pending": list(sc["pending"])}).encode())
+
+
+def _scan(world, store) -> dict:
+    """Read the events written since the previous call (D-78): REFs of system array blobs in order of first
+    appearance (`pending`: candidates for packing until they are packed, dropped or gone) and the REFs `cols.batch`
+    events apply (`batch`: never dropped). The world's runtime keeps the result and the position; the store keeps a
+    copy so a new process continues where the last one stopped."""
+    sc = world.runtime.get("retention.scan")
+    if sc is None or sc["store"] is not store or sc["seq"] > world.seq:
+        sc = _load_scan(world, store) or {"store": store, "seq": 0, "hash": None, "pending": {}, "batch": set(),
+                                          "segments": 0, "new_batch": []}
+        world.runtime["retention.scan"] = sc
+    pos = sc["seq"]
+    while pos < world.seq:
+        evs = store.read_events(world.world_id, pos, min(pos + _SCAN_WINDOW, world.seq))
+        if not evs:
+            break
+        for e in evs:
+            p = e["payload"]
+            if e["type"] == "cols.batch":
+                ref = p["ref"]
+                if ref not in sc["batch"]:
+                    sc["batch"].add(ref)
+                    sc["new_batch"].append(ref)
+            for h in _REF_HEX.findall(json.dumps(p, separators=(",", ":"), default=str)):
+                if h not in sc["pending"] and _system_hex(world, h):
+                    sc["pending"][h] = None
+            pos = int(e["seq"])
+            sc["hash"] = e.get("hash")
+    sc["seq"] = pos
+    return sc
 
 
 def roots(world) -> set[str]:
@@ -80,21 +167,9 @@ def superseded(world) -> set[str]:
 
 
 def _batch_refs(world, store) -> set[str]:
-    """REFs that `cols.batch` events apply (their appliers read them on every replay): never dropped. Read
-    incrementally: the world's runtime keeps the set and the last seq it covers, so a periodic compaction reads only
-    the events written since the previous one (a full read of a 365-day log every week made compaction O(log))."""
-    cache = world.runtime.get("retention.batch_refs")
-    if cache is None or cache[0] is not store or cache[1] > world.seq:
-        cache = world.runtime["retention.batch_refs"] = [store, 0, set()]
-    try:
-        evs = store.read_events(world.world_id, cache[1], None, types=["cols.batch"])
-    except TypeError:
-        evs = [e for e in store.read_events(world.world_id, cache[1]) if e["type"] == "cols.batch"]
-    for e in evs:
-        cache[2].add(e["payload"]["ref"])
-        cache[1] = max(cache[1], int(e["seq"]))
-    cache[1] = max(cache[1], int(world.seq))      # flushed by the caller: nothing older is unread
-    return cache[2]
+    """REFs that `cols.batch` events apply (their appliers read them on every replay): never dropped. Incremental
+    (`_scan`): a periodic compaction reads only the events written since the previous one."""
+    return _scan(world, store)["batch"]
 
 
 _SNAP_META: dict[tuple, dict] = {}     # (store path, snapshot id, hash) -> {"roots", "t"}: snapshots are immutable
@@ -137,7 +212,7 @@ def pack(world, *, chunk_bytes: int = 32 * MiB, codec: str = "lzma", level: int 
     if codec not in CODECS:
         raise ProtocolError(f"codec must be one of {sorted(CODECS)}")
     world.flush()
-    sizes = store.blob_sizes("art/")
+    sc = _scan(world, store)
     # never packed: blobs a load rebuilds from (now or from a retained snapshot) and blobs already superseded -
     # they are the ones collect() may drop later, and neural weights hardly compress anyway
     keep_refs = roots(world) | superseded(world)
@@ -145,13 +220,17 @@ def pack(world, *, chunk_bytes: int = 32 * MiB, codec: str = "lzma", level: int 
         keep_refs |= snapshot_roots(store, snap["id"]) or set()
     keep = {r[len(A.REF_PREFIX):] for r in keep_refs}
     todo = []
-    for _t, h in _sys_batch(world):
-        n = sizes.get(A.blob_key(h))
-        if n is None or n == A.PTR_LEN or h in keep:
+    for h in list(sc["pending"]):
+        if h in keep:
+            continue                          # stays a candidate: roots change, superseded blobs may be dropped
+        n = _blob_size(store, A.blob_key(h))
+        if n is None or n == A.PTR_LEN:
+            del sc["pending"][h]              # gone (dropped, never stored) or already packed
             continue
         todo.append((h, n))
     out = {"packed": 0, "chunks": 0, "raw_bytes": 0, "stored_bytes": 0, "skipped_roots": len(keep)}
     if sum(n for _, n in todo) < min_bytes:
+        _save_scan(world, store, sc)
         return out
     i = 0
     while i < len(todo):
@@ -175,10 +254,12 @@ def pack(world, *, chunk_bytes: int = 32 * MiB, codec: str = "lzma", level: int 
             raise ProtocolError("chunk did not round-trip through the store; nothing was repointed")
         for h, off, n in members:
             store.put_blob(A.blob_key(h), A.pack_pointer(ph, off, n, CODECS[codec]))
+            sc["pending"].pop(h, None)
         out["packed"] += len(members)
         out["chunks"] += 1
         out["raw_bytes"] += size
         out["stored_bytes"] += len(comp)
+    _save_scan(world, store, sc)
     return out
 
 
@@ -214,10 +295,9 @@ def collect(world, *, others: Iterable = (), dry_run: bool = False) -> dict:
         return out
     drop = sorted(declared - needed)
     out["kept_roots"] = len(declared & needed)
-    sizes = store.blob_sizes("art/")
     for ref in drop:
         key = A.blob_key(ref[len(A.REF_PREFIX):])
-        n = sizes.get(key)
+        n = _blob_size(store, key)                  # one indexed lookup per candidate, never a scan of every blob
         if n is None:
             continue
         if n == A.PTR_LEN:

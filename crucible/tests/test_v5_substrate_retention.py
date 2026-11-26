@@ -8,7 +8,7 @@ import pytest
 
 import crucible
 from crucible.core.errors import InvariantViolation
-from crucible.core.kernel import World
+from crucible.core.kernel import Module, World, register_module
 from crucible.population import analysis
 from crucible.population.worlds import population_world
 from crucible.storage.sqlite import SQLiteStore
@@ -79,6 +79,7 @@ def test_a_damaged_chunk_makes_its_blobs_unavailable_never_wrong(tmp_path):
     def put(ctx):
         for i in range(40):
             refs.append(A.put_array_blob(ctx, {"x": np.arange(i, i + 500, dtype=np.int32)}))
+        ctx.emit("note", {"what": "test blobs", "refs": list(refs)}, vis="internal")   # the record names them (D-78)
     w._run_system("test", put)
     assert retention.pack(w, min_bytes=0)["packed"] == 40
     (key,) = list(st.blob_sizes("pack/"))
@@ -139,6 +140,17 @@ def test_collect_keeps_everything_when_the_store_holds_another_world(tmp_path):
     assert f.world_id in [x["id"] for x in st.list_worlds()]
 
 
+@register_module
+class _SysBlobTable(Module):
+    """A column table for test_system_array_blobs_are_not_world_state."""
+    name = "sysblob_test"
+    depends = ("cols",)
+
+    def install(self, world):
+        from crucible.substrate import columns as C
+        C.declare(world, "tbl", 1000, {"x": ("int64", (), 0)})
+
+
 # ---------------------------------------------------------------------------------------------- process pool
 def _storeless(seed):
     from crucible.core.kernel import WorldSpec
@@ -183,44 +195,113 @@ def test_a_world_cannot_reach_another_worlds_pool_bytes():
 @pytest.mark.timeout(900)
 def test_periodic_compaction_reads_only_what_was_written_since_the_last_one(tmp_path, monkeypatch):
     """At day 365 of a stored population world one weekly compaction took 19.3 s: collect re-read every cols.batch
-    event of the log and every retained snapshot was unpickled for its roots and time. The batch REFs are now read
-    incrementally and snapshot metadata once per process - with the same result."""
+    event of the log, every retained snapshot was unpickled for its roots and time, and pack and collect each listed
+    the size of every blob in the store (222k keys). Now (D-78) each compaction reads only the events written since
+    the previous one, snapshot metadata once per process, and the sizes of exactly the blobs it considers - with the
+    same result; and the position survives in the store, so a new process does not re-read the log."""
     import torch
     torch.set_num_threads(1)
     st = SQLiteStore(str(tmp_path / "inc.sqlite"))
     sp = population_world("development", 4, n=200, sites=4, strategic=False,
                           adaptive={"learn_every_s": 2 * H, "checkpoint_every": 1, "min_examples": 8})
     w = World.create(sp, world_id="inc", store=st)
-    reads, unpickled = [], []
-    orig_read, orig_get = st.read_events, st.get_snapshot
+    windows, unpickled, listed = [], [], []
+    orig_read, orig_get, orig_sizes = st.read_events, st.get_snapshot, st.blob_sizes
 
     def counting_read(wid, from_seq=0, to_seq=None, types=None):
         out = orig_read(wid, from_seq, to_seq, types=types)
-        if types == ["cols.batch"]:
-            reads.append((from_seq, len(out)))
+        if to_seq is not None and to_seq - from_seq > 1:          # the scan's windows (1-event reads verify)
+            windows.append((from_seq, to_seq, len(out)))
         return out
 
     def counting_get(sid):
         unpickled.append(sid)
         return orig_get(sid)
+
+    def counting_sizes(prefix=""):
+        listed.append(prefix)
+        return orig_sizes(prefix)
     monkeypatch.setattr(st, "read_events", counting_read)
     monkeypatch.setattr(st, "get_snapshot", counting_get)
+    monkeypatch.setattr(st, "blob_sizes", counting_sizes)
     outs = []
     for day in range(1, 4):
         w.advance_time(day * 8 * H)
         w.snapshot()
         outs.append(retention.compact(w, prune=True, min_bytes=0))
-    # each collect read the cols.batch events after the previous one, never the whole log again
-    assert len(reads) == 3 and [r[0] for r in reads] == sorted(r[0] for r in reads) and reads[0][0] == 0
-    assert reads[1][0] > 0 and reads[2][0] > reads[1][0]
+    # one window per compaction, each starting where the previous one stopped: every event read exactly once
+    assert len(windows) == 3 and windows[0][0] == 0
+    assert all(windows[k + 1][0] == windows[k][1] for k in range(2))
+    assert sum(n for _, _, n in windows) == w.seq
+    # no listing of every blob: only full keys (indexed lookups of the blobs considered)
+    assert listed and all(len(p) == len("art/") + 64 for p in listed), sorted(set(p[:8] for p in listed))
+    assert sum(o["pack"]["packed"] for o in outs) > 50
     every = orig_read("inc", 0, None, types=["cols.batch"])
-    assert len(every) == sum(n for _, n in reads)           # each event read exactly once over the three calls
-    assert w.runtime["retention.batch_refs"][2] == {e["payload"]["ref"] for e in every}
+    assert w.runtime["retention.scan"]["batch"] == {e["payload"]["ref"] for e in every}
     # every snapshot was unpickled at most once for its metadata, however many compactions looked at it
     assert len(unpickled) == len(set(unpickled)) <= 3
-    # the results are those of a cold computation: a fresh process (empty caches) agrees on what is needed
+    # a new process continues from the position kept in the store: no window starts at 0 again
     retention._SNAP_META.clear()
-    w.runtime.pop("retention.batch_refs")
-    assert retention.collect(w, dry_run=True)["dropped"] == 0          # everything droppable was dropped already
+    w.runtime.pop("retention.scan")
+    windows.clear()
+    w.advance_time(w.now + 4 * H)
+    w.flush()
+    sc = retention._scan(w, st)
+    assert windows and windows[0][0] > 0 and sc["batch"] == {e["payload"]["ref"] for e in
+                                                             orig_read("inc", 0, None, types=["cols.batch"])}
+    # ...and agrees with a cold computation from the log (no persisted position): the same candidates and batch REFs
+    w.runtime["retention.scan"] = None
+    st.delete_blob(retention._scan_key(w))
+    cold = retention._scan(w, st)
+    assert cold["batch"] == sc["batch"] and set(cold["pending"]) >= set(sc["pending"])
     w.flush()
     assert World.load(SQLiteStore(str(tmp_path / "inc.sqlite")), "inc").digest() == w.digest()
+
+
+def test_system_array_blobs_are_not_world_state(tmp_path):
+    """D-78: a cohort decision's blob is named by its hash-chained cols.batch event and kept in the store; the state
+    gets no metadata row and the log no artifact.stored event for it. So a snapshot's size does not grow with the
+    number of recorded batches (at day 365 of a population world 222,702 such rows made each snapshot hold the
+    whole blob history), while replay, resume and recounts stay exact."""
+    from crucible.core.kernel import WorldSpec
+    from crucible.substrate import columns as C
+    mods = [{"name": m, "config": {}} for m in ("identity", "bank", "admin", "artifacts", "cols", "sysblob_test")]
+    st = SQLiteStore(str(tmp_path / "sb.sqlite"))
+    w = World.create(WorldSpec("sysblobs", 3, mods), world_id="sb", store=st)
+    sizes = []
+    refs = []
+
+    def batches(k):
+        def run(ctx):
+            rng = ctx.rng("b", k)
+            for j in range(50):
+                idx = np.sort(rng.choice(1000, 200, replace=False))
+                refs.append(C.batch(ctx, "tbl", "test.add", idx, {"x": rng.integers(0, 9, 200)}, mode="add"))
+        return run
+    for k in range(4):
+        w._run_system(f"batch{k}", batches(k))
+        sizes.append(len(w.snapshot_blob()))
+    assert w.state.count("artifacts") == 0
+    assert not [e for e in w.log if e.type == "artifact.stored"]
+    assert len(set(refs)) == 200 and all(st.get_blob(A.blob_key(r[7:])) is not None for r in refs)
+    # 50 to 200 batches: the snapshot holds the columns, not the blob history
+    assert max(sizes) - min(sizes) < 2000, sizes
+    w.flush()
+    truth = C.col(w, "tbl", "x").copy()
+    _fresh_reads()
+    st2 = SQLiteStore(str(tmp_path / "sb.sqlite"))
+    rep = World.replay(w.spec, st2.read_events("sb"), world_id="sb-replay", store=st2)
+    assert rep.digest() == w.digest() and np.array_equal(C.col(rep, "tbl", "x"), truth)
+    w.snapshot()
+    assert World.load(st2, "sb").digest() == w.digest()
+    # a store-less world of another lineage cannot reach these blobs; a replay of this lineage without a store can
+    other = World.create(WorldSpec("sysblobs", 4, mods), world_id="other")
+    with pytest.raises(Exception):
+        A.get_array_blob(other, refs[0])
+    rep2 = World.replay(w.spec, [e.to_dict() for e in w.log], world_id="sb-replay2")
+    assert np.array_equal(C.col(rep2, "tbl", "x"), truth)
+    # participant tools never see a system blob
+    w.system_call("admin.join", {"handle": "eve", "endowment": 0})
+    r = w.execute("p:eve", {"tool": "artifact.info", "args": {"ref": refs[0]}})
+    assert not r.ok and r.error["code"] == "not_found"
+    other.close()

@@ -21,7 +21,16 @@ missing one to in-world callers (`not_found`), so the tools are not an existence
 
 Limits: `max_bytes` per artifact (32 MiB), `quota_bytes` stored per owner (512 MiB), both from the module config.
 System batch blobs (`owner="sys"`, `kind="batch"`, written by `crucible.substrate.columns`) have their own bound
-(`batch_max_bytes`, 1 GiB) and no quota. An optional storage fee (`fee_cents_per_mib`, default 0) is charged through
+(`batch_max_bytes`, 1 GiB) and no quota.
+
+System array blobs are not world state (D-78). A cohort decision's blob, a neural checkpoint or a recorded inference
+output is named by the hash-chained event that uses it (its SHA-256 is in the REF the event carries); it gets no
+`artifacts` row and no `artifact.stored` event. Before D-78 every one of them kept a metadata row in the state for
+ever, so a snapshot of a 365-day world held 222,702 rows of blob metadata and retained snapshots grew
+superlinearly. A world reaches a system blob only by a REF from its own record, and only from bytes of its own
+lineage (`lineage(world)`: the spec hash, shared by the world, its forks, replays and regenerations): its cache, its
+store, its read-only sources, process-pool bytes or registered stores that a world of the same lineage wrote. A
+participant never reaches one (the tools serve artifacts with a row only). An optional storage fee (`fee_cents_per_mib`, default 0) is charged through
 `bank` in the same transaction, so a payer that cannot pay leaves no trace of the put.
 """
 from __future__ import annotations
@@ -67,8 +76,20 @@ NPZ_MIME = "application/x-npz"
 # lease on every blob its state references, so it keeps working after its parent is closed.
 _POOL: dict[str, bytes] = {}
 _POOL_REFS: dict[str, int] = {}
+_POOL_LIN: dict[str, set] = {}        # pool blob -> lineages of the worlds that wrote it (system blobs, D-78)
 # Stores that received artifact bytes in this process: a fork or replay without a store finds its parent's blobs
 _SOURCES: list[weakref.ref] = []
+_SOURCE_LIN: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()   # store -> lineages that wrote through it
+
+
+def lineage(world) -> str:
+    """The world's blob lineage: its spec hash, shared by the world, its forks, replays and regenerations (D-78).
+    System array blobs are reachable only from bytes a world of the same lineage wrote (or the world's own store and
+    read-only sources)."""
+    lin = world.runtime.get("artifact_lineage")
+    if lin is None:
+        lin = world.runtime["artifact_lineage"] = world.spec.hash()
+    return lin
 
 
 class _PoolLease:
@@ -91,6 +112,7 @@ def _release(held: set) -> None:
         if n <= 0:
             _POOL_REFS.pop(h, None)
             _POOL.pop(h, None)
+            _POOL_LIN.pop(h, None)
         else:
             _POOL_REFS[h] = n
     held.clear()
@@ -186,7 +208,12 @@ def read_store_blob(store, h: str) -> bytes | None:
     return _verified(h, data)
 
 
-def _register_source(store) -> None:
+def _register_source(store, lin: str | None = None) -> None:
+    if lin is not None:
+        try:
+            _SOURCE_LIN.setdefault(store, set()).add(lin)
+        except TypeError:
+            pass
     for r in _SOURCES:
         if r() is store:
             return
@@ -271,8 +298,9 @@ def _cache(world) -> _Cache:
     return c
 
 
-def _write_bytes(world, h: str, data: bytes) -> None:
-    """Make `data` (whose SHA-256 is `h`) retrievable for this world: cache plus store or process pool."""
+def _write_bytes(world, h: str, data: bytes, *, system: bool = False) -> None:
+    """Make `data` (whose SHA-256 is `h`) retrievable for this world: cache plus store or process pool. `system`:
+    a system array blob, which worlds of the same lineage may read without a row (D-78)."""
     c = _cache(world)
     store = world.store
     if store is not None:
@@ -280,11 +308,15 @@ def _write_bytes(world, h: str, data: bytes) -> None:
             if store.get_blob(blob_key(h)) is None:
                 store.put_blob(blob_key(h), data)
             c.persisted.add(h)
-            _register_source(store)
+            _register_source(store, lineage(world) if system else None)
+        elif system:
+            _register_source(store, lineage(world))
         c.put(h, data, bounded=True)
     else:
         data = _POOL.setdefault(h, data)
         _lease(world).hold(h)
+        if system:
+            _POOL_LIN.setdefault(h, set()).add(lineage(world))
         c.put(h, data, bounded=False)
 
 
@@ -296,18 +328,25 @@ def _verified(h: str, data: bytes | None) -> bytes | None:
     return bytes(data)
 
 
-def _read_bytes(world, h: str) -> bytes | None:
+def _read_bytes(world, h: str, *, claimed: bool = True) -> bytes | None:
+    """Verified bytes of blob `h` for `world`, or None. `claimed`: the world's state records an artifact with these
+    bytes, so any copy in this process may serve (all are hash-verified). Unclaimed (a system array blob, D-78): only
+    the world's cache, store and read-only sources, and system blobs that its lineage wrote to the process pool or
+    to a registered store."""
     c = _cache(world)
     b = c.get(h)
     if b is not None:
         return b
     found = None
+    lin = None if claimed else lineage(world)
     if world.store is not None:
         found = read_store_blob(world.store, h)
         if found is not None:
             c.persisted.add(h)
     if found is None:
         found = _POOL.get(h)
+        if found is not None and not claimed and lin not in _POOL_LIN.get(h, ()):
+            found = None
         if found is not None and world.store is None:
             _lease(world).hold(h)
     if found is None:
@@ -319,6 +358,8 @@ def _read_bytes(world, h: str) -> bytes | None:
         for r in list(_SOURCES):
             s = r()
             if s is None or s is world.store:
+                continue
+            if not claimed and lin not in _SOURCE_LIN.get(s, ()):
                 continue
             try:
                 found = read_store_blob(s, h)
@@ -386,13 +427,16 @@ def put(ctx: Ctx, data: bytes, mime: str, *, owner: str, parents: Sequence[str] 
 
 
 def get(world, ref: str) -> bytes:
-    """The bytes of an artifact of this world, SHA-256 verified. Raises NotFound if this world has no such artifact
-    or its bytes are unavailable. World-side API: no permission check (tools check `readable`)."""
+    """The bytes of an artifact of this world, SHA-256 verified: an artifact its state records, or a system array blob
+    of its lineage (D-78). Raises NotFound if this world has no such artifact or its bytes are unavailable.
+    World-side API: no permission check (tools check `readable`)."""
     h = parse_ref(ref)
-    if not world.state.has("artifacts", ref):
-        raise NotFound(f"no artifact {ref}")
-    b = _read_bytes(world, h)
+    claimed = world.state.has("artifacts", ref)
+    b = _read_bytes(world, h, claimed=claimed)
     if b is None:
+        if not claimed:
+            raise NotFound(f"no artifact {ref}: no state record, and the bytes are not available as a system blob "
+                           f"of this world's lineage")
         raise NotFound(f"bytes of {ref} are not available in this world's store (export them with "
                        f"crucible.substrate.artifacts.export)")
     return b
@@ -409,6 +453,7 @@ def info(world, ref: str) -> dict:
 
 
 def exists(world, ref: str) -> bool:
+    """Whether the world's state records an artifact with this REF (system array blobs are not artifacts, D-78)."""
     return isinstance(ref, str) and REF_RE.fullmatch(ref) is not None and world.state.has("artifacts", ref)
 
 
@@ -479,11 +524,12 @@ def put_array_blob(ctx: Ctx, arrays: dict[str, np.ndarray]) -> str:
 
 
 def get_array_blob(world, ref: str) -> dict[str, np.ndarray]:
-    """The arrays of an npz blob of this world (read-only, SHA-256 verified)."""
+    """The arrays of an npz blob of this world (read-only, SHA-256 verified): a system array blob named by the
+    world's own record (cols.batch, checkpoints, recorded inference) or an npz artifact its state records."""
     h = parse_ref(ref)
     c = _cache(world)
-    arrs = c.get_arrays(h)
-    if arrs is not None and world.state.has("artifacts", ref):
+    arrs = c.get_arrays(h)          # the per-world cache holds only arrays this world wrote or read verified
+    if arrs is not None:
         return arrs
     arrs = npz_arrays(get(world, ref))
     c.put_arrays(h, arrs)
@@ -492,22 +538,32 @@ def get_array_blob(world, ref: str) -> dict[str, np.ndarray]:
 
 def export(world, dest_store) -> dict:
     """Copy the bytes of every artifact this world references into `dest_store` (when a world moves to another
-    store). Returns {copied, present, bytes, missing: [refs whose bytes are unavailable]}."""
+    store): the artifacts its state records and its system array blobs (D-78: every `art/` blob of its store, or
+    every pool blob it holds when it has none). Packed blobs are written in full. Returns {copied, present, bytes,
+    missing: [refs whose bytes are unavailable]}."""
     copied = present = nbytes = 0
     missing = []
-    for ref in world.state.ids("artifacts"):
+    refs = list(world.state.ids("artifacts"))
+    have = set(refs)
+    if world.store is not None and hasattr(world.store, "blob_sizes"):
+        sys_hex = [k[4:] for k in world.store.blob_sizes("art/")]
+    else:
+        lease = world.runtime.get("artifact_pool")
+        sys_hex = sorted(lease.held) if lease is not None else []
+    refs += [REF_PREFIX + h for h in sys_hex if REF_PREFIX + h not in have]
+    for ref in refs:
         h = ref[len(REF_PREFIX):]
         if dest_store.get_blob(blob_key(h)) is not None:
             present += 1
             continue
-        b = _read_bytes(world, h)
+        b = _read_bytes(world, h, claimed=ref in have)
         if b is None:
             missing.append(ref)
             continue
         dest_store.put_blob(blob_key(h), b)
         copied += 1
         nbytes += len(b)
-    _register_source(dest_store)
+    _register_source(dest_store, lineage(world) if sys_hex else None)
     return {"copied": copied, "present": present, "bytes": nbytes, "missing": missing}
 
 
@@ -588,6 +644,18 @@ class Artifacts(Module):
                 if h in _POOL:
                     lease.hold(h)
 
+    def on_fork(self, parent, child):
+        """A store-less fork holds every pool blob its parent holds (its system array blobs have no rows to lease
+        by, D-78), so closing the parent cannot take them away."""
+        if child.store is None:
+            held = parent.runtime.get("artifact_pool")
+            if held is not None:
+                lease = _lease(child)
+                lin = lineage(parent)
+                for h in sorted(held.held):
+                    if lin in _POOL_LIN.get(h, ()):       # the parent's system blobs (artifacts: on_load)
+                        lease.hold(h)
+
     def close(self):
         if self.world is not None:
             release_pool(self.world)
@@ -635,6 +703,12 @@ class Artifacts(Module):
         parents = sorted(set(parents))
         h = sha256_hex(data)
         ref = REF_PREFIX + h
+        if owner == SYSTEM and kind == "batch":
+            # a system array blob (D-78): named by the event that uses it, never a row of the state
+            if parents or meta:
+                raise InvalidAction("system array blobs carry no parents or metadata")
+            _write_bytes(ctx.world, h, data, system=True)
+            return ref
         st = ctx.state
         rec = st.get("artifacts", ref)
         if rec is not None and (rec["owner"] == owner or owner == SYSTEM or

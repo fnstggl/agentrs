@@ -205,6 +205,9 @@ class Module:
     def check_invariants(self, world: "World") -> list[str]:
         return []
 
+    def on_fork(self, parent: "World", child: "World") -> None:
+        """5.0: called on the child's module after `World.fork` built `child` from `parent` (runtime only)."""
+
     def blob_roots(self, world: "World"):
         """5.0 retention (crucible.substrate.retention): REFs of the blobs `on_load` reads to rebuild this module's
         runtime state from the world's current state (e.g. the latest neural checkpoints). Recorded in snapshots."""
@@ -1108,6 +1111,7 @@ class World:
         for name, fields in w.state.index_fields.items():
             loaded.declare_table(name, fields)
         loaded.declared_by = w.state.declared_by
+        loaded.array_declared_by = w.state.array_declared_by
         w.state = loaded
         w.seq = d["seq"]
         w.last_hash = d["hash"]
@@ -1142,9 +1146,14 @@ class World:
         return w
 
     def fork(self, world_id: str, store=None) -> "World":
-        """Copy-on-snapshot fork: an isolated world that shares history up to now and diverges afterwards."""
-        return World.from_blob(self.snapshot_blob(), world_id=world_id, store=store if store is not None else None,
-                               fork=True, strict=self.strict)
+        """Copy-on-snapshot fork: an isolated world that shares history up to now and diverges afterwards. Modules
+        that keep process resources of the parent (5.0: the artifact pool lease) hand them on in `Module.on_fork`."""
+        child = World.from_blob(self.snapshot_blob(), world_id=world_id, store=store if store is not None else None,
+                                fork=True, strict=self.strict)
+        for mod in child.modules.values():
+            if type(mod).on_fork is not Module.on_fork:
+                mod.on_fork(self, child)
+        return child
 
     def _rebuild_heap(self) -> None:
         self._heap = [(j["at"], j["prio"], j["n"], sid) for sid, j in self.state.tables["sched"].items()]

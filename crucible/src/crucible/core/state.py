@@ -46,6 +46,7 @@ class StateStore:
         # snapshots or digests). Used by crucible.substrate.primitives to find duplicate shared facts.
         self.declaring: str | None = None
         self.declared_by: dict[str, list[str]] = {}
+        self.array_declared_by: dict[str, str] = {}     # dense array -> the module that created it at install
 
     # ------------------------------------------------------------------ schema
     def declare_table(self, name: str, index: Iterable[str] = ()) -> None:
@@ -195,6 +196,9 @@ class StateStore:
         return self.arrays[name]
 
     def set_array(self, name: str, value: np.ndarray) -> None:
+        if self.declaring is not None and name not in self.arrays:
+            # 5.0: arrays created while a module installs are attributed to it, like tables (runtime only)
+            self.array_declared_by.setdefault(name, self.declaring)
         if self._journal is not None and name not in self._arr_saved:
             self._arr_saved.add(name)
             self._jr(("arr", name, None, self.arrays[name] if name in self.arrays else _MISSING))
