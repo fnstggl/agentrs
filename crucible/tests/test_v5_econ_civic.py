@@ -157,3 +157,33 @@ def test_civic_world_replays_and_regenerates_exactly(civic):
     assert World.regenerate(spec, evs).last_hash == w.last_hash
     assert w.check_invariants() == [] and w.modules["bank"].check_ledger_consistency(w) == []
     assert not [e for e in w.log if e.type in ("proc.failed", "rivals.failed")]
+
+
+@pytest.fixture(scope="module")
+def twelve_weeks():
+    spec = startup_spec(21, n=700, formats=["schedule.jobs"], extra=("xchg", "inst", "labor"),
+                        rivals={"display_ads": True})
+    w = World.create(spec)
+    for d in range(1, 85):
+        w.advance_time(d * DAY)
+    return w
+
+
+def test_activity_continues_and_incumbent_days_never_fail(twelve_weeks):
+    """Regression (wave 3b): a refused dismissal of an employee already on notice failed the incumbent's whole day
+    (support, pricing, listings) from day 55 on; the activities must keep running, week after week."""
+    w = twelve_weeks
+    assert not [e.payload for e in w.log if e.type in ("rivals.failed", "proc.failed")]
+    weeks = collections.defaultdict(collections.Counter)
+    for e in w.log:
+        wk = int(e.t // (7 * DAY))
+        if e.type in ("labor.shift", "xchg.order", "inst.contribution", "inst.ballot"):
+            weeks[wk][e.type] += 1
+    last4 = [weeks[k] for k in range(8, 12)]
+    assert all(c["labor.shift"] > 0 for c in last4), last4        # employees keep working shifts
+    assert all(c["inst.ballot"] > 0 for c in last4), last4        # association members keep deciding claims
+    assert sum(c["inst.contribution"] for c in last4) > 0, last4  # and paying dues
+    assert sum(c["xchg.order"] for c in last4) > 0, last4         # passes keep selling
+    st = w.state
+    assert any(r.get("employer") for _, r in st.scan("labor_workers")), "someone is employed at the end"
+    assert w.check_invariants() == [] and w.modules["bank"].check_ledger_consistency(w) == []
