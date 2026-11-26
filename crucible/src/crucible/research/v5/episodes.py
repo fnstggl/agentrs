@@ -208,9 +208,16 @@ def references(entry: Mapping, seed: int, difficulty: Mapping | None = None,
     return {"wait": w, "upper": u}
 
 
+SCORE_RANGE = (-1.0, 1.5)
+
+
 def normalised(value: float, refs: Mapping) -> float:
+    """(value - wait) / (upper - wait), clipped to `SCORE_RANGE`: a world whose upper reference barely improves on
+    waiting would otherwise turn noise into huge scores (the oracle is a search, so scores above 1 are possible)."""
     span = float(refs["upper"]) - float(refs["wait"])
-    return (float(value) - float(refs["wait"])) / span if span > 1e-9 else 0.0
+    if span <= 1e-9:
+        return 0.0
+    return float(np.clip((float(value) - float(refs["wait"])) / span, *SCORE_RANGE))
 
 
 def lever_entries(registry: Registry | None = None, family_partition: str | None = None,

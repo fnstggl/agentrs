@@ -40,7 +40,7 @@ import sys
 import time
 from typing import Any, Mapping
 
-PARTICIPANT_OPS = ("agents", "observe", "execute", "advance", "tools", "observe_since", "done")
+PARTICIPANT_OPS = ("agents", "observe", "execute", "advance", "tools", "observe_since", "done", "propose")
 EVALUATOR_OPS = ("ping", "registry", "open_episode", "result", "results", "declare_sealed", "open_sealed",
                  "sealed_status", "preregister", "log", "propose", "fresh_check", "close")
 SEALED_ACK = "I am running the final sealed evaluation and will not use it for tuning"
@@ -70,6 +70,8 @@ class _Server:
         self.curriculum_sealed_served = 0
         self.dev_items: set[tuple[str, int]] = set()
         self.conf_items: set[tuple[str, int]] = set()
+        self.accepted: list[str] = []
+        self.base_digest = self.reg.digest
 
     def _salt(self) -> bytes:
         os.makedirs(self.sealed_dir, mode=0o700, exist_ok=True)
@@ -95,8 +97,10 @@ class _Server:
                 "salt_loaded": self.salt is not None}
 
     def ev_registry(self) -> dict:
-        return {"version": self.reg.version, "digest": self.reg.digest, "counts": self.reg.kind_counts(),
-                "tiers": {str(k): v for k, v in self.reg.tiers().items()}}
+        evals = sorted(w["id"] for w in self.reg.worlds() if w["family_partition"] != "train")
+        return {"version": self.reg.version, "digest": self.reg.digest, "base_digest": self.base_digest,
+                "counts": self.reg.kind_counts(), "tiers": {str(k): v for k, v in self.reg.tiers().items()},
+                "evaluation_families": evals, "accepted_proposals": list(self.accepted)}
 
     def ev_open_episode(self, entry: str, seed: int, purpose: str = "dev", difficulty: dict | None = None,
                         prereg: str | None = None, _sealed_alias: str | None = None) -> dict:
@@ -214,15 +218,23 @@ class _Server:
     def ev_log(self) -> dict:
         return {"ok": True, "log": list(self.log), "refused": list(self.refused)}
 
-    def ev_propose(self, structure: Any, proposer: str = "learner") -> dict:
-        from .proposal import validate_proposal
-        return {"ok": True, "verdict": validate_proposal(self.reg, structure, proposer=proposer)}
+    def ev_propose(self, structure: Any, proposer: str = "harness") -> dict:
+        r = self.pa("propose", structure)
+        return {"ok": True, "verdict": r["value"]}
 
     def ev_fresh_check(self) -> dict:
         return {"ok": True, "modules": sorted(m for m in sys.modules if m.startswith("crucible."))[:5]}
 
     # ---------------------------------------------------------------- participant ops
     def pa(self, op: str, ticket: Any, *args) -> dict:
+        if op == "propose":                            # a world proposal: public verdict only (Part 14.4)
+            from .proposal import validate_proposal
+            v = validate_proposal(self.reg, ticket, proposer="participant", accepted=self.accepted)
+            if v["accepted"]:
+                self.accepted.append(v["structure_id"])
+                self.reg = self.reg.extend([v.pop("_entry")])
+            v.pop("_entry", None)
+            return {"ok": True, "value": v}
         ep = self.episodes.get(ticket) if isinstance(ticket, str) else None
         if ep is None:
             return self._refuse("participant", op, "unknown ticket")
