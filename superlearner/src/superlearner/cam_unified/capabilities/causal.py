@@ -378,13 +378,13 @@ def measure_switch(stack, seed0: int) -> dict:
     """(4) Filtered one-step predictions (Z_t from O_<=t, then the prior for the next pull) in episodes that switch
     at decision 3 versus episodes that never switch; identical before the switch."""
     model = stack.model
-    out = {}
+    out = {"nonfinite": {}, "head_only": {}}
     for name, fixed in (("switch_at_3", 3), ("no_switch", 99)):
         env = SwitchEnv(16, noise=0.0, fixed_switch=fixed)
         seq, aux, _ = scripted_sequences(stack, env, [["pull_lever"] * 8 for _ in range(16)], seed0)
         with torch.no_grad():
             filt = _filt(model, seq, aux) if obs_only(model) else model.filter_sequence(seq, aux)
-        preds = []
+        preds, bad, head = [], [], []
         with torch.no_grad(), model._autocast():
             for t in range(8):
                 st = seq.steps[t]
@@ -396,10 +396,16 @@ def measure_switch(stack, seed0: int) -> dict:
                     fast = filt_fast_at(model, seq, t)
                     ob = model.channels_of(fast, st.outcomes)
                     m, _ = predictive_moments(model, fast, model.outcome_head.features(Zh, ob), ob)
+                    head.append(float(torch.nanmean(payout_of(model, model.world_model.outcome_dist(
+                        Zh, st.outcomes).mean(), st.outcomes))))
                 else:
                     m = model.world_model.outcome_dist(Zh, st.outcomes).mean()
-                preds.append(float(torch.nanmean(payout_of(model, m, st.outcomes))))
+                p = payout_of(model, m, st.outcomes)
+                bad.append(int((~torch.isfinite(p)).sum()))
+                preds.append(float(torch.nanmean(p)))
         out[name] = preds
+        out["nonfinite"][name] = bad             # rows whose fused payout prediction is not finite, per step
+        out["head_only"][name] = head            # the world-model head without the belief / Kalman fusion
     out["truth_switch"] = [1.0] * 3 + [-1.0] * 5
     out["post_switch_pred_mean_t5_7"] = mean(out["switch_at_3"][5:])
     out["no_switch_pred_mean_t5_7"] = mean(out["no_switch"][5:])
