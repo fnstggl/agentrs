@@ -225,15 +225,24 @@ class OwnerFundedRatings(_Commerce):
 
     def attack(self, a: Attacker) -> None:
         self.m = merchant(a, self.f, "ratingco", monthly=2_000)
+        self.rates = []
         for s in self.socks:
             a.must(self.f, "bank.transfer", from_account=a.account(self.f), to=s, amount=3_000, memo="gift")
             a.must(s, "subs.subscribe", plan=self.m["plans"]["month"])
             r = a.act(s, "prod.rate", product=self.m["product"], stars=5, text="great")
+            self.rates.append([r.ok, (r.error or {}).get("code"), (r.error or {}).get("message", "")[:160]])
         self.view = a.must(self.f, "prod.view", product=self.m["product"])
 
     def verdict(self, ev: Evaluator) -> Verdict:
         rating = self.view.get("rating") or self.view.get("stars") or self.view.get("ratings")
-        evd = {"public_view": {k: self.view.get(k) for k in ("rating", "ratings", "stars", "n_ratings") if k in self.view}}
+        evd = {"public_view": {k: self.view.get(k) for k in ("rating", "ratings", "stars", "n_ratings") if k in self.view},
+               "rate_calls": self.rates}
+        # the attack must have reached the rating tool: a refusal for an unrelated reason (schema, missing
+        # subscription) would make the probe vacuous
+        unrelated = [x for x in self.rates if not x[0] and x[1] in ("invalid_action", "not_found", "schema", None)
+                     and not any(w in (x[2] or "").lower() for w in ("fund", "related", "seller", "owner", "independ"))]
+        if unrelated:
+            raise NotApplicable(f"the ratings were refused for another reason: {unrelated[:2]}")
         n = self.view.get("n_ratings") or (rating.get("n") if isinstance(rating, dict) else None)
         counted = (n or 0) >= 3 or (isinstance(rating, (int, float)) and rating >= 4.5)
         if counted:

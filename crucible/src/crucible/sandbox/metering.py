@@ -48,7 +48,12 @@ from typing import Any
 NS_PER_WORK_UNIT = 350.0         # CPU ns per work unit: ~ one executed line of the reference need solvers, build host
 JOB_OVERHEAD_NS = 30_000         # fixed protocol overhead of one job (dispatch, output capture), never billed
 PROTO_NS_PER_BYTE = 20           # decoding the job and encoding the result (CPython json ~30-40 ns/byte), never billed
-LOAD_FREE_NS = 250_000_000       # import-time CPU of a program that is not billed (`import numpy` is ~65 ms)
+LOAD_FREE_NS = 3_000_000         # load-time CPU never billed: the import system finding and compiling a small
+                                 # program (~2 ms measured). Trusted imports the program names (stdlib modules of
+                                 # runner.PRELOAD_STDLIB, approved packages such as numpy, ~65 ms) are preloaded by
+                                 # the boot module before the first job and cost nothing; the program's own
+                                 # module-level work beyond this allowance is billed (it was free up to 250 ms per
+                                 # cold start before: a loop moved to import time ran unbilled)
 BACKGROUND_SLACK_NS = 2_000_000  # CPU an idle worker may use between jobs (reading the next request)
 MEMO_TOL = 3.0
 MEMO_SLACK_NS = 1_000_000

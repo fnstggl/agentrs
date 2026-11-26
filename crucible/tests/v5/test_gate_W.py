@@ -134,18 +134,19 @@ def test_Wn1_independent_adversarial_review(red_team):
     """The independent audit of area O (auditor + skeptic, docs/v5/audit/O_security.md) is the adversarial review;
     every critical/high finding it raised must be either closed with a probe that now holds (suite.FIXED) or listed
     open with its probe (suite.KNOWN_OPEN)."""
-    from crucible.redteam.v5.suite import FIXED, KNOWN_OPEN
+    from crucible.redteam.v5.suite import FIXED, FIXED_BY_OWNERS, KNOWN_OPEN
     docs = _review_docs()
     reviews = 0
     for p in docs:
         txt = open(p, encoding="utf-8").read()
         reviews += 1 + ("## Skeptic review" in txt)
     rows = {r["name"]: r["result"] for r in red_team["report"]["probes"]}
-    fixed_ok = {k: [n for n in rows if fnmatch.fnmatch(n, pat)] for k, pat in FIXED.items()}
+    fixed_ok = {k: [n for n in rows if fnmatch.fnmatch(n, pat)] for k, pat in {**FIXED, **FIXED_BY_OWNERS}.items()}
     fixed_held = all(v and all(rows[n] == "held" for n in v) for v in fixed_ok.values())
     open_probed = all(n in rows for n in KNOWN_OPEN)
     metrics = {"independent_adversarial_reviews": reviews, "review_documents": len(docs),
-               "review_findings_closed_with_held_probe": len(FIXED), "review_findings_closed_all_held": fixed_held,
+               "review_findings_closed_with_held_probe": len(FIXED) + len(FIXED_BY_OWNERS),
+               "review_findings_closed_by_owners": len(FIXED_BY_OWNERS), "review_findings_closed_all_held": fixed_held,
                "open_findings_with_probe": len(KNOWN_OPEN), "open_findings_all_probed": open_probed,
                "open_high": sum(1 for k in KNOWN_OPEN.values() if k["severity"] in ("critical", "high"))}
     record("W.n1", metrics, command=CMD, notes="reviews: " + ", ".join(os.path.relpath(p, crucible_root()) for p in docs))

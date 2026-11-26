@@ -3,7 +3,7 @@ entries name real probes, and gate_metrics counts outcomes as documented (errors
 import fnmatch
 
 from crucible.redteam.v5 import GATES, KNOWN_OPEN, MUST_HOLD, catalogue, gate_metrics, probes, ratchet
-from crucible.redteam.v5.suite import FIXED
+from crucible.redteam.v5.suite import FIXED, FIXED_BY_OWNERS
 
 
 def test_catalogue_is_complete_and_well_formed():
@@ -22,7 +22,8 @@ def test_ratchet_entries_name_real_probes():
     names = set(catalogue())
     assert set(KNOWN_OPEN) <= names and set(MUST_HOLD) <= names and not set(MUST_HOLD) & set(KNOWN_OPEN)
     assert all(k["severity"] in ("critical", "high", "medium", "low") and k["owner"] for k in KNOWN_OPEN.values())
-    for pat in FIXED.values():
+    assert not set(FIXED_BY_OWNERS.values()) & set(KNOWN_OPEN)
+    for pat in list(FIXED.values()) + list(FIXED_BY_OWNERS.values()):
         assert any(fnmatch.fnmatch(n, pat) for n in names), pat
 
 

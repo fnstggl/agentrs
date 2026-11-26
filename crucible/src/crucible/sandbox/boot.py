@@ -178,6 +178,15 @@ SECCOMP = seccomp()
 
 # ------------------------------------------------------------------ 4. environment for user code
 os.chdir(WORKDIR)
+# Trusted modules the parent found named in the program's files (stdlib, approved packages): imported now, before the
+# first job and with the working directory NOT on the path (nothing of the program runs here), so their import cost
+# is not the program's work. Everything the program does at import time beyond them is measured and billed (D-20).
+sys.path[:] = list(CFG.get("sys_path", []))
+for _m in CFG.get("preload", [])[:32]:
+    try:
+        __import__(_m)
+    except Exception:  # noqa: BLE001 - a module unavailable here is imported (and fails) in the program's own time
+        pass
 sys.path[:] = [WORKDIR] + list(CFG.get("sys_path", []))
 sys.dont_write_bytecode = True
 _rpc_id = 0

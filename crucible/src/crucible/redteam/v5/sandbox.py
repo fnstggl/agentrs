@@ -114,6 +114,27 @@ def work(args, caller):
     spec.loader.exec_module(mod)              # the work runs as import-time code of a fresh module
     return mod.s
 ''',
+    "work_at_import_time": '''
+s = 0
+for i in range(%d):                           # the work runs while the program is loaded, before the job starts
+    s += i %% 7
+def work(args, caller):
+    return s
+''',
+    "work_in_a_joined_thread": '''
+import threading
+def work(args, caller):
+    out = []
+    def go():
+        s = 0
+        for i in range(%d):
+            s += i %% 7
+        out.append(s)
+    t = threading.Thread(target=go)
+    t.start()
+    t.join()                                    # the thread has exited before the result is sent
+    return out[0]
+''',
     "forged_completion": '''
 import __main__
 def work(args, caller):
@@ -209,9 +230,15 @@ class MeterForgery(V5Probe):
         self.use = (u0, u1, compute_used(w, self.att))
 
     def verdict(self, ev: Evaluator) -> Verdict:
-        hb, fb = float(self.honest.get("cpu_ms") or 0), float(self.forged.get("cpu_ms") or 0)
-        fb_total = fb + max(0.0, float(self.after.get("cpu_ms") or 0) - hb)
-        evd = {"honest_cpu_ms": hb, "forged_cpu_ms": fb, "forged_plus_spill_cpu_ms": round(fb_total, 4),
+        h1, fb = float(self.honest.get("cpu_ms") or 0), float(self.forged.get("cpu_ms") or 0)
+        h2 = float(self.after.get("cpu_ms") or 0)
+        # CPU time can be inflated by contention on a shared host (never deflated below the work done), so the
+        # honest reference is the smaller of the two honest runs; work spilled past the forged job's end shows up
+        # as the second honest run's excess over the first
+        hb = min(h1, h2) if h2 > 0 else h1
+        fb_total = fb + max(0.0, h2 - h1)
+        evd = {"honest_cpu_ms": hb, "honest_runs_cpu_ms": [h1, h2], "forged_cpu_ms": fb,
+               "forged_plus_spill_cpu_ms": round(fb_total, 4),
                "honest_cents": self.honest.get("charged_cents"), "forged_cents": self.forged.get("charged_cents"),
                "forged_ok": self.forged.get("ok"), "compute_record_ms": self.use, "variant": self.variant}
         if not self.honest.get("ok") or hb <= 0:

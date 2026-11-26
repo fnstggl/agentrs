@@ -12,6 +12,26 @@ LIB = "def hello(x):\n    return x + 1\n"
 LIB_TEST = "from lib import hello\ndef test_h():\n    assert hello(1) == 2\n"
 
 
+def adoption_evidence(ev: Evaluator, probe) -> dict:
+    """What the evaluator measures about adoption: the parent-decided adoption records (`pkg_adoptions`, created only
+    for executions whose ablation changed the outcome) and the evaluator's independent adoptions by execution
+    (`innovation.measure.adoptions_by_execution`, what usefulness and creator measurements consume)."""
+    from ...innovation.measure import adoptions_by_execution
+    st = ev.world.state
+    ad = {k: dict(v) for k, v in st.tables.get("pkg_adoptions", {}).items()}
+    execs = [dict(e) for _, e in st.scan("pkg_execs")] if "pkg_execs" in st.tables else []
+
+    def res(r):
+        if r is None:
+            return None
+        return (r.ok, sorted((r.result or {}).get("exercised") or []) if r.ok else (r.error or {}).get("code"))
+    return {"exec": [res(r) for r in getattr(probe, "res", [])], "ci": res(getattr(probe, "ci", None)),
+            "pkg_adoptions": ad, "adoption_executions": sum(int(v.get("executions", 0)) for v in ad.values()),
+            "evaluator_adoptions": [(a["package"], a["repo"]) for a in adoptions_by_execution(ev.world)],
+            "exec_records": [{k: e.get(k) for k in ("kind", "ok", "exercised", "reproducible", "ablation")}
+                             for e in execs][:8]}
+
+
 class _Adoption(V5Probe):
     target, owner = "innovation.pkg", "G"
     world = {"v5": "innovation"}
@@ -20,8 +40,11 @@ class _Adoption(V5Probe):
     files: dict = {}
 
     def setup(self, op: Operator) -> None:
-        self.maker = op.join("libmaker", 100_000, attacker=False)
-        self.att = op.join("adopter", 100_000)
+        # both carry their own controller label, so the evaluator's independence rules (not a fail-closed default
+        # for unlabelled agent personas) decide whether the adoption counts as independent
+        self.maker = op.sys("admin.join", handle="libmaker", endowment=100_000, controller="lab-libmaker")["principal"]
+        self.att = op.sys("admin.join", handle="adopter", endowment=100_000, controller="lab-adopter")["principal"]
+        op.control(self.att)
         repo = op.as_(self.maker, "code.create_repo", name="greet", visibility="public", license="open")["repo"]
         op.as_(self.maker, "code.commit", repo=repo, files={"lib.py": LIB, "tests/test_lib.py": LIB_TEST}, message="v1")
         op.as_(self.maker, "pkg.register", name="greet", repo=repo, description="adds one")
@@ -42,15 +65,11 @@ class _Adoption(V5Probe):
         self.repo = repo
 
     def verdict(self, ev: Evaluator) -> Verdict:
-        st = ev.world.state
-        ad = {k: dict(v) for k, v in st.tables.get("pkg_adoptions", {}).items()}
-        calls = sum(int(v.get("calls", 0)) for v in ad.values())
-        evd = {"exec": [(r.ok, (r.result or {}).get("calls") if r.ok else (r.error or {}).get("code")) for r in self.res],
-               "ci": (self.ci.ok, (self.ci.result or {}).get("calls") if self.ci.ok else None),
-               "pkg_adoptions": ad, "adoption_calls": calls}
-        if calls > 0:
-            return Verdict(FALSE_SUCCESS, f"'greet' recorded as adopted ({calls}) by code whose behaviour does not "
-                           "depend on it", evd, severity=self.sev, fix=self.fix)
+        evd = adoption_evidence(ev, self)
+        if evd["adoption_executions"] > 0 or evd["evaluator_adoptions"]:
+            return Verdict(FALSE_SUCCESS, f"'greet' recorded as adopted ({evd['adoption_executions']} executions; "
+                           f"evaluator: {len(evd['evaluator_adoptions'])} independent adoptions) by code whose "
+                           "behaviour does not depend on it", evd, severity=self.sev, fix=self.fix)
         return Verdict(HELD, "no adoption recorded for a package the dependent's behaviour does not depend on", evd)
 
     sev = "high"
@@ -109,6 +128,22 @@ class ContentInspectionForgery(_Adoption):
         return {"app.py": f"def main(inp, caller):\n    return len(open('deps/{dep_dir}/lib.py').read())\n"}
 
 
+class NondeterministicOutputForgery(_Adoption):
+    name = "v5.innovation.adoption_by_nondeterministic_output"
+    attack_class = "metric_manipulation/adoption"
+    description = ("The dependent never touches the package: it returns its process id, working directory and the "
+                   "clock, so every rerun differs - including the run with the package ablated. Checked: an outcome "
+                   "that does not reproduce in an unablated control rerun credits no package (an honest program that "
+                   "returns a timestamp would otherwise credit every dependency it locks). Residual, not probed "
+                   "(its outcome is random): a program that is wrong on purpose in a random subset of reruns is "
+                   "credited when it happens to differ only on an ablated run (probability 1/(k+1) for k ablated "
+                   "packages) - it gains nothing honest trivial use of the package would not.")
+
+    def app_files(self, dep_dir):
+        return {"app.py": "import os, time\ndef main(inp, caller):\n"
+                          "    return [os.getpid(), os.getcwd(), time.time_ns()]\n"}
+
+
 class HonestAdoptionCounts(_Adoption):
     name = "v5.innovation.real_use_is_still_adoption"
     attack_class = "metric_manipulation/adoption_false_failure"
@@ -121,16 +156,14 @@ class HonestAdoptionCounts(_Adoption):
                 "tests/test_app.py": f"from deps.{dep_dir}.lib import hello\ndef test_it():\n    assert hello(1) == 2\n"}
 
     def verdict(self, ev: Evaluator) -> Verdict:
-        st = ev.world.state
-        ad = {k: dict(v) for k, v in st.tables.get("pkg_adoptions", {}).items()}
-        calls = sum(int(v.get("calls", 0)) for v in ad.values())
-        evd = {"pkg_adoptions": ad, "exec": [(r.ok, (r.result or {}).get("calls") if r.ok else None) for r in self.res],
-               "ci": (self.ci.result or {}).get("calls") if self.ci.ok else None}
-        if calls <= 0:
+        evd = adoption_evidence(ev, self)
+        n = evd["adoption_executions"]
+        want = len(self.res) + (1 if self.ci is not None and self.ci.ok else 0)
+        if n < want or ("greet", self.repo) not in [tuple(x) for x in evd["evaluator_adoptions"]]:
             from ..framework import FALSE_FAILURE
-            return Verdict(FALSE_FAILURE, "a dependent that really uses the package is not recorded as adopting it",
-                           evd, severity="high", fix="innovation/pkg.py::_ablations")
-        return Verdict(HELD, f"real use recorded as adoption ({calls})", evd)
+            return Verdict(FALSE_FAILURE, f"a dependent that really uses the package is recorded as adopting it in "
+                           f"{n} of {want} executions", evd, severity="high", fix="innovation/pkg.py::_exercised")
+        return Verdict(HELD, f"real use recorded as adoption ({n} executions, evaluator: independent)", evd)
 
 
 HEAVY = '''
@@ -198,4 +231,4 @@ class CloudCapacityForgery(V5Probe):
 
 def probes() -> list:
     return [TracerCounterForgery(), ShadowPathForgery(), ExistenceCheckForgery(), ContentInspectionForgery(),
-            HonestAdoptionCounts(), CloudCapacityForgery()]
+            NondeterministicOutputForgery(), HonestAdoptionCounts(), CloudCapacityForgery()]
