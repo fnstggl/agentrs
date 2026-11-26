@@ -642,21 +642,12 @@ def demo_logp_table(model, steps: list, batch: int = 8) -> dict:
             "logp_all": mean(vals["wait"] + vals["act"]), "n_wait": len(vals["wait"]), "n_act": len(vals["act"])}
 
 
-def _same_args(a: dict, b: dict) -> bool:
-    return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
-
-
 @torch.no_grad()
-def evaluate_demo_match(model, steps: list, batch: int = 8, tool_only_waits: bool = True) -> dict:
-    """Greedy decoding at the demonstrated decisions (inputs from the teacher-forced rollout): tool accuracy and
-    exact-argument rate, overall and on non-wait decisions."""
+def greedy_actions(model, steps: list, batch: int = 8) -> list:
+    """The model's greedy decoder action at each stored decision (inputs from a teacher-forced rollout)."""
     from ..model import StepInputs, acting_mode
     model.eval()
-    res = {"n": 0, "tool_ok": 0, "args_ok": 0, "n_act": 0, "tool_ok_act": 0, "args_ok_act": 0, "schema_valid": 0,
-           "excluded_unrepresentable": len(steps) - len(representable(steps))}
-    steps = representable(steps)
-    tools_seen: dict = {}
-    from crucible.core.schema import validate
+    out = []
     for i in range(0, len(steps), batch):
         ch = steps[i: i + batch]
         inp = _stack_inputs(ch)
@@ -666,22 +657,40 @@ def evaluate_demo_match(model, steps: list, batch: int = 8, tool_only_waits: boo
             opt_tok = model._option_token(inp.option, inp.option_steps) if model.option_policy is not None else None
             goal_in = model._goal_inputs(enc, opt_tok, inp.budget)
             T = model.tokenizer.tools(inp.tools)
-            acts = model.action_generator.sample(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists,
+            out += model.action_generator.sample(enc.R, goal_in, enc.belief, T, enc.obs, inp.tools, inp.obs_lists,
                                                  greedy=True, rescore=False)
-        for s, a, tl in zip(ch, acts, inp.tools):
-            res["n"] += 1
-            ok_t = a.tool == s.action.tool
-            ok_a = ok_t and _same_args(a.args, s.action.args)
-            schema = next((t.parameters for t in list(tl) + list(model.action_generator.builtins) if t.name == a.tool),
-                          None)
-            res["schema_valid"] += int(schema is not None and not validate(schema, a.args))
-            res["tool_ok"] += ok_t
-            res["args_ok"] += ok_a
-            if not s.is_wait:
-                res["n_act"] += 1
-                res["tool_ok_act"] += ok_t
-                res["args_ok_act"] += ok_a
-            tools_seen[a.tool] = tools_seen.get(a.tool, 0) + 1
+    return out
+
+
+def _same_args(a: dict, b: dict) -> bool:
+    return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
+
+
+@torch.no_grad()
+def evaluate_demo_match(model, steps: list, batch: int = 8) -> dict:
+    """Greedy decoding at the demonstrated decisions (inputs from the teacher-forced rollout): tool accuracy and
+    exact-argument rate, overall and on non-wait decisions."""
+    from crucible.core.schema import validate
+    res = {"n": 0, "tool_ok": 0, "args_ok": 0, "n_act": 0, "tool_ok_act": 0, "args_ok_act": 0, "schema_valid": 0,
+           "excluded_unrepresentable": len(steps) - len(representable(steps))}
+    steps = representable(steps)
+    tools_seen: dict = {}
+    acts = greedy_actions(model, steps, batch)
+    for s, a in zip(steps, acts):
+        tl = s.inputs.tools[0]
+        res["n"] += 1
+        ok_t = a.tool == s.action.tool
+        ok_a = ok_t and _same_args(a.args, s.action.args)
+        schema = next((t.parameters for t in list(tl) + list(model.action_generator.builtins) if t.name == a.tool),
+                      None)
+        res["schema_valid"] += int(schema is not None and not validate(schema, a.args))
+        res["tool_ok"] += ok_t
+        res["args_ok"] += ok_a
+        if not s.is_wait:
+            res["n_act"] += 1
+            res["tool_ok_act"] += ok_t
+            res["args_ok_act"] += ok_a
+        tools_seen[a.tool] = tools_seen.get(a.tool, 0) + 1
     n, na = max(1, res["n"]), max(1, res["n_act"])
     res.update(tool_acc=res["tool_ok"] / n, exact_args_rate=res["args_ok"] / n, tool_acc_act=res["tool_ok_act"] / na,
                exact_args_rate_act=res["args_ok_act"] / na, schema_valid_rate=res["schema_valid"] / n,
@@ -834,6 +843,9 @@ def cmd_train(out: str, minutes: float, scale: str = "dev", seed: int = 0, test_
         _json(prog_path, prog)
     prog["chunks"] = int(prog.get("chunks", 0)) + 1
     while len(prog["epochs"]) < epochs and time.time() < deadline:
+        last = prog["epochs"][-1] if prog["epochs"] else None
+        if last is not None and time.time() + 1.05 * (last["rollout_s"] + last["bc_s"]) > deadline:
+            break                                     # the next epoch would not fit in this chunk: leave it for the next
         t0 = time.time()
         steps = teacher_forced_rollout(model, train, batch=10, seed=seed + len(prog["epochs"]))
         prog["train_dataset"] = _dataset_stats(steps)
