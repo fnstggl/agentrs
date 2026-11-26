@@ -1,7 +1,7 @@
 """SP-3.3c: semantic participants have persistent identity and state in the standard profile, bound to rows of the
 shared population (MASTER_SPEC 3.1, 3.3).
 
-A standard civilisation (`crucible.civ`, population "standard") runs one simulated day with its class-4 individuals
+A standard civilisation (`crucible.civ`, population "standard") runs a day and a half with its class-4 individuals
 bound to the semantic participant runtime. We count participants whose mind-state row (`semp_state`) belongs to a
 class-4 row of the population with that row's own principal; then snapshot the world, resume it from the snapshot
 blob (a new kernel world, and a fresh process), and check that every participant's state (persona, goals, memory,
@@ -44,7 +44,7 @@ def test_SP_3_3c_semantic_participants_persist_and_are_bound_to_population_rows(
     from crucible.semantic.generalists import verify
     crucible.load_all_modules()
     w = G.civ_world("balanced", 2, population="standard")
-    w.advance_time(w.now + 86400)
+    w.advance_time(w.now + 36 * 3600)          # snapshot at noon of day 1: the continuation covers waking hours
     bound = verify.bound(w)
     rows0 = G.members(w)
     blob = w.snapshot_blob()
@@ -79,7 +79,7 @@ def test_SP_3_3c_semantic_participants_persist_and_are_bound_to_population_rows(
          "activations_before_snapshot": sum(int(x["counts"].get("activations", 0)) for x in rows0),
          "activations_after": sum(int(x["counts"].get("activations", 0)) for x in rows_w)}
     record("SP-3.3c", m, command="PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_3_3c.py",
-           notes="Standard population; snapshot after one day, resumed in-process and in a fresh process.")
+           notes="Standard population; snapshot after 36 h, resumed in-process and in a fresh process, 12 h each.")
     w.close()
     r.close()
     assert m["semantic_participants_bound_to_population"] >= 8
