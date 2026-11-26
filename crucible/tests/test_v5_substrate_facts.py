@@ -41,11 +41,16 @@ def test_the_known_duplicates_are_exactly_the_reviewed_allow_list(registry_audit
         assert set(e) >= {"target_owner", "decision", "workstream", "migration", "expires"}
         datetime.date.fromisoformat(e["expires"])
         assert facts.REVIEWED[key]["role"] == "duplicate" and facts.REVIEWED[key]["kind"] in P.OWNERS
-    kinds = {facts.REVIEWED[k]["kind"] for k in facts.KNOWN_DUPLICATES}
-    # the audit's duplicates (A6) are all on record: people, employment, relationships, communities, institutions,
-    # contracts, subscriptions, listings, content metadata
-    assert kinds >= {"population", "employment", "relationship", "community", "institution", "contract",
-                     "subscription", "listing", "content_artifact"}
+    kinds = {facts.REVIEWED[k]["kind"] for k in a["known_duplicates"]}
+    # the audit's duplicates (A6) - people, employment, relationships, communities, institutions, contracts,
+    # subscriptions, listings, content metadata - are each on record (a known duplicate in this scan) or migrated
+    # (no reviewed duplicate of the kind is left among the scanned items: wave 3b, content_artifact by C and
+    # institution/contract by F on their branches); a kind can only leave by migration, since an unlisted duplicate
+    # is a scan problem (asserted above)
+    a6 = {"population", "employment", "relationship", "community", "institution", "contract", "subscription",
+          "listing", "content_artifact"}
+    assert a6 <= set(P.OWNERS)
+    assert {"relationship", "community"} <= kinds          # not migrated on any branch yet (C+A, B+C)
     assert sum(1 for k in facts.KNOWN_DUPLICATES if facts.REVIEWED[k]["kind"] == "population") >= 8
 
 
