@@ -37,7 +37,17 @@
    "net_diffusion",
    "ch_constraint_tightens",
    "ch_demand_shift",
-   "ch_sign_reversal"
+   "ch_sign_reversal",
+   "mk_signal",
+   "mk_elastic",
+   "mk_drift",
+   "mk_gate",
+   "game_adaptive_rival",
+   "ch_drifting_ideal",
+   "cx_overdose",
+   "cx_reactive_history",
+   "cxc_balancing_constraint",
+   "cxc_latched_reversal"
   ],
   "continuation_note": "Continuation agent (after the usage-limit stop): each family above was re-measured with the full admission on seeds 0-2 and 10-12 after its change (single-CPU probes, not evidence). The registry-wide run is queued through the slot scheduler.",
   "tried_and_reverted_continuation": [
@@ -48,10 +58,11 @@
    "strat_price_war (two learning rivals)",
    "des_inventory (stronger season, forecasting reference)",
    "ch_drifting_ideal (sharper peak with dither tracker; end-state prediction with window and drift-shift references)",
-   "net_cascade (zone heat waves)"
+   "net_cascade (zone heat waves)",
+   "ch_tech_transition (prediction version admitted, but its best constant does not change after obsolescence: SP-8.0b 8.10 check fails on 2 of 3 seeds)"
   ],
   "probe_counts_continuation": {
-   "train": 52,
+   "train": 54,
    "eval": 21,
    "named_items_admitted": 54
   },
@@ -83,8 +94,8 @@
     "tests/v5/test_gate_M.py",
     "tests/test_v5_rapid_families.py"
    ],
-   "status_claim": "NOT MET (probe count 52 of 60)",
-   "notes": "Training families admitted on seeds 0-2 AND 10-12 in per-family probes: 22 robust at the start of wave 3b, 37 after the first wave-3b agent, 52 after the continuation (15 more: hc_confounded, strat_entry, team_commons, team_discovery, team_formation, plan_portfolio, pe_cascade_guard, net_diffusion, ch_constraint_tightens, ch_demand_shift, game_adaptive_rival, ch_drifting_ideal, mk_signal, mk_elastic, ch_tech_transition). Still not admitted (12): cx_overdose, cx_reactive_history, des_inventory, dl_short_term_damage, eng_delayed_controller, mk_drift, net_routing, pe_rollout_targeting, plan_distribution, plan_perishable, plan_supply_chain, strat_price_war. The registry-wide run gives the measured count."
+   "status_claim": "NOT MET (probe count 54 of 60)",
+   "notes": "Training families admitted on seeds 0-2 AND 10-12 in per-family probes: 22 robust at the start of wave 3b, 37 after the first wave-3b agent, 54 after the continuation (17 more: hc_confounded, strat_entry, team_commons, team_discovery, team_formation, plan_portfolio, pe_cascade_guard, net_diffusion, ch_constraint_tightens, ch_demand_shift, game_adaptive_rival, ch_drifting_ideal, mk_signal, mk_elastic, mk_drift, cx_overdose, cx_reactive_history). Not admitted (10): ch_tech_transition (its prediction version was admitted but failed the 8.10 belief-revision check of SP-8.0b, so it was reverted), des_inventory, dl_short_term_damage, eng_delayed_controller, net_routing, pe_rollout_targeting, plan_distribution, plan_perishable, plan_supply_chain, strat_price_war. The registry-wide run gives the measured count."
   },
   "M.2": {
    "implementation_files": [
@@ -310,8 +321,8 @@
   }
  },
  "limitations": [
-  "Gate M counts are probe counts until the registry-wide run lands: M.1 52/60 training families, SP-8.0 54/60 named items.",
-  "Eleven families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a learning curve, a rival that follows your average price).",
+  "Gate M counts are probe counts until the registry-wide run lands: M.1 54/60 training families, SP-8.0 54/60 named items; M.2 21/20 evaluation families.",
+  "Seventeen families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a rival that follows your average price, a peaked dose law, a saturating hub, a saturating output link).",
   "Several prediction references are weak on one seed of a seed set (ch_sign_reversal, ch_demand_shift, cxc_balancing_constraint, cxc_latched_reversal); they pass the two-of-three rule, the margin is small.",
   "Program-execution families pay compute by measured CPU time (D-20 metering); admission values of pe_* families can vary with machine load.",
   "The planning families of 8.4.1-8.4.3 and the routing/cascade network families (8.7.1, 8.7.4) remain static-tuning or weak-reference worlds; their redesigns were reverted."

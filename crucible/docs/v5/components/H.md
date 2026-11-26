@@ -111,7 +111,7 @@ upper bound under higher loads), `ch_drifting_ideal` (narrow drifting peak: thre
 Admission (`admission.CHECKS`, H-D1) and the gate tests are unchanged, except that the D-9 recreation check now
 ignores journal filings in prediction worlds (`fingerprints.legacy_recreation`: a lever world with a journal still
 recreates a lever-interfaced 4.0 mechanism). Every family below was re-measured with the full admission on seeds 0-2
-and 10-12 after its change (single-CPU probes, not evidence). Probe counts: 52 training and 21 evaluation families,
+and 10-12 after its change (single-CPU probes, not evidence). Probe counts: 54 training and 21 evaluation families,
 54 of the 60 named Part 8 items.
 
 Two patterns made families pass:
@@ -128,16 +128,17 @@ Two patterns made families pass:
 * **Prediction of the interventional or end-of-episode response** (D-63 amendment), for lever worlds where a
   constant or a two-setting threshold rule tracked a one-off change: `hc_confounded`, `hc_feedback_hidden`,
   `ch_constraint_tightens`, `ch_demand_shift`, `ch_sign_reversal`, `cxc_balancing_constraint`,
-  `cxc_latched_reversal`, `ch_drifting_ideal`, `ch_tech_transition`, `game_adaptive_rival` and the four look-alike
-  markets (one interface for all four; `mk_signal`, `mk_elastic`, `mk_gate` admitted, `mk_drift` not). References in
+  `cxc_latched_reversal`, `ch_drifting_ideal`, `cx_overdose`, `cx_reactive_history`, `game_adaptive_rival` and the four
+  look-alike markets (one interface for all four, all admitted). References in
   `refs_adapt`: `fir_shape_predict` (randomised design, one shape per setting by cross-validation, exogenous
   readings as covariates), `fir_shape_predict_recent` (change point), `market_predict` (log-additive law against a
-  logit demand curve, by cross-validation), `drifting_bump_predict`, `learning_transition_predict` (experience stock
-  and a saturating link), `rival_model_predict` (a rival that follows your remembered average price, logit demand).
+  logit demand curve, by cross-validation), `drifting_bump_predict`, `held_dose_predict` and `held_hub_predict` (hold
+  until the delayed effect arrives; peaked dose law or one saturating channel, saturating output link),
+  `rival_model_predict` (a rival that follows your remembered average price, logit demand).
 
-Not admitted, redesigns reverted: `cx_overdose`, `cx_reactive_history` (lagged composites: FIR, single-index and
-hub references all too weak), `plan_supply_chain` (demand regimes), `net_routing` (capacity incidents with an AIMD
+Not admitted, redesigns reverted: `ch_tech_transition` (its prediction version passed admission but its best
+constant does not change after obsolescence, failing the 8.10 requirement of SP-8.0b), `plan_supply_chain` (demand regimes), `net_routing` (capacity incidents with an AIMD
 reference), `net_cascade` (zone heat waves), `strat_price_war` (two learning rivals), `des_inventory` (strong
 seasonality), first attempts at `ch_drifting_ideal`. Untouched and not admitted: `dl_short_term_damage`,
 `eng_delayed_controller`, `pe_rollout_targeting`, `plan_distribution`, `plan_perishable`, `des_perishable`,
-`net_topology_shift`, `pe_router`, `cxs_lockin`, `cxs_selected_layers`, `ch_wandering_taste`, `mk_drift`.
+`net_topology_shift`, `pe_router`, `cxs_lockin`, `cxs_selected_layers`, `ch_wandering_taste`.
