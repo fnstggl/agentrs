@@ -265,7 +265,7 @@ def fingerprint(world) -> dict:
     st = world.state
     from ..substrate import columns
     fp: dict = {"modules": sorted(world.modules)}
-    fp["couplings"] = sorted(k for k, r in _rows(st, "civ_links").items() if r.get("enabled"))
+    fp["couplings"] = sorted(k for k, r in _rows(st, "civ_links").items() if r.get("enabled") and not r.get("pending"))
     # supply chain: firm -> firm when a design's input is another firm's output
     produces = {}
     for did, d in _rows(st, "designs").items():
