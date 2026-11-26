@@ -326,8 +326,8 @@ def specs() -> dict:
                     Input("item_age_hours", "hours since the item was first shown", "hours", "item", 0),
                     Input("slate_size", "items in the slate", "count", "slate", 1)),
             limits=("MIND-small (US Microsoft News, 2019-11-09..15), production-recommender exposure (observational); "
-                    "news articles only; no dwell time; non-commercial licence, acquisition route unresolved "
-                    "(BLOCKERS B-1)."),
+                    "news articles only; no dwell time; non-commercial licence; mirror copy used for "
+                    "experimental research by owner decision (D-28)."),
             scope={"content_kinds": ["article", "newsletter"]},
             output_doc="P(open) per slot")
     return S
