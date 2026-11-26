@@ -1940,7 +1940,8 @@
     "src/crucible/calibration/registry_e2.py",
     "docs/v5/calibration/models/commercial_response/model_card.json",
     "docs/v5/calibration/models/software_deep_engagement/model_card.json",
-    "docs/v5/calibration/models/software_repo_growth/model_card.json"
+    "docs/v5/calibration/models/software_repo_growth/model_card.json",
+    "src/crucible/calibration/fit_e4.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -1994,7 +1995,8 @@
     "src/crucible/calibration/audit.py",
     "src/crucible/calibration/commercial.py",
     "src/crucible/calibration/fit_commercial.py",
-    "docs/v5/calibration/reports/commercial_response@1.json"
+    "docs/v5/calibration/reports/commercial_response@1.json",
+    "src/crucible/calibration/review_e3.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2057,7 +2059,8 @@
     "docs/v5/calibration/reports/",
     "docs/v5/calibration/reports/commercial_response@1.json",
     "docs/v5/calibration/reports/software_deep_engagement@1.json",
-    "docs/v5/calibration/reports/software_repo_growth@1.json"
+    "docs/v5/calibration/reports/software_repo_growth@1.json",
+    "src/crucible/calibration/runtime.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2108,12 +2111,17 @@
    "implementation_files": [
     "src/crucible/calibration/fitlib.py",
     "src/crucible/calibration/fit_commercial.py",
-    "src/crucible/calibration/fit_software.py"
+    "src/crucible/calibration/fit_software.py",
+    "src/crucible/calibration/review_e3.py",
+    "src/crucible/calibration/fit_e4.py",
+    "docs/v5/calibration/plans/E3_review_plan.json",
+    "docs/v5/calibration/reviews"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
     "tests/test_v5_calibration_commercial.py",
-    "tests/test_v5_calibration_software.py"
+    "tests/test_v5_calibration_software.py",
+    "tests/v5/test_gate_SP_5_5.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement F.4",
    "criteria": [
@@ -2158,7 +2166,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/calibration/metrics.py",
-    "src/crucible/calibration/scoring_e2.py"
+    "src/crucible/calibration/scoring_e2.py",
+    "src/crucible/calibration/fit_e4.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2213,13 +2222,15 @@
     "docs/v5/calibration/models/commercial_response/commercial_response.npz",
     "docs/v5/calibration/models/software_deep_engagement/software_deep_engagement.npz",
     "docs/v5/calibration/models/software_repo_growth/software_repo_growth.npz",
-    "src/crucible/calibration/portable.py"
+    "src/crucible/calibration/portable.py",
+    "src/crucible/calibration/predictors_e4.py"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
     "tests/test_v5_calibration_core.py",
     "tests/test_v5_calibration_commercial.py",
-    "tests/test_v5_calibration_software.py"
+    "tests/test_v5_calibration_software.py",
+    "tests/test_v5_calibration_runtime.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement F.6",
    "criteria": [
@@ -2278,7 +2289,11 @@
     "docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
     "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json",
     "src/crucible/calibration/criteo.py",
-    "src/crucible/calibration/gharchive.py"
+    "src/crucible/calibration/gharchive.py",
+    "src/crucible/calibration/retail.py",
+    "docs/v5/calibration/datasets/online_retail_ii.json",
+    "docs/v5/calibration/models/LICENSE_NOTICE.md",
+    "docs/v5/BLOCKERS.md"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -2343,7 +2358,10 @@
     "docs/v5/calibration/models/commercial_response/model_card.json",
     "docs/v5/calibration/models/software_deep_engagement/model_card.json",
     "docs/v5/calibration/models/software_repo_growth/model_card.json",
-    "docs/v5/components/E2.md"
+    "docs/v5/components/E2.md",
+    "src/crucible/calibration/fit_e4.py",
+    "src/crucible/calibration/runtime.py",
+    "docs/v5/calibration/RUNTIME.md"
    ],
    "tests": [
     "tests/v5/test_gate_F.py",
@@ -3608,7 +3626,16 @@
     "src/crucible/innovation/pkg.py",
     "src/crucible/innovation/measure.py",
     "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/reference.py"
+    "src/crucible/innovation/reference.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py",
@@ -3662,7 +3689,12 @@
    "implementation_files": [
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/pkg.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3714,7 +3746,12 @@
    "implementation_files": [
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/adopt.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3766,7 +3803,12 @@
    "implementation_files": [
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/adopt.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3818,7 +3860,13 @@
    "implementation_files": [
     "src/crucible/innovation/adopt.py",
     "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3869,7 +3917,13 @@
    ],
    "implementation_files": [
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/adopt.py"
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3920,7 +3974,13 @@
    ],
    "implementation_files": [
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -3969,7 +4029,11 @@
    "implementation_files": [
     "src/crucible/commerce/subscriptions.py",
     "src/crucible/commerce/products.py",
-    "src/crucible/commerce/modules.py"
+    "src/crucible/commerce/modules.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py",
@@ -4017,7 +4081,11 @@
    "workstream": "F",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/commerce/subscriptions.py"
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py"
@@ -4065,7 +4133,11 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/commerce/subscriptions.py",
-    "src/crucible/commerce/products.py"
+    "src/crucible/commerce/products.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py"
@@ -4114,7 +4186,10 @@
    "implementation_files": [
     "src/crucible/commerce/integrity.py",
     "src/crucible/commerce/revenue.py",
-    "src/crucible/commerce/customers.py"
+    "src/crucible/commerce/customers.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/subscriptions.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py"
@@ -4172,7 +4247,10 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/commerce/revenue.py",
-    "src/crucible/commerce/subscriptions.py"
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py",
@@ -4230,7 +4308,11 @@
    "workstream": "F",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/commerce/revenue.py"
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/subscriptions.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py"
@@ -4277,7 +4359,11 @@
    "workstream": "F",
    "dependencies": [],
    "implementation_files": [
-    "src/crucible/commerce/integrity.py"
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py",
@@ -4341,7 +4427,13 @@
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/needs.py",
     "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py"
@@ -4392,7 +4484,14 @@
    ],
    "implementation_files": [
     "src/crucible/innovation/needs.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py",
@@ -4445,7 +4544,14 @@
    "implementation_files": [
     "src/crucible/innovation/needs.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/adopt.py"
+    "src/crucible/innovation/adopt.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py",
@@ -4497,7 +4603,15 @@
    ],
    "implementation_files": [
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/needs.py",
+    "src/crucible/innovation/popworld.py",
+    "src/crucible/innovation/relations.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py"
@@ -4558,7 +4672,13 @@
    ],
    "implementation_files": [
     "src/crucible/innovation/scenarios.py",
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_L.py"
@@ -6482,11 +6602,15 @@
     "src/crucible/integrations/agentrs_cam2.py",
     "src/crucible/experience/tier1.py",
     "src/crucible/experience/kernel.py",
-    "src/crucible/experience/leakage.py"
+    "src/crucible/experience/leakage.py",
+    "src/crucible/integrations/agentrs_sl.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/experience/probes.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py",
-    "tests/test_v5_experience_core.py"
+    "tests/test_v5_experience_core.py",
+    "tests/test_v5_experience_oo.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement R.1",
    "criteria": [
@@ -6535,7 +6659,14 @@
     "src/crucible/api/pettingzoo_env.py",
     "src/crucible/experience/kernel.py",
     "src/crucible/experience/tier1.py",
-    "src/crucible/experience/leakage.py"
+    "src/crucible/experience/leakage.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/core/discovery.py",
+    "src/crucible/goals/selfgoals.py",
+    "src/crucible/goals/metrics.py",
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/probes.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -6584,7 +6715,10 @@
    "implementation_files": [
     "src/crucible/experience/kernel.py",
     "src/crucible/experience/tier1.py",
-    "src/crucible/experience/leakage.py"
+    "src/crucible/experience/leakage.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/api/local.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -6696,7 +6830,8 @@
     "src/crucible/experience/tier1.py",
     "src/crucible/api/gym_env.py",
     "src/crucible/api/pettingzoo_env.py",
-    "src/crucible/scale/rollout.py"
+    "src/crucible/scale/rollout.py",
+    "src/crucible/experience/remote.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -6911,7 +7046,8 @@
     "src/crucible/experience/kernel.py"
    ],
    "tests": [
-    "tests/v5/test_gate_S.py"
+    "tests/v5/test_gate_S.py",
+    "tests/test_v5_experience_oo.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement S.2",
    "criteria": [
@@ -7033,7 +7169,8 @@
    ],
    "tests": [
     "tests/v5/test_gate_S.py",
-    "tests/test_v5_experience_core.py"
+    "tests/test_v5_experience_core.py",
+    "tests/test_v5_experience_oo.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement S.4",
    "criteria": [
@@ -7201,7 +7338,8 @@
     "R"
    ],
    "implementation_files": [
-    "src/crucible/experience/parallel.py"
+    "src/crucible/experience/parallel.py",
+    "src/crucible/scale/rollout.py"
    ],
    "tests": [
     "tests/v5/test_gate_S.py"
@@ -7250,7 +7388,8 @@
     "R"
    ],
    "implementation_files": [
-    "src/crucible/experience/__main__.py"
+    "src/crucible/experience/__main__.py",
+    "src/crucible/experience/tier1.py"
    ],
    "tests": [
     "tests/v5/test_gate_S.py"
@@ -8537,9 +8676,19 @@
    "requirement": "Sandbox tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/sandbox/bridge.py",
+    "src/crucible/sandbox/jail.py",
+    "src/crucible/sandbox/isolation.py",
+    "src/crucible/redteam/v5/sandbox.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_W.py"
+    "tests/v5/test_gate_W.py",
+    "tests/test_v5_security_sandbox.py",
+    "tests/test_sandbox.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement W.1",
    "criteria": [
@@ -8592,7 +8741,11 @@
    "requirement": "Evaluator-isolation tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/redteam/v5/isolation.py",
+    "src/crucible/goals/metrics.py",
+    "src/crucible/calibration/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8637,7 +8790,28 @@
    "requirement": "Reward-hacking tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/redteam/v5/__init__.py",
+    "src/crucible/redteam/v5/base.py",
+    "src/crucible/redteam/v5/commerce.py",
+    "src/crucible/redteam/v5/crossworld.py",
+    "src/crucible/redteam/v5/experience.py",
+    "src/crucible/redteam/v5/harness.py",
+    "src/crucible/redteam/v5/innovation.py",
+    "src/crucible/redteam/v5/isolation.py",
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/redteam/v5/population.py",
+    "src/crucible/redteam/v5/private.py",
+    "src/crucible/redteam/v5/rapid.py",
+    "src/crucible/redteam/v5/sandbox.py",
+    "src/crucible/redteam/v5/social.py",
+    "src/crucible/redteam/v5/substrate.py",
+    "src/crucible/redteam/v5/suite.py",
+    "src/crucible/redteam/v5/worlds.py",
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/rapid/engines/program_exec.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8692,7 +8866,13 @@
    "requirement": "Metric-manipulation tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/social/integrity.py",
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/redteam/v5/social.py",
+    "src/crucible/redteam/v5/commerce.py",
+    "src/crucible/redteam/v5/innovation.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8747,7 +8927,10 @@
    "requirement": "Cross-world contamination tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/redteam/v5/crossworld.py",
+    "src/crucible/services/code.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8792,7 +8975,11 @@
    "requirement": "Accounting integrity tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/services/code.py",
+    "src/crucible/services/cloud.py",
+    "src/crucible/sandbox/bridge.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8837,7 +9024,10 @@
    "requirement": "Resource-limit tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/metering.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8882,7 +9072,13 @@
    "requirement": "Unauthorized network access tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/sandbox/jail.py",
+    "src/crucible/sandbox/isolation.py",
+    "src/crucible/semantic/media.py",
+    "src/crucible/web/browser.py",
+    "src/crucible/redteam/v5/network.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -8927,7 +9123,10 @@
    "requirement": "Private participant-state access tests.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/redteam/v5/private.py",
+    "src/crucible/redteam/v5/population.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -10173,7 +10372,13 @@
     "J"
    ],
    "implementation_files": [
-    "src/crucible/innovation/measure.py"
+    "src/crucible/innovation/measure.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/caps.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_J.py"
@@ -10224,7 +10429,17 @@
    "implementation_files": [
     "src/crucible/commerce/reference.py",
     "src/crucible/commerce/customers.py",
-    "src/crucible/commerce/business.py"
+    "src/crucible/commerce/business.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
     "tests/v5/test_gate_K.py"
@@ -10626,7 +10841,8 @@
     "R"
    ],
    "implementation_files": [
-    "src/crucible/experience/leakage.py"
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/probes.py"
    ],
    "tests": [
     "tests/v5/test_gate_R.py"
@@ -10778,7 +10994,10 @@
    "dependencies": [
     "W"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "docs/v5/audit/O_security.md",
+    "src/crucible/redteam/v5/suite.py"
+   ],
    "tests": [
     "tests/v5/test_gate_W.py"
    ],
@@ -11151,7 +11370,17 @@
     "src/crucible/substrate/modules.py",
     "src/crucible/core/kernel.py",
     "src/crucible/core/state.py",
-    "src/crucible/services/identity.py"
+    "src/crucible/services/identity.py",
+    "src/crucible/storage/base.py",
+    "src/crucible/storage/sqlite.py",
+    "src/crucible/storage/memory.py",
+    "src/crucible/storage/postgres.py",
+    "src/crucible/substrate/facts.py",
+    "src/crucible/substrate/retention.py",
+    "src/crucible/substrate/history.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/population/core.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_3.py",
@@ -11161,7 +11390,12 @@
     "tests/test_v5_substrate_kernel.py",
     "tests/test_v5_substrate_primitives.py",
     "tests/test_v5_substrate_inference.py",
-    "tests/test_v5_substrate_typed.py"
+    "tests/test_v5_substrate_typed.py",
+    "tests/test_v5_substrate_streams.py",
+    "tests/test_v5_substrate_resume.py",
+    "tests/test_v5_substrate_facts.py",
+    "tests/test_v5_substrate_history.py",
+    "tests/test_v5_substrate_retention.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-2.3",
    "criteria": [
@@ -11949,7 +12183,10 @@
     "docs/v5/calibration/plans/E2_commercial_response.plan.json",
     "docs/v5/calibration/plans/E2_software_adoption.plan.json",
     "docs/v5/calibration/plans/E2_amendment_1.plan.json",
-    "src/crucible/calibration/registry_e2.py"
+    "src/crucible/calibration/registry_e2.py",
+    "docs/v5/calibration/plans/E3_review_plan.json",
+    "docs/v5/calibration/plans/E4_new_domains_plan.json",
+    "src/crucible/calibration/review_e3.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_5_5.py",
@@ -12013,10 +12250,21 @@
     "src/crucible/commerce/marketplace.py",
     "src/crucible/commerce/business.py",
     "src/crucible/commerce/customers.py",
-    "src/crucible/commerce/revenue.py"
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/platform.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_6_1.py"
+    "tests/v5/test_gate_SP_6_1.py",
+    "tests/test_v5_econ_work.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-6.1",
    "criteria": [
@@ -12063,7 +12311,12 @@
     "src/crucible/innovation/caps.py",
     "src/crucible/innovation/adopt.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/scenarios.py"
+    "src/crucible/innovation/scenarios.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/creators.py",
+    "src/crucible/innovation/experiments.py",
+    "src/crucible/innovation/popworld.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_3.py",
@@ -12113,7 +12366,9 @@
    "implementation_files": [
     "src/crucible/innovation/needs.py",
     "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/pkg.py"
+    "src/crucible/innovation/pkg.py",
+    "src/crucible/economy/work.py",
+    "src/crucible/innovation/relations.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_4.py",
@@ -12173,7 +12428,8 @@
    "implementation_files": [
     "src/crucible/innovation/pkg.py",
     "src/crucible/innovation/measure.py",
-    "src/crucible/innovation/reference.py"
+    "src/crucible/innovation/reference.py",
+    "src/crucible/services/code.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_5.py",
@@ -12235,7 +12491,9 @@
     "src/crucible/commerce/contracts.py",
     "src/crucible/commerce/labor.py",
     "src/crucible/commerce/orgworld.py",
-    "src/crucible/commerce/modules.py"
+    "src/crucible/commerce/modules.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/services/bank.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_6.py",
@@ -12814,7 +13072,8 @@
     "src/crucible/experience/kernel.py",
     "src/crucible/experience/tier1.py",
     "src/crucible/api/gym_env.py",
-    "src/crucible/research/envs.py"
+    "src/crucible/research/envs.py",
+    "src/crucible/integrations/agentrs_sl.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_11_3.py"
@@ -12862,7 +13121,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/experience/experiments.py",
-    "src/crucible/experience/modules.py"
+    "src/crucible/experience/modules.py",
+    "src/crucible/goals/selfgoals.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_11_4.py",
@@ -12922,10 +13182,12 @@
    "implementation_files": [
     "src/crucible/experience/kernel.py",
     "src/crucible/experience/experiments.py",
-    "src/crucible/experience/scripted.py"
+    "src/crucible/experience/scripted.py",
+    "src/crucible/experience/tier1.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_11_5.py"
+    "tests/v5/test_gate_SP_11_5.py",
+    "tests/v5/test_gate_OO.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-11.5",
    "criteria": [
@@ -12971,7 +13233,8 @@
    "implementation_files": [
     "src/crucible/experience/__init__.py",
     "docs/v5/LEARNER_GUIDE.md",
-    "examples/experience_external_adapter.py"
+    "examples/experience_external_adapter.py",
+    "examples/external_learner/curiosity_learner.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_11_6.py"
@@ -13546,7 +13809,16 @@
    "requirement": "Security boundaries: default isolation from the public internet; real-world adapter disabled by default; consent, moderation and abuse prevention.",
    "workstream": "O",
    "dependencies": [],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/hosting.py",
+    "src/crucible/realworld/bridge.py",
+    "src/crucible/cli.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py",
+    "src/crucible/experience/__main__.py",
+    "src/crucible/web/app.py",
+    "src/crucible/scale/pool.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_16.py"
    ],
@@ -13820,7 +14092,8 @@
    ],
    "tests": [
     "tests/v5/test_gate_SP_21.py",
-    "tests/test_v5_acceptance_checker.py"
+    "tests/test_v5_acceptance_checker.py",
+    "tests/test_v5_acceptance_probes.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-21",
    "criteria": [
@@ -19955,7 +20228,8 @@
    ],
    "implementation_files": [
     "src/crucible/acceptance/v5/checker.py",
-    "src/crucible/acceptance/v5/official.py"
+    "src/crucible/acceptance/v5/official.py",
+    "src/crucible/acceptance/v5/evidence.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_21.py"
@@ -20024,7 +20298,17 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/research/protocols.py",
+    "src/crucible/research/learners/training.py",
+    "src/crucible/selfplay/modes.py",
+    "src/crucible/selfplay/league.py",
+    "src/crucible/selfplay/audit.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -20091,9 +20375,13 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/probes.py",
+    "src/crucible/core/evaluator_only.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_OO.py"
+    "tests/v5/test_gate_OO.py",
+    "tests/v5/test_gate_R.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.2",
    "criteria": [
@@ -20158,7 +20446,10 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -20215,9 +20506,13 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/remote.py",
+    "src/crucible/core/evaluator_only.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_OO.py"
+    "tests/v5/test_gate_OO.py",
+    "tests/test_v5_experience_oo.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.4",
    "criteria": [
@@ -20283,7 +20578,10 @@
     "R",
     "P"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -20350,7 +20648,9 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "examples/external_learner/curiosity_learner.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -20417,7 +20717,10 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
    "tests": [
     "tests/v5/test_gate_OO.py"
    ],
@@ -20484,9 +20787,13 @@
    "dependencies": [
     "R"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/modes.py"
+   ],
    "tests": [
-    "tests/v5/test_gate_OO.py"
+    "tests/v5/test_gate_OO.py",
+    "tests/v5/test_gate_R.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement OO.8",
    "criteria": [

@@ -1,6 +1,6 @@
 {
  "workstream": "P",
- "branch": "c5c/w1-qa",
+ "branch": "c5c/w3-qa",
  "requirements": {
   "A.2": {
    "implementation_files": [
@@ -245,18 +245,19 @@
   },
   "SP-21": {
    "implementation_files": [
-    "src/crucible/acceptance/v5/checker.py",
-    "src/crucible/acceptance/v5/manifest.py",
-    "src/crucible/acceptance/v5/ledger.py",
-    "src/crucible/acceptance/v5/evidence.py",
-    "src/crucible/acceptance/v5/official.py",
-    "src/crucible/acceptance/v5/testscan.py",
     "src/crucible/acceptance/v5/__main__.py",
-    "src/crucible/acceptance/v5/requirements.py"
+    "src/crucible/acceptance/v5/checker.py",
+    "src/crucible/acceptance/v5/evidence.py",
+    "src/crucible/acceptance/v5/ledger.py",
+    "src/crucible/acceptance/v5/manifest.py",
+    "src/crucible/acceptance/v5/official.py",
+    "src/crucible/acceptance/v5/requirements.py",
+    "src/crucible/acceptance/v5/testscan.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_21.py",
     "tests/test_v5_acceptance_checker.py",
+    "tests/test_v5_acceptance_probes.py",
     "tests/acceptance_kit.py"
    ],
    "status_claim": "implemented; see measured counts in the final report",
@@ -276,6 +277,7 @@
   "SP-21b": {
    "implementation_files": [
     "src/crucible/acceptance/v5/checker.py",
+    "src/crucible/acceptance/v5/evidence.py",
     "src/crucible/acceptance/v5/official.py"
    ],
    "tests": [

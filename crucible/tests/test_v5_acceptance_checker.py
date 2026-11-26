@@ -295,10 +295,15 @@ def test_P12_a_test_that_records_constants_and_asserts_nothing_fails(tmp_path, m
     src = ('from crucible.acceptance.v5 import evidence\n\n\ndef test_z():\n'
            '    evidence.record("Z.1", {"widgets": 25, "leaks": 0})\n')
     r = Repo(str(tmp_path), monkeypatch, test_src=src)
-    r.honest()
+    r.official_run()
+    r.commit("evidence")
+    rv = r.review()
+    assert rv["verdict"] == "rejected" and rv["ablation"]["sensitive"] is False   # survives the ablated implementation
+    r.commit("review")
     _, row = not_verified(r)
     assert any("constant_record" in p for p in row["problems"])
     assert any("imported none of the listed implementation modules" in p for p in row["problems"])
+    assert any("ablation" in p for p in row["problems"])
 
 
 def test_P12b_the_cli_refuses_an_anonymous_official_run(repo, monkeypatch):
