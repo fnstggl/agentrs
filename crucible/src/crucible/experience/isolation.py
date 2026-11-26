@@ -35,12 +35,21 @@ EVALUATOR_PROBE_OPS = ("verify", "digest", "describe", "close", "env", "world", 
                        "evaluator", "task", "_objectives", "_status")
 
 
+def _data_keys(d: dict) -> set:
+    """Keys of `d` among HIDDEN_KEYS that hold data (not functions, classes or modules: a module's globals with a
+    function called `hidden` are code)."""
+    import types
+    return {k for k in HIDDEN_KEYS & {k for k in d if isinstance(k, str)}
+            if not isinstance(d[k], (types.FunctionType, types.BuiltinFunctionType, types.MethodType, type,
+                                     types.ModuleType))}
+
+
 def _hidden_like(obj: Any) -> bool:
     try:
         if isinstance(obj, dict):
-            return bool(HIDDEN_KEYS & {k for k in obj if isinstance(k, str)})
+            return bool(_data_keys(obj))
         h = getattr(obj, "h", None) if not isinstance(obj, (list, tuple, str, bytes)) else None
-        return isinstance(h, dict) and bool(HIDDEN_KEYS & {k for k in h if isinstance(k, str)})
+        return isinstance(h, dict) and bool(_data_keys(h))
     except Exception:  # noqa: BLE001 - an object that refuses inspection is not hidden data
         return False
 

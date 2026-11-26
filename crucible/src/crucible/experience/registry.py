@@ -170,6 +170,13 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     dom, cfg = domain_and_config(name)
     difficulty = int(kw.pop("difficulty", 1))
     spec = prepare_spec(base.spec(dom.name, cfg.name, seed, kw.pop("overrides", None)), mode)
+    # learner-side modules (as Tier 3 worlds get them, `LEARNER_MODULES`): self-generated experiments and self-set
+    # goals read only what the agent may read and pay nothing (OO.11); recorded in the spec, so replay keeps them
+    have = {m["name"] for m in spec.modules}
+    for m in kw.pop("learner_modules", LEARNER_MODULES) or ():
+        if m not in have:
+            spec.modules.append({"name": m, "config": {}})
+            have.add(m)
     import crucible
     crucible.load_all_modules()
     from ..api.local import ensure_modules
