@@ -16,8 +16,8 @@ store and checks, as it goes:
 * recorded replay - as soon as a snapshot closes a segment, the segment is replayed from the store's events on top
   of the previous snapshot (genesis for the first) and must give the new snapshot's state digest; the last
   snapshot is taken at the end of the run and must equal the live world (digest and hash). With
-  `prune_verified_blobs`, the bytes of `cols.batch` blobs of segments that were verified and are older than the last
-  two are then removed from the store (a retention policy for long runs on a small disk; the report states how
+  `prune_verified_blobs`, the bytes of `cols.batch` blobs (and of the array blobs their `extra` cites) of segments
+  that were verified and are older than the last two are then removed from the store (a retention policy for long runs on a small disk; the report states how
   many bytes were pruned; full replay from genesis is then no longer possible, segment-wise verification was).
 
 The report has everything Gate P measures; `suite(...)` runs several horizons and seeds, each in its own process,
@@ -221,17 +221,22 @@ def _prune(w, store, wid, a, b) -> float:
     c = artifacts._cache(w)
     con = store._conn()
     freed = 0
+    import re
+    ref_re = re.compile(r"sha256:[0-9a-f]{64}")
     for e in store.read_events(wid, from_seq=s0, to_seq=s1):
         if e["type"] != "cols.batch":
             continue
-        h = artifacts.parse_ref(e["payload"]["ref"])
-        key = artifacts.blob_key(h)
-        r = con.execute("SELECT length(data) FROM blobs WHERE key=?", (key,)).fetchone()
-        if r is None:
-            continue
-        con.execute("DELETE FROM blobs WHERE key=?", (key,))
-        c.persisted.discard(h)        # identical bytes recorded later are written again
-        freed += int(r[0])
+        # the batch's own array blob and the array blobs its `extra` cites (e.g. the population's visit logs)
+        refs = {e["payload"]["ref"]} | set(ref_re.findall(json.dumps(e["payload"].get("extra") or {})))
+        for ref in sorted(refs):
+            h = artifacts.parse_ref(ref)
+            key = artifacts.blob_key(h)
+            r = con.execute("SELECT length(data) FROM blobs WHERE key=?", (key,)).fetchone()
+            if r is None:
+                continue
+            con.execute("DELETE FROM blobs WHERE key=?", (key,))
+            c.persisted.discard(h)        # identical bytes recorded later are written again
+            freed += int(r[0])
     return round(freed / 2**20, 2)
 
 
