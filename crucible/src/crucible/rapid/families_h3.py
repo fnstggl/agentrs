@@ -232,12 +232,15 @@ AFTER = 100_000        # a tick after every timed switch (pricing the regime tha
 # be trained on
 @_pg("ch_sign_reversal", category="8.10", item="8.10.1", split="val",
         doc="The key lever raises sales until a hidden tick; from then on the same lever lowers them, permanently. "
-            "What used to work has to be abandoned.",
+            "What used to work has to be abandoned. Predict sales under the end-of-episode regime at settings "
+            "partly outside what can be set.",
         distinct_because="compose chain with a timed regime switch spliced into the lever path (gain from positive "
                          "to negative at a hidden tick) over a base level: an exogenous, permanent sign reversal of a "
                          "causal effect (not a Markov regime process, not triggered by the participant)",
         axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0, "experiment_cost": 2.0, "resources": 40.0},
-        objective="maximize_net", claims=(C + "sign_reversal",), identify=C + "reversal_time", lever_view=True)
+        objective="predict_heldout", claims=(C + "sign_reversal",), identify=C + "reversal_time", lever_view=True,
+        reference="crucible.rapid.refs_adapt:fir_shape_predict_recent", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def ch_sign_reversal(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="chain", motifs=["saturation", "regime_change"]))
@@ -262,6 +265,15 @@ def ch_sign_reversal(rng, d):
                                "max_ticks": 1, "max_replicates": 1},
                    claim={"lever": a, "second": b, "outcome": c.sold, "regime": rg})
     price_key_and_costly(cfg, a, u(rng, 6.5, 9.0), b, u(rng, 1.2, 1.5))
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 3.0), (2.0, 12.0), (14.0, 14.0), (0.5, 0.5), (13.0, 8.0), (6.0, 15.0), (11.0, 0.5))]
+    text = ("Predict mean units sold under the conditions at the end of the episode if the two levers were held at "
+            f"these values (partly outside what you can set): {held}. File predictions with the journal: message "
+            "to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. "
+            "Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
