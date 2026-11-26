@@ -1003,3 +1003,8 @@ def fir_shape_predict_recent(view, env, lags: int = 1, gain: float = 0.06, seed:
                    "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
     while not view.done:
         view.step(None)
+
+
+def fir_shape_predict_recent_lagged(view, env) -> None:
+    """`fir_shape_predict_recent` with up to three lags of each setting (worlds with short feedback or delays)."""
+    fir_shape_predict_recent(view, env, lags=3, gain=0.04)

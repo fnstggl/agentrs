@@ -528,12 +528,15 @@ def cxc_latched_reversal(rng, d):
 @_pg("cxc_balancing_constraint", category="8.1", item="8.1.5", split="val",
      doc="Materials work through a balancing loop over an unobserved intermediate (the immediate response "
          "overstates the lasting one) and need machine hours as a complement; at a hidden tick the machines lose "
-         "capacity, so the lasting value of materials falls further.",
+         "capacity, so the lasting value of materials falls further. Predict where output settles under the "
+         "end-of-episode conditions.",
      distinct_because="compositional evaluation family: the balancing feedback loop of cx_balancing_loop feeding "
                       "the complementarity of ch_constraint_tightens with its timed capacity cut; no training "
                       "family has feedback and complementarity together",
-     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-     claims=(C + "balancing_constraint",), identify=C + "constraint_time")
+     axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+     claims=(C + "balancing_constraint",), identify=C + "constraint_time",
+     reference="crucible.rapid.refs_adapt:fir_shape_predict_recent_lagged",
+     oracle="crucible.rapid.oracles:science_oracle", version="2")
 def cxc_balancing_constraint(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="feedback", motifs=["linear_nonlinear"]))
@@ -560,6 +563,16 @@ def cxc_balancing_constraint(rng, d):
                    objective={"type": "maximize_net", "text": SHOP},
                    claim={"lever": a, "constrained": b, "outcome": c.sold, "regime": rg, "core": core, "hidden": fb})
     price_levers_at(cfg, {a: u(rng, 7.0, 9.0), b: u(rng, 2.0, 3.5)})
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((12.0, 3.0), (3.0, 12.0), (14.0, 14.0), (8.0, 13.0), (13.0, 6.0), (0.5, 9.0), (10.0, 0.5))]
+    text = ("Predict where output settles under the conditions at the end of the episode if materials and machine "
+            f"hours were held at these values (partly outside what you can set): {held}. File predictions with the "
+            "journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": "
+            "<number>}, ...]}. Only the last filing counts.")
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": 20}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 
