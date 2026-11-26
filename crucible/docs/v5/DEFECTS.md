@@ -94,13 +94,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-A-5 (critical, open): Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching 
+### DEF-A-5 (critical, fixed): Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching 
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w1-kernel (D-21): World.load/replay attach the store before Module.on_load, so a fresh process rebuilds the adaptive participants' weights from checkpoint blobs that live only in the store; wave 3 (DiskMemo) and wave 3b (D-80: anchored program loads, platform cold starts folded into the job's first measurement) removed the metering nondeterminism that made the resumed process diverge after the D-20 merge (orchestrator regression on 55433e7)",
  "id": "DEF-A-5",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_substrate_resume.py::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants (wave 3b, stage by stage on one CPU with the test's own spec: the resumed process ends at seq 9,717 with the hash and digest of an uninterrupted stored run in a new process, 58 of 192 inferences re-run, replay of the stored log exact with 0 inferences; the store-less reference stage alone exceeds 5 minutes on one CPU without GPU and runs in the slot queue), tests/test_v5_substrate_memo.py::test_a_platform_cold_start_bills_a_request_as_the_warm_run_did",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -108,18 +110,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching the store (kernel.py:1003-1008, 965-966). In-process tests hide this."
 }
 ```
 
-### DEF-A-6 (critical, open): Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module
+### DEF-A-6 (critical, fixed): Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w1-kernel (D-21): same-transaction subscribers run in side contexts (their events carry `via`, their random draws come from their own stream, main-line draws are keyed by main-line positions), so an observer, a coupling module or typed validation never shifts the emitter's trajectory; wave 3b (D-80) removed the metering noise that made the observer arm's sandboxed requests bill differently after the D-20 merge",
  "id": "DEF-A-6",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_substrate_streams.py (6 passed on c5c/w3b-kcal: passive observer, emitting observer, typed validation, run-to-run hashes, the measurement-lineage confound, side-context RNG), tests/test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job",
  "requirements": [
   "SP-10.3"
  ],
@@ -129,7 +133,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module changes the trajectory, which confounds the counterfactual removal Gate O/SP-10.3 relies on. The 4.0 sandbox also makes run-to-run hashes differ."
 }
 ```
