@@ -44,6 +44,7 @@ held-out report; `docs/v5/calibration/RUNTIME.md` documents every contract for t
 """
 from __future__ import annotations
 
+import contextlib
 import contextvars
 from dataclasses import dataclass, field
 
@@ -440,6 +441,21 @@ def reset_usage() -> None:
     _USAGE.clear()
     _SCOPE_USED.clear()
     _SCOPE_REFUSED.clear()
+
+
+@contextlib.contextmanager
+def isolated_usage():
+    """Run a block against an empty usage and scope ledger and restore the caller's ledger afterwards (wave 3b: the
+    register's in-world probes build their own world inside a measurement that reads the ledger of another world)."""
+    saved = (dict(_USAGE), dict(_SCOPE_USED), dict(_SCOPE_REFUSED))
+    reset_usage()
+    try:
+        yield
+    finally:
+        reset_usage()
+        _USAGE.update(saved[0])
+        _SCOPE_USED.update(saved[1])
+        _SCOPE_REFUSED.update(saved[2])
 
 
 def _scope_key(content_kind, use) -> str:

@@ -41,6 +41,7 @@ observes the model being evaluated. An unverified claim is a register problem.
 """
 from __future__ import annotations
 
+import functools
 import os
 import re
 
@@ -61,9 +62,38 @@ FEED_GROUPS = {"open": "open", "outside": "open", "window": "open", "bounce": "w
                "continue": "continuation", "gap": "return", "notice": "return", "sat": "state", "habit": "state",
                "taste": "state", "need": "state"}
 MODEL_ID = re.compile(r"\b([a-z][a-z0-9_]*@\d+)\b")
-# (module, model id) -> callable() -> set of model ids a default world with that module evaluated. No default
-# in-world use of a fitted model exists yet (wave 2, D-15), so the table is empty and a "default:" claim fails.
-INWORLD_PROBES: dict = {}
+# (module, model id) -> callable() -> set of model ids a default world with that module evaluated.
+PROBE_DAYS = 3
+PROBE_INDIVIDUALS = 300
+
+
+@functools.lru_cache(maxsize=1)
+def default_population_world_models() -> frozenset:
+    """Fitted model ids that a DEFAULT population world evaluated through crucible.calibration.runtime (wave 3b, E's
+    own probe of the population's `default:` claims): `population_world("development", 11, n=300)` - every
+    parameter the population's own default (24 generated sites, 40% shops, 15-minute ticks, its adaptive and
+    strategic classes) except the head count - run for 3 simulated days against an isolated usage ledger. The
+    population's own probe module raises the shop share and drops its neural classes; a register claim of default use
+    is verified here only by the default configuration. Computed once per process."""
+    import crucible
+    from ..core.kernel import World
+    from ..population.worlds import population_world
+    from . import runtime
+    crucible.load_all_modules()
+    with runtime.isolated_usage():
+        w = World.create(population_world("development", 11, n=PROBE_INDIVIDUALS), world_id="fidelity-probe")
+        try:
+            w.advance_time(PROBE_DAYS * 86400)
+            used = {sid for sid, n in runtime.usage().items() if n > 0}
+        finally:
+            w.close()
+    specs = runtime.specs()
+    return frozenset(specs[sid]["model"] for sid in used if sid in specs)
+
+
+INWORLD_PROBES: dict = {(m, f): default_population_world_models
+                        for m, f in (("pop", "return_daily@1"), ("pop", "session_rate@1"),
+                                     ("popweb", "news_click_semantic@1"), ("popweb", "customer_return@1"))}
 
 
 def _clean_id(s: str) -> str:

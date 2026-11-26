@@ -140,3 +140,19 @@ def test_unknown_decision_and_missing_checkpoint_fail_loudly(tmp_path, monkeypat
     monkeypatch.setattr(R, "MODELS_DIR", str(tmp_path))
     with pytest.raises(R.CalibrationError):
         R.load("content_consumption@1")
+
+
+def test_an_isolated_usage_ledger_restores_the_callers_ledger():
+    """Wave 3b: the register's in-world probes build their own world inside a measurement (SP-5.0) that reads the
+    usage ledger of another world; the probe's evaluations must neither leak into nor erase that ledger."""
+    from crucible.calibration import runtime as RT
+    RT.reset_usage()
+    m = RT.get("extra_sessions@1")
+    m.evaluate({"extra_sessions_observed": np.zeros(5), "active_days_observed": np.ones(5)})
+    before = RT.usage()
+    assert before.get("extra_sessions@1") == 5
+    with RT.isolated_usage():
+        assert RT.usage() == {}
+        m.evaluate({"extra_sessions_observed": np.zeros(3), "active_days_observed": np.ones(3)})
+        assert RT.usage() == {"extra_sessions@1": 3}
+    assert RT.usage() == before
