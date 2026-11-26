@@ -594,9 +594,10 @@ def registered(structures: list[dict] | dict):
             if n in RF.FAMILIES and n not in _REFS:
                 raise CompositionError(f"{n} already names a rapid family that this module did not register")
             if n not in RF.FAMILIES:
+                from .genadmit import claims_for
                 RF.FAMILIES[n] = RF.Family(n, "primitive_graph", sp["category"], "generated", "train", sp["doc"],
                                            sp["distinct_because"], _builder(sp["structure"], n), dict(sp["axes"]),
-                                           "maximize_net", sp["participants"], (),
+                                           "maximize_net", sp["participants"], claims_for(sp["structure"]),
                                            "crucible.rapid.identify:lever_sign", None, None, True, "1")
             _REFS[n] = _REFS.get(n, 0) + 1
             added.append(n)
