@@ -844,6 +844,7 @@ def test_Kn2_reference_results_labelled_scripted():
     document or evidence note presents the reference as evidence that a learner learned the objective
     (`crucible.research.v5.integrity.scan_claims("reference_learning")`, with planted controls)."""
     import ast
+    import os
     from crucible.commerce import reference
     from crucible.research.v5 import integrity as G
     r = reference.run(2, days=2, n=300, sustain_days=1)
