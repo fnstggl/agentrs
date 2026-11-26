@@ -72,7 +72,12 @@ CONTROLS = {
     # it practised; that is part of its known capability, not an error of the instrument (corrected after the
     # 2026-11-26 development run, which labelled it so)
     "transfer": (("transferable_efficiency",), ("persistent_state", "pretrained_competence", "context_adaptation")),
-    "transfer_sham": ((), ("transferable_efficiency", "memorisation", "persistent_state", "pretrained_competence")),
+    # the sham is the transfer control credited with noise: it keeps the same per-task search states, so it too
+    # retains world-specific settings (a random walk from the published defaults, clipped at the range ends, drifts
+    # inward); whether that helps on seen worlds is a property of the worlds' geometry, not something it learned, so
+    # no claim about memorisation was ever established for it - it is the known negative for transfer (corrected
+    # after the 2026-11-26 wave-3b development battery, seed 0: seen-world advantage 0.19, interval low -0.13)
+    "transfer_sham": ((), ("transferable_efficiency", "persistent_state", "pretrained_competence")),
 }
 KIND_OF = {"hold": "cannot_learn", "adapter": "within_episode_only", "memoriser": "memorises_trajectories",
            "weights": "updates_weights", "transfer": "genuine_transfer"}

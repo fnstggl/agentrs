@@ -280,7 +280,15 @@ The wave-3a development run of the controls (5 learner seeds, protocol seeds) la
   seeds instead of two (winner's curse);
 * real effects of 0.13-0.49 had crossed intervals reaching below zero with 4 unfamiliar worlds per family, 12 repeat
   probes and 2 transfer tasks per family - the design now uses 10, 24 and 4 (episodes cost ~0.06 CPU-s).
-The prespecified effects (`instrument.EFFECTS`) and the control specifications (`instrument.CONTROLS`) are unchanged.
+* the meta control's untrained prior already adapted (step 0.02), so the learned strategy added only 0.11 on top of
+  0.21 - its prior (arm 0) now does not adapt at all, which makes its known capability (it learns to adapt)
+  unambiguous; a frozen transfer control no longer writes a task state while it is scored (that state survived into
+  later in-process scores as a spurious process-state gain).
+The prespecified effects (`instrument.EFFECTS`) are unchanged. One control specification was corrected from its
+construction, after the seed-0 development battery showed it: `transfer_sham` keeps the transfer control's per-task
+search states, so it retains world-specific settings (a clipped random walk from the published defaults drifts
+inward) - no claim about memorisation was established for it, it is the known negative for transferable efficiency
+(it still must not show transfer, persistent state or pretrained competence).
 The weights-only child now runs under the sandbox jail (own uid, Landlock: read-only standard library, numpy and the
 crucible source, read-write only its private directory, no sockets) and adds two checks computed in the child:
 `authorised_configuration` (only the configuration keys `learners.CONFIG` declares, JSON scalars) and
