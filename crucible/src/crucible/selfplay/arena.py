@@ -368,8 +368,14 @@ class SelfPlayEnv:
                         reward[s, i] = 1.0 if self.tasks[i].success(float(ep["net"][s])) else 0.0
         self.sim_seconds += time.perf_counter() - t0
         info = {"net_cents": net, "revenue_cents": rev_a, "cost_cents": cost_a, "status": status}
+        self.last_info = info
         if self.reward_mode == LEGACY:
             info["score"] = score            # the mechanism's objective quantity: evaluator data outside legacy mode
+        else:
+            # 5.0 (workstream K, skeptic S.6): every seat's money and status is operator data. Outside legacy mode
+            # `step` returns an empty info, so nothing of another seat's private record travels with the per-seat
+            # observations; the operator reads `last_info` (and the records of `drain`).
+            info = {}
         return [o.copy() for o in self._obs], reward, self.done.copy(), info
 
     def _finish(self, i: int) -> None:
@@ -546,7 +552,9 @@ class KernelSelfPlayEnv:
                 reward[s, 0] = 1.0 if self.task.success(float(self.net[s])) else 0.0
             status.append([rep["status"]])
             obs.append(self._obs(s, rep, rd["next_settings"]))
-        return obs, reward, self.done.copy(), {"net_cents": net, "status": status}
+        self.last_info = {"net_cents": net, "status": status}
+        # 5.0 (workstream K): outside legacy mode every seat's money is operator data (`last_info`), as in SelfPlayEnv
+        return obs, reward, self.done.copy(), (dict(self.last_info) if self.reward_mode == LEGACY else {})
 
     def summary(self) -> dict:
         return {"task": self.task.id, "ticks": self.t, "net_cents": [float(x) for x in self.net],
@@ -649,7 +657,10 @@ class Individual:
 
     @property
     def learns(self) -> bool:
-        return not self.learner.frozen and getattr(self.learner, "kind", "") not in ("idle", "random", "fixed")
+        """Whether the individual's policy is updated from experience. Scripted operators (`climber`, `fixed`,
+        `hold`, `random`) are not learners even though the climber adapts its settings (5.0, audit K 3.2)."""
+        return not self.learner.frozen and getattr(self.learner, "kind", "") not in ("idle", "random", "fixed") \
+            and getattr(self.learner, "name", "") not in ("climber", "fixed", "hold", "random")
 
     def stake(self, task: Task, n: int = 1) -> int:
         """Starting balance in each of `n` simultaneous matches of `task`."""

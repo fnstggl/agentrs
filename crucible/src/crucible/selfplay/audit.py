@@ -105,9 +105,9 @@ def _run_kernel(task: Task, schedule: Callable[[int, int], np.ndarray | None], t
                 if not res.ok:
                     raise RuntimeError(f"transfer by {src} failed: {res.error}")
             moved.append({"t": t, "from": src, "to": dst, "amount": amt})
-        _, _, _, info = env.step([schedule(s, t) for s in range(S)])
+        env.step([schedule(s, t) for s in range(S)])
         for s in range(S):
-            status[s].append(info["status"][s][0])
+            status[s].append(env.last_info["status"][s][0])     # operator side (5.0: not in the per-seat step info)
     w = env.world
     rig = w.state.tables["rigs"]["r1"]
     reports = [w.modules["rig"].reports(w, "r1", s) for s in range(S)]

@@ -498,8 +498,8 @@ def job_kernel(j: dict) -> dict:
             ind.learner.reset_context(1)
         tot = np.zeros(2)
         while not env.done.all():
-            obs, _, _, info = env.step([ind.learner.act(o, explore=False) for ind, o in zip(inds, obs)])
-            tot += info["net_cents"][:, 0]
+            obs, _, _, _ = env.step([ind.learner.act(o, explore=False) for ind, o in zip(inds, obs)])
+            tot += env.last_info["net_cents"][:, 0]            # operator side (5.0: not in the per-seat step info)
         nets[label] = [float(x) for x in tot]
         if label == "kernel":
             w = env.world

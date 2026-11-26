@@ -403,6 +403,7 @@ class PGLearner(Learner):
         ret_t = torch.from_numpy(ret.reshape(-1).astype(np.float32))
         adv_t = (adv_t - adv_t.mean()) / (adv_t.std() + 1e-8)
         steps, kl = 0, 0.0
+        before = self.parameters_flat()
         for _ in range(hp["epochs"]):
             mean = anchor + self.pi(z)
             std = self.log_std.exp().clamp_min(hp["sigma_min"])
@@ -432,11 +433,15 @@ class PGLearner(Learner):
             self.log_std.clamp_(min=float(np.log(hp["sigma_min"])), max=0.0)
         self.buffer = []
         self.iters += 1
-        self._usage.updates += steps
+        # 5.0 (audit K 3.1): an optimiser step that leaves the policy unchanged (zero advantage, e.g. no observed
+        # income at all) is not a policy update; only steps of a pass that changed the policy are counted
+        changed = bool(np.any(self.parameters_flat() != before))
+        counted = steps if changed else 0
+        self._usage.updates += counted
         self._usage.train_cpu_s += time.perf_counter() - t0
         self.last_stats = {"kl": kl, "vloss": float(vloss.detach()), "sigma": float(self.log_std.detach().exp().mean()),
-                           "decisions": T * n}
-        return {"updates": steps, **self.last_stats}
+                           "decisions": T * n, "optimizer_steps": steps, "policy_changed": changed}
+        return {"updates": counted, **self.last_stats}
 
     def freeze(self, frozen: bool = True) -> None:
         super().freeze(frozen)
@@ -479,7 +484,8 @@ class PGLearner(Learner):
 # ====================================================================== scripted operators
 class ClimberLearner(Learner):
     """A competent scripted operator that uses nothing but the public interface: coordinate search on its own
-    measured net income, which it reads from its own observation (`last_reward`), so it adapts inside any match,
+    measured net income, which it reads from its own observation (observed revenue minus observed cost; the 4.0
+    reward slot is zero outside legacy mode), so it adapts inside any match,
     learning or not. Every `block` ticks it either keeps the last trial (if the block paid more than the block
     before it, by more than `margin` of the larger magnitude) or takes it back, then tries the next lever one
     step up or down. A lever whose last trial failed is tried in the other direction next time, and its step
@@ -524,7 +530,10 @@ class ClimberLearner(Learner):
                 start = self.memory.copy()
             self._x = np.where(mask, start, 0.0)
         else:
-            self._acc += np.asarray(obs[:, sp.scalars][:, 0], dtype=np.float64)     # own net of the last tick
+            # own net of the last tick, from its own observed revenue and cost (5.0, Clarification 2: the reward slot
+            # is 0 outside legacy mode; observed revenue minus cost equals the 4.0 reward slot to float rounding)
+            sc = np.asarray(obs[:, sp.scalars], dtype=np.float64)
+            self._acc += sc[:, 1] - sc[:, 2]
         if self._age > 0 and self._age % self.block == 0:
             mean = self._acc / self.block
             for i in range(n):
