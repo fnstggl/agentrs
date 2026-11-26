@@ -346,6 +346,17 @@ def full_optimiser_step(system, *, microbatch: int = 4, world: bool = True, adap
 PARTIAL_OUT: Optional[str] = None             # benchmark_full writes its results so far here after every phase
 
 
+def wait_free(need_GB: float, max_wait_s: float, own_GB: float = 0.0) -> dict:
+    """Wait (polling every 5 s, at most max_wait_s) until the GPU has `need_GB` free beyond what this process holds
+    already counted in `own_GB`; -> {"free_GB", "waited_s", "ok"} (the GPU is shared; other jobs' memory is not ours)."""
+    t0 = time.perf_counter()
+    while True:
+        free = torch.cuda.mem_get_info()[0] / GB
+        if free >= need_GB - own_GB or time.perf_counter() - t0 >= max_wait_s:
+            return {"free_GB": free, "waited_s": time.perf_counter() - t0, "ok": free >= need_GB - own_GB}
+        time.sleep(5)
+
+
 def _partial(res: dict) -> None:
     if PARTIAL_OUT:
         with open(PARTIAL_OUT + ".partial", "w") as fh:
@@ -356,7 +367,8 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                    decide_reps: int = 3, overrides: Optional[dict] = None, share_ema_target: bool = False,
                    adafactor_satellites: bool = False, planned_adapters: bool = False, grad_checkpoint: bool = True,
                    agent_update_rows: int = 0, run_dir: Optional[str] = None, sem_model: Optional[str] = None,
-                   seed: int = 0, ow_envs: int = 0, variants: Optional[list] = None) -> dict:
+                   seed: int = 0, ow_envs: int = 0, variants: Optional[list] = None,
+                   min_free_GB: float = 0.0, max_wait_s: float = 0.0) -> dict:
     """The real system at `preset` (see the module docstring). `ow_envs` > 0 adds that many ow_tiny OpenWorld worlds
     to the B rapid worlds (one ConcatEnv batch)."""
     import tempfile
@@ -372,6 +384,8 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                  "overrides": over, "share_ema_target": share_ema_target, "planned_adapters": planned_adapters,
                  "adafactor_satellites": adafactor_satellites, "ow_envs": ow_envs, "run_dir": run_dir,
                  "torch": torch.__version__, "gpu": torch.cuda.get_device_name(0)}
+    res["gpu_free_before_build"] = wait_free(min_free_GB, max_wait_s) if min_free_GB else \
+        {"free_GB": torch.cuda.mem_get_info()[0] / GB}
     t0 = time.perf_counter()
     sysm = build_agent(preset, env_kind="mixed" if ow_envs else "rapid", device="cuda", run_dir=run_dir,
                        overrides=over, sem_model=sem_model, seed=seed,
@@ -467,7 +481,11 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
             if q.startswith("mb"):
                 mb = int(q[2:])
         sysm.trainer.opt.state.clear()
+        import gc
+        gc.collect()
         torch.cuda.empty_cache()
+        own = torch.cuda.memory_reserved() / GB
+        gate = wait_free(min_free_GB, max_wait_s, own) if min_free_GB else {"free_GB": torch.cuda.mem_get_info()[0] / GB}
         opts = _optimizers(sysm, extra, adafactor_satellites or "adafactor" in parts_v)
         try:
             r = full_optimiser_step(sysm, microbatch=mb, extra=extra, opts=opts)
@@ -477,6 +495,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                 o.zero_grad(set_to_none=True)
             model.eval()
         r["static_after_GB"] = torch.cuda.memory_allocated() / GB
+        r["gpu_free_at_start"] = gate
         res["steps"][var] = r
         _partial(res)
         for o in opts:
@@ -539,6 +558,9 @@ def main(argv: Optional[list] = None):
     ap.add_argument("--agent-update-rows", type=int, default=0)
     ap.add_argument("--override", action="append", default=[], help="CamConfig field=value (JSON value)")
     ap.add_argument("--sem-model", default=None)
+    ap.add_argument("--min-free-gb", type=float, default=0.0, help="wait until this much GPU memory is free")
+    ap.add_argument("--max-wait-s", type=float, default=0.0)
+    ap.add_argument("--decide-reps", type=int, default=3)
     ap.add_argument("--variants", nargs="*", default=None,
                     help="optimiser-step variants in order, '+'-joined flags: base, share_ema, adafactor, mb<k>")
     a = ap.parse_args(argv)
@@ -556,7 +578,8 @@ def main(argv: Optional[list] = None):
                            share_ema_target=a.share_ema_target, adafactor_satellites=a.adafactor_satellites,
                            planned_adapters=a.planned_adapters, agent_update_rows=a.agent_update_rows,
                            sem_model=a.sem_model, ow_envs=a.ow_envs, grad_checkpoint=a.checkpoint != "off",
-                           variants=a.variants)
+                           variants=a.variants, min_free_GB=a.min_free_gb, max_wait_s=a.max_wait_s,
+                           decide_reps=a.decide_reps)
         txt = json.dumps(r, indent=1, default=str)
         print(txt, flush=True)
         if a.out:
