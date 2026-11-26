@@ -1521,6 +1521,7 @@ def counterfactual(world, horizon_days: int) -> dict:
     return out
 
 
+@K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     mod = world.modules["crisis"]
     t0 = int(mod.c["at_h"]) * HOUR

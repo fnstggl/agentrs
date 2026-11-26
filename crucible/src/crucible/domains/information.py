@@ -1373,6 +1373,7 @@ def service_slots(world, principal: str) -> dict[int, str]:
     return {s["slot"]: sid for sid, s in st.scan("info_services") if s["owner"] in mine}
 
 
+@K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     """Independent outcome of the objective: lookups by independent population members through the participant's
     services in the window, their success, the open web search's success in the same window, and verified

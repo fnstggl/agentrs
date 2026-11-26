@@ -325,3 +325,22 @@ class ReadingReference(_ScriptedReference):
 
 
 A = _act
+
+
+def cached_evaluator(fn):
+    """Evaluator results cached per (world state, simulated instant, principal, objective): the learner interface
+    asks the evaluator after every action (its status and the legacy reward gate), and many actions share one
+    simulated instant; a world rebuilt from the log (another state object) is evaluated afresh."""
+    import functools
+    import json as _json
+
+    @functools.wraps(fn)
+    def wrapped(world, principal, objective):
+        key = (id(world.state), int(world.now), str(principal), _json.dumps(objective, sort_keys=True, default=str))
+        cache = world.runtime.setdefault(f"dom3.eval.{fn.__module__}", {})
+        if key not in cache:
+            if len(cache) > 64:
+                cache.clear()
+            cache[key] = fn(world, principal, objective)
+        return cache[key]
+    return wrapped

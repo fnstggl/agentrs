@@ -678,6 +678,7 @@ class OrgEco(Module):
 
 
 # ====================================================================== evaluator side (recorded log only)
+@K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     st = world.state
     now = world.now

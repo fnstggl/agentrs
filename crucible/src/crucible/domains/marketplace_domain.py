@@ -803,6 +803,7 @@ def operated(world, principal: str) -> list[str]:
     return sorted(ex for ex, e in st.scan("xchg_exchanges") if e["operator"] in mine)
 
 
+@K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
     """Independent outcome: independent population buyers and independent traders with sales on the
     participant's exchanges in the window, its operating result (commissions minus refunds it paid, promotion and

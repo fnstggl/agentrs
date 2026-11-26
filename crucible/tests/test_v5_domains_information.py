@@ -120,12 +120,21 @@ def test_population_lookups_have_provenance_and_outcomes_follow_truth():
 @pytest.mark.timeout(1800)
 def test_reference_succeeds_where_idle_and_index_everything_fail():
     out = {}
-    for name, pol in (("ref", I.Reference), ("idle", lambda w, a: K.IdlePolicy()), ("all", I.IndexAllProbe)):
+    for name, pol in (("ref", I.InfoCurator), ("idle", lambda a, o: K.IdlePolicy()), ("all", I.IndexEverything)):
         env = _env(seed=1)
         a = env.agents()[0]
-        K.run_env(env, a, pol(env.world, a), days=30)
+        K.run_env(env, a, pol(a, I.objective(env.world, a, 1)), days=30)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and out["idle"]["details"]["independent_users"] == 0
     assert not out["all"]["success"]
     assert out["ref"]["details"]["success_rate"] > out["all"]["details"]["success_rate"] + 0.2
+
+
+def test_reference_is_tool_only_and_the_definition_is_valid():
+    from crucible.domains import base
+    assert base.validate(I.DOMAIN) == []
+    assert base.reads_world(I.DOMAIN.reference_policy("p:agent", {})) == []
+    w = base.world("information", "local_wiki_shocks", 0)
+    fp = I.structure(w)
+    assert fp["fact_change_process"] == "correlated" and "wiki" in fp["publishers"]
