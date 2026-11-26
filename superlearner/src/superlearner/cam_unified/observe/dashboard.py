@@ -666,6 +666,34 @@ def build_dashboard(run_dir: str, out_dir: Optional[str] = None, max_lifetime_pa
             body or '<p class="note">No decision trace has both a prediction and an observed value for the same '
                     'outcome key.</p>')
 
+    # ---- controlled experiments (provenance rows of experiments.dom_suite / meta_suite)
+    prov = [r for r in D["evals"] if r.get("source") == "provenance" and r.get("experiment")]
+    body = ""
+    if prov:
+        def short(x):
+            return _e(str(x)[:12]) if x else "—"
+        body += ('<p class="note">One row per (experiment, condition, seed) run through the canonical loop. Hashes '
+                 'are shortened; the full values are in <code>eval/provenance.jsonl</code>. A row marked smoke is an '
+                 'engineering check, not an evaluation.</p>')
+        body += _table(["experiment", "condition", "seed", "set", "loop", "reward mode", "decisions", "updates",
+                        "GPU busy s", "semantic tokens", "ckpt sha256", "cfg hash", "code", "integrity"],
+                       [[_e(r.get("experiment")), _e(r.get("condition")), _fmt(r.get("seed")),
+                         _e(r.get("set", "") + (" (smoke)" if r.get("smoke") else "")), _e(r.get("loop")),
+                         _e(r.get("reward_mode")), _fmt(r.get("decisions")), _fmt(r.get("updates")),
+                         _fmt(r.get("gpu_busy_s")), _fmt(r.get("semantic_tokens")), short(r.get("ckpt_sha256")),
+                         short(r.get("cfg_hash")), short(r.get("code_commit")),
+                         _e("ok" if (r.get("integrity") or {}).get("ok") else
+                            ("FAILED" if r.get("integrity") else "not scanned"))]
+                        for r in prov], {2, 6, 7, 8, 9}, limit=500)
+        mets = [(r.get("condition"), k, v) for r in prov for k, v in sorted((r.get("metrics") or {}).items())
+                if _num(v) is not None]
+        if mets:
+            body += "<h3>Condition metrics</h3>" + _table(["condition", "metric", "value"],
+                                                           [[_e(c), _e(k), _fmt(v)] for c, k, v in mets], {2},
+                                                           limit=500)
+    section("experiments", "Controlled experiments",
+            body or '<p class="note">No experiment provenance rows (<code>eval/provenance.jsonl</code>).</p>')
+
     # ---- retention / transfer
     body = ""
     if D["evals"]:
