@@ -114,8 +114,13 @@ ACTOR_SIDE = ("superlearner/src/superlearner/cam_unified/agent.py", "superlearne
               "superlearner/src/superlearner/cam_unified/memory/retrieval.py",
               "superlearner/src/superlearner/cam_unified/memory/runtime.py")
 ACTOR_SIDE_EXEMPT = {
-    # offline demonstration warm start (scores demonstrations with the evaluator); never imported by the runtime
-    "superlearner/src/superlearner/cam_unified/semantic/demo_init.py",
+    # path -> why it is not on the acting path. An exempt module must itself never be imported by a (non-exempt)
+    # actor-side module; check_reward_integrity enforces that.
+    "superlearner/src/superlearner/cam_unified/semantic/demo_init.py":
+        "offline demonstration warm start (scores demonstrations with the evaluator); never imported by the runtime",
+    "superlearner/src/superlearner/cam_unified/core/bench.py":
+        "throughput / memory benchmark harness (W1): builds an ExperienceOperator to time real updates; imported "
+        "only by operator-side drivers (stage1/dom_e2e), never by the acting path",
 }
 EVALUATOR_SIDE = re.compile(r"^\s*(from\s+[.\w]*(envs\.(labels|openworld_eval|integrity)|envs\s+import\s+[^\n]*"
                             r"\b(labels|openworld_eval)\b)|from\s+\.\.?(labels|openworld_eval)\s+import|import\s+[.\w]*"
@@ -629,8 +634,33 @@ def check_register(root: str = ROOT) -> list:
     return out
 
 
+def _imports_module(src: str, importer_rel: str, target_rel: str) -> bool:
+    """True when the source of `importer_rel` imports the package module `target_rel` (absolute, relative or as a
+    name imported from its package)."""
+    pkg_root = "superlearner/src/"
+    if not target_rel.startswith(pkg_root) or not importer_rel.startswith(pkg_root):
+        return False
+    tgt = target_rel[len(pkg_root):-3].split("/")             # e.g. superlearner, cam_unified, core, bench
+    imp = importer_rel[len(pkg_root):-3].split("/")
+    mod, parent = tgt[-1], ".".join(tgt[:-1])
+    pats = [rf"^\s*import\s+{re.escape('.'.join(tgt))}\b", rf"^\s*from\s+{re.escape('.'.join(tgt))}\s+import",
+            rf"^\s*from\s+{re.escape(parent)}\s+import\s+[^\n]*\b{mod}\b"]
+    # relative forms: k dots lead from the importer's package up k - 1 levels to a base package of the target
+    ip = imp[:-1]
+    for k in range(1, len(ip) + 1):
+        base = ip[:len(ip) - (k - 1)]
+        if tgt[:len(base)] != base:
+            continue
+        rest = ".".join(tgt[len(base):-1])
+        dots = "." * k
+        pats += [rf"^\s*from\s+{re.escape(dots + (rest + '.' if rest else '') + mod)}\s+import",
+                 rf"^\s*from\s+{re.escape(dots + rest)}\s+import\s+[^\n]*\b{mod}\b"]
+    return any(re.search(p_, src, re.M) for p_ in pats)
+
+
 def check_reward_integrity(root: str = ROOT) -> list:
-    """Static scan: actor-side modules never import the evaluator / label channel."""
+    """Static scan: actor-side modules never import the evaluator / label channel, and never import an exempt
+    module (ACTOR_SIDE_EXEMPT: operator-side harnesses that live under an actor-side package)."""
     out = []
     for spec in ACTOR_SIDE:
         full = os.path.join(root, spec)
@@ -640,7 +670,12 @@ def check_reward_integrity(root: str = ROOT) -> list:
             rel = os.path.relpath(f, root).replace(os.sep, "/")
             if rel in ACTOR_SIDE_EXEMPT:
                 continue
-            m = EVALUATOR_SIDE.search(open(f).read())
+            src = open(f).read()
+            for ex in sorted(ACTOR_SIDE_EXEMPT):
+                if _imports_module(src, rel, ex):
+                    out.append(f"reward integrity: actor-side module {rel} imports the exempt operator-side module "
+                               f"{ex}")
+            m = EVALUATOR_SIDE.search(src)
             if m:
                 out.append(f"reward integrity: actor-side module {rel} references the evaluator / label channel "
                            f"({m.group(0).strip()[:60]!r})")

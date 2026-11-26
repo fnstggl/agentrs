@@ -340,6 +340,26 @@ def test_static_reward_integrity_scan_flags_actor_side_label_imports(repo):
     assert any("core/leaky.py" in p for p in ps) and any("agent.py" in p for p in ps)
 
 
+def test_exempt_operator_side_harness_must_not_be_imported_by_the_acting_path(tmp_path):
+    repo = tmp_path / "r"
+    cu = "superlearner/src/superlearner/cam_unified"
+    write(repo, f"{cu}/core/bench.py", "from ..envs.experience import ExperienceOperator\n")
+    write(repo, f"{cu}/core/ok.py", "import torch\n")
+    assert vc.check_reward_integrity(str(repo)) == []                  # exempt harness, nobody imports it
+    for i, line in enumerate(["from .bench import benchmark\n", "from . import bench\n",
+                              "from ..core.bench import benchmark\n",
+                              "from superlearner.cam_unified.core.bench import benchmark\n",
+                              "import superlearner.cam_unified.core.bench\n"]):
+        write(repo, f"{cu}/core/user{i}.py", line)
+        ps = vc.check_reward_integrity(str(repo))
+        assert any(f"core/user{i}.py imports the exempt" in p for p in ps), (line, ps)
+        (repo / cu / "core" / f"user{i}.py").unlink()
+    write(repo, f"{cu}/model.py", "from .core.bench import benchmark\n")
+    assert any("model.py imports the exempt" in p for p in vc.check_reward_integrity(str(repo)))
+    write(repo, f"{cu}/model.py", "from .core.benchmarks import x\nfrom .core import benchmarks\n")
+    assert vc.check_reward_integrity(str(repo)) == []
+
+
 def test_the_real_tree_has_no_actor_side_label_imports():
     assert vc.check_reward_integrity(vc.ROOT) == []
 
@@ -382,7 +402,7 @@ def test_plugin_records_commit_binding_rejects_doubles_and_counts_entry_calls(tm
         cases[tc.get("name")] = (props, any(c.tag in ("failure", "error") for c in tc))
     head = vc.git_head(vc.ROOT)
     for name, (props, _) in cases.items():
-        assert props["vc_commit"] == head and isinstance(json.loads(props["vc_dirty"]), list)
+        assert props["vc_commit"] == (head or "") and isinstance(json.loads(props["vc_dirty"]), list)
         assert len(props["vc_test_sha256"]) == 64
     clean, failed = cases["test_clean_integration_runs_the_entry"]
     assert not failed and clean["vc_integration"] == "clean" and json.loads(clean["vc_entry_hits"])[entry] >= 1
