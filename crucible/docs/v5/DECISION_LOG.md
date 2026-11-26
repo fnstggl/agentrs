@@ -282,8 +282,15 @@ tracked it), predictions of the response *under the conditions at the end of the
 statement "revise beliefs rather than continuing previously successful strategies" directly. Their public references
 (`refs_adapt.fir_shape_predict`, `fir_shape_predict_recent`) randomise settings, choose one shape per setting by
 cross-validation, use readings that do not respond to the settings as covariates (F test) and, for changed worlds,
-fit only the readings after the most likely change point. Tried and reverted (references not good enough): the
-lagged composites `cx_overdose` and `cx_reactive_history`, and `ch_drifting_ideal` (gradual drift).
+fit only the readings after the most likely change point. Later the same day: `cx_overdose` and
+`cx_reactive_history` (delayed composites, horizon 120: references hold conditions until the delayed effect has
+arrived), `ch_drifting_ideal` (truth under the end-of-episode taste), `game_adaptive_rival` (the long-run sales of a
+held price once the rival has adapted) and the four look-alike markets (one shared interface; truth from a fresh
+market). Their references fit a model class stated in their docstrings (a peaked dose law, a saturating hub, a
+drifting bump, a rival following your remembered average price, logit demand), each with a saturating output link
+where the reading saturates. Reverted: `ch_tech_transition` - its prediction version passed admission, but its best
+constant (invest in the new process from the start) does not change after obsolescence, so it fails the 8.10
+belief-revision requirement of SP-8.0b; a family is converted only if the category requirements still hold.
 
 ## D-64 Public references may model the other participants' policy class (2026-11-26, workstream H)
 A family's admission reference may assume the *class* of an opponent's or counterpart's policy that the brief
