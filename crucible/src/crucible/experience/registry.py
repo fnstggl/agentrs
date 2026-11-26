@@ -57,9 +57,12 @@ def _rapid():
     return mod if hasattr(mod, "make") else None
 
 
-def domains() -> dict[str, Any]:
+def domains(include_fixtures: bool = False) -> dict[str, Any]:
     """v5 Tier 2 domains present in this checkout: name -> `crucible.domains.base.Domain` (every domain module of
-    `crucible.domains` registers itself with `base.register` at import; `load_all()` imports them)."""
+    `crucible.domains` registers itself with `base.register` at import; `load_all()` imports them). Only the Part 9
+    domains count as Tier 2 (`Domain.is_part9`): test fixtures (`fixture=True`, e.g. tests/v5/_domain_fixture.py) and
+    test domains outside Part 9 are left out unless `include_fixtures` - so a fixture registered by another test in
+    the same process never stands in for a real domain in a gate."""
     try:
         pkg = importlib.import_module("crucible.domains")
         base = importlib.import_module("crucible.domains.base")
@@ -68,7 +71,11 @@ def domains() -> dict[str, Any]:
     load = getattr(pkg, "load_all", None)
     if callable(load):
         load()
-    return dict(sorted(getattr(base, "REGISTRY", {}).items()))
+    reg = dict(sorted(getattr(base, "REGISTRY", {}).items()))
+    if include_fixtures:
+        return reg
+    return {n: d for n, d in reg.items() if (d.is_part9() if hasattr(d, "is_part9") else not getattr(d, "fixture",
+                                                                                                         False))}
 
 
 def civ_available() -> bool:
@@ -93,8 +100,9 @@ def tiers_available() -> dict[int, bool]:
 
 def domain_and_config(name: str, doms: dict | None = None) -> tuple[Any, Any]:
     """(Domain, DomainConfig) for ``"<domain>"``, ``"<domain>:<config>"`` or ``"d5_<domain>_<config>"``; a bare
-    domain name means its first training configuration."""
-    doms = domains() if doms is None else doms
+    domain name means its first training configuration. Any registered domain can be built by name (fixtures
+    included); only `domains()` decides what counts as Tier 2."""
+    doms = domains(include_fixtures=True) if doms is None else doms
     if not doms:
         raise TierUnavailable("no v5 Tier 2 domain is present (crucible.domains.base.REGISTRY is empty; "
                               "workstream I / the civilisation generator, D-17)")
