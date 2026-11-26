@@ -400,6 +400,10 @@ def legacy_recreation(fp: dict) -> dict:
     motifs out for a learner trained on v5-train)."""
     mech = set(fp["motifs"]) - CHANNEL_PRIMS
     iface = {k.split(":")[0] for k in fp["action_interface"]} - {"query"}
+    if fp.get("objective") == "predict_heldout":
+        # in a prediction world messages only file predictions with the journal: they do not act on the mechanism,
+        # so a world met through levers and journal filings still recreates a lever-interfaced 4.0 mechanism
+        iface -= {"message"}
     recreates, exposes = [], []
     for name, rec in legacy_sealed().items():
         lm = set(rec["motifs"]) - CHANNEL_PRIMS

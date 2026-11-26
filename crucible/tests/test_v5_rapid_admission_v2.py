@@ -33,10 +33,11 @@ def test_a_world_solved_by_a_constant_is_rejected_and_an_adaptive_one_is_not():
     simple = D.search(env, seed=0)
     v_ref = play(F.make("ch_silent_reversal", 0))["value"]
     assert D.check(simple["default"], v_ref, simple)["ok"]
-    # a stationary lever world: the hindsight-best constant beats the generic adaptive learner
-    env = F.make("hc_confounded", 0)
+    # a stationary lever world (a look-alike market with fixed elastic demand): the hindsight-best constant beats
+    # the generic adaptive learner (hc_confounded, the earlier example, became a prediction task in its version 2)
+    env = F.make("mk_elastic", 0)
     simple = D.search(env, seed=0)
-    v_ref = play(F.make("hc_confounded", 0))["value"]
+    v_ref = play(F.make("mk_elastic", 0))["value"]
     c = D.check(simple["default"], v_ref, simple)
     assert not c["ok"] and c["best_simple"].split(":")[0] in ("grid", "random", "coordinate", "reactive",
                                                                "repeat_best")
