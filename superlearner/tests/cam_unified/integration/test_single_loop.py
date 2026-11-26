@@ -315,3 +315,17 @@ def test_update_checkpoints_save_a_plain_agent_through_checkpoint_ops(tmp_path):
     res = R.run_lifetime(st.agent, st.env, evaluator=st.evaluator, max_decisions=4, update_every=2,
                          checkpoint=R.CheckpointSpec(str(tmp_path / "ck"), every_updates=1, ops=Ops()))
     assert len(Ops.saved) == 2 and all(p.endswith("agent") for p in Ops.saved) and len(res.checkpoints) == 2
+
+
+def test_guarded_env_turns_an_env_exception_into_a_reported_error_result():
+    class Crashy(CountingEnv):
+        def execute(self, actions):
+            if actions[1] is not None:
+                raise KeyError("re68")
+            return self.inner.execute(actions)
+    st = Stack()
+    env = R.GuardedEnv(Crashy(st.env))
+    res = R.run_lifetime(st.agent, env, evaluator=st.evaluator, max_decisions=2, update_every=0)
+    assert res.steps == 2 and len(env.errors) == 2 and all(e["row"] == 1 for e in env.errors)
+    bad = [r for r in st.archive.rows if r.action is not None and r.env_id == "shop1"]
+    assert bad and all(not r.result.ok and r.result.error.startswith("env_exception") for r in bad)

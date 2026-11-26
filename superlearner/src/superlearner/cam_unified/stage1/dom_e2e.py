@@ -127,7 +127,7 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
     from ..build import ConcatLabels, OperatorLabels, SystemConfig, build_agent, describe
     from ..core.bench import rapid_lever_specs
     from ..envs.experience import ExperienceOperator
-    from ..runtime import ConcatEnv, cam_eval_stamp, run_lifetime
+    from ..runtime import ConcatEnv, GuardedEnv, cam_eval_stamp, run_lifetime
     from .harness_agent import core_hash
     run_dir = os.path.abspath(run_dir or tempfile.mkdtemp(prefix=f"dom_e2e_{preset}_"))
     torch.cuda.reset_peak_memory_stats()
@@ -162,7 +162,7 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
         if hasattr(ow_ev, "take_labels"):
             srcs.append(ow_ev)
         canaries.append("ow_tiny")
-    env = ConcatEnv(parts) if len(parts) > 1 else parts[0]
+    env = GuardedEnv(ConcatEnv(parts) if len(parts) > 1 else parts[0])
     agent = sysm.agent
     act_s, peaks, seen = [], [], []
     act0 = agent.act
@@ -201,7 +201,7 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
         "n_updates": sum(u["updated"] for u in learner.log), "core_hash_before": h0, "core_hash_after": h1,
         "core_hash_changed": h0 != h1, "phase_wall_s": life.accounting["phase_wall_s"],
         "by_tool": life.accounting["by_tool"], "dropped": life.dropped,
-        "agent_version": int(agent.version)})
+        "agent_version": int(agent.version), "env_exceptions": list(env.errors)})
     out["canary_scan"] = canary_scan(sysm, canaries)
     out["peak_GB"] = max([out["decide_peak_GB"] or 0.0] + [u["peak_GB"] for u in learner.log])
     if ow_ad is not None:

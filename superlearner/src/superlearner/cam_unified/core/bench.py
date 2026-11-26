@@ -343,6 +343,15 @@ def full_optimiser_step(system, *, microbatch: int = 4, world: bool = True, adap
     return out
 
 
+PARTIAL_OUT: Optional[str] = None             # benchmark_full writes its results so far here after every phase
+
+
+def _partial(res: dict) -> None:
+    if PARTIAL_OUT:
+        with open(PARTIAL_OUT + ".partial", "w") as fh:
+            json.dump(res, fh, indent=1, default=str)
+
+
 def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int = 8, microbatch: int = 4,
                    decide_reps: int = 3, overrides: Optional[dict] = None, share_ema_target: bool = False,
                    adafactor_satellites: bool = False, planned_adapters: bool = False, grad_checkpoint: bool = True,
@@ -353,7 +362,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
     import tempfile
     from ..build import ConcatLabels, OperatorLabels, SystemConfig, build_agent, describe
     from ..envs.experience import ExperienceOperator
-    from ..runtime import ConcatEnv, run_lifetime
+    from ..runtime import ConcatEnv, GuardedEnv, run_lifetime
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     base = torch.cuda.memory_allocated()
@@ -377,6 +386,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
         torch.cuda.empty_cache()
     extra = _PlannedAdapters(sysm.cfg, sysm.semantic, model.core).cuda() if planned_adapters else None
     res["build_mem"] = {k: v - (base / GB if k == "allocated_GB" else 0.0) for k, v in _mem().items()}
+    _partial(res)
     d = describe(sysm)
     res["parameters"] = d["parameters"]
     res["trainer_groups"] = d["trainer"]["groups"]
@@ -395,7 +405,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                                    endowment=3_000_000)
         ow_ad, ow_op = open_world([goal] * ow_envs, seed=seed)
         parts.append(ow_ad)
-    env = ConcatEnv(parts) if len(parts) > 1 else parts[0]
+    env = GuardedEnv(ConcatEnv(parts) if len(parts) > 1 else parts[0])
     act_s: list = []
     act0 = agent.act
 
@@ -418,7 +428,9 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
                      "decisions": life.compute["decisions"], "rounds": life.steps, "reward_mode": life.reward_mode,
                      "labels_appended": life.labels_appended, "authorisation": life.authorisation,
                      "tools_per_env": [len(t) for t in env.available_tools()][:4],
-                     "versions": life.versions, "phase_wall_s": life.accounting["phase_wall_s"]}
+                     "versions": life.versions, "phase_wall_s": life.accounting["phase_wall_s"],
+                     "env_exceptions": list(env.errors)}
+    _partial(res)
     # ---------------- B*K rows in one decide (cost model of K candidates per environment)
     if K and K > 1:
         obs = env.observe()
@@ -440,6 +452,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
         res["decide_BK"] = {"rows": rowsK, "decide_s": times, "decide_s_warm_median": sorted(times[1:])[len(times[1:]) // 2],
                             "peak_GB": torch.cuda.max_memory_allocated() / GB,
                             "note": "one batched decide of B*K rows; K-candidate decoding (W5) not merged"}
+        _partial(res)
     # ---------------- one full optimiser step per variant (optimiser states freed between variants)
     res["steps"] = {}
     for var in (variants or ["base"]):
@@ -465,6 +478,7 @@ def benchmark_full(preset: str = "dom", *, B: int = 16, K: int = 4, rounds: int 
             model.eval()
         r["static_after_GB"] = torch.cuda.memory_allocated() / GB
         res["steps"][var] = r
+        _partial(res)
         for o in opts:
             o.state.clear()
         del opts
@@ -529,6 +543,8 @@ def main(argv: Optional[list] = None):
                     help="optimiser-step variants in order, '+'-joined flags: base, share_ema, adafactor, mb<k>")
     a = ap.parse_args(argv)
     if a.full:
+        global PARTIAL_OUT
+        PARTIAL_OUT = a.out
         over = {}
         for kv in a.override:
             k, v = kv.split("=", 1)

@@ -451,6 +451,39 @@ class ConcatEnv:
                 p.close()
 
 
+class GuardedEnv:
+    """Opt-in wrapper for real-world runs: actions are executed one row at a time and an exception raised by the
+    environment for one action (e.g. an upstream engine that indexes a lever the decoded arguments omit) becomes that
+    row's ExecutionResult(ok=False, error="env_exception: ...", ERROR observation) instead of ending the lifetime.
+    Every such event is counted and kept (`errors`) so it is reported, never hidden; everything else is delegated."""
+
+    def __init__(self, env):
+        self.env = env
+        self.errors: list = []
+
+    def __getattr__(self, k):
+        return getattr(self.env, k)
+
+    def execute(self, actions) -> list:
+        from .interfaces import ExecutionResult, Observation
+        out = []
+        for b, a in enumerate(actions):
+            if a is None:
+                out.append(None)
+                continue
+            row = [None] * len(actions)
+            row[b] = a
+            try:
+                out.append(self.env.execute(row)[b])
+            except Exception as e:  # noqa: BLE001 - reported per row (self.errors), the world continues
+                msg = f"env_exception: {type(e).__name__}: {str(e)[:200]}"
+                self.errors.append({"row": b, "tool": a.tool, "error": msg})
+                out.append(ExecutionResult(ok=False, observations=[Observation(ObsKind.ERROR, msg, source=a.tool,
+                                                                               caused_by=a.action_id)],
+                                           error=msg, meta={"guarded": True}))
+        return out
+
+
 # ============================================================================ the learner side
 
 class AgentLearner:

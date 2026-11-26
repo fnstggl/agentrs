@@ -260,11 +260,14 @@ def build_agent(scale: str = "dom_dev", *, env_kind: Optional[str] = None, sem_m
                 device: Optional[str] = None, run_dir: Optional[str] = None, overrides: Optional[dict] = None,
                 seed: Optional[int] = None, semantic=None, system: Optional[SystemConfig | dict] = None,
                 exclude_events: Optional[set] = None, components: Optional[dict] = None,
-                model_kwargs: Optional[dict] = None, agent_kwargs: Optional[dict] = None) -> System:
+                model_kwargs: Optional[dict] = None, agent_kwargs: Optional[dict] = None,
+                learner_factory=None) -> System:
     """The full real stack (see the module docstring). `system`: a SystemConfig (or its fields as a dict) for the
     learner / durability settings; explicit `scale`, `overrides`, `sem_model`, `device`, `seed`, `env_kind` win over
     it. `semantic` reuses an already loaded QwenSemantic; `components` overrides individual real components (they
-    must still be real classes). `run_dir` None = a fresh temporary directory."""
+    must still be real classes). `run_dir` None = a fresh temporary directory. `learner_factory(system)` -> the
+    LearnerHook; default: W7's `learn.integrated.IntegratedLearner.from_system(system)` when it exists, else
+    runtime.AgentLearner (the agent's own update)."""
     from .agent import CamUnifiedAgent
     from .envs.labels import LabelStore
     from .memory.archive import EventArchive
@@ -328,10 +331,17 @@ def build_agent(scale: str = "dom_dev", *, env_kind: Optional[str] = None, sem_m
     ops = CheckpointOps(agent)
     label_store = LabelStore(os.path.join(run_dir, "labels"))
     reward_model = RewardModel(cfg).to(dev)
-    learner = AgentLearner(agent, reward_model=reward_model)
-    return System(cfg, sc, run_dir, sem, model, trainer, archive, artifacts, view, index, replay, consolidator,
-                  recorder, agent, ops, label_store=label_store, reward_model=reward_model, learner=learner,
-                  env_kind=sc.env_kind, build_s=time.time() - t0)
+    system = System(cfg, sc, run_dir, sem, model, trainer, archive, artifacts, view, index, replay, consolidator,
+                    recorder, agent, ops, label_store=label_store, reward_model=reward_model, learner=None,
+                    env_kind=sc.env_kind)
+    if learner_factory is None:
+        from .learn import integrated
+        il = getattr(integrated, "IntegratedLearner", None)
+        learner_factory = il.from_system if il is not None and hasattr(il, "from_system") else \
+            (lambda s: AgentLearner(s.agent, reward_model=s.reward_model))
+    system.learner = learner_factory(system)
+    system.build_s = time.time() - t0
+    return system
 
 
 def describe(system: System) -> dict:
