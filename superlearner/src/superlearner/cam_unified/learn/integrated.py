@@ -34,6 +34,9 @@ the LearnerHook of the canonical loop: `on_step(transition)` every round, `step(
    (`balance.LossBalancer`: world share <= 0.45, actor share >= 0.1), per-group clipping and role optimisers
    (`trainer.CombinedTrainer`: slow = model + predictors, meta = psi, which no slow loss may touch);
 6. further PPO epochs on the same batch (actor + value only) until cfg.ppo_epochs or KL > 1.5 * cfg.target_kl;
+   with cfg.microbatch > 0 the decisions are recomputed in microbatches (a detached full-batch pass fixes routing
+   and V-trace targets; each microbatch back-propagates its exact share, so the step equals the full-batch step;
+   the probe's actor / value norms then come from microbatch 0, scaled, and are flagged as an estimate);
 7. the agent's bookkeeping (version bump, trace / archive provenance, survivors for the next update's bootstrap).
 
 Import rule: agent.py imports this module at import time, so this module never imports `..agent` at module level.

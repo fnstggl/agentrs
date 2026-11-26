@@ -217,9 +217,13 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--preset", default="dom_dev", help="dom_dev (W7 check) | dom (1B, W1 only) | dom_150m")
     ap.add_argument("--microbatch", type=int, default=0, help="cfg.microbatch (0 = full-batch policy recompute)")
+    ap.add_argument("--reward-mode", default=None,
+                    help="Exp D condition: observation_only (default of the preset) | sparse_verified")
     a = ap.parse_args(argv)
-    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset,
-              overrides={"microbatch": a.microbatch})
+    over = {"microbatch": a.microbatch}
+    if a.reward_mode:
+        over["reward_mode"] = a.reward_mode
+    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset, overrides=over)
     print(json.dumps(rep["checks"], indent=1, default=str))
     return 0
 
