@@ -32,7 +32,7 @@ class StructuredSite(Site):
         self.sessions: Dict[str, str] = {}
         self.remembered: Dict[str, str] = {}
         self.wiped = False
-        self.slow_started = self.slow_active = self.slow_max_active = 0
+        self.slow_started = self.slow_active = self.slow_max_active = self.marks = 0
         for name, cat, qty, price in (("Alpha widget", "tools", 12, "3.50"), ("Beta gasket", "parts", 240, "0.125"),
                                       ("Gamma bracket", "parts", 7, "19.99")):
             self._add(name, cat, qty, price)
@@ -57,6 +57,8 @@ class StructuredSite(Site):
         r("GET", "/slow", self.slow)
         r("POST", "/slow", self.slow)
         r("GET", "/echo", self.echo)
+        r("GET", "/long", self.long_page)
+        r("POST", "/long/mark", self.long_mark)
         r("GET", "/api/state", lambda q: as_json(self.state()))
         self.prefix("GET", "/items/", self.detail)
         self.prefix("POST", "/items/", self.item_action)
@@ -298,6 +300,16 @@ class StructuredSite(Site):
             self.lock.acquire()
             self.slow_active -= 1
         return self._page("Slow page", f"<p>Responded after {ms} ms.</p>")
+
+    def long_page(self, req: Request) -> Response:
+        paras = "".join(f"<p>Entry {i}: {i * 37 % 1000}</p>" for i in range(1, 401))
+        body = (f"<p>Marks: <output id='marks'>{self.marks}</output></p>{paras}"
+                "<form method='post' action='/long/mark'><button type='submit'>Mark the end</button></form>")
+        return self._page("Long list", body)
+
+    def long_mark(self, req: Request) -> Response:
+        self.marks += 1
+        return redirect("/long")
 
     def echo(self, req: Request) -> Response:
         return self._page("Echo", f"<p>Echo: {esc(req.query.get('value', ''))}</p>")

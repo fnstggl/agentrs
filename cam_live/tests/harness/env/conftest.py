@@ -179,9 +179,10 @@ def op_modality(op):
     return Modality.INTERNAL
 
 
-def make_action(op, verify=None, steps=None, level=Level.PRIMITIVE, timeout_s=60.0, aid=None, **args):
+def make_action(op, verify=None, steps=None, level=Level.PRIMITIVE, timeout=60.0, aid=None, **args):
+    """``timeout`` / ``aid`` are the ActionSpec's timeout_s / action_id; every other keyword is a tool argument."""
     return ActionSpec(action_id=aid or new_id("act"), operation=op, modality=op_modality(op), level=level,
-                      arguments=args, timeout_s=timeout_s, steps=list(steps or []),
+                      arguments=args, timeout_s=timeout, steps=list(steps or []),
                       verify=verify or VerificationCondition())
 
 

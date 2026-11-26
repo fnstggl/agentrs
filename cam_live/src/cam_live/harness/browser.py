@@ -942,19 +942,27 @@ class BrowserExecutor:
         async def block(why: str, verdict: str = AuthVerdict.DENY, main: bool = False) -> None:
             sess.blocked.append({"url": url, "why": why, "verdict": verdict, "main": main})
             try:
-                await route.abort("blockedbyclient")
+                if main:        # "204 No Content" cancels a top-level navigation and leaves the current page in place
+                    await route.fulfill(status=204, body="")
+                else:
+                    await route.abort("blockedbyclient")
             except Exception:  # noqa: BLE001
                 pass
 
         try:
             if scheme in ("data", "blob", "about"):
                 return await route.continue_()
+            is_nav = req.is_navigation_request()
+            try:
+                main = is_nav and req.frame.parent_frame is None
+            except Exception:  # noqa: BLE001 — no frame (service worker): not a top-level navigation
+                main = False
             if scheme not in _ALLOW_SCHEMES:
-                return await block(f"scheme {scheme!r} is not allowed")
+                return await block(f"scheme {scheme!r} is not allowed", main=main)
             if sess.read_only and req.method not in ("GET", "HEAD", "OPTIONS"):
-                return await block("research sessions only issue read requests")
+                return await block("research sessions only issue read requests", main=main)
             key, origin = _norm_url(url), _origin(url)
-            if req.is_navigation_request():
+            if is_nav:
                 if sess.approved.get(key, 0) > 0:
                     sess.approved[key] -= 1
                 else:
@@ -962,10 +970,6 @@ class BrowserExecutor:
                                      arguments={"url": url, "via": "page", "method": req.method, "session": sess.name})
                     dec = await self._check(sess.ctx, op, sess.action)
                     if dec.verdict != AuthVerdict.ALLOW:
-                        try:
-                            main = req.frame.parent_frame is None
-                        except Exception:  # noqa: BLE001
-                            main = True
                         return await block("; ".join(dec.reasons) or "navigation denied", dec.verdict, main)
                 sess.checked.add(key)
                 sess.origins_ok[origin] = True
@@ -1170,6 +1174,7 @@ class BrowserExecutor:
             res.status, res.failure_class, res.failure_detail = (ResultStatus.TIMEOUT, FailureClass.UNKNOWN,
                                                                  f"{opname} exceeded {budget:.0f} s")
             op.status = ResultStatus.TIMEOUT
+            await self._stop_loading(sess)
         except Exception as e:  # noqa: BLE001 — classify whatever Playwright raised
             f = self._pw_fail(e, opname)
             res.status, res.failure_class, res.failure_detail = f.status, f.failure_class, f.detail
@@ -1184,6 +1189,16 @@ class BrowserExecutor:
                                                           failure_class=res.failure_class,
                                                           parent_action_id=action.action_id, source=self.modality))
 
+    async def _stop_loading(self, sess: _Session) -> None:
+        """Abandon whatever a timed-out action left loading, so the next action starts from a quiet tab."""
+        for t in list(sess.tabs.values()):
+            try:
+                cdp = await sess.context.new_cdp_session(t.page)
+                await asyncio.wait_for(cdp.send("Page.stopLoading"), timeout=2)
+                await cdp.detach()
+            except Exception:  # noqa: BLE001
+                continue
+
     async def _gate(self, ctx: ExecContext, op: PrimitiveOp, action: ActionSpec, extra: Optional[Dict[str, Any]] = None) -> None:
         if extra:
             op.arguments = {**op.arguments, **extra}
@@ -1197,7 +1212,15 @@ class BrowserExecutor:
         sess.checked.add(key)
         n_blocked = len(sess.blocked)
         try:
-            resp = await tab.page.goto(url, wait_until=wait_until, timeout=timeout_s * 1000)
+            for attempt in range(3):
+                try:
+                    resp = await tab.page.goto(url, wait_until=wait_until, timeout=timeout_s * 1000)
+                    break
+                except Exception as e:  # noqa: BLE001 — an earlier, abandoned load of this tab got in the way
+                    if "interrupted by another navigation" not in str(e) or attempt == 2:
+                        raise
+                    sess.approved[key] = sess.approved.get(key, 0) + 1
+                    await asyncio.sleep(0.15)
         except Exception as e:  # noqa: BLE001
             new = sess.blocked[n_blocked:]
             if new:
@@ -1453,7 +1476,8 @@ class BrowserExecutor:
             await tab.page.evaluate("(to) => window.scrollTo(0, to === 'top' ? 0 : document.documentElement.scrollHeight)",
                                     a["to"])
         else:
-            await tab.page.mouse.wheel(float(a.get("dx", 0)), float(a.get("dy", 0)))
+            await tab.page.evaluate("([dx, dy]) => window.scrollBy({left: dx, top: dy, behavior: 'instant'})",
+                                    [float(a.get("dx", 0)), float(a.get("dy", 0))])
         await self._settle(tab.page, 600)
         return await self._observe(sess, tab, mode="auto", parent=action.action_id)
 
