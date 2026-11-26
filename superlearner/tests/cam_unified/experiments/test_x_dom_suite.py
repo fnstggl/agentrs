@@ -52,7 +52,8 @@ def test_the_driver_loop_delivers_no_environment_reward_and_drains_labels(tmp_pa
     ag, env, cfg = _stack(archive_dir=str(tmp_path / "arc"))
     store, labels = LabelStore(str(tmp_path / "labels")), _Labels()
     res = fn(ag, env, labels=labels, label_store=store, reward_mode="observation_only", learner=None, days=None,
-             max_decisions=DS.rounds_for(9, 3), update_every=0, think_s=None, checkpoint=None, on_step=None)
+             max_decisions=DS.rounds_for(9, 3), update_every=0, think_s=None, checkpoint=None, on_step=None,
+             keep_rounds=True)
     st = DS._lifetime_stats(res)
     assert DS.rounds_for(9, 3) == 3 and DS.rounds_for(10, 3) == 4    # run_lifetime budgets rounds (W1)
     assert len(DS.lifetime_rounds(res)) == 3 and st["decisions"] == 9 and labels.calls >= 3 and len(store) == 1

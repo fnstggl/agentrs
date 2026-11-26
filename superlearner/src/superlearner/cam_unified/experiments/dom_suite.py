@@ -238,8 +238,24 @@ def build_stack(preset: str, run_dir: str, *, device: str = "cuda", seed: int = 
     except ImportError:
         B = None
     if B is not None and callable(getattr(B, "build_agent", None)):
+        import inspect
+        from ..config import make_preset
+        ps = inspect.signature(B.build_agent).parameters
+        kw: dict = {}
+        if "seed" in ps:
+            kw["seed"] = int(seed)
+        cfg0 = make_preset(preset, **overrides)
+        if "semantic" in ps and semantic is not None and not int(getattr(cfg0, "dec_xattn_every", 0) or 0):
+            kw["semantic"] = semantic          # shared only without decoder hooks (as in _build_stage1)
+        sc_cls = getattr(B, "SystemConfig", None)
+        fields = getattr(sc_cls, "__dataclass_fields__", {})
+        if "system" in ps and fields:
+            sysd = {k: v for k, v in (agent_kw or {}).items() if k in fields}
+            if "deterministic" in fields:
+                sysd["deterministic"] = True
+            kw["system"] = sysd
         S = B.build_agent(preset, env_kind="experience", sem_model=None, device=device, run_dir=run_dir,
-                          overrides=overrides)
+                          overrides=overrides, **kw)
         return Stack(S.cfg, S.agent, S.model, getattr(S, "semantic", None), getattr(S, "trainer", None),
                      getattr(S, "archive", None), getattr(S, "recorder", None), S.ops, run_dir, "build.build_agent",
                      getattr(S, "learner", None))
