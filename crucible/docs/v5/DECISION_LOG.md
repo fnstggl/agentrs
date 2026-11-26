@@ -275,6 +275,15 @@ noise-free (for feedback loops, settled) response at held-out settings partly ou
 (`predict_heldout`, science oracle), the 8.1 statement "distinguish correlation from causation through intervention"
 measured directly on unobserved conditions. H-D1 (dominance fraction 0.8, 68-episode search including naive mean and
 linear predictors on random interventions) is unchanged. Rejected alternative: lowering the dominance fraction.
+Amendment (continuation, same day): the same treatment for `hc_confounded` and `hc_feedback_hidden` (v2), and, for
+changing-environment families whose one-off hidden change is visible in some reading (so a two-setting threshold rule
+tracked it), predictions of the response *under the conditions at the end of the episode* (`ch_constraint_tightens`,
+`ch_demand_shift`, `ch_sign_reversal` v2): a law learned before the change is wrong after it, which measures the 8.10
+statement "revise beliefs rather than continuing previously successful strategies" directly. Their public references
+(`refs_adapt.fir_shape_predict`, `fir_shape_predict_recent`) randomise settings, choose one shape per setting by
+cross-validation, use readings that do not respond to the settings as covariates (F test) and, for changed worlds,
+fit only the readings after the most likely change point. Tried and reverted (references not good enough): the
+lagged composites `cx_overdose` and `cx_reactive_history`, and `ch_drifting_ideal` (gradual drift).
 
 ## D-64 Public references may model the other participants' policy class (2026-11-26, workstream H)
 A family's admission reference may assume the *class* of an opponent's or counterpart's policy that the brief
@@ -285,6 +294,17 @@ default difficulty made it a static-tuning world, the default was changed and th
 the workstream report: strat_interdiction 6 routes / learning rate 0.5, net_repair 20 nodes, pe_deadtime_control 40
 ticks with a faster setpoint schedule, des_bottleneck v2 shifting bottleneck, team_assembly holding 2 per component,
 ch_rule_change and cxc_competing_rule v2 with a penalised old lever, cx_latched_pathway wide hysteresis band).
+Amendment (continuation, same day): families where the hindsight-best constant equalled the oracle because every
+hidden quantity was fixed got hidden *events per component* that a public learner can observe and a single
+constant or two-setting threshold rule cannot follow, with a version bump: `strat_entry` v2 (incumbent takeovers),
+`team_commons` v2 (bad spells per ground), `team_discovery` v2 (ingredient depletion and replenishment),
+`team_formation` v2 (specialists and a pay budget that rules out one standing team), `team_schedule` v2 (bursts of
+jobs per participant), `plan_portfolio` v2 (projects opening at hidden times), `pe_cascade_guard` v2 (capacity
+factors that differ widely between units), `net_diffusion` v2 (communities coming online at hidden times). Each has
+a privileged oracle that knows the events (planned entry, escapement, freshest pair, per-task team, central
+schedule, planned seeding) and a public reference that acts on what it observes; two references had bugs that the
+measurements exposed and were fixed (team_formation never read the workers' claimed skills; team_schedule planned
+with the first participant's speed estimates only).
 
 ## D-65 Families for the four Part 8 items that had none (2026-11-26, workstream H)
 8.5.1 `srch_leads` (a stream of expiring leads with screen/audit investigation), 8.5.4 `srch_ventures` (delayed
