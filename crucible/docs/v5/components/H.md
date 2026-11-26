@@ -105,3 +105,39 @@ some seeds only), `plan_supply_chain` (second demand shift, holding costs), `pla
 (reference now splits staff; passes seeds 0-2 only), `pe_router` (retooled lines: the law-aware router is not an
 upper bound under higher loads), `ch_drifting_ideal` (narrow drifting peak: threshold rules on a reading track it),
 `ch_sign_reversal`, `cxc_latched_reversal`, `cxs_lockin`, `strat_price_war`.
+
+## Wave 3b continuation (after the usage-limit stop)
+
+Admission (`admission.CHECKS`, H-D1) and the gate tests are unchanged, except that the D-9 recreation check now
+ignores journal filings in prediction worlds (`fingerprints.legacy_recreation`: a lever world with a journal still
+recreates a lever-interfaced 4.0 mechanism). Every family below was re-measured with the full admission on seeds 0-2
+and 10-12 after its change (single-CPU probes, not evidence). Probe counts: 52 training and 21 evaluation families,
+54 of the 60 named Part 8 items.
+
+Two patterns made families pass:
+
+* **Hidden events per component** (D-64 amendment), for families whose every hidden quantity was fixed, so the
+  hindsight-best constant was the oracle: `strat_entry` v2 (incumbent takeovers; planned-entry oracle by dynamic
+  programming; reference that reads price levels, the price of fights and moved levels), `team_commons` v2 (bad
+  spells; escapement reference), `team_discovery` v2 (ingredient depletion; rotation by expected current yield),
+  `team_formation` v2 (specialists and a pay budget; the reference never read claimed skills - fixed),
+  `team_schedule` v2 (job bursts; the shared plan used one participant's speed estimates - fixed),
+  `plan_portfolio` v2 (projects opening at hidden times; probe-and-audit reference), `pe_cascade_guard` v2 (capacity
+  factors that differ between units; per-unit safe exploration), `net_diffusion` v2 (communities coming online;
+  incremental seeding).
+* **Prediction of the interventional or end-of-episode response** (D-63 amendment), for lever worlds where a
+  constant or a two-setting threshold rule tracked a one-off change: `hc_confounded`, `hc_feedback_hidden`,
+  `ch_constraint_tightens`, `ch_demand_shift`, `ch_sign_reversal`, `cxc_balancing_constraint`,
+  `cxc_latched_reversal`, `ch_drifting_ideal`, `ch_tech_transition`, `game_adaptive_rival` and the four look-alike
+  markets (one interface for all four; `mk_signal`, `mk_elastic`, `mk_gate` admitted, `mk_drift` not). References in
+  `refs_adapt`: `fir_shape_predict` (randomised design, one shape per setting by cross-validation, exogenous
+  readings as covariates), `fir_shape_predict_recent` (change point), `market_predict` (log-additive law against a
+  logit demand curve, by cross-validation), `drifting_bump_predict`, `learning_transition_predict` (experience stock
+  and a saturating link), `rival_model_predict` (a rival that follows your remembered average price, logit demand).
+
+Not admitted, redesigns reverted: `cx_overdose`, `cx_reactive_history` (lagged composites: FIR, single-index and
+hub references all too weak), `plan_supply_chain` (demand regimes), `net_routing` (capacity incidents with an AIMD
+reference), `net_cascade` (zone heat waves), `strat_price_war` (two learning rivals), `des_inventory` (strong
+seasonality), first attempts at `ch_drifting_ideal`. Untouched and not admitted: `dl_short_term_damage`,
+`eng_delayed_controller`, `pe_rollout_targeting`, `plan_distribution`, `plan_perishable`, `des_perishable`,
+`net_topology_shift`, `pe_router`, `cxs_lockin`, `cxs_selected_layers`, `ch_wandering_taste`, `mk_drift`.
