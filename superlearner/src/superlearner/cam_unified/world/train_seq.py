@@ -130,6 +130,7 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
     res.burn_in = burn
     res.Rs = []
     res.belief_tokens = []
+    res.ctxs, res.resets = [], []           # per-step core context and episode resets (EMA target pass)
     res.prior_feat_updates = 0
     with model._autocast():
         for t, st in enumerate(steps):
@@ -155,6 +156,8 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
                        torch.where(alive, prev.dt.float().to(dev), torch.full((B,), -1.0, device=dev)))
                 TIME = model._time_tokens(dtp)
                 ctx = model.context(st.obs, A_prev, TIME, Bt, opt_tok, M, st.goal)
+                res.ctxs.append(ctx)
+                res.resets.append(prev_done)
                 Z, _ = model.core(Z, ctx)
                 Z = Z.float()
                 R = None
@@ -185,6 +188,31 @@ def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = No
 
 # ============================================================================ world objective
 
+@torch.no_grad()
+def ema_targets(model, filt) -> Optional[torch.Tensor]:
+    """Latent targets [T,B,S,D] of the EMA target encoder on the agent filter's own contexts (`filt.ctxs`, the same
+    observation / action / time / belief / option / memory / goal tokens, detached) when the world model keeps an EMA
+    target (cfg.wm_ema_target); None otherwise. One no-grad core pass per step."""
+    tc = getattr(model.world_model, "target_core", None)
+    ctxs = getattr(filt, "ctxs", None)
+    if tc is None or not ctxs:
+        return None
+    from ..model import detach_tokens
+    B = filt.Zs[0].shape[0]
+    dev = filt.Zs[0].device
+    Z0 = tc.init_state(B, device=dev).float()
+    Z = Z0
+    out = []
+    with model._autocast():
+        for ctx, reset in zip(ctxs, filt.resets):
+            if bool(reset.any()):
+                Z = torch.where(reset.view(B, 1, 1), Z0, Z)
+            Z, _ = tc(Z, detach_tokens(ctx))
+            Z = Z.float()
+            out.append(Z)
+    return torch.stack(out)
+
+
 def world_loss(model: "CamUnifiedModel", seq, filt: Optional["FilterResult"]) -> dict:
     """WorldModelP.loss with the acting-consistent belief / memory context when the world model accepts it.
 
@@ -199,6 +227,9 @@ def world_loss(model: "CamUnifiedModel", seq, filt: Optional["FilterResult"]) ->
         Zs = filt.Zs[burn:]
         bel = getattr(filt, "belief_tokens", None) or filt.beliefs
         kw["Z_post"] = torch.stack([z.float() for z in Zs])
+        tgt = ema_targets(model, filt)
+        if tgt is not None:
+            kw["Z_target"] = tgt[burn:]
         Rs = getattr(filt, "Rs", None)
         if prior_on_R(model) and Rs and all(r is not None for r in Rs[burn:]):
             kw["R_post"] = torch.stack([r.float() for r in Rs[burn:]])

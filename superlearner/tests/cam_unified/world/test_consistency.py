@@ -233,3 +233,24 @@ def test_self_predictive_terms_never_shape_the_encoder_without_an_ema_target():
     # the predictive terms still train the shared blocks and the reasoner
     g2 = torch.autograd.grad(out["outcome"] + out["open_loop"], [probe["reasoner.iter_emb"], probe[last]])
     assert all(float(x.abs().sum()) > 0 for x in g2)
+
+
+def test_ema_target_on_the_agent_filter_path():
+    """With cfg.wm_ema_target=True the single-filter path still works: the latent targets are the EMA encoder's
+    states on the agent filter's own contexts (equal to the online states while the copies agree), and the
+    self-predictive gradients reach the shared encoder (latent_grad 'full')."""
+    m = dom_tiny(wm_ema_target=True)
+    m.eval()
+    wm = m.world_model
+    assert wm.target_core is not None and wm.latent_grad == "full" and train_seq.single_filter(m)
+    seq = rand_sequence(3, 6, m.cfg, seed=4)
+    filt = train_seq.filter_window(m, seq, None, burn_in=0)
+    tgt = train_seq.ema_targets(m, filt)
+    torch.testing.assert_close(tgt, torch.stack(filt.Zs).detach(), rtol=1e-5, atol=1e-5)
+    g = torch.Generator().manual_seed(1)
+    a = float(m.world_loss(seq, filt)["latent"])
+    with torch.no_grad():
+        for p in wm.target_core.parameters():
+            p.add_(0.05 * torch.randn(p.shape, generator=g))
+    assert float(m.world_loss(seq, filt)["latent"]) != a          # the target encoder defines the latent target
+    wm.update_target(0.5)

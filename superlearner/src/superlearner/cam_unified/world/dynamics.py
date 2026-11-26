@@ -589,7 +589,7 @@ class WorldModel(nn.Module):
              horizons: Optional[Sequence[int]] = None, generator: Optional[torch.Generator] = None,
              fast_states: Optional[list] = None, belief_update_fn: Optional[Callable] = None,
              belief_tokens_fn: Optional[Callable] = None, Z_post=None, R_post=None,
-             reason_fn: Optional[Callable] = None) -> dict:
+             reason_fn: Optional[Callable] = None, Z_target=None) -> dict:
         """Full world-model objective on real recorded sequences.
 
         beliefs: optional list of T BELIEF TokenSets (B_t computed from information up to t); memory: optional list
@@ -614,7 +614,8 @@ class WorldModel(nn.Module):
         Single filter (DOM, plan §3 W6): ``Z_post`` ([T,B,S,D] tensor or list of T [B,S,D], with gradients) are the
         agent's own acting-consistent filter states (``train_seq.filter_sequence``); the world model then runs no
         filter of its own, and without an EMA target (cfg.wm_ema_target=False) the latent target is sg(Z_post).
-        ``R_post`` (same shape) are the prior's inputs at the real steps (the reasoned latents R_t; default Z_post);
+        ``R_post`` (same shape) are the prior's inputs at the real steps (the reasoned latents R_t; default Z_post); ``Z_target`` (same shape): the EMA target encoder's states on the same
+        contexts (`train_seq.ema_targets`; default sg(Z_post));
         ``reason_fn(Z_hat, belief_tokens, goal_tokens) -> R`` maps imagined states to prior inputs at open-loop
         steps >= 2 (default: the imagined state itself). Extra DOM terms: per-group free bits
         (cfg.kl_free_bits_group), the consistency loss (cfg.wm_consistency; "consistency", and the diagnostics
@@ -681,7 +682,9 @@ class WorldModel(nn.Module):
                 Z_tgt = Z_post.detach()
         else:
             Z_post = (torch.stack(list(Z_post)) if isinstance(Z_post, (list, tuple)) else Z_post).float()
-            Z_tgt = Z_post.detach()
+            # the EMA target encoder's states on the same contexts when given (train_seq.ema_targets), else sg(Z_post)
+            Z_tgt = Z_post.detach() if Z_target is None else \
+                (torch.stack(list(Z_target)) if isinstance(Z_target, (list, tuple)) else Z_target).float().detach()
         R_in = Z_post if R_post is None else \
             (torch.stack(list(R_post)) if isinstance(R_post, (list, tuple)) else R_post).float()
         S, D = Z_post.shape[2], Z_post.shape[3]
