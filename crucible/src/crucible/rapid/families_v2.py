@@ -107,73 +107,30 @@ def ch_silent_reversal(rng, d):
             "unchanged. A seller must notice from its own results that the old format has started to lose and "
             "switch, while also pricing well.",
         distinct_because="a discrete decision whose effect sign flips at a hidden tick (timed regime change on a "
-                         "decision's value), next to a priced lever with an interior optimum; the changing element "
-                         "is a categorical choice, not a lever level",
+                         "decision's value) under heavy demand noise: the changing element is a categorical choice, "
+                         "not a lever level, and single readings cannot tell a rule change from noise",
         axes={"horizon": 100, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(CV + "option_effect_flips",), identify=CV + "identify_option_flip", oracle=R + "lever_schedule_oracle",
+        claims=(CV + "option_effect_flips",), identify=CV + "identify_option_flip", oracle=CV + "oracle_option_switch",
         reference=CV + "probe_and_switch")
 def ch_format_switch(rng, d):
     gb = GraphBuilder(rng)
     H = int(d["horizon"])
     D = gb.discrete([1.0, -1.0], cost=[0.0, 0.0], default=0)
-    Pr = gb.lever(0.0, 10.0, 5.0, cost=0.0)
-    slope = u(rng, 12.0, 16.0)
+    slope = u(rng, 6.0, 9.0)
     at = float(int(rng.integers(int(0.3 * H), int(0.7 * H))))
     sw = gb.prim("regime_change", {"before": slope, "after": -slope, "at": at, "trig": 1e18}, role="regime",
                  x=[(D, 0, 1.0)], trigger=[])
-    # price: demand falls with price (logistic), revenue per unit rises with it - an interior optimum
-    conv = gb.prim("linear_nonlinear", {"form": "logistic", "a": u(rng, 50.0, 60.0), "b": 0.0,
-                                        "c": u(rng, 0.6, 0.9), "m": u(rng, 4.5, 6.0)}, x=[(Pr, 0, -1.0)],
-                   bias={"x": 10.0})
-    season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.8, 1.2), "ar": 0.7}, role="exogenous")
+    season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 4.0, 5.0), "ar": 0.3}, role="exogenous")
     units = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 15.0, 20.0)}, x=[(sw, 0, 1.0), (conv, 0, 1.0), (season, 0, 2.0)])
-    rev = gb.prim("multiplicative", {"k": 1.0}, role="revenue", a=[(units, 0, 1.0)], b=[(Pr, 0, 1.0)],
-                  bias={"b": 1.0})
+                    bias={"x": u(rng, 30.0, 40.0)}, x=[(sw, 0, 1.0), (season, 0, 1.0)])
     noise = float(d["observation_noise"])
     gb.gauge(units, [("measurement_noise", {"sd": noise * 3})])
     _distractors(gb, rng, d["n_variables"], noise)
-    return gb.build(horizon=H, money={"revenue_node": rev, "price": 10.0, "cap": 2000.0},
-                    affordances=["levers", "discrete"], endowment=500_000,
+    return gb.build(horizon=H, money={"revenue_node": units, "price": 100.0, "cap": 200.0},
+                    affordances=["discrete"], endowment=500_000,
                     objective={"type": "maximize_net", "text": SHOP},
-                    brief="A marketplace seller: a listing format to choose and a price to set. Gauge: units sold.",
-                    claim={"decision": D, "lever": Pr, "outcome": units, "regime": sw, "at": at})
-
-
-# ====================================================================== 8.1.6 state-dependent causal structure
-@family("hc_hidden_state_sign", engine="primitive_graph", category="8.1", item="8.1.6", split="train",
-        doc="Whether a lever helps or hurts depends on a hidden, slowly wandering market state: above a hidden "
-            "set point the same push lowers sales, below it it raises them. A footfall gauge tracks the state but "
-            "is also raised by the lever itself (a confounded proxy), so neither levels nor the passive "
-            "correlation tell which way to push; only repeated small interventions do.",
-        distinct_because="a hidden persistent AR(1) state enters a state-dependent action effect "
-                         "(gain * (x - pivot) * (setpoint - state)) and, with the lever, a proxy gauge: the active "
-                         "causal sign follows a hidden state; no timed switch, no stock",
-        axes={"horizon": 160, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(CV + "sign_follows_hidden_state",), identify=CV + "identify_state_sign",
-        oracle=R + "lever_schedule_oracle", reference=CV + "sign_tracker", lever_view=True)
-def hc_hidden_state_sign(rng, d):
-    gb = GraphBuilder(rng)
-    X = gb.lever(0.0, 10.0, 5.0, cost=u(rng, 5.0, 10.0))
-    Q = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 40.0, 70.0))
-    sp = u(rng, -0.3, 0.3)
-    S = gb.prim("hidden_confounding", {"mean": sp, "sd": u(rng, 0.3, 0.36), "ar": 0.94}, role="state")
-    dev = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": -5.0}, x=[(X, 0, 1.0)])
-    eff = gb.prim("state_dependent_effect", {"gain": u(rng, 4.5, 6.0), "setpoint": sp}, role="effect",
-                  a=[(dev, 0, 1.0)], s=[(S, 0, 1.0)])
-    side = gb.prim("saturation", {"cap": u(rng, 4.0, 7.0), "half": u(rng, 2.0, 4.0)}, x=[(Q, 0, 1.0)])
-    sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 35.0, 45.0)}, x=[(eff, 0, 1.0), (side, 0, 1.0), (S, 0, -6.0)])
-    proxy = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="proxy",
-                    bias={"x": 30.0}, x=[(S, 0, 8.0), (X, 0, 0.8)])
-    noise = float(d["observation_noise"])
-    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
-    gb.gauge(proxy, [("measurement_noise", {"sd": noise * 6})])
-    _distractors(gb, rng, d["n_variables"], noise)
-    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": sales, "price": 100.0, "cap": 200.0},
-                    affordances=["levers"], endowment=500_000, objective={"type": "maximize_net", "text": SHOP},
-                    brief="A shop with two spending levers. Gauges: units sold and a footfall count.",
-                    claim={"lever": X, "second": Q, "outcome": sales, "state": S, "setpoint": sp, "effect": eff})
+                    brief="A marketplace seller choosing a listing format. Gauge: units sold.",
+                    claim={"decision": D, "outcome": units, "regime": sw, "at": at})
 
 
 # ====================================================================== 8.2.2 competing hypotheses
@@ -402,3 +359,42 @@ def hc_causal_prediction(rng, d):
                     brief="A shop: a spending lever and a second lever; gauge: units sold. You have the previous "
                           "operator's records.",
                     claim={"levers": [X, Z], "outcome": sales, "confounder": U, "effect": eff})
+
+
+# ====================================================================== 8.6.6 wear-triggered reversal (endogenous)
+@family("dl_wear_reversal", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
+        doc="Driving a machine hard raises output, but every tick at a high setting adds to hidden wear; once the "
+            "wear passes a hidden level the high setting starts to damage output instead, for good. When that "
+            "happens depends on how hard the machine was driven - the participant's own past - so no clock and no "
+            "reading announces it; the middle setting's output does not change.",
+        distinct_because="a regime change triggered endogenously by an accumulating stock of the participant's own "
+                         "past use (path-dependent, permanent), flipping the sign of a lever effect around a pivot; "
+                         "unlike timed switches the switch time moves with the policy",
+        axes={"horizon": 100, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
+        claims=(CV + "wear_triggers_reversal",), identify=CV + "identify_wear_reversal",
+        oracle=R + "lever_schedule_oracle", reference=CV + "sign_tracker", lever_view=True)
+def dl_wear_reversal(rng, d):
+    gb = GraphBuilder(rng)
+    H = int(d["horizon"])
+    X = gb.lever(0.0, 10.0, 5.0, cost=u(rng, 5.0, 15.0))
+    Q = gb.lever(0.0, 10.0, 0.0, cost=u(rng, 40.0, 70.0))
+    pivot = 5.0
+    slope = u(rng, 3.0, 4.5)
+    over = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": -pivot}, x=[(X, 0, 1.0)])
+    use = gb.prim("saturation", {"cap": 1.0, "half": 1e-6}, x=[(over, 0, 1.0)])          # 1 while above the pivot
+    wear = gb.prim("stock", {"init": 0.0, "cap": 1e9}, role="wear", inflow=[(use, 0, 1.0)], outflow=[])
+    level = float(int(rng.integers(int(0.25 * H), int(0.55 * H))))
+    sw = gb.prim("regime_change", {"before": slope, "after": -slope, "at": -1.0, "trig": level}, role="regime",
+                 x=[(over, 0, 1.0)], trigger=[(wear, 1, 1.0)])
+    side = gb.prim("saturation", {"cap": u(rng, 4.0, 8.0), "half": u(rng, 2.0, 4.0)}, x=[(Q, 0, 1.0)])
+    season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.8, 1.2), "ar": 0.7}, role="exogenous")
+    sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                    bias={"x": u(rng, 35.0, 45.0)}, x=[(sw, 0, 1.0), (side, 0, 1.0), (season, 0, 2.0)])
+    noise = float(d["observation_noise"])
+    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
+    _distractors(gb, rng, d["n_variables"], noise)
+    return gb.build(horizon=H, money={"revenue_node": sales, "price": 100.0, "cap": 200.0}, affordances=["levers"],
+                    endowment=500_000, objective={"type": "maximize_net", "text": SHOP},
+                    brief="A machine with a drive setting and a second, costly lever. Gauge: output sold.",
+                    claim={"lever": X, "second": Q, "outcome": sales, "regime": sw, "wear": wear, "level": level,
+                           "pivot": pivot})

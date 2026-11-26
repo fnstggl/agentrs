@@ -233,47 +233,31 @@ def identify_option_flip(env) -> dict:
 
 
 def probe_and_switch(view, env) -> None:
-    """Scripted public reference for an option whose value can change: find a good price by a coarse sweep, then
-    keep the better option, try the other one for two ticks every eight, and switch after two probes in a row
-    in which the other did better (observed units sold, the only gauge)."""
+    """Scripted public reference for an option whose value can change: keep the option that has been selling
+    better; every eight ticks try the other one for three ticks, and switch after two such probes in a row in
+    which the other sold more on average than the current one did over its last four ticks (averaging, because
+    single readings are dominated by demand noise)."""
     sp = view.action_space()
     (dname, opts), = sp.limits["decisions"].items()
-    (pname, pp), = sp.kinds["levers"]["properties"]["values"]["properties"].items()
 
     def units(r):
         return list(r["observation"]["numbers"].values())[0]
-
-    def net(r):
-        res = r["observation"]["resources"]
-        return res.get("revenue_cents_last_tick", 0.0) - res.get("cost_cents_last_tick", 0.0)
-    best_p, bv = 5.0, -np.inf
-    for g in np.linspace(pp["minimum"], pp["maximum"], 6)[1:]:
-        if view.done:
-            return
-        view.step({"kind": "sequence", "steps": [{"kind": "levers", "values": {pname: float(g)}},
-                                                {"kind": "discrete", "decision": dname, "choice": opts[0]}]})
-        v = net(view.step(None))
-        if v > bv:
-            best_p, bv = float(g), v
-    view.step({"kind": "levers", "values": {pname: best_p}})
     cur, other = opts[0], opts[1]
-    wins, k = 0, 0
+    wins, k, recent = 0, 0, []
     while not view.done:
         k += 1
         if k % 8 == 0:
             seen = []
-            for o in (other, other):
+            for _ in range(3):
                 if view.done:
                     return
-                seen.append(units(view.step({"kind": "discrete", "decision": dname, "choice": o})))
-            if view.done:
-                return
-            base = units(view.step({"kind": "discrete", "decision": dname, "choice": cur}))
-            wins = wins + 1 if seen[-1] > base else 0
+                seen.append(units(view.step({"kind": "discrete", "decision": dname, "choice": other})))
+            base = float(np.mean(recent[-4:])) if recent else -np.inf
+            wins = wins + 1 if np.mean(seen[1:]) > base else 0
             if wins >= 2:
-                cur, other, wins = other, cur, 0
+                cur, other, wins, recent = other, cur, 0, list(seen[1:])
         else:
-            view.step({"kind": "discrete", "decision": dname, "choice": cur})
+            recent.append(units(view.step({"kind": "discrete", "decision": dname, "choice": cur})))
 
 
 # ====================================================================== hc_hidden_state_sign
@@ -850,3 +834,64 @@ def learn_which_links_matter(view, env) -> None:
         if not r["result"]["ok"] and act is not None and act["kind"] == "sequence":
             r = view.step(None) if view.done is False else r
         obs = r["observation"]
+
+
+def oracle_option_switch(env) -> dict:
+    """Evaluator-side upper reference: knowing the hidden switch tick, hold the first option before it and the
+    second after it."""
+    from .oracles import best_of
+    c = env._config["claim"]
+    name, opts = _decision(env, c["decision"])
+    at = int(c["at"])
+    pols = {f"switch_at_{at + d}": (lambda e, d=d: {"kind": "discrete", "decision": name,
+                                                     "choice": opts[0] if e.t < at + d else opts[1]})
+            for d in (0, 1)}
+    return best_of(env, pols)
+
+
+# ====================================================================== dl_wear_reversal
+def wear_triggers_reversal(env) -> dict:
+    """Controlled interventions on the same noise: (1) driving hard from the start flips the sign of the drive's
+    effect once the accumulated wear reaches the hidden level (high beats low before, loses after); (2) the flip
+    comes later when the machine was first run gently for a while (the switch time follows the participant's own
+    past, not a clock)."""
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    H = env.horizon
+    L = int(c["level"])
+
+    def first_flip(warm: int) -> int | None:
+        for t0 in range(warm + 1, H - 2):
+            hi = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0 if t >= warm else 5.0}}, t0 + 2)
+            lo = _gauge_series(env, lambda t: {"kind": "levers", "values": {x: 10.0 if warm <= t < t0 else
+                                                                            (0.0 if t >= t0 else 5.0)}}, t0 + 2)
+            if hi[-1] < lo[-1]:
+                return t0
+        return None
+    f0, f1 = first_flip(0), first_flip(10)
+    return {"ok": bool(f0 is not None and f1 is not None and abs(f0 - (L + 1)) <= 2 and f1 >= f0 + 8),
+            "flip_driving_hard_from_start": f0, "flip_after_ten_gentle_ticks": f1, "wear_level": L}
+
+
+def identify_wear_reversal(env) -> dict:
+    """Question: after how many ticks of hard driving does the drive start to hurt? Public procedure: drive hard,
+    every four ticks compare one tick low against the hard setting, and report when low first wins twice."""
+    view = PublicView(env)
+    c = env._config["claim"]
+    x = _lever(env, c["lever"])
+    hard, est, wins = 0, None, 0
+    last_hi = None
+    while not view.done and est is None:
+        for _ in range(3):
+            if view.done:
+                break
+            last_hi = list(view.step({"kind": "levers", "values": {x: 10.0}})["observation"]["numbers"].values())[0]
+            hard += 1
+        if view.done:
+            break
+        lo = list(view.step({"kind": "levers", "values": {x: 0.0}})["observation"]["numbers"].values())[0]
+        wins = wins + 1 if lo > last_hi else 0
+        if wins >= 2:
+            est = hard - 3
+    return {"ok": est is not None and abs(est - int(c["level"])) <= 6, "question": "hard ticks before damage",
+            "estimate": est, "truth": int(c["level"])}
