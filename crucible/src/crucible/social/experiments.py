@@ -37,6 +37,22 @@ SECRET_MARKERS = ("0.3173", "21611", "0.6173", "41111", "0.6299", "half_life_s",
                   "reputation")
 
 
+#: the same mechanisms on the one population's platforms (posts, blog); the blog platform adapts its own mixture
+#: from its measured feedback every simulated day (D.3: a platform changes distribution by itself during a run)
+GATE_D_POP = {"posts": GATE_D_PLATFORMS["posts"],
+              "blog": {**GATE_D_PLATFORMS["articles"], "adapt": {"every_s": DAY, "eta": 0.6, "min_impressions": 150}}}
+
+
+def pop_spec(family: str, seed: int, *, n: int = 3000, platforms: dict | None = None, creators: dict | None = None,
+             feed: dict | None = None, aud: dict | None = None, profile: str = "development", **kw) -> WorldSpec:
+    """The social internet on the ONE population (`pop`, D-15): `social_world` with explicit platform mixtures."""
+    from .worlds import social_world
+    platforms = GATE_D_POP if platforms is None else platforms
+    fcfg = {"platforms": {p: dict(c) for p, c in platforms.items()}, **(feed or {})}
+    return social_world(profile, seed, n=n, platforms=sorted(platforms), feed=fcfg, aud=aud,
+                        creators={"prior": -0.6, **(creators or {})}, family=family, **kw)
+
+
 def spec(family: str, seed: int, *, n: int = 3000, creators: int = 40, posts_per_day: float = 2.0,
          platforms: dict | None = None, crowd: dict | None = None, feed: dict | None = None,
          aud: dict | None = None, identity: bool = True) -> WorldSpec:
@@ -114,3 +130,9 @@ def jaccard(a: np.ndarray, b: np.ndarray) -> float:
 def mixture_changes(world: World) -> int:
     """Distribution changes recorded during the run (scheduled versions after the initial one, and overrides)."""
     return sum(int(v) for k, v in world.state.meta.items() if k.startswith("feed.changes."))
+
+
+def self_changes(world: World) -> int:
+    """Changes a platform made to its own distribution from its measured feedback (not a schedule, not an
+    operator)."""
+    return sum(int(v) for k, v in world.state.meta.items() if k.startswith("feed.self_changes."))

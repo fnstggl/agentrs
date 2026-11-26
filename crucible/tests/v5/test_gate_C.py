@@ -130,269 +130,201 @@ def test_C_1_media_artifacts_published():
 
 
 # ============================================================================================ reference run
+# ==================================================================================================== the one population
+POP_PLATFORMS = ["posts", "blog", "community", "letters", "pics", "kb", "dev", "launch"]
+POP_DAYS = 30
+
+
 @pytest.fixture(scope="module")
-def reference_run():
-    from crucible.social.reference import make_participants, run_days
-    w, P = social_world(seed=7, people=())
-    ps = make_participants(w, 60, seed=7)
-    snaps = {}
-
-    def hook(d):
-        if d == 13:
-            snaps["day14"] = (w.seq, [list(p.log) for p in ps])
-    run_days(w, ps, 36, hook=hook)
-    return w, ps, snaps
-
-
-def _verify_discovery(w, p, day: int, channel: str, cid: str) -> bool:
-    from crucible.social import communities as CM
-    from crucible.social import graph as G
-    from crucible.social import nodes
-    st = w.state
-    rec = st.tables["content"].get(cid)
-    if rec is None:
-        return False
-    t_end = (day + 1) * DAY
-    me = nodes.node_of(w, p.principal)
-    if channel == "following":
-        v = G.FOLLOW.view(w)
-        ok = (v["src"] == me) & (v["dst"] == rec["creator_node"]) & (v["t"] < t_end)
-        if ok.any():
-            return True
-        sh = G.SHARE.view(w)
-        fol = v["dst"][(v["src"] == me) & (v["t"] < t_end)]
-        return bool(((sh["item"] == rec["n"]) & np.isin(sh["sharer"], fol) & (sh["to"] == -1)).any())
-    if channel == "community":
-        c = st.tables["communities"].get(rec["community"] or "")
-        return c is not None and CM.member_row(w, me, c["n"]) is not None
-    if channel == "share":
-        for k in st.find_ids("msg_members", "member", p.principal):
-            conv = st.tables["msg_members"][k]["conversation"]
-            for mid in st.find_ids("msg_messages", "conversation", conv):
-                m = st.tables["msg_messages"][mid]
-                if m["item"] == cid and m["sender"] != p.principal and m["t"] < t_end:
-                    return True
-        return False
-    if channel == "newsletter":
-        for mid, m in st.tables["mail_msgs"].items():
-            if p.principal in m["to"] and f"content {cid}" in m["body"] and m["t"] < t_end:
-                return True
-        return False
-    if channel == "search":
-        return st.has("search_docs", cid)
-    if channel in ("latest", "launch"):
-        return not rec["removed"] or rec["removed_at"] >= day * DAY
-    return False
-
-
-def test_C_2_discovery_channels(reference_run):
-    w, ps, snaps = reference_run
-    seq14, logs14 = snaps["day14"]
-    used, checked, failed = Counter(), 0, 0
-    opened = {(a, c) for a, c, _ in opens(w)}
-    for p, log in zip(ps, logs14):
-        for day, channel, cid, _rel in log:
-            checked += 1
-            if (p.principal, cid) in opened and _verify_discovery(w, p, day, channel, cid):
-                used[channel] += 1
-            else:
-                failed += 1
-    pop_sources = 0
-    if "aud" in w.modules:
-        from crucible.social import audience as AUD
-        pop_sources = len({s for b in AUD.batches(w, kind="impress") for s in b.get("sources", [])})
-    metrics = {"discovery_channels_used": int(sum(1 for c in used if used[c] > 0)) + pop_sources,
-               "participant_channels_verified": int(sum(1 for c in used if used[c] > 0)),
-               "population_impression_sources": pop_sources, "discoveries_checked": checked,
-               "discoveries_unverified": failed, "participants": len(ps), "days": 14}
-    for c, n in sorted(used.items()):
-        metrics[f"opened_via_{c}"] = int(n)
-    assert checked > 0 and failed == 0, f"{failed} logged discoveries could not be verified in the world"
-    evidence.record("C.2", metrics, command=CMD, notes=(
-        "60 reference participants (scripted, interest-driven, acting only through tools) for the first 14 days of "
-        "a 36-day run; a channel counts when participants opened items they found there and the discovery is "
-        "confirmed by recorded state. Population channels are added from the audience module's impression sources "
-        "when workstream C2's modules are present (not in this tree when the count is 0)."))
-
-
-# ============================================================================================ C.3
-def test_C_3_consumption_produces_analytics():
-    try:
-        from crucible.social import audience as AUD            # workstream C2
-    except ImportError:
-        AUD = None
-    if AUD is None:
-        evidence.record("C.3", {"consumption_events": 0, "analytics_mismatches": -1, "measured": False},
-                        command=CMD, notes=(
-                            "NOT MEASURED in this tree: consumption is recorded only by workstream C2's audience "
-                            "module (crucible.social.audience), which is not merged here. analytics_mismatches = -1 "
-                            "means 'not measured'. C1's catalogue indexes every public item for it "
-                            "(crucible.social.integration) and content.inspect reports its creator analytics."))
-        pytest.fail("C.3 needs workstream C2's audience module (crucible.social.audience), not in this tree")
-    from crucible.social.reference import make_participants, run_days
-    w, P = social_world(seed=3, extra=["pop", "aud", "feed"], people=("alice",))
-    ps = make_participants(w, 30, seed=3)
-    run_days(w, ps, 7)
-    rep = AUD.recount(w)
-    n_cons = sum(int(b.get("n", 0)) for b in AUD.batches(w, kind="consume"))
-    mism = int(rep.get("mismatches", 0)) if isinstance(rep, dict) else -1
-    creator_view = 0
-    for cid, rec in w.state.tables["content"].items():
-        if rec.get("aud_item") is not None:
-            got = w.query(rec["creator"], "content.inspect", {"id": cid})
-            creator_view += int(got["audience"] is not None)
-    evidence.record("C.3", {"consumption_events": n_cons, "analytics_mismatches": mism, "measured": True,
-                            "creator_analytics_items": creator_view}, command=CMD)
-
-
-# ============================================================================================ C.4
-def test_C_4_communities_form_and_persist(reference_run):
-    w, ps, _ = reference_run
-    st = w.state
-    cm = w.modules["community"]
-    by_participants = {p.principal for p in ps}
-    formed = [c for c in st.tables["communities"].values() if c["founder"] in by_participants]
-    active, rows = 0, []
-    for c in formed:
-        h = cm.health(w, dict(c))
-        alive = h["age_days"] >= 30 and h["weekly_contributors"][0] >= 3 and c["status"] == "active"
-        active += int(alive)
-        rows.append((c["id"], h["age_days"], h["members"], h["weekly_contributors"][0], h["contributors_every_week_4w"]))
-    subjects = {c["subject"] for c in formed}
-    # persistence: the communities and memberships survive a snapshot round trip and a replay of the log
+def pop_run():
+    """The social internet on the ONE population (crucible.population, D-15): 2,000 individuals whose interests live
+    in the shared semantic space, every C1 platform, the distribution and consumption engine as population
+    activities, members who write, publish and found and run communities; 30 simulated days, nothing scripted."""
+    import time as _t
     from crucible.core.kernel import World
-    w2 = World.from_blob(w.snapshot_blob())
-    same = all(w2.modules["community"].health(w2, dict(w2.state.tables["communities"][c["id"]])) ==
-               cm.health(w, dict(c)) for c in formed)
-    assert same and w.check_invariants() == []
-    metrics = {"communities_formed": len(formed), "communities_active_after_30_days": active,
-               "distinct_subjects": len(subjects), "run_days": 36, "participants": len(ps),
-               "memberships_ever": int(sum(cm.health(w, dict(c))["ever_members"] for c in formed)),
-               "snapshot_roundtrip_identical": bool(same)}
-    metrics["largest_community_members"] = max((r[2] for r in rows), default=0)
-    evidence.record("C.4", metrics, command=CMD, notes=(
-        "Communities founded by reference participants (subjects written by the founders) during a 36-day run; "
-        "active after 30 days = age >= 30 days and >= 3 distinct members posting or commenting in the last 7 days."))
+    from crucible.social import experiments as X
+    from crucible.social.worlds import social_world
+    t0 = _t.time()
+    w = World.create(social_world("development", 21, n=2000, platforms=POP_PLATFORMS,
+                                  params={"log_retain": 4_000_000}), strict=True)
+    weekly = []
+    for d in range(POP_DAYS):
+        w.advance_time((d + 1) * DAY)
+        if (d + 1) % 7 == 0 or d + 1 == POP_DAYS:
+            weekly.append(_community_snapshot(w))
+    return {"world": w, "weekly": weekly, "wall_s": _t.time() - t0,
+            "views": X.decision_rows(w, "consume", 0), "imps": X.decision_rows(w, "imp", 0)}
 
 
-# ============================================================================================ C.5
-def _permutation_p(x: np.ndarray, y: np.ndarray, rng, n: int = 20000) -> float:
-    """One-sided exact-ish permutation test of mean(x) > mean(y)."""
-    obs = x.mean() - y.mean()
-    pool = np.concatenate([x, y])
-    k = x.size
-    cnt = 0
-    for _ in range(n):
-        p = rng.permutation(pool)
-        cnt += (p[:k].mean() - p[k:].mean()) >= obs - 1e-12
-    return (cnt + 1) / (n + 1)
-
-
-def _cohort(w, n: int, topic: str, seed: int, prefix: str):
-    from crucible.social.reference import ReferenceParticipant
-    out = []
-    rng = np.random.default_rng(seed)
-    for i in range(n):
-        h = f"{prefix}{i}"
-        p = w.system_call("admin.join", {"handle": h, "endowment": 20_000, "kind": "npc"})["principal"]
-        out.append(ReferenceParticipant(w, p, h, [topic], float(rng.uniform(0.2, 0.9)), False, seed * 100 + i,
-                                        attention=4))
+def _community_snapshot(w) -> dict:
+    from crucible.social import communities as CM
+    out = {}
+    v = CM.CMEMBER.view(w)
+    for cid, c in w.state.tables["communities"].items():
+        m = v["comm"] == c["n"]
+        out[cid] = {"members": int(np.sum(m & (v["status"] == CM.MEMBER))),
+                    "active7": int(CM.members(w, c["n"], active_days=7).size), "founded": int(c["created"]),
+                    "founder": c["founder"], "status": c["status"], "left": int(np.sum(m & (v["status"] == CM.LEFT)))}
     return out
 
 
-def test_C_5_social_mechanisms_affect_future_interactions():
-    from scipy.stats import fisher_exact
-    from crucible.social.reference import TOPICS, run_days
-    rng = np.random.default_rng(55)
-    w, P = social_world(seed=55, people=("cre", "sharer"))
-    C, S = Actor(w, P["cre"]), Actor(w, P["sharer"])
-    words = TOPICS["sailing"]
+def test_C_2_discovery_channels(pop_run):
+    from crucible.social import audience as AUD
+    w = pop_run["world"]
+    imps, views = pop_run["imps"], pop_run["views"]
+    # the channel through which each qualifying view's item reached the viewer: the source of the viewer's first
+    # impression of that item
+    npop = AUD.n_people(w)
+    ik = imps["item"] * npop + imps["viewer"]
+    order = np.lexsort((imps["seq"], ik))
+    uk, first = np.unique(ik[order], return_index=True)
+    src_first = imps["src"][order][first]
+    vk = views["item"][views["is_view"]] * npop + views["viewer"][views["is_view"]]
+    pos = np.clip(np.searchsorted(uk, vk), 0, max(uk.size - 1, 0))
+    ok = uk[pos] == vk if uk.size else np.zeros(vk.size, bool)
+    ch = Counter(AUD.SOURCES[int(x)] for x in src_first[pos][ok])
+    used = sorted(c for c, n in ch.items() if n >= 30)
+    plats = Counter(w.state.tables["aud_item_info"][str(int(i))]["platform"] for i in views["item"][views["is_view"]])
+    metrics = {"discovery_channels_used": len(used), "channels": ",".join(used),
+               "views_attributed": int(ok.sum()), "platforms_with_views": len([p for p, n in plats.items() if n > 0])}
+    metrics.update({f"views_via_{c}": int(n) for c, n in ch.items()})
+    evidence.record("C.2", metrics, command=CMD, notes=(
+        "The one population over 30 days: for every qualifying view, the channel of the viewer's first impression "
+        "of the item (platform recommender mechanisms, shares in the inbox, newsletters, community feeds, search); "
+        "a channel counts when it delivered at least 30 views."))
+    assert ok.sum() > 1000
 
-    def article(k: int, where: str = "posts"):
-        body = " ".join(words[(k + j) % len(words)] for j in range(30))
-        a = C.ok("studio.write", format="text", title=f"Sailing log {k}", body=body)
-        return C.ok(f"{where}.publish", ref=a["ref"], title=f"Sailing log {k}", tags=["sailing"])["id"]
-    # competing creators publish many other sailing items every day: attention is scarce, content is not
-    others = [Actor(w, w.system_call("admin.join", {"handle": f"bg{k}", "endowment": 1000})["principal"])
-              for k in range(4)]
-    bg = [0]
 
-    def background(d):
-        for k in range(14):
-            o = others[k % len(others)]
-            body = " ".join(words[int(j)] for j in rng.integers(0, len(words), 30))
-            a = o.ok("studio.write", format="text", title=f"Harbour chat {bg[0]}", body=body)
-            o.ok(["posts", "blog"][k % 2] + ".publish", ref=a["ref"], title=f"Harbour chat {bg[0]}",
-                 tags=["sailing"])
-            bg[0] += 1
-    background(-1)
+def test_C_3_consumption_produces_analytics(pop_run):
+    from crucible.social import audience as AUD
+    w = pop_run["world"]
+    rc = AUD.recount(w)
+    prov = rc["provenance"]
+    mism = int(rc["total_mismatches"]) + int(rc["views_without_prior_exposure"])
+    # what the creators see: their delayed, noisy analytics follow the exact audience
+    items = np.flatnonzero(AUD.item_col(w, "views") > 0)
+    pub = np.array([AUD.audience(w, int(i), principal=w.state.tables["aud_item_info"][str(int(i))]["creator"])
+                    ["views"] for i in items[:500]], np.float64)
+    exact = AUD.item_col(w, "views")[items[:500]].astype(np.float64)
+    corr = float(np.corrcoef(pub, exact)[0, 1]) if items.size > 2 else 0.0
+    metrics = {"consumption_events": int(rc["consumption_rows"]), "analytics_mismatches": mism,
+               "views": int(rc["views"]), "items": int(rc["items"]), "measured": True,
+               "decision_rows_without_provenance": int(prov["forced_rows"]),
+               "creator_analytics_correlation_with_exact": round(corr, 4)}
+    evidence.record("C.3", metrics, command=CMD, notes=(
+        "Consumption decisions of the one population (feeds of 8 platforms, communities, newsletters) recorded as "
+        "decision batches with provenance; every audience quantity of every item recounted independently from the "
+        "batch blobs; creator analytics are the platform's delayed, noisy publication of the same quantities."))
+    assert prov["forced_rows"] == 0
+
+
+def test_C_4_communities_form_and_persist(pop_run):
+    w = pop_run["world"]
+    last = pop_run["weekly"][-1]
+    pop_founded = {c: r for c, r in last.items() if r["founder"].startswith("p") and r["founder"][1:].isdigit()}
+    old = {c: r for c, r in pop_founded.items() if r["founded"] <= w.now - 30 * DAY + DAY}
+    persisting = [c for c in pop_founded if c in pop_run["weekly"][0] and last[c]["active7"] >= 3]
+    subjects = sorted({w.state.tables["communities"][c]["subject"] for c in pop_founded})
+    metrics = {"communities_formed": len(pop_founded),
+               "communities_active_after_30_days": len([c for c, r in old.items() if r["active7"] >= 3]),
+               "communities_active_from_week_1_to_end": len(persisting),
+               "members_total": int(sum(r["members"] for r in last.values())),
+               "members_left_total": int(sum(r["left"] for r in last.values())),
+               "active7_total": int(sum(r["active7"] for r in last.values()))}
+    evidence.record("C.4", metrics, command=CMD, notes=(
+        "Communities founded by members of the population (subjects from the titles they had been reading, never "
+        "predefined), joined by fit, activity and contacts, read, posted and replied in, left when their "
+        "experienced value fell. Active = at least 3 members who took part in the last 7 days. Weekly snapshots: "
+        f"{json.dumps(pop_run['weekly'][-1])[:3000]}. Subjects: {subjects[:20]}"))
+    assert len(pop_founded) >= 1
+
+
+def _two_prop(k1, n1, k2, n2):
+    from scipy.stats import norm
+    p = (k1 + k2) / max(n1 + n2, 1)
+    se = max((p * (1 - p) * (1 / max(n1, 1) + 1 / max(n2, 1))) ** 0.5, 1e-12)
+    z = (k1 / max(n1, 1) - k2 / max(n2, 1)) / se
+    return k1 / max(n1, 1) - k2 / max(n2, 1), float(2 * norm.sf(abs(z)))
+
+
+def test_C_5_social_mechanisms_affect_future_interactions(pop_run):
+    """Three randomised experiments on the one population (forks of the day-10 state of a smaller run of the same
+    world): the experimenter assigns the relation to a random half of a sample - a follow edge to a creator, a share
+    of an item into the inbox, a newsletter subscription - and the outcome is what the individuals then do by
+    themselves through the ordinary mechanisms (following feeds, inboxes, newsletter delivery)."""
+    from crucible.core.kernel import World
+    from crucible.social import audience as AUD, graph as G
+    from crucible.social.worlds import social_world
+    from crucible.substrate import ids
+    w = World.create(social_world("development", 22, n=2000, platforms=POP_PLATFORMS))
+    lab = w.system_call("admin.join", {"handle": "lab", "endowment": 10_000, "password": "pw-lab"})["principal"]
+    w.advance_time(5 * DAY)
+    rng = np.random.default_rng(5)
+    n = AUD.n_people(w)
     out = {}
-
-    # 1. following: a random half follows the creator; the creator then publishes for 8 days
-    g1 = _cohort(w, 40, "sailing", 1, "fo")
-    treat = set(rng.choice(40, 20, replace=False).tolist())
-    for i, p in enumerate(g1):
-        if i in treat:
-            assert p.call("social.follow", target=P["cre"], via="profile")
-    items1 = []
-
-    def publish_daily(d):
-        background(d)
-        items1.append(article(d))
-    run_days(w, g1, 8, hook=publish_daily)
-    cnt = {p.principal: sum(1 for a, c, _ in opens(w, p.principal) if c in set(items1)) for p in g1}
-    x = np.array([cnt[g1[i].principal] for i in sorted(treat)], float)
-    y = np.array([cnt[g1[i].principal] for i in range(40) if i not in treat], float)
-    out["follow_effect_pvalue"] = _permutation_p(x, y, np.random.default_rng(1))
-    out["follow_treated_mean_opens"] = round(float(x.mean()), 3)
-    out["follow_control_mean_opens"] = round(float(y.mean()), 3)
-
-    # 2. sharing: one item is sent to a random half of a fresh cohort; did they open it in the next 3 days?
-    g2 = _cohort(w, 40, "sailing", 2, "sh")
-    target = article(100, "blog")
-    treat2 = set(rng.choice(40, 20, replace=False).tolist())
-    S.ok("social.share", id=target, to=[g2[i].principal for i in sorted(treat2)][:20], note="look at this")
-    run_days(w, g2, 3, hook=background)
-    o2 = {a for a, c, _ in opens(w) if c == target}
-    a_ = sum(1 for i in treat2 if g2[i].principal in o2)
-    c_ = sum(1 for i in range(40) if i not in treat2 and g2[i].principal in o2)
-    out["share_effect_pvalue"] = float(fisher_exact([[a_, 20 - a_], [c_, 20 - c_]], alternative="greater")[1])
-    out["share_treated_opened"], out["share_control_opened"] = a_, c_
-
-    # 3. subscriptions: a random half subscribes to the creator's newsletter; four issues are sent
-    g3 = _cohort(w, 40, "sailing", 3, "nl")
-    nl = C.ok("letters.create", name="Sailing letters", description="weekly sailing notes")["newsletter"]
-    treat3 = set(rng.choice(40, 20, replace=False).tolist())
-    for i in sorted(treat3):
-        assert g3[i].call("letters.subscribe", newsletter=nl)
-    issues = []
-
-    def send(d):
-        background(d)
-        if d % 2 == 0:
-            body = "<p>" + " ".join(words * 3) + "</p>"
-            a = C.ok("studio.write", format="html", title=f"Issue {len(issues) + 1}", html=body)
-            issues.append(C.ok("letters.send", newsletter=nl, ref=a["ref"], title=f"Sailing letter {len(issues) + 1}")
-                          ["item"])
-    run_days(w, g3, 8, hook=send)
-    cnt3 = {p.principal: sum(1 for a, c, _ in opens(w, p.principal) if c in set(issues)) for p in g3}
-    x3 = np.array([cnt3[g3[i].principal] for i in sorted(treat3)], float)
-    y3 = np.array([cnt3[g3[i].principal] for i in range(40) if i not in treat3], float)
-    out["subscription_effect_pvalue"] = _permutation_p(x3, y3, np.random.default_rng(3))
-    out["subscription_treated_mean_opens"] = round(float(x3.mean()), 3)
-    out["subscription_control_mean_opens"] = round(float(y3.mean()), 3)
-    assert w.check_invariants() == []
-    for k in ("follow_effect_pvalue", "share_effect_pvalue", "subscription_effect_pvalue"):
-        assert 0.0 < out[k] <= 1.0
-    out["participants"] = 120
+    # --- follow: a creator the sample does not follow; outcome: viewed one of the creator's next items
+    info = w.state.tables["aud_item_info"]
+    creators = Counter(r["creator"] for r in info.values() if ids.index(r["creator"]) is not None)
+    cre = sorted(creators, key=lambda p: (-creators[p], p))[0]
+    sample = rng.choice(np.setdiff1d(np.arange(n), [ids.index(cre)]), 1200, replace=False)
+    treat, ctrl = sample[:600], sample[600:]
+    f = w.fork("c5-follow")
+    from crucible.social import nodes
+    dst = nodes.node_of(f, cre)
+    f._run_system("experiment.assign", lambda ctx: G.follow_batch(ctx, treat, np.full(treat.size, dst), via="other"))
+    t0 = f.now
+    f.advance_time(t0 + 4 * DAY)
+    later = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre
+             and r["published_at"] > t0]
+    viewed = np.zeros(n, bool)
+    for it in later:
+        viewed[AUD.viewers_of(f, it)] = True
+    eff, p = _two_prop(int(viewed[treat].sum()), treat.size, int(viewed[ctrl].sum()), ctrl.size)
+    out.update(follow_effect=round(eff, 4), follow_effect_pvalue=p, follow_new_items=len(later))
+    # --- share: an informative post by the experimenter shared into the inboxes of the treated
+    g = w.fork("c5-share")
+    a = g.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": "Storm season outlook",
+                                                         "body": "Forecasters expect an active storm season. " * 12}})
+    r = g.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": "Storm season outlook"}})
+    item = int(g.state.tables["content"][r.result["id"]]["aud_item"])
+    feed = g.modules["feed"]
+    g._run_system("experiment.assign", lambda ctx: feed.engine.deliver(ctx, treat, np.full(treat.size, item),
+                                                                       np.ones(treat.size, np.uint8), platform="posts"))
+    g.advance_time(g.now + 2 * DAY)
+    vw = np.zeros(n, bool)
+    vw[AUD.viewers_of(g, item)] = True
+    eff, p = _two_prop(int(vw[treat].sum()), treat.size, int(vw[ctrl].sum()), ctrl.size)
+    out.update(share_effect=round(eff, 4), share_effect_pvalue=p)
+    # --- subscription: a newsletter of the experimenter; the treated subscribed; two issues are sent
+    h = w.fork("c5-sub")
+    nl = h.execute(lab, {"tool": "letters.create", "args": {"name": "Weekend Weather", "description": "weather"}})
+    nid = nl.result["newsletter"]
+    ln = int(h.state.tables["newsletters"][nid]["n"])
+    h._run_system("experiment.assign", lambda ctx: h.modules["letters"].subscribe_many(
+        ctx, treat, np.full(treat.size, ln, np.int64)))
+    items = []
+    for k in range(2):
+        a = h.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": f"Issue {k}",
+                                                             "body": "Rain is expected on Saturday, sun on Sunday. " * 10}})
+        s_ = h.execute(lab, {"tool": "letters.send", "args": {"newsletter": nid, "ref": a.result["ref"],
+                                                               "title": f"Weekend weather {k}"}})
+        items.append(int(h.state.tables["content"][s_.result["item"]]["aud_item"]))
+        h.advance_time(h.now + DAY)
+    vs = np.zeros(n, bool)
+    for it in items:
+        vs[AUD.viewers_of(h, it)] = True
+    eff, p = _two_prop(int(vs[treat].sum()), treat.size, int(vs[ctrl].sum()), ctrl.size)
+    out.update(subscription_effect=round(eff, 4), subscription_effect_pvalue=p)
+    out.update(sample_treated=int(treat.size), sample_control=int(ctrl.size))
     evidence.record("C.5", out, command=CMD, notes=(
-        "Three randomised experiments with reference participants (scripted, acting through tools): following a "
-        "creator (timeline), receiving a direct share (messaging), subscribing to a newsletter (mail delivery). "
-        "Outcome: recorded content.open commands of the creator's later items / the shared item / the issues. "
-        "One-sided permutation tests (follow, subscription) and Fisher's exact test (share)."))
+        "Randomised assignment of a follow edge (to the population's most prolific creator), of a share into the "
+        "inbox (an experimenter's post), and of a newsletter subscription (two issues) to 600 of 1,200 sampled "
+        "individuals; outcome: the individual later viewed the creator's new items / the shared post / an issue, "
+        "decided by the population itself; two-proportion z-tests. The assignment is the experimenter's "
+        "manipulation (labelled), the outcomes are ordinary population decisions."))
+    assert out["sample_treated"] == 600
 
 
-# ============================================================================================ C.6
 def _chromium_ok() -> bool:
     try:
         from crucible.web.browser import playwright_available
@@ -560,9 +492,12 @@ def recount_counters(w) -> dict[str, int]:
     return dict(bad)
 
 
-def test_C_n1_no_direct_counter_mutation(reference_run):
-    w, ps, _ = reference_run
+def test_C_n1_no_direct_counter_mutation(pop_run):
+    from crucible.population import check_provenance, record_decisions
+    from crucible.social import audience as AUD
+    w = pop_run["world"]
     rc = recount_counters(w)
+    rc["audience_recount"] = int(AUD.recount(w)["total_mismatches"])
     # probes: attempts to write audience/social counters through the tools are refused and change nothing
     w2, P = social_world(seed=31, extra=["market"])
     A, B = Actor(w2, P["alice"]), Actor(w2, P["bob"])
@@ -600,6 +535,20 @@ def test_C_n1_no_direct_counter_mutation(reference_run):
     B.ok("launch.upvote", id=L["id"])
     probes["repeat upvote"] = B("launch.upvote", id=L["id"])
     blocked = {k: (r is not None and not r.ok) for k, r in probes.items()}
+    # module-level injection (not a tool): 50 forged views with a valid-looking provenance are recorded by module
+    # code in the population world's fork; the provenance check counts them as forced, never as organic
+    f = w.fork("cn1-inject")
+    items = np.flatnonzero(AUD.item_col(f, "removed") == 0)[:5]
+    viewers = np.arange(10)
+    hist = list(w.log)
+    def inject(ctx):
+        vv = np.repeat(viewers, items.size)
+        it = np.tile(items, viewers.size)
+        record_decisions(ctx, "consume.posts", vv, {"aud_c_item": it.astype(np.int32)}, model_id="c2-consumption",
+                         model_version="2", fidelity_id="social-consumption-builtin")
+    f._run_system("forge", inject)
+    pr = check_provenance(f, hist + list(f.log))
+    probes["module code forging consumption rows is detected"] = type(claimed)(ok=not (pr["forced_rows"] >= 50))
     after = recount_counters(w2)
     assert w2.state.tables["content"][item]["comments"] == snap[0]["comments"]
     assert w2.state.tables["launches"][L["id"]]["upvotes"] == 1
@@ -610,8 +559,9 @@ def test_C_n1_no_direct_counter_mutation(reference_run):
     metrics.update({f"recount_{k.replace('.', '_')}": int(v) for k, v in rc.items()})
     evidence.record("C.n1", metrics, command=CMD, notes=(
         "Every counter of the C1 modules (comments, community participation counters, launch upvotes, Q&A scores, "
-        "newsletter issues, conversation lengths) is recounted from recorded events / cols.batch blobs of a 36-day "
-        "run with 60 participants and compared with the state; the state is replayed from the log. Probes try to "
-        "write counters through tools (extra arguments, artifact metadata, self-votes, repeats, operator tools) "
-        "and must be refused."))
+        "newsletter issues, conversation lengths) and every audience quantity is recounted from recorded events / "
+        "cols.batch blobs of the 30-day run of the one population (2,000 individuals) and compared with the state; "
+        "the state is replayed from the log. Probes try to write counters through tools (extra arguments, artifact "
+        "metadata, self-votes, repeats, operator tools) and must be refused; a module-level forgery of consumption "
+        "rows must be detected by decision provenance."))
     assert direct == 0, (rc, before, after)

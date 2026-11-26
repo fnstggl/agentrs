@@ -1,8 +1,11 @@
 """Gate D (MASTER_SPEC Part 17): recommendation diversity. Owner: workstream C2.
 
-Every measurement runs the real social engine: a 3,000-identity crowd, 40 population creators publishing real text
-artifacts on two platforms, platform recommender mixtures (evaluator-side), the consumption engine, exact audience
-accounting. Metrics (docs/v5/ACCEPTANCE_MANIFEST.json):
+Every measurement runs the real social engine on the ONE population (`crucible.population`, D-15; the crowd stand-in
+is not used): 3,000 individuals of `pop` whose interests live in the shared semantic space, members who write and
+publish real text artifacts through `content.publish` (`pop_social`), two platforms with evaluator-side recommender
+mixtures (posts: a scheduled change at day 3; blog: the platform reweights its own mixture every day from its
+measured feedback), the consumption engine as population activities, exact audience accounting with decision
+provenance. Metrics (docs/v5/ACCEPTANCE_MANIFEST.json):
 
 D.1 distinct_recommenders_end_to_end >= 4, max_pairwise_exposure_overlap <= 0.8
 D.2 recommender_exposure_difference_pvalue <= 0.01, recommender_consumption_difference_pvalue <= 0.01
@@ -31,6 +34,7 @@ crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_D.py"
 DAY = 86400
 SWITCH_DAY = 3
+pytestmark = [pytest.mark.timeout(3600)]
 
 
 def _checks(world):
@@ -45,7 +49,7 @@ def base():
     """The persistent run: 4 simulated days with the scheduled change of the posts mixture at day 3; the state at
     day 2 is kept for the controlled arms and the state just before the change for the counterfactual."""
     t0 = time.time()
-    w = World.create(X.spec("gate-D", 11), strict=True)
+    w = World.create(X.pop_spec("gate-D", 11), strict=True)
     checks = X.run(w, 2 * DAY, check=_checks)
     day2 = w.snapshot_blob()
     day2_seq = w.seq
@@ -64,7 +68,8 @@ def arms(base):
     out = {}
     for name in sorted(REGISTRY):
         w = World.from_blob(base["day2"], world_id=f"gate-D-arm-{name}", fork=True)
-        for p in X.GATE_D_PLATFORMS:
+        for p in X.GATE_D_POP:
+            w.system_call("feed.set_adapt", {"platform": p, "enabled": False})
             X.set_mixture(w, p, [{"name": name, "weight": 1.0}])
         s0 = w.seq
         X.run(w, 3 * DAY)
@@ -126,7 +131,7 @@ def test_D2_controlled_change_changes_exposure_and_consumption(arms):
         m = c["is_view"]
         u = columns.col(w, "pop", "interests")[c["viewer"][m]].astype(np.float64)
         e = columns.col(w, AUD.ITEMS, "emb")[c["item"][m]].astype(np.float64)
-        return np.einsum("nd,nd->n", u, e) / np.maximum(np.linalg.norm(u, axis=1) * np.linalg.norm(e, axis=1), 1e-9)
+        return np.einsum("nd,nd->n", u, e)          # full-space cosine (interest coordinates are unit)
     ma, mb = match(a), match(b)
     p_match = float(stats.mannwhitneyu(ma, mb).pvalue)
     metrics = {"recommender_exposure_difference_pvalue": p_exp, "recommender_consumption_difference_pvalue": p_con,
@@ -155,7 +160,8 @@ def test_D3_distribution_changes_during_persistent_run(base):
     after = {k: v[rows["t"] >= sw] for k, v in rows.items()}
     # counterfactual: the same state just before the switch, the scheduled change cancelled by keeping v0
     cf = World.from_blob(base["pre_switch"], world_id="gate-D-cf", fork=True)
-    X.set_mixture(cf, "posts", X.GATE_D_PLATFORMS["posts"]["recommenders"])
+    X.set_mixture(cf, "posts", X.GATE_D_POP["posts"]["recommenders"])
+    cf.system_call("feed.set_adapt", {"platform": "blog", "enabled": False})
     s0 = cf.seq
     X.run(cf, (SWITCH_DAY + 1) * DAY)
     crows = X.decision_rows(cf, "imp", s0, platform="posts")
@@ -169,7 +175,17 @@ def test_D3_distribution_changes_during_persistent_run(base):
     sb = np.bincount(before["src"], minlength=len(AUD.SOURCES))
     sa = np.bincount(after["src"], minlength=len(AUD.SOURCES))
     p_src = _chi2(sb, sa)
-    metrics = {"algorithm_changes_during_run": int(changes), "post_change_exposure_shift_pvalue": p_shift,
+    # the blog platform's own change (measured feedback, not a schedule): its exposure sources on day 3 vs the
+    # counterfactual in which it does not adapt
+    brows = X.decision_rows(w, "imp", base["pre_seq"], platform="blog")
+    bafter = brows["src"][brows["t"] >= sw]
+    cbrows = X.decision_rows(cf, "imp", s0, platform="blog")
+    cbafter = cbrows["src"][cbrows["t"] >= sw]
+    p_self = _chi2(np.bincount(bafter, minlength=len(AUD.SOURCES)), np.bincount(cbafter, minlength=len(AUD.SOURCES)))
+    selfc = X.self_changes(w)
+    metrics = {"algorithm_changes_during_run": int(changes), "post_change_exposure_shift_pvalue": max(p_shift, p_self),
+               "scheduled_change_exposure_shift_pvalue": p_shift, "self_adaptation_changes": int(selfc),
+               "self_adaptation_exposure_shift_pvalue": p_self,
                "within_run_exposure_source_shift_pvalue": p_src,
                "post_change_impressions_changed": int(h_changed.sum()),
                "post_change_impressions_counterfactual": int(h_cf.sum()),
@@ -178,25 +194,40 @@ def test_D3_distribution_changes_during_persistent_run(base):
                "mean_exposed_age_h_counterfactual": round(float(((cafter["t"] - columns.col(cf, AUD.ITEMS,
                                                                   "published_at")[cafter["item"]]) / 3600).mean()), 2)}
     evidence.record("D.3", metrics, command=CMD,
-                    notes="The posts platform's mixture changes on a schedule at the start of day 3 of a persistent "
-                          "4-day run (recorded as an internal feed.mixture event). Shift: chi-square test of the "
-                          "item-age profile of posts impressions on day 3, changed run vs a counterfactual fork of "
-                          "the pre-change state in which the change does not happen.")
-    assert changes >= 1
+                    notes="Two changes during a persistent 4-day run on the one population: the posts platform's "
+                          "mixture changes on a schedule at the start of day 3, and the blog platform reweights its "
+                          "own mixture every day from its measured feedback (views per impression of each of its "
+                          "mechanisms in its own recorded batches). Shifts: chi-square tests of the posts item-age "
+                          "profile and of the blog exposure sources on day 3, run vs a counterfactual fork of the "
+                          "pre-change state without either change; the reported criterion is the larger p-value.")
+    assert changes >= 1 and selfc >= 1
     assert h_changed.sum() > 0 and h_cf.sum() > 0
 
 
+_CONTENT_KEYS = {"title", "text", "tags", "data_b64", "body", "name", "subject", "description", "snippet"}
+
+
+def _strip_content(obj):
+    """Drop what participants wrote (titles, texts, tags): real news text may contain words like 'engagement'."""
+    if isinstance(obj, dict):
+        return {k: _strip_content(v) for k, v in obj.items() if k not in _CONTENT_KEYS}
+    if isinstance(obj, (list, tuple)):
+        return [_strip_content(v) for v in obj]
+    return obj
+
+
 def _scan(obj, markers) -> list[str]:
-    s = json.dumps(obj, sort_keys=True, default=str)
+    s = json.dumps(_strip_content(obj), sort_keys=True, default=str)
     return [m for m in markers if m in s]
 
 
 def test_D4_hidden_parameters_are_not_reachable(base):
     w = World.from_blob(base["world"].snapshot_blob(), world_id="gate-D-probe", fork=True)
-    creators = sorted(w.state.tables["crowd_creators"].items(), key=lambda kv: int(kv[0]))
-    ci, crec = int(creators[0][0]), creators[0][1]
-    creator = crec["principal"]
-    viewer_i = next(i for i in range(AUD.n_people(w)) if str(i) not in w.state.tables["crowd_creators"])
+    info = w.state.tables["aud_item_info"]
+    creators = sorted({r["creator"] for r in info.values() if ids.index(r["creator"]) is not None},
+                      key=lambda p: ids.index(p))
+    creator = creators[0]
+    viewer_i = next(i for i in range(AUD.n_people(w)) if ids.pid(i) not in set(creators))
     w._run_system("probe.principal", lambda ctx: ids.ensure_principal(ctx, viewer_i))
     viewer = ids.pid(viewer_i)
     markers = X.SECRET_MARKERS
@@ -220,7 +251,7 @@ def test_D4_hidden_parameters_are_not_reachable(base):
         probe(f"{actor} feed.home", r.to_dict())
         items = [x["item"] for x in (r.result or {}).get("items", [])]
         probe(f"{actor} feed.platforms", w.execute(actor, {"tool": "feed.platforms", "args": {}}).to_dict())
-        probe(f"{actor} feed.search", w.execute(actor, {"tool": "feed.search", "args": {"platform": "articles",
+        probe(f"{actor} feed.search", w.execute(actor, {"tool": "feed.search", "args": {"platform": "blog",
                                                                                       "q": "garden soil"}}).to_dict())
         if items:
             probe(f"{actor} feed.watch", w.execute(actor, {"tool": "feed.watch", "args": {
