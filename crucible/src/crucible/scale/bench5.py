@@ -232,6 +232,9 @@ def class_activity(world, n_sessions0, ec: EventCounter) -> dict:
             pol["3"] += n
         elif "semantic" in mid:
             pol["4"] += n
+    # class 3 acts through its own decision process (pop_strategic.decide), not through sessions: one
+    # pop_strategic.exp event per member decision
+    pol["3"] += int(ec.types.get("pop_strategic.exp", 0))
     for c, n in pol.items():
         out[c]["policy_decisions"] = int(n)
     for c in out:
@@ -278,6 +281,13 @@ def stored_event_bytes(store, world_id: str, seq_from: int, seq_to: int) -> int:
     return int(r[0] or 0)
 
 
+def _settle(store) -> None:
+    """VACUUM the store and fold the write-ahead log into the database file: VACUUM in WAL mode writes every page
+    to the log again, so without the final checkpoint the file sizes count the database about twice."""
+    store.compact_file()
+    store._conn().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+
+
 def _store_bytes(path: str) -> int:
     return sum(os.path.getsize(p) for p in (path, path + "-wal", path + "-shm") if os.path.exists(p))
 
@@ -307,7 +317,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     n_sessions0 = columns.col(w, "pop", "n_sessions").astype("int64").copy()
     ec = EventCounter(count_bytes=False)
     w.listeners.append(ec)
-    store.compact_file()
+    _settle(store)
     bytes0 = _store_bytes(db)
     unpacked0 = retention.stats(w)["blob_bytes_unpacked"]
     seq0, tx0 = w.seq, w.stats["commands"] + w.stats["procs"]
@@ -362,7 +372,7 @@ def run(kind: str, profile: str, seed: int, days: float, store_dir: str, *, comp
     w.listeners.remove(ec)
     sim_days = (w.now - (end - int(days * DAY))) / DAY
     tc, cc = time.time(), cpu_s()
-    store.compact_file()                       # the resident size: free pages returned
+    _settle(store)                             # the resident size: free pages returned, WAL folded in
     compact_cpu += cpu_s() - cc
     st = retention.stats(w)
     resident = _store_bytes(db) - bytes0
