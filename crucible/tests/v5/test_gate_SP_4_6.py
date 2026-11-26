@@ -28,23 +28,24 @@ PLATFORMS = {
                                         {"name": "interest", "weight": 1.0},
                                         {"name": "trending", "weight": 0.5, "params": {"exclude_seen": False}},
                                         {"name": "social", "weight": 0.8}]},
-    "articles": {"k": 8, "recommenders": [{"name": "interest", "weight": 1.0},
+    "blog": {"k": 8, "recommenders": [{"name": "interest", "weight": 1.0},
                                           {"name": "chronological", "weight": 0.8}]},
 }
 
 
 @pytest.fixture(scope="module")
 def world():
-    w = World.create(X.spec("sp46", 21, n=2000, creators=30, platforms=PLATFORMS), strict=True)
+    # the one population (crucible.population; the crowd stand-in is not used)
+    w = World.create(X.pop_spec("sp46", 21, n=2000, platforms=PLATFORMS), strict=True)
     X.run(w, 3 * DAY)
     return w
 
 
 def _individual(w, items, exclude=()):
     """A non-creator individual never shown any of `items`, made a principal (so it can use the feed tools)."""
-    creators = set(w.state.tables["crowd_creators"])
+    creators = {ids.index(r["creator"]) for r in w.state.tables["aud_item_info"].values()}
     shown = set(np.concatenate([AUD.exposed(w, it) for it in items]).tolist())
-    i = next(i for i in range(AUD.n_people(w)) if str(i) not in creators and i not in exclude and i not in shown)
+    i = next(i for i in range(AUD.n_people(w)) if i not in creators and i not in exclude and i not in shown)
     w._run_system("sp46.principal", lambda ctx: ids.ensure_principal(ctx, i))
     return i, ids.pid(i)
 
@@ -74,8 +75,8 @@ def test_audience_quantities_and_view_threshold(world):
     relations["watch_time_includes_non_views"] = bool(np.any(~con["is_view"] & (con["watch_s"] > 0)))
 
     # controlled consumption through the tools: the threshold, exposure-before-view, repeat and self-views
-    art = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] >= 90 and
-               w.state.tables["aud_item_info"][str(i)]["platform"] == "articles")
+    art = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] >= 62 and
+               w.state.tables["aud_item_info"][str(i)]["platform"] == "blog")
     post = next(i for i in range(ni) if AUD.item_col(w, "duration_s")[i] < 50 and
                 w.state.tables["aud_item_info"][str(i)]["platform"] == "posts")
     i1, p1 = _individual(w, (art, post))

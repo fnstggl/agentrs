@@ -20,7 +20,7 @@ def test_SP_4_1_autonomous_browsing_behaviours():
     soc = A.social_behaviours(w)
     counts = dict(web)
     for k in ("browse_feeds", "consume_media", "search_for_information", "follow_creators", "join_communities",
-              "participate_in_discussions", "leave_resources"):
+              "participate_in_discussions", "leave_resources", "evaluate_products", "purchase_services"):
         counts[k] = int(counts.get(k, 0)) + int(soc.get(k, 0))
     present = sorted(k for k, c in counts.items() if c >= 10)
     viol = attention.check(w)

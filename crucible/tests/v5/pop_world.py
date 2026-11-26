@@ -17,12 +17,35 @@ DAY = 86400
 PLATFORMS = ["posts", "blog", "community", "letters", "pics", "kb", "dev", "launch"]
 
 
+def launch_product(w, topic: str = "recipes", price: int = 400) -> str:
+    """A maker (scripted, labelled in evidence) launches a content product with a launch post, through ordinary
+    tools; whoever buys it is the population's own decision."""
+    import numpy as np
+    from crucible.population import semantics, writing
+    maker = w.system_call("admin.join", {"handle": "maker", "endowment": 10_000, "password": "pw-m"})["principal"]
+    call = lambda tool, **a: w.execute(maker, {"tool": tool, "args": a}).result  # noqa: E731
+    rng = np.random.default_rng(3)
+    t = semantics.topic_names().index(topic)
+    _, guide = writing.compose(rng, t, 12, 1.0)
+    doc = call("docs.create", title="A practical guide", body=guide)["doc"]
+    prod = call("prod.create", name="A practical guide", kind="media", description="a guide",
+                delivery={"type": "content", "doc": doc})["product"]
+    call("prod.update", product=prod, status="launched")
+    call("prod.offer", product=prod, kind="one_time", price_cents=price)
+    _, body = writing.compose(rng, t, 4, 1.0)
+    ref = call("studio.write", format="text", title="New: a practical guide", body=body)["ref"]
+    return call("launch.post", ref=ref, title="New: a practical guide", product=prod)["id"]
+
+
 @functools.lru_cache(maxsize=1)
 def integrated(days: int = 6, seed: int = 41):
     t0 = time.time()
     spec = social_world("development", seed, n=1500, web=True, sites=14, adaptive=True,
-                        classes={"adaptive": 32, "strategic": 0, "semantic": 0}, platforms=PLATFORMS)
+                        classes={"adaptive": 32, "strategic": 0, "semantic": 0}, platforms=PLATFORMS,
+                        extra=[{"name": "docs", "config": {}}, {"name": "products", "config": {}},
+                               {"name": "subs", "config": {}}])
     w = World.create(spec, strict=True)
+    launch_product(w)
     genesis = {c: A.columns.col(w, "pop", c).copy() for c in
                sorted({c for cs in A.schema.FIELDS.values() for c in cs if c in A.columns.tables(w)["pop"]["columns"]})}
     w.advance_time(days * DAY)

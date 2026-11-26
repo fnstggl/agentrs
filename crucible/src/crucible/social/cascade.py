@@ -54,7 +54,7 @@ def internet_spec(n: int, seed: int, *, positive_control: bool, creators: int = 
 
 
 def pop_internet_spec(n: int, seed: int, *, positive_control: bool, k: int = 8, pool: int = 200,
-                      creator_prior: float = -5.0) -> WorldSpec:
+                      creator_prior: float = -2.5) -> WorldSpec:
     """The internet-profile world of the ONE population (`crucible.population`, profile `internet`, D-15): n
     identities of `pop` (interests in the shared semantic space, derived initial state), members who write and
     publish (`pop_social`: few, as on real platforms), one posts platform with the ordinary recommenders, sharing to

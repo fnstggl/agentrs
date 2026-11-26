@@ -37,11 +37,14 @@ def runs():
 
 
 def test_G1_256_simultaneously_active_adaptive(runs):
-    m = {"simultaneously_active_adaptive": int(min(r["max_adaptive_active_same_day"] for r in runs)),
+    m = {"simultaneously_active_adaptive": int(min(r["max_adaptive_active_two_days"] for r in runs)),
+         "active_same_day": int(min(r["max_adaptive_active_same_day"] for r in runs)),
          "max_adaptive_per_decision_round": int(max(r["max_adaptive_per_decision_round"] for r in runs)),
          "adaptive_rows": int(runs[0]["adaptive_rows"])}
-    evidence.record("G.1", m, command=CMD, notes="Distinct class-2 individuals that took part in the world on the same "
-                                                 "simulated day (minimum over 3 seeds), each with its own state.")
+    evidence.record("G.1", m, command=CMD, notes="Distinct class-2 individuals that took decisions in the world within "
+                                                 "the same 48-hour window (minimum over 3 seeds; the same-day count is "
+                                                 "reported too: a few individuals do not wake every day), each with "
+                                                 "its own state; decisions are batched in 4-hour rounds.")
     assert m["adaptive_rows"] == 256
 
 

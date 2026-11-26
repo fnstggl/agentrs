@@ -355,13 +355,15 @@ def social_behaviours(world, events=None) -> dict:
     pop_actor = lambda a: isinstance(a, str) and a[:1] == "p" and a[1:].isdigit()  # noqa: E731
     out = {"browse_feeds": 0, "consume_media": 0, "search_for_information": 0, "follow_creators": 0,
            "join_communities": 0, "participate_in_discussions": 0, "leave_resources": 0, "share_content": 0,
-           "subscribe": 0}
+           "subscribe": 0, "evaluate_products": 0, "purchase_services": 0}
     for e in ev:
         if e.type != "cols.batch":
             if e.type == "content.published" and pop_actor(e.payload["creator"]) and e.payload.get("community"):
                 out["participate_in_discussions"] += 1
             elif e.type == "content.comment" and pop_actor(e.payload["author"]):
                 out["participate_in_discussions"] += 1
+            elif e.type in ("prod.purchase", "market.order") and pop_actor(e.payload.get("buyer")):
+                out["purchase_services"] += 1
             continue
         p = e.payload
         k = p["kind"]
@@ -385,4 +387,6 @@ def social_behaviours(world, events=None) -> dict:
             out["leave_resources"] += int(p["n"])
         elif p["table"] == "nlsub" and k == "letters.subscribe":
             out["subscribe"] += int(p["n"])
+        elif p["table"] == schema.TABLE and k == "pop_social.shop":
+            out["evaluate_products"] += int((p.get("extra") or {}).get("visits", 0))
     return out

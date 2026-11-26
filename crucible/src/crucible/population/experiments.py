@@ -61,7 +61,7 @@ def _boot(a: np.ndarray, b: np.ndarray, n: int = 2000, seed: int = 0) -> dict:
 
 
 def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_light: int = 150,
-               min_examples: int = 32) -> dict:
+               min_examples: int = 32, window_s: int = 14400) -> dict:
     """See the module docstring. `arms` maps an arm name to a group config ({id, share, learning, memory, seed})."""
     import torch
     torch.set_num_threads(1)
@@ -70,7 +70,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     names, specs = _site_specs(seed)
     spec = population_world("development", seed, n=n_light, site_specs=specs, tick_s=1800,
                             classes={"adaptive": 256, "strategic": 0, "semantic": 0}, strategic=False,
-                            adaptive={"groups": list(arms.values()), "min_examples": min_examples})
+                            adaptive={"groups": list(arms.values()), "min_examples": min_examples},
+                            pop={"adaptive_window_s": window_s})
     t0 = time.time()
     w = World.create(spec)
     ad = w.modules["pop_adaptive"]
@@ -151,6 +152,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
             days.setdefault(t // DAY, set()).update(a2.tolist())
             rounds[t] = rounds.get(t, 0) + int(a2.size)
     out["max_adaptive_active_same_day"] = max((len(v) for v in days.values()), default=0)
+    ds = sorted(days)
+    out["max_adaptive_active_two_days"] = max((len(days[d] | days.get(d + 1, set())) for d in ds), default=0)
     out["max_adaptive_per_decision_round"] = max(rounds.values(), default=0)
     out["wall_s"] = round(time.time() - t0, 1)
     return out

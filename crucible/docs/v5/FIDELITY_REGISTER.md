@@ -54,3 +54,23 @@ real-world predictive validity. Each record states the population, platform and 
 The 55 mechanisms registered by Crucible 4.0 (`evaluation/fidelity.py`, `docs/experiments/ow_fidelity.json`) keep
 their 4.0 categories: 37 plausible, 18 known unrealistic, none calibrated. v5 records are added by the workstreams that
 build each mechanism and checked by SP-5.4.
+
+
+## CORE-POP (workstreams B + C, wave 2): decision models of the one population
+
+Every decision batch of `crucible.population` carries its model id and the id below (`record_decisions`, decision
+provenance). Correction (recovery audit B, E): the rows above that say `pop (workstream B)` uses
+`content_consumption@1`, `watch_duration@1`, `return_daily@1`, `session_rate@1` or `news_click@1` describe intended
+wiring; at this commit NO population decision runs a fitted model (the class-1 decisions are `plausible:*@1`, the
+consumption engine is `c2-consumption@2`). The wiring points are listed in docs/v5/workstreams/B+C.json.
+
+| mechanism | module | category | evidence (dataset, period) | held-out result | limits |
+|---|---|---|---|---|---|
+| interest prior (`population-interest-prior`): 1-3 popularity-weighted MIND subcategory centroids + isotropic noise in the corpus' 64-d principal subspace of MiniLM-L6 | population.semantics (`space_asset.py`) | inspired by research | MIND-small train news.tsv (Microsoft News, US, Oct-Nov 2019), 93 subcategories x 60 items embedded by MiniLM-L6-v2 | none (the mixture weights and noise are not fitted to user histories) | US news topics only; interests outside the subspace are not representable (64 dims hold 91% of centroid energy, 32 dims 83%) |
+| interest drift from experience (`pop-experience-drift`) | population.api.experience | plausible, unvalidated | none | none | linear pull towards enjoyed items (rate 0.02-0.08 by novelty seeking), small push from disliked ones |
+| reader legibility (`legibility`: WordPiece whole-word share, function-word share, distinct-word share, compressibility) entering bounce and abandonment | population.semantics, social.consumption (`bounce_legib`, `hazard_legib`) | plausible, unvalidated | none | none | a reader model of readable English, not a quality label; blind to accuracy and usefulness |
+| consumption engine on the one population (`social-consumption-builtin`, model `c2-consumption@2`) | social.consumption | plausible, unvalidated | none | none | the C2 engine of row 41-46 on `pop`; affinity is the full-space cosine of interests and the artifact's MiniLM vector |
+| population creators (`population-creator-model`, `pop-create@1`): topic near own interests, length and coherence by writing skill, text drawn from real MIND abstracts; utility = creator-visible delayed analytics gained minus effort | social.popsocial, population.writing | plausible, unvalidated | MIND-small abstracts as the writing corpus | none | creators retell news text; no images/audio/video by the population |
+| community participation (`population-community-model`, `pop-community@1`): join by subject fit, recent activity and contacts; visit by experienced value; post, reply, report, leave when value < -0.04 after 3 visits; founding from the titles of one's recent views | social.popsocial | plausible, unvalidated | none | none | owner governance only; moderation acts on legibility reports |
+| product discovery and purchase (`population-product-discovery-model`, `pop-shop@1`): visit p = sigmoid(-1.5 + 6 affinity), buy p = sigmoid(-1 + 3 (wtp - price)/wtp + 1.2 rating), willingness 2500 wtp_scale (1 + 1.5 affinity) cents, stars from the bought document's fit and legibility | social.popsocial | plausible, unvalidated | none | none | content products only; services, subscriptions and infrastructure costs are ECON's wiring |
+| platform self-adaptation (multiplicative reweighting of a platform's mixture by views per impression of each mechanism in its own recorded batches) | social.recsys.service (`feed.adapt`) | plausible, unvalidated | none | none | one statistic, daily; no exploration bonus |
