@@ -288,6 +288,25 @@ code on worlds built by `crucible.civ.generate` and meets the manifest's current
 civilisation measurement is `not_measured` and fails its gate. SP-19.3 slices 5 and 6 use
 `crucible.experience.ReferenceLearner` through the public experience interface (Clarification 1).
 
+## D-47 Determinism of civilisations is checked exactly under contract 1.7 (2026-11-26, workstream J)
+A civilisation's world logic is deterministic, but its batched neural inference on a shared GPU is not
+bit-reproducible (shared-space vectors depend on batch composition and on the machine-wide representation cache:
+DEF-J-1), which is why contract 1.7 records inference outcomes (and measured sandbox CPU time) in `ext` events. Two
+free runs of one spec and seed can therefore part through one recorded outcome. Decision: the Gate P and SP-10.0
+checks are the exact ones the contract supports, and the free ones are measured and reported beside them, never
+counted in their place. Snapshot and resume (P.3): a NEW process loads the world from a copy of the store taken at the
+resume day and re-executes the live run's recorded continuation through the handlers with its recorded outcomes
+(`crucible.civ.determinism.regenerate_continuation`, the loop of `World.regenerate` from a loaded snapshot); it must
+reach the live hash, digest and seq. Independent replication (SP-10.0): fresh processes regenerate the recorded run
+from genesis from the spec and the store alone (`World.regenerate`: every handler, process, population decision and
+random draw re-executed). Forks (SP-10.0): exact copies at the fork, the parent untouched, an intervened fork
+diverging, and an unchanged fork either equal to its parent or parted first by a recorded outcome
+(`first_divergence`: the transaction of the first differing event has differing `ext` records) - a divergence whose
+transaction's recorded outcomes are equal is the world's logic or the fork, and fails. The interrupted-run test uses
+the same rule and also regenerates the interrupted run's whole record from genesis. Rules out: comparing free reruns
+and calling their noise a resume or fork defect, and calling a logic divergence inference noise. Free-rerun agreement
+becomes an exact criterion once the space encodes batch-invariantly (DEF-J-1).
+
 ## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
 The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset
 now for purely experimental use and I will currently get the license for it." Decision: the pinned mirror copy of

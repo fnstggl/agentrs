@@ -96,13 +96,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-A-5 (critical, open): Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching 
+### DEF-A-5 (critical, fixed): Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching 
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "kernel D-21 (Module.on_load runs after the store is attached), verified on civilisations (pop, pop_adaptive, pop_strategic, pop_social in the world) by c5c/w3b-civ: a NEW process loads the world from a copy of its store taken at a snapshot and re-executes the live run's recorded continuation exactly (hash, digest, seq), and a fresh process regenerates the recorded run from genesis exactly (crucible.civ.determinism, crucible.civ.longrun resume-regen); a free continuation that recomputes batched GPU inference can still part from the live run, and only through a recorded inference outcome (D-47)",
  "id": "DEF-A-5",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_civ_determinism.py::test_exact_resume_and_regeneration_reproduce_a_civilisation, tests/test_v5_civ_determinism.py::test_resume_compare_counts_the_exact_check, tests/test_v5_civ_longrun.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -110,7 +112,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching the store (kernel.py:1003-1008, 965-966). In-process tests hide this."
 }
 ```
@@ -133,6 +135,27 @@ B_population verdict) and P's own findings.
  },
  "status": "open",
  "summary": "Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module changes the trajectory, which confounds the counterfactual removal Gate O/SP-10.3 relies on. The 4.0 sandbox also makes run-to-run hashes differ."
+}
+```
+
+### DEF-J-1 (high, open): Free reruns of one civilisation spec and seed are not bit-reproducible: shared-space vectors depend on batch composition and on the machine-wide cache
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-J-1",
+ "owner": "D (crucible.semantic.space), J",
+ "requirements": [
+  "SP-10.0",
+  "P.3"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream J wave 3b (c5c/w3b-civ): determinism diagnosis",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "crucible.semantic.space computes missing representations in batches whose composition depends on what the world's record AND the process-wide/machine-wide RepCache (memory LRU + ~/.cache/crucible/space, shared by every process of every agent) already hold, and padded batched encoding is not batch-invariant: on CPU, 5 of 6 texts encoded in one batch differ from the same texts encoded alone by 0.9e-7..7.2e-7 (max abs, not bitwise equal; the one unpadded text is bitwise equal; probe in the w3b-civ report). A decision that compares such a value with a random draw flips occasionally, so two free runs of one spec and seed part: 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories (observer diagnosis), and fresh-process reruns rarely match. Regeneration and replay are exact (contract 1.7 records the outcomes), so P.3/P.4/SP-10.0 are measured with them (D-47). Fix (D): make a representation a function of its bytes only - encode padding-free (group by exact token length, or one item per forward pass) and verify bitwise equality of batched vs single encoding on CPU and GPU; until then the free-rerun rate is reported, not counted."
 }
 ```
 
