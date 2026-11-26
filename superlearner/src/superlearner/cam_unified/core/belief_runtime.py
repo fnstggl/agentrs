@@ -622,11 +622,12 @@ def bayes_prior(model: "CamUnifiedModel") -> tuple:
 
 # ============================================================================ support / query adaptation
 
-def adapt_loss(model: "CamUnifiedModel", seq, filt: "FilterResult", k: Optional[int] = None, **kw) -> tuple:
-    """L_adapt. DOM path (`dom_beliefs`) or ``k`` None: `adapt_loss_all_k` (every support size in one pass,
-    separation-correct; ``k`` is then ignored). Otherwise the legacy single-k objective (`adapt_loss_single_k`)."""
+def adapt_loss(model: "CamUnifiedModel", seq, filt: "FilterResult", k: Optional[int] = None) -> tuple:
+    """L_adapt. DOM path (`dom_beliefs`) or ``k`` None: `adapt_loss_all_k` with its defaults (every support size in
+    one pass, separation-correct; ``k`` is then ignored). Otherwise the legacy single-k objective
+    (`adapt_loss_single_k`)."""
     if dom_beliefs(model) or k is None:
-        return adapt_loss_all_k(model, seq, filt, **kw)
+        return adapt_loss_all_k(model, seq, filt)
     return adapt_loss_single_k(model, seq, filt, k)
 
 

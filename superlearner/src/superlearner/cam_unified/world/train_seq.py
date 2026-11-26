@@ -1,8 +1,8 @@
 """Replay-sequence filtering and the world objective of CamUnifiedModel (moved out of model.py by the seam commit,
 plan 2026-11-26 §3; owner W6).
 
-    filter_sequence(model, seq, aux=None, burn_in=None) -> FilterResult   acting-consistent filter over a replayed
-                                                                          SequenceBatch
+    filter_sequence(model, seq, aux=None) -> FilterResult                acting-consistent filter over a replayed
+    filter_window(model, seq, aux=None, burn_in=None) -> FilterResult    SequenceBatch (explicit burn-in)
     world_loss(model, seq, filt) -> dict                                  WorldModelP.loss on that filter's states
 
 `CamUnifiedModel.filter_sequence` / `.world_loss` are one-line delegations to these functions. Every model call goes
@@ -95,8 +95,14 @@ def reason_fn_of(model) -> Optional[Callable]:
 
 # ============================================================================ filter
 
-def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None,
-                    burn_in: Optional[int] = None) -> "FilterResult":
+def filter_sequence(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None) -> "FilterResult":
+    """`filter_window` with the configured burn-in (`burn_in_for`; the signature `CamUnifiedModel.filter_sequence`
+    delegates to)."""
+    return filter_window(model, seq, aux, None)
+
+
+def filter_window(model: "CamUnifiedModel", seq, aux: Optional["ReplayAux"] = None,
+                  burn_in: Optional[int] = None) -> "FilterResult":
     """Run F_theta over a tokenised SequenceBatch with the acting context: Z_t = F(Z_{t-1}, [O_t; A_{t-1};
     TIME(dt_{t-1}); B_t; option_{t-1}; M_t; G_t]), where B_t is re-filtered along the sequence by the belief module
     from the stored outcomes (B_t has seen o_{<t}), M_t is rebuilt from the stored retrieved ids (when the

@@ -131,7 +131,7 @@ def test_observation_only_world_loss_never_reads_the_verified_reward():
     m = dom_tiny()
     m.eval()                       # no running-statistics update between the two evaluations
     seq = rand_sequence(3, 6, m.cfg, seed=3)
-    filt = train_seq.filter_sequence(m, seq, None, burn_in=0)
+    filt = train_seq.filter_window(m, seq, None, burn_in=0)
     g = torch.Generator().manual_seed(5)
     a = m.world_model.loss(SequenceBatch(seq.steps), Z_post=torch.stack(filt.Zs), R_post=torch.stack(filt.Rs),
                            beliefs=filt.belief_tokens, generator=g)
@@ -193,7 +193,7 @@ def test_consistency_gap_falls_when_the_transition_is_trained():
     for it in range(60):
         m.train()
         seq = seqs[it % len(seqs)]
-        out = m.world_loss(seq, train_seq.filter_sequence(m, seq, None, burn_in=0))
+        out = m.world_loss(seq, train_seq.filter_window(m, seq, None, burn_in=0))
         opt.zero_grad()
         out["world"].backward()
         torch.nn.utils.clip_grad_norm_(m.parameters(), 10.0)

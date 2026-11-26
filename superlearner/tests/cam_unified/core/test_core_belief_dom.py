@@ -271,7 +271,7 @@ def shift_continuous(ob, d):
 
 
 def _loss(m, seq, **kw):
-    filt = train_seq.filter_sequence(m, seq, None, burn_in=0)
+    filt = train_seq.filter_window(m, seq, None, burn_in=0)
     return br.adapt_loss_all_k(m, seq, filt, **kw)
 
 
@@ -325,7 +325,7 @@ def test_adapt_all_k_equals_the_reference_support_query_loss():
     m = deterministic(dom_tiny(wm_transition_blocks=0))
     m.eval()
     seq = _seq(m, T=6, seed=9)
-    filt = train_seq.filter_sequence(m, seq, None, burn_in=0)
+    filt = train_seq.filter_window(m, seq, None, burn_in=0)
     assert not train_seq.prior_on_R(m)
     ks = (0, 1, 2, 4)
     loss, mets = br.adapt_loss_all_k(m, seq, filt, ks=ks, max_query=6, use_kalman=False, mix_aux=0.0,

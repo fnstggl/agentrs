@@ -88,8 +88,8 @@ def payout_of(model, mean: torch.Tensor, ob, key: str = "num:points@me[points]")
 
 def _filt(model, seq, aux=None):
     """The agent's acting-consistent filter (no burn-in: every step is a measurement step)."""
-    from ..world.train_seq import filter_sequence
-    return filter_sequence(model, seq, aux, burn_in=0)
+    from ..world.train_seq import filter_window
+    return filter_window(model, seq, aux, burn_in=0)
 
 
 def _prior_input(filt, t: int):
@@ -143,6 +143,7 @@ class CausalSettings:
     lr_final_frac: float = 0.05
     payout_key: str = "num:points@me[points]"   # observable payout outcome (observation-only measurements)
     wm_kwargs: dict = field(default_factory=dict)   # WorldModel constructor overrides (e.g. open_loop_samples)
+    core_kwargs: dict = field(default_factory=dict)  # UnifiedCore constructor overrides (e.g. emb_std)
 
 
 def make_env(name: str, B: int, seed: int = 0, **kw):
@@ -555,8 +556,13 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
         else:
             cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, grad_clip=st.grad_clip,
                                     train_horizons=tuple(st.horizons), **st.cfg_overrides)
+        ckw = {}
+        if st.wm_kwargs:
+            ckw["world_model"] = dict(st.wm_kwargs)
+        if st.core_kwargs:
+            ckw["core"] = dict(st.core_kwargs)
         stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"{w}_s{st.seed}"),
-                            component_kwargs={"world_model": dict(st.wm_kwargs)} if st.wm_kwargs else None)
+                            component_kwargs=ckw or None)
         env = make_env(w, st.B)
         stack.info["tools"] = env.available_tools()[0]
         eps = record(stack, env, st.record_episodes, st.seed * 10_007)
@@ -606,7 +612,10 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
 
 DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-3, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
                     B=32, record_episodes=12, batch_seqs=8, horizons=(1, 2, 3, 4),
-                    wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True})
+                    wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True},
+                    # the dom preset's state_emb_std=0.02 (W3's switch, not yet read by the seam core) through the
+                    # real UnifiedCore's own constructor argument
+                    core_kwargs={"emb_std": 0.02})
 
 
 def criteria(worlds: dict) -> dict:
