@@ -262,8 +262,8 @@ class Goods(Module):
         popapi.record_decisions(ctx, "goods.session", idx, {
             "aware": aware.astype(np.int32), "last": last.astype(np.int32), "bought_n": bought_n.astype(np.int32),
             "spent": spent.astype(np.int64), "stockouts": stockouts.astype(np.int32),
-            "last_t": np.full(m, now, np.int64), "last_seq": last_seq.astype(np.int64)}, table=TABLE, model_id=MODEL_ID, model_version="1",
-            fidelity_id="civ.goods.choice",
+            "last_t": np.full(m, now, np.int64), "last_seq": last_seq.astype(np.int64)},
+            table=TABLE, model_id=MODEL_ID, model_version="1", fidelity_id="civ.goods.choice",
             extra={"t": int(now), "sessions": int(m), "purchases": purchases[:2000], "stockouts": sold_out[:2000],
                    "listings": int(live.sum())})
         return util

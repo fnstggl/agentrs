@@ -50,6 +50,8 @@ TECH_SUBSYSTEMS = {"scientific_research", "software_development", "technology_in
 TECH_TYPES = ("sci.", "make.run", "make.tuned", "make.design", "code.", "pkg.", "caps.", "links.rnd")
 SCRIPTED_KEY = "scripted"
 NOT_STAGES = frozenset({"substrate", "couplings", "other"})      # storage and bookkeeping are not stages
+# events whose subsystem is that of the service that acts, not of the module that records them
+SERVICE_ATTRIBUTED = {"bank.invoice": "digital_economy"}
 MAX_STR = 400
 
 
@@ -75,6 +77,7 @@ class Provenance:
     mentions: dict = field(default_factory=lambda: defaultdict(set))   # seq -> entities
     subsystem: dict = field(default_factory=dict)       # seq -> subsystem (None for bookkeeping)
     roots: dict = field(default_factory=dict)           # seq -> transaction root seq
+    proc_module: dict = field(default_factory=dict)     # seq of a process run -> module owning the process
 
     def link(self, a: int, b: int) -> None:
         if a != b and a in self.events and b in self.events:
@@ -120,6 +123,9 @@ def build(world, from_seq: int = 0, to_seq: int | None = None, *, events=None, r
                 j = sched.get(ev.payload.get("id"))
                 if j is not None:
                     pv.link(j, s)
+                pm = hm.get(str(ev.payload.get("proc", "")).split(".", 1)[0])
+                if pm:
+                    pv.proc_module[s] = pm
         else:
             if root is not None:
                 pv.link(root, s)
@@ -128,6 +134,8 @@ def build(world, from_seq: int = 0, to_seq: int | None = None, *, events=None, r
             sched[ev.payload["id"]] = s
             continue
         pv.subsystem[s] = None if typ in BOOKKEEPING else SUB.subsystem_of_event(world, typ, hm)
+        if typ in SERVICE_ATTRIBUTED and isinstance(ev.actor, str) and ev.actor.startswith("svc:"):
+            pv.subsystem[s] = SERVICE_ATTRIBUTED[typ]       # a deployed business invoicing its customer
         if typ in BOOKKEEPING:
             continue
         p = ev.payload

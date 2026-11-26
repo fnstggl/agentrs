@@ -15,7 +15,8 @@ over the whole run since genesis:
     energy         energy recorded in each region-day of grid use = production-run energy + other draws (each
                    addition is rounded to 1 Wh by the applier, so the tolerance is 0.5 Wh per recorded draw)
 
-`activity(events)` classifies each event as economic (a payment between two participants), social (posts, replies,
+`activity(events)` classifies each event as economic (a decided payment between two participants; recurring
+automatic charges such as hourly compute billing are not counted), social (posts, replies,
 follows, votes, published content, messages, community acts, word of mouth) or neither; the long-run harness keeps
 daily series of both.
 """
@@ -30,8 +31,15 @@ SOCIAL_TYPES = ("forum.post", "forum.reply", "forum.follow", "forum.vote", "cont
                 "msg.", "community.", "social.follow", "social.share", "goods.wom", "creators.")
 
 
+# recurring charges that run by themselves (hourly instance billing, upkeep, metered energy) and money entering from
+# outside: real flows, but not evidence that anyone still trades
+MECHANICAL_KINDS = frozenset({"compute", "opex", "energy", "income", "endowment", "grant"})
+
+
 def is_economic(ev) -> bool:
-    if ev.type != "bank.txn":
+    """A payment between two participants that someone decided to make (a purchase, an invoice paid, a trade, a
+    licence, a wage...): not a recurring automatic charge and not money entering from outside the world."""
+    if ev.type != "bank.txn" or ev.payload.get("kind") in MECHANICAL_KINDS:
         return False
     acc = [a for a, d in ev.payload["postings"] if a not in SYSTEM_ACCOUNTS]
     return len(acc) >= 2

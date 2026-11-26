@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import os
 import resource
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -323,7 +322,8 @@ def _main(argv) -> int:
         t = time.time()
         w = World.load(SQLiteStore(path), wid)
         w.advance_time(until)
-        print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq, "wall_s": round(time.time() - t, 1)}))
+        print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq,
+                          "wall_s": round(time.time() - t, 1)}))
         return 0
     if argv and argv[0] == "run":
         profile, seed, days, population, wd, rp = argv[1], int(argv[2]), int(argv[3]), argv[4], argv[5], argv[6]

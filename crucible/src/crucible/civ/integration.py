@@ -8,8 +8,9 @@ Everything here is measured on data flow in the world, not on which modules happ
   one of its events and an event of another subsystem). `strict` counts the subsystems that are all three.
 * `cross_system(pv)` - provenance edges between subsystems: the event types that are consequences of another
   subsystem's events (O.4) and the subsystem pairs they connect.
-* `modules_without_shared_state(world, pv)` - modules (other than kernel/storage infrastructure) with no provenance
-  edge to another subsystem in the window: inert modules count, because a module nobody uses is a disconnected
+* `modules_without_shared_state(world, pv)` - modules (other than kernel/storage infrastructure) none of whose
+  events depends on another module's events or process runs and none of whose events another module's events
+  depend on (provenance in the window): inert modules count, because a module nobody uses is a disconnected
   mini-environment (O.n1).
 * `duplicate_facts(world)` - a data-level scan (not declarations): for each kind of shared fact, the tables of the
   world that hold facts of that kind; a kind held in more than one populated table, and every single fact present
@@ -34,7 +35,8 @@ INFRA_MODULES = frozenset({"admin", "artifacts", "cols", "assets", "civgen", "ci
 
 
 # --------------------------------------------------------------------------------------------- subsystems
-def subsystems(world, pv: CH.Provenance) -> dict:
+def subsystems(world, pv: CH.Provenance, since_seq: int = 0) -> dict:
+    """Activity and connections are counted only for events after `since_seq` (genesis and warm-up excluded)."""
     present = {}
     for s, d in SUB.SUBSYSTEMS.items():
         mods = [m for m in d["modules"] if m in world.modules]
@@ -46,10 +48,12 @@ def subsystems(world, pv: CH.Provenance) -> dict:
             present[s] = bool(mods)
     active = Counter()
     for s_, sub in pv.subsystem.items():
-        if sub in SUB.SUBSYSTEMS:
+        if sub in SUB.SUBSYSTEMS and s_ > since_seq:
             active[sub] += 1
     connected = Counter()
     for b, ps in pv.parents.items():
+        if b <= since_seq:
+            continue
         sb = pv.subsystem.get(b)
         for a in ps:
             sa = pv.subsystem.get(a)
@@ -66,10 +70,12 @@ def subsystems(world, pv: CH.Provenance) -> dict:
             "missing": sorted(set(SUB.SUBSYSTEMS) - set(strict))}
 
 
-def cross_system(pv: CH.Provenance) -> dict:
+def cross_system(pv: CH.Provenance, since_seq: int = 0) -> dict:
     pairs = Counter()
     types = Counter()
     for b, ps in pv.parents.items():
+        if b <= since_seq:
+            continue
         sb = pv.subsystem.get(b)
         if not sb or sb in CH.NOT_STAGES:
             continue
@@ -82,7 +88,7 @@ def cross_system(pv: CH.Provenance) -> dict:
             "subsystem_pairs": {f"{a}->{b}": n for (a, b), n in pairs.most_common()}}
 
 
-def modules_without_shared_state(world, pv: CH.Provenance) -> dict:
+def modules_without_shared_state(world, pv: CH.Provenance, since_seq: int = 0) -> dict:
     hm = SUB.host_module_map(world)
 
     def mod_of(s):
@@ -93,21 +99,23 @@ def modules_without_shared_state(world, pv: CH.Provenance) -> dict:
     linked: set[str] = set()
     seen: Counter = Counter()
     for s in pv.events:
-        if pv.subsystem.get(s) is None:
+        if pv.subsystem.get(s) is None or s <= since_seq:
             continue
         m = mod_of(s)
         if m:
             seen[m] += 1
     for b, ps in pv.parents.items():
-        sb = pv.subsystem.get(b)
-        if not sb:
+        if b <= since_seq or pv.subsystem.get(b) is None:
             continue
+        mb = mod_of(b)
         for a in ps:
-            sa = pv.subsystem.get(a)
-            if sa and sa != sb:
-                for x in (mod_of(a), mod_of(b)):
-                    if x:
-                        linked.add(x)
+            # the module whose event (or process run) this one depends on; a module is connected when its events
+            # depend on another module's, or another module's depend on it
+            ma = pv.proc_module.get(a) if pv.events[a].type == "proc" else \
+                (mod_of(a) if pv.subsystem.get(a) else None)
+            if ma and mb and ma != mb:
+                linked.add(ma)
+                linked.add(mb)
     mods = sorted(m for m in world.modules if m not in INFRA_MODULES)
     without = [m for m in mods if m not in linked]
     return {"modules": len(mods), "modules_without_shared_state": len(without), "without": without,
@@ -126,7 +134,8 @@ def duplicate_facts(world) -> dict:
     kinds: dict[str, dict[str, int]] = defaultdict(dict)
     dups: dict[str, list] = defaultdict(list)
     # relationship (one principal follows another)
-    ff = {(r["follower"], r["target"]) for r in _rows(st, "forum_follows").values() if not str(r["target"]).startswith("board:")}
+    ff = {(r["follower"], r["target"]) for r in _rows(st, "forum_follows").values()
+          if not str(r["target"]).startswith("board:")}
     if ff:
         kinds["follow"]["forum.forum_follows"] = len(ff)
     if "social" in world.modules:
@@ -274,7 +283,8 @@ def fingerprint(world) -> dict:
     fp["freight"] = {"regions": len(regs), "links": len(links),
                      "degrees": sorted(sum(1 for l in links if r in l) for r in regs)}
     caps = [r["grid"]["capacity"] for r in _rows(st, "regions").values() if r.get("grid")]
-    fp["energy_regime"] = _bucket(float(np.median(caps)) if caps else 0, (2000, 20000), ("scarce", "normal", "abundant"))
+    fp["energy_regime"] = _bucket(float(np.median(caps)) if caps else 0, (2000, 20000),
+                                  ("scarce", "normal", "abundant"))
     provs = list(_rows(st, "providers").values())
     fp["compute"] = {"providers": len(provs),
                      "regime": _bucket(float(np.median([p["cores"] for p in provs])) if provs else 0, (64, 1024),

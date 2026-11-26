@@ -17,7 +17,7 @@ import time
 
 WORKERS_ENV = "CRUCIBLE_CIV_WORKERS"
 CACHE_ENV = "CRUCIBLE_CIV_CACHE"
-INTEGRATION_RUN = {"profile": "balanced", "seed": 7, "days": 4}
+INTEGRATION_RUN = {"profile": "balanced", "seed": 7, "days": 5}
 EFFECT_SEEDS = (11, 12, 13)
 CHAIN_SEEDS = (21, 22, 23)
 
@@ -71,12 +71,15 @@ def integration(profile: str | None = None, seed: int | None = None, days: int |
     def run():
         t = time.time()
         w = generator.generate(p["profile"], p["seed"])
+        w.advance_time(86400)                 # warm-up day: genesis, site installation, first sessions
+        since = w.seq
         w.advance_time(int(p["days"]) * 86400)
         pv = chains.build(w, 0)
         r = generator.recipe(p["profile"], p["seed"])
         out = {"params": p, "events": w.seq, "modules": sorted(w.modules), "pending": r["pending"],
-               "excluded": sorted(r["excluded"]), "subsystems": I.subsystems(w, pv), "cross": I.cross_system(pv),
-               "shared": I.modules_without_shared_state(w, pv), "duplicates": I.duplicate_facts(w),
+               "excluded": sorted(r["excluded"]), "measured_after_seq": since,
+               "subsystems": I.subsystems(w, pv, since), "cross": I.cross_system(pv, since),
+               "shared": I.modules_without_shared_state(w, pv, since), "duplicates": I.duplicate_facts(w),
                "identity": I.identity_violations(w), "ledger": I.ledger_violations(w),
                "invariants": w.check_invariants()[:20], "wall_s": round(time.time() - t, 1)}
         w.close()
