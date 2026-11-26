@@ -26,10 +26,15 @@ def session(w, n=300, seed=1):
 
 
 def test_every_primitive_event_type_is_registered_with_its_owner():
+    from crucible.substrate import facts
     t = bus.types()
     for name, (kind, mod, _) in P.PRIMITIVE_EVENTS.items():
         assert t[name]["owner"] == mod and kind in P.OWNERS
-        assert mod == P.KERNEL or mod == P.owner(kind)["module"]
+        # the kind's owner, the kernel, or a 4.0 module whose table of that kind is a reviewed `legacy` entry (it
+        # holds the kind's facts only in worlds without the owner, verified by a named test): after the D-21
+        # institution migration (c5c/w3b-econ1) gov.constitution is such an event, emitted by 4.0 worlds
+        legacy = {k.split(".", 1)[0] for k, r in facts.REVIEWED.items() if r["role"] == "legacy" and r["kind"] == kind}
+        assert mod == P.KERNEL or mod == P.owner(kind)["module"] or mod in legacy, (name, kind, mod)
     covered = {k for k, _, _ in P.PRIMITIVE_EVENTS.values()} | {"content_artifact", "asset"}
     assert len(covered) >= 15
 
