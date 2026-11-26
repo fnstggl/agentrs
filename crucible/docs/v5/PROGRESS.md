@@ -93,3 +93,20 @@ Disk: 21 GB free after calibration data (1.8 GB under /workspace/data/crucible).
 * Known integration bug: two kernel modules named `space`; `civ.generate` fails -> integration fix running.
 * Machine-readable ledger: `docs/v5/PROGRESS.json` milestone M5 (remaining requirement ids, failing tests, next actions).
 * Requirements verified: 0 of 354 (no official evidence run yet; the checker reports IN_PROGRESS).
+
+## Milestone 6 - wave 3a and the integration fix merged; wave 3b launched (2026-11-26, 55433e7..959d03b)
+
+* Merged `c5c/w3-intfix` (one semantic space: population.semantics delegates to crucible.semantic.space; handlers run
+  as their owner module; `civ.generate` builds all 11 profiles, 2-day runs with 0 invariant errors) and the wave-3a
+  branches kernel, calibration, security, QA, observation-only, Tier 1, performance and research. Eight wave-3a agents
+  were stopped by the usage limit after committing; their interruptions are recorded in PROGRESS.json and reassigned.
+  Conflicts: FIDELITY_REGISTER (id records kept), DECISION_LOG (performance's D-26 renumbered D-27).
+* Integrated regression (tests/test_*.py, 2,107 tests, GPU slots, default TMPDIR): 2,101 passed, 6 failed - kernel
+  K1/K2/retention (3), scale worker recycling (1), a 4.0 world test's order dependence (1), a CAM test's GPU memory in
+  its slot (1); assigned to the wave-3b owners.
+* D-28: the project owner authorised MIND-small for experimental research; blocker B-1 resolved (no open blockers).
+* Wave 3b (18 workstreams, implement -> independent verify -> repair): domains framework + 15 Tier 2 domains (three
+  engineers), self-play, population, social, semantic class-4 participants, commerce, innovation, civilization
+  long-horizon runs, Tier 1 family counts, observation-only Tier 2/3, research, performance, security, kernel +
+  calibration, QA (CAM-import relocation, A.1 legacy-mode baseline, manifest implementation files).
+* Requirements verified: 0 of 354 (no official evidence run yet; the checker reports IN_PROGRESS).
