@@ -206,3 +206,42 @@ def quantile(xs, q: float) -> float:
 def jsonable(x: Any) -> Any:
     from ..core.canonical import to_jsonable
     return to_jsonable(x)
+
+
+def session_provenance(world, table: str, kinds: Iterable[str]) -> dict:
+    """Evaluator side: every recorded decision batch of `kinds` on a domain column table must come from the
+    population's own sessions - its REF listed by a `pop.session` batch and every row an individual of that session's
+    cohort - and carry a registered decision model. Returns counts; `forced_rows` must be 0."""
+    from ..substrate import artifacts
+    kinds = tuple(kinds)
+    listed: dict[str, np.ndarray] = {}
+    out = {"batches": 0, "rows": 0, "organic_rows": 0, "forced_rows": 0, "missing_provenance": 0}
+    models = world.state.tables.get("pop_decision_models", {})
+    evs = list(world.events_range(0))
+    for ev in evs:
+        p = ev.payload
+        if ev.type == "cols.batch" and p.get("table") == "pop" and p.get("kind") == "pop.session":
+            refs = (p.get("extra") or {}).get("decisions") or []
+            if refs:
+                coh = artifacts.get_array_blob(world, p["ref"])["idx"].astype(np.int64)
+                for r in refs:
+                    listed[r] = coh
+    for ev in evs:
+        p = ev.payload
+        if ev.type != "cols.batch" or p.get("table") != table or p.get("kind") not in kinds:
+            continue
+        v = artifacts.get_array_blob(world, p["ref"])["idx"].astype(np.int64)
+        out["batches"] += 1
+        out["rows"] += int(v.size)
+        prov = (p.get("extra") or {}).get("decision")
+        if not isinstance(prov, dict) or f"{prov.get('model_id')}@{prov.get('model_version')}" not in models:
+            out["missing_provenance"] += 1
+            out["forced_rows"] += int(v.size)
+            continue
+        if p["ref"] not in listed:
+            out["forced_rows"] += int(v.size)
+            continue
+        inside = np.isin(v, listed[p["ref"]])
+        out["organic_rows"] += int(inside.sum())
+        out["forced_rows"] += int((~inside).sum())
+    return out
