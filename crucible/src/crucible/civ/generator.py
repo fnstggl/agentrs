@@ -301,8 +301,12 @@ def recipe(profile: str | P.Profile, seed: int, *, population: str = "developmen
         cfgs[m] = {**cfgs.get(m, {}), **c}
     # sandbox_max_workers: one warm worker per hosted site (the default pool of 24 is smaller than a civilisation's
     # web, and restarting evicted workers dominated the cost of a simulated day: 26 s -> 9-13 s per day)
+    # typed_events: every registered event type of the civilisation's modules is validated against its schema when
+    # it is emitted (crucible.substrate.bus.enforce_world); the flag is part of the spec, so snapshots, forks,
+    # cross-process resume and replay stay typed. An invalid payload refuses its command or fails its process run
+    # (recorded as proc.failed, which every gate counts).
     params = {"cost_model": "deterministic", "civ_profile": prof.name, "civ_population": population,
-              "log_retain": 300_000, "sandbox_max_workers": 64, **ov.pop("params", {})}
+              "log_retain": 300_000, "sandbox_max_workers": 64, "typed_events": True, **ov.pop("params", {})}
     if ov:
         raise ValueError(f"unknown overrides {sorted(ov)} (drop_modules, module_config, params)")
     subs = {s: [m for m in d["modules"] if m in mods] for s, d in SUB.SUBSYSTEMS.items()}
@@ -336,8 +340,13 @@ def spec(profile: str | P.Profile, seed: int, population: str = "development", *
 
 
 def generate(profile: str | P.Profile, seed: int, population: str = "development", *, overrides: dict | None = None,
-             store=None, world_id: str | None = None, strict: bool = False):
-    """Create the civilisation world (genesis run, clock at 0)."""
+             store=None, world_id: str | None = None, strict: bool = True):
+    """Create the civilisation world (genesis run, clock at 0).
+
+    Civilisations are typed worlds (`params.typed_events`, see `recipe`) and, by default, strict worlds: a handler
+    bug (an exception that is not a CrucibleError) is raised to the caller instead of being recorded as a failed
+    command or process. Long runs that must survive a bug in one module pass `strict=False` and count every
+    `proc.failed` as an unexplained violation (crucible.civ.longrun)."""
     from ..core.kernel import World
     sp = spec(profile, seed, population, overrides=overrides)
     return World.create(sp, world_id=world_id or f"civ-{sp.hash()[:12]}", store=store, strict=strict)

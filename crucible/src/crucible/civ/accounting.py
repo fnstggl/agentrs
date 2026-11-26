@@ -157,3 +157,21 @@ class Accountant:
 
     def mismatches(self) -> int:
         return sum(len(v) for v in self.check().values())
+
+    # ------------------------------------------------------------------ checkpoints (crucible.civ.longrun)
+    _FIELDS = ("last_seq", "gaps", "sessions", "retail_units", "retail_cents", "posts", "batch_rows_bad",
+               "pop_invoice_paid")
+
+    def state(self) -> dict:
+        """JSON-native state, so a long run interrupted after a checkpoint resumes its accounting exactly."""
+        return {**{k: getattr(self, k) for k in self._FIELDS}, "c": dict(self.c), "energy": dict(self.energy),
+                "energy_n": dict(self.energy_n), "deleted": sorted(self.deleted)}
+
+    def restore(self, d: dict) -> "Accountant":
+        for k in self._FIELDS:
+            setattr(self, k, d[k])
+        self.c = Counter(d["c"])
+        self.energy = defaultdict(float, {k: float(v) for k, v in d["energy"].items()})
+        self.energy_n = Counter(d["energy_n"])
+        self.deleted = set(d["deleted"])
+        return self

@@ -15,6 +15,7 @@ The relation kinds (`KINDS`) are the generic ones of the contract's relation gra
     supplies     the output of one domain is what participants of another consume
     coordinates  the size of an organisation sets how much of its members' work goes to coordination
     skills       learning activity changes the skills a labour market sees
+    prices       a participant sets the price of what it sells from a cost it observes in another domain
 
 The catalogue (`CATALOGUE`) covers the eight example categories of Part 10.2. Where a mechanism lives:
 
@@ -36,6 +37,21 @@ The catalogue (`CATALOGUE`) covers the eight example categories of Part 10.2. Wh
 * `org_coordination` (coordinates; organisations -> employment/production): an organisation's effective staff is
   reduced by coordination overhead that grows with its operator headcount (Ringelmann-type losses), halved for
   organisations that run workflows (`wf`); wraps the `gov` effort hook industry reads, so no production code changes.
+* `freight_energy` (loads; supply chains -> energy): freight is electric - every shipment draws energy for each
+  link of its route (`kwh_per_unit_link` per unit) from the grid of the region it leaves, paid by the shipper, in the
+  hour it departs (`civlinks.hour` reads the `shipments` dispatched in the past hour). A refused draw is covered by
+  backup generation bought outside the world at a premium. Transport and production then share one grid.
+* `lab_energy` (loads; scientific research -> energy): every completed measurement run of an apparatus draws
+  `kwh_per_measurement` per measurement from the grid of the region its operator stands in (operators are placed in
+  regions by `civgen`), paid by the operator; a refusal is covered by backup generation at a premium.
+* `energy_cost_pricing` (prices; energy -> computing infrastructure -> software businesses): every day each compute
+  provider's owner reprices compute for new rentals from its own energy bill of the past day (energy cents per
+  powered core-hour, from the provider's own `links.energy` draws): the price moves with the change of that cost
+  since the first priced day (cost pass-through), through the ordinary `cloud.set_price` tool. Web businesses that
+  rent later pay the energy situation of their provider's region.
+* `datacenter_siting` (constrains; energy -> computing infrastructure): a provider whose datacenter was curtailed for
+  at least `curtailed_hours` hours in the past week moves it (`civlinks.relocate`, also open to any provider's owner,
+  paying `relocate_cents_per_core`) to the region whose grid had the most capacity left yesterday.
 * `education_skills` (skills; education -> employment): PENDING - learners of `learn` are not yet members of the
   population and the population's employment is not yet the labour market (Tier 2 education, wave 2b; CORE-POP/ECON
   `pop.employer` -> `labor`). The record is kept so profiles state it; `pending` says what it waits for and the gate
@@ -58,7 +74,7 @@ from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_m
 
 DAY = 86400
 HOUR = 3600
-KINDS = ("informs", "loads", "constrains", "exposes", "supplies", "coordinates", "skills")
+KINDS = ("informs", "loads", "constrains", "exposes", "supplies", "coordinates", "skills", "prices")
 
 
 @dataclass(frozen=True)
@@ -110,6 +126,25 @@ CATALOGUE: dict[str, Coupling] = {c.id: c for c in [
              "effective operator hours available for production (coordination overhead)",
              "civlinks wraps the `gov` effort hook read by industry.operators",
              {"k": 0.035, "k_with_workflows": 0.0175}),
+    Coupling("freight_energy", 3, "loads", "supply_chains", "energy",
+             "units and routes of the shipments dispatched in an hour (freight network state)",
+             "energy drawn from the grid of the region a shipment leaves (capacity and price shared with production "
+             "and datacenters), paid by the shipper",
+             "civlinks.hour -> industry.draw_energy", {"kwh_per_unit_link": 0.4, "backup_price_mult": 3.0}),
+    Coupling("lab_energy", 3, "loads", "scientific_research", "energy",
+             "measurements completed by each apparatus in an hour (science state)",
+             "energy drawn from the grid of the apparatus operator's region, paid by the operator",
+             "civlinks.hour -> industry.draw_energy", {"kwh_per_measurement": 2.0, "backup_price_mult": 3.0}),
+    Coupling("energy_cost_pricing", 4, "prices", "energy", "computing_infrastructure",
+             "a provider's own energy bill per powered core-hour over the past day",
+             "the provider's compute price for new rentals (cost pass-through; software businesses that rent pay it)",
+             "civlinks.day -> cloud.set_price as the provider's owner", {"min_change_cents": 1}),
+    Coupling("datacenter_siting", 4, "constrains", "energy", "computing_infrastructure",
+             "hours a provider's datacenter was curtailed by its grid in the past week; capacity left on each "
+             "regional grid yesterday",
+             "where the provider's datacenter stands (and so which grid it loads), after a paid relocation",
+             "civlinks.day -> civlinks.relocate as the provider's owner",
+             {"curtailed_hours": 6, "relocate_cents_per_core": 200}),
     Coupling("education_skills", 6, "skills", "education", "employment",
              "mastery that learners reach in `learn` courses",
              "the skills the labour market sees when it matches people to jobs",
@@ -246,10 +281,10 @@ def rnd_routine(soc, ctx, mid, m, rng):
             continue
         cands = [(p_id, p) for p_id, p in st.scan("sci_papers")
                  if p["phenomenon"] == b["phenomenon"] and p_id not in tried]
-        if not cands:
-            continue
         tol = float(par["max_rel_err"])
         cands = [c for c in cands if _paper_support(st, c[0], tol)[0] >= 1]
+        ctx.emit("links.rnd_check", {"org": m["org"], "design": plan["design"], "phenomenon": b["phenomenon"],
+                                     "replicated_untried": len(cands)}, vis=(m["org"],))
         if not cands:
             continue                     # nothing independently reproduced yet: wait (papers stay untried)
         cands.sort(key=lambda x: (_paper_support(st, x[0], tol), x[0]), reverse=True)
@@ -338,6 +373,7 @@ class CivLinks(Module):
         st = world.state
         st.declare_table("civ_links")
         st.declare_table("civ_dc")
+        st.declare_table("civ_labs")
         st.declare_table("civ_rnd", index=("org",))
         for cid in self.config.get("couplings") or []:
             if cid not in CATALOGUE:
@@ -347,21 +383,96 @@ class CivLinks(Module):
             world.hooks.setdefault("mind_routines", {})["rnd"] = rnd_routine
         if "org_coordination" in cs and "industry" in world.modules:
             world.hooks["gov"] = _CoordinatedGov(world, world.hooks.get("gov"))
+        # loads that happen when something happens elsewhere: same-transaction subscribers (D-21: their events are
+        # side events with their own random streams, so adding or removing them never reshuffles the main line)
+        from ..substrate import bus
+        if "freight_energy" in cs and "freight" in world.modules and "industry" in world.modules:
+            bus.subscribe(world, "freight.shipment", self._on_shipment, owner=self.name)
+        if "lab_energy" in cs and "sci" in world.modules and "industry" in world.modules:
+            bus.subscribe(world, "sci.completed", self._on_measured, owner=self.name)
 
     def genesis(self, ctx):
         for cid in sorted(self.config.get("couplings") or []):
             rec = CATALOGUE[cid].record()
             rec["params"].update((self.config.get("params") or {}).get(cid, {}))
             ctx.emit("links.coupling", {**rec, "enabled": True}, vis="internal")
-        if any(c in (self.config.get("couplings") or []) for c in ("compute_energy", "grid_curtailment")):
+        cs = set(self.config.get("couplings") or [])
+        if cs & {"compute_energy", "grid_curtailment"}:
             ctx.schedule((ctx.now // HOUR + 1) * HOUR + 120, "civlinks.hour", {}, prio=22, period=HOUR,
                          key="civlinks.hour")
-        if "org_coordination" in (self.config.get("couplings") or []):
+        if cs & {"org_coordination", "energy_cost_pricing", "datacenter_siting"}:
             ctx.schedule((ctx.now // DAY + 1) * DAY + 300, "civlinks.day", {}, prio=31, period=DAY,
                          key="civlinks.day")
 
     def register_datacenter(self, ctx, provider: str, region: str) -> None:
         ctx.emit("links.dc", {"provider": provider, "region": region}, vis="public")
+
+    def register_lab(self, ctx, operator: str, region: str) -> None:
+        """Where an apparatus operator stands (its measurements load that region's grid: `lab_energy`)."""
+        ctx.emit("links.lab", {"operator": operator, "region": region}, vis="public")
+
+    # ------------------------------------------------------------------ loads drawn when they happen
+    def _draw_or_backup(self, ctx, cid: str, region: str, kwh: float, payer: str, memo: str, info: dict) -> None:
+        """Draw `kwh` from `region`'s grid for `payer`; a refused draw is covered by backup generation bought outside
+        the world at `backup_price_mult` times the grid's base price; a payer who cannot pay records the failure."""
+        w = ctx.world
+        st = ctx.state
+        ind, bank = w.modules["industry"], w.modules["bank"]
+        acct = bank.primary_account(st, payer)
+        if acct is None or kwh <= 0 or not (st.get("regions", region) or {}).get("grid"):
+            return
+        try:
+            out = ctx.run_as(payer, lambda sub: ind.draw_energy(sub, region, kwh, acct, memo, consumer=payer))
+            ctx.emit("links.load", dict(info, coupling=cid, region=region, kwh=round(kwh, 3), payer=payer,
+                                        cost=int(out["cost_cents"]), backup=False), vis=(payer,))
+            return
+        except CapacityExceeded:
+            pass
+        except CrucibleError as e:
+            ctx.emit("links.energy_failed", {"provider": payer, "region": region, "error": e.message[:200],
+                                             "coupling": cid}, vis=(payer,))
+            return
+        g = st.tables["regions"][region]["grid"]
+        cost = max(1, int(math.ceil(kwh * g["base_price"] * float(self._params(st, cid).get("backup_price_mult",
+                                                                                              3.0)))))
+        try:
+            bank.move(ctx, acct, "acct_external", cost, "energy", f"backup generation: {memo}")
+            ctx.emit("links.load", dict(info, coupling=cid, region=region, kwh=round(kwh, 3), payer=payer, cost=cost,
+                                        backup=True), vis=(payer,))
+        except CrucibleError as e:
+            ctx.emit("links.energy_failed", {"provider": payer, "region": region, "error": e.message[:200],
+                                             "coupling": cid}, vis=(payer,))
+
+    def _on_shipment(self, ctx, ev) -> None:
+        if not active(ctx.world, "freight_energy"):
+            return
+        st = ctx.state
+        p = ev.payload
+        route = list(p.get("route") or [])
+        fac = st.get("facilities", p.get("to"))
+        if not route or fac is None:
+            return
+        # walk the route back from the destination region: the region the shipment leaves is the far end
+        here = fac["region"]
+        for lid in reversed(route):
+            l = st.tables["links"][lid]
+            here = l["a"] if l["b"] == here else l["b"]
+        kwh = float(p["qty"]) * len(route) * float(self._params(st, "freight_energy")["kwh_per_unit_link"])
+        self._draw_or_backup(ctx, "freight_energy", here, kwh, p["payer"], f"freight {p['qty']} x {p['sku']}",
+                             {"shipment": ev.payload["id"], "refs": [ev.seq]})
+
+    def _on_measured(self, ctx, ev) -> None:
+        if not active(ctx.world, "lab_energy"):
+            return
+        st = ctx.state
+        r = st.get("sci_runs", ev.payload["id"])
+        app = st.get("sci_app", r["apparatus"]) if r else None
+        lab = st.get("civ_labs", app["operator"]) if app else None
+        if lab is None:
+            return
+        kwh = float(r["n"]) * float(self._params(st, "lab_energy")["kwh_per_measurement"])
+        self._draw_or_backup(ctx, "lab_energy", lab["region"], kwh, app["operator"],
+                             f"{r['n']} measurements on {r['apparatus']}", {"run": ev.payload["id"], "refs": [ev.seq]})
 
     def _params(self, st, cid) -> dict:
         r = st.get("civ_links", cid)
@@ -456,9 +567,9 @@ class CivLinks(Module):
             info = {"provider": prov, "region": region, "kwh": round(kwh, 3), "hour": int(hour),
                     "powered_cores": int(cores.get(prov, 0)), "loads": loads.get(prov, [])}
             try:
-                ctx.run_as(prov, lambda sub: ind.draw_energy(sub, region, kwh, acct, f"datacenter {prov} hour {hour}",
-                                                             consumer=prov))
-                ctx.emit("links.energy", info, vis=(prov,))
+                out = ctx.run_as(prov, lambda sub: ind.draw_energy(sub, region, kwh, acct,
+                                                                   f"datacenter {prov} hour {hour}", consumer=prov))
+                ctx.emit("links.energy", dict(info, cost=int(out["cost_cents"])), vis=(prov,))
                 continue
             except CapacityExceeded:
                 pass
@@ -482,6 +593,87 @@ class CivLinks(Module):
     # ------------------------------------------------------------------ daily: what coordination costs
     @process("day")
     def pr_day(self, ctx):
+        w = ctx.world
+        if "cloud" in w.modules and "industry" in w.modules:
+            if active(w, "energy_cost_pricing"):
+                self._reprice(ctx)
+            if active(w, "datacenter_siting"):
+                self._siting(ctx)
+        self._coordination(ctx)
+
+    @staticmethod
+    def _owner(st, org: str) -> str | None:
+        return next((x["person"] for x in st.find("members", "org", org) if x.get("role") == "owner"), None)
+
+    def _reprice(self, ctx):
+        """Each provider's owner passes the change of its own energy cost per powered core-hour (yesterday's bill)
+        on to its price for new rentals."""
+        st = ctx.state
+        day = str(ctx.now // DAY - 1)
+        step = int(self._params(st, "energy_cost_pricing").get("min_change_cents", 1))
+        for prov, rec in sorted(st.scan("civ_dc")):
+            p = st.get("providers", prov)
+            got = (rec.get("bill") or {}).get(day)
+            if p is None or p["status"] != "active" or not got or got[1] <= 0:
+                continue
+            e = float(got[0]) / float(got[1])                 # energy cents per powered core-hour
+            ref = rec.get("price_ref")
+            if ref is None:
+                ctx.emit("links.price_ref", {"provider": prov, "price": int(p["price"]), "energy": round(e, 4)},
+                         vis=(prov,))
+                continue
+            new = max(1, int(round(float(ref["price"]) + e - float(ref["energy"]))))
+            owner = self._owner(st, prov)
+            if owner is None or abs(new - int(p["price"])) < step:
+                continue
+            try:
+                ctx.call("cloud.set_price", {"provider": prov, "price_core_hour_cents": new}, as_principal=owner)
+            except CrucibleError as err:
+                ctx.emit("links.energy_failed", {"provider": prov, "region": rec["region"], "coupling":
+                                                 "energy_cost_pricing", "error": err.message[:200]}, vis=(prov,))
+                continue
+            ctx.emit("links.repriced", {"provider": prov, "from": int(p["price"]), "to": new,
+                                        "energy_cents_per_core_hour": round(e, 4), "day": int(day)}, vis=(prov,))
+
+    def _siting(self, ctx):
+        """A provider whose datacenter was curtailed for `curtailed_hours` hours in the past week moves it to the
+        region with the most grid capacity left yesterday (paying for the move)."""
+        w = ctx.world
+        st = ctx.state
+        par = self._params(st, "datacenter_siting")
+        bank = w.modules["bank"]
+        yday = ctx.now // DAY - 1
+        hour_now = ctx.now // HOUR
+        spare = {}
+        for reg, r in sorted(st.scan("regions")):
+            g = r.get("grid")
+            if g:
+                used = (st.get("grid_days", f"{reg}|{yday}") or {}).get("used", 0.0)
+                spare[reg] = float(g["capacity"]) - float(used)
+        if not spare:
+            return
+        for prov, rec in sorted(st.scan("civ_dc")):
+            recent = [h for h in rec.get("curtailed") or [] if h >= hour_now - 168]
+            if len(recent) < int(par["curtailed_hours"]) or rec.get("moved_t", -10 * DAY) > ctx.now - 7 * DAY:
+                continue
+            target = max(sorted(spare), key=lambda k: spare[k])
+            if target == rec["region"] or spare[target] <= spare.get(rec["region"], 0.0):
+                continue
+            owner = self._owner(st, prov)
+            p = st.get("providers", prov)
+            acct = bank.primary_account(st, prov)
+            if owner is None or p is None or acct is None:
+                continue
+            cost = max(1, int(p["cores"]) * int(par["relocate_cents_per_core"]))
+            try:
+                ctx.run_as(owner, lambda sub: bank.move(sub, acct, "acct_external", cost, "capex",
+                                                        f"move datacenter of {prov} to {target}"))
+            except CrucibleError:
+                continue
+            ctx.emit("links.dc", {"provider": prov, "region": target, "moved_from": rec["region"],
+                                  "curtailed_hours": len(recent), "cost": cost}, vis="public")
+
+    def _coordination(self, ctx):
         w = ctx.world
         st = ctx.state
         if not active(w, "org_coordination") or "industry" not in w.modules:
@@ -514,13 +706,51 @@ class CivLinks(Module):
 
     @applier("links.dc")
     def ap_dc(self, ev):
-        self.world.state.put("civ_dc", ev.payload["provider"], {"region": ev.payload["region"], "t": ev.t})
+        st = self.world.state
+        p = ev.payload
+        if st.has("civ_dc", p["provider"]):
+            st.patch("civ_dc", p["provider"], region=p["region"], moved_t=ev.t, curtailed=[])
+        else:
+            st.put("civ_dc", p["provider"], {"region": p["region"], "t": ev.t, "bill": {}, "curtailed": [],
+                                             "price_ref": None})
+
+    @applier("links.lab")
+    def ap_lab(self, ev):
+        self.world.state.put("civ_labs", ev.payload["operator"], {"region": ev.payload["region"], "t": ev.t})
+
+    def _bill(self, prov: str, t: int, cents: int, core_hours: float) -> None:
+        st = self.world.state
+        r = st.get("civ_dc", prov)
+        if r is None:
+            return
+        day = t // DAY
+        bill = {k: v for k, v in (r.get("bill") or {}).items() if int(k) >= day - 7}
+        c, h = bill.get(str(day), [0, 0.0])
+        bill[str(day)] = [int(c) + int(cents), round(float(h) + float(core_hours), 3)]
+        st.patch("civ_dc", prov, bill=bill)
+
+    @applier("links.price_ref")
+    def ap_price_ref(self, ev):
+        self.world.state.patch("civ_dc", ev.payload["provider"], price_ref={"price": ev.payload["price"],
+                                                                            "energy": ev.payload["energy"]})
+
+    @applier("links.repriced")
+    def ap_repriced(self, ev):
+        pass
+
+    @applier("links.load")
+    def ap_load(self, ev):
+        pass
 
     @applier("links.rnd")
     def ap_rnd(self, ev):
         p = ev.payload
         self.world.state.put("civ_rnd", p["design"], {"org": p["org"], "paper": p["paper"], "from": p["from"],
                                                       "to": p["to"], "t": ev.t, "kept": None})
+
+    @applier("links.rnd_check")
+    def ap_rnd_check(self, ev):
+        pass
 
     @applier("links.rnd_result")
     def ap_rnd_result(self, ev):
@@ -531,7 +761,8 @@ class CivLinks(Module):
 
     @applier("links.energy")
     def ap_energy(self, ev):
-        pass
+        p = ev.payload
+        self._bill(p["provider"], ev.t, int(p.get("cost", 0)), float(p.get("powered_cores", 0)))
 
     @applier("links.placebo")
     def ap_placebo(self, ev):
@@ -539,11 +770,17 @@ class CivLinks(Module):
 
     @applier("links.curtailed")
     def ap_curtailed(self, ev):
-        pass
+        st = self.world.state
+        r = st.get("civ_dc", ev.payload["provider"])
+        if r is not None:
+            h = int(ev.payload["hour"])
+            st.patch("civ_dc", ev.payload["provider"],
+                     curtailed=[x for x in (r.get("curtailed") or []) if x >= h - 168] + [h])
 
     @applier("links.backup")
     def ap_backup(self, ev):
-        pass
+        p = ev.payload
+        self._bill(p["provider"], ev.t, int(p.get("cost", 0)), float(p.get("powered_cores", 0)))
 
     @applier("links.energy_failed")
     def ap_energy_failed(self, ev):

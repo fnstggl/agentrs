@@ -30,7 +30,8 @@ from dataclasses import dataclass, field
 from ..core.canonical import digest
 
 ALL_COUPLINGS = ("science_process", "compute_energy", "grid_curtailment", "goods_supply", "goods_wom",
-                 "org_coordination", "education_skills")
+                 "org_coordination", "education_skills", "freight_energy", "lab_energy", "energy_cost_pricing",
+                 "datacenter_siting")
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,8 @@ PROFILES: dict[str, Profile] = {p.name: p for p in [
     _p("digital_first", "Digital-first",
        "A large generated web with many shops and a competitive compute market on a short, linear supply chain; "
        "datacenters are the largest energy load; science is small and not tied to industry.",
-       "Digital-first", ("compute_energy", "grid_curtailment", "goods_supply", "goods_wom", "education_skills"),
+       "Digital-first", ("compute_energy", "grid_curtailment", "goods_supply", "goods_wom", "education_skills",
+                         "energy_cost_pricing", "datacenter_siting"),
        industry={"chain": "linear", "regions": 3, "links": "line"},
        compute={"market": "competitive", "regime": "abundant", "datacenters": "spread"},
        digital={"sites": 32, "shop_share": 0.55},
@@ -90,7 +92,7 @@ PROFILES: dict[str, Profile] = {p.name: p for p in [
        "A wide five-region supply chain (three mines, three component makers, four competing assemblers) with "
        "chords in the freight ring; a single compute provider; few web sites.",
        "Industrial-first", ("science_process", "compute_energy", "goods_supply", "goods_wom", "org_coordination",
-                            "education_skills"),
+                            "education_skills", "freight_energy", "lab_energy"),
        industry={"chain": "wide", "regions": 5, "links": "ring_chords", "materials": 7},
        compute={"market": "monopoly", "regime": "normal", "datacenters": "colocated"},
        digital={"sites": 10, "shop_share": 0.3}),
@@ -99,21 +101,23 @@ PROFILES: dict[str, Profile] = {p.name: p for p in [
        "the R&D route from replicated science to process settings exists; a diamond supply chain (every assembler "
        "needs both component makers).",
        "Research-intensive", ("science_process", "compute_energy", "grid_curtailment", "goods_supply", "goods_wom",
-                              "education_skills"),
+                              "education_skills", "lab_energy", "energy_cost_pricing"),
        industry={"chain": "diamond"},
        science={"phenomena": 4, "bound": 4, "rivals": 4, "replicators": 3}),
     _p("infrastructure_constrained", "Infrastructure-constrained",
        "Small grids that cannot expand, one small compute provider whose datacenter shares a grid with industry, and "
        "a line of low-capacity freight links: energy, compute and transport bind.",
        "Infrastructure-constrained", ("compute_energy", "grid_curtailment", "goods_supply", "goods_wom",
-                                      "org_coordination", "education_skills"),
+                                      "org_coordination", "education_skills", "freight_energy", "lab_energy",
+                                      "energy_cost_pricing", "datacenter_siting"),
        industry={"links": "line"},
        energy={"regime": "scarce", "expand": False},
        compute={"market": "monopoly", "regime": "scarce", "datacenters": "colocated"}),
     _p("resource_abundant", "Resource-abundant",
        "Large expandable grids, many materials and spare compute in every region; nothing physical binds, so "
        "competition is on product attributes and prices.",
-       "Resource-abundant", ("science_process", "compute_energy", "goods_supply", "goods_wom", "education_skills"),
+       "Resource-abundant", ("science_process", "compute_energy", "goods_supply", "goods_wom", "education_skills",
+                             "freight_energy"),
        industry={"materials": 8, "links": "complete"},
        energy={"regime": "abundant", "expand": True},
        compute={"market": "duopoly", "regime": "abundant", "datacenters": "spread"}),
@@ -128,7 +132,7 @@ PROFILES: dict[str, Profile] = {p.name: p for p in [
        "People live in contiguous regional blocks, so their contacts stay inside their region; every board is a "
        "regional board; freight is a line. Word of mouth stays local.",
        "Fragmented social networks", ("science_process", "compute_energy", "grid_curtailment", "goods_supply",
-                                      "goods_wom", "education_skills"),
+                                      "goods_wom", "education_skills", "freight_energy", "datacenter_siting"),
        industry={"links": "line"},
        social={"placement": "blocks", "boards": "regional"}),
     _p("interconnected_communities", "Strongly interconnected communities",
@@ -141,13 +145,14 @@ PROFILES: dict[str, Profile] = {p.name: p for p in [
        "Producer firms are cooperatives that share profit by recorded labour hours, component makers share it "
        "equally among members; coordination costs of growing organisations apply.",
        "Differing institutional structures", ("science_process", "compute_energy", "goods_supply", "goods_wom",
-                                              "org_coordination", "education_skills"),
+                                              "org_coordination", "education_skills", "lab_energy",
+                                              "energy_cost_pricing"),
        institutions={"governance": "cooperative", "utilities": "private"}),
     _p("mixed_economy", "Mixed economy",
        "The grid utility and one of the two compute providers are public organisations whose constitutions share "
        "surplus equally among members; every other firm is private.",
        "Mixed economies", ("science_process", "compute_energy", "grid_curtailment", "goods_supply", "goods_wom",
-                           "org_coordination", "education_skills"),
+                           "org_coordination", "education_skills", "energy_cost_pricing", "freight_energy"),
        institutions={"governance": "mixed", "utilities": "public"},
        compute={"market": "duopoly", "regime": "normal", "datacenters": "spread"}),
 ]}

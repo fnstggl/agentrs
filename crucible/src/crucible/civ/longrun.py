@@ -20,9 +20,18 @@ store and checks, as it goes:
   that were verified and are older than the last two are then removed from the store (a retention policy for long runs on a small disk; the report states how
   many bytes were pruned; full replay from genesis is then no longer possible, segment-wise verification was).
 
+Interruption (usage limits stop processes without warning): every snapshot is a checkpoint - after its segment was
+replayed, `<workdir>/progress.json` records the report so far, the accountant's counters and the snapshot list. A
+run started again in the same directory on the same spec and code resumes there: the store is cut back to the
+checkpoint (what was recorded after it is regenerated, and compared with the dropped events when they had been
+flushed), the world is rebuilt by `World.load` in the new process and checked against the checkpoint's hash and
+state digest. A run loses at most `snapshot_every` simulated days of work.
+
 The report has everything Gate P measures; `suite(...)` runs several horizons and seeds, each in its own process,
-`workers` at a time (launch the caller through `crucible.scale.slots --cpu <workers>`), and removes each run's store
-after it has been checked unless `keep_stores`.
+`workers` at a time (launch the caller through `crucible.scale.slots --cpu <workers>`), in persistent per-run
+directories (`job_dir`: $CRUCIBLE_CIV_RUNS or /workspace/data/crucible/runs-c5/civ, keyed by the code digest) so
+that a suite started again skips completed runs and resumes interrupted ones; it removes each run's store after it
+has been checked unless `keep_stores`.
 """
 from __future__ import annotations
 
@@ -83,10 +92,65 @@ def _resume_child(copy_path: str, world_id: str, until: int, timeout_s: int = 36
     return {"ok": True, **json.loads(pr.stdout.decode().strip().splitlines()[-1])}
 
 
+def _read_json(path: str):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _write_json(path: str, obj) -> None:
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as fh:
+        json.dump(obj, fh, default=str)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
+def _truncate_after(store, wid: str, seq: int) -> dict:
+    """Drop the events and snapshots of `wid` after `seq` from the run's own store (an interrupted run resumes at
+    its last checkpoint; what it recorded after that is regenerated). Returns what was dropped, so the regenerated
+    events can be compared with the dropped ones (determinism across the interruption)."""
+    con = store._conn()
+    r = con.execute("SELECT seq, hash FROM events WHERE world_id=? AND seq>? ORDER BY seq DESC LIMIT 1",
+                    (wid, int(seq))).fetchone()
+    n = con.execute("SELECT COUNT(*) FROM events WHERE world_id=? AND seq>?", (wid, int(seq))).fetchone()[0]
+    con.execute("DELETE FROM events WHERE world_id=? AND seq>?", (wid, int(seq)))
+    ns = con.execute("SELECT COUNT(*) FROM snapshots WHERE world_id=? AND seq>?", (wid, int(seq))).fetchone()[0]
+    con.execute("DELETE FROM snapshots WHERE world_id=? AND seq>?", (wid, int(seq)))
+    con.commit()
+    return {"events": int(n), "snapshots": int(ns), "last_seq": int(r[0]) if r else None,
+            "last_hash": r[1] if r else None}
+
+
+def code_key() -> str:
+    """Digest of the source of the whole `crucible` package (every .py file) - a long run resumes only on the code
+    it started with (a resumed trajectory on other code would mix two worlds)."""
+    import hashlib
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    h = hashlib.sha256()
+    for d, dirs, files in os.walk(root):
+        dirs[:] = sorted(x for x in dirs if x != "__pycache__")
+        for f in sorted(files):
+            if f.endswith(".py"):
+                fp = os.path.join(d, f)
+                with open(fp, "rb") as fh:
+                    h.update(os.path.relpath(fp, root).encode() + b"\0" + fh.read())
+    return h.hexdigest()[:16]
+
+
 def run_horizon(profile: str, seed: int, days: int, *, population: str = "development", workdir: str | None = None,
                 snapshot_every: int = 10, audit_every: int = 10, resume_days: list[int] | None = None,
                 replay: bool = True, overrides: dict | None = None, log=None, keep_store: bool = False,
-                prune_verified_blobs: bool = False) -> dict:
+                prune_verified_blobs: bool = False, resume: bool = True, strict: bool = False) -> dict:
+    """One long run (see the module docstring). Checkpoints: every snapshot (`snapshot_every` days, the resume
+    days and the end) writes `<workdir>/progress.json` after its segment was replayed; a run started again in the
+    same `workdir` with the same spec and code (`resume=True`) continues from the last checkpoint instead of from
+    genesis - the store is cut back to the checkpoint, `World.load` rebuilds the world in this new process (a
+    cross-process resume, verified against the checkpoint's hash and state digest), and every report field
+    continues where it stopped. `report["interruptions"]` lists each resume."""
     import torch
     torch.set_num_threads(1)
     from ..core.kernel import World
@@ -96,31 +160,60 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
     workdir = workdir or tempfile.mkdtemp(prefix="civlong-")
     os.makedirs(workdir, exist_ok=True)
     path = os.path.join(workdir, f"civ-{profile}-{seed}-{days}d.sqlite")
-    for p in (path, path + "-wal", path + "-shm"):
-        if os.path.exists(p):
-            os.remove(p)
-    store = SQLiteStore(path)
+    progress_path = os.path.join(workdir, "progress.json")
     wid = f"civ-{profile}-{seed}-{days}d"
     t_start = time.time()
+    sp = generator.spec(profile, seed, population, overrides=overrides)
+    key = code_key()
+    prog = _read_json(progress_path) if resume else None
+    stale = None
+    if prog is not None and (prog.get("spec_hash") != sp.hash() or prog.get("code") != key
+                             or not os.path.exists(path)):
+        stale = {"spec": prog.get("spec_hash") == sp.hash(), "code": prog.get("code") == key,
+                 "store": os.path.exists(path)}
+        prog = None
+    resume_days = sorted(set(resume_days if resume_days is not None else
+                             [d for d in (min(days, 2), days // 2) if 1 <= d < days]))
+    store = None
     rep: dict = {"profile": profile, "seed": int(seed), "days": int(days), "population": population,
                  "world_id": wid, "failed": False, "error": None, "daily": [], "unexplained_violations": [],
                  "explained_violations": [], "proc_failed": 0, "accounting": [], "resume": [],
                  "replay": {"segments": 0, "events": 0, "mismatches": 0, "detail": [], "wall_s": 0.0},
-                 "pruned_blob_mb": 0.0}
+                 "pruned_blob_mb": 0.0, "pruned_snapshots": 0, "interruptions": [], "code": key,
+                 "spec_hash": sp.hash(), "restarted_stale": stale, "wall_s_before_resume": 0.0}
     try:
-        w = generator.generate(profile, seed, population, overrides=overrides, store=store, world_id=wid)
-        rep["spec_hash"] = w.spec.hash()
-        rep["modules"] = len(w.modules)
-        acc = Accountant(w)
-        acc.feed(w.events_range(0))
-        snaps = [(0, None)]            # (seq, snapshot id); genesis segment starts at seq 0
-        sid = w.snapshot()
-        snaps.append((w.seq, sid))
-        resume_days = sorted(set(resume_days if resume_days is not None else
-                                 [d for d in (min(days, 2), days // 2) if 1 <= d < days]))
-        pending_resume = None
+        if prog is None:
+            for p in (path, path + "-wal", path + "-shm", progress_path):
+                if os.path.exists(p):
+                    os.remove(p)
+            store = SQLiteStore(path)
+            w = generator.generate(profile, seed, population, overrides=overrides, store=store, world_id=wid,
+                                   strict=strict)
+            rep["modules"] = len(w.modules)
+            acc = Accountant(w)
+            acc.feed(w.events_range(0))
+            snaps = [(0, None), (w.seq, w.snapshot())]   # (seq, snapshot id); genesis segment starts at seq 0
+            d0, pending_resume, tail = 0, None, None
+            _checkpoint(progress_path, rep, w, acc, snaps, 0, None, None)
+        else:
+            rep = prog["rep"]
+            store = SQLiteStore(path)
+            ck = prog["checkpoint"]
+            t1 = time.time()
+            cut = _truncate_after(store, wid, ck["seq"])
+            w = World.load(store, wid, strict=strict)
+            ok = w.seq == ck["seq"] and w.last_hash == ck["hash"] and w.digest() == ck["digest"]
+            rep["interruptions"].append({"resumed_at_day": ck["day"], "load_ok": bool(ok), "dropped": cut,
+                                         "load_s": round(time.time() - t1, 1), "at": time.time()})
+            if not ok:
+                raise RuntimeError(f"resume from checkpoint day {ck['day']} gave seq {w.seq} hash {w.last_hash} "
+                                   f"digest {w.digest()}, checkpoint {ck}")
+            acc = Accountant(w).restore(prog["accountant"])
+            snaps = [tuple(x) for x in prog["snaps"]]
+            d0, pending_resume = int(ck["day"]), prog.get("pending_resume")
+            tail = cut if cut.get("last_seq") else None
         prev = w.seq
-        for d in range(days):
+        for d in range(d0, days):
             t1 = time.time()
             w.advance_time((d + 1) * DAY)
             evs = w.events_range(prev)
@@ -146,12 +239,6 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                 rep["accounting"].append({"day": d + 1, "mismatches": sum(len(v) for v in chk.values()),
                                           "detail": bad})
                 row["accounting_mismatches"] = rep["accounting"][-1]["mismatches"]
-            if (d + 1) % snapshot_every == 0 or d + 1 in resume_days or d + 1 == days:
-                snaps.append((w.seq, w.snapshot()))
-                if replay:
-                    _replay_segment(w, store, wid, snaps[-2], snaps[-1], rep["replay"])
-                    if prune_verified_blobs and len(snaps) >= 4:
-                        rep["pruned_blob_mb"] += _prune(w, store, wid, snaps[-4], snaps[-3])
             if pending_resume is not None and pending_resume["until"] == w.now:
                 child = pending_resume["child"]
                 ok = child.get("ok") and child["hash"] == w.last_hash and child["digest"] == w.digest()
@@ -160,16 +247,30 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                                                                           "wall_s")},
                                       "live": {"hash": w.last_hash, "digest": w.digest(), "seq": w.seq}})
                 pending_resume = None
-            if d + 1 in resume_days and d + 1 < days:
-                w.flush()
-                cp = os.path.join(workdir, f"resume-copy-{d + 1}.sqlite")
-                _backup(store, cp)
-                child = _resume_child(cp, wid, (d + 2) * DAY)
-                for p in (cp, cp + "-wal", cp + "-shm"):
-                    if os.path.exists(p):
-                        os.remove(p)
-                pending_resume = {"day": d + 1, "until": (d + 2) * DAY, "child": child}
             rep["daily"].append(row)
+            if (d + 1) % snapshot_every == 0 or d + 1 in resume_days or d + 1 == days:
+                snaps.append((w.seq, w.snapshot()))
+                if tail is not None and w.seq >= tail["last_seq"]:
+                    got = store.read_events(wid, from_seq=tail["last_seq"] - 1, to_seq=tail["last_seq"])
+                    rep["interruptions"][-1]["regenerated_equal"] = bool(got and got[0]["hash"] == tail["last_hash"])
+                    tail = None
+                if replay:
+                    _replay_segment(w, store, wid, snaps[-2], snaps[-1], rep["replay"])
+                    if prune_verified_blobs and len(snaps) >= 4:
+                        rep["pruned_blob_mb"] += _prune(w, store, wid, snaps[-4], snaps[-3])
+                        if snaps[-4][1]:
+                            store.delete_snapshot(snaps[-4][1])     # verified, and no longer a resume point
+                            rep["pruned_snapshots"] += 1
+                if d + 1 in resume_days and d + 1 < days:
+                    w.flush()
+                    cp = os.path.join(workdir, f"resume-copy-{d + 1}.sqlite")
+                    _backup(store, cp)
+                    child = _resume_child(cp, wid, (d + 2) * DAY)
+                    for p in (cp, cp + "-wal", cp + "-shm"):
+                        if os.path.exists(p):
+                            os.remove(p)
+                    pending_resume = {"day": d + 1, "until": (d + 2) * DAY, "child": child}
+                _checkpoint(progress_path, rep, w, acc, snaps, d + 1, pending_resume, t_start)
             if log:
                 log(json.dumps(row))
         w.flush()
@@ -180,20 +281,50 @@ def run_horizon(profile: str, seed: int, days: int, *, population: str = "develo
                 rep["replay"]["mismatches"] += 1
                 rep["replay"]["detail"].append({"segment": "end", "snapshot": last.digest(), "live": w.digest()})
         rep["final"] = {"seq": w.seq, "hash": w.last_hash, "digest": w.digest()}
+        rep["entities"] = entity_census(w)
         w.close()
     except Exception as e:  # noqa: BLE001 - a run that crashes is a failed run, with the reason
         import traceback
         rep["failed"] = True
         rep["error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc()[-3000:]}"
-    rep["wall_s"] = round(time.time() - t_start, 1)
+    rep["wall_s"] = round(rep.get("wall_s_before_resume", 0.0) + time.time() - t_start, 1)
     rep["store_mb_final"] = round(_store_bytes(path) / 2**20, 2) if os.path.exists(path) else None
     rep["summary"] = summarize(rep)
-    store.close()
+    if store is not None:
+        store.close()
     if not keep_store and not rep["failed"]:
         for p in (path, path + "-wal", path + "-shm"):
             if os.path.exists(p):
                 os.remove(p)
     return rep
+
+
+def _checkpoint(path, rep, w, acc, snaps, day, pending_resume, t_start) -> None:
+    rep = dict(rep)
+    if t_start is not None:
+        rep["wall_s_before_resume"] = round(rep.get("wall_s_before_resume", 0.0) + time.time() - t_start, 1)
+    _write_json(path, {"spec_hash": rep["spec_hash"], "code": rep["code"], "rep": rep, "accountant": acc.state(),
+                       "snaps": [list(x) for x in snaps], "pending_resume": pending_resume,
+                       "checkpoint": {"day": int(day), "seq": w.seq, "hash": w.last_hash, "digest": w.digest(),
+                                      "sid": snaps[-1][1]}})
+
+
+def entity_census(w) -> dict:
+    """How many of each persistent entity kind the world holds (participants, organisations, relationships,
+    products, technologies, institutions; Part 10.4)."""
+    st = w.state
+    from ..substrate import columns
+
+    def n(t):
+        return st.count(t) if t in st.tables else 0
+    out = {"principals": n("principals"), "orgs": n("orgs"), "members": n("members"),
+           "forum_follows": n("forum_follows"), "products": n("products"), "subscriptions": n("subscriptions"),
+           "designs": n("designs"), "sci_papers": n("sci_papers"), "constitutions": n("constitutions"),
+           "deployments": n("deployments"), "repos": n("repos"), "communities": n("communities"),
+           "cap_declarations": n("cap_decls") or n("capabilities")}
+    if "pop" in columns.tables(w):
+        out["population_rows"] = int(columns.rows(w, "pop"))
+    return out
 
 
 def _replay_segment(w, store, wid, a, b, acc: dict) -> None:
@@ -271,22 +402,70 @@ def summarize(rep: dict) -> dict:
             "events": daily[-1]["seq"] if daily else 0}
 
 
+RUNS_ENV = "CRUCIBLE_CIV_RUNS"
+DEFAULT_RUNS = "/workspace/data/crucible/runs-c5/civ"
+
+
+def runs_root() -> str:
+    """Where long runs keep their stores, checkpoints and reports: `$CRUCIBLE_CIV_RUNS`, else
+    /workspace/data/crucible/runs-c5/civ when /workspace/data/crucible exists (outside the repository), else a
+    temporary directory."""
+    r = os.environ.get(RUNS_ENV)
+    if r:
+        return r
+    if os.path.isdir(os.path.dirname(os.path.dirname(DEFAULT_RUNS))):
+        return DEFAULT_RUNS
+    return os.path.join(tempfile.gettempdir(), "crucible-civ-runs")
+
+
+def job_dir(profile: str, population: str, h: int, s: int, root: str | None = None) -> str:
+    """A run's directory: keyed by the code digest, so a run only ever resumes on the code it started with."""
+    return os.path.join(root or runs_root(), code_key(), f"{profile}-{population}-h{h}-s{s}")
+
+
+def jobs(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, base_seed: int = 101) -> list[tuple[int, int]]:
+    """(horizon, seed) of Gate P: distinct seeds per horizon (independent replications)."""
+    return [(h, base_seed + 10 * i + k) for i, h in enumerate(horizons) for k in range(seeds_per_horizon)]
+
+
+def complete(rep: dict | None) -> bool:
+    return bool(rep) and not rep.get("failed") and not (rep.get("summary") or {}).get("failed")
+
+
 def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: str | None = None,
           population: str | None = None, workers: int = 1, workdir: str | None = None, base_seed: int = 101,
-          keep_stores: bool = False, prune: bool = True, log=None, timeout_s: int = 24 * 3600) -> list[dict]:
-    """Every (horizon, seed) run in its own process; independent seeds (distinct per horizon)."""
+          keep_stores: bool = False, prune: bool = True, log=None, timeout_s: int = 24 * 3600,
+          only_existing: bool = False) -> list[dict]:
+    """Every (horizon, seed) run in its own process, `workers` at a time; independent seeds (distinct per horizon).
+
+    Runs live in `job_dir(...)` (persistent, outside the repository): a run whose report is complete is not run
+    again; an interrupted one (no report, or a process stopped by a time or usage limit) resumes from its last
+    checkpoint. `only_existing=True` runs nothing and returns the reports found (missing runs are reported as not
+    run, i.e. failed)."""
     profile = profile or GATE_P_PROFILE["profile"]
     population = population or GATE_P_PROFILE["population"]
-    workdir = workdir or tempfile.mkdtemp(prefix="civsuite-")
-    jobs = [(h, base_seed + 10 * i + k) for i, h in enumerate(horizons) for k in range(seeds_per_horizon)]
-    jobs.sort(key=lambda x: -x[0])               # longest first
+    todo = jobs(horizons, seeds_per_horizon, base_seed)
+    todo.sort(key=lambda x: -x[0])               # longest first
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     running: list = []
     out = []
-    while jobs or running:
-        while jobs and len(running) < max(1, workers):
-            h, s = jobs.pop(0)
-            wd = os.path.join(workdir, f"h{h}-s{s}")
+    pending = []
+    for h, s in todo:
+        wd = job_dir(profile, population, h, s, workdir)
+        rep = _read_json(os.path.join(wd, "report.json"))
+        if complete(rep):
+            out.append(rep)
+        elif only_existing:
+            prog = _read_json(os.path.join(wd, "progress.json"))
+            day = (prog or {}).get("checkpoint", {}).get("day", 0)
+            out.append(rep or {"profile": profile, "seed": s, "days": h, "failed": True,
+                               "error": f"not run to completion (checkpoint at day {day})",
+                               "summary": {"failed": True, "completed_days": day}})
+        else:
+            pending.append((h, s, wd))
+    while pending or running:
+        while pending and len(running) < max(1, workers):
+            h, s, wd = pending.pop(0)
             os.makedirs(wd, exist_ok=True)
             rp = os.path.join(wd, "report.json")
             args = [sys.executable, "-m", "crucible.civ.longrun", "run", profile, str(s), str(h), population, wd, rp]
@@ -294,7 +473,7 @@ def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: s
                 args.append("--keep")
             if prune:
                 args.append("--prune")
-            running.append((subprocess.Popen(args, env=env, stdout=open(os.path.join(wd, "daily.jsonl"), "w"),
+            running.append((subprocess.Popen(args, env=env, stdout=open(os.path.join(wd, "daily.jsonl"), "a"),
                                              stderr=subprocess.STDOUT), rp, h, s, time.time()))
         time.sleep(2)
         still = []
@@ -304,12 +483,11 @@ def suite(horizons=(30, 90, 180, 365), seeds_per_horizon: int = 2, *, profile: s
                 continue
             if pr.poll() is None:
                 pr.kill()
-            try:
-                with open(rp) as fh:
-                    r = json.load(fh)
-            except (OSError, ValueError):
-                r = {"profile": profile, "seed": s, "days": h, "failed": True, "error": f"no report (exit {pr.poll()})",
-                     "summary": {"failed": True}}
+                pr.wait()
+            r = _read_json(rp) if pr.returncode == 0 or os.path.exists(rp) else None
+            if r is None:
+                r = {"profile": profile, "seed": s, "days": h, "failed": True,
+                     "error": f"no report (exit {pr.returncode})", "summary": {"failed": True}}
             out.append(r)
             if log:
                 log(f"horizon {h} seed {s}: {json.dumps(r.get('summary'))[:600]}")
@@ -334,8 +512,7 @@ def _main(argv) -> int:
         profile, seed, days, population, wd, rp = argv[1], int(argv[2]), int(argv[3]), argv[4], argv[5], argv[6]
         rep = run_horizon(profile, seed, days, population=population, workdir=wd, keep_store="--keep" in argv,
                           prune_verified_blobs="--prune" in argv, log=lambda m: print(m, flush=True))
-        with open(rp, "w") as fh:
-            json.dump(rep, fh)
+        _write_json(rp, rep)
         return 0 if not rep["failed"] else 1
     print("usage: python -m crucible.civ.longrun run <profile> <seed> <days> <population> <workdir> <report.json> "
           "[--keep] | resume <store.sqlite> <world_id> <until_t>")

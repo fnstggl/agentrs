@@ -2,5 +2,5 @@
 population's goods activity), `civgen` (cross-module genesis) and `civlinks` (couplings). It also registers the
 Tier 2 domain kernel modules a civilisation composes (`fleet`, `learn`, `firms`), which the domains package
 registers only on demand."""
-from . import couplings, genesis, goods  # noqa: F401
+from . import couplings, events, genesis, goods  # noqa: F401
 from ..domains import infra_world, learning, firms  # noqa: F401

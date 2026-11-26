@@ -70,6 +70,12 @@ class CivGenesis(Module):
                 if "civlinks" in w.modules:
                     w.modules["civlinks"].register_datacenter(ctx, oid, reg)
             made.append(oid)
+        # where the apparatus operators of the science system stand (their measurements load that region's grid
+        # under the coupling `lab_energy`); placed round the regions, after the first one
+        if "civlinks" in w.modules and "sci_app" in ctx.state.tables and regions:
+            ops = sorted({a["operator"] for _, a in ctx.state.scan("sci_app")})
+            for k, op in enumerate(ops):
+                w.modules["civlinks"].register_lab(ctx, op, regions[(k + 1) % len(regions)])
         self._institutions(ctx, prof, made)
         self._rnd(ctx)
         ctx.emit("note", {"what": "civgen", "providers": made, "profile": prof.get("name")}, vis="internal")
