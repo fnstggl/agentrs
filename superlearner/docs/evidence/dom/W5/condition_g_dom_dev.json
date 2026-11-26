@@ -1,0 +1,263 @@
+{
+ "preset": "dom_dev",
+ "sem_model": "Qwen/Qwen3-0.6B",
+ "device": "cuda",
+ "seed": 0,
+ "build_s": 10.265686753671616,
+ "n_intent": 16,
+ "n_candidates": 4,
+ "params": {
+  "tokenizer": 2198785,
+  "core": 14503170,
+  "entity_encoder": 5630342,
+  "reasoner": 13441,
+  "outcome_head": 2209592,
+  "beliefs": 3321856,
+  "bayes": 27072,
+  "world_model": 7886018,
+  "action_generator": 13468559,
+  "value_head": 992511,
+  "option_policy": 1345553,
+  "exploration_head": 194748,
+  "intent_head": 3555840,
+  "decision_evaluator": 894721,
+  "query_encoder": 5376
+ },
+ "real_components": {
+  "semantic": "built from QwenSemantic",
+  "tokenizer": "built from ObservationTokenizer",
+  "core": "built from superlearner.cam_unified.core.backbone:UnifiedCore",
+  "entity_encoder": "built from superlearner.cam_unified.core.entities:EntityEncoder",
+  "reasoner": "built from superlearner.cam_unified.core.reasoning:Reasoner",
+  "outcome_head": "built from superlearner.cam_unified.world.outcomes:OutcomeHead",
+  "beliefs": "built from superlearner.cam_unified.core.beliefs:BeliefModule",
+  "bayes": "built from superlearner.cam_unified.core.bayes:BayesLastLayer",
+  "world_model": "built from superlearner.cam_unified.world.dynamics:WorldModel",
+  "retriever": "absent: not required by the config",
+  "action_generator": "built from ActionGenerator",
+  "value_head": "built from superlearner.cam_unified.learn.heads:ValueHead",
+  "option_policy": "built from superlearner.cam_unified.learn.heads:OptionModule",
+  "exploration_head": "built from superlearner.cam_unified.learn.heads:BudgetEncoder",
+  "intent_head": "built from superlearner.cam_unified.decision.intent:IntentHead",
+  "decision_evaluator": "built from superlearner.cam_unified.decision.evaluator:CandidateEvaluator",
+  "planner": "built-in LatentImaginationPlanner (pass components={'planner': ...} to override)"
+ },
+ "commit": "bf1e10b754a44eeae9dde7fa881ab1ccf5c29ad5",
+ "init": {
+  "accuracy_sampled": 0.28125,
+  "zero_intent": {
+   "max_prob_gap_between_goals_I_zero": 0.0,
+   "max_prob_gap_between_goals_trained_I": 0.021817199885845184,
+   "uniform_at_I_zero": 9.934107453313246e-09,
+   "n_tools_incl_builtins": 6
+  },
+  "kl": {
+   "B": 16,
+   "kl_tool_mean": 0.0008911574841476977,
+   "kl_tool_min": 0.0001777149736881256,
+   "kl_tool_max": 0.00232834555208683
+  },
+  "replay": {
+   "B": 8,
+   "K": 4,
+   "max_abs_diff_same_batch": 0.0,
+   "max_abs_diff_gen": 0.0,
+   "max_abs_diff_sel": 0.0,
+   "max_abs_diff_permuted_half_batch": 0.0012669563293457031,
+   "max_abs_diff_grad_mode": 0.0,
+   "bit_identical_same_batch": true,
+   "sel_logp_nonzero": true
+  }
+ },
+ "imitation": {
+  "steps": 120,
+  "B": 16,
+  "history": [
+   {
+    "step": 0,
+    "loss": 1.8535287380218506,
+    "p_correct": 0.15789610147476196,
+    "grad_norm": 11.119515419006348
+   },
+   {
+    "step": 20,
+    "loss": 1.0430811414607888e-07,
+    "p_correct": 0.9999998807907104,
+    "grad_norm": 9.83973586698994e-06
+   },
+   {
+    "step": 40,
+    "loss": -0.0,
+    "p_correct": 1.0,
+    "grad_norm": 7.172699412194561e-08
+   },
+   {
+    "step": 60,
+    "loss": -0.0,
+    "p_correct": 1.0,
+    "grad_norm": 3.9097283632827384e-08
+   },
+   {
+    "step": 80,
+    "loss": -0.0,
+    "p_correct": 1.0,
+    "grad_norm": 3.067120601940587e-08
+   },
+   {
+    "step": 100,
+    "loss": -0.0,
+    "p_correct": 1.0,
+    "grad_norm": 3.2733488808389666e-08
+   },
+   {
+    "step": 119,
+    "loss": -0.0,
+    "p_correct": 1.0,
+    "grad_norm": 2.8330020995781524e-08
+   }
+  ],
+  "seconds": 268.3846417372115
+ },
+ "trained": {
+  "accuracy_sampled": 1.0,
+  "accuracy_greedy": 1.0,
+  "zero_intent": {
+   "max_prob_gap_between_goals_I_zero": 0.0,
+   "max_prob_gap_between_goals_trained_I": 0.9999999999999998,
+   "uniform_at_I_zero": 9.934107453313246e-09,
+   "n_tools_incl_builtins": 6
+  },
+  "kl": {
+   "B": 16,
+   "kl_tool_mean": 32.77140808105469,
+   "kl_tool_min": 31.911001205444336,
+   "kl_tool_max": 33.712440490722656
+  },
+  "condition_g": {
+   "B": 16,
+   "no_swap_follow_own_goal": 1.0,
+   "swap_RI_follow_donor": 1.0,
+   "swap_RI_follow_own": 0.0,
+   "swap_I_only_follow_donor": 1.0,
+   "swap_R_only_after_intent_follow_own": 1.0,
+   "swap_R_before_intent_follow_donor": 0.0,
+   "all_swapped_actions_stamped": true,
+   "swapped_tools": [
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock"
+   ],
+   "donor_answers": [
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock",
+    "send_invoice",
+    "order_stock"
+   ]
+  },
+  "replay": {
+   "B": 8,
+   "K": 4,
+   "max_abs_diff_same_batch": 0.0,
+   "max_abs_diff_gen": 0.0,
+   "max_abs_diff_sel": 0.0,
+   "max_abs_diff_permuted_half_batch": 1.6689300537109375e-05,
+   "max_abs_diff_grad_mode": 0.0,
+   "bit_identical_same_batch": true,
+   "sel_logp_nonzero": true
+  },
+  "stamps": {
+   "executed_all_authorized": true,
+   "unstamped_refused": true,
+   "tampered_refused": true,
+   "forged_refused": true
+  }
+ },
+ "fast_set": {
+  "fast": 14951694,
+  "by_module": {
+   "action_generator.tool_query": 384,
+   "action_generator.tool_a": 16,
+   "action_generator.ev_query": 384,
+   "action_generator.ctx_norm": 384,
+   "action_generator.tool_reader": 1771008,
+   "action_generator.tool_q": 147456,
+   "action_generator.tool_k": 147456,
+   "action_generator.ev_tool": 147840,
+   "action_generator.ev_reader": 1771008,
+   "action_generator.ev_q": 147840,
+   "action_generator.ev_k": 147840,
+   "action_generator.ev_stop": 385,
+   "action_generator.ev_update": 147840,
+   "action_generator.heads": 4535539,
+   "action_generator.length_head": 543242,
+   "value_head": 992511,
+   "intent_head": 3555840,
+   "decision_evaluator": 894721
+  },
+  "slow": 45883410
+ },
+ "decide_timing_B16_K4": {
+  "B": 16,
+  "K": 4,
+  "median": {
+   "encode_s": 0.22253497783094645,
+   "generate_s": 0.3802799149416387,
+   "evaluate_s": 0.3706064620055258,
+   "total_s": 1.0034184670075774
+  },
+  "all": [
+   {
+    "encode_s": 0.22253497783094645,
+    "generate_s": 0.34537174087017775,
+    "evaluate_s": 0.38414048310369253,
+    "total_s": 1.0034184670075774
+   },
+   {
+    "encode_s": 0.49351539788767695,
+    "generate_s": 0.5274366731755435,
+    "evaluate_s": 0.3706064620055258,
+    "total_s": 1.4470933070406318
+   },
+   {
+    "encode_s": 0.193280806299299,
+    "generate_s": 0.3802799149416387,
+    "evaluate_s": 0.344243919942528,
+    "total_s": 0.9688530471175909
+   }
+  ]
+ },
+ "peak_gpu_gb": 2.234710693359375,
+ "total_s": 320.10010526003316,
+ "checks": {
+  "zero_intent_goal_independent": true,
+  "condition_g_follow_donor_ge_0.9": true,
+  "kl_permuted_gt_0.1": true,
+  "replay_exact_same_batch": true,
+  "no_execution_without_stamp": true
+ }
+}

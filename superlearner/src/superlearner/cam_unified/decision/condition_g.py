@@ -290,6 +290,48 @@ def accuracy(model, B: int = 32, seed: int = 606, greedy: bool = False, generato
     return sum(int(dec.actions[b].tool == env.answer(b)) for b in range(B)) / B
 
 
+def ow_tiny_string_check(model, B: int = 4, trials: int = 4, seed: int = 0) -> dict:
+    """DOM decisions over the REAL Crucible ow_tiny tool catalogue (string arguments: Qwen holes decoded from the
+    bridge prefix of I_t): every action stamped, string holes decoded, behaviour logp replayed exactly."""
+    import crucible
+    crucible.load_all_modules()
+    from crucible.api import WorldServer
+    from crucible.worldgen import generate
+    from ..interfaces import ToolSchema
+    srv = WorldServer("memory://", lease_ttl_s=None)
+    wid = srv.create_world(generate({"family": "ow_tiny"}, 1))
+    me = srv.join_world(wid, "nova", endowment=3_000_000)
+    tools = [ToolSchema(t["name"], t.get("description", ""), t["inputSchema"], cost_hint=None,
+                        duration_hint=(t.get("annotations") or {}).get("costSeconds", 0) / 86400.0)
+             for t in srv.available_tools(wid, me)]
+    obs = [[Observation(ObsKind.TEXT, "Welcome to the market. You have 30000 dollars of funds.", source="world"),
+            Observation(ObsKind.NUMERIC, "funds", value=3_000_000.0, unit="cents", source="bank")] for _ in range(B)]
+    goals = [GoalSpec("ow", "Build a profitable business in this world.") for _ in range(B)]
+    g = torch.Generator(device=str(model.device)).manual_seed(seed)
+    holes, diffs, secs, tool_names, unauthorized = 0, [], [], [], 0
+    for _ in range(trials):
+        state = model.init_state(B)
+        t0 = time.perf_counter()
+        dec = model.decide(state, obs, [0.0] * B, [list(tools)] * B, goals, generator=g)
+        secs.append(time.perf_counter() - t0)
+        try:
+            SEL.authorize(dec.actions)
+        except SEL.UnauthorizedAction:
+            unauthorized += 1
+        for a in dec.actions:
+            tool_names.append(a.tool)
+            for c in a.logp_parts[SEL.STAMP_KEY]["candidates"]:
+                holes += len((c["logp_parts"].get("decode") or {}).get("holes") or [])
+        with torch.no_grad():
+            out = model.policy_evaluate(dec.inputs, dec.actions)
+        diffs.append(float((out["logp"].float().cpu() - dec.logp.float().cpu()).abs().max()))
+    return {"n_tools": len(tools), "B": B, "K": int(model.cfg.n_candidates), "trials": trials,
+            "string_holes_decoded_in_candidates": holes, "replay_max_abs_diff": diffs, "decide_s": secs,
+            "executed_tools": tool_names, "unauthorized_batches": unauthorized,
+            "decoder_cond_api": {"sample": model.action_generator._cond_sample,
+                                 "score": model.action_generator._cond_score}}
+
+
 def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device: Optional[str] = None) -> dict:
     from ..capabilities.stack import build_stack
     from ..config import make_preset
@@ -307,11 +349,7 @@ def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device:
            "build_s": time.perf_counter() - t0, "n_intent": cfg.n_intent, "n_candidates": cfg.n_candidates,
            "params": {k: v["trainable"] for k, v in m.count_parameters()["components"].items()},
            "real_components": {k: v for k, v in m.build_report.items()}}
-    try:
-        res["commit"] = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                                       cwd=os.path.dirname(__file__)).stdout.strip()
-    except OSError:
-        res["commit"] = None
+    res["commit"] = _commit()
     res["init"] = {"accuracy_sampled": accuracy(m, generator=g), "zero_intent": zero_intent_check(m),
                    "kl": kl_under_permutation(m), "replay": replay_check(m, generator=g)}
     res["imitation"] = imitate(m, steps=steps, seed=seed)
@@ -340,13 +378,78 @@ def run(out_path: Optional[str] = None, steps: int = 120, seed: int = 0, device:
     return res
 
 
+def agent_loop_check(agent, rounds: int = 24, B: int = 8, seed: int = 3, update_every: int = 8) -> dict:
+    """The real CamUnifiedAgent (+ its trainer) acting through runtime.run_steps on the two-goal task, with the
+    environment's execute wrapped by the execution gate (decision.select.authorize): counts executed actions and
+    unstamped ones, and the learner updates that consumed DOM decisions (policy_evaluate on stamped actions)."""
+    from .. import runtime
+    from ..capabilities.envs import ScoreEvaluator
+    env = TwoGoalEnv(B, seed=seed)
+    seen = {"executed": 0, "unstamped": 0}
+    orig = env.execute
+
+    def gated(actions):
+        for a in actions:
+            if a is not None:
+                seen["executed"] += 1
+                seen["unstamped"] += int(not SEL.is_stamped(a))
+        SEL.authorize(actions)
+        return orig(actions)
+    env.execute = gated
+    t0 = time.perf_counter()
+    rep = runtime.run_steps(agent, env, rounds, evaluator=ScoreEvaluator(env), update_every=update_every)
+    ups = [u for u in (rep.updates or []) if isinstance(u, dict)]
+    return {"rounds": rounds, "B": B, **seen, "updates": len(ups),
+            "updated": sum(int(bool(u.get("updated"))) for u in ups),
+            "losses_last_update": ups[-1].get("losses") if ups else None,
+            "returns": [r if isinstance(r, (int, float)) else str(r) for r in (rep.returns or [])],
+            "seconds": time.perf_counter() - t0}
+
+
+def _commit() -> Optional[str]:
+    try:
+        return subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                              cwd=os.path.dirname(__file__)).stdout.strip() or None
+    except OSError:
+        return None
+
+
+def run_ow_tiny(out_path: Optional[str] = None, seed: int = 0, device: Optional[str] = None) -> dict:
+    from ..capabilities.stack import build_stack
+    from ..config import make_preset
+    from ..semantic.grammar import GrammarOptions
+    torch.manual_seed(seed)
+    dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    st = build_stack(make_preset("dom_dev"), device=dev, include_builtins=True, exact_rows=True, seed=seed,
+                     grammar_opts=GrammarOptions(max_string_tokens=24, max_action_tokens=96, max_key_tokens=16))
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    res = {"preset": "dom_dev", "commit": _commit(), "device": dev, **ow_tiny_string_check(st.model, seed=seed)}
+    try:
+        res["agent_loop"] = agent_loop_check(st.agent)
+    except Exception as e:                     # reported, never hidden: the canonical loop is W1's
+        res["agent_loop"] = {"error": f"{type(e).__name__}: {e}"}
+    if torch.cuda.is_available():
+        res["peak_gpu_gb"] = torch.cuda.max_memory_allocated() / 2**30
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        with open(out_path, "w") as f:
+            json.dump(res, f, indent=1, default=str)
+    return res
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--out", default=None)
     ap.add_argument("--steps", type=int, default=120)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--ow-tiny", action="store_true", help="only the ow_tiny string-tool check (untrained dom_dev)")
     a = ap.parse_args(argv)
+    if a.ow_tiny:
+        res = run_ow_tiny(a.out, a.seed, a.device)
+        print(json.dumps({k: v for k, v in res.items() if k != "executed_tools"}, indent=1, default=str))
+        return
     res = run(a.out, a.steps, a.seed, a.device)
     print(json.dumps({"checks": res["checks"], "trained": {k: v for k, v in res["trained"].items()
                                                            if k != "condition_g"},

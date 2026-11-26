@@ -1840,7 +1840,7 @@ class CamUnifiedModel(nn.Module):
         gen_ent = sum(v.float() for v in en.values())
         out = {"gen_logp": gen_lp, "gen_entropy": gen_ent, "sel_logp": torch.stack(sel).float(),
                "sel_entropy": torch.stack(sent).float(), "q_exec": torch.stack(qx).float(), "q": qall,
-               "intent": I, "vout": vout}
+               "intent": I, "vout": vout, "tool_entropy": en["tool"].float()}
         if parts:
             out["parts"] = ({k: v.float() for k, v in lp.items()}, {k: v.float() for k, v in en.items()})
         return out
@@ -1863,7 +1863,8 @@ class CamUnifiedModel(nn.Module):
                 "value": self._value(t["vout"]), "value_logits": None if logits is None else logits.float(),
                 "ponder": None if ponder is None else ponder.float(), "memory_rebuilt": rebuilt,
                 "gen_logp": t["gen_logp"].float(), "sel_logp": t["sel_logp"], "option_logp": opt_lp,
-                "q_exec": t["q_exec"], "intent": t["intent"]}
+                "q_exec": t["q_exec"], "intent": t["intent"], "tool_entropy": t["tool_entropy"],
+                "sel_entropy": t["sel_entropy"]}
 
     @torch.no_grad()
     @_det
