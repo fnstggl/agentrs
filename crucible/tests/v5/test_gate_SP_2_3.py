@@ -578,6 +578,7 @@ def measure_inference_across_processes(tmp) -> dict:
             "population_resume_inference_runs": res["inference_runs"], "population_events": part["seq"],
             # skeptic S2: rebuilding neural weights on load re-runs the training steps logged after the last
             # checkpoint (deterministic on one machine, ISA-dependent across machines) - reported, not hidden
+            "population_training_backward_passes_live": part["backward_passes"],
             "population_training_backward_passes_during_replay": rep["backward_passes"],
             "population_training_backward_passes_during_regeneration": reg["backward_passes"]}
 
