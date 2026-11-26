@@ -1,0 +1,67 @@
+{
+ "commit": "a7e58effe69a3fb668322e699646d9badc40dfba",
+ "what": "L2 change of memory event tokens when only evaluator-side fields change (audit 'archive': reward 0 -> 1 moved the token by L2 4.79)",
+ "rows": [
+  {
+   "view": "legacy",
+   "change": "reward 0->1",
+   "mean_l2": 3.7472219467163086,
+   "max_l2": 4.489837169647217
+  },
+  {
+   "view": "legacy",
+   "change": "reward -> 7.4e6 canary",
+   "mean_l2": 11.041999816894531,
+   "max_l2": 11.630746841430664
+  },
+  {
+   "view": "legacy",
+   "change": "extra success/verified_outcome labels",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "legacy",
+   "change": "record cost / done flipped",
+   "mean_l2": 10.94795036315918,
+   "max_l2": 11.515605926513672
+  },
+  {
+   "view": "legacy",
+   "change": "training_provenance",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "actor",
+   "change": "reward 0->1",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "actor",
+   "change": "reward -> 7.4e6 canary",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "actor",
+   "change": "extra success/verified_outcome labels",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "actor",
+   "change": "record cost / done flipped",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  },
+  {
+   "view": "actor",
+   "change": "training_provenance",
+   "mean_l2": 0.0,
+   "max_l2": 0.0
+  }
+ ],
+ "retriever_default_event_encoder_view": "actor"
+}
