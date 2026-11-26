@@ -491,7 +491,7 @@ def tier2_names() -> list[str]:
 # hidden truth, statistical effects, relatedness counts); other detail fields may be world facts the seat observes
 # legitimately (its own costs, readers, enrolment) and are not looked for
 EVALUATOR_DETAIL = re.compile(r"score|baseline|nrmse|novel|effect|p_value|pvalue|independent|verdict|reference|"
-                              r"counterfactual|truth|hidden|oracle|margin", re.I)
+                              r"counterfactual|truth|hidden|oracle|margin|qualif|(^|[._])(arr|mrr)(_|$)", re.I)
 
 
 def domain_evaluation_values(env, agent: str) -> dict[str, float]:
