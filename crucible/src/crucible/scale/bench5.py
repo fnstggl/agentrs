@@ -51,7 +51,9 @@ QUANTITIES = ("transitions_per_s", "decisions_per_s", "sim_days_per_wall_hour", 
               "snapshot_size", "world_generation_cost", "approximation_error")
 #: grants a run declares (per profile): RAM MB, disk MB, GPU MB. The shared space's language model and encoders run
 #: on the GPU when the job is granted one (crucible.semantic.space.lm "selective GPU"); on CPU they dominate a run.
-GRANTS = {"development": (8000, 1500, 3500), "standard": (12000, 3000, 3500), "large": (24000, 6000, 3500),
+#: RAM grants are about 1.6x the measured peak of a 30-day civ run (2026-11-26: development 2.7 GB; standard and
+#: large from their first days) so that a run reserves no more of the shared RAM budget than it can use.
+GRANTS = {"development": (4500, 1500, 3500), "standard": (7000, 3000, 3500), "large": (16000, 6000, 3500),
           "internet": (32768, 5120, 3500)}
 GPU_S = 4 * 86400                     # GPU-time grant of one run: seconds of held CUDA context (the run's wall time)
 
