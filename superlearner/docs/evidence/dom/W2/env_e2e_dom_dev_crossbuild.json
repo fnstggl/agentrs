@@ -971,8 +971,8 @@
   "world_hosts_result_in_next_input": true,
   "every_result_in_next_input": true,
   "rewards_all_zero": true,
-  "state_bit_identical_under_altered_payout": false,
-  "inputs_identical_under_altered_payout": false,
+  "state_bit_identical_under_altered_payout": "invalid (NaN-unaware comparison)",
+  "inputs_identical_under_altered_payout": "inconclusive (actions diverged after the first update)",
   "payout_really_altered": true,
   "no_canary_in_actor_inputs_records": true,
   "no_canary_in_run_dir": true,
@@ -994,5 +994,5 @@
  "command": "python tests/cam_unified/envs/test_env_real_e2e.py --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e1/report.json --root /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e1/runs",
  "commit": "f79cb4f52568429813b656a2411419c3b3e0befb",
  "dirty": false,
- "note": "First design of the W2 end-to-end check (commit f79cb4f): three separately built dom_dev agents (A payout x1, B payout x7+3.5, C payout x1 repeat). Kept as the measurement that motivated the lock-step twin design: even the same-payout rebuild C differs from A in Z/FastState from decision 0 and in actions after the first update (non-deterministic attention backward, median), so cross-build bit comparison cannot test payout invariance. Its failed checks (state/inputs identical) are therefore inconclusive, not evidence of a leak; all other checks passed."
+ "note": "First design of the W2 end-to-end check (commit f79cb4f): three separately built dom_dev agents (A payout x1, B payout x7+3.5, C payout x1 repeat). CORRECTION (a7fbd35): its per-decision state flags ('state_identical_per_decision', 'determinism_control_identical_per_decision') are INVALID - the comparison used torch.equal, and FastState.surprise holds NaN placeholders, so identical states compared unequal. What stands: the actions of the same-payout rebuild C diverge from A after the first update (decision 11; B at decision 8), so separately built agents are not comparable after training steps (non-deterministic attention backward). The lock-step twin design replaced it. All other checks of this run passed."
 }
