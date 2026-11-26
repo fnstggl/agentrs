@@ -420,7 +420,7 @@ def persistence(profile: str | None = None, seed: int | None = None, days: int |
             forks["fork_divergence_supported"] = all(forks.values())
             f_same.close()
             f_int.close()
-            w.advance_time(int(p["days"]) * DAY)
+            w.advance_time(max(int(p["days"]), int(p["fork_day"]) + 2) * DAY)
             w.snapshot()
             c2 = _census(w)
             hist = history.verify(w)

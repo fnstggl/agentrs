@@ -382,15 +382,20 @@ def _inv_rows(w, ctx):
 
 
 def m_inv_revenue(w, t0, t1, ctx):
-    """economic: money the inventor received (from population individuals' calls) in the window."""
+    """economic: money population individuals paid the inventor in the window (its admission endowment and any
+    money from non-population accounts excluded)."""
+    from ..substrate import ids
     st, bank = w.state, w.modules["bank"]
     who = getattr(ctx.get("agent"), "actor", None)
     tot = 0
     for e in _window(w, ctx):
-        if e.type == "bank.txn":
-            for a, d in e.payload["postings"]:
-                if d > 0 and bank.account_owner(st, a) == who:
-                    tot += d
+        if e.type != "bank.txn":
+            continue
+        if not any(d < 0 and ids.index(bank.account_owner(st, a)) is not None for a, d in e.payload["postings"]):
+            continue
+        for a, d in e.payload["postings"]:
+            if d > 0 and bank.account_owner(st, a) == who:
+                tot += d
     return float(tot)
 
 

@@ -34,7 +34,7 @@ DAY, HOUR = 86400, 3600
 SLICES = ("discover_consume", "agent_software", "social_purchase", "neural_adapts", "learner_world",
           "learner_obs_only", "causal_mechanism")
 CIV_RUN = {"profile": "balanced", "seed": 61, "warm_days": 2, "days": 6}
-LEARNER_RUN = {"profile": "balanced", "seed": 62, "steps": 160, "think_s": 1800}
+LEARNER_RUN = {"profile": "balanced", "seed": 62, "steps": 240, "think_s": 1800}
 RAPID_FAMILIES = ("net_routing", "team_commons")
 
 
