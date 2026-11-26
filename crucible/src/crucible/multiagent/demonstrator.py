@@ -146,10 +146,15 @@ class Demonstrator:
                 break
         if not kn.orgs:
             out.append(("venture.form", {}))
-        if not self.repos:
-            out.append(("code.create_repo", {"visibility": "public", "license": "open", "owner": G.OMIT}))
+        def finished(repo, r):
+            return r.get("executed") or (r.get("released") and not others_pkgs) or any(
+                self.fails.get(k, 0) >= 2 for k in self.fails if k[1] in (repo, str(r.get("package"))))
         others_pkgs = [r for r in kn.packages.values() if r.get("owner") not in (self.me, None)]
+        if not self.repos or (len(self.repos) < 3 and all(finished(k, r) for k, r in self.repos.items())):
+            out.append(("code.create_repo", {"visibility": "public", "license": "open", "owner": G.OMIT}))
         for repo, r in self.repos.items():
+            if finished(repo, r):
+                continue
             if not r.get("committed"):
                 out.append(("code.commit", {"repo": repo, "files": "code:"}))
             elif r.get("public") and not r.get("package"):
