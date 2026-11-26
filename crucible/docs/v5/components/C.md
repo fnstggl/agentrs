@@ -36,6 +36,19 @@ search terms, word count, removed); use `crucible.social.audience.info(world, it
 `audience.items_of(world, principal)` for a creator's items. `aud.check_invariants` refuses a copy of the catalogue's
 metadata. Items without a catalogue record (the crowd stand-in's scale path) keep their metadata in the row.
 
+## Follows have one owner: the social graph
+
+With the one population and the social network installed (`audience.graph_follows(world)`: every social and
+civilisation world), a follow is an edge of `social.cols:follow` and nowhere else (D-21 relationship migration,
+audience side): the consumption engine writes the follows it decides through `graph.follow_batch`, the recommenders
+read them through `recsys.features.follows_matrix`, and `aud` keeps no follower bitsets (`audset.fo.*`) and declares no
+`aud_creators.followers` column; `audience.followers` / `audience.is_follower` are views of the graph. The audience
+module still counts follow DECISIONS made after consuming an item (`subscribers` per item, `follows` per creator:
+analytics, recounted per decision batch). Only the crowd stand-in's worlds (no `pop` or no `social`) keep the old
+follower sets. Still outside this package: `forum.forum_follows` (the 4.0 forum's follows; forum should write social
+edges where `social` is installed), `pop.cols:pop.contacts` (workstream B) and, for communities, `forum.forum_boards`
+and `pop.cols:pop.communities` (see C.json integration notes).
+
 ## Security
 
 `social.render.run_tool` (studio FFmpeg/SoX, and the version queries of the tool-chain identity) runs every native
