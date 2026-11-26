@@ -1,0 +1,262 @@
+{
+ "workstream": "D",
+ "branch": "c5c/w3b-sem",
+ "requirements": {
+  "H.1": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/__init__.py",
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/generalists/catalog.py",
+    "src/crucible/semantic/generalists/verify.py",
+    "src/crucible/semantic/generalists/world.py",
+    "src/crucible/semantic/generalists/bench.py",
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/service.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.2": {
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/generalists/module.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.3": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/mind.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.4": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/catalog.py",
+    "src/crucible/semantic/generalists/bench.py",
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/routing.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.5": {
+   "implementation_files": [
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/capbench/tasks.py",
+    "src/crucible/semantic/generalists/verify.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.6": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/verify.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.7": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/verify.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.8": {
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/generalists/module.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "H.n1": {
+   "implementation_files": [
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/generalists/bench.py",
+    "src/crucible/semantic/data/routing.json"
+   ],
+   "tests": [
+    "tests/v5/test_gate_H.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-3.2b": {
+   "implementation_files": [
+    "src/crucible/semantic/capbench/run.py",
+    "src/crucible/semantic/capbench/tasks.py",
+    "src/crucible/semantic/capbench/models.py",
+    "src/crucible/semantic/routing.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_3_2b.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-3.2d": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/generalists/verify.py",
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/data/routing.json"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_3_2d.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-3.3c": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/module.py",
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/generalists/verify.py",
+    "src/crucible/semantic/generalists/world.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_3_3c.py",
+    "tests/test_v5_semantic_generalists.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-4.2b": {
+   "implementation_files": [
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/service.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_4_2b.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-4.3": {
+   "implementation_files": [
+    "src/crucible/semantic/structured.py",
+    "src/crucible/semantic/space/__init__.py",
+    "src/crucible/semantic/space/compute.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_4_3.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-13.4": {
+   "implementation_files": [
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/batching.py",
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/generalists/catalog.py",
+    "src/crucible/semantic/generalists/mind.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_4.py",
+    "tests/test_v5_semantic_service.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "SP-13.5": {
+   "implementation_files": [
+    "src/crucible/semantic/space/__init__.py",
+    "src/crucible/semantic/space/store.py",
+    "src/crucible/semantic/space/compute.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_13_5.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  },
+  "E.3": {
+   "implementation_files": [
+    "src/crucible/semantic/feedprobe.py",
+    "src/crucible/semantic/space/probe.py",
+    "src/crucible/semantic/encoders/effects.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "notes": ""
+  }
+ },
+ "limitations": [],
+ "integration_notes": [],
+ "history": {
+  "D1 (wave 1, encoders)": {
+   "branch": "worktree-wf_62a0cf0b-bb3-1",
+   "commit": "5e54915",
+   "requirements": [
+    "E.1",
+    "E.2",
+    "E.3",
+    "E.4",
+    "E.5",
+    "E.n1"
+   ]
+  },
+  "D2 (wave 1, service/participants/capbench)": {
+   "branch": "worktree-wf_62a0cf0b-bb3-2",
+   "requirements": [
+    "H.1",
+    "H.2",
+    "H.3",
+    "H.4",
+    "H.5",
+    "H.6",
+    "H.7",
+    "H.8",
+    "H.n1",
+    "SP-3.2b"
+   ]
+  },
+  "CORE-SEM (wave 2, c5c/w2-coresem)": "one shared semantic space crucible.semantic.space (DIM 422), MIND prior, alignment maps, E.5 taint audit, prefix-first exact caching, continuous batcher"
+ }
+}
