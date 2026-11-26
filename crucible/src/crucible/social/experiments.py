@@ -102,13 +102,21 @@ def decision_rows(world: World, kind: str, since_seq: int = 0, platform: str | N
             parts.setdefault(k, []).append(v)
     out = {k: np.concatenate(v) for k, v in parts.items()}
     if not out:
+        # no recorded batch of this kind: every column of the kind, empty
         z = np.zeros(0, np.int64)
         out = {"viewer": z, "item": z, "seq": z, "t": z}
-    if kind == "consume" and out["item"].size:
-        dur = AUD.item_col(world, "duration_s")[out["item"]].astype(np.float64)
-        cre = AUD.item_col(world, "creator")[out["item"]].astype(np.int64)
-        cpop = AUD.creator_col(world, "pop_index")[cre]
-        out["is_view"] = (out["watch_s"] >= AUD.view_threshold(dur)) & (cpop != out["viewer"])
+        if kind == "imp":
+            out.update(slot=z, src=z, gen=z)
+        else:
+            out.update(watch_s=np.zeros(0, np.float64), flags=z)
+    if kind == "consume":
+        if out["item"].size:
+            dur = AUD.item_col(world, "duration_s")[out["item"]].astype(np.float64)
+            cre = AUD.item_col(world, "creator")[out["item"]].astype(np.int64)
+            cpop = AUD.creator_col(world, "pop_index")[cre]
+            out["is_view"] = (out["watch_s"] >= AUD.view_threshold(dur)) & (cpop != out["viewer"])
+        else:
+            out["is_view"] = np.zeros(0, bool)
     return out
 
 
