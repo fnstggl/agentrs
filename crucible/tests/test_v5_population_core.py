@@ -240,6 +240,24 @@ def test_class2_day_review_steps_every_members_memory_and_replays_exactly():
         w.close()
 
 
+def test_projection_is_row_independent():
+    """A text's interest coordinates do not depend on the other texts projected in the same call (resumed worlds
+    project with cold per-process caches and other batch sizes; a batch-dependent GEMM drifted by an ulp and broke
+    resume-from-snapshot determinism)."""
+    from crucible.population import semantics
+    from crucible.semantic import space
+    rng = np.random.default_rng(0)
+    V = rng.normal(size=(37, space.DIM)).astype(np.float32)
+    for k in (8, 16):
+        whole = semantics.project(V, k)
+        one = np.stack([semantics.project(V[j:j + 1], k)[0] for j in range(V.shape[0])])
+        assert np.array_equal(whole, one)
+        part = np.concatenate([semantics.project(V[:5], k), semantics.project(V[5:], k)])
+        assert np.array_equal(whole, part)
+        c = whole
+        assert np.array_equal(semantics.lift(c), np.concatenate([semantics.lift(c[:3]), semantics.lift(c[3:])]))
+
+
 def test_policy_updates_are_recorded(run2):
     _, w, _ = run2
     ups = [e for e in w.log if e.type == "pop.policy_update"]

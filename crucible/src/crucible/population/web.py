@@ -38,7 +38,7 @@ import re
 import numpy as np
 
 from ..core import schema as S
-from ..core.errors import CrucibleError, NotFound
+from ..core.errors import CrucibleError, NotFound, ProtocolError
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import artifacts, attention, columns, ids
 from . import semantics, core, schema, text
@@ -661,12 +661,51 @@ class PopWeb(Module):
             **provenance_args(prov), extra={"t": int(now), "readers": int(who.size), "opened": len(reads["rows"]),
                                             "served": prov.get("served"), "extrapolated": int(prov.get("extrapolated", 0))})
         if reads["page_row"]:
-            pr, cnt = np.unique(np.array(reads["page_row"], np.int64), return_counts=True)
-            columns.batch(ctx, PG_TABLE, "popweb.page_opens", pr, {"opens": cnt.astype(np.int64)}, mode="add",
-                          extra={"t": int(now)})
-            tp, tc = np.unique(np.array(reads["topic"], np.int64), return_counts=True)
-            columns.batch(ctx, TOPIC_TABLE, "popweb.topic_views", tp, {"views": tc.astype(np.int64)}, mode="add",
-                          extra={"t": int(now)})
+            defer = w.runtime.get("popweb.defer")
+            if defer is not None:
+                defer["page_rows"].extend(int(x) for x in reads["page_row"])
+                defer["topics"].extend(int(x) for x in reads["topic"])
+            else:
+                self._open_counters(ctx, reads["page_row"], reads["topic"], now)
+
+    def _visit_counters(self, ctx: Ctx, log: dict, ref: str, now: int, activity: str) -> None:
+        """Per-resource counters of the visits in `log` (one `mode="add"` batch; `visits_ref` is the visit log)."""
+        u_rows, inv = np.unique(log["res"].astype(np.int64), return_inverse=True)
+        first = np.asarray(log["first"], bool)
+        okp = log["ok_pages"].astype(np.int64)
+        agg = {k: np.zeros(u_rows.size, np.int64) for k in
+               ("visits", "first_visits", "return_visits", "abandons", "purchases", "revenue_cents", "ok_n", "err_n")}
+        np.add.at(agg["visits"], inv, 1)
+        np.add.at(agg["first_visits"], inv, first.astype(np.int64))
+        np.add.at(agg["return_visits"], inv, (~first).astype(np.int64))
+        np.add.at(agg["abandons"], inv, np.asarray(log["abandon"], bool).astype(np.int64))
+        np.add.at(agg["purchases"], inv, np.asarray(log["bought"], bool).astype(np.int64))
+        np.add.at(agg["revenue_cents"], inv, log["paid"].astype(np.int64))
+        np.add.at(agg["ok_n"], inv, okp)
+        np.add.at(agg["err_n"], inv, log["pages"].astype(np.int64) - okp)
+        columns.batch(ctx, RES_TABLE, f"popweb.visits.{activity}", u_rows, agg, mode="add",
+                      extra={"t": int(now), "visits_ref": ref, "day": int(now // DAY)})
+
+    def _open_counters(self, ctx: Ctx, page_rows, topics, now: int) -> None:
+        if not len(page_rows):
+            return
+        pr, cnt = np.unique(np.asarray(page_rows, np.int64), return_counts=True)
+        columns.batch(ctx, PG_TABLE, "popweb.page_opens", pr, {"opens": cnt.astype(np.int64)}, mode="add",
+                      extra={"t": int(now)})
+        tp, tc = np.unique(np.asarray(topics, np.int64), return_counts=True)
+        columns.batch(ctx, TOPIC_TABLE, "popweb.topic_views", tp, {"views": tc.astype(np.int64)}, mode="add",
+                      extra={"t": int(now)})
+
+    def _flush_session(self, ctx: Ctx, buf: dict, now: int, activity: str) -> None:
+        """End of a web session's visits: ONE visit log, one per-resource counter batch and one page/topic open count
+        for all its visit steps (event aggregation, MASTER_SPEC 13.2; the counters are aggregates that operators
+        and the article slates read, so within a session the later visits see them as of the session's start)."""
+        logs = buf["logs"]
+        if logs:
+            log = {k: np.concatenate([lg[k] for lg in logs]) for k in logs[0]}
+            ref = artifacts.put_array_blob(ctx, log)
+            self._visit_counters(ctx, log, ref, now, activity)
+        self._open_counters(ctx, buf["page_rows"], buf["topics"], now)
 
     def _sat_of(self, c, j: np.ndarray, rows: np.ndarray) -> np.ndarray:
         kn = c("known")[j]
@@ -852,7 +891,13 @@ class PopWeb(Module):
                "ok_pages": okp[v].astype(np.int16), "abandon": abandoned[v], "bought": bought[v],
                "paid": paid[v], "evaluated": evaluated[v], "cls": cls[v], "minutes": minutes[v].astype(np.float32),
                "match": match0[v]}
-        ref = artifacts.put_array_blob(ctx, log) if v.size else None
+        defer = ctx.world.runtime.get("popweb.defer")
+        if defer is not None:                   # a web session: one log and one counter batch for all its visits
+            if v.size:
+                defer["logs"].append(log)
+            ref = None
+        else:
+            ref = artifacts.put_array_blob(ctx, log) if v.size else None
         ch = np.flatnonzero(chg)
         if ch.size and vals:
             record_decisions(ctx, f"popweb.{activity}", idx[ch], {k: np.asarray(x)[ch] for k, x in vals.items()},
@@ -863,21 +908,8 @@ class PopWeb(Module):
                                     "cohort": int(n)})
         if bought.any():
             self._repurchase(ctx, idx, rows, bought, paid, prod_of, now, rng)
-        if v.size:
-            u_rows, inv = np.unique(rows[v], return_inverse=True)
-            agg = {k: np.zeros(u_rows.size, np.int64) for k in
-                   ("visits", "first_visits", "return_visits", "abandons", "purchases", "revenue_cents", "ok_n",
-                    "err_n")}
-            np.add.at(agg["visits"], inv, 1)
-            np.add.at(agg["first_visits"], inv, first[v].astype(np.int64))
-            np.add.at(agg["return_visits"], inv, (~first[v]).astype(np.int64))
-            np.add.at(agg["abandons"], inv, abandoned[v].astype(np.int64))
-            np.add.at(agg["purchases"], inv, bought[v].astype(np.int64))
-            np.add.at(agg["revenue_cents"], inv, paid[v])
-            np.add.at(agg["ok_n"], inv, okp[v])
-            np.add.at(agg["err_n"], inv, pages[v] - okp[v])
-            columns.batch(ctx, RES_TABLE, f"popweb.visits.{activity}", u_rows, agg, mode="add",
-                          extra={"t": int(now), "visits_ref": ref, "day": int(now // DAY)})
+        if v.size and defer is None:
+            self._visit_counters(ctx, log, ref, now, activity)
         if new_seen:
             rs = np.array(sorted(new_seen), np.int64)
             recs = [new_seen[int(r)] for r in rs]
@@ -1004,6 +1036,19 @@ class PopWeb(Module):
         U_sum = np.zeros(n)
         n_vis = np.zeros(n)
         live = np.ones(n, bool)
+        buf = {"logs": [], "page_rows": [], "topics": []}
+        if w.runtime.get("popweb.defer") is not None:
+            raise ProtocolError("nested web sessions")
+        w.runtime["popweb.defer"] = buf
+        try:
+            self._web_steps(ctx, idx, now, rng, budget, U_sum, n_vis, live)
+        finally:
+            w.runtime.pop("popweb.defer", None)
+        self._flush_session(ctx, buf, now, "web")
+        return np.where(n_vis > 0, U_sum / np.maximum(n_vis, 1), -0.1)
+
+    def _web_steps(self, ctx, idx, now, rng, budget, U_sum, n_vis, live) -> None:
+        w = ctx.world
         for k in range(max(1, self.max_visits)):
             sel = np.flatnonzero(live & (budget > (0.0 if k == 0 else 1.0)))
             if not sel.size:
@@ -1028,7 +1073,6 @@ class PopWeb(Module):
             n_vis[sel] += got
             # a frustrating visit (or nothing to visit) ends the session
             live[sel] = got & (U > -0.2) & (mins > 0)
-        return np.where(n_vis > 0, U_sum / np.maximum(n_vis, 1), -0.1)
 
     def _search(self, ctx: Ctx, q: str, lim: int, version) -> list[tuple[str, np.ndarray]]:
         """Organic search results for `q` among indexed web pages: [(host, snippet vector)]. Cached per version of

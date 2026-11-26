@@ -158,15 +158,17 @@ def project(vecs: np.ndarray, k: int) -> np.ndarray:
     """Coordinates [n, k] of space vectors' topic directions in the k-dim subspace (not renormalised: the norm is the
     share of the topic direction the subspace captures)."""
     v = _check(vecs)
-    t = v[..., TOPIC]
+    t = v[..., TOPIC].astype(np.float64)
     t = t / np.maximum(np.linalg.norm(t, axis=-1, keepdims=True), 1e-9)
-    return (t @ topic_basis(k).T).astype(np.float32)
+    # row-independent arithmetic (einsum without BLAS): a text's coordinates must not depend on which other texts
+    # were projected in the same call, or a resumed world (cold per-process caches, other batches) drifts by an ulp
+    return np.einsum("...d,kd->...k", t, np.asarray(topic_basis(k), np.float64), optimize=False).astype(np.float32)
 
 
 def lift(coords: np.ndarray) -> np.ndarray:
     """Unit space vectors [n, DIM] of subspace coordinates [n, k] (zero outside the topic block)."""
-    c = np.asarray(coords, dtype=np.float32)
-    u = c @ basis(c.shape[-1])
+    c = np.asarray(coords, dtype=np.float64)
+    u = np.einsum("...k,kd->...d", c, np.asarray(basis(c.shape[-1]), np.float64), optimize=False)
     return (u / np.maximum(np.linalg.norm(u, axis=-1, keepdims=True), 1e-9)).astype(np.float32)
 
 
