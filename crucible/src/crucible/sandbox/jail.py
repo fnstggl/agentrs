@@ -62,6 +62,40 @@ def _relocate(d: str) -> str:
     return new
 
 
+def _private_home() -> None:
+    """A fresh HOME / TMPDIR / XDG directory for this launch instead of the kind's shared home: two concurrent browsers
+    of one kind (one uid) - e.g. two worlds' agent browsers - must not share writable state (profiles, caches), which a
+    compromised renderer of one could otherwise read or poison for the other (wave 3b review, cross-tenant state).
+    Directories of launches whose process is gone are pruned."""
+    import secrets
+    import shutil
+    shared = CFG["env"]["HOME"]
+    runs = os.path.join(shared, "runs")
+    os.makedirs(runs, mode=0o755, exist_ok=True)
+    os.chmod(runs, 0o755)
+    for x in os.listdir(runs):
+        p = os.path.join(runs, x)
+        try:
+            pid = int(x.split("-")[1])
+            os.kill(pid, 0)
+            continue                               # still running
+        except (IndexError, ValueError, ProcessLookupError, PermissionError):
+            pass
+        except OSError:
+            continue
+        shutil.rmtree(p, ignore_errors=True)
+    new = os.path.join(runs, f"run-{os.getpid()}-{secrets.token_hex(4)}")
+    os.makedirs(new, mode=0o700)
+    for k in ("HOME", "TMPDIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
+        if k in CFG["env"]:
+            CFG["env"][k] = new
+    CFG["rw"] = [p for p in CFG.get("rw", []) if p != shared] + [new]
+    CFG["chown"] = [p for p in CFG.get("chown", []) if p != shared] + [new]
+
+
+if CFG.get("private_home") and CFG.get("env", {}).get("HOME"):
+    _private_home()
+
 for _pre in CFG.get("rw_from_argv", []):          # e.g. the profile directory Playwright created for this launch
     for _i, _a in enumerate(ARGV[1:], 1):
         if _a.startswith(_pre):

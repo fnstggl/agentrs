@@ -438,3 +438,29 @@ def test_learner_host_runs_an_experience_remote_learner_function_jailed(tmp_path
     rep = out["report"]
     assert out["verified"] and rep["acted"] is True and rep["uid"] not in (0, 65534), rep
     assert rep["found"] == {}, rep["found"]
+
+
+def test_concurrent_jailed_browsers_of_one_kind_get_private_homes():
+    """Two worlds' browsers of one kind share the jail uid; each launch gets its own HOME/TMPDIR/XDG directory (mode
+    700) instead of the kind's shared home, so no writable state is shared between them (wave 3b review)."""
+    from crucible.sandbox import isolation
+    ok, why = isolation.available()
+    assert ok, why
+    code = ("import os, sys, json\nsys.path.insert(0, sys.argv[1])\nfrom playwright.sync_api import sync_playwright\n"
+            "from crucible.sandbox import isolation\nexe, kw = isolation.browser_executable('rt-private-home')\n"
+            "runs = os.path.join(isolation._base(), 'home-%d' % isolation.uid_for('rt-private-home'), 'runs')\n"
+            "with sync_playwright() as pw:\n"
+            "    a = pw.chromium.launch(headless=True, executable_path=exe, args=['--disable-gpu'], **kw)\n"
+            "    b = pw.chromium.launch(headless=True, executable_path=exe, args=['--disable-gpu'], **kw)\n"
+            "    live = sorted(x for x in os.listdir(runs) if os.path.exists('/proc/%s' % x.split('-')[1]))\n"
+            "    st = [os.stat(os.path.join(runs, x)) for x in live]\n"
+            "    print(json.dumps({'live': live, 'modes': [oct(s.st_mode & 0o777) for s in st], "
+            "'owners': sorted({s.st_uid for s in st})}))\n"
+            "    a.close(); b.close()\n")
+    env = {k: v for k, v in os.environ.items() if k != "CRUCIBLE_HOSTS_WORLDS"}
+    r = subprocess.run([sys.executable, "-c", code, SRC], capture_output=True, text=True, timeout=180, env=env)
+    assert r.returncode == 0, r.stderr[-1500:]
+    import json
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert len(out["live"]) >= 2 and set(out["modes"]) == {"0o700"}, out
+    assert out["owners"] == [isolation.uid_for("rt-private-home")], out

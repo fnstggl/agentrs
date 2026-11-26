@@ -256,7 +256,7 @@ def browser_executable(kind: str = "browser", tcp_ports: tuple[int, ...] = ()) -
     cfg = {"uid": uid, "gid": uid, "mode": "browser",
            "ro": RO_SYSTEM + ["/proc", "/sys", "/usr/share/fonts", "/var/cache/fontconfig"],
            "exec": [root] + _loaders(), "rw": [home], "chown": [home], "rw_from_argv": ["--user-data-dir="],
-           "append_args": ["--disable-dev-shm-usage", "--no-sandbox"], "tcp_connect_ports": ports,
+           "append_args": ["--disable-dev-shm-usage", "--no-sandbox"], "tcp_connect_ports": ports, "private_home": True,
            "env": {"HOME": home, "TMPDIR": home, "XDG_CONFIG_HOME": home, "XDG_CACHE_HOME": home}}
     path = os.path.join(_base(), f"browser-{tag}.json")
     if not os.path.exists(path) or json.load(open(path)) != cfg:
