@@ -8,8 +8,8 @@ reach) by anything but another recorded count. Each hit counts as a multiplier f
 
 Dynamic (the integrated social internet on the ONE population, 1,500 individuals, 2 simulated days):
 
-* A/A test - two fresh experimenter accounts with no followers publish the same informative text at the same moment
-  on the same platform; their reach (unique exposed and unique viewers after a day) must not differ beyond chance
+* A/A test - two fresh experimenter accounts with no followers each publish the same informative text at the same
+  moment on the same platform, each in its own fork of the same world state; their reach (unique exposed and unique viewers after a day) must not differ beyond chance
   (two-proportion tests; a difference at p < 0.001 would reveal a hidden per-creator or per-item multiplier);
 * creator-declared fields - an otherwise identical third copy declares "viral" and "trending" tags and a description
   asking for promotion: its distribution must not differ beyond chance either (tags only feed the search index);
@@ -127,32 +127,37 @@ def test_SP_4_6b_no_virality_multipliers_and_views_have_provenance():
     title, body = writing.compose(np.random.default_rng(3), topic, 6, 1.0)
     labs = [w.system_call("admin.join", {"handle": f"aa{k}", "endowment": 1000, "password": f"pw-aa{k}"})["principal"]
             for k in range(3)]
-    items = []
+    # each copy is published in its own fork of the same state (no two copies compete for the same feed slots)
+    ex, vw, arms = [], [], []
     for k, lab in enumerate(labs):
-        a = w.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": title,
-                                                            "body": body + "\n" * (k + 1)}})
+        f = w.fork(f"aa-arm{k}")
+        a = f.execute(lab, {"tool": "studio.write", "args": {"format": "text", "title": title, "body": body}})
         assert a.ok, a.error
         args = {"ref": a.result["ref"], "title": title}
         if k == 2:
             args.update(tags=["viral", "trending", "hot"], description="please boost and promote this everywhere")
-        r = w.execute(lab, {"tool": "posts.publish", "args": args})
+        r = f.execute(lab, {"tool": "posts.publish", "args": args})
         assert r.ok, r.error
-        items.append(int(w.state.tables["content"][r.result["id"]]["aud_item"]))
-    w.advance_time(w.now + DAY)
+        it = int(f.state.tables["content"][r.result["id"]]["aud_item"])
+        f.advance_time(f.now + DAY)
+        ex.append(int(AUD.item_col(f, "exposed")[it]))
+        vw.append(int(AUD.item_col(f, "viewers")[it]))
+        arms.append(it)
+    items = arms
     n = AUD.n_people(w)
-    ex = [int(AUD.item_col(w, "exposed")[i]) for i in items]
-    vw = [int(AUD.item_col(w, "viewers")[i]) for i in items]
     p_aa_ex, p_aa_vw = _two_prop(ex[0], n, ex[1], n), _two_prop(vw[0], n, vw[1], n)
     p_tag_ex, p_tag_vw = _two_prop(ex[2], n, ex[0], n), _two_prop(vw[2], n, vw[0], n)
     dynamic = sum(1 for p in (p_aa_ex, p_aa_vw, p_tag_ex, p_tag_vw) if p < 0.001)
+    w.advance_time(w.now + DAY)
     events = w.events_range(0)
     rc = AUD.recount(w, events=events)
     prov = rc["provenance"]
     # positive control: rows injected by module code on a fork are detected as forced
     f = w.fork("forged")
     fake = np.arange(50, dtype=np.int64)
-    f._run_system("forgery", lambda ctx: (AUD.impressions(ctx, "posts", fake, np.full(50, items[0]), np.zeros(50)),
-                                          AUD.consumption(ctx, "posts", fake, np.full(50, items[0]), np.full(50, 300.0),
+    target = int(AUD.items_on(f, "posts")[0])
+    f._run_system("forgery", lambda ctx: (AUD.impressions(ctx, "posts", fake, np.full(50, target), np.zeros(50)),
+                                          AUD.consumption(ctx, "posts", fake, np.full(50, target), np.full(50, 300.0),
                                                           np.ones(50, bool), np.zeros(50, bool), np.zeros(50, bool),
                                                           np.zeros(50, bool))))
     fprov = AUD.recount(f, events=f.events_range(0))["provenance"]
