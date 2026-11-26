@@ -221,6 +221,57 @@ def betainc(a: TensorLike, b: TensorLike, x: TensorLike, iters: int = 300) -> Te
     return torch.where(swap, 1.0 - res, res)
 
 
+def betainc_scalar(a: float, b: float, x: float, iters: int = 400) -> float:
+    """I_x(a, b) for Python floats (same continued fraction as :func:`betainc`, ~100x faster for one value)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    if x > (a + 1.0) / (a + b + 2.0):
+        return 1.0 - betainc_scalar(b, a, 1.0 - x, iters)
+    front = math.exp(a * math.log(x) + b * math.log1p(-x) - (math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b))) / a
+    tiny = 1e-300
+    c, d = 1.0, 1.0 - (a + b) * x / (a + 1.0)
+    d = 1.0 / (d if abs(d) > tiny else tiny)
+    h = d
+    for m in range(1, iters + 1):
+        m2 = 2.0 * m
+        aa = m * (b - m) * x / ((a + m2 - 1.0) * (a + m2))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c
+        c = c if abs(c) > tiny else tiny
+        h *= d * c
+        aa = -(a + m) * (a + b + m) * x / ((a + m2) * (a + m2 + 1.0))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c
+        c = c if abs(c) > tiny else tiny
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < 1e-15:
+            break
+    return min(1.0, max(0.0, front * h))
+
+
+def student_t_cdf_scalar(z: float, df: float) -> float:
+    tail = 0.5 * betainc_scalar(0.5 * df, 0.5, df / (df + z * z))
+    return 1.0 - tail if z > 0 else tail
+
+
+def student_t_icdf_scalar(q: float, df: float) -> float:
+    lo, hi = -1.0, 1.0
+    for _ in range(90):
+        mid = 0.5 * (lo + hi)
+        z = mid / max(1.0 - abs(mid), 1e-300)
+        if student_t_cdf_scalar(z, df) < q:
+            lo = mid
+        else:
+            hi = mid
+    mid = 0.5 * (lo + hi)
+    return mid / max(1.0 - abs(mid), 1e-300)
+
+
 def normal_cdf(z: Tensor) -> Tensor:
     return 0.5 * torch.erfc(-z / math.sqrt(2.0))
 

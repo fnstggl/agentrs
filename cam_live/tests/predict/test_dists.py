@@ -37,6 +37,12 @@ def test_betainc_matches_scipy():
     a, b, x = rng.uniform(0.05, 60, 400), rng.uniform(0.05, 60, 400), rng.uniform(0, 1, 400)
     np.testing.assert_allclose(D.betainc(a, b, x), sp.betainc(a, b, x), rtol=1e-9, atol=1e-13)
     np.testing.assert_allclose(D.betainc([2.0, 2.0], [3.0, 3.0], [0.0, 1.0]), [0.0, 1.0])
+    for ai, bi, xi in zip(a[:60], b[:60], x[:60]):
+        np.testing.assert_allclose(D.betainc_scalar(ai, bi, xi), sp.betainc(ai, bi, xi), rtol=1e-9, atol=1e-13)
+    for df in (1.0, 3.5, 40.0):
+        for q in (0.001, 0.2, 0.975):
+            np.testing.assert_allclose(D.student_t_icdf_scalar(q, df), st.t.ppf(q, df), rtol=1e-8)
+            np.testing.assert_allclose(D.student_t_cdf_scalar(st.t.ppf(q, df), df), q, rtol=1e-9)
 
 
 def test_count_families_match_scipy():
