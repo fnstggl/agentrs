@@ -12,6 +12,10 @@ Kinds (each is an ordinary `WorldSpec` with the deterministic cost model, so rep
 * ``innovation`` - `crucible.innovation.worlds.innovation_spec` (caps registry, needs graph, pkg, adopt, infra)
 * ``all``        - every 5.0 kernel module merged so far in one world, with the 4.0 services they build on
 * ``experience`` - like ``all``; probes wrap it in `crucible.experience.KernelExperienceEnv` themselves
+* ``social``     - the C1 social internet (catalogue, studio, follow graph, sites, communities, messaging, creator
+                   memberships, launches, Q&A) with code hosting and the cloud
+* ``audience``   - C2: the stand-in population `crowd`, exact audience accounting `aud` and the feeds `feed`
+* ``population`` - the B population (`pop`, `popweb`, generated sites) at a small size
 
 Module configuration is overridable with ``configs={module: {...}}``; extra modules with ``extra=[...]``.
 """
@@ -24,7 +28,7 @@ from ..framework import NotApplicable, default_world_factory
 
 BASE = ["identity", "bank", "admin"]
 SUBSTRATE = BASE + ["artifacts", "cols", "assets"]
-COMMERCE = BASE + ["code", "search", "docs", "support", "contracts", "business", "cloud", "market", "products", "subs",
+COMMERCE = BASE + ["code", "search", "docs", "support", "contracts", "business", "cloud", "infra", "market", "products", "subs",
                    "ventures", "xchg", "gov", "deal", "inst", "commit", "labor"]
 ALL = COMMERCE + ["mail", "cal", "forum", "issues", "wf", "caps", "infra", "pkg", "needs", "artifacts", "cols",
                   "assets", "media", "embed", "exp", "semantic_inference"]
@@ -43,6 +47,28 @@ def v5_spec(kind: str, seed: int = 1, *, configs: dict | None = None, extra: Ite
             params: dict | None = None, workers: int = 0, media: bool = False, drop: Iterable[str] = ()):
     """The `WorldSpec` of one probe-world kind (see the module docstring)."""
     from ...core.kernel import WorldSpec
+    _have([])                                  # every registered kernel module (also for the innovation kind)
+    from . import harness  # noqa: F401 - the red team's own harness module (rt_cohort) is registered up front
+    if kind == "population":
+        from ...population.worlds import population_world
+        pc = dict((configs or {}).get("pop", {}))
+        spec = population_world("development", int(seed), n=int(pc.pop("n", 300)), sites=int(pc.pop("sites", 6)),
+                                 adaptive=False, strategic=False, pop=pc or None, params=params)
+        have = {m["name"] for m in spec.modules}
+        for m in extra:
+            if m not in have:
+                spec.modules.append({"name": m, "config": dict((configs or {}).get(m, {}))})
+        return spec
+    if kind in ("social", "audience"):
+        from ...social.modules import social_internet_modules
+        more = ["code", "cloud", "net"] if kind == "social" else ["crowd", "aud", "feed"]
+        mods = social_internet_modules(more + [m for m in extra if m not in more])
+        mods = [m for m in mods if m["name"] not in set(drop)]
+        for m in mods:
+            m["config"] = dict((configs or {}).get(m["name"], {}))
+        p = {"cost_model": "deterministic"}
+        p.update(params or {})
+        return WorldSpec(f"v5-redteam-{kind}", int(seed), mods, p)
     if kind == "innovation":
         from ...innovation.worlds import innovation_spec
         spec = innovation_spec(int(seed), **dict((configs or {}).get("_innovation", {})))

@@ -337,6 +337,7 @@ class Worker:
         if isinstance(text, str):
             if self.workdir:
                 text = text.replace(self.workdir, "/sandbox")
+            text = text.replace(BOOT, "<sandbox>").replace(os.path.dirname(BOOT), "<sandbox>")
             return text.replace(self.cfg.base_dir, "/sandbox")
         if isinstance(text, dict):
             return {k: self._clean(v) for k, v in text.items()}

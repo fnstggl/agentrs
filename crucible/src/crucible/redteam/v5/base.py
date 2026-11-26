@@ -72,3 +72,56 @@ def ledger_ok(ev: Evaluator) -> dict:
     post = ev.integrity()
     return {"sum_of_balances": post.get("sum_of_balances"), "ledger_problems": post.get("ledger", [])[:5],
             "overdrawn": post.get("overdrawn", [])[:5], "invariants": post.get("invariants", [])[:5]}
+
+
+# ---------------------------------------------------------------------------------------------- code and services
+def manifest(**endpoints) -> str:
+    """crucible.json of a service whose endpoints are handler functions of service.py (name -> price in cents)."""
+    return json.dumps({"entry": "service.py", "endpoints": {
+        n: {"handler": n, "price_cents": int(price), "params": {"type": "object", "additionalProperties": True}}
+        for n, price in endpoints.items()}})
+
+
+def repo(a: Attacker, actor: str, name: str, files: dict, owner: str | None = None, public: bool = False) -> str:
+    """The attacker creates a repository and commits `files` (ordinary code-hosting tools)."""
+    kw = {"owner": owner} if owner else {}
+    rid = a.must(actor, "code.create_repo", name=name, visibility="public" if public else "private",
+                 license="open" if public else "closed", **kw)["repo"]
+    a.must(actor, "code.commit", repo=rid, files=files)
+    return rid
+
+
+def run(a: Attacker, actor: str, rid: str, target: str, input=None, timeout_s: float = 10.0) -> dict:
+    """`code.run` as the attacker: the program runs in the real sandbox and is billed by the world."""
+    r = a.act(actor, "code.run", repo=rid, target=target, input=input, timeout_s=timeout_s)
+    return r.result if r.ok else {"ok": False, "error": r.error, "cpu_ms": 0.0, "charged_cents": 0}
+
+
+def deploy(a: Attacker, actor: str, org: str, acct: str, host: str, files: dict, cores: int = 1,
+           fund: int = 2_000_000) -> dict:
+    """Rent an instance for an organisation of the attacker (funded from the attacker's own account) and deploy
+    `files` as service `host`."""
+    if fund:
+        a.must(actor, "bank.transfer", from_account=a.account(actor), to=acct, amount=int(fund), memo="capital")
+    rid = repo(a, actor, host, files, owner=org)
+    prov = sorted(p["provider"] for p in a.must(actor, "cloud.providers"))[0]
+    inst = a.must(actor, "cloud.rent", provider=prov, cores=cores, account=acct, owner=org)["instance"]
+    d = a.must(actor, "cloud.deploy", repo=rid, host=host, instance=inst)
+    a.control("svc:" + host)
+    return {"repo": rid, "instance": inst, "deployment": d.get("deployment"), "host": host}
+
+
+def compute_used(world, principal: str) -> float:
+    rec = world.state.get("compute_use", principal) if "compute_use" in world.state.tables else None
+    return float(rec["ms"]) if rec else 0.0
+
+
+def findings_in(obj, needles) -> list:
+    """Needles (strings or numbers rendered several ways) found anywhere in a JSON-able object."""
+    blob = json.dumps(obj, default=str, sort_keys=True)
+    out = []
+    for n in needles:
+        forms = {str(n)} if isinstance(n, str) else {repr(n), f"{n:.6g}", f"{n:.4f}", json.dumps(n)}
+        if any(f and f in blob for f in forms):
+            out.append(n)
+    return out
