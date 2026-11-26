@@ -54,14 +54,21 @@ TOOLS: dict[str, str] = {
     "use.report": "the usefulness ledger: hidden-grader verified quality and evaluator-netted independent revenue, "
                   "requests and customers (a service operator's own view is cloud.status/cloud.metrics and its bank "
                   "account)",
+    "caps.categories": "emergent markets selected and listed by independent buyers (the relatedness analysis); its "
+                       "min_adopters filter is a threshold oracle over independent-adopter counts",
 }
 
-_CAPS_VERDICTS = ("independent_trials", "independent_trial_ok_rate", "independent_adopters", "independent")
+_CAPS_VERDICTS = ("independent_trials", "independent_trial_ok_rate", "independent_adopters", "independent",
+                  "independent_payers", "independent_buyers")
 _SCI_VERDICTS = ("related_to_author", "independent", "independent_consistent")
 # tool -> keys removed (at any depth) from its result
 RESULT_FIELDS: dict[str, tuple[str, ...]] = {
     "caps.search": _CAPS_VERDICTS, "caps.declaration": _CAPS_VERDICTS, "caps.declarations": _CAPS_VERDICTS,
     "caps.verify": ("independent",),
+    # the capability registry's adoption statistics (services/capabilities.py `summary`, `graph`): installs and
+    # active installs stay (world facts); counts and flags computed with the relatedness analysis do not
+    "caps.view": _CAPS_VERDICTS, "caps.list": _CAPS_VERDICTS, "caps.evidence": _CAPS_VERDICTS,
+    "caps.get_evidence": _CAPS_VERDICTS, "caps.graph": _CAPS_VERDICTS + ("buyers",),
     "rig.read": ("score",), "rig.history": ("score",),
     # the science world (domains/science.py, module `sci`): a replication report's verdict "consistent/refuted" is a
     # statistical test on the reporter's own readings (a world observation), but `related_to_author` and
@@ -73,6 +80,8 @@ RESULT_FIELDS: dict[str, tuple[str, ...]] = {
 # event type -> payload keys removed (at any depth)
 EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "caps.tried": ("independent",), "caps.adopted": ("independent",), "caps.verification": ("independent",),
+    "caps.installed": ("independent",), "caps.evidence": ("independent",), "caps.payer": ("independent",),
+    "caps.market": ("buyers",),
     "pkg.executed": ("independent",), "pkg.review": ("independent",),
     "rig.report": ("score",),
     "use.probe": ("mean",),

@@ -141,3 +141,25 @@ def test_probe_helpers():
     env = make(0, "tiny", 918_273, agents=["learner"])
     toks, nums = identity_tokens(env)
     assert env.world.spec.hash()[:12] in toks and nums == {"seed": 918_273.0}
+
+
+def test_capability_registry_adoption_verdicts_are_evaluator_only():
+    """caps.view/list/graph/evidence carried counts and flags computed with the relatedness analysis
+    (independent adopters/payers/buyers): a provider could learn which of its own organisations the evaluator links to
+    it by having them install its capability. Installs and active installs (world facts) stay."""
+    w = make(0, "tiny", 1, agents=["learner"]).world
+    summ = {"capability": "cap_1", "installs": 3, "active_installs": 2, "independent_adopters": 1,
+            "independent_payers": 0, "public_outcomes": [{"evidence": "e1", "by": "o:x", "independent": False}]}
+    got = EO.participant_result(w, "caps.view", summ)
+    assert got == {"capability": "cap_1", "installs": 3, "active_installs": 2,
+                   "public_outcomes": [{"evidence": "e1", "by": "o:x"}]}
+    assert EO.participant_result(w, "caps.list", [summ])[0] == got
+    g = EO.participant_result(w, "caps.graph", {"nodes": [], "edges": [], "markets": [
+        {"id": "m1", "label": "sort", "sellers": ["o:a"], "buyers": ["o:b", "o:c"]}]})
+    assert g["markets"] == [{"id": "m1", "label": "sort", "sellers": ["o:a"]}]
+    assert EO.participant_payload(w, "caps.installed", {"id": "i1", "installer": "o:b", "independent": True}) == \
+        {"id": "i1", "installer": "o:b"}
+    assert EO.participant_payload(w, "caps.market", {"id": "m1", "buyers": ["o:b"]}) == {"id": "m1"}
+    assert EO.is_evaluator_tool(w, "caps.categories")
+    lw = make(0, "tiny", 1, LEGACY, agents=["learner"]).world
+    assert EO.participant_result(lw, "caps.view", summ) == summ

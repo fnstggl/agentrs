@@ -64,7 +64,7 @@ EVALUATOR_KEYS = frozenset({
     "random_net", "solvable", "random_score", "score_first_half", "score_second_half", "objective_quantity",
     "verified_quality", "verified_samples_ok", "currently_true", "independent_trials", "independent_trial_ok_rate",
     "independent_adopters", "excluded_related_requests", "excluded_related_cents", "mean_score_hidden",
-    "related_to_author", "independent_consistent"})
+    "related_to_author", "independent_consistent", "independent_payers", "independent_buyers"})
 DAY = 86400
 
 
