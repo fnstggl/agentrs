@@ -11222,7 +11222,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/acceptance/v5/progress.py",
-    "docs/v5/PROGRESS.json"
+    "docs/v5/PROGRESS.json",
+    "src/crucible/acceptance/v5/__main__.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_1_5.py"
@@ -15821,7 +15822,8 @@
    "dependencies": [],
    "implementation_files": [
     "src/crucible/acceptance/v5/progress.py",
-    "docs/v5/PROGRESS.json"
+    "docs/v5/PROGRESS.json",
+    "src/crucible/acceptance/v5/__main__.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_1_5.py"
