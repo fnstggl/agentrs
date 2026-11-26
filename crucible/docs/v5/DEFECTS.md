@@ -73,13 +73,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-A-4 (critical, open): The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, comm
+### DEF-A-4 (critical, fixed): The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, comm
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "D-21 mandatory duplicate-fact scan (crucible.substrate.facts.audit: every table, column table, column and dense array of every shipped module, installed alone; a reviewed allow-list with target owner, migration, workstream and expiry; data-level facts.world_report/world_problems on running worlds; legacy role for 4.0 tables certified by a named test), waves 1-3 on c5c/w1-kernel, c5c/w3-kernel; wave 3b (D-79): entries reviewed ahead of a sibling branch's merge are reported, never counted, and stale entries are problems. The check is no longer vacuous; the duplicates it found are tracked on the allow-list and by SP-2.3 shared_primitive_kinds (relationship and community still have copies: migrations C+A, B+C)",
  "id": "DEF-A-4",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_substrate_facts.py (9 tests: every module scanned and classified, allow-list exact incl. absent sibling entries, expiry, undeclared copies caught without declarations, off-list duplicate fails, data-level counts, legacy split, every column scanned on its own name), tests/v5/test_gate_SP_2_3.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -87,7 +89,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, communities, products (D-11 open), institutions, contracts, employment, and >=6 disjoint populations."
 }
 ```
@@ -406,13 +408,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-E-3 (critical, open): FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fai
+### DEF-E-3 (critical, fixed): FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fai
 
 ```json
 {
  "area": "E_calibration",
+ "fixed_by": "c5c/w3-calib (wave 3): FIDELITY_REGISTER.md repaired (id records, the 17 dropped rows restored, superseded duplicates removed) and every in-world claim of runtime use is verified by crucible.calibration.fidelity.inworld_claims (SP-5.0 metric claimed_runtime_uses_unverified counts claims that fail verification or that the world does not exercise); the register parser no longer stops at blank lines",
  "id": "DEF-E-3",
  "owner": "E",
+ "regression_tests": "tests/v5/test_gate_SP_5_4.py (5 passed on c5c/w3b-kcal, wave 3b), tests/v5/test_gate_SP_5_0.py (claimed_runtime_uses_unverified)",
  "requirements": [
   "SP-5.4"
  ],
@@ -422,7 +426,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/E_calibration.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fails (40 modules) and its parser drops 17 rows after a blank line."
 }
 ```
@@ -446,7 +450,7 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-E-5 (critical, open): Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test p
+### DEF-E-5 (critical, not_a_defect): Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test p
 
 ```json
 {
@@ -454,24 +458,27 @@ B_population verdict) and P's own findings.
  "id": "DEF-E-5",
  "owner": "E",
  "requirements": [],
+ "resolution": "A positive audit finding recorded as a critical finding: the offline calibration is genuine (checksums match Zenodo, HF and GH Archive; the Criteo full-test primary 0.114255 and session_rate deviance 3.3015 reproduce exactly; ITT kept separate from the naive exposure contrast). Gate F's F.3 recomputes every qualifying model's held-out metric from the verified datasets through crucible.calibration.runtime (tests/v5/test_gate_F.py).",
  "severity": "critical",
  "source": {
   "audit": "E_calibration",
   "file": "docs/v5/audit/E_calibration.json",
   "finding": 4
  },
- "status": "open",
+ "status": "not_a_defect",
  "summary": "Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test primary 0.114255 and session_rate deviance 3.3015 exactly; ITT (0.010) is correctly kept separate from the naive exposure contrast (0.378)."
 }
 ```
 
-### DEF-E-6 (critical, open): Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disc
+### DEF-E-6 (critical, fixed): Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disc
 
 ```json
 {
  "area": "E_calibration",
+ "fixed_by": "(1) amendment after test exposure: disclosed in the plan and flagged by the SP-5.5 audit (amendments_after_test_exposure) for the reviewer; the E3/E4/E5 plans were committed before any fit (commit order checked from git) - the E2 amendment itself cannot be un-seen and stays disclosed; (2) MIND: the project owner authorised MIND-small for experimental, non-commercial research (DECISION_LOG D-28), derived artifacts marked non-commercial research only (LICENSE_NOTICE.md); (3) raw GitHub ids: GH Archive derived tables hold only keyed pseudonyms whose keys live outside the data root ($CRUCIBLE_KEYS), and SP-5.1 counts values pseudonymised under a co-located key as re-identifiable (c5c/w3-calib repair pass)",
  "id": "DEF-E-6",
  "owner": "E",
+ "regression_tests": "tests/v5/test_gate_SP_5_5.py, tests/v5/test_gate_SP_5_1.py (reidentifiable_ids_in_calibration_data == 0), tests/test_v5_calibration_governance.py",
  "requirements": [
   "SP-5.5"
  ],
@@ -481,7 +488,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/E_calibration.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disclosed; SP-5.5 passes); MIND came from an unofficial mirror that skips the licence gate; raw GitHub actor ids are kept."
 }
 ```
