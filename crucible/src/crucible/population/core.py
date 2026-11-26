@@ -42,7 +42,7 @@ N_EMPLOYERS = 200
 # Triggered wake-ups are part of the population's public API (contract section 1: `wake`): any subsystem schedules
 # them through `wake`, which keeps the earliest pending wake-up and checks the activity; no module writes the two
 # columns directly except `pop` itself (which clears them when the wake-up fires).
-WAKE_INTERFACE = "pop.wake"
+WAKE_INTERFACE = "pop_wake"
 columns.register_interface(WAKE_INTERFACE, ("wake_at", "wake_act"))
 
 
