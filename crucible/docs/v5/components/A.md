@@ -276,3 +276,17 @@ Measured in that mirror (single CPU, slot scheduler):
   genesis at days 45, 150 and 300 (7 / 37 / 95 s against 31 / 109 / 211 s). `state_at(..., runtime=True)` at day 45
   fails with NotFound: the checkpoint current then was superseded and collected (no retained snapshot roots it) -
   historical *state* is exact at any time, historical *runtime* (rebuilt weights) only where its checkpoint is kept.
+
+## Wave 3b (c5c/w3b-kcal, on the integration head 55433e7)
+
+What the wave-3a merges broke, what this wave's adversarial review found, and the repairs (predecessor commits
+f660be6..cf11866 plus this continuation):
+
+| finding | repair | test |
+|---|---|---|
+| snapshot bytes grew superlinearly: every system array blob (cohort decision, checkpoint, training batch, recorded inference) had an `artifacts` state row and an `artifact.stored` event, so each snapshot carried the whole blob history (222,702 rows, 15 snapshots = 120 MB at day 365) and retention iterated those rows | D-78: a system blob is named only by the hash-chained event that uses it (no state row, no event); lineage-scoped reads; a store-less fork takes over its parent's pool lease (`Module.on_fork`) | `test_v5_substrate_retention.py::test_system_array_blobs_are_not_world_state` |
+| two O(blobs) scans per compaction (pack and collect listed every blob size) and a log re-read | retention reads only the events written since its previous call, looks up exactly the sizes it needs, keeps its scan position in the store (verified against the event hash there) | `::test_periodic_compaction_reads_only_what_was_written_since_the_last_one` |
+| no measurement of "approved state interfaces" (SP-2.3b had no gate) | `crucible.substrate.integrity`: `trace_writes` attributes every state write to the module whose applier performs it (or the handler) and classifies it against the target's declaring owner; `hashes` builds a world kind in a fresh process for determinism; gate `tests/v5/test_gate_SP_2_3b.py` with a positive control | `test_v5_substrate_integrity.py` |
+| K2 observer test and K1 cross-process resume failed after the merge: the same page request was billed 0.1 ms or 2.9 ms in two runs of one spec and seed - the program-load CPU (2.9-5.8 ms on the loaded machine) straddled `LOAD_FREE_NS` and the job memo billed the noisy figure | D-80: the deterministic cost model anchors a program's load like a job (first measurement per lineage, program and target; same tolerance rule) and keeps it out of the job's own anchor (minimal edit in `sandbox/runner.py`) | `test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job` (injected load noise; fails without the fix), `test_v5_substrate_streams.py` |
+| approved state interfaces were a string: any module's code could pass `_iface="attention"` to `columns.batch` and refill attention unchecked | an interface is a capability of the Python module that registered it (`register_interface` records it; `batch(_iface=...)` from other code is refused) | `test_v5_substrate_columns.py::test_a_module_cannot_write_columns_it_does_not_own[claimed_iface]` |
+| the mandatory fact scan would fail on the integration branch as soon as the Tier 2 domain branches merge (unreviewed copies of needs, institutions, products, subscriptions) | D-79: reviewed from those branches' scans before the merge (allow-list with target owner and migration); absent entries are reported (`allow_listed_absent`), stale ones are problems | `test_v5_substrate_facts.py` |
