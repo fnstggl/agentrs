@@ -1,0 +1,312 @@
+{
+ "workstream": "F",
+ "branch": "c5c/w3b-econ1",
+ "requirements": {
+  "K.1": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/products.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py",
+    "tests/test_v5_commerce_modules.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "9 subscription scenarios incl. the audit's superseded-refund probes (S2-A, S2-B): credit has provenance and a refund voids the credit derived from it; kept factor over current period, trailing 180 days and completed periods."
+  },
+  "K.2": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "7 cancellation scenarios; cancel-at-period-end is scheduled churn (excluded from qualifying MRR, reported separately) incl. the audit's S6 (10 annual cancellations -> MRR 0 from day 11, scheduled churn 1.0)."
+  },
+  "K.3": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/products.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "8 refund scenarios; partial refunds net MRR (500 of 2000 refunded -> 1500), 99% refund collusion fails the objective (ARR $1,000), refund-after-each-period scheme counts 0."
+  },
+  "K.4": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "15 labelled independent customers counted, 10 planted related schemes (incl. 6-hop grant chain, unlabelled persona, commitment payout, project reward) contribute <= 20% of list MRR (0 errors). Controlled identities: shared controller -> related (fixpoint); unlabelled admitted personas never independent for objectives (fail closed)."
+  },
+  "K.5": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py",
+    "tests/test_v5_commerce_modules.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "independent recomputation from the event log and ledger (net of partial refunds, scheduled churn excluded) vs revenue.mrr_exact at 13 checkpoints: 0 mismatches; ARR == 12 MRR exactly; $100k ARR == $8,333.33 MRR target in commerce.objective."
+  },
+  "K.6": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "cash-basis profit reconciliation unchanged (0 cents); acquisition now includes ad_impressions."
+  },
+  "K.7": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py",
+    "tests/test_v5_commerce_modules.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial evidence, wave 3b re-run)",
+   "notes": "19 scheme types (13 old + 6 from the 5.0 audit probes) detected 1.0 (payer share of objective MRR at or below its legitimate share; proportional, no FLAG_SHARE cliff), FPR 0.0 over 40 ordinary customers (incl. suppliers at market price, B2B, refunded-then-resubscribed). Escrow releases (commit, inst project rewards) attributed to their payer; goods exempt only up to the market price set by other pairs."
+  },
+  "K.n1": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/commerce/business.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "implemented; LABELLED SCRIPTED reference; slow gate re-run in wave 3b (see test_results)",
+   "notes": "Scripted reference strategy (commerce.reference.ReferenceSaaS) in generated startup worlds whose only demand is the population; incumbents' display campaigns are off in this template (D-41) so the evidence stays comparable; wave-3b changes on this path: complaints about rejected results open support tickets (economy.work), need ends are world physics without decision provenance. Not evidence of learning."
+  },
+  "K.n2": {
+   "implementation_files": [
+    "src/crucible/commerce/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_K.py"
+   ],
+   "status_claim": "test repaired (NameError: os was not imported after the wave-3a merge); passes locally",
+   "notes": "Owned by workstream N; the test lives in ECON's gate file."
+  },
+  "SP-6.1": {
+   "implementation_files": [
+    "src/crucible/commerce/products.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/business.py",
+    "src/crucible/commerce/customers.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/platform.py",
+    "src/crucible/commerce/reference.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_1.py",
+    "tests/test_v5_econ_work.py"
+   ],
+   "status_claim": "implemented; gate passes locally (20/20 features, unofficial)",
+   "notes": "20/20 features; competition and customer-support consequences measured with population demand; education measured on the learner's own program; media products still use scripted buyers (media demand belongs to the social layer). Wave 3b: marketplaces sell passes (term licences) to the population; content entitlements with a term expire (products.expire)."
+  },
+  "SP-6.1b": {
+   "implementation_files": [
+    "src/crucible/economy/work.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/commerce/worlds.py",
+    "src/crucible/commerce/business.py",
+    "src/crucible/commerce/refsolvers.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/products.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_1b.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial): useless_product_revenue_share 0.0, value_revenue_relation_pvalue 1.0e-4 (Spearman 0.93, 15 firms, 3 worlds)",
+   "notes": "Population startup worlds (n=800, 35 days) where competitors differ only in their program (every reference tier + 2 input-ignoring firms, same price and trial); value = evaluator-side verifier score of the deployed program on fresh inputs; revenue = independent revenue net of refunds. Usefulness reaches revenue only through individuals' downstream acceptance of their own work."
+  },
+  "SP-6.2": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/objective.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/subscriptions.py",
+    "src/crucible/commerce/products.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/economy/work.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_2.py"
+   ],
+   "status_claim": "partial: revenue_features 11/11, rolling_sales_counted_as_recurring 0, product_catalogues 1; recurring_revenue_systems_of_record 2 (criterion == 1) - social/creators.py bills creator memberships itself (CORE-POP, integration note); the gate fails honestly until it routes through subs",
+   "notes": "Features: one-time vs recurring, MRR/ARR normalisation, active vs cancelled, refunds net, discounts, CAC from real ad spend, churn, operating costs and profit, related-party exclusion, subscription validity (past due, scheduled churn), marketplace passes as one-time sales. Rolling sales: controlled worlds plus a population startup world with exchanges (passes bought: 123,008 cents). Systems of record: syntax-tree scan of every shipped module for recurring 'subscription' ledger charges outside subs."
+  },
+  "SP-6.6": {
+   "implementation_files": [
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/contracts.py",
+    "src/crucible/commerce/labor.py",
+    "src/crucible/commerce/orgworld.py",
+    "src/crucible/commerce/modules.py",
+    "src/crucible/commerce/observables.py",
+    "src/crucible/services/bank.py",
+    "src/crucible/services/governance.py",
+    "src/crucible/services/contracts.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_6.py",
+    "tests/test_v5_commerce_institutions.py",
+    "tests/test_v5_commerce_contracts.py",
+    "tests/test_v5_commerce_labor.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial)",
+   "notes": "14/14 features, 14/14 core-law attempts blocked on 3 seeds incl. 5 adversarial uses of authorised tools (subscription, purchase and mandate to an admin's own business; charter condition and commitment predicate on evaluator MRR). Wave 3b: institutions are founded, joined, funded (dues), governed and amended by the population (mutual-aid associations, economy.assoc); charters gain profit sharing; 4.0 gov writes through inst."
+  },
+  "SP-6.6b": {
+   "implementation_files": [
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/commerce/revenue.py",
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/contracts.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/labor.py",
+    "src/crucible/commerce/subscriptions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_6_6b.py"
+   ],
+   "status_claim": "implemented; gate passes locally (unofficial): collusion_scenarios_tested 6, collusive_revenue_counted 0, control customer counted in full",
+   "notes": "Six multi-agent schemes (separate controller labels): cooperative treasury subscribing by decision, mutual-aid benefit funded by the merchant's dues, escrowed commitment rebate, cooperative venture reward, exchange wash order, employee salary."
+  },
+  "INT civic activities (Tier 3: marketplaces, employment, institutions)": {
+   "implementation_files": [
+    "src/crucible/economy/work.py",
+    "src/crucible/economy/jobs.py",
+    "src/crucible/economy/assoc.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/labor.py",
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/rivals.py",
+    "src/crucible/commerce/products.py"
+   ],
+   "tests": [
+    "tests/test_v5_econ_civic.py"
+   ],
+   "status_claim": "implemented; unit tests pass (startup world with exchanges, institutions and labour market); civilisation verification run: see test_results",
+   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals)."
+  },
+  "SP-2.3 migrations (institution, contract)": {
+   "implementation_files": [
+    "src/crucible/substrate/primitives.py",
+    "src/crucible/substrate/facts.py",
+    "src/crucible/services/governance.py",
+    "src/crucible/services/contracts.py",
+    "src/crucible/commerce/institutions.py",
+    "src/crucible/commerce/contracts.py"
+   ],
+   "tests": [
+    "tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters",
+    "tests/test_v5_commerce_contracts.py::test_every_commitment_is_one_contract_with_an_escrow_clause",
+    "tests/test_v5_substrate_facts.py"
+   ],
+   "status_claim": "implemented (D-40); the SP-2.3 gate itself (workstream A) was not run here",
+   "notes": "institution and contract leave the known-duplicate allow-list: shared_primitive_kinds should rise from 14 to 16 of 19."
+  },
+  "display advertising (SP-5.5b input for workstream E)": {
+   "implementation_files": [
+    "src/crucible/economy/work.py",
+    "src/crucible/economy/popbridge.py",
+    "src/crucible/commerce/rivals.py"
+   ],
+   "tests": [
+    "tests/test_v5_econ_civic.py::test_display_campaigns_randomise_eligibility_and_record_ad_response_decisions"
+   ],
+   "status_claim": "implemented; in-world holdout re-estimate on a startup probe: shift 1.38 vs Criteo 1.39 (matching), see D-41 for what this does and does not validate",
+   "notes": "Batches work.ad_visit on table ads_seen with extra.experiment {id: ad_holdout, arm}, model ad_response@2 (fitted ad_exposure_response@1)."
+  }
+ },
+ "limitations": [
+  "SP-6.2 recurring_revenue_systems_of_record is 2: social/creators.py (CORE-POP) bills memberships with its own bank.move of kind 'subscription'; the gate fails until creators routes through subs (integration note).",
+  "Employment of population individuals in the labour market lives in contracts; the population's exogenous `employer` column and `employed` feature do not see it (CORE-POP migration, facts.py KNOWN_DUPLICATES pop.employer).",
+  "Employer demand for labour comes only from incumbents' support queues (rivals staffing rule); industry, science and education employers do not recruit from the population yet.",
+  "Mutual-aid associations insure job loss only; their thresholds (FR-WORK-3) are uncalibrated.",
+  "Display campaigns: attention is the reference value 1 per displayed period (work.display_attention); the in-world holdout therefore checks the mechanism, not attention; the incremental conversion ratio is not applied.",
+  "Passes are 30-day term licences of services; goods and content listings by population sellers are not modelled.",
+  "gov proposals in worlds with inst are inst decisions: 4.0 society minds (actors.negotiation) read the gov proposals table and therefore no longer vote on them there (no in-world caller of gov.propose exists in civilisations).",
+  "Earlier limitations of F+G (wave 2) that remain: source-of-funds tracing replays the ledger; platform review filters look one hop back; work.value and rivals rules uncalibrated; labour task quality formula (labor.task_quality) unchanged; subjective usefulness (6.3) not implemented."
+ ],
+ "integration_notes": [
+  "CORE-POP (social/creators.py, SP-6.2): route creator memberships through subs: create_tier -> prod.create (kind media, owner the creator, delivery content of a members-only document or a new 'membership' delivery) + subs.create_plan(price, month); join -> subs.subscribe as the fan from its own account (status/period from sub_subs); cancel -> subs.cancel; the 'subscribers' content.access provider -> products.entitlement of the creator's product; then KNOWN_DUPLICATES creators.creator_members can go and tests/v5/test_gate_SP_6_2.py measures 1 system of record.",
+  "CORE-POP (population): `employed` could include an active labour-market employment contract (contracts.contracts employee = p<i>, status active) so the exogenous column becomes the cache D-21 asks for; economy.jobs treats individuals with an exogenous employer as not looking.",
+  "CIV (J): no recipe change needed - xchg founds two venues at genesis in population worlds (config venues='auto'), rivals runs display campaigns (display_ads), economy.work registers `jobs` and `assoc` where labor/inst are present (+2 habit slots: civ H=32 is enough, internet H=24 has room for ~22). Employment gets cross-subsystem edges once the first hire happens (labor.hired -> contracts, labor.shift -> support tickets), usually after day 3-6 of a civilisation.",
+  "E (calibration): in-world ad-holdout data are recorded by economy.work display campaigns (table ads_seen, kind work.ad_visit, extra.experiment {id: ad_holdout, arm: eligible|holdout}, model ad_response@2); startup_spec(..., rivals={'display_ads': True}) or any civilisation produces them; attention is the reference value (D-41).",
+  "A (kernel/substrate): wave-3b edits to A's files for the D-40 migrations - substrate/primitives.py OWNERS.institution = inst.inst_charters; substrate/facts.py gov.* legacy entries (verified_by test_gov_writes_through_inst_charters), commit.commitments part of contracts.contracts, two KNOWN_DUPLICATES entries removed; tests/test_v5_substrate_facts.py kinds set without institution/contract; services/contracts.py escrow clause (instrument-only) and population persons in membership clauses; services/governance.py write-through where inst is installed (4.0 worlds unchanged). Please re-run tests/v5/test_gate_SP_2_3.py on the integration branch.",
+  "P (QA): manifest implementation_files are empty for SP-6.1b, SP-6.2 and SP-6.6b; use the lists in this file.",
+  "N (research): K.n2 test needed `import os` (fixed in tests/v5/test_gate_K.py)."
+ ],
+ "history": {
+  "wave2": {
+   "workstream": "F+G",
+   "branch": "c5c/w2-econ",
+   "file": "docs/v5/workstreams/F+G.json"
+  }
+ },
+ "test_results": {}
+}
