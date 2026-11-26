@@ -1,0 +1,29 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.3",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K3_refunds",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:40.112560+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "refund_scenarios_passed": 5,
+  "refund_scenarios_total": 5
+ },
+ "artifacts": [],
+ "notes": "k3_full_refund_reverses_settled_payment: passed; k3_partial_refunds_bounded: passed; k3_one_time_purchase_refund_revokes_licence: passed; k3_refund_needs_merchant_funds: passed; k3_only_merchant_refunds_and_ledger_reconciles: passed",
+ "junit": null
+}

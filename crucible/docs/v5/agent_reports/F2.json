@@ -1,0 +1,107 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "F2",
+  "branch": "worktree-wf_62a0cf0b-bb3-4",
+  "commit": "14a2754",
+  "summary": "F2 adds three kernel modules to crucible/src/crucible/commerce/. They are registered from commerce/modules.py and pass worldgen.admission.admit. They build on the 4.0 identity, grants, contracts, business, gov and bank code rather than replacing any of it.\n\n1. inst (institutions.py): organisation charters with a closed set of fields. It supports seven decision procedures: majority, supermajority, unanimous, weighted (by shares, contribution or tenure), delegated (liquid democracy), consensus, and officer (acts alone within a monthly budget). The electorate is fixed when a proposal is made. Enforcement hooks into identity's gov_check after the 4.0 gov check, so a charter binds owners too and also blocks gov-approved proposals; where both a charter and a gov constitution apply, both must pass.\n   - Decisions can run tools as the organisation, amend the charter, admit or expel members, change roles, manage units and offices, allocate money, merge or absorb, spin off a unit and dissolve.\n   - Shared projects and cooperative ventures have an escrowed pool, tasks with skills, effort and dependencies, rewards paid on completion, contribution-weighted venture decisions and a pro-rata refund on close.\n   - Stable constraints are enforced. Charters cannot carry accounting, security, evaluation or world-state fields, or conditions on evaluator-only metrics. Decisions cannot use admin tools, unknown action kinds or ownership assignment, and cannot spend other principals' money.\n2. commit (contracts.py): escrowed commitments with offer/counter/accept negotiation threads. Milestones can be acceptance, predicate or inst-task deliverables. A missed deadline is a public breach. Disputes end by settlement, by an independent arbiter (paid a fee) or by a default split. There is also a public track record.\n3. labor (labor.py): a labour market with simulated workers whose skills are private. Employers see only declared skills and a verified record of completed work. It covers postings, applications, salary offers and counteroffers, and hiring onto 4.0 employment contracts. Simulated workers work only on tasks whose dependencies are done, quality is measured from skill match, and hours are logged as contributions. Workers have satisfaction, fatigue and quitting behaviour, they turn down assignments they cannot fit, they leave and blacklist employers who breach, and they vote in decisions. It registers five evaluator metrics.\n\nThe gate test tests/v5/test_gate_SP_6_6.py runs three worlds (seeds 66, 1, 2) and records the minimum: 14 of 14 institution features and 9 of 9 core-law attempts blocked, with 0 invariant violations and identical replay and regeneration. Seeds 1 to 8 checked separately give the same result. There are 37 unit and integration tests, and all pass. The full 4.0 suite: 1,143 passed, 2 skipped and 1 failed; the failure is a sandbox determinism check in a world with no F2 modules, run under heavy machine load, and it passes when rerun alone.",
+  "files_added": [
+   "crucible/src/crucible/commerce/institutions.py",
+   "crucible/src/crucible/commerce/contracts.py",
+   "crucible/src/crucible/commerce/labor.py",
+   "crucible/src/crucible/commerce/orgworld.py",
+   "crucible/src/crucible/commerce/modules.py",
+   "crucible/tests/v5/test_gate_SP_6_6.py",
+   "crucible/tests/test_v5_commerce_institutions.py",
+   "crucible/tests/test_v5_commerce_contracts.py",
+   "crucible/tests/test_v5_commerce_labor.py",
+   "crucible/docs/v5/components/F2.md",
+   "crucible/docs/v5/workstreams/F2.json"
+  ],
+  "requirements": [
+   {
+    "id": "SP-6.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/institutions.py",
+     "src/crucible/commerce/contracts.py",
+     "src/crucible/commerce/labor.py",
+     "src/crucible/commerce/orgworld.py",
+     "src/crucible/commerce/modules.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_6_6.py",
+     "tests/test_v5_commerce_institutions.py",
+     "tests/test_v5_commerce_contracts.py",
+     "tests/test_v5_commerce_labor.py"
+    ],
+    "notes": "Measured on this branch: institution_features=14 (threshold >=10) and core_law_modifications_blocked=9 (threshold >=3), each the minimum over three seeded worlds. The 9 attempts cover all four protected laws, are made through the organisation's own authorised mechanisms, and count only when the attempt is refused and the protected state is unchanged. Invariants are 0, money is conserved, and the replay digest and regeneration hash match. The checker's criterion_met passes both criteria against the recorded metrics. The evidence file was deleted after each local run and is not committed; it must be produced on the integration branch."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_commerce_institutions.py tests/test_v5_commerce_contracts.py tests/test_v5_commerce_labor.py tests/v5/test_gate_SP_6_6.py",
+    "passed": 38,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 1: pytest tests/test_open_institutions.py tests/test_economy.py tests/test_admission.py tests/test_goals.py tests/test_internet_society.py tests/test_services_comm.py tests/test_kernel.py tests/test_invariants.py tests/test_open_society.py tests/test_open_security.py tests/test_hardening.py tests/test_redteam.py + F2 files",
+    "passed": 186,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 1 x3: full tests/test_*.py suite in three groups (CUDA hidden)",
+    "passed": 1143,
+    "failed": 1,
+    "skipped": 2
+   },
+   {
+    "command": "slots --cpu 1: pytest tests/test_invention.py::test_matched_forks_show_a_loss_mechanism_that_exists_only_with_the_invention (rerun of the one failure)",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "Simulated workers are per-person dictionary records producing about 3 events per worker-day (300 workers over 30 days took 1.9 s). This is fine for thousands of workers but not for population scale; that needs the columnar substrate, which is not merged.",
+   "Cross-module notifications use chained 4.0 hooks (gov_check, on_member_left, on_contract_ended, on_task_assigned, on_inst_decision), not substrate.bus.",
+   "Charter rules govern tools by name pattern and amount. Non-tool institutional actions are covered by a 4.0 gov constitution only through rules that match inst.<kind>.",
+   "When one organisation absorbs another, the absorbed organisation's employment contracts end and its people are invited but must be re-hired. Merger consideration for shareholders is not modelled.",
+   "Agent work on inst tasks is verified only by the lead's acceptance, with no measured quality, unless it is a commitment's predicate deliverable.",
+   "The simulated worker offer, quit and vote models are hand-specified, not calibrated against data.",
+   "One full-suite run had a load-dependent failure in test_invention (a sandbox determinism check in a world without F2 modules). It passed when rerun alone."
+  ],
+  "integration_notes": [
+   "commerce/modules.py is shared with F1. F2's line is `from . import contracts, institutions, labor`. If F1 also adds the file, the add/add conflict is resolved by keeping both import lines.",
+   "New modules: inst, commit, labor (hosts of the same names). Tables are prefixed inst_*, commitments, commit_offers, labor_*. New system escrow accounts: acct_inst_escrow and acct_commit_escrow. Worlds without these modules are unchanged.",
+   "Five evaluator metrics are registered when labor.py is imported, all with subject = org: labor_employees, labor_retention, project_completion, project_quality, project_delivered.",
+   "inst re-chains gov_check in on_load because the 4.0 gov module overwrites that hook rather than chaining it.",
+   "The labour market writes the meta key labor_hours:<org> as hours, which the 4.0 gov profit distribution with basis 'labor' already reads. Contributions are valued at one public rate (config labor_hour_cents) so they do not reveal individual wages.",
+   "The substrate (INTERFACE_CONTRACTS section 1) was never merged into feat/crucible-5-openworld (checked three times during the work), and F2 does not import it. Follow-ups once it lands: register the inst and commit tables under the institution and contract primitive kinds if workstream A wants that, back simulated workers with pop columns via ids.ensure_principal, and move the hook chains to bus subscriptions.",
+   "For workstream I (labour and organisational-ecosystem domains): orgworld.spec(seed, workers=n, extra=...) builds a world family, Labor.create_sim_worker / add_worker create workers with chosen profiles, and project_delivered / project_quality give independent outcome evaluation.",
+   "Running the full suite rewrites docs/v5/evidence/checker_report.json (through test_v5_acceptance_checker). I restored that file and did not commit it."
+  ],
+  "blockers": [],
+  "packages_installed": [],
+  "disk_used_mb": 0.4,
+  "measurements": [
+   "Gate SP-6.6, seeds 66/1/2: features 14/14 and blocked 9/9 in every world. Seed 66 world: 18,842 events, 45.1 simulated days, 17 decisions, 10 ballots cast by simulated workers. The test takes 4.6 s.",
+   "Gate scenario run separately on seeds 1-8: 14/14 features and 9/9 blocked for all eight.",
+   "Admission harness (800 random steps): inst, commit, and inst+commit+labor all pass every check.",
+   "Labour market: 300 simulated workers, 220 hired, 206 tasks done in 30 simulated days, 1.92 s wall, 2.94 events per worker-day, 0 invariant violations."
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/src/crucible/commerce/orgworld.py",
+    "why": "New helper file in the shared commerce package, outside F2's three named files. It holds the world builders used by the F2 tests and gate and offered to the domain workstreams. No F1 file was touched."
+   },
+   {
+    "path": "crucible/src/crucible/commerce/modules.py",
+    "why": "Shared registration file required by the contracts so load_all_modules imports the F2 modules. It contains only F2's import line."
+   }
+  ]
+ }
+}

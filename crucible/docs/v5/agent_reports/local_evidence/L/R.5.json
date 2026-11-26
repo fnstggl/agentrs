@@ -1,0 +1,34 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.5",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R5_independent_verification_active",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:38.804964+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "verifier_outcomes_recorded": 5
+ },
+ "artifacts": [],
+ "notes": "evaluator-side verifier outcomes produced while the learner ran in observation-only mode (GoalVerifier status with progress for Gym/PZ/kernel, operator episode records for Tier 1); written to an evaluator-side log, never to the learner",
+ "junit": null
+}

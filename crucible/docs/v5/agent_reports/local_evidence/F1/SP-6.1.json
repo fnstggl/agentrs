@@ -1,0 +1,29 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "SP-6.1",
+ "gate": "SP",
+ "produced_by": "tests/v5/test_gate_SP_6_1.py::test_SP_6_1_businesses_and_products",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:26:35.042123+00:00",
+ "tree": {
+  "commit": "9b92a9fde2362b0321c4ca10d3b5c5c1d8ee2a9c",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "business_features": 20,
+  "business_features_total": 20
+ },
+ "artifacts": [],
+ "notes": "formation: passed; product_development: passed; subscriptions: passed; one_time_purchases: passed; licensing: passed; marketplaces: passed; saas: passed; educational_products: passed; media_products: passed; developer_tools: passed; data_services: passed; infrastructure_services: passed; industrial_products: passed; contracts: passed; refunds: passed; cancellations: passed; customer_support: passed; competition: passed; bankruptcy: passed; independent_revenue_only: passed",
+ "junit": null
+}

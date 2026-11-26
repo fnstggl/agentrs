@@ -1,0 +1,175 @@
+{
+ "workflow": "wf_2ca35ef4-2c1",
+ "wave": "wave1-substrate",
+ "report": {
+  "workstream": "A",
+  "branch": "worktree-wf_2ca35ef4-2c1-1",
+  "commit": "5e8b556",
+  "summary": "The substrate in crucible/src/crucible/substrate/ implements INTERFACE_CONTRACTS section 1 and is integrated with the 4.0 kernel.\n\n1.1 artifacts: kernel module `artifacts` (host `artifact`). Artifacts are content-addressed by SHA-256 and immutable. Permissions cover owner, owning-org admins, grants, holders and publication. It enforces the 32 MiB size limit and a per-owner quota, and can charge an optional storage fee through bank in the same transaction. Bytes live in the store blob table at `art/<hex>`, or in a process pool when the world has no store, and every read is verified. Array blobs are deterministic npz files with no pickle. `export` copies blobs to another store. Tools: put, get, info, list, publish, grant, revoke, usage. A missing artifact and an unreadable one give the same `not_found`, and storing bytes someone else already holds looks the same to the caller as storing new bytes.\n\n1.2 columns: declare, col, rows, batch (set/add/max/min, stable handling of repeated rows), grow, and module `cols` with the `cols.batch`/`cols.grow` appliers. The appliers verify the blob hash. Rollback journals only the rows a batch touches. Float columns that would become non-finite are refused.\n\n1.3 ids (pid, index, ensure_principal with optional bank account), 1.4 bus (typed registry, validated emit, same-transaction subscribe, enforce), 1.5 primitives (20 kinds mapped to real 4.0 and 5.0 owner tables; check_no_duplicates; typed schemas for 21 events of the 4.0 owners), 1.6 attention (spend/reset, invariant reported through InvariantMonitor as module.cols), 1.7 inference (recorded with the model hash and an inputs digest; array outputs stored as blobs; records; weights_hash).\n\nAlso built: a generic `assets` module (licences and rights, sold atomically through bank), the execution-mode registry `modes.py` (each provider is run for real), and a benchmark (`bench.py`).\n\nKernel extension points: World.subscribers/_notify, Ctx.quiet, World.replay(store=), StateStore.array_rows_mut and declared_by. The kernel is byte-identical to 4.0: four scenarios match digests recorded on c07098b, and the test_behavior legacy digests pass.\n\nThe first full regression run found an order dependency in 4.0's deterministic cost model: lines run by hypothesis' gc callback were being counted. The fix in sandbox/bridge.py leaves all 4.0 digests unchanged.\n\nMeasured locally (evidence must still be produced on the integration branch):\n- SP-2.3: shared_primitive_kinds 20, cross_module_rollback_failures 0 over 240 randomised six-module commands plus 20 contained sub-calls, inference_replay_without_rerun true.\n- SP-2.1: execution_modes 1. Only Mode A is operational, through the 4.0 mechanism families. Modes B and C have no provider yet.",
+  "files_added": [
+   "crucible/src/crucible/substrate/artifacts.py",
+   "crucible/src/crucible/substrate/columns.py",
+   "crucible/src/crucible/substrate/ids.py",
+   "crucible/src/crucible/substrate/bus.py",
+   "crucible/src/crucible/substrate/primitives.py",
+   "crucible/src/crucible/substrate/assets.py",
+   "crucible/src/crucible/substrate/attention.py",
+   "crucible/src/crucible/substrate/inference.py",
+   "crucible/src/crucible/substrate/modes.py",
+   "crucible/src/crucible/substrate/modules.py",
+   "crucible/src/crucible/substrate/bench.py",
+   "crucible/tests/test_v5_substrate_artifacts.py",
+   "crucible/tests/test_v5_substrate_columns.py",
+   "crucible/tests/test_v5_substrate_bus.py",
+   "crucible/tests/test_v5_substrate_kernel.py",
+   "crucible/tests/test_v5_substrate_primitives.py",
+   "crucible/tests/test_v5_substrate_inference.py",
+   "crucible/tests/test_v5_substrate_modes.py",
+   "crucible/tests/test_v5_substrate_typed.py",
+   "crucible/tests/v5_kernel_scenarios.py",
+   "crucible/tests/v5/test_gate_SP_2_3.py",
+   "crucible/tests/v5/test_gate_SP_2_1.py",
+   "crucible/docs/v5/workstreams/A.json",
+   "crucible/docs/v5/components/A.md"
+  ],
+  "requirements": [
+   {
+    "id": "SP-2.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/substrate/artifacts.py",
+     "src/crucible/substrate/columns.py",
+     "src/crucible/substrate/ids.py",
+     "src/crucible/substrate/bus.py",
+     "src/crucible/substrate/primitives.py",
+     "src/crucible/substrate/assets.py",
+     "src/crucible/substrate/attention.py",
+     "src/crucible/substrate/inference.py",
+     "src/crucible/substrate/modules.py",
+     "src/crucible/core/kernel.py",
+     "src/crucible/core/state.py",
+     "src/crucible/services/identity.py",
+     "src/crucible/sandbox/bridge.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_2_3.py",
+     "tests/test_v5_substrate_artifacts.py",
+     "tests/test_v5_substrate_columns.py",
+     "tests/test_v5_substrate_bus.py",
+     "tests/test_v5_substrate_kernel.py",
+     "tests/test_v5_substrate_primitives.py",
+     "tests/test_v5_substrate_inference.py",
+     "tests/test_v5_substrate_typed.py"
+    ],
+    "notes": "Measured locally, gate test passes in about 7 s. shared_primitive_kinds=20 of 20: every owner module and table is present, and none of the 74 4.0 families has a duplicate fact. cross_module_rollback_failures=0 over 240 randomised commands spanning bank, artifacts (with a typed-event subscriber that charges through bank), assets, columns, attention and identity. Of these, 215 fail in 7 real ways, all at the intended point; the 25 controls are all effective. 20 contained sub-call failures are each also shown to be effective when they do not fail. Replay and regeneration of the whole run are exact. inference_replay_without_rerun=true: 48 cohort decisions by a torch MLP with OS-entropy sampling, 0 network calls during regeneration and replay. 32 typed event types are registered. Evidence must be produced on the integration branch."
+   },
+   {
+    "id": "SP-2.1",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/substrate/modes.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_2_1.py",
+     "tests/test_v5_substrate_modes.py"
+    ],
+    "notes": "The registry for modes A/B/C runs every provider for real: two builds from one seed, identical results, and exact replay for kernel worlds. Measured execution_modes=1: Mode A through the 4.0 hidden-mechanism families (25 envs, deterministic, respond to lever changes). Modes B (crucible.domains, workstream I) and C (crucible.civ, workstream J) report 'no provider registered'. The gate test records the number and checks that the measurement is sound, but does not assert the >=3 threshold; the acceptance checker decides."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_substrate_*.py tests/v5/test_gate_SP_2_3.py tests/v5/test_gate_SP_2_1.py tests/test_admission.py (final code)",
+    "passed": 132,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "regression group 0 (22 files incl. test_agents_llm, test_web, test_selfplay, test_v5_substrate_columns/modes, gate SP_2_1) via slots --cpu 1, GPU hidden, background",
+    "passed": 298,
+    "failed": 0,
+    "skipped": 2
+   },
+   {
+    "command": "regression group 2 rerun after the bridge fix (22 files incl. test_kernel, test_api, test_discovery, test_hardening, test_redteam, test_invariants, test_v5_substrate_artifacts/kernel/primitives/inference) via slots --cpu 1, background",
+    "passed": 543,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "regression group 1 rerun after the bridge fix (22 files incl. test_behavior, test_kernel_props, test_storage, test_scale, test_open_*, test_usefulness, gate SP_2_3, plus test_v5_substrate_typed) via slots --cpu 1, background",
+    "passed": 394,
+    "failed": 1,
+    "skipped": 0
+   },
+   {
+    "command": "foreground via slots --cpu 4: pytest tests/test_kernel_props.py tests/test_scale.py tests/test_usefulness.py tests/test_hardening.py tests/test_ow_worlds.py (after the bridge fix)",
+    "passed": 117,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "first regression run of group 1 (before the bridge fix)",
+    "passed": 383,
+    "failed": 5,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "SP-2.1 is not met: 1 of 3 modes is operational. Modes B and C need providers from workstreams I and J, and Mode A will also get crucible.rapid from H.",
+   "Gate evidence was not produced on the integration branch. Local runs wrote evidence files, which were deleted and not committed.",
+   "Bytes uploaded through the artifact.put tool are also in the recorded cmd event, because arguments are recorded for regeneration. An artifact.get called with an idempotency key records its base64 result in the log. Large media should be stored by module code with artifacts.put.",
+   "Worlds without a store keep artifact bytes in a process-wide pool until the process ends. A world moved to another store must call artifacts.export before it is loaded in another process. In-process forks and replays find their parent's blobs automatically.",
+   "columns.declare runs in Module.install, so loading a snapshot briefly allocates the declared fill arrays before they are replaced.",
+   "Subscribers never run in the rejection transaction. Kernel commit-path types (ctr, ext, idem, cmd, proc, sched.*) cannot be subscribed to. sched.add has a schema but is validated only by tests.",
+   "Only the 5.0 substrate events and 21 events of the 4.0 primitive owners have schemas. Other 4.0 event types are untyped, and the 4.0 schemas tolerate extra keys.",
+   "relationship and community are owned by the 4.0 forum tables, and product by market.listings. If social (C) or commerce (F) needs its own tables for these, ownership has to move in primitives.OWNERS. market.inventory against industry.stock is reported as a recognised 4.0 overlap (a warning) in six open_* families.",
+   "inference.recorded uses ctx.reserve/ctx.fill, the nesting-safe form of ctx.external, with the same ext record. bfloat16 tensor outputs are not supported as array outputs.",
+   "test_scale.py::test_keyboard_interrupt_leaves_no_process_behind cannot pass in background-launched runs because SIGINT is ignored there. It passes in the foreground."
+  ],
+  "integration_notes": [
+   "Kernel changes, byte-identical for 4.0 worlds. tests/test_v5_substrate_kernel.py checks four scenarios against digests recorded on untouched c07098b, and tests/test_behavior.py legacy digests pass. The changes: World.subscribers and World._notify (called from _emit only when a subscriber exists for that type), Ctx.quiet (no subscribers in _reject), World.replay(..., store=None) (World.load passes its store so replay can read blobs), StateStore.array_rows_mut (row-level journal), and StateStore.declaring/declared_by (runtime only).",
+   "services/identity.py resolve_handle: a population principal 'p<i>' now resolves to itself. This is one line; 4.0 resolution is unchanged because 4.0 person ids always contain ':'.",
+   "sandbox/bridge.py _lines_on/_lines_off: gc callbacks are set aside while lines are counted. This fixes a 4.0 order dependency: test_scale failed after test_kernel_props because hypothesis' gc_callback lines were being counted. 4.0 processes have no gc callbacks, so digests are unchanged. The orchestrator may want a DECISION_LOG entry.",
+   "Population (B): the spec needs modules 'artifacts' and 'cols', and the module depends on 'cols'. In install, call columns.declare(world, 'pop', n, {...}) and attention.declare(world, n), or merge attention.COLUMNS into your own declare. Run attention.reset(ctx) daily. Every cohort change goes through columns.batch. Individuals that transact get ids.ensure_principal(ctx, i, account=True).",
+   "C, F, G: declare `shared_facts = {kind: table}` only for kinds you own in primitives.OWNERS, and check with primitives.check_no_duplicates(world). Ask A to move ownership of relationship, community, product or tool_definition if you need new tables for them.",
+   "D: inference.recorded(ctx, kind, model_id, weights_hash(model), inputs, fn) returns read-only numpy arrays when fn returns an array or a dict of arrays (stored as a blob; needs the artifacts module).",
+   "H, I, J: register a mode provider from your package's modules.py: modes.register('A'|'B'|'C', name, package=..., names=..., make=..., kind='env'|'world'|'sim', check=optional). modes.status() runs every provider.",
+   "Cross-module couplings: call bus.subscribe(world, '<host>.<what>', fn, owner=module_name) in install. fn(ctx, ev) runs as sys inside the emitting transaction; if it raises, the whole command rolls back. Register payload schemas at import with bus.event_type.",
+   "Benchmark: PYTHONPATH=src python -m crucible.substrate.bench --rows 1000000 --table-rows 10000000, run through crucible.scale.slots."
+  ],
+  "blockers": [],
+  "disk_used_mb": 1,
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/src/crucible/core/kernel.py",
+    "why": "The contract asks for a same-transaction subscriber hook for bus.subscribe (World.subscribers, _notify, Ctx.quiet). replay also needed a store parameter so batch blobs are readable during World.load. Module attribution of table declarations is needed by primitives.check_no_duplicates. All of this is byte-identical for 4.0."
+   },
+   {
+    "path": "crucible/src/crucible/core/state.py",
+    "why": "Added array_rows_mut, an O(cohort) row journal for 10M-row columns, and declaring/declared_by (runtime-only table attribution). Existing behaviour is unchanged."
+   },
+   {
+    "path": "crucible/src/crucible/services/identity.py",
+    "why": "resolve_handle returns 'p<i>' population principals themselves, so bank and tools can address individuals. One line; 4.0 resolution is unchanged."
+   },
+   {
+    "path": "crucible/src/crucible/sandbox/bridge.py",
+    "why": "Fixes the 4.0 deterministic cost-model order dependency found by the regression run: gc callbacks installed by other code are no longer counted. 4.0 digests are unchanged."
+   },
+   {
+    "path": "crucible/docs/v5/REPRODUCE.md",
+    "why": "Added the substrate test, bench and 4.0-digest recording commands, as REPRODUCE.md invites each workstream to do."
+   }
+  ],
+  "measurements": [
+   "One 1,000,000-row x 3-column cols.batch into a 10,000,000-row table, as a whole recorded command (cohort draw, npz encode, SHA-256, SQLite blob write, event, applier with row journal): 0.449 s, 2.23 M rows/s. npz encode 0.032 s, SHA-256 0.044 s, decode 0.014 s; the blob is 16.0 MB.",
+   "Replay from genesis of that log in a fresh world (10M-row columns created, blob read from SQLite, hash checked, applied): 0.231 s, digest exact. Regeneration: 0.374 s, identical hash chain. State digest 0.239 s, snapshot 0.843 s (16.7 MB), fork from blob 0.585 s, fork exact.",
+   "100k-row batch into a 1M-row table: 0.018 s for the transaction, 0.017 s for replay.",
+   "Kernel cost per emitted event: 10.1 us. The subscriber hook adds +0.0 us when no subscriber exists for the type (-0.1 us, noise). A no-op same-transaction subscriber adds +0.9 us per event.",
+   "A recorded cohort decision costs about 0.45 us per individual, against about 10 us for one kernel event per individual.",
+   "SP-2.3 gate: shared_primitive_kinds=20, cross_module_rollback_failures=0, inference_replay_without_rerun=true, 32 typed event types, 74 of 74 4.0 families free of duplicate facts.",
+   "SP-2.1 gate: execution_modes=1 (Mode A via 4.0 mechanisms; B and C have no provider)."
+  ],
+  "packages_installed": []
+ }
+}

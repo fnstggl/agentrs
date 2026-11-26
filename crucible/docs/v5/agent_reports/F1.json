@@ -1,0 +1,228 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "F1",
+  "branch": "worktree-wf_62a0cf0b-bb3-3",
+  "commit": "e261b48",
+  "summary": "F1 implements INTERFACE_CONTRACTS section 6 and MASTER_SPEC Parts 6.1, 6.2, 9.1 and 9.13 in crucible/src/crucible/commerce/. It runs on the 4.0 kernel, and all five modules pass worldgen.admission.admit.\n\nModules:\n- `products` (host prod): products with kinds (saas, devtool, data, infrastructure, education, media, industrial, other) and real deliveries (live service, repository licence, document access, conserved goods); releases tied to commits; one-time and licence offers paid from the buyer's own account; entitlements; metered use of service products; refunds with ledger reversal; ratings only from paying, unrelated customers; support tickets.\n- `subs` (host subs): the full contract. Monthly and annual plans, trials, coupons, subscribe from the caller's own account under a bank mandate, hourly `subs.bill`, dunning (retries after 1/3/7 days, then cancellation for non-payment), cancel at period end or now, resume, plan changes with documented proration, refunds after settlement.\n- `xchg` (host xchg): exchanges any participant can run with its own take rate; disputes decided by the operator, who also guarantees refunds.\n- `ventures` (host venture): company formation, the company's own books, orderly wind-down (prepaid time refunded, then dissolution), and insolvency in which customers' unused prepaid time becomes claims.\n- `patrons`: independent NPC customers with their own accounts and income. They score each product's responses with the need's exact verifier, churn voluntarily, and goods buyers and sellers choose exchanges from public statistics.\n\nMetrics and integrity:\n- `revenue.py` registers mrr_cents, arr_cents (exactly 12 x MRR), active_subscriptions, churn_rate, independent_customers, profit_cents (operating and infrastructure costs) and one_time_revenue_cents. `revenue_report` gives every Part 6.2 distinction.\n- `integrity.related_flows(world, owner)` extends 4.0 related parties (shared controller, cross-boundary bank grants). It adds pro-rata source-of-funds tracing since genesis and max-flow netting of pairs and rings; payments for real goods are not netted.\n\nGate results on this branch:\n- K.1: 7/7 scenarios pass; K.2: 6/6; K.3: 5/5.\n- K.4: 0 exclusion errors, 15 independent customers counted.\n- K.5: 0 mismatches against an independent recomputation from the event log at 13 checkpoints; ARR = 12 x MRR; $100k ARR = $8,333.33 MRR.\n- K.6: profit reconciliation error 0 cents.\n- K.7: 13 planted scheme types (15 payers) all detected; 0 of 40 ordinary customers flagged.\n- K.n1: a scripted ReferenceSaaS in generated startup worlds sustains ARR of $135,892 and $126,257 (seeds 1 and 3); the idle baseline stays at 0.\n- SP-6.1: 20/20 features.\n\nEvidence files were produced but not committed. The regression suite gives 1121 passed and 5 failed. The same 5 fail with commerce disabled, so they are pre-existing order-dependent failures.",
+  "files_added": [
+   "crucible/src/crucible/commerce/products.py",
+   "crucible/src/crucible/commerce/subscriptions.py",
+   "crucible/src/crucible/commerce/revenue.py",
+   "crucible/src/crucible/commerce/integrity.py",
+   "crucible/src/crucible/commerce/marketplace.py",
+   "crucible/src/crucible/commerce/business.py",
+   "crucible/src/crucible/commerce/customers.py",
+   "crucible/src/crucible/commerce/reference.py",
+   "crucible/src/crucible/commerce/modules.py",
+   "crucible/tests/v5/test_gate_K.py",
+   "crucible/tests/v5/test_gate_SP_6_1.py",
+   "crucible/tests/v5/_commerce_kit.py",
+   "crucible/tests/test_v5_commerce_modules.py",
+   "crucible/docs/v5/workstreams/F1.json",
+   "crucible/docs/v5/components/F1.md"
+  ],
+  "requirements": [
+   {
+    "id": "K.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/subscriptions.py",
+     "src/crucible/commerce/products.py",
+     "src/crucible/commerce/modules.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py",
+     "tests/test_v5_commerce_modules.py"
+    ],
+    "notes": "subscription_scenarios_passed 7 of 7 (criterion >= 3): monthly renewal from own account, annual with trial, coupon, failed payment/dunning/recovery, revoked mandate, own-account rule, prorated plan change."
+   },
+   {
+    "id": "K.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/subscriptions.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py"
+    ],
+    "notes": "cancellation_scenarios_passed 6 of 6 (>= 3)."
+   },
+   {
+    "id": "K.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/subscriptions.py",
+     "src/crucible/commerce/products.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py"
+    ],
+    "notes": "refund_scenarios_passed 5 of 5 (>= 3); reversing ledger entries with ref and memo of the reversed txn."
+   },
+   {
+    "id": "K.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/integrity.py",
+     "src/crucible/commerce/revenue.py",
+     "src/crucible/commerce/customers.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py"
+    ],
+    "notes": "related_party_exclusion_errors 0, independent_customers_counted 15 (>= 10), 8 planted related customers excluded, 15 distinct paying accounts."
+   },
+   {
+    "id": "K.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/revenue.py",
+     "src/crucible/commerce/subscriptions.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py",
+     "tests/test_v5_commerce_modules.py"
+    ],
+    "notes": "mrr_arr_recompute_mismatches 0 over 13 checkpoints; arr_equals_12_mrr true (exact Fraction); $100k ARR = $8,333.33 MRR checked."
+   },
+   {
+    "id": "K.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/revenue.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py"
+    ],
+    "notes": "profit_reconciliation_error_cents 0; cash reconciliation error 0; infrastructure (compute) and operating (contract, fee, supplier subscription) costs included."
+   },
+   {
+    "id": "K.7",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/integrity.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py",
+     "tests/test_v5_commerce_modules.py"
+    ],
+    "notes": "planted_circular_detected_fraction 1.0 (15 payers, 13 scheme types incl. delayed funding, chains, disguised purchases, mutual subscriptions, rings); false_positive_rate 0.0 over 40 ordinary customers (refunded, B2B, goods suppliers, competitor customers)."
+   },
+   {
+    "id": "K.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/reference.py",
+     "src/crucible/commerce/customers.py",
+     "src/crucible/commerce/business.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_K.py"
+    ],
+    "notes": "reference_objective_met true, reference_arr_usd 126257 (min of seeds 1,3; sustained last 7 of 120 days); idle baseline 0. Uses F1's own individually-accounted customers (patrons) because the 4.0 consumers pay in aggregate and the v5 population is not merged. Slow test (~2 min)."
+   },
+   {
+    "id": "SP-6.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/commerce/products.py",
+     "src/crucible/commerce/subscriptions.py",
+     "src/crucible/commerce/marketplace.py",
+     "src/crucible/commerce/business.py",
+     "src/crucible/commerce/customers.py",
+     "src/crucible/commerce/revenue.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_6_1.py"
+    ],
+    "notes": "business_features 20 of 20 (>= 19): the 19 listed features plus independent-revenue-only."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_K.py tests/v5/test_gate_SP_6_1.py tests/test_v5_commerce_modules.py (via slots, incl. K.n1)",
+    "passed": 28,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_K.py tests/v5/test_gate_SP_6_1.py tests/test_v5_commerce_modules.py -k 'not Kn1' (after merging the integration branch with the substrate)",
+    "passed": 27,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest tests/test_v5_substrate_*.py tests/test_v5_acceptance_checker.py tests/v5/test_gate_SP_2_1.py tests/v5/test_gate_SP_2_3.py (post-merge, with commerce loaded)",
+    "passed": 142,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest tests --ignore=tests/v5 (full suite, one process, quiet machine)",
+    "passed": 1121,
+    "failed": 5,
+    "skipped": 2
+   },
+   {
+    "command": "control: first-half files + test_ow_worlds.py + test_scale.py with commerce package disabled (-p no_commerce)",
+    "passed": 800,
+    "failed": 5,
+    "skipped": 2
+   },
+   {
+    "command": "second half of the suite (test_open_industry.py .. test_web.py, incl. test_ow_worlds, test_scale, test_v5_commerce_modules)",
+    "passed": 359,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "Media/entertainment demand is not modelled by F1 customers (no content understanding); media products are sold, delivered, consumed and revoked correctly, valuation is left to C/D.",
+   "Integrity: a colluder with large independent funds reimbursed through consideration for real goods escapes both measures; merchant payments to a customer for services or digital goods are netted (conservative); reciprocal graph search capped at 256 payer groups.",
+   "Source-of-funds tracing replays the whole ledger per merchant (29 ms cold on 7,668 txns, cached per world seq): evaluator use, not a per-step reward at internet scale.",
+   "Profit is cash basis; billing months are 30 days, years 365; goods cannot be sold by subscription.",
+   "K.n1 uses F1's own customer population (patrons), not the v5 population (not merged); it is a scripted reference, not evidence of learning.",
+   "The admission harness's random session exercises few successful calls; determinism is additionally covered by a 70-day customer economy that replays, regenerates and forks exactly.",
+   "SP-6.6 (institutions) belongs to F2 and was not addressed here."
+  ],
+  "integration_notes": [
+   "commerce/modules.py imports products, subscriptions, marketplace, business, customers, revenue; F2 adds its imports to the same file (trivial merge).",
+   "Substrate was merged at the end (merge 4c0c67f) but is not used. primitives.OWNERS maps 'product' to market.listings while F1 keeps products.products and declares no shared_facts; check_no_duplicates passes with no warnings. Workstream A/orchestrator should re-own 'product' or add an OVERLAPS entry.",
+   "When B's population lands, its individuals can use subs.subscribe/prod.buy/xchg.buy unchanged after ids.ensure_principal; reference.startup_world can then swap patrons for population individuals.",
+   "New kernel modules: products (prod), subs, xchg, ventures (venture), patrons (no tools: market size is not public). ventures chains world.hooks['on_company_ended']; no 4.0 file was modified.",
+   "docs/v5/FIDELITY_REGISTER.md: six F1 rows; a merge conflict with E's rows was resolved by keeping both.",
+   "Gate tests write evidence to docs/v5/evidence/gate_K and gate_SP (left untracked, not committed). Set CRUCIBLE_V5_AUTHOR=ws-F1. tests/v5/_commerce_kit.py is a shared helper.",
+   "Pre-existing order-dependent failures in the full single-process suite: test_ow_worlds::test_open_ow_world_replays_regenerates_and_forks_exactly and four test_scale pool-digest tests fail after the first half of the suite with or without commerce, and pass in isolation. test_entry hires-a-developer failed once under heavy load and passed in the quiet rerun."
+  ],
+  "blockers": [],
+  "disk_used_mb": 0.4,
+  "packages_installed": [],
+  "measurements": [
+   "K.n1: seeds 1/3 ARR $135,892 / $126,257, objective first met day 50 / 48, >= 618 independent customers; idle baseline $0",
+   "K.n1 world: 800 customers, 120 days, ~150k events, ~40 s wall on 1 CPU (text.extract)",
+   "K.7: F1 independent revenue 84,854 vs 4.0 revenue_analysis 92,500 cents over 30 days (ordinary paid 85,000, planted 27,500)",
+   "MRR with integrity analysis: 29 ms cold / 0.5 ms cached on 7,668 txns",
+   "SP-6.1: 20/20 features in ~10 s"
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/docs/v5/FIDELITY_REGISTER.md",
+    "why": "added six fidelity records for F1 mechanisms as the register instructs workstreams to do"
+   },
+   {
+    "path": "crucible/tests/test_v5_commerce_modules.py",
+    "why": "unit/integration tests for the commerce modules (tests/test_v5_<area>_*.py convention)"
+   },
+   {
+    "path": "crucible/tests/v5/_commerce_kit.py",
+    "why": "shared builders for the two F1 gate test files"
+   },
+   {
+    "path": "crucible/src/crucible/commerce/customers.py, reference.py, modules.py",
+    "why": "commerce package files not assigned to F2: independent customer population, reference strategy/world builder, module registration"
+   }
+  ]
+ }
+}

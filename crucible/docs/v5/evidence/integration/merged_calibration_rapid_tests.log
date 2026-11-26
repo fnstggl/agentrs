@@ -1,0 +1,319 @@
+...........F..............................EEEEEEEEEF.F.................. [ 33%]
+........................................................................ [ 67%]
+....................................................................     [100%]
+==================================== ERRORS ====================================
+______ ERROR at setup of test_F_1_three_domains_fitted_on_empirical_data _______
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+_ ERROR at setup of test_F_2_content_consumption_and_randomized_commercial_response _
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+____ ERROR at setup of test_F_3_heldout_reports_reproduce_from_checkpoints _____
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+_______________ ERROR at setup of test_F_4_baseline_comparisons ________________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+________________ ERROR at setup of test_F_5_calibration_metrics ________________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+________ ERROR at setup of test_F_6_checkpoints_saved_and_hash_verified ________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+_________ ERROR at setup of test_F_7_dataset_provenance_and_checksums __________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+__________ ERROR at setup of test_F_8_extrapolation_limits_documented __________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+_____________ ERROR at setup of test_F_n1_no_synthetic_only_domain _____________
+
+    @pytest.fixture(scope="module")
+    def state():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_F.py:49: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+=================================== FAILURES ===================================
+____________________ test_committed_models_load_and_predict ____________________
+
+    def test_committed_models_load_and_predict():
+        names = R.list_models()
+        assert len(names) >= 6
+        for n in names:
+>           f = R.load(n)
+                ^^^^^^^^^
+
+tests/test_v5_calibration_core.py:176: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+model_name = 'commercial_response@1'
+
+    def load(model_name: str) -> FittedModel:
+        """Load `name@version` (or `name`, the registered version) after verifying every checkpoint hash."""
+        name, version = _parse(model_name)
+        d = model_dir(name)
+        if not os.path.isfile(os.path.join(d, "model_card.json")):
+            raise KeyError(f"no fitted model {name!r} in {MODELS_DIR}")
+        card = read_card(name)
+        if version is not None and int(card["version"]) != version:
+            raise KeyError(f"{name}: registered version is {card['version']}, not {version}")
+        bad = verify_files(card, d)
+        if bad:
+            raise IOError(f"{name}: checkpoint files fail their SHA-256 check: {bad}")
+        mod = card.get("module")
+        if mod:
+            if not mod.startswith("crucible.calibration."):
+                raise ValueError(f"{name}: predictor module must live in crucible.calibration, not {mod}")
+            importlib.import_module(mod)
+>       cls = _pred.KINDS.get(card["kind"])
+                              ^^^^^^^^^^^^
+E       KeyError: 'kind'
+
+src/crucible/calibration/registry.py:154: KeyError
+__________ test_SP_5_4_fidelity_record_for_every_important_mechanism ___________
+
+    def test_SP_5_4_fidelity_record_for_every_important_mechanism():
+        m = FI.sp54_metrics()
+        metrics = {k: v for k, v in m.items() if not k.startswith("_")}
+        record("SP-5.4", metrics, command="PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-5.4",
+               artifacts=[FI.REGISTER_MD, os.path.join(os.path.dirname(FI.REGISTER_MD), "..", "..", "src", "crucible",
+                                                       "evaluation", "fidelity.py")],
+               notes=f"missing: {m['_missing']}; incomplete: {m['_incomplete']}")
+        # every v5 row is itself well formed and the empirically fitted rows cite registered datasets
+>       assert not m["_row_problems"], m["_row_problems"]
+E       AssertionError: {'developer light-to-deep engagement (first star -> fork / issue / pull request by the same developer within 24 h)': [...ally validated', 'inspired by research', 'plausible, unvalidated', 'deliberate simplification', 'known unrealistic')"]}
+E       assert not {'developer light-to-deep engagement (first star -> fork / issue / pull request by the same developer within 24 h)': [...ally validated', 'inspired by research', 'plausible, unvalidated', 'deliberate simplification', 'known unrealistic')"]}
+
+tests/v5/test_gate_SP_5_4.py:24: AssertionError
+____________ test_SP_5_5_prespecified_metrics_and_better_model_kept ____________
+
+    def test_SP_5_5_prespecified_metrics_and_better_model_kept():
+>       recs = audit.all_records()
+               ^^^^^^^^^^^^^^^^^^^
+
+tests/v5/test_gate_SP_5_5.py:21: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/crucible/calibration/audit.py:124: in all_records
+    return [examine(m.split("@")[0], ds) for m in R.list_models()]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/crucible/calibration/audit.py:105: in examine
+    rec.update(domain=_domain(card), identification=_identification(card), datasets=names, real_datasets=real,
+                                                    ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+card = {'schema': 'crucible.v5.calibration.model_card/1', 'name': 'commercial_response', 'version': 1, 'id': 'commercial_response@1', ...}
+
+    def _identification(card: dict) -> str:
+>       return (card.get("provenance", {}).get("identification") or card.get("identification") or "").lower()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'dict' object has no attribute 'lower'
+
+src/crucible/calibration/audit.py:39: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_v5_calibration_core.py::test_committed_models_load_and_predict
+FAILED tests/v5/test_gate_SP_5_4.py::test_SP_5_4_fidelity_record_for_every_important_mechanism
+FAILED tests/v5/test_gate_SP_5_5.py::test_SP_5_5_prespecified_metrics_and_better_model_kept
+ERROR tests/v5/test_gate_F.py::test_F_1_three_domains_fitted_on_empirical_data
+ERROR tests/v5/test_gate_F.py::test_F_2_content_consumption_and_randomized_commercial_response
+ERROR tests/v5/test_gate_F.py::test_F_3_heldout_reports_reproduce_from_checkpoints
+ERROR tests/v5/test_gate_F.py::test_F_4_baseline_comparisons - AttributeError...
+ERROR tests/v5/test_gate_F.py::test_F_5_calibration_metrics - AttributeError:...
+ERROR tests/v5/test_gate_F.py::test_F_6_checkpoints_saved_and_hash_verified
+ERROR tests/v5/test_gate_F.py::test_F_7_dataset_provenance_and_checksums - At...
+ERROR tests/v5/test_gate_F.py::test_F_8_extrapolation_limits_documented - Att...
+ERROR tests/v5/test_gate_F.py::test_F_n1_no_synthetic_only_domain - Attribute...
+3 failed, 200 passed, 9 errors in 311.36s (0:05:11)

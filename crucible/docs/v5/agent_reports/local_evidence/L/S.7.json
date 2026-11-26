@@ -1,0 +1,35 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "S.7",
+ "gate": "S",
+ "produced_by": "tests/v5/test_gate_S.py::test_S7_parallel_environments",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:35:16.076035+00:00",
+ "tree": {
+  "commit": "2abcc44df1fc83d6f4cc06780cd3a28abd4fd309",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "parallel_environments": 4,
+  "vectorised_environments": 8,
+  "vectorised_steps": 96,
+  "farm_worker_processes": 4,
+  "farm_steps": 432,
+  "farm_failures": 0,
+  "farm_learner_updates": 14,
+  "farm_param_versions": 2
+ },
+ "artifacts": [],
+ "notes": "parallel_environments = most environments whose worker intervals overlapped in the RolloutFarm run (separate processes); also a vectorised run of 8 environments in one process; experience from the farm stored, the learner updated and new parameters published per round",
+ "junit": null
+}

@@ -1,0 +1,246 @@
+{
+ "workflow": "wf_91afed28-f3c",
+ "wave": "wave1-calibration-rapid",
+ "report": {
+  "workstream": "E1",
+  "branch": "worktree-wf_91afed28-f3c-1",
+  "commit": "08a8eac",
+  "summary": "E1 built the calibration package and fitted six behavioural models on real data. Gate F is not passing yet. In this worktree 7 of its 9 tests pass. F.2 (randomised commercial response) and F.7 (at least three checksummed datasets) fail until E2's models and datasets are merged. SP-5.4 and SP-5.5 pass.\n\nThe registry skeleton was committed first (4fedc34) so E2 can register into it:\n- datasets.py: recipes with SHA-256 for every file, schema validation, licences and provenance.\n- registry.py: FittedModel, plus load() which checks checkpoint hashes before loading.\n- predictors.py: NumPy predictors stored as npz without pickle.\n\nThe evaluation plan (metrics, splits, baselines, selection rule) was committed in d6f4767, before any fit. The fitting code refuses to run if the plan is uncommitted or edited.\n\nDatasets: KuaiRand-Pure comes from Zenodo; its MD5 matches the published value. MIND-small comes from a pinned third-party Hugging Face mirror, because the official copy is gated and the old Azure host returns 409. Its row counts match the official statistics.\n\nAll six models were fitted at d86f683 and committed at 9f7f832. Each was chosen on validation data and then checked on test data from held-out users and a later period. Every kept model is a learned model that beats its best simple baseline:\n- **content_consumption** (fitted under random exposure): log loss 0.443 vs 0.478, AUC 0.698, ECE 0.006.\n- **Observational models scored on randomly exposed videos:** they predict a 0.47 watch rate where 0.18 is observed (ECE 0.29), and their coefficients differ in kind from the randomised fit.\n- **content_consumption_feed:** log loss 0.624 vs 0.665.\n- **watch_duration** (21-quantile monotone network): pinball 0.129 vs 0.138, PIT KS 0.011.\n- **return_daily:** log loss 0.562 vs 0.610; a 4-day forward simulation gives TV distance 0.048 vs 0.092.\n- **session_rate** (gamma-Poisson): deviance 3.30 vs 3.72.\n- **news_click** (MIND): log loss 0.1465 vs 0.1539, impression AUC 0.693.\n\nEach model has a card (feature_map, feature_quantiles, limits, selection, provenance) and a JSON + Markdown report with bootstrap intervals.\n\nGate tests measure everything from the registry at test time, so E2's models count once merged. F.3 recomputes every held-out metric from the data and the saved checkpoints; the maximum relative difference was 1.9e-16. SP-5.4 works out which mechanisms are important (26 today) and checks that each has a complete record. SP-5.5 checks the plan hash and commit order in git, and that no worse model was kept (0).",
+  "files_added": [
+   "crucible/src/crucible/calibration/datasets.py",
+   "crucible/src/crucible/calibration/registry.py",
+   "crucible/src/crucible/calibration/predictors.py",
+   "crucible/src/crucible/calibration/metrics.py",
+   "crucible/src/crucible/calibration/fitlib.py",
+   "crucible/src/crucible/calibration/kuairand.py",
+   "crucible/src/crucible/calibration/mind.py",
+   "crucible/src/crucible/calibration/fit_e1.py",
+   "crucible/src/crucible/calibration/reproduce.py",
+   "crucible/src/crucible/calibration/audit.py",
+   "crucible/src/crucible/calibration/fidelity.py",
+   "crucible/docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "crucible/docs/v5/calibration/plans/E1_evaluation_plan.md",
+   "crucible/docs/v5/calibration/DATASETS.md",
+   "crucible/docs/v5/calibration/models/{content_consumption,content_consumption_feed,watch_duration,return_daily,session_rate,news_click}/{model_card.json,params.npz}",
+   "crucible/docs/v5/calibration/reports/{content_consumption,content_consumption_feed,watch_duration,return_daily,session_rate,news_click}.{json,md}",
+   "crucible/docs/v5/components/E1.md",
+   "crucible/docs/v5/workstreams/E1.json",
+   "crucible/tests/v5/test_gate_F.py",
+   "crucible/tests/v5/test_gate_SP_5_4.py",
+   "crucible/tests/v5/test_gate_SP_5_5.py",
+   "crucible/tests/test_v5_calibration_core.py"
+  ],
+  "requirements": [
+   {
+    "id": "F.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/registry.py",
+     "src/crucible/calibration/audit.py",
+     "src/crucible/calibration/fit_e1.py",
+     "src/crucible/calibration/kuairand.py",
+     "src/crucible/calibration/mind.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py",
+     "tests/test_v5_calibration_core.py"
+    ],
+    "notes": "empirical_domains_fitted = 3 from E1 alone (content_selection, watch_duration, browsing_frequency); the test passes."
+   },
+   {
+    "id": "F.2",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/calibration/fit_e1.py",
+     "src/crucible/calibration/audit.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py"
+    ],
+    "notes": "content_consumption_fitted = true (randomised-exposure model beats its baseline). randomized_commercial_response_fitted = false until E2's randomised commercial model is registered, so this test fails in the worktree."
+   },
+   {
+    "id": "F.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/fitlib.py",
+     "src/crucible/calibration/reproduce.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py"
+    ],
+    "notes": "6 held-out reports; all 6 held-out metrics were recomputed from data and checkpoints (max relative difference 1.9e-16); test passes."
+   },
+   {
+    "id": "F.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/fitlib.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py"
+    ],
+    "notes": "6 baseline comparisons with bootstrap intervals; all learned models beat their baselines; test passes."
+   },
+   {
+    "id": "F.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/metrics.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py",
+     "tests/test_v5_calibration_core.py"
+    ],
+    "notes": "6 reports with calibration metrics (ECE/Brier, PIT/coverage, count calibration); test passes."
+   },
+   {
+    "id": "F.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/registry.py",
+     "src/crucible/calibration/predictors.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py",
+     "tests/test_v5_calibration_core.py"
+    ],
+    "notes": "6 checkpoints, 0 hash mismatches, tampering detected, largest file 312 KB; test passes."
+   },
+   {
+    "id": "F.7",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/calibration/datasets.py",
+     "docs/v5/calibration/DATASETS.md"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py",
+     "tests/test_v5_calibration_core.py"
+    ],
+    "notes": "2 datasets with checksums and full provenance (criterion is >= 3); E2's datasets complete it after the merge. The test fails in the worktree."
+   },
+   {
+    "id": "F.8",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/fit_e1.py",
+     "src/crucible/calibration/mind.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py"
+    ],
+    "notes": "6 extrapolation-limit sections (card limits plus a report section); test passes."
+   },
+   {
+    "id": "F.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/audit.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_F.py",
+     "tests/test_v5_calibration_core.py"
+    ],
+    "notes": "synthetic_only_domains = 0; synthetic or unregistered provenance never counts (unit-tested); test passes."
+   },
+   {
+    "id": "SP-5.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/calibration/fidelity.py",
+     "docs/v5/FIDELITY_REGISTER.md"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_5_4.py"
+    ],
+    "notes": "26 important mechanisms (7 E1 rows added, 19 behavioural 4.0 records), 0 without a complete record. Future v5 behavioural kernel modules must add register rows."
+   },
+   {
+    "id": "SP-5.5",
+    "state": "implemented",
+    "implementation_files": [
+     "docs/v5/calibration/plans/E1_evaluation_plan.json",
+     "src/crucible/calibration/fitlib.py",
+     "src/crucible/calibration/audit.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_5_5.py"
+    ],
+    "notes": "metrics_prespecified_before_fit = true (plan d6f4767 precedes fit d86f683 and checkpoint commit 9f7f832); worse_model_kept = 0; tests pass."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/test_v5_calibration_core.py",
+    "passed": 19,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_5_4.py tests/v5/test_gate_SP_5_5.py (after committing checkpoints)",
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 2 -- python -m pytest -q tests/v5/test_gate_F.py",
+    "passed": 7,
+    "failed": 2,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 1 -- python -m pytest -q tests/test_fidelity.py tests/test_v5_acceptance_checker.py tests/test_v5_slots.py",
+    "passed": 26,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "Gate F tests F.2 and F.7 fail until E2 merges a randomised commercial-response model and at least one more checksummed dataset. The checker requires every test in test_gate_F.py to pass, so no F requirement can verify before then.",
+   "Evidence comes from two platforms, periods and selected samples: Kuaishou (China) April-May 2022 and Microsoft News (US) November 2019.",
+   "Only content_consumption rests on randomised exposure, and even there the feature effects are associations among randomly shown items; all other models are observational.",
+   "KuaiRand-Pure logs only pool-video interactions, so activity counts are undercounted and need quantile mapping. The random-insertion rate rose during the period, showing as upward drift in held-out session and return levels (session count calibration error 0.43).",
+   "KuaiRand item ages cover only 0-30 days and are confounded with calendar time.",
+   "The watch model under-predicts long watches on recommender-selected exposures alone (PIT KS 0.084 on that subset).",
+   "MIND-small was downloaded from a pinned third-party Hugging Face mirror because the official copy is gated and no credential is available; the files match the official counts.",
+   "No separate repeat-consumption model was fitted: re-consumption appears in only 145 standard-log and 8 random-log rows; it is an input of the choice models instead.",
+   "MIND text affinity uses TF-IDF + truncated SVD, not the neural encoders of workstream D.",
+   "The NumPy tree predictor costs about 40 microseconds per row for 400 trees; callers should batch."
+  ],
+  "integration_notes": [
+   "Merge, do not squash: SP-5.5 checks in git that plan commit d6f4767 precedes checkpoint commit 9f7f832 and is contained in fit commit d86f683.",
+   "To unify E2: save each model with crucible.calibration.registry.save_model into docs/v5/calibration/models/<name>/ and use fitlib.plan_record, fitlib.select and fitlib.finish. Card requirements: domain advertising_response or purchase_behavior; provenance.identification randomized_controlled_trial; provenance.datasets registered via datasets.register in a module named calibration/datasets_<x>.py (datasets() imports it automatically). audit.py reads only the cards on disk, so a separate registry_e2.py must be folded into these calls.",
+   "Workstreams B and C should load models with crucible.calibration.load('<name>@1'). The individual's choice rule is content_consumption (randomised exposure). content_consumption_feed is an observational engagement target for a learned recommender, not a choice rule. Feature mappings are in each card's feature_map and feature_quantiles and in docs/v5/components/E1.md.",
+   "SP-5.4 works out its list of important mechanisms from the code. Every kernel module registered from a v5 behaviour package (population, social, commerce, innovation, multiagent, civ, domains, semantic) needs a docs/v5/FIDELITY_REGISTER.md row naming it in the module column.",
+   "Gate F needs the datasets under $CRUCIBLE_DATA (acquire downloads and verifies them if absent) and takes about 3-5 minutes; run it through slots with --cpu 2.",
+   "Orchestrator bug, left unchanged: acceptance/v5/evidence.py git() strips the whole porcelain output, so the first dirty path loses its first character (seen as 'rucible/docs/v5/FIDELITY_REGISTER.md'). A modified tracked evidence file listed first would then be misreported as a dirty non-evidence path.",
+   "Running tests/test_v5_acceptance_checker.py rewrites docs/v5/evidence/checker_report.json; I restored it each time and committed no evidence.",
+   "REPRODUCE.md was not edited to avoid merge conflicts; the E1 commands are in docs/v5/components/E1.md."
+  ],
+  "blockers": [],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/pyproject.toml",
+    "why": "Added optional extra v5-calibration (scikit-learn, scipy, pandas, torch) documenting the offline fitting dependencies; all were already installed and nothing was installed."
+   },
+   {
+    "path": "crucible/docs/v5/FIDELITY_REGISTER.md",
+    "why": "Appended seven table rows for the mechanisms the E1 models ground, as the task asked; no other line changed."
+   }
+  ],
+  "disk_used_mb": 442,
+  "packages_installed": [],
+  "measurements": [
+   "content_consumption (random exposure, held-out users 2022-05-03..08, 89,752 rows): log loss 0.4426 [0.434, 0.453] vs popularity baseline 0.4779; AUC 0.698; ECE 0.006",
+   "Observational choice models on random exposure: predicted rate 0.47-0.50 vs observed 0.18, ECE 0.29-0.32, AUC 0.66; one intercept shift brings log loss to 0.456",
+   "content_consumption_feed: log loss 0.6238 vs 0.6650; AUC 0.708",
+   "watch_duration: pinball 0.1294 vs 0.1378; PIT KS 0.011; coverage at 80% and 90% = 0.796 and 0.896; view-rate error 0.004",
+   "return_daily: log loss 0.5617 vs 0.6103; AUC 0.704; forward-simulation TV distance 0.048 (rule 0.092, constant 0.236)",
+   "session_rate: Poisson deviance 3.30 vs 3.72; gamma shape 2.19, rate 1.71; rate-distribution KS 0.080 vs 0.144 (homogeneous)",
+   "news_click (MIND dev, 2.74M rows): log loss 0.1465 vs 0.1539; impression AUC 0.693; nDCG@10 0.440; ECE 0.003",
+   "Held-out metrics recomputed from checkpoints: max relative difference 1.9e-16",
+   "Full fit of all six models: about 5 minutes with 2 CPU threads; NumPy tree predictor about 3.8 s per 100k rows (400 trees)"
+  ]
+ }
+}

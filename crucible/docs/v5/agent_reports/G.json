@@ -1,0 +1,352 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "G",
+  "branch": "worktree-wf_62a0cf0b-bb3-5",
+  "commit": "f3d4b26",
+  "summary": "Package crucible/src/crucible/innovation/ implements INTERFACE_CONTRACTS section 7 and the Gate J/L measurements. All 17 workstream-G gate tests pass.\n\n(1) Capability registry, module caps (caps.py). It subclasses the 4.0 Capabilities module under the same name 'caps'.\n- New endpoints: caps.declare {service_host, capability:{name, inputs, outputs, doc}, tests_ref?}, caps.search {query} (the 4.0 {q} form unchanged), caps.try {service_host, capability, input}, caps.verify, caps.adopt_service, caps.drop_service, caps.declaration(s), caps.adoptions.\n- caps.try runs the real service through the cloud path, so the caller pays, it runs in the sandbox and it is metered.\n- caps.verify runs an independent test suite on fresh seeds. Adoption needs a successful caps.try by the adopter first; later calls are counted as use.\n- The v5 surface exists only with config {registry: true}, so 4.0/3.0 tool catalogues, digests and logs are unchanged.\n\n(2) Needs graph, module needs (needs.py).\n- Five node kinds and six relation types (requires, consumes, produces, constrains, substitutes, complements), read off world state.\n- The process needs.update derives needs with rules keyed only by relation type: supply, provide, alternative and complement needs.\n- Needs are visible to holders only; operator evidence stays evaluator-side. Holders can publish requests (needs.publish/requests). A need is marked addressed and then resolved.\n- special_case_triggers checks every need has a valid relation path.\n\n(3) Software ecosystem, module pkg (pkg.py): register, release (sandbox tests, API extraction, semver compatibility, docs), search/info, transitive dependency locks, upgrade gated by the dependent's own tests, exec/ci with call tracing, deploy, PRs with an independent-review rule, forks, issues, star, yank, and advisories verified by failing reproductions with fixed_in re-checks. Adoption counts only when the package's code ran inside a dependent's own sandboxed run.\n\n(4) Need-driven participants, module adopt (adopt.py). They discover, test on their own generated inputs, adopt, use, recommend on the forum, publish needs and switch to substitutes.\n\n(5) Supporting files:\n- infra/worlds.py: innovation_spec and providers.\n- formats.py: route.batch.\n- reference.py: scripted creators and the software history.\n- scenarios.py: market, capacity, batch, social and software, plus fork arms.\n- measure.py: Gate J/L helpers.\n\nMeasured (latest run):\n- Gate J: 4 executable agent products; 24 independent discoverers and 24 users; Fisher p=1.6e-12 for good vs weaker implementation; 1,092 independent sales; +57,694 compute units vs the no-product fork; 2 product categories.\n- Gate L: 5 capability effects; 8 emerged needs; 2 needs addressed by new things; 4 chains of at least 4 stages; 3 of 3 counterfactual removals confirming; 0 bonuses.\n- SP-6.3: 1 novel service adopted by 24; the useless one was adopted by 0.\n- SP-6.4: 6 relation types used; 0 special-case triggers (includes a rename-invariance check).\n- SP-6.5: 15 of 15 features; 2 adoptions by execution.",
+  "files_added": [
+   "crucible/src/crucible/innovation/modules.py",
+   "crucible/src/crucible/innovation/caps.py",
+   "crucible/src/crucible/innovation/needs.py",
+   "crucible/src/crucible/innovation/pkg.py",
+   "crucible/src/crucible/innovation/adopt.py",
+   "crucible/src/crucible/innovation/formats.py",
+   "crucible/src/crucible/innovation/worlds.py",
+   "crucible/src/crucible/innovation/reference.py",
+   "crucible/src/crucible/innovation/scenarios.py",
+   "crucible/src/crucible/innovation/measure.py",
+   "crucible/tests/test_v5_innovation_caps.py",
+   "crucible/tests/test_v5_innovation_needs.py",
+   "crucible/tests/test_v5_innovation_pkg.py",
+   "crucible/tests/v5/test_gate_J.py",
+   "crucible/tests/v5/test_gate_L.py",
+   "crucible/tests/v5/test_gate_SP_6_3.py",
+   "crucible/tests/v5/test_gate_SP_6_4.py",
+   "crucible/tests/v5/test_gate_SP_6_5.py",
+   "crucible/docs/v5/workstreams/G.json",
+   "crucible/docs/v5/components/G.md"
+  ],
+  "requirements": [
+   {
+    "id": "J.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/pkg.py",
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/scenarios.py",
+     "src/crucible/innovation/reference.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py",
+     "tests/test_v5_innovation_caps.py",
+     "tests/test_v5_innovation_pkg.py"
+    ],
+    "notes": "4 agent-created executable products: 1 declared service with 1,092 ok requests, and 3 packages. Creators are scripted reference agents acting through tools."
+   },
+   {
+    "id": "J.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/pkg.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "4 published: public caps.declared events (search-indexed) and pkg.released events."
+   },
+   {
+    "id": "J.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/adopt.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "24 independent discoverers. The participants are workstream-G adopters, not the B population."
+   },
+   {
+    "id": "J.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/adopt.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "24 independent users for whom the service actually executed."
+   },
+   {
+    "id": "J.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/adopt.py",
+     "src/crucible/innovation/scenarios.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "Forks of one snapshot: same declaration, good vs weaker code. 24/24 vs 1/24 adopters, Fisher p=1.6e-12."
+   },
+   {
+    "id": "J.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/adopt.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "1,092 sales paid from the own accounts of 24 independent payers."
+   },
+   {
+    "id": "J.7",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/scenarios.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "+57,694 metered compute units and +9,100 cents compute rent vs the no-product fork."
+   },
+   {
+    "id": "J.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_J.py"
+    ],
+    "notes": "2 categories: api_service and software_package."
+   },
+   {
+    "id": "L.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/needs.py",
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/scenarios.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py"
+    ],
+    "notes": "5 effects measured by forks with vs without the agent-created capability."
+   },
+   {
+    "id": "L.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/needs.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py",
+     "tests/test_v5_innovation_needs.py"
+    ],
+    "notes": "8 needs emerged after the first update."
+   },
+   {
+    "id": "L.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/needs.py",
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/adopt.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py",
+     "tests/test_v5_innovation_needs.py"
+    ],
+    "notes": "2 needs addressed (a substitute service adopted by 32 holders; a fixed package release) and resolved."
+   },
+   {
+    "id": "L.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/scenarios.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py"
+    ],
+    "notes": "4 chains of at least 4 stages, each in its own world and seed (capacity, technology-compute, social, software). The first act of each is scripted."
+   },
+   {
+    "id": "L.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/scenarios.py",
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py"
+    ],
+    "notes": "3 of 3 removal forks confirm the dependency (deterministic cost model, invariants clean)."
+   },
+   {
+    "id": "L.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/measure.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_L.py"
+    ],
+    "notes": "0 runtime and 0 static bonus paths."
+   },
+   {
+    "id": "SP-6.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/adopt.py",
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/scenarios.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_6_3.py",
+     "tests/test_v5_innovation_caps.py"
+    ],
+    "notes": "Novel service discovered, tested on participants' own generated inputs, adopted and used by 24. The useless service was adopted by 0. Independent suite scored 1.00 vs 0.50."
+   },
+   {
+    "id": "SP-6.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/needs.py",
+     "src/crucible/innovation/caps.py",
+     "src/crucible/innovation/pkg.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_6_4.py",
+     "tests/test_v5_innovation_needs.py"
+    ],
+    "notes": "6 relation types used. 0 special-case triggers: path validity, rule literals and rename invariance all checked."
+   },
+   {
+    "id": "SP-6.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/innovation/pkg.py",
+     "src/crucible/innovation/measure.py",
+     "src/crucible/innovation/reference.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_6_5.py",
+     "tests/test_v5_innovation_pkg.py"
+    ],
+    "notes": "15 of 15 features. 2 adoptions by traced execution."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --gpu-mb 0 -- python -m pytest -q tests/v5/test_gate_SP_6_5.py tests/v5/test_gate_SP_6_3.py tests/v5/test_gate_J.py tests/v5/test_gate_SP_6_4.py tests/v5/test_gate_L.py (CRUCIBLE_V5_AUTHOR=ws-G; final code; 82.7 s)",
+    "passed": 17,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots -- pytest -q tests/test_v5_innovation_caps.py tests/test_diagnostics.py::test_recorded_3_0_final_challenge_runs_are_diagnosed_from_their_trajectory_files",
+    "passed": 12,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots -- pytest -q tests/test_v5_innovation_needs.py",
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "slots -- pytest -q tests/test_v5_innovation_pkg.py",
+    "passed": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "regression group 0 (20 test files incl. test_diagnostics, test_v5_innovation_caps) via slots --cpu 1, after the caps fix",
+    "passed": 255,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "regression group 1 (20 test files incl. test_scale, test_agents_llm) via slots --cpu 1, run as a background job",
+    "passed": 417,
+    "failed": 1,
+    "skipped": 2
+   },
+   {
+    "command": "slots -- pytest tests/test_scale.py::test_keyboard_interrupt_leaves_no_process_behind (foreground rerun)",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "regression group 2 (20 test files incl. test_v5_innovation_needs/pkg, test_storage) via slots --cpu 1",
+    "passed": 455,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "Creators and developers are scripted reference agents (feasibility only, labelled kind=scripted). Participants are rule-based need-driven adopters (crucible.innovation.adopt), not the workstream-B population.",
+   "The social channel is the 4.0 forum; workstream-C platforms are not used.",
+   "Needs observables cover services, compute instances, declared capabilities and packages only. Content, communities, education, organisations and supply chains are not covered. The complements relation comes only from JSON-schema compatibility or relations supplied as world config.",
+   "Objective usefulness is measured only for formats with a verifier (4.0 NEEDS and innovation.formats). Subjective usefulness from diverse participant responses is not implemented.",
+   "Package adoption tracing counts Python-level calls into deps/<repo>/ (sys.setprofile); code that only imports a package without calling it does not count as adoption.",
+   "Exact counterfactual forks require cost_model deterministic (innovation_spec sets it). Exact metric values shift slightly between commits because adding events changes the seq-keyed rng.",
+   "The v5 registry is opt-in per world (caps config registry: true).",
+   "Regression group 1's test_scale::test_keyboard_interrupt_leaves_no_process_behind timed out only because SIGINT is ignored in background shell jobs. It passes in the foreground and was failing identically before any caps fix; it is not related to this work."
+  ],
+  "integration_notes": [
+   "Workstream A's substrate was not merged during this work (git merge of feat/crucible-5-openworld was already up to date at the end). Nothing in crucible.substrate is used: packages are 4.0 code repositories, sandbox outcomes are recorded through ctx.reserve/fill, and cross-module effects use 4.0 hooks (on_service_call, needs_demand) instead of bus.subscribe.",
+   "caps.py registers a subclass of the 4.0 Capabilities module under the same module name 'caps'; MODULES['caps'] is replaced when crucible.innovation.modules is imported. Without config registry:true the v5 endpoints are withdrawn at install and caps.search keeps its 4.0 schema, so tool catalogues and digests are unchanged. The 3.0 catalogue check in tests/test_diagnostics.py and the 3.0 byte-identity tests pass.",
+   "To use the v5 mechanisms in a world, add {'name':'caps','config':{'registry':true}}, 'needs' and 'pkg' (pkg depends on identity, bank, code, issues). 'adopt' (participants) and 'infra' (providers) are optional. innovation.worlds.innovation_spec builds such a world.",
+   "Population (B): world.hooks['needs_demand'](world) -> [(principal, capability, schema)] declares individuals' task needs. Individuals acting through caps.search/try/adopt_service are counted by innovation.measure unchanged.",
+   "Civilizations (J): the needs module config 'interfaces' and 'edges' add couplings as data. Chain and counterfactual helpers are innovation.measure.Stage/chain_record/counterfactual and innovation.scenarios.arms.",
+   "Primitives (A 1.5): pkg adds package, release and dependency records over 4.0 code repositories (the software_repository owner) and declares no second repository table.",
+   "Evidence files produced while testing were deleted and not committed. A tracked docs/v5/evidence/checker_report.json rewritten by the regression run was restored to HEAD.",
+   "The pyproject.toml extra was not needed: no packages were installed."
+  ],
+  "blockers": [],
+  "disk_used_mb": 0.5,
+  "packages_installed": [],
+  "measurements": [
+   "Gate J: products 4; independent discoverers 24; independent users 24; adoption p=1.6e-12 (24/24 vs 1/24); independent transactions 1,092 (3,276 cents, 24 payers); compute delta +57,694 CU and +9,100 cents rent; product categories 2",
+   "Gate L: effects 5; emerged needs 8; needs addressed by new services 2 (32+1 holders adopting); chains 4 with at least 4 stages; counterfactual confirmations 3/3 (capacity 1 vs 0 supply needs and 63 vs 0 later adoptions; batch 4.60M vs 3.09M base CU and 105 vs 0 overloads; social 12 vs 1 forum adopters); special-case bonuses 0",
+   "SP-6.3: 1 novel service fully discovered, tested, adopted and used by 24; useless service tested by 24, adopted by 0; independent verification 1.00 vs 0.50",
+   "SP-6.4: 6 relation types used; special-case triggers 0 (0 invalid paths, 0 rule literals naming entities, 0 rename-invariance differences); 8 emergences",
+   "SP-6.5: 15/15 features; 2 adoptions by execution (one transitive); 1 star, not counted",
+   "Speed: 20 participants for 3 simulated days take about 2 s; market scenario with 3 arms about 8 s; 36-participant capacity world for 7 days about 10 s per arm; all 17 gate tests 83 s"
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/tests/v5/test_gate_J.py, test_gate_L.py, test_gate_SP_6_3.py, test_gate_SP_6_4.py, test_gate_SP_6_5.py",
+    "why": "The brief assigns these gate test files to workstream G."
+   },
+   {
+    "path": "crucible/tests/test_v5_innovation_caps.py, test_v5_innovation_needs.py, test_v5_innovation_pkg.py",
+    "why": "Unit and integration tests, named per contract rule 0.7 (tests/test_v5_<area>_*.py)."
+   },
+   {
+    "path": "crucible/docs/v5/workstreams/G.json, crucible/docs/v5/components/G.md",
+    "why": "Workstream report and component guide required by the brief."
+   }
+  ]
+ }
+}

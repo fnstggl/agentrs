@@ -1,0 +1,1 @@
+Unofficial measurement records written by the workstream agents F1 and L during their own test runs, before only official runs filed evidence. They were produced on the agents own branches, not the integration branch, so the acceptance checker does not use them; they are kept as records of what was measured.

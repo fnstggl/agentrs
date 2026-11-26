@@ -1,0 +1,37 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.1",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R1_native_intermediate_reward_disabled",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:38.593314+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "nonzero_native_reward_steps": 0,
+  "reward_paths_checked": 10,
+  "steps_checked": 402,
+  "legacy_nonzero_reward_steps_same_inputs": 171
+ },
+ "artifacts": [],
+ "notes": "observation_only on every reward path; legacy mode with the same inputs pays nonzero rewards on the counted steps, so the zero is the mode's doing. Paths: test_mechvec, test_bridge, test_selfplay, test_kernel_selfplay, test_gym, test_pettingzoo, test_worldenv, test_tier1_invariance, test_kernel_invariance, test_rig_hidden_canary",
+ "junit": null
+}

@@ -1,0 +1,37 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "K.7",
+ "gate": "K",
+ "produced_by": "tests/v5/test_gate_K.py::test_K7_circular_and_related_detection",
+ "command": null,
+ "author": "ws-F1",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:24:42.200310+00:00",
+ "tree": {
+  "commit": "fb29b880fa077da5bc0cb011857444de266a2a6a",
+  "dirty_paths": [],
+  "clean": true
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "planted_circular_detected_fraction": 1.0,
+  "false_positive_rate": 0.0,
+  "planted_payers": 15,
+  "planted_scheme_types": 13,
+  "ordinary_customers": 40,
+  "false_positives": 0,
+  "planted_cents_30d": 27500,
+  "ordinary_cents_30d": 85000,
+  "f1_independent_cents_30d": 84854,
+  "legacy_4_0_independent_cents_30d": 92500
+ },
+ "artifacts": [],
+ "notes": "missed: {'self_subscription': [], 'member': [], 'sister_org': [], 'same_controller': [], 'direct_funding': [], 'chain_funding': [], 'delayed_funding': [], 'disguised_purchase': [], 'digital_purchase': [], 'contract_funding': [], 'grant_controlled': [], 'mutual_subscriptions': [], 'ring': []}; false positives: []. Over the last 30 days the 4.0 revenue_analysis counts 92500 cents as independent, F1 counts 84854; ordinary customers paid 85000, planted ones 27500.",
+ "junit": null
+}

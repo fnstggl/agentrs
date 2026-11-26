@@ -1,0 +1,36 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.6",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R6_shaped_baselines_executable",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:40.071480+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "shaped_baseline_runs": 11,
+  "legacy_runs": 11,
+  "legacy_runs_not_identical": 0
+ },
+ "artifacts": [],
+ "notes": "4.0 implementation (git c07098b) vs current in legacy mode, same inputs, byte-identical observations/rewards/infos: MechVecEnv=True; MechVecEnv(reward_mode=legacy)=True; KernelMechEnv=True; SelfPlayEnv=True; KernelSelfPlayEnv=True; learner hill_climb on MechVecEnv=True; learner probe_exploit on MechVecEnv=True; learner ppo_gru on MechVecEnv=True; Gymnasium CrucibleEnv=True; PettingZoo CrucibleParallelEnv=True; scale.rollout.WorldEnv=True",
+ "junit": null
+}

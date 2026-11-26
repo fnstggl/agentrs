@@ -1,0 +1,35 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.n1",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_Rn1_explicit_reward_leakage_tests",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:40.188260+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "reward_leakage_tests_passed": 11,
+  "reward_leakage_tests_run": 11
+ },
+ "artifacts": [],
+ "notes": "tests: test_mechvec: MechVecEnv: reward and obs slot zero, other entries equal to legacy, test_bridge: KernelMechEnv (kernel bridge): reward and obs slot zero, test_selfplay: SelfPlayEnv: every seat's reward and obs slot zero, test_kernel_selfplay: KernelSelfPlayEnv: every seat's reward and obs slot zero, test_gym: Gymnasium CrucibleEnv: reward 0, no objective in info, no outcome termination, verifier on, test_pettingzoo: PettingZoo CrucibleParallelEnv: rewards 0, no objective in infos, verifier on, test_worldenv: scale.rollout.WorldEnv: no balance-change reward in observation-only mode, test_tier1_invariance: Tier 1 experience env: observations invariant to mode and private task data, test_kernel_invariance: Kernel experience env: invariance to mode and evaluator data; canaries absent, test_rig_hidden_canary: hidden mechanism configuration and internal filings stay hidden, test_verified_terminal: verified_terminal_outcome: only the terminal verified outcome",
+ "junit": null
+}

@@ -1,0 +1,435 @@
+{
+ "workflow": "wf_62a0cf0b-bb3",
+ "wave": "wave1-systems",
+ "report": {
+  "workstream": "L",
+  "branch": "worktree-wf_62a0cf0b-bb3-6",
+  "commit": "2abcc44",
+  "summary": "The learner interface in INTERFACE_CONTRACTS section 11 is implemented in crucible/src/crucible/experience/. Of the 22 L requirements, 18 pass on this branch. S.2, S.3, S.5 and SP-11.1 fail on purpose because the v5 Tier 2 domains, Tier 3 civilisations and semantic encoders have not been merged yet.\n\nWhat works:\n- **One interface and one constructor.** `make(tier, name, seed, reward_mode)` returns an `ExperienceEnv` with the 15-field Observation. Numbers are exact (money in integer cents) and events are never silently truncated. Every event caused by an agent's own action carries a `cause` (which action, when, how long after), and `execute` returns the matching `action_seq`.\n- **Tier 1 adapter (`MechExperienceEnv`).** It wraps the 4.0 MechVecEnv/SelfPlayEnv and uses the kernel facility's own `rig.*` and `bank.accounts` tools and principals. Specs, reports and balances match the kernel twin tick for tick.\n- **Kernel adapter (`KernelExperienceEnv`).** It works on any WorldSpec with several agents. It covers tool discovery with 13 tool categories, artifacts, entities, resources, public analytics, `missing` notes, objectives and an evaluator-side `verify()`.\n- **Three reward modes.** They work in the adapters and as a `reward_mode=` keyword on MechVecEnv, KernelMechEnv, SelfPlayEnv, KernelSelfPlayEnv, the Gym and PettingZoo envs, WorldEnv and the CAM 2.0 adapter. Legacy mode is byte-identical to the 4.0 source at c07098b: 11 of 11 runs match.\n- **Reward-leakage tests.** 11 explicit tests and 9 planted canaries: zero nonzero rewards in observation-only mode, zero privileged keys, zero canary hits, and observations identical across modes and across evaluator-only data.\n- **Other pieces:**\n  - an append-only ExperienceStore with per-record hashes, a hash-chained manifest and crash recovery;\n  - a ReferenceLearner (159k-parameter recurrent network) with real updates in observation-only mode and exact checkpoints;\n  - the `run_learner` loop;\n  - parallel worlds via VecExperience and the unchanged RolloutFarm (4 worker processes ran at once);\n  - a reproducible CLI (`python -m crucible.experience run`);\n  - an admitted `exp` kernel module for self-experiments that returns evidence and pays nothing;\n  - scripted reference agents;\n  - the LEARNER_GUIDE;\n  - an external CAM-shaped adapter that imports only the public interface and changes no environment file.\n\nMeasured: S.7 4 parallel environments; S.4 1,140 records stored, then a fresh learner made 18 updates from them; SP-11.2 13 of 13 tool categories; SP-11.5 8 of 8 long-horizon features. The regression run (12 affected 4.0 test files plus 55 earlier) shows 288 passed and 2 skipped. I did not check whether those 2 skips are the 2 in the Gate A baseline.",
+  "files_added": [
+   "crucible/src/crucible/experience/observation.py",
+   "crucible/src/crucible/experience/modes.py",
+   "crucible/src/crucible/experience/env.py",
+   "crucible/src/crucible/experience/features.py",
+   "crucible/src/crucible/experience/tier1.py",
+   "crucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/registry.py",
+   "crucible/src/crucible/experience/experiments.py",
+   "crucible/src/crucible/experience/modules.py",
+   "crucible/src/crucible/experience/store.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/src/crucible/experience/loop.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/scripted.py",
+   "crucible/src/crucible/experience/leakage.py",
+   "crucible/src/crucible/experience/__main__.py",
+   "crucible/examples/experience_external_adapter.py",
+   "crucible/docs/v5/LEARNER_GUIDE.md",
+   "crucible/docs/v5/components/L.md",
+   "crucible/docs/v5/workstreams/L.json",
+   "crucible/tests/test_v5_experience_core.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py",
+   "crucible/tests/v5/test_gate_SP_11_1.py",
+   "crucible/tests/v5/test_gate_SP_11_2.py",
+   "crucible/tests/v5/test_gate_SP_11_3.py",
+   "crucible/tests/v5/test_gate_SP_11_4.py",
+   "crucible/tests/v5/test_gate_SP_11_5.py",
+   "crucible/tests/v5/test_gate_SP_11_6.py"
+  ],
+  "files_changed_outside_owned_paths": [
+   {
+    "path": "crucible/src/crucible/research/envs.py",
+    "why": "The brief requires a reward_mode switch here (default legacy, byte-identical). In observation-only mode the reward is 0 and observation slot scalars[0] is 0. Also added step_values, so a lever value chosen through a tool runs exactly instead of going through the [-1, 1] normalisation."
+   },
+   {
+    "path": "crucible/src/crucible/research/bridge.py",
+    "why": "reward_mode switch for the kernel bridge (KernelMechEnv), which has the same reward slot."
+   },
+   {
+    "path": "crucible/src/crucible/selfplay/arena.py",
+    "why": "reward_mode switch for SelfPlayEnv and KernelSelfPlayEnv (per-seat reward slot), plus SelfPlayEnv.step_values."
+   },
+   {
+    "path": "crucible/src/crucible/api/gym_env.py",
+    "why": "reward_mode switch. In observation-only mode there is no info['objective'], the reward is 0 and episodes end only by truncation. Added verify() for the evaluator."
+   },
+   {
+    "path": "crucible/src/crucible/api/pettingzoo_env.py",
+    "why": "Same reward_mode switch for infos['objective'], plus verify()."
+   },
+   {
+    "path": "crucible/src/crucible/scale/rollout.py",
+    "why": "reward_mode for WorldEnv, whose default reward is the change in the agent's balance. Added verify()."
+   },
+   {
+    "path": "crucible/src/crucible/integrations/agentrs_cam2.py",
+    "why": "The CAM 2.0 adapter exposed info['progress'] on every step. Added reward_mode; the default is unchanged."
+   },
+   {
+    "path": "crucible/docs/v5/REPRODUCE.md",
+    "why": "Added the learner-interface commands section, as the file invites each workstream to do."
+   }
+  ],
+  "requirements": [
+   {
+    "id": "R.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/modes.py",
+     "src/crucible/research/envs.py",
+     "src/crucible/research/bridge.py",
+     "src/crucible/selfplay/arena.py",
+     "src/crucible/api/gym_env.py",
+     "src/crucible/api/pettingzoo_env.py",
+     "src/crucible/scale/rollout.py",
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/leakage.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "0 nonzero native rewards over 402 observation-only steps on 10 reward paths. The same inputs in legacy mode gave 171 nonzero rewards."
+   },
+   {
+    "id": "R.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/modes.py",
+     "src/crucible/api/gym_env.py",
+     "src/crucible/api/pettingzoo_env.py",
+     "src/crucible/experience/leakage.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "privileged_progress_fields = 0."
+   },
+   {
+    "id": "R.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/leakage.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "9 canaries planted, 0 hits, 0 invariance differences."
+   },
+   {
+    "id": "R.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/features.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "legitimate_fields_missing = 0 on 7 environments compared with legacy mode."
+   },
+   {
+    "id": "R.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/tier1.py",
+     "src/crucible/api/gym_env.py",
+     "src/crucible/api/pettingzoo_env.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "5 verifier outcomes recorded on the evaluator side."
+   },
+   {
+    "id": "R.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/leakage.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "11 of 11 legacy runs byte-identical to the 4.0 source at c07098b."
+   },
+   {
+    "id": "R.7",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/reference.py",
+     "src/crucible/experience/loop.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "7 updates that changed parameters in observation-only Tier 1 and kernel runs; reward seen was 0.0."
+   },
+   {
+    "id": "R.n1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/leakage.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_R.py"
+    ],
+    "notes": "11 of 11 explicit leakage tests pass."
+   },
+   {
+    "id": "S.1",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/reference.py",
+     "src/crucible/experience/loop.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "196 actions and 36 world changes."
+   },
+   {
+    "id": "S.2",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/experience/registry.py",
+     "src/crucible/experience/kernel.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "The make(2, ...) path through the domain objective and evaluator is implemented. No v5 domain exists yet, so the test records tier2_actions = 0 and fails."
+   },
+   {
+    "id": "S.3",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/experience/registry.py",
+     "src/crucible/experience/kernel.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "The make(3, ...) path is implemented. crucible.civ.generate does not exist yet, so the test records tier3_actions = 0 and fails."
+   },
+   {
+    "id": "S.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/store.py",
+     "src/crucible/experience/reference.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py",
+     "tests/test_v5_experience_core.py"
+    ],
+    "notes": "1,140 records stored, reopened and verified; 18 updates from stored experience."
+   },
+   {
+    "id": "S.5",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/experience/observation.py",
+     "src/crucible/experience/registry.py",
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/kernel.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "5 world types, 0 schema failures (the metric criteria are met). The test also requires all three v5 tiers and fails because only Tier 1 exists."
+   },
+   {
+    "id": "S.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/reference.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py",
+     "tests/test_v5_experience_core.py"
+    ],
+    "notes": "0 checkpoint round-trip mismatches."
+   },
+   {
+    "id": "S.7",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/parallel.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "parallel_environments = 4 (4 worker processes, intervals overlapping) plus 8 vectorised environments; ran through slots --cpu 4."
+   },
+   {
+    "id": "S.8",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/__main__.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_S.py"
+    ],
+    "notes": "Identical digests from two fresh-process runs of the same command."
+   },
+   {
+    "id": "SP-11.1",
+    "state": "partial",
+    "implementation_files": [
+     "src/crucible/experience/observation.py",
+     "src/crucible/experience/tier1.py",
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/features.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_1.py"
+    ],
+    "notes": "12 of 13 kinds. The semantic-representation hook to crucible.semantic.encode is in place but workstream D is not merged. 1 of 3 tiers. The test fails."
+   },
+   {
+    "id": "SP-11.2",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/features.py",
+     "src/crucible/experience/scripted.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_2.py"
+    ],
+    "notes": "13 categories available and exercised; 1 tool added by an agent-deployed service; 3 of 3 permission violations refused."
+   },
+   {
+    "id": "SP-11.3",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/modes.py",
+     "src/crucible/api/gym_env.py",
+     "src/crucible/research/envs.py",
+     "src/crucible/experience/kernel.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_3.py"
+    ],
+    "notes": "3 reward modes verified."
+   },
+   {
+    "id": "SP-11.4",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/experiments.py",
+     "src/crucible/experience/modules.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_4.py",
+     "tests/test_v5_experience_core.py"
+    ],
+    "notes": "9 round trips; 0 rewards paid for self-goals; the exp module passes admission."
+   },
+   {
+    "id": "SP-11.5",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/kernel.py",
+     "src/crucible/experience/experiments.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_5.py"
+    ],
+    "notes": "8 of 8 long-horizon features."
+   },
+   {
+    "id": "SP-11.6",
+    "state": "implemented",
+    "implementation_files": [
+     "src/crucible/experience/__init__.py",
+     "docs/v5/LEARNER_GUIDE.md",
+     "examples/experience_external_adapter.py"
+    ],
+    "tests": [
+     "tests/v5/test_gate_SP_11_6.py"
+    ],
+    "notes": "0 environment changes; the connection guide is present."
+   }
+  ],
+  "tests_run": [
+   {
+    "command": "PYTHONPATH=src python -m pytest tests/test_v5_experience_core.py",
+    "passed": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py -k 'not S7'",
+    "passed": 4,
+    "failed": 3,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 4 -- python -m pytest tests/v5/test_gate_S.py -k S7",
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   {
+    "command": "CRUCIBLE_V5_AUTHOR=ws-L PYTHONPATH=src python -m pytest tests/v5/test_gate_SP_11_1.py ... test_gate_SP_11_6.py",
+    "passed": 5,
+    "failed": 1,
+    "skipped": 0
+   },
+   {
+    "command": "slots --cpu 1 -- python -m pytest tests/test_learners.py tests/test_scale.py tests/test_research_protocols.py tests/test_redteam.py tests/test_kernel.py tests/test_discovery.py tests/test_mech_rig.py tests/test_v5_acceptance_checker.py tests/test_agents_llm.py tests/test_research_envs.py tests/test_selfplay.py tests/test_api.py",
+    "passed": 288,
+    "failed": 0,
+    "skipped": 2
+   },
+   {
+    "command": "slots --cpu 1 -- python -m pytest tests/test_research_envs.py tests/test_selfplay.py tests/test_api.py (earlier run)",
+    "passed": 55,
+    "failed": 0,
+    "skipped": 0
+   }
+  ],
+  "limitations": [
+   "S.2, S.3, S.5 and SP-11.1 fail on purpose. There is no v5 Tier 2 domain (crucible.domains, workstream I), no civilisation generator (crucible.civ, workstream J) and no semantic encoder (crucible.semantic.encode, workstream D) on this branch. No other world type is counted in their place.",
+   "RapidExperienceEnv is written to INTERFACE_CONTRACTS section 8 but has not been run, because crucible.rapid (workstream H) is not merged. It is not tested against any stand-in.",
+   "The ReferenceLearner proves the interface (real updates, exact checkpoints). It is not a capable agent in worlds with 150-200 tools; that is a limit of the learner, not a fault in the environment.",
+   "Kernel observations include the full tool list every time, 88-122 KB each. The ExperienceStore stores each tool list once.",
+   "The CAM 2.0 adapter still imports agentrs when its module loads (true in 4.0 already). Its new reward-mode test, like tests/test_agents_llm.py, needs the AGENTRS source on the path.",
+   "The full regression suite was not run. I ran the 12 test files my changes could affect: 288 passed, 2 skipped. I did not check whether those 2 skips are the same as the Gate A baseline's."
+  ],
+  "integration_notes": [
+   "Workstream A (substrate) was not merged at the time of either merge from feat/crucible-5-openworld; the second merge reported 'Already up to date'. When it lands, artifact.stored and artifact.published events whose payload.ref is sha256:... automatically become observation artifact references.",
+   "Workstream D: crucible.semantic.encode(world, ref, modality) is called on those artifacts once it exists. Until then SP-11.1 counts 12 of 13 kinds.",
+   "Workstream H: RapidEnv.reset() and step() should return Observation dicts (check them with crucible.experience.validate_observation). The adapter calls step({agent: action}) and reads result.reward only in legacy mode.",
+   "Workstreams I and J: make(2, ...) expects crucible.domains.<name>.DOMAIN with configs, build, objective and evaluate (section 9); make(3, ...) expects crucible.civ.generate(profile, seed, population_profile). Once those exist, S.2, S.3, S.5 and SP-11.1 can be re-run without changes.",
+   "test_gate_S.py::test_S7_parallel_environments starts four worker processes, so it must run through crucible.scale.slots --cpu 4.",
+   "Gate tests write evidence to docs/v5/evidence/gate_R, gate_S and gate_SP. These are untracked and not committed. docs/v5/evidence/checker_report.json was modified by the checker test during the regression run and I restored it.",
+   "The 4.0 native environments accept reward_mode=...; the default legacy mode is checked byte-identical against c07098b by crucible.experience.leakage.legacy_check. MechVecEnv.step_values and SelfPlayEnv.step_values are new methods, and step() now calls them."
+  ],
+  "blockers": [],
+  "disk_used_mb": 45,
+  "packages_installed": [],
+  "measurements": [
+   "Leakage battery: 11 of 11 pass; 9 canaries, 0 hits; 0 nonzero rewards over 402 observation-only steps (legacy twins: 171 nonzero)",
+   "Legacy equivalence: 11 of 11 runs byte-identical to the 4.0 source at c07098b",
+   "ReferenceLearner: 158,913 parameters; checkpoint 1.9 MB; 0 round-trip mismatches",
+   "Throughput: Tier 1 about 4,400 observe+execute+tick per second; kernel tiny 640 and open_digital 450 observe+execute per second (one thread)",
+   "Experience store: about 6.6 KB per record with tool lists stored once; 1,140 records = 7.5 MB",
+   "S.7: 4 environments ran concurrently in 4 RolloutFarm worker processes, 432 farm steps, 0 failures, 14 learner updates, 2 parameter versions published",
+   "SP-11.5: consequences observed up to 14.04 days after the action that caused them; 28 caused events, all linked by action_seq"
+  ]
+ }
+}

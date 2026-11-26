@@ -1,0 +1,221 @@
+{
+ "what": "Reports returned by the Crucible 5.0 workstream agents, saved verbatim, and the interrupted agents with the branch that preserves their work",
+ "agents": [
+  {
+   "workstream": "A",
+   "workflow": "wf_2ca35ef4-2c1",
+   "wave": "wave1-substrate",
+   "status": "finished",
+   "branch": "worktree-wf_2ca35ef4-2c1-1",
+   "commit": "5e8b556",
+   "file": "A.json"
+  },
+  {
+   "workstream": "E1",
+   "workflow": "wf_91afed28-f3c",
+   "wave": "wave1-calibration-rapid",
+   "status": "finished",
+   "branch": "worktree-wf_91afed28-f3c-1",
+   "commit": "08a8eac",
+   "file": "E1.json"
+  },
+  {
+   "workstream": "E2",
+   "workflow": "wf_91afed28-f3c",
+   "wave": "wave1-calibration-rapid",
+   "status": "finished",
+   "branch": "worktree-wf_91afed28-f3c-2",
+   "commit": "5b9eb4ad88fba249a1fac11616fd0e5067892a60",
+   "file": "E2.json"
+  },
+  {
+   "workstream": "H0",
+   "workflow": "wf_91afed28-f3c",
+   "wave": "wave1-calibration-rapid",
+   "status": "finished",
+   "branch": "worktree-wf_91afed28-f3c-3",
+   "commit": "4e7c9744345e56d64866719b412becb7162d6e6b",
+   "file": "H0.json"
+  },
+  {
+   "workstream": "F2",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-4",
+   "commit": "14a2754",
+   "file": "F2.json"
+  },
+  {
+   "workstream": "L",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-6",
+   "commit": "2abcc44",
+   "file": "L.json"
+  },
+  {
+   "workstream": "D1",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-1",
+   "commit": "dc44e34",
+   "file": "D1.json"
+  },
+  {
+   "workstream": "G",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-5",
+   "commit": "f3d4b26",
+   "file": "G.json"
+  },
+  {
+   "workstream": "F1",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-3",
+   "commit": "e261b48",
+   "file": "F1.json"
+  },
+  {
+   "workstream": "D2",
+   "workflow": "wf_62a0cf0b-bb3",
+   "wave": "wave1-systems",
+   "status": "finished",
+   "branch": "worktree-wf_62a0cf0b-bb3-2",
+   "commit": "7510bc8",
+   "file": "D2.json"
+  },
+  {
+   "workstream": "E-unify",
+   "workflow": "wf_84ace443-66b",
+   "wave": "calibration-unify",
+   "status": "finished",
+   "branch": "worktree-wf_84ace443-66b-1",
+   "commit": "d8c59cd",
+   "file": "E-unify.json"
+  },
+  {
+   "workstream": "B",
+   "workflow": "wf_3ca8e2f1-7c8",
+   "wave": "wave2-population-social",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-B-population",
+   "agent_worktree_branch": "worktree-wf_3ca8e2f1-7c8-1",
+   "file": null
+  },
+  {
+   "workstream": "C1",
+   "workflow": "wf_3ca8e2f1-7c8",
+   "wave": "wave2-population-social",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-C1-social-platforms",
+   "agent_worktree_branch": "worktree-wf_3ca8e2f1-7c8-2",
+   "file": null
+  },
+  {
+   "workstream": "C2",
+   "workflow": "wf_3ca8e2f1-7c8",
+   "wave": "wave2-population-social",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-C2-social-recsys-audience",
+   "agent_worktree_branch": "worktree-wf_3ca8e2f1-7c8-3",
+   "file": null
+  },
+  {
+   "workstream": "H1",
+   "workflow": "wf_0b6f6e3e-774",
+   "wave": "wave2-rapid-families",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-H1-rapid-science-engineering",
+   "agent_worktree_branch": "worktree-wf_0b6f6e3e-774-1",
+   "file": null
+  },
+  {
+   "workstream": "H2",
+   "workflow": "wf_0b6f6e3e-774",
+   "wave": "wave2-rapid-families",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-H2-rapid-strategy-resources",
+   "agent_worktree_branch": "worktree-wf_0b6f6e3e-774-2",
+   "file": null
+  },
+  {
+   "workstream": "H3",
+   "workflow": "wf_0b6f6e3e-774",
+   "wave": "wave2-rapid-families",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-H3-rapid-compose-families",
+   "agent_worktree_branch": "worktree-wf_0b6f6e3e-774-3",
+   "file": null
+  },
+  {
+   "workstream": "I1",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-I1-domains-science-invention",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-1",
+   "file": null
+  },
+  {
+   "workstream": "I2",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-I2-domains-infrastructure-industry",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-2",
+   "file": null
+  },
+  {
+   "workstream": "I3",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-I3-domains-labour-orgs-market",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-3",
+   "file": null
+  },
+  {
+   "workstream": "I4",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-I4-domains-education-info-software",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-4",
+   "file": null
+  },
+  {
+   "workstream": "N1",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-N1-research-registry-curriculum",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-5",
+   "file": null
+  },
+  {
+   "workstream": "N2",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-N2-research-protocols",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-6",
+   "file": null
+  },
+  {
+   "workstream": "O",
+   "workflow": "wf_2f97cbf5-a36",
+   "wave": "wave3-domains-research-security",
+   "status": "interrupted (weekly usage limit, 2026-11-25); no final report",
+   "branch": "recovery/c5-O-security",
+   "agent_worktree_branch": "worktree-wf_2f97cbf5-a36-7",
+   "file": null
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "S.3",
+ "gate": "S",
+ "produced_by": "tests/v5/test_gate_S.py::test_S3_reference_learner_acts_in_tier3",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_S.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:42.779808+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "tier3_actions": 0,
+  "tier3_world_changes": 0,
+  "tier3_generator_present": false
+ },
+ "artifacts": [],
+ "notes": "no v5 civilisation generator in this checkout (crucible.civ.generate; workstream J). The adapter path make(3, '<profile>', ...) -> KernelExperienceEnv is implemented; no other world type is counted as Tier 3.",
+ "junit": null
+}

@@ -1,0 +1,37 @@
+{
+ "schema": "crucible.v5.evidence/1",
+ "requirement": "R.3",
+ "gate": "R",
+ "produced_by": "tests/v5/test_gate_R.py::test_R3_no_hidden_evaluator_data",
+ "command": "PYTHONPATH=src python -m pytest tests/v5/test_gate_R.py",
+ "author": "ws-L",
+ "run_id": null,
+ "recorded_at": "2026-11-25T07:21:38.688434+00:00",
+ "tree": {
+  "commit": "25dff7ffc28ded386749d4f8c65038fabe67fa92",
+  "dirty_paths": [
+   "rucible/src/crucible/experience/kernel.py",
+   "crucible/src/crucible/experience/parallel.py",
+   "crucible/src/crucible/experience/reference.py",
+   "crucible/tests/v5/test_gate_R.py",
+   "crucible/tests/v5/test_gate_S.py"
+  ],
+  "clean": false
+ },
+ "environment": {
+  "python": "3.12.15",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.39",
+  "cpu_quota": 11.52,
+  "gpu": "NVIDIA RTX A6000, 46068 MiB",
+  "host": "094d97c94886"
+ },
+ "metrics": {
+  "hidden_evaluator_fields": 0,
+  "canaries_planted": 9,
+  "canary_hits": 0,
+  "invariance_differences": 0
+ },
+ "artifacts": [],
+ "notes": "canaries: evaluator runtime state, recommender-private slot, internal event, another participant's private mail, world-spec evaluator parameter, goal evaluator parameter, Tier 1 task private reference numbers, hidden mechanism configuration, internal rig filing; plus invariance of everything the agent receives to those data and to the reward mode",
+ "junit": null
+}
