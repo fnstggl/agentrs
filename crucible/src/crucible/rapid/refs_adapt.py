@@ -1011,6 +1011,38 @@ def fir_shape_predict_recent_lagged(view, env) -> None:
 
 
 # ====================================================================== look-alike markets as prediction tasks
+def _logit_market(X: np.ndarray, y: np.ndarray, pi: int, folds: np.ndarray):
+    """units = M * q / (q + h) * (b + (1 - b) / (1 + exp(c (p - mid)))): a logit demand curve in price p times a
+    saturating response to promotion q (shapes on grids, M by least squares). Returns (predict, cv error)."""
+    p = X[:, pi]
+    q = np.maximum(X[:, 1 - pi], 0.0)
+    best = None
+    for h in (0.5, 1.5, 3.0, 6.0, 12.0):
+        sq = (q + 1.0) / (q + 1.0 + h)
+        for mid in np.linspace(1.0, 10.0, 19):
+            for cc in (0.3, 0.6, 1.0, 1.6, 2.5):
+                for b in (0.0, 0.02, 0.05):
+                    g = sq * (b + (1.0 - b) / (1.0 + np.exp(cc * (p - mid))))
+                    M = float(np.sum(g * y) / max(np.sum(g * g), 1e-12))
+                    err = float(np.sum((M * g - y) ** 2))
+                    if best is None or err < best[0]:
+                        best = (err, h, mid, cc, b)
+    _, h, mid, cc, b = best
+
+    def design(Xq):
+        pq, qq = Xq[:, pi], np.maximum(Xq[:, 1 - pi], 0.0)
+        return (qq + 1.0) / (qq + 1.0 + h) * (b + (1.0 - b) / (1.0 + np.exp(cc * (pq - mid))))
+    cv = 0.0
+    for k in range(5):
+        tr, te = folds != k, folds == k
+        g = design(X[tr])
+        M = float(np.sum(g * y[tr]) / max(np.sum(g * g), 1e-12))
+        cv += float(np.sum((M * design(X[te]) - y[te]) ** 2))
+    g = design(X)
+    M = float(np.sum(g * y) / max(np.sum(g * g), 1e-12))
+    return (lambda Xq: M * design(np.asarray(Xq, dtype=float))), cv
+
+
 def market_predict(view, env, seed: int = 0, gain: float = 0.04) -> None:
     """Scripted public reference for predicting a market's sales at held-out prices, promotion levels and
     certification states: price, promotion and the certification decision are randomised every tick; for each
@@ -1046,6 +1078,8 @@ def market_predict(view, env, seed: int = 0, gain: float = 0.04) -> None:
     ok = np.isfinite(y)
     if ok.sum() >= 20 and not view.done:
         keep = _exogenous(X[ok], R[ok]) if R.size else []
+        pi = lv.index(next(n for n in lv if float(props[n]["minimum"]) == 1.0)) if any(
+            float(props[n]["minimum"]) == 1.0 for n in lv) else 0          # the price lever's range starts at 1
         preds = {}
         for ch in range(len(opts)):
             m = ok & (C == ch)
@@ -1053,12 +1087,23 @@ def market_predict(view, env, seed: int = 0, gain: float = 0.04) -> None:
                 continue
             Z = R[m][:, keep] if keep else None
             ly = np.log(np.maximum(y[m], 0.05))
-            preds[ch], _ = fit_additive_lagged(X[m], ly, lo, hi, 0, Z=Z, gain=gain)
+            f_add, _ = fit_additive_lagged(X[m], ly, lo, hi, 0, Z=Z, gain=gain)
+            # two model classes compete by five-fold cross-validated error on units: the additive law of log units,
+            # and a logit demand curve in price times a saturating response to promotion
+            Xm, ym = X[m], y[m]
+            folds = np.arange(len(ym)) % 5
+            cv_add = 0.0
+            for k in range(5):
+                tr, te = folds != k, folds == k
+                fk, _ = fit_additive_lagged(Xm[tr], np.log(np.maximum(ym[tr], 0.05)), lo, hi, 0, gain=gain)
+                cv_add += float(np.sum((np.exp(fk(Xm[te])) - ym[te]) ** 2))
+            f_log, cv_log = _logit_market(Xm, ym, pi, folds)
+            preds[ch] = (lambda Xq, f=f_add: np.exp(f(Xq))) if cv_add <= cv_log else f_log
         out = []
         for c in held:
             ch = opts.index(c[dname])
             f = preds.get(ch) or next(iter(preds.values()))
-            out.append({"set": c, "value": float(np.exp(f(np.asarray([[float(c[n]) for n in lv]]))[0]))})
+            out.append({"set": c, "value": float(f(np.asarray([[float(c[n]) for n in lv]]))[0])})
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
