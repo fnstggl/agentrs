@@ -305,3 +305,15 @@ def coefficients_table(model: HindsightModel, b: Tensor, u: Tensor, cand: Tensor
     el = None if elapsed is None else elapsed[None].expand(S * U, -1)
     out = model.contribution(bb, uu, cc, torch.ones(S * U, A, dtype=torch.bool), lp, el, clip=clip, min_prob=0.0)
     return out.w.view(S, U, A).permute(0, 2, 1)
+
+
+def arm_contrast(w: Tensor, outcome_value: Tensor, treatment: int, control: int) -> Optional[Tuple[float, float, int]]:
+    """COCOA's estimate of the effect of candidate ``treatment`` versus ``control`` from logged decisions: the mean
+    over decisions (whatever action was actually taken) of [w(treatment, u) - w(control, u)] * outcome value, with
+    its standard error and the number of supported decisions. ``w`` [B, N] may contain NaN rows (unsupported):
+    they are left out, and ``None`` is returned when fewer than two decisions are supported."""
+    d = (w[:, treatment] - w[:, control]).double() * outcome_value.double().cpu()
+    d = d[torch.isfinite(d)]
+    if d.numel() < 2:
+        return None
+    return float(d.mean()), float(d.std(unbiased=True) / math.sqrt(d.numel())), int(d.numel())
