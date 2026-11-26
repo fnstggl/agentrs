@@ -226,3 +226,46 @@ def test_semantic_requests_of_several_groups_share_the_service_call():
     g = World.regenerate(w.spec, [e.to_dict() for e in w.log])
     assert g.last_hash == w.last_hash
     assert IB.report(IB.stats(g))["served_calls"] == 1
+
+
+@register_module
+class IBRound(Module):
+    """The submit/flush form: two call sites submit class-2 requests of one policy group; one call."""
+    name = "ibround"
+    host = "ibr"
+
+    def __init__(self, config=None):
+        super().__init__(config)
+        self.a = _policies()[0]
+
+    def install(self, world):
+        world.state.declare_table("ib_round")
+
+    @endpoint("go", S.obj({}, []), doc="submit/flush")
+    def ep_go(self, ctx):
+        rng = ctx.rng("x")
+        hs = []
+        with IB.batched(ctx) as rnd:
+            for n in (2, 5):
+                hs.append(rnd.submit(IB.adaptive_request(self.a, rng.normal(size=(n, OBS)).astype(np.float32),
+                                                         np.zeros((n, MEM), np.float32),
+                                                         rng.normal(size=(n, K, CAND)).astype(np.float32))))
+            assert not any(h.done for h in hs)
+        assert all(h.done for h in hs) and [len(h.value["scores"]) for h in hs] == [2, 5]
+        ctx.emit("ibr.done", {"n": 7}, vis="internal")
+        return {}
+
+    @applier("ibr.done")
+    def ap_done(self, ev):
+        self.world.state.put("ib_round", str(ev.seq), dict(ev.payload))
+
+
+def test_submit_flush_round_groups_requests():
+    sp = WorldSpec("ib-round", 1, [{"name": "identity", "config": {}}, {"name": "bank", "config": {}},
+                                   {"name": "admin", "config": {}}, {"name": "artifacts", "config": {}},
+                                   {"name": "ibround", "config": {}}])
+    w = World.create(sp, strict=True)
+    w.system_call("admin.join", {"handle": "eve", "endowment": 0})
+    assert w.execute("p:eve", {"tool": "ibr.go", "args": {}}).ok
+    st = IB.report(IB.stats(w))
+    assert st["calls"] == 1 and st["requests"] == 2 and st["rows"] == 7 and st["by_class"]["2"]["merged_calls"] == 1
