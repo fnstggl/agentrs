@@ -1080,6 +1080,29 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-K-7 (medium, open): SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-7",
+ "owner": "K",
+ "regression_tests": "tests/v5/test_gate_SP_12_0.py",
+ "requirements": [
+  "SP-12.0"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "workstream K gate run on the Tier 3 civilisation (wave 3b)"
+ },
+ "status": "open",
+ "summary": "SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5dfa700) of the 10 required Part 12 capability kinds; missing compete_for_scarce_resources, develop_competing_technologies and (in one run) collaborate_on_software. Cause measured: weak behaviour cloning of the scripted workflows (held-out tool agreement 0.03 at the old BC rate) and rejected actions on other parties' repositories; both changed afterwards (e179c64), not yet re-measured on the civilisation."
+}
+```
+
 ### DEF-L-1 (critical, open): observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, 
 
 ```json
