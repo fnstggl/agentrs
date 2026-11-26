@@ -49,14 +49,14 @@ def evaluate(world, principal, obj):            # evaluator side: read authorita
     ...
     return {"success": ok, "score": s, "details": {...}}
 
-class Reference(ScriptedReference):             # tool-only: plan(obs) -> [act_(tool, tag, **args)], on_result(...)
+class ScienceReference(ScriptedReference):      # tool-only: plan(obs) -> [act_(tool, tag, **args)], on_result(...)
     def plan(self, obs): ...
     def on_result(self, tag, result, action): ...
 
 DOMAIN = base.register(Domain(
     name="science", title="Scientific research", spec_part="9.5", required_mechanics=(),   # () = the Part 9 list
     configs=(DomainConfig("lab_grid", "train", {...}, "..."), ...), build=build, objective=objective,
-    evaluate=evaluate, reference=Reference,
+    evaluate=evaluate, reference=ScienceReference,
     mechanics=(Mechanic("Experimental apparatus", ("sci.run", "sci.reading")), ...),
     seats=(Seat("researcher", 2_000_000),),
     actors=(Actor("rival labs", ("sci.paper",)), Actor("households", ("cols.batch:goods.session",))),

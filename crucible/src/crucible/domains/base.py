@@ -325,13 +325,20 @@ def register(d: Domain, *, replace: bool = True) -> Domain:
     if d.name in REGISTRY and not replace and REGISTRY[d.name] is not d:
         raise ValueError(f"domain {d.name} is already registered")
     REGISTRY[d.name] = d
-    _CACHE.clear()
+    _forget(d.name)
     return d
 
 
 def unregister(name: str) -> None:
     REGISTRY.pop(name, None)
-    _CACHE.clear()
+    _forget(name)
+
+
+def _forget(name: str) -> None:
+    """Drop the cached runs and gate report of one domain (its definition changed)."""
+    for k in [k for k in _CACHE if k[0] == name]:
+        del _CACHE[k]
+    _REPORTS.pop(name, None)
 
 
 def part9_domains() -> dict[str, Domain]:
@@ -1049,12 +1056,13 @@ def reference_canaries(d: Domain, policy) -> list[str]:
     """Distinctive identifiers of a domain's reference: its policy classes, their module, the factory."""
     out = set()
     for c in _classes_of(policy):
-        if len(c.__name__) >= 6:
+        if len(c.__name__) >= 8 and sum(ch.isupper() for ch in c.__name__) >= 2:   # not a plain word ("Reference")
             out.add(c.__name__)
         out.add(f"{c.__module__}.{c.__qualname__}")
     q = getattr(d.reference, "__qualname__", "")
-    if q and "<lambda>" not in q and len(q) >= 6:
-        out.add(q)
+    if q and "<" not in q:
+        if len(q) >= 8 and (sum(ch.isupper() for ch in q) >= 2 or "_" in q.strip("_")):
+            out.add(q)
         out.add(f"{d.reference.__module__}.{q}")
     return sorted(out)
 
