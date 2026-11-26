@@ -218,6 +218,8 @@ def cache_workload(cache_dir: str, work: str, kind: str = "population", profile:
 def capacity(n: int = 10_000_000, seed: int = 7, max_hours: int = 30, target_events: int = 10_000_000) -> dict:
     """The internet profile with the social internet's posts platform (social.cascade, as Gate I) until
     `target_events` qualifying distinct consumption events; recounted from the recorded decision blobs."""
+    import crucible
+    crucible.load_all_modules()
     from ..core.kernel import World
     from ..social import audience as AUD
     from ..social import cascade
