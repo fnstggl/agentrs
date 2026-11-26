@@ -1071,6 +1071,19 @@ def structure(world) -> dict:
 # it exactly); the structural evaluation configuration draws from families outside it
 HANDBOOK_FAMILIES = frozenset({"sat_lin", "thresh_quad", "peak", "power_exp", "sat_exp3", "interact3"})
 
+def tier3(config, merged: dict) -> dict:
+    """Inside a civilisation the civilisation's own `sci` configuration stays (its phenomena may be the physics of
+    its industry); the configuration adds the standards bureau's challenges (novel-condition evaluation) and the
+    population researchers."""
+    import copy
+    out = copy.deepcopy(merged)
+    sci = out["modules"].setdefault("sci", {})
+    sci.setdefault("challenge", {"every_days": 10, "start_day": 8, "points": 8})
+    out["modules"].setdefault("scipop", {"share": 0.025})
+    out["params"].setdefault("target_phenomenon", "ph0")
+    return out
+
+
 CONFIGS = (
     DomainConfig("bench", "train", STRUCTURES["bench"], DOCS["bench"]),
     DomainConfig("drift", "train", STRUCTURES["drift"], DOCS["drift"]),
@@ -1089,7 +1102,7 @@ DOMAIN = register(Domain(
     null_baseline=null_policy,
     degenerate=(Probe("constant_model", "claim the mean of a few readings as the law", constant_model),
                 Probe("copy_model", "republish another lab's model as one's own", copy_model)),
-    structure=structure, horizon_days=HORIZON_DAYS, slowest_effect_days=10.0, dt=6 * 3600,
+    structure=structure, tier3=tier3, horizon_days=HORIZON_DAYS, slowest_effect_days=10.0, dt=6 * 3600,
     reference_seeds=(0, 1), sources=("research_domain.py", "science.py", "lawlang.py"),
     doc="Phenomena with hidden laws studied by the population's researchers with paid, noisy, capacity-limited "
         "apparatus; papers, independent replication and blind challenges at novel conditions."))
