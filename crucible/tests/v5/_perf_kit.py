@@ -118,11 +118,14 @@ def event_driven() -> dict:
 
 @functools.lru_cache(maxsize=1)
 def cache_workload() -> dict:
+    # 96 simulated hours per world: content is consumed over days after it is published (a 30-day development civ
+    # world looks each representation up about 36 times), so a 12-hour world measures little more than first
+    # lookups (measured 2026-11-26: 0.67 over three 12-hour worlds, each item requested about twice)
     def compute():
         out = os.path.join(WORK, "cache.json")
         work = os.path.join(WORK, "cachework")
         r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "cache", "--world", "civ",
-                                 "--profile", "development", "--hours", "12", "--work", work, "--out", out], out,
+                                 "--profile", "development", "--hours", "96", "--work", work, "--out", out], out,
                                 "M: representation cache over three worlds", "standard")
         return {"ok": r is not None, "result": r, "usage": rec}
     return _cached("cache", compute)
