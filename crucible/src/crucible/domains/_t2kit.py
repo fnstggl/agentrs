@@ -42,6 +42,7 @@ class ScriptPolicy:
     kind = "scripted"
     name = "scripted-reference"
     version = "1"
+    burst = 60          # actions per decision point (the script yields None to wait for the next one)
 
     def __init__(self, script: Callable[["ScriptPolicy"], Any], label: str = "reference"):
         self.label = label

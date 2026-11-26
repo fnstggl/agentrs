@@ -426,7 +426,7 @@ def reference_script(post_every_s: int = DAY):
     subject, weekly events, moderation of reports."""
     def script(pol):
         from ..population import semantics, writing
-        items = K.ok((yield {"tool": "content.list", "args": {"platform": "posts", "limit": 100}})) or []
+        items = K.ok((yield {"tool": "content.list", "args": {"platform": "posts", "limit": 50}})) or []
         rows = items if isinstance(items, list) else items.get("items", [])
         words: dict = {}
         for it in rows:
