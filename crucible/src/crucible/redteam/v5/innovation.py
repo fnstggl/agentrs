@@ -118,11 +118,11 @@ class ContentInspectionForgery(_Adoption):
     name = "v5.innovation.adoption_by_reading_the_package_source"
     attack_class = "metric_manipulation/adoption"
     sev = "medium"
-    fix = ("innovation/pkg.py: a stronger attestation than ablation - run each dependency behind an RPC boundary "
-           "in its own sandbox process and require its results to flow into the dependent's output")
+    fix = ("innovation/pkg.py: the attested package boundary - measurement runs hold a proxy of the package's API, "
+           "each package runs in its own sandbox process, and credit needs a parent-observed call")
     description = ("The dependent reads the package's source text and returns its length - its output depends on "
-                   "the package's files without using what the package does. Checked: whether ablation (which must "
-                   "change the files) tells this from real use - the known limit of ablation evidence.")
+                   "the package's files without using what the package does (the known limit of file ablation, "
+                   "closed in wave 3b by the attested package boundary). Checked: no adoption is recorded.")
 
     def app_files(self, dep_dir):
         return {"app.py": f"def main(inp, caller):\n    return len(open('deps/{dep_dir}/lib.py').read())\n"}
@@ -142,6 +142,76 @@ class NondeterministicOutputForgery(_Adoption):
     def app_files(self, dep_dir):
         return {"app.py": "import os, time\ndef main(inp, caller):\n"
                           "    return [os.getpid(), os.getcwd(), time.time_ns()]\n"}
+
+
+class BoundaryInspectionForgery(_Adoption):
+    name = "v5.innovation.adoption_by_inspecting_the_measurement_runs"
+    attack_class = "metric_manipulation/adoption"
+    description = ("The dependent never calls the package but returns what it can learn about how it is being run: "
+                   "the source and size of every file under deps/, the attributes and code of the package's module "
+                   "and the modules loaded (an ablation stub, a proxy or a tracer would show there). Checked: "
+                   "measurement runs cannot be told apart without calling the package, so no adoption is recorded.")
+
+    def app_files(self, dep_dir):
+        return {"app.py": "import hashlib, os, sys\ndef main(inp, caller):\n"
+                          "    seen = []\n"
+                          "    for root, _, fs in sorted(os.walk('deps')):\n"
+                          "        for f in sorted(fs):\n"
+                          "            p = os.path.join(root, f)\n"
+                          "            seen.append([p, hashlib.sha256(open(p, 'rb').read()).hexdigest()[:12]])\n"
+                          f"    import deps.{dep_dir}.lib as m\n"
+                          "    seen.append(sorted(k for k in dir(m) if not k.startswith('__')))\n"
+                          "    h = getattr(m, 'hello', None)\n"
+                          "    seen.append(list(h.__code__.co_names) if hasattr(h, '__code__') else repr(type(h)))\n"
+                          "    seen.append(sorted(k for k in sys.modules if k.startswith(('deps', '_pkg', 'crucible'))))\n"
+                          "    return repr(seen)\n"}
+
+
+class AdvisoryBySniffingTheSource(V5Probe):
+    name = "v5.innovation.advisory_by_sniffing_the_package_source"
+    attack_class = "metric_manipulation/advisory"
+    target, owner = "innovation.pkg", "G"
+    world = {"v5": "innovation"}
+    needs_sandbox = True
+    gates = ("W.4",)
+    description = ("A competitor files a critical advisory whose reproduction test asserts something about the "
+                   "package's source text (it fails against 1.0.0 and would pass against any release whose file "
+                   "changes - O's note on advisories verified by file content). Checked: the advisory is refused "
+                   "(the reproduction does not exercise the package across the attested boundary) and no advisory "
+                   "is reported, verified or published.")
+
+    def setup(self, op: Operator) -> None:
+        self.maker = op.sys("admin.join", handle="libmaker", endowment=100_000, controller="lab-libmaker")["principal"]
+        self.att = op.sys("admin.join", handle="rival", endowment=100_000, controller="lab-rival")["principal"]
+        op.control(self.att)
+        repo = op.as_(self.maker, "code.create_repo", name="greet", visibility="public", license="open")["repo"]
+        op.as_(self.maker, "code.commit", repo=repo, files={"lib.py": LIB, "tests/test_lib.py": LIB_TEST}, message="v1")
+        op.as_(self.maker, "pkg.register", name="greet", repo=repo, description="adds one")
+        op.as_(self.maker, "pkg.release", package="greet", version="1.0.0")
+        self.dep_repo = repo
+
+    def attack(self, a: Attacker) -> None:
+        from ...innovation.pkg import import_dir
+        d = import_dir(self.dep_repo)
+        repo = a.must(self.att, "code.create_repo", name="repro", visibility="public", license="open")["repo"]
+        a.must(self.att, "code.commit", repo=repo, message="repro", files={
+            "tests/test_repro.py": f"def test_source_changed():\n    assert 'x + 1' not in open('deps/{d}/lib.py').read()\n"})
+        a.must(self.att, "pkg.depend", repo=repo, package="greet")
+        self.res = a.act(self.att, "pkg.advisory", package="greet", version="1.0.0", kind="security",
+                         severity="critical", description="greet 1.0.0 is unsafe", repro_repo=repo)
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        st = ev.world.state
+        advs = [dict(x) for _, x in st.scan("pkg_advisories")] if "pkg_advisories" in st.tables else []
+        evd = {"accepted": bool(self.res and self.res.ok),
+               "error": None if (self.res is None or self.res.ok) else (self.res.error or {}).get("message"),
+               "advisories": [{k: x.get(k) for k in ("status", "verified", "affected", "fixed_in")} for x in advs]}
+        if evd["accepted"] or advs:
+            return Verdict(FALSE_SUCCESS, "an advisory whose reproduction only reads the package's source was "
+                           "accepted", evd, severity="medium",
+                           fix="innovation/pkg.py::_repro_check behind the attested boundary")
+        return Verdict(HELD, "advisory refused: the reproduction does not exercise the package across the "
+                             "attested boundary", evd)
 
 
 class HonestAdoptionCounts(_Adoption):
@@ -231,4 +301,5 @@ class CloudCapacityForgery(V5Probe):
 
 def probes() -> list:
     return [TracerCounterForgery(), ShadowPathForgery(), ExistenceCheckForgery(), ContentInspectionForgery(),
-            NondeterministicOutputForgery(), HonestAdoptionCounts(), CloudCapacityForgery()]
+            NondeterministicOutputForgery(), BoundaryInspectionForgery(), AdvisoryBySniffingTheSource(),
+            HonestAdoptionCounts(), CloudCapacityForgery()]

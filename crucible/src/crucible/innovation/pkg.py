@@ -12,21 +12,31 @@ Packages extend 4.0 code hosting (`code`: repositories, commits, forks, `crucibl
 * dependency graph: `pkg.depend` resolves a version constraint and writes the lock into the dependent repository's
   `crucible.json` (`deps` entry `owner/repo@commit`, `packages` constraints); `pkg.upgrade` re-resolves only if the
   dependent's own tests still pass with the new version (compatibility);
-* adoption by execution only, measured by the parent (D-20): `pkg.exec` (one call) and `pkg.ci` (the dependent's
-  tests) run the dependent's code in the sandbox with its locked dependencies, and then once more per dependency
-  with that dependency *ablated* (its module replaced by a stub whose every attribute is an object that raises when
-  used); world calls of the ablated runs are answered from the first run's recorded replies, so ablation
-  has no side effects. A package is adopted by a dependent only when the dependent's successful outcome depends on it: the run
-  with the package ablated fails or returns a different result. Both outcomes are observed by the parent; the
-  in-sandbox call tracer's counts are recorded as self-reported and never decide adoption (they can be rewritten by
-  the traced code). `pkg.deploy` records a dependent's deployment with its locked versions;
+* adoption by execution only, measured by the parent (D-20) behind an *attested package boundary*: `pkg.exec` (one
+  call) and `pkg.ci` (the dependent's tests) run the dependent's code in the sandbox with its locked dependencies
+  (the reported outcome), and then measurement runs in which every locked package is replaced, in the dependent's
+  tree, by a generated proxy of its public API (the functions its release declared): a call crosses to the package's
+  OWN sandbox process (the package's files are mounted only there) through the parent, which runs it, counts it and
+  returns its JSON result. The dependent's process never holds the package's files in a measurement run, so reading,
+  hashing or listing them cannot pass for using the package (audit O / W.4: adoption by reading the source). One
+  measurement run has nothing withheld (the control, at an RNG-drawn position among the others); in each other run
+  one package's calls are answered by the parent with an error (the package is withheld). A package is adopted by a
+  dependent only when (1) the control run reproduces the reported outcome exactly, (2) the package was called in the
+  control run, and (3) in the run where it was withheld the dependent called it and the outcome changed. Everything
+  is observed by the parent; the program cannot tell the withheld run from the control except by calling the package
+  (and an outcome that depends on whether a call to the package succeeds is execution of the package). World calls
+  of measurement runs are answered from the reported run's recorded replies, so nothing happens twice in the world.
+  `pkg.deploy` records a dependent's deployment with its locked versions. Limits (documented): a package is attested
+  through its declared public API with JSON-native arguments and results; a dependent that uses non-API internals or
+  non-JSON values is not reproduced by the control run and is credited with nothing;
 * collaboration: `pkg.pr_open` (a change proposed from another repository, tested in the sandbox), `pkg.pr_diff`
   (reading the change is recorded), `pkg.pr_review` (reviews count as independent only from principals unrelated to
   the author who read the diff), `pkg.pr_merge` (maintainer; needs an independent approval and passing tests);
   `pkg.report` files issues; `pkg.fork` forks with lineage;
 * failures: `pkg.advisory` reports a defect with a reproduction repository. It is accepted as *reported* (visible to
-  the reporter and the maintainer) only if the reproduction's tests fail against the affected release AND their
-  outcome changes when the package is ablated (the reproduction exercises the package). It becomes *verified*
+  the reporter and the maintainer) only if the reproduction's tests fail against the affected release AND they
+  exercise the package across the attested boundary (the same three conditions as adoption: a reproduction that
+  only reads the package's files is not reproduced by the control run). It becomes *verified*
   (public, an issue is filed, dependents learn of it) only when a later release of the package makes the same
   reproduction pass: the defect is then demonstrably in the package and fixed in that release (`fixed_in`; the
   versions where it reproduced are `affected`). A reproduction that never passes on any release of the package
@@ -79,6 +89,9 @@ def tests(args, caller):
                 except BaseException as e:
                     res.append({"test": name + "." + t, "ok": False, "error": ("%s: %s" % (type(e).__name__, e))[:300]})
     return {"passed": sum(r["ok"] for r in res), "failed": sum(not r["ok"] for r in res), "results": res[:50]}
+def pcall(args, caller):
+    m = importlib.import_module(args["module"])
+    return {"value": getattr(m, args["fn"])(*(args.get("a") or []), **(args.get("k") or {}))}
 def api(args, caller):
     import inspect
     m = importlib.import_module(args["module"])
@@ -93,7 +106,27 @@ def api(args, caller):
             out[name] = [sum(1 for p in ps if p.default is p.empty), len(ps)]
     return out
 '''
-MAX_ABLATE = 6          # packages ablated per execution (the first ones by import directory)
+MAX_ABLATE = 6          # packages withheld per execution (the first ones by import directory)
+PKG_TOOL = "__pkg__"    # the broker tool name of a call across the attested package boundary
+MAX_PKG_CALLS = 2000    # calls across the boundary per measurement run
+PKG_WALL_S = 30.0       # package-process time per measurement run (then further calls are refused)
+PROXY_PY = r'''# Attested package boundary (crucible pkg): this is a generated proxy of package {name!r}. Every call
+# crosses to the package's own sandbox process through the parent, which runs and counts it.
+import builtins as _b
+import crucible_sdk as _sdk
+_P = {name!r}
+
+
+def _c(_f, _a, _k):
+    try:
+        return _sdk.call({tool!r}, package=_P, fn=_f, a=list(_a), k=dict(_k))
+    except _sdk.WorldError as _e:
+        _err = getattr(_e, "error", None) or {{}}
+        _t = getattr(_b, str(_err.get("type") or ""), None)
+        if isinstance(_t, type) and issubclass(_t, Exception):
+            raise _t(_err.get("message", ""))
+        raise RuntimeError(_err.get("message", ""))
+'''
 
 
 
@@ -201,66 +234,167 @@ class Packages(Module):
                           timeout=timeout, close_after=True, world_access=world_access, rpc_fn=rpc_fn,
                           rpc_results=rpc_results)
 
-    ABLATED = ("class _Ablated:\n"
-               "    def __init__(self, n):\n        self._n = n\n"
-               "    def __call__(self, *a, **k):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
-               "    def __getattr__(self, n):\n        return _Ablated(self._n + '.' + n)\n"
-               "    def __iter__(self):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
-               "    def __bool__(self):\n        raise RuntimeError('dependency ablated: ' + self._n)\n"
-               "def __getattr__(name):\n    return _Ablated(name)\n")
-
-    def _ablate(self, st, files: dict, pkg_name: str) -> dict:
-        """The same tree with one mounted dependency replaced by an ablation stub (parent-side adoption test)."""
-        p = st.tables["pkg_packages"][pkg_name]
-        d = f"deps/{import_dir(p['repo'])}/"
-        out = {k: v for k, v in files.items() if not k.startswith(d)}
-        out[f"{d}{p['module']}.py"] = self.ABLATED
-        out[f"{d}__init__.py"] = ""
+    # ------------------------------------------------------------------ attested package boundary (W.4)
+    def _attestable(self, st, repo: str, files: dict) -> dict[str, dict]:
+        """Locked packages of `repo` that can be put behind the attested boundary: {package: {dir, module, import,
+        api, files}} for the first MAX_ABLATE by import directory. `files` (the dependent's mounted tree) holds the
+        package's files exactly as the reported run used them; the proxy exposes the API its locked release
+        declared. A package whose locked release declares no API cannot be attested (and is credited nothing)."""
+        out = {}
+        for d, (name, ver) in sorted(self.closure(st, repo).items())[:MAX_ABLATE]:
+            p = st.tables["pkg_packages"][name]
+            rel = st.get("pkg_releases", f"{name}@{ver}")
+            api = sorted((rel or {}).get("api") or {})
+            if not api:
+                continue
+            pre = f"deps/{d}/"
+            out[name] = {"dir": d, "module": p["module"], "import": f"deps.{d}.{p['module']}", "api": api,
+                         "files": {k: v for k, v in files.items() if k.startswith(pre)}}
         return out
+
+    @staticmethod
+    def _proxy(name: str, module: str, api: list[str]) -> str:
+        src = PROXY_PY.format(name=name, tool=PKG_TOOL)
+        for fn in api:
+            src += f"\n\ndef {fn}(*a, **k):\n    return _c({fn!r}, a, k)\n"
+        return src
+
+    def _boundary_tree(self, base: dict, att: dict[str, dict], keep: str | None) -> dict:
+        """`base` with every attested package's mount replaced by its proxy, except `keep` (whose real files stay:
+        the tree of that package's own process). The dependent's own files are left out of a package's tree."""
+        out = {k: v for k, v in base.items() if not any(k.startswith(f"deps/{a['dir']}/") for a in att.values())}
+        if keep is not None:
+            out = {k: v for k, v in out.items() if k.startswith("deps/")}
+            out.update(att[keep]["files"])
+        for name, a in att.items():
+            if name == keep:
+                continue
+            out[f"deps/{a['dir']}/__init__.py"] = ""
+            out[f"deps/{a['dir']}/{a['module']}.py"] = self._proxy(name, a["module"], a["api"])
+        out[HARNESS] = HARNESS_PY
+        return out
+
+    def _run_attested(self, ctx, files: dict, att: dict[str, dict], job: dict, principal: str, label: str,
+                      withheld: str | None, replies: list | None) -> dict:
+        """One measurement run behind the attested boundary (recorded: replay returns the recorded outcome).
+        The dependent runs with proxies; each package called runs in its own sandbox process (started on its first
+        call, closed at the end of the run) whose tree has the package's files and proxies of the other packages.
+        Calls of the `withheld` package are answered with an error. World calls are answered from the reported
+        run's recorded replies (`replies`; None: no world access, refused exactly as in the reported run).
+        Outcome = the dependent's result plus {pkg_calls, pkg_withheld_calls} counted by the parent."""
+        from ..sandbox.bridge import billed_cpu_ms, recorded_outcome
+        from ..sandbox.runner import Worker
+        import time as _time
+        slot, rec = ctx.reserve()
+        if rec is not None:
+            return ctx.fill(slot, label, rec)
+        pool = ctx.world.modules["code"].sandbox_pool(ctx.world)
+        seq = list(replies or [])
+        calls: dict[str, int] = {}
+        refused: dict[str, int] = {}
+        workers: dict[str, Worker] = {}
+        busy: set[str] = set()
+        spent = [0.0, 0.0]                # package-process wall seconds, billed package CPU ms
+
+        def world_call(tool, args):
+            if replies is None:
+                return False, {"code": "forbidden", "message": "no network calls available"}
+            if seq and seq[0][0] == tool and seq[0][1] == args:
+                _t, _a, ok, val = seq.pop(0)
+                return ok, val
+            seq.clear()
+            return False, {"code": "forbidden", "message": "world calls are replayed during ablation"}
+
+        def broker(tool, args):
+            if tool != PKG_TOOL:
+                return world_call(tool, args)
+            name, fn = args.get("package"), args.get("fn")
+            a = att.get(name) if isinstance(name, str) else None
+            if a is None or fn not in a["api"]:
+                return False, {"code": "not_found", "type": "AttributeError",
+                               "message": f"package {name!r} has no public function {fn!r}"}
+            if name == withheld:
+                refused[name] = refused.get(name, 0) + 1
+                return False, {"code": "withheld", "type": "RuntimeError", "message": f"dependency ablated: {name}"}
+            if name in busy or spent[0] > PKG_WALL_S:
+                return False, {"code": "refused", "type": "RuntimeError",
+                               "message": f"package call refused: {name} (re-entrant or over the time budget)"}
+            w = workers.get(name)
+            if w is None:
+                w = workers[name] = Worker(self._boundary_tree(files, att, name), pool.cfg, label + ".pkg").start()
+            busy.add(name)
+            t0 = _time.monotonic()
+            try:
+                r = w.run({"kind": "call", "target": "_pkgharness:pcall", "caller": principal,
+                           "args": {"module": a["import"], "fn": fn, "a": args.get("a") or [],
+                                    "k": args.get("k") or {}}}, rpc=broker, timeout=10.0, max_rpc=MAX_PKG_CALLS)
+            finally:
+                busy.discard(name)
+                spent[0] += _time.monotonic() - t0
+            spent[1] += billed_cpu_ms(r)
+            calls[name] = calls.get(name, 0) + 1          # the package's code ran (returned or raised)
+            if r.get("ok"):
+                return True, (r.get("result") or {}).get("value")
+            err = r.get("error") or {}
+            return False, {"code": "package_error", "type": str(err.get("type") or "RuntimeError"),
+                           "message": str(err.get("message") or "")[:500]}
+        dep = Worker(self._boundary_tree(files, att, None), pool.cfg, label).start()
+        try:
+            res = dep.run(job, rpc=broker, timeout=20.0, max_rpc=MAX_PKG_CALLS)
+        finally:
+            dep.close()
+            for w in workers.values():
+                w.close()
+        out = recorded_outcome(res, [], None)
+        out["cpu_ms"] = round(float(out["cpu_ms"]) + spent[1], 4)
+        out["pkg_calls"] = dict(sorted(calls.items()))
+        out["pkg_withheld_calls"] = dict(sorted(refused.items()))
+        return ctx.fill(slot, label, out)
 
     def _exercised(self, ctx, repo: str, files: dict, job: dict, principal: str, base: dict, label: str,
                    replies: list | None = None, info: dict | None = None) -> list[str]:
-        """Packages whose ablation changes a successful, reproducible outcome (all outcomes observed by the parent).
-        World calls of an ablated run are answered from the first run's recorded replies, in order (a different call
-        is refused), so nothing happens twice in the world; at most MAX_ABLATE packages are ablated.
+        """Packages the reported, successful outcome `base` demonstrably depends on, measured behind the attested
+        boundary (module doc): the control run (nothing withheld, at a position among the withheld runs drawn from
+        the world's RNG so the program cannot tell which rerun it is) must reproduce `base` exactly, and a package
+        counts only if the control run called it and the run withholding it called it and changed the outcome.
 
-        Control (workstream O): one more run with nothing ablated, at a position among the ablated runs drawn from
-        the world's RNG (the program cannot tell which rerun is the control). An outcome that does not reproduce
-        without ablation (clock, process id, working directory, random numbers) says nothing about any dependency
-        and credits none - otherwise every locked package of a nondeterministic program would count as adopted
-        without being used. `info` receives {reproducible, control_position, ablated}."""
+        Control (workstream O): an outcome that does not reproduce (clock, process id, working directory, random
+        numbers, or anything read from the package's files, which measurement runs do not hold) credits no
+        package. `info` receives {reproducible, control_position, ablated, attested, calls}."""
         from ..core.canonical import digest as _dg
         st = ctx.state
         out = []
         base_key = _dg(self._outcome(base))
-        names = [name for _, (name, _) in sorted(self.closure(st, repo).items())[:MAX_ABLATE]]
+        att = self._attestable(st, repo, files)
+        names = sorted(att)
         if not names:
+            if info is not None:
+                info.update(reproducible=None, control_position=None, ablated=0, attested=[], calls={})
             return out
         pos = int(ctx.world.rng_for("pkg.ablation.control", ctx.world.main_seq, label, repo).integers(0, len(names) + 1))
         order: list = list(names)
         order.insert(pos, None)
-        reproducible = True
+        control = None
+        runs = {}
         for name in order:
-            seq = list(replies or [])
-
-            def replay(tool, args, _seq=seq):
-                if _seq and _seq[0][0] == tool and _seq[0][1] == args:
-                    _t, _a, ok, val = _seq.pop(0)
-                    return ok, val
-                _seq.clear()
-                return False, {"code": "forbidden", "message": "world calls are replayed during ablation"}
-            tree = files if name is None else self._ablate(st, files, name)
-            o2 = self._run(ctx, tree, job, principal, label + (".control" if name is None else ".ablate"),
-                           world_access=replies is not None, timeout=10.0,
-                           rpc_fn=replay if replies is not None else None)
-            differs = _dg(self._outcome(o2)) != base_key
+            o2 = self._run_attested(ctx, files, att, job, principal,
+                                    label + (".control" if name is None else ".ablate"), name, replies)
             if name is None:
-                reproducible = not differs
-            elif differs:
-                out.append(name)
+                control = o2
+            else:
+                runs[name] = o2
+        reproducible = _dg(self._outcome(control)) == base_key
+        called = control.get("pkg_calls") or {}
+        if reproducible:
+            for name in names:
+                o2 = runs[name]
+                if called.get(name, 0) > 0 and (o2.get("pkg_withheld_calls") or {}).get(name, 0) > 0 \
+                        and _dg(self._outcome(o2)) != base_key:
+                    out.append(name)
         if info is not None:
-            info.update(reproducible=reproducible, control_position=pos, ablated=len(names))
-        return out if reproducible else []
+            info.update(reproducible=reproducible, control_position=pos, ablated=len(names), attested=names,
+                        calls=dict(called))
+        return out
 
     @staticmethod
     def _outcome(o: dict):
@@ -629,6 +763,15 @@ class Packages(Module):
         return {"upgraded": True, "version": rel["version"], "commit": cid}
 
     # ================================================================== execution (adoption evidence)
+    @staticmethod
+    def _attest_extra(info: dict) -> dict | None:
+        """What an execution record keeps of its measurement runs: whether the control reproduced the reported
+        outcome, which packages were behind the boundary and how often the control called each."""
+        if not info:
+            return None
+        return {"reproducible": info.get("reproducible"), "attested": list(info.get("attested") or []),
+                "boundary_calls": dict(info.get("calls") or {})}
+
     def _record_exec(self, ctx, repo, commit, kind, ok, calls, extra=None, exercised=()):
         st = ctx.state
         r = st.tables["repos"][repo]
@@ -665,7 +808,7 @@ class Packages(Module):
         info: dict = {}
         ex = self._exercised(ctx, repo, files, job, ctx.actor, out, "pkg.exec", replies, info) if out["ok"] else []
         eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], res.get("calls"),
-                                        {"reproducible": info.get("reproducible")} if info else None, exercised=ex)
+                                        self._attest_extra(info), exercised=ex)
         return {"execution": eid, "ok": out["ok"], "result": res.get("result"), "error": out["error"],
                 "exercised": ex, "cpu_ms": out["cpu_ms"]}
 
@@ -690,7 +833,7 @@ class Packages(Module):
                              "pkg.ci", None, info) if ok else []
         eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, res.get("calls"),
                                         {"tests": {"passed": res["passed"], "failed": res["failed"]},
-                                         **({"reproducible": info.get("reproducible")} if info else {})}, exercised=ex)
+                                         **(self._attest_extra(info) or {})}, exercised=ex)
         return {"execution": eid, "ok": ok, "passed": res["passed"], "failed": res["failed"],
                 "results": res["results"][:20], "exercised": ex}
 
@@ -887,15 +1030,36 @@ class Packages(Module):
                 "affected": affected, "fixed_in": fixed_in, "tests": {"passed": res["passed"], "failed": res["failed"]}}
 
     def _repro_check(self, ctx, repro_repo, repro_commit, pkg_repo, pkg_commit, package, principal):
-        """Run a reproduction against a release and with the package ablated: (result, exercises the package)."""
+        """Run a reproduction against a release, then behind the attested boundary: (result, exercises the package).
+        The reproduction exercises the package only if its outcome is reproduced with the package behind its
+        boundary, the package is called, and withholding it changes the outcome (a reproduction that reads, hashes
+        or sniffs the package's files is not reproduced: measurement runs do not hold them)."""
         st = ctx.state
         files = self._files_with(ctx, repro_repo, repro_commit, principal, swap={pkg_repo: pkg_commit})
         res = self._ci(ctx, files, principal, "pkg.repro")
-        abl = self._run(ctx, self._ablate(st, files, package), {"kind": "call", "target": "_pkgharness:tests",
-                                                                 "args": {}, "caller": principal}, principal,
-                        "pkg.repro.ablate")
+        att = {k: v for k, v in self._attestable_swapped(st, repro_repo, files, package, pkg_commit).items()}
+        if package not in att:
+            return res, False
+        job = {"kind": "call", "target": "_pkgharness:tests", "args": {}, "caller": principal}
         base = self._outcome({"ok": True, "result": {"results": res["results"], "passed": res["passed"]}})
-        return res, base != self._outcome(abl)
+        ctl = self._run_attested(ctx, files, att, job, principal, "pkg.repro.control", None, None)
+        abl = self._run_attested(ctx, files, att, job, principal, "pkg.repro.ablate", package, None)
+        exercises = (self._outcome(ctl) == base and (ctl.get("pkg_calls") or {}).get(package, 0) > 0
+                     and (abl.get("pkg_withheld_calls") or {}).get(package, 0) > 0 and self._outcome(abl) != base)
+        return res, exercises
+
+    def _attestable_swapped(self, st, repo: str, files: dict, package: str, commit: str) -> dict[str, dict]:
+        """Like `_attestable`, for a reproduction run against one release of `package` (mounted by `swap`, so the
+        reproduction need not lock it): the package's API is that release's."""
+        att = self._attestable(st, repo, files)
+        p = st.tables["pkg_packages"][package]
+        rel = next((r for r in self.releases(st, package, include_yanked=True) if r["commit"] == commit), None)
+        api = sorted((rel or {}).get("api") or {})
+        d = import_dir(p["repo"])
+        if api:
+            att[package] = {"dir": d, "module": p["module"], "import": f"deps.{d}.{p['module']}", "api": api,
+                            "files": {k: v for k, v in files.items() if k.startswith(f"deps/{d}/")}}
+        return att
 
     def _publish_advisory(self, ctx, aid: str) -> None:
         st = ctx.state

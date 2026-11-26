@@ -60,12 +60,6 @@ KNOWN_OPEN: dict[str, dict] = {
         "note": "Pillow decodes participant images inside the world process (social/formats.inspect, social/render."
                 "open_image, semantic/media.open_image; owners C and D): a decoder memory-safety bug would run "
                 "outside every sandbox"},
-    "v5.innovation.adoption_by_reading_the_package_source": {
-        "outcome": "false_success", "severity": "medium", "owner": "G",
-        "note": "ablation evidence cannot tell 'output depends on the package's files' from 'uses the package' (nor "
-                "a program that inspects the ablation stub, or one wrong on purpose in a random subset of reruns, "
-                "credited with probability 1/(k+1) despite the unablated control rerun); a per-dependency RPC "
-                "boundary would. Such a dependent gains nothing that trivially calling the package would not"},
 }
 
 # probes that must hold in every build (a finding here fails the gate even if someone adds it to KNOWN_OPEN)
@@ -118,6 +112,10 @@ FIXED_BY_OWNERS: dict[str, str] = {
     "F P6: owner-funded ratings set the public rating (F)": "v5.commerce.owner_funded_five_star_ratings",
     "O 3.13 / P15: legacy reward was the default (L)": "v5.experience.observation_only_is_the_default",
     "O 3.12: closed worlds' bytes stayed in the artifact pool (A)": "v5.crossworld.closed_worlds_release_their_bytes",
+    # wave 3b, workstream G: adoption and advisory evidence measured behind the attested package boundary
+    # (innovation/pkg.py: measurement runs hold proxies, not the package's files; credit needs a parent-observed call)
+    "G wave 3b: adoption credited for reading the package source (G)":
+        "v5.innovation.adoption_by_reading_the_package_source",
 }
 
 

@@ -193,3 +193,30 @@ def test_full_software_history_has_all_mechanisms_and_replays_exactly():
         g.close()
     finally:
         w.close()
+
+
+def test_attested_boundary_credits_calls_not_reading_the_package(world):
+    """W.4 (wave 3b): measurement runs hold a proxy of the package's API, the package runs in its own sandbox
+    process, and credit needs a parent-observed call. Reading, hashing or sniffing the package's files is not use."""
+    w = world
+    must(w, "ben", "code.create_repo", name="reader")
+    must(w, "ben", "code.commit", repo="ben/reader", files={
+        "app.py": "def run(args, caller):\n    return len(open('deps/vecmath/lib.py').read())\n",
+        "probe.py": "import crucible_sdk as sdk\n\n\ndef run(args, caller):\n    try:\n"
+                    "        return sdk.call('__pkg__', package='vecmath', fn='__loader__', a=[], k={})\n"
+                    "    except Exception as e:\n        return type(e).__name__\n",
+        "real.py": APP})
+    must(w, "ben", "pkg.depend", repo="ben/reader", package="vecmath")
+    r = must(w, "ben", "pkg.exec", repo="ben/reader", target="app:run", input=None)
+    assert r["ok"] and r["result"] > 0 and r["exercised"] == []
+    rec = [e for _, e in w.state.scan("pkg_execs")][-1]
+    assert rec["reproducible"] is False and rec["attested"] == ["vecmath"] and rec["boundary_calls"] == {}
+    r = must(w, "ben", "pkg.exec", repo="ben/reader", target="probe:run", input=None)   # not a public function
+    assert r["exercised"] == []
+    assert M.adoptions_by_execution(w) == []
+    r = must(w, "ben", "pkg.exec", repo="ben/reader", target="real:run", input=[6, 8])
+    rec = [e for _, e in w.state.scan("pkg_execs")][-1]
+    assert r["result"] == 10.0 and r["exercised"] == ["vecmath"]
+    assert rec["reproducible"] is True and rec["boundary_calls"] == {"vecmath": 1}
+    assert [a["repo"] for a in M.adoptions_by_execution(w)] == ["ben/reader"]
+    assert w.check_invariants() == []
