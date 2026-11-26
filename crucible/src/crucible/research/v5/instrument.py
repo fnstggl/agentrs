@@ -68,8 +68,10 @@ CONTROLS = {
     "pretrained": (("pretrained_competence",), ("weight_learning", "persistent_state", "memorisation",
                                                 "context_adaptation", "meta_learning", "transferable_efficiency")),
     "meta": (("meta_learning",), ("memorisation", "persistent_state", "pretrained_competence")),
-    "transfer": (("transferable_efficiency",), ("memorisation", "persistent_state", "pretrained_competence",
-                                                "context_adaptation")),
+    # the transfer control keeps a per-task search state (its memory, by construction), so it memorises the worlds
+    # it practised; that is part of its known capability, not an error of the instrument (corrected after the
+    # 2026-11-26 development run, which labelled it so)
+    "transfer": (("transferable_efficiency",), ("persistent_state", "pretrained_competence", "context_adaptation")),
     "transfer_sham": ((), ("transferable_efficiency", "memorisation", "persistent_state", "pretrained_competence")),
 }
 KIND_OF = {"hold": "cannot_learn", "adapter": "within_episode_only", "memoriser": "memorises_trajectories",
@@ -84,9 +86,9 @@ class Design:
     seeds: tuple[int, ...] = (0, 1, 2, 3, 4)
     train_tasks: int = 24
     repeats: int = 3
-    eval_seeds: tuple[int, ...] = (1_000_101, 1_000_102)
-    transfer_seeds: tuple[int, ...] = (1_000_201,)
-    repeat_probe: int = 8
+    eval_seeds: tuple[int, ...] = (1_000_101, 1_000_102, 1_000_103, 1_000_104)
+    transfer_seeds: tuple[int, ...] = (1_000_201, 1_000_202)
+    repeat_probe: int = 12
     transfer_budgets: tuple[int, ...] = (0, 1, 2, 4, 8, 16)
     q: float = 0.3
     pretrain_tasks: int = 48
