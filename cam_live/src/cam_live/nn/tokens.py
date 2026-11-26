@@ -120,8 +120,8 @@ class ExperienceTokenizer(nn.Module):
         # time gap
         self.gap_proj = nn.Linear(N_GAP, d_model, bias=False)
         self.stats = {"dropped_values": 0, "nonfinite_values": 0, "truncated_items": 0}
-        for emb, std in ((self.kind_emb, 0.3), (self.trust_emb, 0.15), (self.name_a, 0.58), (self.name_b, 0.58),
-                         (self.unit_emb, 0.58)):
+        for emb, std in ((self.kind_emb, 0.3), (self.trust_emb, 0.15), (self.name_a, 0.67), (self.name_b, 0.67),
+                         (self.unit_emb, 0.3)):
             nn.init.normal_(emb.weight, std=std)
         nn.init.normal_(self.w_odd.weight, std=1.0 / math.sqrt(N_ODD))
         nn.init.normal_(self.w_even.weight, std=1.0 / math.sqrt(N_EVEN + N_META))

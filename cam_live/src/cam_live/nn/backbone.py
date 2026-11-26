@@ -263,8 +263,11 @@ class _Backbone(nn.Module):
         n_hook = max(1, min(nn_cfg.bridge_layers, self.n_layers))
         self.bridge_ids = sorted({int(round(x)) for x in torch.linspace(0, self.n_layers - 1, n_hook).tolist()})
         d_x = max(nn_cfg.bridge_heads, min(nn_cfg.bridge_dim, self.hidden) // nn_cfg.bridge_heads * nn_cfg.bridge_heads)
-        self.bridge = LatentBridge(self.d_latent, self.hidden, len(self.bridge_ids), max(1, cfg.bridge_tokens), d_x,
-                                   nn_cfg.bridge_heads).to(self.device)
+        with torch.random.fork_rng(devices=[]):                 # deterministic init, global RNG untouched
+            torch.manual_seed(15_485_863 + int(seed))
+            bridge = LatentBridge(self.d_latent, self.hidden, len(self.bridge_ids), max(1, cfg.bridge_tokens), d_x,
+                                  nn_cfg.bridge_heads)
+        self.bridge = bridge.to(self.device)
         self._bridge_slot = {i: s for s, i in enumerate(self.bridge_ids)}
         for i in sorted(set(self.tap_ids) | set(self.bridge_ids)):
             layers[i].register_forward_hook(functools.partial(self._layer_hook, i))

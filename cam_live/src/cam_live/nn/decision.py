@@ -111,9 +111,9 @@ class DecisionTrunk(nn.Module):
         _unit_init(self.ff.w3, 0.5)
 
     def forward(self, b: Tensor, e_a: Tensor, e_g: Tensor) -> Tensor:
-        sit = (self.wb(self.nb(b)) + self.wg(self.ng(e_g))).unsqueeze(1)                 # [B, 1, D]
+        sit = self.sit_norm(self.wb(self.nb(b)) + self.wg(self.ng(e_g))).unsqueeze(1)   # [B, 1, D], unit RMS
         a = self.na(e_a)
-        u = self.wa(a) + sit + self.ia(a) * self.isit(self.sit_norm(sit))
+        u = self.wa(a) + sit + self.ia(a) * self.isit(sit)
         return self.out_norm(u + self.ff(self.ff_norm(u)))
 
 
