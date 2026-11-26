@@ -151,14 +151,17 @@ def cx_overdose(rng, d):
 @_pg("cx_balancing_loop", category="8.1", item="8.1.5", split="train",
         doc="Output feeds back on the system through an unobserved intermediate that pushes against change: a step in "
             "the lever overshoots at once and settles about a third lower, so short tests overstate its lasting "
-            "value.",
+            "value. Predict where output settles at settings outside what can be set.",
         distinct_because="compose feedback topology with a balancing loop (outcome -> hidden feedback node with "
                          "negative weight, one-tick lag); the opposite of a reinforcing loop: long-run response "
-                         "below the short-run one",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "balancing_loop",), identify=C + "lever_raises_sales", lever_view=True)
+                         "below the short-run one; scored by predictions of the settled response at held-out "
+                         "conditions",
+        axes={"horizon": 80, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "balancing_loop",), identify=C + "lever_raises_sales", lever_view=True,
+        reference="crucible.rapid.refs_adapt:arx_settled_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def cx_balancing_loop(rng, d):
-    c = Composed(rng, _base(d, topology="feedback", motifs=["saturation"]))
+    c = Composed(rng, _base(d, topology="feedback", motifs=["saturation"], affordances=["levers", "message"]))
     a, b = c.levers
     fb = next(n for n in c.motifs if c.prim_of(n) == "feedback")
     # the balancing loop: the hidden node damps its own response (negative self-feedback, y' = x + g y with
@@ -171,10 +174,18 @@ def cx_balancing_loop(rng, d):
     c.set_lever(a, default=u(rng, 0.5, 1.5))
     c.set_lever(b, default=u(rng, 6.0, 8.0))
     c.set_params(c.sold, half=u(rng, 20.0, 35.0))
+    held = [{c.name_of(a): p, c.name_of(b): q} for p, q in
+            ((0.5, 12.0), (2.0, 11.0), (4.0, 13.0), (11.0, 0.5), (12.0, 6.0), (1.0, 0.0), (14.0, 12.0))]
+    text = ("Predict where output would settle if the two levers were held at these values (partly outside what "
+            f"you can set): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
     cfg = c.finish(brief="A process with two control levers. Gauges: output and throughput.",
-                   objective={"type": "maximize_net", "text": SHOP},
-                   claim={"lever": a, "second": b, "outcome": c.sold, "core": c.core, "hidden": fb})
+                   objective={"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                              "settle_ticks": 200},
+                   journal=True, claim={"lever": a, "second": b, "outcome": c.sold, "core": c.core, "hidden": fb})
     price_key_and_costly(cfg, a, u(rng, 7.0, 9.0), b, u(rng, 1.5, 2.0))
+    for lv in (a, b):                                     # the question is the lasting response, not economics
+        cfg["nodes"][int(lv[1:])]["lever"]["cost"] = 0.0
     return cfg
 
 

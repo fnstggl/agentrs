@@ -466,3 +466,86 @@ def interleaved_law_predict(view, env) -> None:
                    "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
     while not view.done:
         view.step(None)
+
+
+def arx_settled_predict(view, env, order: int = 2, lags: int = 2, hold: tuple = (2, 6), seed: int = 0) -> None:
+    """Scripted public reference for predicting where a process with feedback settles: hold random settings for a
+    few ticks each (a persistently exciting design over the settable range), fit a dynamic model of the reading -
+    its own last `order` values plus each setting's current and last `lags` values through a saturating basis
+    (shape by cross-validation) - and file the model's steady state at the held-out conditions:
+    y* = (c + sum_b b phi(x)) / (1 - sum_a a)."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = np.array([float(props[n]["minimum"]) for n in names])
+    hi = np.array([float(props[n]["maximum"]) for n in names])
+    X, y = [], []
+    while view.t < view.horizon - 2 and not view.done:
+        s = lo + rng.random(len(names)) * (hi - lo)
+        for _ in range(int(rng.integers(hold[0], hold[1] + 1))):
+            if view.t >= view.horizon - 2 or view.done:
+                break
+            r = view.step({"kind": "levers", "values": {n: float(v) for n, v in zip(names, s)}})
+            nums = r["observation"]["numbers"]
+            X.append(s.copy())
+            y.append(list(nums.values())[0] if nums else np.nan)
+    X, y = np.asarray(X), np.asarray(y, dtype=float)
+    p = max(order, lags)
+    if len(y) < 20 + p or view.done:
+        while not view.done:
+            view.step(None)
+        return
+
+    def basis(x, h):
+        return np.c_[x, x / (x + h)] if h < 1e5 else x[:, None] if x.ndim == 1 else x
+
+    best = None
+    for h in (0.5, 1.0, 2.0, 4.0, 8.0, 1e6):
+        rows, tgt = [], []
+        for t in range(p, len(y)):
+            if not np.isfinite(y[t - order:t + 1]).all():
+                continue
+            feats = [1.0] + [y[t - k] for k in range(1, order + 1)]
+            for l in range(lags + 1):
+                for j in range(len(names)):
+                    xv = X[t - l, j]
+                    feats += [xv, xv / (xv + h)] if h < 1e5 else [xv]
+            rows.append(feats)
+            tgt.append(y[t])
+        F, T = np.asarray(rows), np.asarray(tgt)
+        if len(T) < F.shape[1] + 5:
+            continue
+        folds = np.arange(len(T)) % 5
+        cv = 0.0
+        for k in range(5):
+            tr, te = folds != k, folds == k
+            coef = np.linalg.lstsq(F[tr], T[tr], rcond=None)[0]
+            cv += float(np.sum((F[te] @ coef - T[te]) ** 2))
+        if best is None or cv < best[0]:
+            best = (cv, h, np.linalg.lstsq(F, T, rcond=None)[0])
+    if best is None:
+        while not view.done:
+            view.step(None)
+        return
+    _, h, coef = best
+    a_sum = float(np.sum(coef[1:1 + order]))
+
+    def steady(cond):
+        tot = coef[0]
+        k = 1 + order
+        for _ in range(lags + 1):
+            for n in names:
+                xv = float(cond[n])
+                if h < 1e5:
+                    tot += coef[k] * xv + coef[k + 1] * xv / (xv + h) if xv + h != 0 else 0.0
+                    k += 2
+                else:
+                    tot += coef[k] * xv
+                    k += 1
+        return float(tot / max(1e-3, 1.0 - a_sum))
+    view.step({"kind": "message", "to": "journal",
+               "content": {"predictions": [{"set": c, "value": steady(c)} for c in held]}})
+    while not view.done:
+        view.step(None)
