@@ -247,10 +247,11 @@
     "src/crucible/commerce/products.py"
    ],
    "tests": [
-    "tests/test_v5_econ_civic.py"
+    "tests/test_v5_econ_civic.py",
+    "tests/test_v5_econ_civic.py::test_activity_continues_and_incumbent_days_never_fail"
    ],
    "status_claim": "implemented; unit tests pass (startup world with exchanges, institutions and labour market); civilisation verification run: see test_results",
-   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals)."
+   "notes": "Activities registered by economy.work where the subsystem module is present: exchange passes in `shop`, `jobs` (economy.jobs), `assoc` (economy.assoc); incumbents' labelled rules for staffing, passes and display campaigns (commerce.rivals). Wave 3b continuation: pass buyers also rate the seller on the venue (xchg.rate, same judgement as the product rating); a 12-week startup-world run (seed 21, n=700) keeps every activity going in each of the last four weeks (shifts, ballots, dues, pass orders) after DEF-F-7 was fixed (an incumbent's refused re-dismissal of staff on notice had rolled back its whole day, support included, from day 55: 26 rivals.failed)."
   },
   "SP-2.3 migrations (institution, contract)": {
    "implementation_files": [
@@ -306,7 +307,25 @@
    "workstream": "F+G",
    "branch": "c5c/w2-econ",
    "file": "docs/v5/workstreams/F+G.json"
+  },
+  "wave3b_part1": {
+   "note": "first wave-3b agent (stopped by a usage limit 19:05 UTC): commits 33128e5..a980c73 - civic activities, display advertising, SP-2.3 migrations, gates SP-6.1b/SP-6.2/SP-6.6b, D-39..D-41, DEF-F-1..F-6; its verification runs (gate K incl. K.n1, civ core, civ probe) never ran (test_results was empty)."
   }
  },
- "test_results": {}
+ "test_results": {
+  "note": "wave 3b continuation (re-run on the branch head after merging feat/crucible-5-complete; local runs are single-threaded CPU; slot runs as labelled). Unofficial: official evidence comes from clean clones.",
+  "tests/test_v5_commerce_contracts.py + test_v5_commerce_institutions.py + test_v5_commerce_labor.py": "38 passed",
+  "tests/test_v5_commerce_modules.py + tests/v5/test_gate_SP_6_6.py + tests/v5/test_gate_SP_6_6b.py": "24 passed",
+  "tests/v5/test_gate_K.py -m 'not slow' (K.1-K.7, K.n2)": "8 passed",
+  "tests/test_v5_econ_civic.py": "7 passed (6 + the 12-week regression, run separately)",
+  "tests/test_v5_econ_work.py": "6 passed",
+  "tests/test_kernel.py + tests/test_invariants.py": "51 passed",
+  "tests/test_v5_substrate_facts.py": "9 passed",
+  "tests/test_open_institutions.py": "5 passed",
+  "tests/test_fidelity.py": "9 passed (register_problems: none)",
+  "tests/v5/test_gate_SP_6_1.py": "1 passed (business_features 20/20)",
+  "tests/v5/test_gate_SP_6_2.py": "1 failed, honestly: recurring_revenue_systems_of_record 2 (social/creators.py bills memberships itself; integration note CORE-POP); revenue_features 11/11, rolling_sales_counted_as_recurring 0, product_catalogues 1",
+  "in-world ad holdout (startup, seed 3, n=2000, 45 days, 1,696 draws)": "shift 1.31 vs Criteo 1.39, z -0.21, matching",
+  "pending (slot queue)": "gate K incl. K.n1, SP-6.1b, civ probe (4 profiles), tests/test_v5_civ_core.py, regression of touched packages"
+ }
 }
