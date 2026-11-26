@@ -50,7 +50,10 @@ KIND_RE = r"[a-z][a-z0-9_.-]{0,31}"
 MIME_RE = r"[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]{0,63}/[a-zA-Z0-9][a-zA-Z0-9!#$&^_.+-]{0,63}"
 MiB = 1 << 20
 DEFAULTS = {"max_bytes": 32 * MiB, "quota_bytes": 512 * MiB, "batch_max_bytes": 1024 * MiB, "fee_cents_per_mib": 0,
-            "max_meta_bytes": 4096, "max_parents": 64, "cache_bytes": 256 * MiB}
+            "max_meta_bytes": 4096, "max_parents": 64, "cache_bytes": 256 * MiB,
+            # bound on a founding person plus every organisation it founded (0: quota_bytes). Organisations are free
+            # to create, so a per-owner quota alone would not bound a participant (red-team finding, ws-O).
+            "group_quota_bytes": 0}
 NPZ_MIME = "application/x-npz"
 
 # ---------------------------------------------------------------------------------------------------- byte storage
@@ -287,24 +290,50 @@ def publish(ctx: Ctx, ref: str, *, audience: str = "public") -> None:
 
 
 def readable(world, principal: str, ref: str) -> bool:
-    """Owner (incl. owners/admins of an owning organisation), grantee, holder of identical bytes, or published."""
+    """Owner (incl. owners/admins of an owning organisation), grantee, holder of identical bytes, or published (by
+    the first owner or by any holder: each holder publishes and grants its own record)."""
     if principal == SYSTEM:
         return exists(world, ref)
     if not exists(world, ref):
         return False
-    st = world.state
-    a = st.tables["artifacts"][ref]
-    ps = world.principals_of(principal)
-    if a["owner"] in ps:
+    return _record_for(world.state, ref, world.principals_of(principal)) is not None
+
+
+def _records(st, ref: str) -> list[tuple[str, dict]]:
+    """(owner, record) of every record of these bytes: the first owner's artifact record, then each holder's."""
+    out = [(st.tables["artifacts"][ref]["owner"], st.tables["artifacts"][ref])]
+    for hid in sorted(st.find_ids("artifact_holders", "ref", ref)):
+        h = st.tables["artifact_holders"][hid]
+        out.append((h["holder"], h))
+    return out
+
+
+def grant_key(ref: str, grantee: str, record: str | None = None) -> str:
+    """Key of a read grant: `ref|grantee` for the first owner's record, `ref|grantee|holder` for a holder's."""
+    return f"{ref}|{grantee}" if not record else f"{ref}|{grantee}|{record}"
+
+
+def _record_visible(st, ref: str, rec_owner: str, rec: dict, ps: set) -> bool:
+    """Whether principals `ps` may see this one record without owning it: published, published to them, or
+    granted to them by the record's owner side."""
+    if rec.get("published") or any(x in ps for x in rec.get("audiences", ())):
         return True
-    if a["published"]:
-        return True
-    if any(x in ps for x in a["audiences"]):
-        return True
-    for p in ps:
-        if st.has("artifact_grants", f"{ref}|{p}") or st.has("artifact_holders", f"{ref}|{p}"):
-            return True
-    return False
+    first = st.tables["artifacts"][ref]["owner"] == rec_owner
+    return any(st.has("artifact_grants", grant_key(ref, p, None if first else rec_owner)) for p in ps)
+
+
+def _record_for(st, ref: str, ps: set) -> tuple[str, dict] | None:
+    """The record principals `ps` see of an artifact: their own (as owner or holder) first, then one that was
+    published or granted to them; None when they may see none. Holders see only their own record, so storing bytes
+    someone else already stores never reveals that person's record."""
+    recs = _records(st, ref)
+    for owner, rec in recs:
+        if owner in ps:
+            return owner, rec
+    for owner, rec in recs:
+        if _record_visible(st, ref, owner, rec, ps):
+            return owner, rec
+    return None
 
 
 def put_array_blob(ctx: Ctx, arrays: dict[str, np.ndarray]) -> str:
@@ -382,11 +411,16 @@ bus.event_type("artifact.stored", S.obj({
     doc="a principal stored these bytes (metadata only; bytes live in the blob store). The first store creates the "
         "artifact; a later one by another principal makes it a holder of identical bytes - the event is the same, "
         "so a caller cannot learn whether somebody else already had them")
-bus.event_type("artifact.published", S.obj({"ref": _EV_REF, "audience": _EV_PRINCIPAL}, ["ref", "audience"]),
-               owner="artifacts", doc="an artifact became readable by an audience ('public' or a principal)")
-bus.event_type("artifact.granted", S.obj({"ref": _EV_REF, "grantee": _EV_PRINCIPAL, "by": _EV_PRINCIPAL},
-                                         ["ref", "grantee", "by"]), owner="artifacts", doc="read access granted")
-bus.event_type("artifact.revoked", S.obj({"ref": _EV_REF, "grantee": _EV_PRINCIPAL, "by": _EV_PRINCIPAL},
+bus.event_type("artifact.published", S.obj({"ref": _EV_REF, "audience": _EV_PRINCIPAL, "holder": _EV_PRINCIPAL},
+                                           ["ref", "audience"]),
+               owner="artifacts", doc="an artifact became readable by an audience ('public' or a principal); with "
+                                      "`holder`, that holder's own record of the bytes was published")
+bus.event_type("artifact.granted", S.obj({"ref": _EV_REF, "grantee": _EV_PRINCIPAL, "by": _EV_PRINCIPAL,
+                                          "record": _EV_PRINCIPAL},
+                                         ["ref", "grantee", "by"]), owner="artifacts",
+               doc="read access granted (with `record`: the owner of the holder record the grant shows)")
+bus.event_type("artifact.revoked", S.obj({"ref": _EV_REF, "grantee": _EV_PRINCIPAL, "by": _EV_PRINCIPAL,
+                                          "record": _EV_PRINCIPAL},
                                          ["ref", "grantee", "by"]), owner="artifacts", doc="read access revoked")
 
 
@@ -475,6 +509,18 @@ class Artifacts(Module):
                  vis="internal" if owner == SYSTEM else (owner,))
         return ref
 
+    def quota_group(self, st, owner: str) -> tuple[str, list[str]]:
+        """(accountable person, [that person and every organisation it founded]) for storage made in `owner`'s
+        name. An organisation's founder never changes, so leaving or handing over an organisation does not take
+        its storage out of the founder's bound."""
+        person = owner
+        if "orgs" in st.tables and st.has("orgs", owner):
+            person = st.tables["orgs"][owner].get("founder") or owner
+        group = [person]
+        if "orgs" in st.tables:
+            group += sorted(o for o, rec in st.tables["orgs"].items() if rec.get("founder") == person and o != person)
+        return person, group
+
     def _charge(self, ctx: Ctx, owner: str, size: int) -> None:
         if owner == SYSTEM:
             return
@@ -482,6 +528,16 @@ class Artifacts(Module):
         if used + size > self.cfg["quota_bytes"]:
             raise CapacityExceeded(f"storage quota of {owner} exceeded ({used} + {size} > {self.cfg['quota_bytes']})",
                                    used=used, size=size, quota=self.cfg["quota_bytes"])
+        gq = self.cfg["group_quota_bytes"] or self.cfg["quota_bytes"]
+        person, group = self.quota_group(ctx.state, owner)
+        if len(group) > 1:
+            gused = sum(usage(ctx.world, p)["bytes"] for p in group)
+            if gused + size > gq:
+                if ctx.actor == person:
+                    raise CapacityExceeded(f"storage quota of {person} and the organisations it founded exceeded "
+                                           f"({gused} + {size} > {gq})", used=gused, size=size, quota=gq)
+                # another member storing in the organisation's name learns nothing about the founder's other use
+                raise CapacityExceeded(f"storage quota of {owner}'s founder group exceeded", size=size, quota=gq)
         fee = self.cfg["fee_cents_per_mib"]
         if fee and size:
             bank = ctx.world.modules["bank"]
@@ -491,20 +547,33 @@ class Artifacts(Module):
             cents = -(-size * fee // MiB)
             bank.move(ctx, acct, "acct_fees", int(cents), "fee", "artifact storage")
 
-    def publish(self, ctx: Ctx, ref: str, audience: str) -> None:
+    def own_record(self, ctx: Ctx, ref: str, what: str) -> tuple[str, dict, bool]:
+        """(record owner, record, is the first owner's record) of the record `ctx.actor` owns: the artifact record
+        if it is on the owner side, else its holder record. A holder of identical bytes publishes, grants and
+        revokes its own record exactly as an owner does, so these tools never tell whether somebody else stored
+        the bytes first (red-team finding, ws-O). NotFound if unreadable; Forbidden if readable but not owned."""
         a = ctx.state.get("artifacts", ref) if isinstance(ref, str) else None
         if a is None or not readable(ctx.world, ctx.actor, ref):
             raise NotFound(f"no artifact {ref}")
-        if not self._owner_side(ctx, a["owner"]):
-            raise Forbidden("only the owner can publish an artifact")
-        if a["owner"] == SYSTEM and ctx.actor != SYSTEM:
+        if self._owner_side(ctx, a["owner"]):
+            return a["owner"], a, True
+        for p in sorted(ctx.world.principals_of(ctx.actor)):
+            h = ctx.state.get("artifact_holders", f"{ref}|{p}")
+            if h is not None:
+                return p, h, False
+        raise Forbidden(f"only the owner can {what} an artifact")
+
+    def publish(self, ctx: Ctx, ref: str, audience: str) -> None:
+        owner, rec, first = self.own_record(ctx, ref, "publish")
+        if owner == SYSTEM and ctx.actor != SYSTEM:
             raise Forbidden("system artifacts are not published")
         if audience != "public" and not ctx.state.has("principals", audience):
             raise NotFound(f"no principal {audience}")
-        if (audience == "public" and a["published"]) or audience in a["audiences"]:
+        if (audience == "public" and rec.get("published")) or audience in rec.get("audiences", ()):
             return
-        ctx.emit("artifact.published", {"ref": ref, "audience": audience},
-                 vis="public" if audience == "public" else tuple(sorted({a["owner"], audience} - {SYSTEM})))
+        payload = {"ref": ref, "audience": audience} if first else {"ref": ref, "audience": audience, "holder": owner}
+        ctx.emit("artifact.published", payload,
+                 vis="public" if audience == "public" else tuple(sorted({owner, audience} - {SYSTEM})))
 
     # ------------------------------------------------------------------ appliers
     @applier("artifact.stored")
@@ -531,42 +600,45 @@ class Artifacts(Module):
     @applier("artifact.published")
     def ap_published(self, ev):
         p = ev.payload
-        a = self.world.state.tables["artifacts"][p["ref"]]
+        table, key = ("artifact_holders", f"{p['ref']}|{p['holder']}") if p.get("holder") else ("artifacts", p["ref"])
+        a = self.world.state.tables[table][key]
         if p["audience"] == "public":
-            self.world.state.patch("artifacts", p["ref"], published=True)
+            self.world.state.patch(table, key, published=True)
         else:
-            self.world.state.patch("artifacts", p["ref"], audiences=sorted(set(a["audiences"]) | {p["audience"]}))
+            self.world.state.patch(table, key, audiences=sorted(set(a.get("audiences", ())) | {p["audience"]}))
 
     @applier("artifact.granted")
     def ap_granted(self, ev):
         p = ev.payload
-        self.world.state.put("artifact_grants", f"{p['ref']}|{p['grantee']}",
-                             {"ref": p["ref"], "grantee": p["grantee"], "by": p["by"], "t": ev.t})
+        rec = {"ref": p["ref"], "grantee": p["grantee"], "by": p["by"], "t": ev.t}
+        if p.get("record"):
+            rec["record"] = p["record"]
+        self.world.state.put("artifact_grants", grant_key(p["ref"], p["grantee"], p.get("record")), rec)
 
     @applier("artifact.revoked")
     def ap_revoked(self, ev):
         p = ev.payload
-        self.world.state.delete("artifact_grants", f"{p['ref']}|{p['grantee']}")
+        self.world.state.delete("artifact_grants", grant_key(p["ref"], p["grantee"], p.get("record")))
 
     # ------------------------------------------------------------------ tools
-    def _view(self, ctx: Ctx, ref: str) -> dict:
-        """What `ctx.actor` may see of an artifact (NotFound when it may see nothing)."""
-        if not readable(ctx.world, ctx.actor, ref):
-            raise NotFound(f"no artifact {ref}")
-        d = info(ctx.world, ref)
-        st = ctx.state
-        ps = ctx.world.principals_of(ctx.actor)
+    @staticmethod
+    def _describe(st, ref: str, owner: str, rec: dict) -> dict:
+        """One record as a tool shows it (the first owner's artifact record or a holder's own record)."""
         a = st.tables["artifacts"][ref]
-        if a["owner"] in ps or a["published"] or any(x in ps for x in a["audiences"]) or \
-                any(st.has("artifact_grants", f"{ref}|{p}") for p in ps):
-            return d
-        # a holder of identical bytes sees its own record, not the first owner's
-        for p in sorted(ps):
-            hrec = st.get("artifact_holders", f"{ref}|{p}")
-            if hrec is not None:
-                return {"ref": ref, "mime": hrec["mime"], "size": d["size"], "owner": p, "parents": list(hrec["parents"]),
-                        "meta": to_jsonable(hrec["meta"]), "kind": hrec["kind"], "published": False, "t": hrec["t"]}
-        raise NotFound(f"no artifact {ref}")
+        return {"ref": ref, "mime": rec["mime"], "size": a["size"], "owner": owner, "parents": list(rec["parents"]),
+                "meta": to_jsonable(rec["meta"]), "kind": rec["kind"], "published": bool(rec.get("published")),
+                "t": rec["t"]}
+
+    def _view(self, ctx: Ctx, ref: str) -> dict:
+        """What `ctx.actor` may see of an artifact (NotFound when it may see nothing): its own record (as owner or
+        as a holder of identical bytes), else a record published or granted to it - never the record of somebody
+        it merely shares bytes with."""
+        if not exists(ctx.world, ref):
+            raise NotFound(f"no artifact {ref}")
+        got = _record_for(ctx.state, ref, ctx.world.principals_of(ctx.actor))
+        if got is None:
+            raise NotFound(f"no artifact {ref}")
+        return self._describe(ctx.state, ref, *got)
 
     @endpoint("put", _PUT_PARAMS, cost_s=2)
     def ep_put(self, ctx, data_b64, mime, kind="file", parents=None, meta=None, owner=None):
@@ -609,21 +681,22 @@ class Artifacts(Module):
         to you), oldest first."""
         owner = owner or ctx.actor
         st = ctx.state
+        ps = ctx.world.principals_of(ctx.actor)
+        mine = owner in ps or owner == ctx.actor
+        recs = [(ref, st.tables["artifacts"][ref]) for ref in st.find_ids("artifacts", "owner", owner)]
+        recs += [(h["ref"], h) for h in (st.tables["artifact_holders"][hid]
+                                         for hid in st.find_ids("artifact_holders", "holder", owner))]
         rows = []
-        for ref in st.find_ids("artifacts", "owner", owner):
-            a = st.tables["artifacts"][ref]
-            if kind is not None and a["kind"] != kind:
+        for ref, rec in recs:
+            if kind is not None and rec["kind"] != kind:
                 continue
-            if readable(ctx.world, ctx.actor, ref):
-                rows.append((a["t"], ref))
-        if owner in ctx.world.principals_of(ctx.actor) or owner == ctx.actor:
-            for hid in st.find_ids("artifact_holders", "holder", owner):
-                h = st.tables["artifact_holders"][hid]
-                if kind is None or h["kind"] == kind:
-                    rows.append((h["t"], h["ref"]))
-        rows = sorted(set(rows))
+            # another owner's listing shows only the records that owner published or granted to the caller: being
+            # able to read the bytes because the caller holds them too must not confirm that the owner holds them
+            if mine or _record_visible(st, ref, owner, rec, ps):
+                rows.append((rec["t"], ref, rec))
+        rows.sort(key=lambda x: (x[0], x[1]))
         page = rows[offset:offset + limit]
-        return {"owner": owner, "total": len(rows), "artifacts": [self._view(ctx, r) for _, r in page]}
+        return {"owner": owner, "total": len(rows), "artifacts": [self._describe(st, r, owner, rec) for _, r, rec in page]}
 
     @endpoint("publish", S.obj({"ref": _REF, "audience": S.s_str("'public' (default) or one principal",
                                                                 maxLength=60)}, ["ref"]), cost_s=1)
@@ -639,31 +712,29 @@ class Artifacts(Module):
     def ep_grant(self, ctx, ref, grantee):
         """Let one principal read an artifact you own."""
         parse_ref(ref)
-        a = ctx.state.get("artifacts", ref)
-        if a is None or not readable(ctx.world, ctx.actor, ref):
-            raise NotFound(f"no artifact {ref}")
-        if not self._owner_side(ctx, a["owner"]) or a["owner"] == SYSTEM:
+        owner, rec, first = self.own_record(ctx, ref, "grant")
+        if owner == SYSTEM:
             raise Forbidden("only the owner can grant access")
         if not ctx.state.has("principals", grantee):
             raise NotFound(f"no principal {grantee}")
-        if not ctx.state.has("artifact_grants", f"{ref}|{grantee}"):
-            ctx.emit("artifact.granted", {"ref": ref, "grantee": grantee, "by": ctx.actor},
-                     vis=tuple(sorted({a["owner"], grantee, ctx.actor})))
+        if not ctx.state.has("artifact_grants", grant_key(ref, grantee, None if first else owner)):
+            payload = {"ref": ref, "grantee": grantee, "by": ctx.actor}
+            if not first:
+                payload["record"] = owner
+            ctx.emit("artifact.granted", payload, vis=tuple(sorted({owner, grantee, ctx.actor})))
         return {"ref": ref, "grantee": grantee}
 
     @endpoint("revoke", S.obj({"ref": _REF, "grantee": S.s_str(maxLength=60)}, ["ref", "grantee"]), cost_s=1)
     def ep_revoke(self, ctx, ref, grantee):
         """Withdraw a read grant you gave (copies the grantee already fetched are theirs)."""
         parse_ref(ref)
-        a = ctx.state.get("artifacts", ref)
-        if a is None or not readable(ctx.world, ctx.actor, ref):
-            raise NotFound(f"no artifact {ref}")
-        if not self._owner_side(ctx, a["owner"]):
-            raise Forbidden("only the owner can revoke access")
-        if not ctx.state.has("artifact_grants", f"{ref}|{grantee}"):
+        owner, rec, first = self.own_record(ctx, ref, "revoke")
+        if not ctx.state.has("artifact_grants", grant_key(ref, grantee, None if first else owner)):
             raise NotFound(f"{grantee} has no grant on {ref}")
-        ctx.emit("artifact.revoked", {"ref": ref, "grantee": grantee, "by": ctx.actor},
-                 vis=tuple(sorted({a["owner"], grantee, ctx.actor})))
+        payload = {"ref": ref, "grantee": grantee, "by": ctx.actor}
+        if not first:
+            payload["record"] = owner
+        ctx.emit("artifact.revoked", payload, vis=tuple(sorted({owner, grantee, ctx.actor})))
         return {"ref": ref, "grantee": grantee, "revoked": True}
 
     @endpoint("usage", S.obj(), read_only=True, cost_s=0)
