@@ -253,6 +253,10 @@ def test_balancer_ranges_bound_a_dominating_decision_objective_too():
     assert bal.violated({"world": 0.6, "actor": 0.07}, slack=1.5) == []      # within 1.5 x hi and lo / 1.5
     with pytest.raises(ValueError):
         LossBalancer({"a": (0.6, 0.9), "b": (0.5, 0.9)})      # infeasible lower bounds
+    b3 = LossBalancer()                                       # adapt is capped like world (dom_dev run 2: 0.79)
+    b3.update(1, {"core_norm": {"world": 3.0, "adapt": 8.0, "actor": 1.0, "value": 0.0}})
+    pa = {"world": 3.0 * b3.factor("world"), "adapt": 8.0 * b3.factor("adapt"), "actor": 1.0 * b3.factor("actor")}
+    assert b3.factor("adapt") < 1.0 and pa["adapt"] / sum(pa.values()) <= 0.45 + 1e-9
 
 
 # ============================================================================ PPO objective extensions

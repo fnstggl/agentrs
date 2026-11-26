@@ -4,8 +4,10 @@ took 96-99.6% of the core gradient and the actor 0.25-0.95%).
 
 The balancer multiplies the configured loss weights by per-objective factors so that every constrained objective's
 share of the core gradient (`grad_probe.GradTable.share`, norm_i / sum_j norm_j over the core groups) stays inside
-its target range ``(lo, hi)``. Defaults: world (0.20, 0.45) - the plan's cap "world share <= 0.45" -, actor
-(0.10, 0.40) - the plan's floor "actor share >= 0.1" -, predictors (0.10, 0.40) when present. The upper bound on the
+its target range ``(lo, hi)``. Defaults: world (0.20, 0.45) - the plan's cap "world share <= 0.45" -, adapt
+(0, 0.45) - the same cap for the other replay objective: on dom_dev the uncapped adaptation loss drifted to 0.79 of
+the core within 20 updates (run 2, 2026-11-26) -, actor (0.10, 0.40) - the plan's floor "actor share >= 0.1" -,
+predictors (0.10, 0.40) when present. The upper bound on the
 decision objectives is not in the plan: without it the solve hands the actor ~98% of the core on the real stack
 (measured, dom_dev, run of 2026-11-26), starving the world and adaptation objectives; the plan's own rule moves a
 weight toward its target from both sides. ``("max", s)`` / ``("min", s)`` are shorthands for (0, s) / (s, 1).
@@ -30,7 +32,7 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-DEFAULT_TARGETS = {"world": (0.20, 0.45), "actor": (0.10, 0.40), "pred": (0.10, 0.40)}
+DEFAULT_TARGETS = {"world": (0.20, 0.45), "adapt": (0.0, 0.45), "actor": (0.10, 0.40), "pred": (0.10, 0.40)}
 
 
 def _range(t) -> tuple:

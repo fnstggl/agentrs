@@ -447,7 +447,8 @@ class IntegratedLearner:
     def __init__(self, model, reward_model=None, label_store=None, cfg=None, *, agent=None, trainer=None,
                  balancer=None, balance: bool = True, reward_mode: Optional[str] = None,
                  epochs: Optional[int] = None, target_kl: Optional[float] = None, max_policy_lag: int = 0,
-                 probe_warmup: int = 8, probe_every: Optional[int] = None, log_path: Optional[str] = None,
+                 probe_warmup: int = 8, probe_every: Optional[int] = None, rebalance_slack: float = 1.0,
+                 log_path: Optional[str] = None,
                  extra_objectives: Optional[dict] = None, meta_trainer=None,
                  label_batch_fn: Optional[Callable] = None, sparse_beta: float = 1.0, episode_base: int = 1,
                  seed: int = 0, amp: Optional[bool] = None, trainer_kw: Optional[dict] = None,
@@ -497,7 +498,8 @@ class IntegratedLearner:
         self.trainer = trainer
         if balancer is None and balance:
             wmax = float(cfg.world_core_share_max) if cfg.world_core_share_max < 1 else 0.45
-            tgt = {"world": (min(0.20, wmax / 2), wmax), "actor": (0.10, 0.40), "pred": (0.10, 0.40)}
+            tgt = {"world": (min(0.20, wmax / 2), wmax), "adapt": (0.0, wmax), "actor": (0.10, 0.40),
+                   "pred": (0.10, 0.40)}
             balancer = LossBalancer(tgt)
         self.balancer = balancer
         self.epochs = int(epochs if epochs is not None else max(1, int(getattr(cfg, "ppo_epochs", 1) or 1)))
@@ -507,6 +509,7 @@ class IntegratedLearner:
         okw.update(objective_kw or {})
         self.objective = ActorCriticObjective.from_config(cfg, **okw)
         self.probe_warmup = int(probe_warmup)
+        self.rebalance_slack = float(rebalance_slack)
         be = int(getattr(cfg, "balance_every", 0) or 0)
         self.balance_every = be
         self.probe_every = int(probe_every if probe_every is not None else (be or 25))
@@ -969,11 +972,13 @@ class IntegratedLearner:
         return n <= self.probe_warmup or (self.balance_every > 0 and n % self.balance_every == 0)
 
     def _hard_violation(self, table) -> bool:
-        """A probe between balancing points that finds a share far outside its range (above 1.5 x its upper bound or
-        below half its lower bound) rebalances at once instead of waiting for the next balance_every update."""
+        """A probe between balancing points that finds a share outside its range (widened by `rebalance_slack`,
+        default 1.0 = any violation) applies the clipped rule at once instead of waiting for the next balance_every
+        update. Measured on dom_dev (run 2): with rebalancing only on misses of 1.5x, the unconstrained-at-the-time
+        adapt objective drifted to 0.79 of the core and the actor fell to 0.06 between balancing points."""
         if self.balancer is None:
             return False
-        return bool(self.balancer.violated(table.share(), slack=1.5))
+        return bool(self.balancer.violated(table.share(), slack=self.rebalance_slack))
 
     def base_weights(self, names) -> dict:
         lw = self.cfg.loss_weights
