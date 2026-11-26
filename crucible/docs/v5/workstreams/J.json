@@ -36,8 +36,8 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "fails on measured values: duplicate_shared_facts 4, identity_consistency_violations 3 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
-   "notes": "kinds in two tables: community (forum boards 5 / communities 1), product_offer (digital products 4 / physical retail listings 2), employment (pop.employer 724 / industry.own_operators 24: industry's operators are not population members), energy_price (industry grids / fleet tariff). Identity: 3 forum posts authored by population principals that were never materialised (economy/work.py posts as ids.pid(i) without ids.ensure_principal)."
+   "status_claim": "fails on measured values at e77fef3 (duplicate_shared_facts 4, identity_consistency_violations 3); the metric now also counts the kernel's mandatory duplicate check (crucible.substrate.facts.world_report: reviewed second copies holding facts, problems) - stricter, re-measured in the final lane",
+   "notes": "duplicates are composition-level and owned by other workstreams: community (forum boards / community.communities, D-21 migration C+A), product offers (products / industry retail), employment (pop.employer / industry own operators), energy price (industry grids / fleet site tariffs), institutions (gov.constitutions / inst.inst_charters). Identity: forum posts by population principals that were never materialised (crucible.economy.work _post/_ask call forum.post as ids.pid(i) without ids.ensure_principal) - ECON request in integration_notes."
   },
   "O.3": {
    "implementation_files": [
@@ -157,6 +157,7 @@
    "implementation_files": [
     "src/crucible/civ/accounting.py",
     "src/crucible/civ/couplings.py",
+    "src/crucible/civ/determinism.py",
     "src/crucible/civ/events.py",
     "src/crucible/civ/gates.py",
     "src/crucible/civ/generator.py",
@@ -194,6 +195,7 @@
   "P.3": {
    "implementation_files": [
     "src/crucible/civ/couplings.py",
+    "src/crucible/civ/determinism.py",
     "src/crucible/civ/events.py",
     "src/crucible/civ/gates.py",
     "src/crucible/civ/generator.py",
@@ -204,10 +206,11 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
-    "tests/v5/test_gate_P.py",
-    "tests/test_v5_civ_longrun.py"
+    "tests/test_v5_civ_determinism.py",
+    "tests/test_v5_civ_longrun.py",
+    "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "see P.1; interruption resume exact in tests/test_v5_civ_longrun.py after moving verification out of the live process",
+   "status_claim": "implemented, exact check (D-47): each resume check copies the store at the resume day; a NEW process resumes it freely (reported, with the origin of any divergence) and another re-executes the live run's recorded continuation on the resumed copy (counted: hash, digest and seq must equal the live world). Verified on civilisations in tests/test_v5_civ_determinism.py (CPU, 3 passed); the interruption test also regenerates the interrupted run's whole record",
    "notes": ""
   },
   "P.4": {
@@ -223,9 +226,10 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_determinism.py",
     "tests/v5/test_gate_P.py"
    ],
-   "status_claim": "segment replays verified in a child process",
+   "status_claim": "segment replays in a child process holding one state at a time; final snapshot checked in a child; tests/test_v5_civ_determinism.py::test_segment_replay_and_snapshot_checks_run_in_children passes",
    "notes": ""
   },
   "P.5": {
@@ -287,6 +291,7 @@
   "SP-10.0": {
    "implementation_files": [
     "src/crucible/civ/couplings.py",
+    "src/crucible/civ/determinism.py",
     "src/crucible/civ/events.py",
     "src/crucible/civ/gates.py",
     "src/crucible/civ/generator.py",
@@ -298,10 +303,12 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_determinism.py",
+    "tests/test_v5_civ_history.py",
     "tests/v5/test_gate_SP_10_0.py"
    ],
-   "status_claim": "fails on measured values: fork_divergence_supported false (an unchanged in-process fork did not reproduce its parent), independent_replications 0 of 3 (fresh-process rebuilds: 2 distinct hashes, none equal to the original); historical_query_kinds 5 and entity_kinds_persisting_and_evolving 7 met (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
-   "notes": "institutions persisted but did not change in 8 days (11 constitutions/charters/couplings); the nondeterminism is under diagnosis (see limitations and DEF-J-1)."
+   "status_claim": "fork_divergence_supported false and independent_replications 0 at e77fef3 under the free-rerun definition; redefined exactly (D-47): replications = fresh-process World.regenerate of the recorded first day from the store alone (verified exact on a 1-hour civilisation on CPU), forks = exact copy + parent untouched + intervened fork diverges + unchanged fork equal or parted first by a recorded inference outcome; free reruns reported (free_reruns_exact). Re-measured in the final lane",
+   "notes": "free reruns of one spec and seed are not bit-reproducible (DEF-J-1: shared-space vectors depend on batch composition and on the machine-wide cache; 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories). Historical query kinds 5 and entity kinds persisting and evolving 7 met at e77fef3; institutions persisted without change in 8 days."
   },
   "SP-10.1": {
    "implementation_files": [
@@ -396,7 +403,7 @@
    "tests": [
     "tests/v5/test_gate_SP_2_1b.py"
    ],
-   "status_claim": "implemented: invention experiment (scripted reference inventor's service) with 4 effect kinds",
+   "status_claim": "fails at e77fef3 with 3 seeds (0 of 4 kinds confirmed although every factual arm had the effect and no counterfactual arm had it: adopters 118/130/5 vs 0, inventor revenue 1905/2172/120 vs 0 cents; the paired t interval with t(2)=4.30 includes zero); now six seeds (51-56), re-measured in the final lane",
    "notes": ""
   },
   "SP-17.1": {
@@ -414,7 +421,7 @@
    "tests": [
     "tests/v5/test_gate_SP_17_1.py"
    ],
-   "status_claim": "harness implemented; J, L, B, C, K measured on civilisations, D, E, G, H, Q not measured (fail)",
+   "status_claim": "fails: 2 of 10 gates held at e77fef3 (J and L re-demonstrated in a civilisation with every requirement met); B fails on the development population (B.1 1,032 < 10,000 participants, B.2 57,547 < 100,000 sessions; B.3-B.5 met), C.2-C.4 and K.4-K.5 met, other requirements of B/C/K not measured on a civilisation; Gate D's whole battery now runs on a civilisation (crucible.civ.redemo.d_battery, re-measured in the final lane); E, G, H, Q not measured",
    "notes": ""
   },
   "SP-19.3": {
