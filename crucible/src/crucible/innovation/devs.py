@@ -561,13 +561,13 @@ class Developers(Module):
         src = WORKFLOW.format(a=f"{a['host']}.{a['endpoint']}", b=f"{b['host']}.{b['endpoint']}", key=plan["key"])
         s = slug(task)
         repo = self._do(ctx, p, "code.create_repo", name=self._repo_name(ctx, p, f"d{i}{s}"))["repo"]
+        host = self._host_name(ctx, i, s, repo)
         self._do(ctx, p, "code.commit", repo=repo, files=service_files(src, task[:120], price=price), message="v1")
         provs = sorted((x for x in (self._try(ctx, p, "cloud.providers") or []) if x["cores_free"] >= 1
                         and not x["in_outage"]), key=lambda x: (x["price_core_hour_cents"], x["provider"]))
         if not provs:
             raise DevError("no compute")
         inst = self._do(ctx, p, "cloud.rent", provider=provs[0]["provider"], cores=1, account=acct)["instance"]
-        host = self._unique(ctx, f"d{i}-{s}", "hosts")
         try:
             dep = self._do(ctx, p, "cloud.deploy", repo=repo, host=host, instance=inst)
             if dep.get("status") != "live":
@@ -645,23 +645,35 @@ class Developers(Module):
             return garbage_source(src, example)
         return src
 
+    def _own_repos(self, ctx, p: str) -> set[str]:
+        """The developer's own repositories (`code.list`, as itself)."""
+        return {r["repo"] for r in (self._try(ctx, p, "code.list") or [])}
+
     def _repo_name(self, ctx, p: str, base: str) -> str:
-        """A repository name of `p` not used yet."""
-        st = ctx.state
+        """A repository name of `p` not used yet (from its own repository list)."""
+        mine = self._own_repos(ctx, p)
         base = base.replace("-", "")[:34]
         name, k = base, 1
-        while st.has("repos", f"{p}/{name}"):
+        while f"{p}/{name}" in mine:
             k += 1
             name = f"{base}{k}"
         return name
 
-    def _unique(self, ctx, base: str, table: str) -> str:
-        st = ctx.state
-        name = base[:28]
-        k = 1
-        while st.has(table, name):
+    def _host_name(self, ctx, i: int, s: str, repo: str) -> str:
+        """The host of a new service: the developer's namespace and the task slug, numbered like its repository
+        (repositories are created first and are unique), and not a host of one of its own projects."""
+        short = repo.split("/", 1)[1]
+        k = short[len(f"d{i}{s.replace('-', '')}"[:34]):]
+        return self._own_name(ctx, i, f"d{i}-{s}"[:24] + (f"-{k}" if k else ""), "host", 28)
+
+    def _own_name(self, ctx, i: int, base: str, field: str, limit: int) -> str:
+        """A host or package name in the developer's own namespace (`base` carries its index), not used by one of
+        its own projects yet (its own records)."""
+        used = {r[field] for _, r in self.projects(ctx.state, i) if r.get(field)}
+        name, k = base[:limit], 1
+        while name in used:
             k += 1
-            name = f"{base[:25]}-{k}"
+            name = f"{base[:limit - 4]}-{k}"
         return name
 
     def _build(self, ctx, i, p, acct, task, need, info, price, n_comp, aff, rng, now) -> str:
@@ -715,7 +727,7 @@ class Developers(Module):
         if not provs:
             raise DevError("no compute")
         inst = self._do(ctx, p, "cloud.rent", provider=provs[0]["provider"], cores=1, account=acct)["instance"]
-        host = self._unique(ctx, f"d{i}-{s}", "hosts")
+        host = self._host_name(ctx, i, s, repo)
         try:
             dep = self._do(ctx, p, "pkg.deploy" if uses else "cloud.deploy", repo=repo, host=host, instance=inst)
             if dep.get("status") != "live":
@@ -759,8 +771,7 @@ class Developers(Module):
 
     def _publish_package(self, ctx, i, p, pid, task, src, examples) -> None:
         st = ctx.state
-        base = f"{slug(task)}-kit"
-        name = self._unique(ctx, base, "pkg_packages")
+        name = self._own_name(ctx, i, f"{slug(task)}-kit-d{i}", "package", 36)
         rname = self._repo_name(ctx, p, f"{slug(task)}lib{i}")
         r = self._try(ctx, p, "code.create_repo", name=rname, visibility="public", license="open")
         if not r:
