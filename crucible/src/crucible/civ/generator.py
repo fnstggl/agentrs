@@ -218,6 +218,18 @@ def commerce_config(prof: P.Profile, seed: int, boards) -> dict[str, dict]:
     tools and ask for help on the profile's boards."""
     from ..commerce.worlds import draw
     d = draw(seed, n=1, n_formats=int(prof.digital.get("work_formats", 2)))
+    # genesis demand stays within the profile's compute: the population's web sites (one core each, installed right
+    # after genesis) keep their cores, the incumbents' servers take what is left (one core each when compute is
+    # scarce; incumbents that do not fit are not founded)
+    regime = prof.compute.get("regime", "normal")
+    capacity = P.COMPUTE_REGIMES[regime] * P.COMPUTE_MARKETS[prof.compute.get("market", "duopoly")]
+    room = capacity - int(prof.digital.get("sites", 20)) - 2
+    incumbents = []
+    for f in d["incumbents"]:
+        f = dict(f, cores=1) if regime == "scarce" else dict(f)
+        if int(f["cores"]) <= room:
+            incumbents.append(f)
+            room -= int(f["cores"])
     if boards is None:                      # the forum's default boards (general, dev, market, jobs, help)
         tools, ask = "dev", "help"
     elif "everything" in boards:
@@ -227,7 +239,7 @@ def commerce_config(prof: P.Profile, seed: int, boards) -> dict[str, dict]:
     return {"work": {"families": d["families"], "professional_share": d["professional_share"],
                      "need_end_month_p": d["need_end_month_p"], "publish_formats": True, "forum_board": tools,
                      "ask_board": ask},
-            "ventures": {"providers": [], "incumbents": d["incumbents"]},
+            "ventures": {"providers": [], "incumbents": incumbents},
             "caps": {"registry": True}}
 
 
