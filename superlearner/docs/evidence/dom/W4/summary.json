@@ -1,0 +1,159 @@
+{
+ "workstream": "W4 SEM",
+ "date": "2026-11-26",
+ "branch": "worktree-wf_477a68f9-804-4",
+ "evidence_files": [
+  "docs/evidence/dom/W4/e2e.json (stage values of the last run, all runs listed under 'runs')",
+  "docs/evidence/dom/W4/probes.json (design probes; its code_run entry predates JSON-value holes)"
+ ],
+ "e2e_command": "flock /workspace/agentrs/runs/cam_unified/gpu_heavy.lock env PYTHONPATH=src:../crucible/src /workspace/agentrs/.venv/bin/python tests/cam_unified/semantic/w4_e2e.py --out docs/evidence/dom/W4/e2e.json",
+ "setup": "build_model(make_preset('dom_dev')) = 8x384 core + Qwen3-0.6B (dec_xattn_every 6, conditioning after layers 5/11/17/23, no bridge prefix), real ow_tiny ExampleInductor demonstrations (runs/cam_unified/wave2/A2/demo_init, 4 train + 2 held episodes) replayed through the model's own acting computation",
+ "runs": {
+  "run2": {
+   "commit": "3801409",
+   "evidence_commit": "cd593fb"
+  },
+  "run3": {
+   "commit": "109d203",
+   "wall_s": 534.7,
+   "peak_gpu_gb": 9.26
+  }
+ },
+ "checks": {
+  "A_value_channel_cos_plus1_minus1_lt_0.5": {
+   "pass": true,
+   "value": 0.3037,
+   "same_entity": 0.4575,
+   "legacy": 0.9912
+  },
+  "B_generated_templates_string_closure": {
+   "pass": false,
+   "slots": 62,
+   "own_close": 50,
+   "own_close_rate": 0.8065,
+   "trailing_commas": 0,
+   "merged_closes": 61,
+   "pre_v4_protocol_same_inputs": {
+    "own_close": 22,
+    "own_close_rate": 0.3548,
+    "trailing_commas": 4
+   },
+   "why_failed": "greedy, no length prior, untrained CAM choosing optional fields and evidence: all 12 forced closes hit the slot's maxLength (7 x .host maxLength 31, .category/.account 40, a pattern name 40, one .name 120) after the 0.6B LM wrote digit runs; 0 trailing commas"
+  },
+  "B2_demonstrated_templates_string_closure": {
+   "pass": true,
+   "at_init": {
+    "slots": 90,
+    "own_close": 90,
+    "trailing_commas": 0,
+    "exact_demo_match_rate": 0.32222222222222224
+   },
+   "after_bc": {
+    "slots": 90,
+    "own_close": 90,
+    "trailing_commas": 0,
+    "exact_demo_match_rate": 0.7555555555555555
+   },
+   "note": "held-out decisions, the demonstrated fields and evidence labels, greedy, no length prior, decoder conditioned on the CAM latent (filler.sample(cond=...))"
+  },
+  "C_gates_at_init_bit_identical": {
+   "pass": true,
+   "string_logp_bit_identical": true,
+   "decoder_hidden_logits_bit_identical": true,
+   "step_logits_bit_identical": true,
+   "actions": 42,
+   "tokens": 2886
+  },
+  "D_ablating_Z_after_100_BC_steps_gt_1_nat": {
+   "pass": true,
+   "run2_100_steps": {
+    "held_abs_dlogp_no_latent_mean": 78.28,
+    "median": 3.776,
+    "other_latent_mean": 0.146,
+    "nll_per_token_before": 1.722,
+    "nll_per_token_after": 0.1355
+   },
+   "run3": {
+    "bc_steps": 93,
+    "held_abs_dlogp_no_latent_mean": 74.054,
+    "median": 3.779,
+    "other_latent_mean": 0.229,
+    "note": "the deadline guard stopped BC at 93 steps (rollout 164 s under GPU contention)"
+   },
+   "caveat": "dependence is mostly on the presence of the latent: swapping in another decision's Z changes logp by 0.15-0.23 nats mean (median ~3e-4) - the demonstrated strings are mostly determined by the prompt"
+  },
+  "E_rescored_equals_recomputed_with_conditioning": {
+   "pass": true,
+   "rescore_twice_bit_identical": true,
+   "rescore_other_batch_bit_identical": true,
+   "record_unchanged": true,
+   "requires_grad": true,
+   "cam_tokens_bit_identical_other_batch_order": false,
+   "cam_tokens_max_abs_diff_other_batch_order": 0.001415252685546875,
+   "note": "decoder-level replay with given CAM tokens is bit-exact; the core recomputing the CAM tokens in another batch order is not (max abs 1.4e-3), see change request to W3/W5"
+  },
+  "F_semantic_context_consumed_by_gated_core": {
+   "pass": true,
+   "h_shape": [
+    4,
+    256,
+    1024
+   ],
+   "budget": 256,
+   "identical_second_call": true,
+   "gated_core_grad_abs_sum": {
+    "sem_proj": 2.0839461285504512e-05,
+    "xattn": 4.602429180522449e-05
+   }
+  },
+  "G_code_run_demo_arguments_representable": {
+   "pass": true,
+   "representable": "21/21",
+   "json_hole_tokens": {
+    "min": 602,
+    "max": 1093,
+    "mean": 837.4761904761905
+   },
+   "replay": {
+    "actions": 4,
+    "tokens": [
+     1077,
+     1025,
+     892,
+     770
+    ],
+    "nll_per_token": [
+     1.8105220794677734,
+     2.0342822074890137,
+     1.8347359895706177,
+     1.808064579963684
+    ],
+    "decoder_bit_identical_other_order": true,
+    "finite": true,
+    "recomputed_latent_bit_identical_other_order": false,
+    "recomputed_latent_max_abs_dlogp": 1.14990234375
+   },
+   "greedy_valid_arguments": 4,
+   "greedy_json_closed_by_lm": 4,
+   "greedy_examples": [
+    "15222982",
+    "15222982",
+    "1000",
+    "5222582"
+   ],
+   "before_json_holes": "0/21 at untyped_depth 2/3/4 (probes.json)"
+  }
+ },
+ "unit_tests": {
+  "commands": "PYTHONPATH=src:../crucible/src pytest -q <files> (GPU, Qwen3-0.6B, not under the lock)",
+  "tests/cam_unified/semantic (all files)": "95 passed 9 skipped (slow benchmarks) + test_acting/test_actions 18 passed",
+  "test_json_hole.py (new)": "6 passed",
+  "test_grammar.py": "29 passed",
+  "test_decoder_conditioning.py + test_acting.py": "10 passed (incl. new test_merged_acting_is_off_unless_allowed)",
+  "tests/cam_unified/dom": "8 passed",
+  "integration/test_i_model.py + test_seam_structure.py": "61 passed 1 skipped",
+  "experiments/test_x_stack.py": "4 passed",
+  "capabilities/test_integrated_mechanics.py": "9 passed",
+  "flaky": "test_actions::test_replay_refuses_a_different_tool_list_or_evidence_candidates failed once (bit-exact replay assert) in the first full-suite run and passed in 5 later runs (2 suite runs + 3 targeted repeats); tools there have no untyped arguments, so JSON holes are not involved"
+ }
+}

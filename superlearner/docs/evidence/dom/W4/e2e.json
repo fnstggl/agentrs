@@ -61,6 +61,38 @@
     "code_run": 6
    },
    "wall_s": 487.60783100128174
+  },
+  {
+   "commit": "109d2031229947f6c37c620aebe32c3f9f6fd80a",
+   "preset": "dom_dev",
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "core": "8x384",
+   "command": "python tests/cam_unified/semantic/w4_e2e.py --out docs/evidence/dom/W4/e2e.json",
+   "device": "NVIDIA RTX A6000",
+   "dec_xattn_every": 6,
+   "bridge_prefix_tokens": 0,
+   "stages": "ABCDEFG",
+   "timing_s": {
+    "A": 1.1,
+    "rollout": 164.2,
+    "B": 71.1,
+    "C": 8.7,
+    "F": 0.7,
+    "B2": 12.4,
+    "D": 235.9,
+    "E": 4.2,
+    "G": 13.7
+   },
+   "peak_gpu_gb": 9.25573632,
+   "families": [
+    "ow_tiny"
+   ],
+   "string_steps": {
+    "train": 84,
+    "held": 42,
+    "code_run": 6
+   },
+   "wall_s": 534.6561422348022
   }
  ],
  "A_value_channel": {
@@ -136,31 +168,33 @@
     770
    ],
    "nll_per_token": [
-    1.7457233667373657,
-    2.1280336380004883,
-    1.8698631525039673,
-    1.8376182317733765
+    1.8105220794677734,
+    2.0342822074890137,
+    1.8347359895706177,
+    1.808064579963684
    ],
-   "bit_identical_other_order": false,
-   "finite": true
+   "decoder_bit_identical_other_order": true,
+   "finite": true,
+   "recomputed_latent_bit_identical_other_order": false,
+   "recomputed_latent_max_abs_dlogp": 1.14990234375
   },
   "greedy": {
    "actions": 4,
    "valid_arguments": 4,
    "json_closed_by_lm": 4,
    "json_tokens": [
+    9,
+    9,
     5,
-    5,
-    5,
-    5
+    8
    ],
    "decode_steps": 30,
-   "seconds": 1.4568405151367188,
+   "seconds": 1.338012456893921,
    "examples": [
-    "2048",
-    "2048",
-    "2048",
-    "2048"
+    "15222982",
+    "15222982",
+    "1000",
+    "5222582"
    ],
    "demo_input_head": [
     "{\"rows\": [{\"src\": \"bas1\", \"data\": [[\"lekcin\", \"y\", \"'garnet'\"], [\"nehcil\", \"b\", \"-0x1cb2\"], [\"radec\", \"n\", \"1892.4%\"], [\"tunlaw\", \"z\", \"2014-05-18\"], [\"laroc\", ",
@@ -168,7 +202,7 @@
    ],
    "rescore_bit_identical": true
   },
-  "pass": false
+  "pass": true
  },
  "B_string_closure": {
   "v4": {
@@ -663,12 +697,12 @@
    "obs:3",
    "obs:5"
   ],
-  "first_s": 0.21117258071899414,
-  "cached_s": 0.006193876266479492,
+  "first_s": 0.17853736877441406,
+  "cached_s": 0.005665302276611328,
   "identical_second_call": true,
   "gated_core_grad_abs_sum": {
-   "sem_proj": 2.083958861476276e-05,
-   "xattn": 4.6024313633097336e-05
+   "sem_proj": 2.0839461285504512e-05,
+   "xattn": 4.602429180522449e-05
   },
   "last_gates": {
    "3": 0.04736462980508804,
@@ -676,24 +710,24 @@
   }
  },
  "D_bc_latent_dependence": {
-  "bc_steps": 100,
+  "bc_steps": 93,
   "bc_steps_planned": 100,
   "batch": 8,
   "train_actions": 84,
   "held_actions": 42,
   "optimizer": "AdamW: gates alpha lr 1e-2, decoder cross-attention + cond source tags lr 1e-3, core + reasoner lr 1e-4; clip 1.0 per group; loss = mean per-token NLL of the demonstrated strings",
   "loss_first": 1.0102375745773315,
-  "loss_last10_mean": 0.1496144686883781,
-  "seconds": 245.9013524055481,
+  "loss_last10_mean": 0.08370070692908485,
+  "seconds": 222.01720666885376,
   "first_step_grad_norms": {
    "grad_core": 0.0,
-   "grad_cond": 0.16230274736881256
+   "grad_cond": 0.16431662440299988
   },
   "gates_after": {
-   "5": 0.041624948382377625,
-   "11": 0.04622075334191322,
-   "17": 0.0897807627916336,
-   "23": -0.18016771972179413
+   "5": 0.0422244593501091,
+   "11": 0.04098241776227951,
+   "17": 0.08873657882213593,
+   "23": -0.19119113683700562
   },
   "held_before": {
    "actions": 42,
@@ -705,31 +739,33 @@
   },
   "held_after": {
    "actions": 42,
-   "abs_dlogp_no_latent_mean": 78.27964142912866,
-   "abs_dlogp_no_latent_median": 3.776108980178833,
-   "abs_dlogp_other_latent_mean": 0.14598819157358126,
-   "abs_dlogp_other_latent_median": 0.0007703942246735096,
-   "nll_per_token": 0.13550289412302977
+   "abs_dlogp_no_latent_mean": 74.05375652060684,
+   "abs_dlogp_no_latent_median": 3.7789230346679688,
+   "abs_dlogp_other_latent_mean": 0.2288239732141457,
+   "abs_dlogp_other_latent_median": 0.0003372016944922507,
+   "nll_per_token": 0.14069816724475545
   },
   "train_after": {
    "actions": 48,
-   "abs_dlogp_no_latent_mean": 137.4260083814394,
-   "abs_dlogp_no_latent_median": 35.91022872924805,
-   "abs_dlogp_other_latent_mean": 1.3068322238432302,
-   "abs_dlogp_other_latent_median": 0.0074418336153030396,
-   "nll_per_token": 0.1339687890733027
+   "abs_dlogp_no_latent_mean": 128.81178212188024,
+   "abs_dlogp_no_latent_median": 35.90618133544922,
+   "abs_dlogp_other_latent_mean": 1.3282460826017086,
+   "abs_dlogp_other_latent_median": 0.00431186705827713,
+   "nll_per_token": 0.14997484710648715
   },
   "pass": true
  },
  "E_replay_with_conditioning": {
   "actions": 8,
-  "sampled_tokens": 107,
+  "sampled_tokens": 109,
   "rescore_twice_bit_identical": true,
   "rescore_other_batch_bit_identical": true,
   "record_unchanged": true,
   "requires_grad": true,
-  "incremental_vs_rescore_max_abs": 0.132584810256958,
-  "latent_changes_logp_mean_abs": 39.21295166015625,
+  "incremental_vs_rescore_max_abs": 0.09897375106811523,
+  "latent_changes_logp_mean_abs": 40.578495025634766,
+  "cam_tokens_bit_identical_other_batch_order": false,
+  "cam_tokens_max_abs_diff_other_batch_order": 0.001415252685546875,
   "consumed": [
    [
     1
@@ -775,8 +811,8 @@
   "own_close": 90,
   "own_close_rate": 1.0,
   "trailing_commas": 0,
-  "exact_demo_match_rate": 0.7888888888888889,
-  "tokens_mean": 9.61111111111111,
+  "exact_demo_match_rate": 0.7555555555555555,
+  "tokens_mean": 9.78888888888889,
   "forced": []
  }
 }

@@ -7,6 +7,8 @@ Checks (numbers go to superlearner/docs/evidence/dom/W4/e2e.json):
   A. VALUE channel: cos(+1, -1) of NUMERIC tokens at init < 0.5 (legacy path for comparison).
   B. String closure: >= 90% of >= 50 ow_tiny string slots close by the LM's own choice (greedy, no length prior),
      0 trailing commas; the pre-v4 protocol on the same inputs for comparison.
+  B2. The same criterion on the demonstrated templates (held-out decisions, demonstrated fields and evidence), decoder
+     conditioned on the CAM latent, before and after the stage-D behaviour cloning.
   C. Decoder conditioning at init: logits / string logp bit-identical with and without the CAM latent.
   D. 100 BC steps on demonstrated strings (conditioning + core): ablating Z (cond=None, or another decision's Z)
      changes the string logp by > 1 nat per action on held-out demonstrations.
