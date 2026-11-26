@@ -189,17 +189,15 @@ class CommunityLife(Module):
         if succ is None and c["rules"]["governance"] == "owner" and \
                 (self._owner_absent(ctx, c, now) or neglected) and value > 0 and \
                 rng.random() < 0.15 * (0.5 + float(pr[1])) + 0.2 * min(1, neglected):
-            cm = ctx.world.modules["community"]
-            if cm.trust(ctx.world, p, c)["level"] >= 1:
-                new_id = f"{cid[:30]}-new"
-                res = self._call(ctx, p, "community.found", {
-                    "id": new_id, "name": f"{c['name']} (new home)"[:80],
-                    "subject": str(c["subject"])[:400] or "the same subject",
-                    "description": f"A new home for the members of {c['name']}: its owner is gone."})
-                if res is not None:
-                    ctx.emit("commlife.successor", {"from": cid, "to": new_id, "by": p}, vis="public")
-                    self._call(ctx, p, "community.leave", {"community": cid})
-                    return "propose", 0.15
+            new_id = f"{cid[:30]}-new"
+            res = self._call(ctx, p, "community.found", {
+                "id": new_id, "name": f"{c['name']} (new home)"[:80],
+                "subject": str(c["subject"])[:400] or "the same subject",
+                "description": f"A new home for the members of {c['name']}: nobody runs the old one."})
+            if res is not None:
+                ctx.emit("commlife.successor", {"from": cid, "to": new_id, "by": p}, vis="public")
+                self._call(ctx, p, "community.leave", {"community": cid})
+                return "propose", 0.15
         # 4. invitations to upcoming events
         for e in evs:
             if e["at"] > now and not ctx.state.has("community_rsvps", f"{e['event']}|{p}"):
@@ -264,12 +262,19 @@ class CommunityLife(Module):
 
     @staticmethod
     def _neglected_reports(ctx, p, cid, now) -> int:
-        """The member's own reports in this community that nobody with the power to act has handled for 3 days."""
+        """Reported items of this community that nobody with the power to act has handled for 3 days (a member sees
+        them: reported posts stay up, and its own reports stay open), when the public moderation log shows no action
+        in the last week. Counted from 3 such reports."""
         st = ctx.state
         if "community_reports" not in st.tables:
             return 0
-        return sum(1 for _, r in st.scan("community_reports")
-                   if r["community"] == cid and r["by"] == p and r["status"] == "open" and r["t"] <= now - 3 * DAY)
+        n = sum(1 for _, r in st.scan("community_reports")
+                if r["community"] == cid and r["status"] == "open" and r["t"] <= now - 3 * DAY)
+        if n < 3:
+            return 0
+        acted = any(m["community"] == cid and m["t"] > now - 7 * DAY for _, m in st.scan("community_modlog")) \
+            if "community_modlog" in st.tables else False
+        return 0 if acted else n
 
     def _owner_absent(self, ctx, c, now) -> bool:
         """The owner has not taken part for a week in a community older than a week (public: the member list shows
