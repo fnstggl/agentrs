@@ -348,3 +348,12 @@ sessions; every rule below is hand-set unless the row says otherwise.
 | orgs.online | customer session: provider by own Beta-mean success minus price sensitivity x price (logit, outside option), monthly renewal while trust - price term > 0.2; requests Poisson(rate x (1 + 0.025 day) x (1000 / price)^0.35), success = the backbone's last-hour rate for its provider | `orgeco` | inspired by research | form: logit provider choice; usage growth and price elasticity set by hand | none | no switching costs; all requests equal | none |
 | orgs.vote | council votes from goals and own interest: mission yes; rival 15% for the convener; expansion yes when own congestion > 3% (profit always); levy yes when congestion > 4% (not growth) or > 15%; quotas yes when the own load cut <= own congestion + 2% | `orgeco` | plausible, unvalidated | none | none | managers do not bargain over votes; no coalitions | none |
 | orgs.commitments | members answer commitment offers: only predicates on the backbone capacity; mission within its pledge budget; profit/growth up to failures x customers x price x 6 (x1.5 profit), countering at that amount for up to three rounds; rival refuses | `orgeco` | plausible, unvalidated | none | none | the value of capacity is the member's own recent failures only | none |
+
+## Generated Tier 1 worlds (workstream N, wave 3b: `crucible.research.v5.compose`)
+
+Structural modules of the Tier 1 world generator that carry behaviour of the simulated market. Coefficients are drawn
+per world from the stated ranges by hand; nothing is fitted.
+
+| id | mechanism | module | category | evidence (dataset, period) | held-out result | limits | in-world use |
+|---|---|---|---|---|---|---|---|
+| gen.wandering_optimum | the key-lever setting the market wants follows a hidden smooth random path (AR(1) shocks, ar 0.85-0.9, low-pass rate 0.08-0.14, stationary sd 2.0-2.6 of a 0-10 lever) around a centre at 2-3 or 7-8; sales are the drive times a fit bump of half-width 1.0-1.5 (product of two logistic edges) | `research.v5.compose` (driver `wandering_optimum`) | plausible, unvalidated | none (form after non-stationary demand and taste-drift tracking problems; no market data) | none (admission, Part 7.4, on generated worlds: T.4; claim `genadmit.ideal_wanders`: the best setting moves over >= 0.2 of the range through >= 4 grid settings) | one taste dimension on one lever; Gaussian-like fit; no observable leading indicator of the path; the scripted public reference (`research.v5.genref`) is a perturbation tracker, not a learned policy | none |

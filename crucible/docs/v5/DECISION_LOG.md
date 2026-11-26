@@ -467,6 +467,32 @@ controls (process stash, file stash outside the checkpoint, configuration smuggl
 pickle, architecture edit, generator calibration shortcut with a prespecified threshold of 0.5 of the oracle's
 improvement); the security workstream's gate calls `adversarial.run_controls`.
 
+**D-69 addendum (wave 3b continuation, 2026-11-26): generated worlds that reward adaptation (T.4) and the T.8 design.**
+*T.4.* Admission's no_dominant_strategy check (H-D1: the best simple policy - hindsight-best constant, threshold
+rule, win-stay/lose-shift, explore-then-commit - may reach at most 0.8 of the public reference's gain) rejects a
+static generated world by construction: when the best setting does not move, the hindsight constant is optimal and
+no public policy can beat it by a quarter of its gain. Measured on 16 admitted-structure probes the generic
+reference reached far less than the simple policies (ratio simple/reference 1.2-58). The generator therefore gained a
+driver whose optimum keeps moving, `wandering_optimum` (`compose._wandering`; fidelity record
+`gen.wandering_optimum`), with a mechanism-specific scripted public reference (`research.v5.genref`: a perturbation
+tracker that knows only that the optimum moves; it reads the public lever ranges and defaults and the observed net
+income). Development probes: on single-lever wandering worlds the oracle's gain is about twice the best simple
+policy's; with the tracker, 14 of 16 worlds passed every seed check except distinctness and claims (identifiability
+needs the centre off the middle of the range: 2-3 or 7-8), and 6 of 12 template-drawn single-lever worlds passed the
+full admission; worlds with further cost-calibrated levers mostly fail (the hindsight constant takes their static
+gain). Templates for memory, strategic flexibility and long horizons can draw the driver (single lever). The T.4
+sample is fixed before the gate run: the first 200 structures of the T.1 stream (seed 7) calibrated at seed 0, five
+world seeds each; every world is admitted and the validated share and the dynamics of validated worlds are reported.
+*T.8.* Diagnosis on development data only (8 probe worlds x 11 strategies per category): the strategy that is best on
+uniformly drawn worlds (search step 0.15, settle 2, measure 3, commit 0.75) is 0.12-0.53 normalised score below the
+category's best strategy in six of eight categories and equal to it on long horizons; the wave-3a/3b arm design
+(epsilon-greedy over 11 strategies, 96 episodes, three seeds, independent scoring noise) could not resolve that.
+Design fixed before the gate run (`curriculum_lab.T8_DESIGN`): TargetableMeta allocates by UCB1 on its own episode
+gain (constant 0.25) and uses the best-mean strategy tried twice when frozen; 160 training episodes per arm; 16
+held-out probes of the target scored with common random numbers (before/after and both arms); the curriculum target
+is read after 80 measured items; four planted weaknesses x five learner seeds (20 pairs); reference profile from 12
+probes per category; one-sided sign-flip test at 0.05. Whatever the gate run measures is reported.
+
 ## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
 With `crucible.civ.generate` working, Level 5 test items are the held-out Tier 3 profiles (`EVAL_CIV_PROFILES`), any Tier 2
 evaluation configurations, and three 4.0 mechanism tasks (the rig.* interface, other engines); training items are four

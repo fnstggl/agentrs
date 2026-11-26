@@ -148,7 +148,7 @@ def _score(e: Mapping, seed: int, learner, rng) -> float:
     return normalised(rec["value"], references(e, seed))
 
 
-def reference_profile(n_per: int = 6, seed: int = 0) -> dict[str, float]:
+def reference_profile(n_per: int = 12, seed: int = 0) -> dict[str, float]:
     """Regret of the reference adapter per weakness category (category difficulty, not a learner weakness)."""
     rng = np.random.default_rng(seed)
     out = {}
@@ -220,7 +220,7 @@ def rank_pvalue(ranks: Sequence[int], k: int) -> float:
     return float(dist[: s + 1].sum())
 
 
-T8_DESIGN = {"budget": 160, "n_probe": 10, "measure_items": 80, "seeds": (0, 1, 2, 3, 4)}
+T8_DESIGN = {"budget": 160, "n_probe": 16, "measure_items": 80, "seeds": (0, 1, 2, 3, 4)}
 
 
 def _probe_score(e: Mapping, sd: int, learner) -> float:
