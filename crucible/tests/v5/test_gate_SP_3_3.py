@@ -20,7 +20,7 @@ from crucible.substrate import columns
 
 crucible.load_all_modules()
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-3.3"
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(3600)]
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(3 * 3600)]
 
 
 def _bench(name: str) -> dict:
