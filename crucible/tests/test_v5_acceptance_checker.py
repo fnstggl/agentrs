@@ -519,3 +519,25 @@ def test_the_real_checker_exit_code_follows_the_project_status():
     res = json.load(open(out))
     assert p.returncode == {"CRUCIBLE_5_COMPLETE": 0, "IN_PROGRESS": 1, "INCOMPLETE_BLOCKED": 3}[res["project_status"]]
     assert (p.returncode == 0) == all(r["status"] == "VERIFIED" for r in res["rows"])
+
+
+def test_a_merge_that_drops_ledger_entries_of_one_parent_is_detected(tmp_path):
+    root = str(tmp_path)
+    run = lambda *a: subprocess.run(["git", *a], cwd=root, check=True, capture_output=True)
+    run("init", "-q", "-b", "main")
+    run("config", "user.email", "t@t")
+    run("config", "user.name", "t")
+    os.makedirs(os.path.join(root, "docs", "v5"))
+    p = os.path.join(root, L.LEDGER_REL)
+    open(p, "w").write("a\n")
+    run("add", "-A")
+    run("commit", "-qm", "base")
+    run("checkout", "-qb", "side")
+    open(p, "w").write("a\nb\n")
+    run("commit", "-qam", "side appends")
+    run("checkout", "-q", "main")
+    open(os.path.join(root, "other"), "w").write("x\n")
+    run("add", "other")
+    run("commit", "-qm", "main moves on")
+    run("merge", "-q", "-s", "ours", "side", "-m", "merge that keeps only main's ledger")
+    assert any("rewrites the ledger" in x for x in L.git_problems(root))
