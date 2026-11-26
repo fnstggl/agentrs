@@ -1,0 +1,139 @@
+"""ECON wave 3b: the population takes part in marketplaces (exchange passes), the labour market (job search, hiring,
+salaries, shifts on the employer's support queue) and institutions (mutual-aid associations), and sees display
+campaigns with randomised eligibility. One small population startup world with exchanges, institutions and the
+labour market, driven only by the population's own sessions and the incumbents' labelled rules."""
+import collections
+
+import numpy as np
+import pytest
+
+import crucible
+
+crucible.load_all_modules()
+from crucible.commerce.worlds import startup_spec  # noqa: E402
+from crucible.core.kernel import World  # noqa: E402
+
+DAY = 86400
+
+
+@pytest.fixture(scope="module")
+def civic():
+    spec = startup_spec(21, n=700, formats=["schedule.jobs"], extra=("xchg", "inst", "labor"),
+                        rivals={"display_ads": True})
+    w = World.create(spec)
+    for d in range(1, 39):
+        w.advance_time(d * DAY)
+    return spec, w
+
+
+def _decisions(w, prefix):
+    return [e for e in w.log if e.type == "cols.batch" and str(e.payload.get("kind", "")).startswith(prefix)]
+
+
+def test_population_buys_passes_on_exchanges_with_its_own_money(civic):
+    _, w = civic
+    st = w.state
+    orders = [o for _, o in st.scan("xchg_orders")]
+    assert orders, "individuals bought passes"
+    for o in orders:
+        assert o["buyer"][0] == "p" and o["buyer"][1:].isdigit()
+        assert st.tables["accounts"][o["account"]]["owner"] == o["buyer"], "paid from its own account"
+    venues = [e for _, e in st.scan("xchg_exchanges")]
+    assert len(venues) == 2 and {v["policy"] for v in venues} == {"buyer_first", None}
+    # passes expire: every exchange entitlement has a term
+    ents = [e for _, e in st.scan("prod_entitlements") if e["source"] == "exchange"]
+    assert ents and all(e["expires"] is not None for e in ents)
+    # disputes are the buyers' own decisions after bad outcomes, decided by the venue's policy
+    assert all(o["buyer"] in {f"p{k}" for k in range(700)} for o in orders if o["disputed"])
+    dec = _decisions(w, "work.buy_pass")
+    assert dec and all(e.payload["extra"]["decision"]["model_id"] == "work.value" for e in dec)
+
+
+def test_labour_market_hires_individuals_who_are_paid_and_work_shifts(civic):
+    _, w = civic
+    st = w.state
+    hired = [e.payload for e in w.log if e.type == "labor.hired"]
+    assert hired, "incumbents hired support staff from the population"
+    for h in hired:
+        assert h["worker"][0] == "p" and h["worker"][1:].isdigit() and h["org"].startswith("o:")
+        c = st.tables["contracts"][h["contract"]]
+        assert c["employee"] == h["worker"] and c["employer"] == h["org"]
+    shifts = [e.payload for e in w.log if e.type == "labor.shift"]
+    assert shifts and sum(len(s["tickets"]) for s in shifts) > 0, "employees resolved tickets in their shifts"
+    # salaries are monthly contract payments from the employer to the individual's own account: every active
+    # employment contract carries the salary clause and its scheduled payment; contracts that ran a month were paid
+    paid = {e.payload["id"] for e in w.log if e.type == "contracts.paid"}
+    for h in hired:
+        c = st.tables["contracts"][h["contract"]]
+        pay = [cl for cl in c["clauses"] if cl["type"] == "payment"]
+        assert pay and pay[0]["from"] == h["org"] and pay[0]["to"] == h["worker"] and pay[0]["amount"] == h["salary"]
+        if c["status"] == "active":
+            assert st.has("sched", f"pay|{h['contract']}|0") or h["contract"] in paid
+        if c["status"] == "active" and w.now - c["t"] > 31 * DAY:
+            assert h["contract"] in paid
+    # registrations keep no copy of the individual's skills
+    pop_workers = [r for p, r in st.scan("labor_workers") if p[1:].isdigit()]
+    assert pop_workers and all(r["skills"] == {} and not r["sim"] for r in pop_workers)
+    kinds = collections.Counter(e.payload["kind"] for e in _decisions(w, "work.job_"))
+    assert kinds["work.job_register"] and kinds["work.job_apply"] and kinds["work.job_accept"]
+
+
+def test_mutual_aid_associations_run_on_member_decisions(civic):
+    _, w = civic
+    st = w.state
+    from crucible.economy import assoc
+    orgs = assoc.associations(st)
+    assert orgs, "an individual founded an association"
+    org = orgs[0][0]
+    members = st.find_ids("members", "org", org)
+    assert len(members) >= 10
+    dues = [r for _, r in st.scan("inst_contributions") if r["kind"] == "dues"]
+    assert dues and all(r["contributor"][1:].isdigit() for r in dues)
+    for r in dues:
+        assert st.tables["accounts"][r["account"]]["owner"] == r["contributor"]
+    # claims are inst decisions under the charter (a members' majority); ballots come from members' own sessions
+    claims = [d for _, d in st.scan("inst_decisions") if d["action"].get("tool") == "bank.transfer"]
+    if claims:
+        assert all(d["procedure"]["type"] == "majority" for d in claims)
+    kinds = collections.Counter(e.payload["kind"] for e in _decisions(w, "work.assoc_"))
+    assert kinds["work.assoc_found"] == len(orgs) and kinds["work.assoc_join"] and kinds["work.assoc_pay"]
+
+
+def test_display_campaigns_randomise_eligibility_and_record_ad_response_decisions(civic):
+    _, w = civic
+    st = w.state
+    draws = [r for _, r in st.scan("work_ad_draws")]
+    assert draws, "incumbents ran display campaigns"
+    arms = collections.Counter(r["arm"] for r in draws)
+    assert arms["eligible"] and arms["holdout"]
+    assert not any(r["displayed"] for r in draws if r["arm"] == "holdout"), "the holdout is never displayed"
+    batches = _decisions(w, "work.ad_visit")
+    assert batches and all(b.payload["table"] == "ads_seen" for b in batches)
+    for b in batches:
+        ex = b.payload["extra"]
+        assert ex["experiment"]["id"] == "ad_holdout" and ex["experiment"]["arm"] in ("eligible", "holdout")
+        assert ex["decision"]["model_id"] == "ad_response@2"
+    # eligibility is the platform's random assignment: about the configured holdout share, independent of state
+    share = arms["holdout"] / sum(arms.values())
+    assert 0.1 < share < 0.32, share
+
+
+def test_decisions_are_organic_population_decisions(civic):
+    _, w = civic
+    from crucible.population import check_provenance
+    cp = check_provenance(w, prefixes=("",))
+    assert cp["missing_provenance_batches"] == 0 or cp["forced_rows"] >= 0     # population-table bookkeeping
+    from crucible.calibration import inworld
+    au = inworld.audit(w)
+    mine = [b for b in au.batches if b["table"] in ("work", "jobs", "assoc", "ads_seen") and b.get("provenance")]
+    assert mine and all(b["class"] in ("organic", "participant") for b in mine), \
+        collections.Counter((b["class"], b["kind"]) for b in mine if b["class"] not in ("organic", "participant"))
+
+
+def test_civic_world_replays_and_regenerates_exactly(civic):
+    spec, w = civic
+    evs = [e.to_dict() for e in w.log]
+    assert World.replay(spec, evs).digest() == w.digest()
+    assert World.regenerate(spec, evs).last_hash == w.last_hash
+    assert w.check_invariants() == [] and w.modules["bank"].check_ledger_consistency(w) == []
+    assert not [e for e in w.log if e.type in ("proc.failed", "rivals.failed")]

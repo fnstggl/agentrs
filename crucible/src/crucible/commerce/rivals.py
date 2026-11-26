@@ -251,7 +251,8 @@ class Rivals(Module):
         for post in posts:
             apps = self._do(ctx, inc, "labor.applicants", post=post)
             if any(a["status"] == "offered" for a in apps):
-                pending = [o for o in self._do(ctx, inc, "labor.offers", as_org=org) if o["post"] == post]
+                pending = [o for o in self._do(ctx, inc, "labor.offers", as_org=org)
+                           if o["post"] == post and int(o["expires"]) > ctx.now]
                 if pending:
                     continue
             if any(a["status"] == "hired" for a in apps) or not busy:

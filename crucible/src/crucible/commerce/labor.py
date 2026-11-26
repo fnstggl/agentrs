@@ -154,7 +154,9 @@ class Labor(Module):
     def add_worker(self, ctx, person: str, skills: dict, interests: dict, reservation: int, *, sim: bool,
                    hours_week: int = 40, wage_weight: float = 0.6, patience: float = 0.35,
                    declared: list | None = None) -> None:
-        sk = {k: round(float(_clip(skills.get(k, 0.0))), 3) for k in SKILLS}
+        # a worker that registers itself (an agent, a population individual) has no skill levels on record: its
+        # skills are private (the population keeps its own); employers see declared names and the verified record
+        sk = {k: round(float(_clip(skills.get(k, 0.0))), 3) for k in SKILLS} if skills else {}
         it = {k: round(float(_clip(interests.get(k, 0.0))), 3) for k in SKILLS}
         ctx.emit("labor.worker", {"person": person, "sim": bool(sim), "skills": sk, "interests": it,
                                   "reservation": int(reservation), "hours_week": int(hours_week),

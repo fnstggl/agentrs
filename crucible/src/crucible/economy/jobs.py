@@ -139,7 +139,9 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 answered = True
                 util[k] += 0.4 if action == "accept" else 0.0
             except CrucibleError:
-                pass
+                continue
+            if action == "accept":
+                break                                     # one job: other offers wait (they expire)
         if answered:
             continue
         last = int(columns.col(w, TABLE, "last_search")[i])

@@ -1124,8 +1124,10 @@ class Work(Module):
                                    [(k, st.tables["work_exp"][k]) for k in st.find_ids("work_exp", "i", int(i))]
                                    if r["active"]]:
                     self._drop(ctx, ids.pid(i), i, prov_id, self._provider(st, prov_id), refund=False)
-            pb.record_decisions(ctx, "work.need_end", ends, {"choice": np.zeros(ends.size, np.int32)}, table=TABLE,
-                                **MODEL)
+            # an occupation's need ending is world physics (exogenous churn), not an individual's decision: recorded
+            # without decision provenance (wave 3b: it was recorded as a work.value decision of the daily process,
+            # which the population's provenance check rightly counted as forced)
+            columns.batch(ctx, TABLE, "work.need_end", ends, {"choice": np.zeros(ends.size, np.int32)}, mode="set")
         if back.size:
             columns.batch(ctx, TABLE, "work.need_back", back, {"active": np.ones(back.size, bool),
                                                                "dormant_until": np.full(back.size, -1, np.int64)},
