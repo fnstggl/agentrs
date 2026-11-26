@@ -30,6 +30,8 @@ from crucible.substrate import inference_batch as IB
 r2 = IB.adaptive_request(policy, obs, mem, cand, model_id=f"adaptive:{gid}")     # class 2 (AdaptivePolicy)
 r3 = IB.strategic_request(group, obs, hist, model_id=f"strategic:{name}")         # class 3 (StrategicGroup)
 r4 = IB.semantic_request(service, "choose", requests)                             # class 4 (SemanticService)
+rm = IB.method_request(model, "act_scores", {"obs": o, "mem": m, "acand": a},     # any row-independent method
+                       outputs=("scores", "memory"), model_id=f"adaptive:{gid}", cls=2)
 rx = IB.Request(op, model, model_id, model_hash, inputs, cls=..., static={...})   # anything else (custom IB.Op)
 
 out = IB.decide(ctx, r2)                  # one request, one recorded call (drop-in for inference.recorded)
@@ -59,27 +61,46 @@ handlers keep working unchanged.
 
 ## How workstream B (population) uses it
 
-1. `population/adaptive.py` `AdaptivePolicy`-based `choose()`: replace the per-group
-   `inference.recorded(ctx, f"pop.adaptive.{gid}", ...)` by
-   `IB.decide(ctx, IB.adaptive_request(pol, inp["obs"], inp["mem"], inp["cand"], model_id=f"adaptive:{gid}"))`
-   (masking and Gumbel sampling stay with the caller).
-2. `population/strategic.py` `pr_decide()`: replace `inference.recorded(ctx, f"pop.strategic.{gname}", ...)` by
-   `IB.decide(ctx, IB.strategic_request(grp, O, H, model_id=f"strategic:{gname}"))`.
-3. `population/core.py` `pop.tick` (`pr_tick` calls each class runtime, then `run_cohort` calls each activity
-   handler, one after the other): when a handler returns a generator, wrap it as
-   `IB.Task(gen, lambda owner=owner: running_as(ctx, owner))` (each step then runs as its owner module, as the
-   direct call does today), collect the tasks of all class runtimes and activity handlers of the tick and drive
-   them with one `IB.gather(ctx, tasks)`; plain return values are passed through unchanged. Then every class-2 group,
-   class-3 group and the class-4 runtime that need the same shared model in one tick share one call, whichever
-   activity asked.
+Call sites as they stand on c5c/w3b-pop (head of 2026-11-26 19:30); every change keeps the recorded
+outcome of a decision the same function of its inputs (masking, Gumbel sampling and the action draw stay with the
+caller):
+
+1. `population/adaptive.py` `choose()`: replace
+   `inference.recorded(ctx, f"pop.adaptive.{gid}", f"adaptive:{gid}", pol.weights_hash(), inp, lambda: {...})` by
+   `out = IB.decide(ctx, IB.adaptive_request(pol, inp["obs"], inp["mem"], inp["cand"], model_id=f"adaptive:{gid}"))`
+   (`out["scores"]`, `out["memory"]`; the `mask` stays with the caller).
+2. `population/adaptive.py` `choose_activity()`: replace the `pop.adaptive_act.{gid}` recorded call by
+   `IB.decide(ctx, IB.method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores",
+   "memory"), model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory}))` (generic Op for any
+   row-independent method, no dedicated Op needed).
+3. `population/strategic.py` `PopStrategic.decide()` (class-3 runtime registered with
+   `register_class_runtime(world, 3, ...)`): replace `inference.recorded(ctx, f"pop.strategic.{gname}", ...)` by
+   `out = IB.decide(ctx, IB.strategic_request(grp, O, H, model_id=f"strategic:{gname}"))`. Groups have their own
+   weights, so a call can only hold members of one group: class 3 is batched only when several members of a group
+   are due in the same tick. On 55433e7 every member has its own decision time (120 calls for 120 decisions in 30
+   development days): put members' `next` times on a per-group grid (`decide_every_s` boundaries plus the waking
+   hours), as the class-2 `adaptive_window_s` aggregation already does in `pr_tick`.
+4. `population/core.py` `pr_tick` / `run_cohort` (class runtimes, then the activity handlers, one after the other):
+   to share calls across activities and classes, let a handler return a generator (`out = yield request`) and
+   drive the tick's handlers with one `IB.gather(ctx, [IB.Task(gen, lambda o=owner: running_as(ctx, o)), ...])`
+   (each step then runs as its owner module, as the direct call does today); plain return values pass through.
 
 ## How workstream D (semantic) uses it
 
-1. Bind class 4 (`population.register_class_runtime(world, 4, handler, owner=...)`, ONE_WORLD_CONTRACTS section 1)
-   with a handler that decides the due participants' turns through `IB.semantic_request(svc, "choose" | "generate",
-   reqs)`, as `IB.decide` inside the tick's transaction or as a generator task for `IB.gather`. The tick's ctx records
-   the call, so the `admin.semantic_infer` staging path is not needed for in-tick decisions.
-2. Several `SemanticGroup`s (different goals, one shared service) then merge into one service call per step.
+Call sites as they stand on c5c/w3b-sem (2026-11-26 19:30): `semantic/generalists/module.py` binds class 4 with
+`population.register_class_runtime(world, 4, self._activate, owner=NAME)`; `mind.activate` makes the tick's due
+participants decide together (`brain.generate(ctx, "situation_interpretation", [...])`, `brain.choose(ctx,
+"tool_choice", [...])`), and `brain.LMBrain` routes each capability to its model's shared `SemanticService`, whose
+`choose`/`generate` record one batch per call. So class 4 is already batched per (tick, capability, model); its
+calls carry more than one participant only when several class-4 rows are due in the same tick.
+
+1. Align class-4 activations: `_next_times` draws each participant's gap independently (`gap_s`), so with a few
+   class-4 rows per world almost every call holds one participant. A decision grid (e.g. gaps rounded to the
+   population tick's `adaptive_window_s`) makes the due rows of a tick share each step's calls.
+2. To merge class 4 with other callers of the same model in one tick (e.g. several `SemanticGroup`s, or the shared
+   space's LM), make `LMBrain.choose/generate` build `IB.semantic_request(svc, "choose" | "generate", reqs)` and
+   either `IB.decide` it (same records as today, accounted per class) or yield it from a generator step driven by
+   `IB.gather`.
 3. Please expose `SemanticService.normalize(request, choices=False)` (the service's `_norm`); the batching service
    uses `normalize` when it exists and falls back to `_norm`.
 

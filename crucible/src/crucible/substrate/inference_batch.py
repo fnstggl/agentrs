@@ -43,6 +43,7 @@ Standard operations for the models in the tree (duck-typed; nothing is imported 
 | `STRATEGIC_LOGITS` | `population.strategic.StrategicGroup` (`logits(obs, hist)`) | arrays obs/hist |
 | `SEMANTIC_CHOOSE`, `SEMANTIC_GENERATE` | `semantic.service.SemanticService` (`run(kind, normalised requests)`) | request dicts |
 | `TORCH_FORWARD` | any `torch.nn.Module` with one array input | array x |
+| `method_op(method, args, outputs)` | any model with a row-independent method (`method_request`) | named arrays |
 
 Helpers `adaptive_request`, `strategic_request` and `semantic_request` build the requests (model identity and the
 static parameters that make two requests compatible).
@@ -468,6 +469,55 @@ def semantic_request(svc, kind: str, requests: list[dict], *, cls: int = 4, labe
                    reqs, cls=cls, label=label)
 
 
+_METHOD_OPS: dict[str, Op] = {}
+
+
+def method_op(method: str, args: tuple, outputs: tuple | None = None) -> Op:
+    """The Op that calls `model.<method>(*[inputs[a] for a in args])` on the merged rows: for any row-independent
+    model method without a dedicated Op (e.g. a policy's `act_scores(obs, mem, acand) -> (scores, memory)`). The
+    output is an array, a dict of arrays, or a tuple of arrays named by `outputs`. One Op per (method, args,
+    outputs), so requests of different methods never share a call."""
+    args = tuple(args)
+    outputs = tuple(outputs) if outputs else None
+    if not args or not all(isinstance(a, str) and a for a in args) or len(set(args)) != len(args):
+        raise ProtocolError("method_op needs distinct input names")
+    name = f"method.{method}({','.join(args)})" + (f"->{','.join(outputs)}" if outputs else "")
+    with _LOCK:
+        op = _METHOD_OPS.get(name)
+        if op is None:
+            def run(model, x, static, method=method, args=args, outputs=outputs):
+                out = getattr(model, method)(*[x[a] for a in args])
+                if outputs:
+                    if not isinstance(out, (tuple, list)) or len(out) != len(outputs):
+                        raise ProtocolError(f"{name}: expected {len(outputs)} outputs")
+                    return {k: np.asarray(v) for k, v in zip(outputs, out)}
+                if isinstance(out, dict):
+                    return {k: np.asarray(v) for k, v in out.items()}
+                if isinstance(out, (tuple, list)):
+                    raise ProtocolError(f"{name}: a tuple output needs `outputs` names")
+                return np.asarray(out)
+            op = _METHOD_OPS[name] = Op(name, run)
+    return op
+
+
+def method_request(model, method: str, inputs: dict, *, model_id: str, args: tuple | None = None,
+                   outputs: tuple | None = None, model_hash: str | None = None, cls: int | None = None,
+                   static: dict | None = None, label: str = "") -> Request:
+    """A request for `model.<method>` (see `method_op`): `inputs` maps argument names to row-first arrays, passed
+    positionally in `args` order (default: the order of `inputs`). `model_hash` defaults to the model's
+    `weights_hash()`; `static` holds any setting outside the weights that changes the output (two requests share a
+    call only if it is equal). Class-2 example (population/adaptive.py `choose_activity`):
+    `method_request(pol, "act_scores", {"obs": o, "mem": m, "acand": a}, outputs=("scores", "memory"),
+    model_id=f"adaptive:{gid}", cls=2, static={"use_memory": pol.use_memory})`."""
+    args = tuple(args or inputs)
+    if set(args) != set(inputs):
+        raise ProtocolError("method_request: args must name every input exactly once")
+    h = model_hash if model_hash is not None else model.weights_hash()
+    return Request(method_op(method, args, outputs), model, model_id, h,
+                   {a: np.ascontiguousarray(inputs[a]) for a in args}, cls=cls, static=dict(static or {}),
+                   label=label)
+
+
 def torch_request(module, x: np.ndarray, *, model_id: str, cls: int | None = None, label: str = "") -> Request:
     return Request(TORCH_FORWARD, module, model_id, inference.weights_hash(module), np.ascontiguousarray(x),
                    cls=cls, label=label)
@@ -476,4 +526,5 @@ def torch_request(module, x: np.ndarray, *, model_id: str, cls: int | None = Non
 __all__ = ["Op", "Request", "Task", "decide", "decide_many", "gather", "batched", "Round", "stats", "report", "STATS",
            "compat_key", "adaptive_request", "strategic_request", "semantic_request", "torch_request",
            "ADAPTIVE_SCORES", "STRATEGIC_LOGITS", "SEMANTIC_CHOOSE", "SEMANTIC_GENERATE", "TORCH_FORWARD",
+           "method_op", "method_request",
            "reset_process_stats", "KIND_PREFIX"]

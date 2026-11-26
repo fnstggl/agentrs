@@ -291,3 +291,61 @@ def test_service_benchmark_groups_call_sites_on_the_real_models():
         assert v["choice_agreement"] == 1.0 and v["rows"] == 6
         assert v["separate_wall_s"] > 0 and v["merged_wall_s"] > 0
     assert r["service_stats"]["merged_calls"] > 0 and set(r["service_stats"]["by_class"]) == {"2", "3"}
+
+
+def test_method_requests_batch_any_row_independent_model_method():
+    """`method_request` (any row-independent model method without a dedicated Op, e.g. a policy's act_scores): on
+    the real class-2 and class-3 models it equals the dedicated Ops and the direct method, merges compatible
+    requests into one recorded call and never merges different methods, argument orders or models."""
+    a, b, g, m = _policies()
+    from crucible.population.strategic import HIST, OBS_DIM
+    rng = np.random.default_rng(5)
+    sp = WorldSpec("ib-method", 1, [{"name": x, "config": {}} for x in ("identity", "bank", "admin", "artifacts")])
+    w = World.create(sp, strict=True)
+    got = {}
+
+    def run(ctx):
+        rs, ds = [], []
+        for n in (3, 5, 1):
+            x = {"obs": rng.normal(size=(n, OBS)).astype(np.float32), "mem": rng.normal(size=(n, MEM)).astype(np.float32),
+                 "cand": rng.normal(size=(n, K, CAND)).astype(np.float32)}
+            rs.append(IB.method_request(a, "scores", x, outputs=("scores", "memory"), model_id="adaptive:0", cls=2,
+                                        static={"use_memory": True}))
+            ds.append(x)
+        h = {"obs": rng.normal(size=(4, OBS_DIM)).astype(np.float32),
+             "hist": rng.normal(size=(4, HIST, OBS_DIM)).astype(np.float32)}
+        rs.append(IB.method_request(g, "logits", h, model_id="strategic:gru", cls=3))
+        rs.append(IB.method_request(m, "logits", h, model_id="strategic:mlp", cls=3))
+        got["out"] = IB.decide_many(ctx, rs)
+        got["inputs"] = ds + [h, h]
+    w._run_system("test.method", run)
+    out, inp = got["out"], got["inputs"]
+    for o, x in zip(out[:3], inp[:3]):
+        s, mm = a.scores(x["obs"], x["mem"], x["cand"])
+        np.testing.assert_allclose(o["scores"], s, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(o["memory"], mm, rtol=1e-5, atol=1e-5)
+        ded = IB.ADAPTIVE_SCORES.run(a, x, {"use_memory": True})
+        np.testing.assert_allclose(o["scores"], ded["scores"], rtol=1e-5, atol=1e-5)
+    for o, grp in ((out[3], g), (out[4], m)):
+        ref = grp.logits(inp[3]["obs"], inp[3]["hist"])
+        assert set(o) == set(ref)
+        for k in ref:
+            np.testing.assert_allclose(o[k], ref[k], rtol=1e-5, atol=1e-5)
+    st = IB.report(IB.stats(w))
+    assert st["calls"] == 3 and st["merged_calls"] == 1 and st["by_class"]["2"]["rows"] == 9
+    assert st["by_class"]["2"]["calls"] == 1 and st["by_class"]["3"]["calls"] == 2
+    # different methods, argument orders and models never share a call
+    x = {"obs": np.zeros((2, OBS), np.float32), "mem": np.zeros((2, MEM), np.float32),
+         "cand": np.zeros((2, K, CAND), np.float32)}
+    k1 = IB.compat_key(IB.method_request(a, "scores", x, outputs=("scores", "memory"), model_id="adaptive:0"))
+    k2 = IB.compat_key(IB.method_request(a, "scores", x, args=("obs", "cand", "mem"), outputs=("scores", "memory"),
+                                         model_id="adaptive:0"))
+    k3 = IB.compat_key(IB.method_request(b, "scores", x, outputs=("scores", "memory"), model_id="adaptive:1"))
+    k4 = IB.compat_key(IB.method_request(a, "scores", x, outputs=("scores", "memory"), model_id="adaptive:0",
+                                         static={"use_memory": False}))
+    assert len({k1, k2, k3, k4}) == 4
+    with pytest.raises(ProtocolError):
+        IB.method_request(a, "scores", x, args=("obs", "mem"), model_id="adaptive:0")
+    with pytest.raises(ProtocolError):           # a tuple output must be named
+        w._run_system("test.method2", lambda ctx: IB.decide(ctx, IB.method_request(a, "scores", x,
+                                                                                    model_id="adaptive:0")))
