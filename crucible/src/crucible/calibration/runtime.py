@@ -677,7 +677,7 @@ def at_least_one(per_display: np.ndarray, owner: np.ndarray, n: int) -> np.ndarr
     if owner.size and (owner.min() < 0 or owner.max() >= n):
         raise ContractError("owner rows outside [0, n)")
     log_miss = np.bincount(owner, weights=np.log1p(-np.minimum(a, 1 - 1e-12)), minlength=int(n))
-    return -np.expm1(log_miss)
+    return np.clip(-np.expm1(log_miss), 0.0, 1.0)
 
 
 class AdDecision(DecisionModel):
