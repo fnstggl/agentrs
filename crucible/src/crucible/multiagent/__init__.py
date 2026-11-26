@@ -1,5 +1,10 @@
-"""Crucible 5.0 - Civilization-wide self-play: policy groups, versioning, leagues, cross-play and collusion checks.
+"""Crucible 5.0 - civilisation-wide self-play (MASTER_SPEC Part 12, Gate Q; workstream K; docs/v5/components/K.md).
 
-Owned by workstream K (docs/v5/WORKSTREAMS.md). Kernel modules of this package live in
-`multiagent/modules.py` or are imported from it; `crucible.load_all_modules()` imports that file when it exists.
+Independently updated neural policy groups that act with a civilisation's ordinary tools through
+`crucible.experience`, semantic generalists and frozen historical / held-out policies share one Tier 3 world with
+its population; versioning and provenance (`registry`), leagues and reproducible cross-play (`league`), evaluator-side
+outcomes, interaction and capability analysis (`evaluate`, `analysis`) and integrity checks (`integrity`).
+
+This package registers no kernel module: it hosts participants (learners) and evaluator-side analyses, never world
+rules.
 """
