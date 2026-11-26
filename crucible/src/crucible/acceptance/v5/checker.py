@@ -787,6 +787,10 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
             if ab.get("sensitive") is False:
                 r["status"] = "FAILED"
                 r["problems"].append("release ablation at HEAD: the measurement survives the ablated implementation")
+            env = env_problems(ctx, rp["reproduced"]) if rp["reproduced"] else []
+            if env:
+                r["status"] = "FAILED"
+                r["problems"] += [f"release reproduction: {p}" for p in env]
     claimed = {e["id"]: e.get("status") for e in entries}
     for r in rows:
         if claimed.get(r["id"]) == "VERIFIED" and r["status"] != "VERIFIED":
