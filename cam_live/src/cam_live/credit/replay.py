@@ -608,6 +608,25 @@ class SqliteExperienceStore:
         rows = self._q("SELECT body FROM queries WHERE query_id=?", (query_id,))
         return OutcomeQuery.from_dict(json.loads(rows[0][0])) if rows else None
 
+    def queries_for_metric(self, metric: str, at: float) -> List[Tuple[str, OutcomeQuery]]:
+        """(exp_id, query) of every registered query on ``metric`` whose declared window [issued_at, due_at] contains
+        ``at`` — the attribution windows that decisions declared for that metric."""
+        out = []
+        for e, b in self._q("SELECT exp_id, body FROM queries WHERE metric=? AND due_at>=? ORDER BY due_at, query_id",
+                            (metric, float(at))):
+            q = OutcomeQuery.from_dict(json.loads(b))
+            if q.issued_at <= at:
+                out.append((e, q))
+        return out
+
+    def predecessor_ids(self, exp_id: str, k: int) -> List[str]:
+        """Ids of the ``k`` decisions of the same objective that precede ``exp_id`` (nearest first)."""
+        row = self._q("SELECT objective_id, seq FROM experiences WHERE exp_id=?", (exp_id,))
+        if not row or k <= 0:
+            return []
+        return [e for (e,) in self._q("SELECT exp_id FROM experiences WHERE objective_id=? AND seq<? ORDER BY seq DESC "
+                                      "LIMIT ?", (row[0][0], row[0][1], int(k)))]
+
     def outcome_events(self, *, verified_only: bool = False) -> List[Dict[str, Any]]:
         """Distinct observed events (one per dedup key) with the records they are attached to. Independent-outcome
         counts must use this, not row counts."""
