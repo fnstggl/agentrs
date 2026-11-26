@@ -586,3 +586,12 @@ def test_workstream_reports_may_name_files_by_pattern(tmp_path):
     assert got["implementation_files"] == ["src/pkg/a.py", "src/pkg/b.py"]
     assert got["tests"] == ["tests/v5/test_gate_Q.py"]
     assert got["skipped"] == [("src/none/*.py", "does not exist in this checkout")]
+
+
+def test_gate_A4_scan_tells_a_module_denylist_from_a_use():
+    from crucible.acceptance.v5 import baseline as B
+    src = ('FORBIDDEN = ("crucible.realworld", "crucible.research.sealed",\n'
+           '             "crucible.acceptance")\nimport crucible.research.sealed\nx = "crucible.research.sealed"\n')
+    deny = B._denylist_strings(src)
+    assert deny == {1: ["crucible.realworld", "crucible.research.sealed"], 2: ["crucible.acceptance"]}
+    assert 3 not in deny and 4 not in deny                  # an import and a lone module string still count
