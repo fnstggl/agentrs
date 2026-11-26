@@ -24,6 +24,14 @@ MASTER_SPEC_SHA256 = "7b35feb343ce7fdd9b50e4e485b3a10110c3e07e6a6ce6124ae0b66826
 # tests. Default: exact for integers, booleans and strings; floats within max(1e-9, 1e-6 * |value|). Change-controlled.
 TOLERANCES: dict = {}
 
+# Gate test file of requirements whose evidence is produced in another gate's file (default: test_gate_<G>.py, SP items
+# test_gate_<their id>.py). Change-controlled through the ledger's test lists (decision D-25).
+GATE_TEST_OVERRIDE = {
+    "SP-1.3b": "tests/v5/test_gate_SP_1_3.py", "SP-1.5b": "tests/v5/test_gate_SP_1_5.py",
+    "SP-19.7": "tests/v5/test_gate_SP_21.py", "SP-20b": "tests/v5/test_gate_SP_20.py",
+    "SP-21b": "tests/v5/test_gate_SP_21.py",
+}
+
 
 def crit(*pairs):
     return [{"metric": m, "op": o, "value": v} for m, o, v in pairs]

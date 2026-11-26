@@ -1,0 +1,1862 @@
+# Crucible 5.0 defect register
+
+Machine-readable: every defect is one ```json block below with the fields id, severity (critical | high | medium |
+low), status (open | fixed | duplicate | not_a_defect), area, summary, source (the audit file and finding index it came
+from), owner and requirements; a fixed defect names what fixed it (`fixed_by`) and its regression tests, a duplicate or
+not-a-defect its `resolution`. Gate X.6 counts open critical and high defects (`qa.defects`) and requires every
+critical finding of every audit in docs/v5/audit/ to be registered here. Severity of an audit's critical findings is
+"critical" unless re-triaged with a recorded reason.
+
+Register opened by workstream P on 2026-11-26 from the recovery audit (docs/v5/audit/*.json `critical_findings`, the
+B_population verdict) and P's own findings.
+
+### DEF-A-1 (critical, open): Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C p
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-1",
+ "owner": "A, J",
+ "requirements": [
+  "SP-10"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C provider, Gate O/P/SP-10 tests). All 13 J requirements are unmet."
+}
+```
+
+### DEF-A-2 (critical, open): The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported fr
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-2",
+ "owner": "A, J",
+ "requirements": [
+  "C.3"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported from crucible.population (social/recsys/service.py:179-187). Gate C.3 fails on this; the social gates C2/D/I were built on the stand-in crowd population, which refuses to coexist with pop."
+}
+```
+
+### DEF-A-3 (critical, open): Loading all 87 modules into one world (shim) runs 30 days cleanly, but every v5 commerce/social/innovation/ins
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-3",
+ "owner": "A, J",
+ "requirements": [
+  "O.n1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Loading all 87 modules into one world (shim) runs 30 days cleanly, but every v5 commerce/social/innovation/institution/labour/science table stays empty: disconnected mini-environments behind one dispatcher (O.n1)."
+}
+```
+
+### DEF-A-4 (critical, open): The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, comm
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-4",
+ "owner": "A, J",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "The duplicate-fact check is vacuous (opt-in; only assets declares). Real duplicates exist: relationships, communities, products (D-11 open), institutions, contracts, employment, and >=6 disjoint populations."
+}
+```
+
+### DEF-A-5 (critical, open): Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching 
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-5",
+ "owner": "A, J",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Cross-process snapshot resume fails with pop_adaptive: kernel replay(base_blob) runs on_load before attaching the store (kernel.py:1003-1008, 965-966). In-process tests hide this."
+}
+```
+
+### DEF-A-6 (critical, open): Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module
+
+```json
+{
+ "area": "A_J_substrate_civ",
+ "id": "DEF-A-6",
+ "owner": "A, J",
+ "requirements": [
+  "SP-10.3"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "A_J_substrate_civ",
+  "file": "docs/v5/audit/A_J_substrate_civ.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Subscriber notification advances the emitter's RNG (kernel.py:581), so typed validation or any coupling module changes the trajectory, which confounds the counterfactual removal Gate O/SP-10.3 relies on. The 4.0 sandbox also makes run-to-run hashes differ."
+}
+```
+
+### DEF-C-1 (critical, open): Audience rewards hash-vector alignment, not content: meaningless tokens reached 3,213/4,000 people vs 330 for 
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-1",
+ "owner": "C (CORE-POP)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Audience rewards hash-vector alignment, not content: meaningless tokens reached 3,213/4,000 people vs 330 for an informative English article (p3)."
+}
+```
+
+### DEF-C-2 (critical, open): Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184);
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-2",
+ "owner": "C (CORE-POP)",
+ "requirements": [
+  "C.3"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Three disjoint populations; the C2 engine cannot run with B's pop (C.3 fails at feed install, service.py:184); autonomous population never uses communities, messaging, newsletters, launches, Q&A or search."
+}
+```
+
+### DEF-C-3 (critical, open): Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that 
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-3",
+ "owner": "C (CORE-POP)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Multimodal distribution broken: default encoder refuses non-text; semantic mode uses a random projection that destroys topical alignment (p1, p4)."
+}
+```
+
+### DEF-C-4 (critical, open): content.update leaves the distributed representation stale (bait-and-switch, p2).
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-4",
+ "owner": "C (CORE-POP)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "content.update leaves the distributed representation stale (bait-and-switch, p2)."
+}
+```
+
+### DEF-C-5 (critical, open): C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption.
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-5",
+ "owner": "C (CORE-POP)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "C1 and C2 keep separate follower/share truths (78 vs 0 followers, p5); tool reading is never consumption."
+}
+```
+
+### DEF-C-6 (critical, open): Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is n
+
+```json
+{
+ "area": "C_social",
+ "id": "DEF-C-6",
+ "owner": "C (CORE-POP)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "C_social",
+  "file": "docs/v5/audit/C_social.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Community, sharing/following and social-to-purchase evidence comes from scripted drivers; social internet is not wired into any Tier 2 domain or civilization."
+}
+```
+
+### DEF-D-1 (critical, open): E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is ra
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-1",
+ "owner": "D (CORE-SEM)",
+ "requirements": [
+  "E.3"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is randomly projected into an unrelated interest space and audience choices stop following content (Spearman 0.026 vs 0.203 lexical)."
+}
+```
+
+### DEF-D-2 (critical, open): Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-2",
+ "owner": "D (CORE-SEM)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag of words); text vectors are also blind to negation and sentiment (0.965 / 0.824 vs paraphrase 0.831)."
+}
+```
+
+### DEF-D-3 (critical, open): E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot est
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-3",
+ "owner": "D (CORE-SEM)",
+ "requirements": [
+  "E.5"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot establish absence of score proxies."
+}
+```
+
+### DEF-D-4 (critical, open): Gate H reproduces but is weak: 74/129 calls rejected, 2/8 trivial goals met, no collaborative or productive re
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-4",
+ "owner": "D (CORE-SEM)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "Gate H reproduces but is weak: 74/129 calls rejected, 2/8 trivial goals met, no collaborative or productive result, 13/15 'consequential' actions are junk (echoed prompt fragments as arguments), in a 4.0 family."
+}
+```
+
+### DEF-D-5 (critical, open): Semantic participants are unintegrated: nothing outside semantic/ uses them; population class-4 rows are inert
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-5",
+ "owner": "D (CORE-SEM)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Semantic participants are unintegrated: nothing outside semantic/ uses them; population class-4 rows are inert (next_active_at=NEVER); no persistence, no self-goals; civ and multiagent are stubs."
+}
+```
+
+### DEF-D-6 (critical, open): SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no ro
+
+```json
+{
+ "area": "D_semantic",
+ "id": "DEF-D-6",
+ "owner": "D (CORE-SEM)",
+ "requirements": [
+  "SP-3.2b"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "D_semantic",
+  "file": "docs/v5/audit/D_semantic.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no routing exists; prefix cache gives 0.986x and changes 3/8 bf16 outputs."
+}
+```
+
+### DEF-E-1 (critical, open): No population decision uses a fitted model: models.build loads content_consumption@1 and commercial_response@1
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-1",
+ "owner": "E",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "No population decision uses a fitted model: models.build loads content_consumption@1 and commercial_response@1, then silently discards them (feature names never match FEATURES); all 9 decisions run 'plausible, unvalidated' in an integrated run."
+}
+```
+
+### DEF-E-2 (critical, open): Only news_click@1 is reachable from world code, behind an opt-in feed config set only in tests; the 'learn' do
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-2",
+ "owner": "E",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Only news_click@1 is reachable from world code, behind an opt-in feed config set only in tests; the 'learn' domain that uses it is not registered. Criteo, watch, return, session, feed and software models are never consumed."
+}
+```
+
+### DEF-E-3 (critical, open): FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fai
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-3",
+ "owner": "E",
+ "requirements": [
+  "SP-5.4"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "FIDELITY_REGISTER rows 23-33 claim fitted in-world use 'via calibration.load' that does not happen; SP-5.4 fails (40 modules) and its parser drops 17 rows after a blank line."
+}
+```
+
+### DEF-E-4 (critical, open): CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniform
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-4",
+ "owner": "E",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "CalibratedOpen quantile-maps affinity by rank within the session batch: p_open is exactly invariant to uniformly better content (max |dp| = 0) and depends on other viewers in the batch, a non-transferable simulator artifact."
+}
+```
+
+### DEF-E-5 (critical, open): Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test p
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-5",
+ "owner": "E",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Offline calibration is genuine: checksums match Zenodo, HF and GH Archive; I reproduced the Criteo full-test primary 0.114255 and session_rate deviance 3.3015 exactly; ITT (0.010) is correctly kept separate from the naive exposure contrast (0.378)."
+}
+```
+
+### DEF-E-6 (critical, open): Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disc
+
+```json
+{
+ "area": "E_calibration",
+ "id": "DEF-E-6",
+ "owner": "E",
+ "requirements": [
+  "SP-5.5"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "E_calibration",
+  "file": "docs/v5/audit/E_calibration.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Protocol and licence: the E2 amendment added the eventually-kept candidates after test metrics were seen (disclosed; SP-5.5 passes); MIND came from an unofficial mirror that skips the licence gate; raw GitHub actor ids are kept."
+}
+```
+
+### DEF-F-1 (critical, open): Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,00
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-1",
+ "owner": "F (ECON)",
+ "requirements": [
+  "K.n1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Qualifying ARR $100k is reached by one self-funded partner on a $100k annual plan with a 99% refund (net $1,000); K.n1 objective met on day 1 (only full refunds clear period_paid, subscriptions.py:298)."
+}
+```
+
+### DEF-F-2 (critical, open): F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circ
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-2",
+ "owner": "F (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "F2 escrow instruments (commit payouts contracts.py:256, inst project rewards institutions.py:1254) bypass circular-flow netting: payer not flagged, MRR counted; plain transfer is flagged."
+}
+```
+
+### DEF-F-3 (critical, open): Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through chart
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-3",
+ "owner": "F (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Evaluator-only integrity metrics (mrr_cents etc., registered with subject) are readable in-world through charter conditions/commitment predicates: exact evaluator MRR recovered in 14 queries."
+}
+```
+
+### DEF-F-4 (critical, open): MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-e
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-4",
+ "owner": "F (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "MRR counts list price for payers below FLAG_SHARE 0.5 (45% cashback keeps full MRR) and for cancel-at-period-end annual plans for up to a year."
+}
+```
+
+### DEF-F-5 (critical, open): Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-5",
+ "owner": "F (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Commerce stack is used only by tests/reference/red-team: no domain/civilization installs it; the live 'revenue' goal family uses rolling 30-day independent_revenue; 4.0 household-pool revenue is invisible to F1 metrics."
+}
+```
+
+### DEF-F-6 (critical, open): Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; 
+
+```json
+{
+ "area": "F_commerce",
+ "id": "DEF-F-6",
+ "owner": "F (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "F_commerce",
+  "file": "docs/v5/audit/F_commerce.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Demand is a scripted single-need patrons population separate from the v5 population; no acquisition channels; static incumbents; default experience reward is cash-delta legacy_shaped_reward."
+}
+```
+
+### DEF-G-1 (critical, open): pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vec
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-1",
+ "owner": "G (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vecmath was verified critical, spawned an alternative need for its dependent, and can never be marked fixed."
+}
+```
+
+### DEF-G-2 (critical, open): Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own dep
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-2",
+ "owner": "G (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Adoption-by-execution is forgeable: dependent code overwrote _pkgtrace._C (pkg.py:46) or committed its own deps/vecmath/ files; both recorded independent adoptions with no real calls; invariants stayed clean."
+}
+```
+
+### DEF-G-3 (critical, open): Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract 
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-3",
+ "owner": "G (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Demand is closed to predefined formats with hidden-truth verifiers (adopt.py:78,143): a novel palette.extract service got 24 'discoverers', 0 trials, 0 adopters. 6.3 novel categories / 6.4 novel combinations cannot be adopted."
+}
+```
+
+### DEF-G-4 (critical, open): The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-4",
+ "owner": "G (ECON)",
+ "requirements": [
+  "J.7"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "The deterministic cost model meters Python lines (sandbox/bridge.py:20,101): 149 ms of builtin work is metered 0.043 ms, a 1.7 ms loop 4.04 ms. J.7 and the capacity-driven needs rest on it; builtins give free compute."
+}
+```
+
+### DEF-G-5 (critical, open): Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 sta
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-5",
+ "owner": "G (ECON)",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Gate L chains come from 4 hand-built lean worlds with host-keyed extractors; the software chain has 4 of 5 stages scripted; civ is a stub and no domain, population or civ uses innovation; 2 of 12 alternative-seed checks fail."
+}
+```
+
+### DEF-G-6 (critical, open): Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdict
+
+```json
+{
+ "area": "G_innovation",
+ "id": "DEF-G-6",
+ "owner": "G (ECON)",
+ "requirements": [
+  "L.n1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "G_innovation",
+  "file": "docs/v5/audit/G_innovation.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Observation-only conflicts: the needs oracle reaches holders (adopters read nmod._held); 'independent' verdicts appear in search results and caps.tried/adopted (a Sybil oracle). L.n1 misses system 'endowment' bonuses."
+}
+```
+
+### DEF-H-1 (critical, open): Gate M below threshold on independent admission: 51/60 train and 18/20 eval (seeds 0-2); only 48/17 also pass 
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-1",
+ "owner": "H",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Gate M below threshold on independent admission: 51/60 train and 18/20 eval (seeds 0-2); only 48/17 also pass held-out seeds 10-12. 6 of the 60 Part 8 items have no family; 4 more have none admitted."
+}
+```
+
+### DEF-H-2 (critical, open): Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-2",
+ "owner": "H",
+ "requirements": [
+  "M.n1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0.025-0.06 vs 0.063 closest real pair), so parameter variants would count. M.n1 gate test crashes (TypeError)."
+}
+```
+
+### DEF-H-3 (critical, open): no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-3",
+ "owner": "H",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "no_dominant_strategy tests only min/mid/max: one grid-searched constant lever setting gets >75% of oracle gain in 17/31 admitted lever families (>=0.98 in 9, above the 'oracle' in 3). Hidden-causal/changing worlds reduce to static tuning."
+}
+```
+
+### DEF-H-4 (critical, open): Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 f
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-4",
+ "owner": "H",
+ "requirements": [
+  "M.8"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 failures), 9 of them admitted (cx_balancing_loop, plan_distribution, strat_bargain, team_assembly...). Gate M.8 fails."
+}
+```
+
+### DEF-H-5 (critical, open): Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-5",
+ "owner": "H",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Participant 'spec' query reveals family name, seed, category and split='val' (memorisation key, eval-partition leak). Tier 1 learner adapter defaults to legacy_shaped_reward; no objective-free rapid mode."
+}
+```
+
+### DEF-H-6 (critical, open): Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,)
+
+```json
+{
+ "area": "H_rapid",
+ "id": "DEF-H-6",
+ "owner": "H",
+ "requirements": [
+  "SP-7.3"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "H_rapid",
+  "file": "docs/v5/audit/H_rapid.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Known failures: 3 stale tests (engine count, sandbox import) + real bug primitives.py:539 SelectionEffect (B,) sd x (B,n) z; sd[:,None] fixes it (0 mismatches). SP-7.3 gate stale: records 4/8 though all 8 kinds have admitted families."
+}
+```
+
+### DEF-I-1 (critical, open): 0 of 15 Tier 2 domains exist: crucible.domains REGISTRY empty, no d5_* families, no DOMAIN, no tests/v5/test_g
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-1",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "0 of 15 Tier 2 domains exist: crucible.domains REGISTRY empty, no d5_* families, no DOMAIN, no tests/v5/test_gate_N.py; 11 domains have no code; only kernel modules sci, fleet, firms, learn exist."
+}
+```
+
+### DEF-I-2 (critical, open): Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every lear
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-2",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Education world non-functional: learn.study raises KeyError('id') (learning.py:324 vs applier 675), every learn.tick fails, learners never study; with bug bypassed, wrong-key lessons beat correct ones on evaluator scores (2 seeds)."
+}
+```
+
+### DEF-I-3 (critical, open): Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); T
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-3",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); Tier 2 unreachable via experience.make (AttributeError); make() defaults to legacy_shaped_reward = evaluator score delta."
+}
+```
+
+### DEF-I-4 (critical, open): Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-4",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.99997 over 60 days (one-call shortcut); fleet.experiment hands hidden true cpu_ms and hidden demand process to participant code."
+}
+```
+
+### DEF-I-5 (critical, open): Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-5",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Science: real hidden-law/apparatus/rival/replicator mechanics work, but sci.replications and sci.paper crash (KeyError 'id'); no novel-condition evaluator; replication test ignores relative noise and refuted the true law once."
+}
+```
+
+### DEF-I-6 (critical, open): Admission passes sci/learn/fleet despite these crashes (ignores proc.failed); firms earn from an unconditional
+
+```json
+{
+ "area": "I_domains",
+ "id": "DEF-I-6",
+ "owner": "I",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "I_domains",
+  "file": "docs/v5/audit/I_domains.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Admission passes sci/learn/fleet despite these crashes (ignores proc.failed); firms earn from an unconditional external buyer; fleet/learn/firms not registered by crucible.load_all_modules()."
+}
+```
+
+### DEF-K-1 (critical, open): Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-1",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_SP_12_3.py do not exist, civ_available()=False, domains()={}; checker exits 'no test files exist yet'."
+}
+```
+
+### DEF-K-2 (critical, open): Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, regi
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-2",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Observation-only default violated: check_mode(None), SelfPlayEnv, KernelSelfPlayEnv, KernelExperienceEnv, registry.make, PettingZoo/Gym default to legacy_shaped_reward; selfplay learners cannot learn in observation_only (pg 72 'updates', weights unchanged)."
+}
+```
+
+### DEF-K-3 (critical, open): Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('sco
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-3",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Reward leak: in observation_only SelfPlayEnv still returns info['score'] and play() feeds it to Objective('score'); a PG learner reaches legacy performance (eval 7629 vs 7579) in 'observation_only'. The leakage battery ignores info."
+}
+```
+
+### DEF-K-4 (critical, open): The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-4",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "The 4.0 'joint' cooperative objective hands each learner its partner's private per-tick net (recovered to 6.8e-09): cooperation is manufactured by reward sharing, not emergent through permitted interactions (12.3)."
+}
+```
+
+### DEF-K-5 (critical, open): Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner i
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-5",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Controlled-identity revenue counted: multi-agent harnesses admit agents without a controller; a same-learner identity's subscription counts as 2000c MRR / 1 independent customer; with a shared controller commerce.integrity excludes it."
+}
+```
+
+### DEF-K-6 (critical, open): Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head 
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-6",
+ "owner": "K",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/audit/K_selfplay.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Only in-world learned groups are pop_strategic A/B: real hash-chained updates and frozen copies, but a 4-head template choice with no cooperative actions, no measured competition and no held-out/cross-play evaluation."
+}
+```
+
+### DEF-L-1 (critical, open): observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, 
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-1",
+ "owner": "L",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "observation_only is not the default anywhere: make(), all adapters, MechVecEnv, KernelMechEnv, SelfPlay envs, Gym, PettingZoo, WorldEnv, CAM2 adapter and ReferenceLearner default to legacy; default MechVecEnv paid reward 30/30 steps"
+}
+```
+
+### DEF-L-2 (critical, open): Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learne
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-2",
+ "owner": "L",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Privileged progress leaks via tools in observation_only: goals.check_now over independent_revenue let a learner recover the verifier's exact progress (0.4) in 21 read-only calls; use.report returns verified_quality; the battery sees 0"
+}
+```
+
+### DEF-L-3 (critical, open): Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construc
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-3",
+ "owner": "L",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Gate R leakage tests prove only mode-invariance and key-name absence; world-tool oracles pass them by construction; no coverage of the rapid adapter, Tier 2/3, v5 module worlds or the sl adapter (which pays a native -0.01 penalty)"
+}
+```
+
+### DEF-L-4 (critical, open): RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks pr
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-4",
+ "owner": "L",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "RapidExperienceEnv (v5 Tier 1) broken for multi-agent: execute(a1) returns a0's result, observe_since leaks private a0->a2 events to a1, events duplicated, t in ticks, cost_s 0, no causes, world_changes never counted"
+}
+```
+
+### DEF-L-5 (critical, open): Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conform
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-5",
+ "owner": "L",
+ "requirements": [
+  "S.2",
+  "S.3",
+  "S.5",
+  "SP-11.1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Tier 2 branch of make() is incompatible with workstream I's domains.base.Domain (AttributeError with a conforming domain); no domain registered and civ is a stub, so S.2, S.3, S.5 and SP-11.1 fail and would keep failing after I lands"
+}
+```
+
+### DEF-L-6 (critical, open): Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45);
+
+```json
+{
+ "area": "L_experience",
+ "id": "DEF-L-6",
+ "owner": "L",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "L_experience",
+  "file": "docs/v5/audit/L_experience.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Positive: reference learner genuinely learns in Tier 1 observation_only (score -0.29 -> 0.75 vs frozen -0.45); store, exact checkpoints, reproducible CLI, exp module and long-horizon provenance reproduced"
+}
+```
+
+### DEF-M-1 (critical, open): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-1",
+ "owner": "M",
+ "requirements": [
+  "SP-13.7",
+  "SP-13.8"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; all 12 M requirements unmet."
+}
+```
+
+### DEF-M-2 (critical, open): crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB;
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-2",
+ "owner": "M",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB; affinity 48 CPUs, no rlimits; 13/219 logged jobs exceeded reserved CPU; no FIFO; zombies keep slots; simulation never consults it."
+}
+```
+
+### DEF-M-3 (critical, open): Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompres
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-3",
+ "owner": "M",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk."
+}
+```
+
+### DEF-M-4 (critical, open): No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' cl
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-4",
+ "owner": "M",
+ "requirements": [
+  "V.9"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code."
+}
+```
+
+### DEF-M-5 (critical, open): Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (ro
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-5",
+ "owner": "M",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (rollout.py:128); probe returned reward 12345.0 for an exogenous deposit with no action."
+}
+```
+
+### DEF-M-6 (critical, open): Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than de
+
+```json
+{
+ "area": "M_performance",
+ "id": "DEF-M-6",
+ "owner": "M",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "M_performance",
+  "file": "docs/v5/audit/M_performance.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation."
+}
+```
+
+### DEF-N-1 (critical, open): Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-1",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 curriculum, proposal interface, six-level framework, A/B/C/D config or new-family positive controls; no N gate tests exist; all 25 requirements NOT_STARTED."
+}
+```
+
+### DEF-N-2 (critical, open): The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-2",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed (state kept in process memory) as 'internalised', valid, with no warning (p2)."
+}
+```
+
+### DEF-N-3 (critical, open): Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for i
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-3",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for identical learners under seed-level variation (p5)."
+}
+```
+
+### DEF-N-4 (critical, open): The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols)
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-4",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols); its positive controls fail or are misclassified under the mandated observation_only default (p4, p7)."
+}
+```
+
+### DEF-N-5 (critical, open): The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and sampl
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-5",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and samples held-out test worlds labelled train (p3)."
+}
+```
+
+### DEF-N-6 (critical, open): compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a 
+
+```json
+{
+ "area": "N_research",
+ "id": "DEF-N-6",
+ "owner": "N",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "N_research",
+  "file": "docs/v5/audit/N_research.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a fixed rule exploits for a median 0.82 of the oracle's improvement, undetected by admission (p9); v5 partitions are mutable and the sealed salt is readable by learner code (p8)."
+}
+```
+
+### DEF-O-1 (critical, open): Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-1",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 0
+ },
+ "status": "open",
+ "summary": "Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg.exec billed 0c vs 240c and compute_use reached -40,000 s; integrity post-check still passed (bridge.py:100, code.py:148)."
+}
+```
+
+### DEF-O-2 (critical, open): Tier 1 reward hack: pe_* program_exec families bill cost from sandbox-reported lines; a program setting _LINES
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-2",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 1
+ },
+ "status": "open",
+ "summary": "Tier 1 reward hack: pe_* program_exec families bill cost from sandbox-reported lines; a program setting _LINES negative turned cost 64,077 into -1.6e9 (cash +1.6e9) in pe_rule_induction (program_exec.py:103,1187)."
+}
+```
+
+### DEF-O-3 (critical, open): Adoption-by-execution forgeable: pkg tracer runs in the agent's process; writing _pkgtrace._C recorded 3e9 'in
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-3",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 2
+ },
+ "status": "open",
+ "summary": "Adoption-by-execution forgeable: pkg tracer runs in the agent's process; writing _pkgtrace._C recorded 3e9 'independent' calls into a never-called package; invariants pass (innovation/pkg.py:44-66,872-892)."
+}
+```
+
+### DEF-O-4 (critical, open): Gate W does not exist: no test_gate_W.py or test_gate_SP_16.py; redteam.v5.probes() raises ModuleNotFoundError
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-4",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "Gate W does not exist: no test_gate_W.py or test_gate_SP_16.py; redteam.v5.probes() raises ModuleNotFoundError (9/10 modules missing), suite/gate_metrics missing; 6 substrate probes only, 1 silently N/A."
+}
+```
+
+### DEF-O-5 (critical, open): No v5 module (population, social, commerce, innovation, semantic, experience, Tier 1/2/3) has red-team coverag
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-5",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "No v5 module (population, social, commerce, innovation, semantic, experience, Tier 1/2/3) has red-team coverage; static guard forbidden list is 4.0-only (calibration.datasets with urllib acquire reachable from world code)."
+}
+```
+
+### DEF-O-6 (critical, open): reward_mode defaults to legacy_shaped_reward (experience/registry.py:99, modes.py:34), violating the observati
+
+```json
+{
+ "area": "O_security",
+ "id": "DEF-O-6",
+ "owner": "O",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "O_security",
+  "file": "docs/v5/audit/O_security.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "reward_mode defaults to legacy_shaped_reward (experience/registry.py:99, modes.py:34), violating the observation-only amendment; sandbox threads keep running after jobs return (unbilled CPU)."
+}
+```
+
+### DEF-P-1 (critical, fixed): --verify-all exits 0 with CRUCIBLE_5_COMPLETE when requirements are deleted from the manifest (empty manifest 
+
+```json
+{
+ "area": "P_acceptance",
+ "fixed_by": "c5c/w1-qa: manifest anchored to derive() and the ledger; empty or pruned manifests never complete",
+ "id": "DEF-P-1",
+ "owner": "P",
+ "regression_tests": "tests/test_v5_acceptance_checker.py::test_P2_an_empty_manifest_never_completes, ::test_P3_P13_deleting_a_requirement_is_detected",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 0
+ },
+ "status": "fixed",
+ "summary": "--verify-all exits 0 with CRUCIBLE_5_COMPLETE when requirements are deleted from the manifest (empty manifest is ok=True); manifest edits are exempt from the dirty-tree check (evidence.py:26, checker.py:207)."
+}
+```
+
+### DEF-P-2 (critical, fixed): Hand-written evidence+JUnit+review with no test run is VERIFIED; the official run+review pipeline accepts a ga
+
+```json
+{
+ "area": "P_acceptance",
+ "fixed_by": "c5c/w1-qa: evidence only from official runs in fresh clones; reviews re-execute and reproduce; placeholder and constant-metric tests rejected",
+ "id": "DEF-P-2",
+ "owner": "P",
+ "regression_tests": "tests/test_v5_acceptance_checker.py::test_P1_handwritten_evidence_junit_and_review_are_rejected, ::test_P12_a_test_that_records_constants_and_asserts_nothing_fails",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 1
+ },
+ "status": "fixed",
+ "summary": "Hand-written evidence+JUnit+review with no test run is VERIFIED; the official run+review pipeline accepts a gate test that records constants; reviewer identity is a free-text string; nothing re-executes evidence."
+}
+```
+
+### DEF-P-3 (critical, fixed): Criteria can be weakened silently by rewriting criteria_history[0]; tests/implementation lists are not change-
+
+```json
+{
+ "area": "P_acceptance",
+ "fixed_by": "c5c/w1-qa: append-only hash-chained ledger anchored in git; criteria changes provably stricter with a decision; test and implementation lists change-controlled",
+ "id": "DEF-P-3",
+ "owner": "P",
+ "regression_tests": "tests/test_v5_acceptance_checker.py::test_P4_weakening_criteria_by_rewriting_history_is_detected, ::test_P4b_rewriting_the_ledger_itself_is_detected, ::test_P10_swapping_the_test_list_is_detected",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 2
+ },
+ "status": "fixed",
+ "summary": "Criteria can be weakened silently by rewriting criteria_history[0]; tests/implementation lists are not change-controlled; the checker never compares the manifest with requirements.py/derive()."
+}
+```
+
+### DEF-P-4 (critical, open): No requirement can be verified: 0/253 entries list implementation files, 132 name missing tests (all of Gates 
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-4",
+ "owner": "P",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 3
+ },
+ "status": "open",
+ "summary": "No requirement can be verified: 0/253 entries list implementation files, 132 name missing tests (all of Gates A,B,G,N-Q,T-X,OO,RP); no P gate test, no evidence, no reviews, no final report."
+}
+```
+
+### DEF-P-5 (critical, open): reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, K
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-5",
+ "owner": "P",
+ "requirements": [],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 4
+ },
+ "status": "open",
+ "summary": "reward_mode defaults to legacy_shaped_reward at every public entry point (make, Gym, PettingZoo, MechVecEnv, KernelMechEnv), contradicting the observation-only amendment; OO/RP entries only added at dd745b9."
+}
+```
+
+### DEF-P-6 (critical, open): Full regression is not green: 1664 tests, 5 failed (a 4.0 test broken by the v5 media_error code; cxs_selected
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-6",
+ "notes": "c5c/w1-qa fixed the 4.0 discovery failure (media_error now has a meaning in core/discovery.py; the 4.0 test is unchanged). The rapid failures belong to workstream H.",
+ "owner": "P",
+ "requirements": [
+  "A.1",
+  "X.4"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "P_acceptance",
+  "file": "docs/v5/audit/P_acceptance.json",
+  "finding": 5
+ },
+ "status": "open",
+ "summary": "Full regression is not green: 1664 tests, 5 failed (a 4.0 test broken by the v5 media_error code; cxs_selected_layers batch bug at rapid/primitives.py:539; 3 stale Tier 1 contract tests), 2 GPU skips; A.1/X.4 fail."
+}
+```
+
+### DEF-B-1 (critical, open): Population is not integrated: nothing outside its own tests uses it, the social internet cannot run on it (cru
+
+```json
+{
+ "area": "B_population",
+ "id": "DEF-B-1",
+ "owner": "B (CORE-POP)",
+ "requirements": [
+  "SP-4.0",
+  "B.1"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "B_population",
+  "file": "docs/v5/audit/B_population.md",
+  "finding": null,
+  "section": "1. Verdict"
+ },
+ "status": "open",
+ "summary": "Population is not integrated: nothing outside its own tests uses it, the social internet cannot run on it (crucible.population exported nothing), a duplicate population (crowd) owns the same pop table, class-4 rows are inert."
+}
+```
+
+### DEF-B-2 (critical, open): No fitted calibration model is used by any population decision although FIDELITY_REGISTER.md claimed six were 
+
+```json
+{
+ "area": "B_population",
+ "id": "DEF-B-2",
+ "owner": "B, E",
+ "requirements": [
+  "SP-5.0",
+  "SP-5.4"
+ ],
+ "severity": "critical",
+ "source": {
+  "audit": "B_population",
+  "file": "docs/v5/audit/B_population.md",
+  "finding": null,
+  "section": "1. Verdict"
+ },
+ "status": "open",
+ "summary": "No fitted calibration model is used by any population decision although FIDELITY_REGISTER.md claimed six were (an unsupported claim)."
+}
+```
+
+### DEF-B-3 (high, open): Class 3 is a 4-head categorical bandit over a scripted entrepreneur template with unstable A2C updates; it is 
+
+```json
+{
+ "area": "B_population",
+ "id": "DEF-B-3",
+ "owner": "B, K",
+ "requirements": [
+  "SP-3.2c",
+  "G.4"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "B_population",
+  "file": "docs/v5/audit/B_population.md",
+  "finding": null,
+  "section": "1. Verdict"
+ },
+ "status": "open",
+ "summary": "Class 3 is a 4-head categorical bandit over a scripted entrepreneur template with unstable A2C updates; it is not strategic learning."
+}
+```
+
+### DEF-B-4 (high, open): No gate test exists for B, G, SP-3.1, SP-3.3, SP-3.4 or SP-4.1.
+
+```json
+{
+ "area": "B_population",
+ "id": "DEF-B-4",
+ "owner": "B",
+ "requirements": [
+  "B.1",
+  "SP-3.1",
+  "SP-3.3",
+  "SP-3.4",
+  "SP-4.1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "B_population",
+  "file": "docs/v5/audit/B_population.md",
+  "finding": null,
+  "section": "1. Verdict"
+ },
+ "status": "open",
+ "summary": "No gate test exists for B, G, SP-3.1, SP-3.3, SP-3.4 or SP-4.1."
+}
+```
+
+### DEF-P-7 (high, open): 13 gate tests assert nothing on measured values (test_F_4_baseline_comparisons, test_F_5_calibration_metrics, 
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-7",
+ "owner": "D, E",
+ "requirements": [
+  "H.1",
+  "F.4",
+  "F.5",
+  "F.n1",
+  "SP-3.2b"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "13 gate tests assert nothing on measured values (test_F_4_baseline_comparisons, test_F_5_calibration_metrics, test_F_n1_no_synthetic_only_domain, test_H_1_eight_independent_participants, test_H_2_shared_model_weights, test_H_3_separate_goals_and_histories, test_H_4_tool_selection_on_held_out_situations, test_H_5_language_understanding, test_H_6_consequential_actions, test_H_7_verified_productive_or_collaborative_result, test_H_8_memory_and_inference_measurements, test_H_n1_smallest_effective_models, test_SP_3_2b_semantic_model_benchmark); the hardened checker refuses their evidence until they assert."
+}
+```
+
+### DEF-P-8 (high, open): RP.1: 23 imports of CAM learner code (agentrs.cam2 / agentrs.sl) inside crucible/: the 4.0 adapters src/crucib
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-8",
+ "owner": "L, orchestrator",
+ "requirements": [
+  "RP.1",
+  "A.1",
+  "SP-11.6d"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "RP.1: 23 imports of CAM learner code (agentrs.cam2 / agentrs.sl) inside crucible/: the 4.0 adapters src/crucible/integrations/agentrs_cam2.py and agentrs_sl.py, examples/ow_cam_baseline.py, the 4.0 test tests/test_agents_llm.py and the v5 test tests/test_v5_experience_core.py. Conflicts with A.1 (4.0 tests unchanged) and Clarification 1 (compatibility); needs an orchestrator decision (e.g. move the adapters and their tests to the agentrs side)."
+}
+```
+
+### DEF-P-9 (high, open): The recovery audit (docs/v5/audit/, 29 files) exists only as uncommitted files in the c5-complete worktree; RP
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-9",
+ "owner": "orchestrator",
+ "requirements": [
+  "RP.2",
+  "RP.3",
+  "X.6"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "The recovery audit (docs/v5/audit/, 29 files) exists only as uncommitted files in the c5-complete worktree; RP.2 and X.6 cannot be verified and RP.3 (no milestone work only in an uncommitted worktree) is violated until it is committed."
+}
+```
+
+### DEF-P-10 (medium, open): Audit reports lack a skeptic review section for A_J_substrate_civ, M_performance, P_acceptance and B_populatio
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-10",
+ "owner": "orchestrator",
+ "requirements": [
+  "RP.2"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "Audit reports lack a skeptic review section for A_J_substrate_civ, M_performance, P_acceptance and B_population, and B_population.json (referenced by B_population.md) does not exist."
+}
+```
+
+### DEF-P-11 (medium, open): 235 of the manifest's requirements are recorded by no gate test.
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-11",
+ "owner": "all workstreams",
+ "requirements": [
+  "X.7"
+ ],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "235 of the manifest's requirements are recorded by no gate test."
+}
+```

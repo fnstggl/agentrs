@@ -1,0 +1,1162 @@
+{
+ "schema": "crucible.v5.artifacts/1",
+ "what": "Important artifacts of Crucible 5.0 and where their durable copy lives (RP.4). durability: github = committed and pushed; public_source = re-acquirable from a public source with recorded checksums; local_only = no durable copy (container storage, /workspace is not a persistent volume: vast-capabilities .instance.workspace_is_volume = false).",
+ "artifacts": [
+  {
+   "name": "fitted model file commercial_response/commercial_response.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/commercial_response/commercial_response.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 830690,
+   "sha256": "03fadf222425be1dd1a75bd99db0f1bf751e2e608a9e4f70e6fd9a292689550e"
+  },
+  {
+   "name": "fitted model file commercial_response/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/commercial_response/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 35420,
+   "sha256": "c4c3978340428b5d3f1104b0e0a98d498989ee70baac6c3242e2d4a62f3017b8"
+  },
+  {
+   "name": "fitted model file content_consumption/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/content_consumption/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 13223,
+   "sha256": "39e547b9bf654ce607240a458ccb13d4ac73b9dc628df580b9184d1a23e20a1c"
+  },
+  {
+   "name": "fitted model file content_consumption/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/content_consumption/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 308009,
+   "sha256": "3a24030b6538d7cac590669a7c4da92832f55f34b8afe168e0817199080e4ba3"
+  },
+  {
+   "name": "fitted model file content_consumption_feed/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/content_consumption_feed/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 11131,
+   "sha256": "8d95a532445cf4d8adf356a1a4f2dd24283c5a8ce67dc510340a6b99de726a7e"
+  },
+  {
+   "name": "fitted model file content_consumption_feed/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/content_consumption_feed/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 260145,
+   "sha256": "35aeca499205219e02c8044695092086fc01cfe1f9cb4b0d07187c0af95a981d"
+  },
+  {
+   "name": "fitted model file news_click/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/news_click/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 11112,
+   "sha256": "b799483bb86d262bbe464c46bcfe64bf846185060265b835f7356bc486df05f8"
+  },
+  {
+   "name": "fitted model file news_click/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/news_click/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 312492,
+   "sha256": "d78501a8e8be1afce9bbcd774f716e86bc8c74214518da888849012993d57825"
+  },
+  {
+   "name": "fitted model file return_daily/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/return_daily/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 8084,
+   "sha256": "f31559b9df98b07cca67a90b3ad3823727e58ad650ef283ecfd8043af4fe6749"
+  },
+  {
+   "name": "fitted model file return_daily/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/return_daily/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 85042,
+   "sha256": "1db2287048fd76cdea61cb07300331782d26dd4b26091241dd100a11e0210ed2"
+  },
+  {
+   "name": "fitted model file session_rate/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/session_rate/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 5518,
+   "sha256": "24e9d3640650a7111ceb3057d8db96bc6682c56711ea4e222bb26645b6fc120e"
+  },
+  {
+   "name": "fitted model file session_rate/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/session_rate/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 401,
+   "sha256": "65da1d299403dd80d301b38fbddd2690728c1919bd514fc22a8f61c1e5880f39"
+  },
+  {
+   "name": "fitted model file software_deep_engagement/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/software_deep_engagement/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 15179,
+   "sha256": "45aea181b4a053f03a6afc6a16c78ff5bdd43fa8e7648de72fcd0c2abf1f7555"
+  },
+  {
+   "name": "fitted model file software_deep_engagement/software_deep_engagement.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/software_deep_engagement/software_deep_engagement.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 87599,
+   "sha256": "f7766cb0163f86637095c80293084e695520a7a17bc438f0f507fe17e664c422"
+  },
+  {
+   "name": "fitted model file software_repo_growth/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/software_repo_growth/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 15609,
+   "sha256": "608cf930e1c2f31722e5f9d44a7cc921cee3e07bffc60b69c5211ec9d7329e0c"
+  },
+  {
+   "name": "fitted model file software_repo_growth/software_repo_growth.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/software_repo_growth/software_repo_growth.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 446010,
+   "sha256": "8abdc0196a2617cc997df2cbd844646cbcd010d97e28eb5b8876a54194c918d3"
+  },
+  {
+   "name": "fitted model file watch_duration/model_card.json",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/watch_duration/model_card.json",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 11580,
+   "sha256": "a52a394ee18e13c331f3c2488e6951e6b78b93958ac853e8bf71d4b6eb1de97d"
+  },
+  {
+   "name": "fitted model file watch_duration/params.npz",
+   "kind": "fitted checkpoint",
+   "path": "docs/v5/calibration/models/watch_duration/params.npz",
+   "durability": "github",
+   "location": "committed; on GitHub with the pushed integration branch",
+   "note": "loaded by crucible.calibration registry with a hash check",
+   "bytes": 12310,
+   "sha256": "56b7daeacbd9d0f760d52ddcc545a09acd2b9b855342399d200523aa45c53951"
+  },
+  {
+   "name": "dataset manifest criteo_uplift_v2.1.json",
+   "kind": "dataset manifest",
+   "path": "docs/v5/calibration/datasets/criteo_uplift_v2.1.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 5034,
+   "sha256": "9d7b73dc598cdf081ef9eb01de0c1f5cbca1dc9a94c8d299316cd0ac28277559"
+  },
+  {
+   "name": "dataset manifest gharchive_2024-10-07_96h.json",
+   "kind": "dataset manifest",
+   "path": "docs/v5/calibration/datasets/gharchive_2024-10-07_96h.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 34128,
+   "sha256": "f73526d0122dde8ed8cd213d67e7aeacbf025bf90695cf20ce88f353c43da2b5"
+  },
+  {
+   "name": "dataset manifest DATASETS.md",
+   "kind": "dataset manifest",
+   "path": "docs/v5/calibration/DATASETS.md",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 4289,
+   "sha256": "d38db396aaab7581c907e897e2973eccb88e91bd512e7a5c5f598305ddb5e4e2"
+  },
+  {
+   "name": "pre-registered fit plan E1_evaluation_plan.json",
+   "kind": "experiment record",
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 12155,
+   "sha256": "5ae089ed1f363e9c447a4902e0d040393fdb140811e818a46d03b8a4748c97d2"
+  },
+  {
+   "name": "pre-registered fit plan E1_evaluation_plan.md",
+   "kind": "experiment record",
+   "path": "docs/v5/calibration/plans/E1_evaluation_plan.md",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 2789,
+   "sha256": "3ba2335f7af8cdfbaf5bc9ec23c19474f02e3ca057ff3649c7dca06d74230417"
+  },
+  {
+   "name": "pre-registered fit plan E2_amendment_1.plan.json",
+   "kind": "experiment record",
+   "path": "docs/v5/calibration/plans/E2_amendment_1.plan.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 3445,
+   "sha256": "5b76ff8894f06006130c4d6edde32865e6b8889033de819ee2efb18133bf33f2"
+  },
+  {
+   "name": "pre-registered fit plan E2_commercial_response.plan.json",
+   "kind": "experiment record",
+   "path": "docs/v5/calibration/plans/E2_commercial_response.plan.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 5867,
+   "sha256": "4641828c98f15f7e0a6480f01af9677054e0290e5e017a60f99016b281c43d65"
+  },
+  {
+   "name": "pre-registered fit plan E2_software_adoption.plan.json",
+   "kind": "experiment record",
+   "path": "docs/v5/calibration/plans/E2_software_adoption.plan.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 6635,
+   "sha256": "22d302cf334d80809dc8e38ee677d0715a0c5db6e8a7529f633301c7502e4716"
+  },
+  {
+   "name": "dataset kuairand_pure",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/kuairand_pure",
+   "durability": "public_source",
+   "location": "https://zenodo.org/api/records/10439422/files/KuaiRand-Pure.tar.gz/content",
+   "note": "the local copy is on container storage (/workspace is not a persistent volume); re-acquirable from the public source with the checksums recorded in its manifest",
+   "bytes": 250971405
+  },
+  {
+   "name": "dataset mind_small",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/mind_small",
+   "durability": "public_source",
+   "location": "https://huggingface.co/datasets/huyva/MIND-small (pinned revision d771a25)",
+   "note": "the local copy is on container storage (/workspace is not a persistent volume); re-acquirable from the public source with the checksums recorded in its manifest",
+   "bytes": 209579473
+  },
+  {
+   "name": "dataset criteo_uplift_v2.1",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/criteo_uplift_v2.1",
+   "durability": "public_source",
+   "location": "https://huggingface.co/datasets/criteo/criteo-uplift (pinned revision 2424920)",
+   "note": "the local copy is on container storage (/workspace is not a persistent volume); re-acquirable from the public source with the checksums recorded in its manifest",
+   "bytes": 1038365845
+  },
+  {
+   "name": "dataset gharchive_2024-10-07_96h",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/gharchive_2024-10-07_96h",
+   "durability": "public_source",
+   "location": "https://data.gharchive.org/ hourly files 2024-10-07..10 (re-derived by crucible.calibration.acquire)",
+   "note": "the local copy is on container storage (/workspace is not a persistent volume); re-acquirable from the public source with the checksums recorded in its manifest",
+   "bytes": 408959762
+  },
+  {
+   "name": "dataset online_retail_ii (pseudonymised)",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/online_retail_ii",
+   "durability": "local_only",
+   "location": "/workspace/data/crucible (container storage)",
+   "note": "derived with a local pseudonym key that exists only here",
+   "bytes": 50463861
+  },
+  {
+   "name": "semantic capability benchmark data",
+   "kind": "dataset",
+   "path": "/workspace/data/crucible/semantic",
+   "durability": "local_only",
+   "location": "/workspace/data/crucible (container storage)",
+   "note": "used by workstream D's benchmark; no durable copy recorded",
+   "bytes": 84135349
+  },
+  {
+   "name": "encoder and language-model weights",
+   "kind": "model weights",
+   "path": "/workspace/.hf_home",
+   "durability": "public_source",
+   "location": "Hugging Face Hub, pinned revisions in crucible.semantic.encoders.models",
+   "note": "local cache on container storage",
+   "bytes": 136175786679
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_meta_np_s0.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_meta_np_s0.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 1181257,
+   "sha256": "4fb46f1ca3fed1715caefc07c0ec1896c559159056b3703f8f8d730d30d70bd6"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_meta_np_s1.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_meta_np_s1.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 1181257,
+   "sha256": "3564bf3bc56085dcace4dfe6ec0be87c2e36f6f9e33046206708fddd5c43b576"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_meta_np_s2.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_meta_np_s2.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 1181257,
+   "sha256": "9015962c53ea27921cb4e93f8714cd3f25944ebac455941f99e10f72e6865973"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_model_based_s0.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_model_based_s0.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 47573,
+   "sha256": "6ab945512a3dbc20a2eab9c0bf4f3a2c975e9d3fc992cc893d90bdd1083738a0"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_model_based_s1.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_model_based_s1.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 47573,
+   "sha256": "5066716dc98e898447e280bc8cd114da8781c2bb6b8bb93328f78c7cf5c3cd55"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_model_based_s2.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_model_based_s2.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 47573,
+   "sha256": "b5d7637141baa9a03617ecbaeb2e89cee9a23bb807ee4a3f74a7f6de8c1f6434"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_ppo_gru_s0.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_ppo_gru_s0.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 463369,
+   "sha256": "231e1c53a9fa1f3e199d9079cad94ddc07611a2e3fbaba410c218703ad94ba15"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_ppo_gru_s1.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_ppo_gru_s1.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 463369,
+   "sha256": "f1d2f2ecb2a02d88c26971adf415e63d4ba65660e8e35316101ab79e9a9ff940"
+  },
+  {
+   "name": "4.0 checkpoint ow_learners_ppo_gru_s2.pt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/ow_learners_ppo_gru_s2.pt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 463369,
+   "sha256": "6118afd96f039077eb74cbb5b3a9bce6cf415243e1828c360f85ece045e797c7"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "d85824e22c4ff8472706d3408c99380eb6c16954b9609b3075ca423f4a0b357c"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10270,
+   "sha256": "8619953cdace0e145abef4c6195845941e9173cbd4ca69007af05cfffb1e8ee9"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "6b07a5604f3d3b26ade7fcc5b16d18ff29dac6a08a1f4dd2d0c2e85aa84e1602"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10291,
+   "sha256": "e563df818eaf3ef53a6d54e1a74d4ad64ba163bcb2c077346a9e6714cb37d49b"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 740,
+   "sha256": "f437be6bb045df66b0e9b555a75d5aa077ba8ec8761b07855e94f211f9ec4762"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10319,
+   "sha256": "185b04149ee798fab8093db115933a2a28bea29c372240beb40985cdb48f571b"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 739,
+   "sha256": "e595c399b42ec4f09721a02e60e7b13f873431f1b2bfcc21087b0b0302f55c0c"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_commons_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_commons_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10313,
+   "sha256": "ca64fc7059383ad77eec0e94b943de5f99c614229a0d750c0955d6003a0dc6ce"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "de01db861f5d5b6d42c89a212dbc4cf98744eafc03628e54098fd12b05b1cfe5"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10399,
+   "sha256": "9c3a8b46aacbee1c04a9ebf61276907324a67d3f54153bbf7c38dc89cbd8b563"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "16593a91f46ddb377c6316cb4268d49090aa687a195bc6865f3d5b4a9f885d30"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10355,
+   "sha256": "c05475cccfbe054af9d953133fc32cea852907cd0723595cfea569769e6fef3b"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 743,
+   "sha256": "89d9bc6b914023359e72c912e23e4e2f417f6b1993709771e59da51ba2ff308e"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10536,
+   "sha256": "3e0f33a25a13fca5c84684a2c45abab9cc76f69167052fe344ccda7c8f07f8aa"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 745,
+   "sha256": "ad498c4384ecd1575cb2d98de6c4ea79877a01f0e666926239b31cdfac05db1c"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_complement_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_complement_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10596,
+   "sha256": "186f83e7e74d3a9461aea0f73e6ad653ab4660306ec5e3bc926c80427919e4e9"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "8c141a32655d65853d8575dd711a25b6b2a0dd92b9b38441d4480886d90781e2"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10210,
+   "sha256": "e42f585aee75778445806ae3a308515a805e85c5b7021757af610904a1fe7883"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "184aedd763ab5965ec6f388c44389f76b8b324cce9645466c52a359b0aaf55f0"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10208,
+   "sha256": "742f9f3427855e92699be643919f06fe6e288097bc8bf9b7908b1e5280e0a854"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 737,
+   "sha256": "092cca92c54f4e6b270a5d3764e228443ffd877c9f616ec3df1cff21d018ebb3"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10406,
+   "sha256": "1ec98dfdc2d24920d85093f517461cec61d59f989eb16ebd0ec26f9d591741e3"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 736,
+   "sha256": "edaa648f8ce21ddaa217d6e7f7e2c9146b7c169e4523eae4445be520cacec192"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10376,
+   "sha256": "68948c865400bc308ddf6473e6df711b8c92e8d26764fa4029a35a2e0e423f78"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53305,
+   "sha256": "4b4df21b52cd4f0d1b464aa2ccebb052849df97eed76f156d5022ccf2200159c"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10207,
+   "sha256": "b7a8f6bc82d91966b73263924bfa87453f3b1bf394e003f62d6873f2675312ec"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53305,
+   "sha256": "d1b0d219c3f36cbdc7f39b99fc0a8b7052105106213c071b09895f2cd1a57d1a"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10220,
+   "sha256": "1765c992637c48f5dbbe54b106a40d353682069ae077bb493dc9dda93b27f847"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 711,
+   "sha256": "e4aa6de72493ed29c72594f3900579afb049b1dfe2b2aeaf7f94421c7b949220"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10318,
+   "sha256": "c28094a34cad9705a70b3d603e118ad07f34431f21ef5385f42a73c7353cd5bb"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 698,
+   "sha256": "cd99cc69fd3fbaacf8c6b64593acf4473d7ee0fa00163690e3cbaf92ba0f7eb7"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/abm_duopoly_fx_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/abm_duopoly_fx_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 10319,
+   "sha256": "44629a4783a916bcc8ea2066c12dacabaecb852109f861c2973f6c01e0b6b9ea"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53177,
+   "sha256": "c66fca96431a9434c2803825986068189dddda2b2c4014ac7b29e67d34734312"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 12944,
+   "sha256": "bedcb3d08cf7774e736fefbf27726cdda5d05f05eac539f951baedc75a0d3e24"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "d16e7e8f6f7c8927bbd35c5582273faa79b6a8a0c739f1181919846fc7c22e92"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 12981,
+   "sha256": "0f382968eb9186afa410f9d98406ed2617de4b4907cd088b81f7a920b4b84a1f"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 741,
+   "sha256": "4ebebef568c9a40b14af1453d98531d2584ef209a000d1831964aebc39be9dbd"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13073,
+   "sha256": "05a3b510ef4cd978bef048bdc56d342ab984ad938e665392097a3a8d36d3860a"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 736,
+   "sha256": "4c0c0312d19190df36a60e1f6ff62cf49d7da808e7044852ed3eb89afb311a7e"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_handoff_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_handoff_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13072,
+   "sha256": "f9f98bcaeb0d8607dfe46d33dc76aaeda25197ebd5d6551f210f711ed979ed19"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/pg31.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/pg31.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "605e635542e1fb66facd33bb411a33c6116bcdc058ff3271b08ceff195af6120"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/pg31.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/pg31.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13132,
+   "sha256": "4b0a5974b9463912842cb6365a8a6a830a116224d01d86c9d161b278d1f0da85"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/pg32.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/pg32.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 53241,
+   "sha256": "34498b3d5b63c924bb0c7b3431d4b2d6d848876871d3b743c6e6942d6df7bce4"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/pg32.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/pg32.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13158,
+   "sha256": "375213c0a5ab3b24aed48aebb3de1e07aec9d901873063d8d45027da659a422e"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/spsa11.s0/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/spsa11.s0/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 835,
+   "sha256": "6fa3b4b2eb4e1c9586e662bd85654445d9530f87ab638b3ef76eaf628dd6a1f4"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/spsa11.s0/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/spsa11.s0/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13250,
+   "sha256": "455348fe2d8faed8d13c3e635796b6d382d8df6e8d2cc68721b983ee78fec864"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/spsa12.s1/learner.ckpt",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/spsa12.s1/learner.ckpt",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 836,
+   "sha256": "1a8d43e1f8e543ce04d4a7d4d30193ef766a1c5f1b653c947d95bb7df3d74729"
+  },
+  {
+   "name": "4.0 checkpoint selfplay/tech_shared_pool_0/spsa12.s1/meta.json",
+   "kind": "4.0 checkpoint",
+   "path": "docs/experiments/checkpoints/selfplay/tech_shared_pool_0/spsa12.s1/meta.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 13258,
+   "sha256": "ac465e8a289bcd94f8263b28905e4eb6729786ca7396f68edbd9f328efeb9c7e"
+  },
+  {
+   "name": "evidence regression_baseline.json",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/gate_A/regression_baseline.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 816,
+   "sha256": "a16e2b16d567951b4fe4b7e8c81dc383c1aa7a4607aba3be3ed908c6dd2087a9"
+  },
+  {
+   "name": "evidence regression_g0.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/gate_A/regression_g0.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 40283,
+   "sha256": "2da9e49e1dc46cd93ec912693675ec1471d42860c238f37f043c14101cab7a93"
+  },
+  {
+   "name": "evidence regression_g1.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/gate_A/regression_g1.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 43166,
+   "sha256": "0597856045a18c9dc03cfdc0b0ec279da39c4054d2328cff004bd3274b4207a2"
+  },
+  {
+   "name": "evidence regression_g2.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/gate_A/regression_g2.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 51759,
+   "sha256": "090358a9c52b1a2e0ef8212b7b0e4e488e1e6e78194d9f626bc397431135de35"
+  },
+  {
+   "name": "evidence regression_consolidated_g0.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_consolidated_g0.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 60908,
+   "sha256": "8ff191f1f73e20423422d41f7312332f5b5d24c5de0c16c5e66c8db6347b1c20"
+  },
+  {
+   "name": "evidence regression_consolidated_g1.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_consolidated_g1.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 73704,
+   "sha256": "02275c96cb4137e714d231186712c98ff4d85cfc3046f0fe9f981f96557753e0"
+  },
+  {
+   "name": "evidence regression_consolidated_g2.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_consolidated_g2.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 84382,
+   "sha256": "723f33c16f52547b11caf040b33d42c7f5dcfccab4041a4f5346185fd1c3574e"
+  },
+  {
+   "name": "evidence regression_merge-A_g0.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_merge-A_g0.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 43755,
+   "sha256": "15be81b10948199ddd04d05f8822896e1e064d37cd8e421298b8a9b78007dcbd"
+  },
+  {
+   "name": "evidence regression_merge-A_g1.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_merge-A_g1.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 47474,
+   "sha256": "0739e3a4fb38b85e306ec9c1e684dd88dfbcc8b51eb4112fd28f994105112922"
+  },
+  {
+   "name": "evidence regression_merge-A_g2.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_merge-A_g2.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 63730,
+   "sha256": "cb2ea8e25feafd212faac059dce5c5cbac5f8a74108c8b432a013e113809d4fd"
+  },
+  {
+   "name": "evidence regression_wave1_g0.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_wave1_g0.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 63248,
+   "sha256": "c1f7c9c2ba682fd9066e02f626cce7818e23b2c917880638afd0b21fa9cd0b2a"
+  },
+  {
+   "name": "evidence regression_wave1_g1.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_wave1_g1.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 75532,
+   "sha256": "148ed89c637b5d9af277d0f76e4bfe84a28cf5c971e04a9911a88a346b22275d"
+  },
+  {
+   "name": "evidence regression_wave1_g2.xml",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/integration/regression_wave1_g2.xml",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 65543,
+   "sha256": "c4c2469d1caf032275349634e3b7d2c84c1e6bef95b0af3d519aadf7502fcddd"
+  },
+  {
+   "name": "evidence bench_openworld_quick.log",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/baseline_perf/bench_openworld_quick.log",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 14187,
+   "sha256": "5790731640622d0c30179910e7b0ea6f70c8b25d6d3ecf3d227af52ab7bd0d19"
+  },
+  {
+   "name": "evidence openworld_quick_rerun.json",
+   "kind": "evidence",
+   "path": "docs/v5/evidence/baseline_perf/openworld_quick_rerun.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 157593,
+   "sha256": "4c2751788207d70f95bf3e2b90d36c17c0145b8199cf3f78dc705dff37f4fe8b"
+  },
+  {
+   "name": "engineering record ACCEPTANCE_LEDGER.jsonl",
+   "kind": "engineering record",
+   "path": "docs/v5/ACCEPTANCE_LEDGER.jsonl",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 748109,
+   "sha256": "22dc1aff8f950ace4c31c193ab67e5fc3e92e690024872dc95024cca5c41f730"
+  },
+  {
+   "name": "engineering record ACCEPTANCE_MANIFEST.json",
+   "kind": "engineering record",
+   "path": "docs/v5/ACCEPTANCE_MANIFEST.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 559168,
+   "sha256": "911be89d41575cebce51e4af7ecfaf194b77311c2aa31351e1f2d257956ddd45"
+  },
+  {
+   "name": "engineering record PROGRESS.json",
+   "kind": "engineering record",
+   "path": "docs/v5/PROGRESS.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 25082,
+   "sha256": "481bd6e521bfb9c2bb6048be9d22f5dbfb0a3a9701605509d15a0d8cd35c7c25"
+  },
+  {
+   "name": "engineering record DEFECTS.md",
+   "kind": "engineering record",
+   "path": "docs/v5/DEFECTS.md",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 59330,
+   "sha256": "4c207269c17548adc712b43dff6325404ac998609028aa9669d528cfb6359339"
+  },
+  {
+   "name": "engineering record sealed_store.json",
+   "kind": "engineering record",
+   "path": "docs/v5/baselines/sealed_store.json",
+   "durability": "github",
+   "location": "committed",
+   "note": "",
+   "bytes": 904,
+   "sha256": "9c780d94be1c937b4e23bbe44dc4511ee785f6dcb3964583c179356386685e52"
+  },
+  {
+   "name": "sealed evaluation store (salt, registry, access log, ow-final tasks)",
+   "kind": "sealed evaluation set",
+   "path": "/root/.crucible",
+   "durability": "local_only",
+   "location": "/root/.crucible (container storage)",
+   "note": "the secret salt must never be committed; it needs a private durable store the user provides. If it is lost, ow-final cannot be regenerated (a new set would have to be declared)",
+   "bytes": 31199
+  },
+  {
+   "name": "backup bundle agentrs-all-branches-2026-11-21.bundle",
+   "kind": "backup",
+   "path": "/workspace/backups/agentrs-all-branches-2026-11-21.bundle",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "git bundles; their commits are also on GitHub where pushed",
+   "bytes": 4234199
+  },
+  {
+   "name": "backup bundle agentrs-all-branches-2026-11-22.bundle",
+   "kind": "backup",
+   "path": "/workspace/backups/agentrs-all-branches-2026-11-22.bundle",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "git bundles; their commits are also on GitHub where pushed",
+   "bytes": 4887532
+  },
+  {
+   "name": "backup bundle agentrs-all-branches-2026-11-23.bundle",
+   "kind": "backup",
+   "path": "/workspace/backups/agentrs-all-branches-2026-11-23.bundle",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "git bundles; their commits are also on GitHub where pushed",
+   "bytes": 12243001
+  },
+  {
+   "name": "backup bundle crucible-3.0-11e5613.bundle",
+   "kind": "backup",
+   "path": "/workspace/backups/crucible-3.0-11e5613.bundle",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "git bundles; their commits are also on GitHub where pushed",
+   "bytes": 4234057
+  },
+  {
+   "name": "backup bundle crucible-pre5-20261125.bundle",
+   "kind": "backup",
+   "path": "/workspace/backups/crucible-pre5-20261125.bundle",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "git bundles; their commits are also on GitHub where pushed",
+   "bytes": 15550409
+  },
+  {
+   "name": "crucible5 artifacts backup 2026-11-26",
+   "kind": "backup",
+   "path": "/workspace/backups/crucible5-artifacts-20261126",
+   "durability": "local_only",
+   "location": "/workspace/backups (container storage)",
+   "note": "agent transcripts, scratch experiments, datasets symlink",
+   "bytes": 74521440
+  }
+ ]
+}

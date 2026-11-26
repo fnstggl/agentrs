@@ -579,3 +579,9 @@ def verify_all(root: str | None = None, *, reproduce: bool = False, agent: str |
         status = "IN_PROGRESS"
     return {"ok": status == "CRUCIBLE_5_COMPLETE", "head": head, "requirements": len(rows), "counts": counts,
             "rows": rows, "project_status": status, "global_problems": global_problems, "reproduced": reproduce}
+
+
+def unmet(rid: str, metrics: dict, root: str | None = None) -> list[str]:
+    """The manifest criteria of `rid` that `metrics` do not meet (gate tests assert this is empty)."""
+    e = next(x for x in M.load(root)["requirements"] if x["id"] == rid)
+    return [why for ok, why in (criterion_met(c, metrics) for c in e["criteria"]) if not ok]

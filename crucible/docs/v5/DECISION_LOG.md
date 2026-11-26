@@ -199,3 +199,10 @@ criteria history, self-asserted clean tree, partial JUnit, placeholder tests, co
   reports CRUCIBLE_5_COMPLETE, INCOMPLETE_BLOCKED (every unverified requirement BLOCKED by an open `BLK-<n>` entry of
   BLOCKERS.md) or IN_PROGRESS. Residual trust, stated honestly: identities are declared names plus hashed session ids,
   not signatures; a forger with write access can fabricate files, which the release-time reproduction then exposes.
+
+## D-25 Gate test files of workstream P's added requirements (2026-11-26, workstream P)
+SP-1.3b, SP-1.5b, SP-19.7, SP-20b and SP-21b (added under D-22) are measured by the same machinery as SP-1.3, SP-1.5,
+SP-21, SP-20 and SP-21, so their canonical gate test is that requirement's existing gate file
+(`requirements.GATE_TEST_OVERRIDE`): tests/v5/test_gate_SP_1_3.py, test_gate_SP_1_5.py, test_gate_SP_21.py,
+test_gate_SP_20.py and test_gate_SP_21.py, replacing the per-id file names the first build assigned (files that never
+existed). This changes where the evidence is produced, not what is measured.

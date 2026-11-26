@@ -15413,7 +15413,7 @@
    "dependencies": [],
    "implementation_files": [],
    "tests": [
-    "tests/v5/test_gate_SP_1_3b.py"
+    "tests/v5/test_gate_SP_1_3.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-1.3b",
    "criteria": [
@@ -15479,7 +15479,7 @@
    "dependencies": [],
    "implementation_files": [],
    "tests": [
-    "tests/v5/test_gate_SP_1_5b.py"
+    "tests/v5/test_gate_SP_1_5.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-1.5b",
    "criteria": [
@@ -19731,7 +19731,7 @@
    "dependencies": [],
    "implementation_files": [],
    "tests": [
-    "tests/v5/test_gate_SP_19_7.py"
+    "tests/v5/test_gate_SP_21.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-19.7",
    "criteria": [
@@ -19809,7 +19809,7 @@
    ],
    "implementation_files": [],
    "tests": [
-    "tests/v5/test_gate_SP_20b.py"
+    "tests/v5/test_gate_SP_20.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-20b",
    "criteria": [
@@ -19877,7 +19877,7 @@
    ],
    "implementation_files": [],
    "tests": [
-    "tests/v5/test_gate_SP_21b.py"
+    "tests/v5/test_gate_SP_21.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-21b",
    "criteria": [

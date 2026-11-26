@@ -1,12 +1,17 @@
 # Crucible 5.0 progress
 
+The machine-readable ledger is `docs/v5/PROGRESS.json` (every Part 1.5 field per milestone, exact remaining
+requirement ids, interrupted workstreams and their reassignment); validate it with
+`python -m crucible.acceptance.v5 progress validate` and add a milestone with `... progress milestone`. This file is
+the narrative.
+
 Project status: **IN_PROGRESS** (the checker decides; see `python -m crucible.acceptance.v5 --verify-all`).
 
 ## Milestone 0 - foundation (2026-11-25)
 
 * Branch `feat/crucible-5-openworld` at worktree `.worktrees/crucible-5`, based on `c07098b`.
 * Backup bundle `/workspace/backups/crucible-pre5-20261125.bundle` (crucible branches and both CAM 7.0 branches).
-* MASTER_SPEC.md saved verbatim from the request (sha256 of the file recorded in the commit); Clarification 1 saved.
+* MASTER_SPEC.md saved verbatim from the request; Clarification 1 saved. [Corrected 2026-11-26 by workstream P: commit 4a7591e's message carries no hash. The SHA-256 7b35feb343ce... is now anchored in `acceptance/v5/requirements.py` (MASTER_SPEC_SHA256) and in the acceptance ledger; the file is unchanged since 4a7591e.]
 * Regression baseline: 1,076 tests, 1,074 passed, 2 skipped, 0 failed (Gate A evidence, raw).
 * Crucible 4.0 performance baseline: `bench_openworld.py --quick` (log in the scratchpad, copied to evidence later).
 * Subsystem map of Crucible 4.0 by eight readers: `docs/v5/map/*.json`.
@@ -57,9 +62,9 @@ Disk: 21 GB free after calibration data (1.8 GB under /workspace/data/crucible).
   Their uncommitted work was committed on their own branches, preserved as `recovery/c5-*` branches on GitHub, and
   merged into this branch together with the calibration-registry unification (all nine models in one registry).
 * Full regression of the consolidated tree (tests/, without the gate tests): 1,648 tests, 5 failed, 2 skipped
-  (`docs/v5/evidence/integration/regression_consolidated_g*.xml`). Four failures are Tier 1 tests that still assert the
-  foundation's engine count and module boundaries (the expansion added engines; `program_exec` uses the sandbox); one
-  is a real bug in the new family `cxs_selected_layers` (batch path shape error); one 4.0 discovery test does not
-  list the new error code `media_error`.
+  (`docs/v5/evidence/integration/regression_consolidated_g*.xml`). Four failures are Tier 1 tests: three still assert the
+  foundation's engine count and module boundaries (the expansion added engines; `program_exec` uses the sandbox) and
+  one is a real bug in the new family `cxs_selected_layers` (batch path shape error); the fifth is the 4.0 discovery
+  test, which does not list the new error code `media_error`. [Count corrected 2026-11-26 by workstream P from the JUnit.]
 * Interrupted work is incomplete: no Tier 2 domain is registered yet, the new Tier 1 families have not been through
   admission, population/social gate tests have not been run officially. Requirements verified: 0 of 241.

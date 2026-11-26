@@ -86,11 +86,16 @@ def _verify_command(gate: str, rid: str) -> str:
     return f"PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement {rid}"
 
 
-def canonical_test(rid: str) -> str:
-    """The gate test file that must produce a requirement's evidence: tests/v5/test_gate_<G>.py (SP items: their id)."""
+def default_test(rid: str) -> str:
     g = "SP" if rid.startswith("SP-") else rid.split(".", 1)[0]
     key = rid if g == "SP" else g
     return f"tests/v5/test_gate_{key.replace('-', '_').replace('.', '_')}.py"
+
+
+def canonical_test(rid: str, root: str | None = None) -> str:
+    """The gate test file that must produce a requirement's evidence: tests/v5/test_gate_<G>.py (SP items: their id),
+    unless requirements.GATE_TEST_OVERRIDE names another gate file for it."""
+    return getattr(requirements_module(root), "GATE_TEST_OVERRIDE", {}).get(rid, default_test(rid))
 
 
 CLAR_TITLES = {1: "Architecture independence from CAM", 2: "Observation-only as the universal default",
@@ -249,8 +254,8 @@ def build(root: str | None = None, decision: str | None = None) -> dict:
             items.append({"id": rid, "kind": "dependencies", "value": e["dependencies"]})
             items.append({"id": rid, "kind": "tolerance", "value": e["tolerance"]})
             tests = list(prev.get("tests") or [])
-            if canonical_test(rid) not in tests:
-                tests.insert(0, canonical_test(rid))
+            if canonical_test(rid, root) not in tests:
+                tests.insert(0, canonical_test(rid, root))
             items.append({"id": rid, "kind": "tests", "value": tests})
             items.append({"id": rid, "kind": "implementation_files", "value": list(prev.get("implementation_files") or [])})
             continue
@@ -271,9 +276,16 @@ def build(root: str | None = None, decision: str | None = None) -> dict:
         if r["tolerance"] != e["tolerance"]:
             items.append({"id": rid, "kind": "tolerance", "value": e["tolerance"],
                           "decision": need(rid, "tolerance changed")})
-        if canonical_test(rid) not in (r["tests"] or []):
-            items.append({"id": rid, "kind": "tests", "value": [canonical_test(rid)] + list(r["tests"] or []),
-                          "note": "canonical gate test restored"})
+        canon, cur_tests = canonical_test(rid, root), list(r["tests"] or [])
+        if canon not in cur_tests:
+            dflt = default_test(rid)
+            if canon != dflt and dflt in cur_tests and decision and decision in sections and \
+                    L.mentions(sections[decision], rid):            # the canonical gate file was reassigned
+                items.append({"id": rid, "kind": "tests", "value": [canon] + [t for t in cur_tests if t != dflt],
+                              "decision": decision, "note": "canonical gate test reassigned"})
+            else:
+                items.append({"id": rid, "kind": "tests", "value": [canon] + cur_tests,
+                              "note": "canonical gate test restored"})
     L.append(root_, items)
     st = L.state(L.read(root_))
     m = _project(fresh, st, old)
@@ -461,6 +473,6 @@ def consistency(root: str | None = None, m: dict | None = None) -> dict:
         for f in ("tests", "implementation_files"):
             if list(mine.get(f) or []) != list(r[f] or []):
                 per.setdefault(rid, []).append(f"{f} differ from the ledger (lists are change-controlled)")
-        if canonical_test(rid) not in (mine.get("tests") or []):
-            per.setdefault(rid, []).append(f"the canonical gate test {canonical_test(rid)} is not listed")
+        if canonical_test(rid, root) not in (mine.get("tests") or []):
+            per.setdefault(rid, []).append(f"the canonical gate test {canonical_test(rid, root)} is not listed")
     return {"global": g, "per_id": per, "derived": fresh}
