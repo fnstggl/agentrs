@@ -51,10 +51,33 @@ def decision() -> dict | None:
         return None
 
 
-def derive(report: dict) -> dict:
+def derive(report: dict, in_situ: dict | None = None) -> dict:
     """Routes from an SP-3.2b report: for each capability the SMALLEST model effective on held-out templates
     (`recommendation_held_out`); where no candidate is effective, the best-measured language model (largest value,
-    then smallest size). Returns {capability: {model, reason, measured: {model: value}}}."""
+    then smallest size). Returns {capability: {model, reason, measured: {model: value}}}.
+
+    `in_situ` ({capability: {model: accuracy}}) holds measurements of a capability where the participants use it -
+    the class-4 tool-selection benchmark in a civilisation (`generalists.bench`, DEV templates only, every other
+    route as derived from the report) - and replaces the report's entry for that capability by the same rule
+    (smallest model with accuracy >= EFFECTIVE_ACCURACY, else the best measured)."""
+    out = _derive_report(report)
+    for cap, meas in (in_situ or {}).items():
+        if cap not in out:
+            continue
+        vals = {m: v for m, v in meas.items() if m in PARAMS and v is not None}
+        eff = [m for m, v in vals.items() if v >= EFFECTIVE_ACCURACY]
+        if eff:
+            model, reason = min(eff, key=lambda m: PARAMS[m]), "smallest model effective in situ (class-4 bench, dev)"
+        elif vals:
+            model = max(vals, key=lambda m: (vals[m], -PARAMS[m]))
+            reason = "no candidate effective in situ (class-4 bench, dev): best measured"
+        else:
+            continue
+        out[cap] = dict(out[cap], model=model, reason=reason, in_situ=vals)
+    return out
+
+
+def _derive_report(report: dict) -> dict:
     from .capbench.run import primary
     out = {}
     lms = [r for r in report.get("results", []) if (r.get("model") or {}).get("name") in PARAMS]

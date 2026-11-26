@@ -61,7 +61,7 @@ def test_SP_3_2d_not_scripted_own_goals_routing_and_checkpoints():
                            [a["consequential"], a["calls"] - a["consequential"]]], alternative="greater")[1]
     dec = routing.decision()
     assert dec is not None, "no committed routing decision (crucible/semantic/data/routing.json)"
-    rederived = {cap: r["model"] for cap, r in routing.derive(dec["report"]).items()}
+    rederived = {cap: r["model"] for cap, r in routing.derive(dec["report"], dec.get("in_situ")).items()}
     routed = {cap: routing.route(cap) for cap in routing.TABLE}
     checks = [routing.tool_use(mdl) for mdl in MODELS]
     cards = [routing.model_card(mdl) for mdl in MODELS]

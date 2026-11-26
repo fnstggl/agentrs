@@ -114,7 +114,7 @@ def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch
     # capability on held-out templates, else the best measured
     dec = R.decision()
     assert dec is not None
-    derived = {c: r["model"] for c, r in R.derive(dec["report"]).items()}
+    derived = {c: r["model"] for c, r in R.derive(dec["report"], dec.get("in_situ")).items()}
     assert {c: R.route(c) for c in R.TABLE} == derived
     assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
     assert R.route("tool_choice") == R.route("content_understanding") == "Qwen/Qwen3-0.6B"
