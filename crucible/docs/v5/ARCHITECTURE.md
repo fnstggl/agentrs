@@ -103,7 +103,11 @@ change on a schedule during a run, and their parameters are evaluator-side.
 Encoders are real pretrained models (text, image, audio, video = frames + audio + transcript), cached by
 (artifact hash, encoder id, encoder version, preprocessing). Participants' content choice uses these representations;
 no creator-assigned quality exists anywhere. Calibrated behaviour models are fitted on public datasets with held-out
-evaluation and baselines; the world loads only the fitted checkpoints. Every mechanism has a fidelity record.
+evaluation and baselines, reviewed against the simulator's own rules, long-horizon drift and compute (E3), and
+exposed to world code only through `crucible.calibration.runtime` (decision models with explicit feature contracts,
+row-wise, hash-verified checkpoints; docs/v5/calibration/RUNTIME.md). As of 2026-11-26 no default world consumes a
+fitted model (only an opt-in feed configuration can); wiring them into the unified population is wave 2 (D-15).
+Every mechanism has its own fidelity record, and claimed in-world use is verified (SP-5.4).
 
 ## 8. Economy, innovation, institutions (Part 6)
 

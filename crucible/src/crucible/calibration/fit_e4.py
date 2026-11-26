@@ -1350,6 +1350,48 @@ def fit_news_semantic(cmd: str, t0: float, emb_path: str) -> str:
                   "Microsoft News (msn.com)", "2019-11-09..15")
 
 
+# ---------------------------------------------------------------- held-out rows for the reproducers (same code paths)
+def demand_test_rows(df=None):
+    """(X, y) of product_demand's test split, built exactly as fit_product_demand builds them."""
+    df = retail_frame() if df is None else df
+    prods, U, Pr, NC, W = demand_table(df)
+    wk = lambda y, m, d: (_day(y, m, d) + 1) // 7       # noqa: E731
+    tr_end, te0, te1 = wk(2011, 3, 21), wk(2011, 6, 27), wk(2011, 11, 28)
+    sold = U > 0
+    first = np.argmax(sold, axis=1)
+    has_price = ~np.isnan(Pr)
+    tr_weeks = np.zeros(W, bool); tr_weeks[:tr_end + 1] = True
+    eligible = (sold & tr_weeks).sum(1) >= 20
+    alive = (np.arange(W)[None, :] >= first[:, None]) & has_price
+    yfull = np.log1p(U)
+    ref = np.ones(prods.size)
+    pmean = np.zeros(prods.size)
+    for i in range(prods.size):
+        m = alive[i] & tr_weeks
+        if m.any():
+            ref[i] = np.median(Pr[i, m])
+            pmean[i] = yfull[i, m].mean()
+    Xl, yl = [], []
+    for w in range(te0, te1 + 1):
+        rows = np.flatnonzero(eligible & alive[:, w] & (w >= first + 1))
+        if rows.size:
+            Xl.append(demand_rows(U, Pr, NC, ref, pmean, first, w, rows))
+            yl.append(yfull[rows, w])
+    return np.concatenate(Xl), np.concatenate(yl)
+
+
+def cascade_test_rows():
+    """(X, y) of star_cascade's test split (hours 72-95), built exactly as fit_cascade builds them."""
+    tab = github_cascade_table()
+    S = tab["S"]
+    Xl, yl = [], []
+    for h in range(72, 96):
+        rows = np.flatnonzero(S[:, h - 24:h].sum(1) > 0)
+        Xl.append(cascade_features(S, h, tab, rows).astype(np.float32))
+        yl.append(S[rows, h])
+    return np.concatenate(Xl).astype(np.float64), np.concatenate(yl).astype(np.float64)
+
+
 FITS = {"repo_participation_return": fit_participation, "star_cascade": fit_cascade,
         "customer_return": fit_customer_return, "product_demand": fit_product_demand,
         "session_length": fit_session_length, "creator_return": fit_creator_return,

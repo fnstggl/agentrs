@@ -216,16 +216,21 @@ def _module_names(cell: str) -> list[str]:
     return re.findall(r"`([A-Za-z_][A-Za-z0-9_]*)`", cell)
 
 
-def _package_references(cls, needle: str) -> bool:
+def _package_references(cls, model_id: str) -> bool:
+    """Does a source file of the module's behaviour package (crucible.<package>) reference the fitted model, by its
+    id or by the id of a runtime decision model that serves it?"""
     import importlib
-    pkg = importlib.import_module(cls.__module__.rsplit(".", 1)[0])
+    from . import runtime
+    needles = {model_id} | {sid for sid, sp in runtime.specs().items() if sp["model"] == model_id}
+    pkg = importlib.import_module(".".join(cls.__module__.split(".")[:2]))
     for d in getattr(pkg, "__path__", []):
         for root, _, files in os.walk(d):
             for fn in files:
                 if fn.endswith(".py"):
                     with open(os.path.join(root, fn), encoding="utf-8") as fh:
-                        if needle in fh.read():
-                            return True
+                        text = fh.read()
+                    if any(n in text for n in needles):
+                        return True
     return False
 
 

@@ -144,33 +144,35 @@ KR_INPUTS = {
 }
 
 
-def _kr_columns(d: dict, prior: float, count_scale: float) -> dict[str, np.ndarray]:
-    """The E1 KuaiRand features from simulator counts (kuairand.choice_frame formulas)."""
-    s = _f(d, "topic_population_share")
-    tag_share = (_f(d, "own_topic_views") + _KR_TAG_PRIOR_N * s) / (_f(d, "own_views_before") + _KR_TAG_PRIOR_N)
-    h_sin, h_cos = _hour_terms(_f(d, "local_hour"))
+def _kr_columns(d: dict, prior: float, count_scale: float) -> dict:
+    """The E1 KuaiRand features from simulator counts (kuairand.choice_frame formulas), as lazy row-wise formulas."""
+    def tag_share():
+        s = _f(d, "topic_population_share")
+        return (_f(d, "own_topic_views") + _KR_TAG_PRIOR_N * s) / (_f(d, "own_views_before") + _KR_TAG_PRIOR_N)
     return {
-        "user_log_plays_7d": np.log1p(count_scale * _f(d, "own_views_7d")),
-        "user_click_rate": (_f(d, "own_opens_before") + _KR_PRIOR_N * prior) /
-                           (_f(d, "own_impressions_before") + _KR_PRIOR_N),
-        "item_log_pop_7d": np.log1p(1000.0 * _f(d, "item_views_7d") / np.maximum(_f(d, "active_individuals_7d"), 1)),
-        "item_click_rate": (_f(d, "item_opens_before") + _KR_PRIOR_N * prior) /
-                           (_f(d, "item_impressions_before") + _KR_PRIOR_N),
-        "item_log_age_days": np.log1p(_f(d, "item_age_days")),
-        "item_log_duration_s": np.log1p(_f(d, "item_duration_s")),
+        "user_log_plays_7d": lambda: np.log1p(count_scale * _f(d, "own_views_7d")),
+        "user_click_rate": lambda: (_f(d, "own_opens_before") + _KR_PRIOR_N * prior) /
+                                   (_f(d, "own_impressions_before") + _KR_PRIOR_N),
+        "item_log_pop_7d": lambda: np.log1p(1000.0 * _f(d, "item_views_7d") /
+                                            np.maximum(_f(d, "active_individuals_7d"), 1)),
+        "item_click_rate": lambda: (_f(d, "item_opens_before") + _KR_PRIOR_N * prior) /
+                                   (_f(d, "item_impressions_before") + _KR_PRIOR_N),
+        "item_log_age_days": lambda: np.log1p(_f(d, "item_age_days")),
+        "item_log_duration_s": lambda: np.log1p(_f(d, "item_duration_s")),
         "user_tag_share": tag_share,
-        "user_tag_lift": np.log(tag_share / np.maximum(s, 1e-12)),
-        "creator_familiarity": np.log1p(_f(d, "own_creator_views")),
-        "item_seen_before": np.log1p(_f(d, "own_item_exposures")),
-        "item_played_before": (_f(d, "own_item_consumed") > 0).astype(np.float64),
-        "hour_sin": h_sin, "hour_cos": h_cos,
-        **({"consumed": _f(d, "consumed")} if "consumed" in d else {}),
+        "user_tag_lift": lambda: np.log(tag_share() / np.maximum(_f(d, "topic_population_share"), 1e-12)),
+        "creator_familiarity": lambda: np.log1p(_f(d, "own_creator_views")),
+        "item_seen_before": lambda: np.log1p(_f(d, "own_item_exposures")),
+        "item_played_before": lambda: (_f(d, "own_item_consumed") > 0).astype(np.float64),
+        "hour_sin": lambda: _hour_terms(_f(d, "local_hour"))[0],
+        "hour_cos": lambda: _hour_terms(_f(d, "local_hour"))[1],
+        "consumed": lambda: _f(d, "consumed"),
     }
 
 
 def _kr_build(d: dict, model, spec: Spec) -> np.ndarray:
     cols = _kr_columns(d, float(model.card["prior_rate"]), float(spec.params.get("count_scale", 1.0)))
-    return np.column_stack([cols[f] for f in model.features])
+    return np.column_stack([cols[f]() for f in model.features])
 
 
 _KR_CHOICE_IN = ("own_views_7d", "own_opens_before", "own_impressions_before", "item_views_7d",
@@ -388,6 +390,14 @@ def get(decision_id: str) -> "DecisionModel":
     if decision_id not in _LOADED:
         _LOADED[decision_id] = DecisionModel(S[decision_id], _load(S[decision_id].model))
     return _LOADED[decision_id]
+
+
+def decision_for(model_id: str) -> "DecisionModel":
+    """The decision model that serves a registered fitted model (`name@version`)."""
+    for sid, sp in sorted(_all_specs().items()):
+        if sp.model == model_id:
+            return get(sid)
+    raise ContractError(f"no runtime decision model serves {model_id}")
 
 
 def usage() -> dict[str, int]:

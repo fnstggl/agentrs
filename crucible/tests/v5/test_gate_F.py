@@ -4,9 +4,11 @@ Every metric is computed at test time from what is registered: the model cards a
 `docs/v5/calibration/models/` (both card schemas, read through `registry.card_view`), their held-out reports, and the
 dataset registry (`crucible.calibration.datasets()`), so models registered by any calibration workstream count once
 merged. F.3 also recomputes the held-out test metric of every qualifying model from the verified datasets and the
-saved checkpoint, so a report cannot claim what the saved model does not achieve. The full module needs every
-dataset a registered model cites (`acquire` downloads and verifies them when absent) and takes a few minutes; run it
-through the slot scheduler with 2 CPUs.
+saved checkpoint through the runtime decision-model API (`crucible.calibration.runtime`), so a report cannot claim
+what the saved model does not achieve and the runtime is shown to load every kept checkpoint and evaluate held-out
+rows. F.3 is part of every run of this module (not `slow`-only); the module needs every dataset a registered model
+cites (`acquire` downloads and verifies them when absent) and takes about 15-25 minutes on one CPU: run it through
+the slot scheduler.
 """
 import importlib
 import os
@@ -51,6 +53,12 @@ def state():
     return recs, audit.gate_f_metrics(recs)
 
 
+@pytest.fixture(scope="module")
+def reproduction():
+    """Every qualifying model's held-out test metric recomputed from the verified datasets through the runtime."""
+    return reproduce.reproduce_all()
+
+
 def _context(m: dict) -> dict:
     return {k: m[k] for k in ("registered_models", "qualifying_models")}
 
@@ -58,8 +66,15 @@ def _context(m: dict) -> dict:
 def test_F_1_three_domains_fitted_on_empirical_data(state):
     recs, m = state
     domains = sorted({r["domain"] for r in recs if r.get("qualifies")})
+    from crucible.calibration import fidelity as FI
+    claims = FI.inworld_claims()
     metrics = {"empirical_domains_fitted": m["empirical_domains_fitted"], **_context(m),
-               "domains": ",".join(domains)}
+               "domains": ",".join(domains),
+               # honesty: how many fitted models a default world actually uses (wave 2 wires them, D-15)
+               "fitted_models_used_by_default_worlds": sum(1 for c in claims.values() if c["ok"] and
+                                                           c["kind"] == "default"),
+               "fitted_models_with_verified_opt_in_use": len({c["model"] for c in claims.values()
+                                                              if c["ok"] and c["kind"] == "opt-in"})}
     record("F.1", metrics, command=CMD, artifacts=_artifacts(recs),
            notes="distinct registry.DOMAINS among models that load with verified hashes, cite a checksummed "
                  "non-synthetic dataset and have a held-out report")
@@ -94,19 +109,19 @@ def test_F_2_content_consumption_and_randomized_commercial_response(state):
     _assert_met("F.2", metrics)
 
 
-@pytest.mark.slow
 @pytest.mark.timeout(3600)
-def test_F_3_heldout_reports_reproduce_from_checkpoints(state):
+def test_F_3_heldout_reports_reproduce_from_checkpoints(state, reproduction):
     recs, m = state
-    rep = reproduce.reproduce_all()
+    rep = reproduction
     worst = max(r["abs_diff"] / max(abs(r["reported"]), 1e-9) for r in rep.values())
     metrics = {"heldout_reports": m["heldout_reports"], "reports_reproduced": len(rep),
                "max_relative_difference": float(worst), **_context(m)}
     for name, r in rep.items():
         metrics[f"{name}.{r['metric']}"] = r["recomputed"]
     record("F.3", metrics, command=CMD, artifacts=_artifacts(recs),
-           notes="held-out test metrics recomputed with registry.load on the verified datasets (commercial_response: "
-                 "on the report's seeded 100,000-user test audit subsample)")
+           notes="held-out test metrics recomputed through crucible.calibration.runtime (registry.load, hash-verified) "
+                 "on the verified datasets (commercial_response: on the report's seeded 100,000-user test audit "
+                 "subsample)")
     # every qualifying model's held-out metric is recomputed, whichever workstream registered it
     assert set(rep) == {r["name"] for r in recs if r.get("qualifies")}
     assert set(reproduce.E1_MODELS) | set(reproduce.E2_MODELS) <= set(rep)
@@ -232,3 +247,22 @@ def test_F_n1_no_synthetic_only_domain(state):
                **_context(m)}
     record("F.n1", metrics, command=CMD, artifacts=_artifacts(recs))
     _assert_met("F.n1", metrics)
+
+
+@pytest.mark.timeout(3600)
+def test_F_runtime_serves_every_kept_model_on_heldout_rows(state, reproduction):
+    """The runtime decision-model API loads every kept checkpoint (hash-verified) and its held-out evaluation equals
+    the report; where the E3 review keeps another contender, that contender is what the runtime serves."""
+    from crucible.calibration import runtime as RT
+    recs, _ = state
+    for r in recs:
+        if not r.get("qualifies"):
+            continue
+        mid = f"{r['name']}@{r['card']['version']}"
+        dm = RT.decision_for(mid)
+        assert dm.model_id == mid and dm.fitted.view["files"] == r["view"]["files"]
+        row = reproduction[r["name"]]
+        assert row["abs_diff"] <= 1e-4 * max(abs(row["reported"]), 1e-9), (mid, row)
+        rv = RT.review_of(mid)
+        assert dm.served == ((rv or {}).get("kept_after_review") or "K")
+    assert RT.usage()                                      # the reproduction ran through the runtime
