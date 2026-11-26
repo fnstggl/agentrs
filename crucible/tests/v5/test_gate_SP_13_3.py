@@ -14,7 +14,7 @@ from crucible.scale import backends
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(6 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 1500 --ram-mb 8000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 4000 --ram-mb 8000 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-13.3")
 FAMILIES = {"numpy": "numpy", "compiled_kernels": "inductor_cpu", "numba_equivalent_jit": "torchscript",
             "pytorch_cpu": "torch_cpu", "quantized": "int8_dynamic", "batched_gpu": "gpu_fp32"}

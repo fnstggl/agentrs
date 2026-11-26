@@ -11,7 +11,8 @@ from crucible.scale import bench5
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = "PYTHONPATH=src python -m crucible.scale.slots --cpu 2 --ram-mb 16000 -- python -m crucible.acceptance.v5 run --requirement SP-0.10"
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
+       "python -m crucible.acceptance.v5 run --requirement SP-0.10")      # it compares against the suite
 
 
 def test_SP_0_10_v4_baseline_reported_against_v5():
