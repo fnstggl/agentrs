@@ -1987,6 +1987,78 @@
    "recovery_branch": "recovery/c5-O-security",
    "reassigned_to": "O (c5c/w1-sec)",
    "status": "reassigned"
+  },
+  {
+   "workstream": "N research (impl)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-research",
+   "reassigned_to": "c5c/w3b-research",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "L observation-only (impl)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-obs",
+   "reassigned_to": "c5c/w3b-obs",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "H rapid (impl)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-rapid",
+   "reassigned_to": "c5c/w3b-rapid",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "M performance (impl)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-perf",
+   "reassigned_to": "c5c/w3b-perf",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "P QA (verify)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-qa",
+   "reassigned_to": "c5c/w3b-qa",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "A kernel (verify)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-kernel",
+   "reassigned_to": "c5c/w3b-kcal",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "O security (verify)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-sec",
+   "reassigned_to": "c5c/w3b-sec",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "E calibration (repair)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-calib",
+   "reassigned_to": "c5c/w3b-kcal",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
+  },
+  {
+   "workstream": "INT integration fix (verify)",
+   "interrupted": "usage limit (5-hour) stopped the agent mid-task on 2026-11-26; its commits are on the branch and merged at 55433e7",
+   "recovery_branch": "c5c/w3-intfix",
+   "reassigned_to": "c5c/w3b-* owners (pop, soc, sem, civ verify their parts)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T17:09:51+00:00"
   }
  ]
 }
