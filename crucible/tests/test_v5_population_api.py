@@ -23,10 +23,13 @@ class _ProbeActivity(Module):
     depends = ("pop",)
 
     def install(self, world):
+        from crucible.substrate import columns
+        # a subsystem records decisions in columns it owns (column write ownership: the handler runs as its module)
+        columns.declare(world, "pop", P.n_individuals(world), {"probe_value": ("float32", (), 0.0)})
         P.register_activity(world, "probe", self.act, owner="pop_api_probe", prior=3.0)
 
     def act(self, ctx, idx, now):
-        P.record_decisions(ctx, "test.probe", idx, {"last_utility": np.full(idx.size, 0.25, np.float32)},
+        P.record_decisions(ctx, "test.probe", idx, {"probe_value": np.full(idx.size, 0.25, np.float32)},
                            model_id="probe-model", model_version="1", fidelity_id="test-probe")
         return np.full(idx.size, 0.1)
 
@@ -50,15 +53,34 @@ def test_exports_match_the_contract():
         assert hasattr(semantics, name), name
 
 
+def test_one_space_module_and_no_second_encoder():
+    """The population registers no kernel module of its own for the space and delegates encoding to it."""
+    from crucible.core.kernel import MODULES, Module
+    from crucible.semantic import space
+    from crucible.semantic.space import store
+    assert MODULES["space"] is store.SpaceRecords
+    assert not [v for v in vars(semantics).values() if isinstance(v, type) and issubclass(v, Module)]
+    assert (semantics.DIM, semantics.SPACE_ID, semantics.SPACE_VERSION) == (space.DIM, space.SPACE_ID,
+                                                                            space.SPACE_VERSION)
+    assert semantics.asset()["space_id"] == space.SPACE_ID and semantics.asset()["block"] == "topic"
+    assert semantics.basis(8).shape == (8, space.DIM) and np.allclose(semantics.basis(8)[:, semantics.TOPIC.stop:], 0)
+
+
 def test_interests_live_in_the_shared_space(world):
     n = P.n_individuals(world)
     u = P.interests(world, np.arange(n))
     assert u.shape == (n, semantics.DIM) and u.dtype == np.float32
     assert np.allclose(np.linalg.norm(u, axis=1), 1.0, atol=1e-3)
-    # an affinity on projected item coordinates equals the full-space cosine
+    # ONE space: the population's DIM is the shared space's, and interests live in its topic block
+    from crucible.semantic import space
+    assert semantics.DIM == space.DIM and semantics.SPACE_ID == space.SPACE_ID
+    assert np.allclose(u[:, semantics.TOPIC.stop:], 0.0)
+    # an affinity on projected item coordinates equals the cosine of the interest with the item's topic block,
+    # computed in the full space
     e = semantics.text_vectors(world, ["The quarterback threw three touchdowns in the fourth quarter.",
                                        "Bake the bread for forty minutes until golden brown."])
-    full = u @ e.T
+    assert e.shape == (2, space.DIM)
+    full = u @ semantics.topic(e).T
     proj = P.interest_coords(world, np.arange(n)) @ P.to_coords(world, e).T
     assert np.allclose(full, proj, atol=5e-3)
     # heterogeneous: individuals do not share one interest

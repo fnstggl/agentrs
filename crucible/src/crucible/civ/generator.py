@@ -30,24 +30,35 @@ POPULATION_PROFILES = ("development", "standard", "large", "internet")
 
 # The modules of a civilisation, in the order their genesis must run (dependencies are moved before their users).
 ORDER = [
-    # substrate, identity, money, the 4.0 internet services
-    "identity", "bank", "admin", "artifacts", "cols", "assets", "code", "search", "forum", "docs", "mail", "issues",
-    "support", "contracts", "business", "jobs", "ops", "cloud", "net", "appdb", "wf", "caps", "gov", "deal",
-    "commit",
+    # substrate (incl. the ONE shared semantic space, `space`: crucible.semantic.space), identity, money, the 4.0
+    # internet services (search with sponsored results: `ads`)
+    "identity", "bank", "admin", "artifacts", "cols", "space", "assets", "code", "search", "ads", "forum", "docs",
+    "mail", "issues", "support", "contracts", "business", "jobs", "ops", "cloud", "net", "appdb", "wf", "caps", "gov",
+    "deal", "commit",
     # the one population and the web it uses
     "popsites", "pop", "popweb", "pop_adaptive", "pop_strategic",
-    # social internet
-    "content", "social_ids", "social_rows", "social", "aud", "feed", "creators", "msg", "studio", "community", "kb",
+    # social internet: CORE-POP's composition (crucible.social.worlds.social_world) - every C1 platform, the exact
+    # audience accounting and feeds over the distributed platforms, and the population's own creation (`pop_social`)
+    "content", "social_ids", "social_rows", "social", "studio", "posts", "blog", "pics", "shorts", "tube", "pods",
+    "community", "msg", "creators", "letters", "launch", "dev", "kb", "aud", "feed", "pop_social",
     # commerce, marketplaces, institutions, labour
-    "products", "subs", "ventures", "xchg", "market", "inst", "labor",
+    "products", "subs", "xchg", "market", "inst", "labor",
+    # the population's work (ECON, crucible.economy.work): needs from work bottlenecks, discovery, trials, adoption
+    # and purchases of services
+    "work",
     # technology, software ecosystem
     "needs", "pkg",
     # science, industry, energy, supply chains
     "sci", "industry", "freight", "society", "industrygen",
     # computing infrastructure, organisations, education
     "fleet", "firms", "learn",
-    # the civilisation's own modules: households' goods, genesis, couplings
-    "civgoods", "civgen", "civlinks",
+    # the civilisation's own modules: households' goods, genesis (compute providers)
+    "civgoods", "civgen",
+    # after civgen: the incumbent SaaS firms (`ventures` genesis) rent their servers from the profile's compute
+    # providers, and their market rules (`rivals`) depend on them
+    "ventures", "rivals",
+    # couplings
+    "civlinks",
 ]
 
 
@@ -182,6 +193,56 @@ def science(prof: P.Profile, seed: int, ind_cfg: dict) -> tuple[dict, list[dict]
     return cfg, binds
 
 
+# --------------------------------------------------------------------------------------------- social, commerce
+def social_config(prof: P.Profile, population: str) -> dict[str, dict]:
+    """Configs of the social internet on the population, as `crucible.social.worlds.social_world` composes it: `aud`
+    over every distributed platform (catalogue sized for the population profile), one recommender mixture per
+    platform (`feed`), and the population's own creation (`pop_social`)."""
+    from ..population import profiles as pop_profiles
+    from ..social import worlds as SW
+    n = int(pop_profiles.resolve({"profile": population})["n"])
+    cap = 1 << 20                           # catalogue rows are preallocated columns
+    plats = list(SW.DISTRIBUTED)
+    return {"aud": {"platforms": plats, "max_items": min(cap, max(8192, 8 * n)),
+                    "max_creators": min(cap, max(1024, n + 256))},
+            "feed": {"platforms": {p: {"recommenders": copy.deepcopy(SW.MIXTURES.get(p, SW.MIXTURES["posts"]))}
+                                   for p in plats}},
+            "pop_social": dict(prof.social.get("creators") or {})}
+
+
+def commerce_config(prof: P.Profile, seed: int, boards) -> dict[str, dict]:
+    """ECON's startup slice (`crucible.commerce.worlds.draw`): the published work formats the population works in
+    (`work` families with drawn workloads, hand-work times and acceptance standards), the incumbent SaaS firms that
+    serve them (`ventures`; their servers are rented from the civilisation's compute providers, which `civgen`
+    creates, so ECON's own providers are not drawn) and the v5 capability registry (`caps`). Individuals discuss
+    tools and ask for help on the profile's boards."""
+    from ..commerce.worlds import draw
+    d = draw(seed, n=1, n_formats=int(prof.digital.get("work_formats", 2)))
+    # genesis demand stays within the profile's compute: the population's web sites (one core each, installed right
+    # after genesis) keep their cores, the incumbents' servers take what is left (one core each when compute is
+    # scarce; incumbents that do not fit are not founded)
+    regime = prof.compute.get("regime", "normal")
+    capacity = P.COMPUTE_REGIMES[regime] * P.COMPUTE_MARKETS[prof.compute.get("market", "duopoly")]
+    room = capacity - int(prof.digital.get("sites", 20)) - 2
+    incumbents = []
+    for f in d["incumbents"]:
+        f = dict(f, cores=1) if regime == "scarce" else dict(f)
+        if int(f["cores"]) <= room:
+            incumbents.append(f)
+            room -= int(f["cores"])
+    if boards is None:                      # the forum's default boards (general, dev, market, jobs, help)
+        tools, ask = "dev", "help"
+    elif "everything" in boards:
+        tools = ask = "everything"
+    else:
+        tools = ask = "market"
+    return {"work": {"families": d["families"], "professional_share": d["professional_share"],
+                     "need_end_month_p": d["need_end_month_p"], "publish_formats": True, "forum_board": tools,
+                     "ask_board": ask},
+            "ventures": {"providers": [], "incumbents": incumbents},
+            "caps": {"registry": True}}
+
+
 # --------------------------------------------------------------------------------------------- recipe
 def recipe(profile: str | P.Profile, seed: int, *, population: str = "development",
            overrides: dict | None = None) -> dict:
@@ -200,8 +261,12 @@ def recipe(profile: str | P.Profile, seed: int, *, population: str = "developmen
     cpl = [c for c in prof.couplings if c in C.CATALOGUE]
     boards = {"topical": None, "global": ["everything"],
               "regional": [f"region-{i}" for i in range(R)] + ["market"]}[prof.social.get("boards", "topical")]
+    soc, econ = social_config(prof, population), commerce_config(prof, seed, boards)
     cfgs: dict[str, dict] = {
-        "pop": {"profile": population, "tick_s": 900},
+        **soc, **econ,
+        # one habit slot per population activity: a civilisation registers ~19 (web, search, forum, eleven feeds,
+        # creation, communities, work, shopping, goods), more than the profiles' default 16 (internet: 8)
+        "pop": {"profile": population, "tick_s": 900, "dims": {"H": 24 if population == "internet" else 32}},
         "popsites": {"n": int(prof.digital.get("sites", 20)), "shop_share": float(prof.digital.get("shop_share", 0.4))},
         "forum": ({"boards": boards} if boards else {}),
         "industry": ind_cfg,

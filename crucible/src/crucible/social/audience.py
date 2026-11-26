@@ -522,12 +522,13 @@ class Audience(Module):
             if mime.startswith("text/"):
                 _, terms, words = textrep.encode_bytes(artifacts.get(world, ref), dim)
             try:
-                vec = semantics.item_vector(world, ref, ctx=ctx)
-                feats = semantics.item_features(world, ref)
+                # one recorded representation of the shared space (crucible.semantic.space): text, image, audio,
+                # video and code from their bytes; text gains the population's reader model (legibility)
+                vec, feats = semantics.item_rep(world, ref, ctx=ctx)
                 legib, rep = float(feats.get("legibility", 1.0)), "bytes"
             except semantics.EncodingError:
-                # images, audio, video: the bridge has no aligned media encoder; the item is represented by the
-                # text a viewer sees with it (CORE-SEM's aligned encoders replace this at merge)
+                # undecodable media (the space's MediaError): the item is represented by the text a viewer sees
+                # with it, labelled rep="caption"
                 if not caption.strip():
                     raise InvalidAction(f"no representation for {mime} without a caption in this world") from None
                 vec = semantics.text_vector(world, caption, ctx=ctx)

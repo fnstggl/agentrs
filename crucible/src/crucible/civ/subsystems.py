@@ -94,9 +94,10 @@ SUBSYSTEMS: dict[str, dict] = {
         "population": "buying listings (ECON)"},
 }
 
-POPULATION_MODULES = ["pop", "popweb", "pop_adaptive", "pop_strategic", "civgoods"]
+# the population and its activity modules (people's own decisions: browsing, creating, working, buying goods)
+POPULATION_MODULES = ["pop", "popweb", "pop_adaptive", "pop_strategic", "pop_social", "work", "civgoods"]
 CIV_MODULES = ["civlinks"]          # the coupling engine (not a domain of its own)
-SUBSTRATE_MODULES = ["admin", "artifacts", "cols", "assets"]
+SUBSTRATE_MODULES = ["admin", "artifacts", "cols", "assets", "space"]   # space: the one shared semantic space (D-16)
 
 # Modules that keep a second population of simulated people (or scripted narrative). Never part of a civilisation.
 EXCLUDED: dict[str, str] = {
@@ -133,6 +134,7 @@ MODULE_SUBSYSTEM.update({"mail": "search_information", "support": "digital_econo
                          "embed": "social_media", "media": "social_media", "letters": "social_media",
                          "launch": "social_media", "dev": "search_information", "tube": "social_media",
                          "shorts": "social_media", "posts": "social_media", "blog": "social_media",
+                         "rivals": "digital_economy",
                          "pics": "social_media", "pods": "social_media", "semantic_inference": "social_media"})
 
 # event types that belong to another subsystem than their module's (the regional grids live in `industry` but are

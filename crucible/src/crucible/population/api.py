@@ -31,18 +31,20 @@ def interest_dim(world) -> int:
 
 
 def interest_coords(world, idx) -> np.ndarray:
-    """(n, K) float32 unit coordinates of individuals' interests in the space's topic subspace."""
+    """(n, K) float32 unit coordinates of individuals' interests in the topic subspace of the space's topic block."""
     ix = np.asarray(idx, np.int64)
     return columns.col(world, TABLE, "interests")[ix].astype(np.float32)
 
 
 def interests(world, idx) -> np.ndarray:
-    """(n, semantics.DIM) float32 unit interest vectors in the shared space (contract section 1, D-16)."""
+    """(n, semantic.space.DIM) float32 unit interest vectors in the shared space (contract section 1, D-16); zero
+    outside the space's topic block (population.semantics)."""
     return semantics.lift(interest_coords(world, idx))
 
 
 def to_coords(world, vecs: np.ndarray) -> np.ndarray:
-    """Full-space vectors (n, DIM) -> the population's interest coordinates (n, K); (n, K) input is returned as is."""
+    """Space vectors (n, DIM) -> the population's interest coordinates of their topic blocks (n, K); (n, K) input is
+    returned as is."""
     v = np.asarray(vecs, np.float32)
     k = interest_dim(world)
     if v.ndim == 1:
@@ -175,9 +177,10 @@ def experience(ctx: Ctx, idx, activity: str, utility, *, item_vecs=None, satisfa
                 vals["habit"] = hab
     if not vals:
         return None
-    return record_decisions(ctx, f"pop.experience.{activity}"[:64], ix, vals, model_id=EXPERIENCE_MODEL[0],
-                            model_version=EXPERIENCE_MODEL[1], fidelity_id=EXPERIENCE_MODEL[2],
-                            extra={"activity": activity, "n": int(ix.size)})
+    with core.running_as(ctx, "pop"):          # the population's own columns, updated by its own API
+        return record_decisions(ctx, f"pop.experience.{activity}"[:64], ix, vals, model_id=EXPERIENCE_MODEL[0],
+                                model_version=EXPERIENCE_MODEL[1], fidelity_id=EXPERIENCE_MODEL[2],
+                                extra={"activity": activity, "n": int(ix.size)})
 
 
 # ============================================================================================ provenance (evaluator)

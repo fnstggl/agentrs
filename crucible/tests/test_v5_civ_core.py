@@ -51,6 +51,21 @@ def test_recipe_is_one_world_without_second_populations():
     assert r["modules"]["learn"]["n"] == 0          # no second population of learners
 
 
+def test_every_profile_composes_one_world():
+    """Every profile's spec resolves (no missing dependency), with ONE shared semantic space (the kernel module
+    `space` of crucible.semantic.space), the population's social internet and its work activities."""
+    from crucible.core.kernel import MODULES
+    from crucible.semantic.space import store
+    assert MODULES["space"] is store.SpaceRecords
+    for name in civ.PROFILES:
+        sp = civ.spec(name, 1)
+        mods = [m["name"] for m in sp.modules]
+        assert {"space", "pop", "aud", "feed", "pop_social", "posts", "blog", "work", "ventures", "rivals"} <= set(mods)
+        assert mods.index("civgen") < mods.index("ventures"), name
+        cfg = {m["name"]: m["config"] for m in sp.modules}
+        assert cfg["pop"]["dims"]["H"] >= 19 and cfg["ventures"]["incumbents"], name
+
+
 def test_one_day_runs_clean(world):
     assert world.check_invariants() == []
     evs = world.events_range(0)

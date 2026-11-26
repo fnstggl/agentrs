@@ -135,7 +135,7 @@ def m_true_quality(w, t0, t1, ctx):
         for _, r in st.scan("runs"):
             if r["machine"] == mid:
                 d = st.tables["designs"][r["design"]]
-                qs.append(ind.quality(ind.phys["models"][m["model"]], d["speed"], d["temp"]))
+                qs.append(ind.quality(ind.phys["models"][m["model"]], d["speed"], d["temp"]))  # not-a-content-score: industrial physics: part quality of a production run's process settings
                 break
     return float(np.mean(qs)) if qs else 0.0
 

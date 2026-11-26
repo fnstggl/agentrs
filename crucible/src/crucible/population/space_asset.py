@@ -1,26 +1,30 @@
-"""The interest-space asset: a real topic corpus (MIND-small news, Microsoft, US, Oct-Nov 2019) embedded by the
-pretrained text encoder of `crucible.semantic` (MiniLM-L6-v2), reduced to what a world needs at creation.
+"""The interest-space asset: a real topic corpus (MIND-small news, Microsoft, US, Oct-Nov 2019) represented by the
+ONE shared space (`crucible.semantic.space`, CORE-SEM), reduced to what a world needs at creation.
 
-`python -m crucible.population.space_asset build` writes `population/data/interest_space_v1.npz` and
-`interest_space_v1.json` (provenance, topic names, query words, a corpus of real abstracts per topic). It is derived
-data like a calibration checkpoint: computed once, offline, from a checksummed dataset with a pinned encoder, and
-loaded by `crucible.population.semantics` without running any model at world creation (so creation, replay and
-regeneration of a world never run the encoder for the interest prior).
+`python -m crucible.population.space_asset build` writes `population/data/interest_space_v2.npz`,
+`interest_space_v2.json` (provenance, topic names, query words) and `interest_space_v2.corpus.json.gz` (a corpus of
+real abstracts per topic). It is derived data like a calibration checkpoint: computed once, offline, from a
+checksummed dataset through the space's own text path (`semantic.space.vectors_of_bytes`: chunked MiniLM topic
+block, LM affect, quantities), and loaded by `crucible.population.semantics` without running any model at world
+creation (so creation, replay and regeneration of a world never run an encoder for the interest prior). Run it
+through the slot scheduler with a GPU (the space's LM features make ~6,700 texts cost about 2 minutes on a GPU).
 
-What it holds:
+What it holds - everything of the space's TOPIC block (`compute.TOPIC`, the all-MiniLM-L6-v2 block), where the
+population's interests live (`population.semantics`):
 
 * `topics`: the 93 MIND subcategories with at least 40 news items in the train split (category/subcategory);
-* `centroids` [T, 384]: unit mean embedding of up to `PER_TOPIC` items (title + abstract) of each topic;
-* `basis` [K_MAX, 384]: orthonormal top right-singular vectors of the (uncentred) matrix of all sampled item
-  embeddings - the principal subspace of the topic corpus inside the encoder's space. Individuals' interests live in
-  this subspace (stored as K coordinates; `semantics.interests` returns the full 384-d unit vector);
+* `centroids_topic` [T, 384]: unit mean of the unit topic blocks of up to `PER_TOPIC` items (title + abstract) of
+  each topic;
+* `basis_topic` [K_MAX, 384]: orthonormal top right-singular vectors of the (uncentred) matrix of the sampled items'
+  unit topic blocks - the principal subspace of the topic corpus inside the topic block. Individuals' interests live
+  in this subspace (stored as K coordinates; `population.interests` returns the full-space unit vector);
 * `popularity` [T]: each topic's share of all train items (the real popularity prior of interests);
 * `energy`: share of each centroid's squared norm captured by the first k basis vectors (k = 8, 16, 32, 48, 64);
 * `vocab_coords` [V, K_MAX]: basis coordinates of the query vocabulary (topic query words + the population's web
-  lexicon), each word embedded by the encoder - what individuals type into a search box;
-* JSON: provenance (dataset file SHA-256, encoder id / version / model hash, sampling seed), query words per topic
-  (top tf-idf title words), and up to `CORPUS_PER_TOPIC` real abstracts per topic (what population creators draw
-  their writing from).
+  lexicon), each word represented by the space - what individuals type into a search box;
+* JSON: provenance (dataset file SHA-256, space id / version / layout, sampling seed), query words per topic (top
+  tf-idf title words), and up to `CORPUS_PER_TOPIC` real abstracts per topic (what population creators draw their
+  writing from).
 """
 from __future__ import annotations
 
@@ -37,7 +41,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
-NAME = "interest_space_v1"
+NAME = "interest_space_v2"
 MIND_NEWS = "/workspace/data/crucible/mind_small/download/train/news.tsv"
 MIN_ITEMS = 40
 PER_TOPIC = 60
@@ -58,7 +62,8 @@ def _tokens(s: str) -> list[str]:
 
 
 def build(news_path: str = MIND_NEWS, out_dir: str = DATA) -> dict:
-    from ..semantic.encoders import encode_bytes_many, encoder_info
+    from ..semantic import space
+    from ..semantic.space.compute import TOPIC
     with open(news_path, "rb") as f:
         raw = f.read()
     sha = hashlib.sha256(raw).hexdigest()
@@ -84,8 +89,16 @@ def build(news_path: str = MIND_NEWS, out_dir: str = DATA) -> dict:
             owner.append(j)
         absq = [items[i][4] for i in pick if len(items[i][4].split()) >= 12][:CORPUS_PER_TOPIC]
         corpus[t] = absq
-    E = np.asarray(encode_bytes_many([s.encode("utf-8") for s in texts], "text"), dtype=np.float64)
-    E /= np.maximum(np.linalg.norm(E, axis=1, keepdims=True), 1e-12)
+    def topic_block(strings: list[str]) -> np.ndarray:
+        """Unit topic blocks of the space vectors of `strings` (the space's text path, cached on disk)."""
+        out = []
+        for s0 in range(0, len(strings), 256):
+            v = space.vectors_of_bytes([x.encode("utf-8") for x in strings[s0:s0 + 256]], ["text"] *
+                                       len(strings[s0:s0 + 256]))
+            out.append(np.asarray(v, dtype=np.float64)[:, TOPIC])
+        m = np.concatenate(out) if out else np.zeros((0, TOPIC.stop - TOPIC.start))
+        return m / np.maximum(np.linalg.norm(m, axis=1, keepdims=True), 1e-12)
+    E = topic_block(texts)
     owner = np.asarray(owner)
     T = len(topics)
     C = np.stack([E[owner == j].mean(axis=0) for j in range(T)])
@@ -113,24 +126,24 @@ def build(news_path: str = MIND_NEWS, out_dir: str = DATA) -> dict:
     # embedded by the same encoder; stored as coordinates in the basis (the first k columns are the k-dim ones)
     from .text import LEXICON
     vocab = sorted({w for ws in words.values() for w in ws} | {str(w) for w in LEXICON})
-    VW = np.asarray(encode_bytes_many([w.encode("utf-8") for w in vocab], "text"), dtype=np.float64)
-    VW /= np.maximum(np.linalg.norm(VW, axis=1, keepdims=True), 1e-12)
+    VW = topic_block(vocab)
     popularity = np.array([len(by[t]) for t in topics], dtype=np.float64)
     popularity /= popularity.sum()
-    info = encoder_info("text")
     os.makedirs(out_dir, exist_ok=True)
-    np.savez_compressed(os.path.join(out_dir, NAME + ".npz"), centroids=C.astype(np.float32),
-                        basis=basis.astype(np.float32), popularity=popularity.astype(np.float64),
-                        singular_values=s[:K_MAX].astype(np.float64),
-                        vocab_coords=(VW @ basis.T).astype(np.float32))
-    meta = {"name": NAME, "space_dim": int(E.shape[1]), "k_max": K_MAX, "topics": topics,
+    arrays = {"centroids_topic": C.astype(np.float32), "basis_topic": basis.astype(np.float32),
+              "popularity": popularity.astype(np.float64),  # not-a-content-score: real MIND topic shares (prior)
+              "singular_values": s[:K_MAX].astype(np.float64), "vocab_coords": (VW @ basis.T).astype(np.float32)}
+    np.savez_compressed(os.path.join(out_dir, NAME + ".npz"), **arrays)
+    meta = {"name": NAME, "space_id": space.SPACE_ID, "space_version": space.SPACE_VERSION, "space_dim": space.DIM,
+            "block": "topic", "block_slice": [TOPIC.start, TOPIC.stop], "k_max": K_MAX, "topics": topics,
             "categories": [cat[t] for t in topics], "words": words, "energy": energy, "vocab": vocab,
             "provenance": {"dataset": "MIND-small (Microsoft News Dataset), train split, news.tsv",
                            "dataset_sha256": sha, "dataset_rows": len(rows), "min_items_per_topic": MIN_ITEMS,
                            "items_per_topic": PER_TOPIC, "sampling_seed": SEED, "encoded_items": len(texts),
-                           "encoder": {k: info[k] for k in ("id", "version", "dim", "model_hash",
-                                                            "preprocessing_hash")},
-                           "basis": "top right-singular vectors of the uncentred matrix of sampled item embeddings",
+                           "space": {"id": space.SPACE_ID, "version": space.SPACE_VERSION, "layout": space.layout(),
+                                     "represented_by": "crucible.semantic.space.vectors_of_bytes (modality text)"},
+                           "basis": "top right-singular vectors of the uncentred matrix of the sampled items' unit "
+                                    "topic blocks",
                            "licence": "MIND: Microsoft Research License Terms (research use); see "
                                       "calibration/datasets.py for the acquisition route"},
             "corpus_per_topic": CORPUS_PER_TOPIC}

@@ -22,6 +22,7 @@ exogenous economy (`acct_external`) into that account; every payment is then a r
 """
 from __future__ import annotations
 
+import contextlib
 import math
 
 import numpy as np
@@ -38,6 +39,27 @@ MAX_INIT_CHUNK = 250_000
 SEGMENTS = ("casual", "enthusiast", "shopper", "social")
 DEFAULT_MIX = {"casual": 0.45, "enthusiast": 0.2, "shopper": 0.15, "social": 0.2}
 N_EMPLOYERS = 200
+# Triggered wake-ups are part of the population's public API (contract section 1: `wake`): any subsystem schedules
+# them through `wake`, which keeps the earliest pending wake-up and checks the activity; no module writes the two
+# columns directly except `pop` itself (which clears them when the wake-up fires).
+WAKE_INTERFACE = "pop_wake"
+columns.register_interface(WAKE_INTERFACE, ("wake_at", "wake_act"))
+
+
+@contextlib.contextmanager
+def running_as(ctx: Ctx, module: str | None):
+    """Run a block as kernel module `module` for column write ownership (`substrate.columns`): an activity handler
+    is its owner module's code even though the population's tick calls it, so it writes the owner's columns (and,
+    within its package, its siblings'), never the population's own; the population's API (`experience`,
+    `money_deposit`) writes the population's columns as `pop` on behalf of whichever module calls it."""
+    prev = getattr(ctx, "module", None)
+    if module is not None and module not in ctx.world.modules:
+        module = prev
+    ctx.module = module
+    try:
+        yield ctx
+    finally:
+        ctx.module = prev
 
 
 # ============================================================================================ public API (contract 2)
@@ -98,7 +120,7 @@ def wake(ctx: Ctx, idx: np.ndarray, at: int, activity: str) -> None:
         return
     columns.batch(ctx, TABLE, "pop.wake", sel, {"wake_at": np.full(sel.size, at, np.int64),
                                                 "wake_act": np.full(sel.size, reg["spec"][activity]["slot"], np.int16)},
-                  extra={"activity": activity, "at": at})
+                  extra={"activity": activity, "at": at}, _iface=WAKE_INTERFACE)
 
 
 def class_members(world, cls: int) -> np.ndarray:
@@ -246,9 +268,19 @@ class Population(Module):
                     st.arrays[f"{TABLE}.{k}"][lo:hi] = v
 
     # ------------------------------------------------------------------ genesis and initial state
+    def check_habit_slots(self, world) -> None:
+        """Every registered activity needs a habit slot (column `habit`, H = dims.H): a world that registers more
+        activities than the profile has slots fails at creation instead of failing every tick."""
+        k = len(_registry(world)["order"])
+        if k > self.d["H"]:
+            raise ProtocolError(f"pop: {k} activities are registered ({', '.join(_registry(world)['order'])}) but the "
+                                f"population has {self.d['H']} habit slots; configure the pop module with "
+                                f"dims: {{H: >= {k}}}")
+
     def genesis(self, ctx):
         w = ctx.world
         n = self.prof["n"]
+        self.check_habit_slots(w)
         if self.prof["init"] == "batch":
             for lo in range(0, n, MAX_INIT_CHUNK):
                 hi = min(n, lo + MAX_INIT_CHUNK)
@@ -375,7 +407,8 @@ class Population(Module):
                 decided: list[str] = []
                 w.runtime["pop.tick.decisions"] = decided
                 try:
-                    nx = rt["handler"](ctx, bound, now)
+                    with running_as(ctx, rt["owner"]):
+                        nx = rt["handler"](ctx, bound, now)
                 finally:
                     w.runtime.pop("pop.tick.decisions", None)
                 nx = np.full(bound.size, now + 6 * 3600, np.int64) if nx is None else np.asarray(nx, np.int64)
@@ -399,6 +432,7 @@ class Population(Module):
         """Activate `due`: session decision, activity choice, dispatch, then the recorded session batch."""
         w = ctx.world
         reg = _registry(w)
+        self.check_habit_slots(w)
         ds = w.runtime["pop.models"]
         c = lambda name: columns.col(w, TABLE, name)[due]  # noqa: E731
         bud = c("attention_budget_min").astype(np.float64)
@@ -448,7 +482,8 @@ class Population(Module):
                 if sel.size == 0:
                     continue
                 by_act[a] = int(sel.size)
-                out = sp["handler"](ctx, due[sel], now)
+                with running_as(ctx, sp["owner"]):
+                    out = sp["handler"](ctx, due[sel], now)
                 if out is not None:
                     u = np.asarray(out, np.float64).reshape(-1)
                     if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
@@ -673,9 +708,10 @@ def money_deposit(ctx: Ctx, i: int) -> str | None:
     amount = int(columns.col(w, TABLE, "wallet_cents")[i]) + int(accrued(w, ix)[0])
     if amount > 0:
         bank.move(ctx, "acct_external", acct, amount, "income", "income deposited")
-    columns.batch(ctx, TABLE, "pop.deposit", ix, {"wallet_cents": np.zeros(1, np.int64),
-                                                  "income_day": np.array([ctx.now // DAY], np.int32)},
-                  extra={"amount": amount})
+    with running_as(ctx, "pop"):
+        columns.batch(ctx, TABLE, "pop.deposit", ix, {"wallet_cents": np.zeros(1, np.int64),
+                                                      "income_day": np.array([ctx.now // DAY], np.int32)},
+                      extra={"amount": amount})
     return acct
 
 

@@ -6,7 +6,7 @@ Stable API (other workstreams import only these names):
     register_activity(world, name, handler, *, owner, prior=0.0, goals=())   handler(ctx, idx, now) -> utility array
     n_individuals(world) -> int
     features(world, idx) -> dict[str, np.ndarray]        public decision features (no evaluator data)
-    interests(world, idx) -> np.ndarray                  (n, semantics.DIM) float32 unit vectors in the shared space
+    interests(world, idx) -> np.ndarray                  (n, semantic.space.DIM) float32 unit vectors in the space
     spendable(world, idx) -> np.ndarray                  cents an individual can spend now
     pay(ctx, i, to_account, cents, *, memo) -> str       materialise principal + bank.move from its own account
     wake(ctx, idx, at, activity)

@@ -124,7 +124,7 @@ def build(version: str, *, report: str | None = None, batch: int = 512, max_eval
             if c and n in index:
                 pop[index[n]] += 1
     rng = np.random.default_rng(0)
-    aucs = {"space": [], "topic_block": [], "popularity": [], "random": []}
+    aucs = {"space": [], "topic_block": [], "popularity": [], "random": []}  # not-a-content-score: name of the click-count baseline in the prior's validation
     xs, ys, half = [], [], []
     for r, (h, cands, lab), p, tp in zip(range(len(rows)), rows, dprof, tprof):
         ix = np.array([index[c] for c in cands if c in index])

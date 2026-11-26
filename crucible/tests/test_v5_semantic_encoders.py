@@ -50,7 +50,9 @@ def test_cache_key_has_the_contract_shape_and_changes_with_content():
     r1, r2 = E.ref_of(b"one"), E.ref_of(b"two")
     k1 = E.cache_key(r1, "text")
     enc = E.encoder("text")
-    assert k1 == f"{r1}|{enc.id}@{enc.version()}|{enc.preprocessing_hash()}"
+    # world key (artifact, encoder id and derived version, derived parameter hash) + the machine part of the cache
+    assert E.world_key(r1, "text") == f"{r1}|{enc.id}@{enc.version()}|{enc.params_hash()}"
+    assert k1 == f"{E.world_key(r1, 'text')}|{enc.preprocessing_hash()}"
     assert E.cache_key(r2, "text") != k1 and E.cache_key(r1, "image") != k1
     with pytest.raises(E.EncodingError):
         E.cache_key("sha256:xyz", "text")
@@ -263,7 +265,7 @@ def test_world_records_each_embedding_once_and_replays_and_regenerates_exactly()
     assert E.stats()["vectors_computed"]["text"] == computed
     # snapshots and forks carry the vectors
     s = World.from_blob(w.snapshot_blob())
-    key = E.cache_key(E.ref_of(texts[1].encode()), "text")
+    key = E.world_key(E.ref_of(texts[1].encode()), "text")          # world records are keyed without the machine
     assert np.array_equal(E.encode(s, E.ref_of(texts[1].encode()), "text"), E.encode(w, E.ref_of(texts[1].encode()),
                                                                                      "text"))
     assert s.state.get("embeddings", key)["sha256"] == w.state.get("embeddings", key)["sha256"]

@@ -148,7 +148,7 @@ class ReferenceParticipant:
                 continue
             budget -= 1
             self.seen.add(cid)
-            rel = self.relevance(" ".join([item["title"], item.get("description", ""), " ".join(item["tags"]),
+            rel = self.relevance(" ".join([item["title"], item.get("description", ""), " ".join(item["tags"]),  # not-a-content-score: the scripted reader's own judgement computed from the text it read
                                            item.get("text", "")]))
             relevant = rel >= 1.0
             self.log.append((day, channel, cid, relevant))

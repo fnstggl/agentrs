@@ -1,37 +1,46 @@
-"""The shared semantic space as the population sees it (ONE_WORLD_CONTRACTS section 2, D-16).
+"""The shared semantic space as the population uses it (ONE_WORLD_CONTRACTS section 2, D-16).
 
-This module implements exactly the section-2 signatures (`DIM`, `SPACE_ID`, `SPACE_VERSION`, `item_vector`,
-`item_vectors`, `text_vector`, `item_features`, `interest_prior`) on the EXISTING pretrained text encoder of
-`crucible.semantic` (MiniLM-L6-v2, real model execution, disk-cached by artifact hash and encoder version). It is the
-bridge workstream CORE-SEM replaces with `crucible.semantic.space` at merge (orchestrator: repoint the imports of
-`population.semantics` to `semantic.space`; the extra `ctx=` keyword stays optional there or is dropped).
+There is ONE space: `crucible.semantic.space` (workstream CORE-SEM; DIM = 384 topic + 4 affect + 34 quantity). This
+module computes no representation of its own. `DIM`, `SPACE_ID`, `SPACE_VERSION`, `item_vector(s)`, `text_vector(s)`,
+`item_features` and `interest_prior` are the space's, called through its recorded path: pass the handler's `ctx` (as
+`ctx=` or as the first argument) inside a command, process or population activity and the representation is recorded
+in the world (`substrate.inference.recorded` + kernel module `space`, table `space_items`), so replay and
+regeneration never run an encoder; with a bare world the world's records are read and anything missing is computed
+(cached on disk) but not recorded. The kernel module `space` is the space's (`crucible.semantic.space.store`); this
+module registers none.
 
-Recording. A vector computed inside a transaction goes through `crucible.substrate.inference.recorded` (kind
-`space.text`) and is stored in this world by kernel module `space` (table `space_keys`, array `space.vec`), so
-replay never reruns the encoder and regeneration returns the recorded matrix; a vector already recorded in the world
-is returned from the world, so the event stream never depends on a process cache. Without `ctx` (evaluators,
-offline analysis) nothing is recorded.
+On top of the space the population keeps thin, model-free helpers:
 
-Interests. `interest_prior` draws initial interests from embeddings of a real topic corpus (the 93 MIND-small news
-subcategories, `space_asset.py`): a popularity-weighted mixture of 1-3 topic centroids plus individual variation.
-The population stores interests as K coordinates in the corpus' principal subspace of the space (`basis(K)`,
-orthonormal rows), so `lift(c) = c @ B` is a unit vector of the full space and, for any item vector e of the space,
-`c . (B e) = lift(c) . e` exactly: affinities computed on projected item coordinates are the full-space cosines.
+* **Topic subspace.** Individuals' interests are stored as K coordinates (K = the population profile's interest
+  dimension, at most 64) in the principal subspace of a real topic corpus inside the space's TOPIC block (the
+  all-MiniLM-L6-v2 block; `asset()`): 93 MIND-small news subcategories, each item represented by the space itself
+  (`semantic.space.vectors_of_bytes`, `space_asset.py`). `basis(k)` is [k, DIM] with orthonormal rows that are zero
+  outside the topic block, `lift(c) = unit(c @ basis(k))` is a unit vector of the space, and
+  `project(e, k) = basis(k) @ topic(e)` with `topic(e)` the unit-normalised topic block of a space vector. Hence for
+  a unit coordinate row c and any space vector e, `c . project(e) = lift(c) . topic(e)`: an affinity on projected
+  coordinates is the cosine of the interest with the item's topic block, computed in the full space. The topic block
+  is the part of the space in which reading interest is measured best (the space's own MIND validation: click AUC
+  0.646 for the topic block vs 0.638 for the whole vector), it is the MiniLM cosine workstream E's fitted click model
+  `news_click_semantic@1` takes as input (`affinity_space: minilm-l6-cosine`), and it keeps the affect and quantity
+  blocks from scaling affinities (an interest has no sentiment, so a whole-vector cosine would penalise items with
+  strong valence or with numbers).
+* **Topics.** `topic_names`, `topic_words`, `popularity`, `topic_coords`, `nearest_topic` and the real abstracts
+  population creators retell (`corpus`).
+* **Initial interests.** `interest_prior_coords`: a popularity-weighted mixture of 1-3 topic centroids plus
+  individual variation (CORE-POP's model, on the space's topic centroids). `interest_prior` is the space's own prior
+  (real MIND reading histories) for callers that want full-space initial interests.
+* **Query words** of individuals' searches (`query_words`) from the space vectors of a fixed query vocabulary.
+* **Lexical reader model** (`text_features`, `legibility`): pure functions of the text the space decodes
+  (`encoders.text.to_text`) and of the space's word list (the MiniLM WordPiece vocabulary, `compute.TEXT_VOCAB`).
+  `item_rep` / `item_features` add `legibility` to the space's intrinsic features of a text artifact.
 
-Modalities. Text, HTML, markdown and other text-bearing artifacts are encoded from their bytes. The bridge has no
-aligned image/audio/video map (CORE-SEM fits those); `item_vector` raises `EncodingError` for such artifacts and the
-caller distributes them by the text the viewer sees with them (title and description), which is labelled in their
-item record (`rep: "caption"`).
-
-Artifact-intrinsic features (`item_features`) are pure functions of the bytes (no model): word counts, distinct-word
-share, English function-word share, share of words the encoder's WordPiece vocabulary knows as whole words,
-compressibility (zlib), sentence statistics and reading duration. Nothing in them is declared by a creator.
+Undecodable media (the space's `MediaError`, e.g. a corrupt image) raise `EncodingError`; callers then represent the
+item by the text a viewer sees with it (title, description) and label that (`rep: "caption"`).
 """
 from __future__ import annotations
 
 import functools
 import gzip
-import hashlib
 import json
 import math
 import os
@@ -40,35 +49,45 @@ import zlib
 
 import numpy as np
 
-from ..core import schema as S
-from ..core.errors import InvalidAction, NotFound, ProtocolError
-from ..core.kernel import Ctx, Module, applier, register_module
-from ..substrate import artifacts, bus
+from ..core.errors import ProtocolError
+from ..semantic import space as _space
+from ..semantic.encoders import EncodingError as _EncoderError
+from ..semantic.space.compute import TOPIC, TOPIC_DIM
 
-DIM = 384
-SPACE_ID = "crucible.pop-space/minilm-l6-v2+mind93"
-SPACE_VERSION = "1"
-ASSET = "interest_space_v1"
+DIM = _space.DIM
+SPACE_ID = _space.SPACE_ID
+SPACE_VERSION = _space.SPACE_VERSION
+ASSET = "interest_space_v2"
 _HERE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 WORDS_PER_S = 4.0
-TABLE = "space_keys"
-ARRAY = "space.vec"
 
 
-class EncodingError(ValueError):
-    """The artifact carries no text the bridge can encode (images, audio, video without CORE-SEM's aligned maps)."""
+class EncodingError(_EncoderError):
+    """The space cannot represent the artifact from its bytes (undecodable or over-limit media)."""
 
 
 # ============================================================================================ the asset
 @functools.lru_cache(maxsize=1)
 def asset() -> dict:
+    """The topic asset (`space_asset.py`). Arrays of the topic block are widened to the full space on load:
+    `centroids` [T, DIM] and `basis` [K_MAX, DIM] are zero outside the TOPIC block; `centroids_topic` and
+    `basis_topic` hold their [*, TOPIC_DIM] blocks."""
     z = np.load(os.path.join(_HERE, ASSET + ".npz"))
     with open(os.path.join(_HERE, ASSET + ".json")) as f:
         meta = json.load(f)
+    if meta.get("space_id") != SPACE_ID or meta.get("block") != "topic" or \
+            meta.get("block_slice") != [TOPIC.start, TOPIC.stop]:
+        raise ProtocolError(f"interest asset {ASSET} was not built on the topic block of {SPACE_ID}")
     out = {k: np.asarray(z[k]) for k in z.files}
     out.update(meta)
-    if out["centroids"].shape[1] != DIM or out["basis"].shape[1] != DIM:
+    if out["centroids_topic"].shape[1] != TOPIC_DIM or out["basis_topic"].shape[1] != TOPIC_DIM:
         raise ProtocolError("interest space asset has the wrong dimension")
+    for name in ("centroids", "basis"):
+        t = out[name + "_topic"].astype(np.float32)
+        full = np.zeros((t.shape[0], DIM), np.float32)
+        full[:, TOPIC] = t
+        full.setflags(write=False)
+        out[name] = full
     return out
 
 
@@ -91,31 +110,61 @@ def topic_words(t: int) -> list[str]:
 
 
 def popularity() -> np.ndarray:
-    return asset()["popularity"]
+    return asset()["popularity"]  # not-a-content-score: real MIND topic shares (interest prior), not an item score
 
 
+# ============================================================================================ topic subspace
 @functools.lru_cache(maxsize=8)
-def basis(k: int) -> np.ndarray:
-    """[k, DIM] orthonormal rows spanning the topic corpus' principal subspace (float32, read-only)."""
+def topic_basis(k: int) -> np.ndarray:
+    """[k, TOPIC_DIM] orthonormal rows spanning the topic corpus' principal subspace of the topic block (float32)."""
     k = int(k)
-    if not 1 <= k <= asset()["basis"].shape[0]:
-        raise ProtocolError(f"interest subspace dimension must be in [1, {asset()['basis'].shape[0]}]")
-    q, _ = np.linalg.qr(asset()["basis"][:k].astype(np.float64).T)      # re-orthonormalise in float64
+    B = asset()["basis_topic"]
+    if not 1 <= k <= B.shape[0]:
+        raise ProtocolError(f"interest subspace dimension must be in [1, {B.shape[0]}]")
+    q, _ = np.linalg.qr(B[:k].astype(np.float64).T)      # re-orthonormalise in float64
     b = q.T.astype(np.float32)
-    s = np.sign(np.sum(b * asset()["basis"][:k], axis=1, keepdims=True))
+    s = np.sign(np.sum(b * B[:k], axis=1, keepdims=True))
     b = (b * np.where(s == 0, 1, s)).astype(np.float32)
     b.setflags(write=False)
     return b
 
 
+@functools.lru_cache(maxsize=8)
+def basis(k: int) -> np.ndarray:
+    """[k, DIM] orthonormal rows of the full space, zero outside the TOPIC block (read-only)."""
+    b = np.zeros((int(k), DIM), np.float32)
+    b[:, TOPIC] = topic_basis(k)
+    b.setflags(write=False)
+    return b
+
+
+def _check(v: np.ndarray) -> np.ndarray:
+    v = np.asarray(v, dtype=np.float32)
+    if v.shape[-1] != DIM:
+        raise ProtocolError(f"space vectors have {DIM} columns, not {v.shape[-1]}")
+    return v
+
+
+def topic(vecs: np.ndarray) -> np.ndarray:
+    """Space vectors [n, DIM] -> their unit-normalised topic blocks widened to [n, DIM] (zero elsewhere)."""
+    v = _check(vecs)
+    out = np.zeros(v.shape, np.float32)
+    t = v[..., TOPIC]
+    out[..., TOPIC] = t / np.maximum(np.linalg.norm(t, axis=-1, keepdims=True), 1e-9)
+    return out
+
+
 def project(vecs: np.ndarray, k: int) -> np.ndarray:
-    """Coordinates of full-space vectors in the k-dim subspace: [n, k] float32 (not renormalised)."""
-    v = np.asarray(vecs, dtype=np.float32)
-    return (v @ basis(k).T).astype(np.float32)
+    """Coordinates [n, k] of space vectors' topic directions in the k-dim subspace (not renormalised: the norm is the
+    share of the topic direction the subspace captures)."""
+    v = _check(vecs)
+    t = v[..., TOPIC]
+    t = t / np.maximum(np.linalg.norm(t, axis=-1, keepdims=True), 1e-9)
+    return (t @ topic_basis(k).T).astype(np.float32)
 
 
 def lift(coords: np.ndarray) -> np.ndarray:
-    """Unit full-space vectors [n, DIM] of subspace coordinates [n, k]."""
+    """Unit space vectors [n, DIM] of subspace coordinates [n, k] (zero outside the topic block)."""
     c = np.asarray(coords, dtype=np.float32)
     u = c @ basis(c.shape[-1])
     return (u / np.maximum(np.linalg.norm(u, axis=-1, keepdims=True), 1e-9)).astype(np.float32)
@@ -135,16 +184,72 @@ def nearest_topic(coords: np.ndarray) -> np.ndarray:
     return np.argmax(c @ topic_coords(c.shape[-1]).T, axis=-1)
 
 
+# ============================================================================================ the space (delegated)
+def text_vectors(world_or_ctx, texts, *, ctx=None) -> np.ndarray:
+    """[n, DIM] unit space vectors of texts (queries, needs, interests, descriptions, page text)."""
+    return _space.text_vectors(world_or_ctx, [str(t) for t in texts], ctx=ctx)
+
+
+def text_vector(world_or_ctx, text: str, *, ctx=None) -> np.ndarray:
+    return text_vectors(world_or_ctx, [text], ctx=ctx)[0]
+
+
+def _reps(world_or_ctx, refs, ctx):
+    from ..semantic.media import MediaError
+    try:
+        return _space.reps(world_or_ctx, list(refs), ctx=ctx)
+    except MediaError as e:
+        raise EncodingError(str(e)) from e
+
+
+def item_vectors(world_or_ctx, refs, *, ctx=None) -> np.ndarray:
+    """[n, DIM] unit space vectors of artifacts of any modality (EncodingError for undecodable media)."""
+    rs = _reps(world_or_ctx, refs, ctx)
+    return np.stack([r[0] for r in rs]).astype(np.float32) if rs else np.zeros((0, DIM), np.float32)
+
+
+def item_vector(world_or_ctx, ref: str, *, ctx=None) -> np.ndarray:
+    return item_vectors(world_or_ctx, [ref], ctx=ctx)[0]
+
+
+def _world_of(world_or_ctx, ctx):
+    if ctx is not None:
+        return ctx.world
+    x = world_or_ctx
+    return x.world if hasattr(x, "emit") and hasattr(x, "world") else x
+
+
+def item_rep(world_or_ctx, ref: str, *, ctx=None) -> tuple[np.ndarray, dict]:
+    """(space vector, intrinsic features) of an artifact from ONE (recorded) representation of the space; the
+    features of a text artifact gain the population's reader model: `legibility` and its lexical inputs
+    (`reader_*`, `text_features` of the text the space decodes)."""
+    vec, _, feats = _reps(world_or_ctx, [ref], ctx)[0]
+    out = dict(feats)
+    if out.get("modality") == "text":
+        from ..semantic.encoders.text import to_text
+        from ..substrate import artifacts
+        f = text_features(to_text(artifacts.get(_world_of(world_or_ctx, ctx), ref)))
+        out.update({f"reader_{k}": v for k, v in f.items()})
+        out["legibility"] = legibility(f)
+    return np.asarray(vec, np.float32), out
+
+
+def item_features(world_or_ctx, ref: str, *, ctx=None) -> dict:
+    """Artifact-intrinsic features computed from the bytes (contract section 2): the space's features, plus the
+    population's reader model for text (`item_rep`)."""
+    return item_rep(world_or_ctx, ref, ctx=ctx)[1]
+
+
+def interest_prior(world_or_ctx, rng: np.random.Generator, n: int) -> np.ndarray:
+    """(n, DIM) float32 unit initial interests of the space (real MIND reading histories; contract section 2)."""
+    return _space.interest_prior(world_or_ctx, rng, n)
+
+
 # ============================================================================================ interests
-def interest_prior(world, rng: np.random.Generator, n: int) -> np.ndarray:
-    """(n, DIM) float32 unit initial interests from the embeddings of a real topic corpus (contract section 2)."""
-    return lift(interest_prior_coords(rng, n, asset()["basis"].shape[0]))
-
-
 def interest_prior_coords(rng: np.random.Generator, n: int, k: int, *, noise: float = 0.35,
                           concentration: float = 0.7) -> np.ndarray:
-    """(n, k) unit subspace coordinates: popularity-weighted mixture of 1-3 topic centroids + individual variation
-    (isotropic in the subspace). Vectorised (works for 10M rows in chunks)."""
+    """(n, k) unit subspace coordinates: popularity-weighted mixture of 1-3 topic centroids of the space plus
+    individual variation (isotropic in the subspace). Vectorised (works for 10M rows in chunks)."""
     n = int(n)
     C = topic_coords(k).astype(np.float64)
     T = C.shape[0]
@@ -162,108 +267,7 @@ def interest_prior_coords(rng: np.random.Generator, n: int, k: int, *, noise: fl
     return v.astype(np.float32)
 
 
-# ============================================================================================ encoding
-def _enc():
-    from ..semantic.encoders import encoder
-    return encoder("text")
-
-
-@functools.lru_cache(maxsize=1)
-def _enc_tag() -> str:
-    e = _enc()
-    return f"{e.id}@{e.version()}|{e.preprocessing_hash()}|{SPACE_ID}@{SPACE_VERSION}"
-
-
-def text_key(text: str | bytes) -> str:
-    b = text.encode("utf-8") if isinstance(text, str) else bytes(text)
-    return "t:" + hashlib.sha256(b).hexdigest() + "|" + _enc_tag()
-
-
-def ref_key(ref: str) -> str:
-    artifacts.parse_ref(ref)
-    return "a:" + ref + "|" + _enc_tag()
-
-
-def _world_rows(world, keys: list[str]) -> list[int | None]:
-    tbl = world.state.tables.get(TABLE)
-    if tbl is None:
-        return [None] * len(keys)
-    return [None if (r := tbl.get(k)) is None else int(r["row"]) for k in keys]
-
-
-def _compute(datas: list[bytes]) -> np.ndarray:
-    from ..semantic.encoders import encode_bytes_many
-    m = np.asarray(encode_bytes_many(list(datas), "text"), dtype=np.float32)
-    return m / np.maximum(np.linalg.norm(m, axis=1, keepdims=True), 1e-9)
-
-
-def _vectors(world, keys: list[str], datas_of, ctx: Ctx | None) -> np.ndarray:
-    out = np.zeros((len(keys), DIM), np.float32)
-    rows = _world_rows(world, keys)
-    miss: dict[str, list[int]] = {}
-    arr = world.state.arrays.get(ARRAY)
-    for j, (k, r) in enumerate(zip(keys, rows)):
-        if r is not None and arr is not None:
-            out[j] = arr[r].astype(np.float32)
-        else:
-            miss.setdefault(k, []).append(j)
-    if not miss:
-        return out
-    uk = list(miss)
-    datas = [datas_of(miss[k][0]) for k in uk]
-    if ctx is None:
-        mat = _compute(datas)
-    else:
-        if "space" not in ctx.world.modules:
-            raise ProtocolError("recording vectors needs the kernel module 'space' (crucible.population.semantics)")
-        from ..substrate import inference
-        e = _enc()
-        mat = inference.recorded(ctx, "space.text", e.id, e.model_hash(),
-                                 {"keys": uk, "space": SPACE_ID, "version": SPACE_VERSION},
-                                 lambda: np.ascontiguousarray(_compute(datas), dtype=np.float32))
-        mat = np.asarray(mat, dtype=np.float32)
-        ref = artifacts.put_array_blob(ctx, {"vec": mat.astype(np.float16)})
-        ctx.emit("space.recorded", {"keys": uk, "ref": ref}, vis="internal")
-    for i, k in enumerate(uk):
-        for j in miss[k]:
-            out[j] = mat[i]
-    return out
-
-
-def text_vectors(world, texts: list[str], *, ctx: Ctx | None = None) -> np.ndarray:
-    """[n, DIM] unit vectors of texts (queries, needs, interests, descriptions, page text)."""
-    texts = [str(t) for t in texts]
-    keys = [text_key(t) for t in texts]
-    return _vectors(world, keys, lambda j: texts[j].encode("utf-8"), ctx)
-
-
-def text_vector(world, text: str, *, ctx: Ctx | None = None) -> np.ndarray:
-    return text_vectors(world, [text], ctx=ctx)[0]
-
-
-_TEXT_MIMES = ("text/", "application/json", "application/xml", "application/javascript", "image/svg+xml")
-
-
-def _text_bytes(world, ref: str) -> bytes:
-    a = artifacts.info(world, ref)
-    mime = str(a.get("mime", ""))
-    if not mime.startswith(_TEXT_MIMES):
-        raise EncodingError(f"{mime} artifacts need CORE-SEM's aligned encoders (this bridge encodes text)")
-    return artifacts.get(world, ref)
-
-
-def item_vectors(world, refs: list[str], *, ctx: Ctx | None = None) -> np.ndarray:
-    """[n, DIM] unit vectors of text-bearing artifacts (EncodingError for other modalities)."""
-    refs = list(refs)
-    keys = [ref_key(r) for r in refs]
-    return _vectors(world, keys, lambda j: _text_bytes(world, refs[j]), ctx)
-
-
-def item_vector(world, ref: str, *, ctx: Ctx | None = None) -> np.ndarray:
-    return item_vectors(world, [ref], ctx=ctx)[0]
-
-
-# ============================================================================================ intrinsic features
+# ============================================================================================ lexical reader model
 FUNCTION_WORDS = frozenset("""a an the and or but if then so because as of in on at by for with about against between
 into through during before after above below to from up down out over under again further once here there when where
 why how all any both each few more most other some such no nor not only own same than too very can will just should
@@ -273,14 +277,9 @@ it its they them their what which who whom this that these those am would could 
 
 @functools.lru_cache(maxsize=1)
 def _vocab() -> frozenset:
-    """Whole-word entries of the text encoder's WordPiece vocabulary (the tokenizer's own vocab file)."""
-    from ..semantic.encoders import models
-    path = os.path.join(models.snapshot_dir("text"), "vocab.txt")
-    if not os.path.exists(path):
-        raise ProtocolError("the text encoder's vocabulary file is not in the local model cache")
-    with open(path, encoding="utf-8") as f:
-        words = [w.strip() for w in f]
-    return frozenset(w for w in words if w.isalpha() and not w.startswith("##") and len(w) > 1)
+    """Whole-word entries of the space's text vocabulary (the MiniLM WordPiece vocabulary, `compute.TEXT_VOCAB`)."""
+    from ..semantic.space.compute import TEXT_VOCAB
+    return frozenset(TEXT_VOCAB())
 
 
 _WORD = re.compile(r"[A-Za-z][A-Za-z'-]*|\d+")
@@ -288,7 +287,8 @@ _SENT = re.compile(r"[.!?]+(?:\s|$)")
 
 
 def text_features(text: str) -> dict[str, float]:
-    """Intrinsic features of a text (see the module docstring)."""
+    """Lexical features of a text: word counts, distinct-word share, English function-word share, share of words the
+    space's vocabulary knows as whole words, compressibility (zlib), sentence statistics, reading duration."""
     toks = _WORD.findall(text)
     low = [t.lower() for t in toks]
     n = len(low)
@@ -319,74 +319,6 @@ def legibility(f: dict[str, float]) -> float:
     return float(np.clip(valid ** 2 * (0.25 + 0.75 * func) * distinct * (0.5 + 0.5 * comp), 0.0, 1.0))
 
 
-def item_features(world, ref: str) -> dict[str, float]:
-    """Artifact-intrinsic features computed from the bytes (contract section 2)."""
-    a = artifacts.info(world, ref)
-    mime = str(a.get("mime", ""))
-    out = {"modality": mime.split("/", 1)[0], "bytes": float(a.get("size", 0))}
-    if mime.startswith(_TEXT_MIMES):
-        raw = artifacts.get(world, ref).decode("utf-8", "replace")
-        if "html" in mime:
-            raw = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", raw)
-            raw = re.sub(r"(?s)<[^>]+>", " ", raw)
-        out.update(text_features(raw))
-        out["legibility"] = legibility(out)
-    return out
-
-
-# ============================================================================================ kernel module
-bus.event_type("space.recorded", S.obj({"keys": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                                        "ref": {"type": "string", "pattern": artifacts.REF_RE.pattern}},
-                                       ["keys", "ref"]), owner="space",
-               doc="vectors of the shared space computed by the recorded text encoder (array blob `ref`)")
-
-
-@register_module
-class Space(Module):
-    """Owner of the vectors of the shared space recorded in this world (table `space_keys`, array `space.vec`).
-    No tools: a participant reads content, never the platform's representation of it."""
-    name = "space"
-    host = "space"
-    version = "1"
-    depends = ("artifacts",)
-
-    def install(self, world):
-        world.state.declare_table(TABLE)
-        if ARRAY not in world.state.arrays:
-            world.state.set_array(ARRAY, np.zeros((0, DIM), np.float16))
-        bus.enforce(world, owner="space")
-
-    @applier("space.recorded")
-    def ap_recorded(self, ev):
-        p = ev.payload
-        st = self.world.state
-        try:
-            m = artifacts.get_array_blob(self.world, p["ref"])["vec"]
-        except NotFound as e:
-            raise InvalidAction(f"space.recorded seq {ev.seq}: {e}") from None
-        if m.shape != (len(p["keys"]), DIM):
-            raise InvalidAction("space.recorded: blob shape does not match the keys")
-        a = st.arrays[ARRAY]
-        n0 = int(st.meta.get("space.n", 0))
-        need = n0 + m.shape[0]
-        if need > a.shape[0]:
-            grown = np.zeros((max(need, 2 * a.shape[0], 64), DIM), np.float16)
-            grown[:n0] = a[:n0]
-            st.set_array(ARRAY, grown)
-        st.array_rows_mut(ARRAY, np.arange(n0, need))[n0:need] = m.astype(np.float16)
-        st.meta_set("space.n", need)
-        for j, k in enumerate(p["keys"]):
-            if st.has(TABLE, k):
-                raise InvalidAction(f"space.recorded: {k[:40]} recorded twice")
-            st.insert(TABLE, k, {"row": n0 + j})
-
-    def check_invariants(self, world):
-        n = int(world.state.meta.get("space.n", 0))
-        if len(world.state.tables[TABLE]) != n:
-            return [f"space: {len(world.state.tables[TABLE])} keys for {n} vectors"]
-        return []
-
-
 # ============================================================================================ query vocabulary
 def vocab() -> list[str]:
     return list(asset()["vocab"])
@@ -397,7 +329,7 @@ def vocab_coords(k: int) -> np.ndarray:
 
 
 def query_words(coords: np.ndarray, rng: np.random.Generator, tau, k: int = 2) -> list[str]:
-    """For each individual, `k` words of the query vocabulary whose embeddings best match its interests (Gumbel
+    """For each individual, `k` words of the query vocabulary whose space vectors best match its interests (Gumbel
     noise of scale `tau`: less skilled searchers pick less fitting words). One query string per individual."""
     c = np.asarray(coords, np.float32)
     V = vocab_coords(c.shape[1]).astype(np.float32)

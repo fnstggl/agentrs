@@ -82,7 +82,8 @@ def space_world(world) -> bool:
 
 def item_emb(world, items: np.ndarray) -> np.ndarray:
     """Item representations. In the shared space: the item's coordinates in the interest subspace, NOT
-    renormalised, so `interests . emb` is the full-space cosine (population.semantics). On the lexical path of the
+    renormalised, so `interests . emb` is the cosine of the interest with the item's topic block in the shared space
+    (population.semantics). On the lexical path of the
     crowd stand-in: unit vectors."""
     e = columns.col(world, AUD.ITEMS, "emb")[items].astype(np.float32)
     if space_world(world):
