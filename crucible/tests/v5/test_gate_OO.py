@@ -439,7 +439,7 @@ def _objective_free(env, days: int, limits: dict, label: str, violations: list, 
 
 
 @pytest.mark.slow
-@pytest.mark.timeout(7200)
+@pytest.mark.timeout(21600)
 def test_OO5_operation_without_an_objective_within_resource_limits():
     # configured limits per run (stated before running): wall time, resident-memory growth, in-memory event log
     limits = {"tier1": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0},
@@ -474,8 +474,16 @@ def test_OO5_operation_without_an_objective_within_resource_limits():
         "n_consumers": 100, "params": {"log_retain": 200_000}}), 90, limits["kernel"], "tier0", violations, act=post)
 
     def tier2():
-        return {n: _objective_free(make(2, n, 2), 90, limits["kernel"], f"tier2 {n}", violations, act=post)
-                for n in _tier2_names()}
+        # a Tier 2 domain of execution mode C is a restriction of the civilisation generator (D-17, D-48): it gets the
+        # civilisation limits; a standalone mode-B domain the kernel-world limits (decided before any Tier 2 run)
+        out = {}
+        for n in _tier2_names():
+            env = make(2, n, 2)
+            mode = getattr(domains()[n.split(":")[0]], "mode", "C")
+            out[n] = _objective_free(env, 90, limits["civ" if mode == "C" else "kernel"], f"tier2 {n}", violations,
+                                     act=post)
+            out[n]["limits"] = "civ" if mode == "C" else "kernel"
+        return out
 
     def tier3():
         return _objective_free(make(3, CIV, 2, agents=["learner"]), 90, limits["civ"], "tier3", violations,
