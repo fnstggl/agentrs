@@ -193,7 +193,7 @@ _rpc_id = 0
 
 
 def _send(msg: dict) -> None:
-    PROTO_OUT.write(json.dumps(msg, separators=(",", ":")) + "\n")
+    PROTO_OUT.write(json.dumps(msg, separators=(",", ":"), allow_nan=False) + "\n")
     PROTO_OUT.flush()
 
 
@@ -279,7 +279,7 @@ def _run(job: dict) -> dict:
             result = _run_tests(job.get("pattern", "tests"))
         else:
             raise ValueError(f"unknown job kind {kind}")
-        json.dumps(result)
+        json.dumps(result, allow_nan=False)      # JSON-native results only (no NaN/Infinity)
         ok, err = True, None
     except SystemExit as e:
         ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}

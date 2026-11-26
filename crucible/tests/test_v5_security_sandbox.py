@@ -169,3 +169,61 @@ def test_organic_engagement_excludes_related_and_funded_followers():
         assert integrity.organic_counts(w, boss)["organic"]["follow"] == 1
     finally:
         w.close()
+
+
+# ---------------------------------------------------------------------------------------------- wave 3 (integrated)
+@needs_sandbox
+def test_module_level_work_is_billed_and_trusted_imports_are_preloaded():
+    from crucible.sandbox.runner import preload_list
+    assert preload_list({"a.py": "import numpy as np, json\nfrom collections import abc\nimport mymod\n"
+                                 "x = 1; import re\n", "b.txt": "import math"}, ("numpy",)) == \
+        ["numpy", "json", "collections"]
+    at_import = "s = 0\nfor i in range(300000):\n    s += i % 7\ndef f(a, c):\n    return s\n"
+    in_call = "def f(a, c):\n    s = 0\n    for i in range(300000):\n        s += i % 7\n    return s\n"
+    imp = run_program({"m.py": at_import}, "m:f")
+    call = run_program({"m.py": in_call}, "m:f")
+    assert imp["ok"] and imp["result"] == call["result"]
+    assert imp["cpu_ms"] >= 0.5 * call["cpu_ms"] > 0, (imp["cpu_ms"], call["cpu_ms"])
+    npy = run_program({"m.py": "import numpy as np\ndef f(a, c):\n    return int(np.arange(4).sum())\n"}, "m:f")
+    assert npy["ok"] and npy["result"] == 6 and npy["meter"]["load_ns"] < M.LOAD_FREE_NS   # preloaded, not billed
+
+
+@needs_sandbox
+def test_hostile_protocol_bytes_fail_the_job_not_the_parent():
+    progs = {"nested": "import os\ndef f(a, c):\n    os.write(1, b'[' * 200000 + b']' * 200000 + b'\\n')\n",
+             "bigint": "import os\ndef f(a, c):\n    os.write(1, b'{\"op\":\"done\",\"id\":' + b'9' * 5000 + b'}\\n')\n",
+             "nan": "import os, time\ndef f(a, c):\n    os.write(1, b'{\"op\":\"done\",\"id\":2,\"ok\":true,\"result\":NaN,"
+                    "\"stdout\":\"\"}\\n')\n    time.sleep(0.2)\n    return 1\n",
+             "nan_result": "def f(a, c):\n    return float('nan')\n"}
+    for name, src in progs.items():
+        r = run_program({"m.py": src}, "m:f")
+        assert not r["ok"] and r["result"] is None, (name, r)
+
+
+@needs_sandbox
+def test_a_program_that_kills_itself_is_billed_for_its_work():
+    src = "import os\ndef f(a, c):\n    s = 0\n    for i in range(300000):\n        s += i % 7\n    os.kill(os.getpid(), 9)\n"
+    r = run_program({"m.py": src}, "m:f")
+    h = run_program({"m.py": "def f(a, c):\n    s = 0\n    for i in range(300000):\n        s += i % 7\n    return s\n"},
+                    "m:f")
+    assert not r["ok"] and r["cpu_ms"] >= 0.5 * h["cpu_ms"] > 0, (r["cpu_ms"], h["cpu_ms"])
+
+
+@needs_sandbox
+def test_pool_bills_a_worker_that_worked_and_exited_while_idle_without_failing_the_next_job():
+    from crucible.sandbox.runner import WorkerPool
+    src = ("import __main__, os\ndef early(a, c):\n    m = __main__.msg\n"
+           "    __main__._send({'op': 'done', 'id': m['id'], 'ok': True, 'result': 1, 'error': None, 'stdout': ''})\n"
+           "    s = 0\n    for i in range(2_000_000):\n        s += i\n    os.kill(os.getpid(), 9)\n"
+           "def ping(a, c):\n    return 2\n")
+    pool = WorkerPool(4)
+    try:
+        w = pool.get("k", lambda: {"s.py": src})
+        r1 = w.run({"kind": "call", "target": "s:early", "args": None})
+        time.sleep(0.4)
+        w2 = pool.get("k", lambda: {"s.py": src})
+        r2 = w2.run({"kind": "call", "target": "s:ping", "args": None})
+        assert r1["ok"] and r2["ok"] and r2["result"] == 2, (r1, r2)
+        assert r2["meter"]["background_ns"] > 20_000_000, r2["meter"]      # the predecessor's work, billed here
+    finally:
+        pool.close()
