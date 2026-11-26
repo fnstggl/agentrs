@@ -71,7 +71,7 @@ def _i(x) -> int:
 @register
 class Planning(RapidEngine):
     kind = "planning"
-    SECRET_KEYS = ("lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1",
+    SECRET_KEYS = ("lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1", "mu2", "t_change2",
                    "t_change", "path", "t_jump", "build_lag", "recipe", "dem", "work", "prod", "beta", "dud",
                    "mu_amp", "mu_phase", "mu_mean", "true_time", "speed")
 
@@ -396,7 +396,7 @@ class Planning(RapidEngine):
         a = self.agents[0]
         K = len(c["stage_names"])
         u = rng.random(1)
-        mu = float(c["mu0"]) if t < int(c["t_change"]) else float(c["mu1"])
+        mu = self.chain_mu(t)
         D = float(pois(float(u[0]), mu))
         recv = [0.0] * K
         keep = []
@@ -438,6 +438,14 @@ class Planning(RapidEngine):
             nums[f"{n}.received"] = recv[k]
             nums[f"{n}.shipped"] = shipped[k]
         return {"obs": {a: {"numbers": nums}}, "revenue": {a: rev}, "cost": {a: cost}, "info": {}}
+
+    def chain_mu(self, t: int) -> float:
+        """Mean customer demand of period t in the supply-chain world (evaluator side): it shifts at a hidden
+        period and, when the world has a second shift, again later."""
+        c = self.config
+        if c.get("t_change2") is not None and t >= int(c["t_change2"]):
+            return float(c["mu2"])
+        return float(c["mu0"]) if t < int(c["t_change"]) else float(c["mu1"])
 
     def site_rate(self, i: int, t: int) -> float:
         """Mean demand of site i in period t in the distribution world (evaluator side): its base rate times the
@@ -699,7 +707,7 @@ class Planning(RapidEngine):
             edges += [{"src": f"stage{k}", "dst": f"stage{k - 1}", "kind": "ship", "lag": int(c["lags"][k - 1])}
                       for k in range(1, K)]
             edges += [{"src": "stage0", "dst": "customers", "kind": "sell", "lag": 0}]
-            hidden = {"lags": c["lags"], "t_change": c["t_change"]}
+            hidden = {"lags": c["lags"], "t_change": c["t_change"], "t_change2": c.get("t_change2")}
         elif sc == "capacity":
             nodes = ["builder", "capacity", "market"]
             edges = [{"src": "builder", "dst": "capacity", "kind": "build", "lag": int(c["build_lag"])},
