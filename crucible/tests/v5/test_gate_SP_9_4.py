@@ -37,6 +37,7 @@ def test_SP_9_4_community_ecosystem_mechanics():
               "idle_founder_success": bool(idle["success"]), "idle_founder_evolution_events": int(idle["mechanics"]["counts"]["Community evolution"]),
               "null_success": bool(null["success"]),
               "invariant_violations": sum(r["invariant_violations"] for r in runs + [null, idle]),
+              "reference_script_world_reads": len(base.reads_world(D.reference_script)),
               "process_failures_all_runs": sum(r["proc_failed"] for r in runs + [null, idle])})
     evidence.record("SP-9.4", m, command=CMD, labels=dict(K.SCRIPTED),
                     notes=f"community:{cfg} seeds {[r['seed'] for r in runs]}, {runs[0]['days']} days; LABELLED "
@@ -48,4 +49,5 @@ def test_SP_9_4_community_ecosystem_mechanics():
     assert m["autonomous_actors_active"] == len(d.actors) and m["population_activity_decisions_without_seat"] > 0
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     assert not m["null_success"] and not m["idle_founder_success"]
+    assert m["reference_script_world_reads"] == 0          # the generator itself is tool-only too
     assert not checker.unmet("SP-9.4", m), checker.unmet("SP-9.4", m)

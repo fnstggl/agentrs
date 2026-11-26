@@ -40,6 +40,7 @@ def test_SP_9_1_startup_economy_mechanics():
               "reference_arr_usd_min": min(_arr(r) for r in runs), "garbage_service_arr_usd": _arr(garbage),
               "null_success": bool(null["success"]), "garbage_service_success": bool(garbage["success"]),
               "invariant_violations": sum(r["invariant_violations"] for r in runs + [null, garbage]),
+              "reference_script_world_reads": len(base.reads_world(D.reference_script)),
               "process_failures_all_runs": sum(r["proc_failed"] for r in runs + [null, garbage])})
     evidence.record("SP-9.1", m, command=CMD, labels=dict(K.SCRIPTED),
                     notes=f"startup:{cfg} seeds {[r['seed'] for r in runs]}, {runs[0]['days']} days; LABELLED "
@@ -52,4 +53,5 @@ def test_SP_9_1_startup_economy_mechanics():
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     assert m["reference_arr_usd_min"] > 0 and m["garbage_service_arr_usd"] < 0.1 * m["reference_arr_usd_min"]
     assert not m["null_success"] and not m["garbage_service_success"]
+    assert m["reference_script_world_reads"] == 0          # the generator itself is tool-only too
     assert not checker.unmet("SP-9.1", m), checker.unmet("SP-9.1", m)

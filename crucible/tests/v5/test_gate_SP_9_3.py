@@ -57,6 +57,7 @@ def test_SP_9_3_content_ecosystem_mechanics():
               "reference_distinct_viewers_min": min(_viewers(r) for r in runs), "spam_distinct_viewers": _viewers(spam),
               "null_success": bool(null["success"]),
               "invariant_violations": sum(r["invariant_violations"] for r in runs + [null, spam]),
+              "reference_script_world_reads": len(base.reads_world(D.reference_script)),
               "process_failures_all_runs": sum(r["proc_failed"] for r in runs + [null, spam])})
     evidence.record("SP-9.3", m, command=CMD, labels=dict(K.SCRIPTED),
                     notes=f"content:{cfg} seeds {[r['seed'] for r in runs]}, {runs[0]['days']} days; LABELLED SCRIPTED "
@@ -68,4 +69,5 @@ def test_SP_9_3_content_ecosystem_mechanics():
     assert m["autonomous_actors_active"] == len(d.actors) and m["population_activity_decisions_without_seat"] > 0
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     assert m["reference_distinct_viewers_min"] > m["spam_distinct_viewers"] and not m["null_success"]
+    assert m["reference_script_world_reads"] == 0          # the generator itself is tool-only too
     assert not checker.unmet("SP-9.3", m), checker.unmet("SP-9.3", m)

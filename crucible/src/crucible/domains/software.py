@@ -28,9 +28,15 @@ developer reports it), and drop a dependency that keeps failing. Every choice is
 Evaluator (hidden): independent adopters of the seat's packages - population developers whose application executed
 the package successfully (`pkg_adoptions`, measured by ablation) in the last 7 days and still depends on it.
 
-Reference (hidden, LABELLED SCRIPTED): a tool-only maintainer that reads the developers' public requests (forum) and
-the package index, publishes a documented, tested package implementing the requested capabilities under the names
-the requests use, answers issues and releases fixes.
+Population maintainers (authors of published packages) look at their package's issues every two days: a bug report
+with an input their code gets wrong makes them correct it, a documentation request makes them describe the functions
+in the README, each released as a patch version (the API comparison with the previous release is recorded and
+developers who stay current upgrade through their own tests: `pkg.compat`).
+
+Reference (hidden, LABELLED SCRIPTED): a tool-only maintainer that reads the developers' public requests (forum
+listings), publishes a documented, tested package implementing the requested capabilities under the names the
+requests use, and keeps maintaining it: later forum requests and feature-request issues become minor releases, and
+every issue gets an answer.
 """
 from __future__ import annotations
 
@@ -369,13 +375,30 @@ class PopDevelopers(Module):
                                                               f"Keywords: {NEEDS[nd]['keywords']}."})
                     self._set(ctx, i, asked=list(r["asked"]) + [nd])
                 return "diy", -0.1
-        # 2. maintainers answer the issues of their own package
-        if r["published"]:
+        # 2. maintainers look at the issues of their own package (at most every two days): a report with an input
+        #    on which a capability they wrote is wrong makes them correct their code, a request for documentation
+        #    makes them describe the functions in the README, and either is released as a patch version (the
+        #    handled issues are closed); other issues get an answer
+        if r["published"] and now - int(r.get("triaged") or -10 ** 9) >= 2 * DAY:
             info = self._call(ctx, p, "pkg.info", {"package": r["published"]}) or {}
             proj = (ctx.state.get("pkg_packages", r["published"]) or {}).get("project")
-            if proj and int(info.get("open_issues") or 0) > 0 and rng.random() < 0.5:
+            if proj and int(info.get("open_issues") or 0) > 0:
+                self._set(ctx, i, triaged=int(now))
                 iss = self._call(ctx, p, "issues.list", {"project": proj, "status": "open"}) or []
-                for it in (iss if isinstance(iss, list) else [])[:2]:
+                iss = iss if isinstance(iss, list) else []
+                pub = dict(r.get("pub") or {})
+                wrong = [it for it in iss if "bug" in (it.get("labels") or [])]
+                undoc = [it for it in iss if "docs" in (it.get("labels") or [])]
+                code_fix = bool(wrong) and any(v == "bug" for v in (pub.get("variants") or {}).values())
+                docs_fix = bool(undoc) and not pub.get("documented")
+                if code_fix or docs_fix:
+                    ver = self._patch(ctx, p, i, r["published"], pub, code_fix, docs_fix)
+                    if ver:
+                        for it in ((wrong if code_fix else []) + (undoc if docs_fix else []))[:8]:
+                            self._call(ctx, p, "issues.close", {"issue": it["issue"],
+                                                                "comment": f"Done in {ver}; thanks for the report."})
+                        return "publish", 0.2
+                for it in iss[:2]:
                     self._call(ctx, p, "issues.comment", {"issue": it["issue"],
                                                           "body": "Thanks, I will look at it when I have time."})
                 return "publish", 0.05
@@ -505,8 +528,33 @@ class PopDevelopers(Module):
         if reg is None:
             return False
         rel = self._call(ctx, p, "pkg.release", {"package": name, "version": "1.0.0", "notes": "first release"})
-        self._set(ctx, i, published=name)
+        self._set(ctx, i, published=name, pub={"needs": list(needs), "variants": variants, "version": "1.0.0",
+                                                "repo": repo, "documented": bool(sk > 0.7)})
         return rel is not None
+
+    def _patch(self, ctx, p, i, package, pub, code_fix: bool, docs_fix: bool) -> str | None:
+        """A patch release of one's package: every capability written right (`code_fix`) and/or a README that
+        describes each function (`docs_fix`); returns the version."""
+        needs = list(pub.get("needs") or [])
+        if not needs or not pub.get("repo"):
+            return None
+        files = {}
+        if code_fix:
+            files["lib.py"] = library_source(needs)
+        if docs_fix:
+            files["README.md"] = readme(package, needs, f"deps.{pub['repo'].split('/', 1)[-1]}.lib")
+        if self._call(ctx, p, "code.commit", {"repo": pub["repo"], "files": files,
+                                              "message": "handle reported issues"}) is None:
+            return None
+        major, minor, patch = (int(x) for x in str(pub.get("version", "1.0.0")).split("."))
+        ver = f"{major}.{minor}.{patch + 1}"
+        if self._call(ctx, p, "pkg.release", {"package": package, "version": ver,
+                                              "notes": "corrects results reported by users"}) is None:
+            return None
+        variants = {n: "ok" for n in needs} if code_fix else dict(pub.get("variants") or {})
+        self._set(ctx, i, pub=dict(pub, version=ver, variants=variants,
+                                   documented=bool(pub.get("documented") or docs_fix)))
+        return ver
 
     # ------------------------------------------------------------------ appliers
     @applier("devpop.developers")
@@ -607,7 +655,7 @@ def _parse_requests(posts: list[dict]) -> dict[str, dict]:
     """Capabilities people ask for (function name -> {doc, keywords, count}) from their forum posts."""
     out: dict = {}
     for p in posts:
-        body = str(p.get("body", ""))
+        body = str(p.get("body") or p.get("snippet") or "")      # forum.list returns a snippet of the body
         m = re.search(r"a function like ([a-z_][a-z0-9_]*)\(\.\.\.\): (.*?)\. I wrote", body)
         if not m:
             continue
@@ -616,54 +664,85 @@ def _parse_requests(posts: list[dict]) -> dict[str, dict]:
     return out
 
 
+FEATURE_RE = re.compile(r"Please add ([a-z_][a-z0-9_]*)\(\)")
+
+
 def reference_script(good: bool = True):
-    """A tool-only maintainer (see the module doc). It implements requested capabilities from its own knowledge of
-    the functions (the same textbook implementations the hand-coders write); the stub variant (degenerate probe)
-    publishes the same names with wrong code."""
+    """A tool-only maintainer (see the module doc). It implements the capabilities people ask for from its own
+    knowledge of the functions (the same textbook implementations the hand-coders write): the first release holds
+    what the forum asks for (everything it knows when nobody has asked yet), later minor releases add what later
+    forum posts and feature-request issues ask for, and every issue gets an answer. The stub variant (degenerate
+    probe) publishes the same names with code that does nothing."""
     def script(pol):
         handle = pol.actor.split(":", 1)[-1]
         boards = K.ok((yield {"tool": "forum.boards", "args": {}})) or []
-        requests: dict = {}
+        has_dev = any(b.get("board") == "dev" for b in boards)
         known = {v["hint"]: k for k, v in NEEDS.items()}
+
+        def asked():
+            if not has_dev:
+                return {}
+            posts = K.ok((yield {"tool": "forum.list", "args": {"board": "dev", "limit": 30}})) or []
+            return _parse_requests(posts)
+        requests: dict = {}
         for _ in range(4):                                   # the first requests (at most a day of reading)
-            if any(b.get("board") == "dev" for b in boards):
-                posts = K.ok((yield {"tool": "forum.list", "args": {"board": "dev", "limit": 30}})) or []
-                requests = _parse_requests(posts)
+            requests = yield from asked()
             if requests:
                 break
             yield None
-        # what people ask for first, then every other common helper the maintainer knows how to write well
         names = [fn for fn in sorted(requests, key=lambda f: (-requests[f]["count"], f)) if fn in known]
-        names += [v["hint"] for v in NEEDS.values() if v["hint"] not in names]
-        needs = [known[fn] for fn in names if fn in known]
+        if not names:
+            names = [v["hint"] for v in NEEDS.values()]
+        needs = [known[fn] for fn in names]
         repo = (K.ok((yield {"tool": "code.create_repo", "args": {"name": "toolbelt", "visibility": "public",
                                                                   "license": "open",
                                                                   "description": "small, tested helpers"}})) or {}
                 ).get("repo") or f"{handle}/toolbelt"
-        src = library_source(needs) if good else "\n".join(f"def {NEEDS[n]['hint']}(*a):\n    return None\n"
-                                                           for n in needs)
-        tests = ["from lib import " + ", ".join(NEEDS[n]["hint"] for n in needs), ""]
-        rng = np.random.default_rng(7)
-        for n in needs:
-            args = draw_cases(n, rng, 1)[0]
-            tests += [f"def test_{n}():", f"    assert {NEEDS[n]['hint']}(*{json.dumps(args)}) == "
-                                          f"{_reference_fn(n)(*args)!r}", ""]
-        files = {"lib.py": src, "README.md": readme("toolbelt", needs, "deps.toolbelt.lib")}
-        if good:
-            files["tests/test_lib.py"] = "\n".join(tests) + "\n"
-        yield {"tool": "code.commit", "args": {"repo": repo, "files": files, "message": "toolbelt 1.0"}}
-        desc = "; ".join(f"{NEEDS[n]['hint']}: {NEEDS[n]['doc']} ({NEEDS[n]['keywords']})" for n in needs)
+
+        def files_for(ns):
+            src = library_source(ns) if good else "\n".join(f"def {NEEDS[n]['hint']}(*a):\n    return None\n"
+                                                               for n in ns)
+            out = {"lib.py": src, "README.md": readme("toolbelt", ns, "deps.toolbelt.lib")}
+            if good:
+                tests = ["from lib import " + ", ".join(NEEDS[n]["hint"] for n in ns), ""]
+                rng = np.random.default_rng(7)
+                for n in ns:
+                    args = draw_cases(n, rng, 1)[0]
+                    tests += [f"def test_{n}():", f"    assert {NEEDS[n]['hint']}(*{json.dumps(args)}) == "
+                                                  f"{_reference_fn(n)(*args)!r}", ""]
+                out["tests/test_lib.py"] = "\n".join(tests) + "\n"
+            return out
+
+        def describe(ns):
+            return "; ".join(f"{NEEDS[n]['hint']}: {NEEDS[n]['doc']} ({NEEDS[n]['keywords']})" for n in ns)[:500]
+        yield {"tool": "code.commit", "args": {"repo": repo, "files": files_for(needs), "message": "toolbelt 1.0"}}
         reg = K.ok((yield {"tool": "pkg.register", "args": {"name": "toolbelt", "repo": repo,
-                                                            "description": desc[:500]}}))
+                                                            "description": describe(needs)}}))
         yield {"tool": "pkg.release", "args": {"package": "toolbelt", "version": "1.0.0", "notes": "first release"}}
         project = (reg or {}).get("project")
-        while True:                                          # maintenance: answer and close issues
+        minor = 0
+        while True:                                          # maintenance: requests, issues, releases
+            want = []
+            later = yield from asked()
+            want += [fn for fn in sorted(later) if fn in known and known[fn] not in needs]
             if project:
                 iss = K.ok((yield {"tool": "issues.list", "args": {"project": project, "status": "open"}})) or []
                 for it in (iss if isinstance(iss, list) else []):
-                    yield {"tool": "issues.close", "args": {"issue": it.get("issue"),
-                                                            "comment": "Thanks - checked against the tests; please "
-                                                                       "upgrade to the latest release."}}
+                    m = FEATURE_RE.match(str(it.get("title") or ""))
+                    adds = bool(m and m.group(1) in known and known[m.group(1)] not in needs)
+                    if adds:
+                        want.append(m.group(1))
+                    yield {"tool": "issues.close", "args": {"issue": it.get("issue"), "comment": (
+                        "Added in the next release." if adds else
+                        "Thanks - checked against the tests; please upgrade to the latest release.")}}
+            add = [known[fn] for fn in dict.fromkeys(want) if known[fn] not in needs]
+            if add:
+                needs = needs + add
+                minor += 1
+                yield {"tool": "code.commit", "args": {"repo": repo, "files": files_for(needs),
+                                                       "message": f"toolbelt 1.{minor}: " + ", ".join(add)}}
+                yield {"tool": "pkg.release", "args": {"package": "toolbelt", "version": f"1.{minor}.0",
+                                                       "notes": "adds " + ", ".join(NEEDS[n]["hint"] for n in add)}}
             for _ in range(3):
                 yield None
     return script
@@ -752,8 +831,17 @@ def count_adoptions(world, since: int) -> int:
 
 
 def count_compat_checks(world, since: int) -> int:
+    """Upgrade compatibility checks of dependents (`pkg.compat`) and API comparisons of a release with the
+    package's previous release."""
     return len(_ev(world, since, ("pkg.compat",))) + sum(
-        1 for e in _ev(world, since, ("pkg.released",)) if e.payload.get("compat"))
+        1 for e in _ev(world, since, ("pkg.released",)) if (e.payload.get("compat") or {}).get("previous"))
+
+
+def count_maintenance(world, since: int) -> int:
+    """Work on existing packages: releases after the first, issues handled (updated or closed) and merged
+    changes."""
+    return sum(1 for e in _ev(world, since, ("pkg.released", "issues.update", "pkg.merged"))
+               if e.type != "pkg.released" or (e.payload.get("compat") or {}).get("previous"))
 
 
 MECHANICS = (
@@ -771,7 +859,7 @@ MECHANICS = (
     Mechanic("Adoption", (), "adoption by execution (ablation-measured)", count=count_adoptions),
     Mechanic("Compatibility", (), "API comparison of releases and compatibility checks of upgrades",
              count=count_compat_checks),
-    Mechanic("Maintenance", ("pkg.released", "issues.update", "pkg.merged"), "new releases, issue handling, merges"),
+    Mechanic("Maintenance", (), "later releases, issue handling, merges", count=count_maintenance),
 )
 
 

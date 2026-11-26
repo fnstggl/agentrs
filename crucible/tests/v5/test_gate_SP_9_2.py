@@ -42,6 +42,7 @@ def test_SP_9_2_software_ecosystem_mechanics():
               "stub_package_issue_events": stub["mechanics"]["counts"]["Issues"],
               "null_success": bool(null["success"]),
               "invariant_violations": sum(r["invariant_violations"] for r in runs + [null, stub]),
+              "reference_script_world_reads": len(base.reads_world(D.reference_script)),
               "process_failures_all_runs": sum(r["proc_failed"] for r in runs + [null, stub])})
     evidence.record("SP-9.2", m, command=CMD, labels=dict(K.SCRIPTED),
                     notes=f"software:{cfg} seeds {[r['seed'] for r in runs]}, {runs[0]['days']} days; LABELLED "
@@ -54,4 +55,5 @@ def test_SP_9_2_software_ecosystem_mechanics():
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     assert m["reference_independent_adopters_min"] > 0 and m["stub_package_independent_adopters"] == 0
     assert not m["null_success"]
+    assert m["reference_script_world_reads"] == 0          # the generator itself is tool-only too
     assert not checker.unmet("SP-9.2", m), checker.unmet("SP-9.2", m)
