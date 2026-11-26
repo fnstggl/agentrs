@@ -375,10 +375,50 @@ def search(env, seed: int = 0, budget: dict | None = None) -> dict:
         res["episodes"] += 1
         res["by_arm"]["repeat_best"] = max(res["by_arm"].get("repeat_best", -math.inf), v)
         scored.append((v, top[0], f"repeat_best:K={K},m={m}"))
+    obj = env._config.get("objective") or {}
+    if obj.get("type") == "predict_heldout" and obj.get("heldout") and "message" in env.action_space().kinds:
+        for lab, v in _naive_predictors(env, rng).items():
+            res["episodes"] += 1
+            res["by_arm"]["naive_prediction"] = max(res["by_arm"].get("naive_prediction", -math.inf), v)
+            scored.append((v, top[0], f"naive_prediction:{lab}"))
     bv, bs, bl = max(scored, key=lambda x: x[0])
     if v_wait > bv:
         bv, bl = v_wait, "wait"
     return dict(res, best_value=float(bv), best_kind=bl.split(":")[0], best_label=bl)
+
+
+def _naive_predictors(env, rng) -> dict:
+    """Simple answers to a prediction objective (the held-out conditions are public, in the objective): set the
+    levers uniformly at random every tick, record the reading, and at the last tick file (a) the mean reading
+    for every condition and (b) a linear regression of the reading on the settings, extrapolated."""
+    obj = env._config["objective"]
+    held, g = obj["heldout"], obj.get("gauge")
+    e = fork(env)
+    sp = e.action_space()
+    if "levers" not in sp.kinds:
+        return {}
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    names = sorted(props)
+    X, y = [], []
+    while e.t < e.horizon - 1:
+        x = {n: float(props[n]["minimum"] + rng.random() * (props[n]["maximum"] - props[n]["minimum"])) for n in names}
+        r = e.step({"kind": "levers", "values": x})
+        v = r["observation"]["numbers"].get(g) if g else None
+        if v is not None:
+            X.append([x[n] for n in names])
+            y.append(v)
+    if not y:
+        return {}
+    X, y = np.asarray(X), np.asarray(y)
+    coef, *_ = np.linalg.lstsq(np.c_[np.ones(len(X)), X], y, rcond=None)
+    out = {}
+    for lab, fn in (("mean", lambda c: float(y.mean())),
+                    ("linear", lambda c: float(coef[0] + sum(coef[1 + i] * c.get(n, 0.0) for i, n in enumerate(names))))):
+        f = fork(e)
+        f.step({"kind": "message", "to": "journal",
+                "content": {"predictions": [{"set": c, "value": fn(c)} for c in held]}})
+        out[lab] = float(f.outcome()["value"])
+    return out
 
 
 def check(v_default: float, v_reference: float, simple: dict, fraction: float = DOMINANCE_FRACTION) -> dict:

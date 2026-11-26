@@ -173,3 +173,128 @@ def hc_hidden_state_sign(rng, d):
                     affordances=["levers"], endowment=500_000, objective={"type": "maximize_net", "text": SHOP},
                     brief="A shop with two spending levers. Gauges: units sold and a footfall count.",
                     claim={"lever": X, "second": Q, "outcome": sales, "state": S, "setpoint": sp, "effect": eff})
+
+
+# ====================================================================== 8.2.2 competing hypotheses
+def _predict_text(heldout) -> str:
+    return ("Predict the noise-free reading at these conditions, which lie outside what you can set: "
+            f"{heldout}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+
+
+def _hypotheses(rng, d, pair: str, split_note: str):
+    """A law that is one of two public candidate hypotheses (which one, the seed decides); both fit the settable
+    range similarly but predict very differently outside it."""
+    gb = GraphBuilder(rng)
+    x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    x2 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
+    noise = float(d["observation_noise"])
+    h = u(rng, 1.5, 3.0)
+    y6 = u(rng, 10.0, 14.0)
+    first = bool(rng.random() < 0.5)
+    beta = u(rng, 0.6, 1.2)
+    if pair == "saturating_vs_power":
+        if first:
+            f = gb.prim("saturation", {"cap": y6 * (6.0 + h) / 6.0, "half": h}, x=[(x1, 0, 1.0)])
+        else:
+            f = gb.prim("linear_nonlinear", {"form": "power", "a": y6 / 6.0 ** 0.5, "b": 0.0, "k": 0.5},
+                        x=[(x1, 0, 1.0)])
+        g = gb.prim("linear_nonlinear", {"form": "linear", "a": beta, "b": 0.0}, x=[(x2, 0, 1.0)])
+        y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                    x=[(f, 0, 1.0), (g, 0, 1.0)])
+        names = ("saturating", "power")
+        held_pts = ((9.0, 1.0), (12.0, 3.0), (15.0, 2.0), (10.0, 5.0), (14.0, 0.5), (11.0, 4.0))
+        brief = ("A laboratory apparatus with two settings and one sensor. Two theories compete: the reading "
+                 "saturates in the first setting (diminishing returns towards a ceiling), or it keeps growing as a "
+                 "power of it. The second setting adds to the reading.")
+    else:                                                     # additive_vs_interactive
+        if first:
+            f = gb.prim("saturation", {"cap": y6 * (6.0 + h) / 6.0, "half": h}, x=[(x1, 0, 1.0)])
+            hg = u(rng, 2.0, 4.0)
+            g = gb.prim("saturation", {"cap": beta * 6.0 * (6.0 + hg) / 6.0 * 2.0, "half": hg}, x=[(x2, 0, 1.0)])
+            y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                        x=[(f, 0, 1.0), (g, 0, 1.0)])
+        else:
+            f = gb.prim("saturation", {"cap": y6 * (6.0 + h) / 6.0, "half": h}, x=[(x1, 0, 1.0)])
+            g = gb.prim("linear_nonlinear", {"form": "linear", "a": beta / 3.0, "b": 0.4}, x=[(x2, 0, 1.0)])
+            y = gb.prim("multiplicative", {"k": 1.0}, role="outcome", a=[(f, 0, 1.0)], b=[(g, 0, 1.0)])
+        names = ("additive", "interactive")
+        held_pts = ((3.0, 14.0), (5.0, 20.0), (1.0, 16.0), (6.0, 24.0), (2.0, 18.0), (4.0, 22.0))
+        brief = ("A laboratory apparatus with two settings and one sensor. Two theories compete: the settings act "
+                 "separately and their effects add up, or the second setting scales the effect of the first.")
+    gy = gb.gauge(y, [("measurement_noise", {"sd": noise})])
+    heldout = [{gb.name_of(x1): a, gb.name_of(x2): b} for a, b in held_pts]
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": heldout, "gauge": gy,
+                               "text": _predict_text(heldout)},
+                    journal=True, brief=brief,
+                    claim={"levers": [x1, x2], "outcome": y, "law": names[0] if first else names[1],
+                           "hypotheses": list(names), "pair": pair})
+
+
+@family("sci_competing_hypotheses", engine="primitive_graph", category="8.2", item="8.2.2", split="train",
+        doc="Two public candidate laws - saturating or power growth in the first setting - fit the settable range "
+            "about equally well but predict very differently outside it; the world obeys one of them. Design "
+            "discriminating experiments, decide, and predict held-out conditions.",
+        distinct_because="the law is one of two public hypotheses (saturation or power) with an additive second "
+                         "factor; prediction at held-out conditions where only the true hypothesis extrapolates",
+        axes={"horizon": 40, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "hypotheses_diverge_out_of_range",), identify=CV + "identify_hypothesis",
+        reference=CV + "test_hypotheses_and_predict")
+def sci_competing_hypotheses(rng, d):
+    return _hypotheses(rng, d, "saturating_vs_power", "train")
+
+
+@family("sci_interaction_hypotheses", engine="primitive_graph", category="8.2", item="8.2.2", split="val",
+        doc="Two public candidate laws - the settings' effects add up, or the second scales the first - agree "
+            "roughly inside the settable range and diverge outside it; the world obeys one of them.",
+        distinct_because="competing hypotheses about the combination of two factors (additive collider vs "
+                         "multiplicative interaction), not about the shape of one response",
+        axes={"horizon": 40, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "hypotheses_diverge_out_of_range",), identify=CV + "identify_hypothesis",
+        reference=CV + "test_hypotheses_and_predict")
+def sci_interaction_hypotheses(rng, d):
+    return _hypotheses(rng, d, "additive_vs_interactive", "val")
+
+
+# ====================================================================== 8.2.3 hidden conservation
+@family("sci_hidden_conservation", engine="primitive_graph", category="8.2", item="8.2.3", split="train",
+        doc="Material circulates through three tanks: two are gauged, the third is hidden and returns material at "
+            "a hidden rate. The total is conserved but unknown. Set the two transfer rates, watch the gauged "
+            "levels settle, infer the hidden total and return rate, and predict where a gauged level would settle "
+            "at transfer rates outside the settable range.",
+        distinct_because="a closed cycle of three stocks with rate-controlled flows (multiplicative lagged flows, "
+                         "conserved total, one stock unobserved); the law to find is a conservation relation, not "
+                         "a response curve",
+        axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(CV + "total_is_conserved",), identify=CV + "identify_total", reference=CV + "infer_conservation")
+def sci_hidden_conservation(rng, d):
+    gb = GraphBuilder(rng)
+    r1 = gb.lever(0.05, 0.5, 0.2, cost=0.0)
+    r2 = gb.lever(0.05, 0.5, 0.2, cost=0.0)
+    M = u(rng, 60.0, 140.0)
+    rho = u(rng, 0.08, 0.3)
+    a0 = u(rng, 0.3, 0.5)
+    A = gb.prim("stock", {"init": a0 * M, "cap": 1e9}, role="tank_a")
+    B = gb.prim("stock", {"init": (1 - a0) * M * 0.5, "cap": 1e9}, role="tank_b")
+    Cn = gb.prim("stock", {"init": (1 - a0) * M * 0.5, "cap": 1e9}, role="tank_c")
+    fab = gb.prim("multiplicative", {"k": 1.0}, a=[(r1, 0, 1.0)], b=[(A, 1, 1.0)])
+    fbc = gb.prim("multiplicative", {"k": 1.0}, a=[(r2, 0, 1.0)], b=[(B, 1, 1.0)])
+    fca = gb.prim("linear_nonlinear", {"form": "linear", "a": rho, "b": 0.0}, x=[(Cn, 1, 1.0)])
+    for nid, inflow, outflow in ((A, fca, fab), (B, fab, fbc), (Cn, fbc, fca)):
+        gb.nodes[int(nid[1:])]["ports"] = {"inflow": [[inflow, 0, 1.0]], "outflow": [[outflow, 0, 1.0]]}
+    noise = float(d["observation_noise"])
+    ga = gb.gauge(A, [("measurement_noise", {"sd": noise})])
+    gbb = gb.gauge(B, [("measurement_noise", {"sd": noise})])
+    held = [{gb.name_of(r1): a, gb.name_of(r2): b} for a, b in
+            ((0.8, 0.1), (0.02, 0.4), (0.7, 0.7), (1.0, 0.3), (0.03, 0.03), (0.9, 0.05))]
+    text = (f"Predict where the reading {gbb} would settle if the two transfer rates were held at these values "
+            f"(outside what you can set): {held}. " + _predict_text(held).split(". ", 1)[1])
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gbb, "text": text,
+                               "settle_ticks": 400},
+                    journal=True,
+                    brief=(f"Three tanks in a loop: material flows from the first tank (gauge {ga}) to the second "
+                           f"(gauge {gbb}) at the first rate, from the second to a third, ungauged tank at the "
+                           "second rate, and back from the third at a fixed rate nobody has measured."),
+                    claim={"levers": [r1, r2], "tanks": [A, B, Cn], "total": M, "rho": rho, "gauges": [ga, gbb]})

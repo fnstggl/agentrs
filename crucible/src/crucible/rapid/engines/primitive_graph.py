@@ -544,7 +544,7 @@ def score_predictions(eng: PrimitiveGraph, journal: list[dict]) -> dict:
     obj = eng.config["objective"]
     conds = obj["heldout"]
     gauge = obj["gauge"]
-    truth = true_response(eng, conds, gauge)
+    truth = true_response(eng, conds, gauge, ticks=int(obj.get("settle_ticks", 1)))
     preds = None
     for m in journal:
         c = (m.get("content") or {}).get("predictions")

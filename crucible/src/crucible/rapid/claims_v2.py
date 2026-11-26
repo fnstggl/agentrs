@@ -360,3 +360,196 @@ def sign_tracker(view, env) -> None:
             if view.done:
                 return
             view.step({"kind": "levers", "values": {x: end, q: best_q}})
+
+
+# ====================================================================== competing hypotheses
+def _law_values(env, conds) -> np.ndarray:
+    from .engines.primitive_graph import true_response
+    return np.asarray(true_response(env._engine, conds, env._config["objective"]["gauge"]))
+
+
+def _fit_hyp(name: str, X: np.ndarray, y: np.ndarray):
+    """Least-squares fit of a named public hypothesis to (x1, x2) -> y; returns a predictor and the RMS residual."""
+    a, b = X[:, 0], X[:, 1]
+    best = None
+    for h in np.linspace(0.3, 8.0, 40):
+        if name == "saturating":
+            F = np.c_[a / (a + h), b, np.ones(len(a))]
+        elif name == "power":
+            k = 0.2 + h / 10.0
+            F = np.c_[np.abs(a) ** k, b, np.ones(len(a))]
+        elif name == "additive":
+            F = np.c_[a / (a + h), b / (b + 3.0), np.ones(len(a))]
+        else:                                         # interactive
+            F = np.c_[a / (a + h) * b, a / (a + h), np.ones(len(a))]
+        coef, *_ = np.linalg.lstsq(F, y, rcond=None)
+        res = float(np.sqrt(np.mean((F @ coef - y) ** 2)))
+        if best is None or res < best[0]:
+            best = (res, h, coef)
+    res, h, coef = best
+
+    def pred(Xq):
+        a, b = Xq[:, 0], Xq[:, 1]
+        if name == "saturating":
+            F = np.c_[a / (a + h), b, np.ones(len(a))]
+        elif name == "additive":
+            F = np.c_[a / (a + h), b / (b + 3.0), np.ones(len(a))]
+        elif name == "power":
+            F = np.c_[np.abs(a) ** (0.2 + h / 10.0), b, np.ones(len(a))]
+        else:
+            F = np.c_[a / (a + h) * b, a / (a + h), np.ones(len(a))]
+        return F @ coef
+    return pred, res
+
+
+def hypotheses_diverge_out_of_range(env) -> dict:
+    """Evaluator side, noise free: the rival hypothesis, fitted to the true law over the settable range, stays
+    close to it there (the two are hard to tell apart without designed experiments) but misses the held-out
+    conditions by far more."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    grid = [(float(a), float(b)) for a in np.linspace(0, 6, 7) for b in np.linspace(0, 6, 7)]
+    X = np.asarray(grid)
+    y = _law_values(env, [{x1: a, x2: b} for a, b in grid])
+    rival = [h for h in c["hypotheses"] if h != c["law"]][0]
+    pred, res = _fit_hyp(rival, X, y)
+    held = env._config["objective"]["heldout"]
+    Xh = np.asarray([[cnd[x1], cnd[x2]] for cnd in held])
+    yh = _law_values(env, held)
+    miss = float(np.sqrt(np.mean((pred(Xh) - yh) ** 2)))
+    span = float(np.ptp(y)) + 1e-9
+    return {"ok": bool(res < 0.12 * span and miss > 2.5 * res and miss > 0.1 * float(np.ptp(yh) + span)),
+            "rival": rival, "rival_rms_in_range": res, "rival_rms_heldout": miss, "range_span": span}
+
+
+def _grid_measure(view, x1, x2, reps=2, n=5):
+    X, y = [], []
+    for a in np.linspace(0, 6, n):
+        for b in np.linspace(0, 6, n):
+            vals = []
+            for _ in range(reps):
+                if view.done:
+                    return np.asarray(X), np.asarray(y)
+                r = view.step({"kind": "levers", "values": {x1: float(a), x2: float(b)}})
+                vals.append(list(r["observation"]["numbers"].values())[0])
+            X.append([a, b])
+            y.append(float(np.mean(vals)))
+            if view.t >= view.horizon - 2:
+                return np.asarray(X), np.asarray(y)
+    return np.asarray(X), np.asarray(y)
+
+
+def test_hypotheses_and_predict(view, env) -> None:
+    """Scripted public reference: measure a grid of settings (the setting acts at once), fit both public
+    hypotheses, keep the one with the smaller residual and file its predictions for the held-out conditions."""
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    X, y = _grid_measure(view, x1, x2, reps=1, n=6)
+    held = env._config["objective"]["heldout"]
+    fits = {h: _fit_hyp(h, X, y) for h in c["hypotheses"]}
+    h = min(fits, key=lambda k: fits[k][1])
+    Xh = np.asarray([[cnd[x1], cnd[x2]] for cnd in held])
+    pv = fits[h][0](Xh)
+    if not view.done:
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": cnd, "value": float(v)} for cnd, v in zip(held, pv)]}})
+    while not view.done:
+        view.step(None)
+
+
+def identify_hypothesis(env) -> dict:
+    view = PublicView(env)
+    c = env._config["claim"]
+    x1, x2 = [_lever(env, n) for n in c["levers"]]
+    X, y = _grid_measure(view, x1, x2, reps=1, n=6)
+    fits = {h: _fit_hyp(h, X, y)[1] for h in c["hypotheses"]}
+    est = min(fits, key=fits.get)
+    return {"ok": est == c["law"], "question": "which hypothesis holds", "estimate": est, "truth": c["law"]}
+
+
+# ====================================================================== hidden conservation
+def total_is_conserved(env) -> dict:
+    """Under random rate settings the three tanks' total stays exactly constant every tick (conservation), while
+    the gauged two tanks' sum does not (the third tank is hidden)."""
+    from .policies import random_policy
+    c = env._config["claim"]
+    e = fork(env)
+    eng = e._engine
+    idx = [eng.idx[t] for t in c["tanks"]]
+    rng = np.random.default_rng(3)
+    tot, vis = [], []
+    for _ in range(40):
+        e.step(random_policy(e.observe(), e.action_space(), rng))
+        h = e._state["h"][0, -1]
+        tot.append(float(sum(h[i] for i in idx)))
+        vis.append(float(h[idx[0]] + h[idx[1]]))
+    return {"ok": bool(np.ptp(tot) < 1e-6 * max(1.0, abs(tot[0])) and abs(tot[0] - c["total"]) < 1e-6 * c["total"]
+                       and np.ptp(vis) > 0.05 * c["total"]),
+            "total_range": float(np.ptp(tot)), "gauged_sum_range": float(np.ptp(vis)), "total": tot[0]}
+
+
+def _settle(view, r1n, r2n, a, b, gauges, ticks):
+    """Hold rates (a, b) for `ticks` ticks; mean gauged levels over the last five."""
+    ra, rb = [], []
+    for k in range(ticks):
+        if view.done:
+            break
+        n = view.step({"kind": "levers", "values": {r1n: a, r2n: b}})["observation"]["numbers"]
+        if k >= ticks - 5:
+            ra.append(n.get(gauges[0], np.nan))
+            rb.append(n.get(gauges[1], np.nan))
+    return float(np.nanmean(ra)) if ra else None, float(np.nanmean(rb)) if rb else None
+
+
+def _solve_conservation(obs):
+    """From settled levels (r1, r2, A, B) at several rate settings: r1 A = rho C and C = M - A - B, so
+    r1 A = rho (M - A - B) - linear in (rho M, rho) -> least squares."""
+    Arow, yv = [], []
+    for r1, r2, a, b in obs:
+        Arow.append([1.0, -(a + b)])                  # rho*M - rho*(A+B) = r1*A
+        yv.append(r1 * a)
+    sol, *_ = np.linalg.lstsq(np.asarray(Arow), np.asarray(yv), rcond=None)
+    rhoM, rho = float(sol[0]), float(sol[1])
+    rho = max(rho, 1e-6)
+    return rhoM / rho, rho
+
+
+def infer_conservation(view, env) -> None:
+    """Scripted public reference: hold three different rate settings long enough to settle, solve the
+    conservation relation for the hidden total and return rate, and predict the settled second gauge at the
+    held-out rates (A* = M / (1 + r1/r2 + r1/rho), B* = r1 A* / r2)."""
+    c = env._config["claim"]
+    r1n, r2n = [_lever(env, n) for n in c["levers"]]
+    g = c["gauges"]
+    span = max(8, (view.horizon - 2) // 3)
+    obs = []
+    for a, b in ((0.1, 0.4), (0.4, 0.1), (0.3, 0.3)):
+        A, B = _settle(view, r1n, r2n, a, b, g, span)
+        if A is not None:
+            obs.append((a, b, A, B))
+    held = env._config["objective"]["heldout"]
+    if len(obs) >= 2 and not view.done:
+        M, rho = _solve_conservation(obs)
+        preds = []
+        for cnd in held:
+            a, b = cnd[r1n], cnd[r2n]
+            Ast = M / (1.0 + a / b + a / rho)
+            preds.append({"set": cnd, "value": float(a * Ast / b)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)
+
+
+def identify_total(env) -> dict:
+    view = PublicView(env)
+    c = env._config["claim"]
+    r1n, r2n = [_lever(env, n) for n in c["levers"]]
+    obs = []
+    span = max(8, (view.horizon - 2) // 3)
+    for a, b in ((0.1, 0.4), (0.4, 0.1), (0.3, 0.3)):
+        A, B = _settle(view, r1n, r2n, a, b, c["gauges"], span)
+        if A is not None:
+            obs.append((a, b, A, B))
+    M, _ = _solve_conservation(obs) if len(obs) >= 2 else (None, None)
+    return {"ok": M is not None and abs(M - c["total"]) < 0.1 * c["total"], "question": "what is the hidden total",
+            "estimate": M, "truth": c["total"]}
