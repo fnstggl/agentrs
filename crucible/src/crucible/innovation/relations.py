@@ -30,9 +30,10 @@ delegated executions that failed), `reject_share` (share of delegated outputs re
 
 Rules (keyed only by relation type and observable names; none names a host, package, capability or participant):
 
-* bottleneck  - `requires` edge a -> x whose `time_share` (its share of the hand work the activity still needs)
-                >= `bottleneck` while most of it is still done by hand (`unserved_share` >= `unserved`, when
-                observed): need `provide x` for a's holders who do not rely on a producer;
+* bottleneck  - `requires` edge a -> x that is the bottleneck of its holders: observed per individual, x is at least
+                `bottleneck` of the hand work an individual still does, and such individuals hold at least
+                `unserved` of x's work (`unserved_share`, holders `bottleneck_holders`); or, for relations given
+                as data, `time_share` >= `bottleneck`: need `provide x` for those holders;
 * unreliable  - `requires` edge a -> x relied on through producer p whose `failure_share` or `reject_share` >=
                 `unreliable`: need `alternative x`;
 * scarcity    - `consumes` (or `loads`) edge s -> r with r `constrains`-ed and `utilisation` >= `scarce` or
@@ -151,8 +152,12 @@ def label(world, thresholds: dict | None = None) -> list[dict]:
             hs = o.get("holders") or obs.get(e["src"], {}).get("holders") or []
             relied = o.get("relied_holders") or []
             unserved = sorted(set(hs) - set(relied))
-            if float(o.get("time_share", 0.0)) >= th["bottleneck"] and \
-                    float(o.get("unserved_share", 1.0)) >= th["unserved"]:
+            if "bottleneck_holders" in o:
+                # observed per individual: enough of the step's work is in individuals' bottleneck state
+                if float(o.get("unserved_share", 0.0)) >= th["unserved"]:
+                    add("provide", e["dst"], "bottleneck", o["bottleneck_holders"], path(e),
+                        {"time_share": o.get("time_share"), "unserved_share": o.get("unserved_share")})
+            elif float(o.get("time_share", 0.0)) >= th["bottleneck"]:
                 add("provide", e["dst"], "bottleneck", unserved, path(e), {"time_share": o.get("time_share")})
             fs = max(float(o.get("failure_share", 0.0)), float(o.get("reject_share", 0.0)))
             if fs >= th["unreliable"] and relied:
@@ -222,30 +227,39 @@ def _work_relations(world) -> list[dict]:
         a = f"activity/{g['need']}+{g['then']}" if g["then"] else f"activity/{g['need']}"
         steps = [(0, g["need"])] + ([(1, g["then"])] if g["then"] else [])
         holders = [f"p{int(i)}" for i in rows]
-        per_step = []
+        relied_by: dict[str, set] = {need: set() for _, need in steps}
+        stats = {need: [0, 0, 0] for _, need in steps}            # uses, fails, rejections
+        for i in rows.tolist():
+            for r in exp_by_i.get(i, []):
+                if r["step_need"] in stats:
+                    st_ = stats[r["step_need"]]
+                    st_[0] += r["uses"]
+                    st_[1] += r["fail"]
+                    st_[2] += r["rej"]
+                    if r["active"]:
+                        relied_by[r["step_need"]].add(i)
+        th = THRESHOLDS["bottleneck"]
+        hand = {need: 0.0 for _, need in steps}
+        stuck = {need: 0.0 for _, need in steps}
+        stuck_holders = {need: [] for _, need in steps}
+        for i in rows.tolist():
+            mine = {need: (0.0 if i in relied_by[need] else float(diy[i, s])) for s, need in steps}
+            left = sum(mine.values())
+            for need, m in mine.items():
+                hand[need] += m
+                # the step is this individual's bottleneck: most of the hand work it still does
+                if left > 0 and m > 0 and m / left >= th:
+                    stuck[need] += m
+                    stuck_holders[need].append(f"p{i}")
+        total_hand = sum(hand.values())
         for s, need in steps:
-            relied, fails, rej, uses = [], 0, 0, 0
-            hand = 0.0
-            for i in rows.tolist():
-                rs = [r for r in exp_by_i.get(i, []) if r["step_need"] == need]
-                act_r = [r for r in rs if r["active"]]
-                if act_r:
-                    relied.append(f"p{i}")
-                else:
-                    hand += float(diy[i, s])
-                for r in rs:
-                    uses += r["uses"]
-                    fails += r["fail"]
-                    rej += r["rej"]
-            per_step.append((need, relied, fails, rej, uses, hand, float(diy[rows, s].sum())))
-        # time share of a requirement = its share of the hand work the activity still needs (not of the work
-        # ever needed): automating one step moves the remaining hand work - and the bottleneck - elsewhere
-        total_hand = sum(x[5] for x in per_step)
-        for need, relied, fails, rej, uses, hand, base in per_step:
-            share = hand / total_hand if total_hand > 0 else 0.0
+            base = float(diy[rows, s].sum())
+            uses, fails, rej = stats[need]
             out.append(rel(a, "activity", "requires", f"capability/{need}", "capability",
-                           obs={"time_share": round(share, 4), "unserved_share": round(hand / base, 4) if base else 0.0,
-                                "holders": holders, "relied_holders": relied,
+                           obs={"time_share": round(hand[need] / total_hand, 4) if total_hand else 0.0,
+                                "unserved_share": round(stuck[need] / base, 4) if base else 0.0,
+                                "bottleneck_holders": stuck_holders[need],
+                                "holders": holders, "relied_holders": [f"p{i}" for i in sorted(relied_by[need])],
                                 "failure_share": fails / uses if uses else 0.0,
                                 "reject_share": rej / uses if uses else 0.0}))
     return out

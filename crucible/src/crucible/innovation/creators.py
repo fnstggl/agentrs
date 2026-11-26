@@ -76,7 +76,7 @@ def _published_programs() -> None:
         PROGRAMS.setdefault(nd.title, {
             "name": fmt, "host": fmt.replace(".", "-") + "-pro", "keywords": list(nd.keywords[:6]),
             "doc": f"Serves the public {fmt} format as documented ({nd.title.lower()}).",
-            "outputs": {"type": "object"}, "source": src, "garbage": GARBAGE[fmt]})
+            "outputs": {"type": "object", "additionalProperties": True}, "source": src, "garbage": GARBAGE[fmt]})
 
 
 _published_programs()

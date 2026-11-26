@@ -138,7 +138,8 @@ class ReferenceSaaS:
         if dep.get("status") != "live":
             raise RuntimeError(f"deployment failed: {dep}")
         self._do(world, "caps.declare", service_host=host, capability={
-            "name": fmt, "inputs": {"type": "object"}, "outputs": {"type": "object"},
+            "name": fmt, "inputs": {"type": "object", "additionalProperties": True},
+            "outputs": {"type": "object", "additionalProperties": True},
             "doc": f"{title}. Serves the public {fmt} format as documented. {' '.join(keywords)}",
             "endpoint": "solve", "tags": keywords[:8]})
         prod = self._do(world, "prod.create", name=f"{title} Pro", kind="saas", owner=self.org,

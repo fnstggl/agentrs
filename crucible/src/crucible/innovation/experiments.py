@@ -148,15 +148,19 @@ def mine_chains(res: dict) -> list[dict]:
                 stages.insert(0, {"name": f"adoption of a {first_step} provider", "subsystem": "commerce", "t": t_adopt})
         t_ask = None
         title = w.modules["work"].task_text(need_name)[:60]
+        t_from = min(x["t"] for x in stages if x["t"] is not None) if any(x["t"] is not None for x in stages) else 0
         for e in log:
-            if e.type == "forum.post" and e.t >= (t_on or 0) and e.payload["title"].startswith(
+            if e.type == "forum.post" and e.t >= t_from and e.payload["title"].startswith(
                     "Looking for a service: " + title[:40]):
                 t_ask = e.t
                 break
         if t_ask is not None:
             stages.append({"name": "public request for help", "subsystem": "social (forum)", "t": t_ask})
         relied_for = {r["prov"] for _, r in st.scan("work_exp") if r["step_need"] == need_name}
-        mine = [p for p in prods if M._provider_ids(w, p) & relied_for and p["created_t"] >= (t_on or 0)]
+        # a provider created after the change that started the chain (the labeller is a population-level
+        # instrument and can notice a need after the first individuals already asked for help)
+        t_start = min(x["t"] for x in stages if x["t"] is not None) if any(x["t"] is not None for x in stages) else 0
+        mine = [p for p in prods if M._provider_ids(w, p) & relied_for and p["created_t"] >= t_start]
         if mine:
             p = min(mine, key=lambda x: x["created_t"])
             stages.append({"name": f"agent artifact {p['id']}", "subsystem": "innovation", "t": p["created_t"],
@@ -204,7 +208,14 @@ def mine_chains(res: dict) -> list[dict]:
 
 def _chain(name, stages) -> dict:
     ok = [s for s in stages if s.get("t") is not None]
-    ordered = all(a["t"] <= b["t"] for a, b in zip(ok, ok[1:]))
+    # causal order: the first stage starts the chain; an artifact precedes its adoption, adoption precedes relief;
+    # the labelled need and the public requests may be observed in either order after the start
+    rank = {"agent artifact": 1, "adoption by holders": 2, "need relieved": 3, "incumbents lose subscribers": 2,
+            "incumbent responds (price or engineering)": 3}
+    seq = [s for s in ok[1:] if any(s["name"].startswith(k) for k in rank)]
+    ordered = bool(ok) and all(ok[0]["t"] <= s["t"] for s in ok[1:]) and all(a["t"] <= b["t"]
+                                                                            for a, b in zip(seq, seq[1:]))
+    stages = sorted(stages, key=lambda s: (s["t"] is None, s["t"] if s["t"] is not None else 0))
     return {"chain": name, "stages": stages, "n_stages": len(ok), "ordered": ordered,
             "subsystems": sorted({s["subsystem"] for s in ok}),
             "agent_artifact": any(s.get("creator_kind") for s in ok),
