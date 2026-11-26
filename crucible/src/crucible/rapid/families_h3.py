@@ -420,7 +420,7 @@ def ch_tech_transition(rng, d):
                          "change), not the sign of one effect",
         axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
         claims=(C + "rule_change",), identify=C + "rule_change_time", lever_view=True,
-        reference="crucible.rapid.refs_adapt:lag_aware_tracker")
+        reference="crucible.rapid.refs_adapt:drop_switch_tracker")
 def ch_rule_change(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="chain", motifs=["saturation"], temporal="lagged",

@@ -612,3 +612,86 @@ def latch_open_and_hold(view, env=None, hold: int = 5) -> None:
             return
         xb = min(hi[B], xb + db) if net(up, 1) > net(dn, 1) else max(lo[B], xb - db)
         run({A: keep, B: xb}, 4)
+
+
+def drop_switch_tracker(view, env=None, test: int = 5, level: float = 0.7, drop: float = 0.6, settle: int = 4,
+                        tune_every: int = 0) -> None:
+    """For worlds where which lever pays changes at a time nobody announces and the change shows as a fall of
+    income under the current setting. Modes run one lever at `level` of its range (the others at their minimum).
+    Each mode is tried for `test` ticks at the start (read on its last two ticks: effects can take a few ticks to
+    show) and the best is run; once the running mode has settled (`settle` ticks after any change), a fast and a
+    slow running average of observed net income are kept, and when the fast one falls below `drop` x the slow one
+    for two ticks in a row every mode is tried again and the best taken over. The running lever's level is tuned
+    by small trials every twelve ticks."""
+    sp = view.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    names = sorted(props)
+    lo = {n: float(props[n]["minimum"]) for n in names}
+    hi = {n: float(props[n]["maximum"]) for n in names}
+    lev = {n: level for n in names}
+
+    def mode(n, f=None):
+        return {m: (lo[m] + (lev[n] if f is None else f) * (hi[m] - lo[m]) if m == n else lo[m]) for m in names}
+
+    def run(setting, ticks):
+        out = []
+        for _ in range(ticks):
+            if view.done:
+                break
+            out.append(_net(view.step({"kind": "levers", "values": setting})))
+        return out
+
+    def choose(first: str | None = None):
+        score = {}
+        order = ([first] if first else []) + [n for n in names if n != first]
+        for n in order:
+            v = run(mode(n), test)
+            if not v:
+                return None
+            score[n] = float(np.mean(v[-2:]))
+        return max(score, key=score.get)
+    cur = choose()
+    if cur is None:
+        return
+    since, fast, slow, low, k = 0, None, None, 0, 0
+    while not view.done:
+        v = run(mode(cur), 1)
+        if not v:
+            return
+        k += 1
+        since += 1
+        if since <= settle:                       # just changed: wait until the change has worked through
+            if slow is None and since == settle:
+                fast = slow = v[0]
+            continue
+        if slow is None:
+            fast = slow = v[0]
+        fast = 0.5 * fast + 0.5 * v[0]
+        slow = 0.9 * slow + 0.1 * v[0]
+        low = low + 1 if fast < slow - (1.0 - drop) * abs(slow) else 0
+        if low >= 2:
+            # income fell: try the other modes in turn and take the first that earns clearly more than the
+            # running mode does now (if none does, keep the best of them)
+            now = fast
+            best = (now, cur)
+            for n in [m for m in names if m != cur]:
+                v2 = run(mode(n), test)
+                if not v2:
+                    return
+                sc = float(np.mean(v2[-2:]))
+                if sc > best[0]:
+                    best = (sc, n)
+                if sc > now + 0.5 * abs(slow - now):
+                    break
+            cur, since, low, fast, slow = best[1], 0, 0, None, None
+            continue
+        if tune_every and k % tune_every == 0:
+            # tune the level; the trial ticks count as observations of the running mode too (they are close to it)
+            up, dn = min(1.0, lev[cur] + 0.08), max(0.05, lev[cur] - 0.08)
+            a = run(mode(cur, up), 3)
+            b = run(mode(cur, dn), 3)
+            for x in a + b:
+                fast = 0.5 * fast + 0.5 * x
+                slow = 0.9 * slow + 0.1 * x
+            if len(a) == 3 and len(b) == 3 and a[-1] != b[-1]:
+                lev[cur] = up if a[-1] > b[-1] else dn
