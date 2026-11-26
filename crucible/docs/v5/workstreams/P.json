@@ -368,7 +368,8 @@
   "A gate test whose evidence must verify: produced in its canonical gate file; no conftest on its path with outcome-rewriting hooks or patches; no imports from outside the clone; its measurement must not survive ablation of the listed implementation modules (a test that only reads constant tables of its implementation will be rejected).",
   "Requirement changes: requirements.py is imported by every gate test (through checker.unmet and evidence), so adding or changing requirements makes all existing evidence stale (unchanged behaviour, now stated): settle requirements.py before producing official evidence.",
   "Run regressions and Gate A with TMPDIR unset (or world-traversable): with TMPDIR in an agent scratchpad, 5 jailed-Chromium tests and 14 PostgreSQL tests fail for that reason alone (DEF-P-16); the orchestrator's M5 failed_tests list contains them.",
-  "Defects for other workstreams found by Gate A: DEF-P-25 (semantic/space resolves the LM revision at import time and imports huggingface_hub in every process: a native thread breaks the 4.0 single-threaded worker test) for D/INT; DEF-P-24 (A.1 vs Clarification 2) needs an orchestrator decision."
+  "Defects for other workstreams found by Gate A: DEF-P-25 (semantic/space resolves the LM revision at import time and imports huggingface_hub in every process: a native thread breaks the 4.0 single-threaded worker test) for D/INT; DEF-P-24 (A.1 vs Clarification 2) needs an orchestrator decision.",
+  "Session identity: the checker compares the hashed CRUCIBLE_V5_SESSION (else CLAUDE_CODE_SESSION_ID) of producer and reviewer; sub-agents of one harness session may share CLAUDE_CODE_SESSION_ID, so give each agent its own CRUCIBLE_V5_SESSION, or the review is refused as a self-review."
  ],
  "wave": "3 (independent adversarial verification of wave 1's hardened checker; c5c/w1-qa's verifier never ran)"
 }
