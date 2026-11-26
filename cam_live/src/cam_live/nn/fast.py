@@ -245,17 +245,46 @@ def _gh_eta(eta0: Tensor, s: Tensor) -> Tensor:
     return eta0.unsqueeze(-1) + torch.sqrt(2.0 * s.clamp_min(0.0)).unsqueeze(-1) * _GH_X.to(eta0.device)
 
 
+def _laplace_1d(family: str, eta0: Tensor, s_safe: Tensor, c: Tensor, e: Tensor, disp: Tensor, n_newton: int
+                ) -> Tuple[Tensor, Tensor]:
+    """Mode eta* of loglik(eta) / disp - (eta - eta0)^2 / (2 s) by safeguarded Newton steps, and the curvature
+    h = -loglik''(eta*) / disp."""
+    eta = eta0
+    for _ in range(int(n_newton)):
+        g, h = _glm_grad_hess(family, eta, c, e)
+        step = (g / disp - (eta - eta0) / s_safe) / (h / disp + 1.0 / s_safe)
+        eta = eta + step.clamp(-3.0, 3.0)
+    _, h = _glm_grad_hess(family, eta, c, e)
+    return eta, h / disp
+
+
+def _adaptive_gh_nll(family: str, kind: str, eta0: Tensor, s_safe: Tensor, eta_star: Tensor, h: Tensor, c: Tensor,
+                     e: Tensor) -> Tensor:
+    """-log of the integral of p(y | eta) N(eta; eta0, s) over eta by Gauss-Hermite quadrature centred on the
+    Laplace approximation N(eta*, s / (1 + h s)) of the integrand (accurate also when the likelihood is much
+    sharper than the prior, where quadrature centred on the prior fails)."""
+    s_star = s_safe / (1.0 + h * s_safe)
+    x = _GH_X.to(eta0.device)
+    eta = eta_star.unsqueeze(-1) + torch.sqrt(2.0 * s_star).unsqueeze(-1) * x
+    ll = _glm_loglik(family, eta, c.unsqueeze(-1), e.unsqueeze(-1), kind)
+    log_prior = -0.5 * torch.log(2 * math.pi * s_safe).unsqueeze(-1) - (eta - eta0.unsqueeze(-1)) ** 2 / (2.0 * s_safe.unsqueeze(-1))
+    logw = _GH_LOGW.to(eta0.device) + 0.5 * math.log(math.pi) + x * x
+    return -(0.5 * torch.log(2.0 * s_star) + torch.logsumexp(logw + ll + log_prior, -1))
+
+
 def nll_glm(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
-            censored: Optional[Any] = None) -> Tensor:
-    """Predictive negative log-likelihood -log E_{w ~ N(mu, Sigma)} p(y | phi^T w) by Gauss-Hermite quadrature.
-    For time-to-event the density is taken w.r.t. time in units of ``exposure`` (survival probability if censored)."""
+            censored: Optional[Any] = None, n_newton: int = 8) -> Tensor:
+    """Predictive negative log-likelihood -log E_{w ~ N(mu, Sigma)} p(y | phi^T w) by adaptive Gauss-Hermite
+    quadrature. For time-to-event the density is taken w.r.t. time in units of ``exposure`` (survival probability
+    if censored)."""
     mu, cov, phi = mu.to(F64), cov.to(F64), phi.to(F64)
     eta0 = (phi * mu).sum(-1)
     y = _f64(y, eta0).expand_as(eta0)
     _, s = _quad(cov, phi)
+    s_safe = s.clamp_min(1e-12)
     family, c, e, _ = _glm_terms(kind, y, exposure, censored)
-    ll = _glm_loglik(family, _gh_eta(eta0, s), c.unsqueeze(-1), e.unsqueeze(-1), kind)
-    return -torch.logsumexp(ll + _GH_LOGW.to(ll.device), -1)
+    eta, h = _laplace_1d(family, eta0, s_safe, c, e, torch.ones_like(eta0), n_newton)
+    return _adaptive_gh_nll(family, kind, eta0, s_safe, eta, h, c, e)
 
 
 def glm_update(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
@@ -276,13 +305,7 @@ def glm_update(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure
     s_safe = s.clamp_min(1e-12)
     disp = _f64(dispersion, eta0).expand_as(eta0)
     family, c, e, _ = _glm_terms(kind, y, exposure, censored)
-    eta = eta0
-    for _ in range(int(n_newton)):
-        g, h = _glm_grad_hess(family, eta, c, e)
-        step = (g / disp - (eta - eta0) / s_safe) / (h / disp + 1.0 / s_safe)
-        eta = eta + step.clamp(-3.0, 3.0)
-    _, h = _glm_grad_hess(family, eta, c, e)
-    h = h / disp
+    eta, h = _laplace_1d(family, eta0, s_safe, c, e, disp, n_newton)
     delta = eta - eta0
     denom = 1.0 + h * s
     gain = pf * (h / denom).unsqueeze(-1)
@@ -297,8 +320,7 @@ def glm_update(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure
         m = e * p
         var = e * p * (1.0 - p)
     z2 = (c - m) ** 2 / var.clamp_min(1e-12)
-    ll = _glm_loglik(family, _gh_eta(eta0, s), c.unsqueeze(-1), e.unsqueeze(-1), kind)
-    info = {"surprise": -torch.logsumexp(ll + _GH_LOGW.to(ll.device), -1),
+    info = {"surprise": _adaptive_gh_nll(family, kind, eta0, s_safe, eta, h * disp, c, e),
             "kl": 0.5 * (-(h * s) / denom + delta * delta / s_safe + torch.log(denom)),
             "z2": z2, "err": c - m, "eta": eta}
     return mu_n, cov_n, info
@@ -641,16 +663,18 @@ class FastBeliefState:
             s["a"] = gamma * s["a"] + (1.0 - gamma) * p["a"]
             s["b"] = gamma * s["b"] + (1.0 - gamma) * p["b"]
 
-    def _z2(self, kind: str, f: Tensor, y: Tensor, ex: Optional[Tensor], ce: Optional[Tensor]) -> float:
+    def _apply(self, kind: str, f: Tensor, y: Tensor, ex: Optional[Tensor], ce: Optional[Tensor]
+               ) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
+        """The posterior after one observation (state untouched) and the update's info."""
         s, p = self._post[kind], self._prior[kind]
         if kind == OutcomeKind.REAL:
             if self._nig(kind):
-                loc, scale2, _ = predict_nig(s["mu"], s["cov"], s["a"], s["b"], f)
-                return float((y - loc) ** 2 / scale2)
-            mean, epi, noise = predict_gaussian(s["mu"], s["cov"], f, p["noise"])
-            return float((y - mean) ** 2 / (epi + noise))
-        _, _, info = glm_update(s["mu"], s["cov"], f, y, kind, ex, ce, p["dispersion"], 0)
-        return float(info["z2"])
+                mu, cov, a, b, info = nig_update(s["mu"], s["cov"], s["a"], s["b"], f, y)
+                return {"mu": mu, "cov": cov, "a": a, "b": b}, info
+            mu, cov, info = gaussian_update(s["mu"], s["cov"], f, y, p["noise"])
+        else:
+            mu, cov, info = glm_update(s["mu"], s["cov"], f, y, kind, ex, ce, p["dispersion"], self.n_newton)
+        return {"mu": mu, "cov": cov}, info
 
     def update(self, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
                censored: Optional[Any] = None) -> Dict[str, Any]:
@@ -664,9 +688,7 @@ class FastBeliefState:
         observation lists "surprises" / "kls"}.
         """
         self._check(kind)
-        f = self._phi(phi)
-        single = f.dim() == 1
-        f = f.reshape(-1, self.n_features)
+        f = self._phi(phi).reshape(-1, self.n_features)
         M = f.shape[0]
         yt = torch.as_tensor(y, dtype=F64, device=self.device).reshape(-1).expand(M)
         ex = None if exposure is None else torch.as_tensor(exposure, dtype=F64, device=self.device).reshape(-1).expand(M)
@@ -683,28 +705,21 @@ class FastBeliefState:
             cei = None if ce is None else ce[i]
             if self.forgetting < 1.0 and s["n"] > 0:
                 self._flatten(kind, self.forgetting)
-            z2 = self._z2(kind, fi, yi, exi, cei)
+            new, info = self._apply(kind, fi, yi, exi, cei)
+            z2 = float(info["z2"])                       # standardised surprise under the pre-update belief
             if self.change_h > 0:
                 s["cusum"] = max(0.0, s["cusum"] + min(z2, self.change_clip) - 1.0 - self.change_k)
-                if s["cusum"] > self.change_h:
+                if s["cusum"] > self.change_h:           # mechanism change: flatten first, then absorb the datum
                     self._flatten(kind, self.change_forget)
                     s["cusum"] = 0.0
                     s["n_changes"] += 1
                     s["last_change_n"] = s["n"]
                     changed = True
-            if kind == OutcomeKind.REAL:
-                if self._nig(kind):
-                    s["mu"], s["cov"], s["a"], s["b"], info = nig_update(s["mu"], s["cov"], s["a"], s["b"], fi, yi)
-                else:
-                    s["mu"], s["cov"], info = gaussian_update(s["mu"], s["cov"], fi, yi, p["noise"])
-            else:
-                s["mu"], s["cov"], info = glm_update(s["mu"], s["cov"], fi, yi, kind, exi, cei, p["dispersion"],
-                                                     self.n_newton)
+                    new, info = self._apply(kind, fi, yi, exi, cei)
+            s.update(new)
             s["n"] += 1
             surprises.append(float(info["surprise"]))
             kls.append(float(info["kl"]))
         out = {"surprise": float(sum(surprises)), "kl": float(sum(kls)), "z2": z2, "change_detected": changed,
                "n": int(s["n"]), "surprises": surprises, "kls": kls}
-        if single:
-            out["surprises"], out["kls"] = surprises[:1], kls[:1]
         return out

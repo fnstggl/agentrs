@@ -14,15 +14,20 @@ from typing import Any, Dict
 
 from ..config import SCALE_PRESETS, CamLiveConfig, CoreConfig
 
-#: corrected presets (same keys as config.SCALE_PRESETS). Counts are for d_sem = 3 * 2560 (Qwen3-4B, three taps).
+#: corrected presets (keys of config.SCALE_PRESETS plus optional ``nn`` overrides). Sized for d_sem = 3 * 2560
+#: (Qwen3-4B, three taps). The small presets project the 7680-wide semantic embedding through a low-rank map
+#: (``sem_rank``): a full projection alone would take 40 % of a 5 M budget.
 NN_PRESETS: Dict[str, Dict[str, Any]] = {
-    "debug": dict(d_model=64, n_layers=2, n_heads=4, d_ff=128, n_slots=4, n_features=16, target_params=0.2e6),
-    "5m": dict(d_model=256, n_layers=4, n_heads=4, d_ff=640, n_slots=8, n_features=64, target_params=5e6),
-    "20m": dict(d_model=512, n_layers=5, n_heads=8, d_ff=1280, n_slots=8, n_features=96, target_params=20e6),
-    "50m": dict(d_model=768, n_layers=6, n_heads=12, d_ff=1792, n_slots=8, n_features=128, target_params=50e6),
-    "150m": dict(d_model=1024, n_layers=10, n_heads=16, d_ff=2560, n_slots=16, n_features=192, target_params=150e6),
+    "debug": dict(d_model=64, n_layers=2, n_heads=4, d_ff=64, n_slots=4, n_features=16, target_params=0.2e6),
+    "5m": dict(d_model=256, n_layers=4, n_heads=4, d_ff=320, n_slots=8, n_features=64, target_params=5e6,
+               nn=dict(sem_rank=96)),
+    "20m": dict(d_model=512, n_layers=5, n_heads=8, d_ff=576, n_slots=8, n_features=96, target_params=20e6,
+                nn=dict(sem_rank=192)),
+    "50m": dict(d_model=768, n_layers=6, n_heads=12, d_ff=1024, n_slots=8, n_features=128, target_params=50e6,
+                nn=dict(sem_rank=384)),
+    "150m": dict(d_model=1024, n_layers=10, n_heads=16, d_ff=2048, n_slots=16, n_features=192, target_params=150e6),
     "500m": dict(d_model=1536, n_layers=14, n_heads=24, d_ff=4096, n_slots=16, n_features=256, target_params=500e6),
-    "1b": dict(d_model=2048, n_layers=16, n_heads=32, d_ff=5376, n_slots=16, n_features=256, target_params=1.0e9),
+    "1b": dict(d_model=2048, n_layers=16, n_heads=32, d_ff=5504, n_slots=16, n_features=256, target_params=1.0e9),
 }
 
 
@@ -37,8 +42,8 @@ class NNConfig:
     # core
     state_every: int = 2             # every n-th block cross-attends to the persistent slots
     gate_bias: float = -2.0
-    trunk_ff: int = 0                # SwiGLU width of the decision trunk (0 = d_ff)
-    feature_ff: int = 0              # SwiGLU width of the feature map (0 = d_ff // 2)
+    trunk_ff: int = 0                # SwiGLU width of the decision trunk (0 = d_model)
+    feature_ff: int = 0              # SwiGLU width of the feature map (0 = d_model // 2)
     # latent bridge into the backbone
     bridge_dim: int = 128
     bridge_layers: int = 6
@@ -61,15 +66,30 @@ class NNConfig:
         unknown = sorted(set(sec) - known)
         if unknown:
             raise KeyError(f"unknown keys in the 'nn' config section: {unknown}")
-        return cls(**sec)
+        return cls(**{**preset_nn(cfg.core), **sec})
 
 
 _PRESET_KEYS = ("d_model", "n_layers", "n_heads", "d_ff", "n_slots", "n_features", "target_params")
 
 
+def _is_master_preset(core: CoreConfig) -> bool:
+    master = SCALE_PRESETS.get(core.scale)
+    return master is not None and all(getattr(core, k) == master[k] for k in _PRESET_KEYS if k in master)
+
+
+def preset_nn(core: CoreConfig) -> Dict[str, Any]:
+    """``nn``-section defaults that belong to a scale preset (e.g. the low-rank semantic projection of the small
+    presets). Applied when ``core`` is an untouched master preset or already the corrected one."""
+    mine = NN_PRESETS.get(core.scale)
+    if mine is None:
+        return {}
+    if _is_master_preset(core) or all(getattr(core, k) == mine[k] for k in _PRESET_KEYS):
+        return dict(mine.get("nn", {}))
+    return {}
+
+
 def resolve_core(core: CoreConfig) -> CoreConfig:
     """The core configuration actually built: the corrected preset when ``core`` is an unmodified master preset."""
-    master = SCALE_PRESETS.get(core.scale)
-    if master is not None and all(getattr(core, k) == master[k] for k in _PRESET_KEYS if k in master):
-        return dataclasses.replace(core, **NN_PRESETS[core.scale])
+    if _is_master_preset(core):
+        return dataclasses.replace(core, **{k: NN_PRESETS[core.scale][k] for k in _PRESET_KEYS})
     return core

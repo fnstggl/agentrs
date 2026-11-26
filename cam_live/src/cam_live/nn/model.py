@@ -25,8 +25,8 @@ from .backbone import _Backbone, build_backbone
 from .core import ExperientialCore
 from .decision import (ActionEncoder, DecisionTrunk, FeatureMap, GoalEncoder, QueryEncoder, level_ids, modality_ids)
 from .fast import FastBeliefState, FastPrior
-from .presets import NNConfig, resolve_core
-from .tokens import ExperienceTokenizer, _cost_quantities, _q
+from .presets import NNConfig, preset_nn, resolve_core
+from .tokens import ExperienceTokenizer, _cost_quantities
 
 _TENSOR_KEYS = ("pad_mask", "has_text", "time", "kind_ids", "trust_ids", "values", "value_mask", "name_ids",
                 "unit_ids", "qkind", "exposure")
@@ -49,8 +49,8 @@ class ExperientialNet(nn.Module):
         self.action_enc = ActionEncoder(d)
         self.goal_enc = GoalEncoder(d)
         self.query_enc = QueryEncoder(d, self.tokenizer.value_dim)
-        self.trunk = DecisionTrunk(d, nn_cfg.trunk_ff or core.d_ff)
-        self.feature_map = FeatureMap(d, nn_cfg.feature_ff or max(8, core.d_ff // 2), core.n_features)
+        self.trunk = DecisionTrunk(d, nn_cfg.trunk_ff or d)
+        self.feature_map = FeatureMap(d, nn_cfg.feature_ff or max(8, d // 2), core.n_features)
         self.fast_prior = FastPrior(core.n_features, prior_var=nn_cfg.fast_prior_var, noise=nn_cfg.fast_noise,
                                     noise_mode=nn_cfg.fast_noise_mode)
 
@@ -67,7 +67,7 @@ def build_experiential(core: CoreConfig, nn_cfg: Optional[NNConfig] = None, d_se
     """The experiential network alone, deterministically initialised from ``seed`` (global RNG left untouched)."""
     with torch.random.fork_rng(devices=[]):
         torch.manual_seed(1_000_003 + int(seed))
-        return ExperientialNet(resolve_core(core), nn_cfg or NNConfig(), d_sem, n_taps)
+        return ExperientialNet(resolve_core(core), nn_cfg or NNConfig(**preset_nn(core)), d_sem, n_taps)
 
 
 class CamLiveModel(LatentModelAPI):
