@@ -25,6 +25,12 @@ reported by the learner):
                              the two checkpoint files in the input directory)
     optimizer_reset          optimizer state is the architecture's initial state
     frozen_verified          the parameter hash after evaluation equals the hash before (measured, not self-reported)
+    authorised_configuration the architecture configuration holds only the keys the architecture declares
+                             (`learners.CONFIG`), each a JSON scalar: no memory table, path or payload rides in it
+    filesystem_confined      the child runs under the Landlock jail of `crucible.sandbox.isolation` (own uid, no
+                             sockets, read-only standard library, numpy and crucible source, read-write only its own
+                             private directory) and cannot open a canary file the parent wrote outside it: a stash
+                             written beside or outside the checkpoint is unreadable (SP-15.8)
 
 Within-episode adaptation runs (`in_process_eval`) intentionally keep local state and are reported separately; the
 protocol compares the two, and a gain in process with an unchanged checkpoint is *not* a weights-only result
@@ -45,11 +51,12 @@ from typing import Mapping
 import numpy as np
 
 from .evaluator import isolated_env, src_root
-from .learners import ARCHITECTURES, code_digest, params_hash
+from .learners import ARCHITECTURES, CONFIG, code_digest, params_hash
 
 CHECKS = ("fresh_process", "isolated_interpreter", "architecture_immutable", "safe_loading", "authorised_parameters",
           "parameter_hash_verified", "histories_cleared", "recurrent_state_cleared", "memories_cleared",
-          "retrieval_cleared", "replay_unavailable", "optimizer_reset", "frozen_verified")
+          "retrieval_cleared", "replay_unavailable", "optimizer_reset", "frozen_verified", "authorised_configuration",
+          "filesystem_confined")
 
 
 def _sha_file(p: str) -> str:
@@ -76,11 +83,38 @@ def save_checkpoint(learner, directory: str) -> dict:
     return man
 
 
+def _jailed(argv: list[str], work: str) -> tuple[list[str], str]:
+    """`argv` (a python command line) under the sandbox jail: own uid, Landlock with read-only system libraries,
+    standard library, numpy and the crucible source tree, read-write `work` only, no sockets, no new processes.
+    Raises `isolation.JailUnavailable` where the jail cannot be applied."""
+    import sysconfig
+    from ...sandbox import isolation as ISO
+    ok, why = ISO.available()
+    if not ok:
+        raise ISO.JailUnavailable(why)
+    py = os.path.realpath(sys.executable)
+    paths = sysconfig.get_paths()
+    np_dir = os.path.dirname(os.path.abspath(np.__file__))
+    site = os.path.dirname(np_dir)
+    ro = ISO.RO_SYSTEM + [paths["stdlib"], paths["platstdlib"], os.path.join(paths["stdlib"], "lib-dynload"), np_dir,
+                          os.path.join(site, "numpy.libs"), os.path.dirname(py), os.path.join(sys.base_prefix, "lib"),
+                          src_root()]
+    uid = ISO.uid_for("weights-only-eval")
+    cfg = ISO._write_cfg({"uid": uid, "gid": uid, "mode": "tool", "ro": sorted({p for p in ro if os.path.exists(p)}),
+                          "exec": [py] + ISO._loaders(), "rw": [work], "chown": [work]})
+    return [sys.executable, "-I", "-S", "-B", ISO.JAIL, cfg, py, *argv[1:]], cfg
+
+
 def weights_only_eval(manifest: Mapping, worlds: list[Mapping], *, timeout: float = 900.0,
-                      params_file: str | None = None) -> dict:
+                      params_file: str | None = None, jail: bool = True) -> dict:
     """Score the checkpoint's parameters alone, in a fresh isolated process, on `worlds` ([{entry, seed,
-    difficulty?}], scored by `episodes.score_episode`). Returns {checks, ok, scores, refused?}."""
+    difficulty?}], scored by `episodes.score_episode`). Returns {checks, ok, scores, refused?}. ``jail=False``
+    exists only for the adversarial demonstrations of `adversarial` (it shows what the jail prevents); the check
+    `filesystem_confined` then fails, so such a run is never ``ok``."""
+    import numpy
     base = tempfile.mkdtemp(prefix="crucible-v5-fresh-")
+    outside = tempfile.mkdtemp(prefix="crucible-v5-canary-")
+    cfg_path = None
     try:
         inp = os.path.join(base, "in")
         os.makedirs(inp)
@@ -89,21 +123,45 @@ def weights_only_eval(manifest: Mapping, worlds: list[Mapping], *, timeout: floa
             dst = os.path.join(inp, name)
             shutil.copyfile(src, dst)
             os.chmod(dst, stat.S_IRUSR | stat.S_IRGRP)
-        env = isolated_env()
+        canary = os.path.join(outside, "canary.txt")
+        with open(canary, "w") as fh:
+            fh.write("outside the checkpoint")
+        os.chmod(canary, 0o644)
+        os.chmod(outside, 0o755)
+        home, tmp = os.path.join(base, "home"), os.path.join(base, "tmp")
+        os.makedirs(home)
+        os.makedirs(tmp)
+        env = isolated_env(home)
+        shutil.rmtree(os.path.dirname(env["TMPDIR"]), ignore_errors=True)
+        env.update(TMPDIR=tmp, CRUCIBLE_CACHE=os.path.join(tmp, "cache"))
         from .distribution import build_registry, thaw
         reg = build_registry()
         entries = {w["entry"]: thaw(reg[w["entry"]]) for w in worlds}
         req = {"input": inp, "arch_sha256": manifest["arch_sha256"], "params_hash": manifest["params_hash"],
-               "worlds": [dict(w) for w in worlds], "entries": entries, "parent_pid": os.getpid()}
+               "worlds": [dict(w) for w in worlds], "entries": entries, "parent_pid": os.getpid(),
+               "canary": canary}
+        site = os.path.dirname(os.path.dirname(os.path.abspath(numpy.__file__)))
         boot = ("import sys; _pre = sorted(m for m in sys.modules if m.startswith('crucible')); "
-                "sys.path.insert(0, sys.argv[1]); from crucible.research.v5.fresh import _child; _child(_pre)")
-        p = subprocess.run([sys.executable, "-I", "-c", boot, src_root()], input=json.dumps(req).encode(),
-                           capture_output=True, env=env, cwd=env["HOME"], timeout=timeout)
+                "sys.path.insert(0, sys.argv[1]); sys.path.append(sys.argv[2]); "
+                "from crucible.research.v5.fresh import _child; _child(_pre)")
+        cmd = [sys.executable, "-I", "-c", boot, src_root(), site]
+        if jail:
+            cmd, cfg_path = _jailed(cmd, base)
+        p = subprocess.run(cmd, input=json.dumps(req).encode(), capture_output=True, env=env, cwd=home,
+                           timeout=timeout)
         if p.returncode != 0:
             return {"ok": False, "checks": {}, "error": p.stderr.decode()[-2000:]}
-        return json.loads(p.stdout.decode().strip().splitlines()[-1])
+        out = json.loads(p.stdout.decode().strip().splitlines()[-1])
+        out["jailed"] = bool(jail)
+        return out
     finally:
         shutil.rmtree(base, ignore_errors=True)
+        shutil.rmtree(outside, ignore_errors=True)
+        if cfg_path:
+            try:
+                os.unlink(cfg_path)
+            except OSError:
+                pass
 
 
 def _child(pre_imported: list[str]) -> None:
@@ -138,7 +196,21 @@ def _child(pre_imported: list[str]) -> None:
         out["refused"] = f"parameters could not be loaded without executing code: {type(e).__name__}"
         return done()
     from . import learners as LR
-    learner = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(arch.get("cfg") or {}))
+    cfg = arch.get("cfg") or {}
+    allowed = CONFIG.get(arch["arch"], {})
+    checks["authorised_configuration"] = isinstance(cfg, dict) and set(cfg) <= set(allowed) and all(
+        isinstance(v, allowed[k]) and not (isinstance(v, str) and len(v) > 64) for k, v in cfg.items()
+        if k in allowed)
+    if not checks["authorised_configuration"]:
+        out["refused"] = f"unauthorised architecture configuration {sorted(set(cfg) - set(allowed)) or sorted(cfg)}"
+        return done()
+    try:
+        with open(req["canary"]) as fh:
+            fh.read()
+        checks["filesystem_confined"] = False
+    except OSError:
+        checks["filesystem_confined"] = True
+    learner = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(cfg))
     declared = set(learner.parameters())
     numeric = all(np.issubdtype(a.dtype, np.number) for a in params.values())
     checks["authorised_parameters"] = set(params) == declared and numeric
@@ -151,7 +223,7 @@ def _child(pre_imported: list[str]) -> None:
         out["refused"] = "parameter hash mismatch"
         return done()
     learner.load_parameters(params)
-    opt0 = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(arch.get("cfg") or {})).optimizer_state()
+    opt0 = LR.make(arch["arch"], int(arch.get("seed", 0)), **dict(cfg)).optimizer_state()
     learner.clear_memory()
     learner.reset_optimizer()
     learner.reset_state()

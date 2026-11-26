@@ -86,9 +86,11 @@ class Design:
     seeds: tuple[int, ...] = (0, 1, 2, 3, 4)
     train_tasks: int = 24
     repeats: int = 3
-    eval_seeds: tuple[int, ...] = (1_000_101, 1_000_102, 1_000_103, 1_000_104)
-    transfer_seeds: tuple[int, ...] = (1_000_201, 1_000_202)
-    repeat_probe: int = 12
+    # ten unfamiliar worlds per family, every training world probed again, four held-out tasks per transfer family:
+    # with 4 / 12 / 2 the crossed intervals of real effects (0.13 - 0.49) still reached below zero (2026-11-26 run)
+    eval_seeds: tuple[int, ...] = tuple(range(1_000_101, 1_000_111))
+    transfer_seeds: tuple[int, ...] = (1_000_201, 1_000_202, 1_000_203, 1_000_204)
+    repeat_probe: int = 24
     transfer_budgets: tuple[int, ...] = (0, 1, 2, 4, 8, 16)
     q: float = 0.3
     pretrain_tasks: int = 48
@@ -161,7 +163,7 @@ def establish_transfer(registry: Registry, train: Sequence[str], candidates: Seq
     out = {}
     for f in candidates:
         g = []
-        for s in ESTABLISH_SEEDS[:2]:
+        for s in ESTABLISH_SEEDS:
             T.clear_memory()
             a = CV.practice_curve(registry, {"entry": f, "seed": s}, T, budgets=budgets, rng=rng)["auc"]
             u = CV.practice_curve(registry, {"entry": f, "seed": s}, LR.make("transfer", 998), budgets=budgets,
@@ -172,17 +174,85 @@ def establish_transfer(registry: Registry, train: Sequence[str], candidates: Seq
     return out
 
 
+def public_face(registry: Registry, family: str) -> np.ndarray:
+    """The brief vector a learner is given for `family` (episodes.brief_vector of its public text, establishment seed)."""
+    from .episodes import LeverInterface
+    env = build_env(registry[family], ESTABLISH_SEEDS[0], {}, {"mode": "assigned"})
+    return np.asarray(LeverInterface(env, env.agents()[0]).context()["brief_vec"], dtype=float)
+
+
+def establish_mixed(registry: Registry, families: Sequence[str], *, train_tasks: int = 24, repeats: int = 3,
+                    learner_seeds: Sequence[int] = (0, 1)) -> dict:
+    """The weights learner's capability in the battery's own regime: trained on `families` interleaved
+    (`train_tasks` worlds on establishment-only training seeds, `repeats` episodes each), then scored frozen on the
+    establishment seeds of every family (no protocol uses those seeds). Per family: mean gain over learner seeds
+    and establishment seeds. Single-family establishment alone overstated it: families whose public faces are
+    nearly identical but whose optima differ cannot all be learned by one network (2026-11-26 diagnosis). Cached."""
+    import json
+    fams = list(families)
+    path = _cache_path("establish_mixed", [fams, train_tasks, repeats, list(learner_seeds)])
+    if os.path.exists(path):
+        return json.load(open(path))
+    gains: dict[str, list[float]] = {f: [] for f in fams}
+    for ls in learner_seeds:
+        rng = np.random.default_rng(31 + ls)
+        w = LR.make("weights", 50 + ls)
+        base = {f: [score_episode(registry, f, s, w, learn=False, rng=rng)["score"] for s in ESTABLISH_SEEDS]
+                for f in fams}
+        for i in range(train_tasks):
+            f = fams[i % len(fams)]
+            for _ in range(repeats):
+                run_episode(build_env(registry[f], 710_000 + 1000 * ls + i, {}, {"mode": "assigned"}), w, learn=True,
+                            rng=rng, verify=False)
+        w.frozen = True
+        for f in fams:
+            after = [score_episode(registry, f, s, w, learn=False, rng=rng)["score"] for s in ESTABLISH_SEEDS]
+            gains[f] += [a - b for a, b in zip(after, base[f])]
+    out = {f: {"weights_gain": float(np.mean(g)), "gains": g} for f, g in gains.items()}
+    json.dump(out, open(path, "w"))
+    return out
+
+
+FACE_DISTINCT = 0.9          # maximum cosine between the public faces (brief vectors) of two training families
+
+
 def default_design(registry: Registry | None = None, *, n_train: int = 6, n_transfer: int = 4, **kw) -> Design:
-    """Families on which the controls' capabilities were established independently (`establish`): training and
-    unfamiliar-world families are the `n_train` families with the largest established gains of both the adapter
-    and the weights learner (each at least `ESTABLISH_MIN`); transfer families are the `n_transfer` other families
-    with the largest established transfer gain. All items are validation-partition items."""
+    """Families on which the controls' capabilities were established independently, on seeds no protocol uses:
+
+    1. single-family establishment (`establish`): the adapter's and the weights learner's gains, each at least
+       `ESTABLISH_MIN`; candidates ranked by the smaller of the two;
+    2. public faces distinct (`FACE_DISTINCT`): a candidate whose brief vector is nearly that of a family already
+       taken is skipped - a learner conditioned on what it is shown cannot tell such families apart;
+    3. mixed-regime establishment (`establish_mixed`): the chosen set is trained together as in the battery; a
+       family whose established gain there is below `ESTABLISH_MIN` is replaced by the next candidate (at most
+       three rounds).
+
+    Transfer families are the `n_transfer` other families with the largest established transfer gain
+    (`establish_transfer`, at least `ESTABLISH_MIN`). All measured items are validation-partition items."""
     reg = registry or build_registry()
     est = establish(reg)
-    ok = sorted((f for f, v in est.items() if v["adapter_gain"] >= ESTABLISH_MIN and
-                 v["weights_gain"] >= ESTABLISH_MIN), key=lambda f: -min(est[f]["adapter_gain"],
-                                                                         est[f]["weights_gain"]))
-    train = tuple(sorted(ok[:n_train]))
+    ranked = sorted((f for f, v in est.items() if v["adapter_gain"] >= ESTABLISH_MIN and
+                     v["weights_gain"] >= ESTABLISH_MIN), key=lambda f: -min(est[f]["adapter_gain"],
+                                                                             est[f]["weights_gain"]))
+    faces = {f: public_face(reg, f) for f in ranked}
+
+    def cos(a, b):
+        na, nb = np.linalg.norm(faces[a]), np.linalg.norm(faces[b])
+        return float(faces[a] @ faces[b] / (na * nb)) if na > 0 and nb > 0 else 0.0
+    distinct: list[str] = []
+    for f in ranked:
+        if all(cos(f, g) < FACE_DISTINCT for g in distinct):
+            distinct.append(f)
+    train = distinct[:n_train]
+    pool = distinct[n_train:]
+    for _ in range(3):
+        mixed = establish_mixed(reg, sorted(train))
+        bad = [f for f in train if mixed[f]["weights_gain"] < ESTABLISH_MIN]
+        if not bad or not pool:
+            break
+        train = [f for f in train if f not in bad] + pool[:len(bad)]
+        pool = pool[len(bad):]
+    train = tuple(sorted(train))
     rest = [f for f in est if f not in train]
     tr = establish_transfer(reg, train, rest)
     tf = sorted((f for f in rest if tr[f]["transfer_gain"] >= ESTABLISH_MIN), key=lambda f: -tr[f]["transfer_gain"])

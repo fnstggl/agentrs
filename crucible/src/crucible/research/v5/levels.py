@@ -121,7 +121,8 @@ def build_level(level: int, reg: Registry | None = None, *, n_train: int = 12, s
         new_domain = [w["id"] for w in reg.worlds(tier=2) + reg.worlds(tier=3) if w["family_partition"] in
                       ("evaluation",)]
         mech = [w["id"] for w in reg.worlds(tier=1, source="crucible.mechanisms") if w["family_partition"] == "train"]
-        train = [{"entry": f, "seed": 700 + k} for k, f in enumerate(sorted(rapid_train)[:n_train])]
+        pick = [rapid_train[i] for i in rng.permutation(len(rapid_train))[:4]] if rapid_train else []
+        train = [{"entry": f, "seed": 700 + k} for k, f in enumerate(sorted(pick))]
         test = [{"entry": e, "seed": 1_000_700 + k} for k, e in enumerate(sorted(new_domain)[:4])]
         test += [{"entry": e, "seed": 1_000_800 + k} for k, e in enumerate(sorted(mech)[:3])]
         train_tiers = {reg[t["entry"]]["tier"] for t in train}
@@ -162,31 +163,59 @@ def _lever_run(split: Split, arch: str, seeds: Sequence[int], reg: Registry) -> 
             "untrained_mean": float(np.mean(rows_u)), "trained_mean": float(np.mean(rows_t))}
 
 
-def _reference_run(split: Split, seeds: Sequence[int], reg: Registry, steps: int = 48) -> dict:
-    """Level 5: the architecture-neutral reference learner, trained on Tier 1 and scored by each test world's
-    own verifier (no lever interface is assumed)."""
+def _reference_run(split: Split, seeds: Sequence[int], reg: Registry, steps: int = 48,
+                   train_steps: int = 96) -> dict:
+    """Level 5: the architecture-neutral reference learner (`crucible.experience.ReferenceLearner`, which reads the
+    tool schemas of whatever world it is put in) trained on Tier 1 rapid worlds only, then frozen and put in worlds
+    of another tier, interface and simulator; scored by each test world's own verifier (`verify()`: the domain's or
+    the civilisation evaluator's measures, the 4.0 task's verified net). Paired design: for every learner seed an
+    untrained copy (same seed, same architecture) plays the same test worlds, so the result is the transfer gain of
+    Tier 1 training on unfamiliar domains (crossed learner seed x world interval). No lever interface is assumed."""
     from ...experience.loop import run_learner
     from ...experience.reference import ReferenceLearner
     from .episodes import verified_value
-    rows = []
     audit = reg.audit(split.train)
+    rows = {"untrained": [], "trained": []}
+    acts = {"untrained": [], "trained": []}
     for s in seeds:
-        L = ReferenceLearner(seed=s)
-        for t in split.train[:4]:
+        T = ReferenceLearner(seed=s)
+        for t in split.train:
             env = build_env(reg[t["entry"]], t["seed"], {}, {"mode": "assigned"})
-            run_learner(env, L, steps)
-        L.freeze(True)
-        vals = []
-        for t in split.test:
-            env = build_env(reg[t["entry"]], t["seed"], {}, {"mode": "assigned"})
-            run_learner(env, L, steps)
-            try:
-                vals.append(verified_value(env.verify()))
-            except ValueError:
-                vals.append(float("nan"))
-        rows.append(vals)
+            run_learner(env, T, train_steps)
+        T.freeze(True)
+        U = ReferenceLearner(seed=s)
+        U.freeze(True)
+        for arm, L in (("untrained", U), ("trained", T)):
+            vals, changed = [], []
+            for t in split.test:
+                env = build_env(reg[t["entry"]], t["seed"], {}, {"mode": "assigned"})
+                a = env.agents()[0]
+                try:
+                    v0 = verified_value(env.verify(), a)
+                except ValueError:
+                    v0 = 0.0
+                summ = run_learner(env, L, steps, learn=False)
+                try:
+                    vals.append(verified_value(env.verify(), a) - v0)
+                except ValueError:
+                    vals.append(float("nan"))
+                changed.append(int(summ.get("world_changes", 0)))
+            rows[arm].append(vals)
+            acts[arm].append(changed)
+    U_, T_ = np.array(rows["untrained"], dtype=float), np.array(rows["trained"], dtype=float)
+    scored = int((np.isfinite(U_).all(axis=0) & np.isfinite(T_).all(axis=0)).sum())
+    res = None
+    if scored == len(split.test):
+        # worlds differ in scale (cents of a civilisation vs a 4.0 task): standardise each world's column by the
+        # pooled spread of both arms before the crossed interval, so no single world dominates
+        sd = np.concatenate([U_, T_]).std(axis=0, ddof=1)
+        sd = np.where(sd > 0, sd, 1.0)
+        res = HS.crossed_diff(U_ / sd, T_ / sd, paired_seeds=True)
     return {"learner": "crucible.experience.ReferenceLearner", "seeds": list(seeds), "training_audit": audit,
-            "verified_values": rows, "scored_worlds": int(np.isfinite(np.array(rows)).all(axis=0).sum())}
+            "verified_outcome_change": rows, "world_changing_actions": acts, "scored_worlds": scored,
+            "transfer_gain_standardised": res,
+            "test_tiers": sorted({int(reg[t["entry"]]["tier"]) for t in split.test}),
+            "test_engines": sorted({reg[t["entry"]]["engine"] for t in split.test})}
 
 
 def run_level(split: Split, seeds: Sequence[int] = (0, 1, 2), arch: str = "weights",
@@ -199,7 +228,8 @@ def run_level(split: Split, seeds: Sequence[int] = (0, 1, 2), arch: str = "weigh
     try:
         if split.level == 5:
             r = _reference_run(split, seeds, reg)
-            executed = r["scored_worlds"] == len(split.test) and not r["training_audit"]["violations"]
+            executed = r["scored_worlds"] == len(split.test) and not r["training_audit"]["violations"] and \
+                len(seeds) >= HS.MIN_SEEDS and r["transfer_gain_standardised"] is not None
         else:
             r = _lever_run(split, arch, seeds, reg)
             executed = not r["training_audit"]["violations"] and len(seeds) >= HS.MIN_SEEDS

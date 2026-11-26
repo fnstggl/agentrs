@@ -122,11 +122,13 @@ class LeverInterface:
         return r
 
 
-BRIEF_DIM = 16
+BRIEF_DIM = 64
 
 
 def brief_vector(text: str, dim: int = BRIEF_DIM) -> np.ndarray:
-    """A hashed bag of the brief's words (public text; lever names, which seeds draw, are not words of it)."""
+    """A hashed bag of the brief's words (public text; lever names, which seeds draw, are not words of it).
+    64 buckets: with 16, the briefs of different families collided (cosine 0.96 between two families whose public
+    texts differ), so a network conditioned on the brief could not tell them apart (2026-11-26 diagnosis)."""
     v = np.zeros(dim)
     for w in re.findall(r"[a-z]{3,}", text.lower()):
         v[int(sha(w)[:8], 16) % dim] += 1.0
@@ -134,9 +136,9 @@ def brief_vector(text: str, dim: int = BRIEF_DIM) -> np.ndarray:
     return v / n if n > 0 else v
 
 
-def verified_value(v: Mapping) -> float:
+def verified_value(v: Mapping, agent: str | None = None) -> float:
     """The verified objective quantity in an `ExperienceEnv.verify()` record (rapid outcome net/value, 4.0 task net,
-    or a numeric domain/civilisation evaluation)."""
+    a numeric domain/civilisation evaluation, or the evaluator's economic measures of `agent` in a kernel world)."""
     out = v.get("outcome")
     if isinstance(out, Mapping):
         for k in ("value", "net"):
@@ -153,6 +155,16 @@ def verified_value(v: Mapping) -> float:
     for k in ("score", "value", "progress"):
         if isinstance(ev.get(k), (int, float)) and not isinstance(ev.get(k), bool):
             return float(ev[k])
+    meas = v.get("measures")
+    if isinstance(meas, Mapping) and meas:
+        # a kernel world (Tier 2 domain or Tier 3 civilisation) without an assigned objective: the evaluator's own
+        # measure of the participant's economic outcome - its cash plus the independent 30-day revenue of the
+        # organisations it administers (`KernelExperienceEnv._measures`, authoritative state, never shown to it)
+        m = meas[agent] if agent is not None and agent in meas else meas[sorted(meas)[0]]
+        if isinstance(m, Mapping) and isinstance(m.get("cash_cents"), (int, float)):
+            orgs = m.get("orgs") or {}
+            return float(m["cash_cents"]) + float(sum(float(o.get("independent_revenue_30d_cents") or 0.0)
+                                                      for o in orgs.values() if isinstance(o, Mapping)))
     raise ValueError("verify() record has no numeric outcome")
 
 

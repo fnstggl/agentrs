@@ -39,7 +39,7 @@ import numpy as np
 
 VERSION = "crucible.v5.levers/1"
 L_MAX = 6
-BRIEF_DIM = 16                              # episodes.BRIEF_DIM: hashed words of the public brief
+BRIEF_DIM = 64                              # episodes.BRIEF_DIM: hashed words of the public brief
 _PROCESS_STASH: dict[str, dict] = {}       # the stateful control's out-of-checkpoint memory (by design)
 
 # within-episode search strategies: (step, settle ticks, measure ticks, commit fraction)
@@ -279,20 +279,27 @@ class Memoriser(LeverLearner):
 
 
 class WeightLearner(LeverLearner):
-    """A 2-layer network x -> offset of the settings from the public defaults; SGD toward searched settings.
-    x = [1, public defaults, lever count (one-hot), hashed words of the public brief]."""
+    """A 2-layer network x -> offset of the settings from the public defaults, trained by SGD toward the settings its
+    own within-episode searches found. x = [1, public defaults, lever count (one-hot), hashed words of the public
+    brief]. Training samples minibatches from a small replay buffer of (input, searched setting) pairs, so one
+    episode's target does not overwrite what other families taught (with single-example updates the network
+    forgot across the families of a mixed training stream; 2026-11-26 diagnosis). The buffer is memory
+    (`memory_state`, cleared for weights-only evaluation); playing uses the network alone."""
     arch = "weights"
-    H = 12
+    H = 24
+    REPLAY = 96
+    STEPS = 24
 
     def __init__(self, seed=0, lr: float = 0.05, **cfg):
         super().__init__(seed, lr=lr, **cfg)
         r = np.random.default_rng(self.seed + 7919)
         d = 1 + L_MAX + L_MAX + BRIEF_DIM
-        self.W1 = r.normal(0.0, 0.5, (d, self.H))
+        self.W1 = r.normal(0.0, 2.0 / np.sqrt(d), (d, self.H))
         self.b1 = np.zeros(self.H)
         self.W2 = np.zeros((self.H, L_MAX))
         self.b2 = np.zeros(L_MAX)
         self.opt = {"steps": 0}
+        self.replay: list[dict] = []
 
     def _x(self, ctx) -> np.ndarray:
         oh = np.zeros(L_MAX)
@@ -320,6 +327,15 @@ class WeightLearner(LeverLearner):
     def load_parameters(self, p):
         self._set_net(np.array(p["W1"]), np.array(p["b1"]), np.array(p["W2"]), np.array(p["b2"]))
 
+    def memory_state(self):
+        return {"replay": [dict(r) for r in self.replay]}
+
+    def load_memory(self, mem):
+        self.replay = [dict(r) for r in (mem.get("replay") or [])]
+
+    def clear_memory(self):
+        self.replay = []
+
     def optimizer_state(self):
         return dict(self.opt)
 
@@ -344,22 +360,22 @@ class WeightLearner(LeverLearner):
     def end(self, learn):
         if not learn or self.frozen or self._search is None:
             return
-        target = self._pad(self._search.cs.base)
-        n = self.ctx["n"]
-        x = self._x(self.ctx)
+        self.replay.append({"x": self._x(self.ctx).tolist(), "target": self._pad(self._search.cs.base).tolist(),
+                            "u0": self._pad(np.asarray(self.ctx["u0"])).tolist(), "n": int(self.ctx["n"])})
+        self.replay = self.replay[-self.REPLAY:]
         W1, b1, W2, b2 = (a.copy() for a in self._net())
         lr = float(self.cfg["lr"])
-        u0 = self._pad(np.asarray(self.ctx["u0"]))
-        for _ in range(4):
+        for _ in range(self.STEPS):
+            ex = self.replay[int(self.rng.integers(len(self.replay)))]
+            x, target, u0, n = np.array(ex["x"]), np.array(ex["target"]), np.array(ex["u0"]), ex["n"]
             h = np.tanh(x @ W1 + b1)
             z = h @ W2 + b2
             out = u0 + 0.5 * np.tanh(z)
             g = np.zeros(L_MAX)
             g[:n] = out[:n] - target[:n]
             dz = g * 0.5 * (1 - np.tanh(z) ** 2)
-            dW2 = np.outer(h, dz)
             dh = (W2 @ dz) * (1 - h ** 2)
-            W2 -= lr * dW2
+            W2 -= lr * np.outer(h, dz)
             b2 -= lr * dz
             W1 -= lr * np.outer(x, dh)
             b1 -= lr * dh
@@ -523,15 +539,82 @@ class TransferLearner(LeverLearner):
         st["episodes"] += 1
         st["first"] = v if st["first"] is None else st["first"]
         st["best"] = v if st["best"] is None else max(st["best"], v)
-        if st["episodes"] == self.SOURCE_EPISODES:      # score the strategy by this task's observed improvement
-            f, b = st["first"], st["best"]
-            self.bandit.sum[st["arm"]] += (b - f) / (abs(b) + abs(f) + 1.0)
-            self.bandit.n[st["arm"]] += 1
+        if 2 <= st["episodes"] <= self.SOURCE_EPISODES:  # score the strategy by this task's observed improvement
+            f, b = st["first"], st["best"]            # over its first episodes; the task's credit is replaced as
+            credit = (b - f) / (abs(b) + abs(f) + 1.0)   # episodes come in, so a task practised 2, 3 or 4 times
+            self.bandit.sum[st["arm"]] += credit - float(st.get("credit") or 0.0)   # counts once (the 4-episode
+            if st.get("credit") is None:              # threshold alone left the bandit untrained in the battery,
+                self.bandit.n[st["arm"]] += 1         # which plays each training world 3 times)
+            st["credit"] = credit
+
+
+# ====================================================================== adversarial controls (SP-15.8)
+# Learners built to cheat the weights-only protocol; they are allow-listed only so that the evaluator's defences can
+# be demonstrated on them (`crucible.research.v5.adversarial`). Their behaviour is this code: what they try is known.
+STASH_DIR = "/var/tmp/crucible-v5-adversarial-stash"
+
+
+class FileStashLearner(WeightLearner):
+    """Keeps what it learns in a file OUTSIDE its checkpoint (an absolute path every process can name) and reads it
+    back wherever it runs; its checkpoint only ever holds the initial network. Defeated when the weights-only
+    child cannot open files outside its private directory (`fresh` check `filesystem_confined`)."""
+    arch = "adv_file_stash"
+
+    def _stash(self) -> str:
+        import os
+        return os.path.join(STASH_DIR, f"stash-{self.seed}.json")
+
+    def _net(self):
+        try:
+            with open(self._stash()) as fh:
+                d = json.load(fh)
+            return tuple(np.array(d[k]) for k in ("W1", "b1", "W2", "b2"))
+        except (OSError, ValueError, KeyError):
+            return self.W1, self.b1, self.W2, self.b2
+
+    def _set_net(self, W1, b1, W2, b2):
+        import os
+        os.makedirs(STASH_DIR, exist_ok=True)
+        with open(self._stash(), "w") as fh:
+            json.dump({"W1": W1.tolist(), "b1": b1.tolist(), "W2": W2.tolist(), "b2": b2.tolist()}, fh)
+
+    def parameters(self):
+        return {"W1": self.W1.copy(), "b1": self.b1.copy(), "W2": self.W2.copy(), "b2": self.b2.copy()}
+
+    def load_parameters(self, p):
+        self.W1, self.b1, self.W2, self.b2 = (np.array(p[k]) for k in ("W1", "b1", "W2", "b2"))
+
+
+class ConfigSmuggleLearner(Memoriser):
+    """A memoriser that writes its memory table into its architecture configuration (the file a weights-only
+    evaluation does load) and restores it from there. Defeated by the declared configuration schema (`CONFIG`;
+    `fresh` check `authorised_configuration`)."""
+    arch = "adv_config_smuggle"
+
+    def __init__(self, seed=0, table: dict | None = None, **cfg):
+        super().__init__(seed, **cfg)
+        self.table = {k: list(v) for k, v in (table or {}).items()}
+
+    def config(self) -> dict:
+        c = super().config()
+        c["cfg"] = dict(c["cfg"], table=dict(self.table))
+        return c
+
+    def clear_memory(self):                       # it pretends to clear and keeps the smuggled copy
+        pass
 
 
 ARCHITECTURES: dict[str, type[LeverLearner]] = {
     c.arch: c for c in (Hold, Adapter, Memoriser, WeightLearner, StatefulLearner, Pretrained, MetaLearner,
-                        TransferLearner)}
+                        TransferLearner, FileStashLearner, ConfigSmuggleLearner)}
+ADVERSARIAL = ("stateful", "adv_file_stash", "adv_config_smuggle")
+# the immutable architecture configuration each architecture accepts: key -> allowed JSON scalar types. A weights-only
+# evaluation refuses any other key or type (`fresh`), so no memory, path or payload can ride in the configuration.
+_NUM = (int, float)
+CONFIG: dict[str, dict[str, tuple]] = {
+    "hold": {}, "adapter": {}, "memoriser": {}, "weights": {"lr": _NUM}, "stateful": {"lr": _NUM},
+    "pretrained": {"lr": _NUM}, "meta": {}, "transfer": {"sham": (bool,), "exploit_strategy": (bool,)},
+    "adv_file_stash": {"lr": _NUM}, "adv_config_smuggle": {}}
 
 
 def make(arch: str, seed: int = 0, **cfg) -> LeverLearner:
