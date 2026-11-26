@@ -50,3 +50,16 @@ Requirements verified: 0 of 241 (no official evidence run yet).
 
 Slots budget 9 CPUs / 24 GB GPU / 8 jobs. GPU idle at the start of the project; no other GPU tenant observed.
 Disk: 21 GB free after calibration data (1.8 GB under /workspace/data/crucible).
+
+## Milestone 3 - recovery after the usage limit (2026-11-26)
+
+* 13 workstream agents (B, C1, C2, H1-H3, I1-I4, N1, N2, O) were stopped by the weekly usage limit on 2026-11-25.
+  Their uncommitted work was committed on their own branches, preserved as `recovery/c5-*` branches on GitHub, and
+  merged into this branch together with the calibration-registry unification (all nine models in one registry).
+* Full regression of the consolidated tree (tests/, without the gate tests): 1,648 tests, 5 failed, 2 skipped
+  (`docs/v5/evidence/integration/regression_consolidated_g*.xml`). Four failures are Tier 1 tests that still assert the
+  foundation's engine count and module boundaries (the expansion added engines; `program_exec` uses the sandbox); one
+  is a real bug in the new family `cxs_selected_layers` (batch path shape error); one 4.0 discovery test does not
+  list the new error code `media_error`.
+* Interrupted work is incomplete: no Tier 2 domain is registered yet, the new Tier 1 families have not been through
+  admission, population/social gate tests have not been run officially. Requirements verified: 0 of 241.
