@@ -54,6 +54,7 @@ from . import isolation
 
 MAX_REPLY = 16 * 2**20           # a control reply larger than this is a protocol violation
 MAX_CKPT_FILE = 256 * 2**20      # largest arch.json / params.npz the host copies out of the jail
+NPROC = 512                      # tasks (threads) the learner-host uid may hold, all its learners together
 
 _BOOT = r"""
 import json, os, sys
@@ -266,6 +267,8 @@ class LearnerHost:
             resource.setrlimit(resource.RLIMIT_CPU, (lim[1], lim[1] + 5))
             resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_CKPT_FILE, MAX_CKPT_FILE))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            resource.setrlimit(resource.RLIMIT_NPROC, (NPROC, NPROC))   # threads of the jail uid (no new processes)
+            resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._err,
                                      pass_fds=fds, preexec_fn=pre, cwd=self.work,
                                      env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
