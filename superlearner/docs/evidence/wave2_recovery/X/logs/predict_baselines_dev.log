@@ -1,0 +1,10 @@
+[exp1] predict nig_meta seed 2: 768 rows in 2s
+[exp1] predict nig_meta seed 1: 768 rows in 2s
+[exp1] predict nig_meta seed 0: 768 rows in 2s
+[exp1] predict nig_exact seed 0: 1024 rows in 2s
+[exp1] predict seq_gru seed 2: 768 rows in 2s
+[exp1] predict seq_gru seed 1: 768 rows in 2s
+[exp1] predict seq_gru seed 0: 768 rows in 2s
+[exp1] predict seq_attn seed 1: 768 rows in 1s
+[exp1] predict seq_attn seed 2: 768 rows in 1s
+[exp1] predict seq_attn seed 0: 768 rows in 1s

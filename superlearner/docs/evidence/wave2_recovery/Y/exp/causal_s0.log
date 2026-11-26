@@ -1,0 +1,7 @@
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 4700.88it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/core/beliefs.py:492: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  "window_z": float(wz[r]), "n_injected": n_inj, "ess_before": float(ess[r]),
+wrote /workspace/agentrs/runs/cam_unified/wave2/Y/exp/causal_s0.json (3255s)

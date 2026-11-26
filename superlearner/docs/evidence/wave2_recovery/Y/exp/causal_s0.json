@@ -1,0 +1,448 @@
+{
+ "settings": {
+  "seed": 0,
+  "B": 32,
+  "record_episodes": 12,
+  "heldout_frac": 0.25,
+  "train_steps": 300,
+  "batch_seqs": 32,
+  "lr": 0.002,
+  "grad_clip": 10.0,
+  "horizons": [
+   1,
+   2,
+   3,
+   4
+  ],
+  "worlds": [
+   "delay",
+   "interaction",
+   "switch"
+  ],
+  "cfg_overrides": {}
+ },
+ "worlds": {
+  "delay": {
+   "n_train_episodes": 288,
+   "n_heldout_episodes": 96,
+   "loss_first": 34.96955871582031,
+   "loss_last10": 14.179749011993408,
+   "components": {
+    "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+    "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+    "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+    "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+    "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+    "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+    "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+    "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+    "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+    "retriever": null,
+    "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+    "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+    "option_policy": null,
+    "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+    "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+   },
+   "t1_actions_differ": {
+    "pred_reward": {
+     "press_now": 0.23432829976081848,
+     "press_later": 0.2232879400253296,
+     "wait_turn": 0.22149653732776642
+    },
+    "mean_abs_pairwise_diff": 0.008554499906798204
+   },
+   "t2_delay": {
+    "pred": [
+     [
+      0.23408201336860657,
+      0.2304636836051941,
+      0.22753866016864777
+     ],
+     [
+      0.22191908955574036,
+      0.22301599383354187,
+      0.22378146648406982
+     ],
+     [
+      0.22057242691516876,
+      0.22209912538528442,
+      0.22298121452331543
+     ]
+    ],
+    "truth": [
+     [
+      1.0,
+      0.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      1.0
+     ],
+     [
+      0.0,
+      0.0,
+      0.0
+     ]
+    ],
+    "max_abs_err": 0.7762185335159302,
+    "delayed_effect_pred": 0.22378146648406982,
+    "immediate_effect_pred": 0.23408201336860657
+   },
+   "t5_multistep": {
+    "world_model": {
+     "1": {
+      "mse": 0.09591191572447617,
+      "mae": 0.16132519990205765,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.10263714790344239,
+      "mae": 0.16718199309848603,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.11090928879049089,
+      "mae": 0.17341351906458538,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.10477940996487935,
+      "mae": 0.1698951768875122,
+      "n": 2400
+     }
+    },
+    "no_change": {
+     "1": {
+      "mse": 0.16729996651411055,
+      "mae": 0.18470669786135355,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.19940877585184005,
+      "mae": 0.21240518320174445,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.17113996611701118,
+      "mae": 0.18807550271352133,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.1717898420492808,
+      "mae": 0.19130984783172608,
+      "n": 2400
+     }
+    },
+    "trend": {
+     "1": {
+      "mse": 0.41426300903161367,
+      "mae": 0.3058455899357796,
+      "n": 3840
+     },
+     "2": {
+      "mse": 1.0294595105307442,
+      "mae": 0.46298281919388545,
+      "n": 3360
+     },
+     "3": {
+      "mse": 1.584585691160626,
+      "mae": 0.5404738095071581,
+      "n": 2880
+     },
+     "4": {
+      "mse": 2.218134026924769,
+      "mae": 0.5945889170964559,
+      "n": 2400
+     }
+    },
+    "key_mean": {
+     "1": {
+      "mse": 0.09048559814691544,
+      "mae": 0.17330988198518754,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.09422054120472499,
+      "mae": 0.17589670817057293,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.09858195516798231,
+      "mae": 0.17848939961857266,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.09454059839248657,
+      "mae": 0.17618301232655842,
+      "n": 2400
+     }
+    },
+    "linear_regression": {
+     "1": {
+      "mse": 0.03825394118321128,
+      "mae": 0.09645225784430901,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.001250522251107863,
+      "mae": 0.01785256699437187,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.0012855223380029202,
+      "mae": 0.01808973832262887,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.001246382153282563,
+      "mae": 0.018021012047926586,
+      "n": 2400
+     }
+    }
+   },
+   "t7_imagination_isolated": {
+    "env_and_archive_unchanged": true,
+    "fast_state_unchanged": true,
+    "imagined_items": 32,
+    "trajectory_provenance": "imagined",
+    "imagination_belief_updates": 2
+   }
+  },
+  "interaction": {
+   "n_train_episodes": 288,
+   "n_heldout_episodes": 96,
+   "loss_first": 32.247467041015625,
+   "loss_last10": 13.726611804962157,
+   "components": {
+    "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+    "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+    "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+    "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+    "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+    "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+    "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+    "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+    "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+    "retriever": null,
+    "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+    "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+    "option_policy": null,
+    "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+    "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+   },
+   "t1_actions_differ": {
+    "pred_reward": {
+     "set_levers": 0.08152243494987488
+    },
+    "mean_abs_pairwise_diff": NaN
+   },
+   "t3_interaction": {
+    "pred": [
+     0.08132751286029816,
+     0.08133156597614288,
+     0.08136099576950073,
+     0.08132712543010712
+    ],
+    "truth": [
+     0.0,
+     0.5,
+     -0.5,
+     2.0
+    ],
+    "max_abs_err": 1.9186729192733765,
+    "interaction_contrast": -3.7923455238342285e-05,
+    "truth_contrast": 2.0,
+    "linear_regression_contrast": 0.19749079644680023
+   }
+  },
+  "switch": {
+   "n_train_episodes": 288,
+   "n_heldout_episodes": 96,
+   "loss_first": 35.15107727050781,
+   "loss_last10": 11.672474575042724,
+   "components": {
+    "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+    "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+    "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+    "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+    "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+    "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+    "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+    "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+    "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+    "retriever": null,
+    "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+    "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+    "option_policy": null,
+    "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+    "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+   },
+   "t1_actions_differ": {
+    "pred_reward": {
+     "pull_lever": 0.1654691845178604
+    },
+    "mean_abs_pairwise_diff": NaN
+   },
+   "t4_switch": {
+    "switch_at_3": [
+     0.1674114167690277,
+     0.16628579795360565,
+     0.16546040773391724,
+     0.16470199823379517,
+     0.1639774739742279,
+     0.16331635415554047,
+     0.16260862350463867,
+     0.16200000047683716
+    ],
+    "no_switch": [
+     0.16739429533481598,
+     0.16633343696594238,
+     0.16549812257289886,
+     0.16474254429340363,
+     0.16399168968200684,
+     0.1632537841796875,
+     0.16253603994846344,
+     0.16185709834098816
+    ],
+    "truth_switch": [
+     1.0,
+     1.0,
+     1.0,
+     -1.0,
+     -1.0,
+     -1.0,
+     -1.0,
+     -1.0
+    ],
+    "post_switch_pred_mean_t5_7": 0.16264165937900543,
+    "no_switch_pred_mean_t5_7": 0.1625489741563797,
+    "pre_switch_max_gap": 4.763901233673096e-05
+   },
+   "t5_multistep": {
+    "world_model": {
+     "1": {
+      "mse": 0.2698146676023801,
+      "mae": 0.317924099167188,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.2790675691195897,
+      "mae": 0.3233423743929182,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.29188622103797063,
+      "mae": 0.3308548861079746,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.3023790725072225,
+      "mae": 0.3369951883951823,
+      "n": 2400
+     }
+    },
+    "no_change": {
+     "1": {
+      "mse": 0.10349295816073815,
+      "mae": 0.10219609811902046,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.21515177007587183,
+      "mae": 0.16451939330214546,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.34138819575309753,
+      "mae": 0.2347075449095832,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.45529011408487957,
+      "mae": 0.3017605749766032,
+      "n": 2400
+     }
+    },
+    "trend": {
+     "1": {
+      "mse": 0.1922907426332434,
+      "mae": 0.16211515478789806,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.6193672242618743,
+      "mae": 0.30062066884267896,
+      "n": 3360
+     },
+     "3": {
+      "mse": 1.1516813106007047,
+      "mae": 0.41598236362139385,
+      "n": 2880
+     },
+     "4": {
+      "mse": 1.5279648780822754,
+      "mae": 0.4826467514038086,
+      "n": 2400
+     }
+    },
+    "key_mean": {
+     "1": {
+      "mse": 0.2595400606592496,
+      "mae": 0.29338994324207307,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.27878377380825226,
+      "mae": 0.30421205248151506,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.30496990945604113,
+      "mae": 0.3190694212913513,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.3274839655558268,
+      "mae": 0.33174028555552165,
+      "n": 2400
+     }
+    },
+    "linear_regression": {
+     "1": {
+      "mse": 0.07580652088702967,
+      "mae": 0.09634137054284414,
+      "n": 3840
+     },
+     "2": {
+      "mse": 0.14737336529152734,
+      "mae": 0.17123325694174993,
+      "n": 3360
+     },
+     "3": {
+      "mse": 0.21821040941609277,
+      "mae": 0.24816297358936734,
+      "n": 2880
+     },
+     "4": {
+      "mse": 0.2593579737345378,
+      "mae": 0.2969984102249146,
+      "n": 2400
+     }
+    }
+   },
+   "t6_intermediate_event": {
+    "imagined_plus1": 0.769491970539093,
+    "imagined_minus1": 0.24557186663150787,
+    "next_pred_real_belief": 0.6856174468994141,
+    "later_pred_difference": 0.5239201039075851,
+    "real_fast_state_untouched": true
+   }
+  }
+ },
+ "wall_s": 3255.146074295044,
+ "command": "python -m superlearner.cam_unified.capabilities.run causal --seed 0 --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/causal_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_causal_s0",
+ "wall_s_total": 3255.218181848526
+}

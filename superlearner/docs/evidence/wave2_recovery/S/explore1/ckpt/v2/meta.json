@@ -1,0 +1,15 @@
+{
+ "version": 2,
+ "t": 1795594093.838074,
+ "validated": true,
+ "validation": {
+  "reason": "full-lifetime save"
+ },
+ "dir": "/workspace/agentrs/runs/cam_unified/wave2/S/explore1/lifetime_ckpt/ckpt_0001/agent",
+ "n_params": 9703771,
+ "bytes": 90113285,
+ "sha256": "334c9a9c5d02399438a720a2ab3ab5daeab358e38cab99ac25482737df98a727",
+ "archive_count": 6,
+ "decisions": 6,
+ "save_s": 0.4373514652252197
+}

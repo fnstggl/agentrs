@@ -1,0 +1,205 @@
+{
+ "cfg": {
+  "scale": "dev",
+  "n_layers": 8,
+  "d_model": 384,
+  "n_heads": 6,
+  "n_state": 32,
+  "ffn_mult": 2.6666666666666665,
+  "dropout": 0.0,
+  "max_ctx_tokens": 384,
+  "max_obs_tokens": 0,
+  "grad_checkpoint": false,
+  "sem_model": "Qwen/Qwen3-0.6B",
+  "sem_test_model": "Qwen/Qwen3-0.6B",
+  "sem_chunk_tokens": 512,
+  "sem_encoder_lora": false,
+  "think_s": 600,
+  "max_wait_s": 86400,
+  "sem_tokens_per_obs": 4,
+  "sem_lora_rank": 16,
+  "sem_lora_alpha": 32,
+  "sem_lora_targets": [
+   "q_proj",
+   "k_proj",
+   "v_proj",
+   "o_proj"
+  ],
+  "n_prefix": 16,
+  "max_evidence": 4,
+  "max_arg_tokens": 1536,
+  "n_fourier": 16,
+  "max_entities": 128,
+  "reason_layers": 4,
+  "reason_iters": [
+   1,
+   2,
+   4,
+   8,
+   16
+  ],
+  "max_reason_iters": 16,
+  "adaptive_reasoning": true,
+  "reason_compute_cost": 0.001,
+  "n_particles": 16,
+  "d_particle": 128,
+  "ess_frac": 0.5,
+  "misspec_z": 3.0,
+  "misspec_window": 16,
+  "misspec_arl": 100000.0,
+  "bayes_feat": 32,
+  "bayes_obs_var_init": 1.0,
+  "bayes_prior_var_init": 1.0,
+  "stoch_groups": 32,
+  "stoch_classes": 32,
+  "kl_free_nats": 1.0,
+  "kl_balance": 0.8,
+  "ema_target": 0.995,
+  "imag_horizons": [
+   4
+  ],
+  "train_horizons": [
+   1,
+   2,
+   4,
+   8,
+   16,
+   32
+  ],
+  "imag_branches": 4,
+  "imag_samples": 2,
+  "mem_top_k": 8,
+  "mem_key_dim": 256,
+  "mem_segment": 32,
+  "mem_segment_tokens": 4,
+  "archive_chunk_rows": 65536,
+  "archive_chunk_bytes": 33554432,
+  "archive_max_bytes": 214748364800,
+  "n_options": 16,
+  "option_max_steps": 32,
+  "kappa": 0.05,
+  "lr": 0.0003,
+  "lr_sem": 0.0001,
+  "weight_decay": 0.01,
+  "grad_clip": 1.0,
+  "ppo_clip": 0.2,
+  "gae_lambda": 0.95,
+  "vtrace_rho": 1.0,
+  "vtrace_c": 1.0,
+  "entropy_coef": 0.003,
+  "value_coef": 0.5,
+  "lp_coef": 0.1,
+  "loss_weights": {
+   "world": 1.0,
+   "adapt": 1.0,
+   "actor": 1.0,
+   "value": 0.5,
+   "action": 1.0,
+   "memory": 0.1,
+   "retention": 0.1,
+   "meta": 1.0,
+   "semantic": 0.5
+  },
+  "continual_updates": true,
+  "use_fast_adaptation": true,
+  "use_imagination": false,
+  "use_learned_exploration": true,
+  "use_memory": true,
+  "use_reasoning": true,
+  "math_explore_assist": false,
+  "declared_conditions": [
+   "sem_model:Qwen3-0.6B(numeric-mechanism experiments)",
+   "decoder_lora:off(no string holes)",
+   "action_generator:exact_rows=False"
+  ]
+ },
+ "args": {
+  "run": "/workspace/agentrs/runs/cam_unified/wave2/X/src/seed1",
+  "domain": "scm",
+  "seed": 1,
+  "B": 8,
+  "update_every": 8,
+  "budget_decisions": 40000,
+  "budget_episodes": 0,
+  "save_every_batch": false,
+  "chunk_minutes": 22.0,
+  "save_every_minutes": 11.0,
+  "p_plain": 0.5,
+  "p_notes": 0.25,
+  "init": null,
+  "condition": "A",
+  "stream_start": null,
+  "keep": 4,
+  "milestones": ""
+ },
+ "model_kw": {
+  "reason_iters": 4
+ },
+ "params": {
+  "components": {
+   "tokenizer": {
+    "total": 2198785,
+    "trainable": 2198785
+   },
+   "core": {
+    "total": 14503170,
+    "trainable": 14503170
+   },
+   "entity_encoder": {
+    "total": 5630342,
+    "trainable": 5630342
+   },
+   "reasoner": {
+    "total": 7297,
+    "trainable": 7297
+   },
+   "outcome_head": {
+    "total": 2209592,
+    "trainable": 2209592
+   },
+   "beliefs": {
+    "total": 3321856,
+    "trainable": 3321856
+   },
+   "bayes": {
+    "total": 27072,
+    "trainable": 27072
+   },
+   "world_model": {
+    "total": 22389188,
+    "trainable": 7886018
+   },
+   "retriever": {
+    "total": 14943553,
+    "trainable": 7998657
+   },
+   "action_generator": {
+    "total": 12927606,
+    "trainable": 12927606
+   },
+   "value_head": {
+    "total": 992511,
+    "trainable": 992511
+   },
+   "option_policy": {
+    "total": 1345553,
+    "trainable": 1345553
+   },
+   "exploration_head": {
+    "total": 194748,
+    "trainable": 194748
+   },
+   "query_encoder": {
+    "total": 5376,
+    "trainable": 5376
+   }
+  },
+  "cam_total": 80696649,
+  "cam_trainable": 59248583,
+  "semantic_pretrained": {
+   "total": 596049920,
+   "trainable": 0,
+   "frozen": 596049920
+  }
+ }
+}

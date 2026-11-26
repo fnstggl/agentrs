@@ -1,0 +1,12 @@
+.........                                                                [100%]
+=============================== warnings summary ===============================
+tests/cam_unified/capabilities/test_integrated_mechanics.py::test_stack_is_the_real_assembly
+  /workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+    warnings.warn(
+
+tests/cam_unified/capabilities/test_integrated_mechanics.py::test_a05_new_observations_change_the_predictive_reward_distribution
+  /workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+    warn_once(FP_FUSION_DEFAULT_WARNING)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+9 passed, 2 warnings in 36.93s

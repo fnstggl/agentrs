@@ -1,0 +1,39 @@
+/workspace/wt2/X/superlearner/src/superlearner/cam7/agent.py:435: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  return loss, {"policy": float(pol), "value_loss": float(vloss), "entropy": float(ent),
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/exp1.py", line 445, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/exp1.py", line 439, in main
+    {"prepare": cmd_prepare, "fit": cmd_fit, "predict": cmd_predict, "decide": cmd_decide, "ntrain": cmd_ntrain,
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/exp1.py", line 298, in cmd_ntrain
+    _run_batch(lr, batch, spec, meter, learn=True, explore=True, segments=4, update_every=a.update_every)
+  File "/workspace/agentrs/crucible/src/crucible/research/protocols.py", line 387, in _run_batch
+    meter.update()
+  File "/workspace/agentrs/crucible/src/crucible/research/accounting.py", line 150, in update
+    out = self.learner.update()
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/agent.py", line 315, in update
+    rl_loss, rinf = self._rl_step()
+                    ^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/agent.py", line 421, in _rl_step
+    out = self.model.decide(H, cut, t(cand), t(valid), t(flags), n_rem, keep, innov)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/model.py", line 371, in decide
+    pre = pre or self.prepare(H, cut, keep, grad_bayes)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/model.py", line 358, in prepare
+    post, _ = self.fit(H, cut, ctx_b, keep)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/model.py", line 274, in fit
+    post = P.fit(phi, H.out, self.omega(H, cut, keep), mu0, lam, a0, b0)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam7/posterior.py", line 73, in fit
+    prec = prec + torch.diag_embed(jitter.expand(B, K, D))
+           ~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.58 GiB. GPU 0 has a total capacity of 47.40 GiB of which 1.38 GiB is free. Process 223217 has 17.41 GiB memory in use. Process 223218 has 17.93 GiB memory in use. Process 224554 has 2.80 GiB memory in use. Process 224562 has 262.00 MiB memory in use. Including non-PyTorch memory, this process has 7.60 GiB memory in use. Of the allocated memory 5.45 GiB is allocated by PyTorch, and 1.82 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)

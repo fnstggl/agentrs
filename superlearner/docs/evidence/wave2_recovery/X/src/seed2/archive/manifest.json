@@ -1,0 +1,76 @@
+{
+ "chunk_rows": 65536,
+ "chunks": [
+  {
+   "bytes": 4050388,
+   "file": "chunk_00000000.hot.parquet",
+   "gseq0": 0,
+   "loc": "root",
+   "n": 0,
+   "rows": 1624,
+   "sealed": 1795599885.5845406,
+   "sha256": "445a4e07012322911933241c34414ee77815b35639e10b33dc1181cbdce1a12a",
+   "tier": "hot"
+  },
+  {
+   "bytes": 4041603,
+   "file": "chunk_00000001.hot.parquet",
+   "gseq0": 1624,
+   "loc": "root",
+   "n": 1,
+   "rows": 1557,
+   "sealed": 1795600402.7690926,
+   "sha256": "7ce1befa18165976145dc28c6588ca1e6711e2931582f9450cff1f517b2c7fcb",
+   "tier": "hot"
+  },
+  {
+   "bytes": 4000978,
+   "file": "chunk_00000002.hot.parquet",
+   "gseq0": 3181,
+   "loc": "root",
+   "n": 2,
+   "rows": 1693,
+   "sealed": 1795600917.4402955,
+   "sha256": "daddd74b5eee57cddc4b71fa58eeecb983e764d81b8abce01e246572a84d7d0d",
+   "tier": "hot"
+  },
+  {
+   "bytes": 3952588,
+   "file": "chunk_00000003.hot.parquet",
+   "gseq0": 4874,
+   "loc": "root",
+   "n": 3,
+   "rows": 1608,
+   "sealed": 1795601742.4194741,
+   "sha256": "4be9443eefc6b6428e141785f48d7617f4eea5c9734c1d6f16ecaa11b21ffd2c",
+   "tier": "hot"
+  },
+  {
+   "bytes": 3892545,
+   "file": "chunk_00000004.hot.parquet",
+   "gseq0": 6482,
+   "loc": "root",
+   "n": 4,
+   "rows": 1740,
+   "sealed": 1795602243.7254028,
+   "sha256": "89d37772fd54a1065921ceb98fb7ac8506b6c39c5d7a707d6cacc2813841c314",
+   "tier": "hot"
+  },
+  {
+   "bytes": 3839414,
+   "file": "chunk_00000005.hot.parquet",
+   "gseq0": 8222,
+   "loc": "root",
+   "n": 5,
+   "rows": 1672,
+   "sealed": 1795602759.0746095,
+   "sha256": "3f9916d76d377ed4cf9c406bd6f76e120d21f06776c565d0717a096822016e64",
+   "tier": "hot"
+  }
+ ],
+ "cold_dir": "/workspace/agentrs/runs/cam_unified/wave2/X/src/seed2/archive/cold",
+ "created": 1795599458.2531588,
+ "format": 1,
+ "next_chunk": 6,
+ "updated": 1795602759.0870442
+}

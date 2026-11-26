@@ -1,0 +1,16 @@
+{
+ "version": 2,
+ "t": 1795595753.8395057,
+ "validated": true,
+ "validation": {
+  "reason": "full-lifetime save"
+ },
+ "dir": "/workspace/agentrs/runs/cam_unified/wave2/S/pytest_kill/test_kill_mid_lifetime_and_res0/run/lifetime_ckpt/ckpt_0001/agent",
+ "n_params": 9703771,
+ "bytes": 90666191,
+ "sha256": "0bad9bd23bf1459b2510d8420369c77797f1927b337583722a10daed34c411c3",
+ "archive_count": 6,
+ "decisions": 6,
+ "save_s": 0.5082404613494873,
+ "semantic_cache_bytes": 38389760
+}

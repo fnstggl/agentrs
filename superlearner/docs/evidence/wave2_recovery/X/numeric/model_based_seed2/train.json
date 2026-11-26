@@ -1,0 +1,22 @@
+{
+ "learner": "model_based",
+ "seed": 2,
+ "ticks": 23040,
+ "episodes": 144,
+ "wall_s": 53.00729441642761,
+ "usage": {
+  "env_steps": 0,
+  "updates": 144,
+  "train_cpu_s": 29.159019649000076,
+  "train_gpu_s": 0.0,
+  "infer_cpu_s": 8.244057723999934,
+  "infer_gpu_s": 0.0,
+  "infer_tokens": 0,
+  "search_evals": 603855,
+  "params": 1426,
+  "extra": {
+   "observed_steps": 23040
+  }
+ },
+ "domain": "scm"
+}

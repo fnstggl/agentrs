@@ -1,0 +1,16 @@
+{
+ "version": 1,
+ "t": 1795596378.907999,
+ "validated": true,
+ "validation": {
+  "reason": "full-lifetime save"
+ },
+ "dir": "/tmp/pytest-of-root/pytest-205/stage10/run/lifetime_ckpt/ckpt_0000/agent",
+ "n_params": 9703771,
+ "bytes": 90661513,
+ "sha256": "3e14921dfca1d4b830be6b238b1f1ecb7febabd2214e63dbaf30c44dfef307a1",
+ "archive_count": 3,
+ "decisions": 3,
+ "save_s": 0.7936229705810547,
+ "semantic_cache_bytes": 36988928
+}

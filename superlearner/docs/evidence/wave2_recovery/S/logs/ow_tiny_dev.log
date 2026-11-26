@@ -1,0 +1,1 @@
+START 2026-11-25T09:10:54Z code=83e3d30 run --run-dir /workspace/agentrs/runs/cam_unified/wave2/S/ow_tiny_dev --task open_economy --scale dev --sem-model Qwen/Qwen3-1.7B --set max_arg_tokens=32 --imag-candidates 2 --imag-horizon 3 --imag-samples 1 --update-every 8 --max-decisions 240 --max-wall-min 17 --checkpoint-every-days 0.1

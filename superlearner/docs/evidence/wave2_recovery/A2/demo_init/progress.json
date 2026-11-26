@@ -1,0 +1,116 @@
+{
+ "epochs": [
+  {
+   "batches": 105,
+   "of": 105,
+   "loss_mean": 44.61201473442516,
+   "decisions": 834,
+   "rollout_s": 279.6082239151001,
+   "bc_s": 230.5469183921814,
+   "updates": 105,
+   "last": {
+    "update": 105,
+    "loss": 0.0013303461018949747,
+    "grad_norm": 0.03574485704302788,
+    "core_grad": 0.00029830645210461603,
+    "lora_grad": 0.0,
+    "n": 2,
+    "lp_tool": -0.0009740613750182092,
+    "lp_evidence": -0.0003539005701895803,
+    "lp_heads": -2.3841830625315197e-06,
+    "lp_tokens": 0.0
+   }
+  },
+  {
+   "batches": 105,
+   "of": 105,
+   "loss_mean": 12.85928978189269,
+   "decisions": 834,
+   "rollout_s": 267.5060284137726,
+   "bc_s": 272.0272710323334,
+   "updates": 210,
+   "last": {
+    "update": 210,
+    "loss": 0.0013938115444034338,
+    "grad_norm": 0.0336427204310894,
+    "core_grad": 0.0002541655987645653,
+    "lora_grad": 0.0,
+    "n": 2,
+    "lp_tool": -0.0013886855449527502,
+    "lp_evidence": -4.887570867140312e-06,
+    "lp_heads": -2.3841855067985307e-07,
+    "lp_tokens": 0.0
+   }
+  },
+  {
+   "batches": 105,
+   "of": 105,
+   "loss_mean": 6.6250992722911874,
+   "decisions": 834,
+   "rollout_s": 229.62538766860962,
+   "bc_s": 197.93344521522522,
+   "updates": 315,
+   "last": {
+    "update": 315,
+    "loss": 0.001874308567494154,
+    "grad_norm": 0.04558813199400902,
+    "core_grad": 9.385607333148022e-05,
+    "lora_grad": 0.0,
+    "n": 2,
+    "lp_tool": -0.0018682288937270641,
+    "lp_evidence": -4.0531081140215974e-06,
+    "lp_heads": -2.0265558760002023e-06,
+    "lp_tokens": 0.0
+   }
+  }
+ ],
+ "chunks": 2,
+ "held_dataset": {
+  "decisions": 852,
+  "waits": 752,
+  "unrepresentable": 4,
+  "unrepresentable_tools": [
+   "code.run"
+  ],
+  "with_evidence_labels": 800
+ },
+ "before": {
+  "held_logp": {
+   "logp_wait": -12.5348481028638,
+   "logp_act": -167.6523615370194,
+   "logp_all": -30.095321321824812,
+   "n_wait": 752,
+   "n_act": 96
+  },
+  "held_match": {
+   "n": 156,
+   "tool_ok": 0,
+   "args_ok": 0,
+   "n_act": 96,
+   "tool_ok_act": 0,
+   "args_ok_act": 0,
+   "schema_valid": 156,
+   "excluded_unrepresentable": 4,
+   "tool_acc": 0.0,
+   "exact_args_rate": 0.0,
+   "tool_acc_act": 0.0,
+   "exact_args_rate_act": 0.0,
+   "schema_valid_rate": 1.0,
+   "greedy_tools": {
+    "noop": 156
+   }
+  },
+  "eval_s": 173.09279084205627
+ },
+ "train_dataset": {
+  "decisions": 4206,
+  "waits": 3772,
+  "unrepresentable": 17,
+  "unrepresentable_tools": [
+   "code.run"
+  ],
+  "with_evidence_labels": 3978
+ },
+ "updates": 315,
+ "peak_gpu_mb": 19834
+}

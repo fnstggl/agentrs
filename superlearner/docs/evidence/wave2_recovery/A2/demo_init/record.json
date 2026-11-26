@@ -1,0 +1,66 @@
+{
+ "train": {
+  "episodes": [
+   "ow_tiny:100000",
+   "ow_tiny:100001",
+   "ow_tiny:100002",
+   "ow_tiny:100003",
+   "ow_tiny:100004",
+   "ow_tiny:100005",
+   "ow_tiny:100006",
+   "ow_tiny:100007",
+   "ow_tiny:100008",
+   "ow_tiny:100009",
+   "ow_tiny:100010",
+   "ow_tiny:100011",
+   "ow_tiny:100012",
+   "ow_tiny:100013",
+   "ow_tiny:100014",
+   "ow_tiny:100015",
+   "ow_market:100000",
+   "ow_market:100001",
+   "ow_market:100002",
+   "ow_market:100003"
+  ],
+  "decisions": 4206,
+  "non_wait": 434,
+  "successes": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   false,
+   true,
+   false,
+   false
+  ]
+ },
+ "held": {
+  "episodes": [
+   "ow_tiny:100500",
+   "ow_tiny:100501",
+   "ow_tiny:100502",
+   "ow_tiny:100503"
+  ],
+  "decisions": 852,
+  "non_wait": 100,
+  "successes": [
+   true,
+   true,
+   true,
+   true
+  ]
+ }
+}

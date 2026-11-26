@@ -1,0 +1,309 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "extrinsic",
+  "B": 32,
+  "env_horizon": 3,
+  "train_rounds": 600,
+  "checkpoints": [
+   200,
+   400,
+   600
+  ],
+  "update_every": 1,
+  "lr": 0.001,
+  "lp_coef": 0.1,
+  "eval_rows": 64,
+  "eval_seed0": 100000,
+  "probe_cost": 1.0,
+  "win": 10.0,
+  "loss": 10.0,
+  "safe": 1.0,
+  "component_kwargs": {},
+  "standardized_readout": false,
+  "cfg_overrides": {
+   "entropy_coef": 0.05
+  }
+ },
+ "lp_coef": 0.0,
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": null,
+  "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": [
+  {
+   "rounds": 200,
+   "return_per_row_per_round": 0.9015625,
+   "final_losses": {
+    "actor": -0.0005121932276129623,
+    "adapt": 0.5400516420602799,
+    "value": 1.928950241633824,
+    "world": 6.148154878616333
+   },
+   "compute": {
+    "wall_s": 320.44657255522907,
+    "cpu_s": 619.986683246,
+    "act_s": 34.84995488077402,
+    "env_s": 0.29426594031974673,
+    "observe_s": 29.82862229598686,
+    "update_s": 255.4251796710305,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 6400,
+    "decisions": 6400,
+    "sim_days": 44.44444444444432,
+    "updates": 200,
+    "episodes": 67,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3092996096,
+    "inference_tokens": null,
+    "archive_records": 8544
+   }
+  },
+  {
+   "rounds": 400,
+   "return_per_row_per_round": 1.0,
+   "final_losses": {
+    "actor": -6.39323993060056e-06,
+    "adapt": 0.13980045318603515,
+    "value": 1.6783547231129237,
+    "world": 5.771994876861572
+   },
+   "compute": {
+    "wall_s": 313.33788141515106,
+    "cpu_s": 600.642230592,
+    "act_s": 32.75804111547768,
+    "env_s": 0.31764584267511964,
+    "observe_s": 29.044164640363306,
+    "update_s": 251.16710588755086,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 6400,
+    "decisions": 6400,
+    "sim_days": 44.44444444444432,
+    "updates": 200,
+    "episodes": 67,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3136729088,
+    "inference_tokens": null,
+    "archive_records": 17088
+   }
+  },
+  {
+   "rounds": 600,
+   "return_per_row_per_round": 0.9996875,
+   "final_losses": {
+    "actor": -5.6839255323991115e-06,
+    "adapt": -0.438276082277298,
+    "value": 0.8766132252556937,
+    "world": 4.096088767051697
+   },
+   "compute": {
+    "wall_s": 285.9572741962038,
+    "cpu_s": 544.9961361420001,
+    "act_s": 29.54032931337133,
+    "env_s": 0.31141988886520267,
+    "observe_s": 28.002040199935436,
+    "update_s": 228.0586927914992,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 6400,
+    "decisions": 6400,
+    "sim_days": 44.44444444444432,
+    "updates": 200,
+    "episodes": 67,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3219341312,
+    "inference_tokens": null,
+    "archive_records": 25632
+   }
+  }
+ ],
+ "evals": {
+  "0": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 0.3575698886997998,
+    "p_first": {
+     "run_test": 0.3575698886997998,
+     "launch": 0.46767640532925725,
+     "play_safe": 0.1747537029441446
+    },
+    "greedy_test_first": 0.0,
+    "return": -6.5625,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 0.3568756952881813,
+    "p_first": {
+     "run_test": 0.3568756952881813,
+     "launch": 0.46783065935596824,
+     "play_safe": 0.17529364302754402
+    },
+    "greedy_test_first": 0.0,
+    "return": 0.9375,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "200": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 4.5580893592855887e-07,
+    "p_first": {
+     "run_test": 4.5580893592855887e-07,
+     "launch": 7.450165240285855e-07,
+     "play_safe": 0.9999987948685884
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 4.584509447624896e-07,
+    "p_first": {
+     "run_test": 4.584509447624896e-07,
+     "launch": 7.489533597748732e-07,
+     "play_safe": 0.9999987985938787
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "400": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 5.507940166182834e-06,
+    "p_first": {
+     "run_test": 5.507940166182834e-06,
+     "launch": 2.915264044389687e-06,
+     "play_safe": 0.9999915845692158
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 5.476083906330587e-06,
+    "p_first": {
+     "run_test": 5.476083906330587e-06,
+     "launch": 2.9023462673194445e-06,
+     "play_safe": 0.9999916274100542
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "600": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 6.55162099150175e-06,
+    "p_first": {
+     "run_test": 6.55162099150175e-06,
+     "launch": 5.1191770040759366e-06,
+     "play_safe": 0.9999883230775595
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 6.5307973926564955e-06,
+    "p_first": {
+     "run_test": 6.5307973926564955e-06,
+     "launch": 5.108785565255403e-06,
+     "play_safe": 0.9999883510172367
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  }
+ },
+ "lp_by_action": {
+  "launch": {
+   "n": 139,
+   "mean_lp": 0.012932534483696917
+  },
+  "run_test": {
+   "n": 65,
+   "mean_lp": -0.001306149592766395
+  },
+  "play_safe": {
+   "n": 12564,
+   "mean_lp": 0.12616232098042413
+  }
+ },
+ "wall_s": 999.0186285972595,
+ "command": "python -m superlearner.cam_unified.capabilities.run exploration --seed 0 --set condition=extrinsic --set update_every=1 --set checkpoints=[200,400,600] --set train_rounds=600 --set cfg_overrides={\"entropy_coef\":0.05} --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/exploration_ext_ent_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_exploration_ext_ent_s0",
+ "wall_s_total": 999.1815395355225
+}

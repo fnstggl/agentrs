@@ -1,0 +1,22 @@
+{
+ "learner": "ppo_gru",
+ "seed": 1,
+ "ticks": 22272,
+ "episodes": 176,
+ "wall_s": 28.129257440567017,
+ "usage": {
+  "env_steps": 0,
+  "updates": 80,
+  "train_cpu_s": 13.498869070000046,
+  "train_gpu_s": 0.0,
+  "infer_cpu_s": 2.574710152000062,
+  "infer_gpu_s": 0.0,
+  "infer_tokens": 0,
+  "search_evals": 0,
+  "params": 35763,
+  "extra": {
+   "observed_steps": 22272
+  }
+ },
+ "domain": "scm"
+}

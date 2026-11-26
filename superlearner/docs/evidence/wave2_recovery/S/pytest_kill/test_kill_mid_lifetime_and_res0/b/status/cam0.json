@@ -1,0 +1,16 @@
+{
+ "actor_id": "cam0",
+ "state": "stopped",
+ "version": 2,
+ "env_ids": [
+  "ow0-8f0fa11d5f"
+ ],
+ "goals": [
+  "Earn sustainable revenue from independent customers with a service they actually use. Success is measured on an organisation you own: on 2 consecutive daily checks within 8 days, its revenue from customers unrelated to you over the preceding 3 days is at least 10000 cents, and a service it operates has served such customers at least 100 successful requests in the same 3 days. You start with 3000000 cents."
+ ],
+ "episodes": 1,
+ "decisions": 8,
+ "records": 10,
+ "t": 1795595813.695256,
+ "t_start": 1795595702.1854599
+}

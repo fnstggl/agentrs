@@ -1,0 +1,84 @@
+{
+ "abm": {
+  "tasks": [
+   "abm_congestion:1220000",
+   "abm_congestion:1220001",
+   "abm_congestion:1220002",
+   "abm_utility:1220000",
+   "abm_utility:1220001",
+   "abm_utility:1220002",
+   "abm_wom:1220000",
+   "abm_wom:1220001",
+   "abm_wom:1220002",
+   "cw1_abm_congest_wom:1220000",
+   "cw1_abm_congest_wom:1220001",
+   "cw1_abm_congest_wom:1220002",
+   "cw1_abm_util_congest:1220000",
+   "cw1_abm_util_congest:1220001",
+   "cw1_abm_util_congest:1220002",
+   "cw1_abm_util_wom:1220000",
+   "cw1_abm_util_wom:1220001",
+   "cw1_abm_util_wom:1220002",
+   "cw1_abm_wom_congest:1220000",
+   "cw1_abm_wom_congest:1220001",
+   "cw1_abm_wom_congest:1220002"
+  ],
+  "failures": [],
+  "n": 21
+ },
+ "abm_heldout": {
+  "tasks": [
+   "abm_commons:1220000",
+   "abm_commons:1220001",
+   "abm_commons:1220002",
+   "abm_complement:1220000",
+   "abm_complement:1220001",
+   "abm_complement:1220002",
+   "abm_trust_gate:1220000",
+   "abm_trust_gate:1220001",
+   "abm_trust_gate:1220002",
+   "cw1_abm_congest_gate:1220000",
+   "cw1_abm_congest_gate:1220001",
+   "cw1_abm_congest_gate:1220002",
+   "cw1_abm_util_gate:1220000",
+   "cw1_abm_util_gate:1220001",
+   "cw1_abm_util_gate:1220002"
+  ],
+  "failures": [],
+  "n": 15
+ },
+ "tech": {
+  "tasks": [
+   "tech_handoff:1220000",
+   "tech_handoff:1220001",
+   "tech_handoff:1220002",
+   "tech_pipeline:1220000",
+   "tech_pipeline:1220001",
+   "tech_pipeline:1220002",
+   "cw1_tech_pipeline_hidequeue:1220000",
+   "cw1_tech_pipeline_hidequeue:1220001",
+   "cw1_tech_pipeline_hidequeue:1220002"
+  ],
+  "failures": [],
+  "n": 9
+ },
+ "scm_rescaled_units": [
+  "centi-reading",
+  "deci-reading",
+  "kilo-reading",
+  "milli-reading",
+  "reading"
+ ],
+ "familiar": {
+  "n": 24
+ },
+ "compositional": {
+  "n": 15
+ },
+ "structural": {
+  "n": 9
+ },
+ "scm_rescaled": {
+  "n": 24
+ }
+}

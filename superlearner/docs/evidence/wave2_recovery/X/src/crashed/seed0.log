@@ -1,0 +1,86 @@
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 6748.84it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/wt2/X/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (16, 32) exceed the sequence length T=8 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/agentrs/.venv/lib/python3.12/site-packages/triton/knobs.py:504: UserWarning: TRITON_DEFAULT_FP_FUSION is unset: defaulting to FP fusion ENABLED for backward compatibility in Triton 3.9. The default will change to DISABLED in Triton 3.10; set TRITON_DEFAULT_FP_FUSION=1 to keep fusion enabled or =0 to adopt the new default early and silence this warning.
+  warn_once(FP_FUSION_DEFAULT_WARNING)
+/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/beliefs.py:492: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  "window_z": float(wz[r]), "n_injected": n_inj, "ess_before": float(ess[r]),
+[W1125 08:39:14.785005303 CUDACachingAllocator.cpp:623] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 2097152 bytes (free: 3866624, total: 50899386368).
+[W1125 08:39:15.514187999 CUDACachingAllocator.cpp:623] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 3866624, total: 50899386368).
+[W1125 08:39:15.514390810 CUDACachingAllocator.cpp:623] expandable_segments: memory mapping failed with OOM on device 0 while trying to map 20971520 bytes (free: 3866624, total: 50899386368).
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/train.py", line 212, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/train.py", line 192, in main
+    res = M.run_batch(st.agent, w, learn=True, update_every=a.update_every, meter=meter,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/experiments/mechrun.py", line 452, in run_batch
+    u = agent.update()
+        ^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/agent.py", line 991, in update
+    out = fn(self, batch)
+          ^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/agent.py", line 243, in objective_policy
+    out = agent.model.policy_evaluate(inp, actions)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/model.py", line 1467, in policy_evaluate
+    enc = self.encode_step(live, memory=mem)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/model.py", line 1066, in encode_step
+    R, rinfo = self.reasoner(Z, rctx, self.reason_iters)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1798, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/reasoning.py", line 206, in forward
+    return self._fixed(Z, hctx, cmask, n_iters or self.default_iters)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/reasoning.py", line 216, in _fixed
+    R, hctx = self.step(R, j, hctx, cmask)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/reasoning.py", line 170, in step
+    return self._step_impl(R, hctx, mask, j)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/reasoning.py", line 154, in _step_impl
+    h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=checkpoint_blocks)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/backbone.py", line 184, in run_blocks
+    h = blk(h, key_mask, attn_bias)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1798, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/blocks.py", line 138, in forward
+    h = h + self.attn(self.norm1(h), key_mask=key_mask, attn_bias=attn_bias)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1798, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/wt2/X/superlearner/src/superlearner/cam_unified/core/blocks.py", line 103, in forward
+    k, v = self.kv(src).chunk(2, -1)
+           ^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1798, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agentrs/.venv/lib/python3.12/site-packages/torch/nn/modules/linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 3.69 MiB is free. Process 208629 has 4.49 GiB memory in use. Process 209091 has 13.55 GiB memory in use. Including non-PyTorch memory, this process has 12.71 GiB memory in use. Process 209090 has 13.63 GiB memory in use. Process 209170 has 338.00 MiB memory in use. Process 209269 has 2.65 GiB memory in use. Of the allocated memory 12.31 GiB is allocated by PyTorch, and 68.09 MiB is reserved by PyTorch but unallocated. expandable_segments is enabled. If instead the process is running out of virtual address space (VSZ), expandable segments may be over-reserving VA (each segment reserves ~9/8 of device memory, times the number of streams); reduce it via PYTORCH_CUDA_ALLOC_CONF expandable_segments_reserve / expandable_segments_reserve_by_class.

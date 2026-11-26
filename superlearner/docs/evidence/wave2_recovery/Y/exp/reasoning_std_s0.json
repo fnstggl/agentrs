@@ -1,0 +1,229 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "adaptive",
+  "B": 64,
+  "train_rounds": 300,
+  "lr": 0.001,
+  "n_colours": 4,
+  "hops": [
+   1,
+   2
+  ],
+  "eval_rows": 256,
+  "eval_seed0": 100000,
+  "test_iters": [
+   1,
+   2,
+   4,
+   8,
+   16
+  ],
+  "standardized_readout": true,
+  "cfg_overrides": {}
+ },
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": null,
+  "action_generator": "superlearner.cam_unified.capabilities.readout.StandardizedReadoutActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": {
+  "n_updates": 300,
+  "compute": {
+   "wall_s": 357.884417116642,
+   "cpu_s": 677.990334791,
+   "act_s": 92.30093935271725,
+   "env_s": 1.7012747316621244,
+   "observe_s": 63.8565210159868,
+   "update_s": 199.91586316935718,
+   "gpu_span_s": 0.0,
+   "gpu_busy_s": null,
+   "gpu_kernels": null,
+   "env_steps": 19200,
+   "decisions": 19200,
+   "sim_days": 133.3333333333331,
+   "updates": 300,
+   "episodes": 300,
+   "peak_gpu_mem_bytes": 0,
+   "max_rss_bytes": 2776866816,
+   "inference_tokens": null,
+   "archive_records": null
+  },
+  "return_first10": 0.240625,
+  "return_last10": 0.259375
+ },
+ "untrained": {
+  "acc": 0.2578125,
+  "per_hop": {
+   "1": {
+    "n": 127,
+    "acc": 0.31496062992125984,
+    "iters": 11.0
+   },
+   "2": {
+    "n": 129,
+    "acc": 0.20155038759689922,
+    "iters": 11.0
+   }
+  }
+ },
+ "trained": {
+  "acc": 0.27734375,
+  "per_hop": {
+   "1": {
+    "n": 127,
+    "acc": 0.23622047244094488,
+    "iters": 8.716535433070867
+   },
+   "2": {
+    "n": 129,
+    "acc": 0.3178294573643411,
+    "iters": 9.0
+   }
+  }
+ },
+ "forced_iters": {
+  "1": {
+   "acc": 0.27734375,
+   "per_hop": {
+    "1": {
+     "n": 127,
+     "acc": 0.23622047244094488,
+     "iters": 1.0
+    },
+    "2": {
+     "n": 129,
+     "acc": 0.3178294573643411,
+     "iters": 1.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "2": {
+   "acc": 0.27734375,
+   "per_hop": {
+    "1": {
+     "n": 127,
+     "acc": 0.23622047244094488,
+     "iters": 2.0
+    },
+    "2": {
+     "n": 129,
+     "acc": 0.3178294573643411,
+     "iters": 2.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "4": {
+   "acc": 0.27734375,
+   "per_hop": {
+    "1": {
+     "n": 127,
+     "acc": 0.23622047244094488,
+     "iters": 4.0
+    },
+    "2": {
+     "n": 129,
+     "acc": 0.3178294573643411,
+     "iters": 4.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "8": {
+   "acc": 0.27734375,
+   "per_hop": {
+    "1": {
+     "n": 127,
+     "acc": 0.23622047244094488,
+     "iters": 8.0
+    },
+    "2": {
+     "n": 129,
+     "acc": 0.3178294573643411,
+     "iters": 8.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "16": {
+   "acc": 0.27734375,
+   "per_hop": {
+    "1": {
+     "n": 127,
+     "acc": 0.23622047244094488,
+     "iters": 16.0
+    },
+    "2": {
+     "n": 129,
+     "acc": 0.3178294573643411,
+     "iters": 16.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  }
+ },
+ "sensitivity_untrained": {
+  "kl_J1_vs_J16": 8.339119085576385e-05,
+  "mean_abs_prob_change": 0.0025794103275984526,
+  "kl_R_permuted": -2.3160464657223656e-09,
+  "max_prob_mean": 0.2612505555152893,
+  "argmax_changed_J": 0.05859375
+ },
+ "sensitivity_trained": {
+  "kl_J1_vs_J16": 1.9331700684688258e-08,
+  "mean_abs_prob_change": 2.112889490035741e-07,
+  "kl_R_permuted": 2.9505713428079616e-09,
+  "max_prob_mean": 0.999987781047821,
+  "argmax_changed_J": 0.0
+ },
+ "policy_grad_norms_untrained": {
+  "actor": {
+   "action_generator": 0.07348491996526718,
+   "tokenizer": 0.22954893112182617,
+   "core": 0.0018381107365712523,
+   "reasoner": 0.0005369275459088385,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.0,
+   "core": 0.0,
+   "reasoner": 0.0,
+   "value_head": 1.3417203426361084
+  }
+ },
+ "policy_grad_norms_trained": {
+  "actor": {
+   "action_generator": 9.17043234949233e-06,
+   "tokenizer": 1.4814304449828342e-05,
+   "core": 7.429852075802046e-07,
+   "reasoner": 1.2721248822344933e-05,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.01826159842312336,
+   "core": 0.04661860689520836,
+   "reasoner": 0.0035010071005672216,
+   "value_head": 1.2469220161437988
+  }
+ },
+ "chance": 0.25,
+ "wall_s": 487.85217785835266,
+ "command": "python -m superlearner.cam_unified.capabilities.run reasoning --seed 0 --set condition=adaptive --set standardized_readout=true --set train_rounds=300 --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/reasoning_std_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_reasoning_std_s0",
+ "wall_s_total": 487.85617232322693
+}

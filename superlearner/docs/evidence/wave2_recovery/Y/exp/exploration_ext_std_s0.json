@@ -1,0 +1,307 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "extrinsic",
+  "B": 32,
+  "env_horizon": 3,
+  "train_rounds": 300,
+  "checkpoints": [
+   100,
+   200,
+   300
+  ],
+  "update_every": 1,
+  "lr": 0.001,
+  "lp_coef": 0.1,
+  "eval_rows": 64,
+  "eval_seed0": 100000,
+  "probe_cost": 1.0,
+  "win": 10.0,
+  "loss": 10.0,
+  "safe": 1.0,
+  "component_kwargs": {},
+  "standardized_readout": true,
+  "cfg_overrides": {}
+ },
+ "lp_coef": 0.0,
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": null,
+  "action_generator": "superlearner.cam_unified.capabilities.readout.StandardizedReadoutActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": [
+  {
+   "rounds": 100,
+   "return_per_row_per_round": 0.82,
+   "final_losses": {
+    "actor": 3.515043310168645e-05,
+    "adapt": 0.6110328882932663,
+    "value": 2.439901649951935,
+    "world": 7.943135738372803
+   },
+   "compute": {
+    "wall_s": 166.54507421376184,
+    "cpu_s": 323.70298758,
+    "act_s": 18.590652158949524,
+    "env_s": 0.14742059400305152,
+    "observe_s": 14.263837394770235,
+    "update_s": 133.51431677117944,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 3200,
+    "decisions": 3200,
+    "sim_days": 22.222222222222175,
+    "updates": 100,
+    "episodes": 34,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 2978344960,
+    "inference_tokens": null,
+    "archive_records": 4288
+   }
+  },
+  {
+   "rounds": 200,
+   "return_per_row_per_round": 1.0,
+   "final_losses": {
+    "actor": 3.247787162763416e-06,
+    "adapt": 0.165408256649971,
+    "value": 2.096343159675598,
+    "world": 5.483340692520142
+   },
+   "compute": {
+    "wall_s": 173.23678934387863,
+    "cpu_s": 333.666978635,
+    "act_s": 18.853470608126372,
+    "env_s": 0.17442077165469527,
+    "observe_s": 15.044589212629944,
+    "update_s": 139.14030697848648,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 3200,
+    "decisions": 3200,
+    "sim_days": 22.222222222222175,
+    "updates": 100,
+    "episodes": 34,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3130982400,
+    "inference_tokens": null,
+    "archive_records": 8576
+   }
+  },
+  {
+   "rounds": 300,
+   "return_per_row_per_round": 0.9959375,
+   "final_losses": {
+    "actor": 5.94889790287804e-06,
+    "adapt": 0.3561986833810806,
+    "value": 1.676375190416972,
+    "world": 5.759279251098633
+   },
+   "compute": {
+    "wall_s": 174.15903237182647,
+    "cpu_s": 334.93468345400004,
+    "act_s": 16.9227541340515,
+    "env_s": 0.18361093383282423,
+    "observe_s": 14.840550924185663,
+    "update_s": 142.1890392927453,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 3200,
+    "decisions": 3200,
+    "sim_days": 22.222222222222175,
+    "updates": 100,
+    "episodes": 34,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3153756160,
+    "inference_tokens": null,
+    "archive_records": 12864
+   }
+  }
+ ],
+ "evals": {
+  "0": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 0.3575698886997998,
+    "p_first": {
+     "run_test": 0.3575698886997998,
+     "launch": 0.46767640532925725,
+     "play_safe": 0.1747537029441446
+    },
+    "greedy_test_first": 0.0,
+    "return": -6.5625,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 0.3568756952881813,
+    "p_first": {
+     "run_test": 0.3568756952881813,
+     "launch": 0.46783065935596824,
+     "play_safe": 0.17529364302754402
+    },
+    "greedy_test_first": 0.0,
+    "return": 0.9375,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "100": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 2.399459926305525e-07,
+    "p_first": {
+     "run_test": 2.399459926305525e-07,
+     "launch": 2.1730899057992303e-07,
+     "play_safe": 0.9999995436519384
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 2.443888404979333e-07,
+    "p_first": {
+     "run_test": 2.443888404979333e-07,
+     "launch": 2.218573897927456e-07,
+     "play_safe": 0.9999995362013578
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "200": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 4.480348825275371e-08,
+    "p_first": {
+     "run_test": 4.480348825275371e-08,
+     "launch": 4.9159999904180296e-08,
+     "play_safe": 0.9999998807907104
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 4.507963785593816e-08,
+    "p_first": {
+     "run_test": 4.507963785593816e-08,
+     "launch": 4.9598132378925186e-08,
+     "play_safe": 0.9999998807907104
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "300": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 3.375854857878835e-07,
+    "p_first": {
+     "run_test": 3.375854857878835e-07,
+     "launch": 5.035723114055202e-07,
+     "play_safe": 0.9999991562217474
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 3.4138463078647874e-07,
+    "p_first": {
+     "run_test": 3.4138463078647874e-07,
+     "launch": 5.081066078993501e-07,
+     "play_safe": 0.999999150633812
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  }
+ },
+ "lp_by_action": {
+  "launch": {
+   "n": 134,
+   "mean_lp": 0.016637084866637616
+  },
+  "run_test": {
+   "n": 55,
+   "mean_lp": -3.0721317638050424e-05
+  },
+  "play_safe": {
+   "n": 6147,
+   "mean_lp": 0.11868982497943292
+  }
+ },
+ "wall_s": 593.0981042385101,
+ "command": "python -m superlearner.cam_unified.capabilities.run exploration --seed 0 --set condition=extrinsic --set standardized_readout=true --set update_every=1 --set checkpoints=[100,200,300] --set train_rounds=300 --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/exploration_ext_std_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_exploration_ext_std_s0",
+ "wall_s_total": 593.2062559127808
+}

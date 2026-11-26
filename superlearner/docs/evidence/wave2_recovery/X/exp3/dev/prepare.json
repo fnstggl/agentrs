@@ -1,0 +1,68 @@
+{
+ "abm": {
+  "tasks": [
+   "abm_congestion:1120000",
+   "abm_congestion:1120001",
+   "abm_utility:1120000",
+   "abm_utility:1120001",
+   "abm_wom:1120000",
+   "abm_wom:1120001",
+   "cw1_abm_congest_wom:1120000",
+   "cw1_abm_congest_wom:1120001",
+   "cw1_abm_util_congest:1120000",
+   "cw1_abm_util_congest:1120001",
+   "cw1_abm_util_wom:1120000",
+   "cw1_abm_util_wom:1120001",
+   "cw1_abm_wom_congest:1120000",
+   "cw1_abm_wom_congest:1120001"
+  ],
+  "failures": [],
+  "n": 14
+ },
+ "abm_heldout": {
+  "tasks": [
+   "abm_commons:1120000",
+   "abm_commons:1120001",
+   "abm_complement:1120000",
+   "abm_complement:1120001",
+   "abm_trust_gate:1120000",
+   "abm_trust_gate:1120001",
+   "cw1_abm_congest_gate:1120000",
+   "cw1_abm_congest_gate:1120001",
+   "cw1_abm_util_gate:1120000",
+   "cw1_abm_util_gate:1120001"
+  ],
+  "failures": [],
+  "n": 10
+ },
+ "tech": {
+  "tasks": [
+   "tech_handoff:1120000",
+   "tech_handoff:1120001",
+   "tech_pipeline:1120000",
+   "tech_pipeline:1120001",
+   "cw1_tech_pipeline_hidequeue:1120000",
+   "cw1_tech_pipeline_hidequeue:1120001"
+  ],
+  "failures": [],
+  "n": 6
+ },
+ "scm_rescaled_units": [
+  "centi-reading",
+  "deci-reading",
+  "kilo-reading",
+  "reading"
+ ],
+ "familiar": {
+  "n": 16
+ },
+ "compositional": {
+  "n": 10
+ },
+ "structural": {
+  "n": 6
+ },
+ "scm_rescaled": {
+  "n": 16
+ }
+}

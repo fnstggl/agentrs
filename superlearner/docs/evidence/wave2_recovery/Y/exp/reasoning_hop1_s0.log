@@ -1,0 +1,19 @@
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 5696.49it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+  round 20: mean return/row 0.348 (25s)
+  round 40: mean return/row 0.345 (52s)
+  round 60: mean return/row 0.318 (78s)
+  round 80: mean return/row 0.352 (104s)
+  round 100: mean return/row 0.337 (131s)
+  round 120: mean return/row 0.353 (158s)
+  round 140: mean return/row 0.316 (185s)
+  round 160: mean return/row 0.348 (213s)
+  round 180: mean return/row 0.341 (240s)
+  round 200: mean return/row 0.356 (266s)
+  round 220: mean return/row 0.492 (292s)
+  round 240: mean return/row 0.504 (318s)
+  round 260: mean return/row 0.495 (344s)
+  round 280: mean return/row 0.344 (369s)
+  round 300: mean return/row 0.459 (393s)
+wrote /workspace/agentrs/runs/cam_unified/wave2/Y/exp/reasoning_hop1_s0.json (505s)

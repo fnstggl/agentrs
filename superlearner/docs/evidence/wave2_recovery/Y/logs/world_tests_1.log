@@ -1,0 +1,17 @@
+....................................delay world: 122s, loss 29.19->5.51, predictions
+tensor([[ 0.9997, -0.0028, -0.0019],
+        [-0.0078,  0.0032,  1.0053],
+        [-0.0014, -0.0014, -0.0033]])
+climatology max error 0.57
+.sinteraction world: 27s, wm [-0.1576613187789917, 0.2792671024799347, -0.6083179712295532, 1.9341301918029785] truth [0.0, 0.5, -0.5, 2.0] contrast 2.11 (linear regression 0.00)
+.stock world: 122s, loss 30.64->8.08, open-loop MSE by horizon {'world_model': {1: 0.0947, 2: 0.1288, 4: 0.1561, 8: 0.1792}, 'no_change': {1: 0.6204, 2: 0.9634, 4: 1.1266, 8: 1.0516}, 'trend_persistence': {1: 1.2561, 2: 3.4713, 4: 9.7827, 8: 30.8093}, 'key_mean': {1: 0.5205, 2: 0.5192, 4: 0.5251, 8: 0.4831}, 'linear_regression': {1: 0.2082, 2: 0.2622, 4: 0.2642, 8: 0.2707}}
+.switch world: 78s, filtered predictions of Y_2..Y_8: {'switch': [0.82, 0.87, 0.79, -1.0, -0.96, -0.99, -0.96], 'none': [0.82, 0.87, 0.79, 0.7, 0.63, 0.66, 0.65], 'neg_switch': [-0.97, -0.88, -0.78, 0.93, 0.94, 0.95, 0.94]}
+intermediate event -> later prediction: {'switch': (-1.0082734823226929, -0.9789062738418579), 'none': (1.0378568172454834, 0.9613907337188721)}
+.sss....................
+=============================== warnings summary ===============================
+tests/cam_unified/world/test_world_causal.py::test_contrastive_is_scale_free_per_channel_and_masks_non_candidates_exactly
+  Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+    assert abs(float(raw.loss(Z, iv, resp)["loss"]) - float(raw.loss(Z, iv, scaled)["loss"])) > 1e-3
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+60 passed, 4 skipped, 1 warning in 367.31s (0:06:07)

@@ -1,0 +1,124 @@
+{
+ "state_signal_effect_untrained": {
+  "Z_norm": 22.627410888671875,
+  "Z_signal_effect_norm": 0.12386855483055115,
+  "Z_across_row_deviation_norm": 0.08953750133514404,
+  "R_norm": 21.319778442382812,
+  "R_signal_effect_norm": 0.070356085896492,
+  "launch_prob": 0.4659271836280823,
+  "launch_prob_change": 0.02111077308654785
+ },
+ "policy_gradient_split_probe_untrained": {
+  "actor": {
+   "action_generator": 0.7157313227653503,
+   "tokenizer": 1.8102999925613403,
+   "core": 0.021141279488801956,
+   "reasoner": 0.004491031169891357,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.0,
+   "core": 0.0,
+   "reasoner": 0.0,
+   "value_head": 0.5209607481956482
+  }
+ },
+ "policy_gradient_split_chain_untrained": {
+  "actor": {
+   "action_generator": 0.21038804948329926,
+   "tokenizer": 0.5704912543296814,
+   "core": 0.006466761697083712,
+   "reasoner": 0.005633376073092222,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.0,
+   "core": 0.0,
+   "reasoner": 0.0,
+   "value_head": 1.2152043581008911
+  }
+ },
+ "latent_scale": {
+  "floor_0.1": {
+   "latent": 4.015664577484131,
+   "open_loop": 14.105268478393555,
+   "outcome": 1.1447862386703491,
+   "reward": 5.541264057159424,
+   "obs": 4.029008865356445,
+   "world": 30.7178897857666,
+   "Z_across_sample_std_over_rms": 0.009221580810844898
+  },
+  "floor_0.0": {
+   "latent": 1256.546630859375,
+   "open_loop": 953.2886352539062,
+   "outcome": 1.1447862386703491,
+   "reward": 5.541264057159424,
+   "obs": 4.029008865356445,
+   "world": 2222.432373046875,
+   "Z_across_sample_std_over_rms": 0.009221580810844898
+  }
+ },
+ "memory_serving": {
+  "consolidator_as_called_by_agent": {
+   "retrieved_any_rate": 0.0,
+   "retrieval_hit_rate": 0.0,
+   "cue_memory_in_context_rate": 0.0,
+   "index_segments": 12
+  },
+  "without_current_version": null,
+  "with_serving_adapter": {
+   "retrieved_any_rate": 1.0,
+   "retrieval_hit_rate": 1.0,
+   "cue_memory_in_context_rate": 1.0,
+   "index_segments": 12
+  },
+  "with_current_version": "seg-0-74f523dd577b105b"
+ },
+ "ema_target": {
+  "agent_with_plain_trainer": {
+   "target_max_abs_change": 0.0
+  },
+  "with_target_sync_adapter": {
+   "target_max_abs_change": 5.307048559188843e-05
+  }
+ },
+ "replay_sync": {
+  "sampler_as_given": {
+   "archived": 72,
+   "replay_draws": 0
+  },
+  "with_sync_adapter": {
+   "archived": 72,
+   "replay_draws": 4
+  }
+ },
+ "prospective_first_decision": {
+  "model_as_given": {
+   "queried_keys": [
+    "ok",
+    "error_code",
+    "cost",
+    "duration",
+    "reward"
+   ],
+   "test_signal_queried": false
+  },
+  "with_ingest_adapter": {
+   "queried_keys": [
+    "ok",
+    "error_code",
+    "cost",
+    "duration",
+    "reward",
+    "num:test signal@market[signal]",
+    "cnt:text/text"
+   ],
+   "test_signal_queried": true
+  }
+ },
+ "wall_s": 125.99562454223633,
+ "command": "python -m superlearner.cam_unified.capabilities.run diagnostics --seed 0 --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/diagnostics_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_diagnostics_s0",
+ "wall_s_total": 125.99686646461487
+}

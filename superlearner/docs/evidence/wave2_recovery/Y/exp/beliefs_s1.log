@@ -1,0 +1,25 @@
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 5505.78it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (4, 8, 16, 32) exceed the sequence length T=2 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (8, 16, 32) exceed the sequence length T=4 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (8, 16, 32) exceed the sequence length T=6 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (16, 32) exceed the sequence length T=8 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+  round 20: mean return/row -0.120 (24s)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (8, 16, 32) exceed the sequence length T=7 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+  round 40: mean return/row 0.040 (49s)
+  round 60: mean return/row -0.133 (76s)
+  round 80: mean return/row -0.181 (103s)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/core/beliefs.py:492: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  "window_z": float(wz[r]), "n_injected": n_inj, "ess_before": float(ess[r]),
+  round 100: mean return/row 0.057 (129s)
+  round 120: mean return/row 0.065 (156s)
+  round 140: mean return/row -0.020 (181s)
+  round 160: mean return/row 0.129 (207s)
+wrote /workspace/agentrs/runs/cam_unified/wave2/Y/exp/beliefs_s1.json (276s)

@@ -1,0 +1,83 @@
+{
+ "seed": 2,
+ "episodes": 320,
+ "ticks": 20480,
+ "collect_s": 43.95429706573486,
+ "families": [
+  "cw1_scm_confounder",
+  "cw1_scm_confounder_gate",
+  "cw1_scm_confounder_interaction",
+  "cw1_scm_confounder_interaction_threshold",
+  "cw1_scm_confounder_regime",
+  "cw1_scm_confounder_regime_stock",
+  "cw1_scm_confounder_regime_threshold",
+  "cw1_scm_confounder_stock",
+  "cw1_scm_confounder_stock_threshold",
+  "cw1_scm_confounder_threshold",
+  "cw1_scm_delay",
+  "cw1_scm_delay_feedback",
+  "cw1_scm_delay_regime",
+  "cw1_scm_delay_regime_threshold",
+  "cw1_scm_delay_stock",
+  "cw1_scm_delay_threshold",
+  "cw1_scm_feedback",
+  "cw1_scm_feedback_gate",
+  "cw1_scm_feedback_gate_interaction",
+  "cw1_scm_feedback_interaction",
+  "cw1_scm_feedback_regime",
+  "cw1_scm_feedback_stock",
+  "cw1_scm_gate",
+  "cw1_scm_gate_interaction",
+  "cw1_scm_gate_regime",
+  "cw1_scm_gate_threshold",
+  "cw1_scm_interaction",
+  "cw1_scm_interaction_threshold",
+  "cw1_scm_regime_stock",
+  "cw1_scm_regime_threshold",
+  "cw1_scm_stock",
+  "cw1_scm_stock_threshold",
+  "cw1_scm_threshold",
+  "scm_additive",
+  "scm_delay",
+  "scm_gate"
+ ],
+ "nig_meta": {
+  "steps": 150,
+  "episodes": 320,
+  "loss_first": -0.4571690131029525,
+  "loss_last": -0.9065831351332649,
+  "wall_s": 62.27710723876953,
+  "mu": [
+   0.004547711463678929,
+   -0.034588718970993325,
+   -0.011956148791864274,
+   0.0024021335149654187,
+   -0.014567925126850543
+  ],
+  "lam": [
+   0.04237321217214722,
+   0.06577448613494112,
+   0.3795832752992682,
+   0.15838041408334286,
+   0.5838789025068087
+  ],
+  "a0": 1.680217695448989,
+  "b0": 0.0002761365082421239
+ },
+ "seq_gru": {
+  "steps": 1500,
+  "episodes": 320,
+  "loss_first": 0.2659548817202449,
+  "loss_last": -1.0194195866584779,
+  "wall_s": 127.80781936645508,
+  "params": 245250
+ },
+ "seq_attn": {
+  "steps": 1500,
+  "episodes": 320,
+  "loss_first": 2.646772665902972,
+  "loss_last": -1.3355457544326783,
+  "wall_s": 130.3695044517517,
+  "params": 542466
+ }
+}

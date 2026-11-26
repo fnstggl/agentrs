@@ -1,0 +1,3 @@
+[exp1] decide hold seed 0: 64 episodes in 2s
+[exp1] decide random seed 0: 64 episodes in 2s
+[exp1] decide probe_exploit seed 0: 64 episodes in 3s

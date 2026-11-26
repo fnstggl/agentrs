@@ -1,0 +1,193 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "adaptive",
+  "B": 64,
+  "train_rounds": 300,
+  "lr": 0.001,
+  "n_colours": 3,
+  "hops": [
+   1
+  ],
+  "eval_rows": 256,
+  "eval_seed0": 100000,
+  "test_iters": [
+   1,
+   2,
+   4,
+   8,
+   16
+  ],
+  "standardized_readout": false,
+  "cfg_overrides": {}
+ },
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": null,
+  "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": {
+  "n_updates": 300,
+  "compute": {
+   "wall_s": 393.167231883388,
+   "cpu_s": 749.198481396,
+   "act_s": 90.74299873877317,
+   "env_s": 1.9232852696441114,
+   "observe_s": 66.90091207297519,
+   "update_s": 233.48619461245835,
+   "gpu_span_s": 0.0,
+   "gpu_busy_s": null,
+   "gpu_kernels": null,
+   "env_steps": 19200,
+   "decisions": 19200,
+   "sim_days": 133.3333333333331,
+   "updates": 300,
+   "episodes": 300,
+   "peak_gpu_mem_bytes": 0,
+   "max_rss_bytes": 2776535040,
+   "inference_tokens": null,
+   "archive_records": null
+  },
+  "return_first10": 0.3546875,
+  "return_last10": 0.4796875
+ },
+ "untrained": {
+  "acc": 0.375,
+  "per_hop": {
+   "1": {
+    "n": 256,
+    "acc": 0.375,
+    "iters": 11.0
+   }
+  }
+ },
+ "trained": {
+  "acc": 0.51953125,
+  "per_hop": {
+   "1": {
+    "n": 256,
+    "acc": 0.51953125,
+    "iters": 9.0
+   }
+  }
+ },
+ "forced_iters": {
+  "1": {
+   "acc": 0.51953125,
+   "per_hop": {
+    "1": {
+     "n": 256,
+     "acc": 0.51953125,
+     "iters": 1.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "2": {
+   "acc": 0.51953125,
+   "per_hop": {
+    "1": {
+     "n": 256,
+     "acc": 0.51953125,
+     "iters": 2.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "4": {
+   "acc": 0.51953125,
+   "per_hop": {
+    "1": {
+     "n": 256,
+     "acc": 0.51953125,
+     "iters": 4.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "8": {
+   "acc": 0.51953125,
+   "per_hop": {
+    "1": {
+     "n": 256,
+     "acc": 0.51953125,
+     "iters": 8.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  },
+  "16": {
+   "acc": 0.51953125,
+   "per_hop": {
+    "1": {
+     "n": 256,
+     "acc": 0.51953125,
+     "iters": 16.0
+    }
+   },
+   "changed_vs_trained": 0.0
+  }
+ },
+ "sensitivity_untrained": {
+  "kl_J1_vs_J16": 4.2232084524584934e-05,
+  "mean_abs_prob_change": 0.0023959234822541475,
+  "kl_R_permuted": -1.2660978931933187e-09,
+  "max_prob_mean": 0.343894362449646,
+  "argmax_changed_J": 0.0390625
+ },
+ "sensitivity_trained": {
+  "kl_J1_vs_J16": 4.1578044829293503e-07,
+  "mean_abs_prob_change": 9.475937076786067e-06,
+  "kl_R_permuted": 9.649492316299302e-11,
+  "max_prob_mean": 0.9995883703231812,
+  "argmax_changed_J": 0.0
+ },
+ "policy_grad_norms_untrained": {
+  "actor": {
+   "action_generator": 0.16426078975200653,
+   "tokenizer": 0.557194173336029,
+   "core": 0.00406382093206048,
+   "reasoner": 0.00279244314879179,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.0,
+   "core": 0.0,
+   "reasoner": 0.0,
+   "value_head": 1.0127501487731934
+  }
+ },
+ "policy_grad_norms_trained": {
+  "actor": {
+   "action_generator": 0.00024110481899697334,
+   "tokenizer": 0.0007357290596701205,
+   "core": 4.846271622227505e-06,
+   "reasoner": 1.4458578334597405e-05,
+   "value_head": 0.0
+  },
+  "value": {
+   "action_generator": 0.0,
+   "tokenizer": 0.005250688176602125,
+   "core": 0.004749619401991367,
+   "reasoner": 0.0025047683157026768,
+   "value_head": 2.8892762660980225
+  }
+ },
+ "chance": 0.3333333333333333,
+ "wall_s": 504.9352731704712,
+ "command": "python -m superlearner.cam_unified.capabilities.run reasoning --seed 0 --set hops=[1] --set n_colours=3 --set train_rounds=300 --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/reasoning_hop1_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_reasoning_hop1_s0",
+ "wall_s_total": 504.9380898475647
+}

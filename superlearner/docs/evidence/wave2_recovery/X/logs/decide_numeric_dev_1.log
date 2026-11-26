@@ -1,0 +1,2 @@
+[exp1] decide model_based seed 1: 64 episodes in 6s
+[exp1] decide ppo_gru seed 1: 64 episodes in 5s

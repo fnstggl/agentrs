@@ -1,0 +1,337 @@
+{
+ "spec": {
+  "run_dir": "/workspace/agentrs/runs/cam_unified/wave2/S/pytest_kill/test_kill_mid_lifetime_and_res0/run",
+  "task": "open_economy",
+  "task_index": 0,
+  "days": null,
+  "max_decisions": null,
+  "stop_after": null,
+  "max_wall_s": null,
+  "kill_after": 8,
+  "exit_after": null,
+  "update_every": 3,
+  "checkpoint_every_days": 0.02,
+  "keep_checkpoints": 3,
+  "think_s": 600.0,
+  "isolated": true,
+  "world_seed": 0,
+  "resume": false,
+  "system": {
+   "scale": "dev",
+   "overrides": {
+    "n_layers": 2,
+    "d_model": 64,
+    "n_heads": 4,
+    "n_state": 8,
+    "d_particle": 32,
+    "n_particles": 8,
+    "bayes_feat": 8,
+    "stoch_groups": 8,
+    "stoch_classes": 8,
+    "mem_key_dim": 32,
+    "reason_layers": 1,
+    "max_ctx_tokens": 64,
+    "n_prefix": 4,
+    "max_entities": 32,
+    "n_options": 4,
+    "max_arg_tokens": 24,
+    "imag_horizons": [
+     2
+    ],
+    "mem_segment": 8
+   },
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "device": "cuda",
+   "seed": 0,
+   "actor_id": "cam0",
+   "seq_len": 4,
+   "n_seqs": 2,
+   "adapt_seq_len": 6,
+   "adapt_n_seqs": 1,
+   "fresh_max_steps": 16,
+   "trainer_stage": "continual",
+   "grad_probe_every": 1,
+   "amp": true,
+   "lr_warmup": 0,
+   "imag_candidates": 2,
+   "imag_horizon": 2,
+   "imag_samples": 1,
+   "greedy": false,
+   "archive_autoflush": true,
+   "checkpoint_semantic_cache": true
+  },
+  "command": "python -m superlearner.cam_unified.stage1 run --run-dir /workspace/agentrs/runs/cam_unified/wave2/S/pytest_kill/test_kill_mid_lifetime_and_res0/run --sem-model Qwen/Qwen3-0.6B --update-every 3 --checkpoint-every-days 0.02 --imag-candidates 2 --imag-horizon 2 --imag-samples 1 --seq-len 4 --adapt-seq-len 6 --fresh-max-steps 16 --kill-after 8 --set=n_layers=2 --set=d_model=64 --set=n_heads=4 --set=n_state=8 --set=d_particle=32 --set=n_particles=8 --set=bayes_feat=8 --set=stoch_groups=8 --set=stoch_classes=8 --set=mem_key_dim=32 --set=reason_layers=1 --set=max_ctx_tokens=64 --set=n_prefix=4 --set=max_entities=32 --set=n_options=4 --set=max_arg_tokens=24 --set=imag_horizons=[2] --set=mem_segment=8"
+ },
+ "task": {
+  "name": "open_economy",
+  "world_family": "ow_tiny",
+  "world_seed": 100000,
+  "public_goal_text": "Earn sustainable revenue from independent customers with a service they actually use. Success is measured on an organisation you own: on 2 consecutive daily checks within 8 days, its revenue from customers unrelated to you over the preceding 3 days is at least 10000 cents, and a service it operates has served such customers at least 100 successful requests in the same 3 days. You start with 3000000 cents."
+ },
+ "system": {
+  "cam_config": {
+   "scale": "dev",
+   "n_layers": 2,
+   "d_model": 64,
+   "n_heads": 4,
+   "n_state": 8,
+   "ffn_mult": 2.6666666666666665,
+   "dropout": 0.0,
+   "max_ctx_tokens": 64,
+   "max_obs_tokens": 0,
+   "grad_checkpoint": false,
+   "sem_model": "Qwen/Qwen3-1.7B",
+   "sem_test_model": "Qwen/Qwen3-0.6B",
+   "sem_chunk_tokens": 512,
+   "sem_encoder_lora": false,
+   "think_s": 600,
+   "max_wait_s": 86400,
+   "sem_tokens_per_obs": 4,
+   "sem_lora_rank": 16,
+   "sem_lora_alpha": 32,
+   "sem_lora_targets": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj"
+   ],
+   "n_prefix": 4,
+   "max_evidence": 4,
+   "max_arg_tokens": 24,
+   "n_fourier": 16,
+   "max_entities": 32,
+   "reason_layers": 1,
+   "reason_iters": [
+    1,
+    2,
+    4,
+    8,
+    16
+   ],
+   "max_reason_iters": 16,
+   "adaptive_reasoning": true,
+   "reason_compute_cost": 0.001,
+   "n_particles": 8,
+   "d_particle": 32,
+   "ess_frac": 0.5,
+   "misspec_z": 3.0,
+   "misspec_window": 16,
+   "misspec_arl": 100000.0,
+   "bayes_feat": 8,
+   "bayes_obs_var_init": 1.0,
+   "bayes_prior_var_init": 1.0,
+   "stoch_groups": 8,
+   "stoch_classes": 8,
+   "kl_free_nats": 1.0,
+   "kl_balance": 0.8,
+   "ema_target": 0.995,
+   "imag_horizons": [
+    2
+   ],
+   "train_horizons": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+   ],
+   "imag_branches": 8,
+   "imag_samples": 4,
+   "mem_top_k": 16,
+   "mem_key_dim": 32,
+   "mem_segment": 8,
+   "mem_segment_tokens": 4,
+   "archive_chunk_rows": 65536,
+   "archive_chunk_bytes": 33554432,
+   "archive_max_bytes": 214748364800,
+   "n_options": 4,
+   "option_max_steps": 32,
+   "kappa": 0.05,
+   "lr": 0.0003,
+   "lr_sem": 0.0001,
+   "weight_decay": 0.01,
+   "grad_clip": 1.0,
+   "ppo_clip": 0.2,
+   "gae_lambda": 0.95,
+   "vtrace_rho": 1.0,
+   "vtrace_c": 1.0,
+   "entropy_coef": 0.003,
+   "value_coef": 0.5,
+   "lp_coef": 0.1,
+   "loss_weights": {
+    "world": 1.0,
+    "adapt": 1.0,
+    "actor": 1.0,
+    "value": 0.5,
+    "action": 1.0,
+    "memory": 0.1,
+    "retention": 0.1,
+    "meta": 1.0,
+    "semantic": 0.5
+   },
+   "continual_updates": true,
+   "use_fast_adaptation": true,
+   "use_imagination": true,
+   "use_learned_exploration": true,
+   "use_memory": true,
+   "use_reasoning": true,
+   "math_explore_assist": false,
+   "declared_conditions": []
+  },
+  "system_config": {
+   "scale": "dev",
+   "overrides": {
+    "n_layers": 2,
+    "d_model": 64,
+    "n_heads": 4,
+    "n_state": 8,
+    "d_particle": 32,
+    "n_particles": 8,
+    "bayes_feat": 8,
+    "stoch_groups": 8,
+    "stoch_classes": 8,
+    "mem_key_dim": 32,
+    "reason_layers": 1,
+    "max_ctx_tokens": 64,
+    "n_prefix": 4,
+    "max_entities": 32,
+    "n_options": 4,
+    "max_arg_tokens": 24,
+    "imag_horizons": [
+     2
+    ],
+    "mem_segment": 8
+   },
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "device": "cuda",
+   "seed": 0,
+   "actor_id": "cam0",
+   "seq_len": 4,
+   "n_seqs": 2,
+   "adapt_seq_len": 6,
+   "adapt_n_seqs": 1,
+   "fresh_max_steps": 16,
+   "trainer_stage": "continual",
+   "grad_probe_every": 1,
+   "amp": true,
+   "lr_warmup": 0,
+   "imag_candidates": 2,
+   "imag_horizon": 2,
+   "imag_samples": 1,
+   "greedy": false,
+   "archive_autoflush": true,
+   "checkpoint_semantic_cache": true
+  },
+  "build_report": {
+   "semantic": "built from QwenSemantic",
+   "tokenizer": "built from superlearner.cam_unified.semantic.tokenizer:ObservationTokenizer",
+   "core": "built from superlearner.cam_unified.core.backbone:UnifiedCore",
+   "entity_encoder": "built from superlearner.cam_unified.core.entities:EntityEncoder",
+   "reasoner": "built from superlearner.cam_unified.core.reasoning:Reasoner",
+   "outcome_head": "built from superlearner.cam_unified.world.outcomes:OutcomeHead",
+   "beliefs": "built from superlearner.cam_unified.core.beliefs:BeliefModule",
+   "bayes": "built from superlearner.cam_unified.core.bayes:BayesLastLayer",
+   "world_model": "built from superlearner.cam_unified.world.dynamics:WorldModel",
+   "retriever": "built from superlearner.cam_unified.memory.retrieval:Retriever",
+   "action_generator": "built from superlearner.cam_unified.semantic.actions:ActionGenerator",
+   "value_head": "built from superlearner.cam_unified.learn.heads:ValueHead",
+   "option_policy": "built from superlearner.cam_unified.learn.heads:OptionModule",
+   "exploration_head": "built from superlearner.cam_unified.learn.heads:BudgetEncoder",
+   "planner": "built-in LatentImaginationPlanner (pass components={'planner': ...} to override)"
+  },
+  "parameters": {
+   "components": {
+    "tokenizer": {
+     "total": 287105,
+     "trainable": 287105
+    },
+    "core": {
+     "total": 119490,
+     "trainable": 119490
+    },
+    "entity_encoder": {
+     "total": 156068,
+     "trainable": 156068
+    },
+    "reasoner": {
+     "total": 1217,
+     "trainable": 1217
+    },
+    "outcome_head": {
+     "total": 69304,
+     "trainable": 69304
+    },
+    "beliefs": {
+     "total": 109824,
+     "trainable": 109824
+    },
+    "bayes": {
+     "total": 4688,
+     "trainable": 4688
+    },
+    "world_model": {
+     "total": 383636,
+     "trainable": 264146
+    },
+    "retriever": {
+     "total": 3267361,
+     "trainable": 1690913
+    },
+    "action_generator": {
+     "total": 622710,
+     "trainable": 622710
+    },
+    "value_head": {
+     "total": 42751,
+     "trainable": 42751
+    },
+    "option_policy": {
+     "total": 39173,
+     "trainable": 39173
+    },
+    "exploration_head": {
+     "total": 12028,
+     "trainable": 12028
+    },
+    "query_encoder": {
+     "total": 896,
+     "trainable": 896
+    }
+   },
+   "cam_total": 5116251,
+   "cam_trainable": 3420313,
+   "semantic_pretrained": {
+    "total": 600637440,
+    "trainable": 4587520,
+    "frozen": 596049920
+   }
+  },
+  "action_generator_parts": {
+   "action_generator": 622710,
+   "bridge": 178113,
+   "typed_heads": 312115,
+   "lora": 4587520,
+   "pretrained_semantic": 596049920
+  },
+  "semantic_model": "Qwen/Qwen3-0.6B",
+  "planner": "LatentImaginationPlanner",
+  "imagination": {
+   "candidates": 2,
+   "horizon": 2,
+   "samples": 1
+  },
+  "trainer": {
+   "stage": "continual",
+   "groups": {
+    "core": 119490,
+    "heads": 3122710,
+    "semantic": 4765633
+   }
+  }
+ },
+ "t_start": 1795595702.201927,
+ "build_s": 9.890666007995605,
+ "torch": "2.15.0+cu132",
+ "cuda": "NVIDIA RTX A6000"
+}

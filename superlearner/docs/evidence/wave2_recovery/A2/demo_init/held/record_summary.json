@@ -1,0 +1,34 @@
+{
+ "tasks": [
+  "ow_tiny:100500",
+  "ow_tiny:100501",
+  "ow_tiny:100502",
+  "ow_tiny:100503"
+ ],
+ "successes": [
+  true,
+  true,
+  true,
+  true
+ ],
+ "returns": [
+  2.0,
+  2.0,
+  2.0,
+  2.0
+ ],
+ "success_day": [
+  3.0,
+  4.0,
+  4.0,
+  4.0
+ ],
+ "decisions": [
+  213,
+  213,
+  213,
+  213
+ ],
+ "demonstrator": "example_inductor",
+ "wall_s": 25.92391800880432
+}

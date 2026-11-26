@@ -89,3 +89,14 @@ and their commits persist on disk. Completed: wave 1 `wf_c9e0d81b-aaa` (merged).
 3. Stage 3 main-model training; Stage 5 OpenWorld lifetimes (OW-1..OW-7, Exp 4) with baselines (Part 19).
 4. Before 2026-11-30 03:00 UTC: push all code; decide an off-box destination for checkpoints/results with the user.
 
+
+### 2026-11-26 — Wave 2 interrupted (usage limit), work recovered
+
+- Wave-2 workflow `wf_2a13836b-ccd` stopped at the weekly usage limit; no build agent returned, so no verify/fix pass
+  ran. All worktree work (S, A2, X, Y, F2) was committed as-is (uncommitted files in RECOVERY commits), pushed as
+  backup branches `ws2/*`, and merged into `feat/cam-7.0-unified` without conflicts. NONE of it is independently
+  verified; manifest statuses are unchanged from wave 1. Full test suite not re-run after the merge.
+- Small run summaries: `superlearner/docs/evidence/wave2_recovery/`. Large run data (~17 GB checkpoints under
+  `runs/cam_unified/`, plus CAM 7.0 / 6.1 runs) is NOT in git; file list + sha256 are in that evidence dir.
+- Resume: re-run wave 2 from the merged state (S: the 200-decision real ow_tiny run is not done; only 6-decision smoke
+  runs exist), then verify/fix, then A01–A22 acceptance.

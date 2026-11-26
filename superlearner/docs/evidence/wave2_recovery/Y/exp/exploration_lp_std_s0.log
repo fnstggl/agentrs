@@ -1,0 +1,25 @@
+Loading weights:   0%|          | 0/311 [00:00<?, ?it/s]Loading weights: 100%|██████████| 311/311 [00:00<00:00, 4928.73it/s]
+/workspace/agentrs/.venv/lib/python3.12/site-packages/transformers/modeling_utils.py:3204: FutureWarning: `gradient_checkpointing_enable` is deprecated and will be removed in v6. Use `activation_checkpointing_enable` instead.
+  warnings.warn(
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (2, 4, 8, 16, 32) exceed the sequence length T=1 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (4, 8, 16, 32) exceed the sequence length T=2 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+/workspace/wt2/Y/superlearner/src/superlearner/cam_unified/model.py:1553: RuntimeWarning: WorldModel.loss: open-loop horizons (4, 8, 16, 32) exceed the sequence length T=3 and are not trained (sequences need T >= 32)
+  return self.world_model.loss(seq, **kw)
+  round 20: mean return/row 0.117 (35s)
+  round 40: mean return/row 0.983 (66s)
+  round 60: mean return/row 1.000 (100s)
+  round 80: mean return/row 1.000 (133s)
+  round 100: mean return/row 1.000 (167s)
+  round 20: mean return/row 1.000 (32s)
+  round 40: mean return/row 1.000 (67s)
+  round 60: mean return/row 1.000 (102s)
+  round 80: mean return/row 1.000 (135s)
+  round 100: mean return/row 1.000 (168s)
+  round 20: mean return/row 1.000 (35s)
+  round 40: mean return/row 0.997 (69s)
+  round 60: mean return/row 1.000 (104s)
+  round 80: mean return/row 1.000 (137s)
+  round 100: mean return/row 1.000 (170s)
+wrote /workspace/agentrs/runs/cam_unified/wave2/Y/exp/exploration_lp_std_s0.json (585s)

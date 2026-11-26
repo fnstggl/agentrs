@@ -1,0 +1,20 @@
+{
+ "learner": "cam7",
+ "seed": 0,
+ "ticks": 20736,
+ "episodes": 144,
+ "wall_s": 133.64439511299133,
+ "usage": {
+  "env_steps": 0,
+  "updates": 72,
+  "train_cpu_s": 0.0,
+  "train_gpu_s": 69.76693734293804,
+  "infer_cpu_s": 0.0,
+  "infer_gpu_s": 48.046747425571084,
+  "infer_tokens": 0,
+  "search_evals": 14900012,
+  "params": 526062,
+  "extra": {}
+ },
+ "domain": "scm"
+}

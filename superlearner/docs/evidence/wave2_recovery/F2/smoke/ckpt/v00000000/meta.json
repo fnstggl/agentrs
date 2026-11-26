@@ -1,0 +1,1 @@
+{"version":0,"sha256":"d1c5dddbe7fb2097691ece46e1153f40b5922c3e4d8df83b80a5ccf30d533bd6","bytes":25988193,"n_tensors":719,"n_params":6441548,"rel_change":null,"abs_change":null,"norm":283.16308916558404,"prev_version":null,"t":1795597348.0483441,"validated":true,"validation":{"reason":"ok","checks":["sha256","weights_only_load","keys","shapes","finite"]},"meta":{"initial":true}}

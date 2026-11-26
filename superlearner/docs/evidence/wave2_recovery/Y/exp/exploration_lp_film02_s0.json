@@ -1,0 +1,310 @@
+{
+ "settings": {
+  "seed": 0,
+  "condition": "lp",
+  "B": 32,
+  "env_horizon": 3,
+  "train_rounds": 240,
+  "checkpoints": [
+   80,
+   160,
+   240
+  ],
+  "update_every": 2,
+  "lr": 0.001,
+  "lp_coef": 0.1,
+  "eval_rows": 64,
+  "eval_seed0": 100000,
+  "probe_cost": 1.0,
+  "win": 10.0,
+  "loss": 10.0,
+  "safe": 1.0,
+  "component_kwargs": {
+   "outcome_head": {
+    "film_init_std": 0.2
+   }
+  },
+  "cfg_overrides": {}
+ },
+ "lp_coef": 0.1,
+ "components": {
+  "semantic": "superlearner.cam_unified.semantic.encoder.QwenSemantic",
+  "tokenizer": "superlearner.cam_unified.semantic.tokenizer.ObservationTokenizer",
+  "core": "superlearner.cam_unified.core.backbone.UnifiedCore",
+  "entity_encoder": "superlearner.cam_unified.core.entities.EntityEncoder",
+  "reasoner": "superlearner.cam_unified.core.reasoning.Reasoner",
+  "beliefs": "superlearner.cam_unified.core.beliefs.BeliefModule",
+  "bayes": "superlearner.cam_unified.core.bayes.BayesLastLayer",
+  "outcome_head": "superlearner.cam_unified.world.outcomes.OutcomeHead",
+  "world_model": "superlearner.cam_unified.world.dynamics.WorldModel",
+  "retriever": null,
+  "action_generator": "superlearner.cam_unified.semantic.actions.ActionGenerator",
+  "value_head": "superlearner.cam_unified.learn.heads.ValueHead",
+  "option_policy": null,
+  "exploration_head": "superlearner.cam_unified.learn.heads.BudgetEncoder",
+  "planner": "superlearner.cam_unified.model.LatentImaginationPlanner"
+ },
+ "train": [
+  {
+   "rounds": 80,
+   "return_per_row_per_round": 0.714453125,
+   "final_losses": {
+    "actor": 6.189407940837554e-07,
+    "adapt": 0.8552997767925262,
+    "value": 2.157343125343323,
+    "world": 11.400016021728515
+   },
+   "compute": {
+    "wall_s": 96.27870396431535,
+    "cpu_s": 186.288423004,
+    "act_s": 15.233049389906228,
+    "env_s": 0.10493958089500666,
+    "observe_s": 11.445601906627417,
+    "update_s": 69.47588899638504,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 2560,
+    "decisions": 2560,
+    "sim_days": 17.777777777777747,
+    "updates": 40,
+    "episodes": 27,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3074899968,
+    "inference_tokens": null,
+    "archive_records": 3424
+   }
+  },
+  {
+   "rounds": 160,
+   "return_per_row_per_round": 1.0,
+   "final_losses": {
+    "actor": 3.962808546020824e-06,
+    "adapt": 0.5342106953263283,
+    "value": 1.8100096940994264,
+    "world": 7.838731050491333
+   },
+   "compute": {
+    "wall_s": 95.90245337225497,
+    "cpu_s": 185.000254094,
+    "act_s": 12.744310489390045,
+    "env_s": 0.11380786215886474,
+    "observe_s": 12.226202016230673,
+    "update_s": 70.7917668921873,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 2560,
+    "decisions": 2560,
+    "sim_days": 17.777777777777747,
+    "updates": 40,
+    "episodes": 27,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3100028928,
+    "inference_tokens": null,
+    "archive_records": 6848
+   }
+  },
+  {
+   "rounds": 240,
+   "return_per_row_per_round": 1.0,
+   "final_losses": {
+    "actor": 3.7544452197835197e-06,
+    "adapt": 0.7420228868722916,
+    "value": 2.2169256448745727,
+    "world": 6.331059741973877
+   },
+   "compute": {
+    "wall_s": 99.7594353388995,
+    "cpu_s": 189.556458093,
+    "act_s": 13.470490438397974,
+    "env_s": 0.1266936333850026,
+    "observe_s": 13.513848778791726,
+    "update_s": 72.62041061231866,
+    "gpu_span_s": 0.0,
+    "gpu_busy_s": null,
+    "gpu_kernels": null,
+    "env_steps": 2560,
+    "decisions": 2560,
+    "sim_days": 17.777777777777747,
+    "updates": 40,
+    "episodes": 27,
+    "peak_gpu_mem_bytes": 0,
+    "max_rss_bytes": 3257753600,
+    "inference_tokens": null,
+    "archive_records": 10272
+   }
+  }
+ ],
+ "evals": {
+  "0": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 0.33374981628730893,
+    "p_first": {
+     "run_test": 0.33374981628730893,
+     "launch": 0.47264714958146214,
+     "play_safe": 0.19360303902067244
+    },
+    "greedy_test_first": 0.0,
+    "return": -6.5625,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 0.3376002782024443,
+    "p_first": {
+     "run_test": 0.3376002782024443,
+     "launch": 0.46630988875404,
+     "play_safe": 0.19608982745558023
+    },
+    "greedy_test_first": 0.0,
+    "return": 0.9375,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "80": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 2.2299870305886316e-07,
+    "p_first": {
+     "run_test": 2.2299870305886316e-07,
+     "launch": 1.7411577846182524e-07,
+     "play_safe": 0.9999996032565832
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 2.151519504778321e-07,
+    "p_first": {
+     "run_test": 2.151519504778321e-07,
+     "launch": 1.675426889446996e-07,
+     "play_safe": 0.9999996144324541
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "160": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 3.119068827661664e-07,
+    "p_first": {
+     "run_test": 3.119068827661664e-07,
+     "launch": 3.709874274449021e-07,
+     "play_safe": 0.9999993201345205
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 3.2958637508073707e-07,
+    "p_first": {
+     "run_test": 3.2958637508073707e-07,
+     "launch": 3.9186896794163317e-07,
+     "play_safe": 0.9999992828816175
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  },
+  "240": {
+   "informative": {
+    "informative": true,
+    "p_test_first": 3.8801762825002584e-07,
+    "p_first": {
+     "run_test": 3.8801762825002584e-07,
+     "launch": 5.615569054207015e-07,
+     "play_safe": 0.999999051913619
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 10.0,
+     "always_launch": 0.0
+    }
+   },
+   "uninformative": {
+    "informative": false,
+    "p_test_first": 3.8963782778012046e-07,
+    "p_first": {
+     "run_test": 3.8963782778012046e-07,
+     "launch": 5.637918927270391e-07,
+     "play_safe": 0.9999990444630384
+    },
+    "greedy_test_first": 0.0,
+    "return": 3.0,
+    "launch_after_pos": null,
+    "launch_after_neg": null,
+    "value_bounds": {
+     "always_safe": 3.0,
+     "probe_then_best": 1.0,
+     "always_launch": 0.0
+    }
+   }
+  }
+ },
+ "lp_by_action": {
+  "launch": {
+   "n": 159,
+   "mean_lp": 0.2984389591516939
+  },
+  "run_test": {
+   "n": 78,
+   "mean_lp": -0.02064577891276433
+  },
+  "play_safe": {
+   "n": 4851,
+   "mean_lp": -0.4324346014085971
+  }
+ },
+ "wall_s": 372.09701585769653,
+ "command": "python -m superlearner.cam_unified.capabilities.run exploration --seed 0 --set condition=lp --set update_every=2 --set checkpoints=[80,160,240] --set train_rounds=240 --set component_kwargs={\"outcome_head\":{\"film_init_std\":0.2}} --device cpu --threads 2 --out /workspace/agentrs/runs/cam_unified/wave2/Y/exp/exploration_lp_film02_s0.json --root /workspace/agentrs/runs/cam_unified/wave2/Y/exp/work_exploration_lp_film02_s0",
+ "wall_s_total": 372.16728806495667
+}

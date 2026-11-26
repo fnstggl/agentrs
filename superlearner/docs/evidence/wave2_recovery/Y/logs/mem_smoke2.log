@@ -1,0 +1,42 @@
+memory_episode {
+"untrained": {
+"accuracy": 0.0,
+"chance": 0.25,
+"retrieval_hit_rate": 1.0,
+"retrieved_any_rate": 1.0,
+"index_segments": 12,
+"top_k": 4
+},
+"trained": {
+"accuracy": 0.0,
+"chance": 0.25,
+"retrieval_hit_rate": 1.0,
+"retrieved_any_rate": 1.0,
+"index_segments": 52,
+"top_k": 4
+},
+"retriever_has_loss": false,
+"retriever_has_memory_tokens": false,
+"wall_s": 135.7963263988495
+}
+memory {
+"untrained": {
+"accuracy": 0.0,
+"chance": 0.25,
+"retrieval_hit_rate": 1.0,
+"retrieved_any_rate": 1.0,
+"index_segments": 12,
+"top_k": 4
+},
+"trained": {
+"accuracy": 0.0,
+"chance": 0.25,
+"retrieval_hit_rate": 0.0,
+"retrieved_any_rate": 1.0,
+"index_segments": 52,
+"top_k": 4
+},
+"retriever_has_loss": false,
+"retriever_has_memory_tokens": false,
+"wall_s": 72.0743248462677
+}
