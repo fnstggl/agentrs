@@ -123,7 +123,7 @@ def event_driven(kind: str = "population", profile: str = "standard", seed: int 
     w.advance_time(w.now + int(warm_hours * 3600))         # into the day: sessions happen
     blob = w.snapshot_blob()
     end = w.now + int(hours * 3600)
-    w.close()
+    base = w                                  # stays open: its lease keeps the snapshot's blobs in the process pool
     w = World.from_blob(blob, world_id="event-driven-arm", fork=True)   # both arms: forks of the same snapshot
     counts = bench5.EventCounter()
     w.listeners.append(counts)
@@ -131,7 +131,6 @@ def event_driven(kind: str = "population", profile: str = "standard", seed: int 
     w.advance_time(end)
     plain = {"wall_s": time.time() - t, "cpu_s": time.process_time() - c, "hash": w.last_hash, "seq": w.seq}
     n = int(columns.rows(w, "pop"))
-    w.close()
     w2 = World.from_blob(blob, world_id="event-driven-arm", fork=True)
     dense = DenseEvaluator(w2)
     w2.listeners.append(dense)
@@ -139,6 +138,8 @@ def event_driven(kind: str = "population", profile: str = "standard", seed: int 
     w2.advance_time(end)
     dense_run = {"wall_s": time.time() - t, "cpu_s": time.process_time() - c, "hash": w2.last_hash, "seq": w2.seq}
     w2.close()
+    w.close()
+    base.close()
     wakes = counts.batches.get("pop.wake", 0)
     ticks = max(1, dense.ticks)
     out = {"world": kind, "profile": profile, "seed": seed, "hours": hours, "individuals": n,
