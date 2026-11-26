@@ -494,6 +494,8 @@ class ExperienceRecord(Record):
     decision: Decision
     result: Optional[ActionResult] = None
     context_item_refs: List[str] = field(default_factory=list)   # ids of the items that formed H_t
+    post_item_refs: List[str] = field(default_factory=list)      # H_{t+1}: context after the result was observed
+    goal_text: str = ""              # objective text at decision time (for goal encoding during replay)
     outcomes: List[OutcomeObservation] = field(default_factory=list)
     pending_queries: List[OutcomeQuery] = field(default_factory=list)
     intrinsic_reward: Optional[float] = None
