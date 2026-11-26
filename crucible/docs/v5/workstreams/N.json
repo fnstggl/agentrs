@@ -13,7 +13,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Calibrated generated structures counted when their measured rapid fingerprint differs from every other generated structure and every registered rapid family (distance > 0).",
-   "status_claim": "PASSED (unofficial, integrated tree with domains, in-shell): 64 fingerprint-distinct calibrated generated structures (>= 50), 8 topologies"
+   "status_claim": "PASSED (unofficial gate run on the branch head, 15 Tier 2 domains, slot job A part 2): 68 fingerprint-distinct calibrated generated structures (>= 50), 8 topologies"
   },
   "T.2": {
    "implementation_files": [
@@ -23,7 +23,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Population configurations of the grammar counted when the measured participant fingerprint and the outcome of the same policy differ from the population-free world. Populations are equation primitives (adaptive opponents, learning customers, endogenous demand) inside one causal graph, not autonomous policies of crucible.population (Tier 1).",
-   "status_claim": "PASSED (unofficial, integrated tree): 5 population configurations with measured participant and outcome differences"
+   "status_claim": "PASSED (unofficial gate run on the branch head): 5 population configurations with measured participant and outcome differences (equation primitives inside one causal graph, not autonomous policies)"
   },
   "T.3": {
    "implementation_files": [
@@ -33,18 +33,19 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Goals of the independent generator (crucible.rapid.goals, five types) drawn from the public face of generated worlds, validated feasible evaluator side (goals_eval.validate); chi-square independence of goal type and structure category.",
-   "status_claim": "PASSED (unofficial, integrated tree): 5 goal types feasible on >= 3 structures; goal type independent of structure category (chi2 18.5, dof 16)"
+   "status_claim": "PASSED (unofficial gate run on the branch head): 5 goal types feasible on >= 3 structures; goal type independent of structure category (chi2 11.0, dof 12)"
   },
   "T.4": {
    "implementation_files": [
     "src/crucible/research/v5/genadmit.py",
-    "src/crucible/research/v5/compose.py"
+    "src/crucible/research/v5/compose.py",
+    "src/crucible/research/v5/genref.py"
    ],
    "tests": [
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Full eleven-check rapid admission on generated structures; mechanism claims derived from the composer's own nodes. Probe: mechanism and identifiability pass, no_dominant_strategy fails on most generated worlds (a hindsight-best constant reaches > 0.8 of the generic adaptive reference).",
-   "status_claim": "FAILS (measured, wave 3a run: 2 of ~210 generated worlds validated; dominance check) - see limitations"
+   "status_claim": "PASSED (unofficial gate run on the branch head): 54 of 650 generated worlds validated by the full eleven-check admission (130 calibrated structures of the fixed 200-structure sample x 5 seeds; 30 structures with a validated world); 49/180 wandering-optimum worlds and 5/470 other worlds validated (static worlds fail no_dominant_strategy by construction). Margin is small (54 vs 50); the wandering reference is the scripted tracker research.v5.genref"
   },
   "T.5": {
    "implementation_files": [
@@ -55,7 +56,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Planted deficiencies (lag-blind, price-blind, early-committer, single-lever adapters); rank of the learner's paired weakest category in the curriculum's targeted weights versus uniform ranks.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial gate run on the branch head): rank p 0.0005 over 12 runs (4 planted weaknesses x 3 seeds, 80 measured items); mean rank of the measured weakest category 2.83 of 10, against 5.8 for other learners' weakest categories in the same weights (the adversarial check: selection follows the learner, not a category bias)"
   },
   "T.6": {
    "implementation_files": [
@@ -65,7 +66,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Random-diversity share 0.3 (>= 0.2 enforced), entropy floor.",
-   "status_claim": "PASSED (unofficial, integrated tree): realised random share 0.29 (configured 0.3), category entropy 0.75"
+   "status_claim": "PASSED (unofficial gate run on the branch head): realised random share 0.26 (configured 0.3), category entropy 0.81"
   },
   "T.7": {
    "implementation_files": [
@@ -79,7 +80,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Nine leak vectors probed: sampler stream, forged spec, curriculum view, proposals naming partitions, training-log audit, participant channel, confirmation item without preregistration, hand-made sealed seed, salt in the learner environment.",
-   "status_claim": "PASSED (unofficial, integrated tree): 0 leaks over 10 vectors"
+   "status_claim": "PASSED (unofficial gate run on the branch head): 0 leaks over 10 vectors"
   },
   "T.8": {
    "implementation_files": [
@@ -90,7 +91,7 @@
     "tests/v5/test_gate_T.py"
    ],
    "notes": "Targeted versus untargeted training of a learnable-strategy learner (TargetableMeta) with the same episode budget, improvement on held-out probes of the curriculum's target; sign-flip test; needs >= 3 distinct targets.",
-   "status_claim": "FAILS (measured, wave 3a: p 0.46; wave 3b development: no robust advantage) - redesigned arm, gate run pending"
+   "status_claim": "FAILS (unofficial gate run on the branch head, design fixed before the run): targeted vs untargeted improvement p 0.296 (20 pairs, mean +0.018, 9 better / 9 worse, 6 distinct targets). Diagnosis after the run (development, not a new test): the TargetableMeta learner's own credit (episode gain over its first tick) is nearly flat across its strategies in most generated categories (e.g. experimentation 0.38-0.43, while the evaluator's normalised score of the same strategies ranges -0.10 to 0.55), so targeted training cannot pick the strategy that is better on the evaluator's measure; it needs a learner whose own credit resolves strategies (a learner problem, not evidence that the worlds miss their weaknesses: T.5 shows the curriculum finds them)"
   },
   "U.1": {
    "implementation_files": [
@@ -104,7 +105,7 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Levels 1-4 on Tier 1 rapid families (weights learner); Level 5: ReferenceLearner trained on four Tier 1 rapid families, frozen, and an untrained copy (same seed) on held-out Tier 3 profiles (fragmented_social, infrastructure_constrained) and single-seat 4.0 mechanism tasks (rig.* interface, abm engine): crossed seed x world interval of the standardised change of each world's verified outcome (kernel worlds: evaluator measures of the participant; D-70).",
-   "status_claim": "IMPLEMENTED; Levels 1-4 executed in wave 3a; Level 5 development run executed end to end on Tier 3 + 4.0 tasks except one multi-seat task (fixed: single-seat tasks); gate run pending"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): executable_levels 5; Level 5 executed (7 scored worlds over 3 test tiers). Measured Level 5 transfer is near zero (DEF-N-7: the neutral learner is at the score floor)"
   },
   "U.2": {
    "implementation_files": [
@@ -114,7 +115,7 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Level6Adapter over the realworld bridge; docs/v5/LEVEL6_METHODOLOGY.md. Interop measured in a fresh process against a local test service listed in an authorisation document; no real-world action.",
-   "status_claim": "PASSED (unofficial run): disabled by default, refused without/with invalid authorisation, interop measured in a fresh process"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): Level 6 disabled by default, refused without/with invalid authorisation"
   },
   "U.3": {
    "implementation_files": [
@@ -126,7 +127,7 @@
     "tests/test_v5_research_adversarial.py"
    ],
    "notes": "15 checks computed in a fresh python -I child that runs under the sandbox Landlock jail (own uid, no sockets, read-only stdlib/numpy/source, read-write only its private directory): adds authorised_configuration (declared configuration keys, learners.CONFIG) and filesystem_confined (a canary outside cannot be opened). Adversarial checkpoints (memory in params, pickle, architecture edit) refused; process stash detected.",
-   "status_claim": "IMPLEMENTED; 15 checks in a jailed fresh child (unit tests pass); gate run pending"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 15/15 fresh-process weights-only checks in the jailed child; 3 adversarial checkpoints refused; process stash detected (in-process gain 0.43, fresh 0.0). Since then: parameter shapes are checked (widened layers refused, DEF-O-12), regression test passes in-shell"
   },
   "U.4": {
    "implementation_files": [
@@ -140,7 +141,7 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Controls on families established on independent seeds, now also in the battery's mixed regime with face-distinct families (D-69); 10 unfamiliar worlds per family, 24 repeat probes, 4 transfer tasks per family; weights control trains from a replay buffer; transfer control credited from its 2nd episode; meta control's prior does not adapt.",
-   "status_claim": "IMPLEMENTED; development battery (seed 0, wave 3b design) shows every control's known capability at its prespecified effect with world intervals excluding 0 (adapter context 0.45, memoriser 0.58, weights 0.61, stateful persistent 0.61, pretrained 0.41, meta 0.51, transfer 0.31; sham transfer -0.15); five-seed confirmation run pending in the slot queue"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 5 learner seeds; all 5 positive-control kinds classified correctly (adapter context_adaptation, memoriser memorisation, weights weight_learning, stateful persistent_state, pretrained pretrained_competence; meta weight_learning+meta_learning, transfer memorisation+transferable_efficiency); known-negative transfer_sham unlabelled"
   },
   "U.5": {
    "implementation_files": [
@@ -151,7 +152,7 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Arms A and B under matched experience (ticks) and matched compute (CPU seconds, enforced stop).",
-   "status_claim": "PASSED (unofficial run): matched experience and matched compute (arms A, B)"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): matched experience and matched compute budgets, arms A/B (B-A -0.04 / +0.04, intervals include 0)"
   },
   "U.6": {
    "implementation_files": [
@@ -161,18 +162,19 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Budgets 0,1,2,4,8,16,32,64,128,256 informative interactions.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 10 curve points (0..256 informative interactions) on 2 unfamiliar tasks"
   },
   "U.7": {
    "implementation_files": [
     "src/crucible/research/v5/evaluator.py",
-    "src/crucible/research/v5/episodes.py"
+    "src/crucible/research/v5/episodes.py",
+    "src/crucible/research/v5/hosted.py"
    ],
    "tests": [
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Outcomes computed in a separate isolated evaluator process from the world's verifier; JSON channels; participant channel refuses evaluator operations and pickle bytes.",
-   "status_claim": "PASSED (unofficial run): separate isolated evaluator process, 9/9 participant probes refused"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): separate isolated evaluator process. Since then: untrusted learners are hosted (research.v5.hosted, DEF-O-10) and the evaluator enforces interaction budgets (DEF-O-11)"
   },
   "U.8": {
    "implementation_files": [
@@ -182,7 +184,7 @@
     "tests/v5/test_gate_U.py"
    ],
    "notes": "Null calibration on a 12-seed real-run pool and in simulation (seed sd 0.15): crossed interval FPR near nominal; the 4.0 analysis is shown miscalibrated.",
-   "status_claim": "PASSED (unofficial run): crossed interval null FPR 0.015 (real pool) / 0.043 (simulated); 4.0 analysis 0.38 / 0.64"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): crossed interval null FPR 0.0025 on a real 12-seed pool (4.0 analysis 0.31), 0.043 simulated (naive 0.635)"
   },
   "I.n2": {
    "implementation_files": [
@@ -192,7 +194,7 @@
     "tests/v5/test_gate_I.py"
    ],
    "notes": "Clause-level scanner over the whole corpus with planted claims and disclaimers.",
-   "status_claim": "PASSED (unofficial, integrated tree): 0 unsupported realism claims, planted controls correct"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 0 unsupported realism claims over 658 files, planted controls correct"
   },
   "K.n2": {
    "implementation_files": [
@@ -202,7 +204,7 @@
     "tests/v5/test_gate_K.py"
    ],
    "notes": "commerce.reference.LABELS attached to every reference result and to the K.n1 evidence record; corpus scan for reference-as-learning claims. The test runs the reference briefly; it fails while the startup world cannot be built (Forbidden: module work may not write column pop.wake_act).",
-   "status_claim": "PASSED (unofficial, integrated tree): reference results and the K.n1 record labelled scripted; 0 reference-as-learning claims over 658 files (the startup world builds again; test_Kn2 NameError fixed)"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): reference results and the K.n1 record labelled scripted; 0 reference-as-learning claims over 658 files (the startup world builds)"
   },
   "S.n1": {
    "implementation_files": [
@@ -212,7 +214,7 @@
     "tests/v5/test_gate_S.py"
    ],
    "notes": "Corpus scan plus Gate S evidence labels.",
-   "status_claim": "PASSED (unofficial, integrated tree): 0 integration-as-learning claims"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 0 integration-as-learning claims"
   },
   "SP-14.1": {
    "implementation_files": [
@@ -223,7 +225,7 @@
     "tests/v5/test_gate_SP_14_1.py"
    ],
    "notes": "Eight reuse vectors all blocked; registry_kinds counts kinds with entries: 8 of 9 while Tier 2 domain configurations are absent (crucible.domains.base.REGISTRY empty).",
-   "status_claim": "PASSED (unofficial, integrated tree with 9 Tier 2 domains): registry_kinds 9/9 (45 domain configurations), 8/8 reuse vectors blocked, 0 non-training items in 20,000 draws"
+   "status_claim": "PASSED (unofficial in-shell run on the branch head (15 Tier 2 domains)): registry_kinds 9/9, 75 domain configurations of 15 Tier 2 domains, 8/8 reuse vectors blocked, 0 non-training items in 20,000 draws"
   },
   "SP-14.1b": {
    "implementation_files": [
@@ -234,7 +236,7 @@
     "tests/v5/test_gate_SP_14_1b.py"
    ],
    "notes": "JSON specs rebuilt by an isolated external process and through the Gymnasium wrapper.",
-   "status_claim": "PASSED (unofficial run): 6/6 specs rebuilt identically by an isolated external process, 2/2 Gymnasium round trips"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 6/6 specs rebuilt by an external process, Gymnasium round trips"
   },
   "SP-14.2": {
    "implementation_files": [
@@ -244,7 +246,7 @@
     "tests/v5/test_gate_SP_14_2.py"
    ],
    "notes": "Deficit scheduling over measured CPU seconds; the default mixture refuses to start without Tier 2.",
-   "status_claim": "IMPLEMENTED; Tier 2 now present (9 domains): compute-budgeted default mixture (900 CPU-s) pending in the GPU slot queue"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): compute shares 0.499 / 0.299 / 0.202 against 50/30/20 (max error 0.002), 3 tiers instantiated"
   },
   "SP-14.4": {
    "implementation_files": [
@@ -255,7 +257,7 @@
     "tests/v5/test_gate_SP_14_4.py"
    ],
    "notes": "Proposals validated in the evaluator process; eight tamper attempts from a separate learner process.",
-   "status_claim": "PASSED (unofficial run): 6 checks, 8/8 tamper attempts blocked, evaluator and sealed set intact"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 6 proposal checks, 8/8 tamper attempts blocked"
   },
   "SP-15.3": {
    "implementation_files": [
@@ -266,7 +268,7 @@
     "tests/v5/test_gate_SP_15_3.py"
    ],
    "notes": "Per-run N_q, Kaplan-Meier median and RMST, acceleration finite only when both medians are.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial gate run on c526d27, slot job A part 2): censoring handled (24 runs, 1 censored untrained, finite acceleration withheld, KM medians consistent, unreachable threshold gives no finite speed-up); 7 budgets in 1-64 (10 in all); RMST ratio 29.2"
   },
   "SP-15.5": {
    "implementation_files": [
@@ -276,7 +278,7 @@
     "tests/v5/test_gate_SP_15_5.py"
    ],
    "notes": "Arms C and D are not executed while Tier 2 is absent; seven control kinds run.",
-   "status_claim": "IMPLEMENTED; arms A-D with the architecture-neutral learner (Tier 2 present); gate run pending"
+   "status_claim": "CRITERIA MET, EXPERIMENT UNINFORMATIVE (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 4 arms executed under matched experience and compute budgets with the neutral ReferenceLearner, 7 control kinds; but every arm scored identically (the learner sits at the score floor on the Tier 1 evaluation worlds whatever it was trained on; DEF-N-7). The comparison now records floor_share, arms_identical and informative (rerun queued)"
   },
   "SP-15.6": {
    "implementation_files": [
@@ -287,7 +289,7 @@
     "tests/v5/test_gate_SP_15_6.py"
    ],
    "notes": "Transfer control (learns how to search) on held-out v5 families, known-negative sham control.",
-   "status_claim": "IMPLEMENTED; development battery: transfer control AUC gain 0.31 (world interval low 0.18) on held-out v5 families, sham -0.15; five-seed confirmation pending"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): transferable_efficiency labelled on the transfer control (effect 0.28, crossed interval low 0.16, 5 seeds, 4 held-out v5 families) and not on the sham; NOTE the sham's own effect is 0.20 (unlabelled only because its interval reaches 0 at the family-wise level): most of the measured effect is 'any trained strategy beats the minimal-step untrained prior'; the learned strategy adds about 0.08 over the sham"
   },
   "SP-11.6b": {
    "implementation_files": [
@@ -297,7 +299,7 @@
     "tests/v5/test_gate_SP_11_6b.py"
    ],
    "notes": "Failure causes: algorithmic limitation, environment, interface, infrastructure, partition refusal.",
-   "status_claim": "PASSED (unofficial run): 6 failure reports, 0 unclassified"
+   "status_claim": "PASSED (unofficial in-shell run on the branch head (15 Tier 2 domains)): 6 failure reports, 0 unclassified, 6/6 expected causes (the unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26 run timed out: the test ran a full Level 5 on a CPU slot; replaced by an unbuildable Tier 3 world)"
   },
   "SP-14.0": {
    "implementation_files": [
@@ -308,7 +310,7 @@
     "tests/v5/test_gate_SP_14_0.py"
    ],
    "notes": "Six dimensions measured on built worlds; a seeds-only stream varies only parameters.",
-   "status_claim": "PASSED (unofficial run): 6 dimensions measured on 200 built worlds; seeds-only stream varies only parameters"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 6 diversity dimensions measured on 200 built worlds"
   },
   "SP-14.2b": {
    "implementation_files": [
@@ -318,7 +320,7 @@
     "tests/v5/test_gate_SP_14_2b.py"
    ],
    "notes": "Compute and experience accounted separately; 1 of 3 tiers instantiable in this checkout.",
-   "status_claim": "IMPLEMENTED; all three tiers build (Tier 2 domains merged); gate run pending"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): compute and experience reported separately; tiers available at start 3"
   },
   "SP-14.3": {
    "implementation_files": [
@@ -330,7 +332,7 @@
     "tests/v5/test_gate_SP_14_3.py"
    ],
    "notes": "Ten categories, four measures; sealed access counted by the evaluator, the curriculum and an audit hook.",
-   "status_claim": "PASSED (unofficial, integrated tree): 10 categories, 4 measures, 0 sealed accesses, offered evaluation/sealed results refused"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 10 categories, 4 measures, random share 0.28, entropy 0.90, 0 sealed accesses, offered evaluation/sealed results refused. Since then: noise-aware learning-progress and forgetting measures (D-69 addendum)"
   },
   "SP-15.0": {
    "implementation_files": [
@@ -341,7 +343,7 @@
     "tests/v5/test_gate_SP_15_0.py"
    ],
    "notes": "Seven controls, seven explanations.",
-   "status_claim": "IMPLEMENTED; development battery as U.4; five-seed confirmation pending"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 7/7 explanations distinguished over 9 controls x 5 learner seeds"
   },
   "SP-15.1": {
    "implementation_files": [
@@ -352,7 +354,7 @@
     "tests/v5/test_gate_SP_15_1.py"
    ],
    "notes": "Corpus scan; no Level 6 experiment exists.",
-   "status_claim": "PASSED (unofficial, integrated tree): 0 unsupported real-world claims"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 0 unsupported real-world claims"
   },
   "SP-15.2": {
    "implementation_files": [
@@ -364,7 +366,7 @@
     "tests/v5/test_gate_SP_15_2.py"
    ],
    "notes": "Injection of seven proxies into verifier records plus a live proxy flood in the evaluator.",
-   "status_claim": "PASSED (unofficial run): 7 proxy kinds, 0 outcomes moved, live proxy flood left the verified outcome unchanged"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 7 proxy kinds, 0 outcomes moved by proxies"
   },
   "SP-15.3b": {
    "implementation_files": [
@@ -375,7 +377,7 @@
     "tests/v5/test_gate_SP_15_3b.py"
    ],
    "notes": "Nine quantities per run.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial gate run on c526d27): 9 efficiency quantities recorded over 12 runs (mean transfer 0.27, sample efficiency 0.74)"
   },
   "SP-15.4": {
    "implementation_files": [
@@ -387,7 +389,7 @@
     "tests/v5/test_gate_SP_15_4.py"
    ],
    "notes": "Memories, retrieval tables, replay, optimizer, architecture and within-episode runs.",
-   "status_claim": "PASSED (unofficial run): 6/6 internalisation controls measured"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 6/6 internalisation controls measured"
   },
   "SP-15.7": {
    "implementation_files": [
@@ -398,38 +400,41 @@
     "tests/v5/test_gate_SP_15_7.py"
    ],
    "notes": "Development on validation items, preregistration, one sealed access (budget 1), second refused.",
-   "status_claim": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session"
+   "status_claim": "PASSED (unofficial gate run on the integrated tree at c526d27 (9 Tier 2 domains, Tier 3), slot job A/B, 2026-11-26): 1 confirmation run with prespecified metrics, development and confirmation items separated, 0 sealed access-budget violations, second access refused"
   },
   "SP-15.8 (hooks for workstream O)": {
    "implementation_files": [
     "src/crucible/research/v5/adversarial.py",
+    "src/crucible/research/v5/evaluator.py",
     "src/crucible/research/v5/fresh.py",
+    "src/crucible/research/v5/hosted.py",
     "src/crucible/research/v5/learners.py"
    ],
    "tests": [
     "tests/test_v5_research_adversarial.py"
    ],
-   "status_claim": "",
-   "notes": "research.v5.adversarial.run_controls(workdir) runs seven adversarial controls against the real instrument and returns {controls: {name: {passed, ...}}, passed, defined}: process_stash, file_stash (attack works unjailed, defeated jailed), config_smuggle, memory_in_params, pickle_checkpoint, arch_edit, calibration_shortcut (median share of the oracle's improvement of fixed public rules on calibrated generated worlds < 0.5). The gate test tests/v5/test_gate_SP_15_8.py belongs to O."
+   "status_claim": "HOOKS IMPLEMENTED; the security workstream's own SP-15.8 run (c5c/w3b-sec, 19:15) failed 3 of 9 controls on this instrument (DEF-O-10 evaluator internals reachable from the in-process driver, DEF-O-11 interaction budget enforced learner-side only, DEF-O-12 widened layers accepted); all three are fixed on this branch with regression tests (tests/test_v5_research_adversarial.py: widened, budget, hosted)",
+   "notes": "research.v5.adversarial.run_controls(workdir) runs 9 controls against the real instrument: process_stash, file_stash, config_smuggle, memory_in_params, pickle_checkpoint, arch_edit, widened_layers, evaluator_reach (adversarial.EvaluatorProber: in the harness process it finds the Evaluator/Channel objects, 114 process environments and the sealed files; hosted by research.v5.hosted.HostedLearner it finds nothing and the episode is verified), calibration_shortcut. Evaluator.open_episode(..., budget=k) enforces budgets evaluator-side."
   }
  },
  "limitations": [
-  "Tier 2 on this branch: c5c/w3b-domfw, dom1 and dom2 merged (9 domains register: community, content, education, industry, infrastructure, labor, research, software, startup; 27 training and 18 evaluation configurations). dom3's four domains (commercialization, crisis, information, marketplace) do not satisfy the domains-framework/2 contract at its current head and make crucible.domains.load_all raise for every domain, so dom3 was not merged; the registry reports such a failure (Registry.unavailable) instead of failing the instrument. Results with Tier 2 depend on those domains' state.",
-  "T.4: generated worlds are validated by the full Part 7.4 admission, and no_dominant_strategy rejects almost all of them: a hindsight-tuned constant or two-setting reactive threshold rule reaches 0.66-1.07 of the oracle's gain (median about 0.95, 16-structure probe), while the generic adaptive reference reaches far less; the new drifting_optimum driver does not change that (reactive rules track the drift: simple/oracle 0.82-0.96). Passing needs mechanism-specific public references for generated families and dynamics in which the right action is not a function of one current reading - not built in this wave.",
-  "T.8: targeted versus untargeted training of TargetableMeta (a global bandit over search strategies) on worlds generated for the curriculum's target; per-category best strategies differ by 0.1-0.35 normalised score, but with 96 episodes the realised advantage of targeted training is small and noisy (development checks: +0.19, -0.07, +0.02, -0.02).",
-  "Positive controls are lever-interface learners on rapid primitive-graph families (the normalised score needs the evaluator-side lever oracle); five training families qualify after face-distinct, mixed-regime establishment (the pool of distinct-faced established families is small).",
-  "The fresh weights-only child is jailed (Landlock, own uid) when the sandbox jail is available (root, Landlock, seccomp); elsewhere the check filesystem_confined fails and weights-only results are refused (fail closed). The evaluator process itself (research.v5.evaluator) is still process-isolated only (same uid as the learner driver).",
-  "Level 5 runs the neural ReferenceLearner for 48 decisions per test world; in held-out civilisations its evaluator-measured outcome barely changes in that window (most of its tool calls are rejected), so Level 5 is executable but its measured transfer is near zero.",
+  "Tier 2: c5c/w3b-domfw, dom1, dom2 and dom3 are merged at their heads of 2026-11-26 ~19:30 (15 domains, 75 configurations register). The slot runs of U.1, SP-14.2, SP-14.2b, SP-15.5 used the predecessor's checkout with 9 domains; SP-14.1 was run in-shell with 15. A rerun on the head (slot job C) was queued behind ~46 jobs.",
+  "T.4: static generated worlds cannot pass admission's no_dominant_strategy check by construction (the hindsight-best constant is optimal when the best setting does not move). Validated worlds come from the driver wandering_optimum (single lever) with the scripted perturbation-tracker reference research.v5.genref; multi-lever wandering worlds mostly fail (the hindsight constant takes the static gain of cost-calibrated levers). The reference is scripted, labelled as such.",
+  "SP-15.5 / U.1 Level 5: the architecture-neutral ReferenceLearner (crucible.experience) is at the score floor on Tier 1 evaluation worlds whatever it was trained on, so the A/B/C/D comparison and Level 5 transfer are executable but uninformative (DEF-N-7, owner L/N).",
+  "SP-15.6: the known-negative sham shows a transfer-effect estimate of 0.20 against the transfer control's 0.28; their labels differ by precision, not by a large effect difference.",
+  "Statistics: the control label rule (Bonferroni over 7 explanations) has a null label rate <= 1% at learner-seed sd 0.05-0.15; with 5 learner seeds an effect of 0.3 at seed sd >= 0.1 is labelled in only about three quarters of batteries (tests/test_v5_research_adversarial.py::test_control_labels_...).",
+  "T.8 / T.5: the curriculum's target is read from 80 noisy measured items; per-category best strategies of the TargetableMeta arm set differ from the uniform-best strategy by 0.12-0.53 in six of eight categories and by ~0 on long horizons (development table), so targets on long horizons cannot show an advantage.",
+  "Hosted learners (research.v5.hosted) need the sandbox jail (root, Landlock, seccomp); elsewhere they fail closed. The instrument's own batteries still drive its scripted controls in process (trusted code).",
   "Caches (establishment, controls, curves) live under $CRUCIBLE_CACHE/research_v5 keyed by a digest of research/v5, rapid, mechanisms, domains and civ sources; any edit there recomputes them.",
   "The 4.0 research harness (research/protocols.py etc.) is unchanged and legacy-bound; v5 protocols live in research/v5."
  ],
  "integration_notes": [
-  "Orchestrator: this branch merged c5c/w3b-domfw (bcef0ab), c5c/w3b-dom1 (85fd0c1) and c5c/w3b-dom2 (53115db); DECISION_LOG conflicts resolved by keeping every entry in number order. c5c/w3b-dom3 (81a6cfc) was NOT merged: its domains fail domains.base.register under domfw (mechanics must be Mechanic probes; no degenerate-strategy probe; no Actor/seat), which makes load_all raise and removes Tier 2 entirely.",
-  "O (security, SP-15.8): call crucible.research.v5.adversarial.run_controls(workdir) in tests/v5/test_gate_SP_15_8.py and record evaluator_adversarial_controls_passed = result['passed'] (7 controls defined: process_stash, file_stash, config_smuggle, memory_in_params, pickle_checkpoint, arch_edit, calibration_shortcut; each entry has 'passed' and its measurements; ~3 CPU-min single thread). Implementation files: src/crucible/research/v5/adversarial.py, fresh.py, learners.py.",
-  "O/sandbox: research.v5.fresh runs the weights-only child through crucible.sandbox.jail (isolation.RO_SYSTEM, _write_cfg, _loaders, uid_for('weights-only-eval')); a change of those private helpers of isolation.py breaks it - please keep them or offer a public equivalent.",
-  "I (domains): research.v5.distribution consumes crucible.experience.registry.domains() (Domain.configs: name, split, structure; Domain.spec_part). Once a domain registers on the integration branch, SP-14.1 registry_kinds reaches 9, SP-14.2/14.2b get Tier 2 training worlds and SP-15.5 arms C/D run with the architecture-neutral learner (comparison.NEUTRAL). No N change is needed then; re-run those gates.",
-  "QA: implementation_files of N requirements gained src/crucible/research/v5/adversarial.py (SP-15.8 hooks, U.3 via fresh checks), genadmit.py (T.1), episodes.py/distribution.py (U.1 Level 5).",
-  "Heavy N gates: run tests/v5/test_gate_T.py, test_gate_U.py and SP-15.0/15.3/15.3b/15.6 through crucible.scale.slots with CRUCIBLE_RESEARCH_JOBS=3 (controls battery: 9 controls x 5 seeds); U.1 (Level 5 civilisations), SP-14.2, SP-14.2b, SP-15.5 need a GPU slot (civ text path).",
+  "Orchestrator: this branch merged feat/crucible-5-complete (1e11451) and c5c/w3b-domfw, dom1 (81c4802), dom2 (4e7c077), dom3 (31eb000) read-only; DECISION_LOG and FIDELITY_REGISTER conflicts resolved by keeping both sides' entries. All 15 domains register with domains.load_all on this branch.",
+  "O (security, SP-15.8): DEF-O-10, DEF-O-11 and DEF-O-12 (owner N, filed on c5c/w3b-sec) are fixed here: DEF-O-12 by the shape check in research/v5/fresh.py (_child: authorised_parameters), DEF-O-11 by evaluator-side budgets (Evaluator.open_episode(..., budget=k); refused_beyond_budget / budget_exceeded in results), DEF-O-10 by research/v5/hosted.py (HostedLearner(entry, kw) + run_hosted_episode(ev, ticket, host); the harness relays only participant operations of the ticket). Please set those entries fixed_by this branch and point control_evaluator_internals at the hosted driver (or at sandbox.learnerhost, which is equivalent); run_remote_episode stays for the instrument's own scripted controls. research.v5.adversarial.run_controls now has 9 controls (widened_layers, evaluator_reach added).",
+  "O/sandbox: research.v5.fresh and research.v5.hosted run their children through crucible.sandbox.jail (isolation.RO_SYSTEM, _write_cfg, _loaders, uid_for('weights-only-eval')); please keep those helpers or offer a public equivalent.",
+  "L (experience): DEF-N-7 - the ReferenceLearner scores -1.0 (floor) on held-out Tier 1 lever worlds untrained and after 600 training decisions alike (about half its tool calls rejected); arms C/D of SP-15.5 and Level 5 need a neutral learner that is competent in Tier 1.",
+  "QA: implementation_files gained src/crucible/research/v5/genref.py (T.4), hosted.py (U.7, SP-15.8). FIDELITY_REGISTER gained gen.wandering_optimum.",
+  "Heavy N gates: tests/v5/test_gate_T.py with CRUCIBLE_RESEARCH_JOBS=3 (T.4 admits 200 structures x 5 seeds, T.8 runs 20 pairs) ~1.5 h on 3 CPUs; test_gate_U.py, SP-15.0/15.3/15.3b/15.6 through the slots with JOBS=3; U.1, SP-14.2, SP-14.2b, SP-15.5 with a GPU slot (civ text path; the last run's measured GPU peak was 0 MB, RSS 3.1 GB).",
   "Carried from wave 3a: rapid net_hidden_bottleneck_swap has fingerprint distance 0 to net_topology_shift (refused for training); rapid engines/state_machine.py:104 KeyError on partial lever actions."
  ],
  "history": [
@@ -494,6 +499,48 @@
     "Heavy gate files (T, U, SP-15.0/15.3/15.3b/15.6) should run through crucible.scale.slots with CRUCIBLE_RESEARCH_JOBS=N; their batteries are cached so the SP-15.x files reuse the U run.",
     "Docs: docs/v5/LEVEL6_METHODOLOGY.md added."
    ]
+  },
+  {
+   "wave": "3b (first agent, stopped by a usage limit 2026-11-26 ~19:05)",
+   "status_claims": {
+    "T.1": "PASSED (unofficial, integrated tree with domains, in-shell): 64 fingerprint-distinct calibrated generated structures (>= 50), 8 topologies",
+    "T.2": "PASSED (unofficial, integrated tree): 5 population configurations with measured participant and outcome differences",
+    "T.3": "PASSED (unofficial, integrated tree): 5 goal types feasible on >= 3 structures; goal type independent of structure category (chi2 18.5, dof 16)",
+    "T.4": "FAILS (measured, wave 3a run: 2 of ~210 generated worlds validated; dominance check) - see limitations",
+    "T.5": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session",
+    "T.6": "PASSED (unofficial, integrated tree): realised random share 0.29 (configured 0.3), category entropy 0.75",
+    "T.7": "PASSED (unofficial, integrated tree): 0 leaks over 10 vectors",
+    "T.8": "FAILS (measured, wave 3a: p 0.46; wave 3b development: no robust advantage) - redesigned arm, gate run pending",
+    "U.1": "IMPLEMENTED; Levels 1-4 executed in wave 3a; Level 5 development run executed end to end on Tier 3 + 4.0 tasks except one multi-seat task (fixed: single-seat tasks); gate run pending",
+    "U.2": "PASSED (unofficial run): disabled by default, refused without/with invalid authorisation, interop measured in a fresh process",
+    "U.3": "IMPLEMENTED; 15 checks in a jailed fresh child (unit tests pass); gate run pending",
+    "U.4": "IMPLEMENTED; development battery (seed 0, wave 3b design) shows every control's known capability at its prespecified effect with world intervals excluding 0 (adapter context 0.45, memoriser 0.58, weights 0.61, stateful persistent 0.61, pretrained 0.41, meta 0.51, transfer 0.31; sham transfer -0.15); five-seed confirmation run pending in the slot queue",
+    "U.5": "PASSED (unofficial run): matched experience and matched compute (arms A, B)",
+    "U.6": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session",
+    "U.7": "PASSED (unofficial run): separate isolated evaluator process, 9/9 participant probes refused",
+    "U.8": "PASSED (unofficial run): crossed interval null FPR 0.015 (real pool) / 0.043 (simulated); 4.0 analysis 0.38 / 0.64",
+    "I.n2": "PASSED (unofficial, integrated tree): 0 unsupported realism claims, planted controls correct",
+    "K.n2": "PASSED (unofficial, integrated tree): reference results and the K.n1 record labelled scripted; 0 reference-as-learning claims over 658 files (the startup world builds again; test_Kn2 NameError fixed)",
+    "S.n1": "PASSED (unofficial, integrated tree): 0 integration-as-learning claims",
+    "SP-14.1": "PASSED (unofficial, integrated tree with 9 Tier 2 domains): registry_kinds 9/9 (45 domain configurations), 8/8 reuse vectors blocked, 0 non-training items in 20,000 draws",
+    "SP-14.1b": "PASSED (unofficial run): 6/6 specs rebuilt identically by an isolated external process, 2/2 Gymnasium round trips",
+    "SP-14.2": "IMPLEMENTED; Tier 2 now present (9 domains): compute-budgeted default mixture (900 CPU-s) pending in the GPU slot queue",
+    "SP-14.4": "PASSED (unofficial run): 6 checks, 8/8 tamper attempts blocked, evaluator and sealed set intact",
+    "SP-15.3": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session",
+    "SP-15.5": "IMPLEMENTED; arms A-D with the architecture-neutral learner (Tier 2 present); gate run pending",
+    "SP-15.6": "IMPLEMENTED; development battery: transfer control AUC gain 0.31 (world interval low 0.18) on held-out v5 families, sham -0.15; five-seed confirmation pending",
+    "SP-11.6b": "PASSED (unofficial run): 6 failure reports, 0 unclassified",
+    "SP-14.0": "PASSED (unofficial run): 6 dimensions measured on 200 built worlds; seeds-only stream varies only parameters",
+    "SP-14.2b": "IMPLEMENTED; all three tiers build (Tier 2 domains merged); gate run pending",
+    "SP-14.3": "PASSED (unofficial, integrated tree): 10 categories, 4 measures, 0 sealed accesses, offered evaluation/sealed results refused",
+    "SP-15.0": "IMPLEMENTED; development battery as U.4; five-seed confirmation pending",
+    "SP-15.1": "PASSED (unofficial, integrated tree): 0 unsupported real-world claims",
+    "SP-15.2": "PASSED (unofficial run): 7 proxy kinds, 0 outcomes moved, live proxy flood left the verified outcome unchanged",
+    "SP-15.3b": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session",
+    "SP-15.4": "PASSED (unofficial run): 6/6 internalisation controls measured",
+    "SP-15.7": "IMPLEMENTED_UNVERIFIED: gate test written, not run to completion in this session",
+    "SP-15.8 (hooks for workstream O)": ""
+   }
   }
  ]
 }
