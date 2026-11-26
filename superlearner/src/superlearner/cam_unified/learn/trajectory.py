@@ -40,8 +40,15 @@ class Trajectory:
     event_ids: Optional[list] = None     # [B][T] event ids of the decisions (provenance / support-query separation)
     family: Optional[list] = None        # [B] task family (per-family return normalisation; never a model input)
     extras: dict = field(default_factory=dict)   # policy-specific per-step records, tensors with leading [B, T]
+    # W7 (plan 2026-11-26 §2), additive: the observation-only actor reward r_psi of decision t (RewardModelP.reward,
+    # detached) kept apart from `reward`; `reward_source` names what `reward` holds ("verified_increment" = the
+    # pre-seam evaluator increment, "r_psi", "sparse_verified", "legacy_shaped"), `reward_version` the psi version
+    # that produced it (EventRecord.extra["versions"]["reward_model"])
+    reward_int: Optional[Tensor] = None  # [B,T]
+    reward_source: str = "verified_increment"
+    reward_version: Optional[int] = None
 
-    _PER_STEP = ("reward", "dt", "behavior_logp", "cost", "intrinsic")
+    _PER_STEP = ("reward", "dt", "behavior_logp", "cost", "intrinsic", "reward_int")
 
     def __post_init__(self):
         if self.mask is None:
@@ -52,7 +59,7 @@ class Trajectory:
             v = getattr(self, name)
             if tuple(v.shape) != (B, T):
                 raise ValueError(f"Trajectory.{name} must be [B, T] = {(B, T)}, got {tuple(v.shape)}")
-        for name in ("cost", "trial", "intrinsic", "option", "option_start"):
+        for name in ("cost", "trial", "intrinsic", "option", "option_start", "reward_int"):
             v = getattr(self, name)
             if v is not None and tuple(v.shape) != (B, T):
                 raise ValueError(f"Trajectory.{name} must be [B, T] = {(B, T)}, got {tuple(v.shape)}")
@@ -103,7 +110,7 @@ class Trajectory:
             return x.to(device) if torch.is_tensor(x) else x
         return replace(self, **{f: mv(getattr(self, f)) for f in
                                 ("reward", "dt", "done", "behavior_logp", "model_version", "mask", "value", "cost",
-                                 "trial", "intrinsic", "option", "option_start")},
+                                 "trial", "intrinsic", "option", "option_start", "reward_int")},
                        extras={k: mv(v) for k, v in self.extras.items()})
 
     def select_rows(self, idx) -> "Trajectory":
@@ -114,7 +121,7 @@ class Trajectory:
             return x[idx] if torch.is_tensor(x) else x
         return replace(self, **{f: sel(getattr(self, f)) for f in
                                 ("reward", "dt", "done", "behavior_logp", "model_version", "mask", "value", "cost",
-                                 "trial", "intrinsic", "option", "option_start")},
+                                 "trial", "intrinsic", "option", "option_start", "reward_int")},
                        event_ids=None if self.event_ids is None else [self.event_ids[i] for i in il],
                        family=None if self.family is None else [self.family[i] for i in il],
                        extras={k: (v[idx] if torch.is_tensor(v) else v) for k, v in self.extras.items()})
