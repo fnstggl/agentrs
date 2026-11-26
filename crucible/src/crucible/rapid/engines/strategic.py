@@ -99,11 +99,15 @@ def concede_offer(v, aspiration):
     return y
 
 
+KIND_CODE = {"tough": 0, "soft": 1, "reputation": 2}          # incumbent types of the entry scenario
+KIND_NAME = {v: k for k, v in KIND_CODE.items()}
+
+
 @register
 class Strategic(RapidEngine):
     kind = "strategic"
     SECRET_KEYS = ("rival_cost", "rival_kind", "hi", "cut", "follow", "gap", "trigger", "eta", "temp", "sens",
-                   "inc_kind", "inc_cost", "patience", "cp_v", "cp_r0", "cp_kind", "cp_e", "cp_zeta", "opp_value",
+                   "inc_kind", "inc_cost", "patience", "takeover", "cp_v", "cp_r0", "cp_kind", "cp_e", "cp_zeta", "opp_value",
                    "opp_budget", "decisive", "memory", "att_util", "penalty", "kappa", "B", "forget", "w",
                    "value_sd", "Kp", "rp", "allee", "crowd", "shock_sd", "typeA", "typeB", "qualA", "qualB", "labelA",
                    "labelB", "skills", "reservation", "reliability")
@@ -196,7 +200,9 @@ class Strategic(RapidEngine):
                     "prev_profit": [0.0, 0.0], "punish_left": [0, 0], "modes": [0, 0], "cuts": [0, 0]}
         if sc == "entry":
             M = len(c["market_names"])
-            return {"active": [0] * M, "since": [0] * M, "pend_cost": 0.0, "entries": [0] * M, "fought": [0] * M}
+            return {"active": [0] * M, "since": [0] * M, "pend_cost": 0.0, "entries": [0] * M, "fought": [0] * M,
+                    "kind": [KIND_CODE[k] for k in c["inc_kind"]], "cost": [float(x) for x in c["inc_cost"]],
+                    "takeovers": 0}
         if sc == "bargain":
             st = {"x": [1.0] * len(c["issue_names"]), "deal": 0, "round": 0, "resp": None, "deals_made": 0,
                   "pend_rev": 0.0, "last_prop_v": None, "util": []}
@@ -383,7 +389,7 @@ class Strategic(RapidEngine):
     # ---------------------------------------------------------------- 8.8.2
     def fight_prob(self, st, m) -> float:
         c = self.config
-        kind = c["inc_kind"][m]
+        kind = KIND_NAME[int(st["kind"][m])] if "kind" in st else c["inc_kind"][m]
         if kind == "tough":
             return float(c["p_fight_tough"])
         if kind == "soft":
@@ -400,8 +406,16 @@ class Strategic(RapidEngine):
         cost = st["pend_cost"]
         st["pend_cost"] = 0.0
         nums = {}
+        for m, tk in enumerate(c.get("takeover") or []):
+            # a takeover: the market's incumbent is replaced by one of another type at a hidden period; the newcomer
+            # has not seen the entrant persist (a reputation-minded newcomer fights it again)
+            if tk and int(tk[0]) == int(t):
+                st["kind"][m] = KIND_CODE[tk[1]]
+                st["cost"][m] = float(tk[2])
+                st["since"][m] = 0
+                st["takeovers"] += 1
         for m, n in enumerate(c["market_names"]):
-            base = float(c["inc_cost"][m]) + float(c["markup"])
+            base = float(st["cost"][m]) + float(c["markup"])
             if st["active"][m]:
                 fight = u[m] < self.fight_prob(st, m)
                 st["fought"][m] += int(fight)
@@ -748,7 +762,7 @@ class Strategic(RapidEngine):
                      for m in range(len(c["market_names"]))]
             edges += [{"src": f"incumbent{m}", "dst": "a0", "kind": "response", "lag": 0}
                       for m in range(len(c["market_names"]))]
-            hidden = {"inc_kind": c["inc_kind"]}
+            hidden = {"inc_kind": c["inc_kind"], "takeover": c.get("takeover")}
         elif sc == "bargain":
             nodes = ["a0"] + [f"counterpart{j}" for j in range(len(c["cp_names"]))]
             edges = [{"src": "a0", "dst": f"counterpart{j}", "kind": "offer", "lag": 0} for j in range(len(c["cp_names"]))]

@@ -1252,6 +1252,67 @@ def _enter(c, ms):
     return {"kind": "sequence", "steps": steps} if steps else None
 
 
+def _entry_paths(c) -> list[list[str]]:
+    """Evaluator: each market's incumbent type in every period (takeovers included)."""
+    H = int(c["horizon"])
+    out = []
+    for m, k0 in enumerate(c["inc_kind"]):
+        tk = (c.get("takeover") or [None] * len(c["inc_kind"]))[m]
+        out.append([tk[1] if tk and t >= int(tk[0]) else k0 for t in range(H)])
+    return out
+
+
+def _entry_plan(c) -> list[list[str | None]]:
+    """Evaluator: the expected-profit-maximising enter/exit schedule of every market (dynamic programming over
+    periods with states out and in-for-s-periods, knowing each incumbent's type path, its patience and the
+    takeover times). Returns per period and market the choice to send ("enter", "exit" or None)."""
+    H, M = int(c["horizon"]), len(c["market_names"])
+    paths = _entry_paths(c)
+    takes = c.get("takeover") or [None] * M
+    E = float(c["entry_cost"])
+    plan = [[None] * M for _ in range(H)]
+    for m in range(M):
+        P = int(c["patience"][m])
+        S = P + 1
+
+        def pf(t, s):
+            k = paths[m][t]
+            if k == "tough":
+                return float(c["p_fight_tough"])
+            if k == "soft":
+                return float(c["p_fight_soft"])
+            return float(c["p_fight_tough"]) if s < P else float(c["p_fight_soft"])
+
+        def prof(t, s):
+            q = pf(t, s)
+            return (1 - q) * float(c["rev_acc"][m]) + q * float(c["rev_fight"][m]) - float(c["op_cost"][m])
+        tk = takes[m]
+        V_out = [0.0] * (H + 1)
+        V_in = [[0.0] * S for _ in range(H + 1)]
+        act_out, act_in = [None] * H, [[None] * S for _ in range(H)]
+        for t in range(H - 1, -1, -1):
+            reset = bool(tk) and int(tk[0]) == t
+            enter = -E + prof(t, 0) + V_in[t + 1][min(P, 1)]
+            V_out[t], act_out[t] = (enter, "enter") if enter > V_out[t + 1] else (V_out[t + 1], None)
+            for sv in range(S):
+                s0 = 0 if reset else sv
+                stay = prof(t, s0) + V_in[t + 1][min(P, s0 + 1)]
+                V_in[t][sv], act_in[t][sv] = (stay, None) if stay >= V_out[t + 1] else (V_out[t + 1], "exit")
+        active, since = False, 0
+        for t in range(H):
+            if tk and int(tk[0]) == t and active:
+                since = 0
+            a = act_in[t][min(P, since)] if active else act_out[t]
+            plan[t][m] = a
+            if a == "enter":
+                active, since = True, 0
+            elif a == "exit":
+                active = False
+            if active:
+                since = min(P, since + 1)
+    return plan
+
+
 def oracle_entry(env) -> dict:
     import itertools
     eng, st, c = inside(env)
@@ -1261,35 +1322,70 @@ def oracle_entry(env) -> dict:
     for k in range(1, len(good) + 1):
         for sub in itertools.combinations(good, k):
             pols[f"enter {list(sub)} and stay"] = (lambda e, sub=sub: _enter(c, sub) if e.t == 0 else None)
+    plan = _entry_plan(c)
+
+    def follow(e):
+        steps = [{"kind": "discrete", "decision": c["market_names"][m], "choice": ch}
+                 for m, ch in enumerate(plan[e.t]) if ch]
+        return {"kind": "sequence", "steps": steps} if steps else None
+    pols["planned entry and exit (types and takeovers known)"] = follow
     return best_of(env, pols)
 
 
-def reference_entry(view, env):
-    """Public: watch the incumbents' prices for three periods, enter the half of the markets with the highest prices
-    (high prices signal high-cost incumbents), and exit a market after three consecutive losing periods."""
+def reference_entry(view, env, hold: int = 3, persist: int = 10, alpha: float = 0.3, band: float = 1.5,
+                    jump: float = 1.5, cheap: float = 0.62):
+    """Public: track every incumbent's posted price as a level (an average that forgets: alpha) - read directly
+    while out of a market, and while in only in periods that paid (a fight lowers the posted price). Markets whose
+    level is within `band` of the lowest level look like low-cost fighters; every other market is entered. While
+    in, a run of `hold` losing periods at posted prices far below the level (below `cheap` times it: a rival with
+    much lower costs, as after a takeover) means leave; otherwise losses are tolerated for `persist` periods, then
+    four losing periods of the last six mean leave (some incumbents fight only until the entrant has persisted). A
+    market left is re-entered only when its posted price has risen by `jump` above its average over the first
+    `hold` periods after leaving (a takeover by a higher-cost incumbent shows as a price level that moved)."""
     markets = sorted(view.action_space().limits["decisions"])
-    seen = {m: [] for m in markets}
-    for _ in range(3):
-        x = nums(view.step(None)["observation"])
-        for m in markets:
-            seen[m].append(x[f"{m}.incumbent_price"])
-    ranked = sorted(markets, key=lambda m: -np.mean(seen[m]))
-    chosen = ranked[:max(1, len(markets) // 2)]
-    obs = view.step({"kind": "sequence", "steps": [{"kind": "discrete", "decision": m, "choice": "enter"}
-                                                   for m in chosen]})["observation"]
-    losses = {m: 0 for m in chosen}
-    out = set()
+    lev = {m: None for m in markets}
+    obs = view.step(None)["observation"]
+    inside_, hist, lossp = set(), {m: [] for m in markets}, {m: [] for m in markets}
+    out_for = {m: hold for m in markets}
+    after = {m: None for m in markets}                # prices since leaving (None: never left)
     while not view.done:
         x = nums(obs)
-        act = None
-        for m in chosen:
-            if m in out:
-                continue
-            losses[m] = losses[m] + 1 if x[f"{m}.my_profit"] < 0 else 0
-            if losses[m] >= 3 and act is None:
-                act = {"kind": "discrete", "decision": m, "choice": "exit"}
-                out.add(m)
-        obs = view.step(act)["observation"]
+        for m in markets:
+            p = x[f"{m}.incumbent_price"]
+            if m in inside_:
+                lost = x[f"{m}.my_profit"] < 0
+                hist[m].append(lost)
+                if lost:
+                    lossp[m].append(p)
+                    continue
+            elif after[m] is not None:
+                after[m].append(p)
+            lev[m] = p if lev[m] is None else (1 - alpha) * lev[m] + alpha * p
+        vals = [v for v in lev.values() if v is not None]
+        floor = min(vals) + band if vals else -math.inf
+        steps = []
+        for m in markets:
+            if m in inside_:
+                h = hist[m]
+                fast = len(h) >= hold and all(h[-hold:]) and float(np.mean(lossp[m][-hold:])) < cheap * lev[m]
+                slow = len(h) >= persist and sum(h[-6:]) >= 4
+                if fast or slow:
+                    steps.append({"kind": "discrete", "decision": m, "choice": "exit"})
+                    inside_.discard(m)
+                    out_for[m] = 0
+                    after[m] = []
+            else:
+                out_for[m] += 1
+                a_ = after[m]
+                moved = a_ is None or (len(a_) >= hold + 3 and
+                                       float(np.mean(a_[-3:])) > float(np.mean(a_[:hold])) + jump)
+                if lev[m] is not None and lev[m] > floor and out_for[m] >= hold and moved:
+                    steps.append({"kind": "discrete", "decision": m, "choice": "enter"})
+                    inside_.add(m)
+                    hist[m], lossp[m] = [], []
+                    after[m] = None if a_ is None else a_
+        r = view.step({"kind": "sequence", "steps": steps} if steps else None)
+        obs = r["observation"]
 
 
 def identify_entry(env) -> dict:
@@ -1317,7 +1413,7 @@ def claim_entry(env) -> dict:
         e = replicate(env, r)
         e.step(_enter(c, range(M)))
         fought = []                                   # the incumbents' decisions, read evaluator side each period
-        for _ in range(16):
+        for _ in range(13):                         # before the earliest takeover (a quarter of the horizon)
             before = list(e._state["fought"])
             e.step(None)
             fought.append([e._state["fought"][m] > before[m] for m in range(M)])
@@ -1335,6 +1431,45 @@ def claim_entry(env) -> dict:
     if mean["reputation_early"] is not None:
         ok = ok and mean["reputation_early"] > 0.5 and mean["reputation_late"] < 0.35
     return {"ok": bool(ok), "fight_rates": mean}
+
+
+def claim_entry_takeover(env) -> dict:
+    """A takeover changes how a market answers an entrant who stays: in every market whose incumbent changes hands,
+    the fight rate of the eight periods before the takeover differs from that of the periods from four after it
+    to the end (the newcomer's own early fights excluded) by at least 0.4, in the direction of the types
+    (eight noise replicates, every market entered at the start and held)."""
+    eng, st, c = inside(env)
+    M = len(c["market_names"])
+    H = int(c["horizon"])
+    takes = [(m, tk) for m, tk in enumerate(c.get("takeover") or []) if tk]
+    if not takes:
+        return {"ok": False, "error": "no takeover in this world"}
+    before = {m: [] for m, _ in takes}
+    after = {m: [] for m, _ in takes}
+    for r in range(8):
+        e = replicate(env, r)
+        e.step(_enter(c, range(M)))
+        t = 1
+        while not e.done:
+            prev = list(e._state["fought"])
+            e.step(None)
+            for m, tk in takes:
+                f = e._state["fought"][m] > prev[m]
+                T = int(tk[0])
+                if T - 8 <= t < T:
+                    before[m].append(f)
+                elif t >= T + int(c["patience"][m]) + 1 and t < H:
+                    after[m].append(f)
+            t += 1
+    res = {}
+    ok = True
+    for m, tk in takes:
+        b, a = float(np.mean(before[m])), float(np.mean(after[m])) if after[m] else float("nan")
+        want = 1.0 if tk[1] == "tough" else -1.0
+        good = bool(np.isfinite(a) and (a - b) * want >= 0.4)
+        ok = ok and good
+        res[c["market_names"][m]] = {"before": b, "after": a, "new_type": tk[1], "ok": good}
+    return {"ok": ok, "markets": res}
 
 
 # ====================================================================== 8.8.3 bargaining

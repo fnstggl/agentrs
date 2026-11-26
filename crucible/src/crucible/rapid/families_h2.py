@@ -307,34 +307,51 @@ def strat_price_war(rng, d):
                      "posted prices and your own sales. Rivals adapt to what you do."}
 
 
+def _inc_cost(rng, k):
+    return u(rng, 5.0, 6.5) if k == "tough" else (u(rng, 9.5, 12.0) if k == "soft" else u(rng, 7.5, 9.0))
+
+
 @family("strat_entry", engine="strategic", category="8.8", item="8.8.2", split="train",
         doc="Entry into several markets held by incumbents of hidden type: tough ones fight, soft ones accommodate, "
-            "and some fight until the entrant has persisted; pre-entry prices signal incumbents' costs.",
+            "and some fight until the entrant has persisted; pre-entry prices signal incumbents' costs. Incumbents "
+            "are taken over at hidden times by rivals of another type, so where to be keeps changing.",
         distinct_because="discrete irreversible entry and exit decisions per market against incumbent response "
-                         "policies (fight, accommodate, fight-until-persistent) with noisy cost signalling",
-        axes={"graph_size": 5, "horizon": 40, "observation_noise": 0.8}, objective="maximize_net",
-        participants=("incumbent:tough", "incumbent:soft", "incumbent:reputation_learner"), **hooks("entry"))
+                         "policies (fight, accommodate, fight-until-persistent) with noisy cost signalling and "
+                         "hidden incumbent replacement (a takeover changes the market's response policy)",
+        axes={"graph_size": 5, "horizon": 60, "observation_noise": 0.8}, objective="maximize_net",
+        participants=("incumbent:tough", "incumbent:soft", "incumbent:reputation_learner"), version="2",
+        **dict(hooks("entry"), claims=(E + "claim_entry", E + "claim_entry_takeover")))
 def strat_entry(rng, d):
     M = max(2, int(d["graph_size"]))
+    H = int(d["horizon"])
     names = neutral_names(rng, M)
     nt = M // 2
     kinds = ["tough"] * nt + ["soft"] * (M - nt)
     if M - nt >= 2 and rng.random() < 0.6:
         kinds[nt + 1] = "reputation"
     kinds = [kinds[int(i)] for i in rng.permutation(M)]
-    inc_cost = [u(rng, 5.0, 6.5) if k == "tough" else (u(rng, 9.5, 12.0) if k == "soft" else u(rng, 7.5, 9.0))
-                for k in kinds]
+    inc_cost = [_inc_cost(rng, k) for k in kinds]
+    # takeovers: most markets change hands once, in the middle of the episode, to an incumbent that responds the
+    # other way (a fighter is replaced by an accommodating or reputation-minded one, and vice versa)
+    take = []
+    for m in range(M):
+        if rng.random() < 0.75:
+            new = ("soft" if rng.random() < 0.6 else "reputation") if kinds[m] == "tough" else "tough"
+            take.append([int(rng.integers(int(0.25 * H), int(0.8 * H) + 1)), new, _inc_cost(rng, new)])
+        else:
+            take.append(None)
     op = [u(rng, 50.0, 70.0) for _ in range(M)]
-    return {"engine": "strategic", "scenario": "entry", "horizon": int(d["horizon"]), "market_names": names,
-            "inc_kind": kinds, "inc_cost": inc_cost, "markup": 3.0, "price_sd": float(d["observation_noise"]),
+    return {"engine": "strategic", "scenario": "entry", "horizon": H, "market_names": names,
+            "inc_kind": kinds, "inc_cost": inc_cost, "takeover": take, "markup": 3.0,
+            "price_sd": float(d["observation_noise"]),
             "patience": [int(rng.integers(3, 7)) for _ in range(M)], "p_fight_tough": 0.85, "p_fight_soft": 0.1,
             "rev_acc": [x * u(rng, 1.7, 2.0) for x in op], "op_cost": op,
-            "rev_fight": [x * u(rng, 0.1, 0.3) for x in op], "entry_cost": 150.0, "endowment": 50_000,
+            "rev_fight": [x * u(rng, 0.1, 0.3) for x in op], "entry_cost": 80.0, "endowment": 50_000,
             "objective": {"type": "maximize_net", "text": "Maximise your profit across markets minus entry costs."},
-            "brief": f"{M} markets ({', '.join(names)}) each have an incumbent. Entering a market costs 150; once in, "
+            "brief": f"{M} markets ({', '.join(names)}) each have an incumbent. Entering a market costs 80; once in, "
                      "you earn or lose money each period depending on how the incumbent responds (a price war "
                      "shows as a lower incumbent price). You can exit (no refund) and re-enter. Incumbents' posted "
-                     "prices are visible before you enter."}
+                     "prices are visible. Incumbents can change hands."}
 
 
 @family("strat_bargain", engine="strategic", category="8.8", item="8.8.3", split="val",
