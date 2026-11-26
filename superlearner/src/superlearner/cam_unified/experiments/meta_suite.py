@@ -261,7 +261,7 @@ def run_meta_condition(spec: MetaSpec, semantic=None) -> dict:
         deviations.append(f"canonical loop: {loop}")
     if not st.builder.startswith("build.build_agent"):
         deviations.append(f"factory: {st.builder}")
-    if DS.loop_kw(loop, spec.legacy_decision_path):
+    if "require_cam_eval" in DS.loop_kw(loop, spec.legacy_decision_path):
         deviations.append(DS.LEGACY_DECISION_DEVIATION)
     if not pre["rpsi_real"][0]:
         deviations.append(f"actor reward model: {pre['rpsi_real'][1]}")

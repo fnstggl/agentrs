@@ -160,9 +160,12 @@ LEGACY_DECISION_DEVIATION = ("declared legacy decision path: run_lifetime(requir
 
 
 def loop_kw(loop: str, legacy_decision_path: bool) -> dict:
-    """Extra run_lifetime arguments: require_cam_eval=False only when the caller DECLARED the legacy decision path
-    (W1's loop raises ActionNotAuthorised on unstamped actions when the config's DOM decision path is on)."""
-    return {"require_cam_eval": False} if legacy_decision_path and loop == "runtime.run_lifetime" else {}
+    """Extra run_lifetime arguments (W1's loop only): gpu_timing=True (the CUDA-event span and peak memory of the
+    compute account are measured only then), and require_cam_eval=False only when the caller DECLARED the legacy
+    decision path (W1's loop raises ActionNotAuthorised on unstamped actions when the DOM decision path is on)."""
+    if loop != "runtime.run_lifetime":
+        return {}
+    return {"gpu_timing": True, **({"require_cam_eval": False} if legacy_decision_path else {})}
 
 
 def _run_lifetime_via_run_steps(agent, env, *, labels=None, label_store=None, reward_mode="observation_only",
@@ -732,7 +735,7 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
     run_lifetime, loop = resolve_loop()
     if loop != "runtime.run_lifetime":
         deviations.append(f"canonical loop: {loop}")
-    if loop_kw(loop, spec.legacy_decision_path):
+    if "require_cam_eval" in loop_kw(loop, spec.legacy_decision_path):
         deviations.append(LEGACY_DECISION_DEVIATION)
     if not st.builder.startswith("build.build_agent"):
         deviations.append(f"factory: {st.builder}")
@@ -827,7 +830,7 @@ def _run_condition_a(spec: RunSpec, run_dir: str, fams, row_id: str, t_start: fl
         res = run_lifetime(agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
                            learner=None, days=None, max_decisions=rounds_for(spec.decisions, spec.n_envs),
                            update_every=0, think_s=None,
-                           checkpoint=None, on_step=None)
+                           checkpoint=None, on_step=None, **loop_kw(loop, False))
     tm.detach()
     stats = _lifetime_stats(res)
     utils = operator_utilities(operator)

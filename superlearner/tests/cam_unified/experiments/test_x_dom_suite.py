@@ -164,8 +164,8 @@ def test_meta_suite_records_blocked_conditions_instead_of_running_them(tmp_path)
 
 
 def test_legacy_decision_path_is_only_ever_a_declared_deviation():
-    assert DS.loop_kw("runtime.run_lifetime", False) == {}
-    assert DS.loop_kw("runtime.run_lifetime", True) == {"require_cam_eval": False}
+    assert DS.loop_kw("runtime.run_lifetime", False) == {"gpu_timing": True}
+    assert DS.loop_kw("runtime.run_lifetime", True) == {"gpu_timing": True, "require_cam_eval": False}
     assert DS.loop_kw("runtime.run_steps (run_lifetime absent at this commit)", True) == {}
     import inspect
     src = inspect.getsource(DS.main)          # the CLI exposes the flag on run / ckpt-e2e / ckpt-e2e-load
