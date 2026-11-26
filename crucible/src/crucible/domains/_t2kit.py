@@ -54,6 +54,7 @@ class ScriptPolicy:
         self.t = 0
         self._last: dict | None = None
         self.actor = ""
+        self.tools: list[dict] = []
 
     # 4.0 Policy protocol
     def reset(self, actor: str, rng=None) -> None:
@@ -62,6 +63,8 @@ class ScriptPolicy:
         self._pending = None
 
     def act(self, obs: dict, tools: list[dict] | None = None) -> dict | None:
+        if tools is not None or (isinstance(obs, dict) and obs.get("tools") is not None):
+            self.tools = tools if tools is not None else obs.get("tools")
         if self._gen is None:
             self.reset(obs.get("agent", ""))
         self.t = int(obs.get("t", self.t)) if isinstance(obs, dict) else self.t
