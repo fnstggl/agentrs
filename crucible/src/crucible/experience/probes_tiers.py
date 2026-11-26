@@ -575,8 +575,9 @@ def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | 
     the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, then in further
     chunks of `reference_days` up to `max_reference_days` while the verdict has no distinctive number yet (many
     domains judge outcomes that take weeks), so the evaluator has something to judge; its score and details never
-    reach the seat. A domain whose verdict still has no distinctive number is named in the notes and in the probe's
-    `verdict_not_probed` kind (never counted as a clean verdict scan)."""
+    reach the seat. A domain whose verdict still has no distinctive number is named in the notes and in the result's
+    ``verdicts["not_probed"]`` (never counted as a clean verdict scan). The same seat is also checked for the
+    population's private state and for the world's hidden laws (`hidden_mechanisms`)."""
     from ..domains import base as DB
     out = None
     for name in (tier2_names() if names is None else list(names)):
