@@ -154,6 +154,34 @@ class NumericFeatures(nn.Module):
         return torch.cat([feats, flags], -1).float()
 
 
+class ValueFeatures(nn.Module):
+    """Sign-separated features of raw numbers for the NUMERIC VALUE channel: v [...] -> [..., 2*(2K+1) + 5].
+
+    m(v) = [sin(w_k u), cos(w_k u), u/10] with u = log1p(|v|) at K geometrically spaced frequencies w_k in [lo, hi],
+    then [m, sign(v) * m, zero flag, integer flag, nan, +inf, -inf]. The sign multiplies a full copy of the magnitude
+    block, so v and -v have opposite halves (the old NumericFeatures had a single sign entry among 39: cos(+1, -1) of
+    the final token 0.985 at init). High frequencies (hi = 200) resolve nearby magnitudes, low ones keep the encoding
+    smooth across scales. Non-finite values set their flag and give 0 elsewhere (never NaN)."""
+
+    def __init__(self, n_freq: int = 24, lo: float = 0.02, hi: float = 200.0):
+        super().__init__()
+        self.register_buffer("freq", torch.exp(torch.linspace(math.log(lo), math.log(hi), n_freq)), persistent=False)
+        self.dim = 2 * (2 * n_freq + 1) + 5
+
+    def forward(self, v: torch.Tensor) -> torch.Tensor:
+        v = v.double()
+        finite = torch.isfinite(v)
+        flags = torch.stack([torch.isnan(v), torch.isposinf(v), torch.isneginf(v)], -1).double()
+        v = torch.where(finite, v, torch.zeros_like(v))
+        u = torch.log1p(torch.abs(v))
+        ang = u.unsqueeze(-1) * self.freq.double()
+        m = torch.cat([torch.sin(ang), torch.cos(ang), (u / 10.0).unsqueeze(-1)], -1)
+        is_int = (torch.abs(v - torch.round(v)) < 1e-9).double().unsqueeze(-1)
+        feats = torch.cat([m, torch.sign(v).unsqueeze(-1) * m, (v == 0).double().unsqueeze(-1), is_int], -1)
+        feats = feats * finite.double().unsqueeze(-1)
+        return torch.cat([feats, flags], -1).float()
+
+
 def masked_log_softmax(logits: torch.Tensor, mask: torch.Tensor, temperature=1.0) -> torch.Tensor:
     """log_softmax over allowed entries (mask True); disallowed -> -inf. Rows must have >= 1 allowed entry.
     `temperature` is a float or a tensor broadcastable to logits (per-row temperatures)."""

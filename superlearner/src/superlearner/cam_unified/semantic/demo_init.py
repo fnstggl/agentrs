@@ -508,6 +508,74 @@ def demo_log_prob(model, inputs, actions: list, evidence: Optional[list] = None,
                                                          exact_rows=exact_rows)
 
 
+def demo_string_log_prob(model, steps: list, *, cond: Optional[str] = "latent", z_perm: Optional[list] = None,
+                         exact_rows: bool = True) -> tuple:
+    """Log-probability of the demonstrated *strings* of `steps` (ForcedSteps whose action has string holes) under the
+    semantic decoder with DOM Mechanism A conditioning, recomputed with gradients through the acting computation
+    (`encode_step` -> R, goal and belief tokens -> `bridge.cond_tokens` -> HoleFiller.score(cond=...)).
+
+    Mirrors the string part of ActionGenerator._forward for demonstrations (same grammar walk with the encoded
+    choices and evidence numbers, same decoder prompt and prefix) without the LengthHead stop-hazard mixture, so with
+    cond=None it equals `log_prob_parts(...)["tokens"]` of a generator without a length head; the ActionGenerator
+    does not pass the conditioning yet (W5 wiring).
+    cond: "latent" = CAM tokens [R; G; B] of each decision; None = unconditioned (the ablation). z_perm: rows of the
+    latent tokens permuted (ablation: another decision's CAM state). Returns (logp [n] float32, n_tokens [n])."""
+    gen = model.action_generator
+    progs, ctxs = demo_string_programs(model, steps)
+    with model._autocast():
+        prefix, c = decision_conditioning(model, steps, z_perm=z_perm)
+        lp, _, nt = gen.filler.score(progs, prefix, ctxs, 1.0, exact_rows=exact_rows,
+                                     cond=c if cond == "latent" else None)
+    return lp.float(), nt
+
+
+def demo_string_programs(model, steps: list) -> tuple:
+    """(decoder programs with the demonstrated hole tokens, decoder context ids) of `steps`, built like
+    ActionGenerator._forward builds them for demonstrations (evidence = the steps' evidence labels)."""
+    from .grammar import drive_walks, encode_value
+    gen = model.action_generator
+    progs, ctxs = [], []
+    for st in steps:
+        inp = st.inputs
+        tools = list(inp.tools[0]) + list(getattr(gen, "builtins", []))
+        tool = next(t for t in tools if t.name == st.action.tool)
+        g = gen.grammar(tool)
+        ev_obs = [inp.obs_lists[0][i] for i in (st.evidence or [])]
+        cands = gen.number_sources(ev_obs) if ev_obs else []
+        cs, hs, flags = [], [], {}
+        encode_value(g.root, st.action.args or {}, gen.opts, cs, hs, flags, cands)
+        it = iter(cs)
+        tpl = drive_walks([g.root], gen.opts, lambda rows, decs: [next(it) for _ in decs], [cands])[0]
+        p = gen.filler.program(tpl)
+        if not p.holes or len(p.holes) != len(hs):
+            raise ValueError(f"step {st.episode}/{st.step}: the demonstrated action has no matching string holes")
+        for k, (h, (kind, val)) in enumerate(zip(p.holes, hs)):
+            h.tokens = gen.filler.tokenize_hole(kind, val, h, p.cap[k])
+        progs.append(p)
+        ctxs.append(gen.filler.context_ids(gen._prompt(tool, ev_obs))[0])
+    return progs, ctxs
+
+
+def decision_conditioning(model, steps: list, z_perm: Optional[list] = None) -> tuple:
+    """Recompute the decisions of `steps` (acting computation, gradients as the caller's grad mode) and return
+    (bridge prefix [n, P, H], cond = (CAM tokens [R; G; B] [n, N, D], mask)) for the semantic decoder. z_perm: rows
+    of the CAM tokens permuted (ablation)."""
+    from ..model import StepInputs, acting_mode
+    gen = model.action_generator
+    inputs = _stack_inputs(steps)
+    live = StepInputs(**{**inputs.__dict__, "registries": copy.deepcopy(inputs.registries)})
+    with acting_mode(model):
+        enc = model.encode_step(live)
+        opt_tok = model._option_token(inputs.option, inputs.option_steps) if model.option_policy is not None else None
+        goal_in = model._goal_inputs(enc, opt_tok, inputs.budget)
+        prefix = gen.bridge(enc.R, goal_in, enc.belief)
+        Z, m = gen.bridge.cond_tokens(enc.R, goal_in, enc.belief)
+    if z_perm is not None:
+        idx = torch.tensor(z_perm, device=Z.device)
+        Z, m = Z[idx], m[idx]
+    return prefix, (Z, m)
+
+
 def _stack_inputs(steps: list):
     from ..model import StepInputs
     return StepInputs.cat([s.inputs for s in steps])
@@ -602,9 +670,9 @@ class BehaviourCloning:
 
     def epoch(self, steps: list, on_batch: Optional[Callable] = None, deadline: Optional[float] = None) -> dict:
         data = balance_waits(representable(steps), self.bc.wait_share, self.rng)
+        # mixed wait / act batches (audit 2026-11-26: sorting by is_wait built pure-wait and pure-act batches, and under
+        # one clip norm the wait batches took 10-100x larger effective steps - the policy learned "wait")
         self.rng.shuffle(data)
-        # batches of similar cost: waits never touch the language model
-        data.sort(key=lambda s: s.is_wait)
         batches = [data[i: i + self.bc.batch] for i in range(0, len(data), self.bc.batch)]
         self.rng.shuffle(batches)
         losses = []

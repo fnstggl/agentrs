@@ -8,7 +8,13 @@ One wrapper around a Hugging Face causal LM (Qwen3-1.7B by default, Qwen3-0.6B i
   disabled, i.e. on the frozen base weights, so its content-hash cache stays valid while the decoder's LoRA trains.
 * the DECODER path (`decoder_hidden`, `lm_logits`, `step`) runs the full model with the LoRA adapter enabled. It is
   used by the action decoder (`grammar.py` / `actions.py`), which injects CAM's bridge prefix through
-  `inputs_embeds` (`input_embeddings()` exposes the embedding matrix).
+  `inputs_embeds` (`input_embeddings()` exposes the embedding matrix) and - DOM Mechanism A - CAM's latent tokens
+  through `cond=(Z, mask)`: with `cfg.dec_xattn_every = k > 0` a `decoder_xattn.LatentDecoderConditioning` is
+  attached after every k-th decoder layer (`self.conditioning`, an nn.Module whose parameters the owning CAM module
+  registers; gates start at `cfg.dec_alpha_init`). The conditioning is an explicit argument of each decoder call:
+  cond=None runs the decoder unconditioned, and the encoder path always runs unconditioned (cached hidden states
+  never depend on Z). The hooks run outside HF's per-layer gradient checkpointing (transformers >= 5 checkpoints
+  `forward`, not `__call__`), so the conditioning is computed once and backward needs no open context.
 
 Cache: hidden states are cached per text under the key (sha256(text), version) in an LRU bounded by bytes. `version`
 names everything the cached states depend on (model, revision, layer, dtype, chunking, and - only when the encoder path
@@ -81,7 +87,7 @@ class QwenSemantic:
 
     def __init__(self, cfg: Optional[CamConfig] = None, model_name: Optional[str] = None, *, test: bool = False,
                  device: Optional[str] = None, dtype: torch.dtype = torch.bfloat16, layer: float | int = 0.75,
-                 lora: bool = True, encoder_lora: Optional[bool] = None, cache_max_bytes: int = 1 << 30,
+                 lora: Optional[bool] = None, encoder_lora: Optional[bool] = None, cache_max_bytes: int = 1 << 30,
                  embed_cache_entries: int = 200_000, max_text_tokens: int = 16384, max_batch_tokens: int = 16384,
                  chunk_tokens: Optional[int] = None, decoder_grad_checkpoint: bool = True,
                  local_files_only: bool = True):
@@ -107,6 +113,7 @@ class QwenSemantic:
         self.vocab_size = int(base.config.vocab_size)          # logits width (>= len(tokenizer))
         self.n_pretrained = sum(p.numel() for p in base.parameters())
         self.peft = None
+        lora = bool(getattr(cfg, "sem_lora", True)) if lora is None else bool(lora)
         if lora:
             from peft import LoraConfig, get_peft_model
             lcfg = LoraConfig(r=cfg.sem_lora_rank, lora_alpha=cfg.sem_lora_alpha, lora_dropout=0.0, bias="none",
@@ -134,6 +141,10 @@ class QwenSemantic:
             w = self.input_embeddings().weight[: len(self.tok)].float()
             self.embedding_rms = float(w.pow(2).mean().sqrt())          # per-element RMS of real token rows
             self.embedding_row_norm = float(w.norm(dim=1).mean())
+        self.conditioning = None                                     # DOM Mechanism A (decoder_xattn.py)
+        every = int(getattr(cfg, "dec_xattn_every", 0) or 0)
+        if every > 0:
+            self.attach_conditioning(every, alpha_init=float(getattr(cfg, "dec_alpha_init", 0.0)))
         self._updates = 0
         self._cache: OrderedDict = OrderedDict()                     # (sha, version) -> Tensor [T, H]
         self._cache_bytes = 0
@@ -188,6 +199,32 @@ class QwenSemantic:
         return {"pretrained": int(self.n_pretrained), "lora": int(sum(p.numel() for p in self.lora_parameters())),
                 "model": self.model_name}
 
+    # ------------------------------------------------------------------ latent conditioning (DOM Mechanism A)
+    def attach_conditioning(self, every: int, d_cam: Optional[int] = None, alpha_init: float = 0.0,
+                            d_attn: Optional[int] = None, n_heads: int = 8):
+        """Attach a LatentDecoderConditioning after every `every`-th decoder layer (layers every-1, 2*every-1, ...)
+        reading CAM tokens of width d_cam (default cfg.d_model). Returns it (also `self.conditioning`)."""
+        from .decoder_xattn import LatentDecoderConditioning
+        if self.conditioning is not None:
+            self.conditioning.detach_hooks()
+        d_cam = int(d_cam or self.cfg.d_model)
+        d_attn = int(d_attn or min(1024, self.sem_dim))
+        layers = LatentDecoderConditioning.every(self.n_layers, int(every), first=int(every) - 1)
+        self.conditioning = LatentDecoderConditioning(self.sem_dim, d_cam, layers, d_attn=d_attn, n_heads=n_heads,
+                                                      alpha_init=alpha_init).to(self.device).attach(self.lm)
+        return self.conditioning
+
+    def _cond_ctx(self, cond):
+        """Context in which the decoder runs with exactly `cond` (None = unconditioned)."""
+        if self.conditioning is None:
+            if cond is not None:
+                raise ValueError("cond given but no decoder conditioning is attached (cfg.dec_xattn_every = 0)")
+            return contextlib.nullcontext()
+        if cond is None:
+            return self.conditioning.condition(None)
+        Z, mask = cond if isinstance(cond, (tuple, list)) else (cond, None)
+        return self.conditioning.condition(Z, mask)
+
     def input_embeddings(self) -> nn.Embedding:
         """The (frozen) input embedding matrix [V, H] used for soft-prefix injection through inputs_embeds."""
         return self.lm.get_input_embeddings()
@@ -229,7 +266,7 @@ class QwenSemantic:
 
         handle = self.lm.model.layers[self.layer].register_forward_hook(hook)
         try:
-            with self._encoder_ctx():
+            with self._encoder_ctx(), self._cond_ctx(None):        # encoder states never depend on CAM's latent
                 self.lm.model(input_ids=ids, attention_mask=att, use_cache=False)
         except _StopForward:
             pass
@@ -393,15 +430,17 @@ class QwenSemantic:
 
     # ------------------------------------------------------------------ decoder path (LoRA enabled)
     def decoder_hidden(self, inputs_embeds: torch.Tensor, attention_mask: torch.Tensor,
-                       position_ids: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Final (post-norm) hidden states [B, L, H] of the LoRA-enabled decoder. Differentiable w.r.t. the inputs and
-        the LoRA weights when grad is enabled (gradient checkpointing is used for the backward if configured)."""
+                       position_ids: Optional[torch.Tensor] = None, cond=None) -> torch.Tensor:
+        """Final (post-norm) hidden states [B, L, H] of the LoRA-enabled decoder. Differentiable w.r.t. the inputs, the
+        LoRA weights and - with cond = (Z [B', n, d_cam], mask [B', n] | None), B a multiple of B' - the latent
+        conditioning and Z, when grad is enabled (gradient checkpointing is used for the backward if configured)."""
         use_ckpt = self.decoder_grad_checkpoint and torch.is_grad_enabled()
         if use_ckpt:
             self.lm.train()                     # HF checkpoints only in training mode; Qwen3 has no dropout
         try:
-            out = self.lm.model(inputs_embeds=inputs_embeds, attention_mask=attention_mask, position_ids=position_ids,
-                                use_cache=False)
+            with self._cond_ctx(cond):
+                out = self.lm.model(inputs_embeds=inputs_embeds, attention_mask=attention_mask,
+                                    position_ids=position_ids, use_cache=False)
         finally:
             if use_ckpt:
                 self.lm.eval()
@@ -412,11 +451,13 @@ class QwenSemantic:
         return self.lm.lm_head(h).float()
 
     @torch.no_grad()
-    def step(self, inputs_embeds: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, cache):
+    def step(self, inputs_embeds: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, cache,
+             cond=None):
         """One incremental decoder call with a KV cache (sampling path). Returns (last-position logits [B, V] float32,
-        cache)."""
-        out = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, position_ids=position_ids,
-                      cache=cache, use_cache=True, logits_to_keep=1)
+        cache). cond as in `decoder_hidden`; every step of one generation must pass the same cond."""
+        with self._cond_ctx(cond):
+            out = self.lm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, position_ids=position_ids,
+                          cache=cache, use_cache=True, logits_to_keep=1)
         return out.logits[:, -1].float(), out.past_key_values
 
     def new_cache(self):

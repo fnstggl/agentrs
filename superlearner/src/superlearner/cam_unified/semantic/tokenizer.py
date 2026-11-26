@@ -12,9 +12,13 @@ Token construction (D = cfg.d_model, H = encoder.sem_dim, Q = cfg.sem_tokens_per
   + the original content) -> cached token states [T, H] (all chunks) -> Q learned queries attention-pool them
   (segment softmax, no padding) -> [Q, D]; + ObsKind, EvidenceKind and within-observation position embeddings.
   TokenKind: RELATION -> RELATION, EVENT -> EVENT, all others -> OBS_SEM.
-* NUMERIC (and any observation that carries a `value`): one OBS_NUM token = MLP(symlog value, sign/zero/integer
-  flags, n_fourier sin/cos features) + W_u * embed(unit string) + W_d * embed(descriptor "source metric entity_type");
-  the value is never unit-converted.
+* NUMERIC (and any observation that carries a `value`): one OBS_NUM token. The value is never unit-converted.
+  - cfg.value_channel = False (legacy): MLP(symlog value, sign/zero/integer flags, n_fourier sin/cos features)
+    + W_u * embed(unit string) + W_d * embed(descriptor "source metric entity_type"), then one RMSNorm. The unit and
+    descriptor terms swamp the value term: cos(+1, -1) of two such tokens is 0.985 at init (value-blind numerics).
+  - cfg.value_channel = True (VALUE channel, DOM presets): proj([norm(W_v ValueFeatures(v)); g * norm(W_u embed(unit)
+    + W_d embed(descriptor))]) with a learned gain g (init 0.6) on the context half: the value is half of the token's
+    input on its own scale, sign-separated (layers.ValueFeatures). At init cos(+1, -1) ~ 0.37 for the same metric.
 * entity binding: `EntityRegistry.bind` gives the slot; the token gets slot_gain * code[slot] from a fixed random
   orthonormal table drawn per registry (i.e. per episode seed), so identity binds within an episode but carries no
   cross-world meaning; RELATION / MESSAGE / TRANSACTION targets add slot_gain * W_role code[target] and fill entity2.
@@ -50,7 +54,7 @@ import torch.nn as nn
 from ..config import CamConfig
 from ..interfaces import (OBS_SCHEMA_VERSION, Action, EvidenceKind, GoalSpec, Observation, ObsKind, TokenKind, TokenSet,
                           ToolSchema)
-from .layers import NumericFeatures, RMSNorm, SegmentAttentionPool
+from .layers import NumericFeatures, RMSNorm, SegmentAttentionPool, ValueFeatures
 
 OBS_KINDS = list(ObsKind)
 EV_KINDS = list(EvidenceKind)
@@ -148,10 +152,21 @@ class ObservationTokenizer(nn.Module):
         for e in (self.obs_kind, self.ev_kind, self.pos, self.role_emb):
             nn.init.normal_(e.weight, std=0.02)
         self.content_norm = RMSNorm(D)
-        self.numf = NumericFeatures(cfg.n_fourier)
-        self.num_mlp = nn.Sequential(nn.Linear(self.numf.dim, D), nn.SiLU(), nn.Linear(D, D))
         self.unit_proj = nn.Sequential(RMSNorm(H), nn.Linear(H, D))
         self.desc_proj = nn.Sequential(RMSNorm(H), nn.Linear(H, D))
+        self.value_channel = bool(getattr(cfg, "value_channel", False))
+        if not self.value_channel:                         # legacy value-blind numeric token
+            self.numf = NumericFeatures(cfg.n_fourier)
+            self.num_mlp = nn.Sequential(nn.Linear(self.numf.dim, D), nn.SiLU(), nn.Linear(D, D))
+        else:                                              # NUMERIC VALUE channel (see the module docstring)
+            self.valf = ValueFeatures()
+            self.val_in = nn.Linear(self.valf.dim, D, bias=False)
+            nn.init.normal_(self.val_in.weight, std=self.valf.dim ** -0.5)
+            self.val_norm = RMSNorm(D)
+            self.numctx_norm = RMSNorm(D)
+            self.numctx_gain = nn.Parameter(torch.tensor(0.6))
+            self.num_proj = nn.Linear(2 * D, D, bias=False)
+            nn.init.normal_(self.num_proj.weight, std=(2 * D) ** -0.5)
         self.norm = RMSNorm(D)
         self.slot_gain = nn.Parameter(torch.tensor(0.5))
         self.target_role = nn.Linear(D, D, bias=False)
@@ -205,9 +220,13 @@ class ObservationTokenizer(nn.Module):
             self.nonfinite_total += n_bad
             self.last_stats["nonfinite_values"] = self.last_stats.get("nonfinite_values", 0) + n_bad
         v = torch.tensor(values, dtype=torch.float64, device=self.device)
-        x = self.num_mlp(self.numf(v))
-        x = x + self.unit_proj(self.enc.embed([u or "unitless" for u in units]).to(self.device))
-        x = x + self.desc_proj(self.enc.embed(descs).to(self.device))
+        ctx = self.unit_proj(self.enc.embed([u or "unitless" for u in units]).to(self.device))
+        ctx = ctx + self.desc_proj(self.enc.embed(descs).to(self.device))
+        if self.value_channel:
+            val = self.val_norm(self.val_in(self.valf(v)))
+            x = self.num_proj(torch.cat([val, self.numctx_gain * self.numctx_norm(ctx).to(val.dtype)], -1))
+            return self.content_norm(x)
+        x = self.num_mlp(self.numf(v)) + ctx
         return self.content_norm(x)
 
     @staticmethod
@@ -377,6 +396,103 @@ class ObservationTokenizer(nn.Module):
         for r, c, ref in zip(row_of, col, refs):
             R[r][c] = ref
         return TokenSet(X, mask, K, Tm, E, R, E2)
+
+    # ------------------------------------------------------------------ semantic stream S_t (DOM Mechanism C)
+    def semantic_context(self, obs_lists: list, tools: Optional[list] = None, goals: Optional[list] = None,
+                         max_tokens: Optional[int] = None, *, goal_share: float = 0.25,
+                         include_numeric: bool = False):
+        """S_t for the core's gated semantic cross-attention (core.semantic_xattn.SemanticContext): the pretrained
+        encoder's token-level states of the step's semantic content, standardised per dimension (fixed calibration,
+        float32), at most `max_tokens` (default cfg.sem_xattn_max_tokens) per row.
+
+        Per row, in this order: the goal text (at most goal_share of the budget), then the observations newest first
+        (by t, then arrival; the text `observations()` encodes, so the encoder's content-hash cache is shared; pure
+        NUMERIC observations are left to the VALUE channel unless include_numeric), each in full until the budget is
+        reached - the observation that does not fit is cut to the remaining budget and the walk stops, so the kept set
+        is a contiguous most-recent suffix - then, with budget left, the tools' "name: description" lines. Nothing is
+        dropped silently: the result carries `refs` [B][Ns] (per token: "goal:<id>", the observation ref
+        "obs:<i>[#seq:<s>][@<artifact>]" of `observations()`, or "tool:<key>") and `stats` (per row: tokens, kept /
+        dropped observations, cut tokens). Rows without content have one masked padding token. `cond` is left None
+        (the model fills it from the belief and goal summaries)."""
+        from ..core.semantic_xattn import SemanticContext
+        B = len(obs_lists)
+        budget = int(max_tokens if max_tokens is not None else (getattr(self.cfg, "sem_xattn_max_tokens", 0) or 256))
+        plan: list = []                                    # per row: [(text, ref, take)]
+        stats = {"tokens": [], "kept_obs": [], "dropped_obs": [], "cut_tokens": [], "budget": budget}
+        texts: dict = {}
+        rows_items: list = []
+        for b in range(B):
+            items = []                                     # (text, ref, cap or None = rest of the budget)
+            g = goals[b] if goals is not None else None
+            if g is not None and getattr(g, "text", ""):
+                items.append((g.text, f"goal:{g.goal_id}", max(0, int(budget * goal_share))))
+            lst = [o for o in (obs_lists[b] or [])]
+            order = sorted(range(len(lst)), key=lambda i: (lst[i].t, i), reverse=True)
+            obs_items = [(render_observation(lst[i], self.max_obs_chars), obs_ref(i, lst[i]), None) for i in order
+                         if include_numeric or self._semantic(lst[i])]
+            tool_items = [(f"tool {t.name}: {t.description}", f"tool:{t.key}", None)
+                          for t in ((tools[b] if tools is not None else None) or [])]
+            rows_items.append((items, obs_items, tool_items))
+            for t, _, _ in items + obs_items + tool_items:
+                texts[t] = None
+        uniq = list(texts)
+        states = dict(zip(uniq, self.enc.token_states(uniq))) if uniq else {}
+        for b in range(B):
+            items, obs_items, tool_items = rows_items[b]
+            left, row, kept, cut = budget, [], 0, 0
+            for t, ref, cap in items:
+                n = min(states[t].shape[0], cap, left)
+                if n > 0:
+                    row.append((t, ref, n))
+                    left -= n
+                cut += states[t].shape[0] - n
+            stop = False
+            for t, ref, _ in obs_items:
+                T = states[t].shape[0]
+                if stop or left <= 0:
+                    stop = True
+                    cut += T
+                    continue
+                n = min(T, left)
+                row.append((t, ref, n))
+                left -= n
+                kept += 1
+                if n < T:
+                    cut += T - n
+                    stop = True
+            for t, ref, _ in tool_items:
+                if left <= 0:
+                    break
+                n = min(states[t].shape[0], left)
+                row.append((t, ref, n))
+                left -= n
+            plan.append(row)
+            stats["tokens"].append(budget - left)
+            stats["kept_obs"].append(kept)
+            stats["dropped_obs"].append(len(obs_items) - kept)
+            stats["cut_tokens"].append(cut)
+        Ns = max([sum(n for _, _, n in r) for r in plan] + [1])
+        H = self.enc.sem_dim
+        dev = self.enc.device
+        h = torch.zeros(B, Ns, H, device=dev, dtype=torch.float32)
+        mask = torch.zeros(B, Ns, dtype=torch.bool, device=dev)
+        refs = [[None] * Ns for _ in range(B)]
+        for b, row in enumerate(plan):
+            if not row:
+                continue
+            x = torch.cat([states[t][:n] for t, _, n in row], 0)
+            L = x.shape[0]
+            h[b, :L] = self.enc.standardize_states(x)
+            mask[b, :L] = True
+            k = 0
+            for _, ref, n in row:
+                refs[b][k: k + n] = [ref] * n
+                k += n
+        sc = SemanticContext(h, mask)
+        sc.refs = refs
+        sc.stats = stats
+        self.last_semantic_stats = stats
+        return sc
 
     # ------------------------------------------------------------------ tools / goals / actions
     def register_tools(self, tools: Sequence[ToolSchema]) -> None:

@@ -8,9 +8,21 @@ identical masks when it rescores an action):
   States: NORMAL (0) and ESC (1, right after a backslash). Allowed escapes: \\" \\\\ \\/ \\b \\f \\n \\r \\t
   (\\uXXXX is not generated: every character can be written directly because only tokens that decode to complete
   UTF-8 are allowed; control characters other than the five escapable ones cannot be produced - documented
-  limitation). A token is allowed only if it never leaves the string except through a final closing quote, never
-  contains a raw control character, and the length bounds (decoded code points, exactly Python `len`) and the
-  remaining token budget can still be met. `mask()` is vectorised over the vocabulary on the GPU.
+  limitation). A token is allowed only if it never contains a raw control character, the length bounds (decoded code
+  points, exactly Python `len`) and the remaining token budget can still be met, and it leaves the string only
+  through its first unescaped quote, after which it may carry a *suffix* of further characters. `mask()` is
+  vectorised over the vocabulary on the GPU.
+
+  Boundary-aware closing (STRING_PROTOCOL 4). A byte-level BPE tokenizer writes the end of a JSON string mostly with
+  merged tokens - '",' '"}' '"],' '":' carry 51-99% of Qwen3's closing probability on JSON arguments - so a closing
+  quote is allowed inside a token when the text after it (the suffix) is a prefix of the forced JSON text that
+  follows the hole (`follow`): the token then also writes those forced characters and the decoder consumes them from
+  the next forced segment (grammar.HoleFiller re-tokenises the rest). The plain closing quote (suffix "") is always a
+  closer. Which tokens close, how many body characters they add and their suffix are fixed per (state, token), so the
+  allowed set of a hole is a pure function of (state, count, budget, bounds, follow text) and replays exactly. Before
+  protocol 4 a quote was valid only as a token's last character (`simulate_json_string`), which removed the merged
+  closers: the constrained closing probability fell to 4e-5..0.22 (audit 2026-11-26, constraints.py:93), strings
+  rarely ended by the LM's own choice and often ended in a stray comma.
 
 * `RegexDFA` - `pattern` strings (Crucible validates with `re.fullmatch`) are generated character by character over
   single-character printable-ASCII tokens (no quote / backslash). The pattern is parsed with Python's own regex
@@ -18,7 +30,8 @@ identical masks when it rescores an action):
   completion lengths is precomputed as a bitset, so a character is allowed only if an accepting completion that
   satisfies minLength/maxLength and the token budget remains reachable. Unsupported regex features (back-references,
   look-around, case-insensitive flags, anchors inside the pattern) raise `UnsupportedSchema`; such a tool is then
-  excluded from the action generator's availability mask (logged), never generated invalidly.
+  excluded from the action generator's availability mask (logged), never generated invalidly. A pattern string
+  closes with the plain quote token or with a quote-led merged token ('",' '"}') whose suffix the follow text allows.
 """
 from __future__ import annotations
 
@@ -34,6 +47,7 @@ except ImportError:                     # pragma: no cover
     import sre_constants as sre_c       # type: ignore
 
 NORMAL, ESC = 0, 1
+STRING_PROTOCOL = 4          # 4: boundary-aware closing (merged closing tokens consume forced characters)
 _ESCAPES = set('"\\/bfnrt')
 PATTERN_ALPHABET = [chr(c) for c in range(0x20, 0x7F) if chr(c) not in '"\\']
 
@@ -106,6 +120,32 @@ def simulate_json_string(text: str, state: int):
     return (len(text) > 0), False, s, n
 
 
+def split_close(text: str, state: int):
+    """Feed one token's text from `state` up to its first unescaped quote.
+    Returns (closes, n_chars, suffix): closes = the text up to an unescaped quote is a valid string body (characters
+    and escapes), n_chars = decoded body characters before that quote, suffix = the token text after it (None when
+    the token does not close a string from this state)."""
+    n = 0
+    s = state
+    for k, ch in enumerate(text):
+        if s == NORMAL:
+            if ch == '"':
+                return True, n, text[k + 1:]
+            if ch == "\\":
+                s = ESC
+            elif ord(ch) < 0x20:
+                return False, n, None
+            else:
+                n += 1
+        else:
+            if ch in _ESCAPES:
+                n += 1
+                s = NORMAL
+            else:
+                return False, n, None
+    return False, n, None
+
+
 class JsonStringTables:
     """Vocabulary tables for the JSON-string-body automaton. Built once per tokenizer (about 1-2 s for 152k tokens)."""
 
@@ -125,6 +165,21 @@ class JsonStringTables:
                     closes[s, i] = cl
                     end[s, i] = e
                     nch[s, i] = n
+        # merged closers (protocol 4): tokens whose first unescaped quote is followed by more text. Per state:
+        # token -> (body chars before the quote, suffix) and suffix -> token ids. Their nch entry holds the body chars
+        # (they are never valid as continuing tokens, so the entry is otherwise unused).
+        self.merged: list = [{}, {}]
+        self.by_suffix: list = [{}, {}]
+        for i, t in enumerate(texts):
+            if not t or '"' not in t:
+                continue
+            for s in (NORMAL, ESC):
+                cl, n, suf = split_close(t, s)
+                if cl and suf:
+                    self.merged[s][i] = (n, suf)
+                    self.by_suffix[s].setdefault(suf, []).append(i)
+                    nch[s, i] = n
+        self.max_suffix = max([len(k) for d in self.by_suffix for k in d] + [0])
         self.V = V
         self.texts = texts
         self.valid, self.closes = valid.to(device), closes.to(device)
@@ -141,14 +196,53 @@ class JsonStringTables:
                 single[t] = i
         self.char_id = single                                      # one-character token ids
         self.quote_id = single['"']
+        # quote-led merged closers ('",' '"}'): the merged closers of pattern holes (no body characters in the token)
+        self.quote_led = {i: suf for i, (n, suf) in self.merged[NORMAL].items() if texts[i].startswith('"')}
+        self._follow_cache: dict = {}
 
-    def mask(self, state: int, count: int, remaining: int, min_len: int, max_len: int) -> torch.Tensor:
+    # ---------------------------------------------------------------- boundary-aware closing (protocol 4)
+    def follow_ids(self, state: int, follow: str, quote_led: bool = False) -> list:
+        """Merged closing tokens allowed before `follow` (the forced text after the hole): their suffix is a non-empty
+        prefix of it. quote_led: only tokens that start with the quote (the closers of pattern holes)."""
+        out = []
+        for j in range(1, min(len(follow or ""), self.max_suffix) + 1):
+            for t in self.by_suffix[state].get(follow[:j], ()):
+                if not quote_led or t in self.quote_led:
+                    out.append(t)
+        return out
+
+    def follow_mask(self, state: int, follow: str, quote_led: bool = False) -> torch.Tensor:
+        """`follow_ids` as a [V] bool device mask, cached per (state, first max_suffix chars of follow, quote_led)."""
+        key = (int(state), (follow or "")[: self.max_suffix], bool(quote_led))
+        m = self._follow_cache.get(key)
+        if m is None:
+            m = torch.zeros(self.V, dtype=torch.bool)
+            ids = self.follow_ids(key[0], key[1], key[2])
+            if ids:
+                m[torch.tensor(ids, dtype=torch.long)] = True
+            m = m.to(self.valid.device)
+            if len(self._follow_cache) > 4096:
+                self._follow_cache.clear()
+            self._follow_cache[key] = m
+        return m
+
+    def consumed(self, state: int, token: int) -> int:
+        """Characters of the following forced text a closing token writes (its suffix length; 0 for a plain close)."""
+        e = self.merged[state].get(int(token))
+        return len(e[1]) if e is not None else 0
+
+    def mask(self, state: int, count: int, remaining: int, min_len: int, max_len: int,
+             follow: str = "") -> torch.Tensor:
         """Allowed next tokens [V] bool for a hole in `state` with `count` decoded chars so far and `remaining` tokens
-        of budget (including this one)."""
+        of budget (including this one). `follow` = the forced text after the hole: merged closing tokens whose suffix
+        is a prefix of it are closers too (protocol 4); with follow "" only the plain closing quote closes."""
         s = state
         v, cl, e, n = self.valid[s], self.closes[s], self.end[s], self.nch[s]
         c1 = count + n
-        close_ok = v & cl & (c1 >= min_len) & (c1 <= max_len)
+        closer = v & cl
+        if follow:
+            closer = closer | self.follow_mask(s, follow)
+        close_ok = closer & (c1 >= min_len) & (c1 <= max_len)
         need0 = (min_len - c1).clamp(min=0)
         need1 = (min_len - c1 - 1).clamp(min=0)
         r1 = remaining - 1
@@ -157,8 +251,12 @@ class JsonStringTables:
         return close_ok | (v & ~cl & (cont0 | cont1))
 
     def advance(self, state: int, count: int, token: int):
-        """(new_state, new_count, closed) after appending `token` (which must be allowed)."""
+        """(new_state, new_count, closed) after appending `token` (which must be allowed). A merged closer closes the
+        string and adds its body characters; its suffix length is `consumed(state, token)`."""
         s = state
+        e = self.merged[s].get(token)
+        if e is not None:
+            return NORMAL, count + e[0], True
         return int(self.end_h[s, token]), count + int(self.nch_h[s, token]), bool(self.closes_h[s, token])
 
     @staticmethod
@@ -395,22 +493,30 @@ class PatternMasks:
         self.dfa = dfa
         self.tables = tables
 
-    def mask(self, state: int, count: int, remaining: int, min_len: int, max_len: int) -> torch.Tensor:
+    def mask(self, state: int, count: int, remaining: int, min_len: int, max_len: int,
+             follow: str = "") -> torch.Tensor:
         allowed, close = self.dfa.allowed(state, count, remaining, min_len, max_len)
         m = torch.zeros(self.tables.V, dtype=torch.bool, device=self.tables.valid.device)
         ids = [self.tables.char_id[c] for c, _ in allowed]
         if close:
             ids.append(self.tables.quote_id)
+            if follow:                                   # quote-led merged closers ('",') before the forced text
+                ids += self.tables.follow_ids(NORMAL, follow, quote_led=True)
         if ids:
             m[torch.tensor(ids, device=m.device)] = True
         return m
 
     def advance(self, state: int, count: int, token: int):
         """(new_state, new_count, closed)."""
-        if token == self.tables.quote_id:
+        if token == self.tables.quote_id or token in self.tables.quote_led:
             return state, count, True
         c = self.tables.texts[token]
         return self.dfa.trans[state][c], count + 1, False
+
+    def consumed(self, token: int) -> int:
+        """Forced characters a closing token writes after its quote (0 for the plain quote token)."""
+        suf = self.tables.quote_led.get(int(token))
+        return len(suf) if suf else 0
 
 
 _DFA_CACHE: dict = {}
