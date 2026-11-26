@@ -42,9 +42,7 @@ def _admit_one(args):
 
 
 def admission_report(seeds=(0, 1, 2), use_cache: bool = True, jobs: int = 1) -> dict:
-    from .admission import static_isolation, summary
-    from .families import FAMILIES, REGISTRY
-    from .fingerprints import counted, nearest
+    from .families import FAMILIES
     path = cache_path(seeds)
     if use_cache and os.path.exists(path):
         with open(path) as fh:
@@ -58,6 +56,18 @@ def admission_report(seeds=(0, 1, 2), use_cache: bool = True, jobs: int = 1) -> 
             reps = dict(ex.map(_admit_one, [(n, tuple(seeds)) for n in names]))
     else:
         reps = dict(_admit_one((n, tuple(seeds))) for n in names)
+    return assemble(seeds, reps, cpu_s=time.process_time() - t0)
+
+
+def assemble(seeds, reps: dict, cpu_s: float = 0.0, write: bool = True) -> dict:
+    """The registry-wide report from per-family admission reports `reps` (name -> `admit(name, seeds)`, JSON
+    form) - computed here or by separate processes (shards) on the same source tree - and its cache file."""
+    from .admission import static_isolation, summary
+    from .families import FAMILIES, REGISTRY
+    from .fingerprints import counted, nearest
+    names = sorted(FAMILIES)
+    if sorted(reps) != names:
+        raise ValueError(f"reports for {sorted(set(names) ^ set(reps))} missing or unknown")
     fps = {n: REGISTRY[n]["fingerprint"] for n in names}
     kept, dup = counted(fps)
     distinct = {n: dict(nearest(n, fps), distinct_because=FAMILIES[n].distinct_because,
@@ -67,8 +77,11 @@ def admission_report(seeds=(0, 1, 2), use_cache: bool = True, jobs: int = 1) -> 
                 for n in fps}
     out = {"seeds": list(seeds), "source_digest": source_digest(), "reports": reps, "summary": summary(reps),
            "fingerprints": fps, "counted": kept, "cosmetic_duplicates": dup, "distinctness": distinct,
-           "static_isolation": static_isolation(), "cpu_s": time.process_time() - t0}
+           "static_isolation": static_isolation(), "cpu_s": cpu_s}
     out = json.loads(json.dumps(out, default=_jsonable))
+    if not write:
+        return out
+    path = cache_path(seeds)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.{os.getpid()}.tmp"
     with open(tmp, "w") as fh:

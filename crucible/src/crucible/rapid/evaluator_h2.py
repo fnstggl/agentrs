@@ -1504,18 +1504,27 @@ def oracle_blotto(env) -> dict:
 
 
 def reference_blotto(view, env):
-    """Public: estimate the contest's decisiveness from observed efforts and shares, predict the opponent's next
-    efforts by its last ones, and best-respond."""
+    """Public: estimate each site's prize from the income observed against the shares won (revenue = sum of prize x
+    share, least squares over the periods so far; prizes are not announced), the contest's decisiveness from
+    observed efforts and shares, predict the opponent's next efforts by its last ones, and best-respond."""
     sp = view.action_space()
     sites = _targets(sp)
     B = float(sp.limits["allocate_total"])
-    prize = dict(zip(env._config["site_names"], env._config["prize"]))      # public prizes
     r_est = []
     r = 1.5
     obs = view.step({"kind": "allocate", "amounts": {s: B / len(sites) for s in sites}})["observation"]
     last_x = {s: B / len(sites) for s in sites}
+    S_rows, R_rows = [], []
+    prize = {s: 100.0 for s in sites}
     while not view.done:
         x = nums(obs)
+        S_rows.append([x[f"{s}.my_share"] for s in sites])
+        R_rows.append(float(obs["resources"].get("revenue_cents_last_tick", 0.0)))
+        if len(S_rows) >= len(sites) + 2:
+            est, *_ = np.linalg.lstsq(np.asarray(S_rows), np.asarray(R_rows), rcond=None)
+            prize = {s: float(max(v, 1.0)) for s, v in zip(sites, est)}
+        elif sum(S_rows[-1]) > 0:
+            prize = {s: R_rows[-1] / sum(S_rows[-1]) for s in sites}
         y = [x[f"{s}.rival_effort"] for s in sites]
         for s, yy in zip(sites, y):
             sh = x[f"{s}.my_share"]
@@ -1621,16 +1630,26 @@ def oracle_interdiction(env) -> dict:
 
 
 def reference_interdiction(view, env):
-    """Public: estimate the attacker's route frequencies from catches and breaches (exponential smoothing), assume a
-    moderate catch rate per inspector, and deploy to maximise expected catches weighted by bounty plus damage."""
+    """Public: estimate the attacker's route frequencies from catches and breaches (exponential smoothing) and each
+    route's damage per breach from the costs observed against the breaches per route (least squares over the
+    periods so far; damages are not announced), assume a moderate catch rate per inspector, and deploy to maximise
+    expected catches weighted by bounty plus damage."""
     sp = view.action_space()
     routes = _targets(sp)
     I = float(sp.limits["allocate_total"])
-    dmg = dict(zip(env._config["route_names"], env._config["damage"]))      # public route damages
+    dmg = {r: 60.0 for r in routes}
+    rows, costs = [], []
     freq = {r: 1.0 / len(routes) for r in routes}
     obs = view.step({"kind": "allocate", "amounts": {r: I / len(routes) for r in routes}})["observation"]
+    last_alloc = [I / len(routes)] * len(routes)
     while not view.done:
         x = nums(obs)
+        # cost of a period = damage of each breach + a price per inspector deployed (both unknown)
+        rows.append([x[f"{r}.got_through"] for r in routes] + [float(sum(last_alloc))])
+        costs.append(float(obs["resources"].get("cost_cents_last_tick", 0.0)))
+        if len(rows) >= len(routes) + 3:
+            est, *_ = np.linalg.lstsq(np.asarray(rows), np.asarray(costs), rcond=None)
+            dmg = {r: float(max(v, 0.0)) for r, v in zip(routes, est[:-1])}
         n = sum(x[f"{r}.caught"] + x[f"{r}.got_through"] for r in routes)
         for r in routes:
             f = (x[f"{r}.caught"] + x[f"{r}.got_through"]) / max(n, 1.0)
@@ -1640,6 +1659,7 @@ def reference_interdiction(view, env):
             r = routes[k]
             return 5 * freq[r] * (1 - math.exp(-0.35 * xx)) * (30.0 + dmg[r]) - xx
         alloc = greedy_alloc(gain, I, 0.5, len(routes))
+        last_alloc = list(alloc)
         obs = view.step({"kind": "allocate", "amounts": dict(zip(routes, alloc))})["observation"]
 
 
@@ -1808,7 +1828,8 @@ def reference_profile(view, env):
             Fm = np.asarray([[know[ags[0]][i][k] for i in range(n)] for k in range(len(slots))])
             if len(Y) >= 3:
                 Xa = np.asarray(X)
-                w_hat = np.linalg.solve(Xa.T @ Xa + 0.5 * np.eye(n), Xa.T @ np.asarray(Y))
+                Ya = np.asarray(Y) / (float(np.abs(Y).max()) or 1.0)     # payoffs in units of the largest seen
+                w_hat = np.linalg.solve(Xa.T @ Xa + 0.5 * np.eye(n), Xa.T @ Ya)
             else:
                 w_hat = np.ones(n) / math.sqrt(n)
             k = int(np.argmax(Fm @ w_hat))
@@ -1816,7 +1837,7 @@ def reference_profile(view, env):
             res = r["results"][ags[0]]
             if res.get("ok") and (res.get("result") or {}).get("agreed"):
                 X.append(list(Fm[k]))
-                Y.append(res["result"]["payoff"] / float(env._config["scale"]))     # the payoff scale is public
+                Y.append(float(res["result"]["payoff"]))
             obs = r["observations"]
             stage = None
             continue

@@ -372,7 +372,7 @@ def strat_blotto(rng, d):
             "budget": float(d["resources"]), "opp_budget": u(rng, 1.1, 1.6) * float(d["resources"]), "budget_sd": 0.05,
             "decisive": u(rng, 1.5, 3.0), "memory": min(0.95, float(d["opponent_capability"])), "unit_cost": 12.0,
             "endowment": 50_000,
-            "objective": {"type": "maximize_net", "text": "Maximise the prizes you win minus 3 per unit of effort."},
+            "objective": {"type": "maximize_net", "text": "Maximise the prizes you win minus 12 per unit of effort."},
             "brief": f"Each period you and an opponent put effort into {K} sites ({', '.join(names)}); your share of "
                      "a site's prize grows with your effort relative to the opponent's. You see the opponent's "
                      f"efforts after each contest. Effort costs 12 per unit; at most {d['resources']} units per period."}

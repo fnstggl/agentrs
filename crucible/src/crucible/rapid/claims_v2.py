@@ -323,13 +323,36 @@ def identify_state_sign(env) -> dict:
     return {"ok": est == truth, "question": "is the effect positive at the end", "estimate": est, "truth": truth}
 
 
+def _roles_by_effect(view, ticks: int = 2) -> tuple[str, str]:
+    """Public role identification for a world with two levers: move each lever from its top to its bottom for
+    `ticks` ticks each (the other held at the middle of its range) and read the first gauge at the last tick of
+    each; returns (the lever with the larger effect on the reading, the other)."""
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    names = sorted(props)
+    mid = {n: (props[n]["minimum"] + props[n]["maximum"]) / 2.0 for n in names}
+    eff = {}
+    for n in names:
+        seen = []
+        for v in (props[n]["maximum"], props[n]["minimum"]):
+            r = None
+            for _ in range(ticks):
+                if view.done:
+                    break
+                r = view.step({"kind": "levers", "values": dict(mid, **{n: float(v)})})
+            nums = list(r["observation"]["numbers"].values()) if r else []
+            seen.append(nums[0] if nums else 0.0)
+        eff[n] = abs(seen[0] - seen[1]) if len(seen) == 2 else 0.0
+    big = max(names, key=lambda n: eff[n])
+    return big, next(n for n in names if n != big)
+
+
 def sign_tracker(view, env) -> None:
     """Scripted public reference for a lever whose effect can change sign: in every block of ten ticks, hold the
     lever high for two ticks and low for two (the second tick of each counts, so a one-tick lag does not
     mislead), then hold the better end for the rest of the block. The cost-only second lever is held at a
-    moderate level found by a short sweep at the start."""
-    c = env._config["claim"]
-    x, q = _lever(env, c["lever"]), _lever(env, c["second"])
+    moderate level found by a short sweep at the start. Which lever is which is found publicly first (the one that
+    moves sales more is the one to track)."""
+    x, q = _roles_by_effect(view)
 
     def sales(r):
         return list(r["observation"]["numbers"].values())[0]
@@ -986,9 +1009,17 @@ def identify_interaction_flip(env) -> dict:
 
 def second_input_tracker(view, env) -> None:
     """Scripted public reference: keep the first input high; every ten ticks compare the second input high and low
-    for two ticks each and hold the better one (net of its cost) for the rest of the block."""
-    c = env._config["claim"]
-    b, a = _lever(env, c["lever"]), _lever(env, c["first"])
+    for two ticks each and hold the better one (net of its cost) for the rest of the block. The first input is the
+    lever whose public default is high (the operator already runs it at its top), read from the action schema."""
+    import re
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+
+    def default(n):
+        m = re.search(r"default ([-0-9.eE]+)", props[n].get("description", ""))
+        return float(m.group(1)) if m else 0.0
+    a = max(sorted(props), key=default)
+    b = next(n for n in sorted(props) if n != a)
+    top = float(props[a]["maximum"])
     while not view.done:
         seen = {}
         for g in (10.0, 0.0):
@@ -996,13 +1027,13 @@ def second_input_tracker(view, env) -> None:
             for _ in range(2):
                 if view.done:
                     return
-                v = D._net(view.step({"kind": "levers", "values": {a: 10.0, b: g}})["observation"])
+                v = D._net(view.step({"kind": "levers", "values": {a: top, b: g}})["observation"])
             seen[g] = v
         keep = 10.0 if seen[10.0] >= seen[0.0] else 0.0
         for _ in range(6):
             if view.done:
                 return
-            view.step({"kind": "levers", "values": {a: 10.0, b: keep}})
+            view.step({"kind": "levers", "values": {a: top, b: keep}})
 
 
 # ====================================================================== ch_lagged_reversal
@@ -1029,9 +1060,8 @@ def lagged_reversal(env) -> dict:
 def lagged_sign_tracker(view, env) -> None:
     """Scripted public reference for a delayed lever whose sign can reverse: in every block of fourteen ticks,
     hold the lever high for four ticks and low for four (the last tick of each, after the delay, counts), then
-    hold the better end for six."""
-    c = env._config["claim"]
-    x, q = _lever(env, c["lever"]), _lever(env, c["second"])
+    hold the better end for six. Which lever matters is found publicly first (after the delay)."""
+    x, q = _roles_by_effect(view, ticks=5)
     while not view.done:
         seen = {}
         for g in (10.0, 0.0):
