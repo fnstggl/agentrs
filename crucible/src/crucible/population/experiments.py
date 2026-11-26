@@ -131,8 +131,10 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     unused = [k for k, r in st.tables["pop_examples"].items() if r.get("used") is None]
     if unused:
         batch = ad._load_examples(w, unused)
-        out["heldout_examples"] = int(sum(len(b["reward"]) for b in batch.values() if b is not None))
-        out["heldout_examples_by_kind"] = {k: int(len(b["reward"])) if b is not None else 0 for k, b in batch.items()}
+        cnt = {k: (0 if b is None else int(np.count_nonzero(np.asarray(b["w"]) > 0)) if "w" in b else
+                   int(len(b["reward"]))) for k, b in batch.items()}     # day reviews (zero weight) are not examples
+        out["heldout_examples"] = int(sum(cnt.values()))
+        out["heldout_examples_by_kind"] = cnt
         out["heldout_mse"] = {a: float(ad.policy(w, g).loss_on(batch)) for a, g in gid.items()}
         out["_heldout"] = {"batch": batch, "policies": {a: ad.policy(w, g) for a, g in gid.items()}}
     mem = columns.col(w, "pop", "memory")[columns.col(w, "pop", "class") == 2].astype(np.float32)

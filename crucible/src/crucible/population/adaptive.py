@@ -247,7 +247,8 @@ class AdaptivePolicy:
         web, act = b.get("web"), b.get("act")
         nw = len(web["reward"]) if web is not None else 0
         seqs = _sequences(act, self.bptt) if act is not None and len(act["reward"]) else []
-        na = len(act["reward"]) if seqs else 0
+        na = int(np.count_nonzero(np.asarray(act["w"]) > 0)) if seqs and act.get("w") is not None else \
+            (len(act["reward"]) if seqs else 0)
         rng = np.random.default_rng(seed)
 
         def total(iw, ia):
@@ -630,7 +631,8 @@ class PopAdaptive(Module):
             ex = sorted((r["t"], k) for k in st.find_ids("pop_examples", "group", gid)
                         for r in [st.tables["pop_examples"][k]] if not r.get("used"))
             refs = [k for _, k in ex]
-            n = sum(st.tables["pop_examples"][k]["n"] for k in refs)
+            # day reviews (kind 2) are memory steps of the sequences, not examples with a target
+            n = sum(st.tables["pop_examples"][k]["n"] for k in refs if int(st.tables["pop_examples"][k]["kind"]) != 2)
             if n < int(self.cfg["min_examples"]):
                 continue
             pol = self.policy(w, gid)
