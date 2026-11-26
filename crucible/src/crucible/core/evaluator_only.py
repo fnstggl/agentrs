@@ -221,6 +221,10 @@ def evaluator_metrics() -> dict[str, str]:
     out = dict(METRICS)
     for modname, attr, why in (("crucible.goals.metrics", "EVALUATOR_ONLY_METRICS", "an evaluator measurement "
                                 "(goals.metrics.EVALUATOR_ONLY_METRICS)"),
+                               # wave 3b (workstream L): metrics a module documents as "EVALUATOR-ONLY" when it
+                               # registers them (crucible.social.integrity's organic_followers / organic_engagement)
+                               ("crucible.goals.metrics", "DECLARED_EVALUATOR_ONLY", "declared evaluator-only by its "
+                                "module (goals.metrics.DECLARED_EVALUATOR_ONLY)"),
                                ("crucible.commerce.observables", "EVALUATOR_ONLY", "computed with hidden evaluator "
                                 "analysis (commerce.observables.EVALUATOR_ONLY)")):
         try:

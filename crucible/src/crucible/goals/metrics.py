@@ -34,6 +34,9 @@ INSTANT_METRICS: set[str] = set()
 EVALUATOR_ONLY_METRICS: set[str] = {"independent_revenue", "revenue_from", "mrr_cents", "arr_cents",
                                     "active_subscriptions", "independent_customers", "churn_rate", "profit_cents",
                                     "one_time_revenue_cents"}
+# metrics whose own documentation starts with "EVALUATOR-ONLY" (filled by `metric`); evaluator-only in observation-only
+# worlds through core.evaluator_only.evaluator_metrics()
+DECLARED_EVALUATOR_ONLY: set[str] = set()
 
 
 def metric(name: str, doc: str = "", subject: dict | None = None, instant: bool = False):
@@ -42,9 +45,10 @@ def metric(name: str, doc: str = "", subject: dict | None = None, instant: bool 
         METRIC_DOCS[name] = doc or (fn.__doc__ or "").strip()
         if METRIC_DOCS[name].startswith("EVALUATOR-ONLY"):
             # a module's own declaration (e.g. crucible.social.integrity's organic_* metrics): an evaluator measurement,
-            # never readable through a participant-authored predicate (wave 3b: these were only kept out by having no
-            # subject, and were missing from core.evaluator_only.evaluator_metrics())
-            EVALUATOR_ONLY_METRICS.add(name)
+            # never readable through a participant-authored predicate in an observation-only world (wave 3b: these were
+            # kept out only by having no subject, and were missing from core.evaluator_only.evaluator_metrics()).
+            # A separate set from EVALUATOR_ONLY_METRICS (refused in every world) so 4.0 worlds keep their contract.
+            DECLARED_EVALUATOR_ONLY.add(name)
         if subject is not None:
             METRIC_SUBJECTS[name] = dict(subject)
         if instant:

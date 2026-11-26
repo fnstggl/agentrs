@@ -13,13 +13,15 @@ def test_metrics_documented_evaluator_only_are_in_the_registry_union():
     relatedness / funding / sybil / ring analysis); they were kept out of agreements only by having no subject and
     were missing from `evaluator_metrics()`. Every metric documented that way is now evaluator-only."""
     import crucible.social.integrity  # noqa: F401 - registers organic_followers / organic_engagement
-    from crucible.goals.metrics import EVALUATOR_ONLY_METRICS, METRIC_DOCS, check_predicate_scope
+    from crucible.goals.metrics import DECLARED_EVALUATOR_ONLY, METRIC_DOCS, check_predicate_scope
     documented = {m for m, d in METRIC_DOCS.items() if str(d).startswith("EVALUATOR-ONLY")}
     assert {"organic_followers", "organic_engagement", "quality_margin_vs_incumbents"} <= documented
-    assert documented <= EVALUATOR_ONLY_METRICS and documented <= set(EO.evaluator_metrics())
+    assert documented <= DECLARED_EVALUATOR_ONLY and documented <= set(EO.evaluator_metrics())
     env = make(0, "tiny", 3, agents=["learner"])                       # observation_only: evaluator data hidden
     a = env.agents()[0]
     leaf = {"metric": "organic_followers", "args": {"principal": a}, "op": ">=", "value": 1}
     errs = check_predicate_scope(env.world, leaf, [a])
     assert any("evaluator" in e for e in errs), errs
     assert EO.metric_errors(env.world, [leaf])
+    legacy = make(0, "tiny", 3, "legacy_shaped_reward", agents=["learner"])      # the 4.0 contract is unchanged
+    assert EO.metric_errors(legacy.world, [leaf]) == []
