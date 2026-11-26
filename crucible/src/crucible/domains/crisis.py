@@ -270,6 +270,14 @@ class Crisis(Module):
             g[r["b"]].append((r["a"], float(r["hours"])))
         return g
 
+    def reach_h(self, st, src: str, aid: str) -> float | None:
+        """Travel time from `src` to where work on asset `aid` can be done (a road or line from either end)."""
+        x = st.tables["cr_assets"][aid]
+        if x["kind"] in ("road", "line"):
+            ts = [t for t in (self.travel_h(st, src, x["a"]), self.travel_h(st, src, x["b"])) if t is not None]
+            return min(ts) if ts else None
+        return self.travel_h(st, src, x["district"])
+
     def travel_h(self, st, src: str, dst: str, flooded: set | None = None) -> float | None:
         """Shortest travel time over open roads (None: unreachable)."""
         flooded = self.flooded(st) if flooded is None else flooded
@@ -305,8 +313,8 @@ class Crisis(Module):
         flooded = self.flooded(st)
 
         def intact(aid):
-            x = A[aid]
-            return x["damage_h"] <= 0 and x["district"] not in flooded
+            # flood water keeps crews out of a district; what it damages is decided by fragility at the event
+            return A[aid]["damage_h"] <= 0
         # power: connectivity from intact plants over intact lines through intact substations
         live = set()
         frontier = [self.fac[p]["district"] for p in self.fac if self.fac[p]["type"] == "plant" and intact(p)]
@@ -390,6 +398,7 @@ class Crisis(Module):
         dmap = {d["id"]: d for d in self.c["districts"]}
         hit = []
         if kind == "flood":
+            # a flood wave: low districts go under water (a later, smaller wave floods fewer of them)
             flood = sorted(d["id"] for d in self.c["districts"] if d["elev"] < 0.35 * intensity)
             days = int(rng.integers(int(self.c["flood_days"][0]), int(self.c["flood_days"][1]) + 1))
             ctx.emit("crisis.flood", {"districts": flood, "until": int(ctx.now + days * DAY)}, vis="public")
@@ -584,7 +593,7 @@ class Crisis(Module):
             target, kind, why = self._choose(st, boss, types[boss], cr, hh, now)
             if target is None:
                 continue
-            eta = self.travel_h(st, cr["at"], st.tables["cr_assets"][target]["district"])
+            eta = self.reach_h(st, cr["at"], target)
             if eta is None:
                 continue
             ctx.emit("crisis.crew_task", {"id": cid, "task": {"kind": kind, "target": target, "by": boss,
@@ -613,7 +622,7 @@ class Crisis(Module):
                 if r["operator"] != boss or r["status"] != "open" or r["target"] in busy:
                     continue
                 x = A.get(r["target"])
-                if x is None or x["kind"] not in kinds or self.travel_h(st, crew["at"], x["district"]) is None:
+                if x is None or x["kind"] not in kinds or self.reach_h(st, crew["at"], r["target"]) is None:
                     continue
                 k = st.get("cr_known", f"{boss}|{r['target']}")
                 fresh_ok = k is not None and not k["damaged"] and k["t"] >= max(ev_t, now - DAY)
@@ -634,6 +643,8 @@ class Crisis(Module):
                 have = st.get("cr_parts", f"{boss}|{x['part']}")
                 if have is None or have["qty"] <= 0:
                     continue
+            if self.reach_h(st, crew["at"], aid) is None:
+                continue
             served = self._served(aid, x, hh)
             val = served / max(1.0, float(k["work_h"]))
             if best is None or val > best[0]:
@@ -656,7 +667,8 @@ class Crisis(Module):
                 continue
             cand.append((-(2.0 if x["district"] in rep else 1.0) * self._served(aid, x, hh), aid))
         for _, aid in sorted(cand):
-            return aid, "inspect", "unknown status"
+            if self.reach_h(st, crew["at"], aid) is not None:
+                return aid, "inspect", "unknown status"
         return None, None, None
 
     def _order_parts(self, ctx, boss, kinds) -> None:
@@ -870,9 +882,9 @@ class Crisis(Module):
         x = st.get("cr_assets", asset)
         if x is None:
             raise NotFound(f"no asset {asset}")
-        eta = self.travel_h(st, c["at"], x["district"])
+        eta = self.reach_h(st, c["at"], asset)
         if eta is None:
-            raise Conflict(f"no open road from {c['at']} to {x['district']}")
+            raise Conflict(f"no open road from {c['at']} to {asset}")
         ctx.emit("crisis.crew_task", {"id": crew, "task": {"kind": task, "target": asset, "by": ctx.actor,
                                                            "eta": int(ctx.now + eta * HOUR)}, "at": c["at"]},
                  vis="public")
@@ -1486,29 +1498,60 @@ def restoration(world, t_from: int, t_to: int) -> dict:
             "hospital_down_h": round(hosp, 1), "share_at": share_at, "households": tot_h}
 
 
+_CF: dict[str, dict] = {}
+
+
+def counterfactual(world, horizon_days: int) -> dict:
+    """Evaluator side: the same region and disruption without any coordinator - the operators acting alone - run
+    to the horizon from the world's own spec (the hazard draws are the world's exogenous stream, so the same event
+    strikes). Cached by spec hash."""
+    from ..core.kernel import World
+    key = f"{world.spec.hash()}|{int(horizon_days)}"
+    hit = _CF.get(key)
+    if hit is not None:
+        return hit
+    cw = World.create(world.spec, world_id="crisis-counterfactual")
+    cw.advance_time(int(horizon_days) * DAY)
+    mod = cw.modules["crisis"]
+    r = restoration(cw, int(mod.c["at_h"]) * HOUR, int(horizon_days) * DAY)
+    out = {"loss_fraction": r["loss_fraction"], "hospital_down_h": r["hospital_down_h"],
+           "lost_household_hours": r["lost_household_hours"]}
+    cw.close()
+    _CF[key] = out
+    return out
+
+
 def evaluate(world, principal: str, objective: dict) -> dict:
     mod = world.modules["crisis"]
     t0 = int(mod.c["at_h"]) * HOUR
-    horizon = int(objective.get("horizon_days", 10)) * DAY
+    hdays = int(objective.get("horizon_days", 10))
+    horizon = hdays * DAY
     t_end = min(world.now, horizon)
     r = restoration(world, t0, t_end)
-    rd = int(objective.get("restore_day", 5)) * DAY
+    rd = int(objective.get("restore_day", 7)) * DAY
     restored = r["share_at"](rd) if world.now >= rd else 0.0
     end_share = min(r["share_at"](t) for t in range(max(t0, t_end - DAY), t_end + 1, HOUR)) if t_end > t0 else 0.0
     unmet = int(columns.col(world, TABLE, "health_unmet").sum())
     met = int(columns.col(world, TABLE, "health_met").sum())
+    done = world.now >= horizon
+    cf = counterfactual(world, hdays) if done else None
+    rel = float(objective.get("max_loss_ratio", 0.8))
+    hosp_rel = float(objective.get("max_hospital_ratio", 0.6))
     checks = {"restored_by_day": restored >= float(objective.get("min_restored", 0.95)),
               "kept_restored": end_share >= float(objective.get("min_restored", 0.95)),
-              "hospital": r["hospital_down_h"] <= float(objective.get("max_hospital_down_h", 12)),
-              "loss": r["loss_fraction"] <= float(objective.get("max_loss", 0.2)),
-              "horizon": world.now >= horizon}
-    score = float(np.mean([restored, end_share, max(0.0, 1.0 - r["loss_fraction"] / max(1e-6, float(
-        objective.get("max_loss", 0.2))) * 0.5), max(0.0, 1.0 - r["hospital_down_h"] / 48.0)]))
+              "loss_vs_uncoordinated": bool(cf) and r["loss_fraction"] <= rel * cf["loss_fraction"],
+              "hospital": bool(cf) and r["hospital_down_h"] <= max(float(objective.get("hospital_floor_h", 12)),
+                                                                     hosp_rel * cf["hospital_down_h"]),
+              "horizon": done}
+    ratio = r["loss_fraction"] / max(1e-6, cf["loss_fraction"]) if cf else None
+    score = float(np.mean([restored, end_share, 1.0 - min(1.0, ratio) if ratio is not None else 0.0]))
     return {"success": all(checks.values()), "score": round(score, 4),
             "details": {"restored_share_at_day": round(restored, 4), "restored_share_last_day": round(end_share, 4),
                         "loss_fraction": r["loss_fraction"], "lost_household_hours": r["lost_household_hours"],
                         "hospital_down_h": r["hospital_down_h"], "health_needs_unmet": unmet,
-                        "health_needs_met": met, "checks": checks}}
+                        "health_needs_met": met, "uncoordinated": cf,
+                        "loss_ratio_vs_uncoordinated": round(ratio, 4) if ratio is not None else None,
+                        "checks": checks}}
 
 
 MECHANICS = ("Cascading disruptions", "Scarce resources", "Prioritization", "Coordination", "Recovery", "Resilience",
@@ -1529,16 +1572,38 @@ def mechanics(world) -> dict:
             reasons[ev.payload["reason"]] = reasons.get(ev.payload["reason"], 0) + 1
     mod = world.modules["crisis"]
     r = restoration(world, int(mod.c["at_h"]) * HOUR, world.now) if led["states"] else None
+    # scarcity binds when more assets are damaged at once than there are crews to work on them
+    # (per trade: more damaged assets of a trade at once than crews of that trade on hand)
+    damaged: dict[str, str] = {}
+    arrivals: list[tuple[int, str]] = []
+    kinds = {aid: x["kind"] for aid, x in world.state.scan("cr_assets")}
+    peak, crews = 0, 0
+    for ev in world.events_range(0):
+        if ev.type == "crisis.crew":
+            arrivals.append((int(ev.payload.get("arrive_t", 0)), ev.payload["trade"]))
+        elif ev.type == "crisis.damage":
+            damaged[ev.payload["id"]] = TRADES.get(kinds.get(ev.payload["id"], ""), "")
+            for trade in set(damaged.values()):
+                n_d = sum(1 for t in damaged.values() if t == trade)
+                n_c = sum(1 for t, tr in arrivals if t <= ev.t and tr == trade)
+                if n_d - n_c > peak - crews:
+                    peak, crews = n_d, n_c
+        elif ev.type == "crisis.restored":
+            damaged.pop(ev.payload["id"], None)
     return {
         "Cascading disruptions": {"exercised": c["crisis.damage"] > 0 and led["cascaded"] > 0,
                                   "events": {"crisis.damage": c["crisis.damage"],
                                              "undamaged_facilities_down": led["cascaded"]}},
-        "Scarce resources": {"exercised": c["crisis.part_fitted"] > 0 and (c["crisis.wait_part"] > 0 or
-                                                                          c["crisis.backup_dry"] > 0),
-                             "events": {"crisis.part_fitted": c["crisis.part_fitted"],
+        "Scarce resources": {"exercised": peak > crews and (c["crisis.part_fitted"] + c["crisis.wait_part"] +
+                                                           c["crisis.order"] + c["crisis.backup_dry"] +
+                                                           c["crisis.fuelled"]) > 0,
+                             "events": {"peak_damaged_assets": peak, "crews": crews,
+                                        "crisis.part_fitted": c["crisis.part_fitted"],
                                         "crisis.wait_part": c["crisis.wait_part"],
-                                        "crisis.backup_dry": c["crisis.backup_dry"], "crisis.order": c["crisis.order"]}},
-        "Prioritization": {"exercised": reasons.get("request", 0) > 0 and reasons.get("customers", 0) > 0,
+                                        "crisis.backup_dry": c["crisis.backup_dry"], "crisis.order": c["crisis.order"],
+                                        "crisis.fuelled": c["crisis.fuelled"]}},
+        "Prioritization": {"exercised": reasons.get("request", 0) + reasons.get("customers", 0) > 0 and
+                                        c["crisis.priority"] > 0,
                            "events": {"crisis.request": c["crisis.request"], **{f"priority:{k}": v
                                                                                for k, v in reasons.items()}}},
         "Coordination": {"exercised": c["crisis.agreed"] > 0 and c["crisis.help"] > 0,
@@ -1564,7 +1629,8 @@ STRUCTURES = {
     "quake_mesh": {"hazard": "quake", "topology": "mesh", "aftershock_rate_per_day": 0.35, "intensity": 1.3},
     "cyber_control": {"hazard": "cyber", "topology": "radial", "aftershock_rate_per_day": 0.0, "intensity": 1.0},
     "quake_radial": {"hazard": "quake", "topology": "radial", "aftershock_rate_per_day": 0.35, "intensity": 1.3},
-    "flood_volunteers": {"hazard": "flood", "topology": "mesh", "aftershock_rate_per_day": 0.0, "intensity": 1.1,
+    "flood_volunteers": {"hazard": "flood", "topology": "mesh", "aftershock_rate_per_day": 0.3,
+                         "aftershock_scale": 0.7, "intensity": 1.1,
                          "volunteers": True, "supplier_lead_h": 72},
 }
 
@@ -1607,14 +1673,15 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
 
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = max(1, int(difficulty))
-    max_loss = round(0.16 / d, 3)
+    ratio = round(0.8 ** d, 3)
     return {"description": f"You coordinate the response to the disruption that hits this region on its first day. "
-                           f"By the end of day 5, at least 95% of households must again have power, water and "
-                           f"telecommunications, and keep them through day 10; the regional hospital may be out of "
-                           f"service for at most 12 hours in total; and households may lose at most "
-                           f"{max_loss:.0%} of their service-hours (power, water, telecom) over the 10 days.",
-            "horizon_days": 10, "restore_day": 5, "min_restored": 0.95, "max_hospital_down_h": 12,
-            "max_loss": max_loss}
+                           f"By the end of day 7 at least 95% of households must again have power, water and "
+                           f"telecommunications, and keep them through day 10. Over the 10 days, households must lose "
+                           f"at most {ratio:.0%} of the service-hours they would have lost had the operators responded "
+                           f"alone, and the regional hospital may be out of service for at most 12 hours or 60% of "
+                           f"what it would have been without you, whichever is more.",
+            "horizon_days": 10, "restore_day": 7, "min_restored": 0.95, "max_loss_ratio": ratio,
+            "max_hospital_ratio": 0.6, "hospital_floor_h": 12}
 
 
 class Reference(ToolPolicy):
