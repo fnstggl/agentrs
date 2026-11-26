@@ -10,13 +10,15 @@ critical finding of every audit in docs/v5/audit/ to be registered here. Severit
 Register opened by workstream P on 2026-11-26 from the recovery audit (docs/v5/audit/*.json `critical_findings`, the
 B_population verdict) and P's own findings.
 
-### DEF-A-1 (critical, open): Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C p
+### DEF-A-1 (critical, fixed): Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C p
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w2-civ (crucible.civ: generator, 11 profiles, couplings engine, provenance chains, counterfactual experiments, long-run harness, Mode C provider, tier3 entry, Gate O/P/SP-10 tests) and c5c/w3b-civ (typed strict civilisations, 10 executable couplings, resumable long runs, SP-10.0/10.2/10.3b/2.1b/17.1/19.3 harnesses); requirements still failing are failing on measured values, not on missing code",
  "id": "DEF-A-1",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_civ_core.py, tests/test_v5_civ_longrun.py",
  "requirements": [
   "SP-10"
  ],
@@ -26,18 +28,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Tier 3 does not exist: crucible/civ is a 5-line docstring (no generator, profiles, couplings, chains, Mode C provider, Gate O/P/SP-10 tests). All 13 J requirements are unmet."
 }
 ```
 
-### DEF-A-2 (critical, open): The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported fr
+### DEF-A-2 (critical, fixed): The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported fr
 
 ```json
 {
  "area": "A_J_substrate_civ",
+ "fixed_by": "c5c/w3-intfix: crucible.population exports register_activity (ONE_WORLD_CONTRACTS section 1) and every civilisation composes feed with the population (crucible.civ.generator)",
  "id": "DEF-A-2",
  "owner": "A, J",
+ "regression_tests": "tests/test_v5_civ_core.py::test_every_profile_composes_one_world",
  "requirements": [
   "C.3"
  ],
@@ -47,7 +51,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/A_J_substrate_civ.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The real population (pop) cannot be combined with the recommender (feed): register_activity is not exported from crucible.population (social/recsys/service.py:179-187). Gate C.3 fails on this; the social gates C2/D/I were built on the stand-in crowd population, which refuses to coexist with pop."
 }
 ```
