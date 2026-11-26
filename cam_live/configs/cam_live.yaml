@@ -1,0 +1,35 @@
+# CAM Live 1.0 — default configuration (the full candidate: Qwen3-4B backbone + ~50M experiential core).
+# Any top-level mapping other than seed/device/home/backbone/core/optim is a subpackage section, read with
+# CamLiveConfig.section("<name>") by the subpackage that owns it.
+seed: 0
+device: auto
+home: ""                      # default: <repo>/runs/cam_live ; set CAM_LIVE_HOME to a persistent volume for live runs
+
+backbone:
+  name: Qwen/Qwen3-4B
+  revision: 1cfa9a7208912126459214e8b04321603b3df60c
+  local_files_only: true
+  dtype: bfloat16
+  tap_layers: [0.5, 0.75, 1.0]
+  max_text_tokens: 384
+  lora_rank: 32
+  lora_alpha: 32.0
+  lora_targets: [q_proj, v_proj]
+  lora_layers: all
+  bridge_tokens: 8
+  grad_checkpoint: true
+
+core:
+  scale: 50m                  # debug | 5m | 20m | 50m | 150m | 500m | 1b
+  max_context: 256
+
+optim:
+  lr_experiential: 3.0e-4
+  lr_heads: 3.0e-4
+  lr_adapters: 5.0e-5
+  lr_reward: 1.0e-4
+  inner_lr: 1.0e-2
+  inner_steps: 2
+  adapter_every: 8
+  meta_min_independent_outcomes: 8
+  batch_size: 16
