@@ -248,3 +248,150 @@ def l_measure(A: dict) -> dict:
                  "income_deposits_verified": int(sum(b["income_deposits"] for b in bon.values())),
                  "creators": len(creators)},
     }
+
+
+# ====================================================================== SP-6.3b (usefulness, novel categories, workflows)
+USEFULNESS_DECISIONS = {
+    # module path (under crucible/) -> functions that decide whether something is useful to a participant
+    "economy/work.py": ("_accepted", "_adopt", "act_shop", "_after_session", "belief", "_public_prior"),
+    "innovation/caps.py": ("ep_verify", "ep_adopt_service", "ep_try"),
+    "innovation/pkg.py": ("_exercised", "_repro_check", "ep_upgrade"),
+    "innovation/devs.py": ("_maintain", "_compose_plan", "_competitors", "converts", "_explore"),
+}
+LM_MODULES = ("semantic.space.lm", "semantic.participants", "semantic.agents", "substrate.inference", "transformers",
+              "torch", "openai", "anthropic")
+LM_CALLS = frozenset({"lm", "llm", "judge", "grade", "chat", "generate_text", "complete", "logprob", "perplexity"})
+
+
+def _dotted(node) -> str:
+    parts = []
+    while isinstance(node, ast_mod().Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast_mod().Name):
+        parts.append(node.id)
+    return ".".join(reversed(parts))
+
+
+def ast_mod():
+    import ast
+    return ast
+
+
+def single_judge_paths(root: str) -> list[str]:
+    """Usefulness decision functions that reach a language-model judgement: the decision functions themselves and,
+    transitively, the functions of the same module they call (static AST scan of names actually used: imports of
+    language-model modules, calls through them, calls named like a judge). A usefulness decision must come from
+    the participant's own measured outcome (world physics, own tests, own experience), never from one model
+    grading for everyone."""
+    import os
+    ast = ast_mod()
+    out = []
+    for rel, fns in sorted(USEFULNESS_DECISIONS.items()):
+        path = os.path.join(root, rel)
+        tree = ast.parse(open(path).read())
+        defs = {n.name: n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+
+        def lm_aliases(scope) -> set[str]:
+            al = set()
+            for n in ast.walk(scope):
+                if isinstance(n, ast.ImportFrom):
+                    mod = n.module or ""
+                    for a in n.names:
+                        if any(m in f"{mod}.{a.name}" for m in LM_MODULES):
+                            al.add(a.asname or a.name)
+                elif isinstance(n, ast.Import):
+                    for a in n.names:
+                        if any(m in a.name for m in LM_MODULES):
+                            al.add((a.asname or a.name).split(".")[0])
+            return al
+        module_aliases = lm_aliases(tree)
+        for fn in fns:
+            if fn not in defs:
+                out.append(f"{rel}:{fn} (missing: the scan's list is stale)")
+                continue
+            seen, todo, hit = set(), [fn], None
+            while todo and hit is None:
+                f = todo.pop()
+                if f in seen or f not in defs:
+                    continue
+                seen.add(f)
+                al = module_aliases | lm_aliases(defs[f])
+                for n in ast.walk(defs[f]):
+                    if not isinstance(n, ast.Call):
+                        continue
+                    name = _dotted(n.func)
+                    parts = name.split(".") if name else []
+                    if (parts and parts[0] in al) or (set(parts) & LM_CALLS):
+                        hit = f"{rel}:{fn} -> {f}: {name}"
+                        break
+                    last = parts[-1] if parts else None
+                    if last in defs:
+                        todo.append(last)
+            if hit:
+                out.append(hit)
+    return out
+
+
+def grounded_adoptions(world) -> dict:
+    """Every adoption by an individual (`work.rely` active) is preceded by the individual's own accepted outcome
+    with that provider (`work.outcomes`, or the subscription trial it started); per product, keep and drop
+    decisions differ between individuals (diverse, grounded responses)."""
+    ok_seen: set[tuple[int, str]] = set()
+    adopt, grounded = 0, 0
+    keep: dict[str, set] = {}
+    drop: dict[str, set] = {}
+    for e in world.log:
+        if e.type == "work.outcomes":
+            for row in e.payload["rows"]:
+                if int(row[4]) > 0:
+                    ok_seen.add((int(row[0]), row[1]))
+        elif e.type == "work.rely":
+            pv, i = e.payload["prov"], int(e.payload["i"])
+            if e.payload.get("active"):
+                if pv.startswith("cdecl_"):
+                    adopt += 1
+                    grounded += int((i, pv) in ok_seen)
+                keep.setdefault(pv, set()).add(i)
+            else:
+                drop.setdefault(pv, set()).add(i)
+    diverse = sum(1 for pv in set(keep) | set(drop) if keep.get(pv) and drop.get(pv))
+    return {"capability_adoptions": adopt, "grounded": grounded, "providers_with_keep_and_drop": diverse}
+
+
+def sp63b_measure(A: dict, root: str) -> dict:
+    from ..substrate import ids as _ids
+    f = A["factual"]
+    w = f["world"]
+    st = w.state
+    novel = {g["need"] for g in w.modules["work"].fams if g["need"].startswith("gen.")}
+    docs = [d["title"] for _, d in st.scan("documents")] if "documents" in st.tables else []
+    undocumented = sorted(n for n in novel if not any(n in t for t in docs))
+    novel_adopt = []
+    for pid, o in f["outcome"]["products"].items():
+        if o.get("category") in undocumented and o.get("kind") == "service" and o["created_t"] > 0:
+            novel_adopt.append((pid, len(o["kept"])))
+    wfs = []
+    for wid, wf in st.scan("cap_workflows") if "cap_workflows" in st.tables else ():
+        comps = {c["provider"] for c in wf["components"]}
+        indep = all(M.independent(w, wf["composer"], c) for c in comps) and \
+            all(M.independent(w, a, b) for a in comps for b in comps if a < b)
+        users = len({r["i"] for _, r in st.scan("work_exp") if r["prov"] == wf["declaration"] and r["uses"] > 0})
+        kept = len({r["i"] for _, r in st.scan("work_exp") if r["prov"] == wf["declaration"] and r["active"]})
+        wfs.append({"workflow": wid, "status": wf["status"], "components": len(wf["components"]),
+                    "component_creators": len(comps), "independent": bool(indep), "users": users, "kept": kept,
+                    "composer_kind": M.creator_kind(w, wf["composer"])})
+    good_wf = [x for x in wfs if x["status"] == "verified" and x["component_creators"] >= 2 and x["independent"]]
+    paths = single_judge_paths(root)
+    g = grounded_adoptions(w)
+    return {"novel": sorted(novel), "undocumented": undocumented, "novel_products": novel_adopt, "workflows": wfs,
+            "paths": paths, "grounded": g,
+            "metrics": {"single_judge_usefulness_paths": len(paths),
+                        "novel_category_adoptions": int(sum(k for _, k in novel_adopt)),
+                        "composed_workflows_registered": len(good_wf),
+                        "composed_workflows_used": sum(1 for x in good_wf if x["kept"] > 0),
+                        "workflow_users": int(sum(x["users"] for x in good_wf)),
+                        "novel_categories_undocumented": len(undocumented),
+                        "capability_adoptions": g["capability_adoptions"],
+                        "grounded_adoptions": g["grounded"],
+                        "providers_with_keep_and_drop": g["providers_with_keep_and_drop"]}}
