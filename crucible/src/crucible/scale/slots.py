@@ -418,8 +418,8 @@ def gpu_census() -> dict:
             rec["cmd"] = open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode(errors="replace")[:160]
         except OSError:
             pass
-        try:
-            governed = bool(env.get(G.ENV_JOB)) and int(float(env.get(G.ENV_GPU_MB) or 0)) > 0
+        try:        # a GPU grant in the environment: set by this scheduler (and by its first version) for its jobs
+            governed = int(float(env.get(G.ENV_GPU_MB) or 0)) > 0
         except ValueError:
             governed = False
         (inside if governed else outside).append(rec)
