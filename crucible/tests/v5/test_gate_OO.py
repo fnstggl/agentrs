@@ -939,3 +939,24 @@ def test_OO16_no_split_or_identity_reaches_participants(tier_probes):
            f"that could not run: {res['errors']}")
     assert metrics["split_identity_leaks"] == 0 and metrics["identity_probes"] >= 3, metrics
     assert len(covered) == 3, f"identity probed in tiers {covered}; not run: {res['errors']}"
+
+
+# ---------------------------------------------------------------------------------------------- OO.13 / OO.15
+# Workstream P's requirements, measured by crucible.acceptance.v5.qa (appended by P; the rest of the file is L's).
+def test_OO13_no_learner_reward_function_inside_crucible():
+    from crucible.acceptance.v5 import qa
+    res = qa.learner_reward_scan(ROOT)
+    m = res["metrics"]
+    record("OO.13", m, command=CMD, notes=f"learner reward functions in crucible/src or imported by it: {res['hits'][:10]}; "
+           f"learner-side client code outside src (external learners written against the public interface, D-81): "
+           f"{res['client_hits'][:10]}")
+    assert m["learner_reward_functions_in_crucible"] == 0 and m["crucible_files_scanned"] >= 500, res["hits"][:5]
+
+
+def test_OO15_observation_only_requirements_independently_verified():
+    from crucible.acceptance.v5 import qa
+    res = qa.oo_independence(ROOT)
+    m = res["metrics"]
+    record("OO.15", m, command=CMD, notes=f"OO.1-OO.8 VERIFIED with different producer and reviewer identities: "
+           f"{res['verified']}")
+    assert m["oo_requirements_independently_verified"] == 8, res["verified"]

@@ -66,10 +66,11 @@ def v4_tree(root: str | None = None, dest: str | None = None) -> str:
     return out
 
 
-def probe(src_root: str, *args: str, timeout: int = 3600) -> dict:
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+def probe(src_root: str, *args: str, timeout: int = 3600, historical: bool = False) -> dict:
+    """Run _v4probe.py against the tree at `src_root`; `historical`: as the Crucible 4.0 historical baseline (D-82)."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "CRUCIBLE_HISTORICAL_BASELINE")}
     env.update(PYTHONPATH=os.path.join(src_root, "src"), OMP_NUM_THREADS="1", MKL_NUM_THREADS="1",
-               PYTHONDONTWRITEBYTECODE="1")
+               PYTHONDONTWRITEBYTECODE="1", **(HISTORICAL_ENV if historical else {}))
     p = subprocess.run([sys.executable, "-P", PROBE, *args], cwd=src_root, env=env, capture_output=True, text=True,
                        timeout=timeout)
     if "@@JSON@@" not in p.stdout:
@@ -111,9 +112,39 @@ def _groups(root: str, files: list[str], n: int) -> list[list[str]]:
     return [g for g in groups if g]
 
 
+# Resource classes of the whole-suite run through the slot scheduler (Gate X.2/X.4): (filename pattern, cpu, gpu MB,
+# RAM MB, timeout s). The first matching pattern wins. Population/social/civ/semantic code runs the Qwen3-0.6B text
+# path and needs the GPU; the gate tests carry their own heavy measurements. Overridable as JSON in
+# $CRUCIBLE_GATE_X_RESOURCES (same row shape).
+SUITE_RESOURCES = [
+    (r"tests/v5/test_gate_(P|SP_3_3b|SP_13_6|SP_13_7b?|V|I)\.py$", 2, 9000, 28000, 30 * 3600),
+    (r"tests/v5/test_gate_(H|SP_3_2b|SP_3_2d|SP_3_3c|SP_11_6c)\.py$", 1, 9000, 16000, 8 * 3600),
+    (r"tests/v5/", 1, 3000, 12000, 6 * 3600),
+    (r"tests/test_v5_(population|social|civ|semantic|econ|innovation|commerce|domains)", 1, 3000, 12000, 4 * 3600),
+    (r"tests/test_agents_llm\.py$", 1, 6000, 8000, 3600),
+    (r"", 1, 0, 6000, 4 * 3600),
+]
+
+
+def suite_resources(f: str) -> tuple[int, int, int, int]:
+    rows = SUITE_RESOURCES
+    if os.environ.get("CRUCIBLE_GATE_X_RESOURCES"):
+        rows = [tuple(r) for r in json.loads(os.environ["CRUCIBLE_GATE_X_RESOURCES"])] + list(SUITE_RESOURCES)
+    for pat, cpu, gpu, ram, tmo in rows:
+        if re.search(pat, f):
+            return int(cpu), int(gpu), int(ram), int(tmo)
+    return 1, 0, 6000, 4 * 3600
+
+
+def slot_prefix(label: str, cpu: int, gpu: int, ram: int, timeout: int) -> list[str]:
+    """The slot-scheduler command prefix for one suite group (crucible.scale.slots of the checkout being run)."""
+    return [sys.executable, "-m", "crucible.scale.slots", "--cpu", str(cpu), "--gpu-mb", str(gpu), "--ram-mb", str(ram),
+            "--timeout", str(timeout), "--label", label, "--"]
+
+
 def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 1, timeout: int = 4 * 3600,
                       extra_env: dict | None = None, isolate: tuple = (), plugins: tuple = (),
-                      extra_path: tuple = ()) -> dict:
+                      extra_path: tuple = (), via_slots: str | None = None) -> dict:
     """Run test files in `workers` concurrent pytest processes (one thread each); returns cases and exit codes.
     Files in `isolate` run in a pytest process of their own each (after the groups); `plugins` are loaded with -p in
     every process; `extra_path` entries follow the checkout's src on PYTHONPATH."""
@@ -123,21 +154,31 @@ def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 
     env.update(PYTHONPATH=os.pathsep.join([os.path.join(root, "src"), *extra_path]), OMP_NUM_THREADS="1",
                MKL_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
     plug = [x for p in plugins for x in ("-p", p)]
-    batches = [(g, True) for g in _groups(root, [f for f in files if f not in isolate], workers)]
-    batches += [([f], False) for f in files if f in isolate]
+    if via_slots:
+        # every resource class is a group of its own, submitted as one slot job per `workers` share: the scheduler
+        # admits them as the machine's budget allows (GPU tests with a GPU, the rest without)
+        by_class: dict[tuple, list[str]] = {}
+        for f in files:
+            if f not in isolate:
+                by_class.setdefault(suite_resources(f), []).append(f)
+        batches = [(g, True, c) for c, fs in sorted(by_class.items()) for g in _groups(root, fs, workers)]
+    else:
+        batches = [(g, True, None) for g in _groups(root, [f for f in files if f not in isolate], workers)]
+    batches += [([f], False, suite_resources(f) if via_slots else None) for f in files if f in isolate]
     procs, pending = [], list(enumerate(batches))
     rcs, cases = [], []
 
-    def start(i, g):
+    def start(i, g, res=None):
         junit = os.path.join(out_dir, f"group{i}.xml")
         log = open(os.path.join(out_dir, f"group{i}.log"), "w")
+        pre = slot_prefix(f"{via_slots}: suite group {i} ({len(g)} files)", *res) if res else []
         return junit, log, subprocess.Popen(
-            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", *plug,
+            [*pre, sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", *plug,
              f"--junitxml={junit}", *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)
-    for i, (g, concurrent) in pending:
+    for i, (g, concurrent, res) in pending:
         if concurrent:
-            procs.append(start(i, g))
-    serial = [(i, g) for i, (g, concurrent) in pending if not concurrent]
+            procs.append(start(i, g, res))
+    serial = [(i, g, res) for i, (g, concurrent, res) in pending if not concurrent]
     finished = []
     for junit, log, p in procs:
         try:
@@ -147,8 +188,8 @@ def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 
             rcs.append("timeout")
         log.close()
         finished.append(junit)
-    for i, g in serial:                         # isolated files: one process each, after the groups
-        junit, log, p = start(i, g)
+    for i, g, res in serial:                    # isolated files: one process each, after the groups
+        junit, log, p = start(i, g, res)
         try:
             rcs.append(p.wait(timeout=timeout))
         except subprocess.TimeoutExpired:
@@ -295,7 +336,7 @@ def trajectories(root: str | None = None, seeds=(0, 1), days: float = 2.0) -> di
     s = [str(x) for x in seeds]
     args = ("execute", "--seeds", *s, "--days", str(days), "--deterministic")
     old1, old2 = probe(v4_tree(root), *args), probe(v4_tree(root), *args)
-    new = probe(root, *args)
+    new = probe(root, *args, historical=True)         # D-82: 4.0 as an explicitly selected historical baseline
     key = lambda r: (r.get("ok"), r.get("events"), r.get("state_digest"))
     nondet, mism, compared = [], [], 0
     for n in sorted(old1):
@@ -601,10 +642,11 @@ def prior_results(root: str | None = None, only: list[str] | None = None, timeou
     conditions the record does not capture; v5 changed nothing about it). Anything else is a mismatch."""
     root = root or M.crucible_root()
     work = tempfile.mkdtemp(prefix="gateA5-", dir=scratch_dir())
-    clone = _plain_clone(root, os.path.join(work, "clone"))
+    clone = v4_test_clone(root, os.path.join(work, "clone"))[0]     # D-82: 4.0's own test files, byte-identical
     env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_") and k not in (
         "PYTHONPATH", "CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT")}
-    env.update(OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1", CRUCIBLE_RECORD_ACCEPTANCE="1")
+    env.update(OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1", CRUCIBLE_RECORD_ACCEPTANCE="1",
+               **HISTORICAL_ENV)                     # D-82: regenerated as the explicitly selected 4.0 baseline
     results = []
     cands = [c for c in prior_candidates(root) if only is None or c["record"] in only]
     for c in cands:

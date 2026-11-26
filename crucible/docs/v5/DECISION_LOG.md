@@ -293,6 +293,48 @@ tests stay in `crucible/tests/test_agents_llm.py`. Compatibility with the existi
 Remaining CAM imports in `crucible/` are workstream L's leakage probes of these adapters (`experience/probes.py`
 `probe_sl`/`probe_cam2` and two v5 tests), which L moves or removes; after this move `probe_sl`/`probe_cam2` cannot
 import `crucible.integrations.agentrs_*` any more. How Gate A.1 counts the seven relocated 4.0 node ids: D-82.
+OO.13 ("no learner's internal reward function is implemented inside Crucible") is measured on the same boundary
+(`qa.learner_reward_scan`): every .py file under `crucible/` is scanned, and the count is the definitions in Crucible's
+source tree `crucible/src` (the environment and its library) plus every `src` module importing a file that holds one.
+Learner-side client code outside `src` - the external learner of OO.6 (`examples/external_learner/curiosity_learner.py`,
+written only against the public `crucible.experience` interface and never imported by `src`) and test learners - is
+reported separately (`external_learner_reward_functions`), not hidden: a learner computing its own reward from
+observations is what Clarification 2 asks for, and OO.6's gate needs it inside the checkout (evidence rejects code
+imported from outside the clone).
+
+## D-82 Gate A.1 and A.5 measure Crucible 4.0 as 4.0 wrote it, as an explicitly selected historical baseline (2026-11-26, workstream P)
+Conflict (DEF-P-24, DEF-P-27, DEF-P-13): A.1 requires every one of the 1,076 4.0 baseline node ids to pass with the 4.0
+test files byte-identical to c07098b, and A.5 requires 4.0's results to reproduce. Clarification 2 / D-19 made
+observation-only the default of every 4.0 constructor (the 4.0 tests then train on zero reward), D-20 replaced 4.0's
+executed-line work count by parent-measured CPU (two 4.0 tests and every 4.0 world with sandboxed programs change, and
+the measured CPU is not reproducible across processes), Part 16 added a per-process world-hosting latch, and D-81 moved
+the CAM adapters out of Crucible. Wave 1 resolved it by editing 11 4.0 test files (explicit legacy mode), which
+satisfies Clarification 2 but not A.1 (`v4_test_files_modified == 0`); the criteria cannot be weakened (D-24).
+Decision (no criterion changes): Crucible 4.0 is a historical experiment, and Clarification 2 / OO.8 require historical
+experiments to remain reproducible through explicitly selected alternative modes. A process may be started as the
+Crucible 4.0 historical baseline by exporting `CRUCIBLE_HISTORICAL_BASELINE=4.0` (any other value is an error); its
+worker processes inherit it. In such a process only:
+* every constructor that names no reward mode gets the 4.0 reward contract (`experience.modes.check_mode(None)` returns
+  `legacy_shaped_reward`; a named mode always wins);
+* the deterministic cost model bills 4.0's executed-line count, counted in the sandboxed process exactly as 4.0
+  counted it (`sandbox/boot.py`, `runner.Worker._v4`). That count is tamperable by the program - the weakness D-20
+  retired - and exists only to reproduce 4.0 tests and records, never in a 5.0 world.
+Nothing else sets the variable; the official acceptance runner removes it from every measured process
+(`official.SCRUB_NAMES`), and a record made under it is rejected (`checker.env_problems`). With the variable unset
+nothing changes (observation-only default, parent-measured metering).
+Gate A.1 (`baseline.regression`) then runs the 4.0 regression suite as 4.0 wrote it: in a fresh clone of HEAD every
+file under `tests/` that exists at c07098b is restored to its c07098b bytes (verified by blob id), and the 1,076
+baseline node ids run against the current implementation in processes started as the 4.0 historical baseline;
+`tests/test_realworld_gate.py` runs in a pytest process of its own (the Part 16 hosting latch forbids the real-world
+bridge in any process that hosted worlds, and an operator's validation process is such a separate process); the 4.0
+names of the two CAM adapters moved by D-81 resolve to the relocated AGENTRS modules through an AGENTRS-side alias
+plugin (`agentrs.cam2.envs.crucible_v4_names`, loaded with `-p`; Crucible imports nothing of it), so the seven 4.0
+adapter node ids keep checking that the existing learner interface still works (Clarification 1's compatibility
+clause). `v4_test_files_modified` counts the 4.0 test files of the run that differ from c07098b - the property D-23
+asked for: the run uses the unmodified 4.0 tests - and the record also reports `v4_test_files_modified_in_tree` (the 11
+tree copies that carry v5 additions; they are v5 tests, run by X.2/X.4). Gate A.5 regenerates 4.0's records the same
+way (fresh clone, historical baseline). Order dependence between 4.0 files (DEF-P-26) and v5 import-time threads
+(DEF-P-25) are not covered by this decision: they are defects of their owners and still fail A.1 until fixed.
 
 ## D-83 Acceptance hardening after the wave-3b independent verification (2026-11-26, workstream P)
 An independent verifier attacked the D-26 machinery with eight new fabrication probes (tests/test_v5_acceptance_probes.py

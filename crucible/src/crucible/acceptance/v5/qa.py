@@ -800,20 +800,47 @@ LEARNER_REWARD = re.compile(r"\b(def|class)\s+\w*(intrinsic_reward|learned_rewar
 
 
 def learner_reward_scan(root: str | None = None) -> dict:
-    """OO.13: definitions of a learner's internal reward function (intrinsic/learned reward, curiosity, novelty bonus,
-    empowerment, CAM reward) anywhere under crucible/ (src, tests, examples, benchmarks). Environment-side legacy
-    rewards are not learner rewards."""
+    """OO.13 (D-81): definitions of a learner's internal reward function (intrinsic/learned reward, curiosity, novelty
+    bonus, empowerment, CAM reward) in Crucible itself - the environment and its library, `crucible/src` - and every
+    `src` module that imports a file holding one. Every .py file under crucible/ is scanned; definitions in learner-side
+    client code outside `src` (the external-learner example of OO.6 under examples/, test learners under tests/, written
+    only against the public interface) are reported separately: a learner that computes its own reward from
+    observations is what Clarification 2 asks for, as long as Crucible never contains or uses it. Environment-side
+    legacy rewards are not learner rewards."""
     root = root or M.crucible_root()
-    hits, n = [], 0
+    hits, n, files_with = [], 0, set()
     for dp, dn, fn in os.walk(root):
         dn[:] = [x for x in dn if x not in (".git", "__pycache__", "node_modules", ".venv")]
         for f in fn:
             if f.endswith(".py"):
                 n += 1
+                rel = _rel(root, os.path.join(dp, f))
                 for k, line in enumerate(open(os.path.join(dp, f), encoding="utf-8", errors="replace"), 1):
                     if LEARNER_REWARD.search(line):
-                        hits.append(f"{_rel(root, os.path.join(dp, f))}:{k}: {line.strip()[:90]}")
-    return {"metrics": {"crucible_files_scanned": n, "learner_reward_functions_in_crucible": len(hits)}, "hits": hits}
+                        hits.append(f"{rel}:{k}: {line.strip()[:90]}")
+                        files_with.add(rel)
+    inside = [h for h in hits if h.startswith("src/")]
+    client = [h for h in hits if not h.startswith("src/")]
+    mods = {os.path.splitext(f)[0].replace(os.sep, ".").split("src.", 1)[-1] for f in files_with}
+    stems = {os.path.splitext(os.path.basename(f))[0] for f in files_with if not f.startswith("src/")}
+    uses = []                                  # src modules importing learner-side code that holds a reward function
+    for dp, dn, fn in os.walk(os.path.join(root, "src")):
+        dn[:] = [x for x in dn if x != "__pycache__"]
+        for f in fn:
+            if not f.endswith(".py"):
+                continue
+            try:
+                tree = ast.parse(open(os.path.join(dp, f), encoding="utf-8", errors="replace").read())
+            except SyntaxError:
+                continue
+            for x in ast.walk(tree):
+                names = [a.name for a in x.names] if isinstance(x, ast.Import) else \
+                    [x.module or ""] if isinstance(x, ast.ImportFrom) else []
+                if any(nm in mods or nm.split(".")[-1] in stems or nm.split(".")[0] in stems for nm in names):
+                    uses.append(f"{_rel(root, os.path.join(dp, f))}:{x.lineno}")
+    return {"metrics": {"crucible_files_scanned": n, "learner_reward_functions_in_crucible": len(inside) + len(uses),
+                        "external_learner_reward_functions": len(client)},
+            "hits": inside + uses, "client_hits": client}
 
 
 def oo_independence(root: str | None = None) -> dict:
