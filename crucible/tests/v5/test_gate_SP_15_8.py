@@ -16,6 +16,8 @@ adversarial learners and checkpoints of `crucible.redteam.v5.adversaries` and th
                                                      (`crucible.sandbox.learnerhost`)
     hosted_state_outlives_the_process                a jailed learner process cannot leave state outside its
                                                      checkpoint for a fresh learner process (files, kernel IPC)
+    evaluator_survives_a_stalled_participant         a partial participant request does not freeze the
+                                                     evaluator (the harness keeps getting answers)
     interaction_budget                               a learner granted k informative interactions cannot make more
     timing_channel                                   latency reveals neither the partition nor the outcome
     partition_awareness                              participants cannot tell validation / evaluation / sealed

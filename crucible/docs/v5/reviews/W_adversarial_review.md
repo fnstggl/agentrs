@@ -5,7 +5,7 @@ Reviewer: workstream O (security), wave 3b, on branch `c5c/w3b-sec` from the int
 research instrument (N), the media/social call sites (C, D), the package ablation (G) or the kernel memo (A/K3), and it
 re-measured the earlier security workstreams' own claims instead of trusting them. Every verdict below rests on a probe
 or control that is part of the gate suite, so it is re-executed (and ablated) whenever the gate runs:
-`crucible.redteam.v5` (Gate W, 83 probes on this branch; Tier 2 probes grow with the domain registry: 129 on the check merge, 45 of them Tier 2) and `crucible.redteam.v5.instrument` (SP-15.8, 10 controls).
+`crucible.redteam.v5` (Gate W, 84 probes on this branch; Tier 2 probes grow with the domain registry: 129 on the check merge, 45 of them Tier 2) and `crucible.redteam.v5.instrument` (SP-15.8, 11 controls).
 
 Targets named by the assignment: metering, ablation-based adoption, media/JavaScript isolation, network isolation,
 cross-tenant state, and the research instrument's evaluator.
@@ -49,6 +49,8 @@ isolation; they need a VM or dedicated hardware per tenant.
 |---|---|---|
 | DEF-O-13 (high, open) | an adversarial learner function (`fn(participant)`, the `remote.evaluate` contract) looks for the evaluator and sealed material from its own process | **LEAK**: on this branch the only path drives it in the process holding the RemoteEvaluator (gc reaches it, and the World); on a check merge with c5c/w3b-obs, `remote.evaluate` runs it in its own process but as root, and it reads the 4.0 sealed salt, sealed sets and sealed task files under ~/.crucible and other processes' environments. Hosted by `crucible.sandbox.learnerhost` (protocol `experience-remote`) the same adversary reaches nothing (`v5.isolation.evaluated_learner_reaches_no_sealed_material`, `test_learner_host_runs_an_experience_remote_learner_function_jailed`) |
 
+| DEF-O-20 (high, open) | a learner holding only the participant pipe of `remote.host` writes a frame header announcing 1,000 bytes and sends 24 | **FROZEN**: the hosted world serves both pipes in one loop and waits for the whole frame; the evaluator side gets no answer (`v5.isolation.remote_evaluator_survives_a_stalled_participant`, KNOWN_OPEN; also on the check merge). The research evaluator has the same defect (DEF-O-19). |
+
 ## 2. Research instrument (SP-15.8): attacks by adversarial learners
 
 | control | attack | result |
@@ -61,9 +63,11 @@ isolation; they need a VM or dedicated hardware per tenant.
 | interaction_budget | granted 1 informative interaction, the learner executes lever settings itself through its participant environment | **FAILED (DEF-O-11, owner N)**: 60 counted, result unmarked (budgets are enforced by the learner-side driver only) |
 | timing_channel | latency of the participant round trip in interleaved validation and sealed episodes | held: partition p 0.31 (relative difference 11%, not significant), latency vs verified score rho 0.39 (p 0.06) |
 | partition_awareness | everything a participant receives at the start of validation, evaluation and sealed episodes | held: no seed, alias, ticket, family name or partition word; validation and sealed episodes of one family have the same structure |
+| hosted_state_outlives_the_process | a jailed learner process leaves its state in shared and parent directories, SysV IPC and POSIX queues; a FRESH learner process looks for it | held (after DEF-O-14/15): nothing recovered |
+| evaluator_survives_a_stalled_participant | a jailed learner sends part of a request (no newline) on its participant socket and goes quiet | **FAILED (DEF-O-19, owner N)**: the evaluator serves both sockets in one loop with whole-line reads; the harness got no answer for 20 s |
 | calibration_shortcut | six fixed rules of the public defaults (the audit's anti-default 25/75 rule, mirror, centre, all-max, all-min, a 0.35 step away) on 80 generated worlds | held: worst median share of the best constant's improvement 0.07 (centre); the 25/75 rule -0.05 |
 
-The three failures are recorded as open defects with the precise fix; SP-15.8 asserts that no control fails, so its
+The four failures are recorded as open defects with the precise fix; SP-15.8 asserts that no control fails, so its
 gate fails until N lands them. `LearnerHost` is the fix for DEF-O-10 (shown by the hosted control).
 
 ## 3. Attacks that held (new coverage)

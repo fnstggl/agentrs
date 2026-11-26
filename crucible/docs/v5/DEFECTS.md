@@ -2593,3 +2593,51 @@ B_population verdict) and P's own findings.
  "summary": "Memory and disk caps could be exceeded: anonymous memory files (memfd_create) hold pages that are not mapped, so RLIMIT_AS does not count them - a sandboxed program wrote 640 MiB under a 256 MiB address-space cap (up to NOFILE x FSIZE = 1 GiB per worker, kept by long-lived service workers) and a jailed learner process held 512 MiB under its 512 MiB cap (up to 256 x 256 MiB = 64 GiB); and a learner process's private directory had no quota at all (RLIMIT_FSIZE bounds one file: it wrote 256 MiB in 64 files and could fill the machine's disk)."
 }
 ```
+
+### DEF-O-19 (high, open): The research evaluator process serves the participant socket and the harness's evaluator socket in one selecto
+
+```json
+{
+ "area": "O_security",
+ "fix": "research/v5/evaluator.py _serve: read each side non-blockingly into a bounded per-side buffer (os.read on readable sockets, split complete lines, refuse a side whose buffer exceeds MAX_LINE) or serve each side in its own thread; give the harness side a deadline and record a stalled episode as a failure of the learner, never drop it",
+ "id": "DEF-O-19",
+ "owner": "N",
+ "regression_tests": "tests/v5/test_gate_SP_15_8.py (control evaluator_survives_a_stalled_participant)",
+ "requirements": [
+  "SP-15.8",
+  "W.2",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "The research evaluator process serves the participant socket and the harness's evaluator socket in one selector loop and reads whole lines (rf.readline): a learner that sends part of a request and no newline freezes the evaluator - the harness got no answer to an episode's result for 20 s (indefinitely; the evaluator channel has no timeout). A learner can therefore decide when, and whether, its episodes are measured (e.g. stall in the sealed episodes it is failing)."
+}
+```
+
+### DEF-O-20 (high, open): crucible.experience.remote serves the participant pipe and the evaluator pipe in one loop and recv_bytes waits
+
+```json
+{
+ "area": "O_security",
+ "fix": "experience/remote.py _serve: bounded non-blocking reads per side (or one thread per side), a deadline on the evaluator side, and a stalled run recorded as the learner's failure",
+ "id": "DEF-O-20",
+ "owner": "L",
+ "regression_tests": "tests/v5/test_gate_W.py::test_W2_evaluator_isolation and ::test_W7_resource_limits (v5.isolation.remote_evaluator_survives_a_stalled_participant, KNOWN_OPEN until fixed)",
+ "requirements": [
+  "W.2",
+  "W.7",
+  "W.n1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream O wave 3b (c5c/w3b-sec): independent adversarial review W.n1",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "crucible.experience.remote serves the participant pipe and the evaluator pipe in one loop and recv_bytes waits for a whole frame: a learner holding only the participant pipe that writes a frame header announcing 1,000 bytes and sends 24 freezes the hosted world; the evaluator side (verify/digest) gets no answer (15 s in the probe; indefinitely in practice). Also on the check merge with c5c/w3b-obs."
+}
+```

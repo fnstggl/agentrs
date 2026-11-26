@@ -23,6 +23,9 @@ something to hide (a control whose attack did nothing is not passed):
     hosted_state_outlives_the_process
                                 a jailed learner process leaves its state outside its checkpoint (shared and parent
                                 directories, System V IPC, POSIX queues) and a FRESH learner process cannot recover it
+    evaluator_survives_a_stalled_participant
+                                a learner that sends part of a request and goes quiet does not freeze the evaluator
+                                (the harness's channel keeps getting answers)
     interaction_budget          a learner granted k informative interactions cannot make more by calling its
                                 participant environment itself (the evaluator refuses, or marks the run)
     timing_channel              the latency of participant operations reveals neither the episode's partition nor its
@@ -48,8 +51,8 @@ from typing import Callable
 import numpy as np
 
 CONTROLS = ("process_memory_stash", "files_outside_checkpoint", "checkpoint_tampering", "evaluator_internals",
-            "evaluator_internals_hosted", "hosted_state_outlives_the_process", "interaction_budget", "timing_channel",
-            "partition_awareness", "calibration_shortcut")
+            "evaluator_internals_hosted", "hosted_state_outlives_the_process", "evaluator_survives_a_stalled_participant",
+            "interaction_budget", "timing_channel", "partition_awareness", "calibration_shortcut")
 LEARNER_SEEDS = (0, 1, 2, 3)     # fallbacks; the stash battery uses the instrument's own design sizes (_design)
 TRAIN_FAMILIES = 4
 TRAIN_TASKS = 24                 # as the instrument's own battery (instrument.Design: 24 tasks x 3 repeats)
@@ -444,6 +447,55 @@ def control_hosted_state_outlives_the_process(reg=None) -> dict:
                          f"outside the private directory: {escaped or 'none'}; kernel IPC refused)", ev)
 
 
+def control_evaluator_survives_a_stalled_participant(reg=None) -> dict:
+    """A jailed learner holding only its participant channel sends part of a request and never ends the line. The
+    evaluator process serves the participant and the harness's evaluator channel; it must keep answering the
+    harness (here: an episode's verified result) instead of waiting on the participant forever - otherwise a
+    learner decides when (and whether) its episodes are measured."""
+    import threading
+    from ...sandbox.learnerhost import LearnerHost
+    reg = reg or _reg()
+    f = _families(reg, 1)[0]
+    sealed = tempfile.mkdtemp(prefix="crucible-rt-sealed-")
+    ev = _evaluator(sealed)
+    out, hung = {}, None
+    try:
+        t = ev.open_episode(f, 1_000_403, purpose="dev")
+        with LearnerHost(None, participant=ev.part.sock) as h:
+            out["stall"] = h.function("crucible.redteam.v5.adversaries:stall_channel", {})
+            res = []
+
+            def ask():
+                try:
+                    res.append(ev.call("result", t))
+                except Exception as e:  # noqa: BLE001
+                    res.append({"error": repr(e)[:200]})
+            th = threading.Thread(target=ask, daemon=True)
+            th.start()
+            th.join(20)
+            hung = th.is_alive()
+            out["harness_answer"] = None if hung else res[0]
+    finally:
+        if hung:
+            ev.proc.kill()                       # the evaluator never answered: stop it (it is this control's)
+            try:
+                ev.proc.wait(timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+        else:
+            ev.close()
+        shutil.rmtree(sealed, ignore_errors=True)
+    ev_ = {"attack": out, "harness_blocked_s": 20 if hung else 0}
+    if not out.get("stall", {}).get("sent"):
+        return _result(False, "evaluator_survives_a_stalled_participant: the stall was not sent (inconclusive)", ev_)
+    if hung:
+        return _result(False, "evaluator_survives_a_stalled_participant: a partial participant request froze the "
+                              "evaluator: the harness got no answer in 20 s (it reads whole lines from the participant "
+                              "in one thread)", ev_)
+    return _result(True, "evaluator_survives_a_stalled_participant: the evaluator kept answering the harness while the "
+                         "participant stalled", ev_)
+
+
 # ====================================================================== interaction budget
 def control_interaction_budget(reg=None) -> dict:
     """The driver grants one informative interaction; the adversary executes lever settings on its own each tick."""
@@ -659,6 +711,7 @@ FUNCS = {"process_memory_stash": control_process_memory_stash,
          "checkpoint_tampering": control_checkpoint_tampering, "evaluator_internals": control_evaluator_internals,
          "evaluator_internals_hosted": control_evaluator_internals_hosted,
          "hosted_state_outlives_the_process": control_hosted_state_outlives_the_process,
+         "evaluator_survives_a_stalled_participant": control_evaluator_survives_a_stalled_participant,
          "interaction_budget": control_interaction_budget, "timing_channel": control_timing_channel,
          "partition_awareness": control_partition_awareness, "calibration_shortcut": control_calibration_shortcut}
 

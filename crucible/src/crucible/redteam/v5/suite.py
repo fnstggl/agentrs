@@ -44,6 +44,13 @@ KNOWN_OPEN: dict[str, dict] = {
                 "also holds the RemoteEvaluator). Fix: host the learner function in crucible.sandbox.learnerhost "
                 "(protocol experience-remote: own uid, Landlock without /proc or ~/.crucible, seccomp); the same "
                 "adversary reaches nothing there (tests/test_v5_security_sandbox.py)"},
+    "v5.isolation.remote_evaluator_survives_a_stalled_participant": {
+        "outcome": "integrity_break", "severity": "high", "owner": "L",
+        "note": "experience/remote.py serves both pipes in one loop and recv_bytes waits for a whole frame: a "
+                "learner that sends a frame header and part of the frame freezes the hosted world, and the "
+                "evaluator gets no answer (wave-3b review). Fix: non-blocking, bounded per-side reads (or one "
+                "thread per side) and a deadline on the evaluator side. The research evaluator has the same defect "
+                "(SP-15.8 control evaluator_survives_a_stalled_participant, owner N)"},
     "v5.isolation.tier1_engines_cannot_import_oracles": {
         "outcome": "integrity_break", "severity": "low", "owner": "H",
         "note": "crucible/rapid/__init__.py imports admission -> references -> oracles eagerly; no participant path "

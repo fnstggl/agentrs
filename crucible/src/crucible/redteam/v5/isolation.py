@@ -507,6 +507,58 @@ class EvaluatedLearnerReachesNoSealedMaterial(V5Probe):
         return Verdict(HELD, f"the evaluated learner reached nothing of the evaluator ({self.how})", evd)
 
 
+class RemoteEvaluatorSurvivesAStalledParticipant(V5Probe):
+    name = "v5.isolation.remote_evaluator_survives_a_stalled_participant"
+    attack_class = "evaluator_independence/out_of_process_learner"
+    gates = ("W.2", "W.7")
+    target, owner = "experience.remote", "L"
+    world = {"v5": "substrate"}
+    description = ("The out-of-process evaluation path (`crucible.experience.remote.host`): the hosted world serves "
+                   "the participant pipe and the evaluator pipe in one loop. A learner holding only the participant "
+                   "pipe writes a frame header announcing 1,000 bytes and sends 24, then goes quiet. Checked: the "
+                   "evaluator side still gets answers (a learner must not decide when its run can be verified).")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("staller", 10)
+
+    def attack(self, a: Attacker) -> None:
+        import struct
+        import threading
+        from ...experience.remote import host
+        part, ev = host({"tier": 0, "name": "tiny", "seed": 5, "kw": {"agents": ["learner"]}})
+        self.out = {"answered_before": bool(ev.digest())}
+        os.write(part._conn.fileno(), struct.pack("!i", 1000) + b'["observe", ["learner"]')
+        res = []
+
+        def ask():
+            try:
+                res.append(ev.digest())
+            except Exception as e:  # noqa: BLE001 - the world was stopped below
+                res.append(repr(e)[:120])
+        th = threading.Thread(target=ask, daemon=True)
+        th.start()
+        th.join(15)
+        self.out["answered_after_stall"] = not th.is_alive()
+        if th.is_alive():
+            ev._proc.kill()                       # the hosted world never answered: stop it (this probe's process)
+            ev._proc.join(timeout=10)
+        else:
+            ev.close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        evd = dict(self.out, evaluator_leaks=0, resource_limit_escapes=int(not self.out.get("answered_after_stall")))
+        if not self.out.get("answered_before"):
+            raise NotApplicable(f"the hosted world did not answer at all: {self.out}")
+        if not self.out.get("answered_after_stall"):
+            return Verdict(INTEGRITY_BREAK, "a partial participant frame froze the hosted world: the evaluator got no "
+                                            "answer in 15 s (recv_bytes waits for the whole frame in the only loop)",
+                           evd, severity="high",
+                           fix="experience/remote.py: read the participant pipe without blocking (per-side buffer, "
+                               "bounded) or in its own thread, and give the evaluator side a deadline")
+        return Verdict(HELD, "the evaluator side kept getting answers while the participant stalled", evd)
+
+
 def probes() -> list:
     return [StaticReachabilityV5(), Tier1EngineReachability(), SandboxCannotReachEvaluator(),
-            InProcessLearnerReachesGrader(), RemoteParticipantCannotRunCode(), EvaluatedLearnerReachesNoSealedMaterial()]
+            InProcessLearnerReachesGrader(), RemoteParticipantCannotRunCode(), EvaluatedLearnerReachesNoSealedMaterial(),
+            RemoteEvaluatorSurvivesAStalledParticipant()]

@@ -595,3 +595,14 @@ def disk_hog(participant, files: int, mb: int, pause_s: float = 0.05) -> dict:
             break
         time.sleep(float(pause_s))
     return out
+
+
+def stall_channel(participant, partial: str = '{"op": "observe", "args": [') -> dict:
+    """Send the evaluator part of a request and never finish the line (the research-evaluator participant channel),
+    then go quiet: an evaluator that reads whole lines blocks on this participant."""
+    w = getattr(participant, "wf", None)
+    if w is None:
+        return {"sent": False, "why": "no participant channel"}
+    w.write(partial.encode())
+    w.flush()
+    return {"sent": True, "bytes": len(partial)}
