@@ -353,13 +353,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-D-6 (critical, open): SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no ro
+### DEF-D-6 (critical, fixed): SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no ro
 
 ```json
 {
  "area": "D_semantic",
+ "fixed_by": "c5c/w3b-sem: per-capability routing (crucible.semantic.routing; D-36 from the measured SP-3.2b report, committed decision crucible/semantic/data/routing.json; D-37 in-situ measurements for tool choice and writing): content understanding Qwen3-0.6B, situation interpretation / tool choice / incentive adaptation / negotiation / programming / strategy Qwen3-1.7B, writing SmolLM2-360M; SP-3.2d re-derives the routes from the committed measurements (capabilities_routed_to_smallest_model true in the unofficial run). Prefix cache (CORE-SEM wave 2): exact by construction; unofficial SP-13.4 run 2026-11-26: choose 24/24 and generate 12/12 outputs identical with the cache on and off, speedup 1.26 (choose) and 1.05 (generate) on a long shared prefix; all 9 service features measured working",
  "id": "DEF-D-6",
  "owner": "D (CORE-SEM)",
+ "regression_tests": "tests/v5/test_gate_SP_3_2d.py (capabilities_routed_to_smallest_model); tests/v5/test_gate_SP_13_4.py (feature_prefix_caching); tests/test_v5_semantic_service.py::test_routing_escalates_hard_capabilities_and_policy_needs_a_slot",
  "requirements": [
   "SP-3.2b"
  ],
@@ -369,7 +371,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/D_semantic.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "SP-3.2b finds 0.6B ineffective for programming, negotiation and strategy, yet D-10 standardizes 0.6B and no routing exists; prefix cache gives 0.986x and changes 3/8 bf16 outputs."
 }
 ```
