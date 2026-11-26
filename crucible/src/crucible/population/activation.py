@@ -61,15 +61,15 @@ COLUMNS = {
     "last_active_day": ("int32", (), -1),
     "hist_day": ("int32", (HIST,), -1),       # 8-day ring (slot = day % 8): which day the slot holds
     "hist_sess": ("uint8", (HIST,), 0),       # sessions that day
-    "hist_items": ("uint16", (HIST,), 0),     # items reached that day
+    "hist_exp": ("uint16", (HIST,), 0),     # items reached that day
     "extra_obs": ("int32", (), 0),            # sum over observed active days of (sessions - 1)
     "days_obs": ("int32", (), 0),             # observed active days
     "sl_log_sum": ("float32", (), 0.0),       # sum of log1p(minutes) of sessions on earlier days
     "sl_n": ("int32", (), 0),                 # sessions on earlier days
-    "sl_items": ("float32", (), 0.0),         # items reached in sessions on earlier days
+    "sl_exp": ("float32", (), 0.0),         # items reached in sessions on earlier days
     "td_log_sum": ("float32", (), 0.0),       # the same for the last day with sessions (rolled at the day decision)
     "td_n": ("int16", (), 0),
-    "td_items": ("float32", (), 0.0),
+    "td_exp": ("float32", (), 0.0),
     "session_budget_min": ("float32", (), 0.0),   # minutes the current session may take
     "session_end_at": ("int64", (), -1),
 }
@@ -98,7 +98,7 @@ def history_stats(world, idx: np.ndarray, today: int) -> dict[str, np.ndarray]:
     c = lambda name: columns.col(world, "pop", name)[idx]  # noqa: E731
     hd = c("hist_day").astype(np.int64)
     hs = c("hist_sess").astype(np.float64)
-    hi = c("hist_items").astype(np.float64)
+    hi = c("hist_exp").astype(np.float64)
     win = window(hd, today)
     act = win & (hs > 0)
     last = c("last_active_day").astype(np.int64)
@@ -169,15 +169,15 @@ def session_budget(rng, session_min: np.ndarray, left_min: np.ndarray) -> np.nda
     return np.clip(np.minimum(m, np.asarray(left_min, np.float64)), 0.0, 600.0)
 
 
-def ring_update(hist_day, hist_sess, hist_items, rows: np.ndarray, today: int, items: np.ndarray):
+def ring_update(hist_day, hist_sess, hist_exp, rows: np.ndarray, today: int, items: np.ndarray):
     """Add one session with `items` items to today's ring slot of `rows` (in-place on copies the caller owns)."""
     s = today % HIST
     fresh = hist_day[rows, s] != today
     hist_sess[rows[fresh], s] = 0
-    hist_items[rows[fresh], s] = 0
+    hist_exp[rows[fresh], s] = 0
     hist_day[rows, s] = today
     hist_sess[rows, s] = np.minimum(hist_sess[rows, s].astype(np.int64) + 1, 255)
-    hist_items[rows, s] = np.minimum(hist_items[rows, s].astype(np.int64) + np.asarray(items, np.int64), 65535)
+    hist_exp[rows, s] = np.minimum(hist_exp[rows, s].astype(np.int64) + np.asarray(items, np.int64), 65535)
 
 
 def genesis_history(rng, seg: np.ndarray, session_min: np.ndarray, d0: int) -> dict[str, np.ndarray]:
@@ -194,7 +194,7 @@ def genesis_history(rng, seg: np.ndarray, session_min: np.ndarray, d0: int) -> d
     days = np.zeros(m, np.int64)
     sl_n = np.zeros(m, np.int64)
     sl_log = np.zeros(m, np.float64)
-    sl_items = np.zeros(m, np.float64)
+    sl_exp = np.zeros(m, np.float64)
     last = np.full(m, -1, np.int64)
     for k in range(1, 8):
         d = d0 - k
@@ -211,11 +211,11 @@ def genesis_history(rng, seg: np.ndarray, session_min: np.ndarray, d0: int) -> d
         days += act
         sl_n += s
         sl_log += s * np.log1p(mins)
-        sl_items += it
+        sl_exp += it
         last = np.where(act & (last < 0), d, last)
-    return {"hist_day": hd, "hist_sess": hs, "hist_items": hi, "extra_obs": extra.astype(np.int32),
+    return {"hist_day": hd, "hist_sess": hs, "hist_exp": hi, "extra_obs": extra.astype(np.int32),
             "days_obs": days.astype(np.int32), "sl_n": sl_n.astype(np.int32), "sl_log_sum": sl_log.astype(np.float32),
-            "sl_items": sl_items.astype(np.float32), "last_active_day": last.astype(np.int32)}
+            "sl_exp": sl_exp.astype(np.float32), "last_active_day": last.astype(np.int32)}
 
 
 def provenance_args(pv: dict) -> dict:

@@ -114,7 +114,6 @@ class PopWeb(Module):
         self.d = pop.d
         self.D = pop.d["D"]
         columns.declare(world, RES_TABLE, 0, schema.res_columns(pop.d))
-        columns.declare(world, TABLE, columns.rows(world, TABLE), schema.web_columns(pop.d))
         st = world.state
         st.declare_table("pop_res", index=("owner",))
         st.declare_table("pop_pages", index=("host",))

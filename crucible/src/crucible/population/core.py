@@ -286,6 +286,8 @@ class Population(Module):
         self.window = int(self.config.get("adaptive_window_s", 7200))
         cols = schema.columns(self.d)
         cols["income_day"] = ("int32", (), 0)
+        if any(m["name"] == "popweb" for m in world.spec.modules):
+            cols.update(schema.web_columns(self.d))        # reading and order history of the web engine
         columns.declare(world, TABLE, r["n"], cols)
         st = world.state
         st.declare_table("pop_policies")
@@ -509,9 +511,9 @@ class Population(Module):
                         "extra_obs": c("extra_obs")[nd] + np.maximum(tdn - 1, 0),
                         "days_obs": c("days_obs")[nd] + (tdn > 0), "sl_n": c("sl_n")[nd] + tdn,
                         "sl_log_sum": c("sl_log_sum")[nd] + c("td_log_sum")[nd],
-                        "sl_items": c("sl_items")[nd] + c("td_items")[nd],
+                        "sl_exp": c("sl_exp")[nd] + c("td_exp")[nd],
                         "td_n": np.zeros(nd.size, np.int16), "td_log_sum": np.zeros(nd.size, np.float32),
-                        "td_items": np.zeros(nd.size, np.float32)}
+                        "td_exp": np.zeros(nd.size, np.float32)}
                 with running_as(ctx, "pop"):
                     record_decisions(ctx, "pop.day_active", due[nd], vals, **activation.provenance_args(pv1),
                                      extra={"t": int(now), "day": today, "active": int(active.sum()),
@@ -617,7 +619,7 @@ class Population(Module):
                 items = np.maximum(items, 1)
                 hd = c("hist_day").copy()
                 hs = c("hist_sess").copy()
-                hi = c("hist_items").copy()
+                hi = c("hist_exp").copy()
                 activation.ring_update(hd, hs, hi, rows, today, items)
                 dl_after = np.where(planned_now[rows] | first_now[rows], np.maximum(day_left[rows] - 1, 0),
                                     day_left[rows])
@@ -627,12 +629,12 @@ class Population(Module):
                         "last_activity": last_act[rows].astype(np.int16), "experience": exp_[rows].astype(np.float32),
                         "last_utility": util[rows].astype(np.float32),
                         "last_session_at": np.full(rows.size, now, np.int64),
-                        "hist_day": hd[rows], "hist_sess": hs[rows], "hist_items": hi[rows],
+                        "hist_day": hd[rows], "hist_sess": hs[rows], "hist_exp": hi[rows],
                         "last_active_day": np.full(rows.size, today, np.int32),
                         "td_n": (c("td_n")[rows].astype(np.int64) + 1).astype(np.int16),
                         "td_log_sum": (c("td_log_sum")[rows] + activation.log1p_minutes(minutes[rows])
                                        ).astype(np.float32),
-                        "td_items": (c("td_items")[rows] + items).astype(np.float32),
+                        "td_exp": (c("td_exp")[rows] + items).astype(np.float32),
                         "session_end_at": (now + 60 * minutes[rows]).astype(np.int64)}
                 with running_as(ctx, "pop"):
                     record_decisions(ctx, "pop.learn", due[rows], vals, model_id=activation.LEARN_MODEL[0],
