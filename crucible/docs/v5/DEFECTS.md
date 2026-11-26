@@ -248,13 +248,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-D-1 (critical, open): E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is ra
+### DEF-D-1 (critical, fixed): E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is ra
 
 ```json
 {
  "area": "D_semantic",
+ "fixed_by": "D-16 one shared semantic space (CORE-SEM wave 2 + INT: population interests and the social internet's item representations in crucible.semantic.space; probe population_reading, 10,000 individuals x 14 days) and c5c/w3b-sem probe space_feed (crucible.semantic.feedprobe: the social internet's feeds on the one population, 6,000 individuals x 4 days). Unofficial Gate E run on c5c/w3b-sem 2026-11-26 (GPU slot, SPACE_VERSION f455005900ab0232): artifact_change_behavior_pvalue 3.0e-4 (Bonferroni over 2 probes x 3 controlled pairs; raw 5e-5); per pair population_reading cooking p 5e-5 and sports p 5e-5, space_feed (3,000 x 3 days in that run) transport p 0.0018",
  "id": "DEF-D-1",
  "owner": "D (CORE-SEM)",
+ "regression_tests": "tests/v5/test_gate_E.py::test_E3_controlled_artifact_changes_affect_participant_behaviour",
  "requirements": [
   "E.3"
  ],
@@ -264,18 +266,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/D_semantic.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "E.3 unmet and unmeetable as designed: no probe registered; with aud.encoder='semantic' the MiniLM vector is randomly projected into an unrelated interest space and audience choices stop following content (Spearman 0.026 vs 0.203 lexical)."
 }
 ```
 
-### DEF-D-2 (critical, open): Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag
+### DEF-D-2 (critical, fixed): Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag
 
 ```json
 {
  "area": "D_semantic",
+ "fixed_by": "D-16 (CORE-SEM wave 2 + INT): in every world with the population the audience represents items in the one shared space (social.audience encoder 'auto' -> 'space': MiniLM topic block plus affect and quantity blocks from the Qwen3-0.6B LM features), so pretrained encoders drive consumption by default (E.3 evidence above). Negation and polarity: on the held-out fine-grained TEST pairs the space separates changed sentences from paraphrases (unofficial Gate E run 2026-11-26: separation ratio negation 2.58, polarity 2.08, quantity 3.54; changed sentence farther than the paraphrase in 83 % / 100 % / 83 % of pairs; the topic block alone, i.e. plain MiniLM: 1.80 / 1.52 / 2.02). Remaining limitation (INT): population interests live in the topic block only, so individuals do not prefer one polarity over another",
  "id": "DEF-D-2",
  "owner": "D (CORE-SEM)",
+ "regression_tests": "tests/v5/test_gate_E.py::test_E2_semantic_changes_separate_more_than_nuisance_changes (records space_finegrained_* metrics); tests/v5/test_gate_E.py::test_E3_controlled_artifact_changes_affect_participant_behaviour",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -283,18 +287,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/D_semantic.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Pretrained encoders drive no participant behaviour by default (aud default 'c2-random-indexing', a lexical bag of words); text vectors are also blind to negation and sentiment (0.965 / 0.824 vs paraphrase 0.831)."
 }
 ```
 
-### DEF-D-3 (critical, open): E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot est
+### DEF-D-3 (critical, fixed): E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot est
 
 ```json
 {
  "area": "D_semantic",
+ "fixed_by": "INT (12 exempt lines with reasons for the false positives) and c5c/w3b-sem 110db65: E.5 adds the dynamic check the audit asked for - identical bytes published by three creators with different creator-controlled titles, tags and descriptions (claims of quality, virality, relevance) on the social internet of the population get identical distributed representations and legibility; the evaluator-side reply relevance of generalists.verify carries the audit pragma. Unofficial Gate E run 2026-11-26: creator_assigned_quality_fields_read 0, creator_assignable_fields 0, representations_changed_by_metadata 0 of 3",
  "id": "DEF-D-3",
  "owner": "D (CORE-SEM)",
+ "regression_tests": "tests/v5/test_gate_E.py::test_E5_no_creator_assigned_quality_scores",
  "requirements": [
   "E.5"
  ],
@@ -304,7 +310,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/D_semantic.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "E.5 fails on the merged tree (5 violations; likely false positives); the audit is a name regex that cannot establish absence of score proxies."
 }
 ```
