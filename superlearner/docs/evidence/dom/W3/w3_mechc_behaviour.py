@@ -97,11 +97,12 @@ def evaluate(core, head, mode, n=8, B=64):
 
 
 core, head, hist, secs = train(True)
-res = {"trained_with_sem": {"loss_history": hist, "seconds": secs,
-                            "acc_gates_open": evaluate(core, head, "open"),
+acc_open = evaluate(core, head, "open")
+gates_open = core.gate_stats()                                        # mean gate per xattn block, gates open
+res = {"trained_with_sem": {"loss_history": hist, "seconds": secs, "acc_gates_open": acc_open,
+                            "gate_means_gates_open": gates_open,
                             "acc_gates_closed": evaluate(core, head, "gates_closed"),
-                            "acc_no_sem": evaluate(core, head, "no_sem"),
-                            "gate_means_last_eval": core.gate_stats()}}
+                            "acc_no_sem": evaluate(core, head, "no_sem")}}
 core2, head2, hist2, secs2 = train(False)
 res["trained_without_sem"] = {"loss_history": hist2, "seconds": secs2, "acc": evaluate(core2, head2, "no_sem")}
 res["chance"] = 1 / K
