@@ -37,7 +37,10 @@ def _category(p) -> str:
 
 @pytest.fixture(scope="module")
 def J():
-    A = arms()
+    return build(arms())
+
+
+def build(A):
     f = A["factual"]
     w = f["world"]
     prods = [p for p in M.agent_products(w) if p["creator_kind"] in ("scripted", "agent")]
@@ -45,9 +48,11 @@ def J():
     rows = {}
     for p in prods:
         cat = _category(p)
-        rm = "no_saas" if cat == "saas_subscription" else "no_novelty"
-        removed = A[rm]["outcome"]
-        delta = removed["diy_minutes"] - f["outcome"]["diy_minutes"]
+        # the removal arm is the one in which this product does not exist (its creation was removed, directly or
+        # because what made it worth creating was removed)
+        rm = next((a for a in ("no_saas", "no_novelty") if p["id"] not in A[a]["outcome"]["products"]), None)
+        removed = A[rm]["outcome"] if rm else f["outcome"]
+        delta = removed["diy_minutes"] - f["outcome"]["diy_minutes"] if rm else 0.0
         g = A["garbage"]["outcome"]["products"].get(p["id"], {"triers": [], "kept": []})
         rows[p["id"]] = {"category": cat, "published": p["published"], "executable": p["executable"],
                          "discoverers": o[p["id"]]["discoverers"], "users": o[p["id"]]["users"],
@@ -55,7 +60,7 @@ def J():
                          "payers": o[p["id"]]["tx"]["payers"], "delta_minutes": delta,
                          "triers": len(o[p["id"]]["triers"]), "kept": len(o[p["id"]]["kept"]),
                          "triers_garbage": len(g["triers"]), "kept_garbage": len(g["kept"]),
-                         "creator_kind": p["creator_kind"], "incumbent_cu_delta":
+                         "creator_kind": p["creator_kind"], "removal_arm": rm, "incumbent_cu_delta":
                              removed["incumbent_cu"] - f["outcome"]["incumbent_cu"]}
     by_cat = {}
     for pid, r in rows.items():
@@ -68,7 +73,8 @@ def _note(J):
     return "LABELLED SCRIPTED creators. Per product: " + "; ".join(
         f"{pid} [{r['category']}]: discoverers {r['discoverers']}, users {r['users']}, tx {r['tx']} "
         f"({r['tx_cents']}c, {r['payers']} payers), kept {r['kept']}/{r['triers']} vs garbage "
-        f"{r['kept_garbage']}/{r['triers_garbage']}, hand-work minutes saved {r['delta_minutes']:.0f}"
+        f"{r['kept_garbage']}/{r['triers_garbage']}, hand-work minutes saved {r['delta_minutes']:.0f} "
+        f"(removal arm {r['removal_arm']})"
         for pid, r in sorted(J["rows"].items()))
 
 
