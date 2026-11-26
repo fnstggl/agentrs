@@ -5,5 +5,6 @@
 * `pkg`   - software ecosystem (packages, releases, dependencies, adoption by execution, PRs, reviews, advisories)
 * `adopt` - need-driven participants that discover, test and adopt capabilities
 * `infra` - compute providers created at genesis (world construction helper)
+* `devs`  - autonomous developers of the one population (services, packages, reuse, maintenance; wave 3b)
 """
-from . import caps, needs, pkg, adopt, worlds  # noqa: F401
+from . import caps, needs, pkg, adopt, worlds, devs  # noqa: F401

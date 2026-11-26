@@ -517,7 +517,7 @@ class Packages(Module):
             for other_name, other in st.scan("pkg_packages"):
                 if other["repo"] == parent:
                     forked = other_name
-        owner_handle = r["owner"].split(":", 1)[1]
+        owner_handle = r["owner"].split(":", 1)[1] if ":" in r["owner"] else r["owner"]
         proj = ctx.call("issues.create_project", {"name": f"pkg-{name}", "repo": repo, "public": True,
                                                   "description": f"Issues of package {name}",
                                                   **({"owner": owner_handle} if r["owner"] != ctx.actor else {})})

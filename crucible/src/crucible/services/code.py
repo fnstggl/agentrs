@@ -129,7 +129,9 @@ class Code(Module):
 
     def create_repo(self, ctx: Ctx, owner: str, name: str, visibility: str = "private", description: str = "",
                     license: str = "closed") -> str:
-        handle = owner.split(":", 1)[1]
+        # 5.0 (additive, workstream G): population individuals are principals "p<i>" without a kind prefix; their
+        # handle is the principal itself (substrate.ids.ensure_principal registers handle == principal)
+        handle = owner.split(":", 1)[1] if ":" in owner else owner
         rid = f"{handle}/{name}"
         if ctx.state.has("repos", rid):
             raise Conflict(f"repository {rid} exists")
