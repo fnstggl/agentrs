@@ -347,6 +347,28 @@ its goals, no evaluator key or verifier value in what it returns - and (b) the o
 `remote`). The adapters themselves are 4.0 code that the QA workstream relocates; nothing in the experience package
 or its tests imports them any more.
 
+## D-68 Observation-only gates over restricted Tier 2 worlds (2026-11-26, workstream L)
+Context: with the fifteen Part 9 domains merged, every Tier 2 measurement of Gates R, S, OO and SP-11 iterates over
+`experience.registry.tier2_domains()`. A domain world composes only its configuration's subsystems (D-48): of the
+fifteen first configurations only `startup` has a hosted-service stack (cloud + code + business) and a forum; crisis,
+marketplace or research have neither. No manifest criterion changes; this fixes how they are measured.
+(1) OO.3: the consequence scenario uses what the world composes - a hosted service the client pays for when the
+world has one, else a direct bank payment from client to builder; a forum reply, else a direct message (`msg`). A
+kind whose scenario mechanism is absent is recorded as not present (None), never as observed. Every kind that is
+present must be observed (a world that loses one fails the gate); a tier counts when one of its worlds shows all
+seven kinds; `consequence_kinds_observable` is, over the kernel tiers 0, 2 and 3, the fewest kinds of the tier's most
+complete world. Rejected: counting the minimum over every domain world (it would measure which subsystems a domain
+composes, not whether observation-only hides a consequence) and running the service scenario only in `startup`
+(it would leave the other fourteen domains unmeasured). (2) The domain evaluator's verdict probe drives the
+domain's scripted reference in 6-day chunks up to 30 days until the verdict carries a distinctive number (most
+domains judge outcomes over weeks; at 6 days six of fifteen verdicts were all zeros); domains whose verdict is still
+non-distinctive are named (`verdicts.not_probed`, OO.14 metric `tier2_domain_verdicts_without_distinctive_values`)
+and never counted as a clean verdict scan. (3) A world's hidden mechanism - the response laws in its module
+configuration (`sci.phenomena[].law`, `rcomm.law`), which the learner is meant to discover by experiment - is
+probed verbatim and by its distinctive coefficients in everything the seat reaches, and is part of the evaluation
+path's hidden values (`isolation._hidden_of`). (4) Tier 2 test time budgets scale with the number of domains (pytest
+timeouts of the Tier-2-heavy tests raised); criteria unchanged.
+
 ## D-54 Education on the one population; learning measured on new problems (2026-11-26, workstream I-2 dom2)
 The education module `learn` keeps no learners of its own (v1 created 40 NPC learner persons and crashed on every
 study session, DEF-I-2): its learners are the population's individuals (column table `learn`, one row per

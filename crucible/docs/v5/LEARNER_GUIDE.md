@@ -193,8 +193,12 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
   `Domain.evaluate(world, principal, objective)` is the evaluator in `verify()` (`verify()["evaluation"]`, never an
   observation). The domain's scripted reference acts only through this interface and is never reachable. Only the
   Part 9 domains count as Tier 2 (`crucible.experience.registry.domains()`); a test fixture (`fixture=True`) can be
-  built by name but is never counted. Domains present on the wave-3b branch: startup (9.1), content (9.3),
-  community (9.4), research (9.5), infrastructure (9.7), education (9.10).
+  built by name but is never counted (`tier2_domains()` lists what counts). All fifteen Part 9 domains are
+  registered on the wave-3b branch: startup (9.1), software (9.2), content (9.3), community (9.4), research (9.5),
+  invention (9.6), infrastructure (9.7), industry (9.8), labor (9.9), education (9.10), information (9.11),
+  organization (9.12), marketplace (9.13), crisis (9.14), commercialization (9.15). A domain world composes only its
+  configuration's subsystems: a tool family you know from another world (cloud, forum, mail) may be absent - discover
+  what exists with `env.tools(agent)`.
 * **Tier 3** expects of the civilisation generator (`crucible.experience.registry.CIV_ENTRY_POINT`):
   `crucible.civ.generate(profile: str, seed: int, *, population: str = "development", overrides: dict | None = None)
   -> World` and `crucible.civ.PROFILES`. The registry passes `overrides = {"params": {"evaluator_access": ...}}` and
@@ -317,10 +321,10 @@ and world digest (Gate S.8, for a mechanism and a rapid world).
 
 ## 11. What is not there yet
 
-* Tier 2: the domain framework (`crucible.domains.base`, D-17/D-48) is merged and `make(2, "<domain>:<config>")`
-  builds its worlds (seats, public objective, evaluator-side `evaluate`, learner-side `exp`/`goals` modules); only
-  Part 9 domains count as Tier 2 (a test fixture never does). Until the Part 9 domains are registered (workstreams
-  I-1..I-3) every gate that needs Tier 2 fails and says so.
+* Tier 2: the fifteen Part 9 domains are registered and every Tier 2 part of Gates R, S, OO and SP-11 iterates over
+  all of them (D-68: in a restricted domain world a consequence or leak channel whose mechanism the world does not
+  compose is recorded as not present, never as clean). The gates' Tier 2 runs are measured on GPU slots; see
+  docs/v5/workstreams/L.json for which have been run on the integrated tree.
 * Tier 3 is reached through `crucible.civ` (all eleven profiles); every Tier 3 part of Gates R, S, OO and SP-11 runs
   on real civilisations.
 * Learning improvement (SP-11.6c): the reference learner beats a frozen copy of itself in Tier 1 only through
