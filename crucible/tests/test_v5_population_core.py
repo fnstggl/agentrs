@@ -227,3 +227,41 @@ def test_modules_pass_admission():
     rep = admit(["popsites", "pop", "popweb", "pop_adaptive", "pop_strategic"], base=base, steps=120, actors=3,
                 seed=1, configs=cfg)
     assert rep.passed, (rep.checks, rep.errors[:5])
+
+
+def test_reader_model_does_not_reward_keyword_stuffing():
+    """DEF-B-6 regression: the readable-content factor of a page (population.web: length x legibility of the text,
+    the shared space's reader model) ranks a real article above the same topic's words as a word salad or a keyword
+    list, so a page cannot gain utility by repeating topic words."""
+    from crucible.population import semantics, writing
+    rng = np.random.default_rng(4)
+    t = semantics.topic_names().index("recipes")
+    _, real = writing.compose(rng, t, 12, 1.0)
+    words = [w for w in real.split() if w.isalpha()]
+    salad = " ".join(rng.permutation(words))
+    keywords = " ".join(semantics.topic_words(t)[:8] * 30)
+    leg = {k: semantics.legibility(semantics.text_features(v)) for k, v in
+           (("real", real), ("salad", salad), ("keywords", keywords))}
+    rich = {k: min(1.0, len(v) / 2000.0) ** 0.5 * leg[k] for k, v in
+            (("real", real), ("salad", salad), ("keywords", keywords))}
+    assert rich["real"] > rich["salad"] and rich["real"] > 2 * rich["keywords"], (leg, rich)
+
+
+def test_fitted_runtime_models_take_population_decisions(run2):
+    """DEF-B-2 / DEF-E-1 regression: daily activation and sessions per active day are decisions of workstream E's
+    fitted runtime models, recorded with their provenance inside the population's own sessions."""
+    from crucible.population import check_provenance
+    _, w, _ = run2
+    day = [e.payload for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.day_active"]
+    ses = [e.payload for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.day_sessions"]
+    assert day and ses
+    assert {p["extra"]["decision"]["model_id"] for p in day} == {"return_daily"}
+    assert {p["extra"]["decision"]["model_id"] for p in ses} == {"session_rate"}
+    cp = check_provenance(w, prefixes=("pop.day_",))
+    assert cp["organic_population_rows"] > 0 and cp["forced_rows"] == 0
+    # every population-table batch outside the non-decision kinds carries provenance
+    from crucible.calibration import inworld
+    nd = {e.payload["kind"] for e in w.log if e.type == "cols.batch" and e.payload["table"] == "pop"
+          and inworld.non_decision_reason(e.payload["kind"]) is None
+          and not isinstance((e.payload.get("extra") or {}).get("decision"), dict)}
+    assert not nd, nd

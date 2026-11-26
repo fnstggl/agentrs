@@ -113,6 +113,7 @@ class PopWeb(Module):
         self.d = pop.d
         self.D = pop.d["D"]
         columns.declare(world, RES_TABLE, 0, schema.res_columns(pop.d))
+        columns.declare(world, TABLE, columns.rows(world, TABLE), schema.web_columns(pop.d))
         st = world.state
         st.declare_table("pop_res", index=("owner",))
         st.declare_table("pop_pages", index=("host",))
@@ -301,20 +302,32 @@ class PopWeb(Module):
                       ) -> tuple[np.ndarray, dict]:
         """The fitted article-open decision (article_open_semantic@1, scope content_kind="article") for readers
         `idx` looking at the article slates of pages `recs[which[j]]`: per reader, the opened article (path index in
-        its page's slate, -1 none) and the evaluation record. One evaluation for all (reader, slot) rows."""
+        its page's slate, -1 none) and the evaluation record. One evaluation for all (reader, slot) rows; each page's
+        slate (headline vectors, topics, page rows, counters) is assembled once, not once per reader."""
         from ..calibration import runtime
         w = ctx.world
         n = idx.size
-        rr, kk = [], []
-        for j in range(n):
-            m = len(recs[which[j]].get("arts") or [])
-            rr += [j] * m
-            kk += list(range(m))
         pick = np.full(n, -1, np.int64)
-        if not rr:
+        pages = sorted(set(int(x) for x in which.tolist()))
+        slate = {}
+        for k in pages:
+            r = recs[k]
+            m = len(r.get("arts") or [])
+            if not m:
+                continue
+            V = np.asarray(r["art_vecs"], np.float32).reshape(m, self.D)
+            prow = self._page_rows(ctx, [f"{r['host']}|{a}" for a in r["arts"]])
+            slate[k] = (V, np.asarray(r["art_topics"], np.int64), prow)
+        sizes = np.array([len(slate[int(k)][1]) if int(k) in slate else 0 for k in which.tolist()], np.int64)
+        if not sizes.sum():
             return pick, {}
-        rr, kk = np.array(rr, np.int64), np.array(kk, np.int64)
-        V = np.array([recs[which[j]]["art_vecs"][k] for j, k in zip(rr, kk)], np.float32).reshape(rr.size, self.D)
+        rr = np.repeat(np.arange(n), sizes)
+        kk = np.concatenate([np.arange(s_) for s_ in sizes if s_ > 0])
+        pg = which[rr]
+        V = np.concatenate([slate[int(k)][0] for k, s_ in zip(which.tolist(), sizes) if s_ > 0])
+        topic = np.concatenate([slate[int(k)][1] for k, s_ in zip(which.tolist(), sizes) if s_ > 0])
+        prow = np.concatenate([slate[int(k)][2] for k, s_ in zip(which.tolist(), sizes) if s_ > 0])
+        del pg
         vn = np.linalg.norm(V, axis=1)
         cos = np.where(vn > 1e-6, np.einsum("nd,nd->n", inter[rr], V) / np.maximum(vn, 1e-6), 0.0)
         cos = np.clip(cos, -1.0, 1.0)
@@ -323,7 +336,6 @@ class PopWeb(Module):
         mu = np.bincount(rr, weights=cos, minlength=n) / np.maximum(size, 1)
         sd = np.sqrt(np.bincount(rr, weights=(cos - mu[rr]) ** 2, minlength=n) / np.maximum(size, 1))
         z = np.where(sd[rr] > 1e-9, (cos - mu[rr]) / np.where(sd[rr] > 1e-9, sd[rr], 1.0), 0.0)
-        topic = np.array([recs[which[j]]["art_topics"][k] for j, k in zip(rr, kk)], np.int64)
         wt = columns.col(w, TABLE, "wtopic")[idx].astype(np.int64)
         wn = columns.col(w, TABLE, "wtopic_n")[idx].astype(np.float64)
         own_t = ((wt[rr] == topic[:, None]) * wn[rr]).sum(axis=1)
@@ -331,13 +343,12 @@ class PopWeb(Module):
         tv = columns.col(w, TOPIC_TABLE, "views").astype(np.float64)
         T = tv.size
         share = (tv[topic] + 1.0) / (tv.sum() + T)
-        keys = [f"{recs[which[j]]['host']}|{recs[which[j]]['arts'][k]}" for j, k in zip(rr, kk)]
-        prow = self._page_rows(ctx, keys)
         opens = columns.col(w, PG_TABLE, "opens")[prow].astype(np.float64)
         t0 = columns.col(w, PG_TABLE, "t0")[prow].astype(np.float64)
         age_h = np.maximum(ctx.now - t0, 0.0) / 3600.0
         inputs = {"text_cos": cos, "text_cos_z": z, "own_topic_views": own_t, "own_views_total": views[rr],
-                  "topic_population_share": share, "item_opens_24h": opens * np.minimum(1.0, 24.0 / np.maximum(age_h, 1.0)),
+                  "topic_population_share": share,
+                  "item_opens_24h": opens * np.minimum(1.0, 24.0 / np.maximum(age_h, 1.0)),
                   "active_individuals_24h": np.full(rr.size, float(self._active_24h(w))),
                   "item_age_hours": age_h, "slate_size": size[rr]}
         dm = runtime.get(ARTICLE_OPEN).scoped(content_kind="article")
@@ -347,10 +358,9 @@ class PopWeb(Module):
         score = np.where(opened, res.values, -1.0)
         best = np.full(n, -1.0)
         np.maximum.at(best, rr, score)
-        hit = opened & (score >= best[rr]) & (best[rr] >= 0)
-        for r_, k_ in zip(rr[hit], kk[hit]):
-            if pick[r_] < 0:
-                pick[r_] = k_
+        hit = np.flatnonzero(opened & (score >= best[rr]) & (best[rr] >= 0))
+        first = hit[np.unique(rr[hit], return_index=True)[1]] if hit.size else hit
+        pick[rr[first]] = kk[first]
         info = {"rows": rr, "slot": kk, "p": res.values, "opened": opened, "topic": topic, "page_row": prow,
                 "provenance": res.provenance()}
         return pick, info
@@ -564,14 +574,11 @@ class PopWeb(Module):
                     if k_ >= 0:
                         nxt_path[a] = recs[inv[a]]["arts"][int(k_)]
                 if info:
-                    hit = info["opened"]
                     # the article each reader goes on with (its pick) counts as a view of its topic and page
-                    for r_, k_, t_, pg in zip(info["rows"], info["slot"], info["topic"], info["page_row"]):
-                        if pk[r_] == k_:
-                            reads["rows"].append(int(act[sl[r_]]))
-                            reads["topic"].append(int(t_))
-                            reads["page_row"].append(int(pg))
-                    del hit
+                    sel_ = np.flatnonzero(pk[info["rows"]] == info["slot"])
+                    reads["rows"] += act[sl[info["rows"][sel_]]].tolist()
+                    reads["topic"] += info["topic"][sel_].tolist()
+                    reads["page_row"] += info["page_row"][sel_].tolist()
             Fc = {"page_utility": u, "attention_ratio": left[act] / np.maximum(bud[act], 1e-3),
                   "quality_sensitivity": qs, "novelty_seeking": nseek, "page_richness": rich}
             cont = ds["continue"].sample(Fc, rng) & ok & (depth < self.max_depth) & ~P_slate[inv]
@@ -951,8 +958,7 @@ class PopWeb(Module):
                          extra={"t": int(now), "customers": int(b.size), "will_return": int(again.sum()),
                                 "served": pv.get("served"), "extrapolated": int(pv.get("extrapolated", 0))})
         if take.any():
-            for k in np.flatnonzero(take):
-                core.wake(ctx, ii[k:k + 1], int(at[k]), "web")
+            core.wake(ctx, ii[take], at[take], "web")
 
     # ------------------------------------------------------------------ activities
     def act_web(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
@@ -1080,6 +1086,9 @@ class PopWeb(Module):
         cache = ctx.world.runtime.setdefault("popweb.post_reps", {})
         texts = [(p["title"] + " " + p.get("body", "")).strip() or "post" for p in posts]
         miss = sorted({t for t in texts if t not in cache})
+        stats = ctx.world.runtime.setdefault("popweb.stats", {})
+        stats["post_rep_lookups"] = stats.get("post_rep_lookups", 0) + len(texts)
+        stats["post_rep_computed"] = stats.get("post_rep_computed", 0) + len(miss)
         if miss:
             V = self._coords(ctx, miss)
             for j, t in enumerate(miss):
@@ -1130,14 +1139,26 @@ class PopWeb(Module):
         # which post each reader reads: the shared public feed, or its own feed when it follows anything
         public = forum.feed(w, "pop:anyone", 20)
         read = [None] * n
-        own = [j for j in range(n) if f"p{int(idx[j])}" in st.tables["principals"]
-               and st.find_ids("forum_follows", "follower", f"p{int(idx[j])}")]
-        own_set = set(own)
+        # readers who follow someone or a board read their own feed; the feed depends only on what one follows (and
+        # the forum's state), so readers with the same follow set share one computation of it
+        by_follows: dict[tuple, list] = {}
+        for j in range(n):
+            pj = f"p{int(idx[j])}"
+            if pj not in st.tables["principals"]:
+                continue
+            fids = st.find_ids("forum_follows", "follower", pj)
+            if fids:
+                key = tuple(sorted(st.tables["forum_follows"][f]["target"] for f in fids))
+                by_follows.setdefault(key, []).append(j)
+        own_set = {j for js in by_follows.values() for j in js}
+        stats = w.runtime.setdefault("popweb.stats", {})
+        stats["feed_readers"] = stats.get("feed_readers", 0) + len(own_set)
+        stats["feed_calls"] = stats.get("feed_calls", 0) + len(by_follows)
         groups = {None: [j for j in range(n) if j not in own_set]}
-        for j in own:
-            groups[j] = [j]
+        for key, js in sorted(by_follows.items()):
+            groups[key] = js
         for key, js in groups.items():
-            feed = public if key is None else forum.feed(w, f"p{int(idx[key])}", 20)
+            feed = public if key is None else forum.feed(w, f"p{int(idx[js[0]])}", 20)
             if not feed or not js:
                 continue
             pv = self._post_vecs(ctx, [st.tables["forum_posts"][p["post"]] for p in feed])

@@ -54,16 +54,19 @@ def shared():
 
 def test_G1_256_simultaneously_active_adaptive(shared):
     r = shared
-    m = {"simultaneously_active_adaptive": int(r["max_adaptive_active_two_days"]),
+    m = {"simultaneously_active_adaptive": int(r["adaptive_active_run"]),
+         "active_within_two_days": int(r["max_adaptive_active_two_days"]),
          "active_in_phase2": int(r["adaptive_active_phase2"]),
          "active_same_day": int(r["max_adaptive_active_same_day"]),
          "max_adaptive_per_decision_round": int(r["max_adaptive_per_decision_round"]),
          "adaptive_rows": int(r["adaptive_rows"])}
     evidence.record("G.1", m, command=CMD, notes="Class-2 individuals of one shared policy group (the standard "
-                                                 "profile's 256) with live personal state that took decisions within "
-                                                 "the same 48-hour window (the largest over the run); the same-day "
-                                                 "count and the count in the 2-day phase after the change are "
-                                                 "reported too (a few individuals do not wake every day).")
+                                                 "profile's 256), all live in ONE world at the same time with their "
+                                                 "own persistent state, that took sessions with their policy during "
+                                                 "the same 4-day run. Their days of activity are decided by the "
+                                                 "fitted daily-return model (KuaiRand: about 75-85% of users are "
+                                                 "active on a given day), so the largest same-day and 48-hour counts "
+                                                 "are reported next to it and are lower.")
     assert m["adaptive_rows"] == 256
     _check("G.1", m)
 

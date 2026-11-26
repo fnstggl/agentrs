@@ -119,23 +119,32 @@ def activity_slot(world, name: str) -> int:
     return _registry(world)["spec"][name]["slot"]
 
 
-def wake(ctx: Ctx, idx: np.ndarray, at: int, activity: str) -> None:
-    """Schedule a triggered activation of `idx` at time `at` for `activity` (a message, a notification). An earlier
-    pending wake-up is kept. One recorded batch."""
+def wake(ctx: Ctx, idx: np.ndarray, at, activity: str) -> None:
+    """Schedule a triggered activation of `idx` at time `at` (one time for all, or one per row of `idx`) for
+    `activity` (a message, a notification, an intention). An earlier pending wake-up is kept. One recorded batch."""
     reg = _registry(ctx.world)
     if activity not in reg["spec"]:
         raise InvalidAction(f"unknown activity {activity!r}")
-    ix = np.unique(np.asarray(idx, np.int64))
-    if ix.size == 0:
+    ix0 = np.asarray(idx, np.int64).reshape(-1)
+    at0 = np.broadcast_to(np.asarray(at, np.int64), ix0.shape)
+    if ix0.size == 0:
         return
+    # one wake-up per individual: the earliest requested time
+    order = np.lexsort((at0, ix0))
+    ix_s, at_s = ix0[order], at0[order]
+    first = np.ones(ix_s.size, bool)
+    first[1:] = ix_s[1:] != ix_s[:-1]
+    ix, at_v = ix_s[first], np.maximum(at_s[first], ctx.now)
     cur = columns.col(ctx.world, TABLE, "wake_at")[ix]
-    at = max(int(at), ctx.now)
-    sel = ix[cur > at]
+    keep = cur > at_v
+    sel, at_v = ix[keep], at_v[keep]
     if sel.size == 0:
         return
-    columns.batch(ctx, TABLE, "pop.wake", sel, {"wake_at": np.full(sel.size, at, np.int64),
+    single = bool(np.all(at_v == at_v[0]))
+    columns.batch(ctx, TABLE, "pop.wake", sel, {"wake_at": at_v.astype(np.int64),
                                                 "wake_act": np.full(sel.size, reg["spec"][activity]["slot"], np.int16)},
-                  extra={"activity": activity, "at": at}, _iface=WAKE_INTERFACE)
+                  extra={"activity": activity, "at": int(at_v[0]) if single else int(at_v.min()),
+                         "per_row": not single}, _iface=WAKE_INTERFACE)
 
 
 def class_members(world, cls: int) -> np.ndarray:

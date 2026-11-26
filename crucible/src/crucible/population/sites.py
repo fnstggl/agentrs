@@ -12,8 +12,10 @@ Pages: `/` (articles, shop, related sites), `/a/{id}` (an article), `/shop`, `/p
 $X"), `POST /p/{id}/buy` (needs a logged-in visitor; bills them through a `bank.invoice` and records the order in the
 site's own database), `/about`. `behaviour` changes what the code does - it is how a site is good or bad:
 
-* `rich`: full articles (150-400 words about its topic);
-* `thin`: a handful of words per page;
+* `rich`: full articles about its topic (since wave 3b: retold from the real news corpus of the topic's nearest
+  corpus topic, `CORPUS_TOPIC`, by a skilled writer through `population.writing`; before: template prose from the
+  topic's lexicon words);
+* `thin`: one short sentence of the corpus per page;
 * `broken`: every page handler raises (HTTP 500);
 * `flaky`: handlers fail during some hours of the day (deterministic in the request time);
 * `spam`: pages are keyword lists repeating the topic's words, with links to other sites;
@@ -33,6 +35,18 @@ from ..core.kernel import Module, process, register_module
 from . import text
 
 BEHAVIOURS = ("rich", "thin", "broken", "flaky", "spam", "offtopic")
+# the corpus topic (semantics.topic_names(), MIND-small subcategories) a site topic's articles are retold from
+CORPUS_TOPIC = {"cooking": "recipes", "cycling": "more_sports", "gardening": "lifestylehomeandgarden",
+                "coding": "newsscienceandtechnology", "music": "musicnews", "fitness": "fitness",
+                "travel": "travelarticle", "finance": "personalfinance", "games": "gaming",
+                "learning": "finance-career-education", "home": "lifestylesmartliving", "local": "newsus",
+                "pets": "lifestylepets", "work": "newsbusiness", "science": "science", "fashion": "lifestylecelebstyle"}
+
+
+def _corpus_index(topic: str) -> int:
+    from . import semantics
+    names = semantics.topic_names()
+    return names.index(CORPUS_TOPIC.get(topic, topic)) if CORPUS_TOPIC.get(topic, topic) in names else 0
 CATEGORIES = ("guide", "news", "shop", "blog", "tools", "club")   # perceivable from a page's title (res.kind)
 DEFAULT_MIX = {"rich": 0.45, "thin": 0.15, "broken": 0.1, "flaky": 0.1, "spam": 0.1, "offtopic": 0.1}
 FILLER = ("the", "a", "and", "with", "for", "your", "this", "that", "when", "how", "most", "many", "every", "some",
@@ -67,25 +81,29 @@ def make_spec(rng: np.random.Generator, name: str, topic: str, behaviour: str, *
     body_words = list(text.TOPICS[offtopic or topic]) if behaviour == "offtopic" else words
     category = category or ("shop" if n_products else CATEGORIES[int(rng.integers(0, len(CATEGORIES)))])
     title = f"{topic.capitalize()} {category.capitalize()}"
+    from . import writing
     arts = []
     if behaviour == "thin":
         n_articles = min(int(n_articles), 3)
+    t_body = _corpus_index(offtopic or topic) if behaviour == "offtopic" else _corpus_index(topic)
     for k in range(int(n_articles)):
-        n = int(rng.integers(150, 400)) if behaviour in ("rich", "flaky", "offtopic", "broken") else int(rng.integers(4, 10))
-        ttl = " ".join(str(words[int(rng.integers(0, len(words)))]) for _ in range(1 if behaviour == "thin" else 3)
-                       ).capitalize()
         if behaviour == "spam":
+            ttl = " ".join(str(words[int(rng.integers(0, len(words)))]) for _ in range(3)).capitalize()
             body = " ".join(str(words[int(rng.integers(0, 3))]) for _ in range(120)) + " best cheap deal click now"
+        elif behaviour == "thin":
+            ttl, body = writing.compose(rng, t_body, 1, 0.3)
+            ttl = " ".join(ttl.split()[:2])
         else:
-            body = compose(rng, body_words, n)
+            ttl, body = writing.compose(rng, t_body, int(rng.integers(6, 16)), 1.0)
         arts.append({"title": ttl, "body": body})
     prods = []
     for k in range(int(n_products)):
         prods.append({"name": f"{words[int(rng.integers(0, len(words)))]} {('kit', 'set', 'pack', 'box')[k % 4]}".title(),
                       "price": int(rng.integers(price_range[0], price_range[1] + 1)),
-                      "about": compose(rng, words, int(rng.integers(20, 50))) if behaviour != "thin" else words[0]})
+                      "about": writing.compose(rng, t_body, 2, 0.9)[1] if behaviour != "thin" else words[0]})
     about = {"thin": topic, "spam": " ".join(str(words[int(rng.integers(0, 3))]) for _ in range(60)) +
-             " best cheap deal"}.get(behaviour) or compose(rng, words, 25)
+             " best cheap deal"}.get(behaviour) or writing.compose(rng, t_body, 2, 0.9)[1]
+    del body_words
     return {"name": name, "title": title, "topic": topic, "category": category, "behaviour": behaviour,
             "articles": arts, "products": prods, "links": list(links), "about": about}
 

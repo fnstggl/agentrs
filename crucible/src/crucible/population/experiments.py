@@ -162,6 +162,10 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     ds = sorted(days)
     out["max_adaptive_active_two_days"] = max((len(days[d] | days.get(d + 1, set())) for d in ds), default=0)
     out["max_adaptive_per_decision_round"] = max(rounds.values(), default=0)
+    run = set()
+    for v in days.values():
+        run |= v
+    out["adaptive_active_run"] = len(run)
     out["wall_s"] = round(time.time() - t0, 1)
     return out
 

@@ -104,6 +104,16 @@ def columns(d: dict) -> dict:
         "communities": ("int32", (d["Q"],), NONE_I32),
         # class 2 personal memory
         "memory": ("float16", (M,), 0.0),
+    }
+    cols.update(attention.COLUMNS)
+    from .activation import COLUMNS as ACTIVATION
+    cols.update(ACTIVATION)
+    return cols
+
+
+def web_columns(d: dict) -> dict:
+    """Columns of the `pop` table the population's web engine (`popweb`) declares in worlds that browse the web."""
+    return {
         # article reading history on the web (inputs of article_open_semantic@1): views, the four most read topics
         "web_views": ("int32", (), 0),
         "wtopic": ("int16", (4,), -1),
@@ -121,10 +131,6 @@ def columns(d: dict) -> dict:
         "intent_at": ("int64", (), NEVER),
         "intent_prod": ("int16", (), -1),
     }
-    cols.update(attention.COLUMNS)
-    from .activation import COLUMNS as ACTIVATION
-    cols.update(ACTIVATION)
-    return cols
 
 
 def res_columns(d: dict) -> dict:
