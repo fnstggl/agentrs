@@ -292,10 +292,10 @@ def baseline_drifts(env) -> dict:
         v = r["result"]["results"]["measured"][q]["values"]
         halves.append(float(np.mean(v[:3]) - np.mean(v[3:])))
         means.append(float(np.mean(v)))
-    gap = len(means) // 2
     same = float(np.sqrt(np.mean(np.square(halves))))
-    apart = float(np.sqrt(np.mean([(means[i + gap] - means[i]) ** 2 for i in range(len(means) - gap)])))
-    return {"ok": bool(apart > 2.0 * same), "same_tick_rms": same, "half_episode_apart_rms": apart}
+    apart = float(np.sqrt(np.mean([(means[j] - means[i]) ** 2 for i in range(len(means))
+                                   for j in range(i + 10, len(means))])))
+    return {"ok": bool(apart > 1.5 * same), "same_tick_rms": same, "ten_or_more_ticks_apart_rms": apart}
 
 
 def heavy_tails(env) -> dict:

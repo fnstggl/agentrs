@@ -343,3 +343,808 @@ def holdout_needs_the_law(env) -> dict:
         out[lab] = (val["passed"] / val["of"], e._state["holdout_pass"])
     ok = out["exact"] == (1.0, 1.0) and out["tangent_beyond_box"][0] == 1.0 and out["tangent_beyond_box"][1] < 0.8
     return {"ok": bool(ok), "validation_holdout": out}
+
+
+# ====================================================================== deadtime_control
+DT_SMITH_SRC = """
+def act(obs, caller):
+    m = caller.get("memory") or {"h": [0.0] * (L + 1), "zm": 0.0, "zd": 0.0, "i": 0.0}
+    y, r = obs["reading"], obs["setpoint"]
+    e = r - (y - m["zd"] + m["zm"])
+    i = m["i"] + e / TI
+    u = KC * (e + i)
+    if u > UMAX or u < 0.0:
+        i = m["i"]
+        u = max(0.0, min(UMAX, u))
+    h = (m["h"] + [u])[-(L + 1):]
+    zm = m["zm"] + (G * u - m["zm"]) / TAU
+    zd = m["zd"] + (G * h[0] - m["zd"]) / TAU
+    return {"u": u, "memory": {"h": h, "zm": zm, "zd": zd, "i": i}}
+"""
+
+DT_PI_SRC = """
+def act(obs, caller):
+    m = caller.get("memory") or {"i": I0}
+    e = obs["setpoint"] - obs["reading"]
+    i = m["i"] + e
+    u = KC * (e + i / TI)
+    if u > UMAX or u < 0.0:
+        i = m["i"]
+        u = max(0.0, min(UMAX, u))
+    return {"u": u, "memory": {"i": i}}
+"""
+
+
+def smith_source(c: dict, G: float, tau: float, L: int, lam: float) -> str:
+    return consts(G=G, TAU=tau, L=int(L), KC=tau / (G * lam), TI=tau, UMAX=c["umax"]) + DT_SMITH_SRC
+
+
+def pi_source(c: dict, G: float, tau: float, L: int, r0: float, umax: float) -> str:
+    tc = max(1.0, float(L))
+    kc = tau / (G * (tc + L))
+    ti = min(tau, 4 * (tc + L))
+    return consts(KC=kc, TI=ti, I0=(r0 / G) / kc * ti, UMAX=umax) + DT_PI_SRC
+
+
+def oracle_deadtime_control(env) -> dict:
+    c, h = env._config, env._config["hidden"]
+    return best_of(env, {f"smith_predictor_lambda_{lam}": deploy(smith_source(c, h["G"], h["tau"], h["L"], lam))
+                         for lam in (2.0, 4.0)})
+
+
+def dt_identify(view, frac: float = 0.5) -> dict:
+    """A step test with the manual lever (two ticks), then a first-order-plus-dead-time fit by grid search."""
+    name, lo, hi = lever_of(view)
+    U1 = frac * hi
+    ys = []
+    for _ in range(2):
+        if view.done:
+            break
+        r = view.step({"kind": "levers", "values": {name: U1}})
+        ys += list(r["observation"]["arrays"].get("trace") or [])
+    ys = np.asarray(ys, dtype=float)
+    k = np.arange(len(ys))
+    best = None
+    for L in range(0, 9):
+        for tau in np.arange(1.0, 15.01, 0.25):
+            b = np.where(k > L, U1 * (1.0 - (1.0 - 1.0 / tau) ** np.maximum(0, k - L)), 0.0)
+            den = float(b @ b)
+            if den <= 0:
+                continue
+            G = float(b @ ys) / den
+            sse = float(((G * b - ys) ** 2).sum())
+            if best is None or sse < best[0]:
+                best = (sse, L, float(tau), G)
+    _, L, tau, G = best
+    return {"L": int(L), "tau": tau, "G": max(0.05, G), "umax": hi}
+
+
+def reference_deadtime_control(view, env) -> None:
+    est = dt_identify(view)
+    r0 = view.observe()["numbers"].get(env._config["r_name"], 5.0)
+    view.step({"kind": "program", "source": pi_source(env._config, est["G"], est["tau"], est["L"], r0, est["umax"]),
+               "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_deadtime_control(env) -> dict:
+    est = dt_identify(PublicView(env))
+    L = env._config["hidden"]["L"]
+    return {"question": "the dead time of the process (inner steps)", "estimate": est["L"], "truth": int(L),
+            "ok": bool(abs(est["L"] - L) <= 1)}
+
+
+def dead_time_exact(env) -> dict:
+    """Two copies, same noise, one with the valve opened at step 0: their readings agree exactly for L + 1 steps
+    (the input has not arrived) and differ from step L + 1 on."""
+    c, h = env._config, env._config["hidden"]
+    e1, e2 = fork(env), fork(env)
+    r1 = e1.step({"kind": "levers", "values": {c["u_name"]: 0.0}})
+    r2 = e2.step({"kind": "levers", "values": {c["u_name"]: 0.5 * c["umax"]}})
+    d = np.abs(np.asarray(r2["observation"]["arrays"]["trace"]) - np.asarray(r1["observation"]["arrays"]["trace"]))
+    L = int(h["L"])
+    first = int(np.argmax(d > 1e-9)) if (d > 1e-9).any() else None
+    return {"ok": bool(first == L + 1 and np.all(d[:L + 1] == 0.0)), "first_differing_step": first,
+            "dead_time": L}
+
+
+def aggressive_gain_oscillates(env) -> dict:
+    """With the delay in the loop, a high-gain proportional controller oscillates and tracks far worse than a
+    dead-time compensating controller on the same plant and noise."""
+    c, h = env._config, env._config["hidden"]
+    src = consts(G=h["G"], KP=3.0 / h["G"], UMAX=c["umax"]) + """
+def act(obs, caller):
+    r = obs["setpoint"]
+    return {"u": max(0.0, min(UMAX, r / G + KP * (r - obs["reading"])))}
+"""
+    err = {}
+    for lab, s in (("aggressive_p", src), ("smith_predictor", smith_source(c, h["G"], h["tau"], h["L"], 3.0))):
+        e = fork(env)
+        e.step({"kind": "program", "source": s, "ticks": 6})
+        for _ in range(5):
+            e.step(None)
+        err[lab] = e._state["err"] / max(1, e._state["steps"])
+    return {"ok": bool(err["aggressive_p"] > 1.5 * err["smith_predictor"]), "mean_abs_error": err}
+
+
+# ====================================================================== contention
+CONT_SRC = """
+def act(obs, caller):
+    run = {}
+    for j in obs["running"]:
+        k = CLS[j["type"]]
+        run[k] = run.get(k, 0) + 1
+    start = []
+    for j in obs["queue"]:
+        if len(start) >= obs["free"]:
+            break
+        k = CLS[j["type"]]
+        if run.get(k, 0) < PER:
+            start.append(j["id"])
+            run[k] = run.get(k, 0) + 1
+    return {"start": start}
+"""
+
+
+def cont_source(types, cls, per: int) -> str:
+    return consts(CLS={t: int(k) for t, k in zip(types, cls)}, PER=int(per)) + CONT_SRC
+
+
+def oracle_contention(env) -> dict:
+    c, h = env._config, env._config["hidden"]
+    return best_of(env, {f"one_class_mix_{p}": deploy(cont_source(c["types"], h["cls"], p)) for p in (1, 2)})
+
+
+def partitions(types: list) -> list[list[int]]:
+    """Two equal classes, the first type in class 0: every way to split."""
+    import itertools
+    J = len(types)
+    out = []
+    for rest in itertools.combinations(range(1, J), J // 2 - 1):
+        cls = [1] * J
+        for i in (0,) + rest:
+            cls[i] = 0
+        out.append(cls)
+    return out
+
+
+def work_rate(prev: list, cur: list, K: int) -> list[float]:
+    """Speeds of jobs running at the end of two consecutive ticks (work per inner step)."""
+    p = {e["id"]: e["left"] for e in prev if e.get("kind") == "running"}
+    return [(p[e["id"]] - e["left"]) / K for e in cur if e.get("kind") == "running" and e["id"] in p]
+
+
+def cont_test(view, c: dict, ticks: int = 3) -> tuple[list[int], dict]:
+    """Deploy the one-job-per-class scheduler for each candidate split in turn and keep the split under which
+    running jobs progress fastest in total."""
+    K = int(c["inner"])
+    score = {}
+    for cls in partitions(c["types"]):
+        if view.done:
+            break
+        view.step({"kind": "program", "source": cont_source(c["types"], cls, 1), "ticks": ticks})
+        prev = view.observe()["entities"]
+        rates = []
+        for _ in range(ticks - 1):
+            if view.done:
+                break
+            r = view.step(None)
+            cur = r["observation"]["entities"]
+            rates.append(sum(work_rate(prev, cur, K)))
+            prev = cur
+        score[tuple(cls)] = float(np.mean(rates)) if rates else 0.0
+    best = max(score, key=score.get) if score else tuple(partitions(c["types"])[0])
+    return list(best), score
+
+
+def reference_contention(view, env) -> None:
+    c = env._config
+    cls, _ = cont_test(view, c)
+    if not view.done:
+        view.step({"kind": "program", "source": cont_source(c["types"], cls, 1), "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_contention(env) -> dict:
+    c = env._config
+    cls, score = cont_test(PublicView(env), c)
+    truth = c["hidden"]["cls"]
+    same = cls == truth or cls == [1 - x for x in truth]
+    return {"question": "which job types interfere with each other (the hidden classes)", "estimate": cls,
+            "truth": truth, "ok": bool(same)}
+
+
+def same_class_interferes(env) -> dict:
+    """Two jobs of one class running together each progress 1 / (1 + kappa) as fast as two jobs of different
+    classes (the cap keeps arrivals from joining them)."""
+    c, h = env._config, env._config["hidden"]
+    t0 = [c["types"][i] for i in range(len(c["types"])) if h["cls"][i] == 0][:2]
+    t1 = [c["types"][i] for i in range(len(c["types"])) if h["cls"][i] == 1][:1]
+    out = {}
+    for lab, pair in (("same_class", t0), ("different_class", [t0[0], t1[0]])):
+        e = fork(env)
+        e._state["queue"], e._state["running"] = [], [{"id": 900000 + k, "type": ty, "left": 50.0}
+                                                      for k, ty in enumerate(pair)]
+        e.step({"kind": "levers", "values": {c["cap_name"]: 2}})
+        out[lab] = float(np.mean([50.0 - j["left"] for j in e._state["running"] if j["id"] >= 900000]))
+    ratio = out["different_class"] / out["same_class"]
+    return {"ok": bool(abs(ratio - (1.0 + h["kappa"])) < 1e-6), "progress_per_tick": out, "ratio": ratio,
+            "expected_ratio": 1.0 + h["kappa"]}
+
+
+def class_aware_beats_caps(env) -> dict:
+    """The scheduler that never runs two jobs of one class together earns more over ten ticks than the built-in
+    rule at any concurrency cap."""
+    c, h = env._config, env._config["hidden"]
+    vals = {}
+    for cap in range(1, int(c["slots"]) + 1):
+        e = fork(env)
+        run_fn(e, lambda x, cap=cap: {"kind": "levers", "values": {c["cap_name"]: cap}}, ticks=10)
+        vals[f"cap_{cap}"] = float(e.outcome()["net"])
+    e = fork(env)
+    e.step({"kind": "program", "source": cont_source(c["types"], h["cls"], 1), "ticks": 10})
+    run_fn(e, lambda x: None, ticks=9)
+    vals["class_aware"] = float(e.outcome()["net"])
+    best_cap = max(v for k, v in vals.items() if k.startswith("cap_"))
+    return {"ok": bool(vals["class_aware"] > best_cap), "net_after_10_ticks": vals}
+
+
+# ====================================================================== stream
+ST_EXACT_SRC = """
+def act(obs, caller):
+    vals = [(r - O[i]) / G[i] for i, r in enumerate(obs["readings"]) if not STUCK[i]]
+    if not vals:
+        vals = [sum(obs["readings"]) / len(obs["readings"])]
+    return {"estimate": sum(vals) / len(vals)}
+"""
+
+ST_CAL_SRC = """
+def act(obs, caller):
+    m = caller.get("memory") or {"res": [], "prev": None}
+    rd = obs["readings"]
+    n = len(rd)
+    a = obs.get("audit")
+    if a:
+        m["res"] = (m["res"] + [[r - a["value"] for r in a["readings"]]])[-W:]
+    off = [sum(x[i] for x in m["res"]) / len(m["res"]) for i in range(n)] if m["res"] else [0.0] * n
+    prev = m["prev"]
+    vals = [rd[i] - off[i] for i in range(n) if prev is None or rd[i] != prev[i]]
+    m["prev"] = rd
+    if not vals:
+        vals = [sum(rd) / n]
+    vals.sort()
+    k = len(vals)
+    est = vals[k // 2] if k % 2 else 0.5 * (vals[k // 2 - 1] + vals[k // 2])
+    return {"estimate": est, "memory": m}
+"""
+
+
+def oracle_stream(env) -> dict:
+    def exact(e):
+        s = e._state
+        return {"kind": "program", "ticks": 1, "source": consts(G=[float(x) for x in s["g"]],
+                                                                O=[float(x) for x in s["o"]],
+                                                                STUCK=[bool(x) for x in s["stuck"]]) + ST_EXACT_SRC}
+    return best_of(env, {"knows_calibration": exact})
+
+
+def reference_stream(view, env) -> None:
+    view.step({"kind": "program", "source": consts(W=3) + ST_CAL_SRC, "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_stream(env) -> dict:
+    """Which sensor drifts fastest: the audits' residual (reading minus true value) of each sensor changes most
+    from tick to tick."""
+    view = PublicView(env)
+    res = []
+    while not view.done and view.t < 15:
+        r = view.step(None)
+        n = r["observation"]["numbers"]
+        res.append(np.asarray(r["observation"]["arrays"]["audit_readings"]) - n["audit_value"])
+    d = np.abs(np.diff(np.asarray(res), axis=0)).mean(axis=0)
+    est = int(np.argmax(d))
+    h = env._config["hidden"]
+    speed = np.asarray(h["o_sd"]) + env._config["mean"] * np.asarray(h["g_sd"])
+    top2 = [int(i) for i in np.argsort(-speed)[:2]]
+    return {"question": "which sensor drifts fastest", "estimate": est, "truth": top2, "ok": est in top2}
+
+
+def sensors_drift(env) -> dict:
+    """With no maintenance, the sensors' errors at the audit grow over the episode; recalibrating a sensor resets
+    its error to measurement noise."""
+    c = env._config
+    e = fork(env)
+    errs = []
+    while not e.done:
+        r = e.step(None)
+        n = r["observation"]["numbers"]
+        errs.append(float(np.sqrt(np.mean((np.asarray(r["observation"]["arrays"]["audit_readings"]) -
+                                           n["audit_value"]) ** 2))))
+    early, late = float(np.mean(errs[:3])), float(np.mean(errs[-3:]))
+    f = fork(env)
+    for _ in range(15):
+        f.step(None)
+    i = int(np.argmax(np.abs(np.asarray(f._state["g"]) * c["mean"] + np.asarray(f._state["o"]) - c["mean"])))
+    before = abs(f._state["g"][i] * c["mean"] + f._state["o"][i] - c["mean"])
+    f.step({"kind": "discrete", "decision": "recalibrate", "choice": c["sensor_names"][i]})
+    return {"ok": bool(late > 2.0 * early and before > 3 * c["sensor_sd"]), "audit_rms_early": early,
+            "audit_rms_late": late, "worst_sensor_bias_before_recalibration": float(before)}
+
+
+def calibration_beats_averaging(env) -> dict:
+    """On the same noise, a processor that inverts each sensor's true calibration earns more over 15 ticks than
+    the built-in average, and so does the public audit-calibrating processor."""
+    out = {}
+    e = fork(env)
+    run_fn(e, lambda x: None, ticks=15)
+    out["built_in_mean"] = float(e.outcome()["net"])
+    e = fork(env)
+    run_fn(e, lambda x: {"kind": "program", "ticks": 1, "source": consts(
+        G=[float(v) for v in x._state["g"]], O=[float(v) for v in x._state["o"]],
+        STUCK=[bool(v) for v in x._state["stuck"]]) + ST_EXACT_SRC}, ticks=15)
+    out["exact_calibration"] = float(e.outcome()["net"])
+    e = fork(env)
+    e.step({"kind": "program", "source": consts(W=3) + ST_CAL_SRC, "ticks": 15})
+    run_fn(e, lambda x: None, ticks=14)
+    out["audit_calibration"] = float(e.outcome()["net"])
+    return {"ok": bool(out["exact_calibration"] > out["audit_calibration"] > out["built_in_mean"]), "net": out}
+
+
+# ====================================================================== router
+RT_SRC = """
+def svc(m, s, q):
+    t = A[m] + B[m] * s ** C[m]
+    if m == CONG and q > QSTAR:
+        t *= 1.0 + CF * (q - QSTAR)
+    return t
+
+
+def act(obs, caller):
+    s = obs["size"]
+    best, arg = None, 0
+    for m in range(len(A)):
+        q = len(obs["sizes"][m])
+        wait = sum(svc(m, x, q) for x in obs["sizes"][m])
+        tot = wait + svc(m, s, q + 1)
+        if best is None or tot < best:
+            best, arg = tot, m
+    return {"line": arg}
+"""
+
+
+def router_source(alpha, beta, gamma, cong=-1, qstar=99, cf=0.0) -> str:
+    return consts(A=[float(x) for x in alpha], B=[float(x) for x in beta], C=[float(x) for x in gamma],
+                  CONG=int(cong), QSTAR=int(qstar), CF=float(cf)) + RT_SRC
+
+
+def oracle_router(env) -> dict:
+    h = env._config["hidden"]
+    return best_of(env, {"knows_service_laws": deploy(router_source(h["alpha"], h["beta"], h["gamma"],
+                                                                    h["congested"], h["qstar"], h["cong"]))})
+
+
+def rt_fit(view, c: dict, ticks: int = 6) -> dict:
+    data: dict = {n: [] for n in c["line_names"]}
+    for _ in range(ticks):
+        if view.done:
+            break
+        r = view.step(None)
+        for e in r["observation"]["entities"]:
+            if e.get("kind") == "completed":
+                data[e["line"]].append((e["size"], e["service_steps"]))
+    al, be = [], []
+    for n in c["line_names"]:
+        d = np.asarray(data[n], dtype=float).reshape(-1, 2)
+        if len(d) >= 3 and np.ptp(d[:, 0]) > 0.5:
+            X = np.c_[np.ones(len(d)), d[:, 0]]
+            (a, b), *_ = np.linalg.lstsq(X, d[:, 1], rcond=None)
+        elif len(d):
+            a, b = float(d[:, 1].mean()), 0.0
+        else:
+            a, b = 2.0, 1.0
+        al.append(max(0.1, float(a)))
+        be.append(max(0.0, float(b)))
+    return {"alpha": al, "beta": be}
+
+
+def reference_router(view, env) -> None:
+    c = env._config
+    f = rt_fit(view, c)
+    if not view.done:
+        view.step({"kind": "program", "source": router_source(f["alpha"], f["beta"], [1.0] * len(f["alpha"])),
+                   "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_router(env) -> dict:
+    c = env._config
+    f = rt_fit(PublicView(env), c, ticks=8)
+    est = int(np.argmax([a + b * 4.0 for a, b in zip(f["alpha"], f["beta"])]))
+    sc = env._engine.sc
+    truth = int(np.argmax([sc.service_time(m, 4.0, 1, 0.0) for m in range(len(c["line_names"]))]))
+    return {"question": "which line is slowest for the largest jobs", "estimate": est, "truth": truth,
+            "ok": est == truth}
+
+
+def size_dependent_speed(env) -> dict:
+    """Service-time laws cross: the line fastest for the smallest jobs is not the one fastest for the largest."""
+    sc = env._engine.sc
+    M = len(env._config["line_names"])
+    small = [sc.service_time(m, 0.5, 1, 0.0) for m in range(M)]
+    large = [sc.service_time(m, 4.0, 1, 0.0) for m in range(M)]
+    return {"ok": bool(int(np.argmin(small)) != int(np.argmin(large))), "service_small": small,
+            "service_large": large}
+
+
+def congested_line_slows(env) -> dict:
+    """Only the congestible line serves the same job more slowly behind a long queue."""
+    h = env._config["hidden"]
+    sc = env._engine.sc
+    M = len(env._config["line_names"])
+    q = h["qstar"] + 3
+    ratio = [sc.service_time(m, 2.0, q, 0.0) / sc.service_time(m, 2.0, 1, 0.0) for m in range(M)]
+    others = [r for m, r in enumerate(ratio) if m != h["congested"]]
+    return {"ok": bool(ratio[h["congested"]] > 1.5 and all(abs(r - 1.0) < 1e-12 for r in others)),
+            "slowdown_behind_queue": ratio}
+
+
+# ====================================================================== fleet
+FL_SRC = """
+def act(obs, caller):
+    cand = [(v, i) for i, v in enumerate(obs["vibration"]) if obs["down"][i] == 0 and v > VSTAR]
+    cand.sort(reverse=True)
+    return {"service": [i for _, i in cand[:obs["crew"]]]}
+"""
+
+
+def oracle_fleet(env) -> dict:
+    c, h = env._config, env._config["hidden"]
+
+    def by_wear(theta):
+        def fn(e):
+            s = e._state
+            cand = sorted(((s["w"][i], i) for i in range(len(s["w"])) if s["down"][i] == 0
+                           and s["w"][i] > theta * h["w0"]), reverse=True)[:int(c["crew"])]
+            if not cand:
+                return None
+            return {"kind": "sequence", "steps": [{"kind": "discrete", "decision": "service",
+                                                   "choice": c["machine_names"][i]} for _, i in cand]}
+        return fn
+    return best_of(env, {f"service_above_{th}_w0": by_wear(th) for th in (0.4, 0.6, 0.8, 1.0)})
+
+
+def reference_fleet(view, env) -> None:
+    """Run to failure for a while, learn the vibration seen just before failures, then deploy a policy that
+    services the most vibrating machines above a cautious fraction of it."""
+    c = env._config
+    names = list(c["machine_names"])
+    pre, last = [], None
+    while not view.done and view.t < 10:
+        r = view.step(None)
+        obs = r["observation"]
+        if last is not None:
+            for s in obs["text"]:
+                n = s.split(" ")[0]
+                if n in names:
+                    pre.append(last[names.index(n)])
+        last = [obs["numbers"][f"{n}_vibration"] for n in names]
+    if pre:
+        vstar = 1.0 + 0.6 * (float(np.median(pre)) - 1.0)
+    else:
+        vstar = 1.0 + 0.6 * (max(last or [1.5]) - 1.0)
+    if not view.done:
+        view.step({"kind": "program", "source": consts(VSTAR=float(vstar)) + FL_SRC, "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_fleet(env) -> dict:
+    view = PublicView(env)
+    c = env._config
+    for _ in range(5):
+        r = view.step(None)
+    v = [r["observation"]["numbers"][f"{n}_vibration"] for n in c["machine_names"]]
+    est = int(np.argmax(v))
+    w = np.asarray([max(0.0, x) for x in env._state["w"]])
+    top2 = [int(i) for i in np.argsort(-w)[:2]]
+    return {"question": "which machine is most worn now", "estimate": est, "truth": top2, "ok": est in top2}
+
+
+def service_pays_later(env) -> dict:
+    """Same noise, one copy services a worn machine now: it loses that tick's output immediately and gains
+    later, through failures that do not happen."""
+    c, h = env._config, env._config["hidden"]
+    e0 = fork(env)
+    for _ in range(4):
+        e0.step(None)
+    worn = sorted(range(len(c["machine_names"])), key=lambda i: -e0._state["w"][i])
+    worn = [i for i in worn if e0._state["down"][i] == 0][:3]
+    imm, fail_a, fail_b = [], 0, 0
+    for i in worn:
+        a, b = fork(e0), fork(e0)
+        ra = a.step({"kind": "discrete", "decision": "service", "choice": c["machine_names"][i]})
+        rb = b.step(None)
+        imm.append(ra["observation"]["resources"]["revenue_cents_last_tick"] -
+                   rb["observation"]["resources"]["revenue_cents_last_tick"])
+        fa0, fb0 = a._state["failures"], b._state["failures"]
+        for _ in range(15):
+            a.step(None)
+            b.step(None)
+        fail_a += a._state["failures"] - fa0
+        fail_b += b._state["failures"] - fb0
+    return {"ok": bool(all(x < 0 for x in imm) and fail_a < fail_b), "immediate_revenue_change": imm,
+            "failures_after_service": fail_a, "failures_without": fail_b}
+
+
+def vibration_tracks_wear(env) -> dict:
+    """Vibration readings rank machines by their hidden wear (Spearman correlation over a run)."""
+    e = fork(env)
+    rng = np.random.default_rng(0)
+    vib, wear = [], []
+    while not e.done:
+        a = None
+        if rng.random() < 0.5:
+            a = {"kind": "discrete", "decision": "service",
+                 "choice": e._config["machine_names"][int(rng.integers(len(e._config["machine_names"])))]}
+        e.step(a)
+        for i in range(len(e._state["w"])):
+            if e._state["down"][i] == 0:
+                vib.append(e._state["vib"][i])
+                wear.append(max(0.0, e._state["w"][i]))
+    rv = np.argsort(np.argsort(vib))
+    rw = np.argsort(np.argsort(wear))
+    rho = float(np.corrcoef(rv, rw)[0, 1])
+    return {"ok": bool(rho > 0.6), "spearman": rho}
+
+
+# ====================================================================== cascade_guard
+CG_SRC = """
+def act(obs, caller):
+    out = []
+    for i, x in enumerate(obs["loads"]):
+        cap = CAP[i] * MARGIN
+        out.append((x - cap) / x if x > cap else 0.0)
+    return {"shed": out}
+"""
+
+
+def guard_source(caps, margin: float) -> str:
+    return consts(CAP=[float(x) for x in caps], MARGIN=float(margin)) + CG_SRC
+
+
+def oracle_cascade_guard(env) -> dict:
+    c, h = env._config, env._config["hidden"]
+    caps = [r * f for r, f in zip(c["ratings"], h["factor"])]
+    return best_of(env, {f"knows_capacity_{m}": deploy(guard_source(caps, m)) for m in (0.93, 0.97)})
+
+
+def cg_learn(view, c: dict, ticks: int = 5) -> list:
+    """Run unprotected for a few ticks; a unit's capacity is just below the load it tripped at (units that did
+    not trip keep their rating)."""
+    names = list(c["unit_names"])
+    trip = {}
+    for _ in range(ticks):
+        if view.done:
+            break
+        r = view.step(None)
+        for e in r["observation"]["entities"]:
+            if e.get("kind") == "trip":
+                trip[e["unit"]] = min(trip.get(e["unit"], 1e9), e["load"])
+    return [min(c["ratings"][i], trip.get(n, 1e9) - 2.0) for i, n in enumerate(names)]
+
+
+def reference_cascade_guard(view, env) -> None:
+    c = env._config
+    caps = cg_learn(view, c)
+    if not view.done:
+        view.step({"kind": "program", "source": guard_source(caps, 0.95), "ticks": view.horizon - view.t})
+    finish(view)
+
+
+def identify_cascade_guard(env) -> dict:
+    c = env._config
+    caps = cg_learn(PublicView(env), c, ticks=8)
+    ratio = [x / r for x, r in zip(caps, c["ratings"])]
+    est = int(np.argmin(ratio))
+    f = c["hidden"]["factor"]
+    top2 = [int(i) for i in np.argsort(f)[:2]]
+    return {"question": "which unit is weakest relative to its rating", "estimate": est, "truth": top2,
+            "ok": est in top2}
+
+
+def trips_cascade(env) -> dict:
+    """Same noise, unprotected: forcing one unit out moves its demand to its neighbours, who then trip more
+    often than they do when it stays up."""
+    c = env._config
+    N = len(c["ratings"])
+    extra = 0
+    tested = 0
+    for i in range(N):
+        a, b = fork(env), fork(env)
+        a._state["out"][i] = int(c["restart_steps"])
+        nb = [(i - 1) % N, (i + 1) % N]
+        ta = tb = 0
+        for _ in range(2):
+            ra, rb = a.step(None), b.step(None)
+            ta += sum(1 for e in ra["observation"]["entities"] if e.get("kind") == "trip"
+                      and c["unit_names"].index(e["unit"]) in nb)
+            tb += sum(1 for e in rb["observation"]["entities"] if e.get("kind") == "trip"
+                      and c["unit_names"].index(e["unit"]) in nb)
+        extra += ta - tb
+        tested += 1
+    return {"ok": bool(extra > 0), "extra_neighbour_trips": extra, "units_tested": tested}
+
+
+def capacity_below_rating(env) -> dict:
+    """The weakest unit trips at a steady load below its rating (and holds just below its true capacity)."""
+    c, h = env._config, env._config["hidden"]
+    i = int(np.argmin(h["factor"]))
+    out = {}
+    for lab, load in (("just_below_rating", 0.995 * c["ratings"][i]),
+                      ("just_below_true_capacity", 0.99 * c["ratings"][i] * h["factor"][i])):
+        e = fork(env)
+        e._config["amp"], e._config["noise_sd"] = 0.0, 0.0
+        e._config["base"] = [0.3 * r for r in c["ratings"]]
+        e._config["base"][i] = load
+        r = e.step(None)
+        out[lab] = any(x.get("kind") == "trip" and x["unit"] == c["unit_names"][i] for x in r["observation"]["entities"])
+    return {"ok": bool(out["just_below_rating"] and not out["just_below_true_capacity"] and h["factor"][i] < 0.99),
+            "tripped": out, "factor": float(h["factor"][i])}
+
+
+# ====================================================================== rollout
+def _p_adopt(env, i: int, share: list) -> float:
+    c, h = env._config, env._config["hidden"]
+    u = c["users"][i]
+    k = c["group_names"].index(u["group"])
+    p = 1.0 / (1.0 + np.exp(-(h["w"][0] * u["f1"] + h["w"][1] * u["f2"] + h["bias"][k])))
+    return float(p * (1.0 - h["q"]) if share[k] < h["tau"][k] else p)
+
+
+def expose_ids(ids: list) -> dict:
+    return {"kind": "program", "ticks": 1, "source": consts(IDS=[int(i) for i in ids]) +
+            "def act(obs, caller):\n    return {\"expose\": IDS}\n"}
+
+
+def oracle_rollout(env) -> dict:
+    c, h = env._config, env._config["hidden"]
+
+    def greedy(ready_only):
+        def fn(e):
+            sc = e._engine.sc
+            share = sc.shares(e._state)
+            left = e.horizon - e.t - 1 - h["delay"]
+            ev = []
+            for i in range(len(c["users"])):
+                if e._state["status"][i] != 0:
+                    continue
+                k = c["group_names"].index(c["users"][i]["group"])
+                if ready_only and share[k] < h["tau"][k]:
+                    continue
+                v = _p_adopt(e, i, share) * c["fee"] * max(0.0, left) - c["exposure_cost"]
+                if v > 0:
+                    ev.append((v, i))
+            ev.sort(reverse=True)
+            ids = [i for _, i in ev[:int(c["capacity"])]]
+            return expose_ids(ids) if ids else None
+        return fn
+    return best_of(env, {"greedy_value": greedy(False), "greedy_ready_groups": greedy(True)})
+
+
+def ro_fit(outcomes: list) -> np.ndarray:
+    """Ridge-regularised logistic regression of adoption on (1, f1, f2) by Newton steps."""
+    X = np.asarray([[1.0, f1, f2] for f1, f2, _ in outcomes])
+    y = np.asarray([o for _, _, o in outcomes], dtype=float)
+    w = np.zeros(3)
+    for _ in range(25):
+        p = 1.0 / (1.0 + np.exp(-X @ w))
+        g = X.T @ (p - y) + 0.5 * w
+        H = X.T @ (X * (p * (1 - p))[:, None]) + 0.5 * np.eye(3)
+        w -= np.linalg.solve(H, g)
+    return w
+
+
+def reference_rollout(view, env) -> None:
+    """Explore across groups first, then expose by a fitted adoption score, avoiding groups whose exposures are
+    mostly rejected while their adopter share is still low."""
+    c = env._config
+    G = c["group_names"]
+    cap = int(c["capacity"])
+    seen: dict = {}
+    while not view.done:
+        obs = view.observe()
+        users = {e["id"]: e for e in obs["entities"] if e.get("kind") == "user"}
+        share = [obs["numbers"].get(f"{g}_share", 0.0) for g in G]
+        for i, e in users.items():
+            if e["status"] in ("adopted", "rejected") and i in seen:
+                seen[i]["outcome"] = 1 if e["status"] == "adopted" else 0
+        status = {i: users[i]["status"] if i in users else "unexposed" for i in range(len(c["users"]))}
+        fresh = [i for i in range(len(c["users"])) if status[i] == "unexposed" and i not in seen]
+        done = [(c["users"][i]["f1"], c["users"][i]["f2"], s["outcome"]) for i, s in seen.items()
+                if s.get("outcome") is not None]
+        if view.t < 2 or len(done) < 6:
+            per = {}
+            pick = []
+            for i in fresh:
+                g = c["users"][i]["group"]
+                if per.get(g, 0) < 1 and len(pick) < cap:
+                    per[g] = per.get(g, 0) + 1
+                    pick.append(i)
+        else:
+            w = ro_fit(done)
+            rej = {g: [s["outcome"] for i, s in seen.items() if s.get("outcome") is not None
+                       and c["users"][i]["group"] == g] for g in G}
+            blocked = {g for k, g in enumerate(G) if len(rej[g]) >= 2 and np.mean(rej[g]) < 0.25 and share[k] < 0.2}
+            sc = [(w[0] + w[1] * c["users"][i]["f1"] + w[2] * c["users"][i]["f2"], i) for i in fresh
+                  if c["users"][i]["group"] not in blocked]
+            sc.sort(reverse=True)
+            pick = [i for s, i in sc[:cap] if s > -1.5]
+        for i in pick:
+            seen[i] = {"t": view.t}
+        view.step(expose_ids(pick) if pick else None)
+
+
+def identify_rollout(env) -> dict:
+    """The direction in which the first feature moves adoption, from the outcomes of exposures across groups."""
+    view = PublicView(env)
+    c = env._config
+    cap = int(c["capacity"])
+    order = sorted(range(len(c["users"])), key=lambda i: (i % 7, i))
+    exposed = []
+    while not view.done and view.t < 6:
+        obs = view.observe()
+        st = {e["id"]: e["status"] for e in obs["entities"] if e.get("kind") == "user"}
+        pick = [i for i in order if st.get(i, "unexposed") == "unexposed" and i not in exposed][:cap]
+        exposed += pick
+        view.step(expose_ids(pick))
+    while not view.done and view.t < 14:
+        view.step(None)
+    st = {e["id"]: e["status"] for e in view.observe()["entities"] if e.get("kind") == "user"}
+    done = [(c["users"][i]["f1"], c["users"][i]["f2"], 1 if st.get(i) == "adopted" else 0) for i in exposed
+            if st.get(i) in ("adopted", "rejected")]
+    w = ro_fit(done) if len(done) >= 4 else np.zeros(3)
+    truth = float(np.sign(c["hidden"]["w"][0]))
+    return {"question": "whether the first feature raises or lowers adoption", "estimate": float(np.sign(w[1])),
+            "truth": truth, "ok": bool(np.sign(w[1]) == truth)}
+
+
+def adoption_is_delayed(env) -> dict:
+    """Exposed users pay nothing in the tick they are exposed (same noise, with and without the exposures); the
+    subscriptions arrive ticks later."""
+    c = env._config
+    a, b = fork(env), fork(env)
+    ids = [i for i in range(len(c["users"])) if a._state["status"][i] == 0][:int(c["capacity"])]
+    ra = a.step(expose_ids(ids))
+    rb = b.step(None)
+    same_now = ra["observation"]["resources"]["revenue_cents_last_tick"] == \
+        rb["observation"]["resources"]["revenue_cents_last_tick"]
+    pending = sum(1 for i in ids if a._state["status"][i] == 1)
+    later = []
+    for _ in range(10):
+        later.append(a.step(None)["observation"]["resources"]["revenue_cents_last_tick"] -
+                     b.step(None)["observation"]["resources"]["revenue_cents_last_tick"])
+    return {"ok": bool(same_now and pending == len(ids) and max(later) > 0), "revenue_gain_later": later}
+
+
+def unready_groups_reject(env) -> dict:
+    """The same users exposed on the same noise are rejected more often when their group's adopter share is set
+    below its readiness level than when it is set above it."""
+    c, h = env._config, env._config["hidden"]
+    G = c["group_names"]
+    rej = {"unready": 0, "ready": 0}
+    n = 0
+    for k, g in enumerate(G):
+        idx = [i for i, u in enumerate(c["users"]) if u["group"] == g]
+        for lab in ("unready", "ready"):
+            e = fork(env)
+            st = e._state["status"]
+            want = int(np.ceil(h["tau"][k] * len(idx))) + 1 if lab == "ready" else 0
+            for j, i in enumerate(idx):
+                st[i] = 2 if j < want else 0
+            test = idx[-int(c["capacity"]):]
+
+            e.step(expose_ids(test))
+            rej[lab] += sum(1 for i in test if e._state["fate"][i] == 3)
+            if lab == "ready":
+                n += len(test)
+    return {"ok": bool(rej["unready"] > rej["ready"]), "rejections": rej, "exposed_per_arm": n}
