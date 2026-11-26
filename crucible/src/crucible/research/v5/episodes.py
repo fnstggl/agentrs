@@ -100,7 +100,7 @@ class LeverInterface:
         """What a learner is told at the start of an episode (public face only)."""
         return {"n": len(self.names), "u0": self.u_default(), "horizon": self.horizon,
                 "key": sha([self.names, self.brief])[:16], "brief_digest": sha(self.brief)[:16],
-                "brief_vec": brief_vector(self.brief)}
+                "brief_vec": brief_vector(self.brief), "lo": self.lo.copy(), "hi": self.hi.copy()}
 
     def to_values(self, u: np.ndarray) -> dict:
         x = self.lo + np.clip(np.asarray(u, dtype=float)[: len(self.names)], 0.0, 1.0) * self.span

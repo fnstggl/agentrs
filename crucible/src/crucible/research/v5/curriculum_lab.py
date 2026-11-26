@@ -6,9 +6,11 @@ its behaviour, not a label:
 
     lag_blind          judges a change on the very next tick (settle 0, one-tick measurements): misattributes
                        delayed and accumulated effects
-    early_committer    stops exploring after a fifth of the horizon: cannot follow regime shifts and long
+    price_blind        never moves a lever whose range starts above zero (a price): cannot answer rivals that
+                       learn its price
+    early_committer    stops exploring after a third of the horizon: cannot follow regime shifts and long
                        horizons
-    noise_trusting     large steps judged on single noisy ticks: misled by noisy, hidden or confounded readings
+    single_lever       only ever moves its first lever: cannot combine several levers
 
 `measure` runs a learner on curriculum-chosen probe worlds (validation seeds) and feeds the measured, verified
 scores to the curriculum; `selection_experiment` asks whether the curriculum's targeted weights put the planted
@@ -29,28 +31,59 @@ from .distribution import Registry, build_registry, generated_entry
 from .episodes import references, normalised, run_episode, score_episode
 from .sampler import build_env
 
-PLANTED = {"lag_blind": (0.3, 0, 1, 0.7), "early_committer": (0.3, 1, 2, 0.2), "noise_trusting": (0.5, 0, 1, 0.8)}
 REFERENCE_ARM = LR.META_ARMS[1]
+# planted deficiency: (search strategy, lever mask) - the mask names levers the learner never moves
+PLANTED = {"lag_blind": ((0.3, 0, 1, 0.7), None), "price_blind": (REFERENCE_ARM, "priced"),
+           "early_committer": ((0.25, 1, 2, 0.35), None), "single_lever": (REFERENCE_ARM, "first_only")}
+
+
+def lever_mask(kind: str | None, ctx: Mapping) -> np.ndarray:
+    """Levers a planted learner never moves: ``priced`` = levers whose range starts above 0 (prices), ``first_only``
+    = every lever but the first. Computed from the public lever ranges."""
+    n = int(ctx["n"])
+    if kind == "priced":
+        return np.asarray(ctx.get("lo", np.zeros(n)))[:n] > 0
+    if kind == "first_only":
+        m = np.ones(n, dtype=bool)
+        m[0] = False
+        return m
+    return np.zeros(n, dtype=bool)
 
 
 class PlantedAdapter(LR.Adapter):
-    """An adapter with a planted search strategy (no learning)."""
+    """An adapter with a planted deficiency (search strategy and lever mask); it does not learn."""
     arch = "planted_adapter"
 
-    def __init__(self, seed=0, arm=REFERENCE_ARM, **cfg):
+    def __init__(self, seed=0, arm=REFERENCE_ARM, mask: str | None = None, **cfg):
         super().__init__(seed, **cfg)
-        self.ARM = tuple(arm)
+        self.ARM, self.mask_kind = tuple(arm), mask
+
+    @classmethod
+    def planted(cls, name: str, seed: int = 0) -> "PlantedAdapter":
+        arm, mask = PLANTED[name]
+        return cls(seed, arm=arm, mask=mask)
+
+    def begin(self, ctx, rng):
+        super().begin(ctx, rng)
+        self._mask = lever_mask(self.mask_kind, ctx)
+        self._u0 = np.asarray(ctx["u0"], dtype=float)
+
+    def act(self, k):
+        u = np.array(self._search.act(k), dtype=float)
+        u[self._mask] = self._u0[self._mask]
+        return u
 
 
 class TargetableMeta(LR.MetaLearner):
-    """The meta learner, untrained behaviour = a given (planted) search strategy; training learns the strategy."""
+    """The meta learner over (search strategy, lever mask) arms; untrained behaviour = a planted deficiency;
+    training learns which arm to use from its own observed within-episode improvement."""
     arch = "targetable_meta"
-    ARMS = tuple(LR.META_ARMS) + tuple(PLANTED.values())
+    ARMS = tuple((a, None) for a in LR.META_ARMS[1:]) + tuple(PLANTED.values())
 
     def __init__(self, seed=0, prior: str = "lag_blind", **cfg):
         super().__init__(seed, **cfg)
         self.bandit = LR._Bandit(len(self.ARMS))
-        self.prior = len(LR.META_ARMS) + list(PLANTED).index(prior)
+        self.prior = self.ARMS.index(PLANTED[prior])
 
     def begin(self, ctx, rng):
         LR.LeverLearner.begin(self, ctx, rng)
@@ -58,8 +91,15 @@ class TargetableMeta(LR.MetaLearner):
             self.arm = self.prior
         else:
             self.arm = self.bandit.best() if self.frozen else self.bandit.pick(rng)
-        st, se, me, co = self.ARMS[self.arm]
+        (st, se, me, co), mk = self.ARMS[self.arm]
         self._search = LR.EpisodeSearch(ctx["u0"], ctx["horizon"], st, se, me, co)
+        self._mask = lever_mask(mk, ctx)
+        self._u0 = np.asarray(ctx["u0"], dtype=float)
+
+    def act(self, k):
+        u = np.array(self._search.act(k), dtype=float)
+        u[self._mask] = self._u0[self._mask]
+        return u
 
 
 def probe_worlds(category: str, n: int, seed: int) -> list[tuple[dict, int]]:
@@ -131,12 +171,12 @@ def selection_experiment(planted: Sequence[str] = tuple(PLANTED), seeds: Sequenc
         truth = {}
         rng = np.random.default_rng(77)
         for c in TEMPLATES:
-            sc = [_score(e, s, PlantedAdapter(0, arm=PLANTED[p]), rng) for e, s in probe_worlds(c, 4, 1900)]
+            sc = [_score(e, s, PlantedAdapter.planted(p), rng) for e, s in probe_worlds(c, 4, 1900)]
             truth[c] = float(1.0 - np.mean(sc)) - ref[c]
         weakest = max(truth, key=truth.get)
         for sd in seeds:
             cur = Curriculum(seed=sd, reference=ref)
-            measure(cur, PlantedAdapter(0, arm=PLANTED[p]), n_items, seed=sd)
+            measure(cur, PlantedAdapter.planted(p), n_items, seed=sd)
             w = cur.weights()
             order = sorted(WEAKNESSES, key=lambda c: -w[c])
             runs.append({"planted": p, "seed": sd, "weakest_measured": weakest, "rank": order.index(weakest) + 1,
@@ -159,7 +199,7 @@ def rank_pvalue(ranks: Sequence[int], k: int) -> float:
     return float(dist[: s + 1].sum())
 
 
-def targeted_training_experiment(planted: Sequence[str] = ("lag_blind", "early_committer", "noise_trusting"),
+def targeted_training_experiment(planted: Sequence[str] = tuple(PLANTED),
                                  seeds: Sequence[int] = (0, 1, 2), budget: int = 40, n_probe: int = 6,
                                  reference: Mapping | None = None) -> dict:
     """For each planted weakness: a `TargetableMeta` learner starting with that strategy is trained for `budget`

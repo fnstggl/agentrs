@@ -175,7 +175,7 @@ def test_T6_random_exploration_preserved(reference):
     """A learner with one strong weakness (lag-blind) drives the targeted weights to one category; the realised
     share of uniformly random draws and the category entropy are measured over 400 draws."""
     cur = CU.Curriculum(seed=6, reference=reference)
-    CL.measure(cur, CL.PlantedAdapter(0, arm=CL.PLANTED["lag_blind"]), 40, seed=6)
+    CL.measure(cur, CL.PlantedAdapter.planted("lag_blind"), 40, seed=6)
     for _ in range(400):
         cur.next()
     st = cur.stats()

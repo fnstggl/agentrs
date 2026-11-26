@@ -37,7 +37,7 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
     sealed = str(tmp_path / "sealed")
     ref = CL.reference_profile(n_per=3)
     cur = CU.Curriculum(seed=3, reference=ref)
-    learner = CL.PlantedAdapter(0, arm=CL.PLANTED["lag_blind"])
+    learner = CL.PlantedAdapter.planted("lag_blind")
     ev = EV.Evaluator.start(sealed_dir=sealed)
     served = 0
     try:
