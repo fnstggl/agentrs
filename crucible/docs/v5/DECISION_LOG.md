@@ -265,3 +265,31 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-63 Static-tuning hidden-causal families become interventional prediction tasks (2026-11-26, workstream H)
+Measured on the integrated tree (wave 3b): in hc_conditional, cx_competing_causes and cx_balancing_loop a constant
+setting found in hindsight reached the oracle (oracle/simple 0.95-1.0), so no public learner could beat it by the
+H-D1 margin and the worlds taught black-box tuning, not causal inference. Decision: their version 2 keeps each
+mechanism, its claims and its identification question unchanged and scores the objective as predictions of the
+noise-free (for feedback loops, settled) response at held-out settings partly outside the settable range
+(`predict_heldout`, science oracle), the 8.1 statement "distinguish correlation from causation through intervention"
+measured directly on unobserved conditions. H-D1 (dominance fraction 0.8, 68-episode search including naive mean and
+linear predictors on random interventions) is unchanged. Rejected alternative: lowering the dominance fraction.
+
+## D-64 Public references may model the other participants' policy class (2026-11-26, workstream H)
+A family's admission reference may assume the *class* of an opponent's or counterpart's policy that the brief
+describes (a contest player best-responding to an average of past efforts, an attacker learning route values from its
+own outcomes, a negotiator conceding issues by its own weights) and fit that class's parameters from public
+observations only (rival efforts, catches and breaches, offers); it never reads hidden parameters. Where a family's
+default difficulty made it a static-tuning world, the default was changed and the family's version bumped (recorded in
+the workstream report: strat_interdiction 6 routes / learning rate 0.5, net_repair 20 nodes, pe_deadtime_control 40
+ticks with a faster setpoint schedule, des_bottleneck v2 shifting bottleneck, team_assembly holding 2 per component,
+ch_rule_change and cxc_competing_rule v2 with a penalised old lever, cx_latched_pathway wide hysteresis band).
+
+## D-65 Families for the four Part 8 items that had none (2026-11-26, workstream H)
+8.5.1 `srch_leads` (a stream of expiring leads with screen/audit investigation), 8.5.4 `srch_ventures` (delayed
+lognormal returns of sectors whose hot spot rotates), 8.6.5 `plan_commit` (irreversible capacity-limited commitments
+with type-dependent hidden failure hazards) and 8.7.5 `net_balance` (three operators balancing a lossy grid with private
+demands and costs) are new training families with their own claims, identification, oracle and public reference; each
+was designed to be solvable only by acting on information gathered during the episode (fidelity records
+`rapid.leads`, `rapid.ventures`, `rapid.commit`, `rapid.balance`).
