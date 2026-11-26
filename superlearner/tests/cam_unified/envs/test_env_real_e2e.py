@@ -43,10 +43,15 @@ DAY = 86400.0
 FIRST_TOOLS = ("world.hosts",)
 
 
+# Declared deviation from the dom_dev preset: stage1.build_system (W1) builds a Consolidator over model.retriever,
+# which is None with use_memory=False (AttributeError at seam-0), so memory stays on until W1's build_agent lands.
+DEVIATIONS = {"use_memory": True}
+
+
 def dom_dev_system(run_dir: str, seed: int = 0):
     from superlearner.cam_unified.config import make_config, make_preset
     from superlearner.cam_unified.stage1.system import SystemConfig, build_system
-    pre, base = make_preset("dom_dev"), make_config("dev")
+    pre, base = make_preset("dom_dev", **DEVIATIONS), make_config("dev")
     over = {f.name: getattr(pre, f.name) for f in fields(pre)
             if f.name != "scale" and getattr(pre, f.name) != getattr(base, f.name)}
     sc = SystemConfig(scale="dev", overrides=over, sem_model=pre.sem_model, device="cuda", seed=seed,
@@ -247,6 +252,7 @@ def run_check(root: str, n: int = 12, update_every: int = 6) -> dict:
         "no_privileged_keys_in_inputs": all(not r["privileged_keys_in_inputs"] for r in rep["runs"]),
         "label_emitted": all(len(r["labels"]) == 1 for r in rep["runs"]),
     }
+    rep["preset"] = {"name": "dom_dev", "deviations": dict(DEVIATIONS)}
     rep["not_asserted"] = {"transition_rewards_is_none": "requires W1's runtime.run_lifetime (the legacy harness "
                                                          "shim passes the RewardGate's 0.0 list)"}
     return rep
