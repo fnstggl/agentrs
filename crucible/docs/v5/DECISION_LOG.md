@@ -265,3 +265,38 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-75 Untrusted learners are evaluated in jailed learner processes; instrument integrity is gated strictly (2026-11-26, workstream O)
+The research instrument separates worlds, verifiers, partitions and the sealed salt into an evaluator process, but its
+driver ran the learner in the harness process that holds the evaluator channel and is the evaluator's parent (same
+uid). An adversarial learner there read its verified score mid-episode, its partition, the evaluator's environment,
+memory and the sealed salt (SP-15.8 control `evaluator_internals`). Decision: a learner whose code is not part of
+Crucible is evaluated through `crucible.sandbox.learnerhost.LearnerHost` - its own process under the native-tool jail
+(own uid, no_new_privs, Landlock without /proc, seccomp without new sockets or processes, rlimits) holding only the
+participant socket; the host copies the weights-only checkpoint files out (no links, size-capped) and computes the
+manifest itself. Budgets of informative interactions are enforced by the evaluator, not the learner-side driver, and
+weights-only evaluation verifies parameter shapes against the immutable architecture (DEFECTS DEF-O-10..12, owner N).
+SP-15.8's gate asserts its manifest criterion (>= 3 controls passed) and, stricter, that no adversarial control fails:
+a successful attack is an open hole whatever the count of the others. Rules out: counting a control whose attack had
+nothing to hide (an insignificant hidden gain is "inconclusive", not passed).
+
+## D-76 Real-world bridge abuse policy (2026-11-26, workstream O; Part 16 / SP-16b)
+"Do not implement real-world spam, fabricated engagement, covert influence operations, unauthorized surveillance or
+impersonation" becomes two hard rules of the authorisation-gated bridge, on top of operator ownership, allow-lists,
+approval and budgets: (1) an authorisation document naming a third-party social, messaging/mail/SMS, review/ranking,
+advertising/search or code/knowledge platform (`authorization.THIRD_PARTY_PLATFORMS`, subdomains included) is refused
+whatever its acknowledgement says - experiments run against services the operator owns; (2) the bridge sets the
+User-Agent itself as an automation disclosure naming the experiment, and refuses caller identity headers (User-Agent,
+From, Forwarded/X-Forwarded-For/X-Real-IP/Via, Referer, Origin, ...). Limits, stated: a suffix list is not a complete
+census of platforms; an operator who owns a service can still misuse it - the bridge prevents posing as a person and
+acting on platforms one does not own, not every misuse.
+
+## D-77 Sandbox time and protocol accounting after the wave-3b review (2026-11-26, workstream O; amends D-20)
+(1) Nested sandbox jobs (a program's world call that runs another sandboxed program, at any depth) share the enclosing
+job's call-tree deadline; once it is spent a nested job is refused without starting, and the refusal is a recorded
+outcome (replay and regeneration see it). A call tree finishes within twice the outer job's limit. (2) The protocol
+allowance subtracted from measured CPU is 1.5 ns per message byte (was 20): below the fastest CPython JSON encode or
+decode rate measured (long strings, 1.97 ns/byte), so padding messages cannot hide work; honest structured payloads
+are billed the remainder of their encoding as the program's work. (3) The machine-level meter memo evicts per world
+lineage. Consequence: bills of programs exchanging large messages rise slightly; deterministic-model anchors (raw
+nanoseconds) stay valid, so cross-process reproducibility on a machine is unchanged.
