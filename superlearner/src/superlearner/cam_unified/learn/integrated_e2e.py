@@ -32,15 +32,18 @@ DOM08_REQUIRED = None
 
 
 def _commit() -> str:
+    """HEAD at the start of the run, suffixed "+dirty" when tracked files under learn/ differ from it."""
+    here = os.path.dirname(__file__)
     try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=os.path.dirname(__file__),
-                                       text=True).strip()
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=here, text=True).strip()
+        dirty = subprocess.call(["git", "diff", "--quiet", "HEAD", "--", "."], cwd=here) != 0
+        return sha + ("+dirty" if dirty else "")
     except Exception:                                          # pragma: no cover
         return "unknown"
 
 
 def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7_e2e", families=FAMILIES,
-        out: str = None, overrides: dict = None, max_rounds: int = None) -> dict:
+        out: str = None, overrides: dict = None, max_rounds: int = None, preset: str = "dom_dev") -> dict:
     from ..config import make_preset
     from ..envs import experience as X
     from ..envs.agent_protocol import Transition
@@ -52,12 +55,16 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     from .grad_probe import DOM08_REQUIRED as REQ
     from .integrated import IntegratedLearner
     t_start = time.time()
-    over = dict(declared_conditions=("w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
-                                     "w7-e2e:microbatch=0(full-batch policy recompute at dev scale)",
-                                     "w7-e2e:tool_entropy_coef=0.01(dom presets leave it 0)"),
-                microbatch=0, tool_entropy_coef=0.01)
+    commit = _commit()
+    over = dict(microbatch=0, tool_entropy_coef=0.01)
     over.update(overrides or {})
-    cfg = make_preset("dom_dev", **over)
+    mb = int(over["microbatch"])
+    over["declared_conditions"] = (
+        "w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
+        f"w7-e2e:microbatch={mb}" + ("(full-batch policy recompute: exact probe)" if not mb else
+                                     "(probe actor/value norms estimated from microbatch 0)"),
+        f"w7-e2e:tool_entropy_coef={over['tool_entropy_coef']}(dom presets leave it 0)")
+    cfg = make_preset(preset, **over)
     dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
     if dev.type == "cuda":
         torch.cuda.reset_peak_memory_stats(dev)
@@ -125,7 +132,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
             ob = next_ob
     rep = summarise(updates, REQ, warm=learner.probe_warmup)
     rep["clip_rate_all"] = learner.trainer.clip_rate()
-    rep.update({"commit": _commit(), "preset": "dom_dev", "device": str(dev), "families": list(families),
+    rep.update({"commit": commit, "preset": preset, "device": str(dev), "families": list(families),
                 "seed": seed, "run_dir": run_dir, "rounds": rounds, "decisions": n_dec, "episodes": episodes, "labels": n_labels,
                 "n_updates": len(updates), "wall_s": time.time() - t_start, "errors": errors,
                 "param_counts": model.count_parameters(), "reward_model": type(rm).__name__ +
@@ -190,7 +197,8 @@ def summarise(updates: list, required, warm: int = 8) -> dict:
                         "grad_norm": u["grad_norm"], "clipped": u["clipped"],
                         "policy": {k: (u.get("policy") or {}).get(k) for k in (
                             "n_fresh_steps", "n_stale_steps", "kl", "max_lag", "n_nodes", "n_segments", "entropy",
-                            "tool_entropy", "rerouted_by_kl", "vtrace_rho_mean", "clip_frac")},
+                            "tool_entropy", "rerouted_by_kl", "vtrace_rho_mean", "clip_frac", "n_fresh_rows",
+                            "n_stale_rows", "logp_maxdev_lag0", "logp_meandev_lag0")},
                         "epochs": u.get("epochs"), "reward": u.get("reward"), "wall_s": u.get("wall_s"),
                         "actor_psi_grad_norm": u.get("actor_psi_grad_norm")} for u in updates],
         "grad_tables": {str(u["update"]): {"norm": u["grad_table"]["norm"], "core_share": u["core_share"],
@@ -207,8 +215,11 @@ def main(argv=None) -> int:
     ap.add_argument("--device", default=None)
     ap.add_argument("--run-dir", default="/tmp/w7_e2e")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--preset", default="dom_dev", help="dom_dev (W7 check) | dom (1B, W1 only) | dom_150m")
+    ap.add_argument("--microbatch", type=int, default=0, help="cfg.microbatch (0 = full-batch policy recompute)")
     a = ap.parse_args(argv)
-    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out)
+    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset,
+              overrides={"microbatch": a.microbatch})
     print(json.dumps(rep["checks"], indent=1, default=str))
     return 0
 

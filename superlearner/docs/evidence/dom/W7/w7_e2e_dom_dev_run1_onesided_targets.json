@@ -1,0 +1,3233 @@
+{
+ "checks": {
+  "actor_core_share_ge_0.1": {
+   "passed": true,
+   "values": [
+    0.7405541553238777,
+    0.9506945292393973,
+    0.6556268659425583
+   ],
+   "updates": [
+    10,
+    15,
+    20
+   ],
+   "final": 0.6556268659425583
+  },
+  "world_core_share_le_0.7": {
+   "passed": true,
+   "values": [
+    0.11841970436688659,
+    0.022918497158599185,
+    0.026309306325946146
+   ],
+   "updates": [
+    10,
+    15,
+    20
+   ],
+   "final": 0.026309306325946146
+  },
+  "dom08_nonzero_present_groups": {
+   "passed": true,
+   "table": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "update": 2
+  },
+  "dom08_nonzero_all_required": {
+   "passed": false,
+   "absent": [
+    "core.sem_xattn_gate",
+    "dec_xattn",
+    "intent",
+    "predictors"
+   ],
+   "zero": []
+  },
+  "stale_routed_to_vtrace": {
+   "passed": true,
+   "n_stale_steps": 140,
+   "n_fresh_steps": 496
+  },
+  "clip_rate_lt_0.5_after_warmup": {
+   "passed": true,
+   "rate": 0.0893854748603352,
+   "pairs": 179,
+   "warmup_updates": 8
+  }
+ },
+ "core_shares": [
+  {
+   "update": 1,
+   "world": 0.9439270978041192,
+   "adapt": 0.05594951515539714,
+   "actor": 0.00012338704048357743,
+   "value": 0.0,
+   "pred": null
+  },
+  {
+   "update": 2,
+   "world": 0.8657536626363046,
+   "adapt": 0.10308652850203939,
+   "actor": 0.03080528077375161,
+   "value": 0.00035452808790436413,
+   "pred": null
+  },
+  {
+   "update": 3,
+   "world": 0.028854644627833756,
+   "adapt": 0.9557033992090649,
+   "actor": 0.01510957127252458,
+   "value": 0.0003323848905767969,
+   "pred": null
+  },
+  {
+   "update": 4,
+   "world": 0.13053611181820365,
+   "adapt": 0.222273223717577,
+   "actor": 0.6452412905129135,
+   "value": 0.0019493739513058506,
+   "pred": null
+  },
+  {
+   "update": 5,
+   "world": 0.14444992448867774,
+   "adapt": 0.12432563114876649,
+   "actor": 0.7284735847310109,
+   "value": 0.002750859631544886,
+   "pred": null
+  },
+  {
+   "update": 6,
+   "world": 0.024425391435621894,
+   "adapt": 0.019549691059394123,
+   "actor": 0.9554924709201813,
+   "value": 0.0005324465848025918,
+   "pred": null
+  },
+  {
+   "update": 7,
+   "world": 0.011979386644666587,
+   "adapt": 0.008641416006553828,
+   "actor": 0.9790971389742622,
+   "value": 0.00028205837451730184,
+   "pred": null
+  },
+  {
+   "update": 8,
+   "world": 0.02215302716115306,
+   "adapt": 0.05512283502406553,
+   "actor": 0.922092107112088,
+   "value": 0.0006320307026934783,
+   "pred": null
+  },
+  {
+   "update": 10,
+   "world": 0.11841970436688659,
+   "adapt": 0.13760213837708543,
+   "actor": 0.7405541553238777,
+   "value": 0.003424001932150277,
+   "pred": null
+  },
+  {
+   "update": 15,
+   "world": 0.022918497158599185,
+   "adapt": 0.025343278720482764,
+   "actor": 0.9506945292393973,
+   "value": 0.0010436948815205943,
+   "pred": null
+  },
+  {
+   "update": 20,
+   "world": 0.026309306325946146,
+   "adapt": 0.3170860846670781,
+   "actor": 0.6556268659425583,
+   "value": 0.0009777430644174996,
+   "pred": null
+  }
+ ],
+ "balance": [
+  {
+   "update": 1,
+   "share_before": {
+    "world": 0.9439270978041192,
+    "adapt": 0.05594951515539714,
+    "actor": 0.00012338704048357743,
+    "value": 0.0
+   },
+   "mode": "calibrate",
+   "factors_before": {},
+   "factors_after": {
+    "world": 0.036796715795612125,
+    "actor": 97.99293015935177
+   }
+  },
+  {
+   "update": 2,
+   "share_before": {
+    "world": 0.8657536626363046,
+    "adapt": 0.10308652850203939,
+    "actor": 0.03080528077375161,
+    "value": 0.00035452808790436413
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.036796715795612125,
+    "actor": 97.99293015935177
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 97.99293015935177
+   }
+  },
+  {
+   "update": 3,
+   "share_before": {
+    "world": 0.028854644627833756,
+    "adapt": 0.9557033992090649,
+    "actor": 0.01510957127252458,
+    "value": 0.0003323848905767969
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 97.99293015935177
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  },
+  {
+   "update": 4,
+   "share_before": {
+    "world": 0.13053611181820365,
+    "adapt": 0.222273223717577,
+    "actor": 0.6452412905129135,
+    "value": 0.0019493739513058506
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  },
+  {
+   "update": 5,
+   "share_before": {
+    "world": 0.14444992448867774,
+    "adapt": 0.12432563114876649,
+    "actor": 0.7284735847310109,
+    "value": 0.002750859631544886
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  },
+  {
+   "update": 6,
+   "share_before": {
+    "world": 0.024425391435621894,
+    "adapt": 0.019549691059394123,
+    "actor": 0.9554924709201813,
+    "value": 0.0005324465848025918
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  },
+  {
+   "update": 7,
+   "share_before": {
+    "world": 0.011979386644666587,
+    "adapt": 0.008641416006553828,
+    "actor": 0.9790971389742622,
+    "value": 0.00028205837451730184
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  },
+  {
+   "update": 8,
+   "share_before": {
+    "world": 0.02215302716115306,
+    "adapt": 0.05512283502406553,
+    "actor": 0.922092107112088,
+    "value": 0.0006320307026934783
+   },
+   "mode": "calibrate",
+   "factors_before": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   },
+   "factors_after": {
+    "world": 0.003534367004873321,
+    "actor": 851.6658944731687
+   }
+  }
+ ],
+ "per_update": [
+  {
+   "update": 1,
+   "losses": {
+    "world": 48.24920654296875,
+    "adapt": 1.811909556388855,
+    "actor": -0.10584021359682083,
+    "value": 5.541263580322266
+   },
+   "weights": {
+    "world": 1.0,
+    "adapt": 1.0,
+    "actor": 1.0,
+    "value": 0.5
+   },
+   "grad_norm": 535.6790511995339,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 0,
+    "kl": 0.0025724987499415874,
+    "max_lag": 0,
+    "n_nodes": 32,
+    "n_segments": 4,
+    "entropy": 31.241670608520508,
+    "tool_entropy": 1.2115215063095093,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": null,
+    "clip_frac": 0.0357142873108387
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0025724987499415874,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.6692308783531189,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 13.068436622619629,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 28,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 6.7674652291461825,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 2,
+   "losses": {
+    "world": 43.73895263671875,
+    "adapt": 1.5528310537338257,
+    "actor": -0.14056354761123657,
+    "value": 5.532782554626465
+   },
+   "weights": {
+    "world": 0.036796715795612125,
+    "adapt": 1.0,
+    "actor": 97.99293015935177,
+    "value": 0.5
+   },
+   "grad_norm": 32.17541356143452,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.002982631092891097,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 43.014404296875,
+    "tool_entropy": 1.1520342826843262,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.533633291721344,
+    "clip_frac": 0.0357142873108387
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.002982631092891097,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.6462846398353577,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 6.688568115234375,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 8.346949975937605,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 3,
+   "losses": {
+    "world": 37.317779541015625,
+    "adapt": 4.488727569580078,
+    "actor": -0.09739825129508972,
+    "value": 5.519864082336426
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 97.99293015935177,
+    "value": 0.5
+   },
+   "grad_norm": 94.7777405332292,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.00026711192913353443,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 28.50498390197754,
+    "tool_entropy": 1.1883294582366943,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.23249270021915436,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.00026711192913353443,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.4748975932598114,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 4.68604850769043,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 7.710759283043444,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 4,
+   "losses": {
+    "world": 39.4556884765625,
+    "adapt": 1.5725785493850708,
+    "actor": -0.21276822686195374,
+    "value": 5.501992225646973
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 333.6990009722781,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.005494869779795408,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 67.02703094482422,
+    "tool_entropy": 1.168715476989746,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.8393129110336304,
+    "clip_frac": 0.0714285746216774
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.005494869779795408,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 4.843601703643799,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 3.3036980628967285,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 10.170760578010231,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 5,
+   "losses": {
+    "world": 36.957061767578125,
+    "adapt": 1.6986443996429443,
+    "actor": -0.0815548524260521,
+    "value": 5.4786295890808105
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 430.3341966644133,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.005157493986189365,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 23.183326721191406,
+    "tool_entropy": 1.20048987865448,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.5586636066436768,
+    "clip_frac": 0.0357142873108387
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.005157493986189365,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 3.0631935596466064,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.324545383453369,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 10.955879699904472,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 6,
+   "losses": {
+    "world": 37.03845977783203,
+    "adapt": 1.3513792753219604,
+    "actor": -0.15374769270420074,
+    "value": 5.450756072998047
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 6050.774540567335,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.000601268548052758,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 47.33137130737305,
+    "tool_entropy": 1.1753572225570679,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.614667534828186,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.000601268548052758,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 3.88474440574646,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.0240654945373535,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.105382016859949,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 7,
+   "losses": {
+    "world": 31.997770309448242,
+    "adapt": 1.3668485879898071,
+    "actor": -0.1689097136259079,
+    "value": 5.417447090148926
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 15592.583893767258,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 4.888462171948049e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 52.25745391845703,
+    "tool_entropy": 1.213735818862915,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8612474799156189,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.888462171948049e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.13805896043777466,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.8987185955047607,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.735035612713546,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 8,
+   "losses": {
+    "world": 32.03289794921875,
+    "adapt": 1.6536471843719482,
+    "actor": -0.1431039422750473,
+    "value": 5.379297256469727
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 7029.962132970985,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 24,
+    "n_stale_steps": 8,
+    "kl": 7.458142590621719e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 12,
+    "entropy": 43.63843536376953,
+    "tool_entropy": 1.218859076499939,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.816148579120636,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 7.458142590621719e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0799272283911705,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 6.76617431640625,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 16.400707519147545,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 9,
+   "losses": {
+    "world": 32.65142059326172,
+    "adapt": 1.084808111190796,
+    "actor": -0.07791975885629654,
+    "value": 5.3353166580200195
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 937.9917037775931,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.0033869442995637655,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 21.951797485351562,
+    "tool_entropy": 1.2064366340637207,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.7992786169052124,
+    "clip_frac": 0.0357142873108387
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0033869442995637655,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.2354573756456375,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 9.318168640136719,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 14.17214013217017,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 10,
+   "losses": {
+    "world": 33.55138397216797,
+    "adapt": 1.471231460571289,
+    "actor": -0.09906912595033646,
+    "value": 5.2870330810546875
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 1076.8405677160424,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 7.826744877093006e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 28.981571197509766,
+    "tool_entropy": 1.2124414443969727,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.9341477751731873,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 7.826744877093006e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0699494257569313,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 5.441662788391113,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.962919427081943,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 11,
+   "losses": {
+    "world": 34.06360626220703,
+    "adapt": 1.356591820716858,
+    "actor": -0.05830953270196915,
+    "value": 5.234178066253662
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 15.143098321163684,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 1.0367023605795112e-05,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 15.363760948181152,
+    "tool_entropy": 1.2218246459960938,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.8748087882995605,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 1.0367023605795112e-05,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.025470757856965065,
+     "stepped": true,
+     "policy_loss": -2.7209059894062193e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 3.338726043701172,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.813096289057285,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 12,
+   "losses": {
+    "world": 34.75209045410156,
+    "adapt": 1.5803526639938354,
+    "actor": -0.05985833331942558,
+    "value": 5.112526893615723
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 990.9174311519179,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 3.848306369036436e-05,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 15.882171630859375,
+    "tool_entropy": 1.221181869506836,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.9479948878288269,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 3.848306369036436e-05,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 1.782995581626892,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.5162718296051025,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.53866148320958,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 13,
+   "losses": {
+    "world": 35.37568664550781,
+    "adapt": 1.5143848657608032,
+    "actor": -0.4803006052970886,
+    "value": 5.044350624084473
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 16464.900235088517,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 1.0704405212891288e-05,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 156.03892517089844,
+    "tool_entropy": 1.2183805704116821,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.7404962182044983,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 1.0704405212891288e-05,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.013152548111975193,
+     "stepped": true,
+     "policy_loss": -6.378345318580614e-08,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.1342711448669434,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 18.905885755084455,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 14,
+   "losses": {
+    "world": 33.37944030761719,
+    "adapt": 1.7107421159744263,
+    "actor": -0.10553217679262161,
+    "value": 4.890583038330078
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 2027.3943382829225,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 28,
+    "n_stale_steps": 4,
+    "kl": 0.0005229407688602805,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 31.094562530517578,
+    "tool_entropy": 1.224849820137024,
+    "rerouted_by_kl": 0,
+    "vtrace_rho_mean": 0.9070905447006226,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 0.0005229407688602805,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 3.2838807106018066,
+     "stepped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.8276981115341187,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.338744257111102,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 15,
+   "losses": {
+    "world": 29.01848602294922,
+    "adapt": 1.3223038911819458,
+    "actor": -0.30520936846733093,
+    "value": 4.805373668670654
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 5107.350193517996,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 24,
+    "n_stale_steps": 12,
+    "kl": 7.98010569269536e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 97.65020751953125,
+    "tool_entropy": 1.2258682250976562,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8816162943840027,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 7.98010569269536e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.008999746292829514,
+     "stepped": true,
+     "policy_loss": 7.35669289042562e-07,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 1.4303317070007324,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 36,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 13.0975410817191,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 16,
+   "losses": {
+    "world": 30.082199096679688,
+    "adapt": 1.5522030591964722,
+    "actor": -0.47390419244766235,
+    "value": 4.613705635070801
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 7048.042223063402,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 7,
+    "kl": 3.884368197759613e-06,
+    "max_lag": 0,
+    "n_nodes": 32,
+    "n_segments": 4,
+    "entropy": 153.88394165039062,
+    "tool_entropy": 1.2252346277236938,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8643347024917603,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 3.884368197759613e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.0018618496833369136,
+     "stepped": true,
+     "policy_loss": -2.8314412148233714e-08,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 13.119577407836914,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 28,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 11.038562470115721,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 17,
+   "losses": {
+    "world": 32.069725036621094,
+    "adapt": 1.4255037307739258,
+    "actor": -0.843941330909729,
+    "value": 4.385804176330566
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 5707.794788062612,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 6.823796411481453e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 277.2296142578125,
+    "tool_entropy": 1.2252485752105713,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8538398742675781,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 6.823796411481453e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.007605612277984619,
+     "stepped": true,
+     "policy_loss": 1.695587741323834e-07,
+     "clipped": true
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 6.703371047973633,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 14.022174281068146,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 18,
+   "losses": {
+    "world": 32.49217224121094,
+    "adapt": 1.844459891319275,
+    "actor": -0.5705896615982056,
+    "value": 4.125401496887207
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 4490.858905677604,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 7.92234823165927e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 186.1105499267578,
+    "tool_entropy": 1.2257965803146362,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.7317209839820862,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 7.92234823165927e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.012386489659547806,
+     "stepped": true,
+     "policy_loss": 5.990827389723563e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 4.152349472045898,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 12.637724630068988,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 19,
+   "losses": {
+    "world": 29.41899871826172,
+    "adapt": 1.0959389209747314,
+    "actor": -0.33740153908729553,
+    "value": 3.826690912246704
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 2781.85843610048,
+   "clipped": false,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 4.8334441089536995e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 108.37992858886719,
+    "tool_entropy": 1.2261738777160645,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8118870258331299,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 4.8334441089536995e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.005246368702501059,
+     "stepped": true,
+     "policy_loss": -5.7198420222448476e-08,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.9174416065216064,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 14.575909442268312,
+   "actor_psi_grad_norm": null
+  },
+  {
+   "update": 20,
+   "losses": {
+    "world": 29.337064743041992,
+    "adapt": 2.8698272705078125,
+    "actor": -0.8539998531341553,
+    "value": 3.4906537532806396
+   },
+   "weights": {
+    "world": 0.003534367004873321,
+    "adapt": 1.0,
+    "actor": 851.6658944731687,
+    "value": 0.5
+   },
+   "grad_norm": 3825.374320535923,
+   "clipped": true,
+   "policy": {
+    "n_fresh_steps": 21,
+    "n_stale_steps": 11,
+    "kl": 8.197230272344314e-06,
+    "max_lag": 1,
+    "n_nodes": 36,
+    "n_segments": 8,
+    "entropy": 280.58154296875,
+    "tool_entropy": 1.2255215644836426,
+    "rerouted_by_kl": 1,
+    "vtrace_rho_mean": 0.8553515076637268,
+    "clip_frac": 0.0
+   },
+   "epochs": [
+    {
+     "epoch": 0,
+     "kl": 8.197230272344314e-06,
+     "stepped": true
+    },
+    {
+     "epoch": 1,
+     "kl": 0.012229976244270802,
+     "stepped": true,
+     "policy_loss": -3.2980733521981165e-07,
+     "clipped": false
+    }
+   ],
+   "reward": {
+    "mode": "observation_only",
+    "condition": "D0",
+    "label": "meta-learned intrinsic reward R_psi, observation-only (compliant default)",
+    "info_gain_mean": 2.351407527923584,
+    "cost_mean": 0.0,
+    "psi_version": 0,
+    "stub": true,
+    "n": 32,
+    "mean": 0.0,
+    "std": 0.0,
+    "min": 0.0,
+    "max": 0.0,
+    "drops": {
+     "forced_reset": 0,
+     "planner": 0
+    }
+   },
+   "wall_s": 15.36676677968353,
+   "actor_psi_grad_norm": null
+  }
+ ],
+ "grad_tables": {
+  "1": {
+   "norm": {
+    "world": {
+     "core.block0": 11.660020806374153,
+     "core.block_mid": 12.881400582119603,
+     "core.block_last": 12.428087209404765,
+     "core.blocks_other": 27.038512842939653,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 5.169264765687035,
+     "sem_proj": 53.307162412316835,
+     "entities": 0.28710670210444,
+     "reasoner": 0.0,
+     "beliefs": 1.3763626022771334,
+     "world_model": 30.43472258567815,
+     "outcome_head": 531.7753578815025,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.02517939122740596,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.7103204249935552,
+     "core.block_mid": 0.758820796975549,
+     "core.block_last": 0.7389066761747257,
+     "core.blocks_other": 1.6004354093103506,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.2791502507683012,
+     "sem_proj": 0.4006982133593711,
+     "entities": 0.043383088049862774,
+     "reasoner": 0.0,
+     "beliefs": 0.28408183874475823,
+     "world_model": 0.028534820869297386,
+     "outcome_head": 2.417810388657574,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0012299762395311252,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.00012922512427260315,
+     "core.block_mid": 0.002196004873417371,
+     "core.block_last": 0.002201604615415322,
+     "core.blocks_other": 0.0032077670281423364,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.0008774834422024279,
+     "sem_proj": 0.04826099052481864,
+     "entities": 6.9354128287680396e-06,
+     "reasoner": 0.00032974851758139646,
+     "beliefs": 0.00418504845840287,
+     "world_model": 2.5571888698500116e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.44634211452360506,
+     "exploration": 8.122698005288719e-05,
+     "policy": 0.05114608389518867,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0,
+     "core.block_mid": 0.0,
+     "core.block_last": 0.0,
+     "core.blocks_other": 0.0,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.0,
+     "sem_proj": 0.0,
+     "entities": 0.0,
+     "reasoner": 0.0,
+     "beliefs": 0.0,
+     "world_model": 0.0,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0,
+     "v_int": 1.8903338625875823,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.9439270978041192,
+    "adapt": 0.05594951515539714,
+    "actor": 0.00012338704048357743,
+    "value": 0.0
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "2": {
+   "norm": {
+    "world": {
+     "core.block0": 5.446956085459458,
+     "core.block_mid": 5.984456592133074,
+     "core.block_last": 5.699929541436784,
+     "core.blocks_other": 12.544751435330186,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 2.2884244582927042,
+     "sem_proj": 1.4891206071529952,
+     "entities": 0.16664155321358987,
+     "reasoner": 0.0,
+     "beliefs": 0.7200936322127073,
+     "world_model": 1.4418404604871944,
+     "outcome_head": 13.297198604317236,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.008268538256340871,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.6548851215652911,
+     "core.block_mid": 0.707281374025433,
+     "core.block_last": 0.6785888342489368,
+     "core.blocks_other": 1.4915636765854832,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.2830851999944105,
+     "sem_proj": 0.34547529957125683,
+     "entities": 0.021257637967289043,
+     "reasoner": 0.0,
+     "beliefs": 0.2909001242807843,
+     "world_model": 0.023489868745775626,
+     "outcome_head": 2.375035235494945,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0007411181226604342,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.015328907078840217,
+     "core.block_mid": 0.2806202142133202,
+     "core.block_last": 0.2789651060647311,
+     "core.blocks_other": 0.40108608231090204,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.11063981176615385,
+     "sem_proj": 6.92386393679032,
+     "entities": 0.0007678641506635474,
+     "reasoner": 0.04078940037878028,
+     "beliefs": 0.5778440617657512,
+     "world_model": 0.00034065622529745886,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 22.58589223555651,
+     "exploration": 0.007042046356911983,
+     "policy": 7.0319715341592905,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.00017631857903973667,
+     "core.block_mid": 0.003236203264763544,
+     "core.block_last": 0.0032077802122097423,
+     "core.blocks_other": 0.004608642752761522,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.0012898273696042202,
+     "sem_proj": 0.0045065498138529255,
+     "entities": 9.241798424781844e-06,
+     "reasoner": 0.0004674129812745806,
+     "beliefs": 0.0003502779927428229,
+     "world_model": 3.4754909614416812e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 2.874632997858215e-06,
+     "v_int": 1.884989006759198,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.8657536626363046,
+    "adapt": 0.10308652850203939,
+    "actor": 0.03080528077375161,
+    "value": 0.00035452808790436413
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "3": {
+   "norm": {
+    "world": {
+     "core.block0": 0.3704104306104083,
+     "core.block_mid": 0.4137126236136461,
+     "core.block_last": 0.3902756273003758,
+     "core.blocks_other": 0.8572519259938753,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.152273663269004,
+     "sem_proj": 0.08286887209285784,
+     "entities": 0.007085084429771473,
+     "reasoner": 0.0,
+     "beliefs": 0.04502440237970369,
+     "world_model": 0.10375059648279132,
+     "outcome_head": 0.6927818364509944,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0005607278818016297,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 12.374701602305155,
+     "core.block_mid": 13.806770344603867,
+     "core.block_last": 12.868898594106282,
+     "core.blocks_other": 28.252857165042286,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 5.421810974270742,
+     "sem_proj": 6.820613404373104,
+     "entities": 0.2546241002654489,
+     "reasoner": 0.0,
+     "beliefs": 1.2492697012925944,
+     "world_model": 0.308180701596826,
+     "outcome_head": 84.89847164867722,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.010334164860208595,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.015703864670290366,
+     "core.block_mid": 0.28443086148844693,
+     "core.block_last": 0.2772283448291948,
+     "core.blocks_other": 0.40628090154056173,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.10543633775347483,
+     "sem_proj": 4.551994456711865,
+     "entities": 0.0008222578075694535,
+     "reasoner": 0.04076036427234773,
+     "beliefs": 0.34263378678501294,
+     "world_model": 0.0003543018410325337,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 13.779625068070668,
+     "exploration": 0.004505786884085003,
+     "policy": 5.561803195471434,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.00033812044896069276,
+     "core.block_mid": 0.006260264280750374,
+     "core.block_last": 0.006086497423077048,
+     "core.blocks_other": 0.008903900977691734,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.002467785752173354,
+     "sem_proj": 0.008731519977301327,
+     "entities": 1.8054929869684975e-05,
+     "reasoner": 0.0008989720409088985,
+     "beliefs": 0.0006112396542411653,
+     "world_model": 6.63668125271604e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 5.7185238573363864e-06,
+     "v_int": 2.3153450450445403,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.028854644627833756,
+    "adapt": 0.9557033992090649,
+    "actor": 0.01510957127252458,
+    "value": 0.0003323848905767969
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "4": {
+   "norm": {
+    "world": {
+     "core.block0": 0.4076525612046836,
+     "core.block_mid": 0.4459368528376096,
+     "core.block_last": 0.4263866390416739,
+     "core.blocks_other": 0.9353964093286822,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.17025997244270405,
+     "sem_proj": 0.09840477179855282,
+     "entities": 0.016251971407204868,
+     "reasoner": 0.0,
+     "beliefs": 0.052713451826467986,
+     "world_model": 0.10893340029582871,
+     "outcome_head": 0.9041136521004752,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0006571699236739765,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.6975110046995251,
+     "core.block_mid": 0.7593806451030369,
+     "core.block_last": 0.7330799859057852,
+     "core.blocks_other": 1.5860368669321097,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.30066357825062934,
+     "sem_proj": 0.35077732143453644,
+     "entities": 0.02371235212838348,
+     "reasoner": 0.0,
+     "beliefs": 0.38664585929344464,
+     "world_model": 0.0283294397888407,
+     "outcome_head": 2.1380937744286923,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0007334592933239709,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.16018779374221082,
+     "core.block_mid": 2.93280156763038,
+     "core.block_last": 2.8529975520035555,
+     "core.blocks_other": 4.19617599608409,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 1.0360717180164978,
+     "sem_proj": 43.451401496294544,
+     "entities": 0.009008208294242287,
+     "reasoner": 0.4158423694299004,
+     "beliefs": 4.20799750067633,
+     "world_model": 0.003465515080459708,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 326.73604838232956,
+     "exploration": 0.05996332715208806,
+     "policy": 51.35864769792303,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0004771139116627507,
+     "core.block_mid": 0.008877019383610203,
+     "core.block_last": 0.00858436871328404,
+     "core.blocks_other": 0.012614628813596897,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.003420112780387387,
+     "sem_proj": 0.01222998666060658,
+     "entities": 2.637332731111698e-05,
+     "reasoner": 0.0012559964064642604,
+     "beliefs": 0.0008640646861322276,
+     "world_model": 9.474552501628357e-06,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 8.564234172752618e-06,
+     "v_int": 2.8431640692085423,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.13053611181820365,
+    "adapt": 0.222273223717577,
+    "actor": 0.6452412905129135,
+    "value": 0.0019493739513058506
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "5": {
+   "norm": {
+    "world": {
+     "core.block0": 0.3932920578269874,
+     "core.block_mid": 0.43120846755679065,
+     "core.block_last": 0.4063041357503566,
+     "core.blocks_other": 0.9038350716065997,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.1621152405654323,
+     "sem_proj": 0.08877363101065622,
+     "entities": 0.012187683747126019,
+     "reasoner": 0.0,
+     "beliefs": 0.050879662777187376,
+     "world_model": 0.11572408876457929,
+     "outcome_head": 0.6990100613103252,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0006717098522553424,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.3457126185088874,
+     "core.block_mid": 0.36528924540047997,
+     "core.block_last": 0.35870846843565546,
+     "core.blocks_other": 0.773975185417898,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.13627434437581287,
+     "sem_proj": 0.19636748536032128,
+     "entities": 0.01046352859148169,
+     "reasoner": 0.0,
+     "beliefs": 0.15282449917011515,
+     "world_model": 0.018403336339484586,
+     "outcome_head": 2.0266354302876883,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0003618688259041751,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.16040666704367032,
+     "core.block_mid": 2.874776748613728,
+     "core.block_last": 2.7990837539457054,
+     "core.blocks_other": 4.127442070538883,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 1.0702948464378694,
+     "sem_proj": 33.73804403391481,
+     "entities": 0.00871046882716252,
+     "reasoner": 0.4072431748475724,
+     "beliefs": 4.5048031075284145,
+     "world_model": 0.003380995636994336,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 426.5448210622185,
+     "exploration": 0.06486582121891285,
+     "policy": 45.133401442626166,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.000594797423128605,
+     "core.block_mid": 0.010961979468114409,
+     "core.block_last": 0.010475327475814032,
+     "core.blocks_other": 0.015543501154045734,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.0041645960471571,
+     "sem_proj": 0.015027617265556289,
+     "entities": 3.299877202269237e-05,
+     "reasoner": 0.0015416834090492537,
+     "beliefs": 0.0011373311444223804,
+     "world_model": 1.1636580964052292e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.0947576081185366e-05,
+     "v_int": 3.43176512473361,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.14444992448867774,
+    "adapt": 0.12432563114876649,
+    "actor": 0.7284735847310109,
+    "value": 0.002750859631544886
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "6": {
+   "norm": {
+    "world": {
+     "core.block0": 0.38757781739425523,
+     "core.block_mid": 0.43410779363779906,
+     "core.block_last": 0.4085849454671472,
+     "core.blocks_other": 0.9153807825397865,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.16219932289800945,
+     "sem_proj": 0.08431274790953631,
+     "entities": 0.012149054415408068,
+     "reasoner": 0.0,
+     "beliefs": 0.04924904594792274,
+     "world_model": 0.11688090589972526,
+     "outcome_head": 0.6869048229959538,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0006540974068004417,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.3167211943138286,
+     "core.block_mid": 0.3536983671013691,
+     "core.block_last": 0.3233039543398513,
+     "core.blocks_other": 0.727363677934976,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.13616188264341067,
+     "sem_proj": 0.17839876644738167,
+     "entities": 0.007285480325470045,
+     "reasoner": 0.0,
+     "beliefs": 0.12142115984377061,
+     "world_model": 0.011375726584596648,
+     "outcome_head": 1.9980452641007986,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.000358817822903061,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 1.2407986536211768,
+     "core.block_mid": 22.2610487347628,
+     "core.block_last": 21.915544875218924,
+     "core.blocks_other": 32.218583292488205,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 8.989825961896889,
+     "sem_proj": 58.854633801612216,
+     "entities": 0.07666413181468568,
+     "reasoner": 3.2400593954693844,
+     "beliefs": 57.41533125979397,
+     "world_model": 0.023294289476796952,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 6049.8396672969775,
+     "exploration": 0.8640319184173733,
+     "policy": 49.152696251865216,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0006880138095483187,
+     "core.block_mid": 0.012692682172562003,
+     "core.block_last": 0.012003219391615975,
+     "core.blocks_other": 0.01796359776794889,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.004752940386037952,
+     "sem_proj": 0.0172571052296899,
+     "entities": 3.899995435776384e-05,
+     "reasoner": 0.0017714210985368204,
+     "beliefs": 0.0014765253171728353,
+     "world_model": 1.3985333194473713e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.29254077868578e-05,
+     "v_int": 4.056235075042963,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.024425391435621894,
+    "adapt": 0.019549691059394123,
+    "actor": 0.9554924709201813,
+    "value": 0.0005324465848025918
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "7": {
+   "norm": {
+    "world": {
+     "core.block0": 0.40341770945023325,
+     "core.block_mid": 0.44565545645452503,
+     "core.block_last": 0.41894246702850696,
+     "core.blocks_other": 0.9399299283998881,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.16427626761271186,
+     "sem_proj": 0.07969430492367377,
+     "entities": 0.011213982443552319,
+     "reasoner": 0.0,
+     "beliefs": 0.053344087138588306,
+     "world_model": 0.13578657069607686,
+     "outcome_head": 0.2401224511411901,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.000634820550059065,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.292560751059165,
+     "core.block_mid": 0.32315372282197796,
+     "core.block_last": 0.3017730091799132,
+     "core.blocks_other": 0.6750463778846242,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.12786074229244385,
+     "sem_proj": 0.15900593032738805,
+     "entities": 0.009402890615205974,
+     "reasoner": 0.0,
+     "beliefs": 0.12174488176420689,
+     "world_model": 0.00999236302278953,
+     "outcome_head": 1.798336927052685,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00036064985128159534,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 2.66627674430958,
+     "core.block_mid": 48.74149815689014,
+     "core.block_last": 45.88242872413142,
+     "core.blocks_other": 69.88265135881366,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 17.222682386150503,
+     "sem_proj": 81.17690522190563,
+     "entities": 0.15629058549210909,
+     "reasoner": 6.784311192518633,
+     "beliefs": 166.58741605385444,
+     "world_model": 0.05317481322904162,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 15591.125167863927,
+     "exploration": 1.7993321080344402,
+     "policy": 37.6216629931106,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0007657188215226306,
+     "core.block_mid": 0.014107748484240502,
+     "core.block_last": 0.01322046175767533,
+     "core.blocks_other": 0.020021453770924943,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.005207190669214413,
+     "sem_proj": 0.019001937181752516,
+     "entities": 4.366800987311921e-05,
+     "reasoner": 0.0019507856883704121,
+     "beliefs": 0.001805543443036749,
+     "world_model": 1.620598648286626e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.536812785774166e-05,
+     "v_int": 4.714150517659509,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.011979386644666587,
+    "adapt": 0.008641416006553828,
+    "actor": 0.9790971389742622,
+    "value": 0.00028205837451730184
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "8": {
+   "norm": {
+    "world": {
+     "core.block0": 0.34687802725837025,
+     "core.block_mid": 0.38300073627819475,
+     "core.block_last": 0.36140869891849753,
+     "core.blocks_other": 0.8024594840995827,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.13930576135656728,
+     "sem_proj": 0.0638198847978755,
+     "entities": 0.00814968758001787,
+     "reasoner": 0.0,
+     "beliefs": 0.04613710047992132,
+     "world_model": 0.11633685046611335,
+     "outcome_head": 0.2755824428799084,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0005990312704223565,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.9672187886392306,
+     "core.block_mid": 0.876742127317092,
+     "core.block_last": 0.9968504481147233,
+     "core.blocks_other": 1.9487118109581951,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.271441765055393,
+     "sem_proj": 0.30553476200853535,
+     "entities": 0.028469590447500567,
+     "reasoner": 0.0,
+     "beliefs": 0.6278785221973912,
+     "world_model": 0.05239034063106762,
+     "outcome_head": 2.7622856195041603,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0011719698494254995,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 1.15419132376176,
+     "core.block_mid": 21.226862978642476,
+     "core.block_last": 19.855826480276356,
+     "core.blocks_other": 30.471853808255887,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 7.967614904603912,
+     "sem_proj": 39.119896894135756,
+     "entities": 0.06843508546850538,
+     "reasoner": 2.963196388515966,
+     "beliefs": 82.28087020421272,
+     "world_model": 0.024056528675360546,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 7029.203084276339,
+     "exploration": 0.8340066017923304,
+     "policy": 21.913478295465996,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0009022032794569148,
+     "core.block_mid": 0.014469404693484338,
+     "core.block_last": 0.013860087146802327,
+     "core.blocks_other": 0.020761677623315093,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.005502772206813422,
+     "sem_proj": 0.02029895009584394,
+     "entities": 4.007707540727975e-05,
+     "reasoner": 0.00207947585809993,
+     "beliefs": 0.0012938475673825488,
+     "world_model": 1.435499566194136e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.4619654853311546e-05,
+     "v_int": 5.388236492469433,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.02215302716115306,
+    "adapt": 0.05512283502406553,
+    "actor": 0.922092107112088,
+    "value": 0.0006320307026934783
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "10": {
+   "norm": {
+    "world": {
+     "core.block0": 0.37438624541853927,
+     "core.block_mid": 0.4117193138799118,
+     "core.block_last": 0.3885054879138458,
+     "core.blocks_other": 0.8602743817803897,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.15039667513679092,
+     "sem_proj": 0.06880045686503576,
+     "entities": 0.012390052156206774,
+     "reasoner": 0.0,
+     "beliefs": 0.04666360234803743,
+     "world_model": 0.12336034430738474,
+     "outcome_head": 0.3589568815609708,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0006014171865601797,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.4264483344479495,
+     "core.block_mid": 0.4803412198407144,
+     "core.block_last": 0.4500728448876908,
+     "core.blocks_other": 0.9968991184007633,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.20679524303234764,
+     "sem_proj": 0.20533475713118818,
+     "entities": 0.012897459863343652,
+     "reasoner": 0.0,
+     "beliefs": 0.26728109594291816,
+     "world_model": 0.017070847409889185,
+     "outcome_head": 1.7431843732403915,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0006315780162580855,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.18121492071064374,
+     "core.block_mid": 3.3847840798959523,
+     "core.block_last": 3.2808108081259153,
+     "core.blocks_other": 4.882587299494257,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 1.3221433687249575,
+     "sem_proj": 16.737610747218092,
+     "entities": 0.011432220023311073,
+     "reasoner": 0.48615696970780986,
+     "beliefs": 7.745223265274867,
+     "world_model": 0.003431181562930235,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 1076.493032954696,
+     "exploration": 0.13478113168153583,
+     "policy": 17.592241727367796,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008322220357333121,
+     "core.block_mid": 0.015666335162799184,
+     "core.block_last": 0.015341250759253591,
+     "core.blocks_other": 0.022488957529101964,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.005956680622686691,
+     "sem_proj": 0.022239225719805477,
+     "entities": 4.579612684900723e-05,
+     "reasoner": 0.002269616043217296,
+     "beliefs": 0.0016607043688538917,
+     "world_model": 2.0396332827271036e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.761739213034315e-05,
+     "v_int": 6.711029016583506,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.11841970436688659,
+    "adapt": 0.13760213837708543,
+    "actor": 0.7405541553238777,
+    "value": 0.003424001932150277
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "15": {
+   "norm": {
+    "world": {
+     "core.block0": 0.28113586706103066,
+     "core.block_mid": 0.3085793117573966,
+     "core.block_last": 0.29253867052673166,
+     "core.blocks_other": 0.6484764271277521,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.12014513543491111,
+     "sem_proj": 0.05110664833361934,
+     "entities": 0.008773255123734695,
+     "reasoner": 0.0,
+     "beliefs": 0.044311121473774875,
+     "world_model": 0.11428800004776489,
+     "outcome_head": 0.11337065867967584,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0005020414276348568,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 0.3105962222256436,
+     "core.block_mid": 0.34709762311227105,
+     "core.block_last": 0.32310554405238734,
+     "core.blocks_other": 0.71540914386785,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.12820197386750784,
+     "sem_proj": 0.15351411391623526,
+     "entities": 0.006997611924726781,
+     "reasoner": 0.0,
+     "beliefs": 0.22218572524658986,
+     "world_model": 0.009403180011986582,
+     "outcome_head": 1.452369575619715,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.00033783090298078906,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.9331108664012676,
+     "core.block_mid": 16.910113388574693,
+     "core.block_last": 16.935731464691468,
+     "core.blocks_other": 24.211696301435982,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 5.974668753791234,
+     "sem_proj": 25.646220729287045,
+     "entities": 0.05769181671606124,
+     "reasoner": 2.2974381567401134,
+     "beliefs": 81.07272126191707,
+     "world_model": 0.016591559930987678,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 5106.500954665533,
+     "exploration": 0.6272456832378386,
+     "policy": 10.781354732281155,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0010010512199850744,
+     "core.block_mid": 0.01862190722307529,
+     "core.block_last": 0.01818753966536285,
+     "core.blocks_other": 0.026772518363138268,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.006749688302869081,
+     "sem_proj": 0.025413851018542287,
+     "entities": 5.239285570908084e-05,
+     "reasoner": 0.0025741323394632676,
+     "beliefs": 0.0030971399711763195,
+     "world_model": 2.254534978086328e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.9089200289061943e-05,
+     "v_int": 10.89724700879105,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.022918497158599185,
+    "adapt": 0.025343278720482764,
+    "actor": 0.9506945292393973,
+    "value": 0.0010436948815205943
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  },
+  "20": {
+   "norm": {
+    "world": {
+     "core.block0": 0.3007508547398954,
+     "core.block_mid": 0.3332954685738932,
+     "core.block_last": 0.30969648467502436,
+     "core.blocks_other": 0.7013025826104039,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.13025621646371643,
+     "sem_proj": 0.05039657642646008,
+     "entities": 0.006369891104632926,
+     "reasoner": 0.0,
+     "beliefs": 0.04284922681883129,
+     "world_model": 0.13173950341790994,
+     "outcome_head": 0.2041174959963073,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.0005302815114529789,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "adapt": {
+     "core.block0": 3.592125168732882,
+     "core.block_mid": 4.0820270447047715,
+     "core.block_last": 3.754987070846141,
+     "core.blocks_other": 8.415935623096779,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 1.6178736313840107,
+     "sem_proj": 1.3682084549448437,
+     "entities": 0.07993240297824321,
+     "reasoner": 0.0,
+     "beliefs": 0.4030910699449031,
+     "world_model": 0.11199668444149442,
+     "outcome_head": 35.26640381838287,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 0.003469403986174762,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "actor": {
+     "core.block0": 0.6082666049137918,
+     "core.block_mid": 11.125629535822203,
+     "core.block_last": 10.750366204700017,
+     "core.blocks_other": 15.637113956409673,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 4.054602590858912,
+     "sem_proj": 16.988624806108774,
+     "entities": 0.03847324004811443,
+     "reasoner": 1.5659723989068848,
+     "beliefs": 23.747350283932995,
+     "world_model": 0.014190622555219662,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 3824.4016525464476,
+     "exploration": 0.42442176485335825,
+     "policy": 66.80126264829319,
+     "v_int": 0.0,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    },
+    "value": {
+     "core.block0": 0.0008850711344434753,
+     "core.block_mid": 0.01660492281003972,
+     "core.block_last": 0.015937214425452588,
+     "core.blocks_other": 0.023369672351164807,
+     "core.sem_xattn_gate": 0.0,
+     "core.sem_xattn": 0.0,
+     "core.state_gate": 0.0,
+     "core.embed": 0.006072093127033819,
+     "sem_proj": 0.022900759738720976,
+     "entities": 5.0471467012754686e-05,
+     "reasoner": 0.002283709307530695,
+     "beliefs": 0.0024638675683152983,
+     "world_model": 2.0772117153737714e-05,
+     "outcome_head": 0.0,
+     "intent": 0.0,
+     "evaluator": 0.0,
+     "dec_xattn": 0.0,
+     "dec_bridge": 0.0,
+     "exploration": 0.0,
+     "policy": 1.755157863306142e-05,
+     "v_int": 15.777559419174626,
+     "predictors": 0.0,
+     "psi": 0.0,
+     "other": 0.0
+    }
+   },
+   "core_share": {
+    "world": 0.026309306325946146,
+    "adapt": 0.3170860846670781,
+    "actor": 0.6556268659425583,
+    "value": 0.0009777430644174996
+   },
+   "dom08": {
+    "core.block0": "nonzero",
+    "core.block_mid": "nonzero",
+    "core.block_last": "nonzero",
+    "sem_proj": "nonzero",
+    "core.sem_xattn_gate": "absent",
+    "reasoner": "nonzero",
+    "beliefs": "nonzero",
+    "world_model": "nonzero",
+    "intent": "absent",
+    "dec_xattn": "absent",
+    "exploration": "nonzero",
+    "policy": "nonzero",
+    "v_int": "nonzero",
+    "predictors": "absent"
+   },
+   "absent": [
+    "core.sem_xattn",
+    "core.sem_xattn_gate",
+    "core.state_gate",
+    "dec_xattn",
+    "evaluator",
+    "intent",
+    "other",
+    "predictors",
+    "psi"
+   ]
+  }
+ },
+ "integrity": {
+  "transitions": 160,
+  "env_reward_nonzero": 0,
+  "fresh_reward_nonzero": 0,
+  "replay_reward_nonzero": 0
+ },
+ "clip_rate_all": 0.12926829268292683,
+ "commit": "92c5928552efca622fc9d9d18a6689da2ace58b2",
+ "preset": "dom_dev",
+ "device": "cuda",
+ "families": [
+  "dl_delayed_returns",
+  "hc_confounded",
+  "net_routing",
+  "mk_drift"
+ ],
+ "seed": 0,
+ "run_dir": "/tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e_run/run-20261126-141959-326301-s0",
+ "rounds": 160,
+ "decisions": 640,
+ "episodes": 3,
+ "labels": 8,
+ "n_updates": 20,
+ "wall_s": 743.6145443916321,
+ "errors": [],
+ "param_counts": {
+  "components": {
+   "tokenizer": {
+    "total": 2198785,
+    "trainable": 2198785
+   },
+   "core": {
+    "total": 14503170,
+    "trainable": 14503170
+   },
+   "entity_encoder": {
+    "total": 5630342,
+    "trainable": 5630342
+   },
+   "reasoner": {
+    "total": 13441,
+    "trainable": 13441
+   },
+   "outcome_head": {
+    "total": 2209592,
+    "trainable": 2209592
+   },
+   "beliefs": {
+    "total": 3321856,
+    "trainable": 3321856
+   },
+   "bayes": {
+    "total": 27072,
+    "trainable": 27072
+   },
+   "world_model": {
+    "total": 22389188,
+    "trainable": 7886018
+   },
+   "action_generator": {
+    "total": 13470848,
+    "trainable": 13470848
+   },
+   "value_head": {
+    "total": 992511,
+    "trainable": 992511
+   },
+   "option_policy": {
+    "total": 1345553,
+    "trainable": 1345553
+   },
+   "exploration_head": {
+    "total": 194748,
+    "trainable": 194748
+   },
+   "query_encoder": {
+    "total": 5376,
+    "trainable": 5376
+   }
+  },
+  "cam_total": 66302482,
+  "cam_trainable": 51799312,
+  "semantic_pretrained": {
+   "total": 596049920,
+   "trainable": 0,
+   "frozen": 596049920
+  }
+ },
+ "reward_model": "RewardModel (seam stub: reward 0)",
+ "cfg": {
+  "n_layers": 8,
+  "d_model": 384,
+  "sem_model": "Qwen/Qwen3-0.6B",
+  "declared_conditions": [
+   "w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
+   "w7-e2e:microbatch=0(full-batch policy recompute at dev scale)",
+   "w7-e2e:tool_entropy_coef=0.01(dom presets leave it 0)"
+  ],
+  "reward_mode": "observation_only",
+  "update_every": 8,
+  "ppo_epochs": 2,
+  "target_kl": 0.03,
+  "lr_core": 3e-05,
+  "lr_heads": 0.0001,
+  "lr_psi": 0.001,
+  "lr_warmup_updates": 500,
+  "clip_mode": "per_group",
+  "clip_median_mult": 5.0,
+  "balance_every": 25,
+  "world_core_share_max": 0.45,
+  "microbatch": 0
+ },
+ "peak_gpu_gb": 18.537102222442627,
+ "command": "/tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/smoke.py 20 cuda /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e20.json",
+ "notes": "Run 1 of the W7 real end-to-end check (dom_dev, 4 rapid train worlds, 20 updates), code at commit 92c5928: one-sided balancing targets (world <= 0.45, actor >= 0.1) re-solved on every warmup probe from single noisy probes. All four plan checks pass for the groups the stack builds, but the solve over-allocated the core to the actor (actor share 0.66-0.98, world 0.02-0.12 after warmup; actor weight x852): the motivation for the range targets (world 0.2-0.45, actor 0.1-0.4) and the EMA-smoothed solve of the final code (run 2). Reward model = seam stub (r = 0), so the actor signal is entropy + value-noise advantages only; the structured-action entropy grows (31 -> 280 nats).",
+ "superseded_by": "w7_e2e_dom_dev.json"
+}

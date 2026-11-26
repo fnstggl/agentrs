@@ -333,6 +333,9 @@ class PolicyBatch:
     prep: object = None
     consumed: list = field(default_factory=list)
     consumed_events: list = field(default_factory=list)
+    # plan §2 L_eval: one-step target of the decision evaluator Q(R, A_exec) for every trainable node,
+    # r_t + Gamma_t * (1 - done_t) * V_int(next) with behaviour-time values (detached; NaN = not trainable)
+    eval_target: Optional[torch.Tensor] = None
 
 
 @dataclass
@@ -424,8 +427,8 @@ class IntegratedLearner:
         `step()` without a batch); trainer: a CombinedTrainer over named groups (built from `grad_probe.named_groups`
         when None: one group per DOM-08 group, lr_core for core groups with warmup, lr_heads elsewhere, psi in the
         meta role at lr_psi, per-group clipping per cfg.clip_mode).
-      balancer: LossBalancer (default: world <= cfg.world_core_share_max (0.45 in dom), actor >= 0.1, pred >= 0.1;
-        None-equivalent when cfg.balance_every == 0 and `balance=False`).
+      balancer: LossBalancer (default core-share ranges: world (0.2, cfg.world_core_share_max = 0.45 in dom), actor
+        (0.1, 0.4), pred (0.1, 0.4)); `balance=False` turns balancing off (the "no loss balancing" ablation).
       probe_warmup / probe_every: the per-objective named-group probe runs on updates 1..probe_warmup and then every
         probe_every updates (default cfg.balance_every or 25); balancing calibrates at the first probe, refines with
         the clipped rule on every warmup probe and then every cfg.balance_every updates.
@@ -477,8 +480,8 @@ class IntegratedLearner:
             trainer = CombinedTrainer(cfg, **kw)
         self.trainer = trainer
         if balancer is None and balance:
-            tgt = {"world": ("max", float(cfg.world_core_share_max) if cfg.world_core_share_max < 1 else 0.45),
-                   "actor": ("min", 0.10), "pred": ("min", 0.10)}
+            wmax = float(cfg.world_core_share_max) if cfg.world_core_share_max < 1 else 0.45
+            tgt = {"world": (min(0.20, wmax / 2), wmax), "actor": (0.10, 0.40), "pred": (0.10, 0.40)}
             balancer = LossBalancer(tgt)
         self.balancer = balancer
         self.epochs = int(epochs if epochs is not None else max(1, int(getattr(cfg, "ppo_epochs", 1) or 1)))
@@ -677,11 +680,16 @@ class IntegratedLearner:
             lp = torch.tensor([float(nodes[i].st.lp[nodes[i].j]) if nodes[i].st.lp is not None else 0.0
                                for i in trainable], device=dev)
             nidx = torch.where(term, idx, nx.clamp_min(0))
+            sig = {"terminal": term, "lp": lp}
+            tok = getattr(self.model, "tokenizer", None)
+            if tok is not None and hasattr(tok, "action"):     # executed-action tokens (e_a of IntrinsicReward)
+                with torch.no_grad():
+                    sig["action"] = tok.action([nodes[i].st.actions[nodes[i].j] for i in trainable])
             rr = self.reward_model.reward(R[idx], R_next, goal.select(idx) if hasattr(goal, "select") else goal, dt,
                                           info_gain=ig, cost=cost,
                                           belief=belief.select(idx) if hasattr(belief, "select") else None,
                                           belief_next=belief.select(nidx) if hasattr(belief, "select") else None,
-                                          intent=None, signals={"terminal": term, "lp": lp})
+                                          intent=None, signals=sig)
             if torch.is_tensor(rr) and rr.requires_grad:
                 raise RewardIntegrityError("RewardModelP.reward must be detached (no actor loss reaches psi)")
             rr = torch.as_tensor(rr, device=dev).float().reshape(-1)
@@ -772,26 +780,66 @@ class IntegratedLearner:
                 cons.append(n.st.decision_ids[n.j])
                 if n.st.event_ids is not None and n.st.env_ids is not None:
                     cons_ev.append((n.st.event_ids[n.j], n.st.env_ids[n.j]))
-        return PolicyBatch(nodes, inputs, actions, traj, col, boot, rinfo, consumed=cons, consumed_events=cons_ev)
+        from .returns import semi_markov_discount
+        nxt = torch.full((len(nodes),), -1, dtype=torch.long, device=dev)
+        for ids, b, _ in segs:
+            chain = ids + ([b] if b >= 0 else [])
+            for a_, b_ in zip(chain, chain[1:]):
+                nxt[a_] = b_
+        term = torch.tensor([n.done for n in nodes], dtype=torch.bool, device=dev)
+        gam = semi_markov_discount(dt, self.cfg.kappa)
+        v_next = torch.where(nxt >= 0, val_old[nxt.clamp_min(0)], torch.zeros_like(val_old))
+        tgt = rew + gam * (~term).float() * v_next
+        trainable = torch.zeros(len(nodes), dtype=torch.bool, device=dev)
+        trainable[torch.tensor(sorted({i for ids, _, _ in segs for i in ids}), dtype=torch.long, device=dev)] = True
+        eval_target = torch.where(trainable & ((nxt >= 0) | term), tgt, torch.full_like(tgt, float("nan")))
+        return PolicyBatch(nodes, inputs, actions, traj, col, boot, rinfo, consumed=cons, consumed_events=cons_ev,
+                           eval_target=eval_target.detach())
 
-    def _recompute(self, pb: PolicyBatch) -> dict:
-        """policy_evaluate over every node -> {"logp", "entropy", "value"|"value_logits"+"value_head",
-        "tool_entropy"} laid out on the segment grid [S,T] / [S,T+1]."""
+    def _node_eval(self, pb: PolicyBatch, idx: Optional[list] = None) -> dict:
+        """policy_evaluate over the nodes (all, or the listed node indices) -> per-node {"logp", "entropy", "tool"
+        (tool-pointer entropy or None), "value", "value_logits" (or None), "ponder" (or None)}."""
         m = self.model
+        inp = pb.inputs if idx is None else pb.inputs.select(list(idx))
+        acts = pb.actions if idx is None else [pb.actions[i] for i in idx]
         with _ToolEntropyCapture(m.action_generator) as cap:
-            out = m.policy_evaluate(pb.inputs, pb.actions)
-        S, T = pb.col.shape
-        lens = pb.traj.mask.long().sum(1)
-        ar = torch.arange(S, device=pb.col.device)
-        res = {"logp": out["logp"][pb.col], "entropy": out["entropy"][pb.col], "ponder": out.get("ponder")}
+            out = m.policy_evaluate(inp, acts)
         tool = None
         parts = out.get("entropy_parts")
         if isinstance(parts, dict) and parts.get("tool") is not None:
             tool = parts["tool"]
         elif cap.parts is not None and cap.parts.get("tool") is not None:
             tool = cap.parts["tool"]
-        res["tool_entropy"] = None if tool is None else tool.float()[pb.col]
         vl = out.get("value_logits")
+        return {"logp": out["logp"].float(), "entropy": out["entropy"].float(),
+                "tool": None if tool is None else tool.float(), "value": out["value"].float(),
+                "value_logits": None if vl is None else vl.float(), "ponder": out.get("ponder")}
+
+    @staticmethod
+    def _merge(base: dict, part: dict, idx: list) -> dict:
+        """Per-node tensors of `base` (detached) with the rows `idx` replaced by `part` (graph-carrying)."""
+        out = {}
+        it = None
+        for k, v in base.items():
+            if k == "ponder" or v is None or part.get(k) is None:
+                out[k] = None if k == "ponder" else (None if v is None else v.detach())
+                continue
+            if it is None:
+                it = torch.tensor(list(idx), dtype=torch.long, device=v.device)
+            out[k] = v.detach().index_put((it,), part[k].to(v.dtype))
+        out["ponder"] = part.get("ponder")
+        return out
+
+    def _grid(self, pb: PolicyBatch, ne: dict) -> dict:
+        """Per-node evaluations laid out on the segment grid: logp / entropy / tool_entropy [S,T], value [S,T+1]
+        (or value_logits [S,T+1,bins] + value_head), the bootstrap state in column len(segment)."""
+        m = self.model
+        S, T = pb.col.shape
+        lens = pb.traj.mask.long().sum(1)
+        ar = torch.arange(S, device=pb.col.device)
+        res = {"logp": ne["logp"][pb.col], "entropy": ne["entropy"][pb.col], "ponder": ne.get("ponder"),
+               "tool_entropy": None if ne.get("tool") is None else ne["tool"][pb.col]}
+        vl = ne.get("value_logits")
         vh = m.value_head
         if vl is not None and hasattr(vh, "loss") and hasattr(vh, "value_from_logits"):
             grid = torch.cat([vl[pb.col], torch.zeros_like(vl[:1]).expand(S, 1, -1)], 1).clone()
@@ -799,20 +847,41 @@ class IntegratedLearner:
             grid[ar, lens] = torch.where((pb.boot >= 0).view(-1, 1), bl, grid[ar, lens])
             res["value_logits"], res["value_head"] = grid, vh
         else:
-            v = out["value"].float()
+            v = ne["value"]
             grid = torch.cat([v[pb.col], torch.zeros(S, 1, device=v.device)], 1).clone()
             grid[ar, lens] = torch.where(pb.boot >= 0, v[pb.boot.clamp_min(0)], torch.zeros(S, device=v.device))
             res["value"] = grid
         return res
 
-    def _policy_losses(self, pb: PolicyBatch) -> dict:
-        r = self._recompute(pb)
+    def _microbatches(self, N: int) -> Optional[list]:
+        """Node index chunks of cfg.microbatch decisions (None: one full-batch recompute)."""
+        mb = int(getattr(self.cfg, "microbatch", 0) or 0)
+        if mb <= 0 or N <= mb:
+            return None
+        return [list(range(i, min(N, i + mb))) for i in range(0, N, mb)]
+
+    def _policy_losses(self, pb: PolicyBatch, idx: Optional[list] = None, base: Optional[dict] = None,
+                       ne: Optional[dict] = None) -> dict:
+        """Actor + value losses of the policy batch. Full batch (default), or microbatch `idx` over the detached
+        full-batch evaluation `base`: the other nodes enter as constants, so the loss value is the full-batch loss
+        and its gradient is exactly microbatch idx's share of the full-batch gradient (every per-step term is
+        separable and the V-trace / routing targets use detached values); summing the microbatches' gradients gives
+        the full-batch gradient."""
+        if ne is None:
+            ne = self._node_eval(pb) if idx is None else self._merge(base, self._node_eval(pb, idx), idx)
+        r = self._grid(pb, ne)
         d = self.objective.loss(pb.traj, pb.prep, r["logp"], r["entropy"], r.get("value"), r.get("value_logits"),
                                 r.get("value_head"), tool_entropy=r.get("tool_entropy"))
+        with torch.no_grad():                # acting vs recomputed log-probability under identical weights (lag 0)
+            lag0 = pb.traj.mask & (pb.prep.lag == 0)
+            dev_ = (r["logp"].detach().float() - pb.traj.behavior_logp.float()).abs()
+            d["logp_maxdev_lag0"] = float(dev_[lag0].max()) if bool(lag0.any()) else None
+            d["logp_meandev_lag0"] = float(dev_[lag0].mean()) if bool(lag0.any()) else None
         ponder = r.get("ponder")
         cfg = self.cfg
         if ponder is not None and cfg.use_reasoning and cfg.adaptive_reasoning:
-            rc = cfg.reason_compute_cost * ponder.mean()
+            frac = 1.0 if idx is None else len(idx) / max(1, len(pb.nodes))
+            rc = cfg.reason_compute_cost * ponder.mean() * frac
             d["actor"] = d["actor"] + rc
             d["reason_compute"] = float(rc.detach())
         return d
@@ -884,17 +953,11 @@ class IntegratedLearner:
         return n <= self.probe_warmup or (self.balance_every > 0 and n % self.balance_every == 0)
 
     def _hard_violation(self, table) -> bool:
-        """A probe between balancing points that finds a target missed by a wide margin (a max target exceeded by
-        50%, a min target below half) rebalances at once instead of waiting for the next balance_every update."""
+        """A probe between balancing points that finds a share far outside its range (above 1.5 x its upper bound or
+        below half its lower bound) rebalances at once instead of waiting for the next balance_every update."""
         if self.balancer is None:
             return False
-        sh = table.share()
-        for k, (kind, s) in self.balancer.targets.items():
-            if k not in sh:
-                continue
-            if (kind == "max" and sh[k] > min(0.99, 1.5 * s)) or (kind == "min" and sh[k] < 0.5 * s):
-                return True
-        return False
+        return bool(self.balancer.violated(table.share(), slack=1.5))
 
     def base_weights(self, names) -> dict:
         lw = self.cfg.loss_weights
@@ -921,10 +984,16 @@ class IntegratedLearner:
         try:
             losses, mets = self._replay_losses(batch)
             pb = self.policy_batch(batch.fresh) if batch.fresh else None
-            pol = {}
+            pol, mbs, pbase = {}, None, None
             if pb is not None:
                 pb.prep = self.objective.prepare(pb.traj, int(m.version))
-                pol = self._policy_losses(pb)
+                mbs = self._microbatches(len(pb.nodes))
+                if mbs is None:
+                    pol = self._policy_losses(pb)
+                else:                        # microbatch 0's graph joins the combined backward, the rest follow
+                    with torch.no_grad():
+                        pbase = self._node_eval(pb)
+                    pol = self._policy_losses(pb, mbs[0], pbase)
                 losses["actor"], losses["value"] = pol["actor"], pol["value"]
             lb = self._label_batch(batch, pb)
             pred = self.reward_model.losses(lb) if hasattr(self.reward_model, "losses") else {}
@@ -949,6 +1018,7 @@ class IntegratedLearner:
             n = self.n_updates
             base = self.base_weights(losses)
             weights = self.balancer.apply(base) if self.balancer is not None else dict(base)
+            used = {k: (self.balancer.factor(k) if self.balancer is not None else 1.0) for k in base}
             weighted = OrderedDict((k, weights[k] * v.float()) for k, v in losses.items() if weights[k] != 0)
             raw = {k: float(v.detach()) for k, v in losses.items()}
             self.trainer.zero_grad()
@@ -956,22 +1026,44 @@ class IntegratedLearner:
             table, bal = None, {}
             if probe:
                 table = objective_gradients(weighted, self.groups, accumulate=True, _sample_cache=self._probe_cache)
-                if self.balancer is not None and (self._balance_due(n) or self._hard_violation(table)):
-                    bal = self.balancer.update(n, table, calibrate=n <= self.probe_warmup)
             else:
                 sum(weighted.values()).backward()
+            if mbs is not None and "actor" in weights and "value" in weights:
+                for idx in mbs[1:]:
+                    d_ = self._policy_losses(pb, idx, pbase)
+                    (weights["actor"] * d_["actor"].float() + weights["value"] * d_["value"].float()).backward()
+                if table is not None:        # the probe saw microbatch 0 only: scale its norms to the batch (estimate)
+                    sc = len(pb.nodes) / len(mbs[0])
+                    for k in ("actor", "value"):
+                        if k in table.norms:
+                            table.norms[k] = {g: v * sc for g, v in table.norms[k].items()}
+                            table.core_norm[k] *= sc
+            if table is not None and self.balancer is not None and (self._balance_due(n)
+                                                                    or self._hard_violation(table)):
+                bal = self.balancer.update(n, table, calibrate=n <= self.probe_warmup)
             res = self.trainer.apply("slow")
             epochs = [{"epoch": 0, "kl": pol.get("kl"), "stepped": not res["skipped"]}] if pb is not None else []
             stop_reason = None
             if pb is not None and not res["skipped"] and "actor" in weights and "value" in weights:
                 for e in range(1, self.epochs):
-                    d = self._policy_losses(pb)
+                    if mbs is None:
+                        d = self._policy_losses(pb)
+                    else:
+                        with torch.no_grad():
+                            pbase = self._node_eval(pb)
+                            d = self._policy_losses(pb, ne=pbase)
                     if self.target_kl is not None and d["kl"] > 1.5 * self.target_kl:
                         stop_reason = f"kl {d['kl']:.4f} > 1.5 * target_kl"
                         epochs.append({"epoch": e, "kl": d["kl"], "stepped": False})
                         break
                     self.trainer.zero_grad()
-                    (weights["actor"] * d["actor"].float() + weights["value"] * d["value"].float()).backward()
+                    if mbs is None:
+                        (weights["actor"] * d["actor"].float() + weights["value"] * d["value"].float()).backward()
+                    else:
+                        for idx in mbs:
+                            d_ = self._policy_losses(pb, idx, pbase)
+                            (weights["actor"] * d_["actor"].float()
+                             + weights["value"] * d_["value"].float()).backward()
                     r_e = self.trainer.apply("slow")
                     epochs.append({"epoch": e, "kl": d["kl"], "stepped": not r_e["skipped"],
                                    "policy_loss": d["policy_loss"], "clipped": r_e["clipped"]})
@@ -987,7 +1079,11 @@ class IntegratedLearner:
                 "grad_norm": res["grad_norm"], "group_grad_norm": res["group_grad_norm"], "clipped": res["clipped"],
                 "clip": res["clip"], "clip_rate": self.trainer.clip_rate(), "balance": bal,
                 "balance_factors": dict(self.balancer.factors) if self.balancer is not None else {},
+                "balance_factors_used": used,
                 "probe": bool(probe), "metrics": mets, "epochs": epochs, "stop": stop_reason,
+                "microbatches": None if mbs is None else [len(x) for x in mbs],
+                "probe_policy": None if (table is None or mbs is None) else
+                "actor/value norms from microbatch 0 scaled by N / n_mb0 (estimate)",
                 "reward_mode": self.reward_mode}
         if table is not None:
             info["grad_table"] = table.to_dict()
