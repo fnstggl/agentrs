@@ -4,36 +4,373 @@
  "commit": "see git log of c5c/w1-obs (this file is committed with the work it describes)",
  "summary": "Observation-only is the default of every constructor, adapter, wrapper, server, harness and research entry point; evaluator-only tools, fields, event metadata and metrics are kept from participants by the kernel (core/evaluator_only.py, world-spec policy evaluator_access); leakage is tested by information-flow probes (10 kinds, 9 surfaces) that found 575 leaks on the recovered tree 7c29c75 (incl. exact recovery of independent_revenue through goals.check_now and the mechanism score through SelfPlayEnv info['score']) and 0 after the fixes, with a positive control on the 4.0 contract; the rapid adapter was rebuilt for several participants; Tier 2 is consumed through crucible.domains.base; Gymnasium/PettingZoo wrappers over any ExperienceEnv; a process-isolated evaluator; an external curiosity learner; reference-learner and experience-store fixes.",
  "requirements": {
-  "R.1": {"implementation_files": ["src/crucible/experience/modes.py", "src/crucible/research/envs.py", "src/crucible/research/bridge.py", "src/crucible/selfplay/arena.py", "src/crucible/api/gym_env.py", "src/crucible/api/pettingzoo_env.py", "src/crucible/scale/rollout.py", "src/crucible/integrations/agentrs_cam2.py", "src/crucible/integrations/agentrs_sl.py", "src/crucible/experience/tier1.py", "src/crucible/experience/kernel.py", "src/crucible/experience/gym.py", "src/crucible/experience/leakage.py", "src/crucible/experience/probes.py"], "tests": ["tests/v5/test_gate_R.py", "tests/test_v5_experience_oo.py"], "status_claim": "implemented, gate passes locally", "notes": "nonzero_native_reward_steps 0 over 993 steps on 10 reward paths plus every probe surface constructed with its DEFAULT mode (0 nonzero); legacy with the same inputs paid on 171 steps. The sl adapter's native invalid-call penalty exists only in crucible-legacy/* families."},
-  "R.2": {"implementation_files": ["src/crucible/core/evaluator_only.py", "src/crucible/core/kernel.py", "src/crucible/core/discovery.py", "src/crucible/goals/selfgoals.py", "src/crucible/goals/metrics.py", "src/crucible/experience/experiments.py", "src/crucible/experience/probes.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally (redesigned)", "notes": "privileged_progress_fields 0: key names plus 604 probe checks (exact value, free text, regression, predicate oracle, termination). goals.check_now is an evaluator tool; goals.propose/charters/commitments/contracts refuse 25 evaluator metrics; exp refuses evaluator measures."},
-  "R.3": {"implementation_files": ["src/crucible/core/evaluator_only.py", "src/crucible/core/kernel.py", "src/crucible/api/local.py", "src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "hidden_evaluator_fields 0 with 39 canaries planted (evaluator runtime, internal events, private mail, spec parameters, private task numbers, hidden mechanism config, internal filings, rapid objective thresholds, other participants' rapid messages); invariance across the non-legacy modes and evaluator-side perturbations; tool sweep (use.report/use.probe/goals.check_now absent and refused); caps/pkg relatedness verdicts and rig score stripped from results, events and summaries; rapid spec query loses family/seed/category/split."},
-  "R.4": {"implementation_files": ["src/crucible/experience/leakage.py", "src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "legitimate_fields_missing 0 on 9 environments compared with legacy on their legitimate fields (revenue, cost, net, readings, balances, settings, events, resources); legacy may show more (the 4.0 evaluator tools and the score)."},
-  "R.5": {"implementation_files": ["src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py", "src/crucible/experience/remote.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "verifier_outcomes_recorded 6; kernel verify() also reports evaluator-side measures without an objective."},
-  "R.6": {"implementation_files": ["src/crucible/experience/leakage.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "10/10 runs byte-identical to the 4.0 code (git c07098b) with reward_mode='legacy_shaped_reward' named on the current side."},
-  "R.7": {"implementation_files": ["src/crucible/experience/reference.py", "src/crucible/experience/loop.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "12 parameter-changing updates in observation-only runs (Tier 1 mechanism, Tier 1 rapid, a kernel world); the learner's own signal now also reads resources.cash_cents (rapid). Improvement over a frozen copy is not part of this gate (the audit's probe P7 showed it on scm_additive)."},
-  "R.n1": {"implementation_files": ["src/crucible/experience/leakage.py", "src/crucible/experience/probes.py"], "tests": ["tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally (redesigned)", "notes": "20 leakage tests pass (11 battery tests, 9 probe surfaces); 10 probe kinds; positive control finds 25 leaks of 5 kinds on the 4.0 contract."},
-  "S.1": {"implementation_files": ["src/crucible/experience/tier1.py", "src/crucible/experience/loop.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "implemented, gate passes locally", "notes": "the 4.0 mechanism facility plus v5 rapid families (3 single-participant, team_commons with three learners in joint ticks via run_learners); world changes counted for rapid (effectful action carried out)."},
-  "S.2": {"implementation_files": ["src/crucible/experience/registry.py"], "tests": ["tests/v5/test_gate_S.py", "tests/test_v5_experience_oo.py"], "status_claim": "adapter implemented against crucible.domains.base and unit-tested with a test-module domain; gate FAILS (no v5 domain registered)", "notes": "tier2_actions 0: crucible.domains.base.REGISTRY is empty in this checkout; no other world type is counted."},
-  "S.3": {"implementation_files": ["src/crucible/experience/registry.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "entry point specified (registry.CIV_ENTRY_POINT, LEARNER_GUIDE section 5); gate FAILS (crucible.civ.generate absent)", "notes": "tier3_actions 0."},
-  "S.4": {"implementation_files": ["src/crucible/experience/store.py", "src/crucible/experience/loop.py", "src/crucible/experience/reference.py"], "tests": ["tests/v5/test_gate_S.py", "tests/test_v5_experience_oo.py", "tests/test_v5_experience_core.py"], "status_claim": "implemented, gate passes locally", "notes": "store hardened (manifest-before-rename sealing with recovery, blob references only at listed dedupe paths, writer lock, HEAD anchor against truncation); records carry done/episode; learn_from_records resets the recurrent state at agent/world/episode boundaries."},
-  "S.5": {"implementation_files": ["src/crucible/experience/registry.py", "src/crucible/experience/tier1.py", "src/crucible/experience/observation.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "implemented for Tier 1; gate FAILS (tiers_one_interface 1)", "notes": "7 world types through one learner instance incl. a rapid team receiver, 0 schema failures; Tier 2/3 absent."},
-  "S.6": {"implementation_files": ["src/crucible/experience/reference.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "implemented, gate passes locally", "notes": "mid-episode checkpoint includes the recurrent state, buffered and in-flight transitions; continuation compared without any reset; weights_only loading."},
-  "S.7": {"implementation_files": ["src/crucible/experience/parallel.py", "src/crucible/scale/rollout.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "implemented; local run reported in the final report", "notes": "concurrency from worker-side wall-clock stamps (Rollout.started_at/ended_at), counted across distinct worker processes; the gate also requires >= 4 distinct worker pids."},
-  "S.8": {"implementation_files": ["src/crucible/experience/__main__.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_S.py"], "status_claim": "implemented, gate passes locally", "notes": "two fresh processes per world, identical store digest, parameter hash, world digest and counts, for a mechanism and a rapid world (rapid digest now hashes the rapid state, ledger and the event log)."},
-  "SP-11.1": {"implementation_files": ["src/crucible/experience/observation.py", "src/crucible/experience/tier1.py", "src/crucible/experience/kernel.py"], "tests": ["tests/v5/test_gate_SP_11_1.py"], "status_claim": "13 kinds observed; gate FAILS (tiers_supported 1)", "notes": "kinds over Tier 1 mechanism and rapid worlds (incl. a team receiver), a kernel world with the v5 modules (semantic representation of a rendered artifact) and a 4.0 kernel world; t in seconds in every adapter."},
-  "SP-11.2": {"implementation_files": ["src/crucible/experience/features.py"], "tests": ["tests/v5/test_gate_SP_11_2.py"], "status_claim": "implemented, gate passes locally", "notes": "v5 hosts (prod, xchg, venture, commit, asset, inst, labor, needs, media, embed, artifact) and rapid action kinds now have categories."},
-  "SP-11.3": {"implementation_files": ["src/crucible/experience/modes.py", "src/crucible/experience/tier1.py", "src/crucible/integrations/agentrs_sl.py"], "tests": ["tests/v5/test_gate_SP_11_3.py"], "status_claim": "implemented, gate passes locally", "notes": "observation_only is the default; rapid verified mode pays only at the episode's end; the sl adapter has all three modes."},
-  "SP-11.4": {"implementation_files": ["src/crucible/experience/experiments.py", "src/crucible/goals/selfgoals.py"], "tests": ["tests/v5/test_gate_SP_11_4.py"], "status_claim": "implemented, gate passes locally", "notes": "evaluator tools refused as measures; measures read what the agent itself receives. Experiments exist in kernel worlds only (not in the Tier 1 adapters)."},
-  "SP-11.5": {"implementation_files": ["src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_SP_11_5.py", "tests/v5/test_gate_OO.py"], "status_claim": "implemented, gate passes locally", "notes": "rapid adapter now has durations (tick_s), action.result events, own-message causes and in_force provenance."},
-  "SP-11.6": {"implementation_files": ["docs/v5/LEARNER_GUIDE.md", "examples/experience_external_adapter.py", "examples/external_learner/curiosity_learner.py"], "tests": ["tests/v5/test_gate_SP_11_6.py"], "status_claim": "implemented, gate passes locally", "notes": "guide rewritten: defaults, the evaluator-only registry, Tier 2/3 contracts, migration (name legacy_shaped_reward for 4.0 results), CAM compatibility gaps (MechVecEnv default in CAM rollouts, ExecutionResult.cost, GoalSpec.metrics, harness reward from verify, units)."},
-  "OO.1": {"implementation_files": ["src/crucible/experience/modes.py", "src/crucible/core/evaluator_only.py", "src/crucible/research/protocols.py", "src/crucible/research/learners/training.py", "src/crucible/selfplay/modes.py", "src/crucible/selfplay/league.py", "src/crucible/selfplay/audit.py", "src/crucible/api/http_server.py", "src/crucible/api/mcp_server.py", "and every constructor listed under R.1"], "tests": ["tests/v5/test_gate_OO.py"], "status_claim": "implemented for every existing family; gate FAILS (tiers_covered 1)", "notes": "173 families default-constructed (74 rapid, 25 mechanism, 74 4.0 kernel worlds as tier 0), 0 not observation-only; 33 constructors/entry points, 0 not observation-only; Tier 2/3 absent."},
-  "OO.2": {"implementation_files": ["src/crucible/experience/probes.py", "src/crucible/core/evaluator_only.py"], "tests": ["tests/v5/test_gate_OO.py", "tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "10 probe kinds, 0 leaks, 0 nonzero default-mode rewards over 9 surfaces (rapid, mechanism, kernel with v5 modules, innovation registry, self-play, numeric, Gym/PettingZoo incl. the ExperienceEnv wrappers, sl, CAM 2.0); the same probes found 575 leaks on the recovered tree 7c29c75 and the positive control 25 on the 4.0 contract."},
-  "OO.3": {"implementation_files": ["src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_OO.py"], "status_claim": "7 consequence kinds observable; gate FAILS (tiers_covered 1)", "notes": "transactions, customer behaviour (service requests), technical measurements, social responses (another participant's replies), resource changes, failures, delayed outcomes in a 4.0 kernel world; Tier 1 readings/revenue/cost/cash."},
-  "OO.4": {"implementation_files": ["src/crucible/experience/remote.py", "src/crucible/core/evaluator_only.py"], "tests": ["tests/v5/test_gate_OO.py", "tests/test_v5_experience_oo.py"], "status_claim": "implemented for Tier 1 and kernel worlds; gate FAILS (tiers_covered 1)", "notes": "verifier verdicts recomputed independently (3/3 match); crucible.experience.host puts the world in its own process and the participant pipe refuses verify/digest/describe/attribute access."},
-  "OO.5": {"implementation_files": ["src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_OO.py"], "status_claim": "Tier 1 and a 90-day 4.0 kernel world run objective-free within limits; gate FAILS (objectiveless_tiers 1, objectiveless_civ_sim_days 0)", "notes": "0 resource-limit violations (rss growth 94 MB of 600, 33 s wall, in-memory log bound)."},
-  "OO.6": {"implementation_files": ["examples/external_learner/curiosity_learner.py"], "tests": ["tests/v5/test_gate_OO.py"], "status_claim": "implemented for Tier 1 and a 4.0 kernel world; gate FAILS (tiers_covered 1)", "notes": "numpy-only learner using public crucible.experience names; prediction-error curiosity reward computed by the learner; the environment paid 0.0; weight-hash-changing updates in every world; no environment change."},
-  "OO.7": {"implementation_files": ["src/crucible/experience/kernel.py", "src/crucible/experience/tier1.py"], "tests": ["tests/v5/test_gate_OO.py"], "status_claim": "implemented, gate passes locally", "notes": "31-day exp.resolved and 40-day wf job retrieved after 45 unobserved days, linked to their action_seq; Tier 1 rapid consequences linked (direct / in_force)."},
-  "OO.8": {"implementation_files": ["src/crucible/experience/leakage.py", "src/crucible/experience/modes.py"], "tests": ["tests/v5/test_gate_OO.py", "tests/v5/test_gate_R.py"], "status_claim": "implemented, gate passes locally", "notes": "10 historical runs byte-identical with legacy named explicitly; the default-constructed environment pays 0.0; the 4.0 test suite names legacy explicitly."}
+  "R.1": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/research/envs.py",
+    "src/crucible/research/bridge.py",
+    "src/crucible/selfplay/arena.py",
+    "src/crucible/api/gym_env.py",
+    "src/crucible/api/pettingzoo_env.py",
+    "src/crucible/scale/rollout.py",
+    "src/crucible/integrations/agentrs_cam2.py",
+    "src/crucible/integrations/agentrs_sl.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/gym.py",
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/probes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py",
+    "tests/test_v5_experience_oo.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "nonzero_native_reward_steps 0 over 993 steps on 10 reward paths plus every probe surface constructed with its DEFAULT mode (0 nonzero); legacy with the same inputs paid on 171 steps. The sl adapter's native invalid-call penalty exists only in crucible-legacy/* families."
+  },
+  "R.2": {
+   "implementation_files": [
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/core/discovery.py",
+    "src/crucible/goals/selfgoals.py",
+    "src/crucible/goals/metrics.py",
+    "src/crucible/experience/experiments.py",
+    "src/crucible/experience/probes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally (redesigned)",
+   "notes": "privileged_progress_fields 0: key names plus 604 probe checks (exact value, free text, regression, predicate oracle, termination). goals.check_now is an evaluator tool; goals.propose/charters/commitments/contracts refuse 25 evaluator metrics; exp refuses evaluator measures."
+  },
+  "R.3": {
+   "implementation_files": [
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/core/kernel.py",
+    "src/crucible/api/local.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "hidden_evaluator_fields 0 with 39 canaries planted (evaluator runtime, internal events, private mail, spec parameters, private task numbers, hidden mechanism config, internal filings, rapid objective thresholds, other participants' rapid messages); invariance across the non-legacy modes and evaluator-side perturbations; tool sweep (use.report/use.probe/goals.check_now absent and refused); caps/pkg relatedness verdicts and rig score stripped from results, events and summaries; rapid spec query loses family/seed/category/split."
+  },
+  "R.4": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "legitimate_fields_missing 0 on 9 environments compared with legacy on their legitimate fields (revenue, cost, net, readings, balances, settings, events, resources); legacy may show more (the 4.0 evaluator tools and the score)."
+  },
+  "R.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/remote.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "verifier_outcomes_recorded 6; kernel verify() also reports evaluator-side measures without an objective."
+  },
+  "R.6": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "10/10 runs byte-identical to the 4.0 code (git c07098b) with reward_mode='legacy_shaped_reward' named on the current side."
+  },
+  "R.7": {
+   "implementation_files": [
+    "src/crucible/experience/reference.py",
+    "src/crucible/experience/loop.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "12 parameter-changing updates in observation-only runs (Tier 1 mechanism, Tier 1 rapid, a kernel world); the learner's own signal now also reads resources.cash_cents (rapid). Improvement over a frozen copy is not part of this gate (the audit's probe P7 showed it on scm_additive)."
+  },
+  "R.n1": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/probes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally (redesigned)",
+   "notes": "20 leakage tests pass (11 battery tests, 9 probe surfaces); 10 probe kinds; positive control finds 25 leaks of 5 kinds on the 4.0 contract."
+  },
+  "S.1": {
+   "implementation_files": [
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/loop.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "the 4.0 mechanism facility plus v5 rapid families (3 single-participant, team_commons with three learners in joint ticks via run_learners); world changes counted for rapid (effectful action carried out)."
+  },
+  "S.2": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py",
+    "tests/test_v5_experience_oo.py"
+   ],
+   "status_claim": "adapter implemented against crucible.domains.base and unit-tested with a test-module domain; gate FAILS (no v5 domain registered)",
+   "notes": "tier2_actions 0: crucible.domains.base.REGISTRY is empty in this checkout; no other world type is counted."
+  },
+  "S.3": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "entry point specified (registry.CIV_ENTRY_POINT, LEARNER_GUIDE section 5); gate FAILS (crucible.civ.generate absent)",
+   "notes": "tier3_actions 0."
+  },
+  "S.4": {
+   "implementation_files": [
+    "src/crucible/experience/store.py",
+    "src/crucible/experience/loop.py",
+    "src/crucible/experience/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py",
+    "tests/test_v5_experience_oo.py",
+    "tests/test_v5_experience_core.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "store hardened (manifest-before-rename sealing with recovery, blob references only at listed dedupe paths, writer lock, HEAD anchor against truncation); records carry done/episode; learn_from_records resets the recurrent state at agent/world/episode boundaries."
+  },
+  "S.5": {
+   "implementation_files": [
+    "src/crucible/experience/registry.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/observation.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "implemented for Tier 1; gate FAILS (tiers_one_interface 1)",
+   "notes": "7 world types through one learner instance incl. a rapid team receiver, 0 schema failures; Tier 2/3 absent."
+  },
+  "S.6": {
+   "implementation_files": [
+    "src/crucible/experience/reference.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "mid-episode checkpoint includes the recurrent state, buffered and in-flight transitions; continuation compared without any reset; weights_only loading."
+  },
+  "S.7": {
+   "implementation_files": [
+    "src/crucible/experience/parallel.py",
+    "src/crucible/scale/rollout.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "implemented; the 4-worker gate run was NOT executed on this branch (the slot scheduler stayed full with other workstreams' long jobs); a 1-worker FarmRun smoke run and a synthetic check confirm the worker-stamped, per-process concurrency (1 worker now reports 1, where the old metric over-reported)",
+   "notes": "concurrency from worker-side wall-clock stamps (Rollout.started_at/ended_at), counted across distinct worker processes; the gate also requires >= 4 distinct worker pids."
+  },
+  "S.8": {
+   "implementation_files": [
+    "src/crucible/experience/__main__.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_S.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "two fresh processes per world, identical store digest, parameter hash, world digest and counts, for a mechanism and a rapid world (rapid digest now hashes the rapid state, ledger and the event log)."
+  },
+  "SP-11.1": {
+   "implementation_files": [
+    "src/crucible/experience/observation.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/experience/kernel.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_1.py"
+   ],
+   "status_claim": "13 kinds observed; gate FAILS (tiers_supported 1)",
+   "notes": "kinds over Tier 1 mechanism and rapid worlds (incl. a team receiver), a kernel world with the v5 modules (semantic representation of a rendered artifact) and a 4.0 kernel world; t in seconds in every adapter."
+  },
+  "SP-11.2": {
+   "implementation_files": [
+    "src/crucible/experience/features.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_2.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "v5 hosts (prod, xchg, venture, commit, asset, inst, labor, needs, media, embed, artifact) and rapid action kinds now have categories."
+  },
+  "SP-11.3": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/experience/tier1.py",
+    "src/crucible/integrations/agentrs_sl.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_3.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "observation_only is the default; rapid verified mode pays only at the episode's end; the sl adapter has all three modes."
+  },
+  "SP-11.4": {
+   "implementation_files": [
+    "src/crucible/experience/experiments.py",
+    "src/crucible/goals/selfgoals.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_4.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "evaluator tools refused as measures; measures read what the agent itself receives. Experiments exist in kernel worlds only (not in the Tier 1 adapters). (gate passes locally)"
+  },
+  "SP-11.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_5.py",
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "rapid adapter now has durations (tick_s), action.result events, own-message causes and in_force provenance."
+  },
+  "SP-11.6": {
+   "implementation_files": [
+    "docs/v5/LEARNER_GUIDE.md",
+    "examples/experience_external_adapter.py",
+    "examples/external_learner/curiosity_learner.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_11_6.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "guide rewritten: defaults, the evaluator-only registry, Tier 2/3 contracts, migration (name legacy_shaped_reward for 4.0 results), CAM compatibility gaps (MechVecEnv default in CAM rollouts, ExecutionResult.cost, GoalSpec.metrics, harness reward from verify, units)."
+  },
+  "OO.1": {
+   "implementation_files": [
+    "src/crucible/experience/modes.py",
+    "src/crucible/core/evaluator_only.py",
+    "src/crucible/research/protocols.py",
+    "src/crucible/research/learners/training.py",
+    "src/crucible/selfplay/modes.py",
+    "src/crucible/selfplay/league.py",
+    "src/crucible/selfplay/audit.py",
+    "src/crucible/api/http_server.py",
+    "src/crucible/api/mcp_server.py",
+    "and every constructor listed under R.1"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "implemented for every existing family; gate FAILS (tiers_covered 1)",
+   "notes": "173 families default-constructed (74 rapid, 25 mechanism, 74 4.0 kernel worlds as tier 0), 0 not observation-only; 33 constructors/entry points, 0 not observation-only; Tier 2/3 absent."
+  },
+  "OO.2": {
+   "implementation_files": [
+    "src/crucible/experience/probes.py",
+    "src/crucible/core/evaluator_only.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py",
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "10 probe kinds, 0 leaks, 0 nonzero default-mode rewards over 9 surfaces (rapid, mechanism, kernel with v5 modules, innovation registry, self-play, numeric, Gym/PettingZoo incl. the ExperienceEnv wrappers, sl, CAM 2.0); the same probes found 575 leaks on the recovered tree 7c29c75 and the positive control 25 on the 4.0 contract."
+  },
+  "OO.3": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "7 consequence kinds observable; gate FAILS (tiers_covered 1)",
+   "notes": "transactions, customer behaviour (service requests), technical measurements, social responses (another participant's replies), resource changes, failures, delayed outcomes in a 4.0 kernel world; Tier 1 readings/revenue/cost/cash."
+  },
+  "OO.4": {
+   "implementation_files": [
+    "src/crucible/experience/remote.py",
+    "src/crucible/core/evaluator_only.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py",
+    "tests/test_v5_experience_oo.py"
+   ],
+   "status_claim": "implemented for Tier 1 and kernel worlds; gate FAILS (tiers_covered 1)",
+   "notes": "verifier verdicts recomputed independently (3/3 match); crucible.experience.host puts the world in its own process and the participant pipe refuses verify/digest/describe/attribute access."
+  },
+  "OO.5": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "Tier 1 and a 90-day 4.0 kernel world run objective-free within limits; gate FAILS (objectiveless_tiers 1, objectiveless_civ_sim_days 0)",
+   "notes": "0 resource-limit violations (rss growth 94 MB of 600, 33 s wall, in-memory log bound)."
+  },
+  "OO.6": {
+   "implementation_files": [
+    "examples/external_learner/curiosity_learner.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "implemented for Tier 1 and a 4.0 kernel world; gate FAILS (tiers_covered 1)",
+   "notes": "numpy-only learner using public crucible.experience names; prediction-error curiosity reward computed by the learner; the environment paid 0.0; weight-hash-changing updates in every world; no environment change."
+  },
+  "OO.7": {
+   "implementation_files": [
+    "src/crucible/experience/kernel.py",
+    "src/crucible/experience/tier1.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "31-day exp.resolved and 40-day wf job retrieved after 45 unobserved days, linked to their action_seq; Tier 1 rapid consequences linked (direct / in_force)."
+  },
+  "OO.8": {
+   "implementation_files": [
+    "src/crucible/experience/leakage.py",
+    "src/crucible/experience/modes.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_OO.py",
+    "tests/v5/test_gate_R.py"
+   ],
+   "status_claim": "implemented, gate passes locally",
+   "notes": "10 historical runs byte-identical with legacy named explicitly; the default-constructed environment pays 0.0; the 4.0 test suite names legacy explicitly."
+  }
  },
  "limitations": [
   "Tier 2 (v5 domains) and Tier 3 (crucible.civ) do not exist in this checkout: S.2, S.3, S.5, SP-11.1, OO.1, OO.3, OO.4, OO.5, OO.6 fail with tiers_covered/tiers_supported = 1 and say why; their adapters are written (Tier 2 against domains.base, unit-tested with a test-module domain; Tier 3 against the specified civ entry point).",
