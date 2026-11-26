@@ -280,8 +280,11 @@ def sci_selection_bias(rng, d):
     y = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": a}, role="outcome",
                 x=[(x1, 0, b1), (x2, 0, b2)])
     sd = u(rng, 2.0, 3.0)
-    cut = a + 3.0 * (b1 + b2) + u(rng, -1.0, 1.0)          # truncation bites in the middle of the settable range
-    gy = gb.gauge(y, [("selection_effect", {"n": 64, "sd": sd, "c": cut}),
+    # truncation bites in the middle of the settable range; the cut stays within 2.2 spreads of the lowest
+    # population mean of the range, so with 256 units surveyed someone reports almost everywhere
+    lo_mu = a + 6.0 * min(b1, 0.0) + 6.0 * min(b2, 0.0)
+    cut = min(a + 3.0 * (b1 + b2) + u(rng, -1.0, 1.0), lo_mu + 2.2 * sd)
+    gy = gb.gauge(y, [("selection_effect", {"n": 256, "sd": sd, "c": cut}),
                       ("measurement_noise", {"sd": float(d["observation_noise"]) * 0.3})])
     held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
             ((9.0, 1.0), (-3.0, 2.0), (12.0, 4.0), (-5.0, 5.0), (8.0, -2.0), (10.0, 8.0))]
@@ -290,7 +293,7 @@ def sci_selection_bias(rng, d):
     return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
                     objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text},
                     journal=True,
-                    brief=("A survey of 64 units under two settings. Only units whose outcome clears an "
+                    brief=("A survey of 256 units under two settings. Only units whose outcome clears an "
                            f"undisclosed bar report; the reading {gy} is the mean of those who report. Units' "
                            f"outcomes scatter around the population mean with a spread of about {sd:.1f}."),
                     claim={"levers": [x1, x2], "outcome": y, "cut": cut, "sd": sd, "coef": [a, b1, b2]})

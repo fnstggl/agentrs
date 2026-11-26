@@ -378,7 +378,8 @@ class GraphDynamical(RapidEngine):
                                   "my_cost_at_full": self.gen_cost(i, float(c["gen_max"])) / float(c["gen_max"])}}
         st["served"] = st["served"] + tot_served
         st["demanded"] = st["demanded"] + tot_dem
-        st["x"] = float(c["phi"]) * st["x"] + float(c["d_sd"]) * np.sqrt(1 - float(c["phi"]) ** 2) * z
+        phi = float(np.clip(c["phi"], 0.0, 0.99))
+        st["x"] = phi * st["x"] + float(c["d_sd"]) * np.sqrt(1 - phi ** 2) * z
         st["exp"] = np.zeros((N, N))                   # exports are set tick by tick
         return {"obs": obs, "revenue": rev, "cost": cost, "info": {}}
 
