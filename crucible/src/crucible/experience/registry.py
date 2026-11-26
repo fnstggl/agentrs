@@ -4,10 +4,11 @@
                                 `MechExperienceEnv`; ``validate=False`` builds an unvalidated training task
             "rapid:<family>"    a v5 Tier 1 family through `crucible.rapid.make` (workstream H)
             "<family>"          rapid if `crucible.rapid` knows it, else a mechanism family
-    tier 2  "<domain>[:<config>]" or "d5_<domain>_<config>"   a v5 domain (`crucible.domains.base.Domain`, the
-                                canonical contract by decision D-17): the world is `domains.base.spec(domain, config,
-                                seed, overrides)`; the learner occupies the domain's participant seat
-                                (`Domain.participant_principal`, else a new participant); the domain's public
+    tier 2  "<domain>[:<config>]", "tier2:<domain>/<config>" or "d5_<domain>_<config>"   a v5 domain
+                                (`crucible.domains.base.Domain`, the canonical contract by decisions D-17/D-48):
+                                the world is `domains.base.spec(domain, config, seed, overrides)`; learners occupy
+                                the domain's seats (`Domain.seats`, every seat by default, ``agents=n`` the first
+                                n; else `Domain.participant_principal`, else a new participant); the domain's public
                                 objective (`Domain.objective(world, principal, difficulty)`) is the agent's objective
                                 and `Domain.evaluate(world, principal, objective)` the independent evaluator. The
                                 domain's scripted `reference` is evaluator-side and never reachable.
@@ -98,6 +99,10 @@ def domain_and_config(name: str, doms: dict | None = None) -> tuple[Any, Any]:
     if not doms:
         raise TierUnavailable("no v5 Tier 2 domain is present (crucible.domains.base.REGISTRY is empty; "
                               "workstream I / the civilisation generator, D-17)")
+    if name.startswith("tier2:"):                 # ONE_WORLD_CONTRACTS section 4: "tier2:<domain>/<config>"
+        name = name[len("tier2:"):].replace("/", ":", 1)
+    elif "/" in name and ":" not in name:
+        name = name.replace("/", ":", 1)
     if name.startswith("d5_"):
         rest = name[3:]
         for dn in sorted(doms, key=len, reverse=True):

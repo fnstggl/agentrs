@@ -95,6 +95,9 @@ def test_learner_occupies_the_seat_in_an_observation_only_civ_world(fixture_doma
     v = env.verify()
     assert v["evaluation"][a]["success"] is False and "independent_revenue_cents" in v["evaluation"][a]["details"]
     assert "independent_revenue" not in str(env.observe(a)["numbers"])
+    from crucible.experience.registry import domain_and_config
+    assert domain_and_config(f"tier2:{F.NAME}/line_linear")[1].name == "line_linear"
+    assert domain_and_config(f"d5_{F.NAME}_star_diamond")[1].name == "star_diamond"
     # several learners: every seat, or the first n
     two = replace(F.DOMAIN, name="fixture_two", seats=(Seat("trader", 600_000), Seat("rival", 600_000)))
     base.register(two)
