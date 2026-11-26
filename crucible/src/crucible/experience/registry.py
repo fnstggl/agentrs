@@ -4,10 +4,11 @@
                                 `MechExperienceEnv`; ``validate=False`` builds an unvalidated training task
             "rapid:<family>"    a v5 Tier 1 family through `crucible.rapid.make` (workstream H)
             "<family>"          rapid if `crucible.rapid` knows it, else a mechanism family
-    tier 2  "<domain>[:<config>]" or "d5_<domain>_<config>"   a v5 domain (`crucible.domains.base.Domain`, the
-                                canonical contract by decision D-17): the world is `domains.base.spec(domain, config,
-                                seed, overrides)`; the learner occupies the domain's participant seat
-                                (`Domain.participant_principal`, else a new participant); the domain's public
+    tier 2  "<domain>[:<config>]", "tier2:<domain>/<config>" or "d5_<domain>_<config>"   a v5 domain
+                                (`crucible.domains.base.Domain`, the canonical contract by decisions D-17/D-48):
+                                the world is `domains.base.spec(domain, config, seed, overrides)`; learners occupy
+                                the domain's seats (`Domain.seats`, every seat by default, ``agents=n`` the first
+                                n; else `Domain.participant_principal`, else a new participant); the domain's public
                                 objective (`Domain.objective(world, principal, difficulty)`) is the agent's objective
                                 and `Domain.evaluate(world, principal, objective)` the independent evaluator. The
                                 domain's scripted `reference` is evaluator-side and never reachable.
@@ -98,6 +99,10 @@ def domain_and_config(name: str, doms: dict | None = None) -> tuple[Any, Any]:
     if not doms:
         raise TierUnavailable("no v5 Tier 2 domain is present (crucible.domains.base.REGISTRY is empty; "
                               "workstream I / the civilisation generator, D-17)")
+    if name.startswith("tier2:"):                 # ONE_WORLD_CONTRACTS section 4: "tier2:<domain>/<config>"
+        name = name[len("tier2:"):].replace("/", ":", 1)
+    elif "/" in name and ":" not in name:
+        name = name.replace("/", ":", 1)
     if name.startswith("d5_"):
         rest = name[3:]
         for dn in sorted(doms, key=len, reverse=True):
@@ -167,9 +172,7 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     from ..api.local import ensure_modules
     ensure_modules([m["name"] for m in spec.modules])
     world = World.create(spec, store=kw.pop("store", None))
-    agents = kw.pop("agents", None)
-    if agents is None:
-        agents = [dom.participant_principal(world)] if dom.participant_principal else ["agent"]
+    agents = _domain_agents(dom, world, kw.pop("agents", None))
     env = KernelExperienceEnv(world, seed, reward_mode=mode, tier=2, name=f"{dom.name}:{cfg.name}", agents=agents,
                               **kw)
     attach_domain(env, dom, difficulty)
@@ -177,11 +180,29 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     return env
 
 
+def _domain_agents(dom, world, agents):
+    """Who a Tier 2 learner is (workstream I hook, D-48): by default every seat of the domain (the first is the
+    primary learner; several seats make a multi-learner world), else the domain's `participant_principal`, else a
+    new participant. An int n means the first n seats (n new participants when the domain has fewer seats);
+    explicit names are seats or principals ("p:...") or handles of new participants."""
+    seats = list(dom.seat_principals()) if hasattr(dom, "seat_principals") else []
+    if isinstance(agents, int):
+        return seats[:agents] if seats and agents <= len(seats) else agents
+    if agents is not None:
+        return list(agents)
+    if seats:
+        return seats
+    if dom.participant_principal:
+        return [dom.participant_principal(world)]
+    return ["agent"]
+
+
 class DomainObjective:
     """A v5 domain's objective behind the begin/step_reward/status protocol. The domain's own evaluator is the
     verifier: its verdict stays on the evaluator side (`status` is read only by `verify()` and the reward gate);
     the participant sees the objective's public text. The legacy reward (explicit legacy mode only) is the change of
-    the evaluator's numeric score, the verified outcome its success."""
+    the evaluator's numeric score, the verified outcome its success. The evaluator runs at most once per world
+    state (event sequence number and clock) and principal."""
 
     def __init__(self, dom, objective: dict):
         self.dom, self.objective = dom, dict(objective)
@@ -189,10 +210,17 @@ class DomainObjective:
         self.text = text if isinstance(text, str) else None
         self._score: dict[str, float] = {}
         self._last: dict[str, dict] = {}
+        self._at: dict[str, tuple] = {}
 
     def _eval(self, world, actor) -> dict:
+        key = (int(world.seq), int(world.now))
+        hit = self._at.get(actor)
+        if hit is not None and hit[0] == key:
+            return hit[1]
         ev = self.dom.evaluate(world, actor, self.objective)
-        return ev if isinstance(ev, dict) else {"value": ev}
+        ev = ev if isinstance(ev, dict) else {"value": ev}
+        self._at[actor] = (key, ev)
+        return ev
 
     @staticmethod
     def _num(ev: dict) -> float:
