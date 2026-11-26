@@ -230,7 +230,7 @@ out = {"errors": [], "worlds": []}
 SRC = os.path.dirname(os.path.abspath(crucible.__file__)) + os.sep
 executed = collections.Counter()           # distinct functions of each package executed after import
 M = sys.monitoring
-TOOL = 4
+TOOL = next(i for i in (4, 3) if M.get_tool(i) is None)   # leaves the other one to the sandbox work counter
 M.use_tool_id(TOOL, "crucible-qa")
 def _start(code, offset):
     f = code.co_filename
@@ -272,6 +272,7 @@ try:
 except Exception as exc:
     out["errors"].append(f"experience: {type(exc).__name__}: {exc}")
 M.set_events(TOOL, 0)
+M.free_tool_id(TOOL)
 out["imported"] = sorted({m.split(".")[1] for m in sys.modules if m.startswith("crucible.") and m.count(".") >= 1})
 out["executed"] = dict(executed)
 print("@@JSON@@" + json.dumps(out))
