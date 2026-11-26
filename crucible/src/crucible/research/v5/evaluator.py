@@ -117,6 +117,9 @@ class _Server:
                 return self._refuse("evaluator", "open_episode", "this item was used in a development run")
             self.conf_items.add(key)
         else:
+            if prereg is not None or str(purpose).startswith("confirmation"):
+                return self._refuse("evaluator", "open_episode", "confirmation runs use evaluation or sealed items "
+                                                                  "only; this is a development item")
             if key in self.conf_items:
                 return self._refuse("evaluator", "open_episode", "this item belongs to a confirmation run")
             self.dev_items.add(key)
