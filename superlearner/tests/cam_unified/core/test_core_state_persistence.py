@@ -3,7 +3,8 @@
 The pre-DOM core re-added StatePos + KindEmb(STATE) (std 0.5) to Z every decision and re-normalised it: at init Z_t
 was ~constant (cos 0.995 with that embedding), depended ~2% on the observation content, and an 8-step delayed recall
 was not learnable. The DOM core (cfg.state_gate, cfg.state_emb_std = 0.02) carries Z through a learned gate
-u = sigmoid(W [Z_prev; Z~] + b), W = 0, b = -2, with a bounded candidate Z~ (state_candidate_of)."""
+u = sigmoid(W [Z_prev; Z~] + b), W = 0, b = -2, with a bounded candidate Z~ (state_candidate_of), and keeps Z
+unit-RMS per token (core.state_unit)."""
 import math
 
 import pytest
@@ -67,10 +68,11 @@ def test_dom_initialisation_gate_and_state_embedding_scale():
     assert abs(float(core.last_state_gate) - 1 / (1 + math.exp(2.0))) < 1e-6          # u = sigmoid(-2) = 0.119
 
 
-@pytest.mark.parametrize("mode", ["clamp", "clamp_keep_emb", "rms"])
-def test_gated_update_formula(mode):
+@pytest.mark.parametrize("mode,unit", [("clamp", True), ("clamp", False), ("clamp_keep_emb", True), ("rms", True)])
+def test_gated_update_formula(mode, unit):
     core = _dom_dev_core(1)
     core.state_candidate = mode
+    core.state_unit = unit
     cfg = core.cfg
     B, S = 2, cfg.n_state
     with torch.no_grad():
@@ -87,6 +89,8 @@ def test_gated_update_formula(mode):
             cand = x / x.pow(2).mean(-1, keepdim=True).add(1e-6).sqrt().clamp_min(1.0) * core.out_norm.weight
         u = torch.sigmoid(core.state_gate(torch.cat([Zp, cand], -1)))
         manual = (1 - u) * Zp + u * cand
+        if unit:
+            manual = manual / manual.pow(2).mean(-1, keepdim=True).add(1e-6).sqrt()
     assert torch.allclose(Z, manual, atol=1e-5), float((Z - manual).abs().max())
 
 
@@ -148,7 +152,13 @@ def test_gated_state_is_bounded_over_a_long_lifetime():
         for t in range(150):
             Z, _ = core(Z, TokenSet.from_dense(5.0 * torch.randn(B, 8, D, generator=g), int(TokenKind.OBS_SEM)))
     rms = Z.pow(2).mean(-1).sqrt()
-    assert torch.isfinite(Z).all() and float(rms.max()) <= math.sqrt(2) + 1e-4, float(rms.max())
+    assert torch.isfinite(Z).all() and torch.allclose(rms, torch.ones_like(rms), atol=1e-4)   # unit-RMS state
+    core.state_unit = False                                   # the unnormalised variant stays bounded as well
+    with torch.no_grad():
+        Z = core.init_state(B)
+        for t in range(150):
+            Z, _ = core(Z, TokenSet.from_dense(5.0 * torch.randn(B, 8, D, generator=g), int(TokenKind.OBS_SEM)))
+    assert torch.isfinite(Z).all() and float(Z.pow(2).mean(-1).sqrt().max()) <= math.sqrt(2) + 1e-4
 
 
 def test_gate_and_bptt_gradients_and_checkpointing_with_sem():
@@ -183,21 +193,36 @@ def test_gate_and_bptt_gradients_and_checkpointing_with_sem():
 
 
 def test_tiny_gated_core_learns_delayed_recall_on_cpu():
-    """Fast CPU check of the mechanism (tiny 2 x 64 core): delay-6 recall with the gate (the legacy core stays at
-    chance on such budgets: see the W3 evidence file docs/evidence/dom/W3/)."""
-    torch.manual_seed(0)
-    cfg = tiny_config(n_layers=2, d_model=64, n_heads=4, n_state=8, state_gate=True, state_emb_std=0.02)
-    core = UnifiedCore(cfg, autocast=False)
-    r = delayed_recall(core, 6, iters=500, target=0.95, eval_every=25, batch=32, lr=1e-3, device="cpu")
-    assert r["best_acc"] >= 0.9, r["history"]
+    """Fast CPU check of the mechanism (tiny 2 x 64 core, delay 6): the gated core learns the recall, the legacy core
+    (no gate, 0.5-std state embeddings) stays near chance on the same budget. The harder key-after-distractors
+    variant at dom_dev scale is test_delayed_recall_key_after_distractors_dom_dev (GPU, slow) and the W3 evidence."""
+    res = {}
+    for name, over in (("gated", dict(state_gate=True, state_emb_std=0.02)),
+                       ("legacy", dict(state_gate=False, state_emb_std=0.5))):
+        torch.manual_seed(0)
+        core = UnifiedCore(tiny_config(n_layers=2, d_model=64, n_heads=4, n_state=8, **over), autocast=False)
+        res[name] = delayed_recall(core, 6, iters=300, target=0.95, eval_every=25, batch=32, lr=1e-3, device="cpu")
+    assert res["gated"]["best_acc"] >= 0.9, res["gated"]["history"]
+    assert res["legacy"]["best_acc"] < 0.5, res["legacy"]["history"]
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA (about 2 min on an A6000, ~1.2 GB)")
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA (under a minute on an A6000, ~1.2 GB)")
 def test_delayed_recall_delay16_dom_dev():
     """Acceptance (plan 2026-11-26, W3): delayed recall at delay 16 >= 95% through the real dom_dev backbone
-    (8 x 384, gated state, state_emb_std 0.02), BPTT through all 17 steps, held-out accuracy. Activation
+    (8 x 384, gated unit-RMS state, state_emb_std 0.02), BPTT through all 17 steps, held-out accuracy. Activation
     checkpointing keeps it under 2 GB (no exclusive GPU lock needed)."""
     torch.manual_seed(0)
     core = UnifiedCore(make_preset("dom_dev", grad_checkpoint=True)).cuda()
     r = delayed_recall(core, 16, iters=600, target=0.95, eval_every=25, seed=0)
+    assert r["best_acc"] >= 0.95, r["history"]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA (3-10 min on a shared A6000, ~1.4 GB)")
+def test_delayed_recall_key_after_distractors_dom_dev():
+    """The harder variant: 4 distractor decisions before the key, so the key must be written into a state that
+    already holds content (the first write cannot simply persist); delay 16 after the key."""
+    torch.manual_seed(0)
+    core = UnifiedCore(make_preset("dom_dev", grad_checkpoint=True)).cuda()
+    r = delayed_recall(core, 16, iters=800, target=0.95, eval_every=25, seed=0, key_step=4)
     assert r["best_acc"] >= 0.95, r["history"]

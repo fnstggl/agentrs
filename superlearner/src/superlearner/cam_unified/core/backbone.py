@@ -11,10 +11,16 @@ block when it is configured and `sem` is given. The outputs at the context posit
 Persistence (`cfg.state_gate`, DOM preset on). The carried state is a learned gated update
 
     u   = sigmoid(W [Z_{t-1}; Z~_t] + b)      (per token and feature; W = 0, b = -2 at init: u = 0.12)
-    Z_t = (1 - u) * Z_{t-1} + u * Z~_t,       Z~_t = out_norm(blocks(...))[state positions]
+    Z_t = RMSNorm((1 - u) * Z_{t-1} + u * Z~_t)
+    Z~_t = clamp-normalised state residual of the blocks, without the re-added slot/kind embedding
+           (`state_candidate_of`; Z_0 is the learned 0.02-scale initial state, so the first decision writes Z)
 
-so information in Z decays only as fast as the gates choose (the ungated core re-normalised Z every step and lost
-~0.42 of the previous state per decision; audit 2026-11-26). Without the gate Z_t = Z~_t (pre-DOM behaviour).
+so information in Z decays only as fast as the gates choose (the ungated core re-added a 0.5-std constant and
+re-normalised Z every step: cos(Z, const) 0.995, ~0.42 of the previous state lost per decision, delay-8 recall not
+learnable; audit 2026-11-26). With the gate, delay-16 recall is learned (key in the first context, and key after 4
+distractor decisions). At initialisation the first decision writes ~16% observation-dependent content into Z and later
+decisions write little (~0.2% each) until the gates and block updates learn to write (key-after-4 recall: learned by
+iteration 450). Without the gate Z_t = Z~_t = out_norm(...) (pre-DOM behaviour exactly).
 
 Context embedding (per token n):  RMSNorm(x_n) + KindEmb(kind_n) + TimeEnc(time_n) + SlotCode(entity_n)
                                     + SlotCode2(entity2_n)                 (init scale `emb_std`, default 0.5).
@@ -127,6 +133,7 @@ class UnifiedCore(nn.Module):
         # learned state gate u = sigmoid(W [Z_prev; Z~] + b), W = 0, b = -2 (cfg.state_gate)
         self.state_gate: Optional[nn.Linear] = None
         self.state_candidate = "clamp"            # candidate normalisation of the gated update (state_candidate_of)
+        self.state_unit = True                    # RMS-normalise the carried state after the gated update
         if bool(getattr(cfg, "state_gate", False)):
             self.state_gate = nn.Linear(2 * D, D)
             nn.init.zeros_(self.state_gate.weight)
@@ -286,10 +293,13 @@ class UnifiedCore(nn.Module):
             kv = None
         ids = None
         if kv is not None:
+            if kv.B != h.shape[0]:
+                raise ValueError(f"semantic memory has {kv.B} rows for a batch of {h.shape[0]} (select its rows: "
+                                 "project_semantic(sem, B, code_rows, sem_rows))")
             ids = list(block_ids) if block_ids is not None else self.block_ids(blocks)
             if len(ids) != len(blocks):
                 raise ValueError(f"block_ids has {len(ids)} entries for {len(blocks)} blocks")
-            S = kv.S if kv.S.dtype == h.dtype or torch.is_autocast_enabled() else kv.S.to(h.dtype)
+            S = kv.S if kv.S.dtype == h.dtype or torch.is_autocast_enabled(h.device.type) else kv.S.to(h.dtype)
         for pos, blk in enumerate(blocks):
             if ckpt:
                 h = checkpoint(blk, h, key_mask, attn_bias, use_reentrant=False)
@@ -316,12 +326,12 @@ class UnifiedCore(nn.Module):
         updates (e = StatePos + KindEmb(STATE), the input embedding added by `embed_state`).
 
         * "clamp" (default with the state gate): Z~ = x / max(rms(x), 1) * g with x = h_state - e, g the out_norm
-          gain. The slot/kind embedding is an input of the blocks only and is not carried in the state; a small
-          state is not amplified (Jacobian <= 1; exactly out_norm's normalisation once rms(x) >= 1, so Z stays
-          bounded).
+          gain. The slot/kind embedding is an input of the blocks only and is not carried in the state; the
+          near-zero initial state Z_0 (std 0.02) is not amplified (Jacobian <= 1; out_norm's normalisation exactly
+          once rms(x) >= 1, i.e. from the second decision on, when Z is unit-RMS).
         * "clamp_keep_emb": the same without removing e; "rms": Z~ = out_norm(h_state) (the audit's literal form;
-          ablations only: at state_emb_std 0.02 it re-normalises the near-zero initial state every step, amplifying
-          distractor content ~1/rms(h) and delayed recall at delay 16 is not learned).
+          ablations only: at state_emb_std 0.02 it re-normalises the near-zero initial state, amplifying distractor
+          content ~1/rms(h); delay-16 recall was not learned in 300-800 iterations, 2 seeds).
         Without the state gate the candidate is out_norm(h_state) (pre-DOM behaviour exactly)."""
         mode = self.state_candidate
         if self.state_gate is None or mode == "rms":
@@ -335,15 +345,20 @@ class UnifiedCore(nn.Module):
         return x / r.clamp_min(1.0) * self.out_norm.weight.float()
 
     def update_state(self, Z_prev: Tensor, Z_new: Tensor) -> Tensor:
-        """The carried state: Z_prev + u * (Z_new - Z_prev) with u = sigmoid(W [Z_prev; Z_new] + b) when
-        `cfg.state_gate` (float32, outside autocast), else Z_new."""
+        """The carried state when `cfg.state_gate` (float32, outside autocast):
+        Z = RMSNorm(Z_prev + u * (Z_new - Z_prev)), u = sigmoid(W [Z_prev; Z_new] + b) (no gain; `state_unit`), so Z
+        is unit-RMS per token from the first decision on, as every consumer of the pre-DOM core assumes (world-model
+        heads, latent targets; without it the latent world loss was 171 vs 2.1 on the same tokens); else Z_new."""
         if self.state_gate is None:
             return Z_new
         Zp = Z_prev.float()
         with torch.autocast(device_type=Zp.device.type, enabled=False):
             u = torch.sigmoid(self.state_gate(torch.cat([Zp, Z_new.float()], -1)))
         self.last_state_gate = u.detach().mean()
-        return Zp + u * (Z_new.float() - Zp)
+        Z = Zp + u * (Z_new.float() - Zp)
+        if self.state_unit:
+            Z = torch.nn.functional.rms_norm(Z, (Z.shape[-1],), eps=1e-6)
+        return Z
 
     # ------------------------------------------------------------------ forward
     def forward(self, Z_prev: Tensor, ctx: TokenSet, code_rows: Optional[Tensor] = None,

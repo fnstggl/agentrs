@@ -1,7 +1,7 @@
 """Diagnostics of the shared backbone's persistent state (W3): delayed recall through Z and state-at-init measures.
 
 * `delayed_recall(core, delay, ...)`: the audit's BPTT task (2026-11-26, h-core). A key (one of K random vectors) is a
-  context token at step 0 only; `delay` - 1 further steps and one query step show only distractor tokens; a linear
+  context token at step `key_step` only (default 0); `delay` - 1 further steps and one query step show only distractor tokens; a linear
   readout of mean-pooled Z_T must name the key. Chance = 1/K. The core is trained end to end (BPTT through every
   step) with AdamW; accuracy is measured on fresh held-out batches with the core in eval mode.
 * `state_constancy(core, Z, kind=STATE)`: cosine of each row of Z with the constant state-stream embedding
@@ -35,11 +35,12 @@ def state_constancy(core, Z: Tensor, kind: int = TokenKind.STATE) -> Tensor:
     return torch.nn.functional.cosine_similarity(Z.detach().float().flatten(1), c.flatten()[None].to(Z.device), -1)
 
 
-def _recall_batch(keys: Tensor, B: int, delay: int, n_tok: int, D: int, g: torch.Generator, dev) -> tuple:
+def _recall_batch(keys: Tensor, B: int, delay: int, n_tok: int, D: int, g: torch.Generator, dev,
+                  key_step: int = 0) -> tuple:
     K = keys.shape[0]
     y = torch.randint(0, K, (B,), generator=g, device="cpu").to(dev)
-    xs = [torch.randn(B, n_tok, D, generator=g, device="cpu").to(dev) for _ in range(delay + 1)]
-    xs[0][:, 0] = keys[y]
+    xs = [torch.randn(B, n_tok, D, generator=g, device="cpu").to(dev) for _ in range(key_step + delay + 1)]
+    xs[key_step][:, 0] = keys[y]
     return y, xs
 
 
@@ -52,8 +53,11 @@ def _recall_forward(core, head: nn.Module, xs: list, B: int, dev) -> Tensor:
 
 def delayed_recall(core, delay: int, *, n_keys: int = 16, batch: int = 64, n_tok: int = 8, iters: int = 600,
                    lr: float = 3e-4, eval_every: int = 25, eval_batches: int = 4, target: Optional[float] = None,
-                   seed: int = 0, clip: float = 1.0, device=None) -> dict:
+                   seed: int = 0, clip: float = 1.0, device=None, key_step: int = 0) -> dict:
     """Train `core` (+ a linear readout) on delayed recall at `delay` and report held-out accuracy.
+
+    `key_step` distractor-only decisions come before the key (0 = the key is in the first context after Z_0), so the
+    key must be written into a state that already holds other content and the first write cannot simply persist.
 
     Stops early once the held-out accuracy reaches `target` (None = run all `iters`). Returns {"delay", "chance",
     "history": [(iteration, train loss, held-out accuracy)], "final_acc", "best_acc", "iters_run", "seconds",
@@ -67,7 +71,7 @@ def delayed_recall(core, delay: int, *, n_keys: int = 16, batch: int = 64, n_tok
     params = [p for p in core.parameters() if p.requires_grad] + list(head.parameters())
     opt = torch.optim.AdamW(params, lr=lr)
     eval_g = torch.Generator().manual_seed(seed + 2)
-    eval_sets = [_recall_batch(keys, batch, delay, n_tok, D, eval_g, dev) for _ in range(eval_batches)]
+    eval_sets = [_recall_batch(keys, batch, delay, n_tok, D, eval_g, dev, key_step) for _ in range(eval_batches)]
 
     def evaluate() -> float:
         core.eval()
@@ -82,7 +86,7 @@ def delayed_recall(core, delay: int, *, n_keys: int = 16, batch: int = 64, n_tok
     hist.append((0, None, acc0))
     core.train()
     for it in range(1, iters + 1):
-        y, xs = _recall_batch(keys, batch, delay, n_tok, D, g, dev)
+        y, xs = _recall_batch(keys, batch, delay, n_tok, D, g, dev, key_step)
         logits = _recall_forward(core, head, xs, batch, dev)
         loss = nn.functional.cross_entropy(logits.float(), y)
         opt.zero_grad(set_to_none=True)
@@ -98,4 +102,4 @@ def delayed_recall(core, delay: int, *, n_keys: int = 16, batch: int = 64, n_tok
     accs = [h[2] for h in hist]
     return {"delay": delay, "chance": 1.0 / n_keys, "history": hist, "final_acc": accs[-1], "best_acc": max(accs),
             "iters_run": it, "seconds": round(time.time() - t0, 1), "reached_target_at": reached,
-            "batch": batch, "n_keys": n_keys, "n_tok": n_tok, "lr": lr}
+            "batch": batch, "n_keys": n_keys, "n_tok": n_tok, "lr": lr, "key_step": key_step}
