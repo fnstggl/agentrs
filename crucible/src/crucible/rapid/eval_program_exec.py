@@ -650,6 +650,26 @@ def act(obs, caller):
 """
 
 
+# the same estimator written to do little work per call (compute is billed by the line executed): offsets are
+# kept as a running average updated only when an audit arrives, and the median is taken by the built-in sort
+ST_LEAN_SRC = """
+def act(obs, caller):
+    m = caller.get("memory") or {"off": None, "prev": None}
+    rd = obs["readings"]
+    a = obs.get("audit")
+    if a:
+        res = [r - a["value"] for r in a["readings"]]
+        m["off"] = res if m["off"] is None else [K * o + (1 - K) * x for o, x in zip(m["off"], res)]
+    off = m["off"] or [0.0] * len(rd)
+    vals = sorted([r - o for r, o, p in zip(rd, off, m["prev"] or [None] * len(rd)) if r != p])
+    m["prev"] = rd
+    k = len(vals)
+    if not k:
+        return {"estimate": sum(rd) / len(rd), "memory": m}
+    return {"estimate": vals[k // 2] if k % 2 else 0.5 * (vals[k // 2 - 1] + vals[k // 2]), "memory": m}
+"""
+
+
 def oracle_stream(env) -> dict:
     def exact(e):
         s = e._state
@@ -660,7 +680,7 @@ def oracle_stream(env) -> dict:
 
 
 def reference_stream(view, env) -> None:
-    view.step({"kind": "program", "source": consts(W=3) + ST_CAL_SRC, "ticks": view.horizon - view.t})
+    view.step({"kind": "program", "source": consts(K=0.5) + ST_LEAN_SRC, "ticks": view.horizon - view.t})
     finish(view)
 
 
