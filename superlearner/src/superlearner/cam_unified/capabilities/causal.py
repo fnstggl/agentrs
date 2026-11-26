@@ -599,6 +599,83 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
     return out
 
 
+# ================================================================================================ W6 LP probe
+# Integrated learning progress at the first informative step (plan 2026-11-26 §3 W6: "> 0.1 nats"): the real dom_dev
+# stack trained with the world objective *and* the DOM support/query objective (`adapt_loss_all_k` through
+# CamUnifiedModel.adapt_loss) on recorded SwitchEnv episodes, then the hindsight LP of `observe_outcomes` (full fused
+# predictive) LP_0 = log p(o_1 | B_1) - log p(o_1 | B_0) on fresh unswitched episodes (payout +1 every pull).
+
+@torch.no_grad()
+def measure_lp(stack, seed0: int, n_rows: int = 16, steps: int = 4) -> dict:
+    """Hindsight LP per step of a greedy evaluation episode (`observe_outcomes` 'lp': nats per observed outcome,
+    and the total over the step's observed outcomes); step index t reports LP_{t-1} (o_t under B_t vs B_{t-1})."""
+    model = stack.model
+    env = SwitchEnv(n_rows, noise=0.0, fixed_switch=99)
+    ep = Episode(model, env, ScoreEvaluator(env), [seed0 + b for b in range(n_rows)], greedy=True)
+    per, tot, ig = [], [], []
+    for _ in range(steps):
+        rec = ep.step()
+        lp = rec.info.get("lp")
+        n = model.belief_view(rec.info["outcomes"]).y_mask.float().sum(-1).cpu()
+        per.append(None if lp is None else float(lp.float().mean()))
+        tot.append(None if lp is None else float((lp.float().cpu() * n).mean()))
+        bc = rec.info.get("belief_change")
+        ig.append(None if bc is None else float(bc["info_gain"].mean()))
+    return {"lp_per_outcome": per, "lp_total": tot, "info_gain": ig,
+            "first_informative_lp_total": tot[1] if len(tot) > 1 else None,
+            "first_informative_lp_per_outcome": per[1] if len(per) > 1 else None}
+
+
+def run_lp_probe(st: CausalSettings, root: Optional[str] = None, device=None) -> dict:
+    """Record SwitchEnv episodes with the untrained dom_dev agent, train world + adapt objectives for
+    ``st.train_steps`` steps (LR decay as configured), measure LP before and after."""
+    from ..config import make_preset
+    t0 = time.time()
+    tmp = root or tempfile.mkdtemp(prefix="cam_w6_lp_")
+    rng = random.Random(st.seed)
+    cfg = make_preset(st.preset or "dom_dev", use_imagination=False, use_memory=False, lr=st.lr,
+                      grad_clip=st.grad_clip, train_horizons=tuple(st.horizons), **st.cfg_overrides)
+    ckw = {}
+    if st.wm_kwargs:
+        ckw["world_model"] = dict(st.wm_kwargs)
+    if st.core_kwargs:
+        ckw["core"] = dict(st.core_kwargs)
+    stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"lp_s{st.seed}"),
+                        component_kwargs=ckw or None)
+    env = make_env("switch", st.B)
+    stack.info["tools"] = env.available_tools()[0]
+    eps = record(stack, env, st.record_episodes, st.seed * 10_007)
+    groups = groups_of(eps, st.batch_seqs, rng)
+    dev0 = 200_000 + 1000 * st.seed
+    before = measure_lp(stack, dev0)
+    model, trainer, agent = stack.model, stack.trainer, stack.agent
+    opt = getattr(trainer, "opt", None)
+    base = [g.get("base_lr", g["lr"]) for g in opt.param_groups] if (st.lr_decay and opt is not None) else None
+    hist = []
+    for i in range(st.train_steps):
+        if base is not None:
+            f = 1.0 - (1.0 - st.lr_final_frac) * (i / max(1, st.train_steps - 1))
+            for g, b in zip(opt.param_groups, base):
+                g["lr"] = b * f
+                if "base_lr" in g:
+                    g["base_lr"] = b * f
+        model.train()
+        seq, aux = agent.tokenise_sequences(groups[i % len(groups)])
+        filt = model.filter_sequence(seq, aux)
+        w = model.world_loss(seq, filt)
+        a, am = model.adapt_loss(seq, filt, None)
+        trainer.step({"world": w["world"], "adapt": a})
+        model.version = model.version + 1
+        hist.append({"world": float(w["world"].detach()), "adapt": float(a.detach()),
+                     "adapt_kalman": am.get("adapt_kalman"), "adapt_ks": am.get("adapt_ks")})
+    model.eval()
+    after = measure_lp(stack, dev0)
+    return {"settings": asdict(st), "before": before, "after": after, "train_first": hist[:3],
+            "train_last": hist[-3:], "adapt_last10": mean([h["adapt"] for h in hist[-10:]]),
+            "world_last10": mean([h["world"] for h in hist[-10:]]), "components": stack.real_component_report(),
+            "wall_s": time.time() - t0}
+
+
 # ================================================================================================ W6 DOM driver
 # Real end-to-end check of plan 2026-11-26 §3 W6: run_causal on the real dom_dev stack, one world and seed per call
 # (short GPU holds), and the pass/fail summary of the plan's criteria over the per-(world, seed) result files.
@@ -611,7 +688,7 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
 # correct (post-switch < -0.7, unswitched > 0.7); consistency MSE/Var < 0.1 (teacher-forced and mode-latent prior).
 
 DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-3, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
-                    B=32, record_episodes=12, batch_seqs=8, horizons=(1, 2, 3, 4),
+                    B=32, record_episodes=12, batch_seqs=4, horizons=(1, 2, 3, 4),
                     wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True},
                     # the dom preset's state_emb_std=0.02 (W3's switch, not yet read by the seam core) through the
                     # real UnifiedCore's own constructor argument
@@ -643,7 +720,7 @@ def criteria(worlds: dict) -> dict:
 
 def dom_main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=("run", "summary"))
+    ap.add_argument("cmd", choices=("run", "summary", "lp"))
     ap.add_argument("files", nargs="*")
     ap.add_argument("--world", default="delay")
     ap.add_argument("--seed", type=int, default=0)
@@ -651,6 +728,29 @@ def dom_main(argv=None) -> int:
     ap.add_argument("--set", action="append", default=[], help="CausalSettings override key=json")
     ap.add_argument("--device", default=None)
     a = ap.parse_args(argv)
+    if a.cmd == "lp":
+        kw = dict(DOM_SETTINGS)
+        for item in a.set:
+            k, v = item.split("=", 1)
+            try:
+                kw[k] = json.loads(v)
+            except json.JSONDecodeError:
+                kw[k] = v
+        if "horizons" in kw:
+            kw["horizons"] = tuple(kw["horizons"])
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+        res = run_lp_probe(CausalSettings(seed=a.seed, worlds=("switch",), **kw), device=a.device)
+        res["cuda_peak_gb"] = torch.cuda.max_memory_allocated() / 2 ** 30 if torch.cuda.is_available() else None
+        res["command"] = " ".join([sys.executable, "-m", "superlearner.cam_unified.capabilities.causal"]
+                                  + list(argv if argv is not None else sys.argv[1:]))
+        lp = res["after"]["first_informative_lp_total"]
+        res["criterion"] = {"first_informative_lp_total": lp, "pass": lp is not None and lp > 0.1}
+        with open(a.out, "w") as f:
+            json.dump(res, f, indent=1, default=str)
+        print("LP before", res["before"]["lp_total"], "after", res["after"]["lp_total"],
+              "->", "PASS" if res["criterion"]["pass"] else "FAIL")
+        return 0
     if a.cmd == "run":
         kw = dict(DOM_SETTINGS)
         for item in a.set:
