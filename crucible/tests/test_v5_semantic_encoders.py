@@ -50,7 +50,9 @@ def test_cache_key_has_the_contract_shape_and_changes_with_content():
     r1, r2 = E.ref_of(b"one"), E.ref_of(b"two")
     k1 = E.cache_key(r1, "text")
     enc = E.encoder("text")
-    assert k1 == f"{r1}|{enc.id}@{enc.version()}|{enc.preprocessing_hash()}"
+    # world key (artifact, encoder id and derived version, derived parameter hash) + the machine part of the cache
+    assert E.world_key(r1, "text") == f"{r1}|{enc.id}@{enc.version()}|{enc.params_hash()}"
+    assert k1 == f"{E.world_key(r1, 'text')}|{enc.preprocessing_hash()}"
     assert E.cache_key(r2, "text") != k1 and E.cache_key(r1, "image") != k1
     with pytest.raises(E.EncodingError):
         E.cache_key("sha256:xyz", "text")
