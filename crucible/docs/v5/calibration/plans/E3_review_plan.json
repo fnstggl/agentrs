@@ -1,0 +1,48 @@
+{
+ "schema": "crucible.v5.review_plan/1",
+ "workstream": "E",
+ "id": "E3",
+ "title": "Review of the kept calibration models against the simulator's rule-based behaviour, long-horizon stability and compute (MASTER_SPEC 5.3, 5.5)",
+ "written_before_fit": true,
+ "applies_to": [
+  "content_consumption@1",
+  "content_consumption_feed@1",
+  "watch_duration@1",
+  "return_daily@1",
+  "session_rate@1",
+  "news_click@1",
+  "commercial_response@1",
+  "software_deep_engagement@1",
+  "software_repo_growth@1"
+ ],
+ "global_rules": {
+  "contenders": {
+   "K": "the kept checkpoint, loaded through registry.load (hash-verified); predictions exactly as saved",
+   "B": "the card's best simple baseline on test, rebuilt from its definition on the card's training split (constant, popularity, own-rate, pooled-rate or proportional rule); where it cannot be rebuilt exactly from the definition, only its reported test metric is used and it is not a long-horizon contender",
+   "S": "the simulator's existing rule-based behaviour as implemented at the commit of this plan (crucible.social.consumption.BUILTIN, crucible.population.models coefficients, crucible.population.core activation rhythm), mapped onto the same held-out rows by the mappings below; parameters are NOT refitted",
+   "SF": "diagnostic only, never kept: the functional form of S with its parameters refitted on the card's training split (tells whether the form or the hand-set parameters fail)"
+  },
+  "same_rows": "every contender is scored on exactly the card's test split rows with the card's primary metric (log loss, mean pinball loss over the card's quantile levels, Poisson deviance or the pooled visit+conversion log loss)",
+  "uncertainty": "paired cluster bootstrap over users (KuaiRand, MIND, Criteo: user; GitHub: repository for growth, developer for deep engagement), 200 resamples, seed 0: 95% interval of the difference of each contender from K on the primary metric and on the long-horizon measure",
+  "long_horizon": {
+   "dynamic": "for models whose own outputs feed their inputs (return_daily, session_rate, software_repo_growth): forward simulation over the held-out horizon from the state at the horizon's start, each contender's draws fed back into its features, 20 draws per unit, seed 0; measure = mean over horizon days of |simulated aggregate - observed aggregate| (daily active rate, mean extra sessions per active day, total stars per day relative to observed), plus the distribution distance named per model",
+   "static": "for models without feedback (content_consumption, content_consumption_feed, watch_duration, news_click, commercial_response, software_deep_engagement): multi-day stability on the held-out days: measure = mean over held-out days (hours of the day for GitHub test halves; arms x deciles for Criteo, which has no time stamp) of |mean predicted - mean observed| (binary) or |80% interval coverage - 0.8| (quantile models)"
+  },
+  "compute": "median of 5 timed single-threaded evaluations (OMP_NUM_THREADS=1) of 100,000 test rows (all rows when fewer), microseconds per row, NumPy portable predictor as loaded by the registry",
+  "selection": "eligible = contenders K, B and S with compute <= 100 microseconds per row. Among eligible contenders order by the primary held-out metric. Keep the best one unless its long-horizon measure is worse than that of the eligible contender with the smallest long-horizon measure with the paired 95% bootstrap interval of the difference entirely above 0; then take the next by the primary metric, and so on. A contender without a long-horizon measure (B not rebuildable) cannot displace one that has it. If the kept contender is not K, the review records kept_after_review and the runtime decision model serves the kept contender; the checkpoint is never refitted after test metrics are seen.",
+  "worse_model_kept": "the review's kept contender must follow this rule exactly; SP-5.5 recomputes it from the recorded numbers",
+  "test_once": "the card's test split was evaluated by the original fits; this review evaluates new contenders on it once; no checkpoint is changed",
+  "outputs": "docs/v5/calibration/reviews/<model>.json with every contender's primary metric, bootstrap intervals, long-horizon measure, compute, the rule mapping and kept_after_review"
+ },
+ "rule_mappings": {
+  "content_consumption": "S = C2 open rule. util = open_bias + open_affinity*aff + open_familiar*fam + open_seen*seen + open_sat*(sat - 0.5) + open_len*log(max(dur, 1)/60) with following = 0, share source = 0, sat = 0.5 (the population's initial satisfaction); p = exp(util) / (exp(outside) + sum of exp(util) over this item and the next `window` items). aff = cosine between the item's primary-tag one-hot and the user's vector of plays per primary tag on earlier days of the standard log (0 without history); fam = 1 if the user played any video of the item's author on an earlier day; seen = 1 if the user was exposed to the item on an earlier day; dur = duration_s; the window competitors are the next 3 tab-1 rows of the same user (both logs, time order) within 30 minutes. SF = logistic regression of is_click on (aff, fam, seen, log(max(dur,1)/60)) fitted on the train split",
+  "content_consumption_feed": "S and SF as content_consumption, on the card's obs_test rows",
+  "watch_duration": "S = C2 watch rule on the card's test rows. consumed = 1: bounce with probability sigmoid(bounce_bias + bounce_affinity*aff), bounce time uniform on (1, 6) s, else T ~ Exponential(rate lam), lam = hazard_per_s * exp(hazard_affinity*aff + hazard_familiar*fam + hazard_sat*(sat - 0.5) + hazard_seen*seen), sat = 0.5, T truncated at the duration; consumed = 0: the simulator records watch 0 for a skip, so the predictive distribution is a point mass at 0. Predictive quantiles of log1p(T) at the card's levels computed by Monte Carlo (2,000 draws per row, seed 0). aff, fam, seen as content_consumption. SF: exponential-hazard rate refitted (one log-linear regression of log1p(play_s) on the same inputs) - reported only",
+  "return_daily": "S1 = population rhythm (crucible.population.core): an individual of the default profile (segment shares as population.core, mean gap log-normal around 7 h (heavy) or 13 h (light), sd 0.45, gaps x Exponential(1) / (0.6 + 0.8 sat), waking day start ~ N(7 h, 55 min), length ~ N(16 h, 50 min), session_start = sigmoid of pop.decision.session_start at attention_ratio 1, satisfaction 0.5, habit 0, experience 0, not woken, in_commitment for employed individuals (68%) inside a 9:00 +- 50 min, 8 h +- 40 min window); P(active on a day) = share of 20,000 simulated individual-days with at least one started session, the same for every user. S2 = C2 return rule: return gaps Exponential(mean gap_mean_s * exp(-gap_sat*(sat - 0.5))) within a 16 h waking day, P(active) = 1 - exp(-16 h / gap). S = the better of S1 and S2 on the primary metric; both reported. Dynamic long-horizon: forward simulation of test users over 2022-05-01..05-08 from their observed history before 05-01; a simulated active day adds the user's mean rows and sessions per active day observed before 05-01 (users without an active day before 05-01: the population means); measure = mean daily |simulated - observed active rate|, plus the total variation distance of the number of active days per user",
+  "session_rate": "S1 = population rhythm as for return_daily: mean (sessions - 1) per simulated active day, the same for every user; S2 = C2 rule: (16 h / gap) - 1 returns per active day as a Poisson mean. Dynamic long-horizon: for test users, extra sessions on each observed active day of 2022-05-01..05-08 drawn from each contender's predictive (gamma-Poisson posterior updated with the simulated counts for K), measure = mean over days of |simulated - observed mean extra sessions per active day|, plus the KS distance of per-user totals",
+  "news_click": "S = C2 open rule on the MIND dev rows: aff = the card's text_cos (cosine of the user's history and the item, the same scale as the simulator's cosine affinity), fam = 0, seen = 0, sat = 0.5, dur = 120 s (articles; no durations in MIND), window = the next 3 items of the same impression in the logged order. SF = logistic of y on (text_cos)",
+  "commercial_response": "S = the simulator's rule: no v5 population decision reads ad exposure, so visit and conversion probabilities equal the pooled training rates in both arms (no effect). Scored with the card's primary metric (pooled visit + conversion log loss, each row under its own arm) on the full test split; uplift Qini of S is 0 by construction",
+  "software_deep_engagement": "no simulator rule exists (no simulated developer population); recorded as 'no rule-based behaviour to compare' and only B and K are contenders",
+  "software_repo_growth": "no simulator rule exists (stars come only from agents and scripted adopters); only B (the card's proportional rule) and K are contenders. Dynamic long-horizon: repositories of the D1 -> D2 table, D2 stars drawn from each contender (K: negative binomial with the card's dispersion; B: Poisson), fed into stars_today for D3 with the other D2 activity counts as observed; measure = |simulated total D3 stars - observed| / observed, plus KS of log1p per-repository D3 stars"
+ }
+}

@@ -11,7 +11,8 @@ cd crucible
 PYTHONPATH=src python -c "from crucible.calibration import acquire; print(acquire('kuairand_pure'), acquire('mind_small'))"
 ```
 
-Disk: KuaiRand-Pure 240 MB (47 MB archive + 195 MB extracted), MIND-small 210 MB. E1's budget is 4 GB.
+Disk: KuaiRand-Pure 240 MB (47 MB archive + 195 MB extracted), MIND-small 210 MB, Criteo 1.0 GB, GH Archive window
+290 MB (extracted tables), Online Retail II 50 MB. The calibration budget is 8 GB in total.
 
 ## kuairand_pure: KuaiRand-Pure
 
@@ -49,6 +50,38 @@ configured on this machine, so the files come from the ungated mirror `huyva/MIN
 mirror's files are the original MINDsmall_train / MINDsmall_dev TSVs: row counts equal the official statistics
 (156,965 and 73,152 impressions; 51,282 and 42,416 news; 50,000 users per split). Use of the data follows the
 Microsoft Research licence (non-commercial research); nothing from the dataset is redistributed.
+
+**Licence status (2026-11-26): unresolved, user decision pending (docs/v5/BLOCKERS.md B-1).** Re-checked: the official
+gated repository answers 401 without an account that accepted the licence, the Azure host answers 409. Workstream E
+did not accept the licence on the user's behalf. The fitted results are kept; every derived artifact is marked
+non-commercial research in `models/LICENSE_NOTICE.md`.
+
+## criteo_uplift_v2.1 and gharchive_2024-10-07_96h
+
+Both are described by their committed manifests in `datasets/` (licence, provenance, per-file SHA-256).
+
+GH Archive privacy (MASTER_SPEC 5.1). Since extractor version 2 (2026-11-26) the extracted hour tables hold **no GitHub
+id**: actor and repository ids are replaced at extraction by keyed 63-bit pseudonyms (blake2b under a 32-byte secret
+salt in `$CRUCIBLE_DATA/gharchive_2024-10-07_96h/pseudonym_key`, mode 0600, never committed or logged). The 96
+extractor-1 tables were converted in place after each was checked against its recorded digest, the derived table
+`tables_v1.npz` (dense ranks of raw ids) was deleted and rebuilt as `tables_v2.npz` from the pseudonymised events, and
+the software reproducers return the same held-out metrics (abs diff 0.0 and 1e-16). Verification uses digests in
+which identity columns are replaced by their first-appearance order, so it does not depend on the salt. Residual
+risk: exact timestamps and event types could be matched against the public GH Archive by someone who downloads it,
+so the extracted tables stay local and only aggregate model parameters are committed.
+
+## online_retail_ii: UCI Online Retail II
+
+| | |
+|---|---|
+| source | official UCI archive https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip (45,622,418 bytes, SHA-256 `572e3627...`) |
+| extracted | `extracted/online_retail_ii_v1.npz` (1,067,371 invoice lines, 4.5 MB) and `products.json` (5,304 product codes with descriptions, 43 countries); parsed from the xlsx with the standard library |
+| licence | CC BY 4.0 (UCI dataset page); cite Chen, D. (2012), doi:10.24432/C5CG6D |
+| population | 5,942 customers of one UK online gift retailer (many wholesalers), 43 countries; 243,007 lines without a customer id |
+| platform | the retailer's own non-store online shop |
+| period | invoices 2009-12-01 to 2011-12-09 |
+| identification | observational: prices set by the retailer, quantity discounts make unit price depend on quantity |
+| privacy | customer ids replaced by keyed pseudonyms (salt outside the repository) |
 
 ## Not used
 

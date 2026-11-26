@@ -1,0 +1,244 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "star_cascade",
+ "version": 1,
+ "domain": "social_diffusion",
+ "datasets": [
+  "gharchive_2024-10-07_96h"
+ ],
+ "identification": "observational",
+ "estimand": "expected number of non-bot stars a repository receives in the next hour given its recent star history (self-excitation of attention, which mixes contagion with outside referrals)",
+ "population": "public GitHub repositories with recent stars",
+ "platform": "GitHub (github.com) stars",
+ "period": "2024-10-07..10 UTC",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+  "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "hours 24-59",
+   "rows": 3761897
+  },
+  "val": {
+   "definition": "hours 60-71",
+   "rows": 1265596
+  },
+  "test": {
+   "definition": "hours 72-95 (day 4)",
+   "rows": 2533915
+  }
+ },
+ "heldout_splits": [
+  "test"
+ ],
+ "candidates": {
+  "B0_persistence": {
+   "complexity": "baseline rule: stars_prev_24h / 24",
+   "n_params": 0,
+   "val": {
+    "poisson_deviance": 0.20635068057235617,
+    "count_calibration_error": 1.5819426702214343,
+    "mean_pred": 0.07979876809236142,
+    "mean_obs": 0.03829974178173762,
+    "n": 1265596
+   },
+   "test": {
+    "poisson_deviance": 0.22131745968825828,
+    "count_calibration_error": 0.9357600221123045,
+    "mean_pred": 0.0798986298558381,
+    "mean_obs": 0.04520751485349745,
+    "n": 2533915
+   }
+  },
+  "B1_poisson_24h": {
+   "complexity": "baseline: Poisson GLM, 1 feature",
+   "n_params": 2,
+   "val": {
+    "poisson_deviance": 0.17929715257257436,
+    "count_calibration_error": 0.33397812767703483,
+    "mean_pred": 0.04562201040771021,
+    "mean_obs": 0.03829974178173762,
+    "n": 1265596
+   },
+   "test": {
+    "poisson_deviance": 0.20225709798642214,
+    "count_calibration_error": 0.6261999909291949,
+    "mean_pred": 0.04595856889535488,
+    "mean_obs": 0.04520751485349745,
+    "n": 2533915
+   }
+  },
+  "M1_poisson_glm": {
+   "complexity": "Poisson GLM, 13 features",
+   "n_params": 14,
+   "val": {
+    "poisson_deviance": 0.17091615306888147,
+    "count_calibration_error": 0.2747727765048278,
+    "mean_pred": 0.03712660739880644,
+    "mean_obs": 0.03829974178173762,
+    "n": 1265596
+   },
+   "test": {
+    "poisson_deviance": 0.19383792893287946,
+    "count_calibration_error": 0.25898418518172917,
+    "mean_pred": 0.04373728531887818,
+    "mean_obs": 0.04520751485349745,
+    "n": 2533915
+   }
+  },
+  "M2_gbdt_poisson": {
+   "complexity": "GBDT Poisson, 20 trees",
+   "n_params": 1820,
+   "val": {
+    "poisson_deviance": 81441.3133501339,
+    "count_calibration_error": 1326334.314057297,
+    "mean_pred": 40720.66036542252,
+    "mean_obs": 0.03829974178173762,
+    "n": 1265596
+   },
+   "test": {
+    "poisson_deviance": 85458.8288304101,
+    "count_calibration_error": 943327.0666649643,
+    "mean_pred": 42729.41521724315,
+    "mean_obs": 0.04520751485349745,
+    "n": 2533915
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "poisson_deviance",
+  "lower_is_better": true,
+  "validation": {
+   "B0_persistence": 0.20635068057235617,
+   "B1_poisson_24h": 0.17929715257257436,
+   "M1_poisson_glm": 0.17091615306888147,
+   "M2_gbdt_poisson": 81441.3133501339
+  },
+  "test": {
+   "B0_persistence": 0.22131745968825828,
+   "B1_poisson_24h": 0.20225709798642214,
+   "M1_poisson_glm": 0.19383792893287946,
+   "M2_gbdt_poisson": 85458.8288304101
+  },
+  "baselines": [
+   "B0_persistence",
+   "B1_poisson_24h"
+  ],
+  "candidates": [
+   "B0_persistence",
+   "B1_poisson_24h",
+   "M1_poisson_glm",
+   "M2_gbdt_poisson"
+  ],
+  "ranked_on_validation": [
+   "M1_poisson_glm",
+   "B1_poisson_24h",
+   "B0_persistence",
+   "M2_gbdt_poisson"
+  ],
+  "compute_us_per_row": {
+   "B0_persistence": 0.01077350229024887,
+   "B1_poisson_24h": 0.019380557350814342,
+   "M1_poisson_glm": 0.1047395495697856,
+   "M2_gbdt_poisson": 2.25023013073951
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M1_poisson_glm",
+   "B1_poisson_24h",
+   "B0_persistence",
+   "M2_gbdt_poisson"
+  ],
+  "long_horizon_validation": {
+   "B0_persistence": 1.3390326412025428,
+   "B1_poisson_24h": 0.27381576369767274,
+   "M1_poisson_glm": 0.1380034973575646,
+   "M2_gbdt_poisson": 7581968.08373854
+  },
+  "long_horizon_reference": "M1_poisson_glm",
+  "drift_rejected": {},
+  "selected_on_validation": "M1_poisson_glm",
+  "best_baseline_on_test": "B1_poisson_24h",
+  "kept": "M1_poisson_glm",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "baseline_comparison": {
+  "metric": "poisson_deviance",
+  "kept": "M1_poisson_glm",
+  "baseline": "B1_poisson_24h",
+  "kept_test": 0.19383792893287946,
+  "baseline_test": 0.20225709798642214,
+  "difference": -0.008419169053542674,
+  "ci95": [
+   -0.009326982499284982,
+   -0.007462621213824882
+  ],
+  "kept_ci95": [
+   0.18997231533272227,
+   0.19822003950265543
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 181303
+  }
+ },
+ "calibration": {
+  "count_calibration_error": 0.25898418518172917,
+  "mean_pred": 0.04373728531887818,
+  "mean_obs": 0.04520751485349745
+ },
+ "heldout_extra": {
+  "nb_dispersion": {
+   "B0_persistence": 0.0,
+   "B1_poisson_24h": 0.5160492312669575,
+   "M1_poisson_glm": 0.5679639967317647,
+   "M2_gbdt_poisson": 0.9999998270941386
+  }
+ },
+ "rule_comparison": {
+  "mapping": "no comparable simulator rule: the social engine's diffusion is share -> inbox -> open of content items and is not defined on repository endorsements; the persistence rule B0 is the rule-based baseline",
+  "comparable_rule": null,
+  "persistence_rule_test_deviance": 0.22131745968825828
+ },
+ "long_horizon_test": {
+  "kept_relative_hourly_drift": 0.22879556441252877,
+  "kept_ks_log1p_repo_totals": 0.032139276404365646,
+  "simulated_total": 87986.8,
+  "observed_total": 108821.0,
+  "repositories": 104727,
+  "B0_persistence_relative_hourly_drift": 0.8924724665924467,
+  "B0_persistence_ks_log1p_repo_totals": 0.18610721208475378,
+  "B1_poisson_24h_relative_hourly_drift": 0.2283497615424949,
+  "B1_poisson_24h_ks_log1p_repo_totals": 0.02867264411278847,
+  "M2_gbdt_poisson_relative_hourly_drift": 5329779.333246936,
+  "M2_gbdt_poisson_ks_log1p_repo_totals": 0.045573729792699136
+ },
+ "identification_note": "Observational: the dependence of next-hour stars on recent stars mixes contagion, referral bursts and recommender (trending) feedback; it is a reduced-form self-excitation, not a causal diffusion effect.",
+ "extrapolation_limits": "GH Archive public GitHub events, 2024-10-07..10 UTC: hourly non-bot stars of repositories that received a star in the previous 24 hours. The simulator may use this model for the next-hour arrival rate of endorsements (stars, saves, upvotes) of an item given its own recent endorsement history and activity, i.e. self-exciting attention dynamics on a platform with a trending surface. It may NOT infer: (1) why attention arrives (observational: contagion through followers, outside referrals from news sites and GitHub's own trending page are not separated); (2) cascades of other content kinds or platforms; (3) horizons beyond a day or the long-term popularity of an item; (4) the effect of promotion; (5) items with no endorsement in the last 24 hours (outside the units). Weekday data only.",
+ "feature_map": {
+  "stars_prev_1h": "stars_prev_1h: see the E4 plan, models.star_cascade.feature_definitions",
+  "stars_prev_3h": "stars_prev_3h: see the E4 plan, models.star_cascade.feature_definitions",
+  "stars_prev_24h": "stars_prev_24h: see the E4 plan, models.star_cascade.feature_definitions",
+  "star_decay_2h": "star_decay_2h: see the E4 plan, models.star_cascade.feature_definitions",
+  "star_decay_12h": "star_decay_12h: see the E4 plan, models.star_cascade.feature_definitions",
+  "forks_prev_24h": "forks_prev_24h: see the E4 plan, models.star_cascade.feature_definitions",
+  "events_prev_24h": "events_prev_24h: see the E4 plan, models.star_cascade.feature_definitions",
+  "repo_org": "repo_org: see the E4 plan, models.star_cascade.feature_definitions",
+  "created_in_window": "created_in_window: see the E4 plan, models.star_cascade.feature_definitions",
+  "age_hours_log": "age_hours_log: see the E4 plan, models.star_cascade.feature_definitions",
+  "global_stars_prev_1h": "global_stars_prev_1h: see the E4 plan, models.star_cascade.feature_definitions",
+  "hour_sin": "hour_sin: see the E4 plan, models.star_cascade.feature_definitions",
+  "hour_cos": "hour_cos: see the E4 plan, models.star_cascade.feature_definitions"
+ },
+ "fit": {
+  "commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+  "seconds": 371.03035616874695,
+  "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model star_cascade"
+ }
+}

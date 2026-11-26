@@ -52,6 +52,12 @@ CAL_DOCS = os.path.join(CRUCIBLE_ROOT, "docs", "v5", "calibration")
 MODELS_DIR = os.path.join(CAL_DOCS, "models")
 REPORTS_DIR = os.path.join(CAL_DOCS, "reports")
 MAX_CHECKPOINT_BYTES = 5 * 1024 * 1024
+# Pinned hashes of every registered card and checkpoint, kept OUTSIDE the model directories (audit E skeptic s1: the
+# card's behavioural fields - feature order, feature_quantiles, prior_rate, selection, response tables - were
+# unprotected because the expected checkpoint hash sat in the card itself). `load` refuses a model of the canonical
+# models directory whose card or checkpoint differs from this index, and a canonical model missing from it.
+INDEX_PATH = os.path.join(CAL_DOCS, "registry_index.json")
+CANONICAL_MODELS_DIR = MODELS_DIR
 
 # Behavioural domains (MASTER_SPEC 5.3). Gate F counts distinct domains with a fitted, held-out-evaluated model.
 DOMAINS = {
@@ -105,6 +111,54 @@ class ChecksumError(CalibrationError, OSError):
 
 class CardError(CalibrationError, ValueError):
     """A card that the registry cannot read or must refuse (unknown schema, kind or loader)."""
+
+
+def read_index() -> dict:
+    if not os.path.isfile(INDEX_PATH):
+        return {}
+    with open(INDEX_PATH, encoding="utf-8") as fh:
+        return json.load(fh).get("models", {})
+
+
+def index_entry(name: str, models_dir: str | None = None) -> dict:
+    """{card_sha256, files {file: sha256}} of a model as it is on disk now."""
+    d = model_dir(name, models_dir)
+    card = read_card(name, models_dir)
+    return {"version": int(card["version"]), "card_sha256": sha256_file(os.path.join(d, "model_card.json")),
+            "files": {fn: sha256_file(os.path.join(d, fn)) for fn in sorted(card_files(card))}}
+
+
+def write_index() -> str:
+    """Pin the current cards and checkpoints of the canonical models directory (an explicit, committed step)."""
+    entries = {m.split("@")[0]: index_entry(m.split("@")[0], CANONICAL_MODELS_DIR)
+               for m in list_models(CANONICAL_MODELS_DIR)}
+    with open(INDEX_PATH + ".tmp", "w", encoding="utf-8") as fh:
+        json.dump({"schema": "crucible.v5.calibration.registry_index/1", "models": entries}, fh, indent=1,
+                  sort_keys=True)
+        fh.write("\n")
+    os.replace(INDEX_PATH + ".tmp", INDEX_PATH)
+    return INDEX_PATH
+
+
+def index_problems(name: str, models_dir: str | None = None) -> list[str]:
+    """Why a model's card or checkpoint differs from the pinned index ([] when it matches). Models outside the
+    canonical directory are checked only when the index knows their name (scratch registries in tests)."""
+    idx = read_index()
+    root = os.path.abspath(_models_root(models_dir))
+    canonical = root == os.path.abspath(CANONICAL_MODELS_DIR)
+    if name not in idx:
+        return ["model is not in the pinned registry index (run registry.write_index and commit)"] if canonical else []
+    want = idx[name]
+    try:
+        got = index_entry(name, models_dir)
+    except (OSError, KeyError, ValueError) as e:
+        return [f"cannot hash the model: {e}"]
+    probs = []
+    if got["card_sha256"] != want.get("card_sha256"):
+        probs.append("model_card.json differs from the pinned index")
+    if got["files"] != want.get("files"):
+        probs.append("checkpoint files differ from the pinned index")
+    return probs
 
 
 def sha256_file(path: str) -> str:
@@ -508,6 +562,9 @@ def load(model_name: str, models_dir: str | None = None) -> FittedModel:
     bad = verify_files(card, d)
     if bad:
         raise ChecksumError(f"{name}: checkpoint files fail their SHA-256 check: {bad}")
+    ip = index_problems(name, models_dir)
+    if ip:
+        raise ChecksumError(f"{name}: {ip}")
     if schema == LOADER_SCHEMA:
         return _load_class(card, d)
     return _load_kind(card, d)

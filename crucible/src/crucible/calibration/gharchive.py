@@ -2,18 +2,30 @@
 
 Offline and evaluator side only: world code never imports this module (it depends only on fitted checkpoints through
 the registry). Each hourly dump of the public GitHub events timeline is downloaded, its SHA-256 checked against the
-committed manifest (or recorded on first acquisition), reduced to a compact numeric event table, and deleted. No
-logins, names, e-mail addresses or text are kept: only numeric actor and repository ids as distributed, the event
-type and action, and a few flags derived at extraction time.
+committed manifest (or recorded on first acquisition), reduced to a compact numeric event table, and deleted.
+
+Privacy (MASTER_SPEC 5.1: no reconstruction of individual real-world identities). No logins, names, e-mail
+addresses or text are kept, and since extractor version 2 no GitHub id either: actor and repository ids are replaced
+at extraction by keyed pseudonyms, blake2b-64 of the id under a 32-byte secret salt (`pseudonym_key`), created once
+per dataset directory with mode 0600 and never committed, logged or copied into any repository file. The pseudonyms
+keep only equality (same developer, same repository) inside this window, which is all the features use; they cannot
+be inverted or looked up through GitHub's API without the salt. Deleting the salt file makes the pseudonyms
+unlinkable even for the operator (a later re-extraction then creates new pseudonyms; verification does not depend
+on them, see `content_digest`). The repository hash bucket that the software fit uses for its train/validation split
+is computed from the raw id at extraction and kept as its own column (`repo_bucket`), so no fit needs a raw id.
+Residual risk, recorded in DATASETS.md: exact event timestamps and types can still be matched against the public GH
+Archive by someone who downloads it, so the extracted tables stay local (never committed) and only aggregate model
+parameters are published.
 
 Event table columns (one row per event, in archive order within an hour):
-    t       int32   seconds since the window start (2024-10-07T00:00:00Z)
-    type    uint8   index+1 into TYPES (0 = other)
-    action  uint8   index+1 into ACTIONS (0 = none / other)
-    flags   uint8   FLAG_ORG | FLAG_BOT | FLAG_OWNER | FLAG_REPO_CREATE
-    size    uint16  PushEvent payload.size (commits), capped at 65535; 0 otherwise
-    actor   int64   GitHub numeric actor id
-    repo    int64   GitHub numeric repository id
+    t           int32   seconds since the window start (2024-10-07T00:00:00Z)
+    type        uint8   index+1 into TYPES (0 = other)
+    action      uint8   index+1 into ACTIONS (0 = none / other)
+    flags       uint8   FLAG_ORG | FLAG_BOT | FLAG_OWNER | FLAG_REPO_CREATE
+    size        uint16  PushEvent payload.size (commits), capped at 65535; 0 otherwise
+    actor       int64   keyed pseudonym of the GitHub actor (63 bits)
+    repo        int64   keyed pseudonym of the GitHub repository (63 bits)
+    repo_bucket uint8   splitmix64(raw repository id ^ 20261125) % 100 (the software fit's repository split)
 """
 from __future__ import annotations
 
@@ -31,7 +43,7 @@ BASE_URL = "https://data.gharchive.org/"
 DATASET = "gharchive_2024-10-07_96h"
 WINDOW_START = _dt.datetime(2024, 10, 7, 0, 0, 0, tzinfo=_dt.timezone.utc)
 HOURS = 96
-EXTRACTOR_VERSION = "1"
+EXTRACTOR_VERSION = "2"           # 1: raw GitHub ids (superseded); 2: keyed pseudonyms
 
 TYPES = ("PushEvent", "CreateEvent", "DeleteEvent", "PullRequestEvent", "IssueCommentEvent", "WatchEvent",
          "PullRequestReviewEvent", "PullRequestReviewCommentEvent", "IssuesEvent", "ForkEvent", "ReleaseEvent",
@@ -42,7 +54,10 @@ ACTIONS = ("started", "opened", "closed", "reopened", "created", "published", "e
 ACTION_CODE = {name: i + 1 for i, name in enumerate(ACTIONS)}
 FLAG_ORG, FLAG_BOT, FLAG_OWNER, FLAG_REPO_CREATE = 1, 2, 4, 8
 COLUMNS = (("t", np.int32), ("type", np.uint8), ("action", np.uint8), ("flags", np.uint8), ("size", np.uint16),
-           ("actor", np.int64), ("repo", np.int64))
+           ("actor", np.int64), ("repo", np.int64), ("repo_bucket", np.uint8))
+IDENTITY_COLUMNS = ("actor", "repo")
+SALT_FILE = "pseudonym_key"
+REPO_SPLIT_SEED = 20261125            # fit_software's repository split (kept identical across extractor versions)
 
 
 def hour_names(start: _dt.datetime = WINDOW_START, hours: int = HOURS) -> list[str]:
@@ -62,13 +77,82 @@ def dataset_dir(dest: str | None = None) -> str:
     return dest or os.path.join(data_root(), DATASET)
 
 
+def canonical_ids(a: np.ndarray) -> np.ndarray:
+    """Ids replaced by the order of their first appearance (0, 1, 2, ...): the equality structure of a column, the
+    same for raw ids and for any injective pseudonym of them."""
+    a = np.asarray(a)
+    _, first, inv = np.unique(a, return_index=True, return_inverse=True)
+    order = np.empty(first.size, dtype=np.int64)
+    order[np.argsort(first, kind="stable")] = np.arange(first.size)
+    return order[inv.reshape(-1)]
+
+
 def content_digest(arrays: dict[str, np.ndarray]) -> str:
-    """SHA-256 over the columns in COLUMNS order (dtype, shape, bytes); independent of the npz container."""
+    """SHA-256 over the columns in COLUMNS order (dtype, shape, bytes), with the identity columns in canonical form
+    (`canonical_ids`), so the digest does not depend on the pseudonym salt; independent of the npz container."""
     h = hashlib.sha256()
     for name, dtype in COLUMNS:
         a = np.ascontiguousarray(arrays[name], dtype=dtype)
+        if name in IDENTITY_COLUMNS:
+            a = np.ascontiguousarray(canonical_ids(a), dtype=np.int64)
         h.update(name.encode()); h.update(str(a.dtype).encode()); h.update(str(a.shape).encode()); h.update(a.tobytes())
     return h.hexdigest()
+
+
+def content_digest_v1(arrays: dict[str, np.ndarray]) -> str:
+    """The extractor-1 digest (raw ids, seven columns), kept to check a raw extract before it is pseudonymised."""
+    h = hashlib.sha256()
+    for name, dtype in COLUMNS[:7]:
+        a = np.ascontiguousarray(arrays[name], dtype=dtype)
+        h.update(name.encode()); h.update(str(a.dtype).encode()); h.update(str(a.shape).encode()); h.update(a.tobytes())
+    return h.hexdigest()
+
+
+def pseudonym_key(dest: str | None = None, create: bool = True) -> bytes:
+    """The dataset's secret salt (32 bytes, file mode 0600, outside the repository)."""
+    p = os.path.join(dataset_dir(dest), SALT_FILE)
+    if not os.path.exists(p):
+        if not create:
+            raise FileNotFoundError(p)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(os.urandom(32))
+    with open(p, "rb") as fh:
+        key = fh.read()
+    if len(key) != 32:
+        raise ValueError(f"{p}: the pseudonym key must be 32 bytes")
+    return key
+
+
+def pseudonyms(ids: np.ndarray, key: bytes) -> np.ndarray:
+    """Keyed 63-bit pseudonyms (blake2b-64 under `key`) of integer ids; equal ids give equal pseudonyms."""
+    ids = np.asarray(ids, dtype=np.int64)
+    u, inv = np.unique(ids, return_inverse=True)
+    out = np.fromiter((int.from_bytes(hashlib.blake2b(str(int(x)).encode(), key=key, digest_size=8).digest(),
+                                      "little") & ((1 << 63) - 1) for x in u), dtype=np.int64, count=u.size)
+    if np.unique(out).size != u.size:
+        raise ValueError("pseudonym collision; delete the key file and re-extract")
+    return out[inv.reshape(-1)]
+
+
+def repo_buckets(raw_repo: np.ndarray) -> np.ndarray:
+    """fit_software's repository split bucket of raw repository ids (splitmix64(id ^ seed) % 100)."""
+    z = np.asarray(raw_repo, np.int64).astype(np.uint64) ^ np.uint64(REPO_SPLIT_SEED)
+    z = z + np.uint64(0x9E3779B97F4A7C15)
+    with np.errstate(over="ignore"):
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    return ((z ^ (z >> np.uint64(31))) % np.uint64(100)).astype(np.uint8)
+
+
+def pseudonymise(raw: dict[str, np.ndarray], key: bytes) -> dict[str, np.ndarray]:
+    """An extractor-2 table from a raw-id table: identity columns pseudonymised, repo_bucket added."""
+    out = {name: np.asarray(raw[name]) for name, _ in COLUMNS[:5]}
+    out["repo_bucket"] = repo_buckets(raw["repo"])
+    out["actor"] = pseudonyms(raw["actor"], key)
+    out["repo"] = pseudonyms(raw["repo"], key)
+    return {name: np.asarray(out[name], dtype=dt) for name, dt in COLUMNS}
 
 
 def _download(url: str, path: str, retries: int = 4) -> tuple[str, int]:
@@ -90,11 +174,12 @@ def _download(url: str, path: str, retries: int = 4) -> tuple[str, int]:
     raise RuntimeError(f"download failed after {retries} attempts: {url}: {last}")
 
 
-def extract_file(path: str, hour_index: int) -> tuple[dict[str, np.ndarray], dict]:
-    """Parse one hourly dump into the compact event table. Returns (arrays, stats)."""
+def extract_file(path: str, hour_index: int, key: bytes) -> tuple[dict[str, np.ndarray], dict]:
+    """Parse one hourly dump into the compact event table, ids pseudonymised under `key` (the dataset's salt). Raw
+    ids exist only in memory while the hour is parsed. Returns (arrays, stats)."""
     t0 = int((WINDOW_START + _dt.timedelta(hours=hour_index)).timestamp())
     base = int(WINDOW_START.timestamp())
-    cols = {name: [] for name, _ in COLUMNS}
+    cols = {name: [] for name, _ in COLUMNS[:7]}
     bad = 0; out_of_hour = 0
     hour_cache: dict[str, int] = {}
 
@@ -145,7 +230,9 @@ def extract_file(path: str, hour_index: int) -> tuple[dict[str, np.ndarray], dic
             cols["size"].append(size)
             cols["actor"].append(aid)
             cols["repo"].append(rid)
-    arrays = {name: np.asarray(cols[name], dtype=dtype) for name, dtype in COLUMNS}
+    raw = {name: np.asarray(cols[name], dtype=dtype) for name, dtype in COLUMNS[:7]}
+    del cols
+    arrays = pseudonymise(raw, key)
     stats = {"events": int(arrays["t"].size), "unparseable_lines": bad, "outside_hour_events": out_of_hour}
     return arrays, stats
 
@@ -159,6 +246,8 @@ def acquire_hour(name: str, hour_index: int, dest: str, expected_sha256: str | N
     if os.path.exists(out) and os.path.exists(meta_path):
         with open(meta_path) as fh:
             meta = json.load(fh)
+        if meta.get("extractor_version") != EXTRACTOR_VERSION:
+            meta = pseudonymise_hour(name, dest)
         if expected_sha256 is None or meta.get("raw_sha256") == expected_sha256:
             return meta
     url = f"{BASE_URL}{name}.json.gz"
@@ -167,7 +256,7 @@ def acquire_hour(name: str, hour_index: int, dest: str, expected_sha256: str | N
     if expected_sha256 is not None and sha != expected_sha256:
         os.remove(raw)
         raise RuntimeError(f"checksum mismatch for {url}: {sha} != {expected_sha256}")
-    arrays, stats = extract_file(raw, hour_index)
+    arrays, stats = extract_file(raw, hour_index, pseudonym_key(dest))
     os.remove(raw)
     tmp = out + ".tmp.npz"
     np.savez_compressed(tmp, **arrays)
@@ -177,6 +266,48 @@ def acquire_hour(name: str, hour_index: int, dest: str, expected_sha256: str | N
     with open(meta_path, "w") as fh:
         json.dump(meta, fh, indent=1)
     return meta
+
+
+def pseudonymise_hour(name: str, dest: str | None = None) -> dict:
+    """Convert an extractor-1 hour (raw ids) in place to extractor 2: the raw table must still match its recorded
+    extractor-1 digest; the pseudonymised table is written atomically over the raw-id file."""
+    dest = dataset_dir(dest)
+    ext_dir = os.path.join(dest, "extracted")
+    out = os.path.join(ext_dir, f"{name}.npz")
+    meta_path = os.path.join(ext_dir, f"{name}.meta.json")
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    if meta.get("extractor_version") == EXTRACTOR_VERSION:
+        return meta
+    with np.load(out) as z:
+        raw = {k: z[k] for k in z.files}
+    if content_digest_v1(raw) != meta.get("extract_digest"):
+        raise RuntimeError(f"{out}: raw extract does not match its recorded digest; re-acquire the hour")
+    arrays = pseudonymise(raw, pseudonym_key(dest))
+    del raw
+    tmp = out + ".tmp.npz"
+    np.savez_compressed(tmp, **arrays)
+    os.replace(tmp, out)
+    meta = dict(meta, extract_digest=content_digest(arrays), extract_digest_raw_v1=meta.get("extract_digest"),
+                extractor_version=EXTRACTOR_VERSION)
+    with open(meta_path + ".tmp", "w") as fh:
+        json.dump(meta, fh, indent=1)
+    os.replace(meta_path + ".tmp", meta_path)
+    return meta
+
+
+def pseudonymise_window(dest: str | None = None) -> dict:
+    """Convert every hour of an extractor-1 acquisition and rewrite acquisition.json (raw ids are deleted)."""
+    dest = dataset_dir(dest)
+    metas = [pseudonymise_hour(n, dest) for n in hour_names()]
+    p = os.path.join(dest, "acquisition.json")
+    with open(p) as fh:
+        acq = json.load(fh)
+    acq.update(files=metas, extractor_version=EXTRACTOR_VERSION)
+    with open(p + ".tmp", "w") as fh:
+        json.dump(acq, fh, indent=1)
+    os.replace(p + ".tmp", p)
+    return acq
 
 
 def _acquire_one(args):
@@ -226,7 +357,7 @@ LICENSE = {
 TITLE = "GH Archive: public GitHub events, 2024-10-07 to 2024-10-10 UTC (96 hourly dumps)"
 DESCRIPTION = ("Hourly dumps of the GitHub public events API archived by GH Archive, 2024-10-07T00 to 2024-10-11T00 "
                "UTC, streamed one hour at a time and reduced to a numeric event table (time, event type and action, "
-               "numeric actor and repository ids, four derived flags, push size).")
+               "keyed pseudonyms of actor and repository ids, four derived flags, push size, repository split bucket).")
 # Provenance facts that the calibration registry requires of every dataset (datasets.py, audit.provenance_complete).
 PROVENANCE = {
     "publisher": "GH Archive (Ilya Grigorik), archiving the GitHub public events API",
@@ -248,7 +379,9 @@ def manifest(dest: str | None = None) -> dict:
         "url": BASE_URL, "homepage": "https://www.gharchive.org/",
         "license": LICENSE,
         "files": [{"file": f["file"], "url": f["url"], "sha256": f["raw_sha256"], "bytes": f["raw_bytes"],
-                   "events": f["events"], "extract_digest": f["extract_digest"]} for f in acq["files"]],
+                   "events": f["events"], "extract_digest": f["extract_digest"],
+                   **({"extract_digest_raw_v1": f["extract_digest_raw_v1"]} if f.get("extract_digest_raw_v1") else {})}
+                  for f in acq["files"]],
         "size": {"raw_bytes_streamed": int(sum(f["raw_bytes"] for f in acq["files"])), "events": acq["events"],
                  "kept_on_disk": "compact event tables only (about 160 MB); raw files deleted after extraction"},
         "schema_extracted": {name: str(np.dtype(dt)) for name, dt in COLUMNS},
@@ -260,8 +393,12 @@ def manifest(dest: str | None = None) -> dict:
             "window_utc": [WINDOW_START.isoformat(), (WINDOW_START + _dt.timedelta(hours=HOURS)).isoformat()],
             "acquired_by": "crucible.calibration.gharchive.acquire (streamed one hour at a time)",
             "population": "public GitHub accounts and public repositories whose events reached the public events API",
-            "privacy": "only numeric actor and repository ids as distributed, event type/action, derived flags and push "
-                       "size are kept; no logins, names, e-mails, commit messages or text",
+            "privacy": "no GitHub id, login, name, e-mail, commit message or text is kept: actor and repository ids are "
+                       "replaced at extraction by keyed 63-bit pseudonyms (blake2b under a 32-byte secret salt kept "
+                       "outside the repository, mode 0600); only equality inside the window survives; event "
+                       "type/action, derived flags, push size and the repository split bucket are kept. Exact "
+                       "timestamps could still be matched against the public archive, so extracted tables are never "
+                       "committed",
             **PROVENANCE,
         },
     }

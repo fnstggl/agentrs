@@ -1,0 +1,414 @@
+{
+ "domain": "attention_allocation",
+ "features": [
+  "user_mean_log_minutes",
+  "user_log_sessions_before",
+  "user_log_rows_per_session",
+  "active_days_7d",
+  "log_minutes_since_last_session",
+  "sessions_earlier_today",
+  "hour_sin",
+  "hour_cos",
+  "weekend"
+ ],
+ "target": "y = log1p(minutes of logged play in the session)",
+ "feature_map": {
+  "user_mean_log_minutes": "user_mean_log_minutes: see the E4 plan, models.session_length.feature_definitions",
+  "user_log_sessions_before": "user_log_sessions_before: see the E4 plan, models.session_length.feature_definitions",
+  "user_log_rows_per_session": "user_log_rows_per_session: see the E4 plan, models.session_length.feature_definitions",
+  "active_days_7d": "active_days_7d: see the E4 plan, models.session_length.feature_definitions",
+  "log_minutes_since_last_session": "log_minutes_since_last_session: see the E4 plan, models.session_length.feature_definitions",
+  "sessions_earlier_today": "sessions_earlier_today: see the E4 plan, models.session_length.feature_definitions",
+  "hour_sin": "hour_sin: see the E4 plan, models.session_length.feature_definitions",
+  "hour_cos": "hour_cos: see the E4 plan, models.session_length.feature_definitions",
+  "weekend": "weekend: see the E4 plan, models.session_length.feature_definitions"
+ },
+ "metrics": {
+  "pinball": 0.07276511558902697,
+  "pit_ks": 0.042823154831799826,
+  "coverage_80": 0.8185174120860362,
+  "coverage_90": 0.9230966200068282,
+  "n": 46864
+ },
+ "baseline_metrics": {
+  "pinball": 0.07276511558902697,
+  "pit_ks": 0.042823154831799826,
+  "coverage_80": 0.8185174120860362,
+  "coverage_90": 0.9230966200068282,
+  "n": 46864,
+  "baseline": "B1_own_history"
+ },
+ "candidates": {
+  "B0_global": {
+   "complexity": "baseline: global quantiles",
+   "n_params": 19,
+   "val": {
+    "pinball": 0.07446413399640597,
+    "pit_ks": 0.03220793348614942,
+    "coverage_80": 0.8111426240335677,
+    "coverage_90": 0.9137107113718481,
+    "n": 25739
+   },
+   "test": {
+    "pinball": 0.07499200554481764,
+    "pit_ks": 0.02954172652765221,
+    "coverage_80": 0.8232545237282349,
+    "coverage_90": 0.9194050870604302,
+    "n": 46864
+   }
+  },
+  "B1_own_history": {
+   "complexity": "baseline: quantiles by own-history decile",
+   "n_params": 190,
+   "val": {
+    "pinball": 0.07187568520947653,
+    "pit_ks": 0.022475591190903237,
+    "coverage_80": 0.8128132406076383,
+    "coverage_90": 0.9201600683787249,
+    "n": 25739
+   },
+   "test": {
+    "pinball": 0.07276511558902697,
+    "pit_ks": 0.042823154831799826,
+    "coverage_80": 0.8185174120860362,
+    "coverage_90": 0.9230966200068282,
+    "n": 46864
+   }
+  },
+  "M1_quantile_linear": {
+   "complexity": "monotone quantile network, linear",
+   "n_params": 190,
+   "val": {
+    "pinball": 0.07179795565130177,
+    "pit_ks": 0.023000116554644734,
+    "coverage_80": 0.8077625393371926,
+    "coverage_90": 0.9074167605579082,
+    "n": 25739
+   },
+   "test": {
+    "pinball": 0.07253531368680284,
+    "pit_ks": 0.0424740147289632,
+    "coverage_80": 0.8196483441447593,
+    "coverage_90": 0.9121073745305565,
+    "n": 46864
+   }
+  },
+  "M2_quantile_mlp": {
+   "complexity": "monotone quantile network 2x32",
+   "n_params": 2003,
+   "val": {
+    "pinball": 0.07137482063071553,
+    "pit_ks": 0.02288356190994212,
+    "coverage_80": 0.8015851431679553,
+    "coverage_90": 0.907766424492016,
+    "n": 25739
+   },
+   "test": {
+    "pinball": 0.0722934502928965,
+    "pit_ks": 0.030537172274559266,
+    "coverage_80": 0.8036659269375214,
+    "coverage_90": 0.908607886650734,
+    "n": 46864
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "pinball",
+  "lower_is_better": true,
+  "validation": {
+   "B0_global": 0.07446413399640597,
+   "B1_own_history": 0.07187568520947653,
+   "M1_quantile_linear": 0.07179795565130177,
+   "M2_quantile_mlp": 0.07137482063071553
+  },
+  "test": {
+   "B0_global": 0.07499200554481764,
+   "B1_own_history": 0.07276511558902697,
+   "M1_quantile_linear": 0.07253531368680284,
+   "M2_quantile_mlp": 0.0722934502928965
+  },
+  "baselines": [
+   "B0_global",
+   "B1_own_history"
+  ],
+  "candidates": [
+   "B0_global",
+   "B1_own_history",
+   "M1_quantile_linear",
+   "M2_quantile_mlp"
+  ],
+  "ranked_on_validation": [
+   "M2_quantile_mlp",
+   "B1_own_history",
+   "M1_quantile_linear",
+   "B0_global"
+  ],
+  "compute_us_per_row": {
+   "B0_global": 0.02174042453298647,
+   "B1_own_history": 0.03413138572090299,
+   "M1_quantile_linear": 0.6070810046776862,
+   "M2_quantile_mlp": 1.1221268483670221
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_quantile_mlp",
+   "B1_own_history",
+   "M1_quantile_linear",
+   "B0_global"
+  ],
+  "long_horizon_validation": {
+   "B0_global": 0.004979985921560499,
+   "B1_own_history": 0.011188704615068715,
+   "M1_quantile_linear": 0.011317449013313469,
+   "M2_quantile_mlp": 0.009607489027384404
+  },
+  "long_horizon_reference": "B0_global",
+  "drift_rejected": {
+   "M2_quantile_mlp": {
+    "versus": "B0_global",
+    "difference_ci95": [
+     0.0014907650908457996,
+     0.007847323191723722
+    ],
+    "long_horizon": 0.009607489027384404,
+    "reference": 0.004979985921560499
+   },
+   "B1_own_history": {
+    "versus": "B0_global",
+    "difference_ci95": [
+     0.00308646139479377,
+     0.010279275393323059
+    ],
+    "long_horizon": 0.011188704615068715,
+    "reference": 0.004979985921560499
+   },
+   "M1_quantile_linear": {
+    "versus": "B0_global",
+    "difference_ci95": [
+     0.0032759982954143046,
+     0.009551149697281948
+    ],
+    "long_horizon": 0.011317449013313469,
+    "reference": 0.004979985921560499
+   }
+  },
+  "selected_on_validation": "B0_global",
+  "best_baseline_on_test": "B1_own_history",
+  "kept": "B1_own_history",
+  "kept_is_baseline": true,
+  "reason": "B0_global was selected on validation but the baseline B1_own_history is better on test; kept; rejected for long-horizon drift: ['B1_own_history', 'M1_quantile_linear', 'M2_quantile_mlp']"
+ },
+ "uncertainty": {
+  "metric": "pinball",
+  "kept": "B1_own_history",
+  "baseline": "B1_own_history",
+  "kept_test": 0.07276511558902697,
+  "baseline_test": 0.07276511558902697,
+  "difference": 0.0,
+  "ci95": [
+   0.0,
+   0.0
+  ],
+  "kept_ci95": [
+   0.07126657456070781,
+   0.07449348530842877
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 3948
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "kuairand_pure"
+  ],
+  "identification": "observational",
+  "population": "27,285 Kuaishou users (selected sample)",
+  "platform": "Kuaishou featured feed (tab 1 and others)",
+  "period": "2022-04-22..05-08",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+   "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+   "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+   "committed_at": "2026-11-26T10:15:33+00:00"
+  },
+  "fit": {
+   "commit": "b1f2b73ced825a0f22e697e00cabacec090c06b2",
+   "seconds": 1233.7681806087494,
+   "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model session_length"
+  },
+  "domain": "attention_allocation",
+  "kept_candidate": "B1_own_history"
+ },
+ "limits": "KuaiRand-Pure: 27,285 users of the Kuaishou short-video app (China), featured feed, sessions of 2022-04-22..05-08 (30-minute idle gap). The simulator may use this model for how many minutes an individual spends watching in one feed session, given its own earlier sessions and the time of day. It may NOT infer: (1) total app time (only plays of the 7,583 pool videos are logged, so sessions are shorter than real app sessions); (2) other platforms or content kinds (articles, long video); (3) how session length responds to what is shown (no content inputs; use content_open and watch_time per item for that); (4) other populations or periods (one month including a holiday).",
+ "report": "docs/v5/calibration/reports/session_length.json",
+ "fitted_at": "2026-11-26T10:49:03Z",
+ "mechanisms": [
+  "attention.session_length"
+ ],
+ "quantile_levels": [
+  0.05,
+  0.1,
+  0.15,
+  0.2,
+  0.25,
+  0.3,
+  0.35,
+  0.4,
+  0.45,
+  0.5,
+  0.55,
+  0.6,
+  0.65,
+  0.7,
+  0.75,
+  0.8,
+  0.85,
+  0.9,
+  0.95
+ ],
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "user_mean_log_minutes": [
+   0.0,
+   0.04333,
+   0.10535,
+   0.154836,
+   0.24598,
+   0.367878,
+   0.505767,
+   0.638513,
+   0.723436,
+   0.898347,
+   2.277018
+  ],
+  "user_log_sessions_before": [
+   0.0,
+   1.098612,
+   1.94591,
+   2.397895,
+   2.944439,
+   3.465736,
+   3.850148,
+   4.127134,
+   4.290459,
+   4.553877,
+   5.09375
+  ],
+  "user_log_rows_per_session": [
+   0.0,
+   0.693147,
+   0.76214,
+   0.819853,
+   0.916291,
+   1.052092,
+   1.213023,
+   1.386294,
+   1.507076,
+   1.794401,
+   3.465736
+  ],
+  "active_days_7d": [
+   0.0,
+   0.0,
+   1.0,
+   2.0,
+   3.0,
+   4.0,
+   6.0,
+   7.0,
+   7.0,
+   7.0,
+   7.0
+  ],
+  "log_minutes_since_last_session": [
+   3.433992,
+   3.480158,
+   3.673865,
+   3.924939,
+   4.727446,
+   6.083635,
+   7.150182,
+   7.987039,
+   8.628221,
+   9.218408,
+   9.218408
+  ],
+  "sessions_earlier_today": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   2.0,
+   3.0,
+   5.0,
+   7.0,
+   17.0
+  ],
+  "hour_sin": [
+   -1.0,
+   -1.0,
+   -1.0,
+   -0.965926,
+   -0.866025,
+   -0.5,
+   0.258819,
+   0.866025,
+   0.965926,
+   1.0,
+   1.0
+  ],
+  "hour_cos": [
+   -1.0,
+   -1.0,
+   -1.0,
+   -0.965926,
+   -0.707107,
+   -0.258819,
+   0.707107,
+   0.965926,
+   0.965926,
+   1.0,
+   1.0
+  ],
+  "weekend": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ },
+ "population_mean_y": 0.22718293987453567,
+ "module": "crucible.calibration.predictors_e4",
+ "schema": "crucible.v5.model_card/1",
+ "name": "session_length",
+ "version": 1,
+ "kind": "binned_quantiles",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "b74f4f467cb384df381d6c67c75c1c8b33a340b4b4832f036c44e3c16c581e47"
+ }
+}

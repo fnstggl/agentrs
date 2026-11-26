@@ -1,0 +1,362 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "news_click_semantic",
+ "version": 1,
+ "domain": "content_selection",
+ "datasets": [
+  "mind_small"
+ ],
+ "identification": "observational",
+ "estimand": "P(click | news shown in an impression, the user's click history), with text affinity measured in the shared semantic encoder space (sentence-transformers/all-MiniLM-L6-v2) so that the simulator can compute it",
+ "population": "50,000 sampled Microsoft News users (US, English)",
+ "platform": "Microsoft News (msn.com)",
+ "period": "2019-11-09..15",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+  "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "as news_click@1",
+   "rows": 1810125,
+   "users": 26282
+  },
+  "val": {
+   "definition": "as news_click@1",
+   "rows": 243973,
+   "users": 3995
+  },
+  "test": {
+   "definition": "as news_click@1 (dev day)",
+   "rows": 2740998,
+   "users": 50000
+  }
+ },
+ "heldout_splits": [
+  "test"
+ ],
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.16294096107993447,
+    "brier": 0.03693558507597882,
+    "ece": 0.002914140858171349,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.16996579303137585,
+    "brier": 0.038985112638120906,
+    "ece": 0.000680002262956593,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "B1_popularity": {
+   "complexity": "baseline: logistic on 3 features",
+   "n_params": 4,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.15246178890370343,
+    "brier": 0.03571896247988489,
+    "ece": 0.003815334080286393,
+    "auc": 0.691213538736481,
+    "mean_pred": 0.03908943412835846,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15647478706477147,
+    "brier": 0.0373706774897133,
+    "ece": 0.0036751015349938817,
+    "auc": 0.7140561918133158,
+    "mean_pred": 0.042681745821331406,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 7 features",
+   "n_params": 8,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.14685720104424566,
+    "brier": 0.03505956256491026,
+    "ece": 0.0020303393295858173,
+    "auc": 0.7394722819987047,
+    "mean_pred": 0.03799162607626699,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15108987901659823,
+    "brier": 0.036743192725442166,
+    "ece": 0.0020128867715806637,
+    "auc": 0.7550925333049278,
+    "mean_pred": 0.042461752468333135,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 400 trees",
+   "n_params": 36400,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.1457062246837746,
+    "brier": 0.034837149066316055,
+    "ece": 0.0019113904898760844,
+    "auc": 0.7460057411173823,
+    "mean_pred": 0.03791151727542428,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15027963525768567,
+    "brier": 0.0366995601001397,
+    "ece": 0.001365900809717807,
+    "auc": 0.7612506945740973,
+    "mean_pred": 0.041004411041055275,
+    "mean_obs": 0.040635928957263014
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.16294096107993447,
+   "B1_popularity": 0.15246178890370343,
+   "M1_logistic": 0.14685720104424566,
+   "M2_gbdt": 0.1457062246837746
+  },
+  "test": {
+   "B0_constant": 0.16996579303137585,
+   "B1_popularity": 0.15647478706477147,
+   "M1_logistic": 0.15108987901659823,
+   "M2_gbdt": 0.15027963525768567
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_popularity"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_popularity",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_popularity",
+   "B0_constant"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.0002436758950352669,
+   "B1_popularity": 0.023750062100589275,
+   "M1_logistic": 0.04650022368878126,
+   "M2_gbdt": 31.34350853972137
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_popularity",
+   "B0_constant"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.003615204955873972,
+   "B1_popularity": 0.002388076728262096,
+   "M1_logistic": 0.0025037495105882323,
+   "M2_gbdt": 0.0013404026110738557
+  },
+  "long_horizon_reference": "M2_gbdt",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_popularity",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "baseline_comparison": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_popularity",
+  "kept_test": 0.15027963525768567,
+  "baseline_test": 0.15647478706477147,
+  "difference": -0.006195151807085797,
+  "ci95": [
+   -0.006386337737394857,
+   -0.0060150066896190214
+  ],
+  "kept_ci95": [
+   0.14940208733041915,
+   0.15129546922622072
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 50000
+  }
+ },
+ "calibration": {
+  "ece": 0.001365900809717807,
+  "brier": 0.0366995601001397,
+  "mean_pred": 0.041004411041055275,
+  "mean_obs": 0.040635928957263014,
+  "reliability": [
+   {
+    "lo": 0.0,
+    "hi": 0.06666666666666667,
+    "n": 2316488,
+    "mean_pred": 0.024174974631225275,
+    "mean_obs": 0.02476507540725443
+   },
+   {
+    "lo": 0.06666666666666667,
+    "hi": 0.13333333333333333,
+    "n": 292364,
+    "mean_pred": 0.09150162731787698,
+    "mean_obs": 0.09084907854592221
+   },
+   {
+    "lo": 0.13333333333333333,
+    "hi": 0.2,
+    "n": 73829,
+    "mean_pred": 0.16089508884465487,
+    "mean_obs": 0.15651031437511004
+   },
+   {
+    "lo": 0.2,
+    "hi": 0.26666666666666666,
+    "n": 28335,
+    "mean_pred": 0.2290806206025042,
+    "mean_obs": 0.2123875066172578
+   },
+   {
+    "lo": 0.26666666666666666,
+    "hi": 0.3333333333333333,
+    "n": 14401,
+    "mean_pred": 0.2960263607727892,
+    "mean_obs": 0.277619609749323
+   },
+   {
+    "lo": 0.3333333333333333,
+    "hi": 0.4,
+    "n": 6628,
+    "mean_pred": 0.3625578569433429,
+    "mean_obs": 0.3269462884731442
+   },
+   {
+    "lo": 0.4,
+    "hi": 0.4666666666666667,
+    "n": 3762,
+    "mean_pred": 0.4301672165254753,
+    "mean_obs": 0.35699096225412014
+   },
+   {
+    "lo": 0.4666666666666667,
+    "hi": 0.5333333333333333,
+    "n": 2313,
+    "mean_pred": 0.49893893253240673,
+    "mean_obs": 0.4803285776048422
+   },
+   {
+    "lo": 0.5333333333333333,
+    "hi": 0.6,
+    "n": 1154,
+    "mean_pred": 0.5630789521093277,
+    "mean_obs": 0.49913344887348354
+   },
+   {
+    "lo": 0.6,
+    "hi": 0.6666666666666666,
+    "n": 828,
+    "mean_pred": 0.6333719379799122,
+    "mean_obs": 0.40217391304347827
+   },
+   {
+    "lo": 0.6666666666666666,
+    "hi": 0.7333333333333333,
+    "n": 464,
+    "mean_pred": 0.6925956906957337,
+    "mean_obs": 0.4525862068965517
+   },
+   {
+    "lo": 0.7333333333333333,
+    "hi": 0.8,
+    "n": 304,
+    "mean_pred": 0.7641849672846954,
+    "mean_obs": 0.3355263157894737
+   },
+   {
+    "lo": 0.8,
+    "hi": 0.8666666666666667,
+    "n": 127,
+    "mean_pred": 0.8129235251985126,
+    "mean_obs": 0.3228346456692913
+   },
+   {
+    "lo": 0.8666666666666667,
+    "hi": 0.9333333333333333,
+    "n": 1,
+    "mean_pred": 0.8784424800828925,
+    "mean_obs": 0.0
+   }
+  ]
+ },
+ "heldout_extra": {
+  "reference_news_click_v1_test_log_loss": 0.14648386140288772,
+  "ranking_test": {
+   "impressions": 73152,
+   "impression_auc": 0.6576467840653093,
+   "mrr": 0.3173598577122886,
+   "ndcg5": 0.35320782220325864,
+   "ndcg10": 0.4123297915402412
+  }
+ },
+ "rule_comparison": {
+  "mapping": "C2 open rule with aff = text_cos (MiniLM cosine), fam = 0, seen = 0, sat = 0.5, duration 120 s, window = the next 3 items of the impression",
+  "test": {
+   "n": 2740998,
+   "log_loss": 0.3080320905882334,
+   "brier": 0.08241003328663768,
+   "ece": 0.18105352272120823,
+   "auc": 0.657183671307984,
+   "mean_pred": 0.22168945167847126,
+   "mean_obs": 0.040635928957263014
+  }
+ },
+ "long_horizon_test": {
+  "stability_4h_blocks": {
+   "B0_constant": 0.0017447532681986579,
+   "B1_popularity": 0.0027448584816108135,
+   "M1_logistic": 0.002967336605528974,
+   "M2_gbdt": 0.0027680097172462395
+  }
+ },
+ "identification_note": "Observational: the production recommender chose the impressions, so click probabilities are conditional on that selection; feature effects are associations.",
+ "extrapolation_limits": "MIND-small: 50,000 sampled Microsoft News users (US, English), impressions 2019-11-09..15 chosen by the production recommender. The simulator may use this model for the probability that an individual opens an article shown in a slate, given the cosine of the article's text and its consumption history in the shared MiniLM-L6 space, its category share, popularity per active individual, age and slate size. It may NOT infer: (1) clicks on video or social posts (content_open); (2) other populations, languages or periods; (3) the causal effect of showing an item (no randomised exposure); (4) dwell or reading time; (5) affinities from other encoders or projections that do not preserve MiniLM cosines. Licence: Microsoft Research terms, non-commercial; acquisition route unresolved (BLOCKERS B-1).",
+ "feature_map": {
+  "text_cos": "text_cos: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "text_cos_z": "text_cos_z: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "cat_share": "cat_share: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "log_hist_len": "log_hist_len: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "pop_log_clicks_per_1k": "pop_log_clicks_per_1k: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "age_log_hours": "age_log_hours: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "slate_size_log": "slate_size_log: see the E4 plan, models.news_click_semantic.feature_definitions"
+ },
+ "fit": {
+  "commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+  "seconds": 239.99448204040527,
+  "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model news_click_semantic"
+ }
+}

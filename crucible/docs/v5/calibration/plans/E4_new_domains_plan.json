@@ -1,0 +1,341 @@
+{
+ "schema": "crucible.v5.evaluation_plan/1",
+ "workstream": "E",
+ "id": "E4",
+ "title": "New behavioural domains (attention allocation, repeat consumption, product retention, purchase and price response, community participation, social diffusion) and the shared-space news model: prespecified evaluation plan",
+ "written_before_fit": true,
+ "datasets": [
+  "kuairand_pure",
+  "online_retail_ii",
+  "gharchive_2024-10-07_96h",
+  "mind_small"
+ ],
+ "global_rules": {
+  "fit_on": "train split only; every candidate and baseline sees exactly the same train rows",
+  "compute": "median of 5 timed single-threaded evaluations of 100,000 validation rows, microseconds per row, NumPy portable predictor; a candidate above 100 microseconds per row is not eligible",
+  "selection": "among eligible candidates (baselines included) order by the primary metric on the validation split (ties within 1e-4 go to the simpler candidate). Keep the first unless its validation long-horizon measure is worse than the smallest validation long-horizon measure among eligible candidates with the 95% cluster-bootstrap interval of the difference (200 resamples, seed 0) entirely above 0; then take the next, and so on",
+  "confirmation": "on the test split the selected candidate's primary metric is compared with the best simple baseline's; if a baseline is strictly better on test the baseline is kept and the report says why",
+  "worse_model_kept": "never: the kept model's primary test metric must be no worse than every simple baseline's",
+  "test_once": "test metrics are computed once, after selection; no candidate is refitted after test metrics are seen",
+  "uncertainty": "cluster bootstrap over the model's cluster unit (user, customer, product, developer or repository), 200 resamples, seed 0: 95% interval of the kept model's primary test metric and of its difference from the best baseline",
+  "rule_comparison": "every model is also scored on its test rows against the simulator's existing rule-based behaviour (rule_mapping), parameters not refitted; where the simulator has no rule for the behaviour the plan says so",
+  "ece": "15 equal-width bins weighted by size",
+  "auc": "ROC AUC (Mann-Whitney)",
+  "hyperparameters": {
+   "logistic": "L2 logistic regression on standardised features, C = 1.0, lbfgs, max_iter 1000",
+   "gbdt": "HistGradientBoostingClassifier(learning_rate=0.05, max_iter=400, max_leaf_nodes=31, min_samples_leaf=200, l2_regularization=1.0, early_stopping=True, validation_fraction=0.1, n_iter_no_change=20, random_state=0)",
+   "gbdt_regression": "HistGradientBoostingRegressor with the same settings (loss squared_error, or poisson for counts)",
+   "poisson_glm": "Poisson regression with log link on standardised features, L2 alpha 1e-4, scikit-learn PoissonRegressor(max_iter=1000)",
+   "linear": "ridge regression on standardised features, alpha 1.0",
+   "quantile_linear": "monotone quantile network without hidden layer (fitlib.fit_quantile_net), Adam lr 3e-3, batch 4096, at most 25 epochs, early stopping on validation pinball loss (patience 3), seed 0",
+   "quantile_mlp": "monotone quantile network with two tanh hidden layers of 32 units, same optimiser and stopping rule"
+  },
+  "user_split_kuairand": "bucket = int(sha256('e1:' + str(user_id)).hexdigest()[:8], 16) % 100 (the E1 buckets); train 0-69, validation 70-84, test 85-99",
+  "customer_split_retail": "customer = order of first appearance of the pseudonymised customer in the extracted table (salt-independent); bucket = int(sha256('e4:' + str(customer)).hexdigest()[:8], 16) % 100; train 0-69, validation 70-84, test 85-99"
+ },
+ "models": {
+  "session_length": {
+   "domain": "attention_allocation",
+   "dataset": "kuairand_pure",
+   "identification": "observational",
+   "estimand": "distribution of the minutes of logged play time an individual allocates to one feed session, given its earlier sessions and the time of day",
+   "rows": "sessions (30-minute idle gap, both logs, as kuairand.sessions_by_day) starting 2022-04-22..05-08; target y = log1p(sum of play_time_ms of the session's rows / 60000)",
+   "splits": {
+    "train": "train users, sessions starting 2022-04-22..05-02",
+    "validation": "validation users, 2022-04-29..05-02",
+    "test": "test users, 2022-05-03..05-08"
+   },
+   "features": [
+    "user_mean_log_minutes",
+    "user_log_sessions_before",
+    "user_log_rows_per_session",
+    "active_days_7d",
+    "log_minutes_since_last_session",
+    "sessions_earlier_today",
+    "hour_sin",
+    "hour_cos",
+    "weekend"
+   ],
+   "feature_definitions": "user_mean_log_minutes: mean y of the user's sessions that started on earlier days (population train mean when none); user_log_sessions_before: log1p(number of such sessions); user_log_rows_per_session: log1p(mean rows per earlier session); active_days_7d: active days among the previous 7; log_minutes_since_last_session: log1p(minutes since the previous session of the user ended, capped at 10080; 10080 when none); sessions_earlier_today: sessions of the user that started earlier the same day; hour of the session start; weekend",
+   "quantile_levels": [
+    0.05,
+    0.1,
+    0.15,
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95
+   ],
+   "candidates": {
+    "B0_global": "baseline: training quantiles of y, the same for every session",
+    "B1_own_history": "baseline: binned quantiles by 10 deciles of user_mean_log_minutes",
+    "M1_quantile_linear": "quantile_linear",
+    "M2_quantile_mlp": "quantile_mlp"
+   },
+   "primary_metric": "pinball",
+   "secondary_metrics": [
+    "pit_ks",
+    "coverage_80",
+    "coverage_90"
+   ],
+   "long_horizon": "forward simulation of the validation (selection) and test (report) users over their window: sessions keep their observed start times, y is drawn from the candidate, and user_mean_log_minutes / user_log_sessions_before are updated from the drawn values at each day boundary; measure = mean over days of |mean simulated y - mean observed y|; 20 draws, seed 0",
+   "rule_mapping": "C2 session rule (crucible.social.consumption): Monte Carlo of the engine's session loop with k = 10 slots, sat = 0.5, attention budget 75 min (light) or 120 min (heavy) log-normal sd 0.35 in the population's segment shares, affinity 0.2 (the satisfaction reference) for every item, durations drawn from the training rows' item durations, open probability from the open rule against 3 competitors of the same utility, watch time from the watch rule, continuation from the continuation rule; the resulting quantiles of log1p(minutes) are the same for every session"
+  },
+  "creator_return": {
+   "domain": "repeat_consumption",
+   "dataset": "kuairand_pure",
+   "identification": "observational",
+   "estimand": "P(an individual plays another video of a creator within the next 7 days | it played a video of that creator today), including re-exposure by the production recommender",
+   "rows": "(user, author, day d) with at least one play (is_click = 1) of the author's videos by the user on day d in either log, d = 2022-04-08..05-01; label 1 if the user plays a video of the same author on days d+1..d+7",
+   "splits": {
+    "train": "train users, d = 2022-04-08..04-24",
+    "validation": "validation users, d = 2022-04-18..04-24",
+    "test": "test users, d = 2022-04-25..05-01"
+   },
+   "features": [
+    "log_plays_author_before",
+    "log_plays_author_today",
+    "log_days_since_first_play",
+    "author_log_pop_7d",
+    "user_log_plays_7d",
+    "user_log_authors_7d",
+    "follows_author",
+    "liked_author_today",
+    "watch_fraction_today",
+    "weekend"
+   ],
+   "feature_definitions": "log_plays_author_before: log1p(plays of the author by the user on earlier days); log_plays_author_today: log1p(plays on d); log_days_since_first_play: log1p(days since the user's first play of the author, 0 on the first day); author_log_pop_7d: log1p(1000 * plays of the author's videos in the previous 7 days / users active in those days); user_log_plays_7d: log1p(the user's plays in the previous 7 days); user_log_authors_7d: log1p(distinct authors the user played in the previous 7 days); follows_author: 1 if the user has an is_follow event on any video of the author on or before d; liked_author_today: 1 if is_like on d; watch_fraction_today: mean of min(play_s / duration_s, 3) over the user's plays of the author on d; weekend of d",
+   "candidates": {
+    "B0_constant": "baseline: train base rate",
+    "B1_familiarity": "baseline: logistic on log_plays_author_before and log_plays_author_today (the familiarity term the simulator's open rule uses)",
+    "M1_logistic": "logistic",
+    "M2_gbdt": "gbdt"
+   },
+   "primary_metric": "log_loss",
+   "secondary_metrics": [
+    "brier",
+    "ece",
+    "auc"
+   ],
+   "long_horizon": "multi-day stability on the selection and test days: mean over days of |mean predicted - mean observed|",
+   "rule_mapping": "no direct simulator rule: in the simulator repeat consumption of a creator arises from re-exposure plus the open rule's familiarity (+0.6) and following (+0.9) terms; the B1 familiarity baseline is its closest fitted analogue. The open rule itself, at affinity 0.2, sat 0.5 and a 120 s duration, gives one constant per-exposure probability, which is reported as P(at least one play in 7 days) assuming the user's own number of exposures to the author in the previous 7 days repeats"
+  },
+  "customer_return": {
+   "domain": "product_retention",
+   "dataset": "online_retail_ii",
+   "identification": "observational",
+   "estimand": "P(a customer places another (non-cancelled) order within 90 days | it ordered today and its order history)",
+   "rows": "(customer, day) with at least one non-cancelled invoice line of a known customer, days 2009-12-01..2011-09-10 (90-day labels end before 2011-12-09)",
+   "splits": {
+    "train": "train customers, days 2009-12-01..2011-03-31",
+    "validation": "validation customers, days 2010-10-01..2011-03-31",
+    "test": "test customers, days 2011-04-01..2011-09-10",
+    "test_time_only": "train customers, days 2011-04-01..2011-09-10 (reported)"
+   },
+   "features": [
+    "log_orders_before",
+    "log_tenure_days",
+    "log_recency_days",
+    "log_mean_gap_days",
+    "log_spend_today",
+    "log_spend_total",
+    "log_lines_today",
+    "log_products_today",
+    "cancel_share",
+    "uk",
+    "month_sin",
+    "month_cos"
+   ],
+   "feature_definitions": "orders = distinct days with a non-cancelled invoice; log_orders_before: log1p(orders before today); log_tenure_days: log1p(days since the first order); log_recency_days: log1p(days since the previous order, 400 when none); log_mean_gap_days: log1p(mean days between earlier orders, 400 when fewer than two); log_spend_today: log1p(sum of quantity x price of today's non-cancelled lines, GBP); log_spend_total: log1p(cumulative spend including today); log_lines_today; log_products_today: log1p(distinct products today); cancel_share: cancelled lines / all lines of the customer up to today; uk: 1 if the customer's country is the United Kingdom; month of the year as sin/cos",
+   "candidates": {
+    "B0_constant": "baseline: train base rate",
+    "B1_recency_frequency": "baseline: logistic on log_orders_before and log_recency_days (a recency-frequency rule)",
+    "M1_logistic": "logistic",
+    "M2_gbdt": "gbdt"
+   },
+   "primary_metric": "log_loss",
+   "secondary_metrics": [
+    "brier",
+    "ece",
+    "auc"
+   ],
+   "long_horizon": "stability over the months of the selection and test windows: mean over calendar months of |mean predicted - mean observed|, plus the predicted vs observed retention curve (share of customers ordering again within 30, 60, 90 days) of each month's cohort",
+   "rule_mapping": "the simulator's buyers (crucible.commerce.customers, patrons) keep buying while satisfied and churn only after `dormant_days` without looking for a product, and the population's abandon decision has no purchase history input: neither maps onto order histories. The comparison reported is the constant implied by the patrons' default dormancy rule (return within 90 days unless dormant), stated with its parameters"
+  },
+  "product_demand": {
+   "domain": "purchase_behavior",
+   "dataset": "online_retail_ii",
+   "identification": "observational",
+   "estimand": "weekly units sold of a product given its price relative to its own reference price and its recent sales (an association: prices were set by the retailer, not randomised)",
+   "rows": "(product, week), weeks Monday 2009-11-30 .. Sunday 2011-12-04, for products with sales in at least 20 training weeks; y = log1p(units of non-cancelled lines of the week); week price = median unit price of the week's lines with quantity <= 12 (retail-size lines, so that quantity discounts do not drive the price), carried forward from the last week with such a line",
+   "splits": {
+    "train": "weeks starting 2009-11-30..2011-03-21",
+    "validation": "weeks 2011-03-28..2011-06-20",
+    "test": "weeks 2011-06-27..2011-11-28",
+    "test_new_products": "test weeks of products that are not eligible in training but have sales in at least 4 validation weeks (reported)"
+   },
+   "features": [
+    "log_rel_price",
+    "log_units_prev_week",
+    "log_units_prev_4w",
+    "log_customers_prev_4w",
+    "product_log_mean_units",
+    "week_sin",
+    "week_cos",
+    "weeks_since_first_sale_log"
+   ],
+   "feature_definitions": "log_rel_price: log(week price / the product's median week price over its training weeks); log_units_prev_week: log1p(units the previous week); log_units_prev_4w: log1p(mean units over the previous 4 weeks); log_customers_prev_4w: log1p(distinct known customers buying the product in the previous 4 weeks); product_log_mean_units: mean y over the product's training weeks (validation and test use the training value; new products the mean over their weeks before the row); week of the year as sin/cos; weeks_since_first_sale_log: log1p(weeks since the product's first sale)",
+   "candidates": {
+    "B0_product_mean": "baseline: product_log_mean_units",
+    "B1_recent_mean": "baseline: log1p(mean units of the previous 4 weeks)",
+    "M1_linear": "linear",
+    "M2_gbdt": "gbdt_regression"
+   },
+   "primary_metric": "mse",
+   "secondary_metrics": [
+    "mae",
+    "bias",
+    "price_coefficient"
+   ],
+   "price_response": "reported: M1's coefficient on log_rel_price (a log-log association) with a product-cluster bootstrap interval, and the kept model's mean predicted change of y for a 10% price increase on test rows",
+   "long_horizon": "forward simulation over the validation (selection) and test (report) weeks: each week's y is drawn from the candidate (prediction plus a residual resampled from the candidate's training residuals) and fed into log_units_prev_week / prev_4w; measure = mean over weeks of |mean simulated units - mean observed units| / mean observed units; 20 draws, seed 0",
+   "rule_mapping": "the population's purchase decision (pop.decision.purchase) scales purchase probability through price_ratio = (willingness to pay - price) / willingness to pay with coefficient 1.4; mapped with willingness to pay = the product's reference price: predicted units = B1_recent_mean units x sigmoid(z0 + 1.4 * pr) / sigmoid(z0 + 1.4 * pr_ref), pr = 1 - exp(log_rel_price), pr_ref = 0, z0 = the decision's bias plus its other terms at the population's mean preferences (relevance 0.5, goal_buy 0, wallet_cover_log 0, price_sensitivity 0.5, resource_satisfaction 0.5, belief_shops 0.5, impulsiveness 0.5)"
+  },
+  "repo_participation_return": {
+   "domain": "community_participation",
+   "dataset": "gharchive_2024-10-07_96h",
+   "identification": "observational",
+   "estimand": "P(a developer who participates in a repository's discussion (opens or comments on an issue, opens or reviews a pull request) participates there again within 24 h)",
+   "rows": "the first participation event in the window of each (pseudonymised developer, repository) pair by a non-bot, non-owner account, at hours 24-72 of the window; label 1 if the same developer has another participation event on the same repository within 24 h after it",
+   "splits": {
+    "train": "first events at hours 24-48",
+    "validation": "hours 48-60",
+    "test": "hours 60-72",
+    "test_new_developers": "test rows of developers with no event in hours 0-48 (reported)"
+   },
+   "features": [
+    "first_is_issue_open",
+    "first_is_issue_comment",
+    "first_is_pr_open",
+    "first_is_pr_review",
+    "repo_issue_events_24h",
+    "repo_pr_events_24h",
+    "repo_participants_24h",
+    "repo_owner_events_24h",
+    "repo_stars_24h",
+    "repo_pushes_24h",
+    "repo_org",
+    "actor_events_24h",
+    "actor_participation_repos_24h",
+    "actor_repo_events_24h",
+    "hour_sin",
+    "hour_cos"
+   ],
+   "feature_definitions": "all counts over the 24 complete hours before the event's hour, log1p-transformed: issue events (IssuesEvent, IssueCommentEvent), pull-request events (PullRequestEvent, PullRequestReviewEvent, PullRequestReviewCommentEvent), distinct participating developers, events by the repository owner (FLAG_OWNER), non-bot stars, pushes on the repository; the developer's events, distinct repositories it participated in, and its events on this repository; event type flags of the first participation; UTC hour",
+   "candidates": {
+    "B0_constant": "baseline: train base rate",
+    "B1_event_type": "baseline: logistic on the four event-type flags",
+    "M1_logistic": "logistic",
+    "M2_gbdt": "gbdt"
+   },
+   "primary_metric": "log_loss",
+   "secondary_metrics": [
+    "brier",
+    "ece",
+    "auc"
+   ],
+   "long_horizon": "stability over the hours of the selection and test windows: mean over 4-hour blocks of |mean predicted - mean observed|",
+   "rule_mapping": "the population's participate decision (pop.decision.participate) at the population's mean preferences (sociability 0.5, writing skill 0.5, page utility 0, goal_social 0) gives one constant probability per read, evaluated as the probability of a further participation; communities have no population participation path"
+  },
+  "star_cascade": {
+   "domain": "social_diffusion",
+   "dataset": "gharchive_2024-10-07_96h",
+   "identification": "observational",
+   "estimand": "expected number of non-bot stars a repository receives in the next hour given its recent star history (self-excitation of attention, which mixes contagion with outside referrals)",
+   "rows": "repository-hours h = 24..95 of repositories with at least one non-bot star in the 24 hours before h; y = non-bot stars in hour h",
+   "splits": {
+    "train": "hours 24-59",
+    "validation": "hours 60-71",
+    "test": "hours 72-95 (day 4)"
+   },
+   "features": [
+    "stars_prev_1h",
+    "stars_prev_3h",
+    "stars_prev_24h",
+    "star_decay_2h",
+    "star_decay_12h",
+    "forks_prev_24h",
+    "events_prev_24h",
+    "repo_org",
+    "created_in_window",
+    "age_hours_log",
+    "global_stars_prev_1h",
+    "hour_sin",
+    "hour_cos"
+   ],
+   "feature_definitions": "log1p of star counts in the previous 1, 3 and 24 hours; star_decay_k = log1p(sum over earlier hours of stars x exp(-(h - hour) / k)); forks and all events in the previous 24 h (log1p); repo_org; created_in_window and log1p(hours since creation) as in software_deep_engagement; global_stars_prev_1h = log1p(all non-bot stars on GitHub in the previous hour / 1000); UTC hour",
+   "candidates": {
+    "B0_persistence": "baseline rule: stars_prev_24h / 24 per hour (no fitting)",
+    "B1_poisson_24h": "baseline: Poisson GLM on log1p(stars_prev_24h)",
+    "M1_poisson_glm": "poisson_glm",
+    "M2_gbdt_poisson": "gbdt_regression (poisson loss)"
+   },
+   "primary_metric": "poisson_deviance",
+   "secondary_metrics": [
+    "count_calibration_error",
+    "mean_pred",
+    "mean_obs"
+   ],
+   "long_horizon": "forward simulation of the selection window (hours 60-71) and of day 4 (hours 72-95, report) for the window's repositories: each hour's stars are drawn from the candidate (negative binomial with dispersion fitted on training residuals; Poisson for B0) and fed into the star-history features; measure = mean over hours of |simulated total stars - observed total| / observed total, plus KS of log1p per-repository totals; 20 draws, seed 0",
+   "rule_mapping": "no comparable simulator rule: the social engine's diffusion is share -> inbox -> open of content items and is not defined on repository endorsements; the persistence rule B0 is the rule-based baseline"
+  },
+  "news_click_semantic": {
+   "domain": "content_selection",
+   "dataset": "mind_small",
+   "identification": "observational",
+   "estimand": "P(click | news shown in an impression, the user's click history), with text affinity measured in the shared semantic encoder space (sentence-transformers/all-MiniLM-L6-v2) so that the simulator can compute it",
+   "rows": "the impression items of news_click@1 (mind.build / mind.news_masks): train file users 0-79 fit, 80-99 validation, dev day 2019-11-15 test",
+   "splits": {
+    "train": "as news_click@1",
+    "validation": "as news_click@1",
+    "test": "as news_click@1 (dev day)"
+   },
+   "features": [
+    "text_cos",
+    "text_cos_z",
+    "cat_share",
+    "log_hist_len",
+    "pop_log_clicks_per_1k",
+    "age_log_hours",
+    "slate_size_log"
+   ],
+   "feature_definitions": "text_cos: cosine between the MiniLM-L6 embedding (mean pooled, L2-normalised, title + ' ' + abstract, window as crucible.semantic.encoders.text) of the item and the L2-normalised mean embedding of the user's clicked history (0 when the history is empty); text_cos_z: text_cos standardised within the impression; cat_share, log_hist_len, pop_log_clicks_per_1k, age_log_hours, slate_size_log as news_click@1. subcat_share and pop_ctr_24h are dropped because a world cannot compute them on the data's scale",
+   "candidates": {
+    "B0_constant": "baseline: constant",
+    "B1_popularity": "baseline: popularity logistic (pop_log_clicks_per_1k, age_log_hours, slate_size_log)",
+    "M1_logistic": "logistic",
+    "M2_gbdt": "gbdt"
+   },
+   "primary_metric": "log_loss",
+   "secondary_metrics": [
+    "brier",
+    "ece",
+    "auc"
+   ],
+   "long_horizon": "not applicable (one test day): stability over the hours of the test day, mean over 4-hour blocks of |mean predicted - mean observed|",
+   "rule_mapping": "C2 open rule with aff = text_cos (MiniLM cosine), fam = 0, seen = 0, sat = 0.5, duration 120 s, window = the next 3 items of the impression"
+  }
+ }
+}

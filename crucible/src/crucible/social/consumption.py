@@ -138,92 +138,86 @@ def item_topics(world, items: np.ndarray) -> np.ndarray:
 
 
 class CalibratedOpen:
-    """The decision to open an item shown in a slate, from workstream E's `news_click@1` (gradient-boosted trees
-    fitted on MIND-small, Microsoft News, US, November 2019; held-out AUC 0.78 vs 0.73 for the popularity baseline;
-    card: docs/v5/calibration/models/news_click/model_card.json). Its card allows exactly this use (opening an
-    article shown in a slate of article recommendations) and nothing about dwell time, which stays built-in.
+    """The decision to open an article shown in a slate, from workstream E's runtime decision model
+    `article_open_semantic@1` (crucible.calibration.runtime -> fitted model news_click_semantic@1: MIND-small,
+    Microsoft News, US, November 2019; contract in docs/v5/calibration/RUNTIME.md). Dwell time stays built-in.
 
-    Feature mapping (the card's `feature_map`; approximations are named):
-      text_cos       cosine between the item and the individual's interests (which drift toward what it consumed),
-                     quantile-mapped onto the card's text_cos quantiles through its rank among this session batch's
-                     slots (different encoder: the card says to map by quantile)
-      text_cos_z     that cosine standardised within the individual's slate (scale-free, as the card says)
-      cat_share      (individual's past views in the item's topic + s) / (past views + 1), s = the platform's share
-                     of views in that topic; topic = nearest topic vocabulary of the item's representation
-      subcat_share   cat_share quantile-mapped onto the card's subcat_share quantiles (approximation: this world has
-                     no finer taxonomy, and a subcategory share is much smaller than a category share)
-      log_hist_len   log1p(individual's past views)
-      pop_ctr_24h    (views + 10 m) / (impressions + 10) of the item on the platform, m = card prior_rate, quantile-
-                     mapped onto the card's quantiles (MIND logs whole slates as impressions, this world only the
-                     slots an individual reached, so the raw rates are not on the same scale; all-time counters,
-                     pool items being at most a few days old)
-      pop_log_clicks_per_1k  log1p(1000 * views in the last 24 h / individuals with an impression in the last 24 h);
-                     views in the last 24 h approximated by views x min(1, 24 h / age)
-      age_log_hours  log1p(hours since the item was published)
-      slate_size_log log1p(slots in the slate)
+    Every input is computed row by row from the individual's own state, the item and the individual's OWN slate;
+    nothing is mapped by rank within the batch of viewers (the former news_click@1 path quantile-mapped three inputs
+    by their rank in the session batch, which made opening probabilities invariant to uniformly better content and
+    dependent on other viewers' slates; that path is retired). Inputs:
+
+      text_cos               the engine's affinity: cosine of the individual's interests and the item's vector
+      text_cos_z             text_cos standardised within the individual's own slate
+      own_topic_views        the individual's past views in the item's topic (topic = nearest topic vocabulary)
+      own_views_total        the individual's past views
+      topic_population_share (platform views in the topic + 1) / (platform views + topics)
+      item_opens_24h         views of the item, x min(1, 24 h / age) (views in the last 24 h for items under a day old)
+      active_individuals_24h individuals with an impression in the last 24 h (a world count, not a batch statistic)
+      item_age_hours, slate_size
+
+    The model's text affinity is a cosine in the shared MiniLM-L6 space. A world must declare that its interest and
+    item vectors live in that space and which content kind the platform carries (feed config ``calibrated:
+    {"<platform>": {"open": "article_open_semantic@1", "affinity_space": "minilm-l6-cosine", "content_kind":
+    "article"}}``); a content kind outside the model's scope (e.g. "post") is refused. The default C2 representation (lexical random indexing) and the
+    `aud` semantic random projection are not that space, so a calibrated platform without the declaration raises
+    `ContractError` at install instead of using the model outside its contract (wave 2, D-16, provides the space).
     """
 
-    def __init__(self, name: str):
-        from .. import calibration
-        self.model = calibration.load(name)
-        self.name = name
-        feats = list(self.model.features)
-        if feats != ["text_cos", "text_cos_z", "cat_share", "subcat_share", "log_hist_len", "pop_ctr_24h",
-                     "pop_log_clicks_per_1k", "age_log_hours", "slate_size_log"]:
-            raise ValueError(f"{name}: unexpected features {feats}")
-        q = self.model.card["feature_quantiles"]
-        self.levels = np.asarray(q["levels"], dtype=np.float64)
-        self.quantiles = {f: np.asarray(q[f], dtype=np.float64) for f in feats}
-        self.prior = float(self.model.card["prior_rate"])
+    SPACE = "minilm-l6-cosine"
 
-    def qmap(self, values: np.ndarray, feature: str) -> np.ndarray:
-        """Map values onto the card's distribution of `feature` by their rank in this batch (ties share a rank)."""
-        v = np.asarray(values, dtype=np.float64)
-        if v.size == 0:
-            return v
-        u, inv = np.unique(v, return_inverse=True)
-        cnt = np.bincount(inv)
-        mid = (np.cumsum(cnt) - 0.5 * cnt) / v.size                  # mid-rank of each distinct value
-        return np.interp(mid[inv], self.levels, self.quantiles[feature])
+    def __init__(self, decision: str, affinity_space: str | None = None, content_kind: str | None = None):
+        from ..calibration import runtime
+        if affinity_space != self.SPACE:
+            raise runtime.ContractError(
+                f"{decision}: its text affinity is a cosine in the {self.SPACE} space; this world's feed does not "
+                f"declare that space (affinity_space={affinity_space!r}), so the fitted model cannot be used here")
+        self.dm = runtime.get(decision)
+        self.dm.check_scope(content_kind)          # e.g. news articles only: a posts platform is refused
+        self.name = decision
+        self.model = self.dm.fitted
 
-    def p_open(self, world, platform: str, idx: np.ndarray, feed: np.ndarray, aff: np.ndarray,
-               has_item: np.ndarray) -> np.ndarray:
-        V, k = feed.shape
-        out = np.zeros((V, k))
-        if not np.any(has_item):
-            return out
+    def inputs(self, world, platform: str, idx: np.ndarray, feed: np.ndarray, aff: np.ndarray,
+               has_item: np.ndarray) -> tuple[dict, tuple]:
         rows, cols_ = np.nonzero(has_item)
         items = feed[rows, cols_]
-        a = aff[rows, cols_]
-        text_cos = self.qmap(a, "text_cos")
-        am = np.where(has_item, aff, np.nan)
-        mu = np.nanmean(am, axis=1, keepdims=True)
-        sd = np.nanstd(am, axis=1, keepdims=True)
-        z = ((am - mu) / np.where(sd > 1e-9, sd, 1.0))[rows, cols_]
-        topic_of = item_topics(world, AUD.items_on(world, platform, live_only=False))
+        a = np.clip(aff[rows, cols_].astype(np.float64), -1.0, 1.0)
+        hm = has_item.astype(np.float64)
+        cnt = np.maximum(hm.sum(axis=1, keepdims=True), 1.0)
+        mu = (aff * hm).sum(axis=1, keepdims=True) / cnt                     # the individual's own slate only
+        sd = np.sqrt((((aff - mu) * hm) ** 2).sum(axis=1, keepdims=True) / cnt)
+        z = np.where(sd > 1e-9, (aff - mu) / np.where(sd > 1e-9, sd, 1.0), 0.0)[rows, cols_]
         on = AUD.items_on(world, platform, live_only=False)
+        topic_of = item_topics(world, on)
         views_on = columns.col(world, AUD.ITEMS, "views")[on].astype(np.float64)
         T = int(columns.col(world, "pop", "feed_topic_views").shape[1])
         share = (np.bincount(topic_of, weights=views_on, minlength=T) + 1.0) / (views_on.sum() + T)
         t_item = item_topics(world, items)
         tv = columns.col(world, "pop", "feed_topic_views")[idx[rows]].astype(np.float64)
-        hist = tv.sum(axis=1)
-        cat = (tv[np.arange(rows.size), t_item] + share[t_item]) / (hist + 1.0)
         views = columns.col(world, AUD.ITEMS, "views")[items].astype(np.float64)
-        imp = columns.col(world, AUD.ITEMS, "imp")[items].astype(np.float64)
         age = np.maximum(F.age_s(world, items), 0.0)
         last_imp = columns.col(world, "pop", "aud_i_t")
-        active = max(1, int(np.count_nonzero(last_imp >= world.now - 86400)))
-        v24 = views * np.minimum(1.0, 86400.0 / np.maximum(age, 1.0))
-        ctr = (views + 10 * self.prior) / (imp + 10)
-        X = np.stack([text_cos, z, cat, self.qmap(cat, "subcat_share"), np.log1p(hist), self.qmap(ctr, "pop_ctr_24h"),
-                      np.log1p(1000.0 * v24 / active), np.log1p(age / 3600.0), np.full(rows.size, math.log1p(k))],
-                     axis=1)
-        out[rows, cols_] = self.model.predict(X)
+        active = float(max(1, int(np.count_nonzero(last_imp >= world.now - 86400))))
+        d = {"text_cos": a, "text_cos_z": z, "own_topic_views": tv[np.arange(rows.size), t_item],
+             "own_views_total": tv.sum(axis=1), "topic_population_share": share[t_item],
+             "item_opens_24h": views * np.minimum(1.0, 86400.0 / np.maximum(age, 1.0)),
+             "active_individuals_24h": np.full(rows.size, active), "item_age_hours": age / 3600.0,
+             "slate_size": has_item.sum(axis=1)[rows].astype(np.float64)}
+        return d, (rows, cols_)
+
+    def p_open(self, world, platform: str, idx: np.ndarray, feed: np.ndarray, aff: np.ndarray,
+               has_item: np.ndarray) -> np.ndarray:
+        out = np.zeros(feed.shape)
+        if not np.any(has_item):
+            return out
+        d, (rows, cols_) = self.inputs(world, platform, idx, feed, aff, has_item)
+        out[rows, cols_] = self.dm.evaluate(d).values
         return out
 
 
-CALIBRATED_OPEN = {"news_click@1": CalibratedOpen}
+CALIBRATED_OPEN = {"article_open_semantic@1": CalibratedOpen}
+RETIRED_OPEN = {"news_click@1": "its inputs were mapped by rank within the session batch (no absolute effect of "
+                                "content); use article_open_semantic@1 with a declared minilm-l6-cosine space"}
 
 
 class Engine:
@@ -233,8 +227,13 @@ class Engine:
         self.feed = feed_module
         self.b = dict(BUILTIN)
         self.b.update(feed_module.cfg.get("behaviour") or {})
-        self.calibrated = {p: CALIBRATED_OPEN[c["open"]](c["open"])
-                           for p, c in sorted((feed_module.cfg.get("calibrated") or {}).items())}
+        self.calibrated = {}
+        for p, c in sorted((feed_module.cfg.get("calibrated") or {}).items()):
+            if c["open"] in RETIRED_OPEN:
+                from ..calibration.runtime import ContractError
+                raise ContractError(f"feed.calibrated.{p}: {c['open']} is retired from the in-world path: "
+                                    f"{RETIRED_OPEN[c['open']]}")
+            self.calibrated[p] = CALIBRATED_OPEN[c["open"]](c["open"], c.get("affinity_space"), c.get("content_kind"))
 
     # ------------------------------------------------------------------ distribution
     def build_feed(self, ctx, platform: str, idx: np.ndarray, rng):

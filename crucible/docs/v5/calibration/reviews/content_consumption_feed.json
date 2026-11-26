@@ -1,0 +1,120 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "content_consumption_feed@1",
+ "kept_by_card": "O_gbdt",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:31:21.879768+00:00",
+ "primary_metric": "log_loss",
+ "rule_mapping": "S and SF as content_consumption, on the card's obs_test rows",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.6238223777319946,
+   "metrics": {
+    "n": 10229,
+    "log_loss": 0.6238223777319946,
+    "brier": 0.2171444024877432,
+    "ece": 0.0056523221057170675,
+    "auc": 0.7081871401413066,
+    "mean_pred": 0.48326111336315825,
+    "mean_obs": 0.48567797438654803
+   },
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.014344818847963308,
+   "eligible_role": true,
+   "compute_us": 30.667453684529693
+  },
+  "B": {
+   "primary": 0.6650401803835215,
+   "metrics": {
+    "n": 10229,
+    "log_loss": 0.6650401803835215,
+    "brier": 0.2364142423004687,
+    "ece": 0.03006504714302752,
+    "auc": 0.6336877437382177,
+    "mean_pred": 0.5157430215295755,
+    "mean_obs": 0.48567797438654803
+   },
+   "difference_vs_K_ci95": [
+    0.03382884655630638,
+    0.047624139677666384
+   ],
+   "long_horizon": 0.029341453243183446,
+   "eligible_role": true,
+   "compute_us": 0.015899904275502218
+  },
+  "S": {
+   "primary": 1.0727855392929677,
+   "metrics": {
+    "n": 10229,
+    "log_loss": 1.0727855392929677,
+    "brier": 0.32954845927794507,
+    "ece": 0.23597663156668078,
+    "auc": 0.5380173655014981,
+    "mean_pred": 0.5568385395750158,
+    "mean_obs": 0.48567797438654803
+   },
+   "difference_vs_K_ci95": [
+    0.4222656336036157,
+    0.47843336889681465
+   ],
+   "long_horizon": 0.07103421907964176,
+   "eligible_role": true,
+   "compute_us": 0.13240572709365492
+  },
+  "SF": {
+   "primary": 0.6942355967663792,
+   "metrics": {
+    "n": 10229,
+    "log_loss": 0.6942355967663792,
+    "brier": 0.25053489387290373,
+    "ece": 0.04410321152840524,
+    "auc": 0.5420086194679593,
+    "mean_pred": 0.5297811859149533,
+    "mean_obs": 0.48567797438654803
+   },
+   "difference_vs_K_ci95": [
+    0.06136513474116211,
+    0.07825731588853721
+   ],
+   "long_horizon": 0.04462440473337864,
+   "eligible_role": false,
+   "compute_us": 0.026214058237908372
+  }
+ },
+ "eligible": [
+  "K",
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B",
+  "S"
+ ],
+ "long_horizon_reference": "K",
+ "drift_rejected": {},
+ "kept_after_review": "K",
+ "kept_is_fitted_checkpoint": true,
+ "extra": {
+  "test_rows": 10229,
+  "card_test_log_loss": 0.6238223777319946,
+  "long_horizon_kind": "static: mean over test days of |mean predicted - mean observed|",
+  "SF_coefficients": {
+   "aff": 0.2818124489276549,
+   "fam": 0.20738134073818446,
+   "seen": -0.24514683625729652,
+   "log_dur": 0.044769539983541745
+  }
+ },
+ "seconds": 19.821614742279053
+}

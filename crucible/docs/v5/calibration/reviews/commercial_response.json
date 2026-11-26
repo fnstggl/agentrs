@@ -1,0 +1,67 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "commercial_response@1",
+ "kept_by_card": "t_gbdt_reg",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:35:51.756014+00:00",
+ "primary_metric": "primary_pooled_logloss_visit_plus_conversion",
+ "rule_mapping": "S = the simulator's rule: no v5 population decision reads ad exposure, so visit and conversion probabilities equal the pooled training rates in both arms (no effect). Scored with the card's primary metric (pooled visit + conversion log loss, each row under its own arm) on the full test split; uplift Qini of S is 0 by construction",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.1161135761968873,
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.001229865567243643,
+   "compute_us": 121.27313192002475
+  },
+  "B": {
+   "primary": 0.21077806085370396,
+   "difference_vs_K_ci95": [
+    0.09193136079974333,
+    0.09808278369538767
+   ],
+   "long_horizon": 0.06555795733285401,
+   "compute_us": 0.008886689320206642
+  },
+  "S": {
+   "primary": 0.21103217057316428,
+   "difference_vs_K_ci95": [
+    0.09216528962023071,
+    0.09841670690675786
+   ],
+   "long_horizon": 0.0677357256985254,
+   "compute_us": 0.0016392767429351807
+  }
+ },
+ "eligible": [
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "B",
+  "S"
+ ],
+ "long_horizon_reference": "B",
+ "drift_rejected": {},
+ "kept_after_review": "B",
+ "kept_is_fitted_checkpoint": false,
+ "extra": {
+  "rows": "the report's seeded 100,000-user test audit subsample (Criteo rows have no time stamp; the full-test number is the fit's)",
+  "pooled_train_rates": {
+   "visit": 0.047023548017318104,
+   "conversion": 0.0029287932229780196
+  },
+  "long_horizon_kind": "static: no time stamps; mean over (arm x decile of K's visit prediction) cells of |mean predicted - observed| visit rate",
+  "card_kept": "t_gbdt_reg"
+ },
+ "seconds": 50.838136196136475
+}

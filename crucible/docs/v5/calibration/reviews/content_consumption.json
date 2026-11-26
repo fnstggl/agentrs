@@ -1,0 +1,120 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "content_consumption@1",
+ "kept_by_card": "R_gbdt",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:31:02.052824+00:00",
+ "primary_metric": "log_loss",
+ "rule_mapping": "S = C2 open rule. util = open_bias + open_affinity*aff + open_familiar*fam + open_seen*seen + open_sat*(sat - 0.5) + open_len*log(max(dur, 1)/60) with following = 0, share source = 0, sat = 0.5 (the population's initial satisfaction); p = exp(util) / (exp(outside) + sum of exp(util) over this item and the next `window` items). aff = cosine between the item's primary-tag one-hot and the user's vector of plays per primary tag on earlier days of the standard log (0 without history); fam = 1 if the user played any video of the item's author on an earlier day; seen = 1 if the user was exposed to the item on an earlier day; dur = duration_s; the window competitors are the next 3 tab-1 rows of the same user (both logs, time order) within 30 minutes. SF = logistic regression of is_click on (aff, fam, seen, log(max(dur,1)/60)) fitted on the train split",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.44255150798626197,
+   "metrics": {
+    "n": 89752,
+    "log_loss": 0.44255150798626197,
+    "brier": 0.13968748167104927,
+    "ece": 0.006323879912269393,
+    "auc": 0.6982838876257512,
+    "mean_pred": 0.18044139136149448,
+    "mean_obs": 0.18644709867189588
+   },
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.006006262052853067,
+   "eligible_role": true,
+   "compute_us": 34.95270780795141
+  },
+  "B": {
+   "primary": 0.4778572206978486,
+   "metrics": {
+    "n": 89752,
+    "log_loss": 0.4778572206978486,
+    "brier": 0.150643948665054,
+    "ece": 0.015339774291637744,
+    "auc": 0.5669176012052451,
+    "mean_pred": 0.17134914008135854,
+    "mean_obs": 0.18644709867189588
+   },
+   "difference_vs_K_ci95": [
+    0.031648066920560505,
+    0.038639963477339064
+   ],
+   "long_horizon": 0.01501752277850533,
+   "eligible_role": true,
+   "compute_us": 0.01951056043698365
+  },
+  "S": {
+   "primary": 0.8408164089523825,
+   "metrics": {
+    "n": 89752,
+    "log_loss": 0.8408164089523825,
+    "brier": 0.2531292503405696,
+    "ece": 0.2438626481358031,
+    "auc": 0.5821093391043333,
+    "mean_pred": 0.39183611890598746,
+    "mean_obs": 0.18644709867189588
+   },
+   "difference_vs_K_ci95": [
+    0.38881022962544826,
+    0.40978644871715614
+   ],
+   "long_horizon": 0.20556060203876825,
+   "eligible_role": true,
+   "compute_us": 0.13699033171003575
+  },
+  "SF": {
+   "primary": 0.4765347746574032,
+   "metrics": {
+    "n": 89752,
+    "log_loss": 0.4765347746574032,
+    "brier": 0.15037714615627565,
+    "ece": 0.01801793100053169,
+    "auc": 0.5851175431322646,
+    "mean_pred": 0.17390872916206637,
+    "mean_obs": 0.18644709867189588
+   },
+   "difference_vs_K_ci95": [
+    0.030352002957575216,
+    0.03755744120844595
+   ],
+   "long_horizon": 0.012463382861592267,
+   "eligible_role": false,
+   "compute_us": 0.026763430067294633
+  }
+ },
+ "eligible": [
+  "K",
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B",
+  "S"
+ ],
+ "long_horizon_reference": "K",
+ "drift_rejected": {},
+ "kept_after_review": "K",
+ "kept_is_fitted_checkpoint": true,
+ "extra": {
+  "test_rows": 89752,
+  "card_test_log_loss": 0.44255150798626197,
+  "long_horizon_kind": "static: mean over test days of |mean predicted - mean observed|",
+  "SF_coefficients": {
+   "aff": 0.8909231410110449,
+   "fam": 0.6844662816172622,
+   "seen": 0.4724908981410431,
+   "log_dur": -0.07321598379022648
+  }
+ },
+ "seconds": 36.713295698165894
+}

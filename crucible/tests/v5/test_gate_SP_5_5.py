@@ -29,8 +29,16 @@ def test_SP_5_5_prespecified_metrics_and_better_model_kept():
     sel_problems = {k: v["problems"] for k, v in m["_selection"].items() if v["problems"]}
     record("SP-5.5", metrics, command="PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-5.5",
            artifacts=[f"{R.model_dir(r['name'])}/model_card.json" for r in recs if r.get("card")],
-           notes=f"plan problems: {problems}; selection problems: {sel_problems}")
+           notes=f"plan problems: {problems}; selection problems: {sel_problems}; reviews keeping a non-fitted "
+                 f"contender: {metrics['reviews_keeping_a_non_fitted_contender']}; protocol deviation for the "
+                 f"reviewer (amendment written after an earlier run computed test metrics): "
+                 f"{metrics['amendments_after_test_exposure']}")
     assert metrics["models_checked"] >= 1
+    # the E3 review of every kept model it applies to: committed after its plan, and its kept contender follows the
+    # plan's rule recomputed from the recorded numbers (counted in worse_model_kept otherwise)
+    applies = [x for x in audit.reviewed_models() if x.split("@")[0] in {r["name"] for r in recs}]
+    assert metrics["reviews_checked"] == len(applies) >= 9, m["_reviews"]
+    assert metrics["reviews_ok"] == metrics["reviews_checked"], {k: v["problems"] for k, v in m["_reviews"].items()}
     crit = next(e for e in MF.load()["requirements"] if e["id"] == "SP-5.5")["criteria"]
     fails = [msg for c in crit for ok, msg in [criterion_met(c, metrics)] if not ok]
     assert not fails, (fails, problems, sel_problems)

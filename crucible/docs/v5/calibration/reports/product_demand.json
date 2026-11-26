@@ -1,0 +1,283 @@
+{
+ "schema": "crucible.v5.calibration_report/1",
+ "model": "product_demand",
+ "version": 1,
+ "domain": "purchase_behavior",
+ "datasets": [
+  "online_retail_ii"
+ ],
+ "identification": "observational",
+ "estimand": "weekly units sold of a product given its price relative to its own reference price and its recent sales (an association: prices were set by the retailer, not randomised)",
+ "population": "products of one UK online gift retailer",
+ "platform": "the retailer's online shop",
+ "period": "2009-11-30..2011-12-04 (weeks)",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+  "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "splits": {
+  "train": {
+   "definition": "weeks starting 2009-11-30..2011-03-21",
+   "rows": 158397,
+   "products": 2532
+  },
+  "val": {
+   "definition": "weeks 2011-03-28..2011-06-20",
+   "rows": 32965
+  },
+  "test": {
+   "definition": "weeks 2011-06-27..2011-11-28",
+   "rows": 58394
+  },
+  "test_new_products": {
+   "definition": "test weeks of products that are not eligible in training but have sales in at least 4 validation weeks (reported)",
+   "rows": 9220
+  }
+ },
+ "heldout_splits": [
+  "test",
+  "test_new_products"
+ ],
+ "candidates": {
+  "B0_product_mean": {
+   "complexity": "baseline: product training mean",
+   "n_params": 0,
+   "val": {
+    "mse": 1.8554001411948606,
+    "mae": 1.090173253599516,
+    "bias": 0.49142295010177983,
+    "price_coefficient": 0.0,
+    "n": 32965
+   },
+   "test": {
+    "mse": 2.029160158441836,
+    "mae": 1.137205260419279,
+    "bias": 0.3335382898313596,
+    "price_coefficient": 0.0,
+    "n": 58394
+   }
+  },
+  "B1_recent_mean": {
+   "complexity": "baseline: mean of the previous 4 weeks",
+   "n_params": 0,
+   "val": {
+    "mse": 1.4821881975390763,
+    "mae": 0.8114278527614172,
+    "bias": 0.32919066104193995,
+    "price_coefficient": 0.0,
+    "n": 32965
+   },
+   "test": {
+    "mse": 1.2750862726256909,
+    "mae": 0.7244403360036451,
+    "bias": 0.2228773613567256,
+    "price_coefficient": 0.0,
+    "n": 58394
+   }
+  },
+  "M1_linear": {
+   "complexity": "ridge, 8 features",
+   "n_params": 9,
+   "val": {
+    "mse": 1.1673833499305413,
+    "mae": 0.815269930829401,
+    "bias": 0.1604950112049783,
+    "price_coefficient": -0.5286786997395442,
+    "n": 32965
+   },
+   "test": {
+    "mse": 1.160832086561511,
+    "mae": 0.8298428416650504,
+    "bias": 0.14487112553511566,
+    "price_coefficient": -0.5286786997395443,
+    "n": 58394
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 400 trees",
+   "n_params": 36400,
+   "val": {
+    "mse": 1.0714633212720974,
+    "mae": 0.7505920271509149,
+    "bias": 0.13494401072001425,
+    "price_coefficient": -1.3844102882620086,
+    "n": 32965
+   },
+   "test": {
+    "mse": 1.0677629677745344,
+    "mae": 0.7451019251754254,
+    "bias": 0.16930874028055576,
+    "price_coefficient": -1.51439486086507,
+    "n": 58394
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "mse",
+  "lower_is_better": true,
+  "validation": {
+   "B0_product_mean": 1.8554001411948606,
+   "B1_recent_mean": 1.4821881975390763,
+   "M1_linear": 1.1673833499305413,
+   "M2_gbdt": 1.0714633212720974
+  },
+  "test": {
+   "B0_product_mean": 2.029160158441836,
+   "B1_recent_mean": 1.2750862726256909,
+   "M1_linear": 1.160832086561511,
+   "M2_gbdt": 1.0677629677745344
+  },
+  "baselines": [
+   "B0_product_mean",
+   "B1_recent_mean"
+  ],
+  "candidates": [
+   "B0_product_mean",
+   "B1_recent_mean",
+   "M1_linear",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_linear",
+   "B1_recent_mean",
+   "B0_product_mean"
+  ],
+  "compute_us_per_row": {
+   "B0_product_mean": 0.0033389037311411618,
+   "B1_recent_mean": 0.002988806678368979,
+   "M1_linear": 0.02755207584115093,
+   "M2_gbdt": 51.527076265066256
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_linear",
+   "B1_recent_mean",
+   "B0_product_mean"
+  ],
+  "long_horizon_validation": {
+   "B0_product_mean": 1.2979651939125578,
+   "B1_recent_mean": 23.214233888553693,
+   "M1_linear": 0.8057781691279641,
+   "M2_gbdt": 0.9034137843492362
+  },
+  "long_horizon_reference": "M1_linear",
+  "drift_rejected": {
+   "M2_gbdt": {
+    "versus": "M1_linear",
+    "difference_ci95": [
+     0.025724208243767765,
+     0.16404045797605615
+    ],
+    "long_horizon": 0.9034137843492362,
+    "reference": 0.8057781691279641
+   }
+  },
+  "selected_on_validation": "M1_linear",
+  "best_baseline_on_test": "B1_recent_mean",
+  "kept": "M1_linear",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better; rejected for long-horizon drift: ['M2_gbdt']"
+ },
+ "baseline_comparison": {
+  "metric": "mse",
+  "kept": "M1_linear",
+  "baseline": "B1_recent_mean",
+  "kept_test": 1.160832086561511,
+  "baseline_test": 1.2750862726256909,
+  "difference": -0.11425418606417992,
+  "ci95": [
+   -0.14818253411267293,
+   -0.08363772424876384
+  ],
+  "kept_ci95": [
+   1.126862832916712,
+   1.1984689624721252
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 2539
+  }
+ },
+ "calibration": {
+  "bias": 0.14487112553511566,
+  "calibration_error": 0.14487112553511566
+ },
+ "heldout_extra": {
+  "test_new_products": {
+   "B0_product_mean": {
+    "mse": 1.3157897436184751,
+    "mae": 0.847063654488133,
+    "bias": 0.07107378941708596,
+    "price_coefficient": 0.0,
+    "n": 9220
+   },
+   "B1_recent_mean": {
+    "mse": 1.254770309565896,
+    "mae": 0.7707709501252717,
+    "bias": 0.26723629119183523,
+    "price_coefficient": 0.0,
+    "n": 9220
+   },
+   "M1_linear": {
+    "mse": 1.2060070611832667,
+    "mae": 0.8277672737754249,
+    "bias": -0.05423981122343783,
+    "price_coefficient": -0.5286786997395442,
+    "n": 9220
+   },
+   "M2_gbdt": {
+    "mse": 1.0991230753241448,
+    "mae": 0.7912161784656984,
+    "bias": 0.13424653601747902,
+    "price_coefficient": -0.8497111143815175,
+    "n": 9220
+   }
+  },
+  "price_response": {
+   "M1_linear_coefficient": -0.5286786997395442,
+   "kept_mean_change_for_10pct_price_increase": -0.050388461930892664,
+   "M1_coefficient_ci95_product_bootstrap_50": [
+    -0.5889628640265955,
+    -0.4753459132008673
+   ]
+  }
+ },
+ "rule_comparison": {
+  "mapping": "the population's purchase decision (pop.decision.purchase) scales purchase probability through price_ratio = (willingness to pay - price) / willingness to pay with coefficient 1.4; mapped with willingness to pay = the product's reference price: predicted units = B1_recent_mean units x sigmoid(z0 + 1.4 * pr) / sigmoid(z0 + 1.4 * pr_ref), pr = 1 - exp(log_rel_price), pr_ref = 0, z0 = the decision's bias plus its other terms at the population's mean preferences (relevance 0.5, goal_buy 0, wallet_cover_log 0, price_sensitivity 0.5, resource_satisfaction 0.5, belief_shops 0.5, impulsiveness 0.5)",
+  "z0": -3.349999999999999,
+  "test": {
+   "mse": 1.3759298861271188,
+   "mae": 0.7433072097790698
+  },
+  "implied_price_coefficient": -0.7994457572049674
+ },
+ "long_horizon_test": {
+  "kept_relative_weekly_drift": 0.7430377829031963,
+  "B0_product_mean_relative_weekly_drift": 0.9378525519472375,
+  "B1_recent_mean_relative_weekly_drift": 132.3615292941981,
+  "M2_gbdt_relative_weekly_drift": 1.2065791389734903
+ },
+ "identification_note": "Observational: retailer-set prices; demand shocks that cause re-pricing (season, clearance) confound the price association.",
+ "extrapolation_limits": "UCI Online Retail II, one UK online gift-ware retailer (many wholesale customers), 2009-12..2011-12, 2561 products with sales in at least 20 training weeks. The simulator may use this model for the weekly demand of a durable consumer product in an online shop given its recent sales and its price relative to its own usual price. It may NOT infer: (1) a causal price elasticity: prices were set by the retailer (seasonal re-pricing, clearance, promotions), so the price coefficient is an association and may be biased in either direction; (2) demand for services, subscriptions or digital goods; (3) competition between shops or substitution between products (not modelled); (4) prices far from a product's usual price (log relative prices outside the training quantiles); (5) other markets or years. Quantity discounts are excluded from the price by using retail-size lines (<= 12 units).",
+ "feature_map": {
+  "log_rel_price": "log_rel_price: see the E4 plan, models.product_demand.feature_definitions",
+  "log_units_prev_week": "log_units_prev_week: see the E4 plan, models.product_demand.feature_definitions",
+  "log_units_prev_4w": "log_units_prev_4w: see the E4 plan, models.product_demand.feature_definitions",
+  "log_customers_prev_4w": "log_customers_prev_4w: see the E4 plan, models.product_demand.feature_definitions",
+  "product_log_mean_units": "product_log_mean_units: see the E4 plan, models.product_demand.feature_definitions",
+  "week_sin": "week_sin: see the E4 plan, models.product_demand.feature_definitions",
+  "week_cos": "week_cos: see the E4 plan, models.product_demand.feature_definitions",
+  "weeks_since_first_sale_log": "weeks_since_first_sale_log: see the E4 plan, models.product_demand.feature_definitions"
+ },
+ "fit": {
+  "commit": "096fdcb069ffb43fd615c476d60425f6d38660ad",
+  "seconds": 67.48768591880798,
+  "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model product_demand"
+ }
+}

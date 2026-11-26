@@ -1,0 +1,57 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "software_repo_growth@1",
+ "kept_by_card": "gbdt_poisson_reg",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:35:00.908951+00:00",
+ "primary_metric": "mean_poisson_deviance",
+ "rule_mapping": "no simulator rule exists (stars come only from agents and scripted adopters); only B (the card's proportional rule) and K are contenders. Dynamic long-horizon: repositories of the D1 -> D2 table, D2 stars drawn from each contender (K: negative binomial with the card's dispersion; B: Poisson), fed into stars_today for D3 with the other D2 activity counts as observed; measure = |simulated total D3 stars - observed| / observed, plus KS of log1p per-repository D3 stars",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.5361286591839726,
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.16579685926687665,
+   "ks_log1p_repo_d3": 0.17103451281157406,
+   "compute_us": 79.74818192888051
+  },
+  "B": {
+   "primary": 0.7318232497844525,
+   "difference_vs_K_ci95": [
+    0.17810984098578747,
+    0.21628843945731221
+   ],
+   "long_horizon": 0.6556719583520791,
+   "ks_log1p_repo_d3": 0.2052059729242926,
+   "compute_us": 0.007338551804423332
+  }
+ },
+ "eligible": [
+  "K",
+  "B"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B"
+ ],
+ "long_horizon_reference": "K",
+ "drift_rejected": {},
+ "kept_after_review": "K",
+ "kept_is_fitted_checkpoint": true,
+ "extra": {
+  "long_horizon_kind": "dynamic: D1 -> D2 -> D3 two-step simulation for repositories in both the D1 and D2 tables (D2 stars drawn, fed into stars_today; other D2 activity as observed); |simulated - observed total D3 stars| / observed",
+  "repositories": 34422,
+  "observed_d2_stars_of_d1_repos": 111579.0,
+  "rule": "no simulator rule exists for this behaviour (no simulated developer population); B and K only"
+ },
+ "seconds": 178.6850287914276
+}

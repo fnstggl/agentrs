@@ -1,0 +1,360 @@
+{
+ "domain": "content_selection",
+ "features": [
+  "text_cos",
+  "text_cos_z",
+  "cat_share",
+  "log_hist_len",
+  "pop_log_clicks_per_1k",
+  "age_log_hours",
+  "slate_size_log"
+ ],
+ "target": "clicked: the user opened the news item",
+ "feature_map": {
+  "text_cos": "text_cos: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "text_cos_z": "text_cos_z: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "cat_share": "cat_share: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "log_hist_len": "log_hist_len: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "pop_log_clicks_per_1k": "pop_log_clicks_per_1k: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "age_log_hours": "age_log_hours: see the E4 plan, models.news_click_semantic.feature_definitions",
+  "slate_size_log": "slate_size_log: see the E4 plan, models.news_click_semantic.feature_definitions"
+ },
+ "metrics": {
+  "n": 2740998,
+  "log_loss": 0.15027963525768567,
+  "brier": 0.0366995601001397,
+  "ece": 0.001365900809717807,
+  "auc": 0.7612506945740973,
+  "mean_pred": 0.041004411041055275,
+  "mean_obs": 0.040635928957263014
+ },
+ "baseline_metrics": {
+  "n": 2740998,
+  "log_loss": 0.15647478706477147,
+  "brier": 0.0373706774897133,
+  "ece": 0.0036751015349938817,
+  "auc": 0.7140561918133158,
+  "mean_pred": 0.042681745821331406,
+  "mean_obs": 0.040635928957263014,
+  "baseline": "B1_popularity"
+ },
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.16294096107993447,
+    "brier": 0.03693558507597882,
+    "ece": 0.002914140858171349,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.16996579303137585,
+    "brier": 0.038985112638120906,
+    "ece": 0.000680002262956593,
+    "auc": 0.5,
+    "mean_pred": 0.04131593122021961,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "B1_popularity": {
+   "complexity": "baseline: logistic on 3 features",
+   "n_params": 4,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.15246178890370343,
+    "brier": 0.03571896247988489,
+    "ece": 0.003815334080286393,
+    "auc": 0.691213538736481,
+    "mean_pred": 0.03908943412835846,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15647478706477147,
+    "brier": 0.0373706774897133,
+    "ece": 0.0036751015349938817,
+    "auc": 0.7140561918133158,
+    "mean_pred": 0.042681745821331406,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 7 features",
+   "n_params": 8,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.14685720104424566,
+    "brier": 0.03505956256491026,
+    "ece": 0.0020303393295858173,
+    "auc": 0.7394722819987047,
+    "mean_pred": 0.03799162607626699,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15108987901659823,
+    "brier": 0.036743192725442166,
+    "ece": 0.0020128867715806637,
+    "auc": 0.7550925333049278,
+    "mean_pred": 0.042461752468333135,
+    "mean_obs": 0.040635928957263014
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 400 trees",
+   "n_params": 36400,
+   "val": {
+    "n": 243973,
+    "log_loss": 0.1457062246837746,
+    "brier": 0.034837149066316055,
+    "ece": 0.0019113904898760844,
+    "auc": 0.7460057411173823,
+    "mean_pred": 0.03791151727542428,
+    "mean_obs": 0.03840179036204826
+   },
+   "test": {
+    "n": 2740998,
+    "log_loss": 0.15027963525768567,
+    "brier": 0.0366995601001397,
+    "ece": 0.001365900809717807,
+    "auc": 0.7612506945740973,
+    "mean_pred": 0.041004411041055275,
+    "mean_obs": 0.040635928957263014
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.16294096107993447,
+   "B1_popularity": 0.15246178890370343,
+   "M1_logistic": 0.14685720104424566,
+   "M2_gbdt": 0.1457062246837746
+  },
+  "test": {
+   "B0_constant": 0.16996579303137585,
+   "B1_popularity": 0.15647478706477147,
+   "M1_logistic": 0.15108987901659823,
+   "M2_gbdt": 0.15027963525768567
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_popularity"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_popularity",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_popularity",
+   "B0_constant"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.0002436758950352669,
+   "B1_popularity": 0.023750062100589275,
+   "M1_logistic": 0.04650022368878126,
+   "M2_gbdt": 31.34350853972137
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_popularity",
+   "B0_constant"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.003615204955873972,
+   "B1_popularity": 0.002388076728262096,
+   "M1_logistic": 0.0025037495105882323,
+   "M2_gbdt": 0.0013404026110738557
+  },
+  "long_horizon_reference": "M2_gbdt",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_popularity",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "uncertainty": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_popularity",
+  "kept_test": 0.15027963525768567,
+  "baseline_test": 0.15647478706477147,
+  "difference": -0.006195151807085797,
+  "ci95": [
+   -0.006386337737394857,
+   -0.0060150066896190214
+  ],
+  "kept_ci95": [
+   0.14940208733041915,
+   0.15129546922622072
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 50000
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "mind_small"
+  ],
+  "identification": "observational",
+  "population": "50,000 sampled Microsoft News users (US, English)",
+  "platform": "Microsoft News (msn.com)",
+  "period": "2019-11-09..15",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+   "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+   "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+   "committed_at": "2026-11-26T10:15:33+00:00"
+  },
+  "fit": {
+   "commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+   "seconds": 239.99448204040527,
+   "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model news_click_semantic"
+  },
+  "domain": "content_selection",
+  "kept_candidate": "M2_gbdt"
+ },
+ "limits": "MIND-small: 50,000 sampled Microsoft News users (US, English), impressions 2019-11-09..15 chosen by the production recommender. The simulator may use this model for the probability that an individual opens an article shown in a slate, given the cosine of the article's text and its consumption history in the shared MiniLM-L6 space, its category share, popularity per active individual, age and slate size. It may NOT infer: (1) clicks on video or social posts (content_open); (2) other populations, languages or periods; (3) the causal effect of showing an item (no randomised exposure); (4) dwell or reading time; (5) affinities from other encoders or projections that do not preserve MiniLM cosines. Licence: Microsoft Research terms, non-commercial; acquisition route unresolved (BLOCKERS B-1).",
+ "report": "docs/v5/calibration/reports/news_click_semantic.json",
+ "fitted_at": "2026-11-26T10:32:29Z",
+ "mechanisms": [
+  "feed.article_open_semantic"
+ ],
+ "prior_rate": 0.04050665145154455,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "text_cos": [
+   -0.255559,
+   -0.069125,
+   -0.013435,
+   0.007517,
+   0.071303,
+   0.146881,
+   0.230276,
+   0.311062,
+   0.360662,
+   0.45468,
+   1.0
+  ],
+  "text_cos_z": [
+   -4.020134,
+   -2.029223,
+   -1.498496,
+   -1.211931,
+   -0.702064,
+   -0.038215,
+   0.653579,
+   1.314309,
+   1.693544,
+   2.379303,
+   8.214474
+  ],
+  "cat_share": [
+   0.0,
+   0.000476,
+   0.001396,
+   0.002954,
+   0.018191,
+   0.092095,
+   0.238857,
+   0.41598,
+   0.538495,
+   0.757028,
+   0.971219
+  ],
+  "log_hist_len": [
+   0.0,
+   0.0,
+   1.098612,
+   1.609438,
+   2.302585,
+   3.135494,
+   3.828641,
+   4.430817,
+   4.75359,
+   5.347108,
+   6.326149
+  ],
+  "pop_log_clicks_per_1k": [
+   0.0,
+   0.0,
+   0.0,
+   0.052483,
+   0.315357,
+   0.956784,
+   1.848309,
+   2.849324,
+   3.411273,
+   4.645615,
+   5.33671
+  ],
+  "age_log_hours": [
+   0.0,
+   0.693147,
+   1.609438,
+   1.94591,
+   2.564949,
+   2.890372,
+   3.401197,
+   4.007333,
+   4.234107,
+   4.663439,
+   4.787492
+  ],
+  "slate_size_log": [
+   1.098612,
+   1.609438,
+   2.564949,
+   2.995732,
+   3.583519,
+   4.204693,
+   4.682131,
+   4.969813,
+   5.170484,
+   5.545177,
+   5.703782
+  ]
+ },
+ "text_representation": {
+  "encoder": "crucible.text.minilm-l6-v2",
+  "text": "title + ' ' + abstract",
+  "profile": "L2-normalised mean of the clicked history's embeddings"
+ },
+ "module": "crucible.calibration.predictors_e4",
+ "schema": "crucible.v5.model_card/1",
+ "name": "news_click_semantic",
+ "version": 1,
+ "kind": "gbdt_binary",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "f5deeeb821dcad332f51121cf2bc5f4f7a47feb0c7cd3136380aa7fc080ee80d"
+ }
+}

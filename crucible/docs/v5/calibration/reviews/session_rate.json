@@ -1,0 +1,83 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "session_rate@1",
+ "kept_by_card": "M1_gamma_poisson",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:30:25.333303+00:00",
+ "primary_metric": "poisson_deviance",
+ "rule_mapping": "S1 = population rhythm as for return_daily: mean (sessions - 1) per simulated active day, the same for every user; S2 = C2 rule: (16 h / gap) - 1 returns per active day as a Poisson mean. Dynamic long-horizon: for test users, extra sessions on each observed active day of 2022-05-01..05-08 drawn from each contender's predictive (gamma-Poisson posterior updated with the simulated counts for K), measure = mean over days of |simulated - observed mean extra sessions per active day|, plus the KS distance of per-user totals",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 3.3014586700554815,
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.41694486250979146,
+   "ks_user_totals": 0.09739349034136013,
+   "compute_us": 0.005337915137571833
+  },
+  "B": {
+   "primary": 3.72459365016647,
+   "difference_vs_K_ci95": [
+    0.2398369382385625,
+    0.6230453685051863
+   ],
+   "long_horizon": 0.3455205413223567,
+   "ks_user_totals": 0.1367689865043662,
+   "compute_us": 0.0006459371442358214
+  },
+  "S": {
+   "primary": 3.499785572173417,
+   "difference_vs_K_ci95": [
+    0.02981208235683668,
+    0.35930443650290456
+   ],
+   "long_horizon": 0.09112877687100678,
+   "ks_user_totals": 0.17847314104260387,
+   "compute_us": 0.0006459371442358214
+  }
+ },
+ "eligible": [
+  "K",
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "S",
+  "B"
+ ],
+ "long_horizon_reference": "S",
+ "drift_rejected": {
+  "K": {
+   "versus": "S",
+   "difference_ci95": [
+    0.29051942483195303,
+    0.35091879344516325
+   ]
+  }
+ },
+ "kept_after_review": "S",
+ "kept_is_fitted_checkpoint": false,
+ "extra": {
+  "S1_population_rhythm": {
+   "p_active": 0.8643925,
+   "extra_per_active_day": 0.960969698371978,
+   "days_measured": 20,
+   "individuals": 20000
+  },
+  "S2_c2_extra_per_active_day": 1.6666666666666665,
+  "S_is": "S2",
+  "long_horizon_kind": "dynamic: extra sessions on each observed active day 2022-05-05..05-08 drawn day by day (K: gamma-Poisson posterior updated with the simulated counts), mean over days of |simulated - observed mean|; also KS of per-user totals",
+  "window_note": "the plan text names 05-01..05-08; the card's test window (the rows the primary metric uses) is 05-05..05-08, which is the window simulated"
+ },
+ "seconds": 8.082255125045776
+}

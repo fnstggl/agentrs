@@ -1,0 +1,75 @@
+{
+ "schema": "crucible.v5.calibration_review/1",
+ "model": "watch_duration@1",
+ "kept_by_card": "M2_quantile_mlp",
+ "plan": {
+  "path": "docs/v5/calibration/plans/E3_review_plan.json",
+  "sha256": "7c41a1a3f92c2d665ce8923adb41ebddd8d61e4bd4a920e51679764c95441352",
+  "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+  "committed_at": "2026-11-26T10:15:33+00:00"
+ },
+ "review_commit": "7a9dba33a64b745121c3fae5fa93c15b5c69b752",
+ "reviewed_at": "2026-11-26T10:31:54.636615+00:00",
+ "primary_metric": "pinball",
+ "rule_mapping": "S = C2 watch rule on the card's test rows. consumed = 1: bounce with probability sigmoid(bounce_bias + bounce_affinity*aff), bounce time uniform on (1, 6) s, else T ~ Exponential(rate lam), lam = hazard_per_s * exp(hazard_affinity*aff + hazard_familiar*fam + hazard_sat*(sat - 0.5) + hazard_seen*seen), sat = 0.5, T truncated at the duration; consumed = 0: the simulator records watch 0 for a skip, so the predictive distribution is a point mass at 0. Predictive quantiles of log1p(T) at the card's levels computed by Monte Carlo (2,000 draws per row, seed 0). aff, fam, seen as content_consumption. SF: exponential-hazard rate refitted (one log-linear regression of log1p(play_s) on the same inputs) - reported only",
+ "budget_us_per_row": 100.0,
+ "contenders": {
+  "K": {
+   "primary": 0.1293642501577663,
+   "pit_ks": 0.010862063792120503,
+   "coverage_80": 0.796181274442144,
+   "difference_vs_K_ci95": [
+    0.0,
+    0.0
+   ],
+   "long_horizon": 0.003800062394149751,
+   "compute_us": 1.321395667438297
+  },
+  "B": {
+   "primary": 0.13779487566146165,
+   "pit_ks": 0.0549241121628794,
+   "coverage_80": 0.809303767715866,
+   "difference_vs_K_ci95": [
+    0.007701481137980559,
+    0.00902625859793829
+   ],
+   "long_horizon": 0.009328884891040957,
+   "compute_us": 0.17611310258578522
+  },
+  "S": {
+   "primary": 0.5131054874860161,
+   "pit_ks": 0.8277572738820376,
+   "coverage_80": 0.12208319580720337,
+   "difference_vs_K_ci95": [
+    0.38129915006685267,
+    0.3865627979469476
+   ],
+   "long_horizon": 0.6779620615044945,
+   "compute_us": 36.90732135210562
+  }
+ },
+ "eligible": [
+  "K",
+  "B",
+  "S"
+ ],
+ "ordered_by_primary": [
+  "K",
+  "B",
+  "S"
+ ],
+ "long_horizon_reference": "K",
+ "drift_rejected": {},
+ "kept_after_review": "K",
+ "kept_is_fitted_checkpoint": true,
+ "extra": {
+  "consumed_rows_only": {
+   "K": 0.22428317079610793,
+   "B": 0.24571940113227453,
+   "S": 0.3524989389977463
+  },
+  "long_horizon_kind": "static: mean over test days of |80% interval coverage - 0.8|",
+  "S_quantiles": "exact quantiles of the C2 mixture by bisection (instead of the plan's 2,000-draw Monte Carlo; same estimand without sampling error)"
+ },
+ "seconds": 32.74756479263306
+}

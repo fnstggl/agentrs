@@ -1,0 +1,490 @@
+{
+ "domain": "community_participation",
+ "features": [
+  "first_is_issue_open",
+  "first_is_issue_comment",
+  "first_is_pr_open",
+  "first_is_pr_review",
+  "repo_issue_events_24h",
+  "repo_pr_events_24h",
+  "repo_participants_24h",
+  "repo_owner_events_24h",
+  "repo_stars_24h",
+  "repo_pushes_24h",
+  "repo_org",
+  "actor_events_24h",
+  "actor_participation_repos_24h",
+  "actor_repo_events_24h",
+  "hour_sin",
+  "hour_cos"
+ ],
+ "target": "returned: another participation event on the same repository within 24 h",
+ "feature_map": {
+  "first_is_issue_open": "first_is_issue_open: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_issue_comment": "first_is_issue_comment: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_pr_open": "first_is_pr_open: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "first_is_pr_review": "first_is_pr_review: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_issue_events_24h": "repo_issue_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_pr_events_24h": "repo_pr_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_participants_24h": "repo_participants_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_owner_events_24h": "repo_owner_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_stars_24h": "repo_stars_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_pushes_24h": "repo_pushes_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "repo_org": "repo_org: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_events_24h": "actor_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_participation_repos_24h": "actor_participation_repos_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "actor_repo_events_24h": "actor_repo_events_24h: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "hour_sin": "hour_sin: see the E4 plan, models.repo_participation_return.feature_definitions",
+  "hour_cos": "hour_cos: see the E4 plan, models.repo_participation_return.feature_definitions"
+ },
+ "metrics": {
+  "n": 51783,
+  "log_loss": 0.6482913910805241,
+  "brier": 0.228357039851992,
+  "ece": 0.029470031404112508,
+  "auc": 0.6657858109976158,
+  "mean_pred": 0.4875308441473464,
+  "mean_obs": 0.4583164358959504
+ },
+ "baseline_metrics": {
+  "n": 51783,
+  "log_loss": 0.6667505835648826,
+  "brier": 0.23693955184557872,
+  "ece": 0.039741445119752215,
+  "auc": 0.6270760712630931,
+  "mean_pred": 0.49805788101570253,
+  "mean_obs": 0.4583164358959504,
+  "baseline": "B1_event_type"
+ },
+ "candidates": {
+  "B0_constant": {
+   "complexity": "baseline: constant",
+   "n_params": 1,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6935648976996116,
+    "brier": 0.2502088564126448,
+    "ece": 0.039239953340099554,
+    "auc": 0.5,
+    "mean_pred": 0.5027582109819233,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6936222891692364,
+    "brier": 0.2502375518563757,
+    "ece": 0.0444417750859728,
+    "auc": 0.5,
+    "mean_pred": 0.5027582109819232,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "B1_event_type": {
+   "complexity": "baseline: logistic on 4 features",
+   "n_params": 5,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6622675402837344,
+    "brier": 0.23481980232042524,
+    "ece": 0.03000390192857287,
+    "auc": 0.6339897411974413,
+    "mean_pred": 0.49352215957039663,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6667505835648826,
+    "brier": 0.23693955184557872,
+    "ece": 0.039741445119752215,
+    "auc": 0.6270760712630931,
+    "mean_pred": 0.49805788101570253,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "M1_logistic": {
+   "complexity": "L2 logistic, 16 features",
+   "n_params": 17,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6568049489097858,
+    "brier": 0.2322651830313041,
+    "ece": 0.031047445661944863,
+    "auc": 0.6514364598127496,
+    "mean_pred": 0.4942183544906737,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6606954921197021,
+    "brier": 0.2340710117073487,
+    "ece": 0.03185674922723771,
+    "auc": 0.6434788695358862,
+    "mean_pred": 0.48974233363874087,
+    "mean_obs": 0.4583164358959504
+   }
+  },
+  "M2_gbdt": {
+   "complexity": "GBDT, 213 trees",
+   "n_params": 19383,
+   "val": {
+    "n": 44721,
+    "log_loss": 0.6453901324914132,
+    "brier": 0.2270851094594419,
+    "ece": 0.03151682995423,
+    "auc": 0.6711812654405473,
+    "mean_pred": 0.4939798478139059,
+    "mean_obs": 0.46351825764182375
+   },
+   "test": {
+    "n": 51783,
+    "log_loss": 0.6482913910805241,
+    "brier": 0.228357039851992,
+    "ece": 0.029470031404112508,
+    "auc": 0.6657858109976158,
+    "mean_pred": 0.4875308441473464,
+    "mean_obs": 0.4583164358959504
+   }
+  }
+ },
+ "selection": {
+  "rule": "E4: among candidates with compute <= 100 us/row, order by the validation primary metric (ties within 1e-4 to the simpler); keep the first unless its validation long-horizon measure is worse than the smallest one with a paired cluster-bootstrap 95% interval of the difference entirely above 0; keep a simple baseline instead if it is strictly better on test",
+  "rule_version": "E4",
+  "primary_metric": "log_loss",
+  "lower_is_better": true,
+  "validation": {
+   "B0_constant": 0.6935648976996116,
+   "B1_event_type": 0.6622675402837344,
+   "M1_logistic": 0.6568049489097858,
+   "M2_gbdt": 0.6453901324914132
+  },
+  "test": {
+   "B0_constant": 0.6936222891692364,
+   "B1_event_type": 0.6667505835648826,
+   "M1_logistic": 0.6606954921197021,
+   "M2_gbdt": 0.6482913910805241
+  },
+  "baselines": [
+   "B0_constant",
+   "B1_event_type"
+  ],
+  "candidates": [
+   "B0_constant",
+   "B1_event_type",
+   "M1_logistic",
+   "M2_gbdt"
+  ],
+  "ranked_on_validation": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_event_type",
+   "B0_constant"
+  ],
+  "compute_us_per_row": {
+   "B0_constant": 0.00027522549017504447,
+   "B1_event_type": 0.0276899417603939,
+   "M1_logistic": 0.05931560178273895,
+   "M2_gbdt": 33.621443305392404
+  },
+  "compute_budget_us": 100.0,
+  "eligible": [
+   "M2_gbdt",
+   "M1_logistic",
+   "B1_event_type",
+   "B0_constant"
+  ],
+  "long_horizon_validation": {
+   "B0_constant": 0.039638972216858366,
+   "B1_event_type": 0.028952190584785247,
+   "M1_logistic": 0.03066787166197779,
+   "M2_gbdt": 0.031131974225025227
+  },
+  "long_horizon_reference": "B1_event_type",
+  "drift_rejected": {},
+  "selected_on_validation": "M2_gbdt",
+  "best_baseline_on_test": "B1_event_type",
+  "kept": "M2_gbdt",
+  "kept_is_baseline": false,
+  "reason": "selected on validation and confirmed on test: no simple baseline is better"
+ },
+ "uncertainty": {
+  "metric": "log_loss",
+  "kept": "M2_gbdt",
+  "baseline": "B1_event_type",
+  "kept_test": 0.6482913910805241,
+  "baseline_test": 0.6667505835648826,
+  "difference": -0.018459192484358455,
+  "ci95": [
+   -0.022265023871514328,
+   -0.01605400022639915
+  ],
+  "kept_ci95": [
+   0.6443864723059998,
+   0.6512327071314865
+  ],
+  "bootstrap": {
+   "resamples": 200,
+   "clusters": 44197
+  }
+ },
+ "provenance": {
+  "datasets": [
+   "gharchive_2024-10-07_96h"
+  ],
+  "identification": "observational",
+  "population": "public GitHub accounts (non-bot, non-owner) participating in public repositories",
+  "platform": "GitHub (github.com) issues and pull requests",
+  "period": "2024-10-07..10 UTC",
+  "evaluation_plan": {
+   "path": "docs/v5/calibration/plans/E4_new_domains_plan.json",
+   "sha256": "ba512b47d889eb672da5732a581d462f614904dc848fb459cd86156ea622b5ea",
+   "commit": "8e191e2e7cc446c4e9361548d10f5a1656230fa2",
+   "committed_at": "2026-11-26T10:15:33+00:00"
+  },
+  "fit": {
+   "commit": "096fdcb069ffb43fd615c476d60425f6d38660ad",
+   "seconds": 45.376060485839844,
+   "command": "PYTHONPATH=src python -m crucible.calibration.fit_e4 --model repo_participation_return"
+  },
+  "domain": "community_participation",
+  "kept_candidate": "M2_gbdt"
+ },
+ "limits": "GH Archive public GitHub events, 2024-10-07..10 UTC (Monday to Thursday): participation by non-bot, non-owner accounts in public issue and pull-request discussions. The simulator may use this model for the probability that an individual who has just taken part in a community or project discussion takes part again in the same community within a day, as a function of the community's recent activity and maintainer activity and of the individual's own activity. It may NOT infer: (1) participation in non-software communities, private spaces or other platforms; (2) horizons beyond 24 h or retention over weeks (the window has four days); (3) causal effects of maintainer responses or community size (observational: active repositories attract active developers); (4) the content or quality of contributions (only event types are seen); 'first participation' is first within the window, so earlier history before 2024-10-07 is unknown (left-censored).",
+ "report": "docs/v5/calibration/reports/repo_participation_return.json",
+ "fitted_at": "2026-11-26T10:27:32Z",
+ "mechanisms": [
+  "community.return_participation"
+ ],
+ "prior_rate": 0.5027582109819231,
+ "feature_quantiles": {
+  "levels": [
+   0.0,
+   0.01,
+   0.05,
+   0.1,
+   0.25,
+   0.5,
+   0.75,
+   0.9,
+   0.95,
+   0.99,
+   1.0
+  ],
+  "first_is_issue_open": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "first_is_issue_comment": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "first_is_pr_open": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "first_is_pr_review": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "repo_issue_events_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.609438,
+   3.295837,
+   4.248495,
+   5.888074,
+   8.220941
+  ],
+  "repo_pr_events_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.791759,
+   3.295837,
+   4.127134,
+   5.673323,
+   7.876638
+  ],
+  "repo_participants_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.386294,
+   2.639057,
+   3.401197,
+   4.663439,
+   5.828946
+  ],
+  "repo_owner_events_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.609438,
+   3.295837,
+   5.616771
+  ],
+  "repo_stars_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.791759,
+   2.70805,
+   4.127134,
+   7.188413
+  ],
+  "repo_pushes_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.386294,
+   2.564949,
+   3.295837,
+   4.624973,
+   6.556778
+  ],
+  "repo_org": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "actor_events_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   1.791759,
+   2.995732,
+   3.850148,
+   6.57647,
+   8.000349
+  ],
+  "actor_participation_repos_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   1.386294,
+   2.079442,
+   5.278115,
+   6.115892
+  ],
+  "actor_repo_events_24h": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.693147,
+   0.693147,
+   1.791759,
+   6.070738
+  ],
+  "hour_sin": [
+   -1.0,
+   -1.0,
+   -0.965926,
+   -0.965926,
+   -0.707107,
+   0.0,
+   0.707107,
+   0.965926,
+   0.965926,
+   1.0,
+   1.0
+  ],
+  "hour_cos": [
+   -1.0,
+   -1.0,
+   -1.0,
+   -0.965926,
+   -0.866025,
+   -0.258819,
+   0.5,
+   0.866025,
+   0.965926,
+   1.0,
+   1.0
+  ]
+ },
+ "module": "crucible.calibration.predictors_e4",
+ "schema": "crucible.v5.model_card/1",
+ "name": "repo_participation_return",
+ "version": 1,
+ "kind": "gbdt_binary",
+ "checkpoint": "params.npz",
+ "files": {
+  "params.npz": "36cfde25f72a645fd2cb383460d51cadd8e0317a097a7540ebc4836c37d20ac0"
+ }
+}

@@ -5,7 +5,34 @@ entry here by id. Risks are listed so they are watched; they are not blockers.
 
 ## Open blockers
 
-None recorded yet.
+### B-1 MIND-small licence acceptance (user decision; recorded 2026-11-26 by workstream E)
+
+`mind_small` (used by `news_click@1` and, from the E4 plan, `news_click@2`) was downloaded on 2026-11-25 from the
+ungated Hugging Face mirror `huyva/MIND-small` (pinned revision `d771a250`). That route skips the licence acceptance the
+official distribution requires: msnews.github.io links to the gated repository `yjw1029/MIND`, whose files answer
+HTTP 401 without an account that has clicked through the Microsoft Research License Terms (checked again
+2026-11-26: `gated: "auto"`, MINDsmall_train.zip -> 401), and the original Azure host
+`mind201910small.blob.core.windows.net` answers HTTP 409 "public access is not permitted". The terms are
+research-only and non-commercial. Matching row counts do not prove the mirror's files are byte-identical to the
+official ones.
+
+Workstream E has **not** accepted the licence on the user's behalf and did not use any credential. The fitted
+results are kept (they are research use, nothing from the data is redistributed; checkpoints hold only model
+parameters), and every artifact derived from MIND is marked non-commercial research (`docs/v5/calibration/models/
+LICENSE_NOTICE.md`).
+
+Decision needed from the user, one of:
+
+1. accept the Microsoft Research License Terms with their own Hugging Face account and provide a token for one
+   download of `yjw1029/MIND` (MINDsmall_train.zip, MINDsmall_dev.zip); E then verifies the mirror's files against
+   the official ones (or re-fits from the official files) and records the acceptance (who, when, licence version)
+   in the dataset entry; or
+2. confirm in writing that the mirror copy may be used for this research project under the MSR terms; or
+3. withdraw MIND: delete `mind_small`, drop `news_click@1`/`@2` from the registry and rely on KuaiRand for content
+   selection (Gate F still has content consumption through `content_consumption@1`).
+
+Until then F.7 counts MIND's checksums and provenance, but its acquisition route is recorded as unauthorised in
+`datasets()["mind_small"]["license"]["acceptance"]`.
 
 ## Risks being managed
 
