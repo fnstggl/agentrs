@@ -89,6 +89,18 @@ def generate_instance(rng, cfg: dict) -> dict:
         raise ValueError(f"unknown law family {fam!r}")
     c["law"] = law
     c["family"] = fam
+    # common practice: people's habitual settings scatter around the best single setting for the population as a
+    # whole (folk wisdom gets the average right); what the science adds is how the best setting depends on each
+    # person's own circumstances
+    names = ["setting"] + [v["name"] for v in c["conditions"]]
+    m = compile_expr(law, names)
+    conds = [np.linspace(v["lo"], v["hi"], 9) for v in c["conditions"]]
+    cgrid = np.stack([g.ravel() for g in np.meshgrid(*conds, indexing="ij")], 1)
+    svals = np.linspace(0.0, 1.0, 101)
+    pts = [dict(zip(names, [float(sv)] + [float(x) for x in row])) for sv in svals for row in cgrid]
+    resp = np.asarray(m.at(pts), np.float64).reshape(len(svals), len(cgrid)).mean(axis=1)
+    folk = float(svals[int(np.argmin(resp))])
+    c["own_setting"] = [round(folk, 3), float(c.get("own_spread", 0.07))]
     return c
 
 
@@ -778,7 +790,7 @@ POPULATION = 600
 STRUCTURES = {
     "linear_optimum": {"family": "linear"},
     "saturating_optimum": {"family": "saturating", "base_cents_week": [3000, 9000]},
-    "interaction_optimum": {"family": "interaction", "own_setting": [0.6, 0.2],
+    "interaction_optimum": {"family": "interaction", "own_spread": 0.1,
                             "investors": [{"handle": "grants", "name": "Science Grants Council", "budget": 400_000,
                                            "rule": "validated", "max_ticket": 250_000, "equity_per_100k_bps": 1},
                                           {"handle": "growthfund", "name": "Growth Fund", "budget": 2_000_000,
@@ -808,7 +820,7 @@ CONFIGS = (
     DomainConfig("saturating_optimum", "train", _structure("saturating_optimum"),
                  "the best setting saturates with circumstances; bills are larger"),
     DomainConfig("interaction_optimum", "train", _structure("interaction_optimum"),
-                 "setting and circumstances interact multiplicatively; people start further off; a grants council "
+                 "setting and circumstances interact multiplicatively; habits scatter more; a grants council "
                  "funds validated science instead of angels"),
     DomainConfig("saturating_grants", "eval_compositional", _structure("saturating_grants"),
                  "a saturating law (seen in training) financed by grants and growth equity (seen in training, never "
@@ -891,9 +903,10 @@ class Reference(ToolPolicy):
     from what is known without the phenomenon's data (the population's habitual setting) and otherwise acts alike."""
     every = 12 * HOUR
 
-    def __init__(self, world, principal, discovery: bool = True):
+    def __init__(self, world, principal, discovery: bool = True, common_practice: float = 0.5):
         super().__init__(world, principal)
         self.discovery = discovery
+        self.common = float(common_practice)
         self.stage = "start"
         self.run = None
         self.paper = None
@@ -938,7 +951,7 @@ class Reference(ToolPolicy):
         out = []
         if self.stage == "start":
             if not self.discovery:
-                self.advice = "0.5"
+                self.advice = f"{self.common:.3f}"
                 self.stage = "build"
             else:
                 ph = self.q("sci.phenomena")
