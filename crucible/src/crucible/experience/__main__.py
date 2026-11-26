@@ -49,6 +49,8 @@ def _run(a) -> dict:
 
 
 def main(argv=None) -> int:
+    from ..hosting import engage
+    engage("experience runner")                # Part 16: no real-world bridge in a process that hosts worlds
     p = argparse.ArgumentParser(prog="python -m crucible.experience")
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="run the reference learner on one environment")

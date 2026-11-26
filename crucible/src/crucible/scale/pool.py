@@ -332,6 +332,8 @@ def _set_pdeathsig(sig: int = signal.SIGTERM) -> bool:
 def _worker_main(wid: int, conn, factory: str, cfg: dict, log_path: str | None, parent_pid: int | None,
                  blas_threads: int, temp_logs: bool = False) -> None:
     """Entry point of a worker process: build the handler, then serve one item at a time over the pipe."""
+    from ..hosting import engage
+    engage("scale.pool worker")                # Part 16: no real-world bridge in a process that hosts worlds
     for k in BLAS_ENV:
         os.environ[k] = str(blas_threads)
     _LIVE.clear()                                    # (fork) the parent's supervisors are not ours to stop

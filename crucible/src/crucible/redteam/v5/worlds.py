@@ -52,8 +52,10 @@ def v5_spec(kind: str, seed: int = 1, *, configs: dict | None = None, extra: Ite
     if kind == "population":
         from ...population.worlds import population_world
         pc = dict((configs or {}).get("pop", {}))
+        cls = dict((configs or {}).get("_population", {}))
         spec = population_world("development", int(seed), n=int(pc.pop("n", 300)), sites=int(pc.pop("sites", 6)),
-                                 adaptive=False, strategic=False, pop=pc or None, params=params)
+                                 adaptive=bool(cls.get("adaptive", False)), strategic=bool(cls.get("strategic", False)),
+                                 pop=pc or None, params=params)
         have = {m["name"] for m in spec.modules}
         for m in extra:
             if m not in have:

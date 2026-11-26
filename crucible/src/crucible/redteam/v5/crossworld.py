@@ -76,8 +76,8 @@ class ArtifactsDoNotCrossWorlds(V5Probe):
 
 class ClosedWorldBytesAreReleased(V5Probe):
     name = "v5.crossworld.closed_worlds_release_their_bytes"
-    attack_class = "cross_world/memory_exhaustion"
-    gates = ("W.5", "W.7")
+    attack_class = "unbounded_resources/memory_of_closed_worlds"
+    gates = ("W.7",)
     target, owner = "artifacts", "A"
     world = {"v5": "substrate"}
     description = ("Long multi-world processes (experiments, leagues, curricula) create and close many store-less "
