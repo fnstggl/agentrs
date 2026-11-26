@@ -113,7 +113,8 @@ def _participant_prompts() -> dict:
         hosts = sorted({t["name"].split(".", 1)[0] for t in a.tools})[:10]
         for req in (M.intent_request(a, it["t"], None), M.service_request(a, it["t"], hosts,
                                                                         it["state"]["summaries"], None)):
-            sizes.append(len(tok.apply_chat_template(req["messages"], tokenize=True, add_generation_prompt=True)))
+            text = tok.apply_chat_template(req["messages"], tokenize=False, add_generation_prompt=True)
+            sizes.append(len(tok(text, add_special_tokens=False)["input_ids"]))
     return {"participant_prompt_tokens_median": int(np.median(sizes)), "participant_prompt_tokens_max": int(max(sizes)),
             "items": items}
 
@@ -230,7 +231,8 @@ def test_SP_13_4_inference_service_features(cpu_svc):
              "short_contexts": _short_contexts(cpu_svc)}
     pp = _participant_prompts()
     feats["short_contexts"].update({k: v for k, v in pp.items() if k != "items"})
-    feats["short_contexts"]["ok"] = feats["short_contexts"]["ok"] and pp["participant_prompt_tokens_max"] <= 4096
+    feats["short_contexts"]["ok"] = (feats["short_contexts"]["ok"] and pp["participant_prompt_tokens_max"] <= 4096
+                                     and pp["participant_prompt_tokens_median"] > 100)
     feats["retrieval"] = _retrieval(pp["items"])
     feats["prefix_caching"] = _prefix_cache(cpu_svc)
     feats["bounded_generation"] = _bounded(cpu_svc)
