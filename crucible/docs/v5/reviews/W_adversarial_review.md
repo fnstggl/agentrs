@@ -131,8 +131,13 @@ branch's probes and controls:
   configuration carrying extra keys; the file-stash control counts a refused checkpoint as not credited (it used to
   stop with an error).
 * Tier 2: 15 domains register on the merge (45 probes: offline + evaluator isolation per evaluation configuration,
-  metric-write tools per domain). Probe results on the merge are in workstreams/O.json; CPU-only runs are slow
-  (community > 290 s for one simulated day), so the full set runs in the GPU slot (gate W's timeout is 3 h).
+  metric-write tools per domain). One probe per domain, CPU-only: every world stayed offline. After one simulated
+  day 13 of 14 evaluator outcomes held no distinctive number, so the isolation half was vacuous; the probe now keeps
+  the scripted reference acting (5-day chunks within the horizon, 90 s budget) and then 6 of 13 carry canaries, none
+  of which reached the seat. Doing so exposed one false leak - an evaluator detail `cash_cents` equal to the seat's
+  own balance - so the seat's own account balances are excluded from the canaries. Still vacuous within budget:
+  crisis, education, information, invention, labor, software (request to I-1..3 in workstreams/O.json); slow
+  CPU-only: research, content, community (the full set runs in the GPU slot; gate W's timeout is 3 h).
 
 ## 6. Residual risks (stated, not fixed here)
 
