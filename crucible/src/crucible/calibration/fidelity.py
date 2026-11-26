@@ -26,7 +26,12 @@ The *important behavioural mechanisms* are computed, never listed by hand:
    parameter group of the social consumption engine (``feed.behaviour.<group>``, from
    `crucible.social.consumption.BUILTIN`); a parameter group that `FEED_GROUPS` does not know becomes its own
    mechanism, so a new behaviour parameter without a record fails;
-6. every runtime decision model of `crucible.calibration.runtime` (its ``fidelity_id``).
+6. every runtime decision model of `crucible.calibration.runtime` (its ``fidelity_id``);
+7. every kernel module outside those packages whose source records population decisions (calls
+   ``record_decisions``), e.g. `economy.work`;
+8. every fidelity id that recorded decisions carry (decision provenance, D-15): the string literals given as
+   ``fidelity_id`` in the source of the behaviour packages and of the modules of item 7, so a decision batch can
+   never name a fidelity record that does not exist.
 
 The in-world-use column is checked (`inworld_claims`): ``none ...`` makes no claim; ``opt-in: `<module>` ...`` and
 ``default: `<module>` ...`` claim that kernel module ``<module>`` consumes the fitted model the row names
@@ -183,6 +188,65 @@ def decision_mechanisms() -> list[dict]:
     from . import runtime
     for spec in runtime.specs().values():
         out.append({"id": spec["fidelity_id"], "why": f"runtime decision model {spec['id']}", "match": "id"})
+    for fid, where in sorted(provenance_fidelity_ids().items()):
+        out.append({"id": fid, "why": f"fidelity id carried by recorded decisions ({where})", "match": "id"})
+    return out
+
+
+# fidelity ids given to record_decisions / ensure_model: keyword, dict entry, or a (model, version, fidelity) tuple
+_FID_PATTERNS = (re.compile(r"""fidelity_id\s*=\s*["']([^"'\s]+)["']"""),
+                 re.compile(r"""["']fidelity_id["']\s*:\s*["']([^"'\s]+)["']"""),
+                 re.compile(r"""_MODEL\s*=\s*\(\s*["'][^"']+["']\s*,\s*["'][^"']+["']\s*,\s*["']([^"'\s]+)["']\s*\)"""))
+
+
+def _source_files(paths):
+    for d in paths:
+        if os.path.isfile(d):
+            yield d
+            continue
+        for root, _, files in os.walk(d):
+            for fn in sorted(files):
+                if fn.endswith(".py"):
+                    yield os.path.join(root, fn)
+
+
+def provenance_fidelity_ids() -> dict[str, str]:
+    """{fidelity id: first source file} for every literal fidelity id in the behaviour packages and the modules
+    that record population decisions."""
+    import importlib
+    roots = []
+    for pkg in BEHAVIOUR_PACKAGES:
+        try:
+            roots += list(importlib.import_module(f"crucible.{pkg}").__path__)
+        except ImportError:
+            continue
+    for cls in _decision_recording_modules().values():
+        roots.append(importlib.import_module(cls.__module__).__file__)
+    out: dict[str, str] = {}
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for f in _source_files(roots):
+        with open(f, encoding="utf-8") as fh:
+            text = fh.read()
+        for pat in _FID_PATTERNS:
+            for m in pat.finditer(text):
+                out.setdefault(m.group(1), os.path.relpath(f, base))
+    return out
+
+
+def _decision_recording_modules() -> dict:
+    """Kernel modules outside BEHAVIOUR_PACKAGES whose source file records population decisions."""
+    import importlib
+    out = {}
+    for mname, cls in sorted(_modules().items()):
+        pkg = cls.__module__.split(".")
+        if len(pkg) > 1 and pkg[0] == "crucible" and pkg[1] in BEHAVIOUR_PACKAGES:
+            continue
+        try:
+            with open(importlib.import_module(cls.__module__).__file__, encoding="utf-8") as fh:
+                if "record_decisions(" in fh.read():
+                    out[mname] = cls
+        except (OSError, TypeError):
+            continue
     return out
 
 
@@ -203,6 +267,9 @@ def important_mechanisms() -> list[dict]:
         if len(pkg) > 1 and pkg[0] == "crucible" and pkg[1] in BEHAVIOUR_PACKAGES:
             imp.append({"id": f"module:{mname}", "why": f"v5 kernel module {cls.__module__}.{cls.__name__}",
                         "match": "module", "module": mname})
+    for mname, cls in _decision_recording_modules().items():
+        imp.append({"id": f"module:{mname}", "why": f"kernel module {cls.__module__}.{cls.__name__} records "
+                    "population decisions", "match": "module", "module": mname})
     imp += decision_mechanisms()
     seen, out = set(), []
     for m in imp:
