@@ -188,12 +188,14 @@
   },
   "SP-13.4": {
    "implementation_files": [
-    "src/crucible/semantic/service.py",
     "src/crucible/semantic/batching.py",
-    "src/crucible/semantic/routing.py",
-    "src/crucible/semantic/recording.py",
     "src/crucible/semantic/generalists/catalog.py",
-    "src/crucible/semantic/generalists/mind.py"
+    "src/crucible/semantic/generalists/mind.py",
+    "src/crucible/semantic/recording.py",
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/service.py",
+    "src/crucible/semantic/space/distill.py",
+    "src/crucible/semantic/space/lm_fast.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_13_4.py",
@@ -223,19 +225,90 @@
    "tests": [
     "tests/v5/test_gate_E.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "verified in an unofficial run on this branch: artifact_change_behavior_pvalue 3.0e-4 (Bonferroni over 2 probes x 3 controlled pairs, raw min 5e-5); population_reading detects cooking and sports (p 5e-5 each), space_feed (3,000 x 3 days in that run) transport p 0.0018 raw (0.011 after Bonferroni), cooking 0.198, sports 0.050",
+   "notes": "After that run the feed probe was enlarged to 6,000 individuals x 4 days (only 49-147 individuals' readings differed between arms) so that the transport pair, which the reading probe never detects (p 0.19), has the power to be detected; not yet re-measured at that size. E.3 records controlled_pairs_detected_by_some_probe. Probes vary one artifact between two otherwise identical worlds; random draws diverge after the first differing decision (noise for the paired test)."
+  },
+  "E.1": {
+   "implementation_files": [
+    "src/crucible/semantic/encoders/__init__.py",
+    "src/crucible/semantic/encoders/models.py",
+    "src/crucible/semantic/encoders/base.py",
+    "src/crucible/semantic/encoders/text.py",
+    "src/crucible/semantic/encoders/image.py",
+    "src/crucible/semantic/encoders/audio.py",
+    "src/crucible/semantic/encoders/video.py",
+    "src/crucible/semantic/encoders/code.py",
+    "src/crucible/semantic/media.py",
+    "src/crucible/semantic/space/__init__.py",
+    "src/crucible/semantic/space/compute.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "verified in an unofficial run on this branch (GPU slot, 2026-11-26, SPACE_VERSION f455005900ab0232): real_encoder_modalities 4 (5 with code), stub_vectors_detected 0, min_encoder_params 22,713,216; reference cosines text 1.0, image 0.999999, AST 1.0, still-video vs image 0.994",
+   "notes": "Encoders unchanged in wave 3b except the jailed image decode (pixel-identical)."
+  },
+  "E.2": {
+   "implementation_files": [
+    "src/crucible/semantic/encoders/validation.py",
+    "src/crucible/semantic/space/validate.py",
+    "src/crucible/semantic/space/compute.py",
+    "src/crucible/semantic/space/lm.py",
+    "src/crucible/semantic/finegrained.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "verified in an unofficial run on this branch: min_modality_separation_ratio 15.12 (text; image 22.4, audio 18.3, video 66.4, code 154.6); held-out fine-grained pairs through the shared space: negation 2.58, polarity 2.08, quantity 3.54 (topic block alone 1.80 / 1.52 / 2.02)",
+   "notes": "The topic-level E.2 suites are a weak criterion (a lexical baseline also passes them, audit D skeptic); the fine-grained metrics are recorded beside them."
+  },
+  "E.4": {
+   "implementation_files": [
+    "src/crucible/semantic/cache.py",
+    "src/crucible/semantic/encoders/__init__.py",
+    "src/crucible/semantic/encoders/module.py",
+    "src/crucible/semantic/space/store.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "verified in an unofficial run on this branch: cache_invalidation_failures 0, cache_hits 10, recomputes_after_change 5, world_records 2",
+   "notes": ""
+  },
+  "E.5": {
+   "implementation_files": [
+    "src/crucible/semantic/encoders/audit.py",
+    "src/crucible/semantic/space/__init__.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "verified in an unofficial run on this branch: creator_assigned_quality_fields_read 0, creator_assignable_fields 0 (13 exempt lines with reasons); dynamic check representations_changed_by_metadata 0 of 3 metadata variants of identical bytes",
+   "notes": "DEF-D-3 closed with the dynamic check."
+  },
+  "E.n1": {
+   "implementation_files": [
+    "src/crucible/semantic/encoders/models.py",
+    "src/crucible/semantic/encoders/audit.py",
+    "src/crucible/semantic/encoders/__init__.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_E.py"
+   ],
+   "status_claim": "verified in an unofficial run on this branch: model_forward_passes 9, stub_vectors_detected 0, weight_dependent_modalities 5 (perturbed-weight cosines 0.64-0.95)",
    "notes": ""
   }
  },
  "limitations": [],
  "integration_notes": [
-  "CIV: please list \"pop_semantic\" in crucible.civ.generator.ORDER right after \"pop_strategic\" and in civ.subsystems.POPULATION_MODULES (population subsystem). Until then crucible.semantic.generalists.civ_world(profile, seed, population) builds exactly civ.spec(...) with pop_semantic inserted after pop_strategic (it becomes civ.generate once ORDER lists the module); the Gate H / SP-3.2d / SP-3.3c / SP-4.2b / SP-13.4 tests use civ_world. Without the module, class-4 rows of every civilisation stay inert (next_active_at NEVER).",
+  "CIV (J): please list \"pop_semantic\" in crucible.civ.generator.ORDER right after \"pop_strategic\" and in civ.subsystems.POPULATION_MODULES. Until then crucible.semantic.generalists.civ_world(profile, seed, population) builds exactly civ.spec(...) with pop_semantic inserted after pop_strategic (it becomes civ.generate once ORDER lists the module); Gate H / SP-3.2d / SP-3.3c / SP-4.2b / SP-13.4 use civ_world. Without the module the class-4 rows of every civilisation stay inert (next_active_at NEVER), so DEF-D-5 stays open until this lands.",
+  "CORE-POP (B), SP-4.3 / DEF-B-6: in the unofficial SP-4.3 run (3,000 individuals, posts and blog, 3 days, 2 creators per kind and topic) gibberish (0 viewers), keyword stuffing (2.8) and token-optimised text (23) lose to informative text (131) on every topic, but a word salad of the informative text's own words reaches 138 and beats it on 3 of 6 topics: the population's legibility (population.semantics.legibility: valid words, function-word share, distinct share, compressibility) is identical for a shuffle of the same words. The shared space already rates it: crucible.semantic.space.comprehension(features) = 0.10 for word salad, 0.006 gibberish, 0.26 keyword stuffing, 0.98 informative (token-optimised 0.91: grammatical template text is not caught by an LM either). Request: in population.semantics.item_rep multiply the reader-model legibility by min(1, comprehension(feats)/0.8) (or replace it), keeping the lexical model only as the text-feature fallback; SP-4.3 (tests/v5/test_gate_SP_4_3.py) measures the effect.",
   "CORE-POP (B): please export a deposit function in the population API (population.deposit(ctx, i) = core.money_deposit): class-4 participants receive their accrued income before each activation; pop_semantic calls population.deposit when exported and core.money_deposit otherwise.",
-  "CORE-POP / C: the population's and the social consumption engine's content judgement uses the lexical reader model population.semantics.legibility, not the space's LM-based comprehension index (crucible.semantic.space.comprehension). tests/v5/test_gate_SP_4_3.py measures whether gibberish, keyword stuffing, word salad or token-optimised text beats informative text on equal topics in the social internet; a token-optimised text built to pass lexical checks is the case a lexical model may miss (DEF-B-6).",
-  "ALL: SPACE_VERSION changed (6cc04f5e24cdce0a -> f455005900ab0232 for the jailed image decode; possibly once more when the distilled cheap LM features are adopted, see D.json SP-13.4 notes): every machine-wide space cache entry of earlier versions is unused after the merge; the MIND prior for the new version is built under $CRUCIBLE_DATA/semantic/space/<version>/ by `python -m crucible.semantic.space build-prior` (GPU slot) and the population interest asset (population/data/interest_space_v2.*) is rebuilt by `python -m crucible.population.space_asset build`.",
-  "M (Gate V): with pop_semantic in civilisations, class-4 participants run the routed small LMs (Qwen3-0.6B / Qwen3-1.7B / SmolLM2-135M) about 2-3 activations a day each (config gap_s, default [14400, 28800] s in waking hours; steps 3): run civilisation benchmarks in GPU slots of at least 8 GB (three models plus encoders), or set the module config brain='ablated' for a model-free control row. class_activity counts class 4 as acting through n_sessions (the population records each activation as a session).",
-  "P / QA: the manifest's implementation_files for H.*, SP-3.2d, SP-3.3c, SP-4.2b, SP-4.3, SP-13.4, SP-13.5 should list the generalists package files (see requirements below); H.n1's semantic_model_params is the default model's size (Qwen3-0.6B) with the escalation model and capabilities reported separately (D-36).",
-  "O (security): semantic/media.open_image now decodes participant images in the jail (isolation.decode_image) and fails closed without the jail unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1; social/formats.inspect and social/render.open_image (C) still decode in-process (redteam v5.network.image_decoders_run_outside_the_world_process).",
+  "ALL: SPACE_VERSION is f455005900ab0232 on this branch (6cc04f5e24cdce0a -> f455005900ab0232: jailed image decode in semantic/media.py, private LM run-time counters). The MIND prior for it was rebuilt under /workspace/data/crucible/semantic/space/f455005900ab0232/ (python -m crucible.semantic.space build-prior; held-out click AUC 0.638, identical to the previous version) and the population interest asset population/data/interest_space_v2.* rebuilt and committed (npz unchanged, metadata version only). Any branch that edits a vector source (space/textual.py, lm.py, align.py, compute.py, encoders/*, media.py) changes the version again and must rebuild both.",
+  "M (Gate V): with pop_semantic in civilisations, class-4 participants run Qwen3-1.7B (situation interpretation, tool choice; D-36/D-37), Qwen3-0.6B (content understanding, plus the space's text LM) and SmolLM2-135M (writing) about 2-3 activations a day each: run civilisation benchmarks in GPU slots of at least 9 GB (the standard Gate H run peaked at 7,954 MiB), or set the module config brain='ablated' for a model-free control row.",
+  "P / QA: the manifest's implementation_files for H.*, SP-3.2d, SP-3.3c, SP-4.2b, SP-4.3, SP-13.4, SP-13.5, E.3 should list the files given per requirement in this JSON. H.n1's semantic_model_params is now the largest model class-4 decisions are routed to in the standard run (D-37), which is Qwen3-1.7B: H.n1 fails by measurement (see D-37 for why the target conflicts with smallest-effective routing).",
+  "O (security): semantic/media.open_image decodes participant images in the jail (isolation.decode_image) and fails closed without the jail unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1; every image decode site in crucible/semantic goes through it (encoders/image.py, space/compute.py). social/formats.inspect and social/render.open_image (C) still decode in-process.",
+  "KERNEL (kcal): SP-13.5 records digests_equal false for the same civilisation (balanced, seed 4, development) generated twice in one process and run one day with class-4 participants on GPU models; every model output is recorded so replay is exact, but two fresh runs diverge (GPU bf16 batched inference is not bitwise reproducible across batch compositions; also see the K1 cross-process digest note).",
   "Facts registry (A): pop_semantic's only table is semp_state (module-private mind state keyed by population row; no shared-kind signature)."
  ],
  "history": {
@@ -266,6 +339,7 @@
     "SP-3.2b"
    ]
   },
-  "CORE-SEM (wave 2, c5c/w2-coresem)": "one shared semantic space crucible.semantic.space (DIM 422), MIND prior, alignment maps, E.5 taint audit, prefix-first exact caching, continuous batcher"
+  "CORE-SEM (wave 2, c5c/w2-coresem)": "one shared semantic space crucible.semantic.space (DIM 422), MIND prior, alignment maps, E.5 taint audit, prefix-first exact caching, continuous batcher",
+  "W3b (wave 3b, c5c/w3b-sem)": "class-4 runtime pop_semantic bound to population class 4 (generalists package), routing D-36 from the measured SP-3.2b report, structured representations (software, products), Gate E.3 feed probe, jailed image decode (SPACE_VERSION f455005900ab0232, MIND prior and population interest asset rebuilt), cheap LM feature candidate measured and not adopted; first agent stopped by a usage limit, continued by a second agent"
  }
 }
