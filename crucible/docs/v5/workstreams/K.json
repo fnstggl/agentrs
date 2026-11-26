@@ -166,7 +166,7 @@
     "tests/v5/test_gate_SP_12_0.py"
    ],
    "status_claim": "implemented; gate run on the Tier 3 civilisation queued behind the shared GPU slot queue (see notes)",
-   "notes": "11 capability kinds read from world state for learning parties; respond_to_changing_strategies by world fork counterfactual. CPU proxy (open_digital, 48 h): 6 of 11 by the learned policies; the scripted demonstrator alone reaches 9 of 11 (feasibility). Whether >= 10 is reached in the civilisation is what the gate measures."
+   "notes": "11 capability kinds read from world state for learning parties; respond_to_changing_strategies by a world-fork counterfactual. CPU proxy (open_digital training world, 48 simulated hours, 2 demonstration worlds, 5 epochs of cloning): 8 of 11 by the learned policies (missing there: join_organizations - present in other seeds - and develop_competing_technologies, besides the counterfactual one); the scripted demonstrator alone reaches 9 of 11 (feasibility, labelled scripted). Whether >= 10 is reached in the civilisation is what the gate measures."
   },
   "SP-12.1": {
    "implementation_files": [
@@ -282,5 +282,37 @@
   "Gate tests: tests/v5/test_gate_Q.py and test_gate_SP_12_0.py run the full campaign (~8 min CPU pre-training in the slot, then 72 simulated hours of civilisation + held-out evaluation); the SP-12.1/1b/2/3/3b files run a short campaign (24 h). All need --cpu 1 --gpu-mb 4000 --ram-mb 16000. The manifest's tests field for SP-12.0/12.1b/12.2/12.3b already names these files.",
   "ACCEPTANCE_MANIFEST implementation_files for Q.*/SP-12.* are empty; the files above should be synced by QA (ablation needs them)."
  ],
- "history": {}
+ "history": {},
+ "cpu_proxy_results": {
+  "world": "kernel:open_digital (not a civilisation; development proxy only)",
+  "learned_capabilities_48h": 8,
+  "demonstrator_capabilities": 9,
+  "early_to_late_state_changing_accept_rate": {
+   "alpha": [
+    0.31,
+    0.28
+   ],
+   "beta": [
+    0.17,
+    0.19
+   ],
+   "gamma": [
+    0.13,
+    0.47
+   ],
+   "delta": [
+    0.16,
+    0.31
+   ]
+  },
+  "updates_48h": {
+   "alpha": 24,
+   "beta": 24,
+   "gamma": 24,
+   "delta": 24
+  },
+  "strategy_switch": "replicate branches 0 divergent decisions; switched branch 42 of the responder's decisions differ (dry run)",
+  "collusion_battery": "6/6 planted schemes detected, 0 clean controls flagged",
+  "canary_audit": "21 private canaries, 0 accesses, public-canary positive control hit 13 times (dry run)"
+ }
 }
