@@ -114,6 +114,29 @@ def harvest_ids(x: Any, label: str, out: dict[str, str], depth: int = 0) -> None
             harvest_ids(v, label, out, depth + 1)
 
 
+PRINCIPAL_ARGS = ("to", "recipients", "payer", "payee", "person", "target", "grantee", "member", "principal",
+                  "counterparty", "invitee", "user", "seller", "buyer", "assignee", "arbiter", "who", "with")
+
+
+def compatible(arg: str, schema: dict, value: str) -> bool:
+    """Whether a known identifier can be a value of argument `arg` (its kind, read from the argument's name and
+    description; patterns and lengths are checked separately)."""
+    n, d = arg.lower(), str(schema.get("description") or "").lower()
+    if n == "ref" or "artifact" in d:
+        return value.startswith("sha256:")
+    if "account" in n:
+        return value.startswith("acct_")
+    if n in ("msg", "in_reply_to"):
+        return value.startswith("mail_")
+    if n in PRINCIPAL_ARGS or "principal" in d or "handle" in d:
+        return bool(re.match(r"^(p\d+$|p:|o:)", value)) or (value.startswith("acct_") and "account" in d)
+    if n == "doc":
+        return value.startswith("doc_")
+    if n == "item":
+        return value.isdigit()
+    return not value.startswith(("sha256:", "acct_")) or n in ("id",)
+
+
 def ids_in_text(s: str) -> list[str]:
     return list(dict.fromkeys(_ID_PATTERNS.findall(s or "")))
 
@@ -141,6 +164,7 @@ class Agent:
     add_known: dict = field(default_factory=dict)
     goals_changed: set = field(default_factory=set)
     stop: bool = False
+    intent: str = ""
     failures: int = 0
     step_log: list = field(default_factory=list)
 
@@ -246,34 +270,31 @@ def perceive(ctx, a: Agent) -> None:
         except CrucibleError:
             return None
     accts = call("bank.accounts", {})
-    if isinstance(accts, dict):
-        rows = accts.get("accounts") or accts.get("results") or []
-        for r in rows if isinstance(rows, list) else []:
-            if isinstance(r, dict) and r.get("id"):
-                bal = r.get("balance", r.get("balance_cents"))
-                a.situation.append(f"money: {money(bal or 0)} in your account {r['id']}" if bal is not None
-                                   else f"your account {r['id']}")
-                a.learn_ids({r["id"]: "your own bank account"})
+    for r in accts if isinstance(accts, list) else []:
+        if isinstance(r, dict) and r.get("account") and r.get("status", "open") == "open":
+            a.situation.append(f"money: {money(r.get('balance') or 0)} in your account {r['account']}")
+            a.learn_ids({r["account"]: "your own bank account"})
     me = call("pop.me", {})
     if isinstance(me, dict):
-        a.situation.append(f"you are {'employed' if me.get('employed') else 'not employed'}; satisfaction "
-                           f"{float(me.get('satisfaction', 0)):+.2f}")
+        a.situation.append(f"you are {'employed' if me.get('employed') else 'not employed'}; you have "
+                           f"{float(me.get('attention_left_min', 0)):.0f} minutes of free time left today")
     inbox = call("mail.inbox", {"unread_only": True, "limit": 5})
-    msgs = (inbox or {}).get("messages") if isinstance(inbox, dict) else None
-    if isinstance(msgs, list):
+    if isinstance(inbox, list):
         seen = set(a.seen.get("mail", []))
         heads = []
-        for m in msgs:
-            if not isinstance(m, dict) or not m.get("id"):
+        for m in inbox:
+            mid = m.get("msg") if isinstance(m, dict) else None
+            if not mid:
                 continue
-            frm = m.get("from") or m.get("sender") or "?"
-            heads.append(f"{m['id']} from {frm}: '{clip(m.get('subject', ''), 60)}'")
-            a.learn_ids({m["id"]: f"unread mail from {frm} ('{clip(m.get('subject', ''), 40)}')"})
+            frm = m.get("from") or "?"
+            subj = clip(m.get("subject", ""), 60)
+            heads.append(f"{mid} from {frm}: '{subj}'")
+            a.learn_ids({mid: f"unread mail from {frm} ('{clip(subj, 40)}')"})
             if isinstance(frm, str) and _ID_PATTERNS.fullmatch(frm):
-                a.learn_ids({frm: "sent you mail"})
-            if m["id"] not in seen:
-                a.remember(now, "mail", f"New mail {m['id']} from {frm}: '{clip(m.get('subject', ''), 80)}' (unread)")
-                seen.add(m["id"])
+                a.learn_ids({frm: "wrote to you"})
+            if mid not in seen:
+                a.remember(now, "mail", f"New mail {mid} from {frm}: '{subj}' (unread)")
+                seen.add(mid)
         a.seen["mail"] = sorted(seen)[-60:]
         a.situation.append("unread mail: " + ("; ".join(heads) if heads else "none"))
     mine = call("aud.mine", {"limit": 5})
@@ -364,13 +385,37 @@ def tool_line(t: dict, n: int = 150) -> str:
     return f"- {t['name']}({args}): {clip(t.get('description', ''), n)}"
 
 
-def tool_request(a: Agent, now: int, shortlist: list[dict], qv) -> dict:
-    lines = "\n".join(tool_line(t) for t in shortlist)
-    user = (f"{a.header(now, qv)}\n\nTools you can use now:\n{lines}\n- finish: {FINISH['description']}\n"
-            f"- wait: {WAIT['description']}\n\nWhich tool do you use next for your goal? Answer with the tool name "
+def intent_request(a: Agent, now: int, qv) -> dict:
+    user = (f"{a.header(now, qv)}\n\nWhat is the single next step you take now towards your goal? (If the goal is "
+            "achieved, or you must wait for someone, say so.) Answer with one short sentence starting with "
+            "\"Next I will\".")
+    return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+            "max_new_tokens": 28, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
+
+
+def clean_intent(text: str) -> str:
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip().strip('"').strip()
+    t = t.split("\n")[0].strip()
+    return clip(t, 200)
+
+
+def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -> dict:
+    lines = "\n".join(catalog.host_line(h, summaries.get(h, ""), a.tools) for h in hosts)
+    nxt = f"\nYour next step: {a.intent}" if a.intent else ""
+    user = (f"{a.header(now, qv)}{nxt}\n\nServices you can use:\n{lines}\n- finish: {FINISH['description']}\n"
+            f"- wait: {WAIT['description']}\n\nWhich service do you use for this step? Answer with the service name "
             "only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-            "choices": [t["name"] for t in shortlist] + ["finish", "wait"], "normalize": "mean", "prefix_messages": 1}
+            "choices": list(hosts) + ["finish", "wait"], "normalize": "mean", "prefix_messages": 1}
+
+
+def tool_request(a: Agent, now: int, host: str, shortlist: list[dict], qv) -> dict:
+    lines = "\n".join(tool_line(t) for t in shortlist)
+    nxt = f"\nYour next step: {a.intent}" if a.intent else ""
+    user = (f"{a.header(now, qv)}{nxt}\n\nTools of the service {host}:\n{lines}\n\nWhich tool do you call for this "
+            "step? Answer with the tool name only.")
+    return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+            "choices": [t["name"] for t in shortlist], "normalize": "mean", "prefix_messages": 1}
 
 
 def capability_of(tool: str, arg: str | None = None) -> str:
@@ -433,17 +478,18 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
             if pat or items.get("type") != "string":
                 out.append(Slot(k, ps, required, "list", tokens=24))
             else:
-                ids = [x for x in a.known if int(items.get("maxLength", 200)) >= len(x)]
+                ids = [x for x in a.known if int(items.get("maxLength", 200)) >= len(x) and compatible(k, items, x)]
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [OTHER],
                                 [[x] for x in ids] + [OTHER]) if ids else Slot(k, ps, required, "list", tokens=24))
-        elif is_text_field(k, ps) and not ps.get("pattern"):
+        elif is_text_field(k, ps):
             n = 24 if (k in SHORT_TEXT or int(ps.get("maxLength", 4000) or 4000) <= 200) else 200
             if k in CODE_FIELDS:
                 n = 320
             out.append(Slot(k, ps, required, "text", tokens=n))
         else:
             pat, mx = ps.get("pattern"), int(ps.get("maxLength", 200) or 200)
-            ids = [x for x in a.known if len(x) <= mx and (not pat or re.fullmatch(pat, x))]
+            ids = [x for x in a.known if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
+                   _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x)]
             if ids:
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [OTHER],
                                 ids + [OTHER]))
@@ -532,15 +578,29 @@ def written_value(slot: Slot, text: str):
 
 
 # ============================================================================================== the activation
+_SUMMARIES: dict = {}
+
+
+def host_summaries(world) -> dict:
+    key = tuple(sorted(world.modules))
+    s = _SUMMARIES.get(key)
+    if s is None:
+        from ...core import discovery
+        s = _SUMMARIES[key] = discovery.host_summaries(world)
+    return s
+
+
 @dataclass
 class Config:
     steps: int = 3
+    hosts: int = 10
     shortlist: int = 10
     max_slots: int = 6
     patience: int = 4             # activations a goal may stay active
     max_failures: int = 4         # consecutive failed calls before the goal is given up
     memory: int = 40
     history: int = 80
+    summaries: dict = field(default_factory=dict)     # host summaries when deciding without a world transaction
 
 
 def _qtext(a: Agent) -> str:
@@ -578,33 +638,63 @@ def activate(ctx, agents: list[Agent], brain, cfg: Config) -> None:
         live = [a for a in agents if not a.stop and a.goal() is not None]
         if not live:
             break
-        queries = [_qtext(a) for a in live]
-        qvecs = catalog.embed(queries)
-        sl = catalog.shortlists(ctx, queries, [a.tools for a in live], cfg.shortlist)
-        by_name = [{t["name"]: t for t in a.tools} for a in live]
-        shorts = [[bn[n] for n in s if n in bn] for bn, s in zip(by_name, sl)]
-        picks = brain.choose(ctx, "tool_choice", [tool_request(a, now, s, qv) for a, s, qv in
-                                                   zip(live, shorts, qvecs)])
-        acting = []
-        for a, s, p, qv in zip(live, shorts, picks, qvecs):
-            names = [t["name"] for t in s] + ["finish", "wait"]
-            name = names[p] if 0 <= p < len(names) else "wait"
-            a.step_log.append({"step": step, "shortlist": names, "pick": name})
-            if name == "finish":
-                g = a.goal()
-                a.remember(now, "goal", f"You finished your goal '{g['text']}'.")
-                a.end_goal(now, "done")
-                a.stop = True
-            elif name == "wait":
-                a.count("waits")
-                a.stop = True
-            else:
-                acting.append((a, s[p], qv))
+        acting = decide(ctx, brain, live, now, cfg, step)
         if not acting:
             continue
         args = fill_arguments(ctx, brain, acting, now, cfg)
         for (a, tool, _), arg in zip(acting, args):
             execute(ctx, a, tool, arg, now, cfg)
+
+
+def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) -> list[tuple]:
+    """One decision of each live participant: its next step in words, the service, the tool (or finish / wait).
+    Returns [(agent, tool, query vector)] of the participants that act."""
+    qvecs = catalog.embed([_qtext(a) for a in live])
+    intents = brain.generate(ctx, "situation_interpretation", [intent_request(a, now, qv)
+                                                                for a, qv in zip(live, qvecs)])
+    for a, t in zip(live, intents):
+        a.intent = clean_intent(t)
+    goals = [(a.goal() or {}).get("text", "") for a in live]
+    queries = [a.intent or g for a, g in zip(live, goals)]
+    qvecs = catalog.embed(queries)
+    summaries = host_summaries(ctx.world) if ctx is not None else cfg.summaries
+    hsl = catalog.host_shortlists(ctx, queries, [a.tools for a in live], cfg.hosts, goals)
+    hp = brain.choose(ctx, "tool_choice", [service_request(a, now, h, summaries, qv)
+                                           for a, h, qv in zip(live, hsl, qvecs)])
+    chosen = []
+    for a, hs, p in zip(live, hsl, hp):
+        names = list(hs) + ["finish", "wait"]
+        name = names[p] if 0 <= p < len(names) else "wait"
+        a.step_log.append({"step": step, "intent": a.intent, "services": list(hs), "service": name})
+        if name == "finish":
+            g = a.goal()
+            a.remember(now, "goal", f"You finished your goal '{g['text']}'.")
+            a.end_goal(now, "done")
+            a.stop = True
+        elif name == "wait":
+            a.count("waits")
+            a.stop = True
+        else:
+            chosen.append((a, name))
+    acting = []
+    if chosen:
+        q2 = [a.intent or (a.goal() or {}).get("text", "") for a, _ in chosen]
+        in_host = [[t for t in a.tools if catalog.host_of(t["name"]) == h] for a, h in chosen]
+        tsl = catalog.tool_shortlists(ctx, q2, in_host, cfg.shortlist)
+        qv2 = catalog.embed(q2)
+        reqs, keep = [], []
+        for (a, h), ts, names, qv in zip(chosen, in_host, tsl, qv2):
+            by = {t["name"]: t for t in ts}
+            short = [by[n] for n in names if n in by]
+            if short:
+                reqs.append(tool_request(a, now, h, short, qv))
+                keep.append((a, short, qv))
+        picks = brain.choose(ctx, "tool_choice", reqs)
+        for (a, short, qv), p in zip(keep, picks):
+            t = short[p] if 0 <= p < len(short) else short[0]
+            a.step_log[-1].update({"tools": [x["name"] for x in short], "pick": t["name"]})
+            acting.append((a, t, qv))
+    return acting
 
 
 def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict]:
@@ -674,7 +764,10 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         n0 = len(ctx.events)
         res = ctx.call(name, args, as_principal=a.principal)
         rec["ok"] = True
-        rec["changed"] = any(not e.type.startswith(("know.", "ctr")) for e in ctx.events[n0:])
+        evs = ctx.events[n0:]
+        rec["changed"] = any(not e.type.startswith(("know", "ctr")) for e in evs)
+        if evs:
+            rec["seq"] = [int(evs[0].seq), int(evs[-1].seq)]
         view = summarise(res)
         rec["result"] = cjson(view, 200)
         found: dict[str, str] = {}
