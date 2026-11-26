@@ -532,10 +532,20 @@ NOT_LIVE = {
                     "coordination failures are not world state), so the graph has nothing to read",
     "content_communities_tools": "communities hold no tool requirement or moderation load the population produces "
                                  "(population members join, leave and post; nobody reports or moderates)",
-    "education_skill_availability": "the education module (domains/learning.py) is inert in civilisations (learn n=0) "
-                                    "and its learners never study in a standalone world (learn.study raises "
-                                    "KeyError 'id' at learning.py:324); no relation provider reads it yet",
+    "education_skill_availability": "the education module (domains/learning.py) is inert in civilisations (learn n=0), "
+                                    "its learners never study in a standalone world on this branch (learn.study raises "
+                                    "KeyError 'id' at learning.py:324) and it is being rewritten (learn v2, learners "
+                                    "are the population); it registers no relation provider yet",
 }
+
+
+# relation providers whose edges start a need's derivation path -> the mechanism such a need shows. `cloud`: a
+# service's rented compute under its users' load (scarcity only). Providers of modules that are inert in
+# civilisations today (education `learn`, communities `community`, organisations `orgs`) are listed so that a
+# provider they register (`relations.register_provider`) is classified without a change here.
+PROVIDER_MECHANISM = {"freight": "transport_market_access", "compute_market": "computing_demand",
+                      "cloud": "reliability_bottleneck", "learn": "education_skill_availability",
+                      "community": "content_communities_tools", "orgs": "coordination"}
 
 
 def _first_seen(history: list[dict]) -> tuple[dict, dict]:
@@ -554,10 +564,10 @@ def need_mechanisms(A: dict) -> dict:
 
     * workflow_change - a bottleneck on a later step of a multi-step work activity, first labelled after holders
       adopted a provider for an earlier step, and never labelled in the arm where nobody builds for that step;
-    * transport_market_access - scarcity of a transport link (freight provider: load against daily capacity, or
-      shipments waiting for capacity) giving access between regions;
-    * reliability_bottleneck - scarcity of a service's rented compute under its users' load (cloud provider);
-    * computing_demand - scarcity of a compute provider's cores (compute_market provider)."""
+    * the others by the relation provider whose edge starts the derivation path (`PROVIDER_MECHANISM`): transport
+      (freight: a link's load against its daily capacity, shipments waiting for capacity), computing demand
+      (compute_market: a provider's cores), reliability bottleneck (cloud: a service's rented compute under its
+      users' load, scarcity rule), and education, communities, coordination once their modules register providers."""
     f = A["factual"]
     hist = f["history"]
     t0 = hist[0]["t"]
@@ -583,14 +593,9 @@ def need_mechanisms(A: dict) -> dict:
                 if ta is not None and ta <= first[nid] and nid not in A[arm]["outcome"]["needs_ever"]:
                     found["workflow_change"].append({"need": nid, "first_day": first[nid] // DAY,
                                                      "earlier_step_adopted_day": ta // DAY, "absent_in": arm})
-        elif n["rule"] == "scarcity":
-            row = {"need": nid, "first_day": first[nid] // DAY, "holders": n["holders"]}
-            if prov[0] == "freight":
-                found["transport_market_access"].append(row)
-            elif prov[0] == "compute_market":
-                found["computing_demand"].append(row)
-            elif prov[0] == "cloud":
-                found["reliability_bottleneck"].append(row)
+        elif prov[0] in PROVIDER_MECHANISM and (prov[0] != "cloud" or n["rule"] == "scarcity"):
+            found[PROVIDER_MECHANISM[prov[0]]].append({"need": nid, "rule": n["rule"], "first_day": first[nid] // DAY,
+                                                       "holders": n["holders"]})
     return found
 
 
