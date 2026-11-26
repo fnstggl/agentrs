@@ -90,6 +90,26 @@ def _unit_of(path: str) -> str:
     return "cents" if _MONEY.search(path) else ""
 
 
+# Top-level keys of a direct action result that report money charged FOR that action (world unit: cents).
+CHARGE_KEYS = frozenset({"cost_cents", "fee_cents", "charged_cents", "charge_cents", "paid_cents", "spent_cents",
+                         "spend_cents", "price_paid_cents", "fee", "charged", "paid"})
+
+
+def observed_spend(body) -> float:
+    """`ExecutionResult.cost` of an executed action: the money its own (actor-visible) direct result says it charged
+    - the sum of the non-negative numbers under `CHARGE_KEYS` at the top level of the result body. Cumulative
+    figures nested in reports are not charges of this action, and the adapter counts nothing for read-only tools or
+    rejected actions. Observation-derived (the same body is the TOOL_RESULT the actor receives), never a reward."""
+    if not isinstance(body, dict):
+        return 0.0
+    tot = 0.0
+    for k, v in body.items():
+        if str(k).lower() in CHARGE_KEYS and isinstance(v, (int, float)) and not isinstance(v, bool) \
+                and math.isfinite(float(v)) and v > 0:
+            tot += float(v)
+    return tot
+
+
 # ============================================================================================ label channel
 
 PENDING, SUCCESS, FAILURE, UNCERTAIN = "pending", "success", "failure", "uncertain"
@@ -223,6 +243,7 @@ class _World:
         else:
             self.env = make(spec.tier, spec.name, seed=spec.seed, reward_mode=reward_mode, **dict(spec.kw))
         self.agent = self.env.agents()[0]
+        self.cell = [self.env, self.agent]             # what the actor-side callables dereference
         self.episode = 0
         self.refs: Optional[dict] = None
         self.name_id = f"{spec.name}#{spec.seed}"     # PRIVATE (family + seed): operator records only
@@ -258,6 +279,7 @@ class ExperienceOperator:
             w.env_id = opaque_env_id(self._salt, i)
         self._released: dict = {}
         self._taken: set = set()
+        self._stashed: list = []          # (world, episode) resolved before a reset and not yet taken
         self._ref_cache: dict = {}
         if compute_references:
             for w in self.worlds:
@@ -268,25 +290,38 @@ class ExperienceOperator:
         """The actor view. ``deliver_results=True``: direct results also arrive in the next ObservationBatch."""
         fns = []
         for i, w in enumerate(self.worlds):
-            env, agent = w.env, w.agent
+            c = w.cell                       # [env, agent]: re-pointed when a reset rebuilds the world
             fns.append(_ActorFns(env_id=w.env_id, sec_per_t=w.sec_per_t,
-                                 observe=(lambda env=env, agent=agent: env.observe(agent)),
-                                 tools=(lambda env=env, agent=agent: env.tools(agent)),
-                                 execute=(lambda act, env=env, agent=agent: env.execute(agent, act)),
-                                 observe_since=(lambda cur, env=env, agent=agent: env.observe_since(agent, cur)),
-                                 advance=(lambda s, env=env, m=w.max_advance_s: _advance_chunked(env, s, m)),
-                                 done=(lambda env=env: bool(getattr(env, "done", False))),
+                                 observe=(lambda c=c: c[0].observe(c[1])),
+                                 tools=(lambda c=c: c[0].tools(c[1])),
+                                 execute=(lambda act, c=c: c[0].execute(c[1], act)),
+                                 observe_since=(lambda cur, c=c: c[0].observe_since(c[1], cur)),
+                                 advance=(lambda s, c=c, m=w.max_advance_s: _advance_chunked(c[0], s, m)),
+                                 done=(lambda c=c: bool(getattr(c[0], "done", False))),
                                  reset=(lambda i=i: self.reset_world(i))))
         return ExperienceAdapter(fns, deliver_results=deliver_results)
 
     # ---------------------------------------------------------------------------------------- operator side
     def reset_world(self, i: int) -> None:
+        """Start world `i`'s next episode. A resolved episode's label is computed first (with that episode's
+        references) so `take_labels` still releases it after the reset; the new episode gets its own references
+        (worlds whose reset draws new hidden parameters, e.g. `IntegrityWorld`, are re-referenced)."""
         w = self.worlds[i]
+        if self.resolved(i):
+            key = (i, w.episode)
+            if key not in self._released:
+                self._released[key] = self._label(w)
+            if key not in self._taken:
+                self._stashed.append((i, w.episode))
         if hasattr(w.env, "reset"):
             w.env.reset()
-        else:
+        else:                                # no in-place reset (kernel worlds): rebuild, re-point the actor
             w.env = _World(w.spec, self.reward_mode).env
+            w.agent = w.env.agents()[0]
+            w.cell[0], w.cell[1] = w.env, w.agent
         w.episode += 1
+        if self.compute_references:
+            w.refs = self._references(w)
 
     def private_verify(self, i: int) -> dict:
         """Full evaluator record (PRIVATE: never to the learner)."""
@@ -319,17 +354,18 @@ class ExperienceOperator:
         each exactly once (pending episodes produce nothing). Opaque env id, the goal id the actor saw, the
         resolution time on the world clock; no family, seed or reference value."""
         out = []
+        meta = {"stream": EVAL_STREAM} if self.stream == EVAL_STREAM else {}
+        todo = [(i, ep, self._released[(i, ep)]) for i, ep in self._stashed if (i, ep) not in self._taken]
+        self._stashed = []
         for i, w in enumerate(self.worlds):
-            if not self.resolved(i):
-                continue
-            key = (i, w.episode)
-            if key in self._taken:
-                continue
-            (lab,) = self.release_labels([i])
-            self._taken.add(key)
-            meta = {"stream": EVAL_STREAM} if self.stream == EVAL_STREAM else {}
+            if self.resolved(i) and (i, w.episode) not in self._taken:
+                (lab,) = self.release_labels([i])
+                todo.append((i, w.episode, lab))
+        for i, ep, lab in todo:
+            self._taken.add((i, ep))
             rec = from_outcome_label(lab, evaluator=lab.verifier or "crucible.experience",
-                                     goal_id=goal_id_of(w.env_id, i), t_end_days=lab.t_resolved_days, meta=meta)
+                                     goal_id=goal_id_of(self.worlds[i].env_id, i), t_end_days=lab.t_resolved_days,
+                                     meta=meta)
             if rec is not None:
                 out.append(rec)
         return out
@@ -362,8 +398,11 @@ class ExperienceOperator:
                             None if value is None else float(value), None, rec.get("verifier", ""))
 
     def _references(self, w: _World) -> Optional[dict]:
-        """Null-policy and oracle values on forks of the world at episode start (rapid tier). Private."""
-        key = (w.spec.name, w.spec.seed)
+        """Null-policy and oracle values on forks of the world at episode start (rapid tier). Private. Cached per
+        (family, seed) - rapid worlds replay the same task and noise every episode - and per `episode_key()` for
+        worlds whose reset draws new hidden parameters."""
+        ek = getattr(w.env, "episode_key", None)
+        key = (w.spec.name, w.spec.seed, ek() if callable(ek) else None)
         if key in self._ref_cache:
             return self._ref_cache[key]
         refs = None
@@ -428,6 +467,15 @@ class ExperienceAdapter:
         self._results: list = [[] for _ in self._fns]     # direct results awaiting the next ObservationBatch
         self.delivers_results = bool(deliver_results)
         self.env_ids = [f.env_id for f in self._fns]
+        self._last_t = [0 for _ in self._fns]              # last observed world clock (raw units)
+        self._ro: list = [None for _ in self._fns]          # tool name -> readOnlyHint (from the tool specs)
+        self.engine_errors = 0
+
+    def _read_only(self, i: int, tool: str) -> bool:
+        if self._ro[i] is None or tool not in self._ro[i]:
+            self._ro[i] = {str(t.get("name")): bool((t.get("annotations") or {}).get("readOnlyHint", False))
+                           for t in self._fns[i].tools()}
+        return bool(self._ro[i].get(tool, False))
 
     @property
     def B(self) -> int:
@@ -437,6 +485,7 @@ class ExperienceAdapter:
         obs_l, t_l, done_l = [], [], []
         for i, f in enumerate(self._fns):
             ob = f.observe()
+            self._last_t[i] = ob.get("t", 0) if isinstance(ob.get("t", 0), (int, float)) else 0
             self._cursor[i] = max(self._cursor[i], int(ob.get("cursor", 0) or 0))
             recs = obs_to_records(ob, f.env_id, self._seq_to_event[i], first=first,
                                   text_seen=self._text_seen[i], sec_per_t=f.sec_per_t)
@@ -469,7 +518,12 @@ class ExperienceAdapter:
             if a is None:
                 out.append(None)
                 continue
-            r = f.execute({"tool": a.tool, "args": a.args})
+            try:
+                r = f.execute({"tool": a.tool, "args": a.args})
+            except Exception as e:          # upstream engine bug (e.g. rapid.levers KeyError on a missing lever)
+                self.engine_errors += 1
+                r = {"ok": False, "t": self._last_t[i], "tool": a.tool, "cost_s": 0,
+                     "error": {"code": "engine_error", "message": f"{type(e).__name__}: {str(e)[:160]}"}}
             seq = r.get("action_seq")
             if seq is not None:
                 self._seq_to_event[i][int(seq)] = a.action_id
@@ -483,8 +537,9 @@ class ExperienceAdapter:
             err = None if r.get("ok") else json.dumps(r.get("error"), default=str)[:500]
             if self.delivers_results:
                 self._results[i].append(delivered_copy(res_obs))
-            out.append(ExecutionResult(ok=bool(r.get("ok")), observations=[res_obs], error=err, duration=dur,
-                                       started_t=t, finished_t=t + dur, meta={"action_seq": seq}))
+            spend = observed_spend(body) if r.get("ok") and not self._read_only(i, a.tool) else 0.0
+            out.append(ExecutionResult(ok=bool(r.get("ok")), observations=[res_obs], error=err, cost=spend,
+                                       duration=dur, started_t=t, finished_t=t + dur, meta={"action_seq": seq}))
         return out
 
     def collect_events(self, since: Sequence[int]) -> tuple:
