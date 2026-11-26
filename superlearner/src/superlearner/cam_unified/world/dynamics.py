@@ -189,7 +189,8 @@ class WorldModel(nn.Module):
                  obs_temperature: float = 0.1, obs_max_groups: int = 64, obs_max_tokens: int = 32,
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
                  train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory",
-                 latent_floor_rms: float = 0.1, mode_latent: Optional[bool] = None):
+                 latent_floor_rms: float = 0.1, mode_latent: Optional[bool] = None,
+                 latent_grad: Optional[str] = None):
         super().__init__()
         if open_loop_credit not in ("trajectory", "row", "per_term"):
             raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
@@ -252,6 +253,17 @@ class WorldModel(nn.Module):
         # EMA target encoder (legacy): a frozen copy of the backbone (state_dict-saved, never optimised).
         # cfg.wm_ema_target=False: no copy; the latent target is the detached posterior state of the agent's filter.
         self.use_ema = bool(getattr(cfg, "wm_ema_target", True))
+        # gradient routing of the self-predictive terms (latent, consistency) whose target is the model's own state.
+        # "full": through the transition into the shared blocks and the filter (legacy, with the EMA target);
+        # "transition": only into the transition-specific parameters (output adapter, latent read-out). Without an
+        # EMA target the online posterior is the target, and letting these terms shape the shared encoder has a
+        # trivial fixed point (a context-insensitive filter predicts itself; measured on DelayWorld with the real
+        # core: predictions collapse to climatology, consistency 0.001). The encoder is then shaped by the
+        # predictive heads (outcomes, observations, continuation) only, as in the stop-gradient / predictor
+        # asymmetry of non-EMA self-prediction.
+        self.latent_grad = ("full" if self.use_ema else "transition") if latent_grad is None else latent_grad
+        if self.latent_grad not in ("full", "transition"):
+            raise ValueError("latent_grad must be 'full' or 'transition'")
         if self.use_ema:
             self.target_core = copy.deepcopy(core)
             for p in self.target_core.parameters():
@@ -380,17 +392,21 @@ class WorldModel(nn.Module):
         """[B,G,C] log-probs -> straight-through one-hot z [B, G*C]."""
         return straight_through(logp, sample, generator).reshape(logp.shape[0], -1)
 
-    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z) -> torch.Tensor:
+    def transition(self, Z, act: TokenSet, belief: Optional[TokenSet], dt, z, view: bool = False):
         """Z^_{t+1} = F(Z_t, [A_t; B_t; TIME(dt_t); NOISE(z_t)]) (no observations). With cfg.wm_transition_blocks = k
-        the transition runs only the last k shared core blocks (`_block_transition`); otherwise a full core pass."""
+        the transition runs only the last k shared core blocks (`_block_transition`); otherwise a full core pass.
+        ``view=True`` returns (Z^, Z^_target_view): the same values, with gradients routed for the self-predictive
+        terms (`latent_grad`)."""
         B = Z.shape[0]
         dt = _as_dt(dt, B, Z.device)
         self.n_transitions += B
         ctx = cat_tokens(act, belief, self.time_tokens(dt), self.noise_tokens(z, dt))
         if self.k_trans > 0:
-            return self._block_transition(Z, ctx)
-        Zn, _ = self._core(Z, ctx)
-        return Zn
+            Zn, Zv = self._block_transition(Z, ctx)
+        else:
+            Zn, _ = self._core(Z, ctx)
+            Zv = Zn if self.latent_grad == "full" else Zn.detach()
+        return (Zn, Zv) if view else Zn
 
     def _block_transition(self, R, ctx: TokenSet) -> torch.Tensor:
         """DOM transition (plan §2, declared deviation from spec 6.1's full-core transition): the input state
@@ -413,10 +429,16 @@ class WorldModel(nn.Module):
             if bool(key_mask.all()):
                 key_mask = None
             h = core.run_blocks(h, key_mask, blocks)
-            hS = h[:, :S].float()
-            hS = hS + self.trans_out(hS)
-            Zn = core.out_norm(hS)
-        return Zn.float()
+            hS0 = h[:, :S].float()
+            Zn = core.out_norm(hS0 + self.trans_out(hS0)).float()
+            if self.latent_grad == "full":
+                Zv = Zn
+            else:
+                # same values; gradient only into the output adapter (blocks, input and output norm detached)
+                hd = hS0.detach()
+                w = core.out_norm.weight.detach().float()
+                Zv = F.rms_norm(hd + self.trans_out(hd), (hd.shape[-1],), w, getattr(core.out_norm, "eps", 1e-6))
+        return Zn, Zv.float()
 
     def duration_params(self, Z, act: TokenSet):
         """(mu, log_sigma) [B] of log1p(seconds) for the action's duration, from (Z_t, A_t) only."""
@@ -694,8 +716,8 @@ class WorldModel(nn.Module):
             # transitions without a next observation (episode end / sequence padding) have no posterior: use the prior
             lat_lp = torch.where(ok1.view(-1, 1, 1), post_lp, prior_lp)
             z_post = self.sample_latent(lat_lp, True, generator)
-            Zh1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post)
-            rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups)
+            Zh1, Zv1 = self.transition(Zs[:n1], rows(act, t1, b1), rows(bel, t1, b1), dt_r[:n1], z_post, view=True)
+            rt1 = self._row_terms(Zh1, 1, t1, b1, ctx, valid_r[:n1], rows(goal, t1, b1), self.obs_max_groups, Zv=Zv1)
             terms = self._reduce(rt1, self._responsibilities(rt1))
             with torch.no_grad():
                 out["cons_mse_var"] = _mse_over_var(Zh1, Z_tgt[1:].reshape(n1, S, D), rt1["nxt_ok"], Z_tgt, valid)
@@ -754,7 +776,7 @@ class WorldModel(nn.Module):
         return {"kl": masked_mean(kl, ok), "kl_value": masked_mean(dyn.detach(), ok)}
 
     def _row_terms(self, Zh, n_samples, t_idx, b_idx, ctx: "_SeqCtx", alive, goal_rows: Optional[TokenSet],
-                   max_groups: int) -> dict:
+                   max_groups: int, Zv: Optional[torch.Tensor] = None) -> dict:
         """Per-row, per-sample terms of predicted states Zh [R*n_samples,S,D] for transitions t_idx[r] -> t_idx[r]+1
         (each target row r repeated n_samples times consecutively; sample j of row r is one sampled future).
         Every likelihood is kept per sample ("out_lp" [R,s,Q], "r_ll"/"c_ll"/"dist" [R,s], "obs_lp" [n,s,M]) so the
@@ -795,9 +817,10 @@ class WorldModel(nn.Module):
         nxt_ok = alive & ((t_idx + 1) <= (T - 1)) & ~done[t_idx, b_idx] & valid[tn, b_idx]
         rt["nxt_ok"] = nxt_ok
         Zt_rows = rep(Z_tgt[tn, b_idx])
-        rt["dist"] = self._latent_dist(Zh, Zt_rows, ctx.tgt_scale).view(R, s)   # ~1 - R^2 per sample
+        Zl = Zh if Zv is None else Zv            # self-predictive terms: gradient routing of `latent_grad`
+        rt["dist"] = self._latent_dist(Zl, Zt_rows, ctx.tgt_scale).view(R, s)   # ~1 - R^2 per sample
         # consistency: the predicted state itself (no read-out MLP) against the detached posterior state
-        rt["cons"] = (((Zh.float() - Zt_rows.detach().float()) / ctx.tgt_scale) ** 2).mean((-1, -2)).view(R, s)
+        rt["cons"] = (((Zl.float() - Zt_rows.detach().float()) / ctx.tgt_scale) ** 2).mean((-1, -2)).view(R, s)
         idx = torch.nonzero(nxt_ok).flatten()
         if idx.numel() > max_groups:
             idx = idx[_randperm(idx.numel(), gen, dev)[:max_groups]]
@@ -970,7 +993,7 @@ class WorldModel(nn.Module):
             if mode_row is not None:
                 zk = torch.where(mode_row[:nr].unsqueeze(-1), self.sample_latent(lp, False), zk)
             Z_prev = Z_in
-            Z = self.transition(Z_in, a_k, bel_rows, dt_k, zk)
+            Z, Zv_k = self.transition(Z_in, a_k, bel_rows, dt_k, zk, view=True)
             if fast is not None and k < Hmax:
                 # imagined belief update from the model's own sampled outcomes (no real outcome after the start)
                 with torch.no_grad():
@@ -986,11 +1009,12 @@ class WorldModel(nn.Module):
                     fast = out_f[0] if isinstance(out_f, tuple) else out_f
                     bel_rows = tok_fn(fast)
             if k in horizons:
-                coll.append((k, Z, t_idx, b_r, alive.clone(), st_r))
+                coll.append((k, Z, t_idx, b_r, alive.clone(), st_r, Zv_k))
             alive = alive & ~done[t_idx, b_r]
         if not coll:
             return z0, {}, z0.detach(), {}
         Zall = torch.cat([c[1] for c in coll])
+        Zv_all = torch.cat([c[6] for c in coll])
         t_all = torch.cat([c[2] for c in coll])
         b_all = torch.cat([c[3] for c in coll])
         al_all = torch.cat([c[4] for c in coll])
@@ -1000,7 +1024,8 @@ class WorldModel(nn.Module):
         n_traj = coll[0][2].numel()
         # goal of the start step (known at the start; no future information)
         g_all = rows(goal, torch.cat([c[5] for c in coll]), b_all)
-        rt = self._row_terms(Zall, S_tot, t_all, b_all, ctx, al_all, g_all, self.obs_max_groups * len(coll))
+        rt = self._row_terms(Zall, S_tot, t_all, b_all, ctx, al_all, g_all, self.obs_max_groups * len(coll),
+                             Zv=Zv_all)
         rt["mode_last"] = self.mode_latent
         resp = self._responsibilities(rt, traj, n_traj)
         resp_mode = None
@@ -1042,7 +1067,7 @@ class WorldModel(nn.Module):
             if coll[0][0] == 1:
                 # one-step prior from the real start state vs the next posterior (pure prior prediction, the
                 # state decide() scores): mode-latent row when present, else the first sampled future
-                k1, Z1, t1, b1, al1, _ = coll[0]
+                k1, Z1, t1, b1, al1, _, _ = coll[0]
                 pick = S_tot - 1 if self.mode_latent else 0
                 Zp = Z1.view(-1, S_tot, *Z1.shape[1:])[:, pick]
                 tn = (t1 + 1).clamp(max=T - 1)

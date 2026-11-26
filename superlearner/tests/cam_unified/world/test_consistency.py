@@ -206,3 +206,30 @@ def test_consistency_gap_falls_when_the_transition_is_trained():
     r1 = sum(b for _, b in last) / len(last)
     print(f"consistency {c0:.3f} -> {c1:.3f}; MSE/Var {r0:.3f} -> {r1:.3f}")
     assert c1 < 0.5 * c0 and r1 < 0.5 * r0
+
+
+def test_self_predictive_terms_never_shape_the_encoder_without_an_ema_target():
+    """Without an EMA target the latent target is the model's own detached posterior; the latent and consistency
+    terms then train only the transition's output adapter and the latent read-out (a context-insensitive filter
+    would otherwise be a trivial fixed point: measured collapse to climatology on DelayWorld with the real core)."""
+    m = dom_tiny()
+    m.train()
+    wm = m.world_model
+    assert wm.latent_grad == "transition"
+    seq = rand_sequence(3, 6, m.cfg, seed=2)
+    out = m.world_loss(seq, train_seq.filter_window(m, seq, None, burn_in=0))
+    named = dict(m.named_parameters())
+    last = f"core.blocks.{m.cfg.n_layers - 1}.ffn.w2.weight"
+    probe = {n: named[n] for n in ("core.blocks.0.ffn.w2.weight", last, "reasoner.iter_emb", "core.out_norm.weight",
+                                   "world_model.trans_in.weight", "world_model.trans_out.l2.weight",
+                                   "world_model.latent_pred.l2.weight")}
+    g = torch.autograd.grad(out["consistency"] + out["latent"], list(probe.values()), allow_unused=True,
+                            retain_graph=True)
+    gs = {n: (0.0 if x is None else float(x.abs().sum())) for n, x in zip(probe, g)}
+    for n in ("core.blocks.0.ffn.w2.weight", last, "reasoner.iter_emb", "core.out_norm.weight",
+              "world_model.trans_in.weight"):
+        assert gs[n] == 0.0, (n, gs[n])
+    assert gs["world_model.trans_out.l2.weight"] > 0 and gs["world_model.latent_pred.l2.weight"] > 0
+    # the predictive terms still train the shared blocks and the reasoner
+    g2 = torch.autograd.grad(out["outcome"] + out["open_loop"], [probe["reasoner.iter_emb"], probe[last]])
+    assert all(float(x.abs().sum()) > 0 for x in g2)
