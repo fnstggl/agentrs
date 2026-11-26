@@ -469,6 +469,142 @@ class ImageDecodersOutsideWorldProcess(_CallSites):
         return Verdict(HELD, "no image was decoded inside the world process", evd)
 
 
+# ---------------------------------------------------------------------------------------------- wave 3b review (W.n1)
+class _AddressCanary(Canary):
+    """A canary on another loopback address but the SAME port as the world's web app (Landlock rules hold ports,
+    not addresses: the jail alone lets the agent browser connect to that port on any IPv4 address)."""
+
+    def __init__(self, addr: str, port: int):
+        self.s = socket.socket()
+        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.s.bind((addr, port))
+        self.s.listen(16)
+        self.s.settimeout(0.2)
+        self.port = port
+        self.hits = 0
+        self._stop = False
+        self.t = threading.Thread(target=self._loop, daemon=True)
+        self.t.start()
+
+
+SAME_PORT_PAGE = """<html><head>
+<link rel="preconnect" href="http://127.0.0.2:{p}/"><link rel="dns-prefetch" href="http://127.0.0.2:{p}/">
+<link rel="prefetch" href="http://127.0.0.3:{p}/pf"><link rel="stylesheet" href="http://2130706434:{p}/s.css">
+</head><body><h1 id=s>start</h1><img src="http://0x7f000002:{p}/i.png"><iframe src="http://127.2:{p}/f"></iframe>
+<form id=f method=post action="http://0177.0.0.3:{p}/post"><input name=a value=b></form><script>
+(async () => {{
+  const out = {{}};
+  const tries = {{fetch2: 'http://127.0.0.2:{p}/x', fetch_dec: 'http://2130706435:{p}/x', fetch_local: 'http://localhost:{p}/x',
+                 fetch_dot: 'http://127.0.0.2.:{p}/x', fetch_v6: 'http://[::ffff:127.0.0.2]:{p}/x'}};
+  for (const [k, u] of Object.entries(tries)) {{
+    try {{ const r = await fetch(u, {{mode: 'no-cors'}}); out[k] = 'reached'; }} catch (e) {{ out[k] = 'blocked'; }}
+  }}
+  try {{ await new Promise((res, rej) => {{ const w = new WebSocket('ws://127.0.0.2:{p}/'); w.onopen = () => res(1);
+        w.onerror = () => rej(1); setTimeout(() => rej(1), 1500); }}); out.ws = 'open'; }} catch (e) {{ out.ws = 'blocked'; }}
+  try {{ out.beacon = navigator.sendBeacon('http://127.0.0.3:{p}/b', 'x') ? 'queued' : 'blocked'; }} catch (e) {{ out.beacon = 'blocked'; }}
+  try {{ const es = new EventSource('http://127.0.0.2:{p}/es'); await new Promise(r => setTimeout(r, 800)); es.close(); }} catch (e) {{}}
+  document.getElementById('s').textContent = JSON.stringify(out);
+}})();
+</script></body></html>"""
+
+
+class AgentBrowserReachesOnlyTheWorldApp(V5Probe):
+    name = "v5.network.agent_browser_reaches_only_the_world_app"
+    attack_class = "network/browser"
+    gates = ("W.8",)
+    target, owner = "browser (sandbox/isolation, web.browser)", "O"
+    world = {"v5": "substrate"}
+    slow = True
+    description = ("The agent browser (`crucible.web.browser.BrowserSession`, JavaScript on) may open TCP connections "
+                   "to the world's web-app port, and Landlock rules name ports, not addresses. Canaries listen on "
+                   "OTHER loopback addresses at that same port (127.0.0.2, 127.0.0.3: stand-ins for any host on the "
+                   "internet). An agent page tries preconnect, dns-prefetch, prefetch, a stylesheet, an image, an "
+                   "iframe, a form post, fetch with alternative IP spellings (decimal, hex, octal, short, trailing "
+                   "dot, IPv4-mapped IPv6, localhost), a WebSocket, a beacon and an EventSource, and the session "
+                   "also navigates to the canary directly. Checked: no canary sees a connection.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("sameport", 10)
+        from ...sandbox import isolation
+        ok, why = isolation.available()
+        if not ok:
+            raise NotApplicable(f"the jail cannot be applied here: {why}")
+        try:
+            import playwright  # noqa: F401
+        except ImportError:
+            raise NotApplicable("Playwright is not installed")
+
+    def attack(self, a: Attacker) -> None:
+        import http.server
+        from ...web.browser import BrowserSession
+        page = {"html": ""}
+
+        class App(http.server.BaseHTTPRequestHandler):      # stands in for the world's web app
+            def do_GET(self):
+                body = page["html"].encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), App)
+        port = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        page["html"] = SAME_PORT_PAGE.format(p=port)
+        cans = [_AddressCanary(x, port) for x in ("127.0.0.2", "127.0.0.3")]
+        self.res, self.nav = {}, {}
+        try:
+            b = BrowserSession(f"http://127.0.0.1:{port}")
+            try:
+                b.page.goto(f"http://127.0.0.1:{port}/")
+                b.page.wait_for_function("document.getElementById('s').textContent !== 'start'", timeout=15000)
+                self.res = b.page.inner_text("#s")
+                try:
+                    b.page.evaluate("document.getElementById('f').submit()")
+                except Exception:  # noqa: BLE001 - a refused form post may abort the navigation
+                    pass
+                time.sleep(1.0)
+                for u in (f"http://127.0.0.2:{port}/top", f"http://2130706435:{port}/top"):
+                    try:
+                        b.page.goto(u, timeout=3000)
+                        self.nav[u] = "loaded"
+                    except Exception as e:  # noqa: BLE001
+                        self.nav[u] = type(e).__name__
+                self.blocked = list(b.blocked)
+            finally:
+                b.close()
+        finally:
+            time.sleep(0.3)
+            self.hits = {f"127.0.0.{i + 2}": c.hits for i, c in enumerate(cans)}
+            for c in cans:
+                c.close()
+            srv.shutdown()
+            srv.server_close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        import json as _j
+        try:
+            res = _j.loads(self.res) if isinstance(self.res, str) else dict(self.res)
+        except ValueError:
+            res = {"raw": self.res}
+        reached = sorted(k for k, v in res.items() if v not in ("blocked", None))
+        hits = sum(self.hits.values())
+        evd = {"results": res, "navigation": self.nav, "canary_connections": self.hits, "page_reached": reached,
+               "blocked_by_route": len(getattr(self, "blocked", [])), "network_escapes": hits}
+        if hits:
+            return Verdict(INTEGRITY_BREAK, f"the agent browser connected to another address at the web-app port: "
+                           f"{self.hits} (page results {res})", evd, severity="critical",
+                           fix="web/browser.py + sandbox/isolation.py: route every connection through one proxy "
+                               "address; Landlock cannot restrict addresses")
+        return Verdict(HELD, f"no canary on another address at the web-app port saw a connection ({len(res)} page "
+                             f"attempts, {len(self.nav)} navigations)", evd)
+
+
 def probes() -> list:
     return [PopulationWorldOffline(), SocialWorldOffline(), JailedMediaToolsHaveNoNetwork(),
-            JailedBrowserHasNoNetwork(), MediaToolsAtCallSitesAreJailed(), ImageDecodersOutsideWorldProcess()]
+            JailedBrowserHasNoNetwork(), MediaToolsAtCallSitesAreJailed(), ImageDecodersOutsideWorldProcess(),
+            AgentBrowserReachesOnlyTheWorldApp()]
