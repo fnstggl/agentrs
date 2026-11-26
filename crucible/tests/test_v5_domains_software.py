@@ -50,4 +50,17 @@ def test_stub_package_and_self_adoption_fail():
         assert r["success"] is False and r["outcome"]["details"]["independent_adopters"] == 0, (pol, r["outcome"])
 
 
+def test_reference_reads_requests_from_forum_listings():
+    """forum.list returns post summaries (a snippet of the body): the maintainer must parse those, the format the
+    population developers post in (regression: requests were never read, so every capability shipped at once and
+    the package was never extended)."""
+    nd = "slugify"
+    body = (f"I need a function like {D.NEEDS[nd]['hint']}(...): {D.NEEDS[nd]['doc']}. I wrote it myself for now. "
+            f"Keywords: {D.NEEDS[nd]['keywords']}.")
+    got = D._parse_requests([{"post": "p1", "title": "Looking for a package", "snippet": body[:200]},
+                             {"post": "p2", "title": "Looking for a package", "snippet": body[:200]}])
+    assert got == {"slugify": {"doc": D.NEEDS[nd]["doc"], "count": 2}}
+    assert D.FEATURE_RE.match("Please add median()").group(1) == "median"
+
+
 import json  # noqa: E402
