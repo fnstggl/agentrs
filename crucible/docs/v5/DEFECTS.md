@@ -1306,13 +1306,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-N-1 (critical, open): Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 
+### DEF-N-1 (critical, fixed): Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research + c5c/w3b-research: crucible.research.v5 (versioned cross-tier registry and sampler, 50/30/20 compute mixture, ten-category curriculum with random share, proposal interface, Levels 1-6, A/B/C/D comparison, controls on v5 families, fresh-process evaluator) and the N gate tests",
  "id": "DEF-N-1",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_unit.py, tests/test_v5_research_adversarial.py, tests/v5/test_gate_T.py, tests/v5/test_gate_U.py, tests/v5/test_gate_SP_14_*.py, tests/v5/test_gate_SP_15_*.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1320,18 +1322,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Workstream N's v5 scope is essentially unimplemented: no cross-tier registry or sampler, 50/30/20 mixture, v5 curriculum, proposal interface, six-level framework, A/B/C/D config or new-family positive controls; no N gate tests exist; all 25 requirements NOT_STARTED."
 }
 ```
 
-### DEF-N-2 (critical, open): The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed
+### DEF-N-2 (critical, fixed): The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research + c5c/w3b-research: research.v5.fresh scores checkpoints in a fresh python -I child under the Landlock jail (own uid, read-only stdlib/numpy/source, canary check), loads parameters with allow_pickle=False, refuses undeclared parameters and configuration keys; a process stash gains in process and exactly 0 in the child",
  "id": "DEF-N-2",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_adversarial.py::test_fresh_child_is_jailed_and_checks_its_confinement, ::test_file_stash_outside_the_checkpoint_is_unreadable_under_the_jail, ::test_configuration_smuggling_is_refused, tests/v5/test_gate_U.py::test_U3_fresh_process_weights_only",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1339,18 +1343,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The weights-only internalisation protocol is in-process and certified a learner whose checkpoint never changed (state kept in process memory) as 'internalised', valid, with no warning (p2)."
 }
 ```
 
-### DEF-N-3 (critical, open): Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for i
+### DEF-N-3 (critical, fixed): Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for i
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research: research.v5.hstats.crossed_diff (learner-seed x world interval, Welch-Satterthwaite df) and null calibration on real and simulated pools; the 4.0 analysis is kept only to show its miscalibration",
  "id": "DEF-N-3",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_unit.py::test_crossed_interval_calibrated_naive_not, tests/v5/test_gate_U.py::test_U8_statistics_account_for_worlds_and_seeds",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1358,18 +1364,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Comparison intervals average learner seeds away (unit 'task (mean over seeds)'); 94% false-positive rate for identical learners under seed-level variation (p5)."
 }
 ```
 
-### DEF-N-4 (critical, open): The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols)
+### DEF-N-4 (critical, fixed): The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols)
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research: the v5 instrument builds every world through crucible.experience in its default observation_only mode; control learners take their signal from the change of their own cash balance (no reward slot, scalar reward 0.0)",
  "id": "DEF-N-4",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_adversarial.py::test_instrument_worlds_are_observation_only_and_learners_read_only_their_cash, tests/v5/test_gate_U.py::test_U4_positive_controls",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1377,18 +1385,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The research instrument always runs legacy shaped reward (MechVecEnv default, no reward_mode in the protocols); its positive controls fail or are misclassified under the mandated observation_only default (p4, p7)."
 }
 ```
 
-### DEF-N-5 (critical, open): The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and sampl
+### DEF-N-5 (critical, fixed): The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and sampl
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research: research.v5.curriculum (ten weakness categories, four measures, targeted generation with a 0.3 uniform random share and an entropy floor, refuses evaluation/sealed results and non-train items); the 4.0 GoalSampler is no longer a v5 curriculum",
  "id": "DEF-N-5",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_unit.py::test_curriculum_refuses_evaluation_results_and_keeps_random_share, tests/v5/test_gate_T.py::test_T5_curriculum_selection_from_measured_behaviour, ::test_T6_random_exploration_preserved, ::test_T7_evaluation_partitions_protected",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1396,18 +1406,20 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "The only adaptive curriculum (GoalSampler) moves away from measured weaknesses, has no random share, and samples held-out test worlds labelled train (p3)."
 }
 ```
 
-### DEF-N-6 (critical, open): compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a 
+### DEF-N-6 (critical, fixed): compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a 
 
 ```json
 {
  "area": "N_research",
+ "fixed_by": "c5c/w3-research + c5c/w3b-research: compose calibration draws the interior optimum continuously in 0.15-0.85 with defaults on an independent side (n-compose/2+); fixed public rules (anti-default, quartiles, centre) stay below half the oracle's improvement in the median calibrated world (research.v5.adversarial.calibration_shortcut); the registry is frozen (read-only mappings, digest-versioned) and the sealed salt lives only in the evaluator process",
  "id": "DEF-N-6",
  "owner": "N",
+ "regression_tests": "tests/test_v5_research_adversarial.py::test_generator_has_no_fixed_rule_shortcut, tests/test_v5_research_unit.py::test_partitions_by_family_and_seed, tests/v5/test_gate_T.py::test_T7_evaluation_partitions_protected",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1415,7 +1427,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/N_research.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "compose.py calibration plants a simulator shortcut (optimum at 25%/75% opposite the published default) that a fixed rule exploits for a median 0.82 of the oracle's improvement, undetected by admission (p9); v5 partitions are mutable and the sealed salt is readable by learner code (p8)."
 }
 ```
