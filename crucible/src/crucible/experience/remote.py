@@ -22,11 +22,31 @@ and a pickle runs code while it is loaded - a learner holding only `part` could 
 executes in the world process and reads the grader's hidden parameters and holdout (demonstrated: probe
 v5.isolation.remote_participant_cannot_run_code_in_the_world). The evaluator pipe is trusted and keeps pickles.
 Keep the evaluator handle out of the learner's process too: a learner sharing a process with `ev` can find it.
+
+The evaluation entry point is `evaluate` (W.2, SP-16c, OO.4): three processes. The world - with its verifier, its
+hidden configuration and its grader - lives in a spawned world process (`host`); the evaluated learner runs in a
+second spawned process that holds nothing but the participant pipe (no environment object, no world, no evaluator
+handle, no seed); the calling process is the evaluator and verifies after the learner returns:
+
+    out = evaluate({"tier": 1, "name": "pe_rule_induction"}, "crucible.experience.remote:reference_learner",
+                   {"steps": 200})
+    out["verification"]      # the evaluator's verdict; out["learner_result"] is what the learner returned (JSON)
+
+`make()` stays the in-process development path: a learner holding the object `make()` returns can read everything in
+its process (Python has no access control), so `make()` is never an evaluation path. The world seed is drawn here
+(`sealed_seed`, 62 random bits) unless the caller names one: a learner that can guess the seed of a deterministic
+world can rebuild it in its own process and read the hidden configuration (`crucible.experience.isolation` measures
+that attack; its positive control shows that it succeeds with a small seed). Processes of one uid are kept apart by
+the kernel's ptrace rules (Yama scope >= 1: a sibling cannot read the world process's memory); stronger isolation
+(another uid, seccomp) is the sandbox's job (`crucible.sandbox.isolation`).
 """
 from __future__ import annotations
 
+import importlib
 import json
 import multiprocessing as mp
+import os
+import time
 import traceback
 from typing import Any
 
@@ -184,17 +204,31 @@ class RemoteParticipant(_Side):
     def reward(self, agent: str) -> float:
         return float(self._call("reward", agent))
 
+    def _attr(self, op: str):
+        """An attribute of the hosted environment; AttributeError when the environment has none (so `getattr(part,
+        name, default)` behaves as on a local environment)."""
+        status, out = self._exchange(op, (), {})
+        if status != "ok":
+            if isinstance(out, str) and out.startswith("AttributeError"):
+                raise AttributeError(out)
+            raise RemoteError(out)
+        return out
+
     @property
     def reward_mode(self) -> str:
-        return self._call("reward_mode")
+        return self._attr("reward_mode")
 
     @property
     def done(self) -> bool:
-        return bool(self._call("done"))
+        return bool(self._attr("done"))
 
     @property
     def tick_s(self) -> int:
-        return int(self._call("tick_s"))
+        return int(self._attr("tick_s"))
+
+    @property
+    def now(self) -> int:
+        return int(self._attr("now"))
 
     def _raw(self, op: str, *args, **kw):
         """Send any request on the participant pipe (for tests that try what a participant may not do)."""
@@ -245,3 +279,119 @@ def host(ref: dict, timeout: float = 300.0) -> tuple[RemoteParticipant, RemoteEv
         proc.join(timeout=10)
         raise RemoteError(f"the environment process failed: {msg}")
     return RemoteParticipant(p_parent, PARTICIPANT_OPS), RemoteEvaluator(e_parent, EVALUATOR_OPS, proc)
+
+
+# ====================================================================== the evaluation entry point (three processes)
+LEARNER_RESULT_MAX = 8 * 2**20        # bytes of the learner's returned summary (JSON)
+
+
+def sealed_seed() -> int:
+    """A world seed no learner can guess (62 random bits from the operating system)."""
+    import secrets
+    return secrets.randbits(62)
+
+
+def _target(spec: str):
+    """The callable named by ``"package.module:function"`` or ``"path/to/file.py:function"``."""
+    mod, _, fn = str(spec).rpartition(":")
+    if not mod or not fn:
+        raise ValueError(f"a learner is named 'module:function', got {spec!r}")
+    if mod.endswith(".py"):
+        from importlib import util
+        name = "crucible_evaluated_" + os.path.basename(mod)[:-3]
+        s = util.spec_from_file_location(name, mod)
+        if s is None or s.loader is None:
+            raise ImportError(f"cannot load {mod}")
+        m = util.module_from_spec(s)
+        s.loader.exec_module(m)
+    else:
+        m = importlib.import_module(mod)
+    return getattr(m, fn)
+
+
+def _learn(target: str, kw: dict, conn, out) -> None:
+    """The learner process: its only handle on the world is the participant pipe `conn`; it reports to the evaluator
+    through `out` (JSON frames)."""
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    try:
+        part = RemoteParticipant(conn, PARTICIPANT_OPS)
+        res = _target(target)(part, **dict(kw or {}))
+        data = json.dumps(["ok", res], default=_jsonable, separators=(",", ":"), allow_nan=False).encode()
+    except BaseException as e:  # noqa: BLE001 - every failure of the learner is reported, never raised in the world
+        data = json.dumps(["error", f"{type(e).__name__}: {e}",
+                           traceback.format_exc(limit=6)[-4000:]]).encode()
+    if len(data) > LEARNER_RESULT_MAX:
+        data = json.dumps(["error", f"the learner's result is larger than {LEARNER_RESULT_MAX} bytes"]).encode()
+    try:
+        out.send_bytes(data)
+    finally:
+        out.close()
+        conn.close()
+
+
+def evaluate(ref: dict, learner: str, learner_kw: dict | None = None, *, timeout: float = 3600.0,
+             start_timeout: float = 900.0) -> dict:
+    """Evaluate a learner out of process. `ref` names the world as `host` takes it ({"tier", "name", "seed",
+    "reward_mode", "kw"}); without ``"seed"`` the world gets a `sealed_seed` that only this process knows. `learner`
+    ("module:function" or "file.py:function") is called in its own spawned process as ``fn(participant,
+    **learner_kw)`` with a `RemoteParticipant` and must return JSON data. This process keeps the evaluator handle:
+    after the learner returns (or fails, or exceeds `timeout` seconds) it verifies, records the world's identity and
+    closes the world. Returns the evaluator's record (the seed and the verdict included: evaluator side)."""
+    ref = dict(ref)
+    sealed = "seed" not in ref or ref.get("seed") is None
+    if sealed:
+        ref["seed"] = sealed_seed()
+    t0 = time.perf_counter()
+    part, ev = host(ref, timeout=start_timeout)
+    ctx = mp.get_context("spawn")
+    r_parent, r_child = ctx.Pipe(duplex=False)
+    lp = ctx.Process(target=_learn, args=(str(learner), dict(learner_kw or {}), part._conn, r_child), daemon=True)
+    try:
+        lp.start()
+    except BaseException:
+        ev.close()
+        raise
+    # the evaluator keeps no participant handle and no write end of the learner's report pipe
+    part._conn.close()
+    r_child.close()
+    status, result, error = "timeout", None, None
+    if r_parent.poll(timeout):
+        try:
+            msg = json.loads(r_parent.recv_bytes(LEARNER_RESULT_MAX + 1024))
+            status = msg[0] if isinstance(msg, list) and msg and msg[0] in ("ok", "error") else "malformed"
+            result = msg[1] if status == "ok" else None
+            error = msg[1:] if status == "error" else None
+        except (EOFError, OSError, ValueError) as e:
+            status, error = "crashed", f"{type(e).__name__}: {e}"
+    lp.join(timeout=30)
+    if lp.is_alive():
+        lp.terminate()
+        lp.join(timeout=10)
+    r_parent.close()
+    try:
+        verification = ev.verify()
+        identity = ev.describe()
+        digest = ev.digest()
+    finally:
+        ev.close()
+    return {"interface": "crucible-experience-evaluation/1", "ref": ref, "seed_sealed": sealed,
+            "learner": str(learner), "learner_status": status, "learner_result": result, "learner_error": error,
+            "learner_exitcode": lp.exitcode, "verification": verification, "describe": identity, "digest": digest,
+            "processes": {"evaluator": os.getpid(), "learner": lp.pid, "world": ev._proc.pid},
+            "wall_s": round(time.perf_counter() - t0, 3)}
+
+
+def reference_learner(part, *, steps: int = 200, seed: int = 0, update_every: int = 32,
+                      think_s: int | None = None) -> dict:
+    """An evaluated learner for `evaluate`: the architecture-independent `ReferenceLearner` driven by `run_learner`
+    over the participant handle (world changes are the evaluator's to count; the learner reports its own actions,
+    updates and parameter hashes)."""
+    from .loop import run_learner
+    from .reference import ReferenceLearner
+    L = ReferenceLearner(seed=int(seed), reward_mode=part.reward_mode)
+    before = L.params_hash()
+    s = run_learner(part, L, int(steps), update_every=int(update_every), think_s=think_s, count_changes=False)
+    return {"steps": s["steps"], "actions": s["actions"], "ok": s["ok"], "rejected": s["rejected"],
+            "updates": s["updates"], "params_changed_updates": s["params_changed_updates"],
+            "nonzero_rewards": s["nonzero_rewards"], "schema_failures": s["schema_failures"], "kinds": s["kinds"],
+            "params_hash_before": before, "params_hash_after": L.params_hash()}

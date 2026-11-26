@@ -94,7 +94,8 @@ def run_learner(env, learner, steps: int, *, agent: str | None = None, think_s: 
         summary["params_changed_updates"] += int(bool(u.get("changed")))
     summary["kinds"] = sorted(summary["kinds"])
     summary["wall_s"] = time.perf_counter() - t0
-    summary["verification"] = env.verify()
+    # evaluator side; a learner driving a hosted world (`remote.RemoteParticipant`) has no verifier to call
+    summary["verification"] = env.verify() if callable(getattr(env, "verify", None)) else None
     return summary
 
 
@@ -171,4 +172,4 @@ def run_learners(env, learners: dict, steps: int, *, think_s: int | None = None,
             out[a]["params_changed_updates"] += int(bool(u.get("changed")))
         out[a]["kinds"] = sorted(out[a]["kinds"])
     return {"agents": out, "world_changes": int(getattr(env, "changes", 0) - c_total0),
-            "verification": env.verify()}
+            "verification": env.verify() if callable(getattr(env, "verify", None)) else None}
