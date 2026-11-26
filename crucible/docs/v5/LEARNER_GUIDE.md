@@ -95,7 +95,7 @@ message}`), never exceptions. Permissions, prices, quotas, rate limits and visib
 Gymnasium `CrucibleEnv` and `ExperienceGymEnv`, PettingZoo `CrucibleParallelEnv` and `ExperienceParallelEnv`,
 `scale.rollout.WorldEnv`, the HTTP and MCP servers (`--reward-mode`), the AGENTRS CAM 2.0 and superlearner adapters,
 `ReferenceLearner`, the research protocols, the training loop and the self-play harness (`reward_mode=` on every entry
-point). Gate OO.1 checks 173 environment families and 33 constructors and entry points, default-constructed.
+point). Gate OO.1 checks every environment family of every tier (Tier 1 rapid and mechanism families, every Tier 2 domain configuration and Tier 3 profile present, the 4.0 world families) and the constructors and entry points, default-constructed; Gate OO.9 checks each public entry point and that an explicit selection is recorded.
 
 | mode | `reward(agent)` | what else the learner gets |
 |---|---|---|
@@ -120,16 +120,27 @@ unless legacy is named; a raw `World.create` keeps the 4.0 contract):
   turned into a probe of the evaluator; `exp` refuses evaluator tools as measures and measures what the agent sees;
 * a Tier 1 rapid `query spec` answer does not carry the generated world's identity (family, seed, category,
   evaluation split);
+* the science world's replication reports keep their statistical verdict (`consistent`/`refuted`: a test on the
+  reporter's own readings) but lose `related_to_author`, `independent` and `independent_consistent` (the evaluator's
+  relatedness analysis) in `sci.*` results and `sci.replication` events; evaluator-only metrics are the union of this
+  registry and the lists other modules keep (`goals.metrics.EVALUATOR_ONLY_METRICS`, `commerce.observables`);
+* the filters apply to every call made **as** a participant, not only to calls a participant makes itself: a
+  deferred workflow job (`wf.run_later`), a trigger, a flow, and a simulated participant acting through tools from a
+  module process receive participant views (before wave 3 a deferred job returned the `score` a direct `rig.read`
+  strips);
 * the verifier lives on the evaluator side. In one process Python cannot stop a learner from reading the object it
   drives, so evaluated runs that need isolation host the world in its own process:
   `part, ev = crucible.experience.host({"tier": 1, "name": ..., "seed": ...})` gives the learner `part` (the
   participant protocol only; anything else is refused by the world's process) and the evaluator `ev.verify()`.
 
 Legitimate world observations stay: revenue, costs, balances, readings, requests, purchases, analytics a participant
-could compute. Leakage is tested by information-flow probes (`crucible.experience.probes`, Gates R and OO.2): ten
-probe kinds (reward scalar, key name, canary, exact value, free text, regression across perturbed worlds,
-counterfactual worlds, predicate oracle, termination, tool sweep) try to recover verifier values from everything a
-participant reaches on nine surfaces. Before this design they recovered `independent_revenue` exactly through
+could compute. Leakage is tested by information-flow probes (`crucible.experience.probes` and
+`crucible.experience.probes_tiers`, Gates R, OO.2, OO.14, OO.16): twelve probe kinds (reward scalar, key name,
+canary, exact value, free text, regression across perturbed worlds, counterfactual worlds, predicate oracle,
+termination, tool sweep, nested call, identity) try to recover verifier values from everything a participant reaches
+on ten surfaces (including a Tier 3 civilisation), and per tier on five channels: observation, auxiliary/info fields
+(the Gymnasium wrapper's `info`), tool responses (every read-only tool, called with identifiers harvested from what
+the participant has seen), event metadata (`observe_since`) and free text. Before this design they recovered `independent_revenue` exactly through
 `goals.check_now` (21 queries) and the mechanism's objective quantity through `info["score"]`; a positive control
 re-runs them on the 4.0 contract and must find leaks of at least three kinds.
 
@@ -139,6 +150,13 @@ plus a self-supervised prediction loss; the external example uses prediction-err
 may supervise evaluation and meta-learning on the operator's side, never as handcrafted intermediate rewards. The
 self-play harness computes an individual's own signal from its own observation (revenue minus cost) outside legacy
 mode and refuses objectives that need privileged data (another seat's private net, the mechanism's score).
+
+**Verified outcome labels** reach a learner only through `crucible.experience.LabelChannel(evaluator,
+authorised_by=..., purpose="evaluation" | "meta_learning" | "calibration")`, opened on the evaluator side (an
+environment or a `RemoteEvaluator`): `issue()` asks the independent verifier and returns hash-chained
+`crucible-label/1` records (optionally appended to a JSONL file). Nothing in Crucible opens a channel by default,
+labels are never part of an observation or experience record, and issuing them changes nothing the learner observes
+or receives (Gate OO.12 compares twin runs).
 
 ## 5. Worlds
 
@@ -157,13 +175,18 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
   (else a new participant), its objective is `Domain.objective(world, principal, difficulty)` (public text in
   `obs["objective"]`), and `Domain.evaluate(world, principal, objective)` is the evaluator in `verify()`. The domain's
   scripted `reference` is never reachable. The path is tested with a minimal conforming domain in
-  `tests/test_v5_experience_oo.py`; no v5 domain is registered in this checkout yet.
+  `tests/test_v5_experience_oo.py`; no v5 domain is registered in this checkout yet (`crucible.domains.base.REGISTRY`
+  is empty: the domains become configurations of the civilisation generator, D-17).
 * **Tier 3** expects of the civilisation generator (`crucible.experience.registry.CIV_ENTRY_POINT`):
   `crucible.civ.generate(profile: str, seed: int, *, population: str = "development", overrides: dict | None = None)
   -> World` and `crucible.civ.PROFILES`. The registry passes `overrides = {"params": {"evaluator_access": ...}}` and
   expects them merged into the spec before `World.create` (a generator that ignores them is adopted with a runtime
-  override); optionally `crucible.civ.participant_seats(world)` and `crucible.civ.evaluate(world, principal)`. Tier 2
-  domains become configurations of the same generator (D-17).
+  override); optionally `crucible.civ.participant_seats(world)` and `crucible.civ.evaluate(world, principal)`. The
+  learner-side modules `goals` (self-set goals) and `exp` (self-generated experiments) are added to the
+  civilisation's spec (`registry.civ_world`: `crucible.civ.spec(...)` plus those modules, with `generate`'s world-id
+  rule); without them the world is `crucible.civ.generate(...)` itself. A civilisation has no objective of its own:
+  an operator assigns one with `env.set_objective(agent, GoalContract(...))`. Tier 2 domains become configurations of
+  the same generator (D-17).
 * Kernel worlds take `agents=[handles]`, `endowment`, `objectives` (a `GoalContract` or any
   `begin/step_reward/status` object per agent), `extra_modules`.
 
@@ -194,10 +217,12 @@ evaluator-side measures (invariants, digest, the agent's cash, its organisations
 Tier 1 worlds for hundreds of ticks across episodes and a 4.0 kernel world for 90 simulated days within configured
 limits (memory growth, wall time, events held in memory).
 
-Kernel worlds made through `crucible.experience` contain the `exp` module: `exp.register {hypothesis, measure,
-prediction, deadline_in_s}` where `measure` names a read-only tool the agent may call (evaluator tools are refused)
-and a selection of its result as the agent receives it; at the deadline the world measures again and records
-`exp.resolved`. Nothing is ever paid for an experiment, easy or hard. `goals.propose` self-goals accept only metrics
+Kernel worlds made through `crucible.experience` (Tiers 0, 2 and 3) contain the `exp` module: `exp.register
+{hypothesis, measure, prediction, deadline_in_s}` where `measure` names a read-only tool the agent may call (evaluator
+tools are refused) and a selection of its result as the agent receives it; at the deadline the world measures again
+and records `exp.resolved`. The Tier 1 adapters offer the same three tools (`crucible.experience.selfexp`) over the
+numbers of the agent's own observation (`measure = {"number": "<key of obs['numbers']>"}`), resolved privately at the
+deadline and linked to the registering action. Nothing is ever paid for an experiment, easy or hard. `goals.propose` self-goals accept only metrics
 a participant can observe and report met/missed at their due time (`goals.mine`).
 
 ## 8. Existing learner contracts and migration
@@ -268,10 +293,18 @@ and world digest (Gate S.8, for a mechanism and a rapid world).
 
 ## 11. What is not there yet
 
-* Tier 2 domains and Tier 3 civilisations do not exist in this checkout; every gate that needs them fails and says
-  so (`tiers_covered` reports 1).
-* In-world simulated participants (innovation adopters, population members) still read some evaluator data through
-  module internals (workstreams G and B, decision D-18); the filters here protect participants acting through tools,
-  results and events.
-* An innovation adopter's free-text adoption note can still contain its hidden-truth score (written by
-  `innovation/adopt.py`, workstream G); free text written by simulated participants is not filtered.
+* No v5 Tier 2 domain is registered (`crucible.domains.base.REGISTRY` is empty; D-17 makes the domains
+  configurations of `crucible.civ`). Every gate that needs Tier 2 fails and says so.
+* Tier 3 is reached through `crucible.civ`; on the wave-2a integration commit its generator raised (a duplicate
+  `space` module, fixed by the concurrent integration work). The Tier 3 gates fail until that fix is merged and pass
+  through the same code once it is (verified locally against the integration branch's tree).
+* In-world simulated participants that act through tools now receive participant views (the nested-call fix); what a
+  module reads directly from world state for its own physics is reviewed per module, not filtered (population and
+  goods choices read the artifact- and physics-derived attributes, not creator labels; D-15/D-18). The 4.0
+  innovation adopters (`innovation/adopt.py`, not part of v5 worlds) write their own test scores into forum posts:
+  scores of tests the adopter ran on inputs it generated itself, i.e. its own experience, not an evaluator value.
+* Operator-only experiment controls of the population (`pop_adaptive.set_learning`, `freeze_copy`) are listed to
+  participants but refused (`forbidden`).
+* The 4.0 training export (`training.trajectories.RecordingRunner`, unchanged 4.0 code) records an objective's
+  shaped step reward when given one; it is not a learner interface, and the v5 experience records carry the
+  environment's reward (0.0 by default).
