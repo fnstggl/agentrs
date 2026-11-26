@@ -114,13 +114,25 @@ def test_T2_configurable_participant_populations():
 
 def test_T3_independently_varied_objectives(generated):
     """Goals of every type of the independent goal generator (`crucible.rapid.goals`) are drawn from the public face
-    of generated worlds of different structures; a type counts when it was drawn and validated feasible on at least
-    three distinct structures. Independence: the goal-type distribution does not depend on the structure's category
-    (chi-square test of independence)."""
+    of worlds of different structures - generated structures and the registry's Tier 1 rapid training families (the
+    prediction and identification types need a journal, which generated worlds do not offer); a type counts when it
+    was drawn and validated feasible on at least three distinct structures. Independence: on the generated worlds,
+    the goal-type distribution does not depend on the structure's category (chi-square test of independence)."""
     from crucible.rapid import goals as G
     from crucible.rapid import goals_eval as GE
     feasible = collections.defaultdict(set)
     table = collections.Counter()
+    reg = D.build_registry()
+    rapid = [dict(D.thaw(w)) for w in reg.worlds(tier=1, family_partition="train", source="crucible.rapid")
+             if "message" in w["action_kinds"]][:12]
+    for e in rapid:
+        for t in ("predict_heldout", "identify_effect"):
+            env = rapid_world(e, 3, {}, None)
+            if not CU.goal_possible(env, t):
+                continue
+            g = G.generate(env, 0.4, 5, t)
+            if GE.validate(lambda: rapid_world(e, 3, {}, None), g).get("feasible"):
+                feasible[t].add(e["name"])
     for r in generated[:24]:
         e = r["entry"]
         for t in G.GOAL_TYPES:
