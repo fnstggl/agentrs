@@ -16,6 +16,9 @@ Scenarios:
                 the action space grows as tools are found (discoverable tools of unknown applicability, 8.5.3)
     coop        two participants each see a noisy signal of one coordinate of a hidden target; payment needs a
                 joint commitment to the right cell (`coordinate`), so they must communicate (`message`) (8.9.2)
+    leads       investment leads arrive over time in a few slots and expire; each has a hidden return, a weakly
+                informative public pitch, a cheap noisy screen and a costly precise audit; investing pays the
+                hidden return against a public price (hidden opportunities with costly investigation, 8.5.1)
 """
 from __future__ import annotations
 
@@ -41,7 +44,7 @@ class Search(RapidEngine):
     def __init__(self, config: dict):
         super().__init__(config)
         self.sc = config["scenario"]
-        if self.sc not in ("field", "distractors", "tools", "coop"):
+        if self.sc not in ("field", "distractors", "tools", "coop", "leads"):
             raise ValueError(f"unknown scenario {self.sc}")
         self.dynamic_space = self.sc == "tools"
         if self.sc in ("field", "coop"):
@@ -70,6 +73,14 @@ class Search(RapidEngine):
             kinds["discrete"] = A.discrete_schema({"use": opts})
             limits["decisions"] = {"use": opts}
             q["catalogue"] = f"look up the next tool in the catalogue; costs {c['lookup_cost']}"
+        elif self.sc == "leads":
+            slots = list(c["slot_names"])
+            kinds["discrete"] = A.discrete_schema({"invest": slots})
+            limits["decisions"] = {"invest": slots}
+            q["screen"] = (f"a quick, noisy estimate of the return of the lead in a slot (args: {{\"slot\": name}}); "
+                           f"costs {c['screen_cost']:g}")
+            q["audit"] = (f"a thorough, precise estimate of the return of the lead in a slot (args: {{\"slot\": "
+                          f"name}}); costs {c['audit_cost']:g}")
         else:
             cells = [cell_name(x, y) for x in range(self.G) for y in range(self.G)]
             others = [a for a in self.agents if a != agent]
@@ -88,6 +99,14 @@ class Search(RapidEngine):
             return {"left": np.asarray(c["values"], dtype=float).copy(), "spent": np.zeros(1), "gain": np.zeros(1)}
         if self.sc == "distractors":
             return {"left": np.ones(len(c["item_names"])), "spent": np.zeros(1), "gain": np.zeros(1)}
+        if self.sc == "leads":
+            K = len(c["slot_names"])
+            cur = np.full(K, -1.0)
+            for j, ld in enumerate(c["leads"]):
+                if ld["start"] <= 0 < ld["end"]:
+                    cur[c["slot_names"].index(ld["slot"])] = float(j)
+            return {"taken": np.zeros(len(c["leads"])), "cur": cur, "spent": np.zeros(1),
+                    "gain": np.zeros(1), "invested": np.zeros(1), "good_taken": np.zeros(1)}
         if self.sc == "tools":
             return {"found": np.zeros(len(c["tool_names"])), "next": np.zeros(1), "spent": np.zeros(1),
                     "gain": np.zeros(1), "job": np.array([float(int(rng.integers(len(c["job_names"]))))]),
@@ -120,6 +139,34 @@ class Search(RapidEngine):
             i = c["item_names"].index(name)
             v = float(c["values"][i]) + c["probe_noise"] * float(rng.standard_normal())
             return {"item": name, "value": v, "cost": float(c["probe_cost"])}
+        if k == "query" and action["target"] in ("screen", "audit") and self.sc == "leads":
+            slot = str((action.get("args") or {}).get("slot", ""))
+            if slot not in c["slot_names"]:
+                raise ActionError(f"{action['target']} needs args {{\"slot\": <slot name>}}")
+            j = int(state["cur"][c["slot_names"].index(slot)])
+            cost = float(c["screen_cost"] if action["target"] == "screen" else c["audit_cost"])
+            state["spent"] = state["spent"] + cost
+            if j < 0:
+                return {"slot": slot, "lead": None, "note": "the slot is empty", "cost": cost}
+            sd = float(c["screen_sd"] if action["target"] == "screen" else c["audit_sd"])
+            v = float(c["returns"][j]) + sd * float(rng.standard_normal())
+            return {"slot": slot, "lead": c["leads"][j]["id"], "estimate": round(v, 2), "cost": cost}
+        if k == "discrete" and self.sc == "leads":
+            slot = action["choice"]
+            i = c["slot_names"].index(slot)
+            j = int(state["cur"][i])
+            if j < 0:
+                raise ActionError("there is no lead in that slot")
+            ret = float(c["returns"][j])
+            state["taken"] = state["taken"].copy()
+            state["taken"][j] = 1.0
+            state["cur"] = state["cur"].copy()
+            state["cur"][i] = -1.0
+            state["gain"] = state["gain"] + ret
+            state["spent"] = state["spent"] + float(c["price"])
+            state["invested"] = state["invested"] + 1.0
+            state["good_taken"] = state["good_taken"] + float(ret > float(c["price"]))
+            return {"invested": slot, "lead": c["leads"][j]["id"], "return": round(ret, 2)}
         if k == "query" and action["target"] == "catalogue":
             state["spent"] = state["spent"] + c["lookup_cost"]
             n = int(state["next"][0])
@@ -187,6 +234,21 @@ class Search(RapidEngine):
             return {"obs": obs, "revenue": rev, "cost": cost, "info": {}}
         a = ags[0]
         ob: dict = {"numbers": {}}
+        if self.sc == "leads":
+            # leads arrive on a fixed schedule (whatever the participant does); a slot shows the lead whose window
+            # holds the coming tick unless it was taken
+            st["cur"] = np.full(len(c["slot_names"]), -1.0)
+            ents = []
+            for j, ld in enumerate(c["leads"]):
+                if ld["start"] <= t + 1 < ld["end"] and st["taken"][j] < 0.5:
+                    i = c["slot_names"].index(ld["slot"])
+                    st["cur"][i] = float(j)
+                    ents.append({"kind": "lead", "id": ld["id"], "slot": ld["slot"], "pitch": ld["pitch"],
+                                 "ticks_left": int(ld["end"] - (t + 1))})
+            ob["entities"] = ents
+            for i, sl in enumerate(c["slot_names"]):
+                j = int(st["cur"][i])
+                ob["numbers"][f"{sl}.pitch"] = float(c["leads"][j]["pitch"]) if j >= 0 else 0.0
         if self.sc == "tools":
             j = int(st["use"][0])
             if j >= 0:
@@ -210,6 +272,9 @@ class Search(RapidEngine):
 
     def history(self, state):
         c = self.config
+        if self.sc == "leads":
+            return {"text": [f"leads open now: " + ", ".join(f"{ld['id']} in {ld['slot']} (pitch {ld['pitch']:g})"
+                                                            for ld in c["leads"] if ld["start"] <= 0 < ld["end"])]}
         if self.sc == "distractors":
             return {"text": [f"items and their features ({len(c['features'][0])} each): "
                              + "; ".join(f"{n}: {[round(float(v), 3) for v in f]}"
@@ -228,6 +293,8 @@ class Search(RapidEngine):
             hidden = {"informative": c["informative"], "weights": c["weights"]}
         elif self.sc == "tools":
             hidden = {"app": c["app"], "order": c["order"]}
+        elif self.sc == "leads":
+            hidden = {"good": [ld["id"] for ld, r in zip(c["leads"], c["returns"]) if r > c["price"]]}
         else:
             hidden = {"G": self.G}
         return {"engine": self.kind, "scenario": self.sc, "hidden": hidden, "motifs": self.motifs()}
@@ -239,6 +306,8 @@ class Search(RapidEngine):
             return ["linear_nonlinear", "measurement_noise", "partial_observability"]
         if self.sc == "tools":
             return ["multiplicative", "partial_observability", "state_dependent_effect"]
+        if self.sc == "leads":
+            return ["measurement_noise", "partial_observability", "selection_effect", "decay", "threshold"]
         return ["complementarity", "measurement_noise", "partial_observability"]
 
     def latent(self, state) -> np.ndarray:
@@ -264,4 +333,6 @@ class Search(RapidEngine):
                 errs.append("negative money flow")
         if self.sc in ("field", "distractors") and (after["left"] > before["left"] + 1e-12).any():
             errs.append("an exhausted opportunity came back")
+        if self.sc == "leads" and (after["taken"] < before["taken"] - 1e-12).any():
+            errs.append("a taken lead came back")
         return errs

@@ -240,3 +240,124 @@ def router_refit(view, env, first: int = 5, every: int = 5, window: int = 10) ->
             if view.done:
                 return
             collect(view.step(None))
+
+
+# ====================================================================== srch_leads (8.5.1)
+def _open_leads(env) -> list[tuple[str, dict]]:
+    """(slot, lead with its hidden return under "ret") for every lead open now (evaluator side)."""
+    c = env._config
+    st = env._state
+    out = []
+    for i, sl in enumerate(c["slot_names"]):
+        j = int(st["cur"][i])
+        if j >= 0:
+            out.append((sl, dict(c["leads"][j], ret=float(c["returns"][j]))))
+    return out
+
+
+def leads_pay_their_return(env) -> dict:
+    """Investing in a lead changes net income by exactly its hidden return minus the price, against not investing
+    on the same noise (forks), for every lead open now."""
+    from .oracles import fork
+    c = env._config
+    diffs = []
+    for sl, ld in _open_leads(env):
+        a, b = fork(env), fork(env)
+        a.step({"kind": "discrete", "decision": "invest", "choice": sl})
+        b.step(None)
+        diffs.append((float(a.outcome()["net"]) - float(b.outcome()["net"]), ld["ret"] - c["price"]))
+    ok = bool(diffs) and all(abs(x - y) < 1e-6 for x, y in diffs)
+    return {"ok": ok, "net_change_vs_return_minus_price": diffs}
+
+
+def audit_more_precise(env) -> dict:
+    """Repeated screens of one lead scatter far more around its hidden return than repeated audits do (each query
+    is an independent draw)."""
+    from .oracles import fork
+    opened = _open_leads(env)
+    if not opened:
+        e = fork(env)
+        while not opened and not e.done:
+            e.step(None)
+            opened = _open_leads(e)
+        env = e
+    sl, ld = opened[0]
+    errs = {}
+    for kind in ("screen", "audit"):
+        e = fork(env)
+        # twelve queries of the same lead within one tick (independent draws; the lead cannot expire meanwhile)
+        r = e.step({"kind": "sequence", "steps": [{"kind": "query", "target": kind, "args": {"slot": sl}}] * 12})
+        vals = [x["estimate"] - ld["ret"] for x in (r["result"].get("results") or [])
+                if isinstance(x, dict) and x.get("estimate") is not None]
+        errs[kind] = float(np.sqrt(np.mean(np.square(vals)))) if vals else float("nan")
+    return {"ok": bool(errs["audit"] < 0.3 * errs["screen"]), "rms_error": errs}
+
+
+def identify_good_leads(env) -> dict:
+    """Question: which of the leads open now are worth more than their price? Public: audit each open lead."""
+    view = PublicView(env)
+    sp = view.action_space()
+    slots = list(sp.limits["decisions"]["invest"])
+    price = float(env._config["price"])                # public: stated in the brief
+    est = {}
+    for sl in slots:
+        r = view.step({"kind": "query", "target": "audit", "args": {"slot": sl}})
+        res = r["result"].get("results") or {}
+        if res.get("lead") is not None:
+            est[res["lead"]] = bool(res["estimate"] > price)
+    truth = {ld["id"]: bool(r > price) for ld, r in zip(env._config["leads"], env._config["returns"])
+             if ld["id"] in est}
+    return {"question": "which open leads return more than their price", "estimate": est, "truth": truth,
+            "ok": bool(est) and est == truth}
+
+
+def oracle_leads(env) -> dict:
+    """Evaluator: invest in every lead whose hidden return exceeds the price, as soon as it opens, without
+    investigating."""
+    from .oracles import best_of
+    c = env._config
+
+    def fn(e):
+        steps = [{"kind": "discrete", "decision": "invest", "choice": sl}
+                 for sl, ld in _open_leads(e) if ld["ret"] > c["price"]]
+        if not steps:
+            return None
+        return steps[0] if len(steps) == 1 else {"kind": "sequence", "steps": steps}
+    return best_of(env, {"invest in every lead that returns more than its price": fn})
+
+
+def screen_audit_invest(view, env=None, screen_bar: float = 1.0, audit_bar: float = 1.05) -> None:
+    """Scripted public reference: screen every lead once when it opens; audit a lead whose screen comes out above
+    `screen_bar` x the price (or whose pitch is strong); invest when the audit is above `audit_bar` x the price.
+    The price and the costs are stated in the brief; leads are told apart by the ids the slots show."""
+    import re
+    brief = " ".join(view.spec["brief"].values())
+    m = re.search(r"costs ([0-9.]+) and pays", brief)
+    price = float(m.group(1)) if m else 1000.0
+    screened: dict = {}
+    audited: dict = {}
+    obs = view.observe()
+    while not view.done:
+        open_ = {e["slot"]: e for e in obs["entities"] if e.get("kind") == "lead"}
+        steps = []
+        for sl, e in open_.items():
+            lid = e["id"]
+            if lid in audited:
+                if audited[lid] > audit_bar * price:
+                    steps.append({"kind": "discrete", "decision": "invest", "choice": sl})
+            elif lid in screened:
+                if screened[lid] > screen_bar * price or (e["pitch"] > 0.8 and screened[lid] > 0.6 * price):
+                    steps.append({"kind": "query", "target": "audit", "args": {"slot": sl}})
+            else:
+                steps.append({"kind": "query", "target": "screen", "args": {"slot": sl}})
+        if not steps:
+            obs = view.step(None)["observation"]
+            continue
+        r = view.step(steps[0] if len(steps) == 1 else {"kind": "sequence", "steps": steps})
+        obs = r["observation"]
+        res = r["result"].get("results")
+        res = res if isinstance(res, list) else [res]
+        for st, x in zip(steps, res):
+            if not isinstance(x, dict) or x.get("lead") is None or "estimate" not in x:
+                continue
+            (audited if st.get("target") == "audit" else screened)[x["lead"]] = x["estimate"]

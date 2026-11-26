@@ -113,3 +113,51 @@ def coop_split_info(rng, d):
                                                           "commitment to the right cell pays both of you."},
             "brief": f"A {G}x{G} grid (cells c<x>_<y>). You see a noisy signal of one coordinate of a hidden target; "
                      "your partner sees the other. Message each other and commit jointly (coordinate)."}
+
+
+W = "crucible.rapid.claims_w3b:"
+
+
+@family("srch_leads", engine="search", category="8.5", item="8.5.1", split="train",
+        doc="Investment leads arrive over time in a few slots and expire after a few ticks. Each has a hidden "
+            "return; most return less than the price of investing, a few return far more. Every lead carries a "
+            "weakly informative public pitch; a quick screen gives a noisy estimate cheaply and an audit a precise "
+            "one at a real cost. Investing pays the hidden return against the public price.",
+        distinct_because="hidden opportunities in a stream that expire (arrival windows), valued by two kinds of "
+                         "costly investigation that trade cost for precision (screen, audit) before an irreversible "
+                         "commitment; unlike srch_distractors there are no features to learn, unlike srch_field no "
+                         "spatial structure: the skill is deciding what to investigate and how deeply",
+        axes={"horizon": 40, "graph_size": 3, "experiment_cost": 30.0, "observation_noise": 1.0},
+        objective="maximize_net", claims=(W + "leads_pay_their_return", W + "audit_more_precise"),
+        identify=W + "identify_good_leads", reference=W + "screen_audit_invest", oracle=W + "oracle_leads")
+def srch_leads(rng, d):
+    K, H = int(d["graph_size"]), int(d["horizon"])
+    names = neutral_names(rng, K + 64)
+    slots = names[:K]
+    price = 1000.0
+    leads, rets, n = [], [], 0
+    for k in range(K):
+        t = -int(rng.integers(0, 3))
+        while t < H:
+            life = int(rng.integers(3, 7))
+            good = rng.random() < 0.25
+            ret = price * (u(rng, 1.6, 3.0) if good else u(rng, 0.1, 0.8))
+            pitch = float(np.log(ret / price) + 1.5 * float(d["observation_noise"]) * rng.standard_normal())
+            leads.append({"id": names[K + n % 64] + str(n // 64 if n >= 64 else ""), "slot": slots[k],
+                          "start": max(t, 0), "end": t + life, "pitch": round(pitch, 2)})
+            rets.append(float(round(ret)))          # whole cents: a realised return is booked as it is
+            n += 1
+            t += life + int(rng.integers(0, 2))
+    keep = [i for i, ld in enumerate(leads) if ld["end"] > 0]
+    leads, rets = [leads[i] for i in keep], [rets[i] for i in keep]
+    sc = float(d["experiment_cost"])
+    return {"engine": "search", "scenario": "leads", "horizon": H, "slot_names": slots, "leads": leads,
+            "returns": rets,
+            "price": price, "screen_cost": sc, "audit_cost": 6.0 * sc, "screen_sd": 600.0, "audit_sd": 60.0,
+            "endowment": 50_000,
+            "objective": {"type": "maximize_net", "text": "Maximise the returns of your investments minus what "
+                                                          "they cost and what investigating them cost."},
+            "brief": f"Leads come and go in {K} slots ({', '.join(slots)}); each stays open for a few ticks. "
+                     f"Investing in a lead costs {price:g} and pays its return, which you do not know; most leads "
+                     "return less than they cost. Each lead shows a pitch score (a weak hint). You may screen a lead "
+                     f"(quick and rough, {sc:g}) or audit it (thorough, {6.0 * sc:g})."}
