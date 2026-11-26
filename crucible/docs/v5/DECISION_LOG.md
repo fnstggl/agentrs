@@ -265,3 +265,34 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-66 Evaluation runs out of process with sealed seeds; `make()` is the development path (2026-11-26, workstream L)
+Context: Gate W.2 / SP-16c found that a learner holding the object `crucible.experience.make()` returns reaches the
+Tier 1 grader's hidden rule and holdout (`env.env._engine.sc`), and Python has no access control, so no in-process
+object can be made safe. Decision: `crucible.experience.remote.evaluate(ref, learner, learner_kw)` (CLI
+`python -m crucible.experience evaluate`) is the evaluation entry point. It runs three processes: the world (with its
+verifier, hidden configuration and grader) in a spawned world process, the evaluated learner in a second spawned
+process that holds only the participant pipe (bounded JSON frames, evaluator operations refused), and the evaluator in
+the calling process, which verifies after the learner returns. The world seed is drawn by the evaluator (62 random
+bits) unless the caller names one, because a learner that can guess a deterministic world's seed rebuilds the world in
+its own process (measured: with seed 3 the rebuild recovers all ten hidden parameters of `pe_rule_induction`; with a
+sealed seed none). `make()` stays in-process for development, training and white-box tests and is documented as never
+an evaluation path. The boundary is probed by `crucible.experience.isolation` (an adversarial evaluated learner:
+garbage-collector scan of its process, every evaluator operation on its pipe, the other processes' memory, command
+lines, environments and channels through /proc, the seed-rebuild attack, the seed and the world's hidden values in
+everything it gathered; the in-process object walk and a small seed are the positive controls). Residual: processes
+of one uid are separated by the kernel's ptrace rules (Yama scope 1: a sibling cannot read the world's memory; its
+plumbing pipes - stdout, the multiprocessing resource tracker - can be opened through /proc), not by a uid boundary or
+seccomp; that stronger jail is the sandbox's (`crucible.sandbox.isolation`). Consequence for the red team (workstream
+O): the in-process probe `v5.isolation.in_process_learner_reads_hidden_grader` measures `make()`, which keeps finding
+the grader by construction; the W.2 measurement belongs on the evaluation path (`isolation.probe`).
+
+## D-67 Architecture-neutral stand-ins replace the AGENTRS adapter probes (2026-11-26, workstream L)
+RP.1 forbids imports of CAM learner code in crucible/. The leak probes (`experience.probes` surfaces `sl`, `cam2`) and
+two experience unit tests drove the 4.0 adapters `integrations/agentrs_sl.py` / `agentrs_cam2.py`, which import
+`agentrs.sl` / `agentrs.cam2`. They are replaced by (a) the batched external adapter of the CAM Unified `EnvAdapter`
+shape (`examples/experience_external_adapter.py`, public interface only), checked for the same properties - no native
+reward or invalid-call penalty in the default mode, no termination on the verifier's outcome, no evaluator metric in
+its goals, no evaluator key or verifier value in what it returns - and (b) the out-of-process evaluation path (surface
+`remote`). The adapters themselves are 4.0 code that the QA workstream relocates; nothing in the experience package
+or its tests imports them any more.

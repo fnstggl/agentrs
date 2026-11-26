@@ -40,6 +40,11 @@ def metric(name: str, doc: str = "", subject: dict | None = None, instant: bool 
     def deco(fn):
         METRICS[name] = fn
         METRIC_DOCS[name] = doc or (fn.__doc__ or "").strip()
+        if METRIC_DOCS[name].startswith("EVALUATOR-ONLY"):
+            # a module's own declaration (e.g. crucible.social.integrity's organic_* metrics): an evaluator measurement,
+            # never readable through a participant-authored predicate (wave 3b: these were only kept out by having no
+            # subject, and were missing from core.evaluator_only.evaluator_metrics())
+            EVALUATOR_ONLY_METRICS.add(name)
         if subject is not None:
             METRIC_SUBJECTS[name] = dict(subject)
         if instant:
