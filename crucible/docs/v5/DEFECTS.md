@@ -614,6 +614,26 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-F-7 (high, fixed): An incumbent's staffing rule re-dismissed an employee already serving notice; labor.dismiss refused it and the
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 d373423 (labor.team reports on_notice; the staffing rule neither re-dismisses nor counts staff on notice; each wave-3b rival rule runs in its own savepoint; seekers employed elsewhere stop looking)",
+ "id": "DEF-F-7",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_civic.py::test_activity_continues_and_incumbent_days_never_fail",
+ "requirements": [],
+ "severity": "high",
+ "source": {
+  "audit": "workstream F wave 3b (c5c/w3b-econ1): 12-week activity probe",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "An incumbent's staffing rule re-dismissed an employee already serving notice; labor.dismiss refused it and the incumbent's whole daily rule set (support replies, refunds, pricing, listings) was rolled back every day from day 55 (26 rivals.failed in 84 days, seed 21); seekers employed outside the market accepted offers and quit the next day."
+}
+```
+
 ### DEF-G-1 (critical, open): pkg.advisory is 'verified' iff any repro test fails (pkg.py:772): an assert-False repro that never touches vec
 
 ```json
