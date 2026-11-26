@@ -198,47 +198,46 @@ def test_adaptive_memory_learns_through_time():
     assert res[True] < 0.5 * res[False], res
 
 
-def test_class2_day_review_steps_every_members_memory_and_replays_exactly(run2):
+def test_class2_day_review_steps_every_members_memory_and_replays_exactly():
     """Every class-2 member's policy steps its personal memory at its first activation of each simulated day (active
     day or not), in one recorded batch per decision round; the steps are zero-weight members of the member's training
     sequence, so replaying a member's examples through the GRU from the first stored memory reproduces the memory
-    stored before each later step (backpropagation through time follows the trajectory the member lived)."""
+    stored before each later step (backpropagation through time follows the trajectory the member lived). The group
+    is frozen here so that every step was taken with the genesis weights."""
     import torch
     from crucible.population.adaptive import _sequences
     from crucible.substrate import artifacts
-    _, w, _ = run2
-    cls = columns.col(w, "pop", "class")
-    members = set(np.flatnonzero(cls == 2).tolist())
-    reviewed = {}
-    for e in w.log:
-        if e.type == "cols.batch" and e.payload["kind"] == "pop_adaptive.memory" and e.payload["extra"].get("review"):
-            idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
-            reviewed.setdefault(int(e.payload["extra"]["t"]) // DAY, set()).update(idx.tolist())
-    assert reviewed and all(v == members for d, v in reviewed.items() if d < int(w.now // DAY)), \
-        {d: len(v) for d, v in reviewed.items()}
-    ad = w.modules["pop_adaptive"]
-    refs = [k for k, r in w.state.tables["pop_examples"].items() if r["kind"] in (1, 2)]
-    act = ad._load_examples(w, refs)["act"]
-    assert (act["w"] == 0).any() and (act["w"] > 0).any()
-    # replay with the genesis weights, on the steps taken before the group's first update (every example's memory
-    # was produced by the weights current at that time)
-    first_update = min((e.t for e in w.log if e.type == "pop.policy_update" and e.payload["group"] == "adaptive:0"
-                        and e.payload.get("step", 0) > 0), default=w.now + 1)
-    checked = 0
-    for seq in _sequences(act, 64):
-        seq = [q for q in seq if act["t"][q] < first_update]
-        if len(seq) < 2:
-            continue
-        m = act["mem"][seq[0]][None, :].astype(np.float32)
+    spec = small_spec(3, classes={"adaptive": 16, "strategic": 0, "semantic": 0}, strategic=False,
+                      adaptive={**SMALL_AD, "groups": [{"id": 0, "share": 1.0, "learning": False}]})
+    w = World.create(spec)
+    try:
+        w.advance_time(w.now + 2 * DAY)
+        cls = columns.col(w, "pop", "class")
+        members = set(np.flatnonzero(cls == 2).tolist())
+        reviewed = {}
+        for e in w.log:
+            if e.type == "cols.batch" and e.payload["kind"] == "pop_adaptive.memory" and \
+                    e.payload["extra"].get("review"):
+                idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
+                reviewed.setdefault(int(e.payload["extra"]["t"]) // DAY, set()).update(idx.tolist())
+        assert reviewed.get(0) == members and reviewed.get(1) == members, {d: len(v) for d, v in reviewed.items()}
+        ad = w.modules["pop_adaptive"]
+        refs = [k for k, r in w.state.tables["pop_examples"].items() if r["kind"] in (1, 2)]
+        act = ad._load_examples(w, refs)["act"]
+        assert (act["w"] == 0).any() and (act["w"] > 0).any()
         g = ad._new_policy(w, w.state.get("pop_groups", "0"))
-        for a, b in zip(seq, seq[1:]):
-            with torch.no_grad():
-                _, m2 = g.net.memory(torch.from_numpy(act["obs"][a][None, :]), torch.from_numpy(m))
-            m = m2.numpy()
-            assert np.allclose(m[0], act["mem"][b], atol=2e-2), (a, b)
-            m = act["mem"][b][None, :].astype(np.float32)
-            checked += 1
-    assert checked >= 5, checked
+        assert g.weights_hash() == ad.policy(w, 0).weights_hash()          # frozen: still the genesis weights
+        checked = 0
+        for seq in _sequences(act, 64):
+            for a, b in zip(seq, seq[1:]):
+                with torch.no_grad():
+                    _, m2 = g.net.memory(torch.from_numpy(act["obs"][a][None, :]),
+                                         torch.from_numpy(act["mem"][a][None, :].astype(np.float32)))
+                assert np.allclose(m2.numpy()[0], act["mem"][b], atol=2e-2), (a, b)
+                checked += 1
+        assert checked >= 20, checked
+    finally:
+        w.close()
 
 
 def test_policy_updates_are_recorded(run2):

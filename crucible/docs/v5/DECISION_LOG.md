@@ -318,3 +318,10 @@ sessions from the memory stored before the first), so the memory can learn to ca
 history says beyond its observation (unit test: a trait seen only in the first session is predicted later with
 memory and not without). G.7 compares the compact policies with three local language models (SmolLM2-135M,
 SmolLM2-360M, Qwen3-0.6B) zero-shot on the same held-out decisions; a comparison row is a language model that ran.
+Addendum (wave 3b continuation): the network also steps each member's memory once per simulated day at its first
+activation of the day (`pop_adaptive.review_day`, the member's morning observation, active day or not), batched over
+the members waking in the same decision round and recorded as a memory batch plus zero-weight steps of the member's
+training sequence (BPTT replays exactly the memory trajectory the member lived; unit test). Without it a member's
+recurrent state did not follow it through days without sessions, and members the fitted daily-return model kept
+offline kept the shared initial state. Whether a member browses on a day remains the fitted daily_return@1 decision.
+Gate G measures presence (G.1) from the policy's own steps per day and batching (G.3) per decision the network takes.
