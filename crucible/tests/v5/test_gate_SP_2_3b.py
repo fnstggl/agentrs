@@ -28,11 +28,13 @@ import sys
 
 import pytest
 
+import crucible
 from crucible.acceptance.v5 import evidence
 from crucible.core import schema as S
 from crucible.core.kernel import Module, World, WorldSpec, applier, endpoint, register_module
 from crucible.substrate import bus, integrity
 
+crucible.load_all_modules()          # the positive controls compose shipped modules (identity, bank, admin)
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_2_3b.py"
 HOURS = {"civ": 12.0, "population": 24.0, "social": 12.0, "commerce": 24.0, "domain": 12.0, "rapid": 48.0}
@@ -77,9 +79,18 @@ class Sp23bIntruder(Module):
         ctx.state.put("sp23b_mine", "direct", {"n": 2})        # a handler writing state: replay cannot reproduce it
         return {}
 
+    @endpoint("smudge", S.obj())
+    def ep_smudge(self, ctx):
+        # a write that bypasses the state store: a nested value of a row a read returned, mutated in place
+        for _, row in ctx.state.scan("sp23b_mine"):
+            if isinstance(row.get("tags"), list):
+                row["tags"].append("silent")
+                break
+        return {}
+
     @applier("sp23b.poked")
     def ap_poked(self, ev):
-        self.world.state.put("sp23b_mine", f"m{ev.seq}", {"n": 1})
+        self.world.state.put("sp23b_mine", f"m{ev.seq}", {"n": 1, "tags": []})
         self.world.state.put("sp23b_owned", f"x{ev.seq}", {"n": 1})       # not its table
 
 
@@ -90,7 +101,18 @@ def _control() -> dict:
     with integrity.trace_writes(w) as tr:
         assert w.execute(p, {"tool": "sp23b.poke", "args": {}}).ok
         assert w.execute(p, {"tool": "sp23b.scribble", "args": {}}).ok
-    return tr.report()
+    rep = tr.report()
+    # a world of the same modules whose only offence bypasses the state store: invisible to the trace, caught by replay
+    q = World.create(WorldSpec("sp23b-control", 1, [{"name": m, "config": {}} for m in
+                                                     ("identity", "bank", "admin", "sp23b_owner", "sp23b_intruder")]))
+    pq = q.system_call("admin.join", {"handle": "ctl", "endowment": 0})["principal"]
+    with integrity.trace_writes(q) as tq:
+        assert q.execute(pq, {"tool": "sp23b.poke", "args": {}}).ok
+        clean = integrity.replay_check(q)["replay_exact"]
+        assert q.execute(pq, {"tool": "sp23b.smudge", "args": {}}).ok
+    rep["silent_control"] = {"traced": tq.report()["cross_module_state_writes"] - 1, "replay_before": clean,
+                             "replay_after": integrity.replay_check(q)["replay_exact"]}
+    return rep
 
 
 @pytest.mark.slow
@@ -101,6 +123,8 @@ def test_SP_2_3b_typed_events_approved_interfaces_and_determinism():
     assert ctl["cross_module_state_writes"] == 2, ctl
     assert [(r["writer"], r["target"]) for r in ctl["cross"]] == [("sp23b_intruder", "sp23b_owned")]
     assert [(r["writer"], r["target"]) for r in ctl["handler"]] == [("handler", "sp23b_mine")]
+    # ...and a write that bypasses the state store adds nothing to the trace but breaks replay of the world's log
+    assert ctl["silent_control"] == {"traced": 0, "replay_before": True, "replay_after": False}, ctl["silent_control"]
 
     kinds = list(integrity.KINDS)
     traced, hashed, problems = {}, {}, {}
