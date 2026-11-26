@@ -14,14 +14,14 @@ from crucible.acceptance.v5.evidence import record
 from crucible.research.v5 import distribution as D
 from crucible.research.v5 import sampler as S
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(7200)]
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(7200)]   # ~15 CPU-min of training compute (GPU slot)
 TOL = 0.05
 
 
 def test_SP14_2_default_mixture():
     reg = D.build_registry()
     try:
-        res = S.run_mixture(reg, S.DEFAULT_MIXTURE, episodes=60)
+        res = S.run_mixture(reg, S.DEFAULT_MIXTURE, episodes=100_000, compute_s=900.0)
         why = ""
     except S.TierUnavailable as e:
         res, why = None, str(e)

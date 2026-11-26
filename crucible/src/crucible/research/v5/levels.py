@@ -118,8 +118,15 @@ def build_level(level: int, reg: Registry | None = None, *, n_train: int = 12, s
         return Split(level, train, test, checks, why="" if pick else "no held-out family qualifies")
     if level == 5:
         rapid_train = [w["id"] for w in reg.worlds(tier=1, family_partition="train", source="crucible.rapid")]
-        new_domain = [w["id"] for w in reg.worlds(tier=2) + reg.worlds(tier=3) if w["family_partition"] in
-                      ("evaluation",)]
+        # held-out items of other tiers: the evaluation configuration of two different Tier 2 domains (if any) and
+        # the held-out Tier 3 profiles
+        t2, doms = [], set()
+        for w in sorted(reg.worlds(tier=2, family_partition="evaluation"), key=lambda w: w["id"]):
+            d = w["name"].split(":")[0]
+            if d not in doms and len(t2) < 2:
+                doms.add(d)
+                t2.append(w["id"])
+        new_domain = t2 + sorted(w["id"] for w in reg.worlds(tier=3, family_partition="evaluation"))
         # single-seat 4.0 mechanism tasks (a multi-seat task's verifier reports per-seat play, not one outcome)
         mech = [w["id"] for w in reg.worlds(tier=1, source="crucible.mechanisms") if w["family_partition"] == "train"
                 and list(w["participants"]) == ["seats:1"]]
