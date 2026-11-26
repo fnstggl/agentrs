@@ -127,12 +127,11 @@ def test_offline_only_and_review_kept_contenders():
         assert v.values[0] == v.values[1] == pytest.approx(es.spec.params["served_rate"])
         ck = es.evaluate_features(np.array([[0.0, 0.0], [9.0, 3.0]]), checkpoint=True)
         assert ck.served == "K" and ck.values[1] > ck.values[0]
-    ad = RT.decision_for("commercial_response@1")
-    v = ad.evaluate({"response_type": np.array([0, 63]), "treated": np.array([1, 1])}).values
-    if ad.served == "B":
-        np.testing.assert_allclose(v[0], v[1])           # constant effect: no heterogeneity served
-    types = ad.draw_types(1000, np.random.default_rng(0))
-    assert types.min() >= 0 and types.max() <= 63
+    ad = RT.decision_for("commercial_response@1")       # ad_response@1: superseded by ad_response@2 (E5)
+    assert ad.served == RT.review_of("commercial_response@1")["kept_after_review"]
+    assert ad.spec.status == "offline_only" and "ad_response@2" in ad.spec.status_reason
+    with pytest.raises(ContractError):
+        ad.evaluate({"response_type": np.array([0, 63]), "treated": np.array([1, 1])})
 
 
 def test_unknown_decision_and_missing_checkpoint_fail_loudly(tmp_path, monkeypatch):

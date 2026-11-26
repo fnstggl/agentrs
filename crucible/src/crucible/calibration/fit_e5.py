@@ -165,8 +165,14 @@ def q_of(name: str, theta, v) -> np.ndarray:
     raise ValueError(name)
 
 
-def _stratum_profile(name, theta, ck: dict, start=None) -> tuple[float, tuple]:
+def _stratum_profile(name, theta, ck: dict, start=None, qfun=None) -> tuple[float, tuple]:
+    """Profile log-likelihood of one stratum; `qfun(v)` (displayed visit probability at baseline log-odds v)
+    defaults to the candidate's closed form `q_of(name, theta, v)` (the reproducer passes the runtime's served
+    predictor instead)."""
     from scipy.optimize import minimize
+    if qfun is None:
+        def qfun(v):
+            return q_of(name, theta, v)
     n_te, n_tn = ck["nte"], ck["ntn"]
     e = n_te / max(n_te + n_tn, 1.0)
 
@@ -174,7 +180,7 @@ def _stratum_profile(name, theta, ck: dict, start=None) -> tuple[float, tuple]:
         u, v = x
         pi = (1 - e) * P._sigmoid(u) + e * P._sigmoid(v)
         return -(_ll(ck["yc"], ck["nc"], pi) + _ll(ck["ytn"], n_tn, P._sigmoid(u)) +
-                 _ll(ck["yte"], n_te, q_of(name, theta, v)))
+                 _ll(ck["yte"], n_te, qfun(np.array([v]))))
     if start is None:
         nu = np.clip((ck["ytn"] + 0.5) / (n_tn + 1.0), 1e-5, 1 - 1e-5)
         cr = (ck["yc"] + 0.5) / (ck["nc"] + 1.0)
@@ -193,10 +199,10 @@ def _strata(c: dict) -> list[dict]:
     return [{k: float(c[k][j]) for k in c} for j in range(K)]
 
 
-def profile_ll(name, theta, c: dict) -> tuple[float, list]:
+def profile_ll(name, theta, c: dict, qfun=None) -> tuple[float, list]:
     out, nuis = 0.0, []
     for ck in _strata(c):
-        ll, x = _stratum_profile(name, theta, ck)
+        ll, x = _stratum_profile(name, theta, ck, qfun=qfun)
         out += ll
         nuis.append(x)
     return out, nuis
@@ -207,10 +213,10 @@ def saturated_ll(c: dict) -> float:
                + _ll(ck["yte"], ck["nte"], ck["yte"] / max(ck["nte"], 1)) for ck in _strata(c))
 
 
-def excess_log_loss(name, theta, c: dict) -> float:
+def excess_log_loss(name, theta, c: dict, qfun=None) -> float:
     """(saturated - profile log-likelihood) per displayed row: 0 is a perfect account of the three cell rates of
     every stratum; larger is worse."""
-    return (saturated_ll(c) - profile_ll(name, theta, c)[0]) / max(float(np.sum(c["nte"])), 1.0)
+    return (saturated_ll(c) - profile_ll(name, theta, c, qfun)[0]) / max(float(np.sum(c["nte"])), 1.0)
 
 
 def fit_theta(name, c: dict, center: float) -> np.ndarray:

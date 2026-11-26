@@ -81,6 +81,7 @@ class Spec:
     output_doc: str = ""
     params: dict = field(default_factory=dict)
     scope: dict = field(default_factory=dict)     # machine-readable allowed use, e.g. {"content_kinds": [...]}
+    model_class: object = None                    # a DecisionModel subclass for composite outputs (ad_response@2)
 
     @property
     def fidelity_id(self) -> str:
@@ -326,6 +327,10 @@ def _base_specs() -> dict[str, Spec]:
                 Input("treated", "1 if the individual is in the campaign's treated (eligible) group this period",
                       "flag", "context", 0, 1)),
         build=lambda d, m, s: np.column_stack([_f(d, "response_type"), _f(d, "treated")]),
+        status="offline_only",
+        status_reason=("superseded by ad_response@2 (audit E skeptic S5 redesign): a latent type drawn independently of "
+                       "the individual's state, a response to eligibility rather than to a display, and an 18% mass "
+                       "of negative responders the held-out data do not support; worlds use ad_response@2"),
         limits=("Criteo Uplift v2.1 randomized incrementality tests (13,979,592 users, period and advertisers "
                 "undisclosed, released 2018): intention-to-treat effects of campaign eligibility, identified by "
                 "randomisation. Absolute rates and effect sizes are not representative (non-uniform sub-sampling); "
@@ -391,7 +396,8 @@ def get(decision_id: str) -> "DecisionModel":
     if decision_id not in S:
         raise ContractError(f"unknown decision model {decision_id!r}; known: {sorted(S)}")
     if decision_id not in _LOADED:
-        _LOADED[decision_id] = DecisionModel(S[decision_id], _load(S[decision_id].model))
+        cls = S[decision_id].model_class or DecisionModel
+        _LOADED[decision_id] = cls(S[decision_id], _load(S[decision_id].model))
     return _LOADED[decision_id]
 
 
@@ -659,6 +665,74 @@ class DecisionModel:
         if self.spec.output != "arm_probabilities":
             raise ContractError(f"{self.id} has no latent types")
         return self.fitted.sample_types(rng, n)
+
+
+def at_least_one(per_display: np.ndarray, owner: np.ndarray, n: int) -> np.ndarray:
+    """P(at least one of an individual's displays is attended) = 1 - prod_j (1 - a_j) over that individual's own
+    displays (`owner[j]` = row of the individual, 0 <= owner < n). Aggregates only within an individual."""
+    a = np.clip(np.asarray(per_display, dtype=np.float64), 0.0, 1.0)
+    owner = np.asarray(owner, dtype=np.int64)
+    if a.shape != owner.shape:
+        raise ContractError("one owner row per display")
+    if owner.size and (owner.min() < 0 or owner.max() >= n):
+        raise ContractError("owner rows outside [0, n)")
+    log_miss = np.bincount(owner, weights=np.log1p(-np.minimum(a, 1 - 1e-12)), minlength=int(n))
+    return -np.expm1(log_miss)
+
+
+class AdDecision(DecisionModel):
+    """ad_response@2: visit probability of an individual displayed an advertiser's display or feed campaign during
+    a campaign period (fitted model ad_exposure_response@1; plan E5). Per row:
+
+        p = min(1, p0 + (A / A_ref) (q(p0) - p0)),   q(p0) = sigmoid(logit p0 + D(logit p0)),  D >= 0
+
+    p0 = the individual's organic visit probability (world state), A = probability that at least one of its displays
+    is attended (`at_least_one` over per-display probabilities from a registered attention decision model evaluated
+    on each display's own features), A_ref = `reference_attention` (declared, default 1). Outputs p_visit,
+    p_visit_organic and p_incremental. `sample` draws one coupled uniform per row: a visit when u < p, and the visit
+    is incremental (caused by the campaign) when p0 <= u < p; incremental visits convert with the world's own
+    purchase probability times `incremental_conversion_ratio`."""
+
+    def _parts(self, inputs: dict):
+        d, n = self._validate(inputs)
+        p0 = np.clip(d["organic_visit_probability"], 1e-6, 1 - 1e-6)
+        A = d["attended_probability"]
+        X = logit_np(p0)[:, None]
+        return p0, A, X, n
+
+    def evaluate(self, inputs: dict, strict: bool = False) -> Result:
+        p0, A, X, n = self._parts(inputs)
+        ex = self._extrapolated(X)
+        if strict and np.any(ex):
+            raise ContractError(f"{self.id}: {int(ex.sum())} rows outside the data's feature support")
+        q = np.asarray(self.fitted.predict(X), dtype=np.float64) if n else np.zeros(0)
+        ref = float(self.spec.params.get("reference_attention", 1.0))
+        p = np.minimum(1.0, p0 + (A / ref) * (q - p0))
+        vals = np.column_stack([p, p0, p - p0]) if n else np.zeros((0, 3))
+        _USAGE[self.id] = _USAGE.get(self.id, 0) + int(n)
+        return Result(self.id, self.model_id, self.version, self.fidelity_id, vals, ex,
+                      ("p_visit", "p_visit_organic", "p_incremental"), self.served)
+
+    def _predict(self, X: np.ndarray) -> tuple[np.ndarray, tuple]:
+        # held-out evaluation in the fitted feature space: displayed (attended) individuals at organic log-odds X
+        return np.asarray(self.fitted.predict(X), dtype=np.float64), ("q_displayed",)
+
+    def sample(self, inputs: dict, rng: np.random.Generator) -> np.ndarray:
+        res = self.evaluate(inputs)
+        u = rng.random(res.n)
+        visit = u < res.values[:, 0]
+        incremental = visit & (u >= res.values[:, 1])
+        return np.column_stack([visit, incremental])
+
+    def shift(self, organic_visit_probability) -> np.ndarray:
+        """The fitted log-odds shift of an attended display at these organic probabilities (>= 0)."""
+        p0 = np.clip(np.asarray(organic_visit_probability, dtype=np.float64), 1e-6, 1 - 1e-6)
+        return np.asarray(self.fitted.predictor.shift(logit_np(p0)), dtype=np.float64)
+
+
+def logit_np(p) -> np.ndarray:
+    p = np.clip(np.asarray(p, dtype=np.float64), 1e-12, 1 - 1e-12)
+    return np.log(p) - np.log1p(-p)
 
 
 def contract_markdown() -> str:
