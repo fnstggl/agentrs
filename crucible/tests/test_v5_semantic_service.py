@@ -110,8 +110,15 @@ def test_continuous_batching_serves_several_callers_in_shared_steps(svc):
 def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch):
     from crucible.semantic import routing as R
     monkeypatch.setenv("CRUCIBLE_DATA", "/nonexistent")
+    # the committed decision (D-36), re-derived from the SP-3.2b report it carries: smallest effective model per
+    # capability on held-out templates, else the best measured
+    dec = R.decision()
+    assert dec is not None
+    derived = {c: r["model"] for c, r in R.derive(dec["report"]).items()}
+    assert {c: R.route(c) for c in R.TABLE} == derived
     assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
-    assert R.route("tool_choice") == R.route("communication") == "Qwen/Qwen3-0.6B"
+    assert R.route("tool_choice") == R.route("content_understanding") == "Qwen/Qwen3-0.6B"
+    assert R.PARAMS[R.route("communication")] <= R.PARAMS["Qwen/Qwen3-0.6B"]
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
     assert R.device_for("Qwen/Qwen3-1.7B") == ("cpu", "int8-dynamic")
     assert R.device_for("Qwen/Qwen3-0.6B") == ("cpu", None)
@@ -154,16 +161,19 @@ def test_choose_matches_direct_log_probability(svc):
 
 
 def test_one_weight_copy_per_model_and_revision(svc):
+    # copies are counted per (model, revision, device, dtype, quantization): other tests of the same process may
+    # hold this model on another device, so the check is that a second CPU service adds no copy
+    n0 = SV.loaded_copies(SMALL)
     other = SV.SemanticService(SMALL, device="cpu")
     try:
         assert other.weights is svc.weights
-        assert SV.loaded_copies(SMALL) == 1
+        assert SV.loaded_copies(SMALL) == n0
         info = other.info()
         assert info["revision"] == SV.local_revision(SMALL) and len(info["weights_hash"]) == 64
         assert info["params"] > 100_000_000
     finally:
         other.close()
-    assert SV.loaded_copies(SMALL) == 1          # svc still holds the weights
+    assert SV.loaded_copies(SMALL) == n0         # svc still holds the weights
 
 
 def test_weights_hash_is_over_parameter_bytes():
@@ -175,13 +185,14 @@ def test_weights_hash_is_over_parameter_bytes():
     assert SV.weights_hash(m) != h1
 
 
-def test_int8_dynamic_quantization_runs_on_cpu():
+def test_int8_dynamic_quantization_runs_on_cpu(svc):
+    n0 = SV.loaded_copies(SMALL)
     q = SV.SemanticService(SMALL, device="cpu", quantization="int8-dynamic", max_new_tokens=6)
     try:
         out = q.generate(None, _reqs(QS[:2]))
         assert all(isinstance(o["text"], str) and o["gen_tokens"] >= 1 for o in out)
         assert q.info()["quantization"] == "int8-dynamic" and q.weights is not None
-        assert SV.loaded_copies(SMALL) == 2      # a different numeric variant is a different weight copy
+        assert SV.loaded_copies(SMALL) == n0 + 1  # a different numeric variant is a different weight copy
     finally:
         q.close()
 
