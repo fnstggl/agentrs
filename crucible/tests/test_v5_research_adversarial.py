@@ -193,3 +193,28 @@ def test_evaluator_enforces_the_interaction_budget(reg):
             ev.open_episode(FAM, 1_000_104, purpose="dev", budget=-1)
     finally:
         ev.close()
+
+
+def test_hosted_learner_cannot_reach_the_evaluator(reg, tmp_path):
+    """DEF-O-10: the same adversarial prober finds the evaluator when driven in the harness process
+    (`evaluator.run_remote_episode`) and nothing when hosted (`hosted.HostedLearner`: jailed child, participant
+    operations relayed); the hosted episode is still verified by the evaluator."""
+    r = A.evaluator_reach(reg, str(tmp_path))
+    assert r["in_process_found"], r
+    assert r["hosted_found"] == {} and r["hosted_uid"] != 0 and r["hosted_verified_ticks"], r
+    assert r["passed"]
+
+
+def test_hosted_learner_trains_and_only_relays_participant_operations(reg):
+    from crucible.research.v5 import evaluator as EV
+    from crucible.research.v5.hosted import HostedError, HostedLearner, run_hosted_episode
+    with EV.Evaluator.start() as ev:
+        with HostedLearner("crucible.research.v5.learners:make", {"arch": "weights", "seed": 3}) as h:
+            d0 = h.call("parameters_digest")
+            for i in range(2):
+                t = ev.open_episode(FAM, 320 + i, purpose="dev", budget=8)
+                rec = run_hosted_episode(ev, t, h, learn=True, seed=i, budget=8)
+                assert rec["ticks"] > 0 and rec["interactions"] <= 8 and rec["budget_exceeded"] is False
+            assert h.call("parameters_digest") != d0          # it learned, inside the jail
+            with pytest.raises(HostedError):
+                h.call("load_parameters")                      # only the declared calls

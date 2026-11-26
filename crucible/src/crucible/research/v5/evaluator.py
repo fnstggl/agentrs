@@ -495,7 +495,10 @@ def isolated_env(home: str | None = None) -> dict:
 def run_remote_episode(ev: Evaluator, ticket: str, learner, rng, *, learn: bool = False,
                        budget: int | None = None) -> dict:
     """Drive `learner` through the participant channel of an evaluator-held episode; the measured record comes
-    from the evaluator channel."""
+    from the evaluator channel. The learner runs in this (the harness) process, which also holds the evaluator
+    channel: this driver is for the instrument's own scripted controls only. A learner whose code is not trusted is
+    hosted (`hosted.HostedLearner` + `hosted.run_hosted_episode`: jailed child, participant operations relayed;
+    DEF-O-10). Pass the interaction budget to `open_episode` as well: the evaluator enforces it (DEF-O-11)."""
     from .episodes import run_episode
     env = ev.participant_env(ticket)
     run_episode(env, learner, learn=learn, rng=rng, budget=budget, verify=False)

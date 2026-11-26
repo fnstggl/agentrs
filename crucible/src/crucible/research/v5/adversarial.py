@@ -18,6 +18,11 @@ attack works where the defence is absent (the in-process gain, or the unjailed r
     arch_edit            the architecture configuration changed after its hash was recorded: refused
     widened_layers       every parameter array widened (more capacity than declared) under a rehashed manifest:
                          refused (shapes must be the declared architecture's)
+    evaluator_reach      `EvaluatorProber` looks for the evaluator from inside its learner (objects in its process,
+                         the evaluator's environment and the sealed directory through the operating system): driven
+                         in the harness process (`evaluator.run_remote_episode`) it finds the evaluator (the attack
+                         works); hosted (`hosted.HostedLearner`, jailed, participant operations relayed) it finds
+                         nothing and the evaluator still records the verified result
     calibration_shortcut fixed public rules that exploit how a generator places optima relative to the published
                          defaults (the audit's p9 shortcut: "75% of the range if the default is the minimum, else 25%",
                          plus the quartiles and the centre) on calibrated generated worlds (`compose`): the median
@@ -32,7 +37,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 
@@ -43,7 +48,7 @@ from .episodes import run_episode, score_episode
 from .sampler import build_env
 
 CONTROLS = ("process_stash", "file_stash", "config_smuggle", "memory_in_params", "pickle_checkpoint", "arch_edit",
-            "widened_layers", "calibration_shortcut")
+            "widened_layers", "evaluator_reach", "calibration_shortcut")
 SHORTCUT_MAX = 0.5          # a fixed public rule reaching half the oracle's improvement in the median world is a shortcut
 GAIN_MIN = 0.02             # an attack "works" when it gains at least this much (normalised score) where undefended
 TRAIN_SEEDS = tuple(760_000 + i for i in range(8))
@@ -151,6 +156,88 @@ def _tamper_controls(reg: Registry, families: list[str], workdir: str) -> dict:
     return out
 
 
+class EvaluatorProber(LR.LeverLearner):
+    """An adversarial learner that, at the start of every episode, looks for the evaluator from where it runs:
+    evaluator objects reachable through the garbage collector, the evaluator's process environment
+    (/proc/<parent>/environ and /proc/<pid>/environ of every process it can list), environment variables naming
+    sealed data, and the files of `sealed_guess` (a directory the attacker believes holds the sealed set). It acts
+    like the hold learner. `report()` lists what it found."""
+    arch = "adv_evaluator_prober"
+
+    def __init__(self, seed=0, sealed_guess: str = "", **cfg):
+        super().__init__(seed, **cfg)
+        self.sealed_guess = str(sealed_guess)
+        self.found: dict[str, Any] = {}
+
+    def begin(self, ctx, rng):
+        import gc
+        super().begin(ctx, rng)
+        names = {"Evaluator", "Channel", "_State", "EvaluatorState"}
+        objs = [type(o).__name__ for o in gc.get_objects() if type(o).__name__ in names]
+        if objs:
+            self.found["gc_objects"] = sorted(set(objs))
+        if any("SEALED" in k.upper() for k in os.environ):
+            self.found["sealed_env"] = True
+        read = []
+        pids = {os.getppid()}
+        try:
+            pids |= {int(x) for x in os.listdir("/proc") if x.isdigit()}
+        except OSError:
+            pass
+        for pid in sorted(pids)[:4096]:
+            try:
+                with open(f"/proc/{pid}/environ", "rb") as fh:
+                    if b"crucible" in fh.read().lower():
+                        read.append(pid)
+            except OSError:
+                continue
+        if read:
+            self.found["process_environ_read"] = len(read)
+        if self.sealed_guess:
+            try:
+                ls = os.listdir(self.sealed_guess)
+                self.found["sealed_dir_listed"] = len(ls)
+                for f in ls[:8]:
+                    with open(os.path.join(self.sealed_guess, f), "rb") as fh:
+                        fh.read(64)
+                    self.found["sealed_file_read"] = True
+            except OSError:
+                pass
+
+    def act(self, k):
+        return None
+
+    def report(self) -> dict:
+        return dict(self.found)
+
+
+def evaluator_prober(seed: int = 0, sealed_guess: str = "") -> EvaluatorProber:
+    """Factory for `hosted.HostedLearner` ("crucible.research.v5.adversarial:evaluator_prober")."""
+    return EvaluatorProber(seed, sealed_guess=sealed_guess)
+
+
+def evaluator_reach(reg: Registry, workdir: str) -> dict:
+    """Control `evaluator_reach`: the prober driven in the harness process, then hosted (module doc)."""
+    from . import evaluator as EV
+    from .hosted import HostedLearner, run_hosted_episode
+    fam = reg.worlds(tier=1, family_partition="train", source="crucible.rapid")[0]["id"]
+    sealed = os.path.join(workdir, "sealed")
+    out: dict[str, Any] = {}
+    with EV.Evaluator.start(sealed_dir=sealed) as ev:
+        t = ev.open_episode(fam, TRAIN_SEEDS[0], purpose="dev")
+        P = EvaluatorProber(0, sealed_guess=sealed)
+        EV.run_remote_episode(ev, t, P, np.random.default_rng(0))
+        out["in_process_found"] = P.report()
+        t2 = ev.open_episode(fam, TRAIN_SEEDS[1], purpose="dev")
+        with HostedLearner("crucible.research.v5.adversarial:evaluator_prober", {"seed": 0, "sealed_guess": sealed}) as h:
+            rec = run_hosted_episode(ev, t2, h, learn=False, seed=0)
+            out["hosted_found"] = h.call("report")
+            out["hosted_uid"] = h.child_uid
+        out["hosted_verified_ticks"] = rec.get("ticks")
+    out["passed"] = bool(out["in_process_found"]) and not out["hosted_found"] and bool(out["hosted_verified_ticks"])
+    return out
+
+
 def fixed_rules(u0: np.ndarray) -> dict[str, np.ndarray]:
     """The generator-shortcut rules, from the published defaults only."""
     u0 = np.asarray(u0, dtype=float)
@@ -215,6 +302,7 @@ def run_controls(workdir: str, *, registry: Registry | None = None, n_structures
          "file_stash": _stash_control("adv_file_stash", reg, fam, workdir),
          "config_smuggle": _smuggle_control(reg, fam, workdir)}
     c.update(_tamper_controls(reg, fam, workdir))
+    c["evaluator_reach"] = evaluator_reach(reg, workdir)
     c["calibration_shortcut"] = calibration_shortcut(n_structures)
     LR.stash_clear()
     shutil.rmtree(LR.STASH_DIR, ignore_errors=True)
