@@ -802,3 +802,51 @@ def invest_learn_lag_then_stop(view, env) -> None:
     stop = H - lag - max(3, H // 4)
     while not view.done:
         view.step({"kind": "levers", "values": {name: q if view.t < stop else 0.0}})
+
+
+# ====================================================================== net_repair (reference)
+def learn_which_links_matter(view, env) -> None:
+    """Scripted public reference for network repair: learn from its own observations which links matter and which
+    are fragile. A link's importance is the drop in served demand seen in the tick it broke (or the rise in the
+    tick after its repair); its fragility is how often it broke. Each tick it repairs the broken link with the
+    largest learned importance when that is worth a repair (links never seen are repaired once, to learn), and
+    once a link that matters has broken three times it builds a parallel link between its ends (a bypass that
+    does not inherit its fragility). Public information only: the link entities, the served-demand gauge (the
+    first reading), the stated costs in the action schemas."""
+    imp: dict[str, float] = {}
+    fails: dict[str, int] = {}
+    built: set = set()
+    obs = view.observe()
+    prev_up, prev_served, pending = None, None, None
+    while not view.done:
+        links = {x["id"]: x for x in obs["entities"] if x.get("kind") == "link" and not x["id"].startswith("new")}
+        served = list(obs["numbers"].values())[0] if obs["numbers"] else 0.0
+        up = {k: bool(v["up"]) for k, v in links.items()}
+        if prev_up is not None:
+            newly_down = [k for k in up if prev_up.get(k) and not up[k]]
+            for k in newly_down:
+                fails[k] = fails.get(k, 0) + 1
+                drop = (prev_served or 0.0) - served
+                imp[k] = max(imp.get(k, 0.0), drop / max(1, len(newly_down)))
+            if pending is not None and up.get(pending):
+                imp[pending] = max(imp.get(pending, 0.0), served - (prev_served or 0.0))
+        broken = [k for k, v in up.items() if not v]
+        act = None
+        cands = sorted(broken, key=lambda k: -imp.get(k, 1e9))
+        if cands:
+            k = cands[0]
+            if k not in imp or imp[k] > 0.5:
+                act = {"kind": "discrete", "decision": "repair", "choice": k}
+                pending = k
+        bypass = [k for k in links if fails.get(k, 0) >= 3 and imp.get(k, 0.0) > 1.0 and k not in built]
+        if bypass:
+            k = bypass[0]
+            a, b = links[k]["ends"]
+            edit = {"kind": "graph_edit", "op": "add_edge", "src": a, "dst": b, "weight": 1.0}
+            built.add(k)
+            act = {"kind": "sequence", "steps": [edit] + ([act] if act else [])}
+        prev_up, prev_served = up, served
+        r = view.step(act)
+        if not r["result"]["ok"] and act is not None and act["kind"] == "sequence":
+            r = view.step(None) if view.done is False else r
+        obs = r["observation"]

@@ -145,6 +145,7 @@ def net_cascade(rng, d):
                          "network), repaired by discrete dispatch and graph edits",
         axes={"graph_size": 12, "horizon": 60}, objective="maximize_net",
         claims=(C + "repair_restores", C + "built_link_carries_traffic"),
+        reference="crucible.rapid.claims_v2:learn_which_links_matter",
         identify=I + "repair_sign")
 def net_repair(rng, d):
     N = int(d["graph_size"])

@@ -128,3 +128,130 @@ def adaptive(view, env=None, hold: int = 3, seed: int = 0) -> None:
         obs = r.get("observations") or {agents[0]: r["observation"]}
         for a, L in learners.items():
             L.observe(D._net(obs[a]))
+
+
+# ====================================================================== law discovery by model selection
+def _basis(form: str, X: np.ndarray, q: float) -> np.ndarray:
+    a, b = X[:, 0], X[:, 1]
+    one = np.ones(len(X))
+    sat = lambda v: np.maximum(v, 0) / (np.maximum(v, 0) + q)                 # noqa: E731
+    if form == "linear":
+        return np.c_[a, b, one]
+    if form == "quadratic":
+        return np.c_[a, a * a, b, b * b, a * b, one]
+    if form == "sat_a+lin_b":
+        return np.c_[sat(a), b, one]
+    if form == "lin_a+sat_b":
+        return np.c_[a, sat(b), one]
+    if form == "sat_a+sat_b":
+        return np.c_[sat(a), sat(b), one]
+    if form == "sat_a*lin_b":
+        return np.c_[sat(a) * b, sat(a), one]
+    if form == "lin_a*sat_b":
+        return np.c_[sat(b) * a, sat(b), one]
+    if form == "power_a+lin_b":
+        return np.c_[np.abs(a) ** (q / 4.0), b, one]
+    if form == "lin_a+power_b":
+        return np.c_[a, np.abs(b) ** (q / 4.0), one]
+    if form == "step_a+lin_b":
+        return np.c_[(a >= q).astype(float), a, b, one]
+    if form == "lin_a+step_b":
+        return np.c_[a, (b >= q).astype(float), b, one]
+    if form == "bump_a+lin_b":
+        return np.c_[a * np.exp(-a / max(q, 1e-6)), b, one]
+    if form == "lin_a+bump_b":
+        return np.c_[a, b * np.exp(-b / max(q, 1e-6)), one]
+    if form == "step_a*lin_b":
+        return np.c_[(a >= q) * b, (a >= q).astype(float), b, one]
+    raise ValueError(form)
+
+
+FORMS = ("linear", "quadratic", "sat_a+lin_b", "lin_a+sat_b", "sat_a+sat_b", "sat_a*lin_b", "lin_a*sat_b",
+         "power_a+lin_b", "lin_a+power_b", "step_a+lin_b", "lin_a+step_b", "bump_a+lin_b", "lin_a+bump_b",
+         "step_a*lin_b")
+Q_GRID = np.linspace(0.3, 6.0, 20)
+
+
+def fit_law(X: np.ndarray, y: np.ndarray):
+    """Choose a law from a fixed library of forms (each with one shape parameter on a grid) by how well it
+    predicts the measurements at the edge of the measured range from the rest (an extrapolation check), then
+    refit it on everything. Returns (predict, form, q)."""
+    X, y = np.asarray(X, dtype=float), np.asarray(y, dtype=float)
+    edge = (X[:, 0] >= np.max(X[:, 0]) - 1e-9) | (X[:, 1] >= np.max(X[:, 1]) - 1e-9)
+    inner = ~edge
+    best = None
+    for form in FORMS:
+        for q in (Q_GRID if form not in ("linear", "quadratic") else [1.0]):
+            F = _basis(form, X, q)
+            if inner.sum() <= F.shape[1]:
+                continue
+            coef, *_ = np.linalg.lstsq(F[inner], y[inner], rcond=None)
+            err = float(np.mean((F[edge] @ coef - y[edge]) ** 2)) + 1e-3 * F.shape[1]
+            if best is None or err < best[0]:
+                best = (err, form, q)
+    _, form, q = best
+    coef, *_ = np.linalg.lstsq(_basis(form, X, q), y, rcond=None)
+    return (lambda Xq: _basis(form, np.asarray(Xq, dtype=float), q) @ coef), form, q
+
+
+def measure_grid(view, names: list[str], lo: float, hi: float, n: int = 5, hold: int = 1, settle: bool = False):
+    """Set two levers over an n x n grid of their range, `hold` ticks each, and record the reading (the mean of
+    the later half of the hold; with `settle`, extrapolated from the geometric approach of the last ticks)."""
+    X, y = [], []
+    for a in np.linspace(lo, hi, n):
+        for b in np.linspace(lo, hi, n):
+            vals = []
+            for _ in range(hold):
+                if view.done:
+                    return np.asarray(X), np.asarray(y)
+                r = view.step({"kind": "levers", "values": {names[0]: float(a), names[1]: float(b)}})
+                nums = r["observation"]["numbers"]
+                if nums:
+                    vals.append(list(nums.values())[0])
+            if not vals:
+                continue
+            if settle and len(vals) >= 4:
+                v = np.asarray(vals[-4:])
+                dv = np.diff(v)
+                r_ = float(np.clip(dv[1:].sum() / dv[:-1].sum(), 0.0, 0.9)) if abs(dv[:-1].sum()) > 1e-9 else 0.0
+                val = float(v[-1] + dv[-1] * r_ / (1 - r_)) if r_ > 0 else float(v[-1])
+            else:
+                val = float(np.mean(vals[len(vals) // 2:]))
+            X.append([a, b])
+            y.append(val)
+    return np.asarray(X), np.asarray(y)
+
+
+def discover_and_predict(view, env, n: int = 5, hold: int = 1, settle: bool = False) -> None:
+    """Scripted public reference for prediction objectives: measure the reading over a grid of the two settings,
+    select a law from the fixed library by extrapolation error, and file its predictions for the held-out
+    conditions (public in the objective). Knows no family; only the objective's format."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = max(float(props[m]["minimum"]) for m in names)
+    hi = min(float(props[m]["maximum"]) for m in names)
+    X, y = measure_grid(view, names, lo, hi, n=n, hold=hold, settle=settle)
+    if len(y) >= 8 and not view.done:
+        pred, form, q = fit_law(X, y)
+        Xh = np.asarray([[c[names[0]], c[names[1]]] for c in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)
+
+
+def discover_settled(view, env) -> None:
+    """`discover_and_predict` for slow processes: each grid point is held long enough to extrapolate where the
+    reading settles."""
+    n = 4
+    hold = max(6, (view.horizon - 2) // (n * n))
+    discover_and_predict(view, env, n=n, hold=hold, settle=True)
+
+
+def discover_averaged(view, env) -> None:
+    """`discover_and_predict` for noisy, confounded readings: each grid point is held several ticks."""
+    n = 4
+    hold = max(2, (view.horizon - 2) // (n * n))
+    discover_and_predict(view, env, n=n, hold=hold)

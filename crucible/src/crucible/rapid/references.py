@@ -527,7 +527,7 @@ def play(env) -> dict:
     no mechanism. Nothing here replays copies of the scored world (`practice_constant` is a hindsight baseline kept
     for comparison, not a reference)."""
     from .oracles import _family_hook
-    fn = SPECIFIC.get(env.family) or _family_hook(env, "reference")
+    fn = _family_hook(env, "reference") or SPECIFIC.get(env.family)
     if fn is not None:
         fn(PublicView(env), env)
         return env.outcome()

@@ -14,6 +14,7 @@ from .families import family
 from .generator import GraphBuilder
 
 CV = "crucible.rapid.claims_v2:"
+RV = "crucible.rapid.refs_v2:"
 R = "crucible.rapid.refs_h3:"
 
 
@@ -346,7 +347,7 @@ def sci_selection_bias(rng, d):
                          "law, unlike instantaneous laws",
         axes={"horizon": 120, "observation_noise": 0.3}, objective="predict_heldout",
         claims=(CV + "response_is_delayed_and_lagged",), identify=CV + "identify_dead_time",
-        reference=CV + "settle_and_predict")
+        reference=RV + "discover_settled")
 def sci_slow_response(rng, d):
     gb = GraphBuilder(rng)
     x1 = gb.lever(0.0, 6.0, 0.0, cost=0.0)
@@ -360,7 +361,7 @@ def sci_slow_response(rng, d):
     st = gb.prim("decay", {"rate": rate, "init": 0.0}, role="outcome", x=[(dl, 0, rate)])
     gy = gb.gauge(st, [("measurement_noise", {"sd": float(d["observation_noise"])})])
     held = [{gb.name_of(x1): p, gb.name_of(x2): q} for p, q in
-            ((9.0, 1.0), (12.0, 3.0), (15.0, 2.0), (10.0, 5.0), (14.0, 0.5), (11.0, 4.0))]
+            ((7.0, 1.0), (8.0, 3.0), (9.0, 6.0), (10.0, 2.0), (7.5, 5.0), (8.5, 0.0))]
     text = ("Predict where the reading would settle if these settings (outside what you can set) were held: "
             f"{held}. " + _predict_text(held).split(". ", 1)[1])
     return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
@@ -381,10 +382,10 @@ def sci_slow_response(rng, d):
                          "causation scored on held-out conditions)",
         axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
         claims=(CV + "records_overstate_the_effect",), identify=CV + "identify_effect_size",
-        reference=CV + "intervene_and_predict")
+        reference=RV + "discover_averaged")
 def hc_causal_prediction(rng, d):
     gb = GraphBuilder(rng)
-    U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.25, 0.3), "ar": 0.8}, role="confounder")
+    U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.18, 0.22), "ar": 0.8}, role="confounder")
     X = gb.lever(0.0, 6.0, 3.0, cost=0.0, natural={"x": [(U, 0, 3.0)], "bias": 3.0, "sd": 0.2})
     Z = gb.lever(0.0, 6.0, 0.0, cost=0.0)
     eff = gb.prim("saturation", {"cap": u(rng, 8.0, 12.0), "half": u(rng, 1.5, 3.0)}, x=[(X, 0, 1.0)])
@@ -392,7 +393,7 @@ def hc_causal_prediction(rng, d):
                     x=[(U, 0, u(rng, 4.0, 6.0)), (eff, 0, 1.0), (Z, 0, u(rng, 1.0, 2.0))])
     gy = gb.gauge(sales, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
     held = [{gb.name_of(X): p, gb.name_of(Z): q} for p, q in
-            ((9.0, 1.0), (12.0, 3.0), (15.0, 2.0), (8.0, 5.0), (10.0, 0.0), (14.0, 4.0))]
+            ((7.0, 1.0), (8.0, 3.0), (9.0, 6.0), (10.0, 2.0), (7.5, 5.0), (8.5, 0.0))]
     text = ("Predict mean units sold if spending and the second lever were set to these values (outside what you "
             f"can set): {held}. " + _predict_text(held).split(". ", 1)[1])
     return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"], warmup=40,
