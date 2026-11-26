@@ -36,10 +36,14 @@ Single pieces:
 
 ## Scheduling rules (wave 3b)
 
-* FIFO with backfill: the head of the queue starts when it fits; a later request starts only if it fits next to what
-  is held plus the whole of every earlier waiting request, in the dimensions it uses (`slots.fits_behind`). An
-  earlier request is never delayed by a later one, and CPU-only jobs do not idle behind a GPU job waiting for one of
-  the 4 GPU slots. Probe: `python -m crucible.scale.govprobe backfill`.
+* FIFO with EASY backfilling: the head of the queue starts when it fits; a later request starts only if it fits next
+  to what is held plus the protected earlier requests - the head's whole request and every earlier request that
+  could start now - in the dimensions it uses (`slots.fits_behind`). The head is never delayed by a later request,
+  a request that is only waiting for its turn is never overtaken, every request reaches the head in queue order
+  (no starvation), and CPU-only jobs do not idle behind GPU jobs waiting for the 4 GPU slots (observed 2026-11-26
+  18:00 with the strict-FIFO version: 3 of 9 CPUs idle while 5 CPU-only jobs waited behind a GPU head). A blocked
+  earlier request can be delayed by at most the run time of jobs started behind it. Probe:
+  `python -m crucible.scale.govprobe backfill`.
 * A head that waits only for free disk gives up after 15 minutes (exit status 75) instead of blocking the queue.
 * Ledger and queue entries carry their process's start time (a reused pid never keeps a dead holder's slot);
   signals go through a pidfd after the same identity check, so the governor cannot signal a process that took over

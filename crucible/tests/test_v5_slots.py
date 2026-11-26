@@ -178,10 +178,28 @@ def test_backfill_admits_a_job_that_cannot_delay_the_waiting_head(ledger_dir):
         k.wait()
 
 
+def test_a_cpu_job_starts_behind_a_long_queue_of_gpu_jobs(ledger_dir):
+    """The situation of the shared machine: GPU slots full, several GPU jobs queued, CPUs idle. A CPU-only job behind
+    them starts (only the head's share is reserved for it; the other GPU jobs could not start now anyway), and a
+    request that could start now is never overtaken."""
+    b = slots.Budget(cpus=4, gpu_mb=4000, jobs=8, gpu_jobs=1)
+    a = _sleeper()
+    slots.acquire(1, 500, "A gpu", b, pid=a.pid)
+    held = [h for h in slots.status()["held"]]
+    ahead = [{"cpu": 1, "gpu_mb": 500, "ram_mb": None}] * 3
+    assert slots.fits_behind(held, ahead, 1, 0, b)            # E (CPU only) behind B, C, D (GPU)
+    assert not slots.fits_behind(held, ahead, 1, 500, b)       # another GPU job waits its turn
+    assert not slots.fits_behind(held, ahead, 3, 0, b)         # would take the head's CPU
+    ready = [{"cpu": 2, "gpu_mb": 0, "ram_mb": None}, {"cpu": 1, "gpu_mb": 0, "ram_mb": None}]
+    assert not slots.fits_behind(held, ready, 1, 0, b)         # both ahead could start now: nobody overtakes them
+    a.kill()
+    a.wait()
+
+
 def test_eighteen_concurrent_clients_never_exceed_the_budget_and_all_get_through(ledger_dir):
     """18 clients (the number of engineers sharing the machine) ask repeatedly for mixed CPU/GPU slots of a 9-CPU,
-    4-GPU-job budget: the held slots never exceed the budget in any dimension, nobody starves (every request is
-    admitted), and among requests waiting for the same resource the earlier one is admitted first."""
+    4-GPU-job budget: the held slots never exceed the budget in any dimension and nobody starves (every request is
+    admitted)."""
     import random
     b = slots.Budget(cpus=9, gpu_mb=24000, jobs=12, ram_mb=60000, gpu_jobs=4)
     stop, problems, done = threading.Event(), [], []

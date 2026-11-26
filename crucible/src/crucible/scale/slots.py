@@ -21,11 +21,12 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
 | inference concurrency | `--inference N` | N token files per job; `crucible.scale.governor.inference()` (used by `substrate.inference.recorded`) holds one per call, job-wide across processes |
 | active worlds | `--worlds N` | every `World` registers on construction (`governor.register_world`); job-wide count; construction beyond N raises `ResourceLimitExceeded` |
 
-Admission is FIFO with backfill: the head of the queue is admitted when it fits; a request behind it is admitted
-only when it fits next to what is held plus the whole of every request ahead of it, in the dimensions it uses
-(`fits_behind`). So small requests cannot starve a large one (an earlier request is never delayed by a later one:
-its share stays free), and a job that needs nothing the head is waiting for (a CPU-only job while a GPU job waits
-for a GPU slot) does not idle behind it. A head that waits only for free disk gives up after `DISK_WAIT_S`
+Admission is FIFO with EASY backfilling: the head of the queue is admitted when it fits; a request behind it is
+admitted only when it fits next to what is held plus the protected earlier requests (the head's whole request and
+every earlier request that could start now), in the dimensions it uses (`fits_behind`). So the head is never delayed
+by a later request and small requests cannot starve a large one (each request reaches the head in queue order and
+is then protected), and a job that needs nothing the waiting jobs are short of (a CPU-only job while GPU jobs wait
+for the GPU slots) does not idle behind them. A head that waits only for free disk gives up after `DISK_WAIT_S`
 (exit status 75) instead of blocking the queue. Ledger and queue entries carry their process's start time, so a
 reused pid never keeps a dead holder's slot; signals go through a pidfd after the same identity check. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
 time; widen it only with `--set-budget`, which keeps a history), so a caller cannot enlarge it through its own
@@ -583,18 +584,36 @@ class AdmissionError(RuntimeError):
     not appear within DISK_WAIT_S)."""
 
 
+def _as_req(a: dict) -> dict:
+    return {"cpu": int(a.get("cpu") or 1), "gpu_mb": int(a.get("gpu_mb") or 0), "ram_mb": a.get("ram_mb"),
+            "disk_mb": a.get("disk_mb"), "inference": a.get("inference"), "worlds": a.get("worlds")}
+
+
+def protected(held: list[dict], ahead: list[dict], budget: Budget, free_disk_mb: float | None = None) -> list[dict]:
+    """The waiting requests whose share a later request must leave free: the head of the queue always (its whole
+    request, also in the dimensions it is still waiting for), and every other earlier request that could start now
+    next to what is held and the protected requests before it (it is only waiting for its turn)."""
+    out = []
+    for k, a in enumerate(ahead):
+        r = _as_req(a)
+        if k == 0 or fits(list(held) + out, r["cpu"], r["gpu_mb"], budget, ram_mb=r["ram_mb"],
+                          disk_mb=int(r["disk_mb"] or 0), inference=int(r["inference"] or 0),
+                          worlds=int(r["worlds"] or 0), free_disk_mb=free_disk_mb):
+            out.append(r)
+    return out
+
+
 def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budget: Budget, *,
                 ram_mb: int | None = None, disk_mb: int = 0, inference: int = 0, worlds: int = 0,
                 free_disk_mb: float | None = None) -> bool:
-    """Backfill rule: a request that is not at the head of the queue may start now only if it fits next to what is
-    held PLUS the whole of every request ahead of it in the queue, counting only the dimensions it uses. A request
-    ahead therefore never waits longer because of one behind it (its share of every dimension stays free for it;
-    in the dimension it is short of, a request behind is admitted only if it uses none of it - e.g. CPU-only jobs
-    while a GPU job waits for a GPU slot), and FIFO order holds among requests that compete for the same
-    resource."""
-    pend = [{"cpu": int(a.get("cpu") or 1), "gpu_mb": int(a.get("gpu_mb") or 0), "ram_mb": a.get("ram_mb"),
-             "disk_mb": a.get("disk_mb"), "inference": a.get("inference"), "worlds": a.get("worlds")}
-            for a in ahead]
+    """Backfill rule (EASY backfilling): a request that is not at the head of the queue may start now only if it
+    fits next to what is held PLUS the protected earlier requests (`protected`: the head's whole request and every
+    earlier request that could start now), counting only the dimensions it uses. So the head is never delayed by a
+    later request, no request that is only waiting for its turn is overtaken, and every request reaches the head
+    in queue order and is then protected (no starvation). A later request may start while an earlier one waits for
+    something held (e.g. CPU-only jobs while GPU jobs wait for one of the GPU slots); that can delay the earlier one
+    by at most the run time of the jobs started meanwhile, never indefinitely."""
+    pend = protected(held, ahead, budget, free_disk_mb)
     allx = list(held) + pend
     if len(allx) + 1 > budget.jobs:
         return False
@@ -626,7 +645,7 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
             timeout_s: float | None = None, pid: int | None = None, *, ram_mb: int | None = None,
             gpu_s: int | None = None, disk_mb: int | None = None, inference: int | None = None,
             worlds: int | None = None, job: str | None = None, d: str | None = None) -> dict:
-    """Wait (FIFO, with backfill that never delays an earlier request) until the request fits, then record it.
+    """Wait (FIFO with EASY backfilling, `fits_behind`) until the request fits, then record it.
     Returns the ledger entry (pinned CPUs, clamped grant)."""
     d = d or slots_dir()
     eff = _tighter(stored_budget(d, default=budget), budget)
