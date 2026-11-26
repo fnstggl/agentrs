@@ -228,7 +228,16 @@
   }
  },
  "limitations": [],
- "integration_notes": [],
+ "integration_notes": [
+  "CIV: please list \"pop_semantic\" in crucible.civ.generator.ORDER right after \"pop_strategic\" and in civ.subsystems.POPULATION_MODULES (population subsystem). Until then crucible.semantic.generalists.civ_world(profile, seed, population) builds exactly civ.spec(...) with pop_semantic inserted after pop_strategic (it becomes civ.generate once ORDER lists the module); the Gate H / SP-3.2d / SP-3.3c / SP-4.2b / SP-13.4 tests use civ_world. Without the module, class-4 rows of every civilisation stay inert (next_active_at NEVER).",
+  "CORE-POP (B): please export a deposit function in the population API (population.deposit(ctx, i) = core.money_deposit): class-4 participants receive their accrued income before each activation; pop_semantic calls population.deposit when exported and core.money_deposit otherwise.",
+  "CORE-POP / C: the population's and the social consumption engine's content judgement uses the lexical reader model population.semantics.legibility, not the space's LM-based comprehension index (crucible.semantic.space.comprehension). tests/v5/test_gate_SP_4_3.py measures whether gibberish, keyword stuffing, word salad or token-optimised text beats informative text on equal topics in the social internet; a token-optimised text built to pass lexical checks is the case a lexical model may miss (DEF-B-6).",
+  "ALL: SPACE_VERSION changed (6cc04f5e24cdce0a -> f455005900ab0232 for the jailed image decode; possibly once more when the distilled cheap LM features are adopted, see D.json SP-13.4 notes): every machine-wide space cache entry of earlier versions is unused after the merge; the MIND prior for the new version is built under $CRUCIBLE_DATA/semantic/space/<version>/ by `python -m crucible.semantic.space build-prior` (GPU slot) and the population interest asset (population/data/interest_space_v2.*) is rebuilt by `python -m crucible.population.space_asset build`.",
+  "M (Gate V): with pop_semantic in civilisations, class-4 participants run the routed small LMs (Qwen3-0.6B / Qwen3-1.7B / SmolLM2-135M) about 2-3 activations a day each (config gap_s, default [14400, 28800] s in waking hours; steps 3): run civilisation benchmarks in GPU slots of at least 8 GB (three models plus encoders), or set the module config brain='ablated' for a model-free control row. class_activity counts class 4 as acting through n_sessions (the population records each activation as a session).",
+  "P / QA: the manifest's implementation_files for H.*, SP-3.2d, SP-3.3c, SP-4.2b, SP-4.3, SP-13.4, SP-13.5 should list the generalists package files (see requirements below); H.n1's semantic_model_params is the default model's size (Qwen3-0.6B) with the escalation model and capabilities reported separately (D-36).",
+  "O (security): semantic/media.open_image now decodes participant images in the jail (isolation.decode_image) and fails closed without the jail unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1; social/formats.inspect and social/render.open_image (C) still decode in-process (redteam v5.network.image_decoders_run_outside_the_world_process).",
+  "Facts registry (A): pop_semantic's only table is semp_state (module-private mind state keyed by population row; no shared-kind signature)."
+ ],
  "history": {
   "D1 (wave 1, encoders)": {
    "branch": "worktree-wf_62a0cf0b-bb3-1",
