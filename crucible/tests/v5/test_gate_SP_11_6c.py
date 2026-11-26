@@ -194,7 +194,7 @@ def test_SP_11_6c_learner_kinds_and_improvement_over_frozen_copies():
                "tiers_beating_wait_only": sum(1 for v in imp.values() if v["beats_wait_only"])}
     record("SP-11.6c", metrics, command=CMD, labels={"scripted": True, "learned": True},
            notes=f"learner kinds: {kinds}; could not run: {kind_err}; improvement over a frozen copy (trained vs "
-                 f"initial weights, greedy, no learning, held-out seeds {EVAL_SEEDS}; prespecified: mean better and "
+                 f"initial weights, stochastic policies with one sampling seed, no learning, held-out seeds {EVAL_SEEDS}; prespecified: mean better and "
                  f">= 3 of 4 seeds): {imp}; tiers that could not be measured: {imp_err}")
     assert metrics["learner_kinds_validated"] == 4, (kinds, kind_err)
     assert metrics["tiers_with_learning_improvement"] == 3, (imp, imp_err)
