@@ -71,15 +71,28 @@ def _arms(exp: Experiment) -> list[str]:
     return ["factual", *PLACEBOS, *exp.interventions]
 
 
-def run_seed(exp: Experiment, seed: int, *, log=None) -> dict:
+ISOLATE_ENV = "CRUCIBLE_CIV_ARM_PROCESSES"
+
+
+def run_seed(exp: Experiment, seed: int, *, log=None, isolate: bool | None = None) -> dict:
     """All arms of one seed: {arm: {measure: value}}, the fork time, footprints, wall times and (for chain
-    experiments) the chains mined in the reference arm."""
+    experiments) the chains mined in the reference arm.
+
+    Every arm runs in its OWN process from the fork's snapshot (`isolate`, default on; `$CRUCIBLE_CIV_ARM_PROCESSES=0`
+    runs them in this process): worlds built one after another in one process share process-global state (caches,
+    worker pools, model state), so an arm could otherwise depend on the arms that ran before it."""
     import torch
     torch.set_num_threads(1)
-    from ..core.kernel import World
-    from . import chains, generator
+    from . import generator
+    if isolate is None:
+        isolate = os.environ.get(ISOLATE_ENV, "1") != "0"
+    from ..storage.sqlite import SQLiteStore
     t_start = time.time()
-    w = generator.generate(exp.profile, seed, exp.population, overrides=exp.overrides)
+    tmp = tempfile.mkdtemp(prefix=f"civcf-{exp.name}-{seed}-")
+    spath = os.path.join(tmp, "fork.sqlite")
+    store = SQLiteStore(spath)      # the fork's artifact bytes must reach the arms' processes: a store carries them
+    w = generator.generate(exp.profile, seed, exp.population, overrides=exp.overrides, store=store,
+                           world_id=f"cf-{exp.name}-{seed}", strict=False)
     t0 = int(exp.warmup_days * 86400)
     if exp.prelude is not None:
         pctx: dict = {"arm": "prelude", "seed": seed, "t0": 0, "seq0": w.seq}
@@ -91,42 +104,81 @@ def run_seed(exp: Experiment, seed: int, *, log=None) -> dict:
             if exp.prelude_during is not None:
                 exp.prelude_during(w, "prelude", pctx)
     w.advance_time(t0)
-    blob = w.snapshot_blob()
+    sid = w.snapshot()
+    blob = store.get_snapshot(sid)[1]
     base_seq = w.seq
-    out = {"seed": seed, "t0": t0, "t1": t0 + int(exp.horizon_days * 86400), "arms": {}, "footprint": {},
-           "wall_s": {}, "warmup_wall_s": round(time.time() - t_start, 1), "invariants": {}}
-    for arm in _arms(exp):
-        ta = time.time()
-        wa = World.from_blob(blob, world_id=f"cf-{exp.name}-{seed}-{arm}")
-        ctx: dict = {"arm": arm, "seed": seed, "t0": t0, "seq0": wa.seq}
-        if exp.setup is not None:
-            exp.setup(wa, ctx)
-        s0 = wa.seq
-        if arm in PLACEBOS:
-            placebo(wa, PLACEBOS[arm])
-        elif arm != "factual":
-            exp.interventions[arm](wa)
-        out["footprint"][arm] = wa.seq - s0
-        t1 = out["t1"]
-        if exp.during is not None:
-            t = wa.now
-            while t < t1:
-                t = min(t1, (t // 3600 + 1) * 3600)
-                wa.advance_time(t)
-                exp.during(wa, arm, ctx)
-        else:
-            wa.advance_time(t1)
-        out["arms"][arm] = {k: float(fn(wa, t0, t1, ctx)) for k, fn in exp.measures.items()}
-        out["invariants"][arm] = wa.check_invariants()[:5]
-        if exp.chain and arm == exp.reference_arm:
-            ch = chains.mine(wa, from_seq=base_seq)
-            out["chains"] = [_chain_record(c) for c in ch]
-        out["wall_s"][arm] = round(time.time() - ta, 1)
-        if log:
-            log(f"{exp.name} seed {seed} arm {arm}: {out['arms'][arm]} ({out['wall_s'][arm]} s)")
-        wa.close()
     w.close()
+    store.close()
+    out = {"seed": seed, "t0": t0, "t1": t0 + int(exp.horizon_days * 86400), "arms": {}, "footprint": {},
+           "wall_s": {}, "warmup_wall_s": round(time.time() - t_start, 1), "invariants": {}, "isolated": bool(isolate)}
+    bpath = spath
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    try:
+        for arm in _arms(exp):
+            if isolate:
+                path = os.path.join(tmp, f"{arm}.json")
+                pr = subprocess.run([sys.executable, "-m", "crucible.civ.counterfactual", "arm", exp.name, str(seed),
+                                     bpath, arm, str(t0), str(out["t1"]), str(base_seq), path], env=env,
+                                    capture_output=True)
+                if pr.returncode != 0:
+                    raise RuntimeError(f"{exp.name} seed {seed} arm {arm}: {pr.stderr.decode(errors='replace')[-2000:]}")
+                with open(path) as fh:
+                    r = json.load(fh)
+            else:
+                r = run_arm(exp, seed, spath, arm, t0, out["t1"], base_seq, blob=blob)
+            out["arms"][arm] = r["measures"]
+            out["footprint"][arm] = r["footprint"]
+            out["invariants"][arm] = r["invariants"]
+            out["wall_s"][arm] = r["wall_s"]
+            if "chains" in r:
+                out["chains"] = r["chains"]
+            if log:
+                log(f"{exp.name} seed {seed} arm {arm}: {out['arms'][arm]} ({out['wall_s'][arm]} s)")
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
     return out
+
+
+def run_arm(exp: Experiment, seed: int, store_path: str, arm: str, t0: int, t1: int, base_seq: int, *,
+            blob: bytes | None = None) -> dict:
+    """One arm from the fork's snapshot (the latest snapshot of the warm-up world in the store at `store_path`)."""
+    import torch
+    torch.set_num_threads(1)
+    from ..core.kernel import World
+    from ..storage.sqlite import SQLiteStore
+    from . import chains
+    ta = time.time()
+    store = SQLiteStore(store_path)
+    if blob is None:
+        snap = store.latest_snapshot(f"cf-{exp.name}-{seed}")
+        blob = store.get_snapshot(snap["id"])[1]
+    wa = World.from_blob(blob, world_id=f"cf-{exp.name}-{seed}-{arm}", store=store, fork=True)
+    ctx: dict = {"arm": arm, "seed": seed, "t0": t0, "seq0": wa.seq}
+    if exp.setup is not None:
+        exp.setup(wa, ctx)
+    s0 = wa.seq
+    if arm in PLACEBOS:
+        placebo(wa, PLACEBOS[arm])
+    elif arm != "factual":
+        exp.interventions[arm](wa)
+    r = {"footprint": wa.seq - s0}
+    if exp.during is not None:
+        t = wa.now
+        while t < t1:
+            t = min(t1, (t // 3600 + 1) * 3600)
+            wa.advance_time(t)
+            exp.during(wa, arm, ctx)
+    else:
+        wa.advance_time(t1)
+    r["measures"] = {k: float(fn(wa, t0, t1, ctx)) for k, fn in exp.measures.items()}
+    r["invariants"] = wa.check_invariants()[:5]
+    if exp.chain and arm == exp.reference_arm:
+        r["chains"] = [_chain_record(c) for c in chains.mine(wa, from_seq=base_seq)]
+    r["wall_s"] = round(time.time() - ta, 1)
+    wa.close()
+    store.close()
+    return r
 
 
 def _chain_record(c: dict) -> dict:
@@ -236,6 +288,12 @@ def run(name: str, seeds=None, *, workers: int = 1, log=None, timeout_s: int = 6
 
 
 def _main(argv):
+    if len(argv) >= 9 and argv[0] == "arm":
+        from .experiments import EXPERIMENTS
+        r = run_arm(EXPERIMENTS[argv[1]], int(argv[2]), argv[3], argv[4], int(argv[5]), int(argv[6]), int(argv[7]))
+        with open(argv[8], "w") as fh:
+            json.dump(r, fh, default=str)
+        return 0
     if len(argv) >= 4 and argv[0] == "seed":
         from .experiments import EXPERIMENTS
         exp = EXPERIMENTS[argv[1]]

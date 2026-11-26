@@ -329,21 +329,43 @@ def entity_census(w) -> dict:
 
 
 def _replay_segment(w, store, wid, a, b, acc: dict) -> None:
-    """Replay the recorded events of segment a -> b on top of snapshot a; compare with snapshot b."""
-    from ..core.kernel import World
+    """Replay the recorded events of segment a -> b on top of snapshot a and compare with snapshot b - in a CHILD
+    process: building a second world in the live world's process (World.replay / from_blob run every module's
+    install and on_load) shares process-global state with it and was seen to change the live trajectory (an observer
+    effect of the verification itself; test_v5_civ_longrun)."""
     t = time.time()
     (s0, sid0), (s1, sid1) = a, b
     w.flush()
-    evs = store.read_events(wid, from_seq=s0, to_seq=s1)
-    base = store.get_snapshot(sid0)[1] if sid0 else None
-    rw = World.replay(w.spec, evs, world_id=f"{wid}-replay", base_blob=base, store=store)
-    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check").digest()
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    pr = subprocess.run([sys.executable, "-m", "crucible.civ.longrun", "verify", store.path, wid, str(s0),
+                         sid0 or "-", str(s1), sid1], env=env, capture_output=True, timeout=6 * 3600)
     acc["segments"] += 1
-    acc["events"] += len(evs)
-    if rw.digest() != want or rw.seq != s1:
+    if pr.returncode != 0:
         acc["mismatches"] += 1
-        acc["detail"] = (acc["detail"] + [{"segment": [s0, s1], "replayed": rw.digest(), "recorded": want}])[:5]
+        acc["detail"] = (acc["detail"] + [{"segment": [s0, s1], "error": pr.stderr.decode(errors="replace")[-800:]}])[:5]
+    else:
+        r = json.loads(pr.stdout.decode().strip().splitlines()[-1])
+        acc["events"] += int(r["events"])
+        if r["replayed"] != r["recorded"] or r["seq"] != s1:
+            acc["mismatches"] += 1
+            acc["detail"] = (acc["detail"] + [{"segment": [s0, s1], **r}])[:5]
     acc["wall_s"] = round(acc["wall_s"] + time.time() - t, 1)
+
+
+def _verify_child(path, wid, s0, sid0, s1, sid1) -> dict:
+    from ..core.kernel import World
+    from ..storage.sqlite import SQLiteStore
+    store = SQLiteStore(path)
+    evs = store.read_events(wid, from_seq=int(s0), to_seq=int(s1))
+    base = store.get_snapshot(sid0)[1] if sid0 != "-" else None
+    rw = World.replay(World_spec(store, wid), evs, world_id=f"{wid}-replay", base_blob=base, store=store)
+    want = World.from_blob(store.get_snapshot(sid1)[1], world_id=f"{wid}-check").digest()
+    return {"replayed": rw.digest(), "recorded": want, "seq": rw.seq, "events": len(evs)}
+
+
+def World_spec(store, wid):
+    from ..core.kernel import WorldSpec
+    return WorldSpec.from_dict(store.world_info(wid)["spec"])
 
 
 def _prune(w, store, wid, a, b) -> float:
@@ -513,6 +535,11 @@ def _main(argv) -> int:
         w.advance_time(until)
         print(json.dumps({"hash": w.last_hash, "digest": w.digest(), "seq": w.seq,
                           "wall_s": round(time.time() - t, 1)}))
+        return 0
+    if argv and argv[0] == "verify":
+        import torch
+        torch.set_num_threads(1)
+        print(json.dumps(_verify_child(*argv[1:7])))
         return 0
     if argv and argv[0] == "run":
         profile, seed, days, population, wd, rp = argv[1], int(argv[2]), int(argv[3]), argv[4], argv[5], argv[6]
