@@ -150,3 +150,17 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
 | Job | Run id | Resume |
 |---|---|---|
 | Wave 3 build/merge/verify/fix | `wf_477a68f9-804` | `Workflow({scriptPath: "<session>/workflows/scripts/...wave3...js" or /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/wave3.js, resumeFromRunId: "wf_477a68f9-804"})`; a copy of the script is `docs/evidence/wave3/wave3.js`. Worktree branches of W2..W9 persist on disk (`git worktree list`). |
+
+#### 2026-11-26 17:05 UTC — wave 3 interrupted by the 5-hour limit; continuation launched
+
+- `wf_477a68f9-804`: W1 (main branch d062ad1..278baaa), W3 (`worktree-wf_477a68f9-804-3` ca7958b) and W8
+  (`worktree-wf_477a68f9-804-8` f5e9974) completed; W2, W4, W5, W6, W7, W9, merge, verifiers and fix were refused by
+  the 5-hour limit. Their committed partial work persists in `.claude/worktrees/wf_477a68f9-804-N` (all based on
+  seam-0) and is pushed as `backup/wave3/W2..W9`.
+- Incident: orchestrator SendMessage to running workflow agents (W1, W4) resumed duplicate copies from their transcripts;
+  duplicates were stopped (TaskStop); no committed work lost. Rule: never message running workflow agents.
+- W1 measured at 1B under GPU contention: build 16.9 GB, acting peak 19.5 GB, decide B=16 warm 1.18 s, batched
+  B*K=64 decide 13-19 s; the full optimiser step OOMed (other tenants held ~22 GB) -> exclusive-GPU gate scheduled.
+- Continuation `wf_f5adc73d-1e6` (script `docs/evidence/wave3/wave3b.js`): finishers for W2/W4/W5/W6/W7/W9 inside
+  their existing worktrees -> ordered merge + G1/G2 -> exclusive-GPU G3/G4 at 1B -> 5 verifiers -> fix. Resume with
+  `Workflow({scriptPath: <script>, resumeFromRunId: "wf_f5adc73d-1e6"})`.
