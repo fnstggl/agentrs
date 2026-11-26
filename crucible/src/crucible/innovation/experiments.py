@@ -161,6 +161,11 @@ def mine_chains(res: dict) -> list[dict]:
         # instrument and can notice a need after the first individuals already asked for help)
         t_start = min(x["t"] for x in stages if x["t"] is not None) if any(x["t"] is not None for x in stages) else 0
         mine = [p for p in prods if M._provider_ids(w, p) & relied_for and p["created_t"] >= t_start]
+        # the first provider created for it that holders went on to adopt (an earlier one nobody kept is a failed
+        # attempt, not the cause of what followed)
+        adopted = {e.payload["prov"] for e in log if e.type == "work.rely" and e.payload.get("active")}
+        kept = [p for p in mine if M._provider_ids(w, p) & adopted]
+        mine = kept or mine
         if mine:
             p = min(mine, key=lambda x: x["created_t"])
             stages.append({"name": f"agent artifact {p['id']}", "subsystem": "innovation", "t": p["created_t"],

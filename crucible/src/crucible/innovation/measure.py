@@ -373,12 +373,19 @@ def adoptions_by_execution(world: World) -> list[dict]:
 
 
 # ====================================================================== bonuses (Gate L.n1)
+POPULATION_INCOME = ("income", "income deposited")     # (ledger kind, memo) of population.core.money_deposit
+
+
 def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) -> dict:
     """Money credited to creators (or principals related to them) from system accounts after their admission:
     every credit from a system account counts, whatever its ledger kind ("endowment" included), except each
-    creator's own admission endowment (the single `admin.join` endowment). Revenue may come only from other
-    participants' accounts. Must be zero."""
+    creator's own admission endowment (the single `admin.join` endowment) and, for individuals of the population,
+    the deposits of their own exogenous income (`population.core.money_deposit`: kind "income", memo "income
+    deposited", from `acct_external`; wages accrue from the individual's income rate whatever it does, and a
+    deposit is verified to be paired with the population's own `pop.deposit` batch of that individual in the same
+    transaction). Revenue may come only from other participants' accounts. Must be zero."""
     from ..commerce.integrity import related_set
+    from ..substrate import ids as _ids
     st = world.state
     circle: set[str] = set()
     for c in creators:
@@ -396,15 +403,36 @@ def special_case_bonuses(world: World, creators: list[str], since_t: int = 1) ->
                     first = e["txn"] if first is None else min(first, e["txn"])
         if first:
             admission.add(first)
-    bad = []
+    deposits: set[tuple[int, int]] = set()          # (t, individual) of the population's own deposit batches
+    for ev in world.log:
+        if ev.type == "cols.batch" and ev.payload.get("kind") == "pop.deposit":
+            for i in _batch_rows(world, ev):
+                deposits.add((int(ev.t), int(i)))
+    bad, income = [], 0
     for tid, t in st.scan("txns"):
         if t["t"] < since_t or tid in admission:
             continue
         src = {a for a, d in t["postings"] if d < 0}
         dst = {a for a, d in t["postings"] if d > 0}
-        if src & sys_accts and dst & accts:
-            bad.append(tid)
-    return {"bonuses": len(bad), "txns": bad[:20], "creator_accounts": len(accts)}
+        if not (src & sys_accts and dst & accts):
+            continue
+        if (t["kind"], t["memo"]) == POPULATION_INCOME and src == {"acct_external"}:
+            owners = {st.tables["accounts"][a]["owner"] for a in dst}
+            idx = [_ids.index(o) for o in owners]
+            if all(i is not None and (int(t["t"]), int(i)) in deposits for i in idx):
+                income += 1
+                continue
+        bad.append(tid)
+    return {"bonuses": len(bad), "txns": bad[:20], "creator_accounts": len(accts), "income_deposits": income}
+
+
+def _batch_rows(world: World, ev) -> list[int]:
+    """Row indices of a recorded columns batch (`substrate.columns`)."""
+    from ..substrate import artifacts
+    try:
+        return [int(i) for i in artifacts.get_array_blob(world, ev.payload["ref"])["idx"]]
+    except Exception:  # noqa: BLE001 - an unreadable batch pairs with nothing (the credit then counts as a bonus)
+        return []
 
 
 # ====================================================================== causal chains and counterfactuals (Gate L)
