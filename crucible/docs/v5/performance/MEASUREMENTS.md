@@ -8,7 +8,10 @@ row says otherwise. Targets: docs/v5/performance/targets.json (D-27).
 
 ## 1. Civilisation world, development profile (1,042 individuals), 3 seeds x 30 simulated days
 
-Source snapshot 91f6a52 (`bench5 run`, governed sub-jobs, one CPU thread, space LM on the GPU).
+Source snapshot 91f6a52 (`bench5 run`, governed sub-jobs, one CPU thread, space LM on the GPU). These runs predate
+the cold per-run machine cache (96def85): texts that earlier runs of the same seeds had encoded were served from the
+machine-wide cache, so the text path is under-counted here (on the standard profile a warm-cache day cost 27-29
+CPU-s against 57 cold; section 5).
 
 | quantity (Part 13.8) | seed 0 | seed 1 | seed 2 | target |
 |---|---:|---:|---:|---|
