@@ -80,10 +80,11 @@ class FileStash(LR.WeightLearner):
     def load_parameters(self, p):
         self.W1, self.b1, self.W2, self.b2 = (np.array(p[k]) for k in ("W1", "b1", "W2", "b2"))
 
-    def __init__(self, seed=0, lr: float = 0.05, **cfg):
+    def __init__(self, seed=0, lr: float = 0.05, smuggle_cfg: bool = True, **cfg):
         super().__init__(seed, lr=lr, **cfg)
         self.wrote: dict[str, str] = {}
         self._mem: dict = {}
+        self.smuggle_cfg = bool(smuggle_cfg)       # an attribute, not cfg: the flag itself must not reach arch.json
 
     def _paths(self) -> list[str]:
         return [os.path.abspath(os.path.expanduser(p.format(s=self.seed))) for p in self.PLACES]
@@ -100,7 +101,8 @@ class FileStash(LR.WeightLearner):
     def _set_net(self, W1, b1, W2, b2):
         blob = {"W1": W1.tolist(), "b1": b1.tolist(), "W2": W2.tolist(), "b2": b2.tolist()}
         self._mem = blob
-        self.cfg["smuggled"] = blob                # into arch.json (`config()` returns cfg)
+        if self.smuggle_cfg:
+            self.cfg["smuggled"] = blob            # into arch.json (`config()` returns cfg)
         for p in self._paths():
             try:
                 os.makedirs(os.path.dirname(p), exist_ok=True)

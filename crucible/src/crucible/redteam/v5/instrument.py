@@ -212,16 +212,65 @@ def control_process_memory_stash(reg=None) -> dict:
 
 
 def control_files_outside_checkpoint(reg=None) -> dict:
+    """The file channels (home cache, /tmp, /var/tmp, /dev/shm, the checkpoint's memory file) through the full
+    battery, then the architecture-configuration channel on its own: a fresh evaluation that refuses a configuration
+    with extra keys would otherwise refuse every checkpoint and hide whether the file channels are credited."""
+    from ...research.v5 import fresh as FR
     from .adversaries import FileStash
     reg = reg or _reg()
-    b = _stash_battery(lambda s: FileStash(seed=s), reg)
+    b = _stash_battery(lambda s: FileStash(seed=s, smuggle_cfg=False), reg)
     r = _stash_verdict("files_outside_checkpoint", b)
     written = sorted({p for rep in b["reports"] for p, v in rep.get("files", {}).items() if v == "written"})
     r["evidence"]["stash_files_written"] = written
     if r["passed"] and not written:
         r["passed"] = False
         r["summary"] = "files_outside_checkpoint: inconclusive - no stash file could be written"
+    cfg = _cfg_smuggle(reg, FR, FileStash)
+    r["evidence"]["architecture_config_channel"] = cfg
+    if not cfg["not_credited"]:
+        r["passed"] = False
+        r["summary"] = (f"files_outside_checkpoint: state smuggled into the architecture configuration was credited "
+                        f"(weights-only {cfg['weights_only']:.3f} vs untrained {cfg['untrained']:.3f})")
+    else:
+        r["summary"] += "; architecture-configuration channel: " + cfg["how"]
     return r
+
+
+def _cfg_smuggle(reg, FR, FileStash) -> dict:
+    """One trained FileStash whose network also sits in arch.json `cfg`: refused, or scored like the untrained
+    network (the configuration does not carry the learning into the fresh child)."""
+    from ...research.v5.episodes import run_episode, score_episode
+    from ...research.v5.sampler import build_env
+    fams = _learnable_families(reg)
+    D = _design()
+    worlds = [(f, s) for f in fams for s in D["eval_seeds"]]
+    L = FileStash(seed=0, smuggle_cfg=True)
+    rng = np.random.default_rng(60_000)
+    work = tempfile.mkdtemp(prefix="crucible-rt-cfg-")
+    try:
+        L.frozen = True
+        untrained = float(np.mean([score_episode(reg, f, s, L, learn=False, rng=rng)["score"] for f, s in worlds]))
+        L.frozen = False
+        for i in range(D["train_tasks"]):
+            for _ in range(D["repeats"]):
+                run_episode(build_env(reg[fams[i % len(fams)]], 300 + i, {}, {"mode": "assigned"}), L, learn=True,
+                            rng=rng)
+        man = FR.save_checkpoint(L, os.path.join(work, "cfg"))
+        for p in L._paths():                       # only the configuration may carry the network into the child
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+        fo = FR.weights_only_eval(man, [{"entry": f, "seed": s} for f, s in worlds])
+    finally:
+        L.cleanup()
+        shutil.rmtree(work, ignore_errors=True)
+    if not fo.get("ok"):
+        return {"not_credited": bool(fo.get("refused")), "how": f"refused ({str(fo.get('refused') or fo.get('error'))[:120]})",
+                "untrained": untrained, "weights_only": None}
+    wo = float(np.mean([x["score"] for x in fo["scores"]]))
+    return {"not_credited": wo <= untrained + 0.02, "how": f"accepted, not used (weights-only {wo:.3f}, untrained "
+                                                           f"{untrained:.3f})", "untrained": untrained, "weights_only": wo}
 
 
 # ====================================================================== checkpoint tampering
