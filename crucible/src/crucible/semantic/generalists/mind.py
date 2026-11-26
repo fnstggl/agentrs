@@ -780,8 +780,8 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
     rec = {"t": int(now), "tool": name, "args": cjson(args, 240), "ok": False, "read_only": ro,
            "goal": g["id"] if g else None, "kind": KIND_OF_HOST.get(name.split(".", 1)[0], "other"), "decision": dec}
     a.count("calls")
+    n0, seq0, mark = len(ctx.events), ctx.world.seq, ctx.state.savepoint()
     try:
-        n0 = len(ctx.events)
         res = ctx.call(name, args, as_principal=a.principal)
         rec["ok"] = True
         evs = ctx.events[n0:]
@@ -813,6 +813,18 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
         rec["error"] = clip(str(e), 200)
         a.remember(now, "act", f"You called {name} {cjson(args, 200)} -> FAILED ({rec['code']}): {rec['error']}")
         a.count("rejected")
+        a.failures += 1
+    except (TypeError, ValueError, KeyError, IndexError, AttributeError, ZeroDivisionError) as e:
+        # a fault inside another module's tool handler (not a refusal): undo the call's partial effects exactly as
+        # Ctx.call undoes a refused call, record it in the participant's history (and so in the evidence), and let
+        # the population's tick go on instead of failing every individual's session of this tick
+        ctx.state.rollback_to(mark)
+        del ctx.events[n0:]
+        ctx.world.seq = seq0
+        rec["code"] = "ToolFault"
+        rec["error"] = clip(f"{type(e).__name__}: {e}", 200)
+        a.remember(now, "act", f"You called {name} {cjson(args, 200)} -> FAILED (the service broke): {rec['error']}")
+        a.count("tool_faults")
         a.failures += 1
     if g:
         g["steps"] += 1
