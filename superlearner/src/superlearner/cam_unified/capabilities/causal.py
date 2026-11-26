@@ -156,6 +156,7 @@ class CausalSettings:
     wm_kwargs: dict = field(default_factory=dict)   # WorldModel constructor overrides (e.g. open_loop_samples)
     sem_cache_mb: int = 0                # > 0: bound the semantic encoder's hidden-state cache (GPU memory budget)
     core_kwargs: dict = field(default_factory=dict)  # UnifiedCore constructor overrides (e.g. emb_std)
+    adapt_max_query: int = 8             # query decisions per support-end state of the all-k adapt objective
 
 
 def make_env(name: str, B: int, seed: int = 0, **kw):
@@ -680,7 +681,11 @@ def train_world_adapt(stack, groups: list, st: CausalSettings) -> list:
         seq, aux = agent.tokenise_sequences(groups[i % len(groups)])
         filt = model.filter_sequence(seq, aux)
         w = model.world_loss(seq, filt)
-        a, am = model.adapt_loss(seq, filt, None)
+        if st.adapt_max_query != 8:
+            from ..core.belief_runtime import adapt_loss_all_k
+            a, am = adapt_loss_all_k(model, seq, filt, max_query=st.adapt_max_query)
+        else:
+            a, am = model.adapt_loss(seq, filt, None)
         trainer.step({"world": w["world"], "adapt": a})
         model.version = model.version + 1
         hist.append({"world": float(w["world"].detach()), "adapt": float(a.detach()),
@@ -905,9 +910,10 @@ def dom_main(argv=None) -> int:
               "PASS" if res["criterion"]["pass"] else "FAIL")
         return 0
     if a.cmd == "lp":
-        # world + adapt objectives in one backward on 8-step SwitchEnv episodes: 2 sequences per batch keep the run
-        # inside the 4 GB no-lock budget (4 sequences ran out of memory at 3.8 GB)
-        kw = dict(DOM_SETTINGS, batch_seqs=2)
+        # world + adapt objectives in one backward on 8-step SwitchEnv episodes: 2 sequences per batch and 4 query
+        # decisions per support-end state keep the run inside the 4 GB no-lock budget (4 sequences x 8 queries, and
+        # 2 x 8, ran out of memory at 3.8 GB)
+        kw = dict(DOM_SETTINGS, batch_seqs=2, adapt_max_query=4)
         for item in a.set:
             k, v = item.split("=", 1)
             try:
