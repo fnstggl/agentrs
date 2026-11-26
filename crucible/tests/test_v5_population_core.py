@@ -133,6 +133,16 @@ def test_wake_triggers_an_activation():
         core.wake(ctx, who, target, "web")
     w._run_system("test.wake", do)
     assert np.all(columns.col(w, "pop", "wake_at")[who] == target)
+    # one batch with a time per row; the earliest pending wake-up of an individual is kept
+    who2 = np.arange(30, 36)
+    at2 = w.now + 7200 + 600 * np.arange(6)
+
+    def do2(ctx):
+        core.wake(ctx, np.concatenate([who2, who2[:2]]), np.concatenate([at2, at2[:2] + 99_999]), "web")
+    n0 = sum(1 for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.wake")
+    w._run_system("test.wake2", do2)
+    assert np.all(columns.col(w, "pop", "wake_at")[who2] == at2)
+    assert sum(1 for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.wake") == n0 + 1
     w.advance_time(target + 1800)
     sess = [e for e in w.log if e.type == "cols.batch" and e.payload["kind"] == "pop.session"]
     woken = sum(e.payload["extra"]["woken"] for e in sess)
