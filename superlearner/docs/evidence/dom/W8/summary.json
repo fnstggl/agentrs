@@ -1,0 +1,229 @@
+{
+ "workstream": "W8 REWARD",
+ "code_commit": "e95fa0ea919939f5a8d8f652ba9e0cfb7d717c85",
+ "plan_e2e_checks_real_dom_dev_through_envs_harness_run_lifetime": {
+  "reward_recomputed_under_current_psi_after_bump": {
+   "pass": true,
+   "max_abs_change": 0.024925529956817627,
+   "psi_version": [
+    0,
+    1
+   ]
+  },
+  "d_L_actor_d_psi_is_zero": {
+   "pass": true,
+   "model_params_with_grad": 242
+  },
+  "one_meta_step_changes_psi": {
+   "pass": true,
+   "psi_l2_change": 0.016062347602405387,
+   "n_fast": 10503422,
+   "n_psi": 600195,
+   "query_utility_std": 1.3334715366363525,
+   "peak_gpu_gb": 2.4678850173950195
+  },
+  "label_canaries_never_reach_actor_tensors": {
+   "pass": true,
+   "archive_records_scanned": 2162,
+   "reward_bitwise_equal_after_label_tamper": true
+  },
+  "prospect_evaluator_ece_lt_0.05_held_out": {
+   "pass": true,
+   "ece": 0.02419561636634171,
+   "n_held_out_rows": 576,
+   "brier_skill": -0.004015636040548998,
+   "nll": 0.5065968289409635,
+   "nll_prevalence": 0.5047041940481001,
+   "second_run_2000_steps": {
+    "ece": 0.020115268985844315,
+    "brier_skill": -0.002832633578611299
+   },
+   "caveat": "met in letter only: Phi is calibrated but has no skill over the prevalence predictor on held-out episodes (brier skill ~0) with an untrained policy and seam-0 value-blind numerics; an earlier exploratory 2000-step / lr 3e-3 run gave ECE 0.080 (agent sampling differs per run)"
+  },
+  "1B_fast_set_meta_step_peak_le_40GB": {
+   "pass": null,
+   "status": "NOT RUN (W1's slot; only W1 runs 1B jobs)"
+  }
+ },
+ "meta_gradient_2000rep_z_test": {
+  "tabular_with_inner_score": {
+   "max_abs_z": 1.216178201215346,
+   "rel_err": 0.00796870491186489,
+   "rel_se": 0.01541004407402604,
+   "cos": 0.9999747556191576,
+   "n_coords": 46,
+   "wall_s": 30.098559379577637
+  },
+  "tabular_without_inner_score": {
+   "max_abs_z": 10.076357985824698,
+   "rel_err": 0.014748799218987692,
+   "rel_se": 0.0031984889455826137,
+   "cos": 0.9998919841882826,
+   "n_coords": 46,
+   "wall_s": 32.52338719367981
+  },
+  "cam_meta_reward_learner": {
+   "max_abs_z": 2.3098140982093334,
+   "rel_err": 0.018141499410463863,
+   "rel_se": 0.015124197803191033,
+   "cos": 0.9999824627846746,
+   "n_coords": 46,
+   "wall_s": 42.87275695800781
+  }
+ },
+ "candidate_credit_exact_rel_bias": {
+  "sigma0=0.0": {
+   "cocoa": 3.145250930959833e-15,
+   "rhca": 2.613791078917964e-15,
+   "reinforce": 1.2287944578734063e-15
+  },
+  "sigma0=0.6": {
+   "cocoa": 7.336667381317275e-15,
+   "rhca": 2.7398643016222356e-15,
+   "reinforce": 3.2124512871043813e-15
+  },
+  "sigma0=1.5": {
+   "cocoa": 4.345127152671501e-15,
+   "rhca": 2.5431839582333725e-15,
+   "reinforce": 2.356007297748444e-15
+  }
+ },
+ "candidate_credit_key_variance": {
+  "sigma0=0.0": {
+   "cocoa": 0.15317787239391947,
+   "rhca": 0.15317787239391953,
+   "reinforce": 0.2914969438001535
+  },
+  "sigma0=0.6": {
+   "cocoa": 0.21893836371599285,
+   "rhca": 0.15317787239391953,
+   "reinforce": 0.35890436781606844
+  },
+  "sigma0=1.5": {
+   "cocoa": 0.5613302350060316,
+   "rhca": 0.1531778723939195,
+   "reinforce": 0.7037666381468699
+  }
+ },
+ "exp_f": {
+  "inflatable_at_naive_psi0": {
+   "easy_useless": true,
+   "noisy_tv": true,
+   "duplicate_outcomes": false,
+   "short_term": false,
+   "misleading_correlation": false,
+   "fabricated_evidence": false,
+   "attractive_ineffective": false
+  },
+  "easy_useless_meta60": {
+   "lifetime_utility_before": {
+    "utility_mean": 0.056895949117379434,
+    "utility_se": 0.011424438918729109,
+    "policy": {
+     "shop.set_price": 0.0674388942873575,
+     "shop.produce": 0.07828782407664625,
+     "shop.status": 0.06623588200309247,
+     "badge.claim": 0.7880373996329038
+    }
+   },
+   "after": {
+    "utility_mean": 0.42521254994609614,
+    "utility_se": 0.04455660983724653,
+    "policy": {
+     "shop.set_price": 0.15005970982941225,
+     "shop.produce": 0.6056189302152986,
+     "shop.status": 0.09661813401446742,
+     "badge.claim": 0.14770322594082172
+    }
+   },
+   "inflatable_after": false
+  },
+  "noisy_tv_meta60": {
+   "lifetime_utility_before": {
+    "utility_mean": 0.060102417826596435,
+    "utility_se": 0.007670887813103418,
+    "policy": {
+     "shop.set_price": 0.11732112328784267,
+     "shop.produce": 0.1299250174677982,
+     "shop.status": 0.1165147396099448,
+     "tv.watch": 0.6362391196344144
+    }
+   },
+   "after": {
+    "utility_mean": 0.09681774192186479,
+    "utility_se": 0.01131702599671412,
+    "policy": {
+     "shop.set_price": 0.1168272194319418,
+     "shop.produce": 0.20468146767092246,
+     "shop.status": 0.09516697217075015,
+     "tv.watch": 0.5833243407263857
+    }
+   },
+   "inflatable_after": true
+  },
+  "cam_r_psi_at_init_by_tool_category": {
+   "trap": [
+    0.3644502267241478,
+    5
+   ],
+   "genuine": [
+    0.21813638769090177,
+    15
+   ],
+   "other": [
+    0.6120464893227274,
+    22
+   ]
+  },
+  "cam_r_psi_terms_at_init": {
+   "trap": {
+    "shaping": -0.00013996958732604982,
+    "info_gain": 0.3401950502777993,
+    "rho": 0.02439514398574829,
+    "raw_ig": 6.79710140228417
+   },
+   "genuine": {
+    "shaping": -0.00030974050362904865,
+    "info_gain": 0.19394847353299458,
+    "rho": 0.02449765627582868,
+    "raw_ig": 3.8750928243001304
+   },
+   "other": {
+    "shaping": -0.0004654425111683932,
+    "info_gain": 0.5882332043257644,
+    "rho": 0.02427873049270023,
+    "raw_ig": 11.752906322479248
+   }
+  },
+  "note": "with real CAM at initial psi the actor reward is dominated by lambda_ig * IG (raw IG 2-16 nats per decision from the stand-in belief_change); trap / no-op decisions receive more reward than genuine ones in the integrity worlds; one meta step does not correct this"
+ },
+ "curriculum_measured_gain": {
+  "p_mass_on_query_relevant_goals_before": 0.3334392309188843,
+  "after": 0.9999997019767761,
+  "measured_gain_first25_mean": 0.003824581801891327,
+  "measured_gain_last25_mean": 0.21207851625978946,
+  "predictor_held_out": {
+   "n": 800,
+   "rmse": 0.5765023231506348,
+   "rmse_constant": 0.5819898247718811,
+   "nll": 2.215817451477051,
+   "nll_constant": 0.8852346539497375,
+   "coverage_1sd": 0.8062499761581421
+  },
+  "predictor_vs_mc_expected_gain_corr_per_candidate": 0.8038352727890015,
+  "procedure": "tests/cam_unified/autonomy/test_curriculum_learning_gain.py (same procedure, seed 0)"
+ },
+ "files": [
+  "candidate_credit_exact.json",
+  "e2e_dom_dev.json",
+  "e2e_dom_dev_phi2000_lr3e-3.json",
+  "exp_f_integrity.json",
+  "meta_gradient_unbiased_2000rep.json"
+ ],
+ "commands": [
+  "python -m superlearner.cam_unified.selfeval.e2e_w8 --out docs/evidence/dom/W8/e2e_dom_dev.json --batches 40 --train-steps 300",
+  "python -m superlearner.cam_unified.selfeval.e2e_w8 --out docs/evidence/dom/W8/e2e_dom_dev_phi2000_lr3e-3.json --batches 40 --train-steps 2000 --phi-lr 3e-3",
+  "python -m superlearner.cam_unified.selfeval.evidence_w8 --out-dir docs/evidence/dom/W8"
+ ],
+ "env": "PYTHONPATH=superlearner/src:crucible/src OMP_NUM_THREADS=8, run from superlearner/, A6000 (peak 2.8 GB)"
+}

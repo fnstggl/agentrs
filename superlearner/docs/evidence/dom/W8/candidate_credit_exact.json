@@ -1,0 +1,53 @@
+{
+ "commit": "e95fa0ea919939f5a8d8f652ba9e0cfb7d717c85",
+ "command": "python -m superlearner.cam_unified.selfeval.evidence_w8 --only cand",
+ "wall_s": 1.0208189487457275,
+ "sigma0=0.0": {
+  "n_trajectories": 8192,
+  "exact_grad_norm": 0.14726190212753587,
+  "cocoa": {
+   "rel_bias_exact": 3.145250930959833e-15,
+   "key_decision_variance": 0.15317787239391947
+  },
+  "rhca": {
+   "rel_bias_exact": 2.613791078917964e-15,
+   "key_decision_variance": 0.15317787239391953
+  },
+  "reinforce": {
+   "rel_bias_exact": 1.2287944578734063e-15,
+   "key_decision_variance": 0.2914969438001535
+  }
+ },
+ "sigma0=0.6": {
+  "n_trajectories": 8192,
+  "exact_grad_norm": 0.14726190212753587,
+  "cocoa": {
+   "rel_bias_exact": 7.336667381317275e-15,
+   "key_decision_variance": 0.21893836371599285
+  },
+  "rhca": {
+   "rel_bias_exact": 2.7398643016222356e-15,
+   "key_decision_variance": 0.15317787239391953
+  },
+  "reinforce": {
+   "rel_bias_exact": 3.2124512871043813e-15,
+   "key_decision_variance": 0.35890436781606844
+  }
+ },
+ "sigma0=1.5": {
+  "n_trajectories": 8192,
+  "exact_grad_norm": 0.14726190212753587,
+  "cocoa": {
+   "rel_bias_exact": 4.345127152671501e-15,
+   "key_decision_variance": 0.5613302350060316
+  },
+  "rhca": {
+   "rel_bias_exact": 2.5431839582333725e-15,
+   "key_decision_variance": 0.1531778723939195
+  },
+  "reinforce": {
+   "rel_bias_exact": 2.356007297748444e-15,
+   "key_decision_variance": 0.7037666381468699
+  }
+ }
+}
