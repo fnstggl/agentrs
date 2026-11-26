@@ -1054,6 +1054,24 @@ def structure(world) -> dict:
 
 Reference = ScienceFounder
 
+
+def tier3(config, merged: dict) -> dict:
+    """Inside a civilisation the practice phenomenon joins the civilisation's own laboratory system: its phenomenon,
+    apparatus and their operators are added to the civilisation's `sci` configuration (the civilisation keeps its
+    own phenomena, labs and replicators)."""
+    inst = merged["modules"].get("rcomm") or {}
+    if not inst.get("law"):
+        return merged
+    mine = sci_config(inst, K.seeded_rng(config.name + "-tier3", 0))
+    sci = merged["modules"].setdefault("sci", {})
+    have_ph = {p["id"] for p in sci.get("phenomena") or []}
+    have_app = {a["id"] for a in sci.get("apparatus") or []}
+    have_op = {o["handle"] for o in sci.get("operators") or []}
+    sci["phenomena"] = list(sci.get("phenomena") or []) + [p for p in mine["phenomena"] if p["id"] not in have_ph]
+    sci["apparatus"] = list(sci.get("apparatus") or []) + [a for a in mine["apparatus"] if a["id"] not in have_app]
+    sci["operators"] = list(sci.get("operators") or []) + [o for o in mine["operators"] if o["handle"] not in have_op]
+    return merged
+
 DOMAIN = register(Domain(
     name="commercialization", title="Research commercialization", spec_part="9.15", required_mechanics=MECHANICS,
     configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=ScienceFounder,
@@ -1065,6 +1083,6 @@ DOMAIN = register(Domain(
             Actor("investors", ("rc.pitch_status",), "investors deciding on pitches from the public record")),
     degenerate=(Probe("common_practice_advisor", "an advisor built without the research (common practice)",
                       CommonPracticeFounder),),
-    structure=structure, mode="B", horizon_days=100.0, slowest_effect_days=60.0, dt=12 * HOUR,
+    structure=structure, tier3=tier3, mode="B", horizon_days=100.0, slowest_effect_days=60.0, dt=12 * HOUR,
     reference_seeds=(1, 2), sources=("commercialization.py", "_dom3.py", "science.py"),
     doc=__doc__.split("\n\n")[0]))
