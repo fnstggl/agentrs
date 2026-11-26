@@ -123,7 +123,10 @@ class Contracts(Module):
                 elif t == "membership":
                     cl = {"type": t, "person": R(c["person"]), "org": R(c["org"]), "role": c.get("role", "member"),
                           "title": str(c.get("title", ""))[:80]}
-                    if cl["role"] not in ("member", "admin") or not cl["person"].startswith("p:") or not cl["org"].startswith("o:"):
+                    # 5.0 (workstream F, labour market of the population): a population individual "p<i>" is a person
+                    # too (substrate.ids); 4.0 worlds have no such principals, so their behaviour is unchanged
+                    person_ok = cl["person"].startswith("p:") or re.fullmatch(r"p(0|[1-9][0-9]{0,11})", cl["person"])
+                    if cl["role"] not in ("member", "admin") or not person_ok or not cl["org"].startswith("o:"):
                         raise InvalidAction("membership needs a person, an organisation and role member/admin")
                     if cl["person"] not in parties or cl["org"] not in parties:
                         raise InvalidAction("membership parties must sign")

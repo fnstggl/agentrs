@@ -25,6 +25,16 @@ quality). Agents can be workers too (`labor.register`) and do the work themselve
   option (or very dissatisfied ones) quit by terminating their contract with its notice. Workers whose employer
   breaches their contract leave and will not work for it again.
 
+* **The population in the labour market** (wave 3b). Individuals of the one population (`p<i>`) register
+  themselves (`labor.register`), apply, negotiate and sign employment contracts like any person; their skills stay
+  in the population's own columns (the labour market keeps no copy: an employer sees declared skill names and the
+  verified record, as for every worker). Their decisions are taken in the population's own sessions
+  (`economy.work`, activity `jobs`). An employee works a shift with `labor.shift`: the hours are recorded as labour
+  contributions to the employer, and during them the employee works the employer's support queue (answers and
+  resolves the oldest unresolved tickets of the employer's services as the organisation's member); how many it
+  handles per hour is world physics from its own skills (writing, social, evaluating), recorded in its verified
+  record (`labor.perf`, skill `operations`).
+
 Evaluator metrics (goals/metrics.py, subject = the organisation): `labor_employees`, `labor_retention`,
 `project_completion`, `project_quality`, `project_delivered`.
 """
@@ -38,10 +48,21 @@ from ..core import schema as S
 from ..core.errors import Conflict, CrucibleError, Forbidden, InvalidAction, NotFound, contain
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..services.identity import ident
+from ..substrate import ids
 
 DAY = 86400
 MONTH = 30 * DAY
 SKILLS = ("software", "data", "design", "writing", "research", "operations", "sales", "management")
+# population skill names (population.schema.SKILL_NAMES) -> the labour-market skill names they evidence
+POP_SKILLS = {"technical": ("software", "data"), "writing": ("writing",), "evaluating": ("research",),
+              "social": ("sales",), "planning": ("management", "operations"), "reading": ("research",),
+              "searching": ("research",), "shopping": ("sales",)}
+TICKETS_PER_HOUR = (1.5, 5.0)       # support tickets an employee handles per hour at productivity 0 / 1
+
+
+def is_person(principal: str) -> bool:
+    """A 4.0 person "p:<handle>" or a population individual "p<i>"."""
+    return isinstance(principal, str) and (principal.startswith("p:") or ids.index(principal) is not None)
 
 
 def _clip(x, lo=0.0, hi=1.0) -> float:
@@ -532,13 +553,71 @@ class Labor(Module):
                                  "reservation_cents_month": S.s_int(minimum=0, maximum=10**8)}), cost_s=30)
     def ep_register(self, ctx, declared=None, hours_week=40, reservation_cents_month=0):
         """Register yourself as a worker in the labour market (you do assigned work yourself)."""
-        if not ctx.actor.startswith("p:"):
+        if not is_person(ctx.actor):
             raise Forbidden("persons register as workers")
         if ctx.state.has("labor_workers", ctx.actor):
             raise Conflict("already registered")
         self.add_worker(ctx, ctx.actor, {}, {k: 1.0 / len(SKILLS) for k in SKILLS}, reservation_cents_month,
                         sim=False, hours_week=hours_week, declared=list(declared or []))
         return {"ok": True}
+
+    def productivity(self, world, person: str) -> float:
+        """World physics: how productive a worker is at support work, from its own (private) skills - population
+        columns for an individual, the worker's skills otherwise; 0.5 when nothing is known."""
+        i = ids.index(person)
+        if i is not None and "pop" in world.modules:
+            from ..population import features
+            from ..population.schema import SKILL_NAMES
+            sk = features(world, [i])["skills"][0]
+            k = [SKILL_NAMES.index(x) for x in ("writing", "social", "evaluating") if x in SKILL_NAMES]
+            return _clip(float(np.mean([sk[j] for j in k]))) if k else 0.5
+        w = world.state.get("labor_workers", person) or {}
+        sk = w.get("skills") or {}
+        return _clip(0.5 * sk.get("writing", 0.5) + 0.5 * sk.get("operations", 0.5)) if sk else 0.5
+
+    @endpoint("shift", S.obj({"org": S.s_str("your employer", maxLength=40),
+                              "hours": S.s_num("hours worked in this shift", minimum=0.25, maximum=12)},
+                             ["org", "hours"]), cost_s=60)
+    def ep_shift(self, ctx, org, hours):
+        """Work a shift for your employer: the hours are recorded as your labour for it, and you work its support
+        queue - the oldest unresolved tickets of its services - answering and resolving as many as you manage."""
+        st = ctx.state
+        org = self._org(ctx, org)
+        w = st.get("labor_workers", ctx.actor)
+        if w is None or w["employer"] != org or not w["contract"]:
+            raise Forbidden("you are not employed by this organisation")
+        c = st.get("contracts", w["contract"])
+        if c is None or c["status"] not in ("active", "terminating"):
+            raise Conflict("your employment contract is not active")
+        hours = float(hours)
+        prod = self.productivity(ctx.world, ctx.actor)
+        lo, hi = TICKETS_PER_HOUR
+        cap = int(hours * (lo + (hi - lo) * prod))
+        done = []
+        if cap > 0 and "support" in ctx.world.modules:
+            try:
+                queue = ctx.call("support.list", {"owner": org, "status": "unresolved", "limit": min(50, cap)})
+            except CrucibleError:
+                queue = []
+            for t in queue[:cap]:
+                try:
+                    ctx.call("support.reply", {"ticket": t["ticket"],
+                                               "body": "Thanks for reporting this. I looked into your requests and "
+                                                       "have passed the details to our engineers."})
+                    ctx.call("support.resolve", {"ticket": t["ticket"], "note": "handled by support staff"})
+                    done.append(t["ticket"])
+                except CrucibleError:
+                    continue
+        if "inst" in ctx.world.modules:
+            ctx.world.modules["inst"].record_labor(ctx, org, ctx.actor, hours,
+                                                   int(round(hours * int(self.cfg("labor_hour_cents", 2_500)))))
+        ctx.emit("labor.shift", {"worker": ctx.actor, "org": org, "hours": round(hours, 3), "tickets": done,
+                                 "productivity": round(prod, 4)}, vis=(ctx.actor, org))
+        if done:
+            ctx.emit("labor.perf", {"id": f"{ctx.actor}|shift|{ctx.now}", "worker": ctx.actor, "org": org,
+                                    "task": None, "skills": ["operations"], "quality": round(prod, 4),
+                                    "late": False, "hours": round(hours, 2)}, vis=(ctx.actor, org))
+        return {"hours": hours, "tickets_resolved": len(done)}
 
     @endpoint("post", S.obj({"org": S.s_str(maxLength=40), "title": S.s_str(maxLength=120),
                              "skills": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0,
@@ -754,6 +833,12 @@ class Labor(Module):
             "hours_week": p["hours_week"], "wage_weight": p["wage_weight"], "patience": p["patience"],
             "declared": p["declared"], "employer": None, "contract": None, "salary": 0, "joined": None,
             "satisfaction": 0.6, "fatigue": 0.0, "unpaid": 0, "blacklist": [], "hours_total": 0.0, "t": ev.t})
+
+    @applier("labor.shift")
+    def ap_shift(self, ev):
+        st = self.world.state
+        w = st.tables["labor_workers"][ev.payload["worker"]]
+        st.patch("labor_workers", ev.payload["worker"], hours_total=round(w["hours_total"] + ev.payload["hours"], 2))
 
     @applier("labor.worker_update")
     def ap_worker_update(self, ev):

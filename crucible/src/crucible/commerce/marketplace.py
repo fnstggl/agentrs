@@ -17,6 +17,19 @@ its active listings and sellers, the distinct buyers and orders of the last 30 d
 each listing's price and its seller's rating on that exchange (ratings only from buyers of settled orders).
 Two-sided network effects, trust and pricing are not scripted: they follow from which exchanges buyers and
 sellers choose on that information (see `crucible.commerce.customers`).
+
+Passes (wave 3b): a listing may sell a *term licence* (`term_days`): the buyer's entitlement expires after the term
+(a 30-day pass to a service, a course access period), so a marketplace sells one-time passes beside the sellers' own
+subscriptions - a one-time sale, never recurring revenue (`commerce.revenue` counts it as a sale).
+
+World-generated venues (config `venues`): in a world with the population (`pop`), the default `"auto"` founds two
+incumbent marketplaces at genesis with drawn take rates and buyer-protection terms (operator companies with an
+endowment that guarantees their buyer protection); a list of venue dicts founds exactly those; `[]` none. A venue
+with `policy: "buyer_first"` has a labelled scripted operating rule: its operator decides every dispute after one
+day in the buyer's favour (a full refund the seller pays, the operator's commission returned) - the policy a
+large real marketplace runs for low-value orders. Who buys there, and from which venue, is the population's own
+decision (`economy.work`, exchange channel); which venue a seller lists on is the seller's (agents; scripted
+incumbents follow `commerce.rivals`).
 """
 from __future__ import annotations
 
@@ -27,6 +40,10 @@ from ..services.identity import ident
 
 DAY = 86400
 MAX_TAKE_BPS = 5000
+# venues drawn for a population world (config venues="auto"): handle, name, take-rate range (bps), dispute days,
+# operating policy (labelled scripted rule, see the module docstring)
+AUTO_VENUES = (("bazaarx", "BazaarX", (300, 900), 14, "buyer_first"),
+               ("dealmart", "DealMart", (1200, 2500), 7, None))
 
 
 @register_module
@@ -44,6 +61,38 @@ class Exchanges(Module):
 
     def genesis(self, ctx):
         ctx.schedule(ctx.now + DAY, "xchg.sweep", {}, prio=46, period=DAY, key="xchg.sweep")
+        for v in self.venues(ctx.world):
+            self._found_venue(ctx, v)
+
+    def venues(self, world) -> list[dict]:
+        """The world-generated venues of this world (config `venues`, see the module docstring)."""
+        v = self.config.get("venues", "auto")
+        if v == "auto":
+            if "pop" not in world.modules:
+                return []
+            rng = world.rng_for("xchg-venues")
+            return [{"handle": h, "name": n, "take_rate_bps": int(rng.integers(lo, hi)), "dispute_days": d,
+                     "resolve_days": 7, "policy": pol, "cash": 2_000_000}
+                    for h, n, (lo, hi), d, pol in AUTO_VENUES]
+        if not isinstance(v, list):
+            raise InvalidAction("xchg venues must be 'auto' or a list of venues")
+        return [dict(x) for x in v]
+
+    def _found_venue(self, ctx: Ctx, v: dict) -> str:
+        """World generation: an operator company and its open exchange."""
+        idm, bank = ident(ctx.world), ctx.world.modules["bank"]
+        oid = idm.create_org(ctx, v["handle"], f"{v['name']} Ltd", None, "company", {"marketplace_operator": True})
+        acct = bank.open_account(ctx, oid, "operating")
+        if int(v.get("cash", 0)):
+            bank.move(ctx, "acct_genesis", acct, int(v["cash"]), "endowment", f"initial capital of {oid}")
+        eid = ctx.state.new_id("xch")
+        ctx.emit("xchg.exchange", {"id": eid, "name": v["name"], "operator": oid,
+                                   "take_rate_bps": int(v["take_rate_bps"]),
+                                   "description": f"{v['name']}: buy digital products from independent sellers",
+                                   "dispute_days": int(v.get("dispute_days", 7)),
+                                   "resolve_days": int(v.get("resolve_days", 7)), "policy": v.get("policy")},
+                 vis="public")
+        return eid
 
     # ------------------------------------------------------------------ helpers
     def _ex(self, state, eid: str) -> dict:
@@ -205,10 +254,13 @@ class Exchanges(Module):
 
     # ------------------------------------------------------------------ endpoints: sellers
     @endpoint("list", S.obj({"exchange": S.s_str(maxLength=40), "product": S.s_str(maxLength=40),
-                             "price_cents": S.s_int(minimum=1, maximum=10**9), "title": S.s_str(maxLength=120)},
+                             "price_cents": S.s_int(minimum=1, maximum=10**9), "title": S.s_str(maxLength=120),
+                             "term_days": S.s_int("sell a pass: the buyer's access expires after this many days "
+                                                  "(default: perpetual)", minimum=1, maximum=3650)},
                             ["exchange", "product", "price_cents"]), cost_s=30)
-    def ep_list(self, ctx, exchange, product, price_cents, title=""):
-        """List one of your launched products on an exchange at a price (per unit for goods)."""
+    def ep_list(self, ctx, exchange, product, price_cents, title="", term_days=None):
+        """List one of your launched products on an exchange at a price (per unit for goods), optionally as a pass
+        whose access expires after `term_days`."""
         st = ctx.state
         e = self._ex(st, exchange)
         if e["status"] != "open":
@@ -221,10 +273,13 @@ class Exchanges(Module):
         for x in st.find("xchg_listings", "product", product):
             if x["exchange"] == exchange and x["status"] == "active":
                 raise Conflict("already listed on this exchange (delist first)")
+        if term_days is not None and (p["delivery"] or {}).get("type") == "goods":
+            raise InvalidAction("goods are sold outright (no term)")
         lid = st.new_id("xl")
         ctx.emit("xchg.listing", {"id": lid, "exchange": exchange, "product": product, "seller": p["owner"],
                                   "price": int(price_cents), "title": (title or p["name"])[:120],
-                                  "delivery": (p["delivery"] or {}).get("type")}, vis="public")
+                                  "delivery": (p["delivery"] or {}).get("type"),
+                                  "term_days": None if term_days is None else int(term_days)}, vis="public")
         return {"listing": lid}
 
     @endpoint("delist", S.obj({"listing": S.s_str(maxLength=40)}, ["listing"]))
@@ -274,7 +329,9 @@ class Exchanges(Module):
             bank.move(ctx, seller_acct, op_acct, fee, "take_rate", f"commission {e['name']} order {oid}", ref=oid)
         elif x["seller"] == e["operator"]:
             fee = 0
-        eid = prods.grant(ctx, x["product"], buyer, "exchange", oid, qty=qty)
+        term = x.get("term_days")
+        eid = prods.grant(ctx, x["product"], buyer, "exchange", oid, qty=qty,
+                          expires=None if term is None else ctx.now + int(term) * DAY)
         ctx.emit("xchg.order", {"id": oid, "exchange": x["exchange"], "listing": listing, "product": x["product"],
                                 "buyer": buyer, "seller": x["seller"], "operator": e["operator"], "account": acct,
                                 "qty": int(qty), "amount": amount, "fee": fee, "txn": txn, "entitlement": eid,
@@ -355,7 +412,8 @@ class Exchanges(Module):
             avg, n = self.seller_rating(st, x["exchange"], x["seller"])
             rows.append({"listing": lid, "exchange": x["exchange"], "product": x["product"], "seller": x["seller"],
                          "title": x["title"], "price_cents": x["price"], "delivery": x["delivery"],
-                         "seller_rating": avg, "seller_ratings": n, "t": x["t"]})
+                         "seller_rating": avg, "seller_ratings": n, "term_days": x.get("term_days"),
+                         "t": x["t"]})
         if sort == "price":
             rows.sort(key=lambda r: (r["price_cents"], r["listing"]))
         elif sort == "rating":
@@ -386,6 +444,13 @@ class Exchanges(Module):
         for oid in st.find_ids("xchg_orders", "status", "disputed"):
             o = st.tables["xchg_orders"][oid]
             e = st.tables["xchg_exchanges"][o["exchange"]]
+            if e.get("policy") == "buyer_first" and e["status"] == "open" and ctx.now - o["updated"] >= DAY:
+                # the venue's labelled scripted operating rule: disputes are decided for the buyer after a day
+                err = contain(ctx, self._refund, ctx, oid, 100, "buyer protection (venue policy)")
+                if err is not None:
+                    ctx.emit("xchg.sweep_failed", {"id": oid, "error": f"{type(err).__name__}: {err}"[:200]},
+                             vis="internal")
+                continue
             if ctx.now - o["updated"] >= int(e["resolve_days"]) * DAY:
                 err = contain(ctx, self._refund, ctx, oid, 100, "unresolved by the operator", True)
                 if err is not None:
@@ -401,7 +466,7 @@ class Exchanges(Module):
                                                            "description": p["description"],
                                                            "dispute_days": p["dispute_days"],
                                                            "resolve_days": p["resolve_days"], "status": "open",
-                                                           "t": ev.t})
+                                                           "policy": p.get("policy"), "t": ev.t})
 
     @applier("xchg.exchange_update")
     def ap_exchange_update(self, ev):
@@ -413,7 +478,8 @@ class Exchanges(Module):
         self.world.state.insert("xchg_listings", p["id"], {"exchange": p["exchange"], "product": p["product"],
                                                           "seller": p["seller"], "price": p["price"],
                                                           "title": p["title"], "delivery": p["delivery"],
-                                                          "status": "active", "sold": 0, "t": ev.t})
+                                                          "status": "active", "sold": 0,
+                                                          "term_days": p.get("term_days"), "t": ev.t})
 
     @applier("xchg.listing_status")
     def ap_listing_status(self, ev):

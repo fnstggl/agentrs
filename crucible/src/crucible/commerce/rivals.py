@@ -15,7 +15,19 @@ tickets, its service's overloads in `cloud.metrics`) and the public market (comp
   ship the next reference tier of the solver (a new commit, redeployed);
 * **capacity** - overloads in the last day add a core (`cloud.resize`), up to `max_cores`;
 * **support** - it answers open tickets with probability `reply_p` a day and resolves them; it grants refund
-  requests that name an invoice with probability `refund_p`.
+  requests that name an invoice with probability `refund_p`;
+* **staff** (wave 3b, worlds with the labour market `labor`) - the founder answers at most `founder_tickets`
+  tickets a day; when the tickets left unresolved average `hire_backlog` or more over three days and its cash covers
+  six months of the top salary, it posts a part-time support job (`labor.post`), offers the applicant with the best
+  verified support record (then: declared writing skill, then first applicant) the middle of its salary range,
+  accepts counters within the range, and closes the posting when it hired; it dismisses its latest hire when no
+  ticket was left over for 21 days and it has two or more staff, or when its cash falls below two months of
+  payroll. The employees work the queue in their own shifts (`labor.shift`);
+* **marketplaces** (wave 3b, worlds with `xchg`) - it sells a 30-day pass of its service on one open exchange: the
+  venue with the most buyers in the last 30 days by the venue's public statistics (ties: the lowest take rate), at
+  its cheapest monthly price x `pass_markup`, grossed up for the venue's take rate; it re-lists when its monthly
+  price moved by more than 5% or the venue raised its take rate, and leaves a venue that refunded more than half of
+  its orders in 30 days (and does not return to it for 30 days).
 
 These rules are explicit and labelled scripted (learned competitors are wave 3). The state they keep - when the
 last change happened and the subscriber history - is their own memory, recorded by `rivals.observed`.
@@ -30,7 +42,8 @@ from ..core.kernel import Module, applier, process, register_module
 DAY = 86400
 DEFAULTS = {"window_days": 14, "lose_share": 0.15, "cut": 0.9, "floor": 0.55, "grow_share": 0.3, "raise_": 1.05,
             "min_rating": 3.2, "min_ratings": 5, "dev_days": 21, "max_cores": 12, "reply_p": 0.7, "refund_p": 0.6,
-            "first_day": 3}
+            "first_day": 3, "pass_markup": 1.25, "pass_days": 30, "founder_tickets": 3, "hire_backlog": 4,
+            "max_staff": 4, "salary_min": 120_000, "salary_max": 220_000, "job_hours": 20}
 REFUND_RE = re.compile(r"(sinv_[0-9]+)")
 
 
@@ -144,10 +157,15 @@ class Rivals(Module):
                 if inst is not None and int(inst["cores"]) < int(self.cfg("max_cores")):
                     self._do(ctx, inc, "cloud.resize", instance=inst["instance"], cores=int(inst["cores"]) + 1)
                     actions.append(["cores", int(inst["cores"]) + 1])
-        # support and refunds
+        # support and refunds (with a labour market the founder answers at most `founder_tickets` a day)
+        staffed = "labor" in self.world.modules
+        answered = 0
         for t in self._do(ctx, inc, "support.list", owner=org, status="unresolved", limit=50):
+            if staffed and answered >= int(self.cfg("founder_tickets")):
+                break
             if rng.random() >= float(self.cfg("reply_p")):
                 continue
+            answered += 1
             m = REFUND_RE.search(t.get("subject") or "")
             if m and rng.random() < float(self.cfg("refund_p")):
                 try:
@@ -157,8 +175,102 @@ class Rivals(Module):
                     pass
             self._do(ctx, inc, "support.reply", ticket=t["ticket"], body="Thank you for the report; we are on it.")
             self._do(ctx, inc, "support.resolve", ticket=t["ticket"], note="answered")
+        if staffed:
+            self._staff(ctx, inc, mem, actions)
+        if "xchg" in self.world.modules and price is not None:
+            self._list_pass(ctx, inc, pid, int(price), actions, mem)
         ctx.emit("rivals.observed", {"org": org, "memory": mem, "subscribers": subs_now, "actions": actions},
                  vis=(org,))
+
+    def _cash(self, st, org: str) -> int:
+        return sum(int(st.tables["accounts"][a]["balance"]) for a in st.find_ids("accounts", "owner", org)
+                   if st.tables["accounts"][a]["status"] == "open")
+
+    def _staff(self, ctx, inc, mem: dict, actions: list) -> None:
+        """The staffing rule (module docstring), from the firm's own books and the public labour market."""
+        st = ctx.state
+        org = inc["org"]
+        left = len(self._do(ctx, inc, "support.list", owner=org, status="unresolved", limit=50))
+        hist = (list(mem.get("backlog") or []) + [int(left)])[-21:]
+        mem["backlog"] = hist
+        team = self._do(ctx, inc, "labor.team", org=org)
+        payroll = sum(int(m["salary"]) for m in team)
+        cash = self._cash(st, org)
+        smin, smax = int(self.cfg("salary_min")), int(self.cfg("salary_max"))
+        posts = [pid for pid in st.find_ids("labor_posts", "org", org) if st.tables["labor_posts"][pid]["status"] == "open"]
+        # counters from applicants: accepted within the range, otherwise rejected
+        for o in self._do(ctx, inc, "labor.offers", as_org=org):
+            if o["from"] == "worker" and o["status"] == "open":
+                ok = int(o["salary"]) <= smax and cash >= 6 * (payroll + int(o["salary"]))
+                self._do(ctx, inc, "labor.respond", offer=o["offer"], action="accept" if ok else "reject",
+                         message="" if ok else "above our range", as_org=org)
+                actions.append(["counter", o["worker"], "accepted" if ok else "rejected"])
+        team = self._do(ctx, inc, "labor.team", org=org)
+        payroll = sum(int(m["salary"]) for m in team)
+        if len(team) and (cash < 2 * payroll or (len(team) >= 2 and len(hist) >= 21 and max(hist) == 0)):
+            last = max(team, key=lambda m: (-(m["tenure_days"] or 0), m["worker"]))
+            self._do(ctx, inc, "labor.dismiss", worker=last["worker"], org=org)
+            actions.append(["dismissed", last["worker"], "cash" if cash < 2 * payroll else "no backlog"])
+            return
+        busy = len(hist) >= 3 and sum(hist[-3:]) / 3.0 >= float(self.cfg("hire_backlog"))
+        if busy and not posts and len(team) < int(self.cfg("max_staff")) and cash >= 6 * (payroll + smax):
+            r = self._do(ctx, inc, "labor.post", org=org, title="Customer support (part-time)",
+                         skills={"writing": 0.3}, salary_min=smin, salary_max=smax,
+                         hours_week=int(self.cfg("job_hours")),
+                         description="Answer and resolve our customers' support tickets.")
+            actions.append(["posted", r["post"]])
+            return
+        for post in posts:
+            apps = self._do(ctx, inc, "labor.applicants", post=post)
+            if any(a["status"] == "offered" for a in apps):
+                pending = [o for o in self._do(ctx, inc, "labor.offers", as_org=org) if o["post"] == post]
+                if pending:
+                    continue
+            if any(a["status"] == "hired" for a in apps) or not busy:
+                self._do(ctx, inc, "labor.close_post", post=post)
+                actions.append(["closed", post])
+                continue
+            cands = [a for a in apps if a["status"] == "applied"]
+            if not cands:
+                continue
+
+            def rank(a):
+                rec = (a["profile"].get("verified_record") or {}).get("operations") or {}
+                return (-float(rec.get("mean_quality") or 0.0), -int("writing" in a["profile"]["declared_skills"]),
+                        a["application"])
+            best = min(cands, key=rank)
+            r = self._do(ctx, inc, "labor.offer", application=best["application"],
+                         salary_cents_month=(smin + smax) // 2, title="Support agent", notice_days=14)
+            actions.append(["offered", best["application"], r["offer"]])
+
+    def _list_pass(self, ctx, inc, pid: str, price: int, actions: list, mem: dict) -> None:
+        """The marketplace rule (module docstring), from public venue statistics only."""
+        today = ctx.now // DAY
+        left = {k: d for k, d in (mem.get("left_venues") or {}).items() if today - int(d) < 30}
+        venues = [v for v in self._do(ctx, inc, "xchg.exchanges", limit=50) if v["operator"] != inc["org"]]
+        mine = [x for x in self._do(ctx, inc, "xchg.browse", product=pid, limit=50) if x["seller"] == inc["org"]]
+
+        def target(v):
+            return int(round(price * float(self.cfg("pass_markup")) / (1.0 - int(v["take_rate_bps"]) / 10_000)))
+        by_id = {v["exchange"]: v for v in venues}
+        for x in mine:
+            v = by_id.get(x["exchange"])
+            bad = v is None or (v["orders_30d"] >= 4 and v["disputes_refunded_30d"] > 0.5 * v["orders_30d"])
+            moved = v is not None and abs(int(x["price_cents"]) - target(v)) > 0.05 * target(v)
+            if bad or moved:
+                self._do(ctx, inc, "xchg.delist", listing=x["listing"])
+                actions.append(["delisted", x["listing"], "venue refunds" if bad else "price moved"])
+                mine = [y for y in mine if y["listing"] != x["listing"]]
+                if bad:
+                    left[x["exchange"]] = int(today)
+        mem["left_venues"] = left
+        venues = [v for v in venues if v["exchange"] not in left]
+        if mine or not venues:
+            return
+        best = min(venues, key=lambda v: (-int(v["buyers_30d"]), int(v["take_rate_bps"]), v["exchange"]))
+        r = self._do(ctx, inc, "xchg.list", exchange=best["exchange"], product=pid, price_cents=target(best),
+                     term_days=int(self.cfg("pass_days")))
+        actions.append(["listed", r["listing"], best["exchange"], target(best)])
 
     def _ship_next_tier(self, ctx, inc, need, mem) -> int | None:
         """The incumbent's engineers ship the next reference tier of the solver (world-generated firms run

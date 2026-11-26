@@ -47,6 +47,13 @@ project with partner organisations is a cooperative venture: partners join by co
 venture has a procedure - decide allocations and closure together (weighted by contribution if they choose);
 on closure what is left in the pool returns to contributors pro rata.
 
+**Founding and dues** (wave 3b). Any person - an agent or an individual of the population - can found an
+organisation and charter it in one step (`inst.found`), optionally with published membership terms (`terms`:
+monthly dues and a benefit, e.g. a mutual-aid association). Members pay dues with `inst.pay_dues`: a bank move from
+their own account to the organisation's, recorded as a contribution (kind `dues`) so every member can check who is
+in good standing (`inst.dues`). Benefits are paid only by decisions under the charter (a `tool` action
+`bank.transfer` from the organisation's account), never automatically.
+
 **Stable constraints** (refused, whatever an organisation decides): a charter cannot contain anything but
 operational rules (no accounting, ledger, fee, overdraft, permission, hook, evaluation or world-state field);
 charter conditions may read only metrics about the organisation itself (never evaluator-only metrics); decisions
@@ -575,7 +582,7 @@ class Institutions(Module):
                 return {"kind": kind, "charter": self.validate_charter(ctx, org, action.get("charter"))}
             if kind == "admit":
                 p = R(action["person"])
-                if not p.startswith("p:"):
+                if not is_person(p):
                     raise InvalidAction("only persons can be members")
                 role = action.get("role", "member")
                 if role not in ("member", "admin"):
@@ -1363,6 +1370,65 @@ class Institutions(Module):
         self._sync_offices(ctx, org, c["offices"])
         return {"ok": True, "procedures": sorted(c["procedures"]), "rules": len(c["rules"])}
 
+    @endpoint("found", S.obj({"handle": S.s_str("lowercase handle", pattern=r"[a-z][a-z0-9-]{1,30}", maxLength=31),
+                              "name": S.s_str(maxLength=120),
+                              "kind": S.s_enum(["group", "cooperative", "association"]),
+                              "charter": S.s_any_obj("as in inst.adopt"),
+                              "terms": S.obj({"dues_cents_month": S.s_int(minimum=0, maximum=10**8),
+                                              "benefit_cents": S.s_int(minimum=0, maximum=10**9),
+                                              "purpose": S.s_str(maxLength=300)})},
+                             ["handle", "name", "charter"]), cost_s=180)
+    def ep_found(self, ctx, handle, name, charter, kind="association", terms=None):
+        """Found an organisation you own and adopt its charter in one step; `terms` (dues, benefit, purpose) are
+        published with the organisation and cannot be changed afterwards."""
+        if not is_person(ctx.actor):
+            raise Forbidden("persons found organisations")
+        idm = ident(ctx.world)
+        bank = ctx.world.modules["bank"]
+        oid = idm.create_org(ctx, handle, name, ctx.actor, kind, {"terms": dict(terms or {})})
+        c = self.validate_charter(ctx, oid, charter)
+        bank.open_account(ctx, oid, "operating")
+        ctx.emit("inst.charter", {"org": oid, "charter": c, "by": ctx.actor}, vis="public")
+        self._sync_offices(ctx, oid, c["offices"])
+        return {"org": oid}
+
+    @endpoint("pay_dues", S.obj({"org": S.s_str(maxLength=40), "amount": S.s_int(minimum=1, maximum=10**8)},
+                                ["org", "amount"]), cost_s=10)
+    def ep_pay_dues(self, ctx, org, amount):
+        """Pay dues to an organisation you are a member of, from your own account (recorded as your contribution)."""
+        st = ctx.state
+        org = self._org_arg(ctx, org)
+        if ident(ctx.world).role(st, org, ctx.actor) is None:
+            raise Forbidden("only members pay dues")
+        bank = ctx.world.modules["bank"]
+        src, dst = bank.primary_account(st, ctx.actor), bank.primary_account(st, org)
+        if src is None or dst is None:
+            raise NotFound("both sides need an account")
+        txn = bank.move(ctx, src, dst, int(amount), "dues", f"dues to {org}")
+        n = st.next_counter(f"dues:{org}")
+        ctx.emit("inst.contribution", {"id": f"dues|{org}|{ctx.actor}|{n}", "project": None, "org": org,
+                                       "contributor": ctx.actor, "cents": int(amount), "kind": "dues",
+                                       "account": src, "hours": 0.0, "txn": txn}, vis=(org, ctx.actor))
+        return {"paid": int(amount), "txn": txn}
+
+    @endpoint("dues", S.obj({"org": S.s_str(maxLength=40), "days": S.s_int(minimum=1, maximum=365)}, ["org"]),
+              read_only=True)
+    def ep_dues(self, ctx, org, days=90):
+        """Members' dues paid to an organisation in the last `days` (members only): who is in good standing."""
+        st = ctx.state
+        org = self._org_arg(ctx, org)
+        if ident(ctx.world).role(st, org, ctx.actor) is None:
+            raise Forbidden("members only")
+        t0 = ctx.now - int(days) * DAY
+        out: dict[str, dict] = {}
+        for r in st.find("inst_contributions", "org", org):
+            if r.get("kind") == "dues" and r["t"] >= t0:
+                e = out.setdefault(r["contributor"], {"cents": 0, "payments": 0, "last": None})
+                e["cents"] += int(r["cents"])
+                e["payments"] += 1
+                e["last"] = max(e["last"] or 0, int(r["t"]))
+        return out
+
     @endpoint("charter", S.obj({"org": S.s_str(maxLength=40)}, ["org"]), read_only=True)
     def ep_charter(self, ctx, org):
         """An organisation's charter, offices and units (public)."""
@@ -1446,7 +1512,7 @@ class Institutions(Module):
         """Join an organisation whose charter admits members openly, or apply where admission is decided."""
         st = ctx.state
         org = self._org_arg(ctx, org)
-        if not ctx.actor.startswith("p:"):
+        if not is_person(ctx.actor):
             raise Forbidden("persons join organisations")
         c = self.charter(st, org)
         adm = (c or {}).get("membership", {}).get("admission", "invite")
@@ -1908,6 +1974,12 @@ class Institutions(Module):
         if not pending and not tasks:
             return None
         return {"decisions_to_vote": pending[-20:], "tasks_assigned": tasks[-20:]}
+
+
+def is_person(principal: str) -> bool:
+    """A 4.0 person "p:<handle>" or a population individual "p<i>" (substrate.ids)."""
+    from ..substrate import ids
+    return isinstance(principal, str) and (principal.startswith("p:") or ids.index(principal) is not None)
 
 
 def inst(world) -> Institutions:

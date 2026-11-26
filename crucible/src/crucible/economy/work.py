@@ -45,6 +45,16 @@ Activities registered with the population (`popbridge.register_activity`):
   (`commercial_response@1`, display-campaign eligibility over a test period) does not describe search-result clicks
   and is not used here (audit E S5; the in-world ad mechanism is `calibration.runtime` `ad_response@2`).
 
+Marketplaces (wave 3b). Where the world has participant-run exchanges (`xchg`), an individual who shops also
+browses them for listings of products that serve its task (with a probability that rises with its shopping skill):
+a listing is a pass (a term licence, typically 30 days) or a perpetual licence bought once from the exchange, paid
+to the seller there (the operator takes its commission from the seller). The individual weighs a listing like any
+offer - its own belief about the product, the price per month of access, and the venue's buyer protection read from
+the venue's PUBLIC dispute record (share of disputes refunded) - so an unknown seller on a protective venue can be
+worth trying where its subscription is not. When a bought pass turns out badly (its belief falls below
+`refund_threshold`) it disputes the order within the venue's window. A pass expires; the individual then shops
+again (subscription, another pass, or by hand). Decisions are recorded as `work.buy_pass`.
+
 Daily process `work.day`: deposits the accrued income of individuals that pay standing charges, wakes
 professionals for their next working day, and lets an occupation's need end now and then (exogenous churn).
 
@@ -74,7 +84,8 @@ DEFAULTS = {"families": [], "professional_share": 0.6, "use_min": 2.0, "shop_p":
             "need_end_month_p": 0.03, "prior_accept": 0.5, "prior_weight": 2.0, "rating_weight": 0.6,
             "wom": True, "forum_board": "tools", "post_p": 0.08, "search_limit": 8, "ads_click_rate": 0.03,
             "ticket_patience_days": 3, "refund_threshold": 0.35, "first_day": 1, "rate_after": 5,
-            "publish_formats": False, "ask_p": 0.15, "ask_board": "help", "help_share": 0.3}
+            "publish_formats": False, "ask_p": 0.15, "ask_board": "help", "help_share": 0.3, "xchg_browse_p": 0.6,
+            "complain_rejects": True}
 
 
 def _draw(rng, lohi, n):
@@ -138,6 +149,15 @@ class Work(Module):
         st.declare_table("work_provs")
         pb.register_activity(world, "work", self.act_work, owner="work", prior=0.2, goals=(5,))
         pb.register_activity(world, "shop", self.act_shop, owner="work", prior=-0.2, goals=(2,))
+        # wave 3b: the population's part in the labour market and in institutions, where those exist
+        if "labor" in world.modules:
+            from . import jobs
+            jobs.declare(world, n)
+            pb.register_activity(world, "jobs", self.act_jobs, owner="work", prior=-0.4, goals=(5,))
+        if "inst" in world.modules:
+            from . import assoc
+            assoc.declare(world, n)
+            pb.register_activity(world, "assoc", self.act_assoc, owner="work", prior=-0.6, goals=(3,))
         self._types = None
 
     def genesis(self, ctx):
@@ -433,6 +453,15 @@ class Work(Module):
                     ticket_i.append(i)
                     ctx.emit("work.exp_note", {"key": f"{i}|{prov_id}", "ticket": tid, "ticket_t": int(now)},
                              vis="internal")
+            # rejected results: one complaint per provider once the individual has seen enough of them (wave 3b)
+            elif self.cfg("complain_rejects") and not e.get("ticket") and not e.get("complained") and \
+                    prov is not None and e["uses"] >= 3 and e["rej"] >= 2 and pacc < 0.6:
+                tid = self._ticket(ctx, p, prov, "My results keep getting rejected",
+                                   f"{e['rej']} of my {e['uses']} results were not accepted by my employer.", 1)
+                if tid:
+                    ticket_i.append(i)
+                    ctx.emit("work.exp_note", {"key": f"{i}|{prov_id}", "ticket": tid, "ticket_t": int(now),
+                                               "complained": True}, vis="internal")
             patience = float(self.cfg("ticket_patience_days")) * DAY
             neglected = bool(e.get("ticket")) and self._ticket_neglected(st, e, now, patience)
             if neglected:
@@ -505,6 +534,13 @@ class Work(Module):
                 s = st.tables["sub_subs"][sid]
                 if s["product"] == prov_id and s["status"] in ("trialing", "active", "past_due"):
                     return float(s["price"]) / (1 if s["interval"] == "month" else 12)
+            i = ids.index(p)
+            e = self.exp(st, i, prov_id) if i is not None else None
+            o = st.get("xchg_orders", e["order"]) if e and e.get("order") and "xchg_orders" in st.tables else None
+            if o is not None:
+                lst = st.tables["xchg_listings"][o["listing"]]
+                term = lst.get("term_days")
+                return float(o["amount"]) / (12.0 if term is None else max(float(term) / 30.0, 1.0 / 30.0))
             return 0.0
         prov = self._provider(st, prov_id)
         if prov is None or "cloud" not in self.world.modules:
@@ -534,6 +570,16 @@ class Work(Module):
                     if inv is not None and inv["amount"] - inv["refunded"] > 0 and ctx.now - inv["t"] < 14 * DAY:
                         self._ticket(ctx, p, prov, f"Refund request {s['last_invoice']}",
                                      f"Please refund invoice {s['last_invoice']}: my work kept getting rejected.", 3)
+            e = self.exp(st, i, prov_id)
+            o = st.get("xchg_orders", e["order"]) if e and e.get("order") and "xchg_orders" in st.tables else None
+            if refund and o is not None and o["status"] == "settled" and not o["disputed"] and \
+                    ctx.now <= int(o["dispute_until"]):
+                try:
+                    ctx.call("xchg.dispute", {"order": e["order"],
+                                              "reason": "The service's results keep getting rejected by my employer."},
+                             as_principal=p)
+                except CrucibleError:
+                    pass
         elif prov is not None:
             try:
                 ctx.call("caps.drop_service", {"declaration": prov_id, "reason": "results not accepted"},
@@ -579,8 +625,11 @@ class Work(Module):
             return util
         f = pb.features(w, idx[rows])
         prefs = f["prefs"].astype(np.float64)
+        skills = f["skills"].astype(np.float64)
+        if skills.shape[1] < 4:
+            skills = np.full((rows.size, 4), 0.5)
         contacts = f["contacts"]
-        chosen, evs, shopped, asked = [], [], [], []
+        chosen, evs, shopped, asked, passes, pass_ev = [], [], [], [], [], []
         for k, r in enumerate(rows):
             i = int(idx[r])
             p = ids.pid(i)
@@ -591,22 +640,26 @@ class Work(Module):
                 if need not in wanted:
                     continue
                 sample, _ = _needs()[need].generate(w.rng_for("work-sample", i, need), float(self._col("size")[i]))
-                cands = self._candidates(ctx, p, i, need, contacts[k], sample)
+                cands = self._candidates(ctx, p, i, need, contacts[k], sample, float(skills[k, 3]))
                 best, best_ev = None, 0.0
                 d = float(self._col("diy")[i, s])
                 vot = float(self._col("vot")[i])
                 tasks_m = float(self._col("tasks")[i]) * 22
                 ps = float(prefs[k, 0]) if prefs.shape[1] > 0 else 0.5
                 for prov_id, (prov, prior_acc, how) in sorted(cands.items()):
-                    pacc, nev = self.belief(st, i, prov_id)
+                    key = self._exp_key(prov_id, prov)
+                    pacc, nev = self.belief(st, i, key)
                     if nev == 0:
                         pacc = prior_acc
-                    e = self.exp(st, i, prov_id)
+                    e = self.exp(st, i, key)
                     if e is not None and not e["active"] and e["uses"] >= 3 and pacc < 0.6:
                         continue                                   # tried, did not work, dropped
                     price_m, trial = self._offer_price(st, prov, tasks_m)
                     if price_m is None:
                         continue
+                    if prov["kind"] == "listing":
+                        # buyer protection as the venue's public record shows it: a bad pass may come back
+                        price_m *= 1.0 - (1.0 - pacc) * prov["refund_rate"]
                     gain = tasks_m * (pacc * (d - float(self.cfg("use_min"))) -
                                       (1 - pacc) * float(self.cfg("use_min"))) * vot
                     ev = gain - price_m * (0.6 + 0.8 * ps)
@@ -615,8 +668,12 @@ class Work(Module):
                     if ev > best_ev:
                         best, best_ev = (prov_id, prov), ev
                 if best is not None and self._adopt(ctx, p, i, need, best[0], best[1], sample):
-                    chosen.append(i)
-                    evs.append(best_ev)
+                    if best[1]["kind"] == "listing":
+                        passes.append(i)
+                        pass_ev.append(best_ev)
+                    else:
+                        chosen.append(i)
+                        evs.append(best_ev)
                     util[r] += 0.3
                 elif not cands and ctx.rng("work.ask", i).random() < float(self.cfg("ask_p")):
                     if self._ask(ctx, p, i, need, sample, d):
@@ -626,6 +683,9 @@ class Work(Module):
                           {"last_shop": np.full(len(shopped), now, np.int64)}, mode="set")
         if chosen:
             pb.record_decisions(ctx, "work.adopt", np.array(chosen), {"ev": np.array(evs, np.float32)},
+                                table=TABLE, **MODEL)
+        if passes:
+            pb.record_decisions(ctx, "work.buy_pass", np.array(passes), {"ev": np.array(pass_ev, np.float32)},
                                 table=TABLE, **MODEL)
         if asked:
             pb.record_decisions(ctx, "work.ask", np.array(sorted(set(asked))),
@@ -652,9 +712,9 @@ class Work(Module):
         except CrucibleError:
             return False
 
-    def _candidates(self, ctx, p, i, need, contacts, sample) -> dict:
+    def _candidates(self, ctx, p, i, need, contacts, sample, skill_shop: float = 0.5) -> dict:
         """{provider: (description, prior P(accept), channel)} from search (organic, sponsored), forum posts naming
-        hosts and contacts' word of mouth; only interface-compatible providers are kept."""
+        hosts, contacts' word of mouth and the exchanges' listings; only interface-compatible providers are kept."""
         st, w = ctx.state, ctx.world
         rng = w.rng_for("work-consider", i, ctx.now)
         out: dict = {}
@@ -688,11 +748,49 @@ class Work(Module):
                     told = (r["ok"] + 1.0) / (r["uses"] + 2.0)        # what the contact says about it
                     if rng.random() < 0.7:
                         out[r["prov"]] = (prov, 0.5 * self._public_prior(prov) + 0.5 * told, "contact")
+        xchg = w.modules.get("xchg")
+        if xchg is not None and rng.random() < float(self.cfg("xchg_browse_p")) * (0.5 + skill_shop):
+            for lst in self._exchange_offers(ctx, p, need, sample):
+                if lst["id"] not in out:
+                    out[lst["id"]] = (lst, self._public_prior(lst), "exchange")
         if out:
             # the individual read these candidates' public descriptions (recorded: discovery, evaluator side)
             ctx.emit("work.considered", {"rows": [[int(i), k] for k in sorted(out)],
                                          "via": {k: v[2] for k, v in sorted(out.items())}, "t": int(ctx.now)},
                      vis="internal")
+        return out
+
+    @staticmethod
+    def _exp_key(prov_id: str, prov: dict) -> str:
+        """The provider an experience is about: a listing's product (passes of one product share one record)."""
+        return prov["product"] if prov.get("kind") == "listing" else prov_id
+
+    def _exchange_offers(self, ctx, p, need, sample) -> list[dict]:
+        """Listings on open exchanges of launched service products that serve `need` (public listing data, the
+        seller's verified product rating, the venue's public dispute record)."""
+        st = ctx.state
+        try:
+            rows = ctx.call("xchg.browse", {"delivery": "service", "sort": "price", "limit": 50}, as_principal=p)
+        except CrucibleError:
+            return []
+        venues: dict[str, dict] = {}
+        out = []
+        for r in rows:
+            prod = self._provider(st, r["product"])
+            if prod is None or not self.compatible(st, prod, need, sample):
+                continue
+            v = venues.get(r["exchange"])
+            if v is None:
+                stats = self.world.modules["xchg"].stats(st, r["exchange"], ctx.now)
+                e = st.tables["xchg_exchanges"][r["exchange"]]
+                d = int(stats["disputes_30d"])
+                protect = 0.0 if int(e["dispute_days"]) <= 0 else \
+                    (float(stats["disputes_refunded_30d"]) + 1.0) / (d + 2.0)
+                v = venues[r["exchange"]] = {"refund_rate": protect, "dispute_days": int(e["dispute_days"])}
+            out.append({"kind": "listing", "id": r["listing"], "product": r["product"], "exchange": r["exchange"],
+                        "owner": r["seller"], "host": prod["host"], "need": prod.get("need"),
+                        "price": int(r["price_cents"]), "term_days": r.get("term_days"),
+                        "rating": prod["rating"], "ratings": prod["ratings"], **v})
         return out
 
     def _resolve_result(self, st, r) -> list[str]:
@@ -720,6 +818,10 @@ class Work(Module):
 
     def _offer_price(self, st, prov, tasks_m) -> tuple[float | None, bool]:
         """Monthly cost of the cheapest way to use a provider, and whether a free trial is offered."""
+        if prov["kind"] == "listing":
+            term = prov.get("term_days")
+            months = 12.0 if term is None else max(float(term) / 30.0, 1.0 / 30.0)
+            return float(prov["price"]) / months, False
         if prov["kind"] == "product":
             subs = self.world.modules["subs"]
             plans = subs.public_plans(st, prov["id"])
@@ -737,6 +839,16 @@ class Work(Module):
     def _adopt(self, ctx, p, i, need, prov_id, prov, sample) -> bool:
         st = ctx.state
         pb.fund(ctx, i)
+        if prov["kind"] == "listing":
+            try:
+                res = ctx.call("xchg.buy", {"listing": prov_id}, as_principal=p)
+            except CrucibleError:
+                return False
+            ctx.emit("work.rely", {"key": f"{i}|{prov['product']}", "i": int(i), "prov": prov["product"],
+                                   "active": True, "need": need, "why": "pass bought"}, vis="internal")
+            ctx.emit("work.exp_note", {"key": f"{i}|{prov['product']}", "order": res["order"],
+                                       "order_t": int(ctx.now)}, vis="internal")
+            return True
         try:
             if prov["kind"] == "product":
                 subs = ctx.world.modules["subs"]
@@ -769,6 +881,39 @@ class Work(Module):
         ctx.emit("work.rely", {"key": f"{i}|{prov_id}", "i": int(i), "prov": prov_id, "active": True,
                                "need": need, "why": "adopted"}, vis="internal")
         return True
+
+    # ------------------------------------------------------------------ the labour market (economy.jobs)
+    def act_jobs(self, ctx, idx: np.ndarray, now: int):
+        from . import jobs
+        return jobs.session(self, ctx, idx, now)
+
+    def act_assoc(self, ctx, idx: np.ndarray, now: int):
+        from . import assoc
+        return assoc.session(self, ctx, idx, now)
+
+    def _wake_assoc(self, ctx, day_start: int) -> None:
+        if "inst" not in ctx.world.modules:
+            return
+        from . import assoc
+        who = assoc.due(self, ctx)
+        if who.size == 0:
+            return
+        rng = ctx.rng("work.wake_assoc")
+        at = day_start + int(18 * 3600) + rng.integers(0, 4 * 3600, who.size)
+        for t in sorted(set((at // 900 * 900).tolist())):
+            pb.wake(ctx, who[(at // 900 * 900) == t], int(t), "assoc")
+
+    def _wake_jobs(self, ctx, day_start: int) -> None:
+        if "labor" not in ctx.world.modules:
+            return
+        from . import jobs
+        who = jobs.due(self, ctx)
+        if who.size == 0:
+            return
+        rng = ctx.rng("work.wake_jobs")
+        at = day_start + int(10 * 3600) + rng.integers(-3600, 4 * 3600, who.size)
+        for t in sorted(set((at // 900 * 900).tolist())):
+            pb.wake(ctx, who[(at // 900 * 900) == t], int(t), "jobs")
 
     # ------------------------------------------------------------------ daily
     def _wake_workday(self, ctx, day_start: int) -> None:
@@ -820,6 +965,8 @@ class Work(Module):
                                                                "dormant_until": np.full(back.size, -1, np.int64)},
                           mode="set")
         self._wake_workday(ctx, ctx.now)
+        self._wake_jobs(ctx, ctx.now)
+        self._wake_assoc(ctx, ctx.now)
 
     # ------------------------------------------------------------------ appliers
     @applier("work.outcomes")
