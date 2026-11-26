@@ -10,7 +10,9 @@ populations_in_v5_world == 1: kernel modules of the world that keep a population
 platforms_used_by_population >= 15 and platforms_without_population_activity == 0: the fifteen platforms Part 4
 lists, each counted when the population's own recorded decisions or actions on it exist (impression and consumption
 decision batches per audience platform, relation-table decision batches - follows, shares, community memberships,
-newsletter subscriptions - and events whose actor is a population member: forum posts, messages, memberships);
+newsletter subscriptions - events whose actor is a population member: forum posts, messages, memberships - and the
+social modules' population decision batches that report what their rows did: messages sent, newsletter subscriptions,
+paid memberships);
 duplicate_person_facts == 0: the kernel's shared-fact and data-level duplicate scan (`substrate.primitives.problems`,
 D-21: every per-person fact lives in exactly one owner table)."""
 import pytest

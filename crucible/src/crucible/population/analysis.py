@@ -411,10 +411,11 @@ SPEC_PLATFORMS = {
     "social_networks": {"aud": ["social"], "tables": {"follow": ["social.follow"], "share": []}},
     "communities": {"aud": ["community"], "tables": {"cmember": ["community.join", "community.leave"]},
                     "pop_kinds": ["community.experience"]},
-    "messaging": {"events": {"msg.message": "sender"}},
+    "messaging": {"events": {"msg.message": "sender"}, "pop_extra": [("pop_social.inbox", "sent")]},
     "search": {"pop_kinds": ["popweb.searched"]},
-    "creator_subscriptions": {"events": {"creators.membership": "fan"}},
-    "newsletters": {"tables": {"nlsub": ["letters.subscribe", "letters.unsubscribe"]}},
+    "creator_subscriptions": {"events": {"creators.membership": "fan"}, "pop_extra": [("pop_social.followup", "joined")]},
+    "newsletters": {"tables": {"nlsub": ["letters.subscribe", "letters.unsubscribe"]},
+                    "pop_extra": [("pop_social.followup", "subscribed"), ("pop_social.followup", "unsubscribed")]},
     "product_discovery": {"aud": ["launch"], "pop_kinds": ["pop_social.shop"]},
     "developer_communities": {"aud": ["dev"]},
     "knowledge_sharing": {"aud": ["kb"]},
@@ -441,6 +442,12 @@ def platform_activity(world, events=None) -> dict:
             for name, how in SPEC_PLATFORMS.items():
                 if p["table"] == schema.TABLE and k in how.get("pop_kinds", ()):
                     out[name] += int(p["n"])
+                # population decision batches of the social modules that report what their rows did on a platform
+                # (pop_social.inbox: messages sent; pop_social.followup: newsletter subscriptions, memberships)
+                for kind, field in how.get("pop_extra", ()):
+                    if p["table"] == schema.TABLE and k == kind and \
+                            isinstance((p.get("extra") or {}).get("decision"), dict):
+                        out[name] += max(0, int((p.get("extra") or {}).get(field) or 0))
                 tb = how.get("tables") or {}
                 if p["table"] in tb and isinstance((p.get("extra") or {}).get("decision"), dict) and \
                         (not tb[p["table"]] or k in tb[p["table"]]):
