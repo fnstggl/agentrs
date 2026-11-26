@@ -1,0 +1,3033 @@
+{
+ "version": 1,
+ "project": "CAM Live 1.0",
+ "branch": "feat/cam-live",
+ "spec": "docs/CAM_LIVE_SPEC.md",
+ "status_levels": {
+  "1_engineering_implementation_complete": false,
+  "2_controlled_experimental_validation_complete": false,
+  "3_ready_for_authorized_live_deployment": false,
+  "4_live_experiment_executed": false,
+  "5_scientific_hypothesis_supported": false
+ },
+ "engineering_states": [
+  "not_started",
+  "partial",
+  "implemented",
+  "integrated"
+ ],
+ "verification_states": [
+  "unverified",
+  "verified",
+  "rejected"
+ ],
+ "rules": [
+  "A requirement is engineering-complete only when: state is 'integrated', every claimed file exists and contains no placeholder marker, every acceptance test resolves and has a recorded passing result, at least one integration point is import-reachable from cam_live.agent or cam_live.runtime, and independent verification status is 'verified'.",
+  "The five status levels are separate; none implies the next.",
+  "Only workstream G may set verification.status."
+ ],
+ "requirements": [
+  {
+   "id": "NA-01",
+   "title": "A 4B-8B pretrained semantic backbone is integrated",
+   "spec_ref": "1.2, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-02",
+   "title": "Approximately 50M experiential parameters are implemented",
+   "spec_ref": "1.3, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-03",
+   "title": "Approximately 10M-20M semantic adapter parameters are implemented",
+   "spec_ref": "1.2, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-04",
+   "title": "Actual trainable parameter counts are reported per group",
+   "spec_ref": "1.1, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-05",
+   "title": "Shared high-dimensional latent representations function",
+   "spec_ref": "3, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-06",
+   "title": "The experiential intelligence influences real decisions (not a frozen-LLM wrapper)",
+   "spec_ref": "1.4, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-07",
+   "title": "Fast numerical adaptation functions (Gaussian and non-Gaussian likelihoods)",
+   "spec_ref": "2.1, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-08",
+   "title": "Experiential weights receive real learning gradients",
+   "spec_ref": "2.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-09",
+   "title": "Semantic adapters receive real learning gradients",
+   "spec_ref": "2.3, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-10",
+   "title": "Scaling configurations exist (5M to 1B+)",
+   "spec_ref": "16.10, 18",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-11",
+   "title": "Experience tokens for every item kind; exact values preserved alongside embeddings",
+   "spec_ref": "3.1",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-12",
+   "title": "Trainable conditioning from CAM's latent state into semantic action generation",
+   "spec_ref": "1.4",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "NA-13",
+   "title": "Bayesian adaptation compared against recurrent adaptation and simple statistical baselines",
+   "spec_ref": "2.1",
+   "workstream": "A",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-01",
+   "title": "Action-conditioned consequence prediction works",
+   "spec_ref": "4.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-02",
+   "title": "Predictions are recorded before actual outcomes",
+   "spec_ref": "4.2, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-03",
+   "title": "Actual observations supervise predictive learning",
+   "spec_ref": "4.2, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-04",
+   "title": "Multiple prediction horizons are supported",
+   "spec_ref": "4.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-05",
+   "title": "Uncertainty is represented (epistemic and aleatoric)",
+   "spec_ref": "4.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-06",
+   "title": "Pending outcomes are handled correctly (masked, never invented)",
+   "spec_ref": "4.2, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-07",
+   "title": "Alternative actions can be evaluated through learned-model imagination",
+   "spec_ref": "4.3, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-08",
+   "title": "Experimental action selection is implemented (Thompson, UCB, value, information gain, randomized)",
+   "spec_ref": "5.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-09",
+   "title": "General-purpose dynamic action generation with candidate provenance and selection probabilities",
+   "spec_ref": "5",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "PI-10",
+   "title": "Imagined experience stays distinguishable from real and is never reinforced as an outcome",
+   "spec_ref": "4.3",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-01",
+   "title": "Goal-conditioned success prediction exists",
+   "spec_ref": "6.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-02",
+   "title": "Eventual verified outcomes correct earlier predictions (prefix training)",
+   "spec_ref": "6.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-03",
+   "title": "Distributional outcome prediction exists (magnitude, time, resources; counts and censoring)",
+   "spec_ref": "6.2, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-04",
+   "title": "Prediction calibration is measured on prospectively registered predictions",
+   "spec_ref": "6.4, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-05",
+   "title": "Action quality is distinguished from raw outcome",
+   "spec_ref": "6.3, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SE-06",
+   "title": "Information value is distinguished from surprise (VOI and learned downstream-usefulness estimator)",
+   "spec_ref": "8, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-01",
+   "title": "CAM generates its own internal learning rewards",
+   "spec_ref": "7.2, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-02",
+   "title": "The reward function is trainable",
+   "spec_ref": "7.2, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-03",
+   "title": "The reward function influences actual inner updates",
+   "spec_ref": "7.3, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-04",
+   "title": "Differentiable inner updates function",
+   "spec_ref": "7.3, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-05",
+   "title": "Outer meta-gradient optimization functions",
+   "spec_ref": "7.4, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-06",
+   "title": "Independently verified outcomes supervise meta-learning",
+   "spec_ref": "7.4, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-07",
+   "title": "Meta-gradient correctness tests pass (finite differences, relative error, K in 1,2,4,8)",
+   "spec_ref": "7.7, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-08",
+   "title": "Cold-start learning functions without Crucible (labelled bootstrap mode)",
+   "spec_ref": "7.6, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-09",
+   "title": "Reward-integrity tests exist and execute",
+   "spec_ref": "7.8, 16.6, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-10",
+   "title": "Real-world meta-learning can begin as evidence accumulates (windows within one lifetime)",
+   "spec_ref": "7.5, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "MR-11",
+   "title": "The policy cannot change reward parameters, success criteria or verification records",
+   "spec_ref": "7.2, 7.8",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-01",
+   "title": "Delayed outcomes are linked to earlier experiences with uncertainty",
+   "spec_ref": "9.1, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-02",
+   "title": "RUDDER-style credit redistribution is implemented",
+   "spec_ref": "9.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-03",
+   "title": "Return conservation is verified under the discounting convention",
+   "spec_ref": "9.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-04",
+   "title": "COCOA reference implementation is validated",
+   "spec_ref": "9.3, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-05",
+   "title": "Counterfactual credit estimates support uncertainty and refuse unsupported inference",
+   "spec_ref": "9.3, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-06",
+   "title": "Earlier experiences receive retrospective updates when outcomes mature",
+   "spec_ref": "9.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-07",
+   "title": "Future information cannot leak into historical decisions",
+   "spec_ref": "9.1, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "RC-08",
+   "title": "Default credit estimator is selected by evidence; RUDDER and COCOA are exercised",
+   "spec_ref": "9.4",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-01",
+   "title": "Persistent experience replay functions",
+   "spec_ref": "10.1, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-02",
+   "title": "Actual neural updates occur and change predictions or behaviour",
+   "spec_ref": "10.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-03",
+   "title": "Adapter updates occur",
+   "spec_ref": "10.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-04",
+   "title": "Retention tests function",
+   "spec_ref": "10.3, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-05",
+   "title": "Checkpoint promotion and rollback work",
+   "spec_ref": "10.3, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-06",
+   "title": "Complete restart and recovery are verified",
+   "spec_ref": "15.2, 18",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-07",
+   "title": "Fresh-process weights-only transfer evaluation functions",
+   "spec_ref": "16.8, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-08",
+   "title": "Three learning timescales are scheduled with event-driven triggers",
+   "spec_ref": "2",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CL-09",
+   "title": "Learned weights, reward and priors persist across objectives; fast beliefs are reset",
+   "spec_ref": "10.4",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-01",
+   "title": "The learner can generate its own experiments (registered hypotheses and predictions)",
+   "spec_ref": "11.1, 18",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-02",
+   "title": "The learner can revise its approach when evidence contradicts it",
+   "spec_ref": "11.1, 13.3, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-03",
+   "title": "Self-directed learning functions end to end",
+   "spec_ref": "11.1, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-04",
+   "title": "Goal-free learning mode exists (budgeted)",
+   "spec_ref": "11.4, 18",
+   "workstream": "C",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-05",
+   "title": "The architecture supports subsequent unfamiliar objectives",
+   "spec_ref": "10.4, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-06",
+   "title": "Future distributed actor-learner operation is supported",
+   "spec_ref": "11.3, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-07",
+   "title": "Shadow policy comparison without public interaction",
+   "spec_ref": "11.2",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "AE-08",
+   "title": "Autonomous obstacle resolution through the learned loop, with obstacle records",
+   "spec_ref": "12B",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-01",
+   "title": "The common environment contract is implemented",
+   "spec_ref": "12.1, 18",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-02",
+   "title": "Browser integration is available",
+   "spec_ref": "12.2, 18",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-03",
+   "title": "Sandboxed terminal execution functions",
+   "spec_ref": "12.3, 18",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-04",
+   "title": "Authorized publishing interface exists (draft, preview, approval, publish)",
+   "spec_ref": "12.4, 18",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-05",
+   "title": "Discord integration contract exists (official bot interfaces only)",
+   "spec_ref": "12.5, 18",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-06",
+   "title": "Permitted aggregate analytics ingestion works",
+   "spec_ref": "12.5, 18",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-07",
+   "title": "Credentials remain outside model observations",
+   "spec_ref": "12.6, 18",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-08",
+   "title": "Tool permissions are independently enforced",
+   "spec_ref": "12.6, 18",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-09",
+   "title": "Approval controls function",
+   "spec_ref": "12.6, 18",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-10",
+   "title": "Spending and resource limits function",
+   "spec_ref": "12.6, 18",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-11",
+   "title": "Emergency stop functions",
+   "spec_ref": "12.6, 18",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IH-12",
+   "title": "Adapter implementation guide for replacing the browser or tool harness",
+   "spec_ref": "12.7",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-01",
+   "title": "Persistent Linux computer environment",
+   "spec_ref": "12A.1, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-02",
+   "title": "Full Chromium browser",
+   "spec_ref": "12A.2, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-03",
+   "title": "Native Playwright browser control with the structured primitives",
+   "spec_ref": "12A.2, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-04",
+   "title": "External Chromium (CDP) connection support",
+   "spec_ref": "12A.2, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-05",
+   "title": "Structured accessibility and DOM observations with stale-reference detection",
+   "spec_ref": "12A.2, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-06",
+   "title": "Screenshot-based observations",
+   "spec_ref": "12A.3, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-07",
+   "title": "Lightweight visual-grounding model integration (pinned, reviewed)",
+   "spec_ref": "12A.3, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-08",
+   "title": "Optional advanced GUI model integration",
+   "spec_ref": "12A.3, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-09",
+   "title": "Validated mouse and keyboard execution",
+   "spec_ref": "12A.3, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-10",
+   "title": "Sandboxed Python and shell execution",
+   "spec_ref": "12A.1, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-11",
+   "title": "General-purpose typed action interface",
+   "spec_ref": "12A.6, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-12",
+   "title": "Dynamic action generation over discovered tools",
+   "spec_ref": "12A.6, 12A.17",
+   "workstream": "B",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-13",
+   "title": "Multiple interchangeable execution modalities behind one interface",
+   "spec_ref": "12A.6, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-14",
+   "title": "Persistent authorized browser sessions",
+   "spec_ref": "12A.13, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-15",
+   "title": "Automatically generated executable skills",
+   "spec_ref": "12A.8, 12A.17",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-16",
+   "title": "Independent skill validation",
+   "spec_ref": "12A.8, 12A.17",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-17",
+   "title": "Skill parameterization and reuse",
+   "spec_ref": "12A.8, 12A.17",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-18",
+   "title": "Detection, repair or retirement of outdated or failed skills",
+   "spec_ref": "12A.8, 12A.17",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-19",
+   "title": "Temporally extended actions (primitive, procedure, intervention)",
+   "spec_ref": "12A.9, 12A.17",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-20",
+   "title": "Duration-aware credit assignment; an outcome is counted once across timescales",
+   "spec_ref": "12A.9, 12A.17",
+   "workstream": "D",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-21",
+   "title": "Shared observation and experience representation across modalities",
+   "spec_ref": "12A.5, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-22",
+   "title": "Actual neural learning from interaction experience, independent of the skill library",
+   "spec_ref": "12A.10, 12A.17",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-23",
+   "title": "Concurrent bounded research and computation (background jobs)",
+   "spec_ref": "12A.11, 12A.17",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-24",
+   "title": "Delayed-feedback handling without redundant activity",
+   "spec_ref": "12A.11, 12A.17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-25",
+   "title": "Independent permission enforcement across every execution modality",
+   "spec_ref": "12A.14, 12A.17",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-26",
+   "title": "Prompt-injection resistance tests",
+   "spec_ref": "12A.14, 12A.17",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-27",
+   "title": "Credential isolation tests",
+   "spec_ref": "12A.13, 12A.17",
+   "workstream": "EA",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-28",
+   "title": "Complete execution logging",
+   "spec_ref": "12A.15, 12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-29",
+   "title": "Restart and session recovery of the computer environment",
+   "spec_ref": "12A.17",
+   "workstream": "EB",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-30",
+   "title": "End-to-end computer-use tasks on unfamiliar authorized interfaces",
+   "spec_ref": "12A.17",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-31",
+   "title": "Adaptive execution-modality selection calibrated from experience",
+   "spec_ref": "12A.7",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-32",
+   "title": "Execution-failure taxonomy, bounded retries, no retry or workaround of denials",
+   "spec_ref": "12A.12",
+   "workstream": "ES",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-33",
+   "title": "Primitive-only operation compared with acquired skills (success, operations, cost, latency)",
+   "spec_ref": "12A.17",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CU-34",
+   "title": "Visual models benchmarked on representative controlled computer-use tasks",
+   "spec_ref": "12A.3",
+   "workstream": "EC",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-01",
+   "title": "The Discord objective exists as external task configuration",
+   "spec_ref": "13, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-02",
+   "title": "No predefined Discord-growth strategy is embedded (checked mechanically)",
+   "spec_ref": "13.1, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-03",
+   "title": "Independent membership verification functions",
+   "spec_ref": "13.2, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-04",
+   "title": "The model can autonomously propose community concepts",
+   "spec_ref": "13.1, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-05",
+   "title": "The model can research and generate original useful resources",
+   "spec_ref": "13.3, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-06",
+   "title": "Trial-and-error learning functions",
+   "spec_ref": "13.3, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-07",
+   "title": "Structured experiment logging functions",
+   "spec_ref": "14.2, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-08",
+   "title": "Neural learning-update logging functions",
+   "spec_ref": "14.3, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-09",
+   "title": "Research journal generation functions",
+   "spec_ref": "14.4, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-10",
+   "title": "Monitoring interface and operator controls function",
+   "spec_ref": "15.3, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-11",
+   "title": "Staging validation passes",
+   "spec_ref": "19.4, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-12",
+   "title": "Live deployment preflight passes or explicitly identifies missing authorization or integrations",
+   "spec_ref": "19.5, 18",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-13",
+   "title": "Decision records are written for each consequential decision",
+   "spec_ref": "14.1",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-14",
+   "title": "Experiment boundaries are explicit and enforced; exhaustion checkpoints and pauses",
+   "spec_ref": "13.4",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-15",
+   "title": "Persistent event-driven runtime loop implements the 17 steps",
+   "spec_ref": "15.1",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "LX-16",
+   "title": "CAM Live runs as an independently persistent process",
+   "spec_ref": "12B",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-01",
+   "title": "Baseline A: frozen pretrained model with no persistent learning",
+   "spec_ref": "16.1, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-02",
+   "title": "Baseline B: frozen pretrained model with written experience memory",
+   "spec_ref": "16.1, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-03",
+   "title": "Baseline C: Bayesian adaptive learner on semantic features",
+   "spec_ref": "16.1, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-04",
+   "title": "Baseline D: continual learning without learned intrinsic rewards",
+   "spec_ref": "16.1, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-05",
+   "title": "Calibration experiments execute",
+   "spec_ref": "16.2, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-06",
+   "title": "Delayed-credit experiments execute",
+   "spec_ref": "16.4, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-07",
+   "title": "Meta-gradient experiments execute",
+   "spec_ref": "16.5, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-08",
+   "title": "Reward-integrity experiments execute",
+   "spec_ref": "16.6, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-09",
+   "title": "Learning-efficiency evaluation executes (N_q, S_q, AULC)",
+   "spec_ref": "16.9, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-10",
+   "title": "Parametric-transfer evaluation executes on available independent tasks",
+   "spec_ref": "16.8, 18",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-11",
+   "title": "Real-world experimental results are reported only after genuine execution",
+   "spec_ref": "18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "SV-12",
+   "title": "Model-scaling comparison infrastructure exists",
+   "spec_ref": "16.10",
+   "workstream": "S",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-01",
+   "title": "cam-live doctor",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-02",
+   "title": "cam-live init",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-03",
+   "title": "cam-live test",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-04",
+   "title": "cam-live validate --mode staging",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-05",
+   "title": "cam-live inspect-harness",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-06",
+   "title": "cam-live run",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-07",
+   "title": "cam-live status",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-08",
+   "title": "cam-live pause",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-09",
+   "title": "cam-live resume",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-10",
+   "title": "cam-live evaluate-transfer",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-11",
+   "title": "cam-live export-checkpoint",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "CM-12",
+   "title": "cam-live verify-completion",
+   "spec_ref": "17",
+   "workstream": "F",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-01",
+   "title": "All implementation workstreams are integrated",
+   "spec_ref": "18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-02",
+   "title": "Independent verification inspects actual code",
+   "spec_ref": "18",
+   "workstream": "G",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-03",
+   "title": "Independent verification executes required tests",
+   "spec_ref": "18",
+   "workstream": "G",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-04",
+   "title": "Completion checker verifies mandatory engineering requirements",
+   "spec_ref": "0.3, 18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-05",
+   "title": "Reproduction commands are documented",
+   "spec_ref": "18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-06",
+   "title": "Scientific failures and deployment blockers are explicitly recorded",
+   "spec_ref": "18",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  },
+  {
+   "id": "IN-07",
+   "title": "End-to-end pathway: observation, latent update, action, consequence, internal reward, neural update, changed behaviour",
+   "spec_ref": "19.4",
+   "workstream": "M",
+   "files": [],
+   "integration_points": [],
+   "acceptance_tests": [],
+   "commands": [],
+   "test_results": [],
+   "evidence": [],
+   "engineering_status": "not_started",
+   "verification": {
+    "status": "unverified",
+    "by": "",
+    "notes": ""
+   },
+   "limitations": ""
+  }
+ ]
+}

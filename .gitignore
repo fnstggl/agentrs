@@ -12,3 +12,6 @@ hf_cache/
 # Crucible runtime data
 crucible-data/
 crucible/crucible-data/
+
+# CAM Live
+/cam_live/runs/

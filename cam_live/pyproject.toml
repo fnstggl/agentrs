@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cam-live"
+version = "1.0.0"
+description = "CAM Live 1.0: a continually learning neural agent that acts through a general-purpose computer environment and learns from real consequences"
+requires-python = ">=3.11"
+dependencies = ["torch>=2.4", "transformers>=4.51", "safetensors", "numpy", "pyyaml>=6", "httpx>=0.27",
+                "fastapi>=0.115", "uvicorn>=0.30", "playwright>=1.48", "pillow>=10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-timeout>=2", "scipy"]
+
+[project.scripts]
+cam-live = "cam_live.runtime.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"cam_live" = ["**/*.html", "**/*.js", "**/*.css", "**/*.yaml", "**/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 900
+markers = [
+  "gpu: needs a CUDA GPU and the locally cached Qwen3-4B weights (takes the shared GPU lock itself)",
+  "slow: long-running learning or statistical test",
+  "browser: needs Playwright Chromium",
+  "privileged: needs root to create the separated service uids",
+  "network: needs outbound internet",
+]
