@@ -134,3 +134,19 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
   category/difficulty (36/73); six multi-agent rapid families broken (a0's result returned to all agents, private
   messages visible); kernel verifiers give false early success after one long advance (adapter now steps <=1 h);
   Tier 2/3 absent; no released-label channel upstream (CAM operator implements one).
+
+#### 2026-11-26 (later) — audit complete, seam, wave 3 launched
+
+- Audit `wf_038852ca-d04` done (12 agents, 4.1M tokens): `docs/cam_unified_audit_2026-11-26.json`; binding plan
+  `docs/CAM_UNIFIED_REDESIGN_PLAN_2026-11-26.md` (9 workstreams W1..W9, gates G0..G5, experiments E0..E6).
+- Seam (W1) `wf_f15eec65-2dd`: commits a358e54, ad769dd, b419e78, tag `seam-0` (pushed). Dev decide + 3 updates
+  bit-identical before/after (1,779 tensors). Pre-seam CPU suite: 623 passed, 1 failed (semantic/test_actions
+  replay-refusal), JUnit `docs/evidence/test_results/suite_cpu_20261126.xml`.
+- Usage: 5-hour window hit 93% before the seam finished; extra usage showed $70.67 spent and then disabled (another
+  session on the account may be drawing usage). Wave 3 launched at the 13:52 UTC reset.
+
+## Active jobs (2026-11-26 13:53 UTC)
+
+| Job | Run id | Resume |
+|---|---|---|
+| Wave 3 build/merge/verify/fix | `wf_477a68f9-804` | `Workflow({scriptPath: "<session>/workflows/scripts/...wave3...js" or /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/wave3.js, resumeFromRunId: "wf_477a68f9-804"})`; a copy of the script is `docs/evidence/wave3/wave3.js`. Worktree branches of W2..W9 persist on disk (`git worktree list`). |
