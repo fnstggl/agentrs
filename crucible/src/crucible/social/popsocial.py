@@ -13,6 +13,12 @@ competes for their attention and time with reading, browsing, searching and the 
   one's contacts take part; one may join it. Someone who finds nothing that fits may found a community whose
   subject is what they have been reading (the most frequent words of the titles of their recent views) - subjects
   are never predefined. An owner who leaves hands the community to its most active member.
+* product discovery (4.8): after a session on the product-discovery platform (`launch`), a member who viewed a
+  launch post that interests it may visit the product it links to (`launch.visit`), weigh the price against what it
+  is willing to pay and the reviews of paying customers, buy it from its own bank account (`prod.buy`), use it
+  (`prod.access`, then reading the delivered document: its value is the document's fit to the buyer's interests and
+  its legibility, from the bytes), and rate it (`prod.rate`) - which later visitors read. Everything goes through
+  the commerce tools as the member's own principal; no bonus anywhere.
 * `social.create` - write a piece about what one cares about (the nearest corpus topic to one's interests, with
   personal variation) in one's own words (`population.writing`, from real news text; skill shapes length and
   coherence), store it as one's artifact and publish it on the text platform that suits its length (`posts` for
@@ -42,6 +48,7 @@ from . import content as C
 
 CREATE_MODEL = {"model_id": "pop-create", "model_version": "1", "fidelity_id": "population-creator-model"}
 COMMUNITY_MODEL = {"model_id": "pop-community", "model_version": "1", "fidelity_id": "population-community-model"}
+SHOP_MODEL = {"model_id": "pop-shop", "model_version": "1", "fidelity_id": "population-product-discovery-model"}
 DEFAULTS = {"prior": -1.2, "platforms": {"short": "posts", "long": "blog"}, "minutes": [10.0, 45.0],
             "topic_noise": 0.08, "community_prior": -0.2, "explore": 0.15, "found_threshold": 0.32,
             "found_prob": 0.04, "leave_value": -0.04, "creator_share": 1.0}
@@ -73,6 +80,8 @@ class PopSocial(Module):
                                           "soc_last_item": ("int32", (), -1)})
         population.register_activity(world, "social.create", self.act_create, owner="pop_social",
                                      prior=float(self.cfg["prior"]), goals=(3, 5))
+        if any(m["name"] == "launch" for m in world.spec.modules):
+            world.hooks.setdefault("feed.after_session", {})["launch"] = self.after_launch
         if "community" in world.modules or any(m["name"] == "community" for m in world.spec.modules):
             population.register_activity(world, "social.community", self.act_community, owner="pop_social",
                                          prior=float(self.cfg["community_prior"]), goals=(3, 1))
@@ -371,3 +380,95 @@ def _found(self, ctx: Ctx, i: int, rng) -> str | None:
 PopSocial.act_community = _act_community
 PopSocial._found = _found
 PopSocial.engine = lambda self: self.world.modules["feed"].engine
+
+
+def _sigm(x: float) -> float:
+    return 1.0 / (1.0 + math.exp(-max(-40.0, min(40.0, x))))
+
+
+def _after_launch(self, ctx: Ctx, out: dict) -> np.ndarray:
+    """Members who viewed launch posts: visit, decide, buy, use and rate products (ordinary commerce tools)."""
+    from ..population.core import money_deposit
+    w = ctx.world
+    st = ctx.state
+    idx = out["idx"]
+    U = np.zeros(idx.size)
+    if not np.any(out["view"]) or "products" not in w.modules:
+        return U
+    rng = ctx.rng("pop_social.shop")
+    vv, pp = np.nonzero(out["view"])
+    coords = population.interest_coords(w, idx)
+    wtp = columns.col(w, "pop", "wtp_scale")[idx].astype(np.float64)
+    deciders, bought_n, spent = [], [], []
+    for a, b in zip(vv.tolist(), pp.tolist()):
+        i = int(idx[a])
+        item = int(out["feed"][a, b])
+        cid = st.tables["aud_item_info"][str(item)].get("content_id")
+        L = st.get("launches", cid) if cid else None
+        if L is None or L["link"] != "product":
+            continue
+        aff = float(coords[a] @ AUD.item_col(w, "emb")[item].astype(np.float32))
+        if rng.random() >= _sigm(-1.5 + 6.0 * aff):
+            continue
+        p = ids.ensure_principal(ctx, i)
+        try:
+            page = ctx.call("launch.visit", {"id": cid}, as_principal=p)["page"]
+        except CrucibleError:
+            continue
+        deciders.append(a)
+        offers = sorted(page.get("offers") or [], key=lambda o: (o["price_cents"], o["offer"]))
+        if not offers or page.get("status") != "launched":
+            continue
+        price = int(offers[0]["price_cents"])
+        willing = 2500.0 * wtp[a] * (1.0 + 1.5 * max(aff, 0.0))
+        stars = page.get("rating")
+        rv = 0.0 if stars is None else (float(stars) - 3.0) / 2.0
+        if rng.random() >= _sigm(-1.0 + 3.0 * (willing - price) / max(willing, 1.0) + 1.2 * rv):
+            U[a] -= 0.02
+            continue
+        if int(population.spendable(w, np.array([i]))[0]) < price:
+            continue
+        try:
+            acct = money_deposit(ctx, i)
+            ctx.call("prod.buy", {"offer": offers[0]["offer"], "account": acct}, as_principal=p)
+            got = ctx.call("prod.access", {"product": page["product"]}, as_principal=p)
+        except CrucibleError:
+            continue
+        bought_n.append(a)
+        spent.append(price)
+        # using it: read the delivered document; its value for this buyer comes from its bytes
+        value = -0.1
+        if got.get("doc"):
+            try:
+                doc = ctx.call("docs.get", {"doc": got["doc"]}, as_principal=p)
+                text = str(doc.get("body") or doc.get("text") or doc.get("content") or "")
+            except CrucibleError:
+                text = ""
+            if text.strip():
+                v = semantics.project(semantics.text_vectors(w, [text], ctx=ctx), coords.shape[1])[0]
+                legib = semantics.legibility(semantics.text_features(text))
+                value = float(coords[a] @ v) * (0.3 + 0.7 * legib) - 0.1
+        U[a] += value - 0.3 * price / max(willing, 1.0)
+        stars_given = int(np.clip(round(3 + 6.0 * value), 1, 5))
+        try:
+            ctx.call("prod.rate", {"product": page["product"], "stars": stars_given,
+                                   "text": "worth it" if stars_given >= 4 else ("ok" if stars_given == 3 else
+                                                                                "not worth it")}, as_principal=p)
+        except CrucibleError:
+            pass
+    if deciders:
+        rows = np.unique(np.array(deciders, np.int64))
+        nb = columns.col(w, "pop", "n_purchases")[idx[rows]].astype(np.int64)
+        sp = columns.col(w, "pop", "spent_cents")[idx[rows]].astype(np.int64)
+        for a, c in zip(bought_n, spent):
+            k = int(np.searchsorted(rows, a))
+            nb[k] += 1
+            sp[k] += c
+        population.record_decisions(ctx, "pop_social.shop", idx[rows], {"n_purchases": nb.astype(np.int32),
+                                                                        "spent_cents": sp},
+                                    **SHOP_MODEL, extra={"visits": len(deciders), "purchases": len(bought_n),
+                                                         "revenue_cents": int(sum(spent))})
+    return U
+
+
+PopSocial.after_launch = _after_launch

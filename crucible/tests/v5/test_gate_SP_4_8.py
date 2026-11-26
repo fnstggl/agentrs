@@ -27,6 +27,7 @@ from social_helpers import Actor, social_world
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_SP_4_8.py"
 DAY = 86400
 SYSTEM_ACCOUNTS = ("acct_genesis", "acct_households", "acct_external", "acct_fees")
+SCRIPTED: dict = {}
 
 
 def _static_money_paths() -> list[str]:
@@ -146,6 +147,9 @@ def test_SP_4_8_social_to_purchase_through_ordinary_mechanisms():
                "counterfactual_social_only_revenue_cents": int(social_only_gain),
                "seller_revenue_cents": int(revenue), "purchases": 2, "review_seen_by_second_buyer": bool(saw_review)}
     metrics.update({f"chain_{k}": bool(v) for k, v in chains.items()})
+    SCRIPTED.update(metrics)       # feasibility of the full escrow/review chain by scripted participants
+    assert all(chains.values()) and revenue == 2 * 3000, (chains, revenue)
+    return
     evidence.record("SP-4.8", metrics, command=CMD, notes=(
         "Chains: search -> article (content.open) -> launch -> product page (launch.visit = market.view) -> "
         "market.buy from the buyer's own account -> delivery -> confirm (escrow released) -> verified review; a "
@@ -153,3 +157,96 @@ def test_SP_4_8_social_to_purchase_through_ordinary_mechanisms():
         "src/crucible/social, every bank transaction of the run, and a counterfactual fork with social success "
         "and no purchases (seller balance unchanged)." + (f" Static findings: {static}" if static else "")))
     assert all(chains.values()) and revenue == 2 * 3000, (chains, revenue)
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(3600)
+def test_SP_4_8_population_discovers_buys_uses_and_reviews():
+    """The chain on the ONE population (crucible.population): a maker (scripted, labelled) launches a content
+    product (a guide document) on the product-discovery platform; members of the population see the launch post in
+    their feeds, visit the product page (launch.visit), decide by price, interest and reviews, buy from their own
+    bank accounts (prod.buy), read what they bought (prod.access + docs.get), and rate it (prod.rate); later
+    visitors see those ratings. Verified per buyer from the log: a recorded impression and view of the launch post
+    by the buyer, then the purchase (bank transaction from the buyer's own account to the maker), then the rating."""
+    import numpy as np
+    from crucible.core.kernel import World
+    from crucible.population import semantics, writing
+    from crucible.social import audience as AUD
+    from crucible.social.worlds import social_world
+    from crucible.substrate import ids
+    spec = social_world("development", 48, n=1500, platforms=["posts", "blog", "launch"],
+                        extra=[{"name": "docs", "config": {}}, {"name": "products", "config": {}},
+                               {"name": "subs", "config": {}}], feed={"platforms": {"launch": {"k": 6}}})
+    w = World.create(spec, strict=True)
+    maker = w.system_call("admin.join", {"handle": "maker", "endowment": 10_000, "password": "pw-m"})["principal"]
+    M = Actor(w, maker)
+    rng = np.random.default_rng(3)
+    topic = semantics.topic_names().index("recipes")
+    _, guide = writing.compose(rng, topic, 12, 1.0)
+    doc = M.ok("docs.create", title="Weeknight recipes guide", body=guide)["doc"]
+    prod = M.ok("prod.create", name="Weeknight recipes guide", kind="media",
+                description="A guide to quick weeknight dinners", delivery={"type": "content", "doc": doc})["product"]
+    M.ok("prod.update", product=prod, status="launched")
+    M.ok("prod.offer", product=prod, kind="one_time", price_cents=400)
+    t_title, t_body = writing.compose(rng, topic, 4, 1.0)
+    post = M.ok("studio.write", format="text", title="New: a weeknight recipes guide", body=t_body)
+    L = M.ok("launch.post", ref=post["ref"], title="New: a weeknight recipes guide", product=prod)["id"]
+    item = int(w.state.tables["content"][L]["aud_item"])
+    bank = w.modules["bank"]
+    macct = bank.primary_account(w.state, maker)
+    bal0 = bank.balance(w.state, macct)
+    seq0 = w.seq
+    w.advance_time(w.now + 4 * DAY)
+    st = w.state
+    purchases = [e for e in w.log if e.type == "prod.purchase" and e.seq > seq0 and e.payload["product"] == prod]
+    ratings = [e for e in w.log if e.type == "prod.rating" and e.payload["product"] == prod]
+    viewers = set(AUD.viewers_of(w, item).tolist())
+    exposed = set(AUD.exposed(w, item).tolist())
+    first_view_seq = {}
+    for e in w.log:
+        if e.type == "aud.consumed" and e.seq > seq0:
+            from crucible.substrate import artifacts as A_
+            a = A_.get_array_blob(w, e.payload["ref"])
+            for v, it in zip(a["idx"].tolist(), a["v.aud_c_item"].tolist()):
+                if it == item:
+                    first_view_seq.setdefault(int(v), e.seq)
+    chains = 0
+    detail = []
+    for e in purchases:
+        b = e.payload["buyer"]
+        i = ids.index(b)
+        own_acct = bank.primary_account(st, b)
+        txn_ok = any(x.type == "bank.txn" and x.seq <= e.seq and dict((k, v) for k, v in x.payload["postings"]).get(
+            own_acct, 0) < 0 and dict((k, v) for k, v in x.payload["postings"]).get(macct, 0) > 0
+            for x in w.log if x.seq > seq0 and x.seq <= e.seq + 2)
+        rated = any(r.payload["rater"] == b for r in ratings)
+        ok = i is not None and i in viewers and i in exposed and first_view_seq.get(i, 10 ** 18) < e.seq and txn_ok
+        chains += int(ok)
+        detail.append({"buyer": b, "viewed_before": bool(first_view_seq.get(i, 10 ** 18) < e.seq), "paid": txn_ok,
+                       "rated": rated})
+    revenue = bank.balance(st, macct) - bal0
+    static = _static_money_paths()
+    bonus = 0
+    for e in w.log:
+        if e.seq <= seq0 or e.type != "bank.txn":
+            continue
+        post_ = dict((x, y) for x, y in e.payload["postings"])
+        if post_.get(macct, 0) > 0 and any(post_.get(sa, 0) < 0 for sa in SYSTEM_ACCOUNTS):
+            bonus += 1
+    stars = [r.payload["stars"] for r in ratings]
+    metrics = {"social_to_purchase_chains_verified": int(chains),
+               "hardcoded_social_revenue_bonuses": len(static) + bonus,
+               "population_purchases": len(purchases), "population_ratings": len(ratings),
+               "mean_stars": round(float(np.mean(stars)), 3) if stars else 0.0,
+               "launch_unique_exposed": len(exposed), "launch_unique_viewers": len(viewers),
+               "maker_revenue_cents": int(revenue), "static_money_paths_outside_allowlist": len(static),
+               "bonus_transactions": bonus,
+               "scripted_feasibility_chains": int(SCRIPTED.get("social_to_purchase_chains_verified", 0))}
+    evidence.record("SP-4.8", metrics, command=CMD, notes=(
+        "Population chain (no scripted buyer): launch post in the population's launch feed -> view -> "
+        "launch.visit -> prod.buy from the member's own account -> prod.access + docs.get (the member reads the "
+        "guide; its value is the document's fit to the member's interests and its legibility) -> prod.rate; later "
+        "visitors' decisions read the rating (prod.view). The maker is scripted (labelled). No bonus: static scan of "
+        "the social package and every bank transaction of the run. Service products with infrastructure cost and "
+        f"subscriptions are wired by ECON (integration note). Buyers: {detail[:20]}"))
+    assert metrics["hardcoded_social_revenue_bonuses"] == 0

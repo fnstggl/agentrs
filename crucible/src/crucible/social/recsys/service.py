@@ -228,6 +228,10 @@ class Feed(Module):
             idx = np.asarray(idx, dtype=np.int64)
             out = self.engine.run(ctx, platform, idx)
             u = np.asarray(out.get("utility", np.zeros(np.unique(idx).size)), np.float64)
+            after = (ctx.world.hooks.get("feed.after_session") or {}).get(platform)
+            if after is not None and out.get("sessions"):
+                # what members do next with what they saw (e.g. visit and buy a launched product): ordinary tools
+                u = u + np.asarray(after(ctx, out), np.float64)
             # the engine works on the sorted unique cohort; hand utilities back in the caller's row order
             uniq = np.unique(idx)
             return u[np.searchsorted(uniq, idx)]

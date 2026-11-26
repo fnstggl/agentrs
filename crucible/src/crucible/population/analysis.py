@@ -346,3 +346,43 @@ def behaviours(world, events=None, log=None, minimum: int = 10) -> dict:
     return {"counts": counts, "present": sorted(k for k, c in counts.items() if c >= minimum),
             "browsing_behaviours": sum(1 for c in counts.values() if c >= minimum),
             "attention_violations": len(viol)}
+
+
+def social_behaviours(world, events=None) -> dict:
+    """Counts of the Part 4.1 behaviours the one population performs on the social internet (recorded decision
+    batches and events of the social modules; evaluator side)."""
+    ev = list(_events(world, events))
+    pop_actor = lambda a: isinstance(a, str) and a[:1] == "p" and a[1:].isdigit()  # noqa: E731
+    out = {"browse_feeds": 0, "consume_media": 0, "search_for_information": 0, "follow_creators": 0,
+           "join_communities": 0, "participate_in_discussions": 0, "leave_resources": 0, "share_content": 0,
+           "subscribe": 0}
+    for e in ev:
+        if e.type != "cols.batch":
+            if e.type == "content.published" and pop_actor(e.payload["creator"]) and e.payload.get("community"):
+                out["participate_in_discussions"] += 1
+            elif e.type == "content.comment" and pop_actor(e.payload["author"]):
+                out["participate_in_discussions"] += 1
+            continue
+        p = e.payload
+        k = p["kind"]
+        if p["table"] == schema.TABLE and k.startswith("impress."):
+            out["browse_feeds"] += int(p["n"])
+            src = artifacts.get_array_blob(world, p["ref"])["v.aud_i_src"]
+            from ..social.audience import SOURCE_CODE
+            out["search_for_information"] += int(np.sum(np.isin(src, [SOURCE_CODE["search"],
+                                                                      SOURCE_CODE["search_tool"]])))
+        elif p["table"] == schema.TABLE and k.startswith("consume."):
+            out["consume_media"] += int(p["n"])
+        elif p["table"] == "follow" and k == "social.follow" and (p.get("extra") or {}).get("decision"):
+            out["follow_creators"] += int(p["n"])
+        elif p["table"] == "follow" and k == "social.unfollow":
+            out["leave_resources"] += int(p["n"])
+        elif p["table"] == "share" and (p.get("extra") or {}).get("decision"):
+            out["share_content"] += int(p["n"])
+        elif p["table"] == "cmember" and k == "community.join":
+            out["join_communities"] += int(p["n"])
+        elif p["table"] == "cmember" and k == "community.leave":
+            out["leave_resources"] += int(p["n"])
+        elif p["table"] == "nlsub" and k == "letters.subscribe":
+            out["subscribe"] += int(p["n"])
+    return out
