@@ -131,3 +131,15 @@ def test_semantic_batches_are_counted_per_reply():
                               {"kind": "infer.space.items", "out": {"output_ref": "sha256:x"}}]}))
     ec(E("ext", {"outcomes": [{"kind": "infer.semantic.generate", "out": {"output": [{"text": "a"}] * 3}}]}))
     assert ec.semantic_calls == 2 and ec.semantic_rows == 8 and ec.infer["infer.space.items"] == 1
+
+
+def test_outcomes_handle_resources_created_during_the_run():
+    """Web resources appear during a run (the res table grows): daily reach is padded, not a shape error."""
+    from crucible.scale import approx
+    def snap(n_res, sess):
+        return {"class": np.ones(4, np.int64), "segment": np.zeros(4, np.int64), "n_sessions": np.asarray(sess),
+                "n_purchases": np.zeros(4, np.int64), "spent_cents": np.zeros(4, np.int64),
+                "res_kind": np.zeros(n_res, np.int64), "res_visits": np.arange(n_res), "res_uniq": np.arange(n_res),
+                "res_purchases": np.zeros(n_res, np.int64), "res_revenue_cents": np.zeros(n_res, np.int64)}
+    o = approx.outcomes({"snaps": [snap(2, [0, 0, 0, 0]), snap(3, [1, 0, 2, 0]), snap(5, [2, 1, 2, 0])]})
+    assert o["days"] == 2 and len(o["reach_top"]) == 2 and o["audience_shares"][0] == 1.0
