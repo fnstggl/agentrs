@@ -836,8 +836,9 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
     t = time.time()
     A = creation_arms(creation, workers=workers)
     jm, lm = j_metrics(A), l_metrics(A)
-    au = autonomous_run(autonomous)
-    dm = d_battery()
+    # every civilisation in its own process (the parent holds results only: a lane's RAM grant covers two worlds)
+    au = _in_child("autonomous", autonomous)
+    dm = _in_child("D", None)
     gr = g_runs(workers=workers)
     gm = g_metrics(gr)
     measured = {"D": {k: v for k, v in dm.items() if k.startswith("D.")},
@@ -860,7 +861,27 @@ def run_all(workers: int = 1, creation: dict | None = None, autonomous: dict | N
             "wall_s": round(time.time() - t, 1)}
 
 
+def _in_child(what: str, p: dict | None) -> dict:
+    tmp = tempfile.mkdtemp(prefix=f"civ-redemo-{what}-")
+    path = os.path.join(tmp, "out.json")
+    env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    pr = subprocess.run([sys.executable, "-m", "crucible.civ.redemo", "run", what, json.dumps(p or {}), path],
+                        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if pr.returncode != 0:
+        raise RuntimeError(f"{what} failed: {pr.stderr.decode(errors='replace')[-2000:]}")
+    with open(path) as fh:
+        out = json.load(fh)
+    os.remove(path)
+    return out
+
+
 def _main(argv) -> int:
+    if argv and argv[0] == "run":
+        what, p, path = argv[1], json.loads(argv[2]) or None, argv[3]
+        r = {"autonomous": autonomous_run, "D": d_battery}[what](p)
+        with open(path, "w") as fh:
+            json.dump(r, fh)
+        return 0
     if argv and argv[0] == "arm":
         seed, arm, profile, days, saas_day, path = int(argv[1]), argv[2], argv[3], int(argv[4]), int(argv[5]), argv[6]
         r = creation_arm(seed, arm, profile=profile, days=days, saas_day=saas_day)
