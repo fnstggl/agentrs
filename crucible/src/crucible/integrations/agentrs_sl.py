@@ -72,7 +72,7 @@ class CrucibleSLWorld(World):
     def initialize_world(self, task: Task) -> None:
         self.task = task
         seed = SPLIT_BASE.get(task.split, 0) + int(task.seed)
-        self.goal, w, self.actor, pinfo = make_goal_world(self.goal_family, self.world_family, seed, self.level,
+        self.goal_contract, w, self.actor, pinfo = make_goal_world(self.goal_family, self.world_family, seed, self.level,
                                                           prefix=self.prefix, prefix_kw=self.prefix_kw)
         self.mem0 = EntityMemory()
         for a, r in pinfo.get("history", []):
@@ -87,7 +87,7 @@ class CrucibleSLWorld(World):
         from ..goals.contracts import GoalVerifier
         self.world = CW.from_blob(self.base, world_id=f"{self.world_id}-e{self.n_episode}")
         self.n_episode += 1
-        self.verifier = GoalVerifier(self.goal, self.actor)
+        self.verifier = GoalVerifier(self.goal_contract, self.actor)
         self.verifier.begin(self.world)
         self.next_check = self.world.now + DAY
         self.view = ActorView(self.world, self.actor)
@@ -105,10 +105,10 @@ class CrucibleSLWorld(World):
 
     # ------------------------------------------------------------------ agent view
     def goal(self, agent: str = "0") -> Obs:
-        return Obs(tokens=[f"goal:{self.goal.family}", f"level:{self.level}"] +
-                   [f"metric:{self.goal.progress['metric']}"],
-                   numbers={"target": symlog(float(self.goal.progress.get("target", 0))),
-                            "horizon_days": self.goal.horizon_s / DAY}, text=self.goal.description)
+        return Obs(tokens=[f"goal:{self.goal_contract.family}", f"level:{self.level}"] +
+                   [f"metric:{self.goal_contract.progress['metric']}"],
+                   numbers={"target": symlog(float(self.goal_contract.progress.get("target", 0))),
+                            "horizon_days": self.goal_contract.horizon_s / DAY}, text=self.goal_contract.description)
 
     def observe(self, agent: str = "0") -> Obs:
         o = self._obs
@@ -237,7 +237,7 @@ class CrucibleSLWorld(World):
 
     def evaluate_goal(self, agent: str = "0") -> GoalStatus:
         st = self.verifier.status(self.world)
-        left = max(0.0, 1.0 - max(self.n_dec / self.max_decisions, st["elapsed_s"] / self.goal.horizon_s))
+        left = max(0.0, 1.0 - max(self.n_dec / self.max_decisions, st["elapsed_s"] / self.goal_contract.horizon_s))
         return GoalStatus(success=bool(st["success"]), progress=float(st["progress"]), violated=None,
                           score=float(st["progress"]), time_left=left)
 
