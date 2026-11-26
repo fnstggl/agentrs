@@ -177,22 +177,25 @@ class _Tier2(V5Probe):
         me = env.agents()[0]
         return d, env, me, d.objective(env.world, me, diff)
 
-    def _reference_day(self, d, env, me, obj) -> dict:
+    def _reference_day(self, d, env, me, obj, policy=None, days: float = 1.0) -> dict:
         from ...domains import drive
-        return drive(env, {me: d.reference_policy(me, obj)}, days=1.0, dt=int(getattr(d, "dt", 3600)), trace=False)
+        policy = policy if policy is not None else d.reference_policy(me, obj)
+        return drive(env, {me: policy}, days=days, dt=int(getattr(d, "dt", 3600)), trace=False)
 
 
 class Tier2OfflineAndIsolated(_Tier2):
     attack_class = "evaluator_independence/hidden_answer"
     gates = ("W.2", "W.8")
+    EXTEND_S = 90.0              # wall-clock budget for driving beyond the first day
 
     def __init__(self, domain: str, config: str):
         super().__init__(domain, config)
         self.name = f"v5.tier2.{domain}.{config}.offline_and_evaluator_isolated"
         self.description = (f"Tier 2 domain {domain}, evaluation configuration {config}, built through the learner's own "
-                            "path: under the network guard the domain's scripted reference acts for a simulated day; "
-                            "the evaluator's measurements of the seat (Domain.evaluate and the environment's "
-                            "verify()) are then taken as canaries and the seat sweeps every read-only tool it has "
+                            "path: under the network guard the domain's scripted reference acts for a simulated day "
+                            "(and on, in chunks within the horizon and a time budget, until the evaluator's outcome "
+                            "has distinctive numbers); the evaluator's measurements of the seat (Domain.evaluate and "
+                            "the environment's verify()) are then taken as canaries and the seat sweeps every read-only tool it has "
                             "with every identifier it finds and reads its observation stream. Checked: no network "
                             "attempt at all, and no evaluator value reaches the seat.")
 
@@ -203,10 +206,10 @@ class Tier2OfflineAndIsolated(_Tier2):
             try:
                 d, env, me, obj = self._env()
                 try:
-                    self.drive = self._reference_day(d, env, me, obj)
-                    # the evaluator's own measurements only (verify()'s bookkeeping - event count, digest - is public)
-                    res = {"evaluate": d.evaluate(env.world, me, obj),
-                           "verify_evaluation": (env.verify().get("evaluation") or {})}
+                    import time as _time
+                    policy = d.reference_policy(me, obj)
+                    self.drive = self._reference_day(d, env, me, obj, policy)
+                    self.days = 1.0
 
                     def walk(x, path):
                         if isinstance(x, dict):
@@ -219,19 +222,69 @@ class Tier2OfflineAndIsolated(_Tier2):
                             dd = distinctive(x)
                             if dd:
                                 self.canaries.setdefault(dd, path)
-                    walk(res, "evaluator")
+
+                    def measure():
+                        # the evaluator's own measurements only (verify()'s bookkeeping - event count, digest - is
+                        # public)
+                        walk({"evaluate": d.evaluate(env.world, me, obj),
+                              "verify_evaluation": (env.verify().get("evaluation") or {})}, "evaluator")
+                    measure()
+                    # one simulated day often leaves the evaluator's outcome without a distinctive number (the
+                    # isolation half would be vacuous): the same reference keeps acting, in chunks of up to five
+                    # days within the domain's horizon, until the outcome has distinctive values or the time
+                    # budget is spent
+                    horizon = float(getattr(d, "horizon_days", 30.0) or 30.0)
+                    t0 = _time.monotonic()
+                    while not self.canaries and self.days < horizon and _time.monotonic() - t0 < self.EXTEND_S:
+                        chunk = min(5.0, horizon - self.days)
+                        more = self._reference_day(d, env, me, obj, policy, days=chunk)
+                        for a, x in (more.get("agents") or {}).items():
+                            y = self.drive.setdefault("agents", {}).setdefault(a, {"actions": 0})
+                            y["actions"] = int(y.get("actions") or 0) + int(x.get("actions") or 0)
+                        self.days += chunk
+                        measure()
+                    # the seat's own funds are its own knowledge (its accounts' balances, read through ordinary bank
+                    # tools): an evaluator detail that equals one of them is not a leak of the evaluator's
+                    # measurement (e.g. a cash target checked against the seat's own balance)
+                    self.own = self._own_funds(env, me)
+                    self.self_observable = {k: v for k, v in self.canaries.items() if k in self.own}
+                    for k in self.self_observable:
+                        self.canaries.pop(k, None)
                     self.received = sweep_read_only(_EnvParticipant(env), me, rounds=1, max_calls=1200)
                 finally:
                     env.close()
             finally:
                 self.attempts = list(g.attempts)
 
+    @staticmethod
+    def _own_funds(env, me) -> set:
+        """Distinctive renderings (cents and dollars) of the balances of the accounts the seat itself can read."""
+        out = set()
+        try:
+            accts = env.world.query(me, "bank.accounts", {})
+        except Exception:  # noqa: BLE001 - a world without the bank's account listing: nothing to exclude
+            return out
+        rows = accts.get("accounts", accts) if isinstance(accts, dict) else accts
+        for r in rows if isinstance(rows, list) else []:
+            if not isinstance(r, dict):
+                continue
+            for k in ("balance", "balance_cents", "available"):
+                v = r.get(k)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    for x in (v, v / 100.0, int(round(v))):
+                        dd = distinctive(x)
+                        if dd:
+                            out.add(dd)
+        return out
+
     def verdict(self, ev: Evaluator) -> Verdict:
         hits = scan_hits(self.received, self.canaries)
         acted = sum(int(x.get("actions") or 0) for x in (self.drive.get("agents") or {}).values())
         evd = {"network_attempts": self.attempts[:20], "network_escapes": len(self.attempts), "reference_actions": acted,
                "canaries": len(self.canaries), "hits": dict(list(hits.items())[:10]), "evaluator_leaks": len(hits),
-               "texts_examined": len(self.received)}
+               "texts_examined": len(self.received), "simulated_days": getattr(self, "days", None),
+               "isolation_vacuous": not self.canaries,
+               "self_observable_excluded": dict(list(getattr(self, "self_observable", {}).items())[:10])}
         if self.attempts:
             from ..framework import INTEGRITY_BREAK
             return Verdict(INTEGRITY_BREAK, f"a Tier 2 world tried to reach the network: {self.attempts[:3]}", evd,
@@ -240,10 +293,11 @@ class Tier2OfflineAndIsolated(_Tier2):
             return Verdict(LEAK, f"{len(hits)} evaluator measurement(s) of the domain reached the participant", evd,
                            severity="high")
         if not self.canaries:
-            return Verdict(HELD, f"offline ({acted} reference actions in a day); the evaluator's outcome after a day "
-                                 "held no distinctive value to look for (the isolation half is vacuous here)", evd)
-        return Verdict(HELD, f"offline ({acted} reference actions in a day); none of {len(self.canaries)} evaluator "
-                             "values appeared in any participant tool", evd)
+            return Verdict(HELD, f"offline ({acted} reference actions in {self.days:g} days); the evaluator's outcome "
+                                 "held no distinctive value to look for within the time budget (the isolation half "
+                                 "is vacuous here)", evd)
+        return Verdict(HELD, f"offline ({acted} reference actions in {self.days:g} days); none of {len(self.canaries)} "
+                             "evaluator values appeared in any participant tool", evd)
 
 
 class Tier2NoMetricWriteTools(NoMetricWriteTools):
