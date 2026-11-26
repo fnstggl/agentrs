@@ -71,13 +71,19 @@ the substrate's batch blobs 4-9%; sandboxed site fetches 5-7%; class-3 decisions
   walks `web_links` and calls `goals.metrics.is_related` per linking host: 174k calls).
 * Why: the rank signal of a document depends on world state (links, listings, page text), not on the query, but is
   recomputed for every (query, document) pair; `_candidates` issues the same query text (`task_text(need)`) for every
-  shopper with the same need.
+  shopper with the same need. There are 8 needs (`economy.needs.NEEDS`), so the 33,219 searches of a large day ask at
+  most 8 distinct questions (with one `search_limit`): about 346 searches per 15-minute tick for at most 8 distinct
+  organic result lists. `Search.search` is documented as pure (state and hooks only); the per-searcher effects (ad
+  impressions, `learn` of hosts) are in `ep_query`, after it.
 * Proposed change: (a) memoise the rank-signal product per document in `world.runtime`, invalidated by the appliers
   of the tables it reads (`web_links`, `hosts`, `web_pages`, `listings`): a per-table version counter bumped in those
   appliers, the memo keyed by (doc id, versions); (b) memoise `_organic(toks, kind, limit)` per tick on the same
   versions plus `search_docs`'s version (pure: reads state only; the per-searcher side effects - ad impressions,
   `learn` of hosts - stay in `ep_query`). Outputs are identical (pure functions of the same state), so 4.0 regression
-  trajectories do not change. Expected: the shopping activity's cost drops by most of its 24%.
+  trajectories do not change. Expected: the shopping activity's cost drops by most of its 24% at the standard
+  profile; at the large profile, if the memo survives a tick (the tables it reads change little between two
+  shoppers), `_organic` runs at most 8 times per tick instead of ~346: 486 of 698 CPU-s of day 2 become ~11 CPU-s,
+  about 16 simulated days per CPU-hour instead of 5.2 (T3: 3.75).
 
 ### R2 - social/consumption.py `Engine.run` / social/recsys (owner: C, social)
 
