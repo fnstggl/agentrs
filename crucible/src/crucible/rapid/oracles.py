@@ -445,11 +445,14 @@ def _is_pg(eng) -> bool:
     return isinstance(eng, PrimitiveGraph)
 
 
-def _family_hook(family: str, which: str):
-    """A family's own evaluator-side function ("module:function" in its registry entry), if it names one."""
+def _family_hook(env_or_family, which: str):
+    """A family's own evaluator-side function ("module:function" in its registry entry), or None. Accepts the
+    environment or the family name."""
     import importlib
     from .families import FAMILIES
-    ref = getattr(FAMILIES.get(family), which, None)
+    family = env_or_family if isinstance(env_or_family, str) else env_or_family.family
+    fam = FAMILIES.get(family)
+    ref = getattr(fam, which, None) if fam is not None else None
     if not ref:
         return None
     mod, fn = ref.split(":")
@@ -462,7 +465,7 @@ def oracle(env) -> dict:
     from .engines.graph_dynamical import GraphDynamical
     from .engines.state_machine import StateMachine
     eng = env._engine
-    hook = _family_hook(env.family, "oracle")
+    hook = _family_hook(env, "oracle")
     if hook is not None:
         return hook(env)
     obj = (env._config.get("objective") or {}).get("type")

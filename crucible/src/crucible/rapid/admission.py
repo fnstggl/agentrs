@@ -50,7 +50,7 @@ EVALUATOR_MODULES = ("crucible.rapid.oracles", "crucible.rapid.admission", "cruc
                      "crucible.rapid.identify", "crucible.rapid.references", "crucible.rapid.fingerprints",
                      "crucible.rapid.primitive_checks", "crucible.rapid.report", "crucible.mechanisms.evaluator",
                      "crucible.mechanisms.validity", "crucible.rapid.eval_program_exec",
-                     "crucible.rapid.eval_experiment_lab")
+                     "crucible.rapid.eval_experiment_lab", "crucible.rapid.evaluator_h2")
 WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid.families", "crucible.rapid.actions",
                  "crucible.rapid.observation", "crucible.rapid.mechview", "crucible.rapid.batch",
                  "crucible.rapid.program", "crucible.rapid.generator", "crucible.rapid.primitives")

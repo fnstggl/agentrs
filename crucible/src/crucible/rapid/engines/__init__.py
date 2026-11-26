@@ -9,5 +9,7 @@ from . import state_machine  # noqa: F401,E402
 from . import search  # noqa: F401,E402
 from . import program_exec  # noqa: F401,E402
 from . import experiment_lab  # noqa: F401,E402
+from . import planning  # noqa: F401,E402  (H2)
+from . import strategic  # noqa: F401,E402  (H2)
 
 V5_ENGINES = tuple(sorted(ENGINE_KINDS))
