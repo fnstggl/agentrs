@@ -2248,3 +2248,23 @@ B_population verdict) and P's own findings.
  "summary": "Content judgement is a closed 160-word bag-of-words x length/distinct-token score: a meaningless word-salad of topic words scored as well as a 'rich' article site (utility 0.099 vs 0.090, 1-day return 0.21 vs 0.18) and an agent's thin site equalled its rich site (0.152 vs 0.147)."
 }
 ```
+
+### DEF-P-26 (high, open): 4.0 test tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living is order-dependent on t
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-26",
+ "owner": "O (sandbox metering, D-20) / A",
+ "requirements": [
+  "A.1"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream P wave 3 (c5c/w3-qa): adversarial verification",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "4.0 test tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living is order-dependent on the merged tree 87a6c54: it passes alone but fails when tests/test_learners.py ran earlier in the same process (the junk service gets long_term_adoption 1.0 instead of 0.0); at c07098b the same pair passes (71 passed). Suspected cause: process-wide state introduced since 4.0, most likely the D-20 deterministic-cost memo (crucible.sandbox.metering.MEMO, keyed by world lineage, which bills the first parent-side measurement of a computation for every later identical one in the process) or measured-CPU billing replacing the executed-line count; not yet confirmed."
+}
+```
