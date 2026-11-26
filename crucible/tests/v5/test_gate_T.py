@@ -208,6 +208,7 @@ def test_T5_curriculum_selection_from_measured_behaviour(reference):
     """The curriculum reads its weights after the same measurement budget as T.8 (80 items; D-69 addendum)."""
     r = CL.selection_experiment(seeds=(0, 1, 2), n_items=CL.T8_DESIGN["measure_items"], reference=reference)
     record("T.5", {"weakness_selection_pvalue": r["p_value"], "mean_rank_of_measured_weakness": r["mean_rank"],
+                   "mean_rank_of_other_learners_weakness": r["mismatched_mean_rank"],
                    "runs": len(r["runs"]), "categories": len(CU.WEAKNESSES)},
            notes=f"Per run (planted, seed, measured weakest category, its rank in the curriculum weights): "
                  f"{[(x['planted'], x['seed'], x['weakest_measured'], x['rank']) for x in r['runs']]}")

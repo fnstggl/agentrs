@@ -203,8 +203,17 @@ def selection_experiment(planted: Sequence[str] = tuple(PLANTED), seeds: Sequenc
             runs.append({"planted": p, "seed": sd, "weakest_measured": weakest, "rank": order.index(weakest) + 1,
                          "weights": w, "truth_excess_regret": truth})
     ranks = [r["rank"] for r in runs]
+    # adversarial check of the statistic (not the preregistered test): the rank, in the same run's weights, of the
+    # weakest category of the OTHER planted learners. A curriculum that favours some categories whatever the
+    # learner does would rank those as well as the matched one; one that reads the learner ranks the matched lower.
+    weakest = {r["planted"]: r["weakest_measured"] for r in runs}
+    mism = []
+    for r in runs:
+        order = sorted(WEAKNESSES, key=lambda c: -r["weights"][c])
+        mism += [order.index(w) + 1 for p, w in weakest.items() if p != r["planted"] and w != r["weakest_measured"]]
     return {"runs": runs, "mean_rank": float(np.mean(ranks)), "p_value": rank_pvalue(ranks, len(WEAKNESSES)),
-            "reference_regret": ref}
+            "reference_regret": ref, "mismatched_mean_rank": float(np.mean(mism)) if mism else None,
+            "mismatched_pairs": len(mism)}
 
 
 def rank_pvalue(ranks: Sequence[int], k: int) -> float:
