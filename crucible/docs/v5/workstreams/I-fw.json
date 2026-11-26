@@ -144,7 +144,8 @@
   "tests/test_v5_experience_oo.py -k tier2": "1 passed",
   "tests/test_kernel.py tests/test_invariants.py": "51 passed (CPU, 21 s)",
   "tests/v5/test_gate_N.py (8 tests, each run alone on CPU)": "8 failed BY DESIGN at the final 15-section assertion (0 Part 9 domains on this branch); every positive control passed before it (unofficial evidence: control_fixture_implemented True, control_broken_evaluator_implemented False, numbers-only config detected, planted unrecorded mechanic event missing, evaluator replay equal, world-reading reference flagged, 3 instances per configuration, compositional 1 / structural 1, spelled-out path and named reference detected, sandbox cannot import crucible)",
-  "tests/v5/test_gate_SP_9_0.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture autonomous, open-ended, composes into balanced civ in 6 h, inert actor 0 events, numbers-only pair detected)"
+  "tests/v5/test_gate_SP_9_0.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture autonomous, open-ended, composes into balanced civ in 6 h, inert actor 0 events, numbers-only pair detected)",
+  "tests/v5/test_gate_SP_9_16.py": "1 failed BY DESIGN at the 15-section assertion; controls passed (fixture null fails, probes fail, reference feasible, 0 dice; planted always-succeeding evaluator makes the null succeed; planted failure dice detected)"
  },
  "history": [],
  "compatibility_checks": {
