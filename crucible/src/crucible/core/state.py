@@ -38,6 +38,10 @@ class StateStore:
         self._journal: list | None = None
         self._arr_saved: set[str] | None = None
         self.ctr_dirty: dict[str, int] = {}
+        # 5.0 (D-21): counters allocated while a same-transaction subscriber runs (side_depth > 0) are recorded
+        # separately, so the kernel can keep them off the main line (see World._commit)
+        self.ctr_side: dict[str, int] = {}
+        self.side_depth = 0
         # 5.0: which module declared which table (set by the kernel around Module.install; runtime only - not part of
         # snapshots or digests). Used by crucible.substrate.primitives to find duplicate shared facts.
         self.declaring: str | None = None
@@ -158,7 +162,10 @@ class StateStore:
         v = self.meta.get(k, 0) + 1
         self.meta_set(k, v)
         if self._journal is not None:
-            self.ctr_dirty[k] = v
+            if self.side_depth:
+                self.ctr_side[k] = v
+            else:
+                self.ctr_dirty[k] = v
         return v
 
     def new_id(self, prefix: str) -> str:
@@ -204,6 +211,8 @@ class StateStore:
         self._journal = []
         self._arr_saved = set()
         self.ctr_dirty = {}
+        self.ctr_side = {}
+        self.side_depth = 0
 
     def savepoint(self) -> int:
         if self._journal is None:
@@ -229,6 +238,8 @@ class StateStore:
         self._journal = None
         self._arr_saved = None
         self.ctr_dirty = {}
+        self.ctr_side = {}
+        self.side_depth = 0
 
     def _undo(self, e: tuple) -> None:
         kind = e[0]

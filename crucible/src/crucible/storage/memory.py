@@ -49,9 +49,11 @@ class MemoryStore(Store):
         par = self.worlds[world_id]["parent"]
         return par["seq"] if par else 0
 
-    def read_events(self, world_id, from_seq=0, to_seq=None):
+    def read_events(self, world_id, from_seq=0, to_seq=None, types=None):
+        types = None if types is None else set(types)
         return [copy.deepcopy(e) for e in self.events[world_id]
-                if e["seq"] > from_seq and (to_seq is None or e["seq"] <= to_seq)]
+                if e["seq"] > from_seq and (to_seq is None or e["seq"] <= to_seq)
+                and (types is None or e["type"] in types)]
 
     def last_seq(self, world_id):
         log = self.events[world_id]
@@ -88,3 +90,9 @@ class MemoryStore(Store):
 
     def get_blob(self, key):
         return self.blobs.get(key)
+
+    def delete_blob(self, key):
+        self.blobs.pop(key, None)
+
+    def blob_sizes(self, prefix=""):
+        return {k: len(v) for k, v in sorted(self.blobs.items()) if k.startswith(prefix)}

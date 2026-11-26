@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
 CREATE INDEX IF NOT EXISTS snapshots_world ON snapshots(world_id, seq);
 CREATE TABLE IF NOT EXISTS blobs (key TEXT PRIMARY KEY, data BLOB NOT NULL);
 """
+_EV_COLS = "seq, t, type, actor, cmd, payload, vis, hash, via"
 
 
 class SQLiteStore(Store):
@@ -35,6 +36,10 @@ class SQLiteStore(Store):
         self._sync = synchronous
         c = self._conn()
         c.executescript(_SCHEMA)
+        # 5.0 (D-21): `via` (module of the subscriber that emitted a side event; NULL otherwise). Added in place to
+        # stores written by older versions.
+        if "via" not in {r[1] for r in c.execute("PRAGMA table_info(events)")}:
+            c.execute("ALTER TABLE events ADD COLUMN via TEXT")
         c.commit()
 
     def _conn(self) -> sqlite3.Connection:
@@ -87,9 +92,10 @@ class SQLiteStore(Store):
             for i, e in enumerate(events):  # the whole batch must be contiguous, not just its first event
                 if e["seq"] != last + 1 + i:
                     raise StoreConflict(f"non-contiguous append to {world_id}: {e['seq']} after {last + i}")
-            c.executemany("INSERT INTO events(world_id, seq, t, type, actor, cmd, payload, vis, hash) VALUES (?,?,?,?,?,?,?,?,?)",
+            c.executemany("INSERT INTO events(world_id, seq, t, type, actor, cmd, payload, vis, hash, via) "
+                          "VALUES (?,?,?,?,?,?,?,?,?,?)",
                           [(world_id, e["seq"], e["t"], e["type"], e["actor"], e["cmd"], dumps(e["payload"]),
-                            dumps(e["vis"]), e["hash"]) for e in events])
+                            dumps(e["vis"]), e["hash"], e.get("via")) for e in events])
             c.execute("COMMIT")
         except sqlite3.IntegrityError as e:
             c.execute("ROLLBACK")
@@ -98,15 +104,18 @@ class SQLiteStore(Store):
             c.execute("ROLLBACK")
             raise
 
-    def read_events(self, world_id, from_seq=0, to_seq=None):
-        q = "SELECT seq, t, type, actor, cmd, payload, vis, hash FROM events WHERE world_id=? AND seq>?"
+    def read_events(self, world_id, from_seq=0, to_seq=None, types=None):
+        q = f"SELECT {_EV_COLS} FROM events WHERE world_id=? AND seq>?"
         a: list = [world_id, from_seq]
         if to_seq is not None:
             q += " AND seq<=?"
             a.append(to_seq)
+        if types is not None:
+            types = sorted(set(types))
+            q += f" AND type IN ({','.join('?' * len(types))})"
+            a.extend(types)
         q += " ORDER BY seq"
-        return [{"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": json.loads(r[5]),
-                 "vis": json.loads(r[6]), "hash": r[7]} for r in self._conn().execute(q, a)]
+        return [_ev(r) for r in self._conn().execute(q, a)]
 
     def last_seq(self, world_id):
         c = self._conn()
@@ -146,8 +155,30 @@ class SQLiteStore(Store):
         r = self._conn().execute("SELECT data FROM blobs WHERE key=?", (key,)).fetchone()
         return bytes(r[0]) if r else None
 
+    def delete_blob(self, key):
+        self._conn().execute("DELETE FROM blobs WHERE key=?", (key,))
+
+    def blob_sizes(self, prefix=""):
+        rs = self._conn().execute("SELECT key, LENGTH(data) FROM blobs WHERE key >= ? AND key < ? ORDER BY key",
+                                  (prefix, prefix + "\uffff"))
+        return {r[0]: int(r[1]) for r in rs}
+
+    def compact_file(self):
+        """Give the pages of deleted blobs back to the file system (after retention dropped blobs)."""
+        c = self._conn()
+        c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        c.execute("VACUUM")
+
     def close(self):
         c = getattr(self._local, "c", None)
         if c is not None:
             c.close()
             self._local.c = None
+
+
+def _ev(r) -> dict:
+    d = {"seq": r[0], "t": r[1], "type": r[2], "actor": r[3], "cmd": r[4], "payload": json.loads(r[5]),
+         "vis": json.loads(r[6]), "hash": r[7]}
+    if r[8] is not None:
+        d["via"] = r[8]
+    return d

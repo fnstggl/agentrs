@@ -32,6 +32,7 @@ from .state import StateStore
 KERNEL_VERSION = "crucible-kernel/1"
 SYSTEM = "sys"
 GENESIS_HASH = "0" * 32
+SIDE_KEY = "side_events"   # state.meta: number of side (subscriber-emitted) events; absent in 4.0 worlds
 
 
 # ====================================================================== data types
@@ -45,10 +46,17 @@ class Event:
     payload: dict
     vis: tuple | str  # tuple of principal ids, "public", or "internal" (evaluator / audit only)
     hash: str = ""
+    # 5.0: the module whose same-transaction subscriber emitted this event (a "side" event, see World._notify), or
+    # "kernel" for the counter record of side contexts; None for every other event. Part of the hashed body only
+    # when set, so logs without subscribers are byte-identical to 4.0.
+    via: str | None = None
 
     def body(self) -> dict:
-        return {"seq": self.seq, "t": self.t, "type": self.type, "actor": self.actor, "cmd": self.cmd,
-                "payload": self.payload, "vis": list(self.vis) if isinstance(self.vis, tuple) else self.vis}
+        d = {"seq": self.seq, "t": self.t, "type": self.type, "actor": self.actor, "cmd": self.cmd,
+             "payload": self.payload, "vis": list(self.vis) if isinstance(self.vis, tuple) else self.vis}
+        if self.via is not None:
+            d["via"] = self.via
+        return d
 
     def to_dict(self) -> dict:
         d = self.body()
@@ -59,7 +67,19 @@ class Event:
     def from_dict(cls, d: dict) -> "Event":
         vis = d["vis"]
         return cls(d["seq"], d["t"], d["type"], d["actor"], d["cmd"], d["payload"],
-                   tuple(vis) if isinstance(vis, list) else vis, d.get("hash", ""))
+                   tuple(vis) if isinstance(vis, list) else vis, d.get("hash", ""), d.get("via"))
+
+
+BODY_KEYS = ("seq", "t", "type", "actor", "cmd", "payload", "vis")
+
+
+def event_body(d: dict) -> dict:
+    """The hashed body of a stored event dict (what the hash chain covers): the seven 4.0 fields plus `via` when
+    the event was emitted by a same-transaction subscriber."""
+    b = {k: d[k] for k in BODY_KEYS}
+    if d.get("via") is not None:
+        b["via"] = d["via"]
+    return b
 
 
 @dataclass
@@ -205,8 +225,9 @@ class Ctx:
         self.origin = origin or actor
         self.cmd = cmd
         self.depth = depth
-        # key under which this transaction's external outcomes are recorded: the seq of its first event
-        self.ext_key = world._tx_seq0 + 1
+        # key under which this transaction's external outcomes are recorded: the main-line position of its first
+        # event (= its seq when no subscriber emitted events before it, as in 4.0)
+        self.ext_key = world._tx_main0 + 1
         self.events: list[Event] = []
         self.ext: list[Any] = []
         self._ext_i = 0
@@ -216,6 +237,10 @@ class Ctx:
         self.read_only = False
         self.gov_approved: str | None = None  # set while executing an approved governance proposal
         self.quiet = False                    # 5.0: True only in the rejection transaction (no subscribers run)
+        # 5.0 (D-21): a same-transaction subscriber runs in a *side* context: its events carry `via` (its module) and
+        # its random draws come from its own stream, so it never shifts the emitter's draws or main-line positions
+        self.via: str | None = None
+        self.stream: tuple | None = None
 
     @property
     def now(self) -> int:
@@ -225,8 +250,22 @@ class Ctx:
         return self.world._emit(self, type, payload or {}, vis)
 
     def rng(self, *keys: Any) -> np.random.Generator:
+        """A seeded generator for this transaction. Main-line contexts draw at their main-line position (the 4.0
+        key: with no subscriber events the main-line position IS the event sequence number); side contexts
+        (subscribers and everything they call) draw from their own stream, keyed by (owner, main-line position,
+        event type, notification index), which no other module's events can shift."""
         self._rng_n += 1
-        return self.world.rng_for("cmd", self.world.seq, self._rng_n, *keys)
+        if self.stream is not None:
+            return self.world.rng_for("sub", *self.stream, self._rng_n, *keys)
+        return self.world.rng_for("cmd", self.world.main_seq, self._rng_n, *keys)
+
+    def _child(self, principal: str) -> "Ctx":
+        sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
+        sub.ext_key, sub.events, sub.ext = self.ext_key, self.events, self.ext
+        if self.stream is not None:
+            # a call made by a side context stays on its side stream (distinct sub-stream per call site)
+            sub.via, sub.stream = self.via, (*self.stream, "call", self._rng_n)
+        return sub
 
     def fail(self, exc: type[CrucibleError], msg: str, **details) -> None:
         raise exc(msg, **details)
@@ -251,10 +290,7 @@ class Ctx:
         errs = S.validate(ep.params, args)
         if errs:
             raise InvalidAction("; ".join(errs[:5]), tool=tool)
-        sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
-        sub.ext_key = self.ext_key
-        sub.events = self.events
-        sub.ext = self.ext
+        sub = self._child(principal)
         sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = tool, args, ep.read_only, self.gov_approved
         mark = self.state.savepoint()
         n_ev, seq0, n_ext = len(self.events), self.world.seq, len(self.ext)
@@ -275,8 +311,7 @@ class Ctx:
     def run_as(self, principal: str, fn: Callable[..., Any], *args, **kw) -> Any:
         """Module-internal: run `fn(sub_ctx, ...)` acting as `principal` inside this transaction. If it raises a
         CrucibleError its partial effects are rolled back to a savepoint and the error propagates."""
-        sub = Ctx(self.world, principal, self.cmd, origin=self.origin, depth=self.depth + 1)
-        sub.ext_key, sub.events, sub.ext = self.ext_key, self.events, self.ext
+        sub = self._child(principal)
         sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = self.tool, self.tool_args, self.read_only, \
             self.gov_approved
         mark = self.state.savepoint()
@@ -350,6 +385,8 @@ class World:
         self._heap: list[tuple] = []
         self._seq_at_mark: dict[int, int] = {}
         self._tx_seq0 = 0
+        self._tx_main0 = 0
+        self._sub_n: dict[tuple, int] = {}   # per-transaction notification counters of side streams
         self._regen: dict | None = None
         self.modules: dict[str, Module] = {}
         self.endpoints: dict[str, Endpoint] = {}
@@ -479,6 +516,14 @@ class World:
     def now(self) -> int:
         return self.state.meta["clock"]
 
+    @property
+    def main_seq(self) -> int:
+        """5.0 (D-21): the main-line position - the number of events so far that were NOT emitted by a
+        same-transaction subscriber (`via` events). Random draws and external-outcome keys of main-line contexts
+        are keyed by it, so adding, removing or changing a subscriber (an observer, a validator, a coupling) never
+        reshuffles the randomness of the rest of the world. Equal to `seq` in any world without side events."""
+        return self.seq - self.state.meta.get(SIDE_KEY, 0)
+
     # ------------------------------------------------------------------ principals & knowledge
     def _ensure_principal(self, ctx: Ctx, pid: str, kind: str, info: dict | None = None) -> None:
         if not self.state.has("principals", pid):
@@ -546,7 +591,7 @@ class World:
         elif isinstance(vis, str) and vis not in ("public", "internal"):
             vis = (vis,)
         self.seq += 1
-        ev = Event(self.seq, self.now, type, ctx.actor, ctx.cmd, payload, vis)
+        ev = Event(self.seq, self.now, type, ctx.actor, ctx.cmd, payload, vis, "", ctx.via)
         self._apply(ev)
         ctx.events.append(ev)
         if self.subscribers and not ctx.quiet:
@@ -561,15 +606,24 @@ class World:
         partial effects are undone and the error propagates to the emitting handler, so an uncaught failure rolls the
         whole command back. Replay never calls subscribers (it applies recorded events, theirs included);
         regeneration re-runs them through the handlers, so they must be deterministic."""
-        for _owner, fn in list(subs):
+        for owner, fn in list(subs):
             if ctx.depth >= 8:
                 raise InvalidAction("event subscription depth limit exceeded", event=ev.type)
             sub = Ctx(self, SYSTEM, ctx.cmd, origin=ctx.origin, depth=ctx.depth + 1)
             sub.ext_key, sub.events, sub.ext = ctx.ext_key, ctx.events, ctx.ext
             sub.tool, sub.tool_args, sub.read_only, sub.gov_approved = ctx.tool, ctx.tool_args, ctx.read_only, \
                 ctx.gov_approved
+            # D-21: a side context. Its events are marked `via=owner` (they do not advance the main line) and its
+            # draws come from its own stream keyed only by main-line coordinates, the owner and the event type, so
+            # the emitter's stream is untouched (4.0 advanced it by the subscriber's draws: an observer effect)
+            mpos = self.main_seq
+            k = (owner, mpos, ev.type)
+            i = self._sub_n.get(k, 0)
+            self._sub_n[k] = i + 1
+            sub.via, sub.stream = owner, (owner, mpos, ev.type, i)
             mark = self.state.savepoint()
             n_ev, seq0 = len(ctx.events), self.seq
+            self.state.side_depth += 1
             try:
                 fn(sub, ev)
             except Exception:
@@ -578,20 +632,34 @@ class World:
                 self.seq = seq0
                 raise
             finally:
-                ctx._rng_n += sub._rng_n + 1000
+                self.state.side_depth -= 1
 
     def _apply(self, ev: Event) -> None:
         fn = self.appliers.get(ev.type)
         if fn is None:
             raise ProtocolError(f"no applier for event type {ev.type!r}")
         fn(ev)
+        if ev.via is not None:
+            # kernel bookkeeping reproduced identically by replay (it applies the same events): the count of side
+            # events, from which main_seq is derived. Journaled, so rollbacks undo it with the events.
+            self.state.meta_set(SIDE_KEY, self.state.meta.get(SIDE_KEY, 0) + 1)
 
     def _commit(self, ctx: Ctx) -> None:
+        side_only = sorted(k for k in self.state.ctr_side if k not in self.state.ctr_dirty)
+        self.state.ctr_side = {}
         if self.state.ctr_dirty:
             dirty = {k: self.state.meta[k] for k in sorted(self.state.ctr_dirty) if k in self.state.meta}
             self.state.ctr_dirty = {}
             if dirty:
                 self._emit(ctx, "ctr", dirty, "internal")
+        if side_only:
+            # counters only side contexts allocated: recorded in a side `ctr` event, so a subscriber that allocates
+            # ids never adds a main-line event to a transaction that would otherwise have none
+            side = Ctx(self, SYSTEM, ctx.cmd)
+            side.events, side.via = ctx.events, "kernel"
+            vals = {k: self.state.meta[k] for k in side_only if k in self.state.meta}
+            if vals:
+                self._emit(side, "ctr", vals, "internal")
         h = self.last_hash
         for ev in ctx.events:
             h = chain_hash(h, canonical_bytes(ev.body()))
@@ -616,6 +684,8 @@ class World:
     def _begin(self) -> None:
         self.state.begin()
         self._tx_seq0 = self.seq
+        self._tx_main0 = self.main_seq
+        self._sub_n = {}
         self._seq_at_mark = {}
 
     def _rollback(self) -> None:
@@ -939,7 +1009,9 @@ class World:
 
     @classmethod
     def from_blob(cls, blob: bytes, world_id: str | None = None, store=None, fork: bool = False,
-                  strict: bool = False) -> "World":
+                  strict: bool = False, *, load: bool = True) -> "World":
+        """A world from a snapshot blob. `load=False` skips `Module.on_load` (replay calls it itself, once, after
+        the store is attached and the remaining events are applied: D-21, cross-process resume)."""
         import pickle
         d = pickle.loads(zlib.decompress(blob))
         spec = WorldSpec.from_dict(d["spec"])
@@ -962,8 +1034,9 @@ class World:
                                                                    "hash": d["hash"]})
             store.put_snapshot(f"s-{digest([w.world_id, w.seq, w.last_hash])[:16]}", w.world_id, w.seq, w.last_hash,
                                blob)
-        for mod in w.modules.values():
-            mod.on_load(w)
+        if load:
+            for mod in w.modules.values():
+                mod.on_load(w)
         return w
 
     @classmethod
@@ -999,9 +1072,11 @@ class World:
         """Rebuild a world by applying recorded events (from genesis, or on top of a snapshot).
 
         5.0: `store` is where content-addressed blobs referenced by events (artifact bytes, `cols.batch` arrays) can
-        be read while applying; replay never writes to it."""
+        be read while applying; replay never writes to it. It is attached BEFORE any event is applied and before
+        `Module.on_load` runs (once, at the end), so a module that rebuilds runtime state from blobs (adaptive
+        policies from their checkpoints) finds them in a fresh process (D-21)."""
         if base_blob is not None:
-            w = cls.from_blob(base_blob, world_id=world_id)
+            w = cls.from_blob(base_blob, world_id=world_id, load=False)
         else:
             w = cls(spec, world_id)
         if store is not None:

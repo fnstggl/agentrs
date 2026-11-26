@@ -51,7 +51,10 @@ class Store(ABC):
     def append_events(self, world_id: str, events: list[dict]) -> None: ...
 
     @abstractmethod
-    def read_events(self, world_id: str, from_seq: int = 0, to_seq: int | None = None) -> list[dict]: ...
+    def read_events(self, world_id: str, from_seq: int = 0, to_seq: int | None = None,
+                    types=None) -> list[dict]:
+        """Events with from_seq < seq <= to_seq in order (only those of `types` when given). An event emitted by a
+        same-transaction subscriber also carries `via` (5.0, D-21)."""
 
     @abstractmethod
     def last_seq(self, world_id: str) -> int: ...
@@ -75,6 +78,14 @@ class Store(ABC):
         raise NotImplementedError
 
     def get_blob(self, key: str) -> bytes | None:
+        raise NotImplementedError
+
+    def delete_blob(self, key: str) -> None:
+        """5.0 retention (crucible.substrate.retention): drop one blob."""
+        raise NotImplementedError
+
+    def blob_sizes(self, prefix: str = "") -> dict[str, int]:
+        """5.0 retention: {key: byte size} of the blobs whose key starts with `prefix`."""
         raise NotImplementedError
 
     def latest_snapshot(self, world_id: str) -> dict | None:
@@ -120,6 +131,7 @@ def verify_anchor(store: Store, anchor: dict, world_id: str | None = None) -> li
     another head), a truncated tail, any break of the chain before the anchor, a different world or
     specification. Events appended after the anchor are fine - the log is append-only."""
     from ..core.canonical import canonical_bytes, chain_hash, digest
+    from ..core.kernel import event_body
     if not isinstance(anchor, dict) or anchor.get("schema") != ANCHOR_SCHEMA:
         return ["not an anchor record"]
     wid = world_id or anchor["world_id"]
@@ -137,7 +149,7 @@ def verify_anchor(store: Store, anchor: dict, world_id: str | None = None) -> li
         if e["seq"] != last + 1:
             problems.append(f"gap in the stored log at {last + 1}")
             break
-        h = chain_hash(h, canonical_bytes({k: e[k] for k in ("seq", "t", "type", "actor", "cmd", "payload", "vis")}))
+        h = chain_hash(h, canonical_bytes(event_body(e)))
         if h != e["hash"]:
             problems.append(f"hash chain broken at seq {e['seq']}")
             break
