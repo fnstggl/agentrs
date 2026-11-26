@@ -21,8 +21,13 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
 | inference concurrency | `--inference N` | N token files per job; `crucible.scale.governor.inference()` (used by `substrate.inference.recorded`) holds one per call, job-wide across processes |
 | active worlds | `--worlds N` | every `World` registers on construction (`governor.register_world`); job-wide count; construction beyond N raises `ResourceLimitExceeded` |
 
-Admission is FIFO: a request is admitted only when it is at the head of the queue and fits, so small requests cannot
-starve a large one. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
+Admission is FIFO with backfill: the head of the queue is admitted when it fits; a request behind it is admitted
+only when it fits next to what is held plus the whole of every request ahead of it, in the dimensions it uses
+(`fits_behind`). So small requests cannot starve a large one (an earlier request is never delayed by a later one:
+its share stays free), and a job that needs nothing the head is waiting for (a CPU-only job while a GPU job waits
+for a GPU slot) does not idle behind it. A head that waits only for free disk gives up after `DISK_WAIT_S`
+(exit status 75) instead of blocking the queue. Ledger and queue entries carry their process's start time, so a
+reused pid never keeps a dead holder's slot; signals go through a pidfd after the same identity check. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
 time; widen it only with `--set-budget`, which keeps a history), so a caller cannot enlarge it through its own
 environment. Requests larger than the budget are clamped to it (and the record says so). Liveness reads the process
 state, so a zombie holds nothing. The supervisor is a child subreaper: descendants that detach from the command (a
@@ -304,6 +309,23 @@ def _stat(pid: int) -> list[str] | None:
     return s[s.rindex(")") + 2:].split()
 
 
+def _starttime(pid: int) -> str | None:
+    """The process's start time in clock ticks since boot (/proc/<pid>/stat field 22): with the pid, a process
+    identity that survives pid reuse."""
+    st = _stat(pid)
+    return st[19] if st is not None else None
+
+
+def _holder_alive(entry: dict) -> bool:
+    """A ledger or queue entry is live while its process is alive and is the process that made it (an entry that
+    recorded its process's start time is dead once that pid belongs to another process)."""
+    pid = int(entry["pid"])
+    if not _alive(pid):
+        return False
+    start = entry.get("start")
+    return start is None or _starttime(pid) in (None, str(start))
+
+
 def _alive(pid: int) -> bool:
     """True while the process exists and is not a zombie (a zombie holds no resources and no slot)."""
     st = _stat(pid)
@@ -442,28 +464,48 @@ def _ledger(d: str | None = None):
     with open(os.path.join(d, "lock"), "a+") as lk:
         fcntl.flock(lk, fcntl.LOCK_EX)
         path, qpath = os.path.join(d, "ledger.json"), os.path.join(d, "queue.json")
-        try:
-            with open(path) as fh:
-                held = json.load(fh)
-        except (OSError, ValueError):
-            held = []
-        try:
-            with open(qpath) as fh:
-                queue = json.load(fh)
-        except (OSError, ValueError):
-            queue = []
-        held = [h for h in held if _alive(int(h["pid"]))]          # reclaim entries of dead or zombie holders
-        queue = [q for q in queue if _alive(int(q["pid"]))]
+        raw = {}
+        for p in (path, qpath):
+            try:
+                with open(p) as fh:
+                    raw[p] = fh.read()
+            except OSError:
+                raw[p] = ""
+        held, queue = _loads_list(raw[path]), _loads_list(raw[qpath])
+        held = [h for h in held if _holder_alive(h)]          # reclaim entries of dead, zombie or replaced holders
+        queue = [q for q in queue if _holder_alive(q)]
         box = {"held": held, "queue": queue}
         try:
             yield box
         finally:
-            for p, v in ((path, box["held"]), (qpath, box["queue"])):
-                tmp = f"{p}.{os.getpid()}.tmp"
-                with open(tmp, "w") as fh:
-                    json.dump(v, fh)
-                os.replace(tmp, p)
-            fcntl.flock(lk, fcntl.LOCK_UN)
+            try:
+                for p, v in ((path, box["held"]), (qpath, box["queue"])):
+                    text = json.dumps(v)
+                    if text == raw[p]:
+                        continue                       # unchanged: no write (dozens of waiters poll this file)
+                    tmp = f"{p}.{os.getpid()}.tmp"
+                    try:
+                        with open(tmp, "w") as fh:
+                            fh.write(text)
+                        os.replace(tmp, p)
+                    except OSError:
+                        try:
+                            os.unlink(tmp)
+                        except OSError:
+                            pass
+                        raise
+            finally:
+                fcntl.flock(lk, fcntl.LOCK_UN)
+
+
+def _loads_list(text: str) -> list:
+    if not text.strip():
+        return []
+    try:
+        v = json.loads(text)
+    except ValueError:
+        return []
+    return [x for x in v if isinstance(x, dict) and "pid" in x] if isinstance(v, list) else []
 
 
 def _ram_of(h: dict) -> int:
@@ -536,11 +578,56 @@ def choose_cpus(held: list[dict], n: int, allowed: list[int] | None = None) -> l
     return sorted(sorted(allowed, key=lambda c: (use[c], *key(c)))[:n])
 
 
+class AdmissionError(RuntimeError):
+    """A request that the scheduler will not admit (it waited at the head of the queue only for free disk that did
+    not appear within DISK_WAIT_S)."""
+
+
+def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budget: Budget, *,
+                ram_mb: int | None = None, disk_mb: int = 0, inference: int = 0, worlds: int = 0,
+                free_disk_mb: float | None = None) -> bool:
+    """Backfill rule: a request that is not at the head of the queue may start now only if it fits next to what is
+    held PLUS the whole of every request ahead of it in the queue, counting only the dimensions it uses. A request
+    ahead therefore never waits longer because of one behind it (its share of every dimension stays free for it;
+    in the dimension it is short of, a request behind is admitted only if it uses none of it - e.g. CPU-only jobs
+    while a GPU job waits for a GPU slot), and FIFO order holds among requests that compete for the same
+    resource."""
+    pend = [{"cpu": int(a.get("cpu") or 1), "gpu_mb": int(a.get("gpu_mb") or 0), "ram_mb": a.get("ram_mb"),
+             "disk_mb": a.get("disk_mb"), "inference": a.get("inference"), "worlds": a.get("worlds")}
+            for a in ahead]
+    allx = list(held) + pend
+    if len(allx) + 1 > budget.jobs:
+        return False
+    if sum(int(h["cpu"]) for h in allx) + max(1, int(cpu)) > budget.cpus:
+        return False
+    if gpu_mb > 0:
+        if sum(int(h.get("gpu_mb") or 0) for h in allx) + gpu_mb > budget.gpu_mb:
+            return False
+        if budget.gpu_jobs is not None and sum(1 for h in allx if int(h.get("gpu_mb") or 0) > 0) + 1 > budget.gpu_jobs:
+            return False
+    if budget.ram_mb is not None and sum(_ram_of(h) for h in allx) + _ram_of({"cpu": cpu, "ram_mb": ram_mb}) \
+            > budget.ram_mb:
+        return False
+    for key, want in (("disk_mb", disk_mb), ("inference", inference), ("worlds", worlds)):
+        cap = getattr(budget, key)
+        if cap is not None and want and sum(int(h.get(key) or 0) for h in allx) + want > cap:
+            return False
+    if disk_mb and free_disk_mb is not None and \
+            free_disk_mb - budget.disk_floor_mb - sum(int(a.get("disk_mb") or 0) for a in pend) < disk_mb:
+        return False
+    return True
+
+
+BACKFILL = True                          # requests behind the head may start when they cannot delay it (fits_behind)
+DISK_WAIT_S = 900.0                      # the head gives up when only free disk keeps it waiting this long
+
+
 def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, poll_s: float = 2.0,
             timeout_s: float | None = None, pid: int | None = None, *, ram_mb: int | None = None,
             gpu_s: int | None = None, disk_mb: int | None = None, inference: int | None = None,
             worlds: int | None = None, job: str | None = None, d: str | None = None) -> dict:
-    """Wait (FIFO) until the request fits, then record it. Returns the ledger entry (pinned CPUs, clamped grant)."""
+    """Wait (FIFO, with backfill that never delays an earlier request) until the request fits, then record it.
+    Returns the ledger entry (pinned CPUs, clamped grant)."""
     d = d or slots_dir()
     eff = _tighter(stored_budget(d, default=budget), budget)
     req, cut = clamp({"cpu": int(cpu), "gpu_mb": max(0, int(gpu_mb)), "ram_mb": ram_mb, "disk_mb": disk_mb,
@@ -548,9 +635,11 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
     pid = int(pid or os.getpid())
     ticket = uuid.uuid4().hex[:12]
     t0 = time.time()
-    qentry = {"ticket": ticket, "pid": os.getpid(), "since": t0, "label": label[:80], **req}
+    qentry = {"ticket": ticket, "pid": os.getpid(), "start": _starttime(os.getpid()), "since": t0,
+              "label": label[:80], **req}
     with _ledger(d) as box:
         box["queue"].append(qentry)
+    disk_blocked_since = None
     try:
         while True:
             free = None
@@ -560,21 +649,33 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                 except OSError:
                     free = 0.0
             eff = _tighter(stored_budget(d), budget)          # a budget change applies to waiting requests
+            dims = dict(ram_mb=req["ram_mb"], disk_mb=int(req["disk_mb"] or 0), inference=int(req["inference"] or 0),
+                        worlds=int(req["worlds"] or 0))
             with _ledger(d) as box:
                 q = box["queue"]
                 if not any(x["ticket"] == ticket for x in q):
                     q.append(qentry)
+                pos = next(i for i, x in enumerate(q) if x["ticket"] == ticket)
                 others = [h for h in box["held"] if h.get("reserving") != ticket]
-                head = q[0]["ticket"] == ticket
-                if head and fits(others, req["cpu"], req["gpu_mb"], eff, ram_mb=req["ram_mb"],
-                                 disk_mb=int(req["disk_mb"] or 0), inference=int(req["inference"] or 0),
-                                 worlds=int(req["worlds"] or 0), free_disk_mb=free):
+                head = pos == 0
+                if head:
+                    admit = fits(others, req["cpu"], req["gpu_mb"], eff, free_disk_mb=free, **dims)
+                    if not admit and free is not None and fits(others, req["cpu"], req["gpu_mb"], eff, **dims):
+                        disk_blocked_since = disk_blocked_since or time.time()
+                    else:
+                        disk_blocked_since = None
+                else:
+                    real = [h for h in box["held"] if not h.get("reserving")]
+                    admit = BACKFILL and fits_behind(real, q[:pos], req["cpu"], req["gpu_mb"], eff,
+                                                     free_disk_mb=free, **dims)
+                if admit:
                     box["queue"] = [x for x in q if x["ticket"] != ticket]
-                    entry = {"pid": pid, "cpu": req["cpu"], "gpu_mb": req["gpu_mb"], "label": label,
-                             "since": time.time(), "v": 2, "job": job or ticket,
+                    entry = {"pid": pid, "start": _starttime(pid), "cpu": req["cpu"], "gpu_mb": req["gpu_mb"],
+                             "label": label, "since": time.time(), "v": 2, "job": job or ticket,
                              "cpus": choose_cpus(others, req["cpu"]), "ram_mb": req["ram_mb"], "gpu_s": gpu_s,
                              "disk_mb": req["disk_mb"], "inference": req["inference"], "worlds": req["worlds"],
-                             "clamped": cut, "waited_s": round(time.time() - t0, 3)}
+                             "clamped": cut, "waited_s": round(time.time() - t0, 3), "queue_pos": pos,
+                             "backfilled": not head}
                     box["held"] = others + [entry]
                     return entry
                 if head:
@@ -585,11 +686,16 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                     r_cpu = max(0, min(req["cpu"], eff.cpus - used_cpu))
                     r_gpu = max(0, min(req["gpu_mb"], eff.gpu_mb - used_gpu))
                     if r_cpu or r_gpu:
-                        box["held"] = others + [{"pid": os.getpid(), "cpu": r_cpu, "gpu_mb": r_gpu, "ram_mb": 0,
+                        box["held"] = others + [{"pid": os.getpid(), "start": qentry["start"], "cpu": r_cpu,
+                                                 "gpu_mb": r_gpu, "ram_mb": 0,
                                                  "label": f"(reserving for) {label}"[:120], "since": t0, "v": 2,
                                                  "reserving": ticket, "cpus": []}]
                     else:
                         box["held"] = others
+            if disk_blocked_since is not None and time.time() - disk_blocked_since > DISK_WAIT_S:
+                raise AdmissionError(f"waited {DISK_WAIT_S:.0f}s at the head of the queue for "
+                                     f"{req['disk_mb']} MB of free disk above the {eff.disk_floor_mb} MB floor "
+                                     f"({free:.0f} MB free); ask for less disk or free some")
             if timeout_s is not None and time.time() - t0 > timeout_s:
                 raise TimeoutError(f"no slot for cpu={cpu} gpu_mb={gpu_mb} within {timeout_s}s")
             time.sleep(poll_s)
@@ -673,6 +779,7 @@ class Job:
     leader: subprocess.Popen | None = None
     sid: int = -1
     known: set = field(default_factory=set)
+    start: dict = field(default_factory=dict)          # pid -> start time when first seen as a member
     violations: list = field(default_factory=list)
     signals: list = field(default_factory=list)
     killed_by: str | None = None
@@ -707,6 +814,8 @@ def _tree(job: Job) -> list[int]:
         st = _stat(p)
         if st is None or st[0] in "ZX":
             continue
+        if job.start.setdefault(p, st[19]) != st[19]:
+            job.start[p] = st[19]             # the pid now names a newer process found inside the job's tree
         seen.add(p)
         stack.extend(_children(p))
     seen.discard(os.getpid())
@@ -717,11 +826,33 @@ def _tree(job: Job) -> list[int]:
 def _signal_tree(job: Job, sig: int) -> None:
     """Signal the job's processes - only those, re-checked as members right before the signal."""
     for p in _tree(job):
-        try:
-            os.kill(p, sig)
-            job.signals.append([p, int(sig)])
-        except (ProcessLookupError, PermissionError):
-            pass
+        _signal_member(job, p, sig)
+
+
+def _signal_member(job: Job, pid: int, sig: int) -> bool:
+    """Signal one member found by `_tree`. The process is pinned by a pidfd first and its start time compared with
+    the one seen when it was found inside the job's tree, so a pid that was reused by another process between the
+    check and the signal is never signalled (no race with pid reuse)."""
+    fd = None
+    try:
+        fd = os.pidfd_open(pid)
+    except (OSError, AttributeError):
+        fd = None
+    try:
+        st = _stat(pid)
+        if st is None or st[0] in "ZX" or job.start.get(pid) != st[19]:
+            return False
+        if fd is not None:
+            signal.pidfd_send_signal(fd, sig)
+        else:
+            os.kill(pid, sig)
+        job.signals.append([pid, int(sig)])
+        return True
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def _reap(job: Job) -> None:
@@ -1132,9 +1263,16 @@ def main(argv: list[str] | None = None) -> int:
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, _term)
     b = Budget.from_dict(json.loads(a.budget_json)) if a.budget_json else None
-    rec = run_job(cmd, a.cpu, a.gpu_mb, a.label, b, timeout_s=a.timeout, ram_mb=a.ram_mb, gpu_s=a.gpu_s,
-                  disk_mb=a.disk_mb, disk_dirs=a.disk_dir, inference=a.inference, worlds=a.worlds,
-                  sample_s=a.sample, orphan_grace_s=a.orphan_grace, poll_s=a.poll, cli=True)
+    try:
+        rec = run_job(cmd, a.cpu, a.gpu_mb, a.label, b, timeout_s=a.timeout, ram_mb=a.ram_mb, gpu_s=a.gpu_s,
+                      disk_mb=a.disk_mb, disk_dirs=a.disk_dir, inference=a.inference, worlds=a.worlds,
+                      sample_s=a.sample, orphan_grace_s=a.orphan_grace, poll_s=a.poll, cli=True)
+    except AdmissionError as exc:
+        print(f"[crucible.scale.slots] not admitted: {exc}", file=sys.stderr)
+        if a.record_out:
+            with open(a.record_out, "w") as fh:
+                json.dump({"rc": 75, "killed_by": f"not admitted: {exc}", "violations": [], "signals": []}, fh)
+        return 75
     if a.record_out:
         with open(a.record_out, "w") as fh:
             json.dump(rec, fh)
