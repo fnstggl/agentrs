@@ -14,6 +14,7 @@ are compared (equal when the models give the same outputs on the same device).
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -30,7 +31,9 @@ import crucible
 crucible.load_all_modules()
 from crucible.core.kernel import World
 from crucible.semantic import generalists as G
-w = World.from_blob(open(sys.argv[1], "rb").read(), world_id="sp33c-proc")
+from crucible.storage.sqlite import SQLiteStore
+# the snapshot blob plus the artifact bytes it references (policy weights, texts), exported into a store
+w = World.from_blob(open(sys.argv[1], "rb").read(), world_id="sp33c-proc", store=SQLiteStore(sys.argv[2]))
 before = json.dumps(G.members(w), sort_keys=True, default=str)
 w.advance_time(w.now + 43200)
 print(json.dumps({"before": before, "digest": w.digest(), "rows": G.members(w)}, default=str))
@@ -62,17 +65,26 @@ def test_SP_3_3c_semantic_participants_persist_and_are_bound_to_population_rows(
         return int(b["counts"].get("activations", 0)) > int(a["counts"].get("activations", 0)) and goals_kept \
             and mem_kept and hist_kept
     continued = sum(1 for a, b in zip(rows0, rows_r) if continued_from(a, b))
-    with tempfile.NamedTemporaryFile(suffix=".blob", delete=False) as fh:
+    from crucible.storage.sqlite import SQLiteStore
+    from crucible.substrate import artifacts
+    tmp = tempfile.mkdtemp(prefix="sp33c-")
+    path, db = os.path.join(tmp, "world.blob"), os.path.join(tmp, "artifacts.sqlite")
+    with open(path, "wb") as fh:
         fh.write(blob)
-        path = fh.name
+    st = SQLiteStore(db)
+    exported = artifacts.export(r, st)          # bytes a new process needs (they live in this process's pool)
+    st.close()
     env = dict(os.environ)
-    p = subprocess.run([sys.executable, "-c", RESUME, path], capture_output=True, text=True, env=env, timeout=7200)
-    os.unlink(path)
+    p = subprocess.run([sys.executable, "-c", RESUME, path, db], capture_output=True, text=True, env=env,
+                       timeout=7200)
+    shutil.rmtree(tmp, ignore_errors=True)
     assert p.returncode == 0, p.stderr[-3000:]
     proc = json.loads(p.stdout.strip().splitlines()[-1])
     m = {"semantic_participants_bound_to_population": bound["bound"], "class4_rows": bound["class4_rows"],
          "state_rows": bound["state_rows"], "state_restored_exactly": restored,
          "state_restored_in_new_process": proc["before"] == json.dumps(rows0, sort_keys=True, default=str),
+         "artifacts_exported_for_new_process": int(exported.get("copied", 0)) + int(exported.get("present", 0)),
+         "artifacts_missing_for_new_process": len(exported.get("missing", [])),
          "participants_continued_after_resume": continued,
          "resumed_digest_equal_in_process": r.digest() == w.digest(),
          "resumed_digest_equal_new_process": proc["digest"] == w.digest(),
