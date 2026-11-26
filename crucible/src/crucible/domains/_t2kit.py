@@ -138,3 +138,47 @@ def is_population(principal: str | None) -> bool:
 
 def mechanic(exercised: bool, **evidence) -> dict:
     return {"exercised": bool(exercised), **evidence}
+
+
+def decision_provenance(world, kind_prefixes: tuple[str, ...], tables: tuple[str, ...] | None = None) -> dict:
+    """Evaluator side: decision batches of the given kinds (on any column table, or only `tables`) and how many
+    of them are organic population decisions - listed by a population session (`pop.session` batch
+    `extra.decisions`, i.e. recorded while the population's own tick ran the activity) with registered decision
+    provenance. Everything else counts as forced."""
+    models = world.state.tables.get("pop_decision_models", {})
+    listed: set[str] = set()
+    batches = []
+    for e in world.events_range(0, world.seq):
+        if e.type != "cols.batch":
+            continue
+        p = e.payload
+        if p["table"] == "pop" and p["kind"] == "pop.session":
+            listed.update((p.get("extra") or {}).get("decisions") or [])
+        elif p["kind"].startswith(tuple(kind_prefixes)) and (tables is None or p["table"] in tables):
+            batches.append(p)
+    organic = 0
+    for p in batches:
+        prov = (p.get("extra") or {}).get("decision") or {}
+        key = f"{prov.get('model_id')}@{prov.get('model_version')}"
+        if p["ref"] in listed and key in models:
+            organic += 1
+    return {"batches": len(batches), "organic": organic, "forced": len(batches) - organic,
+            "rows": int(sum(int(p.get("n", 0)) for p in batches))}
+
+
+def observation_leaks(obs: dict, forbidden: Iterable[str]) -> list[str]:
+    """Keys of an observation (recursively) or strings in it that name evaluator quantities."""
+    bad = []
+    words = tuple(forbidden)
+
+    def walk(x, path):
+        if isinstance(x, dict):
+            for k, v in x.items():
+                if isinstance(k, str) and k in words:
+                    bad.append(f"{path}.{k}")
+                walk(v, f"{path}.{k}")
+        elif isinstance(x, (list, tuple)):
+            for i, v in enumerate(x[:200]):
+                walk(v, f"{path}[{i}]")
+    walk(obs, "obs")
+    return bad
