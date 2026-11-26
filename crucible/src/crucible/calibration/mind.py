@@ -96,10 +96,12 @@ def explode(beh: pd.DataFrame, nid: dict) -> pd.DataFrame:
                          "y": np.asarray(rows_y, np.int8)})
 
 
-def build(data: dict) -> tuple[pd.DataFrame, dict]:
+def build(data: dict, E: np.ndarray | None = None) -> tuple[pd.DataFrame, dict]:
+    """Candidate rows with features. `E` [n_news, d] (rows in `data["news"]` order, L2-normalised) replaces the
+    TF-IDF/LSA text representation (news_click_semantic uses the shared MiniLM encoder)."""
     news, beh = data["news"], data["beh"]
     nid = {n: i for i, n in enumerate(news["news_id"])}
-    E = embed(news, data["train_news_ids"])
+    E = embed(news, data["train_news_ids"]) if E is None else np.asarray(E, np.float32)
     cand = explode(beh, nid)
     hour = beh["hour"].to_numpy()[cand["imp"].to_numpy()]
     H = int(hour.max()) + 2
