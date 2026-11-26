@@ -44,22 +44,22 @@ def shared():
 
 def test_G1_256_simultaneously_active_adaptive(shared):
     r = shared
-    m = {"simultaneously_active_adaptive": int(r["adaptive_active_phase2"]),
-         "active_within_48h": int(r["max_adaptive_active_two_days"]),
+    m = {"simultaneously_active_adaptive": int(r["max_adaptive_active_two_days"]),
+         "active_in_phase2": int(r["adaptive_active_phase2"]),
          "active_same_day": int(r["max_adaptive_active_same_day"]),
          "max_adaptive_per_decision_round": int(r["max_adaptive_per_decision_round"]),
          "adaptive_rows": int(r["adaptive_rows"])}
     evidence.record("G.1", m, command=CMD, notes="Class-2 individuals of one shared policy group (the standard "
-                                                 "profile's 256) present with live personal state and taking "
-                                                 "decisions during the same 2-day phase after the controlled change; "
-                                                 "the 48-hour and same-day counts are reported too (a few "
-                                                 "individuals do not wake every day).")
+                                                 "profile's 256) with live personal state that took decisions within "
+                                                 "the same 48-hour window (the largest over the run); the same-day "
+                                                 "count and the count in the 2-day phase after the change are "
+                                                 "reported too (a few individuals do not wake every day).")
     assert m["adaptive_rows"] == 256
 
 
 def test_G2_distinct_persistent_personal_states(shared):
     m = {"distinct_personal_states": int(shared["distinct_personal_states"])}
-    evidence.record("G.2", m, command=CMD, notes="Distinct GRU memory rows (rounded to 1e-3) of the 256 class-2 "
+    evidence.record("G.2", m, command=CMD, notes="Distinct GRU memory rows (exact float16 values) of the 256 class-2 "
                                                  "individuals at the end of the run; memory is a column of the "
                                                  "population table, persistent across sessions, snapshots, forks.")
     assert m["distinct_personal_states"] > 1

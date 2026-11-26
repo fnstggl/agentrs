@@ -264,8 +264,10 @@ def test_C_5_social_mechanisms_affect_future_interactions():
     out = {}
     # --- follow: a creator the sample does not follow; outcome: viewed one of the creator's next items
     info = w.state.tables["aud_item_info"]
-    creators = Counter(r["creator"] for r in info.values() if ids.index(r["creator"]) is not None)
-    cre = sorted(creators, key=lambda p: (-creators[p], p))[0]
+    recent = w.now - 3 * DAY
+    creators = Counter(r["creator"] for r in info.values() if ids.index(r["creator"]) is not None
+                       and r["published_at"] >= recent)
+    cre = sorted(creators, key=lambda p: (-creators[p], p))[0]       # the most active creator of late
     sample = rng.choice(np.setdiff1d(np.arange(n), [ids.index(cre)]), 1200, replace=False)
     treat, ctrl = sample[:600], sample[600:]
     f = w.fork("c5-follow")
@@ -273,14 +275,21 @@ def test_C_5_social_mechanisms_affect_future_interactions():
     dst = nodes.node_of(f, cre)
     f._run_system("experiment.assign", lambda ctx: G.follow_batch(ctx, treat, np.full(treat.size, dst), via="other"))
     t0 = f.now
+    mine0 = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre]
+    before = np.zeros(n, bool)
+    for it in mine0:
+        before[AUD.viewers_of(f, it)] = True
     f.advance_time(t0 + 4 * DAY)
-    later = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre
-             and r["published_at"] > t0]
+    mine = [int(i) for i, r in f.state.tables["aud_item_info"].items() if r["creator"] == cre]
+    later = [i for i in mine if f.state.tables["aud_item_info"][str(i)]["published_at"] > t0]
     viewed = np.zeros(n, bool)
-    for it in later:
+    for it in mine:
         viewed[AUD.viewers_of(f, it)] = True
-    eff, p = _two_prop(int(viewed[treat].sum()), treat.size, int(viewed[ctrl].sum()), ctrl.size)
-    out.update(follow_effect=round(eff, 4), follow_effect_pvalue=p, follow_new_items=len(later))
+    viewed &= ~before                     # outcome: became a viewer of the creator's items after the assignment
+    treat_f, ctrl_f = treat[~before[treat]], ctrl[~before[ctrl]]
+    eff, p = _two_prop(int(viewed[treat_f].sum()), treat_f.size, int(viewed[ctrl_f].sum()), ctrl_f.size)
+    out.update(follow_effect=round(eff, 4), follow_effect_pvalue=p, follow_new_items=len(later),
+               follow_creator_items=len(mine))
     # --- share: an informative post by the experimenter shared into the inboxes of the treated
     g = w.fork("c5-share")
     from crucible.population import semantics, writing
@@ -319,7 +328,8 @@ def test_C_5_social_mechanisms_affect_future_interactions():
     out.update(subscription_effect=round(eff, 4), subscription_effect_pvalue=p)
     out.update(sample_treated=int(treat.size), sample_control=int(ctrl.size))
     evidence.record("C.5", out, command=CMD, notes=(
-        "Randomised assignment of a follow edge (to the population's most prolific creator), of a share into the "
+        "Randomised assignment of a follow edge (to the population's most active creator of the last 3 days; outcome: "
+        "became a viewer of any of its items, old or new, among those who had not viewed it before), of a share into the "
         "inbox (an experimenter's informative post on the population's most popular topic), and of a newsletter "
         "subscription (two such issues) to 600 of 1,200 sampled "
         "individuals; outcome: the individual later viewed the creator's new items / the shared post / an issue, "

@@ -135,7 +135,7 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
         out["heldout_mse"] = {a: float(ad.policy(w, g).loss_on(batch)) for a, g in gid.items()}
         out["_heldout"] = {"batch": batch, "policies": {a: ad.policy(w, g) for a, g in gid.items()}}
     mem = columns.col(w, "pop", "memory")[columns.col(w, "pop", "class") == 2].astype(np.float32)
-    out["distinct_personal_states"] = int(np.unique(mem.round(3), axis=0).shape[0])
+    out["distinct_personal_states"] = int(np.unique(mem, axis=0).shape[0])
     out["adaptive_rows"] = int(mem.shape[0])
     out["policy_objects"] = len(w.runtime.get("pop_adaptive.nets", {}))
     out["adaptive_stats"] = {k: (v if isinstance(v, (int, float)) else str(v))
