@@ -559,6 +559,7 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                     free = shutil.disk_usage(d).free / MB
                 except OSError:
                     free = 0.0
+            eff = _tighter(stored_budget(d), budget)          # a budget change applies to waiting requests
             with _ledger(d) as box:
                 q = box["queue"]
                 if not any(x["ticket"] == ticket for x in q):
