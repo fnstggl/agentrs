@@ -31,7 +31,9 @@ import numpy as np
 from . import chains as CH
 from . import subsystems as SUB
 
-INFRA_MODULES = frozenset({"admin", "artifacts", "cols", "assets", "civgen", "civlinks"})
+# kernel/storage infrastructure and genesis-only installers (their output - firms, sites, providers - is the shared
+# state other modules use; they have no events of their own after the first day)
+INFRA_MODULES = frozenset({"admin", "artifacts", "cols", "assets", "civgen", "civlinks", "industrygen", "popsites"})
 
 
 # --------------------------------------------------------------------------------------------- subsystems
