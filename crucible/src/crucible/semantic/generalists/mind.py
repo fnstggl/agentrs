@@ -386,22 +386,25 @@ def tool_line(t: dict, n: int = 150) -> str:
 
 
 def intent_request(a: Agent, now: int, qv) -> dict:
-    user = (f"{a.header(now, qv)}\n\nWhat is the single next step you take now towards your goal? (If the goal is "
-            "achieved, or you must wait for someone, say so.) Answer with one short sentence starting with "
-            "\"Next I will\".")
+    """The participant names its next action in general words (what kind of action, not its details): that phrase
+    is what the service directory is searched for."""
+    user = (f"{a.header(now, qv)}\n\nWhat single action do you take next for your goal? Describe it in general "
+            "terms, in at most six words, without names, numbers or other details (for example: \"reply to a "
+            "message\"). If your goal is achieved, answer \"stop\"; if you must wait for someone, answer \"wait\".")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
-            "max_new_tokens": 28, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
+            "max_new_tokens": 16, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
 
 
 def clean_intent(text: str) -> str:
-    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip().strip('"').strip()
-    t = t.split("\n")[0].strip()
-    return clip(t, 200)
+    t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
+    t = t.split("\n")[0].strip().strip('"').strip("'").strip(" .")
+    t = re.sub(r"^(next,?\s+)?i\s+will\s+", "", t, flags=re.I)
+    return clip(t, 80)
 
 
 def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -> dict:
     lines = "\n".join(catalog.host_line(h, summaries.get(h, ""), a.tools) for h in hosts)
-    nxt = f"\nYour next step: {a.intent}" if a.intent else ""
+    nxt = f"\nYour next action: {a.intent}" if a.intent else ""
     user = (f"{a.header(now, qv)}{nxt}\n\nServices you can use:\n{lines}\n- finish: {FINISH['description']}\n"
             f"- wait: {WAIT['description']}\n\nWhich service do you use for this step? Answer with the service name "
             "only.")
@@ -411,7 +414,7 @@ def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -
 
 def tool_request(a: Agent, now: int, host: str, shortlist: list[dict], qv) -> dict:
     lines = "\n".join(tool_line(t) for t in shortlist)
-    nxt = f"\nYour next step: {a.intent}" if a.intent else ""
+    nxt = f"\nYour next action: {a.intent}" if a.intent else ""
     user = (f"{a.header(now, qv)}{nxt}\n\nTools of the service {host}:\n{lines}\n\nWhich tool do you call for this "
             "step? Answer with the tool name only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
@@ -654,6 +657,23 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
                                                                 for a, qv in zip(live, qvecs)])
     for a, t in zip(live, intents):
         a.intent = clean_intent(t)
+    rest = []
+    for a in live:                          # the participant itself said its goal is done / it must wait
+        word = a.intent.lower().strip(" .!")
+        if word in ("stop", "wait"):
+            a.step_log.append({"step": step, "intent": a.intent, "service": "finish" if word == "stop" else "wait"})
+            if word == "stop":
+                g = a.goal()
+                a.remember(now, "goal", f"You finished your goal '{g['text']}'.")
+                a.end_goal(now, "done")
+            else:
+                a.count("waits")
+            a.stop = True
+        else:
+            rest.append(a)
+    live = rest
+    if not live:
+        return []
     goals = [(a.goal() or {}).get("text", "") for a in live]
     queries = [a.intent or g for a, g in zip(live, goals)]
     qvecs = catalog.embed(queries)
