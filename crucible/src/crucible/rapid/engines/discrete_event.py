@@ -196,11 +196,19 @@ class DiscreteEvent(RapidEngine):
                 stats["cost"] += c["order_fixed"] + c["unit_cost"] * q
                 self._push(st, now + lead + 0.5, "deliver", [oid, q])
 
+    def mu_at(self, k: int, now: float) -> float:
+        """Service rate of station k at time `now` (line scenario; evaluator data): after a hidden shift time the
+        stations run at their second set of rates (`mu2`), so the bottleneck moves."""
+        c = self.config
+        if c.get("mu2") is not None and now >= float(c["shift_at"]):
+            return float(c["mu2"][k])
+        return float(c["mu"][k])
+
     def _start(self, st, k, now, rng):
         while st["busy"][k] < st["servers"][k] and st["q"][k] > 0:
             st["q"][k] -= 1
             st["busy"][k] += 1
-            self._push(st, now + _exp(rng, self.config["mu"][k]), "done", k)
+            self._push(st, now + _exp(rng, self.mu_at(k, now)), "done", k)
 
     def _on_line(self, st, typ, data, time, rng, stats):
         c = self.config
@@ -316,6 +324,8 @@ class DiscreteEvent(RapidEngine):
             edges = [{"src": f"s{k}", "dst": f"s{k + 1}", "lag": 0, "sign": 1, "kind": "flow"}
                      for k in range(len(c["mu"]) - 1)]
             hidden = {"bottleneck": int(np.argmin(c["mu"]))}
+            if c.get("mu2") is not None:
+                hidden.update(bottleneck_after=int(np.argmin(c["mu2"])), shift_at=c["shift_at"])
         elif self.sc == "maintenance":
             nodes = [{"id": f"m{j}", "role": "machine", "eta": c["eta"][j]} for j in range(len(c["eta"]))]
             edges = []

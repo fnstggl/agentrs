@@ -16,27 +16,39 @@ def u(rng, lo, hi):
 
 
 @family("des_bottleneck", engine="discrete_event", category="8.3", item="8.3.1", split="train",
-        doc="A tandem processing line with one hidden slow station. Servers are allocated across stations every "
-            "tick; jobs queue, wait and are paid on completion.",
+        doc="A tandem processing line with one hidden slow station; at a hidden time (a tooling change) another "
+            "station becomes the slow one and the first recovers. Servers are allocated across stations every tick; "
+            "jobs queue, wait and are paid on completion.",
         distinct_because="event-driven tandem queues with exponential service; the hidden bottleneck is found by "
-                         "reallocating a fixed pool of servers (allocate) and probing station queues (query)",
+                         "reallocating a fixed pool of servers (allocate) and probing station queues (query), and "
+                         "it moves at a hidden time (shifting bottleneck)",
         axes={"graph_size": 4, "horizon": 60, "resources": 12, "experiment_cost": 20.0}, objective="maximize_net",
-        claims=(C + "bottleneck_station",), identify=I + "bottleneck")
+        claims=(C + "bottleneck_station", "crucible.rapid.claims_w3b:bottleneck_moves"), identify=I + "bottleneck",
+        reference="crucible.rapid.claims_w3b:queue_tracker", oracle="crucible.rapid.claims_w3b:oracle_shifting_line",
+        version="2")
 def des_bottleneck(rng, d):
     S = int(d["graph_size"])
     R = int(d["resources"])
+    H = int(d["horizon"])
     names = neutral_names(rng, S + 2)
     mu = [u(rng, 0.8, 1.2) for _ in range(S)]
     b = int(rng.integers(S))
     mu[b] = u(rng, 0.35, 0.5)
-    inv = [1.0 / m for m in mu]
-    best = [max(1, int(round(R * x / sum(inv)))) for x in inv]
-    while sum(best) > R:
-        best[best.index(max(best))] -= 1
-    cap = min(c * m for c, m in zip(best, mu))
+    b2 = int(rng.choice([k for k in range(S) if k != b]))
+    mu2 = [u(rng, 0.8, 1.2) for _ in range(S)]
+    mu2[b2] = u(rng, 0.35, 0.5)
+
+    def best_cap(m):
+        inv = [1.0 / x for x in m]
+        best = [max(1, int(round(R * x / sum(inv)))) for x in inv]
+        while sum(best) > R:
+            best[best.index(max(best))] -= 1
+        return min(c * x for c, x in zip(best, m))
+    cap = min(best_cap(mu), best_cap(mu2))
     base = max(1, R // S)
     default = [base] * S
-    return {"engine": "discrete_event", "scenario": "line", "horizon": int(d["horizon"]), "mu": mu,
+    return {"engine": "discrete_event", "scenario": "line", "horizon": H, "mu": mu, "mu2": mu2,
+            "shift_at": float(int(rng.integers(int(0.35 * H), int(0.6 * H) + 1))),
             "arrival_rate": 0.85 * cap, "servers": R, "default_alloc": default, "station_names": names[:S],
             "gauge_names": names[S:S + 2], "price": 600.0, "server_cost": 25.0, "holding_cost": 8.0,
             "query_cost": float(d["experiment_cost"]), "endowment": 300_000,

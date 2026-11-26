@@ -71,7 +71,7 @@ WORLD_MODULES = ("crucible.rapid.env", "crucible.rapid.engines", "crucible.rapid
 # config keys that hold hidden answers, by engine (numbers under them must never reach a participant)
 SECRET_KEYS = {
     "primitive_graph": ("params", "ports", "bias", "natural", "money", "heldout_values"),
-    "discrete_event": ("mu", "arrival_rate", "eta", "shape", "lead_p", "demand", "season_amp", "season_period",
+    "discrete_event": ("mu", "mu2", "shift_at", "arrival_rate", "eta", "shape", "lead_p", "demand", "season_amp", "season_period",
                        "season_phase", "shelf_life", "repair_time", "service_time"),
     "graph_dynamical": ("c1", "c2", "toll", "demand_mean", "demand_sd", "theta", "cap", "base", "hazard",
                         "pair_demand", "shock", "rewire_at"),

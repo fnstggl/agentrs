@@ -255,11 +255,13 @@ def bottleneck_station(env) -> dict:
     names = cfg["station_names"]
     base = list(cfg["default_alloc"])
 
+    ticks = int(min(env.horizon, cfg.get("shift_at", env.horizon)))     # before the bottleneck moves, if it does
+
     def run(alloc):
         tot = []
         for e in _replicates(env, 4):
             e.step({"kind": "allocate", "amounts": {n: float(x) for n, x in zip(names, alloc)}})
-            for _ in range(e.horizon - 1):
+            for _ in range(ticks - 1):
                 e.step(None)
             tot.append(e._state["completed"])
         return float(np.mean(tot))

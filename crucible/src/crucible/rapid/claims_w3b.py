@@ -41,3 +41,109 @@ def identify_gate_threshold(env) -> dict:
     truth = float(c["theta"])
     return {"question": "the hidden threshold of the second lever that opens the pathway", "estimate": est,
             "truth": truth, "ok": abs(est - truth) <= 0.6}
+
+
+# ====================================================================== des_bottleneck (shifting bottleneck)
+def bottleneck_moves(env) -> dict:
+    """After the hidden shift, an extra server at the new slow station completes more jobs than one at the station
+    that was slow before (same noise draws in four replicates, the allocation set at the shift)."""
+    from .claims import _replicates
+    cfg = env._config
+    names = cfg["station_names"]
+    b0, b1 = int(np.argmin(cfg["mu"])), int(np.argmin(cfg["mu2"]))
+    t0 = int(cfg["shift_at"])
+    base = list(cfg["default_alloc"])
+    donor = next(k for k in range(len(base)) if k not in (b0, b1) and base[k] > 1)
+
+    def run(target):
+        alloc = list(base)
+        alloc[target] += 1
+        alloc[donor] -= 1
+        tot = []
+        for e in _replicates(env, 4):
+            for _ in range(t0):
+                e.step(None)
+            done0 = e._state["completed"]
+            e.step({"kind": "allocate", "amounts": {n: float(x) for n, x in zip(names, alloc)}})
+            while not e.done:
+                e.step(None)
+            tot.append(e._state["completed"] - done0)
+        return float(np.mean(tot))
+    new, old = run(b1), run(b0)
+    return {"ok": new > 1.05 * old, "completed_after_shift_server_to_new_bottleneck": new,
+            "completed_after_shift_server_to_old_bottleneck": old, "shift_at": t0}
+
+
+def queue_tracker(view, env=None, every: int = 6) -> None:
+    """Scripted public reference for a line whose slow station can change: every `every` ticks query each
+    station's queue (paid) and reallocate the servers - one per station, the rest in proportion to the queues
+    (a long queue marks the station that cannot keep up). The allocation starts even."""
+    sp = view.action_space()
+    stations = sorted(t.split(":", 1)[1] for t in sp.kinds["query"]["properties"]["target"]["enum"]
+                      if t.startswith("station:"))
+    S = len(stations)
+    total = int(sp.limits.get("allocate_total", S))
+    alloc = {n: total // S for n in stations}
+    view.step({"kind": "allocate", "amounts": {n: float(x) for n, x in alloc.items()}})
+    last = view.t
+    while not view.done:
+        if view.t - last < every:
+            view.step(None)
+            continue
+        last = view.t
+        q = {}
+        for n in stations:
+            if view.done:
+                return
+            r = view.step({"kind": "query", "target": f"station:{n}"})
+            if r["result"]["ok"]:
+                q[n] = float(r["result"]["results"]["queue"])
+        if len(q) < S or view.done:
+            continue
+        w = {n: q[n] + 0.5 for n in stations}
+        extra = total - S
+        share = {n: extra * w[n] / sum(w.values()) for n in stations}
+        new = {n: 1 + int(share[n]) for n in stations}
+        for n in sorted(stations, key=lambda n: -(share[n] - int(share[n]))):
+            if sum(new.values()) >= total:
+                break
+            new[n] += 1
+        if new != alloc:
+            alloc = new
+            view.step({"kind": "allocate", "amounts": {n: float(x) for n, x in alloc.items()}})
+
+
+def oracle_shifting_line(env) -> dict:
+    """Evaluator: the best of the static line oracles and of privileged schedules that know when and where the
+    bottleneck moves: servers in proportion to 1/mu (tilted) before the shift and to 1/mu2 from the shift on."""
+    from .oracles import best_of, des_oracle, fork, run_fn
+    c = env._config
+    names = c["station_names"]
+    R = int(c["servers"])
+    t0 = int(c["shift_at"])
+
+    def alloc_for(mu, tilt):
+        mu = np.asarray(mu, dtype=float)
+        w = (1.0 / mu) ** tilt
+        a = np.maximum(1, np.floor(R * w / w.sum())).astype(int)
+        while a.sum() < R:
+            a[int(np.argmin(a * mu))] += 1
+        while a.sum() > R:
+            a[int(np.argmax(a * mu))] -= 1
+        return {"kind": "allocate", "amounts": {n: float(x) for n, x in zip(names, a)}}
+
+    pols = {}
+    for tilt in (0.8, 1.0, 1.2):
+        for lead in (0, 2):
+            a0, a1 = alloc_for(c["mu"], tilt), alloc_for(c["mu2"], tilt)
+
+            def fn(e, a0=a0, a1=a1, lead=lead):
+                if e.t == 0:
+                    return a0
+                if e.t == max(1, t0 - lead):
+                    return a1
+                return None
+            pols[f"knows the shift: 1/mu^{tilt}, switch {lead} ticks early"] = fn
+    r = best_of(env, pols)
+    s = des_oracle(env)
+    return r if r["value"] >= s["value"] else s
