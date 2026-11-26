@@ -24,6 +24,7 @@ never reports "no leak".
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 import numpy as np
@@ -36,7 +37,10 @@ HOUR = 3600
 CHANNELS = ("observation", "info", "tool_response", "event_metadata", "free_text")
 CIV_PROBE_PROFILE = "balanced"
 IDENTITY_SEED = 918_273                    # a distinctive seed: found as a number = the seed reached the participant
-PAYMENTS = (230_000, 170_000, 310_000, 90_000)
+# non-round amounts (wave 3b): the evaluator's netted revenue (GENUINE + a window of PAYMENTS) must not coincide with
+# a round world price in any unit (a 12,000-cent price matched 1,200,000 cents / 100 in a domain world)
+GENUINE = 400_037
+PAYMENTS = (230_011, 170_023, 310_007, 90_019)
 
 
 class TierProbe(Probe):
@@ -209,7 +213,7 @@ def _revenue_goal(window_s: int, target: int = 1_000_000):
 
 def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: int, handle: str = "learnco",
                      target: int = 1_000_000) -> dict:
-    """The learner founds an organisation; a genuine customer pays 400,000; the learner pays 500,000 to a friend
+    """The learner founds an organisation; a genuine customer pays `GENUINE`; the learner pays 500,000 to a friend
     who pays it to the organisation (the evaluator nets that out); then the customer pays `PAYMENTS`, one per `unit`
     seconds. Only evaluator-side data differ between calls: the window of the objective's metric and the strings in
     `values` (evaluator runtime, an internal event, other participants' private mail, a spec evaluator parameter)."""
@@ -235,7 +239,7 @@ def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: in
                                                                "memo": "invoice"}})
         if not r.ok:
             raise RuntimeError(r.error)
-    pay(400_000)
+    pay(GENUINE)
     _ok(env, a, "bank.transfer", from_account=me, to=friend, amount=500_000, memo="loan")
     r = w.execute(friend, {"tool": "bank.transfer", "args": {"from_account": facct, "to": oacct, "amount": 500_000,
                                                              "memo": "invoice"}})
@@ -305,7 +309,7 @@ def probe_kernel_tier(make_env: Callable[[], Any], *, tier: int, label: str, uni
     rewards(P, rs, f"{label} default mode, no objective")
     probe_nested(P, env, a, label, unit=dt)
     tags = ("RUNTIME", "INTERNAL", "PRIVATEMAIL", "SPEC")
-    legit = [400_000.0, 500_000.0, 900_000.0, *map(float, PAYMENTS)]
+    legit = [float(GENUINE), 500_000.0, float(GENUINE + 500_000), *map(float, PAYMENTS)]
     views, rows = [], []
     for k, window in enumerate(windows):
         vals = {t: canary(t) for t in tags} if k == 0 else {t: "N" * 31 for t in tags}
@@ -480,30 +484,40 @@ def tier2_names() -> list[str]:
     return [f"{d}:{c.name}" for d, dom in sorted(doms.items()) for c in dom.configs[:1]]
 
 
+# detail fields of a domain verdict that are the evaluator's own analysis (counterfactual baselines, errors against
+# hidden truth, statistical effects, relatedness counts); other detail fields may be world facts the seat observes
+# legitimately (its own costs, readers, enrolment) and are not looked for
+EVALUATOR_DETAIL = re.compile(r"score|baseline|nrmse|novel|effect|p_value|pvalue|independent|verdict|reference|"
+                              r"counterfactual|truth|hidden|oracle|margin", re.I)
+
+
 def domain_evaluation_values(env, agent: str) -> dict[str, float]:
-    """Distinctive numbers of the domain evaluator's verdict for `agent` (score and details: evaluator side). Numbers
-    of the public objective (everything in it is public: thresholds, targets) and numbers with fewer than four
-    significant digits (0.1 also is a layout weight) are left out."""
+    """Distinctive numbers of the domain evaluator's verdict for `agent`: its score and the detail fields that are
+    evaluator analysis (`EVALUATOR_DETAIL`). Numbers of the public objective (everything in it is public:
+    thresholds, targets), numbers with fewer than four significant digits (0.1 also is a layout weight) and integers
+    below 1000 are left out."""
     ev = (env.verify().get("evaluation") or {}).get(agent) or {}
     obj = getattr(getattr(env, "_objectives", {}).get(agent), "objective", None) or {}
     public = [x for _, x in numbers(_plain(obj))]
     out: dict[str, float] = {}
     for path, x in numbers(_plain(ev)):
+        if not EVALUATOR_DETAIL.search(path):
+            continue
         x = float(x)
         sig = len(f"{abs(x):.12g}".replace(".", "").replace("-", "").strip("0").split("e")[0])
-        if distinctive(x, public) and not x.is_integer() and sig >= 4:
+        if distinctive(x, public) and sig >= 4 and (not x.is_integer() or abs(x) >= 1000):
             out[f"evaluation{path}"] = x
     return out
 
 
-def probe_domain(seed: int = 7, reference_days: float = 6.0) -> dict:
+def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | None = None) -> dict:
     """Tier 2: every registered Part 9 domain's first configuration through `make(2, ...)`: the kernel-world probes,
     the identity probe and the domain evaluator's own verdict: the domain's scripted reference (acting only through
     the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, so the evaluator has
     something to judge; its score and details never reach the seat."""
     from ..domains import base as DB
     out = None
-    for name in tier2_names():
+    for name in (tier2_names() if names is None else list(names)):
         r = probe_kernel_tier(lambda: _domain_env(name, seed), tier=2, label=f"tier2 {name}", unit=HOUR)
         P = TierProbe(f"tier2 {name} identity", 2)
         env = _domain_env(name, IDENTITY_SEED)

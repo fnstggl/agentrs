@@ -777,7 +777,8 @@ def test_OO10_assigned_objectives_delivered_progress_never():
             reach.append(env.observe(a))
         v = env.verify()["agents"][a]
         prog = float(v["progress"])
-        if not PT.distinctive(prog, [400_000.0, 500_000.0, 900_000.0, *map(float, PT.PAYMENTS)]):
+        if not PT.distinctive(prog, [float(PT.GENUINE), 500_000.0, float(PT.GENUINE + 500_000),
+                                     *map(float, PT.PAYMENTS)]):
             raise RuntimeError(f"the verifier's progress {prog} is not distinctive: the probe proves nothing")
         data = _plain(reach)
         hits = len(exact_hits({"progress": prog}, data)) + len(exact_hits({"progress": prog}, data,
