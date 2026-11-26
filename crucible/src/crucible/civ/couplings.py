@@ -203,6 +203,8 @@ def rnd_routine(soc, ctx, mid, m, rng):
     tried = list(cfg.get("tried") or [])
     trials = dict(cfg.get("trials") or {})
     changed = False
+    last_check = int(cfg.get("last_day", -999))
+    due = day - last_check >= int(CATALOGUE["science_process"].params["every_days"])
     plans = (m["routines"].get("production") or {}).get("plans") or []
     for plan in plans:
         mach = st.get("machines", plan["machine"])
@@ -233,8 +235,9 @@ def rnd_routine(soc, ctx, mid, m, rng):
             trials.pop(plan["design"])
             changed = True
             continue
-        if day - int(cfg.get("last_day", -999)) < int(par["every_days"]):
+        if not due:
             continue
+        changed = True                   # a literature check happened today
         phen = st.get("sci_phen", b["phenomenon"]) if "sci_phen" in st.tables else None
         if phen is None:
             continue
@@ -275,10 +278,10 @@ def rnd_routine(soc, ctx, mid, m, rng):
             ctx.emit("links.rnd", {"org": m["org"], "design": plan["design"], "paper": pid,
                                    "from": [float(d["speed"]), float(d["temp"])],
                                    "to": [round(s_new, 4), round(t_new, 4)]}, vis=(m["org"],))
-    if changed or day != cfg.get("last_day"):
+    if changed:
         m2 = dict(st.tables["minds"][mid])
-        soc.set(ctx, mid, routines=dict(m2["routines"], rnd={"last_day": day, "tried": tried[-60:],
-                                                             "trials": trials}))
+        soc.set(ctx, mid, routines=dict(m2["routines"], rnd={"last_day": day if due else last_check,
+                                                             "tried": tried[-60:], "trials": trials}))
 
 
 # --------------------------------------------------------------------------------------------- coordination

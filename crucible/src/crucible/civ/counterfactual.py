@@ -53,6 +53,8 @@ class Experiment:
     overrides: dict | None = None
     setup: Callable[[Any, dict], None] | None = None         # at t0 in EVERY arm (e.g. admit an agent)
     during: Callable[[Any, str, dict], None] | None = None   # called hourly in every arm (e.g. an agent's policy)
+    prelude: Callable[[Any, dict], None] | None = None       # before the warm-up (e.g. admit an agent)
+    prelude_during: Callable[[Any, str, dict], None] | None = None   # hourly during the warm-up
     chain: bool = False                                      # mine chains in the reference arm
     reference_arm: str = "factual"
     seeds: tuple[int, ...] = (1, 2, 3)
@@ -77,6 +79,15 @@ def run_seed(exp: Experiment, seed: int, *, log=None) -> dict:
     t_start = time.time()
     w = generator.generate(exp.profile, seed, exp.population, overrides=exp.overrides)
     t0 = int(exp.warmup_days * 86400)
+    if exp.prelude is not None:
+        pctx: dict = {"arm": "prelude", "seed": seed, "t0": 0, "seq0": w.seq}
+        exp.prelude(w, pctx)
+        t = w.now
+        while t < t0:
+            t = min(t0, (t // 3600 + 1) * 3600)
+            w.advance_time(t)
+            if exp.prelude_during is not None:
+                exp.prelude_during(w, "prelude", pctx)
     w.advance_time(t0)
     blob = w.snapshot_blob()
     base_seq = w.seq

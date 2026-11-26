@@ -255,6 +255,17 @@ def _agent_setup(kind, **kw):
     return setup
 
 
+def _prelude_science(w, ctx):
+    from . import reference
+    ctx["agent"] = reference.ResearcherAgent()
+    ctx["agent"].admit(w)
+    ctx["active"] = True
+
+
+def _prelude_during(w, arm, ctx):
+    ctx["agent"].act(w)
+
+
 def _agent_during(w, arm, ctx):
     if ctx.get("active"):
         ctx["agent"].act(w)
@@ -327,14 +338,18 @@ def m_adopted_from_papers(w, t0, t1, ctx):
 # --------------------------------------------------------------------------------------------- the battery
 EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
     Experiment("science_technology", "replicated public science about a machine model changes producers' process "
-               "settings (removing the science->industry relation leaves them where their own trials put them)",
-               "research_intensive", 2.0, 14.0, {"remove_science_process": remove("science_process")},
+               "settings (removing the science->industry relation leaves them where their own trials put them). The "
+               "discovery is a scripted reference researcher's paper (labelled), present in every arm; the autonomous "
+               "rival labs' polynomial papers are not reproduced by independent replication (relative error "
+               "0.5-0.9), so they are never trusted",
+               "research_intensive", 1.0, 14.0, {"remove_science_process": remove("science_process")},
                {"true_quality": m_true_quality, "bound_yield": m_bound_yield, "adopted": m_adopted_from_papers},
-               "true_quality", category=1),
-    Experiment("technology_cost", "an adopted process setting changes industrial production cost per good unit",
+               "true_quality", category=1, setup=_agent_setup("science"), during=_agent_during),
+    Experiment("technology_cost", "an adopted process setting changes industrial production cost per good unit: "
+               "forked after producers adopted (and kept) the settings of a scripted researcher's replicated paper",
                "research_intensive", 14.0, 8.0, {"revert_adopted": revert_adopted},
                {"unit_cost": m_unit_cost, "bound_yield": m_bound_yield, "true_quality": m_true_quality},
-               "unit_cost", category=2),
+               "unit_cost", category=2, prelude=_prelude_science, prelude_during=_prelude_during),
     Experiment("usage_infrastructure", "service usage by the population draws datacenter energy from the grid",
                "balanced", 2.0, 4.0, {"undeploy_busiest_5": undeploy_busiest(5)},
                {"dc_kwh": m_dc_kwh, "region_grid_kwh": m_dc_region_grid, "web_revenue": m_web_revenue},

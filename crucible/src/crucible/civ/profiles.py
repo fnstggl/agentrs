@@ -157,7 +157,7 @@ PART_10_1 = ("Digital-first", "Industrial-first", "Research-intensive", "Infrast
              "Strongly interconnected communities", "Differing institutional structures", "Mixed economies")
 
 # numeric parameters of the categorical regimes (documented here, applied by the generator)
-ENERGY_REGIMES = {"scarce": (700, 1100), "normal": (6000, 9000), "abundant": (40000, 60000)}
+ENERGY_REGIMES = {"scarce": (450, 750), "normal": (6000, 9000), "abundant": (40000, 60000)}
 COMPUTE_REGIMES = {"scarce": 24, "normal": 256, "abundant": 4096}         # cores per provider
 COMPUTE_MARKETS = {"monopoly": 1, "duopoly": 2, "competitive": 3}
 
