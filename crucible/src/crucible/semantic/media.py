@@ -245,6 +245,38 @@ def gray_sequence(data: bytes, *, fps: float = 4.0, size: int = 64, max_frames: 
     return np.frombuffer(out[:n * size * size], dtype=np.uint8).reshape(n, size, size)
 
 
+def extract_subtitles(data: bytes, info: dict | None = None, max_chars: int = 20000) -> str:
+    """The text of the first subtitle/caption stream of a video ('' if it has none): cue texts in order, markup and
+    timing removed."""
+    import re as _re
+    info = info or probe(data)
+    if not any(s["type"] == "subtitle" for s in info["streams"]):
+        return ""
+    with _Work({"in.bin": data}) as w:
+        w.run(_ff(*_safe_input("in.bin"), "-map", "0:s:0", "-f", "srt", "-y", "out.srt"))
+        raw = w.read("out.srt").decode("utf-8", "replace")
+    lines = [ln for ln in raw.splitlines() if ln.strip() and not ln.strip().isdigit() and "-->" not in ln]
+    return " ".join(_re.sub(r"<[^>]+>|\{[^}]*\}", "", ln).strip() for ln in lines)[:max_chars]
+
+
+def add_subtitles(video: bytes, cues: Sequence[tuple[float, float, str]]) -> bytes:
+    """`video` with a subtitle stream holding `cues` [(start_s, end_s, text)] (MP4: mov_text; other containers keep
+    their default subtitle codec). The audio and video streams are copied unchanged."""
+    def ts(t: float) -> str:
+        ms = int(round(max(0.0, t) * 1000))
+        return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+    if not cues or len(cues) > 2000:
+        raise MediaError("1 to 2000 subtitle cues")
+    srt = "\n".join(f"{i + 1}\n{ts(a)} --> {ts(b)}\n{str(t)[:500]}\n" for i, (a, b, t) in enumerate(cues))
+    info = probe(video)
+    mp4 = "mp4" in str(info["format"])
+    with _Work({"in.bin": video, "subs.srt": srt.encode("utf-8")}) as w:
+        w.run(_ff(*_safe_input("in.bin"), "-protocol_whitelist", "file,pipe", "-format_whitelist", "srt", "-f", "srt",
+                  "-i", "subs.srt", "-map", "0", "-map", "1", "-c", "copy", *(["-c:s", "mov_text"] if mp4 else []),
+                  *BITEXACT, "-f", "mp4" if mp4 else "matroska", "-y", "out.bin"))
+        return w.read("out.bin")
+
+
 # ============================================================================================== audio synthesis
 def wav_bytes(x: np.ndarray, sr: int) -> bytes:
     """16-bit PCM mono WAV."""
