@@ -144,6 +144,20 @@ def _mse_over_var(Zh: torch.Tensor, Zt: torch.Tensor, ok: torch.Tensor, Z_all: t
         return mse / var.clamp_min(1e-12)
 
 
+def outcome_beta_weights(d, beta: float) -> torch.Tensor:
+    """Detached beta-NLL weights of a MixedOutcomeDist (batch shape): scale^(2 beta) for the Gaussian (std) and
+    Student-t (scale) entries, 1 for every other family (Seitzer et al. 2022)."""
+    with torch.no_grad():
+        w = torch.ones(d.batch_shape, device=d.raw.device)
+        if beta <= 0:
+            return w
+        if d._has(Likelihood.GAUSSIAN):
+            w = torch.where(d.lik == int(Likelihood.GAUSSIAN), d.g_std.float().clamp(min=1e-6) ** (2 * beta), w)
+        if d._has(Likelihood.STUDENT_T):
+            w = torch.where(d.lik == int(Likelihood.STUDENT_T), d.t_scale.float().clamp(min=1e-6) ** (2 * beta), w)
+        return w
+
+
 def straight_through(logp: torch.Tensor, sample: bool = True, generator: Optional[torch.Generator] = None):
     """One-hot sample (or mode) over the last axis with straight-through gradients. logp [..., C] -> [..., C]."""
     p = logp.exp()
@@ -226,7 +240,9 @@ class WorldModel(nn.Module):
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
                  train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory",
                  latent_floor_rms: float = 0.1, mode_latent: Optional[bool] = None,
-                 latent_grad: Optional[str] = None, latent_rep_weight: Optional[float] = None):
+                 latent_grad: Optional[str] = None, latent_rep_weight: Optional[float] = None,
+                 outcome_nll_beta: Optional[float] = None, action_input: Optional[bool] = None,
+                 trans_act_gain: Optional[float] = None):
         super().__init__()
         if open_loop_credit not in ("trajectory", "row", "per_term"):
             raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
@@ -277,6 +293,35 @@ class WorldModel(nn.Module):
             nn.init.zeros_(self.trans_in.weight)
             nn.init.zeros_(self.trans_in.bias)
             self.trans_out = MLP(D, 2 * D, D, zero_out=True)
+            # direct action input of the block transition (the RSSM "GRU input" role): the pooled ACTION tokens,
+            # standardised with running per-channel statistics, are linearly projected and added to every state token
+            # before the reused blocks. Without it the action reaches the state stream only as 4 of ~55 attended
+            # context tokens: on the real dom_dev stack the executed action moved Z^ by ~1-2 % of its across-row
+            # spread and the action-dependent InteractionEnv payout stayed at climatology for > 400 updates.
+            # Frozen-encoder action tokens share a dominant component (pairwise cosine 0.95-0.96 between the four
+            # lever settings), so the running standardisation (StateNorm over one position; updated after use, in
+            # training only) makes their differences unit-scale; a per-row LayerNorm keeps them ~5 % apart. Measured
+            # on fixed dom_dev filter states (all outcome keys, beta-NLL, Adam 1e-4, 8-row batches): payout MSE/Var
+            # at 200 updates 0.82 (LayerNorm input), 0.15 (running, zero init), 0.03 (running, unit gain)
+            # (docs/evidence/dom/W6/world_model_outcome_learning.json). The projection is zero-initialised by default
+            # (``trans_act_gain`` = init std x sqrt(D)), so at initialisation the transition is still exactly the
+            # last k core blocks on [R; ctx] and the consistency target is not perturbed.
+            # cfg.wm_action_input (default True with the block transition), cfg.wm_trans_act_gain (default 0).
+            on = bool(getattr(cfg, "wm_action_input", True) if action_input is None else action_input)
+            g = float(getattr(cfg, "wm_trans_act_gain", 0.0) if trans_act_gain is None else trans_act_gain)
+            self.action_input_on, self.trans_act_gain = on, g
+            self.act_norm_mode = str(getattr(cfg, "wm_trans_act_norm", "running"))
+            if on:
+                self.trans_act_norm = nn.LayerNorm(D)
+                self.trans_act_stats = StateNorm(1, D)
+                self.trans_act = nn.Linear(D, D)
+                if g > 0:
+                    nn.init.normal_(self.trans_act.weight, std=g * D ** -0.5)
+                else:
+                    nn.init.zeros_(self.trans_act.weight)
+                nn.init.zeros_(self.trans_act.bias)
+        else:
+            self.action_input_on, self.trans_act_gain = False, 0.0
         # per-group free bits (Kingma et al. 2016: batch-mean KL of each stochastic group floored at the value)
         self.free_bits_group = float(getattr(cfg, "kl_free_bits_group", 0.0) or 0.0)
         # L_cons = ||(Z_hat_{t+1} - sg(Z_post_{t+1})) / sd||^2 (teacher-forced and open-loop h=1)
@@ -306,6 +351,21 @@ class WorldModel(nn.Module):
             raise ValueError("latent_grad must be 'full' or 'transition'")
         self.latent_rep_weight = float(getattr(cfg, "wm_latent_rep_weight", 0.0) or 0.0) \
             if latent_rep_weight is None else float(latent_rep_weight)
+        # beta-NLL of the continuous outcome terms (Seitzer et al. 2022, "On the pitfalls of heteroscedastic
+        # uncertainty estimation"): each Gaussian / Student-t log-likelihood of the outcome loss is weighted by
+        # sg(scale^(2 beta)), so the predictive mean receives a gradient (mu - y) / sigma^(2 - 2 beta) instead of
+        # (mu - y) / sigma^2. With plain NLL (beta 0) a learned scale absorbs the residual of a state-/action-
+        # dependent outcome and the mean stops learning: measured on the real dom_dev stack (InteractionEnv payout
+        # through the DOM transition + outcome head, all outcome keys, Adam 1e-4, 8-row batches): plain NLL stays at
+        # the climatology (MSE/Var 1.02 after 800 steps) while beta = 0.5 reaches MSE/Var 0.014 (docs/evidence/dom/
+        # W6). Only the training loss is reweighted: log-likelihoods, mixture responsibilities, belief updates and
+        # every reported NLL are unchanged. cfg.wm_outcome_beta; default 0.5 with the DOM switches, 0 (plain NLL)
+        # otherwise.
+        ob_default = 0.5 if (self.k_trans > 0 or self.free_bits_group > 0) else 0.0
+        self.outcome_nll_beta = float(getattr(cfg, "wm_outcome_beta", ob_default)
+                                      if outcome_nll_beta is None else outcome_nll_beta)
+        if not 0.0 <= self.outcome_nll_beta <= 1.0:
+            raise ValueError("outcome_nll_beta must lie in [0, 1]")
         # latent read-out residual at the state's RMS (DOM switches only; legacy keeps the unit-scale residual)
         self.latent_rms_scale = self.k_trans > 0 or not self.use_ema
         if self.use_ema:
@@ -458,7 +518,7 @@ class WorldModel(nn.Module):
         self.n_transitions += B
         ctx = cat_tokens(act, belief, self.time_tokens(dt), self.noise_tokens(z, dt))
         if self.k_trans > 0:
-            Zn, Zv = self._block_transition(Z, ctx, sem, sem_rows, code_rows)
+            Zn, Zv = self._block_transition(Z, ctx, sem, sem_rows, code_rows, act=act)
         else:
             Zn, _ = self._core(Z, ctx, None, sem, sem_rows, code_rows)
             Zv = Zn if self.latent_grad == "full" else self._rep_mix(Zn.detach(), Zn)
@@ -472,15 +532,33 @@ class WorldModel(nn.Module):
             return Zr
         return Zr + b * (Zn - Zn.detach())
 
+    def action_input(self, act: Optional[TokenSet], B: int, device) -> Optional[torch.Tensor]:
+        """[B,1,D] direct action input of the block transition (zero for rows without action tokens), or None when
+        the transition has none (`action_input` off)."""
+        if not self.action_input_on or act is None or act.N == 0:
+            return None
+        m = act.mask.float().unsqueeze(-1)
+        pooled = (act.x.float() * m).sum(1) / m.sum(1).clamp(min=1.0)
+        has = (m.sum(1) > 0).float()
+        if self.act_norm_mode == "running":
+            x = self.trans_act_stats(pooled.unsqueeze(1)).squeeze(1)
+            if self.training and torch.is_grad_enabled():
+                ok = has.squeeze(-1) > 0
+                if int(ok.sum()) >= 2:
+                    self.trans_act_stats.update(pooled.detach()[ok].unsqueeze(1))
+        else:
+            x = self.trans_act_norm(pooled)
+        return (self.trans_act(x) * has).unsqueeze(1)
+
     def _block_transition(self, R, ctx: TokenSet, sem=None, sem_rows: Optional[torch.Tensor] = None,
-                          code_rows: Optional[torch.Tensor] = None) -> torch.Tensor:
+                          code_rows: Optional[torch.Tensor] = None, act: Optional[TokenSet] = None) -> torch.Tensor:
         """DOM transition (plan §2, declared deviation from spec 6.1's full-core transition): the input state
         (the reasoned latent R_t when acting; an imagined Z^ in open loop) is embedded like a core state
         (`core.embed_state` + a zero-initialised input adapter), the context [A; B; TIME; NOISE] like core context
         (`core.embed_ctx`, budget-selected), and the joint sequence runs through the last k core blocks shared by
         reference (`transition_block_list`), then a zero-initialised residual output adapter and the core's output
         norm, so Z^ lies on the same RMS-normalised manifold as the posterior state. At initialisation (adapters
-        zero) this is exactly the last k core blocks applied to [R; ctx]. With ``sem`` and a core that has Mechanism C
+        zero) this is exactly the last k core blocks applied to [R + action input; ctx] (`action_input`). With ``sem`` and a core that has Mechanism C
         (`project_semantic`, `run_blocks(..., sem=)`; W3) the semantic cross-attention after each reused block applies
         as in the full pass (row alignment by ``sem_rows`` / ``code_rows``); ``code_rows`` also selects the entity
         slot codes of the context rows (`embed_ctx`)."""
@@ -491,6 +569,9 @@ class WorldModel(nn.Module):
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=on):
             sel, _, _ = core.select_budget(ctx)
             hs = core.embed_state(R) + self.trans_in(R.float())
+            a_in = self.action_input(act, R.shape[0], R.device)
+            if a_in is not None:
+                hs = hs + a_in
             hc = core.embed_ctx(sel) if code_rows is None else core.embed_ctx(sel, code_rows)
             h = torch.cat([hs, hc.to(hs.dtype)], 1)
             key_mask = torch.cat([torch.ones(R.shape[0], S, dtype=torch.bool, device=R.device), sel.mask.bool()], 1)
@@ -896,6 +977,8 @@ class WorldModel(nn.Module):
         d = self.outcome_dist(Zh, obr)
         rt = {"R": R, "s": s, "alive": alive, "om": om}
         rt["out_lp"] = d.log_prob(obr.y, obr.censored, obr.y_mask).view(R, s, -1)       # 0 where unobserved
+        if self.outcome_nll_beta > 0:
+            rt["out_w"] = outcome_beta_weights(d, self.outcome_nll_beta).view(R, s, -1)
         with torch.no_grad():
             mean = d.mean().view(R, s, -1).mean(1)
             rt["cm"] = om & torch.isin(ob.lik, torch.tensor(CONTINUOUS, device=dev))
@@ -1004,7 +1087,8 @@ class WorldModel(nn.Module):
         a = rt["alive"] & sel
         om = rt["om"] & sel.unsqueeze(-1)
         nx = rt["nxt_ok"] & sel
-        out = {"outcome": -masked_mean((resp["out"] * rt["out_lp"]).sum(1), om),
+        olp = rt["out_lp"] if rt.get("out_w") is None else rt["out_lp"] * rt["out_w"]     # beta-NLL (loss only)
+        out = {"outcome": -masked_mean((resp["out"] * olp).sum(1), om),
                "reward": -masked_mean((resp["rew"] * rt["r_ll"]).sum(1), a),
                "cont": -masked_mean((resp["cont"] * rt["c_ll"]).sum(1), a),
                "latent": masked_mean((resp["lat"] * rt["dist"]).sum(1), nx)}

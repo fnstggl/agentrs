@@ -20,6 +20,7 @@ from superlearner.cam_unified.model import build_model
 from superlearner.cam_unified.testing import rand_sequence, tiny_config
 from superlearner.cam_unified.world import train_seq
 from superlearner.cam_unified.world._util import cat_tokens
+from superlearner.cam_unified.world.dynamics import WorldModel
 
 INERT = ("sem_xattn_every", "dec_xattn_every", "n_intent", "n_candidates", "value_channel", "sem_lora",
          "sem_encoder_lora", "microbatch")
@@ -71,7 +72,7 @@ def test_block_transition_is_the_last_k_core_blocks_by_reference():
     k = m.cfg.wm_transition_blocks
     blocks = wm.transition_block_list()
     assert len(blocks) == k and all(a is b for a, b in zip(blocks, list(core.blocks)[-k:]))
-    # no transformer of its own: the only new parameters are the two adapters
+    # no transformer of its own: the only new parameters are the two adapters and the direct action input
     own = {id(p) for n, p in wm.named_parameters() if n.startswith("trans_")}
     assert own and not (own & {id(p) for p in core.parameters()})
     B, S, D = 2, m.cfg.n_state, m.cfg.d_model
@@ -83,9 +84,11 @@ def test_block_transition_is_the_last_k_core_blocks_by_reference():
     z[:, ::m.cfg.stoch_classes] = 1.0
     with torch.no_grad():
         Zh = wm.transition(R, act, None, dt, z)
-        # adapters are zero at init: exactly the last k shared blocks on [embed_state(R); embed_ctx(ctx)]
+        # adapters are zero at init: exactly the last k shared blocks on [embed_state(R) + action input; embed_ctx(ctx)]
         ctx = cat_tokens(act, wm.time_tokens(dt), wm.noise_tokens(z, dt))
-        h = torch.cat([core.embed_state(R), core.embed_ctx(ctx)], 1)
+        a_in = wm.action_input(act, B, R.device)
+        assert a_in is not None and a_in.shape == (B, 1, D)
+        h = torch.cat([core.embed_state(R) + a_in, core.embed_ctx(ctx)], 1)
         for blk in list(core.blocks)[-k:]:
             h = blk(h, None, None)
         ref = core.out_norm(h[:, :S]).float()
@@ -94,6 +97,17 @@ def test_block_transition_is_the_last_k_core_blocks_by_reference():
     act2 = TokenSet.from_dense(torch.randn(B, 2, D, generator=g), TokenKind.ACTION)
     with torch.no_grad():
         assert float((wm.transition(R, act2, None, dt, z) - Zh).abs().max()) > 1e-4
+    # the action input is zero-initialised (exact last-k-blocks init); action_input=False removes it
+    assert float(a_in.abs().max()) == 0.0
+    wm0 = WorldModel(m.cfg, core, action_input=False)
+    assert wm0.action_input(act, B, R.device) is None and not hasattr(wm0, "trans_act")
+    with torch.no_grad():
+        Zh0 = wm0.transition(R, act, None, dt, z)
+        ctx0 = cat_tokens(act, wm0.time_tokens(dt), wm0.noise_tokens(z, dt))
+        h = torch.cat([core.embed_state(R), core.embed_ctx(ctx0)], 1)
+        for blk in list(core.blocks)[-k:]:
+            h = blk(h, None, None)
+    torch.testing.assert_close(Zh0, core.out_norm(h[:, :S]).float(), rtol=1e-5, atol=1e-5)
 
 
 def test_world_loss_trains_the_shared_blocks_the_reasoner_and_the_adapters():
