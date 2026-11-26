@@ -605,14 +605,24 @@ class World:
             vis = tuple(sorted(vis))
         elif isinstance(vis, str) and vis not in ("public", "internal"):
             vis = (vis,)
+        subs = self.subscribers.get(type) if self.subscribers and not ctx.quiet else None
+        if subs:
+            # 5.0 (audit K7): an event and its subscribers are one unit. The savepoint is taken BEFORE the event is
+            # applied, so if a subscriber fails the triggering event is undone too - even when the emitting code
+            # catches the error and carries on, the event never commits without its subscribers' effects.
+            mark, n_ev, seq0 = self.state.savepoint(), len(ctx.events), self.seq
         self.seq += 1
         ev = Event(self.seq, self.now, type, ctx.actor, ctx.cmd, payload, vis, "", ctx.via)
         self._apply(ev)
         ctx.events.append(ev)
-        if self.subscribers and not ctx.quiet:
-            subs = self.subscribers.get(type)
-            if subs:
+        if subs:
+            try:
                 self._notify(ctx, ev, subs)
+            except BaseException:
+                self.state.rollback_to(mark)
+                del ctx.events[n_ev:]
+                self.seq = seq0
+                raise
         return ev
 
     def _notify(self, ctx: Ctx, ev: Event, subs: list) -> None:
@@ -690,7 +700,8 @@ class World:
                 self.flush()
             self.log = self.log[drop:]
             self.log_base += drop
-        self._unflushed.extend(ctx.events)
+        if self.store is not None:     # 5.0 (audit K5): a store-less world kept a second copy of every event
+            self._unflushed.extend(ctx.events)
         self.stats["events"] += len(ctx.events)
         for ev in ctx.events:
             for fn in self.listeners:

@@ -27,6 +27,8 @@ Mode-specific checks (5.0, D-21):
 * Mode A (`crucible.rapid`, registered here): one family per engine, each built twice from a seed and driven by the
   same seeded random policy over its public action space - identical outcomes - and responsive (some policy changes
   the evaluator's outcome).
+* A provider's own `check` only adds requirements: the registry's check for its kind always runs too, and modes B and
+  C must build kernel worlds. Mode B worlds must also engage at least `B_MIN_DOMAINS` domains after genesis.
 * Mode C: a world counts as an integrated civilization only if it really composes shared state (`composition`):
   besides determinism and exact replay, the mandatory duplicate-fact check passes; at least `C_MIN_DOMAINS` of the
   17 Part 2.1 domains are *engaged* - another module or a population individual caused events in them after
@@ -197,18 +199,29 @@ def _check_world(p: Provider, name: str, seed: int, days: int = 1) -> dict:
         w.advance_time(w.now + int(days * 86400))
         hashes.append(w.last_hash)
         digests.append(w.digest())
-    evs = [e.to_dict() for e in w.log] if w.log_base == 0 else None
-    replay_ok = None
+    if w.log_base == 0:
+        evs = [e.to_dict() for e in w.log]
+    elif w.store is not None:           # the in-memory log was trimmed: the store has it all
+        w.flush()
+        evs = w.store.read_events(w.world_id)
+    else:                               # audit K5: an unverifiable replay is a failed check, not a skipped one
+        evs = None
+    replay_ok = False
     if evs is not None:
-        replay_ok = World.replay(w.spec, evs, world_id="mode-check-replay").digest() == w.digest()
-    ok = hashes[0] == hashes[1] and digests[0] == digests[1] and replay_ok is not False
+        replay_ok = World.replay(w.spec, evs, world_id="mode-check-replay", store=w.store).digest() == w.digest()
+    ok = hashes[0] == hashes[1] and digests[0] == digests[1] and replay_ok
     out = {"deterministic": hashes[0] == hashes[1], "replay_exact": replay_ok, "events": w.seq,
            "modules": len(w.modules), "ok": ok}
-    if p.mode == "C":
+    if p.mode in ("B", "C"):
         comp = composition(w)
         out["composition"] = comp
-        out["integrated"] = comp["integrated"]
-        out["ok"] = ok and comp["integrated"]
+        if p.mode == "C":
+            out["integrated"] = comp["integrated"]
+            out["ok"] = ok and comp["integrated"]
+        else:
+            engaged = len(comp["domains_engaged"]) >= B_MIN_DOMAINS and comp["criteria"]["facts"]
+            out["standalone_world"] = engaged
+            out["ok"] = ok and engaged
     return out
 
 
@@ -235,6 +248,7 @@ DOMAINS: dict[str, tuple[str, ...]] = {
     "institutions": ("gov", "inst"),
     "marketplaces": ("xchg", "market", "deal"),
 }
+B_MIN_DOMAINS = 2      # Mode B: a real digital world - at least two domains interact after genesis
 C_MIN_DOMAINS = 12
 C_MIN_POP_DOMAINS = 6
 C_MIN_CROSS_KINDS = 8
@@ -342,14 +356,23 @@ def check(p: Provider) -> dict:
             return {"ok": False, "n_envs": 0, "error": "provider lists no environments",
                     "wall_s": round(time.perf_counter() - t0, 3)}
         name = names[0]
-        if p.check is not None:
-            res = dict(p.check(p))
-        elif p.kind == "sim":
+        if p.mode in ("B", "C") and p.kind != "world":
+            return {"ok": False, "n_envs": len(names), "error": f"mode {p.mode} providers must build kernel worlds",
+                    "wall_s": round(time.perf_counter() - t0, 3)}
+        # the registry's own check always runs; a provider's check can only add requirements (skeptic S6: a
+        # self-attested {"ok": True} must not make a mode operational)
+        if p.kind == "sim":
             res = _check_sim(p, name, seed=0)
         elif p.kind == "env":
             res = _check_env(p, name, seed=0)
         else:
             res = _check_world(p, name, seed=0)
+        if p.check is not None:
+            extra = dict(p.check(p))
+            base_ok = bool(res.get("ok"))
+            res.update({k: v for k, v in extra.items() if k != "ok"})
+            res["registry_check_ok"], res["provider_check_ok"] = base_ok, bool(extra.get("ok"))
+            res["ok"] = base_ok and bool(extra.get("ok"))
         res.setdefault("name", name)
         res["n_envs"] = len(names)
     except Exception as e:  # noqa: BLE001 - a provider that cannot run is not operational; say why

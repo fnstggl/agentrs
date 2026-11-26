@@ -119,3 +119,22 @@ def test_every_module_loaded_into_one_world_is_not_an_integrated_civilization():
     comp = modes.composition(w)
     assert len(w.modules) >= 85 and not comp["integrated"]
     assert len(comp["domains_not_engaged"]) >= 5 and not comp["criteria"]["domains"]
+
+
+def test_a_self_attested_or_trivial_provider_cannot_raise_the_mode_count(scratch_providers):
+    """Skeptic S6: a custom check returning ok, and a one-module 'civilization', made execution_modes 3."""
+    from crucible.core.kernel import WorldSpec
+
+    def one_module(name, seed, **kw):
+        return WorldSpec("one", seed, [{"name": "identity", "config": {}}])
+    scratch_providers("B", "test-selfattest", package="tests", names=lambda: ["x"], make=one_module, kind="world",
+                      check=lambda p: {"ok": True, "deterministic": True})
+    scratch_providers("C", "test-one-module", package="tests", names=lambda: ["one"], make=one_module, kind="world")
+    scratch_providers("C", "test-env-as-civ", package="tests", names=lambda: ["e"], make=lambda n, s: None,
+                      kind="env")
+    by = {p.name: modes.check(p) for p in modes.providers() if p.package == "tests"}
+    assert by["test-selfattest"]["provider_check_ok"] and not by["test-selfattest"]["registry_check_ok"]
+    assert not by["test-selfattest"]["ok"] and not by["test-selfattest"]["standalone_world"]
+    assert by["test-one-module"]["deterministic"] and not by["test-one-module"]["ok"]
+    assert by["test-one-module"]["composition"]["domains_engaged"] == []
+    assert not by["test-env-as-civ"]["ok"] and "kernel worlds" in by["test-env-as-civ"]["error"]
