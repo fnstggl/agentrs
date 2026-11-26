@@ -117,7 +117,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W8_network"
    ],
-   "status_claim": "met in unofficial runs on the integrated tree: network_escapes 0 (civilisation 6 h under the guard; jailed tools and browsers against loopback canaries; agent browser against canaries on other addresses at the app port)",
+   "status_claim": "met in unofficial runs on this branch: network_escapes 0 (7 probes incl. a civilisation under the guard; jailed tools and browsers against loopback canaries; agent browser against canaries on other addresses at the app port)",
    "notes": ""
   },
   "W.9": {
@@ -129,7 +129,7 @@
    "tests": [
     "tests/v5/test_gate_W.py::test_W9_private_state"
    ],
-   "status_claim": "met in unofficial runs on the integrated tree: private_state_leaks 0 (2,462 population canaries in a civilisation; DMs, members-only, drafts, private communities in the social world and in a civilisation)",
+   "status_claim": "met in unofficial runs on this branch: private_state_leaks 0 (2,462 population canaries in a civilisation over 2,500 calls; DMs, members-only, drafts, private communities in the social world (1,692 calls) and in a civilisation (3,000 calls))",
    "notes": ""
   },
   "W.n1": {
@@ -356,7 +356,8 @@
   "tests/v5/test_gate_SP_16b.py": "1 failed (unrestricted_media_tool_runs 18, owners C/D); on the check merge 1 failed (realworld_abuse_paths 1 = import chain, owners I-fw/H/D)",
   "tests/v5/test_gate_SP_16c.py": "1 failed (hidden_answers_extracted 2, owner L)",
   "tests/v5/test_gate_SP_15_8.py": "not run as one file here (> 5 min CPU); its controls run individually: 7 of 10 pass, 3 fail (N) - queued in the GPU slot job",
-  "tests/v5/test_gate_W.py": "not run as one file here (civilisation probes need the GPU path); catalogue modules run individually: sandbox 21, crossworld 8, network 7, isolation 6 - all held except the KNOWN_OPEN entries; civ.world_is_offline held (CPU, 207 s). Queued in the slot scheduler with the SP gates and units (log: scratchpad w3b-sec/gate_<commit>.log)",
-  "flaky": "test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes failed once under load average ~21, passed 3 reruns"
+  "tests/v5/test_gate_W.py": "not run as one file here (> 5 min); its whole catalogue (82 probes) was run module by module on this branch (CPU, one thread): every probe held except the 8 KNOWN_OPEN entries (C: media tools, image decoders, sybil footprint; G: package source; L: in-process grader, evaluated learner/sealed; H: Tier 1 engine imports, low; O: memo first-measurement game, low). Expected gate outcome from these measurements: test_W1 (escapes 2), test_W2 (leaks 2), test_W4 (2 open) fail on owners' items; test_W3, W5-W9 and Wn1 pass. Also queued as one job in the slot scheduler (log: scratchpad w3b-sec/gate_<commit>.log).",
+  "flaky": "test_a_4_0_open_world_with_agent_programs_is_reproducible_in_new_processes failed once under load average ~21, passed 3 reruns",
+  "civilisation probes": "6 of 6 held on this branch (one run each)"
  }
 }

@@ -82,8 +82,11 @@ gate fails until N lands them. `LearnerHost` is the fix for DEF-O-10 (shown by t
 
 ## 4. Re-measured earlier claims
 
-Every entry of `suite.FIXED` and `suite.FIXED_BY_OWNERS` (30) holds on the integrated tree; the 7 `KNOWN_OPEN`
-entries still report the outcome first observed (owners C, D, G, H, L, O). Ablation-based adoption: the tracer
+Every entry of `suite.FIXED` and `suite.FIXED_BY_OWNERS` (37 after this continuation) holds on this branch; the 8
+`KNOWN_OPEN` entries still report the outcome first observed (owners C, D, G, H, L, O). Re-run in this continuation
+(after the seccomp changes, CPU-only, module by module): sandbox 21, crossworld 8, network 7, isolation 6, commerce 10,
+innovation 7, artifact/cols/asset 6, rapid 2, experience 1, social 5, private 1, population 2 - every probe held except
+the KNOWN_OPEN ones; the 6 civilisation probes one by one: all held (2,462 population canaries in 2,500 calls; 3,000 calls against private social state; 571 tools, none writes a measured quantity). Ablation-based adoption: the tracer
 forgeries, shadow files and existence checks credit nothing; reading the package's source is still credited
 (KNOWN_OPEN medium, G). Metering forgeries (counter reset/negative, monitoring off, re-import, import-time work, joined
 threads, forged completion, delivery-then-exit, C builtins) all billed. DEF-P-27 (cross-process reproducibility of 4.0
