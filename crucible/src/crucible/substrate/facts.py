@@ -99,6 +99,8 @@ REVIEWED: dict[str, dict] = {
     "pop_strategic.pop_strat_groups": _r(None, _V, "neural policy-sharing groups of strategic participants"),
     "pop_strategic.pop_strat_members": _r(None, _V, "membership of strategic participants in policy groups"),
     "popweb.cols:res": _r(None, _V, "web resources the population fetched (page cache, visit statistics)"),
+    "pop_social.cols:pop": _r("population", _X, "content-creation counters of each individual (items written, "
+                                                "views last seen, last item), keyed by population row"),
     # ---------------------------------------------------------------- content
     "content.content": _r("content_artifact", _X, "content items of the catalogue (creator, platform, artifact "
                                                   "REFs)"),
@@ -106,6 +108,11 @@ REVIEWED: dict[str, dict] = {
                                                      "viewers, completions), keyed by catalogue index"),
     "aud.aud_item_info": _r("content_artifact", _D, "creator, platform, kind, duration and title of content items "
                                                     "copied from the catalogue at indexing"),
+    "space.space_items": _r("content_artifact", _X, "recorded shared-space representations of artifacts (vector, "
+                                                    "chunks, intrinsic features) keyed by artifact REF + encoder: "
+                                                    "derived from the bytes, never a second copy of the artifact"),
+    "space_read.space_read_items": _r(None, _V, "the fixed reading list of the space_read measurement module "
+                                                "(catalogue index -> artifact REF; no shared facts)"),
     # ---------------------------------------------------------------- organization
     "business.companies": _r("organization", _X, "company registration and equity of an organisation"),
     "business.shares": _r("asset", _X, "equity shares of companies (4.0 asset class owner)"),
