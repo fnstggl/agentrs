@@ -67,6 +67,44 @@ def one_query(B, y, lik=Likelihood.GAUSSIAN, D=64, key="x", observed=True):
 
 # ------------------------------------------------------------------------------------------------ fusion
 
+def _kal_scale2_and_mix_var(m, fast, feat, ob):
+    obc = m.channels_of(fast, ob)
+    p = m.bayes.predictive(fast, m.bayes.features(feat, obc), obc)
+    fp = br.fused_predictive(m, fast, feat, ob, kalman=False)
+    return p["scale2"], fp.mix_var
+
+
+def test_nig_log_evidence_is_the_sum_of_sequential_predictive_log_densities():
+    cfg = tiny_config(bayes_feat=4, preset="dom_test")
+    bayes = BayesLastLayer(cfg)
+    with torch.no_grad():
+        bayes.log_noise.fill_(math.log(0.4))
+        bayes.log_prior_var.copy_(torch.log(torch.tensor([0.5, 2.0, 1.0, 0.7])))
+    from superlearner.cam_unified.testing import zero_fast_state
+    B = 3
+    fast = zero_fast_state(B, cfg, C=2)
+    fast.channels = [{} for _ in range(B)]
+    g = torch.Generator().manual_seed(2)
+    total = torch.zeros(B, dtype=torch.float64)
+    for t in range(6):
+        phi = torch.cat([torch.tanh(torch.randn(B, 1, 3, generator=g)), torch.ones(B, 1, 1)], -1)
+        ob = one_query(B, torch.randn(B, generator=g) * 0.8 + 0.3)
+        if t > 0:
+            total += bayes.log_prob(fast, phi, ob).double()[:, 0]          # predictive of the new residual
+        else:
+            # first observation: predictive under the slot prior
+            fresh = bayes.update(fast, phi, one_query(B, [0.0] * B, observed=False))
+            fresh.channels = [{"x": 0} for _ in range(B)]
+            P0 = torch.diag(bayes.prior_var().detach().double())
+            s20 = bayes.noise().detach().double()
+            fresh.bayes_P = P0.expand(B, 2, 4, 4).clone()
+            fresh.bayes_noise = s20.expand(B, 2).clone()
+            total += bayes.log_prob(fresh, phi, ob).double()[:, 0]
+        fast = bayes.update(fast, phi, ob)
+        n = t + 1
+        ev = bayes.log_evidence(fast, one_query(B, [0.0] * B)).double()[:, 0] * n
+        torch.testing.assert_close(ev, total, rtol=1e-5, atol=1e-5)
+
 def test_dom_presets_switch_fusion_and_film_on_and_legacy_stays_off():
     m = dom_tiny()
     assert br.dom_beliefs(m) and br.fusion_on(m) and m.bayes.gate is not None
@@ -88,9 +126,10 @@ def test_fused_predictive_is_a_density_with_the_stated_moments():
     obg = one_query(B, [0.0] * B)
     fp = br.fused_predictive(m, fast, feat, obg)
     assert bool(fp.fused.all()) and fp.gate is not None
-    # gate initialised as sigmoid(log1p(n) - 1) with n = 2 observations
-    torch.testing.assert_close(fp.gate, torch.full((B, 1), torch.sigmoid(torch.tensor(math.log(3.0) - 1.0)).item()),
-                               rtol=1e-4, atol=1e-4)
+    # gate initialised as sigmoid(-1 + 0.5 log1p(n) - (log scale2_kal - log var_mix)) with n = 2 observations
+    f = br.fusion_features(m.bayes, fast, m.channels_of(fast, obg), *_kal_scale2_and_mix_var(m, fast, feat, obg))
+    torch.testing.assert_close(f[..., 0], torch.full((B, 1), math.log(3.0)))
+    torch.testing.assert_close(fp.gate, torch.sigmoid(-1.0 + 0.5 * f[..., 0] - f[..., 3]), rtol=1e-5, atol=1e-6)
     lps = []
     for chunk in grid.split(4001):
         n = chunk.numel()

@@ -35,10 +35,13 @@ batch; the consistency gap MSE(Z^_{t+1}, Z_post_{t+1}) / Var(Z_post) is measured
 """
 from __future__ import annotations
 
+import argparse
 import copy
+import json
 import math
 import os
 import random
+import sys
 import tempfile
 import time
 from dataclasses import asdict, dataclass, field
@@ -139,6 +142,7 @@ class CausalSettings:
     lr_decay: bool = False              # linear decay of every learning rate to lr_final_frac over train_steps
     lr_final_frac: float = 0.05
     payout_key: str = "num:points@me[points]"   # observable payout outcome (observation-only measurements)
+    wm_kwargs: dict = field(default_factory=dict)   # WorldModel constructor overrides (e.g. open_loop_samples)
 
 
 def make_env(name: str, B: int, seed: int = 0, **kw):
@@ -551,7 +555,8 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
         else:
             cfg = capability_config(use_imagination=False, use_memory=False, lr=st.lr, grad_clip=st.grad_clip,
                                     train_horizons=tuple(st.horizons), **st.cfg_overrides)
-        stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"{w}_s{st.seed}"))
+        stack = build_stack(cfg, device=device, seed=st.seed, memory_root=os.path.join(tmp, f"{w}_s{st.seed}"),
+                            component_kwargs={"world_model": dict(st.wm_kwargs)} if st.wm_kwargs else None)
         env = make_env(w, st.B)
         stack.info["tools"] = env.available_tools()[0]
         eps = record(stack, env, st.record_episodes, st.seed * 10_007)
@@ -586,3 +591,99 @@ def run_causal(settings: Optional[CausalSettings] = None, root: Optional[str] = 
         out["worlds"][w] = res
     out["wall_s"] = time.time() - t0
     return out
+
+
+# ================================================================================================ W6 DOM driver
+# Real end-to-end check of plan 2026-11-26 §3 W6: run_causal on the real dom_dev stack, one world and seed per call
+# (short GPU holds), and the pass/fail summary of the plan's criteria over the per-(world, seed) result files.
+#
+#     python -m superlearner.cam_unified.capabilities.causal run --world delay --seed 0 --out r.json
+#     python -m superlearner.cam_unified.capabilities.causal summary r_*.json --out summary.json
+#
+# Criteria (held-out data or explicit interventions, payout in observable units): t1 mean |pairwise action
+# difference| > 0.5 over all held-out steps; t2 delay max error < 0.3; |t3 interaction contrast - 2| < 0.4; t4 switch
+# correct (post-switch < -0.7, unswitched > 0.7); consistency MSE/Var < 0.1 (teacher-forced and mode-latent prior).
+
+DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-3, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
+                    B=32, record_episodes=12, batch_seqs=8, horizons=(1, 2, 3, 4),
+                    wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True})
+
+
+def criteria(worlds: dict) -> dict:
+    """{criterion: {"value", "pass"}} for the worlds present in one result."""
+    out = {}
+    for w, r in worlds.items():
+        t1 = r.get("t1_actions_differ", {}).get("mean_abs_pairwise_diff")
+        out[f"{w}/t1_mean_abs_pairwise_diff"] = {"value": t1, "pass": t1 is not None and t1 > 0.5}
+        c = r.get("consistency") or {}
+        for k in ("cons_mse_var_teacher_forced", "cons_mse_var_mode1"):
+            v = c.get(k)
+            out[f"{w}/{k}"] = {"value": v, "pass": v is not None and v < 0.1}
+        if "t2_delay" in r:
+            v = r["t2_delay"]["max_abs_err"]
+            out[f"{w}/t2_max_abs_err"] = {"value": v, "pass": v == v and v < 0.3}
+        if "t3_interaction" in r:
+            v = r["t3_interaction"]["interaction_contrast"]
+            out[f"{w}/t3_contrast"] = {"value": v, "pass": v == v and abs(v - 2.0) < 0.4}
+        if "t4_switch" in r:
+            s = r["t4_switch"]
+            out[f"{w}/t4_switch"] = {"value": [s["post_switch_pred_mean_t5_7"], s["no_switch_pred_mean_t5_7"]],
+                                     "pass": bool(s.get("switch_correct"))}
+    return out
+
+
+def dom_main(argv=None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", choices=("run", "summary"))
+    ap.add_argument("files", nargs="*")
+    ap.add_argument("--world", default="delay")
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--set", action="append", default=[], help="CausalSettings override key=json")
+    ap.add_argument("--device", default=None)
+    a = ap.parse_args(argv)
+    if a.cmd == "run":
+        kw = dict(DOM_SETTINGS)
+        for item in a.set:
+            k, v = item.split("=", 1)
+            try:
+                kw[k] = json.loads(v)
+            except json.JSONDecodeError:
+                kw[k] = v
+        if "horizons" in kw:
+            kw["horizons"] = tuple(kw["horizons"])
+        st = CausalSettings(seed=a.seed, worlds=(a.world,), **kw)
+        t0 = time.time()
+        root = tempfile.mkdtemp(prefix=f"w6_causal_{a.world}_s{a.seed}_")
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+        res = run_causal(st, root=root, device=a.device)
+        res["criteria"] = criteria(res["worlds"])
+        res["cuda_peak_gb"] = torch.cuda.max_memory_allocated() / 2 ** 30 if torch.cuda.is_available() else None
+        res["wall_s_total"] = time.time() - t0
+        res["command"] = " ".join([sys.executable, "-m", "superlearner.cam_unified.capabilities.causal"]
+                                  + list(argv if argv is not None else sys.argv[1:]))
+        os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+        with open(a.out, "w") as f:
+            json.dump(res, f, indent=1, default=str)
+        for k, v in res["criteria"].items():
+            print(f"{k}: {v['value']} -> {'PASS' if v['pass'] else 'FAIL'}")
+        return 0
+    rows = {}
+    for fn in a.files:
+        with open(fn) as f:
+            r = json.load(f)
+        seed = r["settings"]["seed"]
+        for k, v in criteria(r["worlds"]).items():
+            rows.setdefault(k, {})[seed] = v
+    summ = {k: {"per_seed": v, "all_pass": all(x["pass"] for x in v.values()), "n_seeds": len(v)}
+            for k, v in sorted(rows.items())}
+    with open(a.out, "w") as f:
+        json.dump(summ, f, indent=1, default=str)
+    for k, v in summ.items():
+        print(k, "ALL PASS" if v["all_pass"] else "FAIL", {s: x["value"] for s, x in v["per_seed"].items()})
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(dom_main())

@@ -321,9 +321,9 @@ class FusedPredictive:
 
 def fusion_features(bayes, fast: FastState, ob: OutcomeBatch, kal_scale2: torch.Tensor, mix_var: torch.Tensor
                     ) -> torch.Tensor:
-    """Detached gate inputs [B,Q,6] (BayesLastLayer FusionGate): log1p(n_c), log Kalman scale^2, log mixture variance,
-    their difference, the particle filter's mean recent surprise z (clipped, /8) and log(noise estimate / prior
-    noise)."""
+    """Detached gate inputs [B,Q,7] (BayesLastLayer FusionGate): log1p(n_c), log Kalman scale^2, log mixture variance,
+    their difference, the particle filter's mean recent surprise z (clipped, /8), log(noise estimate / prior noise)
+    and the Kalman expert's realised per-observation log evidence plus the mixture's predictive entropy (clipped)."""
     with torch.no_grad():
         st = bayes.channel_stats(fast, ob)
         ls = torch.log(kal_scale2.float().clamp_min(1e-8))
@@ -333,7 +333,10 @@ def fusion_features(bayes, fast: FastState, ob: OutcomeBatch, kal_scale2: torch.
         zbar = torch.where(valid, sur, torch.zeros_like(sur)).sum(-1) / valid.sum(-1).clamp_min(1)
         zbar = (zbar.clamp(-8.0, 8.0) / 8.0).unsqueeze(-1).expand_as(ls)
         ln = torch.log(st["noise"].float().clamp_min(1e-8)) - torch.log(bayes.noise().detach().float().clamp_min(1e-8))
-        return torch.stack([torch.log1p(st["n"].float()), ls, lm, ls - lm, zbar, ln], -1)
+        ev = bayes.log_evidence(fast, ob) if hasattr(bayes, "log_evidence") else torch.zeros_like(ls)
+        h_mix = 0.5 * (math.log(2 * math.pi * math.e) + lm)
+        evf = torch.where(st["n"] > 0, (ev + h_mix).clamp(-10.0, 10.0), torch.zeros_like(ev))
+        return torch.stack([torch.log1p(st["n"].float()), ls, lm, ls - lm, zbar, ln, evf], -1)
 
 
 def kalman_base_modules(head, feat: torch.Tensor, ob: OutcomeBatch) -> torch.Tensor:
