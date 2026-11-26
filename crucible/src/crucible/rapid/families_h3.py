@@ -393,7 +393,8 @@ def ch_tech_transition(rng, d):
                          "same hidden tick: which action the environment rewards changes (an institutional rule "
                          "change), not the sign of one effect",
         axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "rule_change",), identify=C + "rule_change_time", lever_view=True)
+        claims=(C + "rule_change",), identify=C + "rule_change_time", lever_view=True,
+        reference="crucible.rapid.refs_adapt:lag_aware_tracker")
 def ch_rule_change(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="chain", motifs=["saturation"], temporal="lagged",
@@ -403,7 +404,7 @@ def ch_rule_change(rng, d):
     c.drop_input(pa, b)
     at = _switch_tick(rng, H)
     lo = u(rng, 0.08, 0.15)
-    ra = c.splice(pa, "regime_change", {"before": 1.0, "after": lo, "at": at, "trig": 1e18}, trigger=[])
+    ra = c.splice(pa, "regime_change", {"before": 1.0, "after": -u(rng, 0.3, 0.5), "at": at, "trig": 1e18}, trigger=[])
     lag_a = int(c.node(pa)["ports"]["x"][0][1])
     pb = c.prim("saturation", dict(c.node(pa)["params"]), x=[(b, lag_a, 1.0)])
     rb = c.prim("regime_change", {"before": lo, "after": 1.0, "at": at, "trig": 1e18}, x=[(pb, 0, 1.0)], trigger=[])

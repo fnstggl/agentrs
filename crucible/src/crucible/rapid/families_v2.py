@@ -341,7 +341,7 @@ def sci_slow_response(rng, d):
                          "causation scored on held-out conditions)",
         axes={"horizon": 80, "observation_noise": 0.3}, objective="predict_heldout",
         claims=(CV + "records_overstate_the_effect",), identify=CV + "identify_effect_size",
-        reference=RV + "discover_averaged")
+        reference="crucible.rapid.refs_adapt:interleaved_additive_predict")
 def hc_causal_prediction(rng, d):
     gb = GraphBuilder(rng)
     U = gb.prim("hidden_confounding", {"mean": 0.0, "sd": u(rng, 0.18, 0.22), "ar": 0.8}, role="confounder")
