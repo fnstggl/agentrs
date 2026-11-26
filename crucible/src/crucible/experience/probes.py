@@ -239,9 +239,12 @@ def scan(probe: Probe, reach: Any, *, values: dict[str, float] | None = None, ca
             probe.leak("free_text", f"{label}: evaluator value {name}={v!r} written in text", path=p, found=x)
 
 
-def regression(probe: Probe, rows: list[tuple[dict[str, float], float]], label: str, r_max: float = 0.98) -> None:
+def regression(probe: Probe, rows: list[tuple[dict[str, float], float]], label: str, r_max: float = 0.98,
+               noisy: set | None = None) -> None:
     """`rows`: (reached numeric features by path, evaluator value) per perturbed world. Leak: one feature with
-    |r| >= r_max whose leave-one-out linear prediction error is below 5% of the target's spread."""
+    |r| >= r_max whose leave-one-out linear prediction error is below 5% of the target's spread. Features in `noisy`
+    (paths that differ between two runs of the same world: the world's own nondeterminism, e.g. measured CPU time)
+    are left out - a handful of worlds cannot tell a leak from chance on them."""
     probe.check("regression")
     y = np.array([r[1] for r in rows], dtype=np.float64)
     if len(rows) < 4 or float(np.std(y)) == 0.0:
@@ -249,6 +252,7 @@ def regression(probe: Probe, rows: list[tuple[dict[str, float], float]], label: 
     common = set(rows[0][0])
     for f, _ in rows[1:]:
         common &= set(f)
+    common -= {k for k in common if _generic(k) in (noisy or set())}
     best = (0.0, None)
     for k in sorted(common):
         x = np.array([r[0][k] for r in rows], dtype=np.float64)
@@ -280,15 +284,49 @@ def features(reach: Any) -> dict[str, float]:
     return out
 
 
-def counterfactual(probe: Probe, views: list[Any], label: str) -> None:
+def _generic(path: str) -> str:
+    return re.sub(r"\[\d+\]", "[]", path)
+
+
+def diff_paths(a: Any, b: Any, path: str = "", out: set | None = None) -> set:
+    """Generic paths (list indices dropped) where two JSON values differ."""
+    out = set() if out is None else out
+    if type(a) is not type(b):
+        out.add(_generic(path))
+    elif isinstance(a, dict):
+        for k in set(a) | set(b):
+            if k not in a or k not in b:
+                out.add(_generic(f"{path}.{k}"))
+            else:
+                diff_paths(a[k], b[k], f"{path}.{k}", out)
+    elif isinstance(a, list):
+        if len(a) != len(b):
+            out.add(_generic(path) + "#len")
+        for i, (x, y) in enumerate(zip(a, b)):
+            diff_paths(x, y, f"{path}[{i}]", out)
+    elif a != b:
+        out.add(_generic(path))
+    return out
+
+
+def counterfactual(probe: Probe, views: list[Any], label: str, replicate: Any = None) -> set:
+    """Worlds that differ only in evaluator-side data must give the same participant view. With `replicate` (a
+    second run of the first world, unperturbed) the paths that differ between the two runs are the world's own
+    nondeterminism (externally measured outcomes such as CPU time) and are not counted; any other difference is a
+    leak. Returns the noisy paths."""
     probe.check("counterfactual")
-    ds = [dump(_plain(v)) for v in views]
-    for i, d in enumerate(ds[1:], 1):
-        if d != ds[0]:
-            k = next((j for j, (a, b) in enumerate(zip(d, ds[0])) if a != b), min(len(d), len(ds[0])))
-            probe.leak("counterfactual", f"{label}: participant view changes with evaluator-side data",
-                       world=i, at=ds[0][max(0, k - 80):k + 80])
-            return
+    base = _plain(views[0])
+    noisy = diff_paths(base, _plain(replicate)) if replicate is not None else set()
+    if noisy:
+        probe.notes.append(f"{label}: {len(noisy)} paths vary between two runs of the same world (not compared): "
+                           f"{sorted(noisy)[:5]}")
+    for i, v in enumerate(views[1:], 1):
+        d = diff_paths(base, _plain(v)) - noisy
+        if d:
+            probe.leak("counterfactual", f"{label}: participant view changes with evaluator-side data", world=i,
+                       paths=sorted(d)[:8])
+            return noisy
+    return noisy
 
 
 def rewards(probe: Probe, rs: Iterable[float], label: str) -> None:
@@ -602,8 +640,19 @@ def probe_kernel(steps: int = 6) -> dict:
             views.append(got)
         if k == 0:
             _predicate_oracles(P, env, a, ids, truth)
-    regression(P, rows, "kernel independent revenue (evaluator window perturbed, participant view fixed)")
-    counterfactual(P, views, "kernel evaluator window and evaluator-side strings")
+    env, a, ids = _kernel_world(7, OBSERVATION_ONLY, {t: "N" * 31 for t in tags}, window_days=1)  # = world 1, again
+    rep_got = [env.observe(a), env.tools(a)]
+    rep_got += tool_sweep(Probe("replicate"), env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}),
+                          "kernel v5", fill=_fill_factory({"principal": a, "org": ids["org"], "account": ids["me"],
+                                                           "owner": ids["org"], "from_account": ids["me"],
+                                                           "handle": "learnco"}))
+    for _ in range(steps):
+        env.advance(3600)
+        rep_got.append(env.observe(a))
+    rep_got.append(env.observe_since(a, 0))
+    noisy = counterfactual(P, views, "kernel evaluator window and evaluator-side strings", replicate=rep_got)
+    regression(P, rows, "kernel independent revenue (evaluator window perturbed, participant view fixed)",
+               noisy=noisy)
     return P.result()
 
 
