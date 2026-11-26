@@ -53,6 +53,19 @@ def test_exports_match_the_contract():
         assert hasattr(semantics, name), name
 
 
+def test_one_space_module_and_no_second_encoder():
+    """The population registers no kernel module of its own for the space and delegates encoding to it."""
+    from crucible.core.kernel import MODULES, Module
+    from crucible.semantic import space
+    from crucible.semantic.space import store
+    assert MODULES["space"] is store.SpaceRecords
+    assert not [v for v in vars(semantics).values() if isinstance(v, type) and issubclass(v, Module)]
+    assert (semantics.DIM, semantics.SPACE_ID, semantics.SPACE_VERSION) == (space.DIM, space.SPACE_ID,
+                                                                            space.SPACE_VERSION)
+    assert semantics.asset()["space_id"] == space.SPACE_ID and semantics.asset()["block"] == "topic"
+    assert semantics.basis(8).shape == (8, space.DIM) and np.allclose(semantics.basis(8)[:, semantics.TOPIC.stop:], 0)
+
+
 def test_interests_live_in_the_shared_space(world):
     n = P.n_individuals(world)
     u = P.interests(world, np.arange(n))
