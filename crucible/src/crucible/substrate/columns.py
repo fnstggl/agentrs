@@ -50,7 +50,10 @@ def declare(world, table: str, n: int, columns: dict[str, tuple]) -> None:
     reg = _registry(world)
     t = reg.setdefault(table, {"columns": {}})
     st = world.state
+    who = st.declaring or "kernel"     # runtime attribution (crucible.substrate.primitives scans it)
+    by = t.setdefault("by", {})
     for name, spec in columns.items():
+        by.setdefault(name, who)
         if not re.fullmatch(NAME_RE, name):
             raise ProtocolError(f"bad column name {name!r}")
         dtype, shape, fill = spec

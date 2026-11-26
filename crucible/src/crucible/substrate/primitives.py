@@ -48,9 +48,16 @@ OWNERS: dict[str, dict] = {
     "content_artifact": {"module": "artifacts", "table": "artifacts", "since": "5", "ids": "sha256:<64 hex>",
                          "api": "crucible.substrate.artifacts.put/get/info/publish; tools artifact.*",
                          "doc": "immutable, content-addressed content (text, images, audio, video, code, data)"},
-    "product": {"module": "market", "table": "listings", "since": "2", "ids": "lst_<n>",
-                "api": "market.list/buy/deliver (goods, services, API plans offered for sale)",
-                "doc": "products and offers sold to customers"},
+    # D-11 (resolved by D-21): the product is owned by v5 `products`; a 4.0 market listing is a `listing`
+    "product": {"module": "products", "table": "products", "since": "5", "ids": "prod_<n>",
+                "api": "prod.create/release/launch/offer/buy/use (crucible.commerce.products); entitlements in "
+                       "prod_entitlements are the single source of truth for access",
+                "doc": "products (what a customer receives: service calls, repository/document access, goods) of "
+                       "a person or company"},
+    "listing": {"module": "market", "table": "listings", "since": "2", "ids": "lst_<n>",
+                "api": "market.list/buy/deliver",
+                "doc": "sales offers (goods, services, API plans) by a seller at a price; may reference a product "
+                       "(D-11)"},
     "service": {"module": "cloud", "table": "hosts", "since": "2", "ids": "<host>",
                 "api": "cloud.rent/deploy (deployments, instances); service principal svc:<host>",
                 "doc": "running services reachable as hosts"},
@@ -74,6 +81,21 @@ OWNERS: dict[str, dict] = {
     "tool_definition": {"module": "caps", "table": "capabilities", "since": "3", "ids": "cap_<n>",
                         "api": "caps.publish/search/install; built-in tools are kernel endpoints (world.find_tools)",
                         "doc": "declared capabilities of agent-created services (descriptors, schemas)"},
+    "subscription": {"module": "subs", "table": "sub_subs", "since": "5", "ids": "sub_<n>",
+                     "api": "subs.plan/subscribe/cancel (crucible.commerce.subscriptions): recurring charges that "
+                            "grant product entitlements",
+                     "doc": "recurring paid access of a subscriber to a plan"},
+    "employment": {"module": "contracts", "table": "contracts", "since": "1", "ids": "ctr_<n> (employee/employer)",
+                   "api": "employment contracts (contracts.propose/sign with employee/employer, monthly salary, "
+                          "membership, notice); labor.offer/respond creates them",
+                   "doc": "who works for whom on which terms"},
+    "population": {"module": "pop", "table": "cols:pop", "since": "5", "ids": "row i <-> principal p<i>",
+                   "api": "crucible.population (columnar, cohort decisions through cols.batch); substrate.ids maps "
+                          "rows to principals",
+                   "doc": "the simulated people whose decisions the world simulates (D-15: one population)"},
+    "need": {"module": "needs", "table": "needs_nodes", "since": "5", "ids": "<kind>:<key>",
+             "api": "crucible.innovation.needs (one relation graph: nodes, edges, open needs, requests)",
+             "doc": "needs and the relations they arise from (D-18)"},
     "time": {"module": KERNEL, "table": "sched", "since": "1", "ids": "job_<n>",
              "api": "World.advance_time, ctx.schedule; the clock is state.meta['clock']",
              "doc": "the simulated clock and scheduled processes"},
@@ -144,7 +166,7 @@ PRIMITIVE_EVENTS: dict[str, tuple[str, str, dict]] = {
                                                        "visibility": _S, "by": _S}, ["id", "owner", "title"])),
     "gov.constitution": ("institution", "gov", _ev({"org": _S, "rules": {"type": "array"}, "distribution": _ON},
                                                    ["org", "rules"])),
-    "market.listing": ("product", "market", _ev({"id": _S, "seller": _S, "kind": _S, "title": _S, "description": _S,
+    "market.listing": ("listing", "market", _ev({"id": _S, "seller": _S, "kind": _S, "title": _S, "description": _S,
                                                  "price": {"type": "integer", "minimum": 0}, "host": _SN,
                                                  "endpoint": _SN, "need": _SN, "repo": _SN, "sku": _SN},
                                                 ["id", "seller", "kind", "title", "price"])),
@@ -203,6 +225,13 @@ def owner_modules() -> list[str]:
     return sorted({o["module"] for o in OWNERS.values() if o["module"] != KERNEL})
 
 
+def _has_table(world, table: str) -> bool:
+    if table.startswith("cols:"):
+        from . import columns
+        return table[5:] in columns._registry(world)
+    return table in world.state.tables
+
+
 def declared(world) -> dict[str, list[tuple[str, str]]]:
     """kind -> [(module, table)] declared in `world` (OWNERS for owner modules present, plus `shared_facts`)."""
     out: dict[str, list[tuple[str, str]]] = {}
@@ -237,10 +266,13 @@ def problems(world) -> list[str]:
         elif table in _KERNEL_TABLES and mods != ["kernel"]:
             errs.append(f"kernel table {table!r} declared by module {mods[0]}")
     for kind, o in OWNERS.items():
-        if o["module"] in world.modules and not o["table"].startswith("@") and o["table"] not in world.state.tables:
+        if o["module"] in world.modules and not o["table"].startswith("@") and not _has_table(world, o["table"]):
             errs.append(f"owner of {kind} ({o['module']}) is in the world but table {o['table']!r} is missing")
         if o["module"] == KERNEL and not o["table"].startswith("@") and o["table"] not in world.state.tables:
             errs.append(f"kernel table {o['table']!r} of {kind} is missing")
+    # D-21: the data-level scan of every table of every module in the world (mandatory; not opt-in)
+    from . import facts
+    errs.extend(facts.world_problems(world))
     return errs
 
 
@@ -260,4 +292,10 @@ def check_no_duplicates(world) -> dict:
         for ov in lst:
             if o["module"] in world.modules and ov["module"] in world.modules:
                 warnings.append(f"{kind}: {ov['module']}.{ov['table']} ({ov['why']})")
-    return {"kinds": rep, "present": sum(1 for r in rep.values() if r["present"]), "warnings": warnings}
+    from . import facts
+    fr = facts.world_report(world)
+    for d in fr["known_duplicates"]:
+        warnings.append(f"known duplicate {d['kind']}: {d['table']} ({d['rows']} rows; owner {d['owner']}; "
+                        f"target {d['target_owner']}; {d['workstream']}, expires {d['expires']})")
+    return {"kinds": rep, "present": sum(1 for r in rep.values() if r["present"]), "warnings": warnings,
+            "facts": fr}

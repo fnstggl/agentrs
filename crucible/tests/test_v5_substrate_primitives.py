@@ -11,8 +11,9 @@ from crucible.worldgen.generator import FAMILIES, generate
 crucible.load_all_modules()
 
 CONTRACT_KINDS = ["identity", "organization", "account", "money", "asset", "resource_inventory", "content_artifact",
-                  "product", "service", "software_repository", "relationship", "community", "institution", "contract",
-                  "knowledge_artifact", "tool_definition", "time", "provenance", "permission", "visibility"]
+                  "product", "listing", "service", "software_repository", "relationship", "community", "institution",
+                  "contract", "knowledge_artifact", "tool_definition", "subscription", "employment", "population",
+                  "need", "time", "provenance", "permission", "visibility"]
 
 
 def with_deps(names):
@@ -39,15 +40,21 @@ def test_every_contract_kind_has_exactly_one_real_owner():
     assert P.implemented() == CONTRACT_KINDS
     w = owners_world()
     rep = P.check_no_duplicates(w)
-    assert rep["present"] == 20
+    assert rep["present"] == len(CONTRACT_KINDS)
+    from crucible.substrate import columns
     for k in CONTRACT_KINDS:
         o = P.owner(k)
         assert set(o) >= {"module", "table", "doc", "api", "ids", "since"}
         if o["module"] == P.KERNEL:
             assert o["table"].startswith("@") or o["table"] in w.state.tables
+        elif o["table"].startswith("cols:"):        # a column table: the owner module declares its columns
+            rec = columns._registry(w)[o["table"][5:]]
+            assert o["module"] in w.modules and o["module"] in set(rec["by"].values())
         else:
             assert o["module"] in w.modules and o["table"] in w.state.tables
             assert o["module"] in w.state.declared_by[o["table"]]       # the owner module declares its table
+    # D-11: the product is owned by v5 products; a 4.0 market listing is a listing
+    assert (P.owner("product")["module"], P.owner("listing")["module"]) == ("products", "market")
     with pytest.raises(ProtocolError):
         P.owner("vibes")
 
