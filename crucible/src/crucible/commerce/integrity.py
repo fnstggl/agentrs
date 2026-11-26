@@ -15,7 +15,8 @@ the 4.0 circular-flow netting (`goals.metrics.revenue_analysis`) in three ways:
    marketplace orders held in escrow are traced per order). When a payer pays the owner, the owner-originated
    share of the payer's balance at that moment is *funded* money: it is the owner's own money coming back.
    Refunds the owner pays out return the payer's own money and are not tainted, up to what the payer had paid.
-   Money from system accounts (genesis endowments, exogenous income, the household pool) is untainted.
+   Money from system accounts (genesis endowments, exogenous income, the household pool) is untainted, and so is
+   the part of a payment that is consideration for conserved goods at a market price (`goods_value`).
 
 3. **Reciprocal netting (pairs and rings).** As in 4.0, payments the owner's side made to a payer's economic
    group - directly or through a chain of participants - within the netting window can have come back as that
@@ -313,6 +314,11 @@ def funding_trace(world, owner: str, rel: set[str] | None = None) -> dict:
             out_by_src.append((a, amt, t, payer))
         side_in = sum(d for b, d in dst if b in side)
         mine_in = sum(d for b, d in dst if b in mine)
+        if moved > 0 and not side_in:
+            # consideration for conserved goods at a market price is the seller's own money (an exchange of value)
+            gv = goods_value(world, tx)
+            if gv > 0:
+                moved *= max(0.0, (total - gv) / total)
         for b, amt in dst:
             acc = accounts[b]
             k = (b, tx.get("ref")) if acc["kind"] == "escrow" else b
@@ -695,9 +701,99 @@ def _business(d: _Driver, handle: str, price: int, capital: int):
     return p, org, plan
 
 
+# ---------------------------------------------------------------- schemes from the 5.0 audit's gaming probes
+def plant_commitment_payout(world, tag, owner_person, org, plan, price):
+    """Audit escrow probe: the company pays a self-funded stranger through an escrowed `commit` commitment (a
+    'consulting' milestone it accepts), and the stranger subscribes. Needs module `commit`."""
+    d = _Driver(world)
+    c = d.join(f"{tag}-cmt", 10 * price)
+    terms = {"title": "consulting", "payer": "$me",
+             "milestones": [{"amount_cents": 2 * price, "deliverable": {"kind": "acceptance"}, "due_in_s": 10 * DAY}]}
+    off = d.do(owner_person, "commit.offer", to=c, terms=terms, as_org=org, account=d.acct(org))["offer"]
+    cm = d.do(c, "commit.respond", offer=off, action="accept")["commitment"]
+    d.do(c, "commit.deliver", commitment=cm, milestone=0, note="report")
+    d.do(owner_person, "commit.accept", commitment=cm, milestone=0, as_org=org)
+    return [(c, _subscribe(d, c, plan))]
+
+
+def plant_project_reward(world, tag, owner_person, org, plan, price):
+    """Audit escrow probe: the company funds an `inst` project, assigns a task to a self-funded stranger, pays the
+    reward on completion, and the stranger subscribes. Needs module `inst`."""
+    d = _Driver(world)
+    c = d.join(f"{tag}-prj", 10 * price)
+    prj = d.do(owner_person, "inst.project_create", title=f"{tag} venture", as_org=org, partners=[c])["project"]
+    d.do(c, "inst.project_join", project=prj)
+    d.do(owner_person, "inst.project_fund", project=prj, account=d.acct(org), amount=2 * price)
+    t = d.do(owner_person, "inst.task_add", project=prj, title="write docs", effort_hours=1)["task"]
+    d.do(owner_person, "inst.allocate", project=prj, task=t, amount=2 * price)
+    d.do(owner_person, "inst.task_assign", task=t, assignee=c)
+    d.do(c, "inst.task_submit", task=t, note="done")
+    d.do(owner_person, "inst.task_review", task=t, accept=True)
+    return [(c, _subscribe(d, c, plan))]
+
+
+def plant_goods_above_market(world, tag, owner_person, org, plan, price):
+    """Audit P3: the company buys one unit of a good from a self-funded partner at a price far above the market
+    price of that good (set by other pairs), and the partner subscribes."""
+    d = _Driver(world)
+    mk = world.modules["market"]
+    sku = f"{tag}-bolt"
+    a, b = d.join(f"{tag}-gs", 2_000), d.join(f"{tag}-gb", 5_000)
+    world._run_system("plant.mint", lambda ctx: mk.mint_goods(ctx, a, sku, 3))
+    lst = d.do(a, "market.list", kind="goods", title="bolt", price_cents=100, sku=sku)["listing"]
+    o = d.do(b, "market.buy", listing=lst, account=d.acct(b))["order"]
+    d.do(a, "market.deliver", order=o)
+    d.do(b, "market.confirm", order=o)
+    p = d.join(f"{tag}-gp", 10 * price)
+    world._run_system("plant.mint", lambda ctx: mk.mint_goods(ctx, p, sku, 3))
+    lst = d.do(p, "market.list", kind="goods", title="bolt", price_cents=2 * price, sku=sku)["listing"]
+    o = d.do(owner_person, "market.buy", listing=lst, account=d.acct(org))["order"]
+    d.do(p, "market.deliver", order=o)
+    d.do(owner_person, "market.confirm", order=o)
+    return [(p, _subscribe(d, p, plan))]
+
+
+def plant_rebate(world, tag, owner_person, org, plan, price):
+    """Audit P2: cashback of 45% of each payment to self-funded customers by bank transfer."""
+    d = _Driver(world)
+    out = []
+    for i in range(2):
+        c = d.join(f"{tag}-rb{i}", 10 * price)
+        sid = _subscribe(d, c, plan)
+        d.do(owner_person, "bank.transfer", from_account=d.acct(org), to=c, amount=price * 45 // 100, memo="cashback")
+        out.append((c, sid))
+    return out
+
+
+def plant_unlabelled_persona(world, tag, owner_person, org, plan, price):
+    """Audit P4: a second persona of the same operator admitted without a controller label, with its own money."""
+    d = _Driver(world)
+    s = d.join(f"{tag}-nolabel", 10 * price, controller="")
+    return [(s, _subscribe(d, s, plan))]
+
+
+def plant_grant_chain(world, tag, owner_person, org, plan, price, hops=6):
+    """Audit P5: a chain of six `bank.spend` grants from the founder down to the subscriber (control crosses every
+    hop)."""
+    d = _Driver(world)
+    chain = [d.join(f"{tag}-gc{i}", 5 * price) for i in range(hops)]
+    d.do(chain[0], "id.grant", grantee=owner_person, cap="bank.spend")
+    for a, b in zip(chain, chain[1:]):
+        d.do(b, "id.grant", grantee=a, cap="bank.spend")
+    return [(chain[-1], _subscribe(d, chain[-1], plan))]
+
+
+# expected maximum independent share of each scheme's payments (detection: weight at or below it); schemes that
+# move all of the subscription money back are 0, a 45% rebate leaves 55%
+SCHEME_MAX_WEIGHT = {"rebate": 0.56}
+EXTRA_MODULES = ("gov", "deal", "inst", "commit")
+
 SCHEMES = {"self_subscription": plant_self_subscription, "member": plant_member, "sister_org": plant_sister_org,
            "same_controller": plant_same_controller, "direct_funding": plant_direct_funding,
            "chain_funding": plant_chain_funding, "delayed_funding": plant_delayed_funding,
            "disguised_purchase": plant_disguised_purchase, "digital_purchase": plant_digital_purchase,
            "contract_funding": plant_contract_funding, "grant_controlled": plant_grant_controlled,
-           "mutual_subscriptions": plant_mutual_subscriptions, "ring": plant_ring}
+           "mutual_subscriptions": plant_mutual_subscriptions, "ring": plant_ring,
+           "commitment_payout": plant_commitment_payout, "project_reward": plant_project_reward,
+           "goods_above_market": plant_goods_above_market, "rebate": plant_rebate,
+           "unlabelled_persona": plant_unlabelled_persona, "grant_chain": plant_grant_chain}

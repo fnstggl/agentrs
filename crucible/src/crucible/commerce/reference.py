@@ -32,8 +32,10 @@ from .refsolvers import GARBAGE, SOLVERS
 
 DAY = 86400
 REFUND_RE = re.compile(r"(sinv_[0-9]+)")
+# the 5.0 (pre-D-15) startup template with the legacy `patrons` buyers; kept for the historical unit tests only -
+# v5 worlds take their demand from the population (`commerce.worlds.startup_spec`)
 BASE_MODULES = ["identity", "bank", "admin", "code", "search", "docs", "support", "contracts", "business", "cloud",
-                "market", "products", "subs", "ventures"]
+                "market", "products", "subs", "ventures", "patrons"]
 
 
 def service_files(source: str, title: str, price: int = 100_000) -> dict[str, str]:

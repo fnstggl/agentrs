@@ -95,11 +95,22 @@ def test_pro_rata_tracing_attributes_only_the_owner_share():
     f.do("market.confirm", order=o)
     x.do("subs.subscribe", plan=plans["month"])
     rec = integrity.related_flows(w, org)["payers"][x.id]
-    # x held 8,500 of its own (9,000 minus the listing fee) and 1,000 of the merchant's: 1,000 x 1,000/9,500
-    assert rec["funded"] == pytest.approx(1_000 * 1_000 / 9_500, abs=0.01), rec
-    assert rec["netted"] == 0 and not rec["flagged"], rec
-    # proportional exclusion: the traced share is removed, nothing more
-    assert float(rec["weight"]) == pytest.approx(1 - 105 / 1_000, abs=1e-3)
+    # the 1,000 cents x received were the market price of the bolts it delivered: its own money, not traced
+    assert rec["funded"] == 0 and rec["netted"] == 0 and not rec["flagged"], rec
+    assert rec["weight"] == 1
+
+
+def test_pro_rata_tracing_of_money_given_without_consideration():
+    w, f, org, plans, x = _pay_setup(9_000)
+    f.do("bank.transfer", from_account=w.modules["bank"].primary_account(w.state, org), to=x.id, amount=1_000,
+         memo="gift")
+    x.do("bank.transfer", from_account=x.acct, to=join(w, "elsewhere", 0).id, amount=500)
+    x.do("subs.subscribe", plan=plans["month"])
+    rec = integrity.related_flows(w, org)["payers"][x.id]
+    # x held 9,000 of its own and 1,000 of the merchant's, then spent 500 pro rata: 1,000 x (9,500/10,000) left of
+    # 9,500, so the 1,000-cent payment carries 1,000 x 950/9,500 = 100 traced cents; netting takes the rest
+    assert rec["funded"] == pytest.approx(100.0, abs=0.01), rec
+    assert rec["netted"] == 1_000 and rec["weight"] == 0
 
 
 def test_goods_above_market_price_are_netted():
