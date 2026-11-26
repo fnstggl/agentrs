@@ -5,8 +5,9 @@ BayesLastLayer(fusion), OutcomeHead, WorldModel with the block transition on R_t
 world. Criteria: t1 > 0.5, t2 max error < 0.3, |t3 contrast - 2| < 0.4, t4 switch correct, consistency MSE/Var < 0.1.
 
 GPU and the cached Qwen3 weights are required; it runs for hours, so it is marked gpu + slow (CAM_RUN_SLOW=1). The
-evidence run uses the same driver one (world, seed) at a time (`python -m superlearner.cam_unified.capabilities.causal
-run ...`) under the shared GPU lock; its JSON files are in docs/evidence/dom/W6/.
+evidence run uses the same driver one (world, seed) per process (`python -m superlearner.cam_unified.capabilities.causal
+run ...`), each capped at 3.8 GB of GPU memory; the results are in docs/evidence/dom/W6/e2e_dom_dev_causal.json (t1 and
+t3 pass, t2 / t4 / the no-EMA consistency gap do not).
 """
 import os
 

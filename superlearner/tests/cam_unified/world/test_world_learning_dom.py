@@ -8,7 +8,9 @@ presets' cfg.wm_ema_target=False with the self-predictive gradients routed to th
 seeds, "preset" 2/3; the beta_rep = 0.1 representation gradient (WorldModel latent_rep_weight, not a test variant)
 gave delay 1/3, switch 0/3, interaction 3/3, consistency gap 0.24-0.56, so it is not the default. The synthetic worlds of world_synth.py provide well-separated observation tokens, so these tests isolate the
 world-model mechanism from the tokenizer (the integrated dom_dev check is capabilities.causal's DOM driver).
-Slow (CAM_RUN_SLOW=1); three model seeds each, all must pass.
+Slow (CAM_RUN_SLOW=1); three model seeds each, all must pass. The per-variant pass counts above were measured before
+the beta-NLL outcome loss and the direct action input became the DOM defaults (commits 15680eb / 0461d67) and have
+not been re-measured with them.
 """
 import pytest
 import torch
