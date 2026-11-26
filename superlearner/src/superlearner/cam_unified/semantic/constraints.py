@@ -538,3 +538,396 @@ def tables_for(tokenizer, vocab_size: int, device, name: Optional[str] = None) -
     if key not in _TABLE_CACHE:
         _TABLE_CACHE[key] = JsonStringTables(token_texts(tokenizer, vocab_size), device)
     return _TABLE_CACHE[key]
+
+
+# ============================================================================ JSON values (LM-written untyped arguments)
+J_NONE, J_OBJ, J_ARR = 0, 1, 2
+_WS = " \t\n\r"
+_WS_STAY = ("VAL", "VAL_OR_CLOSE", "KEY_OR_CLOSE", "KEY", "COLON", "AFTER")
+_NUM_DONE = ("N0", "NI", "NF", "NX1", "NX2")             # complete numbers: a non-number character ends them
+_NUM = ("NM", "ND", "NE", "NS") + _NUM_DONE
+_LIT = {"t": "rue", "f": "alse", "n": "ull"}
+J_LEX = tuple(dict.fromkeys(["VAL", "VAL_OR_CLOSE", "KEY_OR_CLOSE", "KEY", "COLON", "AFTER", "DONE", "SK0", "SK1",
+                             "SV0", "SV1", *_NUM] + ["L:" + s[i:] for s in _LIT.values() for i in range(len(s))]))
+J_INIT = ("VAL", ())                                       # a JSON hole starts at a top-level value
+JSON_FOLLOW_FIRST = ",}]"      # the forced text after a JSON hole starts with one of these (grammar.serialize)
+
+
+def _jtops(lex: str) -> tuple:
+    if lex == "VAL_OR_CLOSE":
+        return (J_ARR,)
+    if lex in ("KEY_OR_CLOSE", "KEY", "COLON", "SK0", "SK1"):
+        return (J_OBJ,)
+    if lex == "AFTER":
+        return (J_OBJ, J_ARR)
+    if lex == "DONE":
+        return (J_NONE,)
+    return (J_NONE, J_OBJ, J_ARR)
+
+
+def json_need(lex: str, top: int) -> int:
+    """Tokens that always suffice to bring the value from `lex` to a point where the current container (or, at the
+    top level, the value) can close, writing one character per token ("0", '"', ":" ...). The total completion need of
+    a state is json_need + the number of open containers (one closing bracket each)."""
+    if lex == "DONE":
+        return 0
+    if lex.startswith("L:"):
+        return len(lex) - 2
+    if top == J_NONE:                                      # top level: a complete number still needs its terminator
+        return {"VAL": 2, "SV0": 1, "SV1": 2, "NM": 2, "ND": 2, "NE": 2, "NS": 2}.get(lex, 1)
+    return {"VAL": 1, "KEY": 4, "SK0": 3, "SK1": 4, "COLON": 2, "SV0": 1, "SV1": 2, "NM": 1, "ND": 1, "NE": 1,
+            "NS": 1}.get(lex, 0)
+
+
+def json_sim(text: str, lex: str, known: list, bottom: bool, reveal: tuple = ()):
+    """Feed `text` into the JSON value automaton (lexical state `lex`, container stack `known` with its top last).
+    `bottom`: `known` is the whole stack; otherwise a pop that empties `known` reads the next container type from
+    `reveal` (J_NONE = none below). Returns (status, lex, known, bottom, n_reveal, rel, maxrel, pos): status "ok"
+    (consumed, value open), "done" (the top-level value completed; text[pos:] is the suffix), "bad", or "more" (the
+    token pops below what is known and `reveal` is exhausted); rel / maxrel = net / maximal depth change.
+
+    Grammar: RFC 8259 values; strings as in the JSON-string-body automaton (escapes \\" \\\\ \\/ \\b \\f \\n \\r \\t,
+    no \\uXXXX, no raw control characters); numbers -?(0|[1-9][0-9]*)(.[0-9]+)?([eE][+-]?[0-9]{1,2})? (at most two
+    exponent digits); whitespace between tokens inside containers, none before or after the top-level value."""
+    known = list(known)
+    rel = maxrel = nrev = 0
+    i, n = 0, len(text)
+    while i < n:
+        if lex == "DONE":
+            return "done", lex, known, bottom, nrev, rel, maxrel, i
+        ch = text[i]
+        top = known[-1] if known else J_NONE
+        value_end = False
+        pop = None
+        if lex == "SV0" or lex == "SK0":
+            if ch == '"':
+                if lex == "SK0":
+                    lex = "COLON"
+                else:
+                    value_end = True
+            elif ch == "\\":
+                lex = lex[:2] + "1"
+            elif ord(ch) < 0x20:
+                return "bad", lex, known, bottom, nrev, rel, maxrel, i
+        elif lex == "SV1" or lex == "SK1":
+            if ch not in _ESCAPES:
+                return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            lex = lex[:2] + "0"
+        elif lex[0] == "L":
+            if ch != lex[2]:
+                return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            if len(lex) == 3:
+                value_end = True
+            else:
+                lex = "L:" + lex[3:]
+        elif lex in _NUM:
+            nxt = None
+            if lex == "NM":
+                nxt = "N0" if ch == "0" else ("NI" if "1" <= ch <= "9" else None)
+                if nxt is None:
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            elif lex in ("ND", "NE", "NS"):
+                if "0" <= ch <= "9":
+                    nxt = "NF" if lex == "ND" else "NX1"
+                elif lex == "NE" and ch in "+-":
+                    nxt = "NS"
+                else:
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            elif "0" <= ch <= "9":
+                if lex == "N0" or lex == "NX2":
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+                nxt = {"NI": "NI", "NF": "NF", "NX1": "NX2"}[lex]
+            elif ch == "." and lex in ("N0", "NI"):
+                nxt = "ND"
+            elif ch in "eE" and lex in ("N0", "NI", "NF"):
+                nxt = "NE"
+            if nxt is None:                                # the number ends here; re-read ch after the value
+                lex = "DONE" if (bottom and not known) else "AFTER"
+                continue
+            lex = nxt
+        else:
+            if ch in _WS and lex in _WS_STAY and top != J_NONE:
+                i += 1
+                continue
+            if lex == "AFTER":
+                if ch == ",":
+                    lex = "KEY" if top == J_OBJ else "VAL"
+                elif ch == "}" and top == J_OBJ or ch == "]" and top == J_ARR:
+                    pop = True
+                else:
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            elif lex == "COLON":
+                if ch != ":":
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+                lex = "VAL"
+            elif lex in ("KEY", "KEY_OR_CLOSE"):
+                if ch == '"':
+                    lex = "SK0"
+                elif ch == "}" and lex == "KEY_OR_CLOSE":
+                    pop = True
+                else:
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            elif lex in ("VAL", "VAL_OR_CLOSE"):
+                if ch == "]" and lex == "VAL_OR_CLOSE":
+                    pop = True
+                elif ch == "{" or ch == "[":
+                    known.append(J_OBJ if ch == "{" else J_ARR)
+                    rel += 1
+                    maxrel = max(maxrel, rel)
+                    lex = "KEY_OR_CLOSE" if ch == "{" else "VAL_OR_CLOSE"
+                elif ch == '"':
+                    lex = "SV0"
+                elif ch == "-":
+                    lex = "NM"
+                elif ch == "0":
+                    lex = "N0"
+                elif "1" <= ch <= "9":
+                    lex = "NI"
+                elif ch in _LIT:
+                    lex = "L:" + _LIT[ch]
+                else:
+                    return "bad", lex, known, bottom, nrev, rel, maxrel, i
+            else:
+                return "bad", lex, known, bottom, nrev, rel, maxrel, i
+        if pop:
+            known.pop()
+            rel -= 1
+            if not known and not bottom:
+                if nrev >= len(reveal):
+                    return "more", lex, known, bottom, nrev, rel, maxrel, i
+                r = reveal[nrev]
+                nrev += 1
+                if r == J_NONE:
+                    bottom = True
+                else:
+                    known.append(r)
+            value_end = True
+        if value_end:
+            lex = "DONE" if (bottom and not known) else "AFTER"
+        i += 1
+    return ("done" if lex == "DONE" else "ok"), lex, known, bottom, nrev, rel, maxrel, n
+
+
+def json_reveal(stack: tuple, k: int) -> Optional[tuple]:
+    """Container types a token that pops k times uncovers below the top of `stack` (J_NONE = the bottom)."""
+    d = len(stack)
+    out = []
+    for i in range(1, k + 1):
+        j = d - 1 - i
+        if j < -1:
+            return None
+        out.append(stack[j] if j >= 0 else J_NONE)
+    return tuple(out)
+
+
+class JsonValueTables:
+    """Exact token masks for a *JSON value hole*: the decoder writes one complete JSON value (any type, nested to
+    `max_depth`) as text, e.g. the untyped `input` of code.run. A pushdown automaton over (lexical state, container
+    stack); the allowed set of a step is a pure function of (state, remaining budget, follow text), so a recorded value
+    replays exactly from its token ids.
+
+    Vectorisation: per extended state E = (lexical state, top container type) every token's effect is precomputed -
+    `cost` [E, V] = depth change + json_need of the state it ends in (tokens that do not pop below the top), `pops`
+    (tokens that pop below the known top, keyed by the container types they uncover) and `closers` (tokens that
+    complete the top-level value; their text after the value - the suffix - must be a prefix of the forced JSON text
+    after the hole, consumed like a merged string closer). A token is allowed iff it is valid for the actual stack,
+    the completion need after it fits the remaining budget (one token per open container plus json_need) and the
+    nesting stays <= max_depth. String interiors reuse the JsonStringTables rows; the rest is simulated per token for
+    the first characters each state accepts (about 2 s for 152k tokens, once per process). Closers are kept when
+    their suffix is empty or starts with one of JSON_FOLLOW_FIRST: the forced text after a JSON hole (", " / "}" /
+    "]") always does (HoleFiller.program checks it), so no closer that could match is dropped."""
+
+    BIG = 30000
+
+    def __init__(self, st: JsonStringTables, max_depth: int = 16, max_reveal: int = 3):
+        self.st = st
+        self.texts = st.texts
+        self.V = V = st.V
+        self.max_depth = int(max_depth)
+        self.max_reveal = int(max_reveal)
+        self.E = [(lex, top) for lex in J_LEX if lex != "DONE" for top in _jtops(lex)]
+        self.eidx = {e: i for i, e in enumerate(self.E)}
+        nE = len(self.E)
+        cost = torch.full((nE, V), self.BIG, dtype=torch.int16)
+        maxrel = torch.zeros((nE, V), dtype=torch.int8)
+        pops: list = [dict() for _ in range(nE)]
+        self.closers: list = [[] for _ in range(nE)]           # (token, reveal, suffix, maxrel)
+        texts = self.texts
+        by_first: dict = {}
+        stripped: dict = {}            # whitespace-led tokens: first char after the run -> text after it -> ids
+        for t, x in enumerate(texts):
+            if not x:
+                continue
+            by_first.setdefault(x[0], []).append(t)
+            if x[0] in _WS:
+                rest = x.lstrip(_WS)
+                stripped.setdefault(rest[:1], {}).setdefault(rest, []).append(t)
+        stripped.setdefault("", {})
+
+        def put(e, t, outs, lead=0):
+            for r, (status, lex, known, bottom, _, rel, mr, pos) in outs:
+                if status == "done":
+                    suf = texts[t][pos + lead:]
+                    if not suf or suf[0] in JSON_FOLLOW_FIRST:
+                        self.closers[e].append((t, r, suf, mr))
+                elif status == "ok":
+                    c = rel + json_need(lex, known[-1] if known else J_NONE)
+                    if r:
+                        pops[e].setdefault(r, []).append((t, c, mr))
+                    else:
+                        cost[e, t] = c
+                        maxrel[e, t] = mr
+
+        for e, (lex, top) in enumerate(self.E):
+            if lex[0] == "S":
+                self._string_rows(e, lex, top, cost, maxrel, pops, put)
+                continue
+            firsts = [c for c in by_first if c not in _WS and self._outcomes(c, lex, top)]
+            for c in firsts:
+                for t in by_first[c]:
+                    put(e, t, self._outcomes(texts[t], lex, top))
+            ws_lex = lex if lex in _WS_STAY and top != J_NONE else ("AFTER" if lex in _NUM_DONE and top != J_NONE
+                                                                    else None)
+            if ws_lex is None:                                 # (a top-level value is never followed by whitespace:
+                continue                                       #  the follow text of a JSON hole starts with , } ])
+            for c in [""] + [c for c in stripped if c and self._outcomes(c, ws_lex, top)]:
+                for rest, toks in stripped[c].items():
+                    outs = self._outcomes(rest, ws_lex, top)
+                    for t in toks:
+                        put(e, t, outs, lead=len(texts[t]) - len(rest))
+        self.cost_h, self.maxrel_h = cost.numpy(), maxrel.numpy()        # host copies (single-token checks)
+        self.pops_h = [{r: {a: (c, m) for a, c, m in v} for r, v in d.items()} for d in pops]
+        self.cost = cost.to(st.valid.device)
+        self.maxrel = maxrel.to(st.valid.device)
+        dev = st.valid.device
+        self.pops = [{r: (torch.tensor([a for a, _, _ in v], dtype=torch.long, device=dev),
+                          torch.tensor([c for _, c, _ in v], dtype=torch.int32, device=dev),
+                          torch.tensor([m for _, _, m in v], dtype=torch.int32, device=dev))
+                      for r, v in d.items()} for d in pops]
+        self.max_suffix = max([len(s) for cl in self.closers for _, _, s, _ in cl] + [0])
+        self._close_cache: dict = {}
+
+    def _outcomes(self, text: str, lex: str, top: int) -> list:
+        """[(reveal, json_sim result)] of every valid way `text` can be read from (lex, top), by the uncovered
+        container types (depth-first over at most max_reveal reveals)."""
+        out, todo = [], [()]
+        known = [top] if top != J_NONE else []
+        while todo:
+            r = todo.pop()
+            res = json_sim(text, lex, known, top == J_NONE, r)
+            if res[0] == "more":
+                if len(r) < self.max_reveal:
+                    todo += [r + (x,) for x in (J_NONE, J_OBJ, J_ARR)]
+            elif res[0] != "bad":
+                out.append((r, res))
+        return out
+
+    def _string_rows(self, e, lex, top, cost, maxrel, pops, put):
+        st = self.st
+        s = NORMAL if lex[2] == "0" else ESC
+        key = lex[1] == "K"
+        stay = st.valid[s].cpu() & ~st.closes[s].cpu()
+        end = st.end[s].cpu().long()
+        n0, n1 = json_need(lex[:2] + "0", top), json_need(lex[:2] + "1", top)
+        cost[e] = torch.where(stay, torch.where(end == NORMAL, n0, n1), self.BIG).to(torch.int16)
+        after = "COLON" if key else ("DONE" if top == J_NONE else "AFTER")
+        plain = (st.valid[s].cpu() & st.closes[s].cpu()).nonzero().flatten().tolist()
+        for t in plain:                                       # the quote is the token's last character
+            if after == "DONE":
+                self.closers[e].append((t, (), "", 0))
+            else:
+                cost[e, t] = json_need(after, top)
+        for t, (_, suf) in st.merged[s].items():               # the quote is followed by more text
+            if after == "DONE":
+                if suf[0] in JSON_FOLLOW_FIRST:
+                    self.closers[e].append((t, (), suf, 0))
+            else:
+                put(e, t, self._outcomes(suf, after, top), lead=len(self.texts[t]) - len(suf))
+
+    # ---------------------------------------------------------------- runtime
+    @staticmethod
+    def top(state) -> int:
+        return state[1][-1] if state[1] else J_NONE
+
+    def need(self, state) -> int:
+        return json_need(state[0], self.top(state)) + len(state[1])
+
+    def _closers(self, e: int, stack: tuple, follow: str) -> tuple:
+        """(closing token ids as a device tensor or None, the same as a set) for extended state e, stack, follow."""
+        d = len(stack)
+        rv = json_reveal(stack, min(d, self.max_reveal))
+        key = (e, rv, d, (follow or "")[: self.max_suffix])
+        hit = self._close_cache.get(key)
+        if hit is None:
+            lst = [t for t, r, suf, mr in self.closers[e]
+                   if (not r or r == rv[: len(r)]) and (follow or "").startswith(suf) and d + mr <= self.max_depth]
+            hit = (torch.tensor(lst, dtype=torch.long, device=self.cost.device) if lst else None, set(lst))
+            if len(self._close_cache) > 8192:
+                self._close_cache.clear()
+            self._close_cache[key] = hit
+        return hit
+
+    def allowed(self, state, remaining: int, follow: str, token: int) -> tuple:
+        """(allowed, closes) of one token - the same conditions as `masks`, evaluated on the host."""
+        e = self.eidx[(state[0], self.top(state))]
+        stack, d = state[1], len(state[1])
+        if token in self._closers(e, stack, follow)[1]:
+            return True, True
+        if int(self.cost_h[e, token]) + d <= remaining - 1 and int(self.maxrel_h[e, token]) + d <= self.max_depth:
+            return True, False
+        for k in range(1, min(d, self.max_reveal) + 1):
+            ent = self.pops_h[e].get(json_reveal(stack, k))
+            if ent is not None and token in ent:
+                c, mr = ent[token]
+                if c + d <= remaining - 1 and mr + d <= self.max_depth:
+                    return True, False
+        return False, False
+
+    def masks(self, rows: list, chunk: int = 64) -> tuple:
+        """rows: [(state, remaining tokens incl. this one, follow text)] -> (allowed [P, V], closing [P, V])."""
+        dev = self.cost.device
+        outs = []
+        for c0 in range(0, len(rows), chunk):                 # bounded [chunk, V] int16 gathers
+            sub = rows[c0: c0 + chunk]
+            e = torch.tensor([self.eidx[(st[0], self.top(st))] for st, _, _ in sub], device=dev)
+            d = [len(st[1]) for st, _, _ in sub]
+            lim = torch.tensor([rem - 1 - dd for (_, rem, _), dd in zip(sub, d)], device=dev, dtype=torch.int16)
+            dep = torch.tensor([self.max_depth - dd for dd in d], device=dev, dtype=torch.int8)
+            outs.append((self.cost[e] <= lim.unsqueeze(1)) & (self.maxrel[e] <= dep.unsqueeze(1)))
+        out = torch.cat(outs) if len(outs) > 1 else outs[0]
+        close = torch.zeros_like(out)
+        for i, (st, rem, follow) in enumerate(rows):
+            ei = self.eidx[(st[0], self.top(st))]
+            stack, dd = st[1], len(st[1])
+            for k in range(1, min(dd, self.max_reveal) + 1):
+                ent = self.pops[ei].get(json_reveal(stack, k))
+                if ent is not None:
+                    ids, cs, ms = ent
+                    ok = (cs + dd <= rem - 1) & (ms + dd <= self.max_depth)
+                    out[i, ids[ok]] = True
+            if rem >= 1:
+                cl = self._closers(ei, stack, follow)[0]
+                if cl is not None:
+                    close[i, cl] = True
+        return out | close, close
+
+    def advance(self, state, token: int):
+        """(new state, closed, consumed suffix length) after appending `token` (which must be allowed)."""
+        text = self.texts[token]
+        status, lex, known, _, _, _, _, pos = json_sim(text or "", state[0], list(state[1]), True)
+        if status not in ("ok", "done") or not text:
+            raise UnsupportedSchema(f"token {token!r} is not valid in JSON state {state!r}")
+        if status == "done":
+            return ("DONE", ()), True, len(text) - pos
+        return (lex, tuple(known)), False, 0
+
+
+_JTABLE_CACHE: dict = {}
+
+
+def json_tables_for(st: JsonStringTables, max_depth: int = 16) -> JsonValueTables:
+    """Process-wide cache of JsonValueTables per (string tables, max_depth)."""
+    key = (id(st), int(max_depth))
+    if key not in _JTABLE_CACHE:
+        _JTABLE_CACHE[key] = JsonValueTables(st, max_depth)
+    return _JTABLE_CACHE[key]

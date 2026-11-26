@@ -197,9 +197,15 @@ def test_numbers_copy_exactly_from_evidence():
         {"amount": 1234567, "rate": 0.035}
 
 
+_JSON_VALUES = [None, True, 0, -12, 3.25, "a\"b", [], {}, [1, {"k": [None, "x"]}], {"rows": [{"src": "b1", "n": 2}]}]
+
+
 def _random_fill(template, rng):
     for h in holes_of(template):
-        if h.kind == "pattern":
+        if h.kind == "json":                                  # JSON-value hole (untyped schema): any JSON value
+            h.value = rng.choice(_JSON_VALUES)
+            h.tokens = [0]                                    # marks the hole filled (a JSON null is a value)
+        elif h.kind == "pattern":
             s, st = "", 0
             while True:
                 al, close = h.dfa.allowed(st, len(s), 60 - len(s), h.min_len, h.max_len)
@@ -229,7 +235,8 @@ def test_every_ow_tiny_schema_compiles_and_random_walks_are_valid(ow_tiny_tools)
             assert _validate(t.parameters, args) == [], (t.name, args)
             # the serialised segments are valid JSON once the holes are filled (free-map keys repeating a declared
             # property or an earlier key are dropped by materialize, first occurrence wins)
-            text = "".join(s if isinstance(s, str) else json.dumps(s.value, ensure_ascii=False)[1:]
+            text = "".join(s if isinstance(s, str) else
+                           json.dumps(s.value, ensure_ascii=False)[0 if s.kind == "json" else 1:]
                            for s in serialize(tpl))
             stats = {}
             materialize(tpl, stats)
@@ -252,8 +259,9 @@ def _numeric_nodes(node, out):
 
 def test_every_ow_tiny_numeric_slot_writes_exact_values_and_reductions_are_listed(ow_tiny_tools):
     """All numeric slots of the real catalogue write exact values at their bounds and at random points inside (money
-    in cents, timestamps, budgets); every capability reduction is listed per tool."""
-    opts = GrammarOptions()
+    in cents, timestamps, budgets); every capability reduction is listed per tool. Untyped values written by the
+    typed heads (json_holes=False) keep their numeric slots; with JSON-value holes the decoder writes them."""
+    opts = GrammarOptions(json_holes=False)
     rng = random.Random(7)
     n_slots, kinds = 0, {}
     for t in ow_tiny_tools:

@@ -54,7 +54,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .constraints import (STRING_PROTOCOL, JsonStringTables, PatternMasks, UnsupportedSchema, compile_pattern)
+from .constraints import (J_INIT, JSON_FOLLOW_FIRST, STRING_PROTOCOL, JsonStringTables, PatternMasks,
+                          UnsupportedSchema, compile_pattern, json_tables_for)
 from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
 
 MAX_STRING = 200_000                       # crucible.core.schema.MAX_STRING
@@ -73,9 +74,12 @@ class GrammarOptions:
     float_digits: int = 6                  # at most this many fractional digits for `number` slots
     max_array_items: int = 8
     max_map_keys: int = 4
-    untyped_depth: int = 2                 # nesting of untyped values. The code.run demo `input` (5 levels, > 8 items,
-                                           # > 4 keys) is unrepresentable at any depth under the item/key caps: it
-                                           # needs a JSON-value hole (not implemented; W4 report 2026-11-26)
+    untyped_depth: int = 2                 # nesting of untyped values written by the typed heads (json_holes=False)
+    json_holes: bool = True                # untyped values (schema {} / no type) are JSON-value holes: the decoder
+                                           # writes the whole value as JSON text under the exact JSON automaton
+                                           # (constraints.JsonValueTables). The code.run demo `input` (5 levels, > 8
+                                           # items, > 4 keys) is unrepresentable by the typed heads at any depth.
+    json_max_depth: int = 16               # nesting cap of a JSON-value hole
     default_num_bound: float = 1e15        # replaces a missing minimum / maximum (recorded as a reduction)
     max_copy_candidates: int = 24          # numbers of the selected evidence offered to the copy pointer
     max_string_tokens: int = 1536          # cfg.max_arg_tokens: the cap of code / file fields (string class "code")
@@ -306,7 +310,7 @@ def number_candidates(sources: list, max_n: int, ctx_chars: int = 48) -> list:
 # ============================================================================ schema compilation
 @dataclass(eq=False)
 class Node:
-    kind: str                       # object|array|string|enum|const|integer|number|boolean|null|union
+    kind: str                       # object|array|string|enum|const|integer|number|boolean|null|union|json
     path: str
     desc: str = ""
     schema_text: str = ""
@@ -330,7 +334,7 @@ class Node:
         return f"{self.path or '(arguments)'} [{self.kind}] {self.desc} {self.schema_text}"
 
     def may_hole(self) -> bool:
-        if self.kind == "string":
+        if self.kind in ("string", "json"):
             return True
         if self.kind == "object":
             return self.extra is not None or any(c.may_hole() for _, c, _ in self.props)
@@ -429,6 +433,11 @@ def _number_node(t: str, path: str, desc: str, st: str, lo, hi, opts: GrammarOpt
 
 
 def _untyped(path: str, depth: int, opts: GrammarOptions, red: list) -> Node:
+    if opts.json_holes:
+        red.append({"path": path, "kind": "json_hole", "detail": f"any JSON value written by the decoder: <= "
+                    f"{opts.max_string_tokens} tokens, nesting <= {opts.json_max_depth}, no \\u escapes, <= 2 exponent "
+                    f"digits"})
+        return Node("json", path, desc="any JSON value", str_class="code", tok_cap=opts.max_string_tokens)
     red.append({"path": path, "kind": "untyped", "detail": f"any JSON value: nesting <= {depth}, numbers within "
                                                            f"+-{opts.default_num_bound:g}"})
     sink: list = []                         # the untyped members' own default bounds are covered by the line above
@@ -627,7 +636,7 @@ class Decision:
 
 @dataclass(eq=False)
 class Hole:
-    kind: str                       # 'str' | 'pattern' | 'key'
+    kind: str                       # 'str' | 'pattern' | 'key' | 'json' (a whole JSON value, no quotes)
     node: Node
     min_len: int = 0
     max_len: int = MAX_STRING
@@ -707,6 +716,8 @@ def walk(node: Node, opts: GrammarOptions, cands: Optional[list] = None):
         return out
     if k == "string":
         return Hole("pattern" if node.dfa is not None else "str", node, node.min_len, node.max_len, node.dfa)
+    if k == "json":
+        return Hole("json", node)
     if k == "enum":
         return node.values[(yield from _ask(Decision("enum", node, [True] * len(node.values), node.values)))]
     if k == "const":
@@ -771,6 +782,15 @@ def encode_value(node: Node, value, opts: GrammarOptions, choices: list, holes: 
         if not isinstance(value, str):
             raise GrammarError(f"{node.path}: expected string")
         holes.append(("pattern" if node.dfa is not None else "str", value))
+        return
+    if k == "json":
+        try:
+            json.dumps(value, allow_nan=False)
+        except (TypeError, ValueError) as e:
+            raise GrammarError(f"{node.path}: not a finite JSON value ({e})") from None
+        if _json_depth(value) > opts.json_max_depth:
+            raise GrammarError(f"{node.path}: JSON nesting {_json_depth(value)} > {opts.json_max_depth}")
+        holes.append(("json", value))
         return
     if k == "enum":
         if value not in node.values:
@@ -843,6 +863,14 @@ def encode_value(node: Node, value, opts: GrammarOptions, choices: list, holes: 
     raise GrammarError(f"unknown node kind {k}")
 
 
+def _json_depth(v) -> int:
+    if isinstance(v, dict):
+        return 1 + max([_json_depth(x) for x in v.values()] + [0])
+    if isinstance(v, list):
+        return 1 + max([_json_depth(x) for x in v] + [0])
+    return 0
+
+
 def holes_of(template) -> list:
     """Holes in serialisation order."""
     out: list = []
@@ -875,7 +903,8 @@ def serialize(template) -> list:
 
     def rec(v):
         if isinstance(v, Hole):
-            buf.append('"')
+            if v.kind != "json":                       # a JSON-value hole writes its own quotes / brackets
+                buf.append('"')
             flush()
             segs.append(v)
         elif isinstance(v, TObject):
@@ -908,7 +937,7 @@ def materialize(template, stats: Optional[dict] = None):
     """Template with filled holes -> plain JSON value. Free-map keys that repeat a declared property name or an
     earlier key are dropped (first occurrence wins; counted in stats['dropped_keys'])."""
     if isinstance(template, Hole):
-        if template.value is None:
+        if template.value is None and not (template.kind == "json" and template.tokens):   # (a JSON null)
             raise GrammarError("unfilled hole")
         return template.value
     if isinstance(template, TObject):
@@ -1065,7 +1094,7 @@ class Program:
 
 def hole_class(h: Hole) -> str:
     """Length-prior class of a hole: keys and pattern strings are short; free strings carry their slot's class."""
-    if h.kind == "str":
+    if h.kind in ("str", "json"):
         return h.node.str_class
     return "short"
 
@@ -1156,6 +1185,13 @@ def stop_mixture_log_softmax(logits: torch.Tensor, allowed: torch.Tensor, close:
     return out.masked_fill(~allowed, -torch.inf)
 
 
+def _finite_float(x: str) -> float:
+    v = float(x)
+    if not math.isfinite(v):          # needs > 300 mantissa digits (the automaton allows <= 2 exponent digits)
+        raise GrammarError(f"JSON number {x[:40]}... overflows a float")
+    return v
+
+
 def hole_reserve(h: Hole) -> int:
     if h.kind == "pattern":
         lens = h.dfa.reach[0]
@@ -1163,6 +1199,8 @@ def hole_reserve(h: Hole) -> int:
             if (lens >> l) & 1:
                 return l + 1
         raise GrammarError("pattern has no feasible completion")
+    if h.kind == "json":
+        return 2                                   # '""' (constraints.json_need of the initial state)
     return h.min_len + 1
 
 
@@ -1195,6 +1233,17 @@ class HoleFiller:
         self.stub_ids = tok("<think>\n\n</think>\n\n", add_special_tokens=False)["input_ids"]
         self.length_head: Optional[LengthHead] = None       # set by the action generator (opts.length_prior)
         self.merged_acting = True                           # sample() decodes with merged LoRA weights (enc.acting)
+        self._jt = None                                     # JSON-value automaton (built on first use, ~2 s)
+
+    @property
+    def jtables(self):
+        if self._jt is None:
+            self._jt = json_tables_for(self.tables, self.opts.json_max_depth)
+        return self._jt
+
+    @staticmethod
+    def _init_state(h: Hole):
+        return J_INIT if h.kind == "json" else 0
 
     # ---------------------------------------------------------------- prompts and programs
     def _clip_ids(self, ids: list, keep: int) -> tuple:
@@ -1296,8 +1345,11 @@ class HoleFiller:
         forced.append(self._ids(buf))
         texts.append(buf)
         for k, h in enumerate(holes):
-            h.follow = texts[k + 1] if self.protocol >= 4 else ""
+            # JSON-value holes always close boundary-aware (a top-level number ends at the forced text's first char)
+            h.follow = texts[k + 1] if (self.protocol >= 4 or h.kind == "json") else ""
             h.consumed = 0
+            if h.kind == "json" and (not h.follow or h.follow[0] not in JSON_FOLLOW_FIRST):
+                raise GrammarError(f"{h.node.path}: a JSON hole must be followed by one of {JSON_FOLLOW_FIRST!r}")
         reserve = [hole_reserve(h) for h in holes]
         if sum(reserve) > self.opts.max_action_tokens:
             raise GrammarError(f"holes need {sum(reserve)} tokens > action budget {self.opts.max_action_tokens}")
@@ -1310,6 +1362,8 @@ class HoleFiller:
                 cap.append(min(self.opts.max_string_tokens, h.max_len + 1))
             elif h.kind == "key":
                 cap.append(min(self.opts.max_key_tokens, 2 * h.max_len + 1))
+            elif h.kind == "json":
+                cap.append(h.node.tok_cap or self.opts.max_string_tokens)
             elif h.node.tok_cap > 0:
                 cap.append(h.node.tok_cap)
             else:
@@ -1333,7 +1387,13 @@ class HoleFiller:
         P = len(specs)
         out = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
         close = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
-        srows = [i for i, sp in enumerate(specs) if sp[0].kind != "pattern"]
+        srows = [i for i, sp in enumerate(specs) if sp[0].kind not in ("pattern", "json")]
+        jrows = [i for i, sp in enumerate(specs) if sp[0].kind == "json"]
+        if jrows:                                          # JSON-value holes: state = (lexical state, stack)
+            jm, jc = self.jtables.masks([(specs[i][1], specs[i][3], specs[i][0].follow) for i in jrows])
+            jt = torch.tensor(jrows, device=T.valid.device)
+            out[jt] = jm
+            close[jt] = jc
         for i, sp in enumerate(specs):
             if sp[0].kind == "pattern":
                 out[i] = self._pattern_masks(sp[0]).mask(sp[1], sp[2], sp[3], sp[0].min_len, sp[0].max_len,
@@ -1380,14 +1440,20 @@ class HoleFiller:
             hz = torch.where(torch.tensor(none, device=dev), torch.full_like(hz, -1e4), hz)
         return hz
 
-    def _advance(self, h: Hole, state: int, count: int, tok: int):
+    def _advance(self, h: Hole, state, count: int, tok: int):
+        if h.kind == "json":
+            s2, closed, _ = self.jtables.advance(state, tok)
+            return s2, count + 1, closed
         if h.kind == "pattern":
             return self._pattern_masks(h).advance(state, count, tok)
         return self.tables.advance(state, count, tok)
 
     def _consumed(self, h: Hole, state: int, tok: int) -> int:
         """Forced characters the closing token `tok` (fed in automaton state `state`) writes after its quote."""
-        c = self._pattern_masks(h).consumed(tok) if h.kind == "pattern" else self.tables.consumed(state, tok)
+        if h.kind == "json":
+            c = self.jtables.advance(state, tok)[2]
+        else:
+            c = self._pattern_masks(h).consumed(tok) if h.kind == "pattern" else self.tables.consumed(state, tok)
         if c and not h.follow.startswith(self.tables.texts[tok][-c:]):
             raise GrammarError("closing token's suffix is not the forced text after the hole")
         return c
@@ -1400,6 +1466,8 @@ class HoleFiller:
             if not text.endswith('"'):
                 raise GrammarError("pattern hole not closed")
             return text[:-1]
+        if h.kind == "json":
+            return json.loads(text, parse_float=_finite_float)
         return json.loads('"' + text)
 
     # ---------------------------------------------------------------- assembly
@@ -1471,8 +1539,8 @@ class HoleFiller:
             for h in p.holes:
                 h.tokens = []
                 h.consumed = 0
-            st.append({"hi": 0, "mode": "hole", "seg": [], "fp": 0, "s": 0, "c": 0, "used": 0, "spent": 0,
-                       "done": not p.holes})
+            st.append({"hi": 0, "mode": "hole", "seg": [], "fp": 0, "s": self._init_state(p.holes[0]) if p.holes else 0,
+                       "c": 0, "used": 0, "spent": 0, "done": not p.holes})
         steps = 0
         while not all(s["done"] for s in st):
             specs, rows = [], []
@@ -1522,7 +1590,8 @@ class HoleFiller:
                         h.value = self._hole_value(h)
                         s["spent"] += s["used"]
                         s["hi"] += 1
-                        s.update(s=0, c=0, used=0, mode="forced", fp=0)
+                        s.update(s=self._init_state(p.holes[s["hi"]]) if s["hi"] < len(p.holes) else 0, c=0, used=0,
+                                 mode="forced", fp=0)
                         if s["hi"] >= len(p.holes):
                             s["done"] = True
                         else:
@@ -1585,7 +1654,7 @@ class HoleFiller:
                 seq += self.segment(p, k)
                 later = sum(p.reserve[k + 1:])
                 cap = min(p.cap[k], self.opts.max_action_tokens - spent - later)
-                s, c = 0, 0
+                s, c = self._init_state(h), 0
                 if not h.tokens:
                     raise GrammarError("hole without recorded tokens")
                 for u, t in enumerate(h.tokens):
@@ -1675,6 +1744,8 @@ class HoleFiller:
         tokenizer writes one before the hole's follow text), else the body's tokens plus a plain quote, else one token
         per character."""
         T = self.tables
+        if kind == "json":
+            return self._tokenize_json(value, h, cap)
         if kind == "pattern":
             if not h.dfa.matches(value):
                 raise GrammarError(f"value {value!r} does not match pattern {h.dfa.pattern!r}")
@@ -1703,3 +1774,42 @@ class HoleFiller:
         if len(ids) > cap:
             raise GrammarError(f"string needs {len(ids)} tokens > cap {cap}")
         return ids
+
+    def _tokenize_json(self, value, h: Hole, cap: int) -> list:
+        """Tokens of a JSON-value hole for a demonstrated value: json.dumps(value) (", " / ": " separators, like
+        `serialize`) as the tokenizer writes it before the hole's follow text, cut after the token that completes the
+        value (it may carry a prefix of the follow text, e.g. '}}' or '"],'); else the value's own tokens (+ the
+        follow text's first character after a top-level number); else one token per character. Every candidate is
+        checked token by token against the exact mask conditions (JsonValueTables.allowed)."""
+        J, T = self.jtables, self.tables
+        text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+        follow = h.follow
+
+        def check(ids):
+            state, out, chars = J_INIT, [], 0
+            for u, t in enumerate(ids):
+                if t >= T.V or not T.texts[t]:
+                    return None
+                ok, closes = J.allowed(state, cap - u, follow, t)
+                if not ok:
+                    return None
+                out.append(t)
+                chars += len(T.texts[t])
+                if closes:
+                    cons = J.advance(state, t)[2]
+                    return out if chars - cons == len(text) else None
+                state = J.advance(state, t)[0]
+            return None
+
+        cands = [self.enc.tok(text + follow, add_special_tokens=False)["input_ids"]]
+        own = self.enc.tok(text, add_special_tokens=False)["input_ids"]
+        term = [T.char_id[follow[0]]] if follow and follow[0] in T.char_id else []
+        cands += [own, own + term]
+        if all(ch in T.char_id for ch in text):
+            cands.append([T.char_id[ch] for ch in text] + term)
+        for ids in cands:
+            out = check(ids)
+            if out is not None:
+                return out
+        raise GrammarError(f"{h.node.path}: JSON value ({len(own)} tokens) not representable within {cap} tokens")
+
