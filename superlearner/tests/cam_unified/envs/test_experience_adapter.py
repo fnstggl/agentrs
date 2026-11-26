@@ -17,6 +17,11 @@ RAPID_SAMPLE = ["dl_delayed_returns", "hc_confounded", "pe_rule_induction", "net
                 "strat_price_war", "lab_kinetics", "ch_rule_change", "srch_distractors", "mk_drift"]
 
 
+def forbidden_identity(names, seed):
+    fams = [n.split(":", 1)[1] for n in names]
+    return [f.lower() for f in fams] + [f"\"seed\": {seed}", "\"split\"", "\"engine\"", "\"difficulty\""]
+
+
 def _ops(names, seeds=(0,)):
     specs = [X.WorldSpec(1, n, s) for n in names for s in seeds]
     return X.ExperienceOperator(specs, compute_references=False)
@@ -64,10 +69,24 @@ def test_no_family_seed_reward_or_verifier_leakage_across_families(seed):
     b = ad.reset()
     tools = ad.available_tools()
     batches = [b]
+    results = []
     for k in range(12):
         acts = [Action(tool=ts[k % len(ts)].name, args={}) for ts in tools]
-        ad.execute(acts)
+        results += [r for r in ad.execute(acts) if r is not None]
         batches.append(ad.advance_time([1 / 24] * ad.B))
+    # every enumerated query target, incl. 'spec' (the operator spec leaked in 36 of 73 rapid families upstream)
+    for i, ts in enumerate(tools):
+        for t in ts:
+            props = (t.parameters or {}).get("properties", {})
+            tgt = props.get("target", {})
+            for v in tgt.get("enum", []):
+                acts = [None] * ad.B
+                acts[i] = Action(tool=t.name, args={"kind": "query", "target": v})
+                results += [r for r in ad.execute(acts) if r is not None]
+    for r in results:
+        s = json.dumps([o.to_dict() for o in r.observations], default=str).lower()
+        for tok in forbidden_identity(names, seed):
+            assert tok not in s, (tok, s[:300])
     forbidden = [n.split(":", 1)[1] for n in names] + ["oracle", "\"reward\"", "\"success\"", "reference_net",
                                                        "random_net", "mech_seed", "\"task\""]
     for bb in batches:
@@ -112,3 +131,8 @@ def test_delayed_consequences_link_to_the_causing_action():
     assert r.ok
     assert linked, "a report produced under CAM's settings must carry the causing action's id"
     assert r.observations[0].caused_by == act.action_id
+
+
+def test_broken_multiagent_rapid_families_are_refused():
+    with pytest.raises(ValueError):
+        X.ExperienceOperator([X.WorldSpec(1, "rapid:team_commons", 0)], compute_references=False)

@@ -50,7 +50,18 @@ VERIFIED = "verified_terminal_outcome"
 PRIVATE_PAYLOAD_KEYS = frozenset({"task", "family", "seed", "mech_seed", "world_seed", "world_info", "success",
                                   "failed", "progress", "streak", "success_t", "initially_true", "default_net",
                                   "reference_net", "random_net", "solvable", "rejected", "score_first_half",
-                                  "score_second_half", "private", "objective_quantity", "oracle"})
+                                  "score_second_half", "private", "objective_quantity", "oracle",
+                                  # rapid.query{target: "spec"} returns the operator spec in 36 of 73 families
+                                  # (audit 2026-11-26): identity and held-out membership
+                                  "split", "engine", "category", "difficulty", "spec_hash", "world_id", "partition"})
+
+# Rapid families whose multi-agent adapter is broken in Crucible 5.0 db70810 (results of agent a0 returned to every
+# agent, private messages visible to third parties, joint plans impossible): excluded until fixed upstream.
+BROKEN_MULTIAGENT_RAPID = frozenset({"coop_split_info", "team_assembly", "team_commons", "team_discovery",
+                                     "team_profile", "team_schedule"})
+# Kernel (Tier 0) worlds run every missed daily verifier check on the END state of one long advance (false early
+# success, audit 2026-11-26): the adapter advances kernel worlds in steps of at most this many seconds.
+KERNEL_MAX_ADVANCE_S = 3600
 
 
 def sanitize(x):
@@ -191,6 +202,8 @@ class _World:
 
     def __init__(self, spec: WorldSpec, reward_mode: str):
         from crucible.experience import make
+        if spec.name.startswith("rapid:") and spec.name.split(":", 1)[1] in BROKEN_MULTIAGENT_RAPID:
+            raise ValueError(f"{spec.name}: multi-agent rapid adapter is broken upstream (BROKEN_MULTIAGENT_RAPID)")
         self.spec = spec
         self.reward_mode = reward_mode
         self.env = make(spec.tier, spec.name, seed=spec.seed, reward_mode=reward_mode, **dict(spec.kw))
@@ -200,6 +213,7 @@ class _World:
         self.env_id = f"{spec.name}#{spec.seed}"
         # Tier 1 rapid worlds count time in ticks (one tick per decision / advance); 4.0-derived worlds in seconds.
         self.sec_per_t = 3600.0 if spec.name.startswith("rapid:") else 1.0
+        self.max_advance_s = KERNEL_MAX_ADVANCE_S if spec.tier == 0 else None
 
 
 class ExperienceOperator:
@@ -233,7 +247,7 @@ class ExperienceOperator:
                                  tools=(lambda env=env, agent=agent: env.tools(agent)),
                                  execute=(lambda act, env=env, agent=agent: env.execute(agent, act)),
                                  observe_since=(lambda cur, env=env, agent=agent: env.observe_since(agent, cur)),
-                                 advance=(lambda s, env=env: env.advance(s)),
+                                 advance=(lambda s, env=env, m=w.max_advance_s: _advance_chunked(env, s, m)),
                                  done=(lambda env=env: bool(getattr(env, "done", False))),
                                  reset=(lambda i=i: self.reset_world(i))))
         return ExperienceAdapter(fns)
@@ -317,6 +331,17 @@ class ExperienceOperator:
                 refs = {"null": None, "oracle": None, "error": repr(e)[:200]}
         self._ref_cache[key] = refs
         return refs
+
+
+def _advance_chunked(env, seconds: int, max_step: Optional[int]) -> None:
+    if not max_step or seconds <= max_step:
+        env.advance(seconds)
+        return
+    left = int(seconds)
+    while left > 0:
+        step = min(left, max_step)
+        env.advance(step)
+        left -= step
 
 
 @dataclass
