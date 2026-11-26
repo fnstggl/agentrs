@@ -26,9 +26,11 @@ PROFILE, SEED, DAYS = "balanced", 5, 3
 
 def _child(workdir, report):
     env = dict(os.environ, OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
+    # the same snapshot schedule as the reference run (a snapshot flushes the store; the trajectory is compared under
+    # an identical schedule, so the comparison isolates the interruption)
     return subprocess.Popen([sys.executable, "-m", "crucible.civ.longrun", "run", PROFILE, str(SEED), str(DAYS),
-                             "development", str(workdir), str(report)], env=env, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+                             "development", str(workdir), str(report), "--snapshot-every=1", "--resume-days="],
+                            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def test_interrupted_run_resumes_at_its_checkpoint_and_matches_an_uninterrupted_run(tmp_path):

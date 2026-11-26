@@ -545,12 +545,20 @@ def _main(argv) -> int:
         return 0
     if argv and argv[0] == "run":
         profile, seed, days, population, wd, rp = argv[1], int(argv[2]), int(argv[3]), argv[4], argv[5], argv[6]
+        opt = {}
+        for a in argv[7:]:
+            if a.startswith("--snapshot-every="):
+                opt["snapshot_every"] = int(a.split("=", 1)[1])
+            elif a.startswith("--resume-days="):
+                v = a.split("=", 1)[1]
+                opt["resume_days"] = [int(x) for x in v.split(",") if x]
         rep = run_horizon(profile, seed, days, population=population, workdir=wd, keep_store="--keep" in argv,
-                          prune_verified_blobs="--prune" in argv, log=lambda m: print(m, flush=True))
+                          prune_verified_blobs="--prune" in argv, log=lambda m: print(m, flush=True), **opt)
         _write_json(rp, rep)
         return 0 if not rep["failed"] else 1
     print("usage: python -m crucible.civ.longrun run <profile> <seed> <days> <population> <workdir> <report.json> "
-          "[--keep] | resume <store.sqlite> <world_id> <until_t>")
+          "[--keep] [--prune] [--snapshot-every=N] [--resume-days=a,b] | resume <store.sqlite> <world_id> <until_t> "
+          "| verify <store.sqlite> <world_id> <seq0> <snapshot0|-> <seq1> <snapshot1>")
     return 2
 
 
