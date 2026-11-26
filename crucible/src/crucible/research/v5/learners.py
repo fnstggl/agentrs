@@ -42,8 +42,11 @@ L_MAX = 6
 BRIEF_DIM = 64                              # episodes.BRIEF_DIM: hashed words of the public brief
 _PROCESS_STASH: dict[str, dict] = {}       # the stateful control's out-of-checkpoint memory (by design)
 
-# within-episode search strategies: (step, settle ticks, measure ticks, commit fraction)
-META_ARMS = ((0.02, 0, 1, 0.25), (0.25, 1, 2, 0.7), (0.4, 1, 2, 0.6), (0.15, 2, 3, 0.75), (0.3, 3, 3, 0.8),
+# within-episode search strategies: (step, settle ticks, measure ticks, commit fraction). Arm 0 is the meta control's
+# untrained prior and does not adapt at all (step 0): what the control learns is to adapt, so its known capability is
+# unambiguous (with a 0.02-step prior the untrained control already adapted - context contribution 0.21 - and the
+# learned arm added only 0.11 on top; 2026-11-26 development battery, establishment design)
+META_ARMS = ((0.0, 0, 1, 0.25), (0.25, 1, 2, 0.7), (0.4, 1, 2, 0.6), (0.15, 2, 3, 0.75), (0.3, 3, 3, 0.8),
              (0.5, 0, 2, 0.5), (0.1, 1, 1, 0.9), (0.35, 2, 2, 0.7))
 # cross-episode search strategies: (start: 0 = defaults / 1 = centre, initial step, shrink)
 TRANSFER_ARMS = ((0, 0.01, 0.95), (0, 0.1, 0.7), (0, 0.25, 0.6), (1, 0.25, 0.6), (0, 0.4, 0.6), (1, 0.1, 0.8))
@@ -511,7 +514,8 @@ class TransferLearner(LeverLearner):
             start = np.full(ctx["n"], 0.5) if start_c else np.asarray(ctx["u0"])
             st = {"arm": int(arm), "search": CoordSearch(start, step, shrink).to_json(), "episodes": 0,
                   "first": None, "best": None}
-            self.tasks[key] = st
+            if not self.frozen:      # a frozen (evaluated) learner writes no memory: a task state created while
+                self.tasks[key] = st  # scoring would survive into later in-process scores (spurious process state)
         self._task = st
         cs = CoordSearch.from_json(st["search"])
         self._cs = cs

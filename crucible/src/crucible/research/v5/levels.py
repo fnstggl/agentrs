@@ -120,7 +120,9 @@ def build_level(level: int, reg: Registry | None = None, *, n_train: int = 12, s
         rapid_train = [w["id"] for w in reg.worlds(tier=1, family_partition="train", source="crucible.rapid")]
         new_domain = [w["id"] for w in reg.worlds(tier=2) + reg.worlds(tier=3) if w["family_partition"] in
                       ("evaluation",)]
-        mech = [w["id"] for w in reg.worlds(tier=1, source="crucible.mechanisms") if w["family_partition"] == "train"]
+        # single-seat 4.0 mechanism tasks (a multi-seat task's verifier reports per-seat play, not one outcome)
+        mech = [w["id"] for w in reg.worlds(tier=1, source="crucible.mechanisms") if w["family_partition"] == "train"
+                and list(w["participants"]) == ["seats:1"]]
         pick = [rapid_train[i] for i in rng.permutation(len(rapid_train))[:4]] if rapid_train else []
         train = [{"entry": f, "seed": 700 + k} for k, f in enumerate(sorted(pick))]
         test = [{"entry": e, "seed": 1_000_700 + k} for k, e in enumerate(sorted(new_domain)[:4])]

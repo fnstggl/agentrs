@@ -83,7 +83,45 @@ def save_checkpoint(learner, directory: str) -> dict:
     return man
 
 
-def _jailed(argv: list[str], work: str) -> tuple[list[str], str]:
+def _others_can_read(path: str) -> bool:
+    """Whether a process of another, unprivileged uid can reach `path` (every ancestor searchable by others)."""
+    p = os.path.abspath(path)
+    while True:
+        try:
+            if not os.stat(p).st_mode & stat.S_IXOTH:
+                return False
+        except OSError:
+            return False
+        parent = os.path.dirname(p)
+        if parent == p:
+            return True
+        p = parent
+
+
+def _tmp_root() -> str:
+    """A temporary directory root the jail uid can traverse (TMPDIR may sit inside a private 0700 tree)."""
+    t = tempfile.gettempdir()
+    return t if _others_can_read(t) else "/var/tmp"
+
+
+def _source_for_jail(dest: str) -> str:
+    """The crucible source root the jailed child imports: the checkout itself when the jail uid can reach it, else a
+    read-only copy of the package (code and small data, no caches) under `dest` (e.g. a checkout inside a private
+    0700 scratch directory)."""
+    root = src_root()
+    if _others_can_read(os.path.join(root, "crucible", "research", "v5", "fresh.py")):
+        return root
+    out = os.path.join(dest, "src")
+    shutil.copytree(os.path.join(root, "crucible"), os.path.join(out, "crucible"),
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for dp, dirs, files in os.walk(out):
+        os.chmod(dp, 0o755)
+        for f in files:
+            os.chmod(os.path.join(dp, f), 0o644)
+    return out
+
+
+def _jailed(argv: list[str], work: str, src: str | None = None) -> tuple[list[str], str]:
     """`argv` (a python command line) under the sandbox jail: own uid, Landlock with read-only system libraries,
     standard library, numpy and the crucible source tree, read-write `work` only, no sockets, no new processes.
     Raises `isolation.JailUnavailable` where the jail cannot be applied."""
@@ -98,7 +136,7 @@ def _jailed(argv: list[str], work: str) -> tuple[list[str], str]:
     site = os.path.dirname(np_dir)
     ro = ISO.RO_SYSTEM + [paths["stdlib"], paths["platstdlib"], os.path.join(paths["stdlib"], "lib-dynload"), np_dir,
                           os.path.join(site, "numpy.libs"), os.path.dirname(py), os.path.join(sys.base_prefix, "lib"),
-                          src_root()]
+                          src or src_root()]
     uid = ISO.uid_for("weights-only-eval")
     cfg = ISO._write_cfg({"uid": uid, "gid": uid, "mode": "tool", "ro": sorted({p for p in ro if os.path.exists(p)}),
                           "exec": [py] + ISO._loaders(), "rw": [work], "chown": [work]})
@@ -112,9 +150,10 @@ def weights_only_eval(manifest: Mapping, worlds: list[Mapping], *, timeout: floa
     exists only for the adversarial demonstrations of `adversarial` (it shows what the jail prevents); the check
     `filesystem_confined` then fails, so such a run is never ``ok``."""
     import numpy
-    base = tempfile.mkdtemp(prefix="crucible-v5-fresh-")
-    outside = tempfile.mkdtemp(prefix="crucible-v5-canary-")
-    cfg_path = None
+    tmp_root = _tmp_root()
+    base = tempfile.mkdtemp(prefix="crucible-v5-fresh-", dir=tmp_root)
+    outside = tempfile.mkdtemp(prefix="crucible-v5-canary-", dir=tmp_root)
+    cfg_path = src_dir = None
     try:
         inp = os.path.join(base, "in")
         os.makedirs(inp)
@@ -144,9 +183,14 @@ def weights_only_eval(manifest: Mapping, worlds: list[Mapping], *, timeout: floa
         boot = ("import sys; _pre = sorted(m for m in sys.modules if m.startswith('crucible')); "
                 "sys.path.insert(0, sys.argv[1]); sys.path.append(sys.argv[2]); "
                 "from crucible.research.v5.fresh import _child; _child(_pre)")
-        cmd = [sys.executable, "-I", "-c", boot, src_root(), site]
+        src = src_root()
         if jail:
-            cmd, cfg_path = _jailed(cmd, base)
+            src_dir = tempfile.mkdtemp(prefix="crucible-v5-fresh-src-", dir=tmp_root)
+            os.chmod(src_dir, 0o755)
+            src = _source_for_jail(src_dir)
+        cmd = [sys.executable, "-I", "-c", boot, src, site]
+        if jail:
+            cmd, cfg_path = _jailed(cmd, base, src)
         p = subprocess.run(cmd, input=json.dumps(req).encode(), capture_output=True, env=env, cwd=home,
                            timeout=timeout)
         if p.returncode != 0:
@@ -157,6 +201,8 @@ def weights_only_eval(manifest: Mapping, worlds: list[Mapping], *, timeout: floa
     finally:
         shutil.rmtree(base, ignore_errors=True)
         shutil.rmtree(outside, ignore_errors=True)
+        if src_dir:
+            shutil.rmtree(src_dir, ignore_errors=True)
         if cfg_path:
             try:
                 os.unlink(cfg_path)
