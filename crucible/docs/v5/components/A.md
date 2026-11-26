@@ -290,3 +290,26 @@ f660be6..cf11866 plus this continuation):
 | K2 observer test and K1 cross-process resume failed after the merge: the same page request was billed 0.1 ms or 2.9 ms in two runs of one spec and seed - the program-load CPU (2.9-5.8 ms on the loaded machine) straddled `LOAD_FREE_NS` and the job memo billed the noisy figure | D-80: the deterministic cost model anchors a program's load like a job (first measurement per lineage, program and target; tolerance floored at the free allowance); a platform cold start's load (the pool's first worker for a key in this host process: a resumed process, a fork) joins the job's first measurement, a restart after a death or eviction bills it on top (minimal edits in `sandbox/runner.py`, `sandbox/metering.py`) | `test_v5_substrate_memo.py::test_a_noisy_program_load_is_billed_by_its_anchor_like_a_job`, `::test_a_platform_cold_start_bills_a_request_as_the_warm_run_did`, `test_v5_substrate_streams.py`, `test_v5_substrate_resume.py` |
 | approved state interfaces were a string: any module's code could pass `_iface="attention"` to `columns.batch` and refill attention unchecked | an interface is a capability of the Python module that registered it (`register_interface` records it; `batch(_iface=...)` from other code is refused) | `test_v5_substrate_columns.py::test_a_module_cannot_write_columns_it_does_not_own[claimed_iface]` |
 | the mandatory fact scan would fail on the integration branch as soon as the Tier 2 domain branches merge (unreviewed copies of needs, institutions, products, subscriptions) | D-79: reviewed from those branches' scans before the merge (allow-list with target owner and migration); absent entries are reported (`allow_listed_absent`), stale ones are problems | `test_v5_substrate_facts.py` |
+
+Measured in wave 3b (one CPU, CUDA hidden; unofficial):
+
+* K2 diagnosis on a real population world (240 individuals, 6 sandboxed sites, 6 hours, base vs emitting observer
+  with a shared measurement lineage): before D-80 the first differing main-line event was `cloud.usage` (cpu_ms 0.125
+  vs 5.735) - base billed one request "exceeded" (load 5.8 ms, billed 2.954 ms), the observer the same request
+  "remembered" (load 3.5 ms, billed 0.097 ms); after it all 22 jobs bill "remembered" in both arms, and
+  `tests/test_v5_substrate_streams.py` passes (6).
+* K1, cross-process: a 1-day adaptive population world (150 individuals, 6 sites) snapshotted at 0.5 days, crashed
+  at 0.75 and resumed in a new process: 13 differing events with the first D-80 step (cold starts of the resumed
+  process billed their anchored load), 2 with the load tolerance unfloored (the resume itself was not
+  reproducible); with D-80 completed the resumed run ends with the uninterrupted run's hash and digest, twice. At the
+  resume test's own configuration (300 individuals, 8 sites, adaptive + strategic; snapshot day 1, crash 1.5, resume
+  to 2.5) the resumed process ends at seq 9,717 with the hash and digest of an uninterrupted stored run in another
+  new process (58 of 192 inferences re-run); replay of the stored log is exact with 0 inferences.
+* Mandatory fact scan on a scratch merge of this branch with c5c/w3b-pop, -soc, -econ1, -civ, -dom1, -econ2, -sem and
+  -perf: 327 items over 107 modules, 0 problems, 0 unreviewed; 17 of the 19 Part 2.3 primitives have no copy
+  (relationship and community remain: forum follows/boards, `pop.contacts`, `pop.communities`, the audience engine's
+  follower sets, `social.cols:follow`, `community.communities` on the allow-list).
+* Gates SP-2.1, SP-2.3, SP-2.3b, the 365-day store-growth run and the adversarial civilisation probe (K1/K2,
+  retention, data-level facts, `history.state_at`) need the slot scheduler (a civilisation runs 12 simulated hours
+  in more than 5 minutes on one CPU without the GPU); they were queued and are reported in docs/v5/workstreams/A.json
+  when they ran.
