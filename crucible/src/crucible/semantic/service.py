@@ -46,6 +46,7 @@ import math
 import os
 import threading
 import time
+import weakref
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
@@ -780,11 +781,13 @@ def _cached_hash(key: tuple, compute: Callable[[], str]) -> str:
 
 # ====================================================================== process-wide registry
 _SERVICES: "dict[str, SemanticService]" = {}
+_SERVICES_ALL: "weakref.WeakSet[SemanticService]" = weakref.WeakSet()   # every live service (usage accounting)
 
 
 def _register(svc: SemanticService) -> None:
     with _LOCK:
         _SERVICES.setdefault(svc.model_id, svc)
+        _SERVICES_ALL.add(svc)
 
 
 def service_for(model_id: str = DEFAULT_MODEL, **kw) -> SemanticService:
