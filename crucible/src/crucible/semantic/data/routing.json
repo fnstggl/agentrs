@@ -1292,86 +1292,113 @@
  "report_command": "python -m crucible.semantic.capbench (seed 0, 6 candidates x 8 capabilities, GPU)",
  "report_sha256": "093b1b3a743216e38728675a49329a1f151c967eb139fb72b36020ad17f4fbea",
  "routes": {
-  "communication": {
-   "measured": {
-    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.75,
-    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.7167,
-    "Qwen/Qwen3-0.6B": 0.9833,
-    "Qwen/Qwen3-1.7B": 1.0
-   },
-   "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
-   "reason": "smallest model effective on held-out templates"
-  },
   "content_understanding": {
+   "model": "Qwen/Qwen3-0.6B",
+   "reason": "smallest model effective on held-out templates",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1833,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.25,
     "Qwen/Qwen3-0.6B": 0.8167,
     "Qwen/Qwen3-1.7B": 0.8333
-   },
-   "model": "Qwen/Qwen3-0.6B",
-   "reason": "smallest model effective on held-out templates"
-  },
-  "incentive_adaptation": {
-   "measured": {
-    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.3333,
-    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2,
-    "Qwen/Qwen3-0.6B": 0.5667,
-    "Qwen/Qwen3-1.7B": 0.6333
-   },
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "smallest model effective on held-out templates"
-  },
-  "negotiation": {
-   "measured": {
-    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.4,
-    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.3,
-    "Qwen/Qwen3-0.6B": 0.3667,
-    "Qwen/Qwen3-1.7B": 0.5333
-   },
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "no candidate effective on held-out templates: best measured model"
-  },
-  "programming": {
-   "measured": {
-    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1429,
-    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.25,
-    "Qwen/Qwen3-0.6B": 0.5,
-    "Qwen/Qwen3-1.7B": 0.8929
-   },
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "smallest model effective on held-out templates"
+   }
   },
   "situation_interpretation": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.5333,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
     "Qwen/Qwen3-0.6B": 0.2833,
     "Qwen/Qwen3-1.7B": 0.65
-   },
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "smallest model effective on held-out templates"
-  },
-  "strategic_decisions": {
-   "measured": {
-    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1667,
-    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
-    "Qwen/Qwen3-0.6B": 0.35,
-    "Qwen/Qwen3-1.7B": 0.85
-   },
-   "model": "Qwen/Qwen3-1.7B",
-   "reason": "smallest model effective on held-out templates"
+   }
   },
   "tool_choice": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective in situ (class-4 bench, dev)",
    "measured": {
     "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1083,
     "HuggingFaceTB/SmolLM2-360M-Instruct": 0.1333,
     "Qwen/Qwen3-0.6B": 0.6083,
     "Qwen/Qwen3-1.7B": 0.75
    },
-   "model": "Qwen/Qwen3-0.6B",
-   "reason": "smallest model effective on held-out templates"
+   "in_situ": {
+    "Qwen/Qwen3-0.6B": 0.5833,
+    "Qwen/Qwen3-1.7B": 0.6806
+   }
+  },
+  "communication": {
+   "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+   "reason": "smallest model effective on held-out templates",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.75,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.7167,
+    "Qwen/Qwen3-0.6B": 0.9833,
+    "Qwen/Qwen3-1.7B": 1.0
+   }
+  },
+  "incentive_adaptation": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.3333,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2,
+    "Qwen/Qwen3-0.6B": 0.5667,
+    "Qwen/Qwen3-1.7B": 0.6333
+   }
+  },
+  "negotiation": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "no candidate effective on held-out templates: best measured model",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.4,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.3,
+    "Qwen/Qwen3-0.6B": 0.3667,
+    "Qwen/Qwen3-1.7B": 0.5333
+   }
+  },
+  "programming": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1429,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.25,
+    "Qwen/Qwen3-0.6B": 0.5,
+    "Qwen/Qwen3-1.7B": 0.8929
+   }
+  },
+  "strategic_decisions": {
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates",
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1667,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
+    "Qwen/Qwen3-0.6B": 0.35,
+    "Qwen/Qwen3-1.7B": 0.85
+   }
   }
  },
- "rule": "per capability the smallest model effective on held-out templates (accuracy or generation pass rate >= 0.6, p <= 0.01 / Wilson lower bound >= 0.4); where none is effective, the best-measured language model"
+ "rule": "per capability the smallest model effective on held-out templates (accuracy or generation pass rate >= 0.6, p <= 0.01 / Wilson lower bound >= 0.4); where none is effective, the best-measured language model",
+ "in_situ": {
+  "tool_choice": {
+   "Qwen/Qwen3-0.6B": 0.5833,
+   "Qwen/Qwen3-1.7B": 0.6806
+  }
+ },
+ "in_situ_source": {
+  "what": "class-4 tool selection in a civilisation (crucible.semantic.generalists.bench, DEV templates only, 6 items per template, seed 0); only the tool_choice route varies, every other route as derived from the SP-3.2b report",
+  "n_items": 72,
+  "ci95": {
+   "Qwen/Qwen3-0.6B": [
+    0.4681,
+    0.6901
+   ],
+   "Qwen/Qwen3-1.7B": [
+    0.5661,
+    0.7767
+   ]
+  },
+  "sha256": "23d7c8fd7f5da45463f788c52166705656936cabb195fc026d04d1fd1a4bee74",
+  "date": "2026-11-26",
+  "decision": "D-37"
+ }
 }

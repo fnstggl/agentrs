@@ -242,18 +242,24 @@ def test_H_n1_smallest_effective_models(society):
     # these process-wide services), so a reader sees how much of the work the escalation model did
     req = {mdl: int(s.usage()["requests"]) for mdl, s in society["services"].items()}
     total = max(1, sum(req.values()))
-    m = {"semantic_model_params": routing.PARAMS[default], "default_model": default,
+    largest = max([routing.PARAMS.get(mdl, 0) for mdl, n in req.items() if n] or [0])
+    # the size that counts is the largest model the standard implementation actually routes class-4 decisions to
+    # (not the nominal default): with D-36/D-37 situation interpretation and tool choice need Qwen3-1.7B
+    m = {"semantic_model_params": largest, "default_model": default,
+         "default_model_params": routing.PARAMS[default],
          "smaller_alternatives_benchmarked": len(acc), "smaller_alternative_accuracy": json.dumps(acc),
          "models_used": ",".join(sorted(society["services"])), "escalated_capabilities": ",".join(esc),
          "escalation_model_params": max([routing.PARAMS.get(routing.route(c), 0) for c in esc] or [0]),
          "requests_by_model": json.dumps(req),
          "request_share_above_1_1b_params": round(sum(n for mdl, n in req.items()
                                                       if routing.PARAMS.get(mdl, 0) > 1_100_000_000) / total, 4),
-         "largest_model_params_used": max([routing.PARAMS.get(mdl, 0) for mdl, n in req.items() if n] or [0])}
-    record("H.n1", m, command=CMD, notes="semantic_model_params is the default model (D-36): the smallest model "
-                                         "effective on held-out templates for content understanding and tool "
-                                         "choice. Capabilities for which SP-3.2b found no effective model of at "
-                                         "most 1.1B parameters are escalated; listed with the escalation model's "
-                                         "size, the requests each model served in the standard run and the share "
-                                         "served by a model above 1.1B parameters.")
+         "largest_model_params_used": largest}
+    record("H.n1", m, command=CMD, notes="semantic_model_params is the largest model class-4 decisions were routed to "
+                                         "in the standard run. Routing uses the smallest model effective per "
+                                         "capability (D-36: SP-3.2b held-out templates; D-37: tool choice measured "
+                                         "in situ on the class-4 bench's dev templates, 0.6B 0.58 < 0.6, 1.7B "
+                                         "0.68); where that is Qwen3-1.7B the ~0.5-1B target of H.n1 is not met - "
+                                         "a measured conflict between the target and 'smallest model that meets "
+                                         "each capability' with the locally available checkpoints. Requests per "
+                                         "model and the share above 1.1B parameters are listed.")
     assert m["semantic_model_params"] <= 1_100_000_000 and m["smaller_alternatives_benchmarked"] >= 2

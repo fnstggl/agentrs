@@ -117,7 +117,7 @@ def test_routing_escalates_hard_capabilities_and_policy_needs_a_slot(monkeypatch
     derived = {c: r["model"] for c, r in R.derive(dec["report"], dec.get("in_situ")).items()}
     assert {c: R.route(c) for c in R.TABLE} == derived
     assert R.route("programming") == R.route("negotiation") == R.route("strategic_decisions") == "Qwen/Qwen3-1.7B"
-    assert R.route("tool_choice") == R.route("content_understanding") == "Qwen/Qwen3-0.6B"
+    assert R.route("content_understanding") == "Qwen/Qwen3-0.6B" and R.route("tool_choice") in R.PARAMS
     assert R.PARAMS[R.route("communication")] <= R.PARAMS["Qwen/Qwen3-0.6B"]
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "")
     assert R.device_for("Qwen/Qwen3-1.7B") == ("cpu", "int8-dynamic")

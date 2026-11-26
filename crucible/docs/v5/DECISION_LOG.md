@@ -294,3 +294,19 @@ the 0.5-1B target of H.n1; the 0.6B model stays the default for content understa
 writing goes to SmolLM2-135M. H.n1 reports the default model and, separately, the escalation model and the
 capabilities escalated. Weakness carried over from the audit: the communication benchmark checks copied facts and
 surface heuristics, not coherence judged independently, so routing writing to the 135M model rests on a weak test.
+
+## D-37 Tool choice of semantic participants routed by an in-situ measurement; H.n1 reports the largest routed model (2026-11-26, workstream D)
+The first Gate H run on a standard civilisation (unofficial, c5c/w3b-sem) measured held-out tool selection 0.47 with
+tool choice on Qwen3-0.6B (D-36: smallest model effective on the SP-3.2b tool-choice templates, 0.61). The SP-3.2b
+items offer about ten clean tool names; the participants choose a service and then a tool over their whole
+interface of ~570 tools. Decision: `routing.derive(report, in_situ)` replaces a capability's report-derived entry by
+the same rule (smallest model with accuracy >= 0.6, else the best measured) applied to measurements where the
+participants use it; for tool choice that is the class-4 benchmark in a civilisation (`generalists.bench`), DEV
+templates only (72 items, seed 0), every other route as derived from the report: Qwen3-0.6B 0.583 [0.468, 0.690],
+Qwen3-1.7B 0.681 [0.566, 0.777]; all routes on 0.6B 0.542. Tool choice is therefore routed to Qwen3-1.7B (committed
+in `crucible/semantic/data/routing.json`, `in_situ` and `in_situ_source` with the measurement's SHA-256); test
+templates stay held out for Gate H.4. Consequence: class-4 decisions about situations and tools run on a 1.7B model,
+above the ~0.5-1B target of H.n1; H.n1's `semantic_model_params` now reports the largest model the standard run
+routed class-4 decisions to (no longer the nominal default), so H.n1 fails by measurement: the target and "the
+smallest model that meets each capability requirement" conflict with the locally available checkpoints (SmolLM2-135M
+and -360M reach 0.0 and 0.06 on the same benchmark; no ~1B checkpoint other than TinyLlama-1.1B is available).

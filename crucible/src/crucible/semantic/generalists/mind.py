@@ -441,9 +441,13 @@ def intent_request(a: Agent, now: int, qv) -> dict:
 
 
 def clean_intent(text: str) -> str:
+    """The next-step phrase, or "" when the answer is not one: a tool call written out (``call jobs.offer {...}``,
+    seen from Qwen3-1.7B on DEV items) names no action in general words, so the goal itself is then the query."""
     t = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
     t = t.split("\n")[0].strip().strip('"').strip("'").strip(" .")
     t = re.sub(r"^(next,?\s+)?i\s+will\s+", "", t, flags=re.I)
+    if re.search(r"[{}\[\]=]|\b[a-z]+\.[a-z_]+\b|^call\b", t, flags=re.I):
+        return ""
     return clip(t, 80)
 
 
