@@ -931,6 +931,7 @@ def main(argv=None) -> int:
     t.add_argument("--chunk", type=int, default=None)
     t.add_argument("--n-envs", type=int, default=2)
     t.add_argument("--device", default="cuda")
+    t.add_argument("--budget-s", type=float, default=600.0, help="training wall budget of this call (s)")
     t2 = sub.add_parser("ckpt-e2e-load", help="W9 e2e: fresh-process weights-only load + act + one update")
     t2.add_argument("--run-dir", required=True)
     t2.add_argument("--out", required=True)
@@ -960,8 +961,8 @@ def main(argv=None) -> int:
             print(build_dashboard(a.run_dir))
         return 0
     if a.cmd == "ckpt-e2e":
-        print(json.dumps(ckpt_e2e(a.run_dir, updates=a.updates, chunk=a.chunk, n_envs=a.n_envs, device=a.device),
-                         default=str)[:4000])
+        print(json.dumps(ckpt_e2e(a.run_dir, updates=a.updates, chunk=a.chunk, n_envs=a.n_envs, device=a.device,
+                                  budget_s=a.budget_s), default=str)[:4000])
         return 0
     if a.cmd == "ckpt-e2e-load":
         rec = ckpt_e2e_load(a.run_dir, a.out, seed=a.seed, act_rounds=a.act_rounds, device=a.device)
