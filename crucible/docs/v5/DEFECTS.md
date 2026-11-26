@@ -1248,11 +1248,12 @@ B_population verdict) and P's own findings.
   "finding": 2
  },
  "status": "open",
- "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk."
+ "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk.",
+ "progress": "2026-11-26 (c5c/w3b-perf, measured, not fixed): after daily retention compaction, VACUUM and WAL checkpoint the civ world stores 7,843 B per individual-day at development (5 days) and 2,846 B at standard (3 days) against T6 550 B; the 10M capacity run (9 h, no store) fits T4. Remaining work is in the event and blob formats and event volume of kcal, B, C and D: docs/v5/performance/OPTIMISATION_REQUESTS.md R5, R6 (artifact.stored folded into cols.batch, one scheduler event per firing, space vectors stored once, delta-only set batches, raw small-blob format)."
 }
 ```
 
-### DEF-M-4 (critical, open): No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' cl
+### DEF-M-4 (critical, fixed): No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' cl
 
 ```json
 {
@@ -1268,8 +1269,10 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 3
  },
- "status": "open",
- "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code."
+ "status": "fixed",
+ "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code.",
+ "fixed_by": "c5c/w3-perf + c5c/w3b-perf: crucible.scale.approx, the estimated cohort mode ('approx-cohort/1', labelled estimated, never used inside a world; FIDELITY_REGISTER scale.approx_cohort) and approx.validate, its comparison against high-fidelity individual simulations (fit on 400-individual runs, predict 1,600 individuals on 3 other seeds and a shop-share intervention; errors with 95% intervals for the 7 quantities of Part 13.6; measured 2026-11-26 in docs/v5/performance/MEASUREMENTS.md section 6); dc8f900 fixed its crash on web resources created during a run",
+ "regression_tests": "tests/test_v5_perf_units.py::test_the_estimated_mode_is_labelled_and_measures_errors, tests/test_v5_perf_units.py::test_outcomes_handle_resources_created_during_the_run, tests/v5/test_gate_V.py::test_V_9_approximation_errors_quantified"
 }
 ```
 
@@ -1309,7 +1312,8 @@ B_population verdict) and P's own findings.
   "finding": 5
  },
  "status": "open",
- "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation."
+ "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation.",
+ "progress": "2026-11-26 (c5c/w3b-perf): event-driven policy compute 28.2x cheaper than dense on the civ standard world with 200 pop.wake trigger batches and equal outcomes over three forks (MEASUREMENTS.md section 6); 10M identities on the one population with the posts platform (13.1M recounted distinct consumption events, 596 s, 16.4 GB; section 7); quadratic set(own) removed on c5c/w3b-pop (B, not yet merged). Open: class-4 rows act only once D's runtime (c5c/w3b-sem semantic/generalists) is merged; the world's cost is dominated by consequences (shopping search R1, consumption engine R2, shared-space text path R3, sandbox metering R4, per-event costs R5): measured requests to their owners in docs/v5/performance/OPTIMISATION_REQUESTS.md."
 }
 ```
 
