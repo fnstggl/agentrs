@@ -12,7 +12,11 @@ Layers (all verified by tests/test_sandbox.py):
    uid, so the kernel alone would let one tenant's code signal another tenant's worker);
 6. wall-clock timeouts per job, enforced by the parent (the whole process group is killed);
 7. the only channel to the outside is a JSON-lines pipe to the parent; calls into the synthetic internet go through
-   `crucible_sdk.call(tool, **args)`, which the kernel authorises and records like any other action.
+   `crucible_sdk.call(tool, **args)`, which the kernel authorises and records like any other action;
+8. accounting from outside (D-20, `crucible.sandbox.metering`): CPU, wall time, memory, threads and disk are measured
+   by the parent; the process only supplies the program's output. Threads that outlive a job, work done while idle
+   and a working directory over its quota kill the worker; per-tenant uids (`SandboxConfig.tenant`) keep one world's
+   processes out of another world's process budget.
 
 If Landlock or seccomp is unavailable the runner refuses to start unless `allow_weak=True` is passed explicitly.
 """
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import hashlib
 import json
 import os
 import pwd
@@ -35,10 +40,14 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
+from . import metering as M
+
 BOOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "boot.py")
 APPROVED_PACKAGES = ("numpy",)
 _lock = threading.Lock()
 _counter = 0
+TICK_S = 0.025                 # how often the parent checks a running job's disk use
+TENANT_UID_BASE = 0x5C000000   # per-tenant sandbox uids: TENANT_UID_BASE + 16-bit hash of the tenant
 
 
 @dataclass
@@ -57,11 +66,24 @@ class SandboxConfig:
     base_dir: str = field(default_factory=lambda: os.environ.get("CRUCIBLE_SANDBOX_DIR", "/var/tmp/crucible-sbx"))
     allow_weak: bool = False
     allow_root: bool = False
-    count_lines: bool = False   # deterministic work accounting (executed Python lines) instead of CPU timing
+    count_lines: bool = False   # deterministic cost model: bill the first parent-side measurement of a computation
+    meter_scope: str | None = None  # the world lineage the deterministic memo is keyed by
+    tenant: str | None = None   # own uid per tenant (e.g. per world); None = the shared `user`
+    disk_quota_mb: int = 64     # bytes a worker's working directory may hold (checked by the parent)
+    max_entries: int = 2000     # files and directories a worker's working directory may hold
 
 
 class SandboxUnavailable(RuntimeError):
     pass
+
+
+def tenant_ids(cfg: SandboxConfig) -> tuple[int, int]:
+    """(uid, gid) the sandboxed process runs as: the configured user, or one uid per tenant."""
+    if cfg.tenant:
+        h = int(hashlib.blake2b(str(cfg.tenant).encode(), digest_size=2).hexdigest(), 16)
+        return TENANT_UID_BASE + h, TENANT_UID_BASE + h
+    pw = pwd.getpwnam(cfg.user)
+    return pw.pw_uid, pw.pw_gid
 
 
 def capabilities() -> dict:
@@ -125,6 +147,13 @@ def _pkg_dir(cfg: SandboxConfig) -> str:
     return d
 
 
+def _size(x: Any) -> int:
+    try:
+        return len(json.dumps(x, separators=(",", ":")))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _safe_rel(path: str) -> str:
     p = os.path.normpath(path).lstrip("/")
     if p.startswith("..") or os.path.isabs(p) or "\x00" in p or p in ("", "."):
@@ -133,7 +162,12 @@ def _safe_rel(path: str) -> str:
 
 
 class Worker:
-    """A sandboxed Python process serving jobs over a pipe. Used once (programs) or kept alive (services)."""
+    """A sandboxed Python process serving jobs over a pipe. Used once (programs) or kept alive (services).
+
+    The parent decides everything about a job from outside the process (D-20, `crucible.sandbox.metering`): CPU,
+    wall time, memory, threads and disk are measured here; the process only supplies the program's own output
+    (result, error, captured stdout), which is validated and bounded. A worker that leaves threads running after a
+    job, works while idle, or exceeds its disk quota is killed (and the work is billed)."""
 
     def __init__(self, files: dict[str, str], cfg: SandboxConfig | None = None, label: str = "job"):
         self.cfg = cfg or SandboxConfig()
@@ -145,6 +179,14 @@ class Worker:
         self._buf = b""
         self.jobs = 0
         self.dead_reason: str | None = None
+        self.files_digest = M.digest(sorted((k, hashlib.blake2b(v.encode() if isinstance(v, str) else bytes(v),
+                                                                  digest_size=16).hexdigest())
+                                            for k, v in files.items()))
+        self._idle_cpu: int | None = None     # process CPU when the last job's result arrived
+        self._loaded: set[str] = set()
+        self.carry_ns = 0                     # background work of a predecessor worker, billed with the next job
+        self.uid: int | None = None
+        self._last_bytes = 0
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> "Worker":
@@ -155,7 +197,8 @@ class Worker:
             raise SandboxUnavailable(f"Landlock/seccomp required for untrusted code (found {caps})")
         if len(self.files) > cfg.max_files:
             raise ValueError("too many files")
-        pw = pwd.getpwnam(cfg.user)
+        uid, gid = tenant_ids(cfg)
+        self.uid = uid
         os.makedirs(cfg.base_dir, exist_ok=True)
         os.chmod(cfg.base_dir, 0o711)
         with _lock:
@@ -174,20 +217,19 @@ class Worker:
                 f.write(data)
         for root, dirs, fnames in os.walk(self.workdir):
             for x in dirs + fnames:
-                os.chown(os.path.join(root, x), pw.pw_uid, pw.pw_gid)
+                os.chown(os.path.join(root, x), uid, gid)
             if root != self.workdir:
-                os.chown(root, pw.pw_uid, pw.pw_gid)
-        os.chown(self.workdir, pw.pw_uid, pw.pw_gid)
+                os.chown(root, uid, gid)
+        os.chown(self.workdir, uid, gid)
         reads, syspath = _read_paths(cfg.packages)
         pkgs = _pkg_dir(cfg)
         reads.append(pkgs)
         # boot.py itself is not readable from inside: it is fully loaded before Landlock is applied, and the
         # simulator's sandbox package (isolation settings, broker protocol, host paths) is none of the tenant's
         # business
-        boot_cfg = {"uid": pw.pw_uid, "gid": pw.pw_gid, "read_paths": reads,
+        boot_cfg = {"uid": uid, "gid": gid, "read_paths": reads,
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
-                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
-                    "count_lines": cfg.count_lines}
+                    "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak}
         env = {"PATH": "/nonexistent", "LANG": "C.UTF-8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1",
                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "HOME": self.workdir}
         limits = (cfg.mem_mb, cfg.cpu_s, cfg.nproc, cfg.nofile, cfg.fsize_mb)
@@ -216,28 +258,21 @@ class Worker:
             self.close()
             raise SandboxUnavailable(f"sandbox failed to start: {msg} {err}")
         self.info = msg
+        self._idle_cpu = M.cpu_ns(self.proc.pid)
         return self
 
     def alive(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
     def close(self) -> None:
+        """Stop the process at once (SIGKILL to its process group: nothing in it outlives the worker, and nothing
+        runs unbilled during a graceful shutdown) and delete its working directory."""
         if self.proc is not None:
             try:
                 if self.proc.poll() is None:
-                    try:
-                        self.proc.stdin.write(b'{"op":"exit"}\n')
-                        self.proc.stdin.flush()
-                    except Exception:  # noqa: BLE001
-                        pass
-                    try:
-                        self.proc.wait(timeout=0.5)
-                    except subprocess.TimeoutExpired:
-                        pass
-                if self.proc.poll() is None:
                     os.killpg(self.proc.pid, signal.SIGKILL)
-                    self.proc.wait(timeout=5)
-            except (ProcessLookupError, OSError):
+                self.proc.wait(timeout=5)
+            except (ProcessLookupError, OSError, subprocess.TimeoutExpired):
                 pass
             for s in (self.proc.stdin, self.proc.stdout, self.proc.stderr):
                 try:
@@ -274,92 +309,210 @@ class Worker:
                 if len(self._buf) > 8 * 2**20:
                     return {"op": "overflow"}
             line, _, self._buf = self._buf.partition(b"\n")
+            self._last_bytes = len(line)
             try:
-                return json.loads(line)
+                m = json.loads(line)
             except json.JSONDecodeError:
                 return {"op": "garbage"}
+            return m if isinstance(m, dict) else {"op": "garbage"}
         finally:
             sel.close()
 
-    def _write(self, msg: dict) -> None:
-        self.proc.stdin.write((json.dumps(msg, separators=(",", ":")) + "\n").encode())
+    def _write(self, msg: dict) -> int:
+        data = (json.dumps(msg, separators=(",", ":")) + "\n").encode()
+        self.proc.stdin.write(data)
         self.proc.stdin.flush()
+        return len(data)
 
     def _stderr_tail(self) -> str:
         try:
             if self.proc and self.proc.poll() is not None:
-                return self.proc.stderr.read()[-2000:].decode(errors="replace")
+                return self._clean(self.proc.stderr.read()[-2000:].decode(errors="replace"))
         except Exception:  # noqa: BLE001
             pass
         return ""
 
+    def _clean(self, text: Any) -> Any:
+        """Host paths never reach a participant (and recorded outcomes do not depend on the worker's directory)."""
+        if isinstance(text, str):
+            if self.workdir:
+                text = text.replace(self.workdir, "/sandbox")
+            text = text.replace(BOOT, "<sandbox>").replace(os.path.dirname(BOOT), "<sandbox>")
+            return text.replace(self.cfg.base_dir, "/sandbox")
+        if isinstance(text, dict):
+            return {k: self._clean(v) for k, v in text.items()}
+        return text
+
+    def _kill_measured(self) -> int | None:
+        """CPU of the process just before it is killed."""
+        c = M.cpu_ns(self.proc.pid) if self.proc is not None else None
+        self._kill()
+        return c
+
+    def _over_quota(self) -> str | None:
+        b, n = M.dir_usage(self.workdir, self.cfg.max_entries)
+        if n > self.cfg.max_entries:
+            return f"more than {self.cfg.max_entries} files in the working directory"
+        if b > self.cfg.disk_quota_mb * 2**20:
+            return f"working directory exceeds its {self.cfg.disk_quota_mb} MiB quota"
+        return None
+
+    def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
+                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0) -> dict:
+        """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo."""
+        error = self._clean(error) if error else None
+        stdout = self._clean(stdout or "")[: self.cfg.out_bytes]
+        cpu = max(0, int(cpu))
+        billed, memo = cpu, None
+        if self.cfg.count_lines:
+            outcome = {"ok": ok, "result": result if ok else None,
+                       "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
+            billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
+                                                         outcome), cpu)
+        meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
+                 **({"memo": memo} if memo else {})}
+        out = {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,
+               "cpu_ms": round(billed / 1e6, 4), "wall_ms": meter["wall_ms"], "rpc_calls": len(transcript),
+               "meter": meter}
+        if self.cfg.count_lines:
+            out["work_lines"] = M.work_units(billed, proto_bytes)   # parent-measured work units (never self-counted)
+        return out
+
     def run(self, job: dict, rpc: Callable[[str, dict], tuple[bool, Any]] | None = None,
             timeout: float | None = None, max_rpc: int = 50) -> dict:
-        """Run one job. `rpc(tool, args) -> (ok, result_or_error)` serves nested world calls.
-
-        The reply never contains this worker's host directory (`<base>/<pid>-<n>-<ms>`, different in every
-        process): it is replaced by the fixed `WORKDIR_ALIAS` everywhere (tracebacks, messages, stdout, results), so
-        the recorded outcome - and with it the event hashes - is the same run to run (5.0, audit K3)."""
-        wd = self.workdir
-        out = self._run(job, rpc, timeout, max_rpc)
-        return _scrub(out, wd) if wd else out
-
-    def _run(self, job: dict, rpc, timeout, max_rpc) -> dict:
-        if not self.alive():
-            return {"ok": False, "error": {"type": "WorkerDead", "message": self.dead_reason or "not running"},
-                    "result": None, "stdout": "", "cpu_ms": 0.0, "wall_ms": 0.0, "rpc_calls": 0}
-        self.jobs += 1
-        jid = self.jobs
-        timeout = timeout or self.cfg.job_wall_s
+        """Run one job. `rpc(tool, args) -> (ok, result_or_error)` serves nested world calls."""
         t0 = time.monotonic()
-        deadline = t0 + timeout
-        n_rpc = 0
+        empty = {"threads": 0, "maxrss_kb": 0, "disk_bytes": 0, "background_ns": 0, "load_ns": 0, "killed": None}
+        if not self.alive():
+            return self._finish(False, None, {"type": "WorkerDead", "message": self.dead_reason or "not running"}, "",
+                                cpu=0, job=job, transcript=[], wall_s=0.0, meter=empty)
+        pid = self.proc.pid
+        timeout = timeout or self.cfg.job_wall_s
+        transcript: list = []
+        # 1. work done since the previous job's result (threads or code left running): billed here, worker killed
+        bg = int(self.carry_ns)
+        self.carry_ns = 0
+        now = M.cpu_ns(pid)
+        if self._idle_cpu is not None and now is not None:
+            bg += max(0, now - self._idle_cpu)
+        self._idle_cpu = None                 # busy: a pool sweep (e.g. from a nested world call) leaves it alone
+        if bg > M.BACKGROUND_SLACK_NS:
+            reason = "the process kept working after its previous job returned"
+            self.dead_reason = reason
+            c = self._kill_measured()
+            if c is not None and now is not None:
+                bg += max(0, c - now)
+            return self._finish(False, None, {"type": "WorkerDied", "message": reason}, "", cpu=bg, job=job,
+                                transcript=transcript, wall_s=time.monotonic() - t0,
+                                meter={**empty, "background_ns": bg, "killed": reason})
 
-        def died(reason: str) -> dict:
+        def died(reason: str, etype: str = "WorkerDied", c_start: int | None = None, extra: int = 0) -> dict:
             self.dead_reason = reason
             tail = self._stderr_tail()
-            self._kill()
-            return {"ok": False, "error": {"type": "WorkerDied", "message": reason, "stderr": tail[-800:]},
-                    "result": None, "stdout": "", "cpu_ms": (time.monotonic() - t0) * 1000.0,
-                    "wall_ms": (time.monotonic() - t0) * 1000.0, "rpc_calls": n_rpc}
+            c = self._kill_measured()
+            if c is None:
+                c = M.cpu_ns(pid)
+            used = max(0, (c or 0) - (c_start or 0)) if c is not None and c_start is not None else 0
+            err = {"type": etype, "message": reason, **({"stderr": tail[-800:]} if tail and etype != "Timeout" else {})}
+            return self._finish(False, None, err, "", cpu=used + bg + extra, job=job, transcript=transcript,
+                                wall_s=time.monotonic() - t0, meter={**empty, "background_ns": bg, "killed": reason})
+
+        # 2. load the program (its import-time work is measured apart; only what exceeds LOAD_FREE_NS is billed)
+        load_ns = 0
+        target = job.get("target") if job.get("kind", "call") == "call" else None
+        if isinstance(target, str) and target not in self._loaded:
+            self.jobs += 1
+            lid = self.jobs
+            c0 = M.cpu_ns(pid)
+            try:
+                self._write({"op": "load", "id": lid, "target": target})
+            except OSError:
+                return died("process exited before the program could be loaded", c_start=c0)
+            msg = self._read_msg(time.monotonic() + timeout)
+            if msg is None:
+                return died(f"exceeded {timeout}s while loading the program", "Timeout", c_start=c0)
+            if msg.get("op") != "loaded" or msg.get("id") != lid:
+                reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
+                          "garbage": "protocol violation"}.get(msg.get("op"), "protocol violation")
+                return died(reason, c_start=c0)
+            M.settle(pid)
+            c1 = M.cpu_ns(pid)
+            load_ns = max(0, (c1 or 0) - (c0 or 0))
+            if msg.get("ok") is True:
+                self._loaded.add(target)
+        load_bill = max(0, load_ns - M.LOAD_FREE_NS)
+        # 3. the job
+        self.jobs += 1
+        jid = self.jobs
+        deadline = time.monotonic() + timeout
+        broker_s = 0.0
+        c_start = M.cpu_ns(pid)
+        proto = _size(job)                    # protocol work (sizes of what is decoded/encoded), never billed
         try:
             self._write({"op": "job", "id": jid, **job})
         except OSError:                       # the process is gone (killed, crashed): an ordinary failed job
-            return died("process exited before the job could be sent")
+            return died("process exited before the job could be sent", c_start=c_start, extra=load_bill)
         while True:
-            msg = self._read_msg(deadline)
+            msg = self._read_msg(min(deadline, time.monotonic() + TICK_S))
             if msg is None:
-                self.dead_reason = f"timeout after {timeout}s"
-                self._kill()
-                return {"ok": False, "error": {"type": "Timeout", "message": f"exceeded {timeout}s"}, "result": None,
-                        "stdout": "", "cpu_ms": timeout * 1000.0, "wall_ms": timeout * 1000.0, "rpc_calls": n_rpc}
+                if time.monotonic() >= deadline:
+                    return died(f"exceeded {timeout}s", "Timeout", c_start=c_start, extra=load_bill)
+                q = self._over_quota()
+                if q:
+                    return died(q, "DiskQuota", c_start=c_start, extra=load_bill)
+                continue
             op = msg.get("op")
             if op == "rpc":
-                n_rpc += 1
-                if rpc is None or n_rpc > max_rpc:
-                    reply = {"op": "rpc_result", "id": msg["id"], "ok": False,
-                             "error": {"code": "forbidden", "message": "no network calls available"}}
+                rid = msg.get("id")
+                if rpc is None or len(transcript) >= max_rpc:
+                    ok, val = False, {"code": "forbidden", "message": "no network calls available"}
                 else:
                     pause = time.monotonic()
-                    ok, val = rpc(msg.get("tool", ""), msg.get("args") or {})
-                    deadline += time.monotonic() - pause  # time spent in the broker is not the program's
-                    reply = {"op": "rpc_result", "id": msg["id"], "ok": ok, **({"result": val} if ok else {"error": val})}
+                    ok, val = rpc(str(msg.get("tool", "")), msg.get("args") if isinstance(msg.get("args"), dict) else {})
+                    spent = time.monotonic() - pause
+                    deadline += spent                 # time spent in the broker is not the program's
+                    broker_s += spent
+                transcript.append([str(msg.get("tool", "")), M.digest(msg.get("args")), bool(ok), M.digest(val)])
+                reply = {"op": "rpc_result", "id": rid, "ok": ok, **({"result": val} if ok else {"error": val})}
+                proto += _size(msg.get("args")) + _size(val)
                 try:
                     self._write(reply)
                 except OSError:               # the process died while its call was being served
-                    return died("process exited during a world call")
-            elif op == "done" and msg.get("id") == jid:
-                msg["rpc_calls"] = n_rpc
-                return msg
-            else:
-                reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
-                          "garbage": "protocol violation"}.get(op, f"unexpected message {op}")
-                self.dead_reason = reason
-                tail = self._stderr_tail()
-                self._kill()
-                return {"ok": False, "error": {"type": "WorkerDied", "message": reason, "stderr": tail[-800:]},
-                        "result": None, "stdout": "", "cpu_ms": (time.monotonic() - t0) * 1000.0,
-                        "wall_ms": (time.monotonic() - t0) * 1000.0, "rpc_calls": n_rpc}
+                    return died("process exited during a world call", c_start=c_start, extra=load_bill)
+                continue
+            if op == "done" and msg.get("id") == jid and isinstance(msg.get("ok"), bool) \
+                    and (msg.get("error") is None or isinstance(msg.get("error"), dict)) \
+                    and isinstance(msg.get("stdout", ""), str):
+                M.settle(pid)
+                c_end = M.cpu_ns(pid)
+                n_thr = M.threads(pid)
+                hwm = M.hwm_kb(pid)
+                disk, _n = M.dir_usage(self.workdir, self.cfg.max_entries)
+                killed = None
+                if n_thr > 1:
+                    killed = f"{n_thr - 1} thread(s) outlived the job"
+                q = self._over_quota()
+                if q:
+                    killed = q
+                if killed:
+                    self.dead_reason = killed
+                    c_kill = self._kill_measured()
+                    if c_kill is not None and c_end is not None:
+                        c_end = max(c_end, c_kill)
+                else:
+                    self._idle_cpu = c_end
+                used = max(0, (c_end or 0) - (c_start or 0)) if c_end is not None and c_start is not None else 0
+                meter = {"threads": n_thr, "maxrss_kb": hwm, "disk_bytes": disk, "background_ns": bg,
+                         "load_ns": load_ns, "killed": killed, "broker_ms": round(broker_s * 1000.0, 3)}
+                ok, err = msg["ok"], msg.get("error")
+                if q:
+                    ok, err = False, {"type": "DiskQuota", "message": q}
+                return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg + load_bill,
+                                    job=job, transcript=transcript, wall_s=time.monotonic() - t0 - broker_s,
+                                    meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""))
+            reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
+                      "garbage": "protocol violation"}.get(op, f"protocol violation (unexpected {op!r} message)")
+            return died(reason, c_start=c_start, extra=load_bill)
 
     def _kill(self) -> None:
         if self.proc is not None and self.proc.poll() is None:
@@ -368,20 +521,6 @@ class Worker:
                 self.proc.wait(timeout=5)
             except (ProcessLookupError, OSError, subprocess.TimeoutExpired):
                 pass
-
-
-WORKDIR_ALIAS = "/sandbox/work"
-
-
-def _scrub(x: Any, wd: str) -> Any:
-    """`x` with every occurrence of the host directory `wd` in strings replaced by WORKDIR_ALIAS."""
-    if isinstance(x, str):
-        return x.replace(wd, WORKDIR_ALIAS) if wd in x else x
-    if isinstance(x, dict):
-        return {_scrub(k, wd): _scrub(v, wd) for k, v in x.items()}
-    if isinstance(x, list):
-        return [_scrub(v, wd) for v in x]
-    return x
 
 
 def run_program(files: dict[str, str], target: str, args: Any = None, caller: Any = None,
@@ -407,7 +546,8 @@ def run_tests(files: dict[str, str], folder: str = "tests", cfg: SandboxConfig |
 
 class WorkerPool:
     """Long-lived service workers keyed by (world, deployment). Bounded: least-recently-used workers are closed
-    when the pool is full (the next request restarts them)."""
+    when the pool is full (the next request restarts them). Every access also sweeps the idle workers: one that
+    uses CPU while it serves no job is killed, and that work is billed with the next job of its key."""
 
     def __init__(self, max_workers: int = 32, cfg: SandboxConfig | None = None):
         self.max_workers = max_workers
@@ -415,8 +555,24 @@ class WorkerPool:
         self.workers: dict[str, Worker] = {}
         self.last_used: dict[str, float] = {}
         self.starts = 0
+        self.debt: dict[str, int] = {}
+        self.swept: list[dict] = []
+
+    def sweep(self, skip: str | None = None) -> None:
+        for k, w in list(self.workers.items()):
+            if k == skip or not w.alive() or w._idle_cpu is None:
+                continue
+            c = M.cpu_ns(w.proc.pid)
+            if c is not None and c - w._idle_cpu > M.BACKGROUND_SLACK_NS:
+                ck = w._kill_measured() or c
+                used = max(0, ck - w._idle_cpu)
+                self.debt[k] = self.debt.get(k, 0) + used
+                self.swept.append({"key": k, "background_ns": used})
+                del self.swept[:-50]
+                w.dead_reason = "the process kept working while idle"
 
     def get(self, key: str, files_fn: Callable[[], dict[str, str]]) -> Worker:
+        self.sweep(skip=key)
         w = self.workers.get(key)
         if w is None or not w.alive():
             if w is not None:
@@ -425,6 +581,7 @@ class WorkerPool:
                 old = min(self.last_used, key=self.last_used.get)
                 self.drop(old)
             w = Worker(files_fn(), self.cfg, key).start()
+            w.carry_ns = self.debt.pop(key, 0)
             self.workers[key] = w
             self.starts += 1
         self.last_used[key] = time.monotonic()

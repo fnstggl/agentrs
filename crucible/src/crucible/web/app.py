@@ -2068,6 +2068,8 @@ def make_web_app(server_or_world_provider: Any, world_id: str | None = None, *, 
 
 # ====================================================================== CLI
 def main(argv: list[str] | None = None) -> int:
+    from ..hosting import engage
+    engage("web.app")                          # Part 16: no real-world bridge in a process that hosts worlds
     ap = argparse.ArgumentParser(prog="python -m crucible.web.app",
                                  description="Serve a Crucible world as browsable *.crucible web sites.")
     ap.add_argument("--store", default="memory://", help="memory://, sqlite:///worlds.db or postgresql://...")

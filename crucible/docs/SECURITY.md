@@ -145,3 +145,47 @@ the evaluator.
     hash chain, so the kernel's integrity check caught it.
   * The routine now stores deep copies, and its test asserts exact replay and regeneration.
   * The kernel does not defensively copy payloads, for speed. New routines must follow the contract.
+
+## Crucible 5.0: metering, jails and the red team (workstream O, DECISION_LOG D-20)
+
+**Work is measured outside the measured process.** A sandboxed program can rewrite anything in its own address
+space, so `crucible/src/crucible/sandbox/metering.py` measures every job from the parent: CPU of the whole worker
+process (the kernel's per-process CPU clock, read once the worker is blocked again), wall time, memory high-water,
+live threads and the bytes and entries of the working directory. The worker reports only the program's output. A
+worker that leaves a thread running after a job, keeps working while idle (for example after a forged completion
+message) or exceeds its directory quota (64 MiB, 2,000 entries, checked every 25 ms) is killed and the work is
+billed. Every figure is clamped to be non-negative; the job's recorded outcome carries it, so replay and
+regeneration never re-measure. Under `cost_model = "deterministic"` an identical computation (program files, job,
+every brokered world call with its reply, outcome) is billed with its first measurement in the same world lineage
+(`Memo`), which keeps forks and reruns in one process exact; a later measurement above 3x + 1 ms of the remembered
+one is billed as measured instead. Work units are CPU ns / 350 (about one executed line of the reference need
+solvers on the build host) after the protocol allowance (30 us + 20 ns per byte of the job and result messages).
+Limits: runs in different processes agree only up to measurement noise; a stateful program can hide up to the memo
+tolerance of repeated identical work (red-team probe `v5.sandbox.deterministic_memo_first_measurement_game`).
+
+**Per-tenant uids.** Each world lineage's sandbox workers run as their own uid (`SandboxConfig.tenant`), so one
+world's threads and processes never count against another world's RLIMIT_NPROC budget.
+
+**Native tools on agent bytes are jailed** (`sandbox/jail.py`, `sandbox/isolation.py`). FFmpeg, ffprobe and SoX run
+as a jail uid with no_new_privs, Landlock (read-only system libraries and fonts, execute only the tool and the
+loader, read-write only the job's private directory, no TCP) and seccomp (no sockets, no new processes, signals only
+to itself). Chromium (the HTML renderer with JavaScript off, and the agent browser with JavaScript on) runs through a
+launcher that applies the same jail in browser mode: AF_UNIX only, or IPv4 TCP connect to the world's web-app port
+only (Landlock ABI 4 port rule) and never UDP, IPv6, raw or netlink sockets. Chromium's own sandbox needs user
+namespaces or a setuid helper, which this unprivileged container lacks, so the jail is the outer boundary. Callers
+fail closed where the jail cannot be applied unless `CRUCIBLE_ALLOW_UNJAILED_TOOLS=1`.
+
+**The real-world bridge is latched shut where worlds are hosted.** `crucible.hosting.engage` runs first in the
+CLI, the HTTP and MCP servers, the web app, the experience runner and the process-pool workers; it sets
+`CRUCIBLE_HOSTS_WORLDS` (inherited by child processes) and `RealWorldBridge` refuses to be constructed there.
+
+**Evaluator measurements are not readable in-world.** `goals.metrics.EVALUATOR_ONLY_METRICS` (qualifying MRR/ARR,
+independent revenue and customers, profit, churn) are refused in every agreement predicate (contract deliverables,
+charter conditions, commitments), which closed the binary-search oracle on the evaluator's revenue analysis.
+Engagement integrity (`social/integrity.py`) labels engagers as related, funded, sybil-like or ring members for the
+evaluator's organic metrics; raw in-world counters stay raw.
+
+**Red team.** `crucible.redteam.v5` holds the probes per subsystem, the ratchet (`suite.KNOWN_OPEN` with severity
+and owner; `MUST_HOLD`; `FIXED`, the audit findings closed with the probe that now holds) and `gate_metrics`, which
+`tests/v5/test_gate_W.py` turns into Gate W evidence. The static reachability probe follows Python's import
+semantics (parent packages, literal dynamic imports, lazy package exports) from every registered module.

@@ -9,11 +9,35 @@ Interface (INTERFACE_CONTRACTS section 5), one registry for every calibrated mod
     acquire(name, dest=None) -> str     # downloads, verifies checksums, returns the directory
     load(model_name) -> FittedModel     # e.g. "content_consumption@1", "commercial_response@1"; verifies hashes
 
-World code depends only on `load`; it never reads datasets. Fitting code (`crucible.calibration.fit_e1`,
+World code depends only on `load`; it never reads datasets. The downloader (`datasets.acquire`, urllib) is offline
+tooling: this package exports `acquire` and `datasets` lazily (module `__getattr__`), so importing the package for
+`load` - which world code does - never loads it (checked by the red team's static-reachability probe). Fitting code (`crucible.calibration.fit_e1`,
 `fit_commercial`, `fit_software`) is run offline and writes checkpoints, model cards and held-out reports under
 `docs/v5/calibration/`. `registry_e2` is a compatibility layer over this interface for E2's fitting scripts.
 """
-from .datasets import acquire, datasets
 from .registry import CalibrationError, FittedModel, list_models, load
 
 __all__ = ["CalibrationError", "FittedModel", "acquire", "datasets", "list_models", "load"]
+
+
+class _Package(__import__("types").ModuleType):
+    """Importing the submodule `crucible.calibration.datasets` (other calibration modules do) must not replace the
+    package's `datasets` function by the submodule, as the eager import of 4.0 never did."""
+
+    def __setattr__(self, name, value):
+        if name in ("acquire", "datasets") and isinstance(value, __import__("types").ModuleType):
+            return
+        super().__setattr__(name, value)
+
+
+__import__("sys").modules[__name__].__class__ = _Package
+
+
+def __getattr__(name):
+    if name in ("acquire", "datasets"):
+        import importlib
+        _ds = importlib.import_module(".datasets", __name__)   # the offline downloader, loaded only when asked for
+        fn = getattr(_ds, name)
+        globals()[name] = fn                   # keep the function (not the submodule) as the package attribute
+        return fn
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

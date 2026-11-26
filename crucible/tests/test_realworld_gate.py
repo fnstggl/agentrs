@@ -23,6 +23,14 @@ from crucible.realworld import bridge as bridge_mod
 from crucible.realworld.authorization import ACK
 from crucible.realworld.log import read_log
 
+
+@pytest.fixture(autouse=True)
+def _validation_process(monkeypatch):
+    """These tests exercise the bridge itself, i.e. they play an operator's real-world validation process; an earlier
+    test of the same session may have run a world-hosting entry point in-process (crucible.hosting latch)."""
+    monkeypatch.delenv("CRUCIBLE_HOSTS_WORLDS", raising=False)
+    monkeypatch.setattr(bridge_mod, "_FORBIDDEN_HERE", [])
+
 SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 
 

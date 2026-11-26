@@ -1206,6 +1206,9 @@ def solve(args, caller):
 @pytest.mark.sandbox
 @needs_sandbox
 def test_deterministic_cost_of_a_request_does_not_depend_on_whether_the_worker_is_fresh():
+    # 5.0 (D-20): work is measured by the parent outside the sandboxed process, never counted by the program itself;
+    # the deterministic cost model bills an identical computation (same program, input, world calls and outcome)
+    # with its first measurement, so a fresh worker, a warm one and a one-shot program are billed alike.
     from crucible.sandbox.runner import SandboxConfig, Worker, run_program
     job = {"kind": "call", "target": "svc:solve", "args": {"xs": [1, 2, 3]}, "caller": "x"}
     cfg = SandboxConfig(count_lines=True)
@@ -1215,12 +1218,13 @@ def test_deterministic_cost_of_a_request_does_not_depend_on_whether_the_worker_i
     finally:
         wk.close()
     assert first["ok"] and first["result"] == {"total": 14, "third": "1/3", "d": "2"}
-    assert first["work_lines"] == second["work_lines"] == third["work_lines"]        # 3.0: thousands vs a dozen
-    assert first["work_lines"] < 100 and first["stdout"] == second["stdout"] == ""   # loading is not the request
-    once = run_program({"svc.py": COLD}, "svc:solve", {"xs": [1, 2, 3]}, cfg=cfg)
+    assert first["work_lines"] == second["work_lines"] == third["work_lines"] >= 0
+    assert first["stdout"] == second["stdout"] == ""                                  # loading is not the request
+    assert first["meter"]["load_ns"] > 0 and first["meter"]["threads"] == 1           # measured from outside
+    once = run_program({"svc.py": COLD}, "svc:solve", {"xs": [1, 2, 3]}, caller="x", cfg=cfg)
     assert once["work_lines"] == first["work_lines"]                                  # a one-shot program too
-    longer = run_program({"svc.py": COLD}, "svc:solve", {"xs": list(range(50))}, cfg=cfg)
-    assert longer["work_lines"] == first["work_lines"] + 47 * 2                       # the work itself is counted
+    longer = run_program({"svc.py": COLD}, "svc:solve", {"xs": list(range(200_000))}, cfg=cfg)
+    assert longer["work_lines"] > first["work_lines"] + 1000                          # the work itself is measured
     bad = run_program({"svc.py": "import nothing_like_this\n"}, "svc:solve", {}, cfg=cfg)
     assert bad["ok"] is False and bad["error"]["type"] == "ModuleNotFoundError"       # failures reported as before
 

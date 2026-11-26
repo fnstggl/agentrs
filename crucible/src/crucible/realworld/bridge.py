@@ -99,8 +99,9 @@ class RealWorldBridge:
     def __init__(self, authorization: Authorization | None = None, *, log_path: str | None = None,
                  approve: Callable[[dict], bool] | None = None, clock: Callable[[], float] = time.time,
                  resolver: Callable[..., list] | None = None, timeout_s: float = 10.0):
-        if _FORBIDDEN_HERE:
-            raise BridgeRefused(f"real-world access is forbidden in this process: {_FORBIDDEN_HERE[0]}")
+        if _FORBIDDEN_HERE or os.environ.get("CRUCIBLE_HOSTS_WORLDS"):
+            why = _FORBIDDEN_HERE[0] if _FORBIDDEN_HERE else f"it hosts synthetic worlds ({os.environ['CRUCIBLE_HOSTS_WORLDS']})"
+            raise BridgeRefused(f"real-world access is forbidden in this process: {why}")
         if authorization is not None and not isinstance(authorization, Authorization):
             raise BridgeRefused("authorisation must come from crucible.realworld.load_authorization(<operator file>)")
         if authorization is not None and not log_path:

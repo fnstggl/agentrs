@@ -1312,6 +1312,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from .hosting import engage
+    engage("crucible cli")                     # Part 16: no real-world bridge in a process that hosts worlds
     ap = build_parser()
     a = ap.parse_args(argv)
     if not getattr(a, "func", None):

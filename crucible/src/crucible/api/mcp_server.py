@@ -235,6 +235,8 @@ def serve_stdio(handler: MCPHandler, stdin=None, stdout=None) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from ..hosting import engage
+    engage("api.mcp_server")                   # Part 16: no real-world bridge in a process that hosts worlds
     ap = argparse.ArgumentParser(prog="python -m crucible.api.mcp_server", description=__doc__.split("\n")[0])
     ap.add_argument("--store", required=True, help="store url: sqlite:///path.db, postgresql://..., memory://")
     ap.add_argument("--world", required=True, help="world id or name")

@@ -86,13 +86,31 @@ def _limiter(lim: MediaLimits):
 
 
 def run_tool(argv: Sequence[str], *, cwd: str, lim: MediaLimits = LIMITS, stdin: bytes | None = None) -> bytes:
-    """Run FFmpeg/ffprobe/sox with the limits; returns stdout or raises MediaError with the tool's last error line."""
+    """Run FFmpeg/ffprobe/sox with the limits; returns stdout or raises MediaError with the tool's last error line.
+
+    The tool parses agent-supplied bytes, so it runs jailed (`crucible.sandbox.isolation.tool_command`: own uid,
+    Landlock with read-write access to `cwd` only, seccomp without sockets or new processes) in addition to the
+    rlimits and timeout; where the jail cannot be applied this fails closed unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1."""
+    from ..sandbox import isolation
+    cfg = None
+    cmd = list(argv)
     try:
-        p = subprocess.run(list(argv), cwd=cwd, input=stdin, capture_output=True, timeout=lim.timeout_s,
+        cmd, cfg = isolation.tool_command(cmd, cwd)
+    except isolation.JailUnavailable as e:
+        if not isolation.allow_unjailed():
+            raise MediaError(f"untrusted media cannot be processed here: {e}") from e
+    try:
+        p = subprocess.run(cmd, cwd=cwd, input=stdin, capture_output=True, timeout=lim.timeout_s,
                            preexec_fn=_limiter(lim),
                            env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "MALLOC_ARENA_MAX": "2"})
     except subprocess.TimeoutExpired as e:
         raise MediaError(f"{os.path.basename(argv[0])} exceeded {lim.timeout_s}s") from e
+    finally:
+        if cfg:
+            try:
+                os.unlink(cfg)
+            except OSError:
+                pass
     if p.returncode != 0:
         err = p.stderr.decode("utf-8", "replace").strip().splitlines()
         raise MediaError(f"{os.path.basename(argv[0])} failed ({p.returncode}): {(err[-1] if err else '')[:300]}")
@@ -805,9 +823,17 @@ def _render_html_chromium(html: str, *, width: int, max_height: int) -> bytes:
     with open(lock_path, "a+") as lk:
         fcntl.flock(lk, fcntl.LOCK_EX)
         try:
+            from ..sandbox import isolation
+            try:                              # agent HTML: Chromium jailed as its own uid, no sockets but AF_UNIX
+                exe, jail_kw = isolation.browser_executable("media-renderer")
+                jail_kw = {"executable_path": exe, **jail_kw}
+            except isolation.JailUnavailable as e:
+                if not isolation.allow_unjailed():
+                    raise MediaError(f"agent HTML cannot be rendered here: {e}") from e
+                jail_kw = {}
             with sync_playwright() as pw:
                 browser = pw.chromium.launch(headless=True, args=["--disable-gpu", "--no-sandbox",
-                                                                  "--renderer-process-limit=1"])
+                                                                  "--renderer-process-limit=1"], **jail_kw)
                 try:
                     page = browser.new_page(viewport={"width": int(width), "height": 600}, java_script_enabled=False)
                     page.route("**/*", lambda route: route.abort())

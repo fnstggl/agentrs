@@ -397,6 +397,8 @@ def serve(server: WorldServer, *, host: str = "127.0.0.1", port: int = 8000, **a
 
 
 def main(argv: list[str] | None = None) -> int:
+    from ..hosting import engage
+    engage("api.http_server")                  # Part 16: no real-world bridge in a process that hosts worlds
     ap = argparse.ArgumentParser(prog="python -m crucible.api.http_server")
     ap.add_argument("--store", default="sqlite:///crucible.db")
     ap.add_argument("--host", default="127.0.0.1")

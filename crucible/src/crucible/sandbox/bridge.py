@@ -8,6 +8,11 @@ the command if it fails. The program's own output is non-deterministic (timing, 
 
 During regeneration the recorded outcome is used and the recorded RPC sequence is re-issued through the kernel in
 the same order (which re-creates the same events), so the regenerated event log is identical.
+
+`cpu_ms` is measured by the parent outside the sandboxed process (D-20, `crucible.sandbox.metering`) and is never
+negative; nothing the program reports about its own work is used. Under ``cost_model = "deterministic"`` it is the
+parent-measured work in nominal milliseconds (work units x LINE_MS, remembered per computation so forks and reruns of
+a world bill identical computations identically); otherwise it is the measured CPU time in milliseconds.
 """
 from __future__ import annotations
 
@@ -17,7 +22,7 @@ from ..core.errors import CrucibleError
 from ..core.kernel import Ctx
 from .runner import Worker
 
-LINE_MS = 0.001   # nominal CPU milliseconds per executed Python line in the deterministic cost model
+LINE_MS = 0.001   # nominal CPU milliseconds per work unit in the deterministic cost model (trusted code: per line)
 _LN = [0]
 _TOOL = [None]
 _OWNER = [None]
@@ -68,44 +73,69 @@ def _lines_off() -> int:
     return _LN[0]
 
 
-def _rpc_fn(ctx: Ctx, principal: str, log: list) -> Callable[[str, dict], tuple[bool, Any]]:
+def _rpc_fn(ctx: Ctx, principal: str, log: list, replies: list | None = None) -> Callable[[str, dict], tuple[bool, Any]]:
     def rpc(tool: str, args: dict) -> tuple[bool, Any]:
         log.append({"tool": tool, "args": args})
         try:
-            return True, ctx.call(tool, args, as_principal=principal, brokered=True)
+            ok, val = True, ctx.call(tool, args, as_principal=principal, brokered=True)
         except CrucibleError as e:
-            return False, e.as_dict()
+            ok, val = False, e.as_dict()
+        if replies is not None:
+            replies.append((tool, args, ok, val))
+        return ok, val
     return rpc
 
 
 def run_in_ctx(ctx: Ctx, kind: str, worker_fn: Callable[[], Worker], job: dict, principal: str,
                timeout: float | None = None, close_after: bool = False, world_access: bool = True,
-               post: Callable[[Any], Any] | None = None) -> dict:
-    """Run `job` on the worker returned by `worker_fn()` with world access as `principal`; record the outcome."""
+               post: Callable[[Any], Any] | None = None, rpc_fn: Callable[[str, dict], tuple[bool, Any]] | None = None,
+               rpc_results: list | None = None) -> dict:
+    """Run `job` on the worker returned by `worker_fn()` with world access as `principal`; record the outcome.
+
+    `rpc_fn` replaces the world broker (its calls are not world calls and are not recorded for regeneration, e.g.
+    replayed replies during an ablation); `rpc_results`, if given, collects (tool, args, ok, reply) of every world
+    call the program made (also during regeneration, where the recorded calls are re-issued)."""
     slot, rec = ctx.reserve()
     if rec is not None:
         for r in rec.get("rpcs", []):
             try:
-                ctx.call(r["tool"], r["args"], as_principal=principal, brokered=True)
-            except CrucibleError:
-                pass
+                ok, val = True, ctx.call(r["tool"], r["args"], as_principal=principal, brokered=True)
+            except CrucibleError as e:
+                ok, val = False, e.as_dict()
+            if rpc_results is not None:
+                rpc_results.append((r["tool"], r["args"], ok, val))
         return ctx.fill(slot, kind, rec)
     log: list = []
     w = worker_fn()
     try:
-        res = w.run(job, rpc=_rpc_fn(ctx, principal, log) if world_access else None, timeout=timeout)
+        broker = rpc_fn if rpc_fn is not None else (_rpc_fn(ctx, principal, log, rpc_results) if world_access else None)
+        res = w.run(job, rpc=broker, timeout=timeout)
     finally:
         if close_after:
             w.close()
-    cpu = float(res.get("cpu_ms") or 0.0)
-    if res.get("work_lines") is not None:      # deterministic cost model: 1 line = LINE_MS of nominal CPU
-        cpu = round(res["work_lines"] * LINE_MS, 4)
+    out = recorded_outcome(res, log, post)
+    return ctx.fill(slot, kind, out)
+
+
+def billed_cpu_ms(res: dict) -> float:
+    """The parent-measured, non-negative CPU a sandbox job is billed (nominal ms in the deterministic model)."""
+    if res.get("work_lines") is not None:      # deterministic cost model: 1 work unit = LINE_MS of nominal CPU
+        cpu = round(max(0, int(res["work_lines"])) * LINE_MS, 4)
+    else:
+        cpu = float(res.get("cpu_ms") or 0.0)
+    return cpu if cpu == cpu and cpu > 0 else 0.0
+
+
+def recorded_outcome(res: dict, log: list, post: Callable[[Any], Any] | None = None) -> dict:
     result = res.get("result")
     if post is not None and res.get("ok"):
         result = post(result)      # e.g. score the output and record only the score
     out = {"ok": bool(res.get("ok")), "result": result, "error": res.get("error"),
-           "stdout": (res.get("stdout") or "")[:4000], "cpu_ms": cpu, "rpcs": log}
-    return ctx.fill(slot, kind, out)
+           "stdout": (res.get("stdout") or "")[:4000], "cpu_ms": billed_cpu_ms(res), "rpcs": log}
+    killed = (res.get("meter") or {}).get("killed")
+    if killed:
+        out["killed"] = killed
+    return out
 
 
 def run_trusted_in_ctx(ctx: Ctx, kind: str, fn: Callable[..., Any], args: Any, caller: Any, principal: str,

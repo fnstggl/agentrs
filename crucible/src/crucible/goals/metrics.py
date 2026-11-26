@@ -25,6 +25,15 @@ METRIC_SUBJECTS: dict[str, dict[str, str]] = {}
 # Metrics that describe one instant (a balance, a rank) rather than a window of time. A goal that must be
 # *sustained* on such a metric is checked at every harness step between daily checks (goals/contracts.py).
 INSTANT_METRICS: set[str] = set()
+# Metrics whose value carries evaluator-side integrity analysis (related-party and circular-flow verdicts, qualifying
+# revenue): they measure an organisation for the evaluator and must never become readable in-world. A predicate of
+# an agreement between participants (contract deliverables, charter conditions, commitments) is evaluated by the
+# world and its outcome is visible to the parties, so a party could binary-search such a metric and learn which of
+# its evasion schemes the evaluator catches (audit F_commerce, probe_oracle). `check_predicate_scope` refuses them;
+# evaluator code (goals, gates, reports) still evaluates them directly.
+EVALUATOR_ONLY_METRICS: set[str] = {"independent_revenue", "revenue_from", "mrr_cents", "arr_cents",
+                                    "active_subscriptions", "independent_customers", "churn_rate", "profit_cents",
+                                    "one_time_revenue_cents"}
 
 
 def metric(name: str, doc: str = "", subject: dict | None = None, instant: bool = False):
@@ -100,6 +109,9 @@ def check_predicate_scope(world, p: Any, parties) -> list[str]:
     for lf in predicate_leaves(p):
         name = lf.get("metric")
         subj = METRIC_SUBJECTS.get(name)
+        if name in EVALUATOR_ONLY_METRICS:
+            errs.append(f"metric {name!r} is an evaluator measurement and cannot be read in-world")
+            continue
         if subj is None:
             errs.append(f"metric {name!r} cannot be used in an agreement between participants")
             continue

@@ -13,10 +13,13 @@ Packages extend 4.0 code hosting (`code`: repositories, commits, forks, `crucibl
   `crucible.json` (`deps` entry `owner/repo@commit`, `packages` constraints); `pkg.upgrade` re-resolves only if the
   dependent's own tests still pass with the new version (compatibility);
 * adoption by execution only: `pkg.exec` (one call) and `pkg.ci` (the dependent's tests) run the dependent's code in
-  the sandbox with a call tracer and record how many calls entered each dependency's code. A package is adopted by a
-  dependent only when its code actually ran inside that dependent's successful execution; `pkg.deploy` records a
-  dependent's deployment with its locked versions (deployed adoption = traced execution of that commit plus served
-  requests);
+  the sandbox and then, for each locked package, run it again with that package's files replaced by stubs that
+  fail on import (ablation, decided by the parent: D-20 - nothing the dependent's process reports is trusted). A
+  package is adopted by a dependent only when the dependent's successful execution *depends on it*: its result or
+  outcome changes (for `pkg.ci`: a passing test fails) when the package is ablated. World calls of the ablated runs
+  are answered from the first run's recorded replies, so ablation has no side effects. `pkg.deploy` records a
+  dependent's deployment with its locked versions (deployed adoption = ablation-verified execution of that commit
+  plus served requests);
 * collaboration: `pkg.pr_open` (a change proposed from another repository, tested in the sandbox), `pkg.pr_diff`
   (reading the change is recorded), `pkg.pr_review` (reviews count as independent only from principals unrelated to
   the author who read the diff), `pkg.pr_merge` (maintainer; needs an independent approval and passing tests);
@@ -41,34 +44,19 @@ NAME_RE = r"[a-z][a-z0-9_-]{1,39}"
 VER_RE = r"(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})"
 CONSTRAINT_RE = r"\*|(\^|~|>=|=)?" + VER_RE
 
-TRACE_PY = r'''
+HARNESS = "_pkgharness.py"
+HARNESS_PY = r'''
 import importlib, os, sys
-_C = {}
-def _prof(frame, event, arg):
-    if event == "call":
-        f = frame.f_code.co_filename
-        i = f.find("/deps/")
-        if i >= 0:
-            n = f[i + 6:].split("/", 1)[0]
-            _C[n] = _C.get(n, 0) + 1
 def _fn(target):
     mod, _, fn = target.partition(":")
     mod = mod[:-3] if mod.endswith(".py") else mod
     return getattr(importlib.import_module(mod.replace("/", ".")), fn)
 def call(args, caller):
-    fn = _fn(args["target"])
-    _C.clear()
-    sys.setprofile(_prof)
-    try:
-        out = fn(args.get("input"), caller)
-    finally:
-        sys.setprofile(None)
-    return {"result": out, "calls": dict(_C)}
+    return {"result": _fn(args["target"])(args.get("input"), caller)}
 def tests(args, caller):
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests")
     files = sorted(f for f in os.listdir(root) if f.startswith("test_") and f.endswith(".py")) if os.path.isdir(root) else []
     res = []
-    _C.clear()
     for f in files:
         name = "tests." + f[:-3]
         try:
@@ -78,16 +66,12 @@ def tests(args, caller):
             continue
         for t in sorted(dir(m)):
             if t.startswith("test_") and callable(getattr(m, t)):
-                sys.setprofile(_prof)
                 try:
                     getattr(m, t)()
                     res.append({"test": name + "." + t, "ok": True})
                 except BaseException as e:
                     res.append({"test": name + "." + t, "ok": False, "error": ("%s: %s" % (type(e).__name__, e))[:300]})
-                finally:
-                    sys.setprofile(None)
-    return {"passed": sum(r["ok"] for r in res), "failed": sum(not r["ok"] for r in res), "results": res[:50],
-            "calls": dict(_C)}
+    return {"passed": sum(r["ok"] for r in res), "failed": sum(not r["ok"] for r in res), "results": res[:50]}
 def api(args, caller):
     import inspect
     m = importlib.import_module(args["module"])
@@ -102,6 +86,9 @@ def api(args, caller):
             out[name] = [sum(1 for p in ps if p.default is p.empty), len(ps)]
     return out
 '''
+ABLATED_PY = "raise ImportError('this package is ablated by the evaluator (adoption measurement)')\n"
+MAX_ABLATE = 6          # packages ablated per execution (the first ones by import directory)
+
 
 
 def parse_version(v: str) -> tuple[int, int, int]:
@@ -196,18 +183,47 @@ class Packages(Module):
             raise InvalidAction("crucible.json is not valid JSON")
         return m if isinstance(m, dict) else {}
 
-    def _run(self, ctx, files: dict, job: dict, principal: str, label: str, world_access=False, timeout=20.0) -> dict:
+    def _run(self, ctx, files: dict, job: dict, principal: str, label: str, world_access=False, timeout=20.0,
+             rpc_fn=None, rpc_results: list | None = None) -> dict:
         from ..sandbox.bridge import run_in_ctx
         from ..sandbox.runner import Worker
         code = ctx.world.modules["code"]
         pool = code.sandbox_pool(ctx.world)
         files = dict(files)
-        files["_pkgtrace.py"] = TRACE_PY
+        files[HARNESS] = HARNESS_PY
         return run_in_ctx(ctx, label, lambda: Worker(files, pool.cfg, label).start(), job, principal,
-                          timeout=timeout, close_after=True, world_access=world_access)
+                          timeout=timeout, close_after=True, world_access=world_access, rpc_fn=rpc_fn,
+                          rpc_results=rpc_results)
 
-    def _files_with(self, ctx, repo: str, ref: str | None, actor: str, swap: dict | None = None) -> dict:
-        """Files of `repo` with its locked dependencies mounted; `swap` = {dep_repo: commit} replaces locks."""
+    def _ablations(self, ctx, files: dict, origin: dict, job: dict, principal: str, label: str, first: dict,
+                   replies: list, compare) -> dict[str, int]:
+        """Parent-side adoption evidence: rerun `job` with each mounted package's files replaced by stubs and count
+        how much of the first run's outcome depends on it (`compare(first, ablated) -> int`). World calls are
+        answered from the first run's replies (in order; a different call is refused), so nothing happens twice."""
+        dirs = sorted({d for d in origin.values()})[:MAX_ABLATE]
+        out: dict[str, int] = {}
+        timeout = 10.0
+        for d in dirs:
+            abl = {p: (ABLATED_PY if p.endswith(".py") else "") if origin.get(p) == d else c for p, c in files.items()}
+            seq = list(replies)
+
+            def mock(tool, args, _seq=seq):
+                if _seq and _seq[0][0] == tool and _seq[0][1] == args:
+                    _t, _a, ok, val = _seq.pop(0)
+                    return ok, val
+                _seq.clear()
+                return False, {"code": "forbidden", "message": "world calls are replayed during ablation"}
+            res = self._run(ctx, abl, job, principal, label + ".ablate", world_access=True, timeout=timeout,
+                            rpc_fn=mock)
+            n = int(compare(first, res))
+            if n > 0:
+                out[d] = n
+        return out
+
+    def _files_with(self, ctx, repo: str, ref: str | None, actor: str, swap: dict | None = None,
+                    origin: dict | None = None) -> dict:
+        """Files of `repo` with its locked dependencies mounted; `swap` = {dep_repo: commit} replaces locks.
+        `origin`, if given, is filled with {mounted path: import dir of the package it came from}."""
         code = ctx.world.modules["code"]
         files = code.files(ctx.state, repo, ref)
         swap = dict(swap or {})
@@ -233,6 +249,8 @@ class Packages(Module):
             dfiles = code.files(ctx.state, dep_repo, dep_ref or None)
             for p, c in dfiles.items():
                 out[f"deps/{import_dir(dep_repo)}/{p}"] = c
+                if origin is not None:
+                    origin[f"deps/{import_dir(dep_repo)}/{p}"] = import_dir(dep_repo)
             mounted.add(dep_repo)
             queue += [(d, depth + 1) for d in list(self._manifest(dfiles).get("deps", []))[:10]]
         return out
@@ -267,16 +285,15 @@ class Packages(Module):
         return out
 
     def _ci(self, ctx, files: dict, principal: str, label="pkg.ci") -> dict:
-        out = self._run(ctx, files, {"kind": "call", "target": "_pkgtrace:tests", "args": {}, "caller": principal},
+        out = self._run(ctx, files, {"kind": "call", "target": "_pkgharness:tests", "args": {}, "caller": principal},
                         principal, label)
         res = out["result"] if out["ok"] and isinstance(out["result"], dict) else \
             {"passed": 0, "failed": 1, "results": [{"test": "runner", "ok": False,
-                                                    "error": str((out.get("error") or {}).get("message", ""))[:300]}],
-             "calls": {}}
+                                                    "error": str((out.get("error") or {}).get("message", ""))[:300]}]}
         return {**res, "cpu_ms": out["cpu_ms"]}
 
     def _api(self, ctx, files: dict, module: str, principal: str) -> dict:
-        out = self._run(ctx, files, {"kind": "call", "target": "_pkgtrace:api", "args": {"module": module},
+        out = self._run(ctx, files, {"kind": "call", "target": "_pkgharness:api", "args": {"module": module},
                                      "caller": principal}, principal, "pkg.api")
         if not out["ok"] or not isinstance(out["result"], dict):
             raise InvalidAction(f"the package module {module} does not import: "
@@ -568,39 +585,56 @@ class Packages(Module):
                              "input": {"description": "JSON input"}, "ref": S.s_str(maxLength=40)},
                             ["repo", "target"]), cost_s=30)
     def ep_exec(self, ctx, repo, target, input=None, ref=None):
-        """Run a function of a repository you can read in the sandbox with its locked dependencies, tracing how
-        many calls entered each dependency's code (recorded; this is how adoption by execution is measured)."""
+        """Run a function of a repository you can read in the sandbox with its locked dependencies; the evaluator
+        then measures which dependencies the outcome depends on (recorded; adoption by execution)."""
         st = ctx.state
         code = ctx.world.modules["code"]
         if not code.can_read(ctx, repo):
             raise Forbidden(f"no read access to {repo}")
         r = code.repo(st, repo)
         commit = ref or r["head"]
-        files = self._files_with(ctx, repo, commit, ctx.actor)
-        out = self._run(ctx, files, {"kind": "call", "target": "_pkgtrace:call",
-                                     "args": {"target": target, "input": input}, "caller": ctx.actor},
-                        ctx.actor, "pkg.exec", world_access=True)
+        origin: dict = {}
+        files = self._files_with(ctx, repo, commit, ctx.actor, origin=origin)
+        job = {"kind": "call", "target": "_pkgharness:call", "args": {"target": target, "input": input},
+               "caller": ctx.actor}
+        replies: list = []
+        out = self._run(ctx, files, job, ctx.actor, "pkg.exec", world_access=True, rpc_results=replies)
         code.charge_compute(ctx, ctx.actor, out["cpu_ms"], f"pkg.exec {repo}")
         res = out["result"] if out["ok"] and isinstance(out["result"], dict) else {}
-        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], res.get("calls"))
+        calls = {}
+        if out["ok"]:
+            calls = self._ablations(ctx, files, origin, job, ctx.actor, "pkg.exec", out, replies,
+                                    lambda a, b: int(not b["ok"] or b.get("result") != a.get("result")))
+        eid, by_pkg = self._record_exec(ctx, repo, commit, "exec", out["ok"], calls)
         return {"execution": eid, "ok": out["ok"], "result": res.get("result"), "error": out["error"],
                 "calls": by_pkg, "cpu_ms": out["cpu_ms"]}
 
     @endpoint("ci", S.obj({"repo": S.s_str(maxLength=81), "ref": S.s_str(maxLength=40)}, ["repo"]), cost_s=60)
     def ep_ci(self, ctx, repo, ref=None):
-        """Run the tests of a repository (tests/test_*.py) in the sandbox with its locked dependencies, tracing
-        calls into each dependency (recorded)."""
+        """Run the tests of a repository (tests/test_*.py) in the sandbox with its locked dependencies; the
+        evaluator then measures which dependencies the passing tests depend on (recorded)."""
         st = ctx.state
         code = ctx.world.modules["code"]
         if not code.can_read(ctx, repo):
             raise Forbidden(f"no read access to {repo}")
         r = code.repo(st, repo)
         commit = ref or r["head"]
-        files = self._files_with(ctx, repo, commit, ctx.actor)
+        origin: dict = {}
+        files = self._files_with(ctx, repo, commit, ctx.actor, origin=origin)
         res = self._ci(ctx, files, ctx.actor)
         code.charge_compute(ctx, ctx.actor, res["cpu_ms"], f"pkg.ci {repo}")
         ok = res["failed"] == 0 and res["passed"] > 0
-        eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, res.get("calls"),
+        calls = {}
+        if ok:
+            passed = {t["test"] for t in res.get("results", []) if t.get("ok")}
+            job = {"kind": "call", "target": "_pkgharness:tests", "args": {}, "caller": ctx.actor}
+
+            def broken(first, abl):     # passing tests that fail without the package
+                rs = abl.get("result") if abl.get("ok") and isinstance(abl.get("result"), dict) else {}
+                still = {t["test"] for t in rs.get("results", []) if t.get("ok")}
+                return len(passed - still)
+            calls = self._ablations(ctx, files, origin, job, ctx.actor, "pkg.ci", res, [], broken)
+        eid, by_pkg = self._record_exec(ctx, repo, commit, "ci", ok, calls,
                                         {"tests": {"passed": res["passed"], "failed": res["failed"]}})
         return {"execution": eid, "ok": ok, "passed": res["passed"], "failed": res["failed"],
                 "results": res["results"][:20], "calls": by_pkg}

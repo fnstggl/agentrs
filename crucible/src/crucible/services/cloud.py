@@ -209,7 +209,7 @@ class Cloud(Module):
             out = self._run(ctx, dep_id, dep, handler, args, caller, post)
         finally:
             running.discard(dep_id)
-        cu = out["cpu_ms"] * work_scale
+        cu = max(0.0, float(out["cpu_ms"] or 0.0)) * max(0.0, float(work_scale))   # parent-measured (D-20)
         status = 200 if out["ok"] else 500
         err = None if out["ok"] else (out["error"] or {}).get("message", "error")
         self._usage(ctx, dep_id, 1, out["cpu_ms"], cu, "ok" if out["ok"] else "error", work_scale, err)

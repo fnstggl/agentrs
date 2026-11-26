@@ -17,8 +17,8 @@ from typing import Iterable
 from .base import GATES, V5Probe  # noqa: F401
 from .worlds import v5_spec, v5_world_factory  # noqa: F401
 
-MODULES = ("substrate", "media", "commerce", "innovation", "isolation", "sandbox", "network", "crossworld", "private",
-           "social")
+MODULES = ("substrate", "sandbox", "network", "isolation", "crossworld", "private", "population", "social", "commerce",
+           "innovation", "experience", "rapid")
 
 
 def probes(include_slow: bool = True, include_sandbox: bool = True, only: Iterable[str] = ()) -> list:
@@ -44,7 +44,7 @@ def run(ps: Iterable | None = None, progress=None) -> dict:
 
 
 def __getattr__(name):          # lazy: the ratchet and the metrics live in suite.py
-    if name in ("KNOWN_OPEN", "MUST_HOLD", "gate_metrics", "legacy_gates", "FIXED"):
+    if name in ("KNOWN_OPEN", "MUST_HOLD", "gate_metrics", "legacy_gates", "FIXED", "ratchet", "catalogue"):
         from . import suite
         return getattr(suite, name)
     raise AttributeError(name)
