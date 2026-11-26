@@ -47,7 +47,8 @@ def table() -> dict[str, dict]:
             rep = json.load(fh)
         rec = rep.get("recommendation_held_out") or {}
         for cap, r in rec.items():
-            model = r.get("model") if isinstance(r, dict) else r
+            # capbench.run.recommend_held_out writes {"recommended": <model name>, ...}
+            model = (r.get("recommended") or r.get("model")) if isinstance(r, dict) else r
             if cap in out and isinstance(model, str) and "/" in model:
                 out[cap] = {"model": model, "source": report_path()}
     except (OSError, ValueError):
@@ -104,10 +105,9 @@ def limit_gpu_memory() -> float | None:
 _SERVICES: dict[str, object] = {}
 
 
-def service(capability: str, **kw):
-    """The shared service of the model routed for `capability` (one per model and process)."""
+def service_for_model(model: str, **kw):
+    """The process-wide shared service of `model` on the device the slot allows (one per model and process)."""
     from .service import SemanticService
-    model = route(capability)
     s = _SERVICES.get(model)
     if s is None:
         dev, quant = device_for(model)
@@ -115,3 +115,8 @@ def service(capability: str, **kw):
             limit_gpu_memory()
         s = _SERVICES[model] = SemanticService(model, device=dev, quantization=quant, **kw)
     return s
+
+
+def service(capability: str, **kw):
+    """The shared service of the model routed for `capability` (one per model and process)."""
+    return service_for_model(route(capability), **kw)
