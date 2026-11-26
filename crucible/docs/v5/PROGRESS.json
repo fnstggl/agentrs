@@ -2610,11 +2610,99 @@
   },
   {
    "workstream": "P (qa)",
-   "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work done",
+   "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work committed (branch at 55433e7)",
    "recovery_branch": "c5c/w3b-qa",
-   "reassigned_to": "wave-3b continuation workflow: impl:qa (fresh start) -> verify -> repair",
+   "reassigned_to": "wave-3b continuation cont:qa (fresh start from 55433e7 + feat/crucible-5-complete 1e11451, 2026-11-26 21:38 UTC)",
+   "status": "resumed",
+   "recorded_at": "2026-11-26T21:47:33+00:00",
+   "history": [
+    {
+     "interrupted": "wave-3b implementation agent impl:qa refused at start by a usage limit (2026-11-26 ~19:05 UTC); no work done",
+     "reassigned_to": "wave-3b continuation workflow: impl:qa (fresh start) -> verify -> repair",
+     "status": "reassigned",
+     "until": "2026-11-26T21:47:33+00:00"
+    }
+   ]
+  },
+  {
+   "workstream": "E calibration (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran; branch tip 3bcdc60 (all work committed), merged at 2d0f4ce (M5)",
+   "recovery_branch": "c5c/w1-calib",
+   "reassigned_to": "c5c/w3-calib (wave-3a repair; itself interrupted -> c5c/w3b-kcal)",
    "status": "reassigned",
-   "recorded_at": "2026-11-26T19:27:48+00:00"
+   "recorded_at": "2026-11-26T21:47:23+00:00"
+  },
+  {
+   "workstream": "A kernel (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran; uncommitted work preserved by recovery commit 11a6185 (untested), merged at 7ce3db0 (M5)",
+   "recovery_branch": "c5c/w1-kernel",
+   "reassigned_to": "c5c/w3-kernel (wave-3a verify; itself interrupted -> c5c/w3b-kcal)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:23+00:00"
+  },
+  {
+   "workstream": "L observation-only (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran; branch tip 76d35d8 (all work committed), merged at 1c3d69d (M5)",
+   "recovery_branch": "c5c/w1-obs",
+   "reassigned_to": "c5c/w3-obs (wave-3a; itself interrupted -> c5c/w3b-obs)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:23+00:00"
+  },
+  {
+   "workstream": "P QA (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran (its verifier never ran); branch tip 2ba2e81 (all work committed), merged at 55bfb9b (M5)",
+   "recovery_branch": "c5c/w1-qa",
+   "reassigned_to": "c5c/w3-qa (wave-3a adversarial verification; itself interrupted -> c5c/w3b-qa)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "H rapid (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran; uncommitted work preserved by recovery commit 38f33d5 (untested), merged at 00b5303 (M5)",
+   "recovery_branch": "c5c/w1-rapid",
+   "reassigned_to": "c5c/w3-rapid (wave-3a; itself interrupted -> c5c/w3b-rapid)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "O security (wave 1)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-1 workflow before its independent verifier ran; branch tip ffe7d01 (all work committed), merged at 33b5f2b (M5)",
+   "recovery_branch": "c5c/w1-sec",
+   "reassigned_to": "c5c/w3-sec (wave-3a verify; itself interrupted -> c5c/w3b-sec)",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "J civilization (wave 2a)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-2a workflow before its independent verifier ran; uncommitted work preserved by recovery commit 4cc1a11 (untested), merged at 87a6c54 (M5)",
+   "recovery_branch": "c5c/w2-civ",
+   "reassigned_to": "c5c/w3-intfix (integration fix, merged at 804f2c1) and c5c/w3b-civ",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "B+C population and social (wave 2a)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-2a workflow before its independent verifier ran; branch tip 06c7664 (all work committed), merged at b3db69a (M5)",
+   "recovery_branch": "c5c/w2-corepop",
+   "reassigned_to": "c5c/w3-intfix (merged at 804f2c1), c5c/w3b-pop and c5c/w3b-soc",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "D semantic (wave 2a)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-2a workflow before its independent verifier ran; branch tip cb8899e (all work committed), merged at 0898c62 (M5)",
+   "recovery_branch": "c5c/w2-coresem",
+   "reassigned_to": "c5c/w3-intfix (merged at 804f2c1) and c5c/w3b-sem",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
+  },
+  {
+   "workstream": "F+G commerce and innovation (wave 2a)",
+   "interrupted": "usage limit (2026-11-26 ~13:00 UTC, second interruption) stopped the wave-2a workflow before its independent verifier ran; branch tip 25fb909 (all work committed), merged at 3381a5d (M5)",
+   "recovery_branch": "c5c/w2-econ",
+   "reassigned_to": "c5c/w3b-econ1 and c5c/w3b-econ2",
+   "status": "reassigned",
+   "recorded_at": "2026-11-26T21:47:24+00:00"
   }
  ]
 }
