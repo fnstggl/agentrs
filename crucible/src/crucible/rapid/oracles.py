@@ -464,6 +464,12 @@ def oracle(env) -> dict:
     from .engines.discrete_event import DiscreteEvent
     from .engines.graph_dynamical import GraphDynamical
     from .engines.state_machine import StateMachine
+    from .families import FAMILIES
+    fam = FAMILIES.get(env.family)
+    if fam is not None and fam.oracle:                  # a family's own evaluator-side oracle ("module:function")
+        import importlib
+        mod, fn = fam.oracle.split(":")
+        return getattr(importlib.import_module(mod), fn)(env)
     eng = env._engine
     hook = _family_hook(env, "oracle")
     if hook is not None:
