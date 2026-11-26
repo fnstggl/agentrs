@@ -401,7 +401,7 @@ def strat_blotto(rng, d):
             "outcomes and substitutes away from inspected routes.",
         distinct_because="strategic substitution: the attacker's route choice responds to your inspection through "
                          "experience-based learning; damages differ by route; catches and breaches are observed",
-        axes={"graph_size": 4, "resources": 8, "opponent_capability": 0.3, "horizon": 50}, objective="maximize_net",
+        axes={"graph_size": 6, "resources": 8, "opponent_capability": 0.5, "horizon": 50}, objective="maximize_net",
         participants=("attacker:experience_learner",), **hooks("interdiction"))
 def strat_interdiction(rng, d):
     N = int(d["graph_size"])

@@ -1368,15 +1368,55 @@ def oracle_bargain(env) -> dict:
     return best_of(env, {f"plan margin={d} {m}": pol(d, m) for d in (0.04, 0.06, 0.1) for m in ("late", "early")})
 
 
+def _simplex_grid(n: int, step: float) -> list[list[float]]:
+    m = int(round(1.0 / step))
+    out = []
+
+    def rec(prefix, left):
+        if len(prefix) == n - 1:
+            out.append([p * step for p in prefix] + [left * step])
+            return
+        for i in range(1, left - (n - 1 - len(prefix)) + 1):
+            rec(prefix + [i], left - i)
+    rec([], m)
+    return out
+
+
+def _fit_weights(offers: list[list[float]], grid) -> list[float]:
+    """The counterpart's issue weights (on the simplex) that best explain the offers it made: a negotiator at
+    aspiration a gives away the issues it values least first, until it has given up 1 - a of its utility, so each
+    offer y is concede_offer(v, 1 - v.y)."""
+    from .engines.strategic import concede_offer
+    best, bv = math.inf, grid[0]
+    for v in grid:
+        err = 0.0
+        for y in offers:
+            a = 1.0 - sum(vk * yk for vk, yk in zip(v, y))
+            err += sum((p - q) ** 2 for p, q in zip(concede_offer(v, a), y))
+            if err >= best:
+                break
+        if err < best:
+            best, bv = err, v
+    return bv
+
+
 def reference_bargain(view, env):
-    """Public: learn each counterpart's ranking of the issues from the order in which it gives them away in its
-    offers; propose terms that keep the issues it values least and give away the one it values most, starting
-    demanding and conceding each round; accept its offer when it is at least as good as the next proposal."""
+    """Public: for each counterpart, infer its issue weights from the offers it makes (it gives away the issues it
+    values least first, by an amount that reveals how much utility it is giving up) and read its current
+    aspiration off its offer on the table. Probe its type: open with tough terms, then make a concession it will
+    reject; a counterpart whose aspiration fell after the rejected concession concedes in kind (propose just above
+    its new aspiration at once), one whose aspiration did not move concedes with time (wait until the last rounds
+    and propose just above its aspiration then). Terms are chosen to maximise your own utility given the
+    counterpart's inferred weights; its own offer is accepted when it is at least as good."""
     c = env._config                                   # public: issue names and your own weights are in your brief
     w = c["my_w"]
     nI = len(w)
-    first_give: dict = {}
-    K = 6
+    K = 6                                             # the brief: a deal lapses after 6 rounds
+    grid = _simplex_grid(nI, 0.025 if nI <= 3 else 0.05 if nI == 4 else 0.1)
+    offers: dict = {}
+    vhat: dict = {}
+    hist: dict = {}                                   # counterpart -> [(round, aspiration read off its offer)]
+    margin = 0.035
     obs = view.step(None)["observation"]
     while not view.done:
         x = nums(obs)
@@ -1384,24 +1424,35 @@ def reference_bargain(view, env):
         cp = ent[0]["id"] if ent else "?"
         r = int(x.get("round", 0))
         offer = [x.get(f"offer.{n}", 0.0) for n in c["issue_names"]]
-        seen = first_give.setdefault(cp, [0.0] * nI)
-        for k in range(nI):
-            if offer[k] > 0 and seen[k] == 0:
-                seen[k] = 1.0 / (1 + r) + 0.01 * offer[k]
-        order = sorted(range(nI), key=lambda k: -seen[k])       # least valued by the counterpart first
-        v_hat = [0.0] * nI
-        for rank, k in enumerate(order):
-            v_hat[k] = 1.0 + rank
-        tot = sum(v_hat)
-        v_hat = [v / tot for v in v_hat]
-        a_next = max(0.45, 0.9 - 0.1 * (r + 1))
-        prop = lp_offer(w, v_hat, a_next)
+        seen = offers.setdefault(cp, [])
+        if 0 < sum(offer) < nI and offer not in seen:
+            seen.append(offer)
+            vhat[cp] = _fit_weights(seen[-8:], grid)
+        v = vhat.get(cp, [1.0 / nI] * nI)
+        asp = 1.0 - sum(a * b for a, b in zip(v, offer))
+        h = hist.setdefault(cp, [])
+        if r == 0:
+            h.clear()
+        h.append((r, asp))
+        prop = lp_offer(w, v, min(1.0, asp + margin))
         u_prop = sum(a * b for a, b in zip(w, prop))
         u_off = sum(a * b for a, b in zip(w, offer))
-        if u_off >= u_prop - 0.03 or (r >= K - 1 and u_off > 0.2):
+        # what the counterpart's own offer is worth against what negotiating on can still get: at least the terms
+        # a counterpart at a middling aspiration would accept
+        later = sum(a * b for a, b in zip(w, lp_offer(w, v, 0.6))) if r < K - 1 else 0.0
+        if u_off >= max(u_prop - 0.01, later) and u_off > 0.0:
             act = {"kind": "discrete", "decision": "respond", "choice": "accept"}
+        elif r == 0:
+            act = _bg_act(c, [1.0] * nI)                                        # tough opening
+        elif r == 1:
+            act = _bg_act(c, lp_offer(w, v, 0.5))                               # a concession it will reject
         else:
-            act = _bg_act(c, prop)
+            dropped = len(h) >= 2 and h[-1][1] < h[0][1] - 0.05
+            in_kind = r == 2 and dropped
+            if in_kind or r >= K - 2 or (len(h) >= 2 and h[-1][1] < 0.6):
+                act = _bg_act(c, prop)
+            else:
+                act = _bg_act(c, [1.0] * nI)                                    # wait: tough terms cost no concession
         obs = view.step(act)["observation"]
 
 
@@ -1700,49 +1751,87 @@ def oracle_interdiction(env) -> dict:
 
 
 def reference_interdiction(view, env):
-    """Public: estimate the attacker's route frequencies from catches and breaches (exponential smoothing) and each
-    route's damage per breach from the costs observed against the breaches per route (least squares over the
-    periods so far; damages are not announced), assume a moderate catch rate per inspector, and deploy to maximise
-    expected catches weighted by bounty plus damage."""
+    """Public: estimate each route's damage per breach from the costs observed against the breaches per route
+    (least squares; damages are not announced) and the catch rate per inspector from catches and breaches at the
+    deployments made (maximum likelihood of P(catch) = 1 - exp(-k x)); model the attacker as a learner that keeps a
+    value per route, updated from its own outcomes (a catch is bad for it, a breach good) and chooses by softmax:
+    fit its learning rate and choice sharpness to the attempts it was seen to make, predict its route mix for the
+    coming period, and deploy to maximise expected bounty plus damage avoided against that mix."""
     sp = view.action_space()
     routes = _targets(sp)
+    N = len(routes)
     I = float(sp.limits["allocate_total"])
     dmg = {r: 60.0 for r in routes}
     rows, costs = [], []
-    freq = {r: 1.0 / len(routes) for r in routes}
-    obs = view.step({"kind": "allocate", "amounts": {r: I / len(routes) for r in routes}})["observation"]
-    last_alloc = [I / len(routes)] * len(routes)
+    hist = []                                   # (caught per route, breaches per route) each period
+    kap = 0.35
+    obs = view.step({"kind": "allocate", "amounts": {r: I / N for r in routes}})["observation"]
+    allocs = [[I / N] * N]
     while not view.done:
         x = nums(obs)
-        # cost of a period = damage of each breach + a price per inspector deployed (both unknown)
-        rows.append([x[f"{r}.got_through"] for r in routes] + [float(sum(last_alloc))])
+        cau = [x[f"{r}.caught"] for r in routes]
+        got = [x[f"{r}.got_through"] for r in routes]
+        hist.append((cau, got))
+        rows.append(got + [float(sum(allocs[-1]))])
         costs.append(float(obs["resources"].get("cost_cents_last_tick", 0.0)))
-        if len(rows) >= len(routes) + 3:
+        if len(rows) >= N + 3:
             est, *_ = np.linalg.lstsq(np.asarray(rows), np.asarray(costs), rcond=None)
             dmg = {r: float(max(v, 0.0)) for r, v in zip(routes, est[:-1])}
-        n = sum(x[f"{r}.caught"] + x[f"{r}.got_through"] for r in routes)
-        for r in routes:
-            f = (x[f"{r}.caught"] + x[f"{r}.got_through"]) / max(n, 1.0)
-            freq[r] = 0.75 * freq[r] + 0.25 * f
+        # catch rate per inspector: maximise sum caught*log(1-exp(-k x)) - got*k*x over a grid of k
+        best_k, best_ll = kap, -math.inf
+        for k in np.linspace(0.05, 1.5, 59):
+            ll = 0.0
+            for (cc, gg), al in zip(hist, allocs):
+                for j in range(N):
+                    pc = 1.0 - math.exp(-k * al[j])
+                    if cc[j]:
+                        ll += cc[j] * math.log(max(pc, 1e-9))
+                    ll -= gg[j] * k * al[j]
+            if ll > best_ll:
+                best_k, best_ll = k, ll
+        kap = float(best_k)
+        # the attacker's learning: fit (learning rate, sharpness) by the likelihood of its observed route choices
+        best = None
+        for eta in (0.1, 0.2, 0.3, 0.5, 0.7):
+            for beta in (1.0, 2.0, 3.0, 4.0, 6.0):
+                Q = [0.0] * N
+                ll = 0.0
+                for cc, gg in hist:
+                    p = np.exp(beta * (np.asarray(Q) - max(Q)))
+                    p = p / p.sum()
+                    for j in range(N):
+                        n_j = cc[j] + gg[j]
+                        if n_j:
+                            ll += n_j * math.log(max(float(p[j]), 1e-9))
+                            # its outcomes on route j: a catch costs it, a breach pays (unit scale; values relative)
+                            for _ in range(int(cc[j])):
+                                Q[j] += eta * (-1.0 - Q[j])
+                            for _ in range(int(gg[j])):
+                                Q[j] += eta * (1.0 - Q[j])
+                if best is None or ll > best[0]:
+                    p = np.exp(beta * (np.asarray(Q) - max(Q)))
+                    best = (ll, list(p / p.sum()))
+        mix = best[1]
 
         def gain(k, xx):
             r = routes[k]
-            return 5 * freq[r] * (1 - math.exp(-0.35 * xx)) * (30.0 + dmg[r]) - xx
-        alloc = greedy_alloc(gain, I, 0.5, len(routes))
-        last_alloc = list(alloc)
+            return 5 * mix[k] * (1 - math.exp(-kap * xx)) * (30.0 + dmg[r]) - xx
+        alloc = greedy_alloc(gain, I, 0.5, N)
+        allocs.append(list(alloc))
         obs = view.step({"kind": "allocate", "amounts": dict(zip(routes, alloc))})["observation"]
 
 
 def identify_interdiction(env) -> dict:
-    """Question: which route does the attacker prefer when nothing is inspected? Inspect nothing for twelve periods
-    and count breaches per route."""
+    """Question: which route does the attacker prefer when nothing is inspected? Inspect nothing for most of the
+    episode and count breaches per route once its values have settled (after the first ten periods)."""
     view = PublicView(env)
     routes = _targets(view.action_space())
     cnt = {r: 0.0 for r in routes}
-    for _ in range(12):
+    for k in range(max(12, view.horizon - 2)):
         x = nums(view.step(None)["observation"])
-        for r in routes:
-            cnt[r] += x[f"{r}.got_through"]
+        if k >= 10:
+            for r in routes:
+                cnt[r] += x[f"{r}.got_through"]
     est = max(cnt, key=cnt.get)
     truth = env._config["route_names"][int(np.argmax(env._config["att_util"]))]
     return {"question": "the attacker's preferred route", "estimate": est, "truth": truth, "ok": est == truth}
