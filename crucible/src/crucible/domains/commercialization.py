@@ -329,8 +329,10 @@ class Commercialization(Module):
             table=TABLE, model_id=MODEL_ID, fidelity_id=FIDELITY,
             extra={"t": int(now), "weeks": recs, "subscriptions": subs_ev})
         for i, pid, kind, cents, saving in subs_ev:
+            # the operator sees its own subscription events (who started, renewed, cancelled and what it was paid);
+            # the user's own bills and savings stay the user's (they are in the decision record, evaluator side)
             ctx.emit("rc.sub", {"id": f"{pid}|p{i}|{int(now)}", "product": pid, "user": f"p{i}", "kind": kind,
-                                "cents": cents, "saving_cents": saving}, vis=(st.tables["rc_products"][pid]["owner"],))
+                                "cents": cents}, vis=(st.tables["rc_products"][pid]["owner"],))
         attention.spend(ctx, idx[due], np.full(due.size, 3.0), activity="practice")
         return util
 

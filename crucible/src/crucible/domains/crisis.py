@@ -1221,7 +1221,7 @@ class Crisis(Module):
             last_t[j] = now
             recs.append([int(idx[j]), d, [int(x) for x in have]])
         for d, service, i in calls:
-            ctx.emit("crisis.report", {"id": st.new_id("crrep"), "district": d, "service": service, "by": f"p{i}"},
+            ctx.emit("crisis.report", {"id": st.new_id("crrep"), "district": d, "service": service},
                      vis="public")
         attention.spend(ctx, idx, np.full(m, 5.0), activity="household")
         K.decide(ctx, "crisis.household", idx, {
