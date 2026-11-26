@@ -8,7 +8,8 @@ competes for their attention and time with reading, browsing, searching and the 
   experienced value is highest, with noise), read its recent posts through the consumption engine (exposure,
   reading time, views: ordinary audience accounting), and may post on its subject, reply to what they read, report
   unreadable posts to its moderators, or leave when taking part stopped paying off (the membership's experienced
-  value). Owners and moderators act on reports. Non-members and explorers look through the directory: a community
+  value). The author of a post that gets a reply is notified and comes back to its communities about half an hour
+  later. Owners and moderators act on reports. Non-members and explorers look through the directory: a community
   fits by the similarity of its subject to one's interests (shared space), its recent activity and how many of
   one's contacts take part; one may join it. Someone who finds nothing that fits may found a community whose
   subject is what they have been reading (the most frequent words of the titles of their recent views) - subjects
@@ -197,6 +198,7 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     for j in founders:
         self._found(ctx, int(idx[j]), rng)
     # visits: read the community's recent posts, then post, reply, report, or leave
+    notified: set[int] = set()
     for cn, js in sorted(visit.items()):
         js = np.array(js, np.int64)
         c = n_by_comm[cn]
@@ -247,7 +249,12 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                     try:
                         C.module(w).add_comment(ctx, ids.pid(i), cid, reply)
                     except CrucibleError:
-                        pass
+                        continue
+                    # the author is notified of the reply and comes back to the community (member-to-member
+                    # interaction: a conversation in a community brings its members back, like a message does)
+                    a = ids.index(info.get("creator") or "")
+                    if a is not None and a != i:
+                        notified.add(int(a))
         # moderators act on open reports
         for j in js:
             p = ids.pid(int(idx[j]))
@@ -284,6 +291,9 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                            + int(act["comments"][cm._lookup(w, np.array([x]), np.array([cn]))[0]]))
                 cm._execute(ctx, dict(st.tables["communities"][c["id"]]), "transfer", {"member": ids.pid(best)}, None)
             cm.leave_many(ctx, np.array([int(i)]), np.array([cn]), "no longer worth it")
+    if notified:
+        from .popinbox import NOTE_DELAY_S
+        population.wake(ctx, np.array(sorted(notified), np.int64), ctx.now + NOTE_DELAY_S, "social.community")
     return U
 
 
