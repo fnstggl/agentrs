@@ -101,6 +101,7 @@ def run():
     labels = {}
     sessions, visit_logs, invariant_errors, provenance = {}, [], [], []
     li_tot = {"population_decision_events": 0, "learner_initiated": 0}
+    woken_by_learner = 0
     cut = None
     s0 = 0
     for d in range(DAYS):
@@ -113,6 +114,10 @@ def run():
             sessions[k] = sessions.get(k, 0) + v
         visit_logs.append(A.visit_log(w, ev))
         li = A.learner_initiated(w, ev)
+        # wake-ups of population members recorded inside the learner's commands (e.g. a notification of its post):
+        # the session that follows is the member's own decision, reported next to the criterion
+        woken_by_learner += sum(int(e.payload["n"]) for e in ev if e.type == "cols.batch" and
+                                e.payload["kind"] == "pop.wake" and e.cmd is not None and e.actor == learner)
         for k in li_tot:
             li_tot[k] += li[k]
         provenance.append(check_provenance(w, ev))
@@ -123,7 +128,7 @@ def run():
     log = _concat([lg for lg in visit_logs if len(lg["ind"])])
     return {"world": w, "labels": labels, "sessions": sessions, "log": log, "invariants": invariant_errors,
             "provenance": provenance, "learner": li_tot, "cut": cut, "wall_s": time.time() - t0,
-            "learner_commands": learner_cmds,
+            "learner_commands": learner_cmds, "woken_by_learner": woken_by_learner,
             "proc_failed": sum(1 for e in w.log if e.type == "proc.failed")}
 
 
@@ -157,7 +162,8 @@ def test_B2_autonomous_browsing_without_a_learner(run):
                "population_decision_events": int(li["population_decision_events"]),
                "audience_decision_rows_with_provenance": int(sum(p["organic_population_rows"] for p in prov)),
                "audience_rows_forced": int(forced), "web_visits": int(len(run["log"]["ind"])),
-               "failed_processes": int(run["proc_failed"]), "learner_commands": int(run["learner_commands"])}
+               "failed_processes": int(run["proc_failed"]), "learner_commands": int(run["learner_commands"]),
+               "members_woken_inside_learner_commands": int(run["woken_by_learner"])}
     evidence.record("B.2", metrics, command=CMD,
                     notes="Every population decision event of the run is checked for an in-world actor's command "
                           "(population.analysis.learner_initiated) and every audience decision batch for decision "
