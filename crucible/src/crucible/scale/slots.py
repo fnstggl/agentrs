@@ -390,8 +390,10 @@ def _write_bytes(pid: int) -> int:
     return 0
 
 
-def _gpu_context(pid: int) -> bool:
-    """True when the process holds a GPU device (/dev/nvidia<N>) open and is not a device query tool."""
+def _gpu_device_open(pid: int) -> bool:
+    """True when the process holds a GPU device (/dev/nvidia<N>) open and is not a device query tool. Opening the
+    device does not make a GPU job: `torch.cuda.is_available()` (cuInit or NVML) opens it too, and every process that
+    imports the shared semantic space evaluates that at import time (semantic/space/lm.py device())."""
     try:
         with open(f"/proc/{pid}/comm") as fh:
             if fh.read().strip() in GPU_TOOLS:
@@ -408,6 +410,26 @@ def _gpu_context(pid: int) -> bool:
     return False
 
 
+def _context_mapped(pid: int) -> bool:
+    """True when the process has a CUDA context: creating one maps the driver's control device and the unified
+    memory device into the process (/dev/nvidiactl, /dev/nvidia-uvm in /proc/<pid>/maps; measured 2026-11-26: 22
+    and 1 mappings in every governed GPU job, none in a process that only asked whether a GPU exists)."""
+    try:
+        with open(f"/proc/{pid}/maps") as fh:
+            for ln in fh:
+                if "/dev/nvidiactl" in ln or "/dev/nvidia-uvm" in ln:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def _gpu_context(pid: int) -> bool:
+    """True when the process holds a CUDA context (a GPU device open AND a context mapped), not merely a device
+    query, and is not a device query tool."""
+    return _gpu_device_open(pid) and _context_mapped(pid)
+
+
 def _dir_mb(path: str) -> float:
     total = 0
     for dp, _dn, fn in os.walk(path):
@@ -420,15 +442,19 @@ def _dir_mb(path: str) -> float:
 
 
 def gpu_census() -> dict:
-    """Processes of this container holding a GPU context, split by whether each runs inside a governed job that was
-    granted GPU memory (SP-1.2). Processes of other tenants on the host are not visible from here (nvidia-smi reports
+    """Processes of this container holding a CUDA context, split by whether each runs inside a governed job that was
+    granted GPU memory (SP-1.2); processes that only opened the device to ask whether a GPU exists are counted
+    apart (`device_queries_without_context`). Processes of other tenants on the host are not visible from here (nvidia-smi reports
     host pids); their number is `foreign_gpu_apps` = device compute apps minus the ones found here."""
-    inside, outside = [], []
+    inside, outside, queried = [], [], []
     for name in os.listdir("/proc"):
         if not name.isdigit():
             continue
         pid = int(name)
-        if pid == os.getpid() or not _gpu_context(pid):
+        if pid == os.getpid() or not _gpu_device_open(pid):
+            continue
+        if not _context_mapped(pid):            # asked whether a GPU exists; holds no context, uses no GPU memory
+            queried.append({"pid": pid})
             continue
         env = {}
         try:
@@ -453,8 +479,9 @@ def gpu_census() -> dict:
         apps = [ln for ln in out.strip().splitlines() if ln.strip()]
     except (OSError, subprocess.SubprocessError):
         pass
-    return {"governed": inside, "ungoverned": outside, "device_compute_apps": len(apps),
-            "foreign_gpu_apps": max(0, len(apps) - len(inside) - len(outside)), "t": time.time()}
+    return {"governed": inside, "ungoverned": outside, "device_queries_without_context": len(queried),
+            "device_compute_apps": len(apps), "foreign_gpu_apps": max(0, len(apps) - len(inside) - len(outside)),
+            "t": time.time()}
 
 
 # ====================================================================== ledger

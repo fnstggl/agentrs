@@ -269,3 +269,24 @@ def test_a_head_waiting_only_for_free_disk_gives_up(ledger_dir, monkeypatch):
     with pytest.raises(slots.AdmissionError):
         slots.acquire(1, 0, "too much disk", b, poll_s=0.05, disk_mb=int(free + 10 ** 6))
     assert slots.status()["queue"] == [] and slots.status()["held"] == []
+
+
+def test_a_process_that_only_asks_whether_a_gpu_exists_is_not_a_gpu_job():
+    """SP-1.2 census: `torch.cuda.is_available()` opens the GPU device (every process importing the shared semantic
+    space evaluates it), but creates no CUDA context and uses no GPU memory; the census counts such a process apart,
+    never as an ungoverned GPU job. (The positive control, a real context, is in tests/v5/test_gate_SP_1_2.py.)"""
+    code = ("import sys, time, torch\ntorch.cuda.is_available()\nprint('ready', flush=True)\n"
+            "sys.stdin.read()\n")
+    env = {k: v for k, v in os.environ.items() if k not in ("CUDA_VISIBLE_DEVICES", "PYTORCH_NVML_BASED_CUDA_CHECK")}
+    p = subprocess.Popen([sys.executable, "-c", code], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                         env=env)
+    try:
+        assert p.stdout.readline().strip() == "ready"
+        opened = slots._gpu_device_open(p.pid)
+        assert not slots._context_mapped(p.pid) and not slots._gpu_context(p.pid)
+        c = slots.gpu_census()
+        assert p.pid not in {x["pid"] for x in c["ungoverned"] + c["governed"]}
+        assert c["device_queries_without_context"] >= (1 if opened else 0)
+    finally:
+        p.stdin.close()
+        p.wait(timeout=30)
