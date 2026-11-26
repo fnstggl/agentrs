@@ -155,14 +155,26 @@ def rounds_for(decisions: int, n_envs: int) -> int:
     return max(1, int(math.ceil(int(decisions) / max(1, int(n_envs)))))
 
 
+LEGACY_DECISION_DEVIATION = ("declared legacy decision path: run_lifetime(require_cam_eval=False) - the actions carry no "
+                             "cam_eval stamp (W5's decision.select stamp is not merged); not a DOM-path result")
+
+
+def loop_kw(loop: str, legacy_decision_path: bool) -> dict:
+    """Extra run_lifetime arguments: require_cam_eval=False only when the caller DECLARED the legacy decision path
+    (W1's loop raises ActionNotAuthorised on unstamped actions when the config's DOM decision path is on)."""
+    return {"require_cam_eval": False} if legacy_decision_path and loop == "runtime.run_lifetime" else {}
+
+
 def _run_lifetime_via_run_steps(agent, env, *, labels=None, label_store=None, reward_mode="observation_only",
                                 learner=None, days=None, max_decisions=None, update_every=8, think_s=None,
-                                checkpoint=None, on_step=None, seeds=None, profile_gpu=False, keep_rounds=True):
+                                checkpoint=None, on_step=None, seeds=None, profile_gpu=False, keep_rounds=True,
+                                require_cam_eval=None):
     """run_lifetime's keyword signature over runtime.run_steps (the only act -> execute -> advance loop at this
     commit). `max_decisions` is a ROUND budget as in W1's run_lifetime. No evaluator is passed, so the agent receives
     no environment reward (run_steps hands it zeros); labels are drained into the trainer-side label store after
     every round. `learner` is not supported by run_steps (the agent's own update() runs every `update_every`
-    rounds); `days` is not enforced (the round budget is); rounds are always kept (`keep_rounds` is accepted)."""
+    rounds); `days` is not enforced (the round budget is); rounds are always kept (`keep_rounds` is accepted);
+    there is no action authorisation at this commit (`require_cam_eval` is accepted and has no effect)."""
     from .. import runtime
     if reward_mode != "observation_only":
         raise ValueError("the run_steps delegation implements observation_only only")
@@ -609,6 +621,7 @@ class RunSpec:
     agent_kw: dict = field(default_factory=dict)
     probe_every: int = 1                   # G
     experiment: str = EXPERIMENT_ID
+    legacy_decision_path: bool = False     # declared: run_lifetime(require_cam_eval=False), recorded as a deviation
 
 
 def _seed0(spec: RunSpec) -> int:
@@ -629,7 +642,8 @@ def source_run(spec: RunSpec, run_dir: str, semantic=None) -> dict:
     run_lifetime, loop = resolve_loop()
     res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
                        learner=st.learner, days=None, max_decisions=spec.source_rounds,
-                       update_every=max(1, spec.update_every // 2), think_s=None, checkpoint=None, on_step=None)
+                       update_every=max(1, spec.update_every // 2), think_s=None, checkpoint=None, on_step=None,
+                       **loop_kw(loop, spec.legacy_decision_path))
     trained = os.path.join(run_dir, "trained.safetensors")
     info = st.ops.save_weights(trained)
     return {"init": init, "trained": trained, "trained_info": info, "loop": loop, "stats": _lifetime_stats(res),
@@ -717,6 +731,8 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
     run_lifetime, loop = resolve_loop()
     if loop != "runtime.run_lifetime":
         deviations.append(f"canonical loop: {loop}")
+    if loop_kw(loop, spec.legacy_decision_path):
+        deviations.append(LEGACY_DECISION_DEVIATION)
     if not st.builder.startswith("build.build_agent"):
         deviations.append(f"factory: {st.builder}")
     tm = TokenMeter()
@@ -731,7 +747,7 @@ def run_condition(spec: RunSpec, semantic=None) -> dict:
                            learner=st.learner if learn else None, days=None,
                            max_decisions=rounds_for(spec.decisions, spec.n_envs),
                            update_every=spec.update_every if learn else 0, think_s=None, checkpoint=None,
-                           on_step=None)
+                           on_step=None, **loop_kw(loop, spec.legacy_decision_path))
     tm.detach()
     for h in handles:
         h.remove()
@@ -834,7 +850,7 @@ def _run_condition_a(spec: RunSpec, run_dir: str, fams, row_id: str, t_start: fl
 # ============================================================================================ checkpoint e2e (W9)
 def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0, preset: str = "dom_dev",
              act_rounds: int = 4, device: str = "cuda", chunk: Optional[int] = None, families=SMOKE_FAMILIES,
-             agent_kw: Optional[dict] = None, budget_s: float = 600.0) -> dict:
+             agent_kw: Optional[dict] = None, budget_s: float = 600.0, legacy_decision_path: bool = False) -> dict:
     """Plan §3 W9 real end-to-end check, part 1 (training): build the real `preset` stack, train until the agent
     has made `updates` learner updates (one update per round), resumable in chunks of `chunk` updates via
     full-lifetime checkpoints (each call does at most one chunk), then save weights-only. Returns progress."""
@@ -862,7 +878,7 @@ def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0
         k = min(20, todo - done)
         res = run_lifetime(st.agent, adapter, labels=labels, label_store=store, reward_mode="observation_only",
                            learner=st.learner, days=None, max_decisions=k, update_every=1, think_s=None,
-                           checkpoint=None, on_step=None)
+                           checkpoint=None, on_step=None, **loop_kw(loop, legacy_decision_path))
         s = _lifetime_stats(res)
         done += int(s.get("updates") or 0)
         stt["chunks"].append({"t": time.time(), "wall_s": time.time() - t0, "loop": loop, **s})
@@ -883,7 +899,7 @@ def ckpt_e2e(run_dir: str, *, updates: int = 200, n_envs: int = 2, seed: int = 0
 
 def ckpt_e2e_load(run_dir: str, out: str, *, seed: int = 7, preset: str = "dom_dev", n_envs: int = 2,
                   act_rounds: int = 4, device: str = "cuda", families=SMOKE_FAMILIES, world_seed: int = 123_000,
-                  agent_kw: Optional[dict] = None) -> dict:
+                  agent_kw: Optional[dict] = None, legacy_decision_path: bool = False) -> dict:
     """Part 2 (run in a FRESH process, twice): build, load_weights_only(seed), act greedily for `act_rounds` rounds
     on fixed world seeds through the canonical loop with one update at the end; record the actions, the update's
     consumed / replayed event ids and the reset state, as JSON at `out`."""
@@ -905,7 +921,8 @@ def ckpt_e2e_load(run_dir: str, out: str, *, seed: int = 7, preset: str = "dom_d
     store = LabelStore(os.path.join(tgt, "labels"))
     res = run_lifetime(a, adapter, labels=labels, label_store=store, reward_mode="observation_only",
                        learner=st.learner, days=None, max_decisions=act_rounds, update_every=act_rounds,
-                       think_s=None, checkpoint=None, on_step=None, keep_rounds=True)
+                       think_s=None, checkpoint=None, on_step=None, keep_rounds=True,
+                       **loop_kw(loop, legacy_decision_path))
     steps = lifetime_rounds(res)
     ups = res["updates"] if isinstance(res, dict) else getattr(res, "updates", [])
     ups = [u for u in ups if isinstance(u, dict) and u.get("updated")]
@@ -934,7 +951,7 @@ def _spec_from(a) -> RunSpec:
                    smoke=a.smoke, families=tuple(a.families.split(",")) if a.families else (), n_envs=a.n_envs,
                    decisions=a.decisions, update_every=a.update_every, ckpt=a.ckpt, init_ckpt=a.init_ckpt,
                    source_rounds=a.source_rounds, device=a.device, profile_gpu=not a.no_profile,
-                   probe_every=a.probe_every)
+                   probe_every=a.probe_every, legacy_decision_path=a.legacy_decision_path)
 
 
 def main(argv=None) -> int:
@@ -957,6 +974,8 @@ def main(argv=None) -> int:
     r.add_argument("--device", default="cuda")
     r.add_argument("--no-profile", action="store_true")
     r.add_argument("--probe-every", type=int, default=1)
+    r.add_argument("--legacy-decision-path", action="store_true",
+                   help="declare the legacy decision path: run_lifetime(require_cam_eval=False), recorded as a deviation")
     r.add_argument("--dashboard", action="store_true", help="render <run-dir>/dashboard afterwards")
     t = sub.add_parser("ckpt-e2e", help="W9 real end-to-end checkpoint check (training part, resumable)")
     t.add_argument("--run-dir", required=True)
@@ -965,11 +984,13 @@ def main(argv=None) -> int:
     t.add_argument("--n-envs", type=int, default=2)
     t.add_argument("--device", default="cuda")
     t.add_argument("--budget-s", type=float, default=600.0, help="training wall budget of this call (s)")
+    t.add_argument("--legacy-decision-path", action="store_true")
     t2 = sub.add_parser("ckpt-e2e-load", help="W9 e2e: fresh-process weights-only load + act + one update")
     t2.add_argument("--run-dir", required=True)
     t2.add_argument("--out", required=True)
     t2.add_argument("--seed", type=int, default=7)
     t2.add_argument("--act-rounds", type=int, default=4)
+    t2.add_argument("--legacy-decision-path", action="store_true")
     t2.add_argument("--device", default="cuda")
     a = ap.parse_args(argv)
     if a.cmd == "run":
@@ -995,10 +1016,12 @@ def main(argv=None) -> int:
         return 0
     if a.cmd == "ckpt-e2e":
         print(json.dumps(ckpt_e2e(a.run_dir, updates=a.updates, chunk=a.chunk, n_envs=a.n_envs, device=a.device,
-                                  budget_s=a.budget_s), default=str)[:4000])
+                                  budget_s=a.budget_s, legacy_decision_path=a.legacy_decision_path),
+                         default=str)[:4000])
         return 0
     if a.cmd == "ckpt-e2e-load":
-        rec = ckpt_e2e_load(a.run_dir, a.out, seed=a.seed, act_rounds=a.act_rounds, device=a.device)
+        rec = ckpt_e2e_load(a.run_dir, a.out, seed=a.seed, act_rounds=a.act_rounds, device=a.device,
+                            legacy_decision_path=a.legacy_decision_path)
         print(json.dumps({"after_load": rec["after_load"], "n_actions": len(rec["actions"]),
                           "updates": len(rec["updates"])}, default=str))
         return 0

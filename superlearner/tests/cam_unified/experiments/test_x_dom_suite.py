@@ -161,3 +161,13 @@ def test_meta_suite_records_blocked_conditions_instead_of_running_them(tmp_path)
     assert {x.exp for x in MS.CONDITIONS.values()} == {"D", "E", "F", "I", "J"}
     assert sum(1 for x in MS.CONDITIONS.values() if x.exp == "D") == 7
     assert not MS.CONDITIONS["D1"].compliant and not MS.CONDITIONS["D2"].compliant
+
+
+def test_legacy_decision_path_is_only_ever_a_declared_deviation():
+    assert DS.loop_kw("runtime.run_lifetime", False) == {}
+    assert DS.loop_kw("runtime.run_lifetime", True) == {"require_cam_eval": False}
+    assert DS.loop_kw("runtime.run_steps (run_lifetime absent at this commit)", True) == {}
+    import inspect
+    src = inspect.getsource(DS.main)          # the CLI exposes the flag on run / ckpt-e2e / ckpt-e2e-load
+    assert src.count('"--legacy-decision-path"') == 3
+    assert DS.RunSpec(condition="G", run_dir="x").legacy_decision_path is False

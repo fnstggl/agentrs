@@ -163,6 +163,7 @@ class MetaSpec:
     profile_gpu: bool = True
     families: tuple = ()
     agent_kw: dict = field(default_factory=dict)
+    legacy_decision_path: bool = False     # declared: run_lifetime(require_cam_eval=False), recorded as a deviation
 
 
 PROBE_OPTIMUM = 10.0     # ProbeEnv: test, then launch only when good (spec Exp J; plan §5 E3)
@@ -260,6 +261,8 @@ def run_meta_condition(spec: MetaSpec, semantic=None) -> dict:
         deviations.append(f"canonical loop: {loop}")
     if not st.builder.startswith("build.build_agent"):
         deviations.append(f"factory: {st.builder}")
+    if DS.loop_kw(loop, spec.legacy_decision_path):
+        deviations.append(DS.LEGACY_DECISION_DEVIATION)
     if not pre["rpsi_real"][0]:
         deviations.append(f"actor reward model: {pre['rpsi_real'][1]}")
     tm = TokenMeter()
@@ -274,7 +277,7 @@ def run_meta_condition(spec: MetaSpec, semantic=None) -> dict:
                            learner=st.learner if cond.learn else None, days=None,
                            max_decisions=DS.rounds_for(spec.decisions, spec.n_envs),
                            update_every=spec.update_every if cond.learn else 0, think_s=None, checkpoint=None,
-                           on_step=None)
+                           on_step=None, **DS.loop_kw(loop, spec.legacy_decision_path))
     tm.detach()
     stats = DS._lifetime_stats(res)
     utils = operator.utilities() if isinstance(operator, ProbeLabels) else DS.operator_utilities(operator)
@@ -333,6 +336,8 @@ def main(argv=None) -> int:
     r.add_argument("--device", default="cuda")
     r.add_argument("--no-profile", action="store_true")
     r.add_argument("--dashboard", action="store_true")
+    r.add_argument("--legacy-decision-path", action="store_true",
+                   help="declare the legacy decision path: run_lifetime(require_cam_eval=False), recorded as a deviation")
     a = ap.parse_args(argv)
     if a.cmd == "list":
         pre = prerequisites()
@@ -347,7 +352,7 @@ def main(argv=None) -> int:
     for cid in ids:
         spec = MetaSpec(exp=a.exp, condition=cid, run_dir=a.run_dir, preset=a.preset, seed=a.seed, set=a.set,
                         smoke=a.smoke, n_envs=a.n_envs, decisions=a.decisions or (6 * a.n_envs if a.smoke else 256),
-                        device=a.device, profile_gpu=not a.no_profile)
+                        device=a.device, profile_gpu=not a.no_profile, legacy_decision_path=a.legacy_decision_path)
         row = run_meta_condition(spec)
         print(json.dumps({k: row.get(k) for k in ("experiment", "condition", "status", "blocked_by", "loop",
                                                   "decisions", "gpu_busy_s", "semantic_tokens", "metrics")},
