@@ -807,7 +807,8 @@ class Labor(Module):
 
     @endpoint("team", S.obj({"org": S.s_str(maxLength=40)}, ["org"]), read_only=True)
     def ep_team(self, ctx, org):
-        """Employees of an organisation you administer: salary, tenure, assigned tasks and verified work for you."""
+        """Employees of an organisation you administer: salary, tenure, whether notice was given (the contract
+        ends at the notice date; salary is due until then), assigned tasks and verified work for you."""
         st = ctx.state
         org = self._org(ctx, org)
         ident(ctx.world).authorize(ctx, org, "org.admin")
@@ -815,9 +816,10 @@ class Labor(Module):
         for person in st.find_ids("labor_workers", "employer", org):
             w = st.tables["labor_workers"][person]
             perf = [r for r in st.find("labor_perf", "worker", person) if r["org"] == org]
+            c = st.get("contracts", w["contract"]) if w["contract"] else None
             out.append({"worker": person, "salary": w["salary"],
                         "tenure_days": None if w["joined"] is None else round((ctx.now - w["joined"]) / DAY, 1),
-                        "contract": w["contract"],
+                        "contract": w["contract"], "on_notice": c is not None and c["status"] == "terminating",
                         "assigned": [tid for tid in st.find_ids("inst_tasks", "assignee", person)
                                      if st.tables["inst_tasks"][tid]["status"] == "assigned"],
                         "tasks_done_for_you": len(perf),

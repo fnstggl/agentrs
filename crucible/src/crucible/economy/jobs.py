@@ -5,8 +5,10 @@ population's own `employed` feature) looks for work in the world's labour market
 itself once (declared skill names evidenced by its own strongest skills; its reservation wage is private), reads the
 open postings, applies to those its declared skills cover whose pay reaches its reservation, and answers the offers
 it receives - accept at or above its reservation, counter at its reservation when the offer is within 20% of it
-(three rounds at most), otherwise reject. Acceptance signs an employment contract (salary paid monthly from the
-employer's account to the individual's own account by the contract; a missed salary is a breach that ends the job).
+(three rounds at most), otherwise reject. A registered seeker that has found an employer of its own outside this
+market (`employed` true) stops looking: it declines open offers and applies nowhere. Acceptance signs an
+employment contract (salary paid monthly from the employer's account to the individual's own account by the
+contract; a missed salary is a breach that ends the job).
 
 An employee works a shift on its working days (`labor.shift`: recorded hours, the employer's support queue). It
 quits (terminates its contract with the contract's notice) when it finds an employer of its own outside this market
@@ -118,19 +120,23 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 except CrucibleError:
                     pass
             continue
-        # a job seeker: answer offers first
+        # a job seeker: answer offers first (one who found an employer of its own meanwhile is no longer looking:
+        # it declines what it is offered and applies nowhere)
         answered = False
         for oid in st.find_ids("labor_offers", "worker", p):
             o = st.tables["labor_offers"][oid]
             if o["status"] != "open" or o["from"] != "org" or now > o["expires"]:
                 continue
-            if int(o["salary"]) >= res:
+            if employed[k]:
+                action, sal = "reject", None
+            elif int(o["salary"]) >= res:
                 action, sal = "accept", None
             elif int(o["salary"]) >= float(_cfg(work, "counter_band")) * res and int(o["round"]) < 3:
                 action, sal = "counter", res
             else:
                 action, sal = "reject", None
-            args = {"offer": oid, "action": action, "message": "" if action == "accept" else f"I need {res}"}
+            msg = "" if action == "accept" else ("I found work elsewhere" if employed[k] else f"I need {res}")
+            args = {"offer": oid, "action": action, "message": msg}
             if sal is not None:
                 args["salary_cents_month"] = int(sal)
             try:
@@ -142,7 +148,7 @@ def session(work, ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 continue
             if action == "accept":
                 break                                     # one job: other offers wait (they expire)
-        if answered:
+        if answered or employed[k]:
             continue
         last = int(columns.col(w, TABLE, "last_search")[i])
         if last >= 0 and now - last < int(_cfg(work, "search_days")) * DAY:

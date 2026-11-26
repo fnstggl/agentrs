@@ -22,7 +22,10 @@ tickets, its service's overloads in `cloud.metrics`) and the public market (comp
   verified support record (then: declared writing skill, then first applicant) the middle of its salary range,
   accepts counters within the range, and closes the posting when it hired; it dismisses its latest hire when no
   ticket was left over for 21 days and it has two or more staff, or when its cash falls below two months of
-  payroll. The employees work the queue in their own shifts (`labor.shift`);
+  payroll (staff serving their notice, given by either side, are leaving: they are paid until the notice date but
+  neither dismissed again nor counted as staying). The employees work the queue in their own shifts
+  (`labor.shift`). Each wave-3b rule runs contained: a refused step rolls back that rule alone (`rivals.failed`
+  names it), never the day's support and pricing;
 * **display advertising** (wave 3b, worlds with `ads` and the population's `work`; config `display_ads`) - every
   `display_every_days` it runs a `display_days` display campaign for its product to the workers of its format
   (`work.display_campaign` on an `ads` campaign of kind `display`, bid `display_bid` per impression, daily budget
@@ -38,6 +41,7 @@ last change happened and the subscriber history - is their own memory, recorded 
 """
 from __future__ import annotations
 
+import json
 import re
 
 from ..core.errors import CrucibleError, contain
@@ -180,12 +184,24 @@ class Rivals(Module):
                     pass
             self._do(ctx, inc, "support.reply", ticket=t["ticket"], body="Thank you for the report; we are on it.")
             self._do(ctx, inc, "support.resolve", ticket=t["ticket"], note="answered")
+        # the wave-3b rules run one by one, each contained: a refused step of one rule (e.g. the labour market
+        # refusing a dismissal) rolls back that rule only, never the day's support, pricing or other rules
+        rules = []
         if staffed:
-            self._staff(ctx, inc, mem, actions)
+            rules.append(("staff", lambda: self._staff(ctx, inc, mem, actions)))
         if self.cfg("display_ads") and need and "ads" in self.world.modules and "work_display" in st.tables:
-            self._advertise(ctx, inc, pid, need, mem, actions)
+            rules.append(("display", lambda: self._advertise(ctx, inc, pid, need, mem, actions)))
         if "xchg" in self.world.modules and price is not None:
-            self._list_pass(ctx, inc, pid, int(price), actions, mem)
+            rules.append(("marketplace", lambda: self._list_pass(ctx, inc, pid, int(price), actions, mem)))
+        for rule, fn in rules:
+            snap, n_act = json.dumps(mem, sort_keys=True), len(actions)
+            err = contain(ctx, fn)
+            if err is not None:
+                mem.clear()
+                mem.update(json.loads(snap))
+                del actions[n_act:]
+                ctx.emit("rivals.failed", {"org": org, "error": f"{rule}: {type(err).__name__}: {err}"[:200]},
+                         vis="internal")
         ctx.emit("rivals.observed", {"org": org, "memory": mem, "subscribers": subs_now, "actions": actions},
                  vis=(org,))
 
@@ -234,14 +250,15 @@ class Rivals(Module):
                          message="" if ok else "above our range", as_org=org)
                 actions.append(["counter", o["worker"], "accepted" if ok else "rejected"])
         team = self._do(ctx, inc, "labor.team", org=org)
-        payroll = sum(int(m["salary"]) for m in team)
-        if len(team) and (cash < 2 * payroll or (len(team) >= 2 and len(hist) >= 21 and max(hist) == 0)):
-            last = max(team, key=lambda m: (-(m["tenure_days"] or 0), m["worker"]))
+        payroll = sum(int(m["salary"]) for m in team)              # salary is due until the notice date
+        staff = [m for m in team if not m.get("on_notice")]        # who stays (notice given by either side)
+        if staff and (cash < 2 * payroll or (len(staff) >= 2 and len(hist) >= 21 and max(hist) == 0)):
+            last = max(staff, key=lambda m: (-(m["tenure_days"] or 0), m["worker"]))
             self._do(ctx, inc, "labor.dismiss", worker=last["worker"], org=org)
             actions.append(["dismissed", last["worker"], "cash" if cash < 2 * payroll else "no backlog"])
             return
         busy = len(hist) >= 2 and sum(hist[-2:]) / 2.0 >= float(self.cfg("hire_backlog"))
-        if busy and not posts and len(team) < int(self.cfg("max_staff")) and cash >= 6 * (payroll + smax):
+        if busy and not posts and len(staff) < int(self.cfg("max_staff")) and cash >= 6 * (payroll + smax):
             r = self._do(ctx, inc, "labor.post", org=org, title="Customer support (part-time)",
                          skills={"writing": 0.3}, salary_min=smin, salary_max=smax,
                          hours_week=int(self.cfg("job_hours")),
