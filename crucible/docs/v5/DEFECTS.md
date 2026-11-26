@@ -2599,7 +2599,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "O_security",
- "fix": "research/v5/evaluator.py _serve: read each side non-blockingly into a bounded per-side buffer (os.read on readable sockets, split complete lines, refuse a side whose buffer exceeds MAX_LINE) or serve each side in its own thread; give the harness side a deadline and record a stalled episode as a failure of the learner, never drop it",
+ "fix": "research/v5/evaluator.py _serve: read each side non-blockingly into a bounded per-side buffer (os.read on readable sockets, split complete lines, refuse a side whose buffer exceeds MAX_LINE) or serve each side in its own thread; give the harness side a deadline and record a stalled episode as a failure of the learner, never drop it. The same loop also writes replies with blocking sends: a participant that keeps sending requests but stops reading its replies should block it the same way once the socket buffer is full (not demonstrated separately; the same fix covers it)",
  "id": "DEF-O-19",
  "owner": "N",
  "regression_tests": "tests/v5/test_gate_SP_15_8.py (control evaluator_survives_a_stalled_participant)",
