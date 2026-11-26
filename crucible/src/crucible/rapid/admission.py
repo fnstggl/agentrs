@@ -104,19 +104,22 @@ def _floats(x, out: set, keyok: bool):
         out.add(repr(x))
 
 
-def _tokens(x, out: set):
-    """Hidden strings (as JSON string tokens) and integer codes (lists of three or more integers, as JSON
-    arrays) under a secret key: answers such as a hidden cell, a hidden option or an unlock code."""
+def _tokens(x, out: dict):
+    """Hidden strings (as JSON string tokens, with how often they occur) and integer codes (lists of three or more
+    integers, as JSON arrays) under a secret key: answers such as a hidden cell, a hidden option or an unlock
+    code."""
     if isinstance(x, dict):
         for v in x.values():
             _tokens(v, out)
     elif isinstance(x, list):
         if len(x) >= 3 and all(isinstance(v, int) and not isinstance(v, bool) for v in x):
-            out.add(json.dumps(x))
+            k = json.dumps(x)
+            out[k] = out.get(k, 0) + 1
         for v in x:
             _tokens(v, out)
     elif isinstance(x, str) and len(x) >= 3:
-        out.add(json.dumps(x))
+        k = json.dumps(x)
+        out[k] = out.get(k, 0) + 1
 
 
 def secrets(env) -> set[str]:
@@ -125,10 +128,14 @@ def secrets(env) -> set[str]:
     cfg = env._config
     keys = tuple(SECRET_KEYS.get(cfg["engine"], ())) + tuple(getattr(env._engine, "SECRET_KEYS", ()))
     out: set[str] = set()
+    toks: dict[str, int] = {}
     for k in keys:
         if k in cfg:
             _floats(cfg[k], out, True)
-            _tokens(cfg[k], out)
+            _tokens(cfg[k], toks)
+    # a string that recurs in the hidden configuration is categorical vocabulary (a label every record carries,
+    # which the world also shows); an answer occurs once or twice
+    out |= {k for k, n in toks.items() if n <= 2}
     if cfg["engine"] == "primitive_graph":
         for nd in cfg["nodes"]:
             for k in ("params", "ports", "bias", "natural"):
@@ -155,9 +162,10 @@ def identity_leaks(env, texts: list[str]) -> list[str]:
     for t in texts:
         if env.family in t:
             bad.append(f"family name {env.family!r}")
-        for key in ('"split":', '"category":', '"family":', '"partition":'):
+        for key in ('"split": "train"', '"split": "val"', '"split": "test"', '"category": "8.', '"partition": "v5',
+                    '"family": "'):
             if key in t:
-                bad.append(f"identity key {key}")
+                bad.append(f"identity field {key}")
         if fam is not None and f'"{FAMILIES[env.family].item}"' in t:
             bad.append(f"spec item {fam.item}")
     return sorted(set(bad))

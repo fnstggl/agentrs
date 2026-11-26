@@ -522,15 +522,15 @@ def practice_constant(env) -> dict | None:
 
 def play(env) -> dict:
     """The family's reference on `env`: its mechanism-specific public-information policy, which plays the scored
-    episode once, from what it observes (closed loop). A family without one gets the generic within-episode
-    explore-then-commit policy, which knows no mechanism - such a family cannot show that adaptation beats simple
-    policies, and admission's dominance check rejects it unless the world is solved by information gathering the
-    generic policy happens to do. Nothing here replays copies of the scored world (`practice_constant` is a
-    hindsight baseline kept for comparison, not a reference)."""
+    episode once, from what it observes (closed loop). A family without one gets the generic adaptive learner
+    (`refs_v2.adaptive`: extremum seeking on levers and allocations, a discounted bandit on decisions), which knows
+    no mechanism. Nothing here replays copies of the scored world (`practice_constant` is a hindsight baseline kept
+    for comparison, not a reference)."""
     from .oracles import _family_hook
     fn = SPECIFIC.get(env.family) or _family_hook(env, "reference")
     if fn is not None:
         fn(PublicView(env), env)
         return env.outcome()
-    explore_commit(PublicView(env))
+    from .refs_v2 import adaptive
+    adaptive(PublicView(env), env)
     return env.outcome()

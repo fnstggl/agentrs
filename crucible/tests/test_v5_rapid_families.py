@@ -65,7 +65,7 @@ def test_the_spec_object_holds_no_hidden_configuration():
 
 def test_observation_only_is_the_default_and_objective_free_operation_works():
     env = F.make("net_routing", 0)
-    assert env.reward_mode == "observation_only" and env.spec["reward_mode"] == "observation_only"
+    assert env.reward_mode == "observation_only" and env.spec["experience_mode"] == "observation_only"
     free = F.make("net_routing", 0, objective=None)
     assert free.spec["objective"] == {"a0": None} and free.observe()["objective"] is None
     for _ in range(free.horizon + 3):                                   # runs to the horizon and refuses after

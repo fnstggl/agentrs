@@ -81,7 +81,7 @@ class Env:
         self.spec = {"agents": eng.agents, "horizon_ticks": eng.horizon,
                      "brief": {a: eng.brief(a) for a in eng.agents},
                      "objective": {a: self.objective_text(a) for a in eng.agents},
-                     "objective_mode": self.objective_mode, "reward_mode": self.reward_mode,
+                     "objective_mode": self.objective_mode, "experience_mode": self.reward_mode,
                      "action_kinds": {a: sorted(eng.action_space(a).kinds) for a in eng.agents}}
         self._rng = TickRng(self.world_seed, env_id)
         self._arng = TickRng(self.world_seed, env_id + "/act")
