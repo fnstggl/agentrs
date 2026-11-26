@@ -97,8 +97,8 @@ def test_block_transition_is_the_last_k_core_blocks_by_reference():
     act2 = TokenSet.from_dense(torch.randn(B, 2, D, generator=g), TokenKind.ACTION)
     with torch.no_grad():
         assert float((wm.transition(R, act2, None, dt, z) - Zh).abs().max()) > 1e-4
-    # the action input is zero-initialised (exact last-k-blocks init); action_input=False removes it
-    assert float(a_in.abs().max()) == 0.0
+    # the direct action input is a unit-gain projection at init; action_input=False removes it (exact last-k blocks)
+    assert float(a_in.pow(2).mean().sqrt()) > 0.1
     wm0 = WorldModel(m.cfg, core, action_input=False)
     assert wm0.action_input(act, B, R.device) is None and not hasattr(wm0, "trans_act")
     with torch.no_grad():

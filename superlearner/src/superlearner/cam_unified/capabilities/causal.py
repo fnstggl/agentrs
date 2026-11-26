@@ -836,7 +836,10 @@ def run_probe_margin(st: CausalSettings, root: Optional[str] = None, device=None
 # difference| > 0.5 over all held-out steps; t2 delay max error < 0.3; |t3 interaction contrast - 2| < 0.4; t4 switch
 # correct (post-switch < -0.7, unswitched > 0.7); consistency MSE/Var < 0.1 (teacher-forced and mode-latent prior).
 
-DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-3, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
+# lr 1e-4 (all groups, linear decay to 5 %): at 1e-3 Adam on the shared 8 x 384 core collapsed the outcome features
+# to row-independent constants (payout MSE/Var 1.0, t1 0.0 on every world; docs/evidence/dom/W6), at 1e-4 the
+# InteractionEnv payout map is learned (t1 1.20 of the true 1.33 after 400 updates).
+DOM_SETTINGS = dict(preset="dom_dev", train_steps=800, lr=1e-4, lr_decay=True, lr_final_frac=0.05, grad_clip=10.0,
                     B=32, record_episodes=12, batch_seqs=4, horizons=(1, 2, 3, 4),
                     wm_kwargs={"open_loop_samples": 2}, cfg_overrides={"grad_checkpoint": True}, sem_cache_mb=256,
                     # the dom preset's state_emb_std=0.02 (W3's switch, not yet read by the seam core) through the
@@ -902,7 +905,9 @@ def dom_main(argv=None) -> int:
               "PASS" if res["criterion"]["pass"] else "FAIL")
         return 0
     if a.cmd == "lp":
-        kw = dict(DOM_SETTINGS)
+        # world + adapt objectives in one backward on 8-step SwitchEnv episodes: 2 sequences per batch keep the run
+        # inside the 4 GB no-lock budget (4 sequences ran out of memory at 3.8 GB)
+        kw = dict(DOM_SETTINGS, batch_seqs=2)
         for item in a.set:
             k, v = item.split("=", 1)
             try:

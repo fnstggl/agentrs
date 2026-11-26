@@ -302,13 +302,14 @@ class WorldModel(nn.Module):
             # lever settings), so the running standardisation (StateNorm over one position; updated after use, in
             # training only) makes their differences unit-scale; a per-row LayerNorm keeps them ~5 % apart. Measured
             # on fixed dom_dev filter states (all outcome keys, beta-NLL, Adam 1e-4, 8-row batches): payout MSE/Var
-            # at 200 updates 0.82 (LayerNorm input), 0.15 (running, zero init), 0.03 (running, unit gain)
-            # (docs/evidence/dom/W6/world_model_outcome_learning.json). The projection is zero-initialised by default
-            # (``trans_act_gain`` = init std x sqrt(D)), so at initialisation the transition is still exactly the
-            # last k core blocks on [R; ctx] and the consistency target is not perturbed.
-            # cfg.wm_action_input (default True with the block transition), cfg.wm_trans_act_gain (default 0).
+            # at 200 updates 0.82 (LayerNorm input), 0.15 (running, zero init), 0.03 (running, unit gain); on the full
+            # dom_dev world objective (InteractionEnv, Adam 1e-4) t1 after 200 updates 0.06 with a zero-initialised
+            # and 0.39 with a unit-gain projection (docs/evidence/dom/W6/world_model_outcome_learning.json).
+            # ``trans_act_gain`` = init std x sqrt(D) (default 1: unit gain; 0 = zero init, which keeps the exact
+            # last-k-blocks initialisation). cfg.wm_action_input (default True with the block transition),
+            # cfg.wm_trans_act_gain.
             on = bool(getattr(cfg, "wm_action_input", True) if action_input is None else action_input)
-            g = float(getattr(cfg, "wm_trans_act_gain", 0.0) if trans_act_gain is None else trans_act_gain)
+            g = float(getattr(cfg, "wm_trans_act_gain", 1.0) if trans_act_gain is None else trans_act_gain)
             self.action_input_on, self.trans_act_gain = on, g
             self.act_norm_mode = str(getattr(cfg, "wm_trans_act_norm", "running"))
             if on:

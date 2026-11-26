@@ -72,13 +72,13 @@ def test_action_input_moves_every_state_token_and_is_zero_without_action_tokens(
     g = torch.Generator().manual_seed(3)
     act = TokenSet.from_dense(torch.randn(B, 2, D, generator=g), TokenKind.ACTION)
     act.mask[2] = False                                     # row 2 has no action tokens
-    assert wm.action_input_on and wm.trans_act_gain == 0.0
+    assert wm.action_input_on and wm.trans_act_gain == 1.0
     a = wm.action_input(act, B, torch.device("cpu"))
-    assert a.shape == (B, 1, D) and float(a.abs().max()) == 0.0   # zero-initialised projection
-    wg = WorldModel(m.cfg, m.core, trans_act_gain=1.0)
-    a = wg.action_input(act, B, torch.device("cpu"))
-    assert float(a[:2].pow(2).mean().sqrt()) > 0.3          # unit gain at initialisation when requested
+    assert a.shape == (B, 1, D)
+    assert float(a[:2].pow(2).mean().sqrt()) > 0.3          # unit gain at initialisation
     assert float(a[2].abs().max()) == 0.0
+    a0 = WorldModel(m.cfg, m.core, trans_act_gain=0.0).action_input(act, B, torch.device("cpu"))
+    assert float(a0.abs().max()) == 0.0                     # gain 0: zero-initialised projection
     # gradient reaches the projection from the transition output
     R = torch.randn(B, S, D, generator=g)
     z = torch.zeros(B, m.cfg.stoch_groups * m.cfg.stoch_classes)
