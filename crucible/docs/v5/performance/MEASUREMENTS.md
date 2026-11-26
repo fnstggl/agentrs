@@ -187,8 +187,9 @@ population-only standard row. Results so far (from the runs' per-day partial rep
 Standard, seed 0 (10,296 individuals, 30 days complete): **45.5 simulated days per CPU-hour** (T2 >= 15: met), 33.0
 per wall hour, 2,375 CPU-s, peak RAM 3.58 GB, 592,171 sessions, 1,074,730 recorded decisions, 764,050 events.
 The daily cost grows through the run: 55-74 CPU-s per day on days 1-18, 83-117 CPU-s on days 19-30 (day 28: 117 CPU-s,
-31 simulated days per CPU-hour), so the 30-day mean hides a doubling; the growth is the subject of R1 (the shopping
-search index) and R2. Store on disk (no VACUUM) 758 MB after 30 days (about 24 MB per day, 2,454 B per
+31 simulated days per CPU-hour), so the 30-day mean hides a doubling. Not yet attributed: the profiled days (1-4)
+precede it; the cost that grows with the world at the large profile is the shopping search over a growing index (R1),
+the likely candidate here too. Store on disk (no VACUUM) 758 MB after 30 days (about 24 MB per day, 2,454 B per
 individual-day of files; T6 550 B: missed). The run then stopped at its final VACUUM: VACUUM wrote a second copy of
 the 758 MB store and the store directory grew to 1,851 MB against the 1,500 MB disk grant, so its final report
 (class activity, batch histograms, snapshot and fork) was lost. From 294c83c on, bench5 measures the resident store
