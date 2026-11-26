@@ -1095,3 +1095,84 @@ def identify_lagged_reversal(env) -> dict:
     truth = int(c["at"])
     return {"ok": est is not None and abs(est - truth) <= 12, "question": "when does the delayed effect reverse",
             "estimate": est, "truth": truth}
+
+
+# ====================================================================== net_hidden_bottleneck_swap
+def _route_names(env):
+    return list(env._config["route_names"])
+
+
+def swap_reverses_best_split(env) -> dict:
+    """Controlled interventions on the same noise: sending most traffic on the route that is fast before the
+    rewiring earns more than the opposite split before it and less after it; the aggregate readings carry no
+    per-route latency."""
+    c = env._config
+    r0, r1 = _route_names(env)
+    fast0 = 0 if c["c2"][c["assign"][0]] > c["c2"][c["assign"][1]] else 1
+    good = {r0: 0.85, r1: 0.15} if fast0 == 0 else {r0: 0.15, r1: 0.85}
+    bad = {k: 1.0 - v for k, v in good.items()}
+    H, at = env.horizon, int(c["rewire_at"])
+
+    def net_series(split):
+        e = fork(env)
+        out = []
+        for _ in range(H):
+            r = e.step({"kind": "levers", "values": split})
+            out.append(D._net(r["observation"]))
+        return np.asarray(out), r["observation"]["numbers"]
+    a, nums = net_series(good)
+    b, _ = net_series(bad)
+    d = a - b
+    return {"ok": bool(d[5:at].mean() > 0 and d[at + 8:].mean() < 0 and len(nums) == 2),
+            "advantage_before": float(d[5:at].mean()), "advantage_after": float(d[at + 8:].mean()),
+            "readings_shown": len(nums), "rewire_at": at}
+
+
+def split_tracker(view, env=None) -> None:
+    """Scripted public reference: hold a split; every ten ticks try moving a fifth of the traffic to each route
+    for three ticks and keep the split that earned more net income over the last two of those ticks."""
+    sp = view.action_space()
+    names = sorted(sp.kinds["levers"]["properties"]["values"]["properties"])
+    w = 0.5
+    while not view.done:
+        res = {}
+        for cand in (min(0.95, w + 0.2), max(0.05, w - 0.2), w):
+            vals = []
+            for k in range(3):
+                if view.done:
+                    return
+                r = view.step({"kind": "levers", "values": {names[0]: cand, names[1]: 1.0 - cand}})
+                if k >= 1:
+                    vals.append(D._net(r["observation"]))
+            res[cand] = float(np.mean(vals))
+        w = max(res, key=res.get)
+        for _ in range(4):
+            if view.done:
+                return
+            view.step({"kind": "levers", "values": {names[0]: w, names[1]: 1.0 - w}})
+
+
+def identify_swap(env) -> dict:
+    """Question: does the better route change during the episode? Public procedure: compare the two lopsided
+    splits early and late (three ticks each)."""
+    view = PublicView(env)
+    names = sorted(view.action_space().kinds["levers"]["properties"]["values"]["properties"])
+
+    def compare():
+        out = {}
+        for w in (0.85, 0.15):
+            vals = []
+            for k in range(4):
+                if view.done:
+                    break
+                r = view.step({"kind": "levers", "values": {names[0]: w, names[1]: 1.0 - w}})
+                if k >= 2:
+                    vals.append(D._net(r["observation"]))
+            out[w] = float(np.mean(vals)) if vals else 0.0
+        return out[0.85] > out[0.15]
+    early = compare()
+    while view.t < view.horizon - 9:
+        view.step(None)
+    late = compare()
+    return {"ok": early != late, "question": "does the better route change", "estimate": early != late,
+            "truth": True}

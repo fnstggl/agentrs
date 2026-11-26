@@ -246,7 +246,15 @@ class GraphDynamical(RapidEngine):
         r = self.batch_step(st, z, u, t)
         c = self.config
         a = self.agents[0]
-        nums = {c["gauge_names"][k]: float(r["readings"][0, k]) for k in range(self.K + 1)}
+        if c.get("aggregate_only"):
+            # end-to-end measurement only: delivered flow and the flow-weighted mean latency, no per-route latency
+            # (the routes' own latencies stay hidden, as in network tomography)
+            f = r["flow"][0]
+            lat = r["readings"][0, 1:]
+            mean_lat = float((f * lat).sum() / f.sum()) if f.sum() > 0 else float(lat.mean())
+            nums = {c["gauge_names"][0]: float(r["readings"][0, 0]), c["gauge_names"][1]: mean_lat}
+        else:
+            nums = {c["gauge_names"][k]: float(r["readings"][0, k]) for k in range(self.K + 1)}
         return {"obs": {a: {"numbers": nums}}, "revenue": {a: float(r["revenue"][0])},
                 "cost": {a: float(r["cost"][0])}, "info": {"delivered": float(r["delivered"][0])}}
 
