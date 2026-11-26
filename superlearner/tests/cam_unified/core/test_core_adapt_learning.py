@@ -150,7 +150,9 @@ SLOW = os.environ.get("CAM_RUN_SLOW") == "1"
 @pytest.mark.skipif(not SLOW, reason="slow learning test: set CAM_RUN_SLOW=1 to run")
 def test_gated_fusion_reaches_the_oracle_with_calibrated_predictions():
     for seed in (0, 1, 2):
-        r = run_adapt_experiment(seed=seed)["familiar"]          # 2500 steps (1000 leave the particles at +0.06)
+        # 5000 steps: at 2500 seed 2 stayed at NLL(k=2) 0.129 vs oracle 0.047 (particles not yet separated); at 5000
+        # every seed meets the criterion (docs/evidence/dom/W6/adapt_learning_gated_fusion.json "runs_5000")
+        r = run_adapt_experiment(seed=seed, steps=5000)["familiar"]
         print(seed, {k: {n: round(v, 3) for n, v in row.items() if v is not None} for k, row in r.items()})
         assert r[2]["nll_full"] <= r[2]["nll_oracle"] + 0.05, (seed, r[2])
         assert 0.8 <= r[2]["z_sd"] <= 1.2, (seed, r[2])
