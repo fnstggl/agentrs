@@ -183,7 +183,12 @@ def scan_function(fn, src_lines: list[str], mflags: dict) -> dict:
         findings.append("no_assert")
     elif asserts and measured == 0 and not raises:
         findings.append("trivial_assert")
-    seg = "\n".join(src_lines[fn.lineno - 1:getattr(fn, "end_lineno", fn.lineno)])
+    doc = fn.body[0] if (fn.body and isinstance(fn.body[0], ast.Expr) and isinstance(fn.body[0].value, ast.Constant)
+                         and isinstance(fn.body[0].value.value, str)) else None
+    header = [fn.lineno] + [getattr(n, "end_lineno", fn.lineno) for n in
+                            [*fn.args.args, *fn.args.kwonlyargs, fn.returns] if n is not None]
+    start = (doc.end_lineno if doc is not None else max(header)) + 1   # the body: not the name, not the docstring
+    seg = "\n".join(src_lines[start - 1:getattr(fn, "end_lineno", fn.lineno)])
     for w in PLACEHOLDER_WORDS:
         if w in seg:
             findings.append("placeholder_text")

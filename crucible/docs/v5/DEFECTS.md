@@ -1841,7 +1841,27 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-P-11 (medium, open): 235 of the manifest's requirements are recorded by no gate test.
+### DEF-P-12 (high, open): Worktrees of merged wave-1 branches still hold uncommitted changes (worktree-wf_62a0cf0b-bb3-3 = F1, worktree-
+
+```json
+{
+ "area": "P_acceptance",
+ "id": "DEF-P-12",
+ "owner": "orchestrator",
+ "requirements": [
+  "RP.3"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "workstream P (c5c/w1-qa)",
+  "finding": null
+ },
+ "status": "open",
+ "summary": "Worktrees of merged wave-1 branches still hold uncommitted changes (worktree-wf_62a0cf0b-bb3-3 = F1, worktree-wf_62a0cf0b-bb3-6 = L): work that exists only uncommitted (RP.3)."
+}
+```
+
+### DEF-P-11 (medium, open): 204 of the manifest's requirements are recorded by no gate test.
 
 ```json
 {
@@ -1857,6 +1877,6 @@ B_population verdict) and P's own findings.
   "finding": null
  },
  "status": "open",
- "summary": "235 of the manifest's requirements are recorded by no gate test."
+ "summary": "204 of the manifest's requirements are recorded by no gate test."
 }
 ```

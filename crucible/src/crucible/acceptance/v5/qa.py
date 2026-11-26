@@ -288,8 +288,9 @@ def integration_audit(root: str | None = None, profile: str = "auto", days: floa
 # ------------------------------------------------------------------------------------------------- X.9
 TAG = re.compile(r"\[(ev|checker|manifest|run):([^\]]*)\]")
 NUM = re.compile(r"(?<![\w.#/-])-?\d[\d,]*(?:\.\d+)?(?:e[+-]?\d+)?%?(?![\w-])")
-STRUCTURAL = re.compile(r"(Part|Gate|Phase|Clarification|D-|BLK-|R-|DEF-|SP-|OO\.|RP\.|[A-X]\.\d|v\d|\d{4}-\d{2}-\d{2}|"
-                        r"#\d|\b[0-9a-f]{7,40}\b|\d+(\.\d+)+\b)")
+STRUCTURAL = re.compile(r"((Part|Gate|Phase|Clarification|Crucible)\s+\d+(\.\d+)?|\b(D|BLK|R|DEF|M)-[\w-]*\d+\b|"
+                        r"\bSP-\d+(\.\d+)*[a-z]?\b|\b(OO|RP|[A-X])\.n?\d+\b|\bM\d+\b|\bv\d+\b|"
+                        r"\d{4}-\d{2}-\d{2}(T[\d:+.]+)?|#\d+|\b[0-9a-f]{7,40}\b|\b\d+(\.\d+){2,}\b|[\w./-]*\d[\w./-]*\.(py|md|json|xml|jsonl)\b)")
 
 
 def _numbers(line: str) -> list[str]:

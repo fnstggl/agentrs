@@ -510,10 +510,12 @@ def test_the_real_manifest_is_anchored():
     assert not cons["per_id"], dict(list(cons["per_id"].items())[:5])
 
 
-def test_the_real_checker_exits_nonzero_while_anything_is_unverified():
+def test_the_real_checker_exit_code_follows_the_project_status():
     root = M.crucible_root()
-    p = subprocess.run([sys.executable, "-m", "crucible.acceptance.v5", "--verify-all", "--out",
-                        os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-verify-test.json")],
+    out = os.path.join(os.environ.get("TMPDIR", "/tmp"), "crucible-v5-verify-test.json")
+    p = subprocess.run([sys.executable, "-m", "crucible.acceptance.v5", "--verify-all", "--out", out],
                        cwd=root, env=dict(os.environ, PYTHONPATH=os.path.join(root, "src")),
                        capture_output=True, text=True)
-    assert p.returncode in (1, 3) and "CRUCIBLE_5_COMPLETE" not in p.stdout.split("project status:")[1].split()[0]
+    res = json.load(open(out))
+    assert p.returncode == {"CRUCIBLE_5_COMPLETE": 0, "IN_PROGRESS": 1, "INCOMPLETE_BLOCKED": 3}[res["project_status"]]
+    assert (p.returncode == 0) == all(r["status"] == "VERIFIED" for r in res["rows"])
