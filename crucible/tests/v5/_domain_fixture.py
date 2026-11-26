@@ -61,15 +61,11 @@ def objective(world, principal, difficulty):
             "window_days": HORIZON_DAYS, "difficulty": int(difficulty)}
 
 
-def _orgs(world, principal):
-    return sorted(p for p in world.principals_of(principal) if p != principal and p.startswith("o:"))
-
-
 def evaluate(world, principal, obj):
     from crucible.goals.metrics import evaluate_metric
     win = int(float(obj.get("window_days", HORIZON_DAYS)) * 86400)
     rev = {o: float(evaluate_metric(world, "independent_revenue", {"principal": o, "window_s": win}))
-           for o in _orgs(world, principal)}
+           for o in base.seat_orgs(world, principal)}
     total = sum(rev.values())
     t = float(obj["target_cents"])
     return {"success": total >= t, "score": min(1.0, total / t) if t else 0.0,
