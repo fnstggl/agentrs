@@ -115,15 +115,15 @@ def pe_rule_induction(rng, d):
         distinct_because="delayed controller response executed as a program at the inner rate: a first-order lag "
                          "with pure dead time and an autoregressive unmeasured load, setpoint tracking with "
                          "actuator-move costs (no instability, no trips)",
-        axes={"horizon": 30, "observation_noise": 1.0, "resources": 1.0}, objective="maximize_net",
+        axes={"horizon": 40, "observation_noise": 1.0, "resources": 1.0}, objective="maximize_net",
         **hooks(PE, "deadtime_control", ("dead_time_exact", "aggressive_gain_oscillates")))
 def pe_deadtime_control(rng, d):
     names = neutral_names(rng, 3)
     H = int(d["horizon"])
     sched, t = [], 0
     while t < H:
-        sched.append([t, round(u(rng, 3.0, 8.0), 2)])
-        t += int(rng.integers(6, 10))
+        sched.append([t, round(u(rng, 2.0, 9.0), 2)])
+        t += int(rng.integers(3, 6))
     hid = {"G": u(rng, 0.8, 1.6), "tau": u(rng, 3.0, 8.0), "L": int(rng.integers(2, 8)), "w_sd": u(rng, 0.02, 0.05),
            "phi": u(rng, 0.9, 0.97), "load_sd": u(rng, 0.02, 0.05)}
     umax = 10.0 * float(d["resources"])
