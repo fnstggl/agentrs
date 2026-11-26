@@ -571,12 +571,14 @@ def team_discovery(rng, d):
 
 @family("team_formation", engine="strategic", category="8.9", item="8.9.6", split="train",
         doc="A lead pays workers with hidden skills, reservation pay and reliability to form a team for each task; "
-            "a task succeeds only if every required skill turns up; under-paid workers become less committed.",
+            "a task succeeds only if every required skill turns up; under-paid workers become less committed. Most "
+            "workers are specialists and the pay budget per period cannot cover every skill at once, so each "
+            "team has to be formed for the task at hand.",
         distinct_because="team formation: complementary skill coverage (all required skills at once), hidden "
                          "acceptance thresholds and turnout that depends on how workers are paid; claimed skills are "
-                         "unreliable",
-        axes={"action_complexity": 6, "resources": 100, "horizon": 50}, objective="maximize_net",
-        participants=("worker:reservation_and_commitment",), **hooks("formation"))
+                         "unreliable; a budget that rules out one standing team for every task",
+        axes={"action_complexity": 6, "resources": 60, "horizon": 50}, objective="maximize_net",
+        participants=("worker:reservation_and_commitment",), version="2", **hooks("formation"))
 def team_formation(rng, d):
     W = max(3, int(d["action_complexity"]))
     S = 3
@@ -584,7 +586,7 @@ def team_formation(rng, d):
     while True:
         skills = []
         for _ in range(W):
-            k = int(rng.integers(1, 3))
+            k = 1 if rng.random() < 0.75 else 2          # mostly specialists: covering every skill takes a crowd
             row = [0] * S
             for s in rng.choice(S, size=k, replace=False):
                 row[int(s)] = 1

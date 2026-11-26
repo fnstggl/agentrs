@@ -2590,7 +2590,7 @@ def oracle_formation(env) -> dict:
                          for m in (1.0, 1.15, 1.32) for cl in (False, True)})
 
 
-def reference_formation(view, env):
+def reference_formation(view, env, margin: float = 1.1, start: float = 26.0, step: float = 6.0):
     """Public: start from the workers' claimed skills and a guess of their pay; raise the offer to a worker who
     declines; estimate turnout from experience; for each task pick the cheapest team whose believed coverage of the
     needed skills is high; revise skill beliefs when tasks fail with everyone present."""
@@ -2603,12 +2603,15 @@ def reference_formation(view, env):
     need = [float(x) for x in obs["arrays"].get("first_task_needs", [1.0] * len(skills))]
     val = float((obs["arrays"].get("first_task_value") or [150.0])[0])
     belief: dict = {}
-    res_hat = {w: 26.0 for w in workers}
+    res_hat = {w: start for w in workers}
     turn = {w: [3.0, 4.0] for w in workers}                    # turnout successes, trials (prior)
     import itertools
     team: tuple = ()
+    informed = False
     while not view.done:
-        if not belief and obs["entities"]:
+        if not informed and any(e.get("kind") == "worker" for e in obs["entities"]):
+            # the workers' claimed skills arrive with the first period's report: beliefs start from them
+            informed = True
             for e in obs["entities"]:
                 if e.get("kind") == "worker":
                     claim[e["id"]] = set(e["claimed_skills"])
@@ -2618,7 +2621,7 @@ def reference_formation(view, env):
         best, bt = 0.0, ()
         for k in (1, 2, 3):
             for tm in itertools.combinations(workers, k):
-                pay = sum(res_hat[w] * 1.25 for w in tm)
+                pay = sum(res_hat[w] * margin for w in tm)
                 if pay > budget:
                     continue
                 show = {w: turn[w][0] / turn[w][1] for w in tm}
@@ -2629,11 +2632,11 @@ def reference_formation(view, env):
                         for w in tm:
                             miss *= 1.0 - show[w] * belief[w][j]
                         pc *= 1.0 - miss
-                v = val * pc - sum(res_hat[w] * 1.25 * show[w] for w in tm)
+                v = val * pc - sum(res_hat[w] * margin * show[w] for w in tm)
                 if v > best:
                     best, bt = v, tm
         team = bt
-        act = {"kind": "allocate", "amounts": {w: res_hat[w] * 1.25 for w in team}} if team else None
+        act = {"kind": "allocate", "amounts": {w: res_hat[w] * margin for w in team}} if team else None
         r = view.step(act)
         obs = r["observation"]
         x = nums(obs)
@@ -2641,7 +2644,7 @@ def reference_formation(view, env):
         for w in team:
             e = ents.get(w, {})
             if not e.get("accepted"):
-                res_hat[w] += 6.0
+                res_hat[w] += step
                 continue
             turn[w][1] += 1
             turn[w][0] += 1 if e.get("turned_up") else 0
@@ -2659,16 +2662,17 @@ def reference_formation(view, env):
 
 
 def identify_formation(env) -> dict:
-    """Question: which worker turns up least reliably? Invite two workers at a time at a generous pay, in
-    rotation, and compare turnout rates."""
+    """Question: which worker turns up least reliably? Invite workers at a generous pay, two at a time when the
+    budget allows it (one at a time otherwise), in rotation, and compare turnout rates."""
     view = PublicView(env)
     workers = _targets(view.action_space())
     budget = float(view.action_space().limits["allocate_total"])
-    pay = min(46.0, budget / 2)
+    per = 2 if budget >= 92.0 else 1
+    pay = min(46.0, budget / per)
     up = {w: [0, 0] for w in workers}
     k = 0
     while not view.done and view.t < 40:
-        pair = [workers[(2 * k) % len(workers)], workers[(2 * k + 1) % len(workers)]]
+        pair = [workers[(per * k + j) % len(workers)] for j in range(per)]
         r = view.step({"kind": "allocate", "amounts": {w: pay for w in pair}})
         for e in r["observation"]["entities"]:
             if e.get("kind") == "worker" and e["id"] in pair and e["accepted"]:
@@ -2701,10 +2705,18 @@ def claim_formation(env) -> dict:
         res = sum(float(c["reservation"][w]) for w in tm) or 1.0
         f = min(1.3, 0.999 * budget / res)
         return {c["worker_names"][w]: float(c["reservation"][w]) * f for w in tm}
+    # the intervention may need a larger pay budget than the world's (a full team of specialists): it runs on a
+    # copy of the world whose only difference is that budget
+    import copy
+    res_team = sum(float(c["reservation"][w]) for w in team) * 1.3
+    cfg2 = env._config
+    if res_team > budget:
+        cfg2 = copy.deepcopy(env._config)
+        cfg2["budget"] = budget = res_team + 1.0
     full, cut = 0, 0
     for r in range(12):
         for lab, tm in (("full", team), ("cut", weak)):
-            e = replicate(env, r)
+            e = Env(env.family, env.seed, cfg2, env.difficulty, world_seed=env.world_seed + 7907 * (r + 1))
             e._state["task"] = [1] * S + [300.0]
             e._state["trust"] = [1.0] * W
             e.step({"kind": "allocate", "amounts": pay(tm)})
