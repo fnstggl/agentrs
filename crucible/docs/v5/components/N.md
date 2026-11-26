@@ -25,6 +25,7 @@ requirement: `docs/v5/workstreams/N.json`.
 | `comparison` | A/B/C/D arms with matched experience or compute (arms C and D with the architecture-neutral ReferenceLearner, which acts in every tier) and seven control kinds |
 | `integrity` | clause-level claim scanners with planted controls; banned-proxy checks; failure classification |
 | `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission |
+| `genref` | scripted public reference of generated worlds whose optimum wanders (perturbation tracker on observed net income; knows only that the optimum moves) |
 
 ## Measured in development runs (not official evidence)
 
@@ -58,6 +59,21 @@ requirement: `docs/v5/workstreams/N.json`.
   rejects almost every generated world (T.4; see N.json limitations).
 * Tier 2 through the merged domain framework (9 domains register): registry kinds 9/9; mixtures run on compute
   budgets; Level 5 includes two Tier 2 evaluation configurations.
+
+## Wave 3b continuation (D-69 addendum)
+
+* Generator driver `wandering_optimum` (n-compose/4): the key-lever setting the market wants follows a hidden smooth
+  random path; sales are the drive times a fit bump around it. Static generated worlds cannot pass admission's
+  no_dominant_strategy check (the hindsight-best constant is optimal in them); in wandering worlds the oracle earns
+  about twice the best simple policy, and the scripted tracker `genref` beats the best simple policy by the
+  required quarter in most single-lever worlds. Templates for memory, strategic flexibility and long horizons can
+  draw it. T.4 admits a fixed sample (200 structures of the T.1 stream, five seeds).
+* T.8: TargetableMeta allocates by UCB1; held-out probes are scored with common random numbers; 4 planted weaknesses
+  x 5 seeds, 160 training episodes per arm, 16 probes, target read after 80 measured items (`T8_DESIGN`).
+* Statistics: the label rule's null rate is <= 1% at learner-seed sd 0.05-0.15; power >= 0.9 for the controls'
+  noisiest measured effects; an effect of 0.3 at seed sd >= 0.1 is labelled in only about three quarters of
+  batteries with five seeds (documented limit).
+* Tier 2: c5c/w3b-domfw, dom1, dom2 and dom3 merged; 15 domains (75 configurations) register.
 
 ## Known limits
 
