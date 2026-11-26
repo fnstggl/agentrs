@@ -12,7 +12,8 @@
     "src/crucible/sandbox/jail.py",
     "src/crucible/sandbox/isolation.py",
     "src/crucible/redteam/v5/sandbox.py",
-    "src/crucible/redteam/v5/network.py"
+    "src/crucible/redteam/v5/network.py",
+    "src/crucible/redteam/v5/adversaries.py"
    ],
    "tests": [
     "tests/v5/test_gate_W.py::test_W1_sandbox",
@@ -72,10 +73,12 @@
     "src/crucible/sandbox/boot.py",
     "src/crucible/sandbox/jail.py",
     "src/crucible/sandbox/learnerhost.py",
-    "src/crucible/redteam/v5/adversaries.py"
+    "src/crucible/redteam/v5/adversaries.py",
+    "src/crucible/redteam/v5/sandbox.py"
    ],
    "tests": [
-    "tests/v5/test_gate_W.py::test_W5_cross_world"
+    "tests/v5/test_gate_W.py::test_W5_cross_world",
+    "tests/test_v5_security_sandbox.py"
    ],
    "status_claim": "met in unofficial runs on this branch: cross_world_leaks 0 over 10 probes (all held; targeted run of v5.crossworld.* and the learner-process probe); four new channels found and closed this wave (DEF-O-14..17)",
    "notes": "Wave 3b closed per-lineage eviction of the shared meter memo (DEF-O-9). Wave-3b continuation (W.n1): three kernel-object channels between worlds found and closed - SysV IPC (canary read by another tenant), advisory locks (16-bit secret through flock / /dev/null record locks / F_GETLK), inotify (16-bit secret through a long-lived worker's watch queue); and jailed learner processes reaching each other (DEF-O-14..17). Probes kernel_ipc_does_not_cross_worlds (MUST_HOLD), file_locks_do_not_cross_worlds, file_watches_do_not_cross_worlds, sandbox.hosted_learners_cannot_reach_each_other."
@@ -99,10 +102,13 @@
     "src/crucible/sandbox/bridge.py",
     "src/crucible/sandbox/metering.py",
     "src/crucible/sandbox/jail.py",
-    "src/crucible/sandbox/learnerhost.py"
+    "src/crucible/sandbox/learnerhost.py",
+    "src/crucible/redteam/v5/adversaries.py",
+    "src/crucible/sandbox/boot.py"
    ],
    "tests": [
-    "tests/v5/test_gate_W.py::test_W7_resource_limits"
+    "tests/v5/test_gate_W.py::test_W7_resource_limits",
+    "tests/test_v5_security_sandbox.py"
    ],
    "status_claim": "met in unofficial runs on this branch: resource_limit_escapes 0 over 14 probes (incl. learner processes cannot kill each other, DEF-O-15, and memory files / learner directories are capped, DEF-O-18)",
    "notes": "Wave 3b closed nested-run wall-time amplification (DEF-O-7: 42 s for one tool call -> 3.1 s; nested jobs share the enclosing call tree's deadline, D-77). Wave-3b continuation: a jailed learner process SIGKILLed another (F_SETOWN + F_SETSIG) and all learner processes shared one uid's thread budget; refused / one uid per learner process now (DEF-O-15). Continuation: memfd pages were outside RLIMIT_AS (sandbox 640 MiB under a 256 MiB cap; learner 512 MiB) and learner directories had no quota (256 MiB written) - memfd refused, learner directory quota enforced by a watchdog (stopped at 40 MiB for a 32 MiB quota) (DEF-O-18)."
@@ -168,10 +174,15 @@
     "src/crucible/social/integrity.py",
     "src/crucible/social/communities.py",
     "src/crucible/social/creators.py",
-    "src/crucible/commerce/integrity.py"
+    "src/crucible/commerce/integrity.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/sandbox/jail.py",
+    "src/crucible/redteam/v5/crossworld.py",
+    "src/crucible/redteam/v5/sandbox.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_16b.py"
+    "tests/v5/test_gate_SP_16b.py",
+    "tests/test_v5_security_sandbox.py"
    ],
    "status_claim": "NOT met on this branch until C/D's media fixes merge: integrity_mechanisms 9 (>= 4), realworld_abuse_paths 0 (14 checked), cross_tenant_isolation_failures 0 (9 tenant checks incl. kernel objects and learner processes), out_of_process_evaluation_mode true; unrestricted_media_tool_runs 18 (4 unjailed FFmpeg/SoX + 14 in-process decodes). On the check merge: unrestricted_media_tool_runs 0 but realworld_abuse_paths 1 = the import-chain regression (world_code_cannot_import_evaluator_side_code) - fails until I-fw/H/D fix it.",
    "notes": "Wave 3b: real-world abuse policy (D-76: third-party platforms refused in authorisation documents, caller identity headers refused, automation disclosure on every request) and four more in-world consent/moderation mechanisms measured against attempts (invitation consent, unsubscribe stops delivery, report + moderation removes content, bans stop posting). Continuation: tenant isolation extended to kernel objects (SysV IPC, POSIX mq, advisory locks, inotify, descriptor-owner signals) and to learner processes (own uid each); the gate counts those probes among its tenant checks. tests/v5/test_gate_SP_16b.py: 1 failed on this branch (media, owners C/D) and 1 failed on the check merge (import chain only)."
