@@ -138,14 +138,22 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     mem = columns.col(w, "pop", "memory")[columns.col(w, "pop", "class") == 2].astype(np.float32)
     out["distinct_personal_states"] = int(np.unique(mem, axis=0).shape[0])
     out["adaptive_rows"] = int(mem.shape[0])
+    out["personal_states_changed"] = int(np.count_nonzero(np.abs(mem).sum(axis=1) > 0))
     out["policy_objects"] = len(w.runtime.get("pop_adaptive.nets", {}))
     out["adaptive_stats"] = {k: (v if isinstance(v, (int, float)) else str(v))
                              for k, v in dict(w.runtime.get("pop_adaptive.stats", {})).items()}
     # simultaneously active adaptive individuals: distinct ones that took part in the same simulated day, and the
     # largest number activated in one decision round
-    days, rounds = {}, {}
+    days, rounds, policy_days, passes = {}, {}, {}, {}
     cls = columns.col(w, "pop", "class")
     for e in w.log:
+        # individuals whose own personal state their policy stepped (a day review or a session's activity decision)
+        if e.type == "cols.batch" and e.payload["kind"] == "pop_adaptive.memory":
+            idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
+            t = int(e.payload["extra"]["t"])
+            policy_days.setdefault(t // DAY, set()).update(idx[cls[idx] == 2].tolist())
+            k = "day_review" if (e.payload["extra"] or {}).get("review") else "activity"
+            passes[k] = max(passes.get(k, 0), int(idx.size))
         # individuals who took a session (the population's learning batch of the session's takers)
         if e.type == "cols.batch" and e.payload["kind"] == "pop.learn":
             idx = artifacts.get_array_blob(w, e.payload["ref"])["idx"].astype(np.int64)
@@ -166,6 +174,11 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
     for v in days.values():
         run |= v
     out["adaptive_active_run"] = len(run)
+    # simultaneously active: the largest number of class-2 individuals whose policy decided for them (stepped their
+    # own memory: the day review at the first activation of the day, or a session's activity decision) on one day
+    out["max_adaptive_policy_active_same_day"] = max((len(v) for v in policy_days.values()), default=0)
+    out["adaptive_policy_active_days"] = {int(d_): len(v) for d_, v in sorted(policy_days.items())}
+    out["largest_memory_batch"] = passes
     out["wall_s"] = round(time.time() - t0, 1)
     return out
 

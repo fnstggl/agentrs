@@ -518,6 +518,10 @@ class Population(Module):
                     record_decisions(ctx, "pop.day_active", due[nd], vals, **activation.provenance_args(pv1),
                                      extra={"t": int(now), "day": today, "active": int(active.sum()),
                                             **activation.served_extra(pv1)})
+                ad_ = w.modules.get("pop_adaptive")
+                c2d = nd[c("class")[nd] == 2]
+                if c2d.size and ad_ is not None and hasattr(ad_, "review_day"):
+                    ad_.review_day(ctx, due[c2d])      # class 2: the day's memory step (active day or not)
                     a = np.flatnonzero(active)
                     if a.size and pv2 is not None:
                         record_decisions(ctx, "pop.day_sessions", due[nd[a]], {"sessions": planned[a].astype(np.int32)},

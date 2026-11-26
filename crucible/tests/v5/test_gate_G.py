@@ -54,7 +54,9 @@ def shared():
 
 def test_G1_256_simultaneously_active_adaptive(shared):
     r = shared
-    m = {"simultaneously_active_adaptive": int(r["adaptive_active_run"]),
+    m = {"simultaneously_active_adaptive": int(r["max_adaptive_policy_active_same_day"]),
+         "policy_active_per_day": ",".join(str(v) for v in r["adaptive_policy_active_days"].values()),
+         "took_sessions_during_run": int(r["adaptive_active_run"]),
          "active_within_two_days": int(r["max_adaptive_active_two_days"]),
          "active_in_phase2": int(r["adaptive_active_phase2"]),
          "active_same_day": int(r["max_adaptive_active_same_day"]),
@@ -62,11 +64,15 @@ def test_G1_256_simultaneously_active_adaptive(shared):
          "adaptive_rows": int(r["adaptive_rows"])}
     evidence.record("G.1", m, command=CMD, notes="Class-2 individuals of one shared policy group (the standard "
                                                  "profile's 256), all live in ONE world at the same time with their "
-                                                 "own persistent state, that took sessions with their policy during "
-                                                 "the same 4-day run. Their days of activity are decided by the "
-                                                 "fitted daily-return model (KuaiRand: about 75-85% of users are "
-                                                 "active on a given day), so the largest same-day and 48-hour counts "
-                                                 "are reported next to it and are lower.")
+                                                 "own persistent state: the largest number of them for whom their "
+                                                 "policy network took a decision on the same simulated day (the day "
+                                                 "review that steps each member's memory at its first activation of "
+                                                 "the day, and the activity decision of each session; recorded "
+                                                 "pop_adaptive.memory batches). Whether an individual browses on a "
+                                                 "day is decided by the fitted daily-return model (KuaiRand: about "
+                                                 "75-85% of users are active on a given day), so the numbers that "
+                                                 "took sessions on one day, within 48 hours and during the run are "
+                                                 "reported next to it and are lower.")
     assert m["adaptive_rows"] == 256
     _check("G.1", m)
 
@@ -74,24 +80,31 @@ def test_G1_256_simultaneously_active_adaptive(shared):
 def test_G2_distinct_persistent_personal_states(runs, shared):
     m = {"distinct_personal_states": int(min(r["distinct_personal_states"] for r in runs)),
          "per_seed_10_days": ",".join(str(r["distinct_personal_states"]) for r in runs),
+         "changed_from_initial_state_min": int(min(r["personal_states_changed"] for r in runs)),
          "shared_group_4_days": int(shared["distinct_personal_states"])}
     evidence.record("G.2", m, command=CMD, notes="Distinct GRU memory rows (exact float16 values) of the 256 class-2 "
                                                  "individuals at the end of each 10-day run (minimum over 3 seeds); "
                                                  "memory is a column of the population table, persistent across "
-                                                 "sessions, snapshots and forks, and changes only when the individual "
-                                                 "takes a web decision with its policy (individuals whose sessions "
-                                                 "were all other activities keep the initial state).")
+                                                 "sessions, snapshots and forks, and changes only through the "
+                                                 "member's own policy steps (the day review on its own morning "
+                                                 "observation, the activity decision of each of its sessions); every "
+                                                 "member starts from the same zero state, so distinct rows are states "
+                                                 "that diverged through each individual's own days.")
+    assert m["changed_from_initial_state_min"] == 256
     _check("G.2", m)
 
 
 def test_G3_shared_weight_batched_inference(shared):
     r = shared
-    m = {"shared_weight_copies": int(r["policy_objects"]),
-         "max_inference_batch": int(r["adaptive_stats"].get("max_batch", 0)), "policy_groups": 1,
-         "members": int(r["adaptive_rows"])}
+    st = r["adaptive_stats"]
+    by = {"resource_choice": int(st.get("max_batch", 0)), "activity_choice": int(st.get("max_batch_act", 0)),
+          "day_review": int(st.get("max_batch_day", 0))}
+    m = {"shared_weight_copies": int(r["policy_objects"]), "max_inference_batch": int(max(by.values())),
+         **{f"max_batch_{k}": v for k, v in by.items()}, "policy_groups": 1, "members": int(r["adaptive_rows"])}
     evidence.record("G.3", m, command=CMD, notes="One network object for the group of 256 (personal state in "
-                                                 "columns); the largest batch of one forward pass (decisions are "
-                                                 "aggregated in 4-hour rounds).")
+                                                 "columns); the largest batch of one forward pass of the shared "
+                                                 "network, per decision it takes (activations of class-2 members "
+                                                 "are aggregated in 4-hour decision rounds).")
     assert m["members"] == 256
     _check("G.3", m)
 

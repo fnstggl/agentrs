@@ -100,7 +100,7 @@ def run():
     learner_cmds = 0
     labels = {}
     sessions, visit_logs, invariant_errors, provenance = {}, [], [], []
-    learner = {"population_decision_events": 0, "learner_initiated": 0}
+    li_tot = {"population_decision_events": 0, "learner_initiated": 0}
     cut = None
     s0 = 0
     for d in range(DAYS):
@@ -113,8 +113,8 @@ def run():
             sessions[k] = sessions.get(k, 0) + v
         visit_logs.append(A.visit_log(w, ev))
         li = A.learner_initiated(w, ev)
-        for k in learner:
-            learner[k] += li[k]
+        for k in li_tot:
+            li_tot[k] += li[k]
         provenance.append(check_provenance(w, ev))
         invariant_errors += w.check_invariants()
         s0 = w.seq
@@ -122,7 +122,7 @@ def run():
             cut = {"blob": w.snapshot_blob(), "t": w.now, "log": _concat([lg for lg in visit_logs if len(lg["ind"])])}
     log = _concat([lg for lg in visit_logs if len(lg["ind"])])
     return {"world": w, "labels": labels, "sessions": sessions, "log": log, "invariants": invariant_errors,
-            "provenance": provenance, "learner": learner, "cut": cut, "wall_s": time.time() - t0,
+            "provenance": provenance, "learner": li_tot, "cut": cut, "wall_s": time.time() - t0,
             "learner_commands": learner_cmds,
             "proc_failed": sum(1 for e in w.log if e.type == "proc.failed")}
 
