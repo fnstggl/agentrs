@@ -401,14 +401,28 @@ def lookalike_market(rng: np.random.Generator, rule: str, difficulty: dict) -> d
     # revenue = units * price: units are the outcome node; the price lever multiplies via a revenue node
     rev = gb.prim("multiplicative", {"k": unit_price / 10.0}, role="revenue", a=[(units, 0, 1.0)],
                   b=[(price, 0, 1.0)])
-    afford = ["levers", "discrete"]
+    afford = ["levers", "discrete", "message"]
     if rule != "gate":                                   # every market offers the same decision interface
         compat = gb.discrete([0.0, 0.0], cost=[0.0, _u(rng, 40.0, 80.0)], default=0, role="inert_option")
+    dnode = gb.nodes[int(compat[1:])]["options"]
+    dname, (c0, c1) = dnode["name"], dnode["choices"]
+    pn, qn = gb.name_of(price), gb.name_of(promo)
+    # prediction (D-63): units sold at held-out prices and promotion levels, with and without the certification,
+    # held from a fresh market (a market whose response depends on its own history settles accordingly)
+    held = [{pn: p_, qn: q_, dname: ch} for p_, q_, ch in
+            ((0.5, 3.0, c0), (2.0, 12.0, c1), (5.0, 14.0, c0), (8.0, 1.0, c1), (11.0, 6.0, c0), (12.5, 12.0, c1),
+             (3.5, 0.5, c1), (6.5, 13.0, c1))]
+    text = ("Predict mean units sold per period if the price, the promotion spend and the certification were held "
+            f"at these values from a fresh market (partly outside what you can set): {held}. File predictions with "
+            "the journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": "
+            "<number>}, ...]}. Only the last filing counts.")
     return gb.build(horizon=horizon, money={"revenue_node": rev, "price": 1.0, "cap": 100.0 * unit_price,
                                             "fixed_cost": 0.0},
                     affordances=afford, warmup=int(difficulty.get("warmup", 0)), endowment=200_000,
-                    objective={"type": "maximize_net", "text": "Run the shop: your net income over the horizon is "
-                                                               "what counts."},
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gb.gauges[0]["name"] if
+                               isinstance(gb.gauges[0], dict) else gb.gauges[0], "text": text,
+                               "settle_ticks": 60 if rule == "drift" else 1},
+                    journal=True,
                     brief="You run a shop. Levers: your price and your promotion spend. Gauges: units sold, store "
                           "visits, a rival's price index. Decision: an optional certification.",
                     rule=rule, claim={"price": price, "promo": promo, "units": units, "compat": compat, "mid": mid})

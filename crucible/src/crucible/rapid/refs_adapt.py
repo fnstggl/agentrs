@@ -1008,3 +1008,57 @@ def fir_shape_predict_recent(view, env, lags: int = 1, gain: float = 0.06, seed:
 def fir_shape_predict_recent_lagged(view, env) -> None:
     """`fir_shape_predict_recent` with up to three lags of each setting (worlds with short feedback or delays)."""
     fir_shape_predict_recent(view, env, lags=3, gain=0.04)
+
+
+# ====================================================================== look-alike markets as prediction tasks
+def market_predict(view, env, seed: int = 0, gain: float = 0.04) -> None:
+    """Scripted public reference for predicting a market's sales at held-out prices, promotion levels and
+    certification states: price, promotion and the certification decision are randomised every tick; for each
+    certification state, an additive law of log units (one shape per lever by cross-validation, the rival's price
+    index as a covariate if it does not respond to the levers) is fitted, so the price response and the promotion
+    response multiply; predictions are filed for the held-out conditions."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    sp = view.action_space()
+    props = sp.kinds["levers"]["properties"]["values"]["properties"]
+    lv = sorted(props)
+    (dname, opts), = sp.limits["decisions"].items()
+    lo = np.array([float(props[n]["minimum"]) for n in lv])
+    hi = np.array([float(props[n]["maximum"]) for n in lv])
+    X, y, C, R = [], [], [], []
+    others = None
+    while view.t < view.horizon - 2 and not view.done:
+        s = lo + rng.random(len(lv)) * (hi - lo)
+        ch = int(rng.integers(len(opts)))
+        r = view.step({"kind": "sequence", "steps": [
+            {"kind": "discrete", "decision": dname, "choice": opts[ch]},
+            {"kind": "levers", "values": {n: float(v) for n, v in zip(lv, s)}}]})
+        nums = r["observation"]["numbers"]
+        if others is None:
+            others = sorted(k for k in nums if k != gauge)
+        X.append(s.copy())
+        y.append(float(nums.get(gauge, np.nan)))
+        C.append(ch)
+        R.append([float(nums.get(k, np.nan)) for k in others])
+    X, y, C, R = np.asarray(X), np.asarray(y), np.asarray(C), np.asarray(R, dtype=float)
+    ok = np.isfinite(y)
+    if ok.sum() >= 20 and not view.done:
+        keep = _exogenous(X[ok], R[ok]) if R.size else []
+        preds = {}
+        for ch in range(len(opts)):
+            m = ok & (C == ch)
+            if m.sum() < 10:
+                continue
+            Z = R[m][:, keep] if keep else None
+            ly = np.log(np.maximum(y[m], 0.05))
+            preds[ch], _ = fit_additive_lagged(X[m], ly, lo, hi, 0, Z=Z, gain=gain)
+        out = []
+        for c in held:
+            ch = opts.index(c[dname])
+            f = preds.get(ch) or next(iter(preds.values()))
+            out.append({"set": c, "value": float(np.exp(f(np.asarray([[float(c[n]) for n in lv]]))[0]))})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)

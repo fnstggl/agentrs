@@ -575,9 +575,14 @@ def true_response(eng: PrimitiveGraph, conds: list[dict], gauge: str, ticks: int
     out = []
     g = eng.gauges[eng.gauge_names.index(gauge)]
     src = eng.idx[g["src"][0]]
+    dnames = [d["name"] for d in eng.dec]
     for cond in conds:
         st = eng.empty_state(1)
-        eng.set_levers(st, cond, clip=False)
+        eng.set_levers(st, {k: v for k, v in cond.items() if k not in dnames}, clip=False)
+        for k, v in cond.items():                 # a condition may also fix a discrete decision (by its option)
+            if k in dnames:
+                j = dnames.index(k)
+                st["choice"][:, j] = list(eng.dec[j]["choices"]).index(v)
         z = np.zeros((1, eng.n_normal))
         u = np.ones((1, eng.n_uniform))           # no missing readings, no selection draws below the cut
         val = None

@@ -151,29 +151,33 @@ family("mk_elastic", engine="primitive_graph", category="8.1", item="8.1.4", spl
        doc="Look-alike market, rule 'elastic': lowering the price raises purchases (logistic demand in price).",
        distinct_because="shares its public interface with mk_signal, mk_gate and mk_drift; here conversion is a "
                         "decreasing logistic function of price",
-       axes={"horizon": 60, "observation_noise": 0.15}, objective="maximize_net",
-       claims=(C + "market_rule",), identify=I + "market_rule", lever_view=True)(_market("elastic"))
+       axes={"horizon": 60, "observation_noise": 0.15}, objective="predict_heldout",
+       claims=(C + "market_rule",), identify=I + "market_rule",
+       reference="crucible.rapid.refs_adapt:market_predict", oracle="crucible.rapid.oracles:science_oracle", version="2", lever_view=True)(_market("elastic"))
 family("mk_signal", engine="primitive_graph", category="8.1", item="8.1.3", split="train",
        doc="Look-alike market, rule 'signal': buyers read price as quality, so lowering a low price lowers "
            "purchases (non-monotonic response).",
        distinct_because="same interface as the other markets; conversion is non-monotonic in price (rises, "
                         "peaks, falls)",
-       axes={"horizon": 60, "observation_noise": 0.15}, objective="maximize_net",
-       claims=(C + "market_rule",), identify=I + "market_rule", lever_view=True)(_market("signal"))
+       axes={"horizon": 60, "observation_noise": 0.15}, objective="predict_heldout",
+       claims=(C + "market_rule",), identify=I + "market_rule",
+       reference="crucible.rapid.refs_adapt:market_predict", oracle="crucible.rapid.oracles:science_oracle", version="2", lever_view=True)(_market("signal"))
 family("mk_gate", engine="primitive_graph", category="8.1", item="8.1.6", split="val",
        doc="Look-alike market, rule 'gate': price has almost no effect until a compatibility certification (a "
            "discrete decision) is bought; then demand is elastic.",
        distinct_because="same interface; the active causal path from price depends on a discrete state "
                         "(complementarity of certification and price response)",
-       axes={"horizon": 60, "observation_noise": 0.15}, objective="maximize_net",
-       claims=(C + "market_rule",), identify=I + "market_rule")(_market("gate"))
+       axes={"horizon": 60, "observation_noise": 0.15}, objective="predict_heldout",
+       claims=(C + "market_rule",), identify=I + "market_rule",
+       reference="crucible.rapid.refs_adapt:market_predict", oracle="crucible.rapid.oracles:science_oracle", version="2")(_market("gate"))
 family("mk_drift", engine="primitive_graph", category="8.10", item="8.10.1", split="train",
        doc="Look-alike market, rule 'drift': a rival's share grows with the shop's price history; once it crosses "
            "a hidden level, demand becomes several times more price-sensitive, permanently.",
        distinct_because="same interface; a regime change of the price effect triggered by an accumulating "
                         "competitor stock (endogenous, path-dependent change of the causal effect)",
-       axes={"horizon": 60, "observation_noise": 0.15}, objective="maximize_net",
-       claims=(C + "market_rule",), identify=I + "market_rule", lever_view=True)(_market("drift"))
+       axes={"horizon": 60, "observation_noise": 0.15}, objective="predict_heldout",
+       claims=(C + "market_rule",), identify=I + "market_rule",
+       reference="crucible.rapid.refs_adapt:market_predict", oracle="crucible.rapid.oracles:science_oracle", version="2", lever_view=True)(_market("drift"))
 
 
 # ====================================================================== 8.2 experimental science
