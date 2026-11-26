@@ -11,6 +11,14 @@ a vocabulary a third the size) over each window of the text, with no instruction
   in `space/maps/valence_head.npz`).
 
 `analyse(texts)` returns the same structure as `lm.analyse`. Selective GPU as in `lm` (`lm.device()`).
+
+Adoption rule. The space switches to this backend only when the distillation report (`maps/valence_head_report.json`,
+written by `distill.py` on held-out texts) shows equivalence: valence Pearson >= 0.85, coherence and novel-coherence
+Spearman >= 0.9, and the valence change of at least 11 of 12 TEST negation/polarity pairs in Qwen's direction
+(`ADOPTION`, `equivalent`). The report of 2026-11-26 (12,054 texts: 9,654 train, 2,400 held out; GPU) gave valence
+Pearson 0.752, coherence Spearman 0.887, novel coherence Spearman 0.886, TEST pairs 12/12, 2.6x faster per text on
+the GPU (about 7x on one CPU thread): not equivalent, so the space keeps `lm` (Qwen3-0.6B) and this module stays a
+measured, unadopted candidate.
 """
 from __future__ import annotations
 
@@ -25,6 +33,17 @@ MAX_WINDOWS = 8
 BATCH = 16
 NGRAM = 4
 HEAD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maps", "valence_head.npz")
+REPORT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maps", "valence_head_report.json")
+ADOPTION = {"valence_pearson": 0.85, "coherence_spearman": 0.9, "coherence_novel_spearman": 0.9,
+            "test_pairs_agreement_share": 11 / 12}
+
+
+def equivalent(report: dict) -> bool:
+    """Whether a distillation report meets the adoption thresholds (`ADOPTION`)."""
+    return (report["valence"]["pearson"] >= ADOPTION["valence_pearson"]
+            and report["coherence"]["spearman"] >= ADOPTION["coherence_spearman"]
+            and report["coherence_novel"]["spearman"] >= ADOPTION["coherence_novel_spearman"]
+            and report["test_pairs_agreement_share"] >= ADOPTION["test_pairs_agreement_share"])
 
 _LOCK = threading.RLock()
 _SVC: dict = {}

@@ -1,0 +1,32 @@
+{
+ "n_train_texts": 9654,
+ "n_heldout_texts": 2400,
+ "ridge_lambda": 1000.0,
+ "cv_mse": {
+  "1.0": 0.09889730461596752,
+  "10.0": 0.09871061670941347,
+  "100.0": 0.0976991197107812,
+  "1000.0": 0.09748342962302602,
+  "10000.0": 0.10979625411564739
+ },
+ "qwen_s_per_text": 0.01056,
+ "fast_s_per_text": 0.004,
+ "valence": {
+  "pearson": 0.7518,
+  "spearman": 0.7494,
+  "n": 2400
+ },
+ "coherence": {
+  "pearson": 0.9083,
+  "spearman": 0.8872,
+  "n": 2400
+ },
+ "coherence_novel": {
+  "pearson": 0.9021,
+  "spearman": 0.8861,
+  "n": 2400
+ },
+ "test_pairs_valence_direction_agreement": "12/12",
+ "test_pairs_agreement_share": 1.0,
+ "equivalent": false
+}

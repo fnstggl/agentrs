@@ -116,6 +116,9 @@ def run(n: int = 12000, report: str | None = None, seed: int = 0) -> dict:
             agree += int(np.sign(dq) == np.sign(df) and dq != 0)
     out["test_pairs_valence_direction_agreement"] = f"{agree}/{moved}"
     out["test_pairs_agreement_share"] = round(agree / max(1, moved), 4)
+    out["equivalent"] = lm_fast.equivalent(out)
+    with open(lm_fast.REPORT, "w") as fh:          # kept next to the head it describes
+        json.dump(out, fh, indent=1)
     if report:
         with open(report, "w") as fh:
             json.dump(out, fh, indent=1)
