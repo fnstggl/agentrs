@@ -387,3 +387,82 @@ def settled_law_predict(view, env) -> None:
                "content": {"predictions": [{"set": c, "value": pred(c)} for c in held]}})
     while not view.done:
         view.step(None)
+
+
+# a small library of two-input laws, each with up to two shape parameters (half-saturation h, threshold q)
+def _law_basis(form: str, X: np.ndarray, h: float, q: float) -> np.ndarray:
+    a, b = X[:, 0], X[:, 1]
+    one = np.ones(len(X))
+    sat = lambda v: np.maximum(v, 0.0) / (np.maximum(v, 0.0) + h)      # noqa: E731
+    step = lambda v: (v >= q).astype(float)                           # noqa: E731
+    return {"linear": lambda: np.c_[one, a, b],
+            "sat_a+lin_b": lambda: np.c_[one, sat(a), b],
+            "lin_a+sat_b": lambda: np.c_[one, a, sat(b)],
+            "sat_a*step_b": lambda: np.c_[one, sat(a) * step(b), b],
+            "sat_b*step_a": lambda: np.c_[one, sat(b) * step(a), a],
+            "lin_a*step_b": lambda: np.c_[one, a * step(b), b],
+            "lin_b*step_a": lambda: np.c_[one, b * step(a), a],
+            "sat_a+step_b": lambda: np.c_[one, sat(a), step(b), b],
+            "sat_a*lin_b": lambda: np.c_[one, sat(a) * b, sat(a), b]}[form]()
+
+
+LAW_FORMS = ("linear", "sat_a+lin_b", "lin_a+sat_b", "sat_a*step_b", "sat_b*step_a", "lin_a*step_b", "lin_b*step_a",
+             "sat_a+step_b", "sat_a*lin_b")
+
+
+def fit_law_cv(X: np.ndarray, y: np.ndarray, lo: float, hi: float):
+    """Choose a law from `LAW_FORMS` (shape parameters on grids) by five-fold cross-validated error, refit on all
+    data. Returns predict(Xq)."""
+    X, y = np.asarray(X, dtype=float), np.asarray(y, dtype=float)
+    folds = np.arange(len(y)) % 5
+    H = np.linspace(0.3, 8.0, 16)
+    Q = np.linspace(lo + 0.25, hi - 0.25, 20)
+    best = None
+    for form in LAW_FORMS:
+        hs = H if "sat" in form else [1.0]
+        qs = Q if "step" in form else [0.0]
+        for h in hs:
+            for q in qs:
+                F = _law_basis(form, X, h, q)
+                cv = 0.0
+                for k in range(5):
+                    tr, te = folds != k, folds == k
+                    coef, *_ = np.linalg.lstsq(F[tr], y[tr], rcond=None)
+                    cv += float(np.sum((F[te] @ coef - y[te]) ** 2))
+                if best is None or cv < best[0]:
+                    best = (cv, form, h, q)
+    _, form, h, q = best
+    coef, *_ = np.linalg.lstsq(_law_basis(form, X, h, q), y, rcond=None)
+    return lambda Xq: _law_basis(form, np.asarray(Xq, dtype=float), h, q) @ coef
+
+
+def interleaved_law_predict(view, env) -> None:
+    """Scripted public reference for prediction objectives with two settings whose law may be gated (one setting
+    works only beyond a threshold of the other): run a grid of conditions in an interleaved order (one tick each,
+    cycling through the grid, so slow hidden cycles average out), choose a law from a small library by
+    cross-validation and file its predictions for the held-out conditions the objective names."""
+    obj = env._config["objective"]                   # public: the objective text names the held-out conditions
+    held = obj["heldout"]
+    names = sorted(held[0])
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = max(float(props[n]["minimum"]) for n in names)
+    hi = min(float(props[n]["maximum"]) for n in names)
+    grid = [(a, b) for a in np.linspace(lo, hi, 6) for b in np.linspace(lo, hi, 9)]
+    order = np.random.default_rng(0).permutation(len(grid))
+    X, y = [], []
+    k = 0
+    while view.t < view.horizon - 2 and not view.done:
+        a, b = grid[int(order[k % len(grid)])]
+        k += 1
+        r = view.step({"kind": "levers", "values": {names[0]: float(a), names[1]: float(b)}})
+        nums = r["observation"]["numbers"]
+        if nums:
+            X.append([a, b])
+            y.append(list(nums.values())[0])
+    if len(y) >= 12 and not view.done:
+        pred = fit_law_cv(np.asarray(X), np.asarray(y), lo, hi)
+        Xh = np.asarray([[c[names[0]], c[names[1]]] for c in held])
+        view.step({"kind": "message", "to": "journal",
+                   "content": {"predictions": [{"set": c, "value": float(v)} for c, v in zip(held, pred(Xh))]}})
+    while not view.done:
+        view.step(None)

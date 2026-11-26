@@ -53,32 +53,43 @@ def hc_confounded(rng, d):
 
 
 @family("hc_conditional", engine="primitive_graph", category="8.1", item="8.1.2", split="train",
-        doc="One lever works only through a pathway that is open when a second, costly lever is above a hidden "
-            "threshold; below it the first lever does nothing.",
-        distinct_because="a threshold gates a saturating pathway multiplicatively (conditional causal path); no "
-                         "confounder, no history",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "conditional_pathway",), identify=I + "lever_sign", lever_view=True)
+        doc="One lever works only through a pathway that is open when a second lever is above a hidden threshold; "
+            "below it the first lever does nothing, although an upstream engagement count still moves with it. A "
+            "slow hidden demand cycle moves sales as well. Predict sales at combinations of the two settings "
+            "outside what can be set, as interventions: the answer depends on which side of the hidden threshold "
+            "the second setting lies and on how the first lever's effect saturates.",
+        distinct_because="a threshold gates a saturating pathway multiplicatively (conditional causal path) behind "
+                         "an exogenous hidden cycle, with an upstream reading that moves whether or not the path is "
+                         "open; the objective is the interventional prediction at held-out conditions (scored on "
+                         "unobserved conditions); no confounded history",
+        axes={"horizon": 80, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "conditional_pathway",), identify="crucible.rapid.claims_w3b:identify_gate_threshold",
+        reference="crucible.rapid.refs_adapt:interleaved_law_predict", version="2")
 def hc_conditional(rng, d):
     gb = GraphBuilder(rng)
-    A = gb.lever(0.0, 10.0, 1.0, cost=u(rng, 250, 350))
-    Bv = gb.lever(0.0, 10.0, 2.0, cost=u(rng, 60, 90))
-    theta = u(rng, 6.5, 8.5)
+    A = gb.lever(0.0, 10.0, 1.0, cost=0.0)
+    Bv = gb.lever(0.0, 10.0, 2.0, cost=0.0)
+    theta = u(rng, 3.0, 8.0)
     gate = gb.prim("threshold", {"theta": theta, "lo": 0.0, "hi": 1.0}, x=[(Bv, 0, 1.0)])
-    eff = gb.prim("saturation", {"cap": u(rng, 50, 70), "half": u(rng, 1.5, 2.5)}, x=[(A, 0, 1.0)])
+    eff = gb.prim("saturation", {"cap": u(rng, 40, 70), "half": u(rng, 2.0, 5.0)}, x=[(A, 0, 1.0)])
     path = gb.prim("multiplicative", {"k": 1.0}, a=[(eff, 0, 1.0)], b=[(gate, 0, 1.0)])
     season = gb.prim("hidden_confounding", {"mean": 0.0, "sd": 0.5, "ar": 0.8}, role="exogenous")
     sales = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
-                    bias={"x": u(rng, 25, 35)}, x=[(path, 0, 1.0), (Bv, 0, -0.5), (season, 0, 2.0)])
+                    bias={"x": u(rng, 25, 35)}, x=[(path, 0, 1.0), (Bv, 0, -u(rng, 0.3, 1.0)), (season, 0, 2.0)])
     noise = float(d["observation_noise"])
-    gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
+    gy = gb.gauge(sales, [("measurement_noise", {"sd": noise * 3})])
     gb.gauge(eff, [("measurement_noise", {"sd": noise * 3})], lag=1)
     _distractors(gb, rng, d["n_variables"], noise)
-    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": sales, "price": 100.0, "cap": 200.0},
-                    affordances=["levers"], endowment=500_000,
-                    objective={"type": "maximize_net", "text": "Maximise your net income over the horizon."},
-                    brief="A workshop with two spending levers. Gauges: units sold and an engagement count "
-                          "(reported a tick late).",
+    held = [{gb.name_of(A): p, gb.name_of(Bv): q} for p, q in
+            ((12.0, 2.0), (12.0, 10.5), (14.0, 5.0), (14.0, 12.0), (16.0, 8.5), (11.0, 1.0), (13.0, 9.5))]
+    text = ("Predict mean units sold if the two levers were set to these values (partly outside what you can set): "
+            f"{held}. File predictions with the journal: message to 'journal' with content {{\"predictions\": "
+            "[{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), affordances=["levers", "message"],
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text},
+                    journal=True,
+                    brief="A workshop with two levers. Gauges: units sold and an engagement count (reported a tick "
+                          "late).",
                     claim={"lever": A, "gate_lever": Bv, "theta": theta, "outcome": sales})
 
 
