@@ -42,8 +42,8 @@
    "tests": [
     "tests/v5/test_gate_A.py"
    ],
-   "status_claim": "implemented; fails (1 record unresolved)",
-   "notes": "Measured locally: 148 of 148 4.0 world trajectories in 4.0's deterministic mode equal c07098b's (under the default measured-CPU cost model even c07098b differs between fresh executions, documented 4.0 behaviour). Of the 16 acceptance records A-P and 2 demos, the first full run reproduced 14; after excluding provenance (the N record's own commit, durations inside summary strings) and fixing the demo_social_org command, N and demo_social_org reproduce; O differs from its record by about 3e-2 relative but c07098b regenerates exactly the current tree's numbers, so it is counted as reproduced and reported as v4_self_irreproducible_records; demo_lifetime (78,353 vs 73,617 events) is unresolved (DEF-P-13). The full gate was not rerun after the fixes (slot scheduler saturated)."
+   "status_claim": "resolved by measurement: fails on the merged tree (requirement conflict with D-19/D-20, DEF-P-13)",
+   "notes": "demo_lifetime (bazaar, seed 7, 30 days), regenerated with --out/--store in clean trees: record 73,617 events / dc8a6794; c07098b 78,353 / 9b08db59 twice (deterministic, but not the record: the record is stale in 4.0 itself); 3df5faf (the commit that last wrote the record) 73,617 / 2b679e64 (event count reproduced, digest not). Bisect of the first-parent merges: 3043334 and 7ce3db0 = c07098b; 1c3d69d (observation-only L, D-19) and 2d0f4ce 78,353 / 6fa80946 (state digest changed, same events); 33b5f2b (O, D-20 parent-measured metering) 74,735 / 94c48108; 87a6c54 74,280 / 753ff574. So the merged tree changes 4.0's own trajectory (baseline.prior_results classifies it as a mismatch, correctly), and the record would be v4_self_irreproducible even without v5. Agents differ materially (Builder bob's 30-day independent revenue 314,868 at c07098b vs 2,289,257 at 87a6c54). The full A.5 gate (16 acceptance records + 2 demos + 148 deterministic trajectories) was queued on 87a6c54 behind the slot scheduler; see the closing report for whether it finished."
   },
   "A.1": {
    "implementation_files": [
