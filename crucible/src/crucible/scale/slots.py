@@ -8,7 +8,7 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
     python -m crucible.scale.slots --cpu 2 --ram-mb 4000 --label "M: tests" -- python -m pytest -q tests/test_x.py
     python -m crucible.scale.slots --cpu 1 --gpu-mb 2000 --gpu-s 600 --inference 4 --worlds 8 \\
         --disk-mb 500 --disk-dir /path/to/store -- python bench.py
-    python -m crucible.scale.slots --status          # budget, held slots, queue
+    python -m crucible.scale.slots --status          # budget, held slots (with what each job uses now), queue
     python -m crucible.scale.slots --hardware        # the inspected hardware
 
 | dimension | grant | enforcement |
@@ -763,12 +763,21 @@ def release_job(job: str, d: str | None = None) -> None:
 
 
 def status(d: str | None = None) -> dict:
+    """Budget, held slots (each with `live`: what its job uses now and at peak, published by its supervisor every
+    LIVE_S seconds, when it runs this version) and the queue."""
     d = d or slots_dir()
     with _ledger(d) as box:
         held, queue = list(box["held"]), list(box["queue"])
+    in_use = 0.0
+    for h in held:
+        live = None if h.get("reserving") else _read_live(d, h.get("job"))
+        if live is not None:
+            h["live"] = live
+            in_use += float(live.get("ram_mb") or 0)
     return {"ledger": d, "budget": stored_budget(d).to_dict(), "held": held, "queue": queue,
             "cpu_used": sum(int(h["cpu"]) for h in held), "gpu_mb_used": sum(int(h["gpu_mb"]) for h in held),
-            "ram_mb_reserved": sum(_ram_of(h) for h in held)}
+            "ram_mb_reserved": sum(_ram_of(h) for h in held), "ram_mb_in_use_reported": round(in_use, 1),
+            "jobs_reporting_use": sum(1 for h in held if "live" in h)}
 
 
 def _log_usage(rec: dict, d: str | None = None) -> None:
@@ -840,6 +849,41 @@ class Job:
     over: int = 0
     samples: int = 0
     pss_ratio: float = 1.0
+    cur: dict = field(default_factory=dict)            # the last sample: RAM and GPU memory in use now
+    live_at: float = 0.0
+
+
+#: how often a supervisor publishes what its job uses (jobdir/live.json)
+LIVE_S = float(os.environ.get("CRUCIBLE_SLOTS_LIVE_S", "10"))
+
+
+def _write_live(job: Job, now: float) -> None:
+    """Publish what the job uses now and at peak (`--status` shows it next to the grant, so a waiting engineer can
+    see how much of the held budget is in use). Atomic replace, no ledger lock; failures are ignored."""
+    if now - job.live_at < LIVE_S:
+        return
+    job.live_at = now
+    rec = {"t": round(now, 1), "ram_mb": round(float(job.cur.get("ram_mb", 0.0)), 1),
+           "peak_ram_mb": round(float(job.peak["rss_mb"]), 1), "gpu_mb": round(float(job.cur.get("gpu_mb", 0.0)), 1),
+           "peak_gpu_mb": round(float(job.peak["gpu_mb"]), 1), "peak_cpu": round(float(job.peak["cpu"]), 3),
+           "procs": int(job.peak["procs"])}
+    path = os.path.join(job.jobdir, "live.json")
+    try:
+        with open(path + ".tmp", "w") as fh:
+            json.dump(rec, fh)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+def _read_live(d: str, job_id: str | None) -> dict | None:
+    if not job_id:
+        return None
+    try:
+        with open(os.path.join(d, "jobs", str(job_id), "live.json")) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 
 def _tree(job: Job) -> list[int]:
@@ -1018,6 +1062,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
             return
     else:
         mem = rss * job.pss_ratio
+    job.cur["ram_mb"] = mem
     job.peak["rss_mb"] = max(job.peak["rss_mb"], mem)
     job.peak["write_mb"] = max(job.peak["write_mb"], sum(job.writes.values()) / MB)
     # GPU memory and GPU time from the interpreter hook's reports; GPU contexts without a report
@@ -1038,6 +1083,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
                     _violation(job, "gpu_mem", 1, 0, "killed", pid=p, why="GPU context in a job granted no GPU")
                     _stop(job, "gpu_mem")
                     return
+    job.cur["gpu_mb"] = gpu_mb
     job.peak["gpu_mb"] = max(job.peak["gpu_mb"], gpu_mb)
     if g["gpu_mb"] > 0 and gpu_mb > g["gpu_mb"]:
         _violation(job, "gpu_mem", gpu_mb, g["gpu_mb"], "killed")
@@ -1172,6 +1218,7 @@ def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budg
                 _reap(job)
                 if job.killed_by is None:
                     _sample(job, now, now - last)
+                    _write_live(job, now)
                 last = now
                 done = job.leader.returncode is not None
                 if done and leader_done_at is None:

@@ -290,3 +290,27 @@ def test_a_process_that_only_asks_whether_a_gpu_exists_is_not_a_gpu_job():
     finally:
         p.stdin.close()
         p.wait(timeout=30)
+
+
+def test_status_shows_what_each_held_job_uses_next_to_its_grant(ledger_dir, monkeypatch):
+    """Each supervisor publishes its job's current and peak use (jobdir/live.json); `--status` shows it beside the
+    grant, so engineers can size requests from what their running jobs really use."""
+    monkeypatch.setenv("CRUCIBLE_SLOTS_LIVE_S", "0.2")          # the supervisor process reads it at start
+    recs = []
+    code = "import time\nx = bytearray(150 * 1024 * 1024)\nx[::4096] = b'1' * len(x[::4096])\ntime.sleep(4)\n"
+    t = threading.Thread(target=lambda: recs.append(slots.run_job(
+        [sys.executable, "-c", code], cpu=1, gpu_mb=0, label="live-use", budget=slots.Budget(4, 0, 2, ram_mb=4000),
+        ram_mb=1500, sample_s=0.2, poll_s=0.05)))
+    t.start()
+    live, deadline = None, time.time() + 30
+    while time.time() < deadline and live is None:
+        st = slots.status()
+        held = [h for h in st["held"] if h["label"] == "live-use" and "live" in h]
+        if held and held[0]["live"]["peak_ram_mb"] > 100:
+            live, total = held[0]["live"], st
+        time.sleep(0.2)
+    t.join(30)
+    assert live is not None, "no live usage published for a running job"
+    assert 100 < live["peak_ram_mb"] < 1500 and live["ram_mb"] <= live["peak_ram_mb"] + 1e-6
+    assert total["jobs_reporting_use"] >= 1 and total["ram_mb_in_use_reported"] > 0
+    assert recs and recs[0]["rc"] == 0 and slots.status()["held"] == []
