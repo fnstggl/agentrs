@@ -32,6 +32,10 @@ Scenarios (one per family):
                   needs both components (complementary production capabilities, 8.9.1)
     schedule      three participants with private job queues share two machines; double bookings waste the period,
                   joint plans reserve machines (multi-agent scheduling, 8.9.4)
+    commit        sites come up for a few periods each; committing to one is irreversible (a fixed cost, a limited
+                  number of commitments, no exit) and it then pays its hidden yield every period until it fails at
+                  the hidden hazard of its type, after which it only costs upkeep; pilots give noisy yields
+                  (irreversible commitments with uncertain consequences, 8.6.5)
 """
 from __future__ import annotations
 
@@ -44,7 +48,7 @@ from .. import actions as A
 from .base import ActionError, RapidEngine, register
 
 SCENARIOS = ("distribution", "perishable", "supply_chain", "capacity", "complements", "portfolio", "assembly",
-             "schedule")
+             "schedule", "commit")
 _ND = NormalDist()
 
 
@@ -73,7 +77,7 @@ class Planning(RapidEngine):
     kind = "planning"
     SECRET_KEYS = ("lam", "lam_sched", "lead", "shelf", "lam_bar", "amp", "phase", "fresh_frac", "bargain", "lags", "mu0", "mu1", "mu2", "t_change2",
                    "t_change", "path", "t_jump", "build_lag", "recipe", "dem", "work", "prod", "beta", "dud",
-                   "mu_amp", "mu_phase", "mu_mean", "true_time", "speed")
+                   "mu_amp", "mu_phase", "mu_mean", "true_time", "speed", "yields", "hazard")
 
     def __init__(self, config: dict):
         super().__init__(config)
@@ -124,6 +128,11 @@ class Planning(RapidEngine):
                                                 "integer": True} for n in c["make_names"]])
             others = [a for a in self.agents if a != agent]
             kinds["message"] = A.message_schema(others)
+        elif sc == "commit":
+            kinds["discrete"] = A.discrete_schema({"commit": list(c["slot_names"])})
+            limits["decisions"] = {"commit": list(c["slot_names"])}
+            q["pilot"] = (f"a pilot run of the site in a slot: a noisy estimate of its yield per period (args: "
+                          f"{{\"slot\": name}}); costs {c['pilot_cost']:g}")
         elif sc == "schedule":
             opts = ["idle"] + list(c["machine_names"])
             kinds["discrete"] = A.discrete_schema({"book": opts})
@@ -135,7 +144,7 @@ class Planning(RapidEngine):
             kinds["coordinate"] = A.coordinate_schema(others, plan)
             limits["parties"] = others
         kinds["query"] = A.query_schema(q)
-        if sc in ("distribution", "perishable", "complements", "portfolio", "schedule"):
+        if sc in ("distribution", "perishable", "complements", "portfolio", "schedule", "commit"):
             kinds["sequence"] = A.sequence_schema(sorted(k for k in kinds if k not in ("sequence", "program")))
         return A.ActionSpace(kinds, limits)
 
@@ -179,6 +188,8 @@ class Planning(RapidEngine):
         if sc == "assembly":
             return {"buf": [0.0, 0.0], "make": [[0.0, 0.0], [0.0, 0.0]], "pend_cost": [0.0, 0.0], "in": 0.0,
                     "out": 0.0}
+        if sc == "commit":
+            return {"active": [], "taken": [], "pend_cost": 0.0, "commits": 0, "failed": 0}
         # schedule
         nA = len(self.agents)
         return {"work": [[0.0] * len(c["jobs"][i]) for i in range(nA)],
@@ -198,6 +209,29 @@ class Planning(RapidEngine):
             state["pend_cost"] += float(c["audit_cost"])
             return {"project": name, "work_done": round(float(state["work"][j]), 6),
                     "status": ["active", "completed", "abandoned"][state["status"][j]], "cost": float(c["audit_cost"])}
+        if sc == "commit":
+            if k == "query" and action["target"] == "pilot":
+                slot = str((action.get("args") or {}).get("slot", ""))
+                if slot not in c["slot_names"]:
+                    raise ActionError("pilot needs args {\"slot\": <slot name>}")
+                j = self.open_site(state, slot, t)
+                state["pend_cost"] += float(c["pilot_cost"])
+                if j is None:
+                    return {"slot": slot, "site": None, "note": "no site in that slot", "cost": float(c["pilot_cost"])}
+                v = float(c["yields"][j]) + float(c["pilot_sd"]) * float(rng.standard_normal())
+                return {"slot": slot, "site": c["sites"][j]["id"], "yield_estimate": round(v, 2),
+                        "cost": float(c["pilot_cost"])}
+            if k == "discrete":
+                if state["commits"] >= int(c["capacity"]):
+                    raise ActionError("no commitments left")
+                j = self.open_site(state, action["choice"], t)
+                if j is None:
+                    raise ActionError("no site in that slot")
+                state["active"].append([j, 1])
+                state["taken"].append(j)
+                state["commits"] += 1
+                state["pend_cost"] += float(c["fixed_cost"])
+                return {"committed": c["sites"][j]["id"], "commitments_left": int(c["capacity"]) - state["commits"]}
         if sc == "distribution":
             if k == "levers":
                 q = _i(action["values"].get(c["order_name"], 0.0))
@@ -438,6 +472,47 @@ class Planning(RapidEngine):
             nums[f"{n}.received"] = recv[k]
             nums[f"{n}.shipped"] = shipped[k]
         return {"obs": {a: {"numbers": nums}}, "revenue": {a: rev}, "cost": {a: cost}, "info": {}}
+
+    def open_site(self, st, slot: str, t: int) -> int | None:
+        """The site open in `slot` in period t that has not been committed to (commit scenario)."""
+        for j, sd in enumerate(self.config["sites"]):
+            if sd["slot"] == slot and sd["start"] <= t < sd["end"] and j not in st["taken"]:
+                return j
+        return None
+
+    def _adv_commit(self, st, rng, t):
+        c = self.config
+        a = self.agents[0]
+        n = len(c["sites"])
+        z = rng.standard_normal(n)                     # one draw per site and period, committed or not
+        uf = rng.random(n)
+        rev, upkeep, failed_now = 0.0, 0.0, []
+        for rec in st["active"]:
+            j, alive = rec
+            if alive:
+                if uf[j] < float(c["hazard"][c["sites"][j]["type_index"]]):
+                    rec[1] = 0
+                    st["failed"] += 1
+                    failed_now.append(c["sites"][j]["id"])
+                else:
+                    rev += max(0.0, float(c["yields"][j]) + float(c["yield_sd"]) * float(z[j]))
+            if not rec[1]:
+                upkeep += float(c["upkeep"])
+        cost = st["pend_cost"] + upkeep
+        st["pend_cost"] = 0.0
+        ents = []
+        for j, sd in enumerate(c["sites"]):
+            if sd["start"] <= t + 1 < sd["end"] and j not in st["taken"]:
+                ents.append({"kind": "site", "id": sd["id"], "slot": sd["slot"], "type": sd["type"],
+                             "prospectus": sd["prospectus"], "periods_left": int(sd["end"] - (t + 1))})
+        for j, alive in st["active"]:
+            ents.append({"kind": "commitment", "id": c["sites"][j]["id"], "type": c["sites"][j]["type"],
+                         "working": bool(alive)})
+        nums = {"commitments_left": float(int(c["capacity"]) - st["commits"]),
+                "working_commitments": float(sum(1 for _, al in st["active"] if al)), "yield_income": rev}
+        txt = [f"failed: {', '.join(failed_now)}"] if failed_now else []
+        return {"obs": {a: {"numbers": nums, "entities": ents, "text": txt}}, "revenue": {a: rev},
+                "cost": {a: cost}, "info": {}}
 
     def chain_mu(self, t: int) -> float:
         """Mean customer demand of period t in the supply-chain world (evaluator side): it shifts at a hidden
@@ -733,6 +808,12 @@ class Planning(RapidEngine):
             edges += [{"src": f"comp{k}", "dst": "assembly", "kind": "complement", "lag": 0} for k in (0, 1)]
             edges += [{"src": "assembly", "dst": "market", "kind": "sell", "lag": 0}]
             hidden = {"mu_mean": c["mu_mean"]}
+        elif sc == "commit":
+            nodes = ["sites", "commitments", "income", "failures"]
+            edges = [{"src": "sites", "dst": "commitments", "kind": "commit", "lag": 0},
+                     {"src": "commitments", "dst": "income", "kind": "yield", "lag": 1},
+                     {"src": "commitments", "dst": "failures", "kind": "hazard", "lag": 1}]
+            hidden = {"hazard": c["hazard"]}
         else:
             nodes = list(self.agents) + [f"m{k}" for k in range(len(c["machine_names"]))]
             edges = [{"src": a, "dst": f"m{k}", "kind": "book", "lag": 0} for a in self.agents
@@ -752,6 +833,7 @@ class Planning(RapidEngine):
             "portfolio": ["saturation", "threshold", "resource_competition", "measurement_noise", "selection_effect"],
             "assembly": ["complementarity", "stock", "partial_observability", "multiplicative"],
             "schedule": ["congestion", "resource_competition", "partial_observability", "threshold"],
+            "commit": ["path_dependence", "delay", "measurement_noise", "decay", "selection_effect"],
         }[self.sc]
 
     def latent(self, state) -> np.ndarray:
@@ -814,6 +896,11 @@ class Planning(RapidEngine):
         elif sc == "portfolio":
             if any(w2 < w1 - tol for w1, w2 in zip(before["work"], after["work"])):
                 errs.append("completed work decreased")
+        elif sc == "commit":
+            if after["commits"] > int(self.config["capacity"]) or len(after["active"]) != after["commits"]:
+                errs.append("commitments exceed the capacity or were undone")
+            if any(b[1] == 0 and a[1] == 1 for a, b in zip(after["active"], before["active"])):
+                errs.append("a failed commitment came back")
         elif sc == "schedule":
             for i in range(len(self.agents)):
                 if any(w2 < w1 - tol for w1, w2 in zip(before["work"][i], after["work"][i])):

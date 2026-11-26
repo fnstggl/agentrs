@@ -479,3 +479,179 @@ def venture_tracker(view, env=None, probe: float = 0.2, decay: float = 0.75, see
         if draw[best] > 1.0:
             amounts[best] += max(0.0, B - probe * len(names))
         obs = view.step({"kind": "allocate", "amounts": amounts})["observation"]
+
+
+# ====================================================================== plan_commit (8.6.5)
+def _open_sites(env) -> list[tuple[str, int]]:
+    c, st = env._config, env._state
+    return [(sl, j) for sl in c["slot_names"] for j in [env._engine.open_site(st, sl, env.t)] if j is not None]
+
+
+def commitment_is_irreversible(env) -> dict:
+    """Committing to a site uses up a commitment for good and moves its yield into income every period while it
+    works (forks: commit versus not, same noise): the income difference in the next periods is the site's yield
+    stream, and committing to the same site again is refused."""
+    from .oracles import fork
+    c = env._config
+    e0 = fork(env)
+    opened = _open_sites(e0)
+    while not opened and not e0.done:
+        e0.step(None)
+        opened = _open_sites(e0)
+    sl, j = opened[0]
+    a, b = fork(e0), fork(e0)
+    a.step({"kind": "discrete", "decision": "commit", "choice": sl})
+    b.step(None)
+    again = a.step({"kind": "discrete", "decision": "commit", "choice": sl})["result"]["ok"]
+    b.step(None)
+    inc = []
+    for _ in range(4):
+        ra, rb = a.step(None), b.step(None)
+        inc.append(ra["observation"]["numbers"]["yield_income"] - rb["observation"]["numbers"]["yield_income"])
+    y = float(c["yields"][j])
+    working = all(x > 0 for x in inc)
+    return {"ok": (not again) and (not working or abs(float(np.mean(inc)) - y) < 4 * float(c["yield_sd"])),
+            "recommit_refused": not again, "income_difference": inc, "yield": y}
+
+
+def fragile_type_fails_more(env) -> dict:
+    """Sites of the type with the highest hidden hazard stop working sooner than sites of the type with the lowest:
+    for one site of each of those two types, commit to it when it opens and count the periods it works (at most
+    25) over 40 noise replicates."""
+    from .env import Env
+    c = env._config
+    hz = c["hazard"]
+    lo_t, hi_t = int(np.argmin(hz)), int(np.argmax(hz))
+    surv = {}
+    for ti in (lo_t, hi_t):
+        j = next((j for j, sd in enumerate(c["sites"]) if sd["type_index"] == ti), None)
+        if j is None:
+            continue
+        sd = c["sites"][j]
+        runs = []
+        for r in range(40):
+            e = Env(env.family, env.seed, c, env.difficulty, world_seed=env.world_seed + 9173 * (r + 1))
+            while e.t < sd["start"]:
+                e.step(None)
+            e.step({"kind": "discrete", "decision": "commit", "choice": sd["slot"]})
+            k = 0
+            while not e.done and k < 25 and e._state["active"][0][1]:
+                e.step(None)
+                k += int(bool(e._state["active"][0][1]))
+            runs.append(k)
+        surv[ti] = float(np.mean(runs))
+    ok = len(surv) == 2 and surv[hi_t] < surv[lo_t]
+    return {"ok": bool(ok), "mean_periods_working": {c["type_names"][t]: v for t, v in surv.items()},
+            "hazard": hz}
+
+
+def identify_fragile_type(env) -> dict:
+    """Question: which site type fails fastest? Public: commit to the first open site of each type (the
+    commitments allowed), then watch which commitments stop working first (the brief says which types exist)."""
+    view = PublicView(env)
+    c = env._config
+    types = list(c["type_names"])                      # public: named in the brief
+    chosen: dict = {}
+    obs = view.observe()
+    failed_at: dict = {}
+    while not view.done:
+        act = None
+        for e in obs["entities"]:
+            if e.get("kind") == "site" and e["type"] not in chosen and len(chosen) < int(c["capacity"]):
+                chosen[e["type"]] = e["id"]
+                act = {"kind": "discrete", "decision": "commit", "choice": e["slot"]}
+                break
+        for e in obs["entities"]:
+            if e.get("kind") == "commitment" and not e["working"] and e["type"] not in failed_at:
+                failed_at[e["type"]] = view.t
+        obs = view.step(act)["observation"]
+    est = min(chosen, key=lambda t: failed_at.get(t, 10 ** 6)) if chosen else None
+    truth = types[int(np.argmax(c["hazard"]))]
+    return {"question": "the site type that fails fastest", "estimate": est, "truth": truth,
+            "ok": est == truth, "failed_at": failed_at}
+
+
+def oracle_commit(env) -> dict:
+    """Evaluator: commit to a site when its expected remaining value (yield x expected working periods left
+    minus upkeep after failure minus the fixed cost) exceeds a reservation level, searched on forks."""
+    from .oracles import best_of
+    c = env._config
+    F, H = float(c["fixed_cost"]), int(c["horizon"])
+
+    def value(j, t):
+        h = float(c["hazard"][c["sites"][j]["type_index"]])
+        T = H - t - 1
+        alive = sum((1 - h) ** k for k in range(1, T + 1))
+        return float(c["yields"][j]) * alive - float(c["upkeep"]) * (T - alive) - F
+
+    def pol(res):
+        def fn(e):
+            best = None
+            for sl, j in _open_sites(e):
+                v = value(j, e.t)
+                if v > res * F and (best is None or v > best[0]):
+                    best = (v, sl)
+            if best is None or e._state["commits"] >= int(c["capacity"]):
+                return None
+            return {"kind": "discrete", "decision": "commit", "choice": best[1]}
+        return fn
+    return best_of(env, {f"knows yields and hazards, reservation {r}xF": pol(r) for r in (0.0, 0.25, 0.5, 1.0)})
+
+
+def pilot_and_commit(view, env=None, reserve: float = 0.35, prior: tuple = (0.5, 20.0)) -> None:
+    """Scripted public reference: pilot every new site whose prospectus is not hopeless; keep, per type, a count of
+    periods worked and failures of its own commitments (a type's failure rate, starting from a mild prior); commit
+    to a site when its piloted yield times the expected working periods left (given its type's estimated failure
+    rate) minus the fixed cost beats a reservation level, which falls as the horizon runs out with commitments
+    unused."""
+    import re
+    brief = " ".join(view.spec["brief"].values())
+    F = float(re.search(r"costs ([0-9.]+), cannot be undone", brief).group(1))
+    cap = int(re.search(r"at most ([0-9]+) commitments", brief).group(1))
+    H = view.horizon
+    piloted: dict = {}
+    worked = {}
+    fails = {}
+    prev_working: dict = {}
+    used = 0
+    obs = view.observe()
+    while not view.done:
+        for e in obs["entities"]:
+            if e.get("kind") == "commitment":
+                ty = e["type"]
+                if e["working"]:
+                    worked[ty] = worked.get(ty, 0) + 1
+                elif prev_working.get(e["id"], False):
+                    fails[ty] = fails.get(ty, 0) + 1
+                prev_working[e["id"]] = e["working"]
+        sites = [e for e in obs["entities"] if e.get("kind") == "site"]
+        steps = []
+        best = None
+        for e in sites:
+            if e["id"] not in piloted:
+                if e["prospectus"] > 0.02 * F and used < cap:
+                    steps.append({"kind": "query", "target": "pilot", "args": {"slot": e["slot"]}})
+                continue
+            ty = e["type"]
+            h = (fails.get(ty, 0) + prior[0]) / (worked.get(ty, 0) + fails.get(ty, 0) + prior[1])
+            T = H - view.t - 1
+            alive = sum((1 - h) ** k for k in range(1, T + 1))
+            v = piloted[e["id"]] * alive - 20.0 * (T - alive) - F
+            left = cap - used
+            bar = reserve * F * min(1.0, (T / H) * 2.0) / max(1, left)
+            if v > bar and (best is None or v > best[0]):
+                best = (v, e["slot"])
+        if best is not None and used < cap:
+            steps.insert(0, {"kind": "discrete", "decision": "commit", "choice": best[1]})
+        if not steps:
+            obs = view.step(None)["observation"]
+            continue
+        r = view.step(steps[0] if len(steps) == 1 else {"kind": "sequence", "steps": steps})
+        obs = r["observation"]
+        res = r["result"].get("results")
+        res = res if isinstance(res, list) else [res]
+        for st, x in zip(steps, res):
+            if isinstance(x, dict) and x.get("site") and "yield_estimate" in x:
+                piloted[x["site"]] = x["yield_estimate"]
+            if st["kind"] == "discrete" and r["result"]["ok"]:
+                used += 1

@@ -577,3 +577,54 @@ def team_formation(rng, d):
         need[0] = 1
     cfg["task0"] = need + [150.0 * (0.5 + 0.5 * sum(need))]
     return cfg
+
+
+# ====================================================================== 8.6.5 irreversible commitments (wave 3b)
+W3 = "crucible.rapid.claims_w3b:"
+
+
+@family("plan_commit", engine="planning", category="8.6", item="8.6.5", split="train",
+        doc="Sites come up for a few periods each in a few slots. Committing to a site is irreversible: it costs a "
+            "large fixed sum, uses one of a few commitments, and cannot be undone; the site then pays its hidden "
+            "yield every period until it fails, at a hidden hazard that depends on the site's (public) type, after "
+            "which it only costs upkeep. A pilot run gives a noisy estimate of a site's yield; the prospectus is a "
+            "weak hint. Whether a type is fragile is learned only from what one's own commitments do.",
+        distinct_because="irreversible, capacity-limited commitments to opportunities that arrive over time, whose "
+                         "consequences unfold afterwards (a yield stream ended by a type-dependent hidden failure "
+                         "hazard): optimal stopping with learning from the outcomes of earlier commitments, unlike "
+                         "the one-off payoffs of srch_leads",
+        axes={"horizon": 50, "resources": 4, "experiment_cost": 60.0, "graph_size": 3}, objective="maximize_net",
+        claims=(W3 + "commitment_is_irreversible", W3 + "fragile_type_fails_more"), identify=W3 + "identify_fragile_type",
+        reference=W3 + "pilot_and_commit", oracle=W3 + "oracle_commit")
+def plan_commit(rng, d):
+    K, H = int(d["graph_size"]), int(d["horizon"])
+    names = neutral_names(rng, K + 3 + 80)
+    slots, types = names[:K], names[K:K + 3]
+    F = 2000.0
+    hazard = [float(x) for x in rng.permutation([0.005, 0.03, 0.08])]
+    sites, yields, n = [], [], 0
+    for k in range(K):
+        t = int(rng.integers(0, 3))
+        while t < H - 3:
+            life = int(rng.integers(3, 6))
+            ti = int(rng.integers(3))
+            # most sites barely cover their upkeep; about one in four is a real find
+            y = F * (u(rng, 0.07, 0.13) if rng.random() < 0.25 else u(rng, 0.0, 0.035))
+            sites.append({"id": names[K + 3 + n % 80] + (str(n // 80) if n >= 80 else ""), "slot": slots[k],
+                          "type": types[ti], "type_index": ti, "start": t, "end": t + life,
+                          "prospectus": round(float(y + F * 0.04 * rng.standard_normal()), 1)})
+            yields.append(round(float(y), 2))
+            n += 1
+            t += life + int(rng.integers(0, 2))
+    return {"engine": "planning", "scenario": "commit", "horizon": H, "slot_names": slots, "type_names": types,
+            "sites": sites, "yields": yields, "hazard": hazard, "fixed_cost": F, "capacity": int(d["resources"]),
+            "pilot_cost": float(d["experiment_cost"]), "pilot_sd": F * 0.015, "yield_sd": F * 0.01, "upkeep": 20.0,
+            "endowment": 100_000,
+            "objective": {"type": "maximize_net", "text": "Maximise the yields of your sites minus what committing, "
+                                                          "upkeep and pilots cost."},
+            "brief": f"Sites come up in slots {', '.join(slots)} for a few periods each; each has a type "
+                     f"({', '.join(types)}) and a prospectus figure (a rough yield hint). Committing to a site costs "
+                     f"{F:g}, cannot be undone, and you can make at most {int(d['resources'])} commitments. A site "
+                     "you committed to pays its yield every period until it fails; a failed site costs 20 per period "
+                     f"upkeep. A pilot run (query 'pilot', {float(d['experiment_cost']):g}) gives a rough estimate "
+                     "of a site's yield."}
