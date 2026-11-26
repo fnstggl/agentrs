@@ -395,3 +395,102 @@ def sp63b_measure(A: dict, root: str) -> dict:
                         "capability_adoptions": g["capability_adoptions"],
                         "grounded_adoptions": g["grounded"],
                         "providers_with_keep_and_drop": g["providers_with_keep_and_drop"]}}
+
+
+# ====================================================================== SP-6.5b (adoption integrity, developers, sandbox)
+FORGERIES = ("TracerCounterForgery", "ShadowPathForgery", "ExistenceCheckForgery", "ContentInspectionForgery",
+             "NondeterministicOutputForgery", "BoundaryInspectionForgery")
+
+
+def forged_adoptions() -> dict:
+    """The adoption forgeries of the red team (tracer counter, shadow copy, existence check, reading the source,
+    nondeterministic output, inspecting the measurement runs), each in its own fresh world against the real
+    software ecosystem, plus the honest control (a dependent that really calls the package must be credited)."""
+    from ..redteam.v5 import innovation as RI
+    from ..redteam.v5 import run
+    ps = [getattr(RI, n)() for n in FORGERIES] + [RI.HonestAdoptionCounts()]
+    rep = run(ps)
+    rows = {r["name"]: r for r in rep["probes"]}
+    forged, credited = 0, {}
+    for p in ps[:-1]:
+        ev = rows[p.name].get("evidence") or {}
+        n = len(ev.get("evaluator_adoptions") or []) + int(int(ev.get("adoption_executions") or 0) > 0)
+        credited[p.name] = n
+        forged += n
+    honest = rows[ps[-1].name]
+    errors = [n for n, r in rows.items() if r["result"] in ("error", "not_applicable")]
+    return {"forged_adoptions_counted": forged, "forgeries_run": len(ps) - 1, "per_forgery": credited,
+            "honest_control_credited": honest["result"] == "held", "probe_errors": errors}
+
+
+def star_only() -> dict:
+    """A package starred by many unrelated principals and locked by a dependent that never runs it: the evaluator
+    must count no adoption (stars and declared dependencies are not adoption); the same package then executed by a
+    dependent is counted (the measurement is not vacuous)."""
+    import crucible
+    from ..core.kernel import World
+    from . import reference as R
+    from .worlds import innovation_spec
+    crucible.load_all_modules()
+    w = World.create(innovation_spec(17, with_adopters=False))
+    try:
+        for h in ("eve", "ben", "cat", "dan", "fay", "gus"):
+            R.join(w, h, 1_000_000)
+
+        def must(who, tool, **args):
+            r = w.execute(f"p:{who}", {"tool": tool, "args": args})
+            assert r.ok, (tool, r.error)
+            return r.result
+        must("eve", "code.create_repo", name="vecmath", visibility="public", license="open")
+        must("eve", "code.commit", repo="eve/vecmath", files={"lib.py": R.VEC_LIB, "tests/test_lib.py": R.VEC_TESTS})
+        must("eve", "pkg.register", name="vecmath", repo="eve/vecmath", description="vector maths")
+        must("eve", "pkg.release", package="vecmath", version="1.0.0")
+        for h in ("ben", "cat", "dan", "fay", "gus"):
+            must(h, "pkg.star", package="vecmath")
+        must("ben", "code.create_repo", name="app")
+        must("ben", "code.commit", repo="ben/app", files={"app.py": "def run(a, c):\n    return 1\n"})
+        must("ben", "pkg.depend", repo="ben/app", package="vecmath")
+        must("ben", "pkg.exec", repo="ben/app", target="app:run", input=None)
+        stars = int(w.state.tables["pkg_packages"]["vecmath"]["stars"])
+        counted_before = len([a for a in M.adoptions_by_execution(w) if a["package"] == "vecmath"])
+        must("cat", "code.create_repo", name="user")
+        must("cat", "code.commit", repo="cat/user", files={
+            "app.py": "from deps.vecmath.lib import norm\n\n\ndef run(a, c):\n    return norm(a)\n"})
+        must("cat", "pkg.depend", repo="cat/user", package="vecmath")
+        must("cat", "pkg.exec", repo="cat/user", target="app:run", input=[3, 4])
+        counted_after = len([a for a in M.adoptions_by_execution(w) if a["package"] == "vecmath"])
+        return {"star_only_adoptions_counted": counted_before, "stars": stars,
+                "executed_adoptions_counted": counted_after, "invariants": len(w.check_invariants())}
+    finally:
+        w.close()
+
+
+def sandbox_coverage(world) -> dict:
+    """Programs of in-world creators run only in the sandbox: no deployment of a creator (agent or population
+    developer) is a trusted in-process runtime, and every recorded program execution of theirs went through the
+    sandbox bridge (cloud requests of their hosts, pkg executions/CI of their repositories)."""
+    st = world.state
+    outside, deps = 0, 0
+    for _, d in st.scan("deployments"):
+        if M.is_creator(world, d["owner"]):
+            deps += 1
+            outside += int(bool(d.get("trusted")))
+    execs = sum(1 for _, e in st.scan("pkg_execs") if M.is_creator(world, e["owner"])) if "pkg_execs" in st.tables else 0
+    from ..sandbox.runner import capabilities
+    caps = capabilities()
+    return {"agent_programs_outside_sandbox": outside, "creator_deployments": deps, "creator_pkg_executions": execs,
+            "sandbox_landlock_abi": int(caps.get("landlock_abi") or 0), "sandbox_seccomp": bool(caps.get("seccomp"))}
+
+
+def developer_adoptions(world) -> dict:
+    """Adoptions by execution (attested boundary) in which an autonomous population developer's repository runs a
+    package of another, independent creator; and maintenance: releases after the first, upgrades, redeploys."""
+    st = world.state
+    from ..substrate import ids as _ids
+    auto = [a for a in M.adoptions_by_execution(world)
+            if _ids.index(a["owner"]) is not None and M.is_creator(world, st.tables["pkg_packages"][a["package"]]["owner"])]
+    rel = [r for _, r in st.scan("pkg_releases")] if "pkg_releases" in st.tables else []
+    later = sum(1 for r in rel if r["version"] != "1.0.0")
+    upgrades = sum(1 for _, c in st.scan("pkg_compat") if c["compatible"]) if "pkg_compat" in st.tables else 0
+    return {"autonomous_developer_adoptions": len(auto), "later_releases": later, "compatible_upgrades": upgrades,
+            "packages": len(st.tables.get("pkg_packages", {}))}
