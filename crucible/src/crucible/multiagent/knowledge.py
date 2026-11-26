@@ -159,8 +159,10 @@ class Knowledge:
             typ = str(e.get("type", ""))
             pay = e.get("payload") or {}
             if isinstance(pay, dict) and isinstance(pay.get("id"), str):
-                # an event's own `id` names the thing of its type ("deal.offer" -> a deal): file it under that noun
-                self.note_value(typ.split(".", 1)[0], pay["id"], t, mine=own and e.get("actor") == self.me)
+                # an event's own `id` names the thing of its type ("deal.offer" -> a deal, "id.invite" -> an
+                # invite): file it under both nouns of the type
+                for noun in {typ.split(".", 1)[0], typ.rsplit(".", 1)[-1]}:
+                    self.note_value(noun, pay["id"], t, mine=own and e.get("actor") == self.me)
             actor = e.get("actor")
             if isinstance(actor, str) and actor != self.me and actor.startswith(("p:", "o:")):
                 self.note_value("actor", actor, t)

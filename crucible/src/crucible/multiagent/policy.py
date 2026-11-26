@@ -269,6 +269,7 @@ class PolicyGroup:
         self.decisions = 0
         self.identities: list[str] = []
         self.on_update = None                 # callback(group, record) set by the harness (versioning)
+        self.controls: list = []              # no-signal controls: twins trained on this group's batches, signal 0
 
     # ------------------------------------------------------------------ deciding
     def candidates(self, obs: dict, kn: Knowledge, rng: np.random.Generator) -> list[tuple[dict, list]]:
@@ -279,7 +280,11 @@ class PolicyGroup:
                 out.append((tool, slots))
         return out
 
-    def decide(self, identity: str, obs: dict, kn: Knowledge, state: np.ndarray, h_prev, explore: bool = True):
+    def decide(self, identity: str, obs: dict, kn: Knowledge, state: np.ndarray, h_prev, explore: bool = True,
+               chooser=None):
+        """Sample one action. With `chooser` (a scripted demonstrator, `crucible.multiagent.demonstrator`) the
+        choices are the chooser's - among exactly the candidates the policy itself would score - and the record is
+        a demonstration (its log-probability under the policy is still recorded)."""
         torch = _torch()
         cands = self.candidates(obs, kn, self.rng)
         with torch.no_grad():
@@ -292,7 +297,10 @@ class PolicyGroup:
             tfl = torch.tensor([tool_flags(t, kn) for t, _ in cands], dtype=torch.float32)
             lp_all, te = tool_log_probs(self.net, z, ttoks, tfl, htoks, hidx)
             pi = lp_all.exp()
-            ti = int(torch.multinomial(pi / pi.sum(), 1, generator=self.gen))   # a stochastic policy
+            if chooser is not None:
+                ti = int(chooser.choose_tool([t for t, _ in cands]))
+            else:
+                ti = int(torch.multinomial(pi / pi.sum(), 1, generator=self.gen))   # a stochastic policy
             logp = float(lp_all[ti])
             value = float(self.net.value(z).squeeze())
             tool, slots = cands[ti]
@@ -317,14 +325,17 @@ class PolicyGroup:
                 sl_logits = self.net.slot_head(torch.cat([z.expand(len(cs), -1), te_i.expand(len(cs), -1), fe, ce,
                                                           cnum], 1)).squeeze(1)
                 sp = torch.softmax(sl_logits, 0)
-                ci = int(torch.multinomial(sp, 1, generator=self.gen))
+                if chooser is not None:
+                    ci = int(chooser.choose_value(tool["name"], sl.name, cs, args))
+                else:
+                    ci = int(torch.multinomial(sp, 1, generator=self.gen))
                 logp += float(torch.log(sp[ci] + 1e-12))
                 slot_recs.append({"ftok": ftok, "ctoks": ctoks, "cnum": cnum.numpy(), "ci": ci})
                 if cs[ci].value is not G.OMIT:
                     args[sl.name] = cs[ci].value
                     meta.update(cs[ci].meta)
         self.decisions += 1
-        rec = {"identity": identity, "t": int(obs.get("t", 0)), "x": state, "h": h_prev,
+        rec = {"identity": identity, "t": int(obs.get("t", 0)), "x": state, "h": h_prev, "names": names,
                "ttoks": ttoks, "tflags": tfl.numpy(), "htoks": htoks, "hidx": hidx, "ti": ti, "slots": slot_recs, "logp": logp, "v": value,
                "r": 0.0, "tool": tool["name"], "version": self.version, "n_tools": len(cands), "meta": meta}
         action = None if tool["name"] == "wait" else {"tool": tool["name"], "args": args}
@@ -405,6 +416,9 @@ class PolicyGroup:
             return {"updates": 0, "changed": False, "reason": "empty"}
         recs, adv, ret = [], [], []
         rs = np.array([r["r"] for v in streams.values() for r in v], dtype=np.float64)
+        for c in self.controls:               # the same experience with every signal set to zero
+            c.buffer = {k: [dict(r, r=0.0) for r in v] for k, v in streams.items()}
+            c.update()
         info = {"identities": sorted(streams), "transitions": int(len(rs)), "signal_sum": float(rs.sum()),
                 "signal_abs_max": float(np.abs(rs).max()) if len(rs) else 0.0,
                 "decisions": [[r["identity"], r["t"]] for v in streams.values() for r in v],
@@ -486,6 +500,47 @@ class PolicyGroup:
             self.on_update(self, info)
         return info
 
+    # ------------------------------------------------------------------ imitation (behaviour cloning)
+    def imitate(self, demos: list[dict], *, epochs: int = 4, batch: int = 64, lr: float | None = None) -> dict:
+        """Supervised pre-training on recorded demonstrations (records of `decide(..., chooser=...)`): maximise
+        the log-probability of the demonstrated tool and argument choices. Uses the group's own optimiser and
+        random generator; counts as updates (versions) like any other parameter change."""
+        torch = _torch()
+        if not demos:
+            return {"updates": 0, "changed": False}
+        opt = torch.optim.Adam(self.net.parameters(), lr=lr or self.hp["lr"])
+        order_rng = np.random.default_rng([self.seed, 0xBC])
+        losses, steps = [], 0
+        h0 = self.hash
+        for _ in range(int(epochs)):
+            idx = order_rng.permutation(len(demos))
+            for k in range(0, len(idx), int(batch)):
+                recs = [demos[i] for i in idx[k:k + int(batch)]]
+                logp, _, _ = self._logp_value(recs)
+                loss = -logp.mean()
+                opt.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.net.parameters(), self.hp["max_grad"])
+                opt.step()
+                losses.append(float(loss.detach()))
+                steps += 1
+        new = weights_hash(self.net)
+        changed = new != h0
+        info = {"updates": int(changed), "changed": changed, "steps": steps, "demos": len(demos),
+                "loss_first": losses[0], "loss_last": float(np.mean(losses[-max(1, len(losses) // 8):])),
+                "params_hash_before": h0, "params_hash_after": new, "version_before": self.version,
+                "algo": "behaviour_cloning", "transitions": len(demos), "signal_sum": 0.0, "signal_abs_max": 0.0,
+                "identities": sorted({d["identity"] for d in demos}),
+                "decisions": [[d["identity"], d["t"]] for d in demos]}
+        if changed:
+            self.parent_hash, self.hash = h0, new
+            self.version += 1
+            info["version_after"] = self.version
+            if self.on_update is not None:
+                self.on_update(self, info)
+        self.update_log.append({k: v for k, v in info.items() if k != "decisions"})
+        return info
+
     # ------------------------------------------------------------------ checkpoints
     def state_bytes(self) -> bytes:
         torch = _torch()
@@ -512,6 +567,24 @@ class PolicyGroup:
             raise ValueError(f"checkpoint of {gid}: weights hash {g.hash[:12]} != recorded {d['hash'][:12]}")
         g.frozen = bool(frozen)
         return g
+
+    def clone(self, gid: str) -> "PolicyGroup":
+        """An exact copy (parameters, optimiser, generators, counters) that shares nothing with this group."""
+        g = PolicyGroup.from_bytes(gid, self.state_bytes(), frozen=self.frozen)
+        g.updates, g.skipped_no_signal, g.lineage = self.updates, self.skipped_no_signal, self.lineage
+        return g
+
+    def tool_probs_of(self, rec: dict):
+        """This policy's tool distribution in a recorded situation (a decision record): {tool: probability}."""
+        torch = _torch()
+        with torch.no_grad():
+            x = torch.from_numpy(rec["x"][None, :])
+            h = None if rec.get("h") is None or self.arch != "gru" else torch.from_numpy(rec["h"][None, :])
+            z, _ = self.net.encode(x, h)
+            lp, _ = tool_log_probs(self.net, z, rec["ttoks"], torch.from_numpy(rec["tflags"]), rec["htoks"],
+                                   rec["hidx"])
+        names = rec.get("names") or [str(i) for i in range(len(rec["ttoks"]))]
+        return {n: float(p) for n, p in zip(names, lp.exp())}
 
     def frozen_copy(self, gid: str, seed: int | None = None) -> "PolicyGroup":
         return PolicyGroup.from_bytes(gid, self.state_bytes(), frozen=True, seed=seed)

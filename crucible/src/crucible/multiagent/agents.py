@@ -36,8 +36,12 @@ def _read_only(obs: dict | None, tool: str | None) -> bool:
 class LearnerAgent:
     kind = "learner"
 
-    def __init__(self, principal: str, group: PolicyGroup, objective: Objective, *, role: str = "current"):
+    def __init__(self, principal: str, group: PolicyGroup, objective: Objective, *, role: str = "current",
+                 chooser=None):
         self.principal, self.group, self.objective, self.role = principal, group, objective, role
+        self.chooser = chooser                # a scripted demonstrator (demonstration runs only; labelled)
+        self.demos: list[dict] = []
+        self._decisions: list[dict] = []
         self.kn = Knowledge(principal)
         self.h = None
         self.prev_obs: dict | None = None
@@ -60,10 +64,17 @@ class LearnerAgent:
     def act(self, obs: dict, tools: list[dict], explore: bool = True) -> dict | None:
         self.kn.ingest_observation(obs)
         x = state_vector(obs, self.kn, self.prev_total, obs.get("last_result"), self.signal_ema)
-        action, rec, h = self.group.decide(self.principal, obs, self.kn, x, self.h, explore)
+        if self.chooser is not None:
+            self.chooser.see(obs, self.kn)
+        action, rec, h = self.group.decide(self.principal, obs, self.kn, x, self.h, explore, chooser=self.chooser)
         self.h = h
         self.last_action, self.last_rec = action, rec
-        self.group.record(rec)
+        if self.chooser is not None:
+            self.demos.append(rec)
+        else:
+            self.group.record(rec)
+            if len(self.history) % 4 == 0 and len(self._decisions) < 120:
+                self._decisions.append(rec)     # situations kept for behavioural probes (operator side)
         self.prev_obs = obs
         self.prev_total = _cash(obs)
         return action
@@ -79,6 +90,8 @@ class LearnerAgent:
         if act and result is not None and result.get("ok") and meta.get("fn"):
             self.kn.note_value("target", meta["fn"], self.kn.t, mine=False)
             self.kn.note_value("fn", meta["fn"], self.kn.t, mine=False)
+        if self.chooser is not None:
+            self.chooser.result(act, result, self.kn)
         ext, intr = self.objective.signal(self.prev_obs, next_obs, act, result, self.kn, ro)
         sig = ext + intr
         self.group.add_signal(self.principal, sig)

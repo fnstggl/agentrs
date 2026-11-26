@@ -238,7 +238,7 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
         a = P(pkg.get("owner"))
         if a is None or not P.is_learner(a):
             continue
-        for _, rel in st.find("pkg_releases", "package", pk) if "pkg_releases" in st.tables else ():
+        for rel in (st.find("pkg_releases", "package", pk) if "pkg_releases" in st.tables else ()):
             for fn in (rel.get("api") or {}):
                 fams[re.sub(r"_[a-z0-9]{1,6}$", "", str(fn))].add(a)
     for fam, ps in sorted(fams.items()):

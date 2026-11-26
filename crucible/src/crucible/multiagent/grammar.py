@@ -51,7 +51,7 @@ ACCOUNT_FIELDS = frozenset({"account", "from_account", "to_account"})
 MAX_ENUM = 8
 MAX_CANDS = 10
 COMPOSITES = 4
-FILL_LATER = ("files",)                 # slots whose candidates depend on the values chosen before them
+FILL_LATER = ("files", "module")       # slots whose candidates depend on the values chosen before them
 SOURCES = ("known", "mine", "fresh", "enum", "bin", "omit", "grammar", "word", "account", "bool", "const")
 
 
@@ -352,6 +352,10 @@ def slot_cands(tool: str, fname: str, s: dict, required: bool, kn: Knowledge, rn
 
 def _string_cands(tool: str, fname: str, s: dict, kn: Knowledge, rng, filled: dict) -> list[Cand]:
     known = kn.values(fname)
+    if fname == "module" and filled.get("repo"):
+        # the package directory its own code grammar writes into the chosen repository
+        m = module_name(str(filled["repo"]))
+        return ([Cand(m, "grammar", "module")] if _fits(m, s) else []) + _fresh_names(kn, fname, s)
     if fname in ACCOUNT_FIELDS:
         return [Cand(a, "account", "account", True, 1.0) for a in kn.accounts[:3] if _fits(a, s)]
     if fname == "version":
@@ -396,8 +400,29 @@ def _string_cands(tool: str, fname: str, s: dict, kn: Knowledge, rng, filled: di
 
 
 def _composites(tool: str, s: dict, kn: Knowledge, rng, filled: dict, depth: int) -> list[Cand]:
+    """Compositions of an object slot: one per value of a discriminating enum field (``type``/``kind``) with the
+    participant's own things preferred for the other fields, plus random compositions."""
     props, req = _props(s)
     out = []
+    disc = next((n for n in ("type", "kind") if n in props and "enum" in props[n]), None)
+    if disc is not None:
+        for v in list(props[disc]["enum"])[:MAX_ENUM]:
+            val, ok = {disc: v}, True
+            for name, sub in props.items():
+                if name == disc:
+                    continue
+                cs = [c for c in slot_cands(tool, name, sub, name in req, kn, rng, {**filled, **val}, depth + 1)
+                      if c.value is not OMIT]
+                own = [c for c in cs if c.mine]
+                if own:
+                    val[name] = own[0].value
+                elif name in req:
+                    if not cs:
+                        ok = False
+                        break
+                    val[name] = cs[0].value
+            if ok:
+                out.append(Cand(val, "grammar", f"object:{v}"))
     for k in range(COMPOSITES):
         val, ok = {}, True
         for name, sub in props.items():
