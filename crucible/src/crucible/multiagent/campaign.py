@@ -67,7 +67,7 @@ def demonstrations(seeds, *, hours: float = 48, n: int = 6, think_s: int = 1800)
 
 
 def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, epochs: int = 8,
-             disjoint: bool = False) -> dict:
+             disjoint: bool = False, batch: int = 64) -> dict:
     """Create and behaviour-clone every group of `specs` ({gid: {algo, arch, seed}}): each group from its own seed
     and its own minibatch order, on the whole demonstration corpus (a shared pre-training corpus, recorded as such) or,
     with `disjoint`, on a disjoint share of it (identities dealt round-robin). Returns {gid: PolicyGroup}."""
@@ -85,7 +85,7 @@ def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, e
                         hp=sp.get("hp"))
         registry.register_group(g, world_id=",".join(demos["worlds"]), seed=None, origin="initialised")
         for _ in range(int(epochs)):
-            g.imitate(share[gid], epochs=1)
+            g.imitate(share[gid], epochs=1, batch=batch)
         registry.checkpoint(g)
         v = registry.versions[registry.vid(g)]
         v["origin"] = "behaviour cloning (scripted demonstrations)"
@@ -96,13 +96,13 @@ def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, e
 
 
 def heldout_family(registry: PolicyRegistry, *, seed: int = 4242, demo_seeds=(31,), hours: float = 24,
-                   epochs: int = 6, demo_hours: float = 36) -> PolicyGroup:
+                   epochs: int = 6, demo_hours: float = 36, batch: int = 64) -> PolicyGroup:
     """The held-out policy family (see the module docstring): frozen and registered as `heldout_gru@<n>`."""
     d = demonstrations(demo_seeds, hours=demo_hours, n=4)
     g = PolicyGroup("heldout_gru", "ppo", "gru", seed=int(seed))
     registry.register_group(g, world_id=",".join(d["worlds"]), origin="initialised (held-out family)")
     for _ in range(int(epochs)):
-        g.imitate(d["demos"], epochs=1)
+        g.imitate(d["demos"], epochs=1, batch=batch)
     env = kernel_env(TRAINING_WORLD, int(seed))
     m = Match(env, {g.gid: g}, [Member(f"ho{i}", "current", f"ctrl:heldout-train:{i}", g.gid) for i in range(3)],
               registry=registry, seed=int(seed), think_s=1800)

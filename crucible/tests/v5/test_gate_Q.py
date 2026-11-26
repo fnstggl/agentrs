@@ -42,6 +42,7 @@ def q(tmp_path_factory):
     root = str(tmp_path_factory.mktemp("gate_q"))
     run = campaign(root, "full")
     m = run["match"]
+    run["t_end"] = int(m.world.now)          # end of the self-play run (the checks below advance the clock)
     ctrl = {p: mm.controller for p, mm in m.members.items()}
     run["ctrl"] = ctrl
     run["evidence"] = C.learning_evidence(run)
@@ -78,9 +79,9 @@ def test_Q_1_multiple_learned_policies_in_a_shared_civilisation(q):
     assert is_civilisation(m.world)
     record("Q.1", {"learned_policies_in_civilization": len(learned),
                    "world_family": m.world.spec.family, "population_individuals": int(
-                       sum(v[0] for v in population_activity(m.world, 0, m.world.now).values())),
+                       sum(v[0] for v in population_activity(m.world, 0, q["t_end"]).values())),
                    "state_changing_actions_by_group": json.dumps(acting), "identities": len(m.agents),
-                   "simulated_hours": int((m.world.now - m.t0) / 3600)},
+                   "simulated_hours": int((q["t_end"] - m.t0) / 3600)},
            command=CMD, labels=LABELS,
            notes="learned policies = neural policy groups updated by their own training signal in the civilisation "
                  "whose identities carried out accepted state-changing tool actions there")

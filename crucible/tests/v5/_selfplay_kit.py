@@ -17,7 +17,7 @@ PROFILE = "balanced"
 TRAIN_SEED = 7
 
 # campaign sizes: "full" (Gate Q, SP-12.0) and "short" (the other SP-12 files)
-SIZES = {"full": {"demo_seeds": (21, 22, 23), "demo_hours": 48, "epochs": 8, "civ_hours": 72, "ho_hours": 24,
+SIZES = {"full": {"demo_seeds": (21, 22, 23), "demo_hours": 48, "epochs": 8, "civ_hours": 96, "ho_hours": 24,
                   "semantic": 2},
          "short": {"demo_seeds": (21,), "demo_hours": 36, "epochs": 3, "civ_hours": 24, "ho_hours": 12,
                    "semantic": 1}}
