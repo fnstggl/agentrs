@@ -466,3 +466,35 @@ def test_concurrent_jailed_browsers_of_one_kind_get_private_homes():
     out = json.loads(r.stdout.strip().splitlines()[-1])
     assert len(out["live"]) >= 2 and set(out["modes"]) == {"0o700"}, out
     assert out["owners"] == [isolation.uid_for("rt-private-home")], out
+
+
+IPC = ("import ctypes\ndef f(a, c):\n    libc = ctypes.CDLL(None, use_errno=True)\n    out = {}\n"
+       "    for k, fn in (('shm', lambda: libc.shmget(0, 4096, 0o1600)), ('msg', lambda: libc.msgget(0, 0o1600)),\n"
+       "                  ('sem', lambda: libc.semget(0, 1, 0o1600))):\n"
+       "        i = fn()\n        out[k] = ctypes.get_errno() if i < 0 else 'created'\n"
+       "        if i >= 0:\n            (libc.shmctl if k == 'shm' else libc.msgctl if k == 'msg' else libc.semctl)(i, 0, 0)\n"
+       "    return out\n")
+
+
+@needs_sandbox
+def test_sandboxed_programs_cannot_create_kernel_ipc_objects():
+    """Wave-3b review: System V IPC objects are named by a key (Landlock does not mediate them on this kernel) and
+    outlive the program; two worlds' programs passed a canary through shared memory. The sandbox refuses them."""
+    r = run_program({"i.py": IPC}, "i:f", None)
+    assert r["ok"] and r["result"] == {"shm": 1, "msg": 1, "sem": 1}, r
+
+
+@needs_sandbox
+def test_jailed_learner_processes_have_own_uids_and_cannot_signal_each_other_or_share_ipc():
+    """Wave-3b review: learner processes of one kind shared a uid; one SIGKILLed another through descriptor ownership
+    (F_SETOWN + F_SETSIG on a pipe with O_ASYNC) and carried state to a fresh learner process through SysV IPC."""
+    from crucible.sandbox.learnerhost import LearnerHost
+    with LearnerHost(None) as v, LearnerHost(None) as a:
+        assert v.jail_uid != a.jail_uid
+        sig = a.function("crucible.redteam.v5.adversaries:signal_owner", {"victim": v.pid, "absent": 1})
+        ipc = a.function("crucible.redteam.v5.adversaries:ipc_stash", {"key": 0x5E7E5700 + os.getpid() % 256,
+                                                                       "canary": "x"})
+        time.sleep(0.3)
+        assert v.proc.poll() is None, sig
+        assert sig["setown_victim"] == sig["setsig"] == sig["setown_absent_pid"] == "errno 1", sig
+        assert all(ipc[k] == "errno 1" for k in ("shm", "msg", "sem", "mq")), ipc

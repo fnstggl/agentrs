@@ -81,7 +81,8 @@ MUST_HOLD = ("v5.sandbox.escape_matrix", "v5.isolation.sandboxed_code_cannot_imp
              "v5.network.jailed_media_tools_cannot_reach_network_or_host_files",
              "v5.network.population_world_is_offline", "v5.crossworld.artifact_bytes_do_not_cross_worlds",
              "v5.private.social_dms_members_only_drafts_private_communities",
-             "v5.isolation.world_code_cannot_import_evaluator_side_code")
+             "v5.isolation.world_code_cannot_import_evaluator_side_code",
+             "v5.crossworld.kernel_ipc_does_not_cross_worlds")
 
 # audit findings (O_security and the areas read for Gate W) closed by this workstream, with the probe that holds now
 FIXED: dict[str, str] = {
@@ -121,6 +122,12 @@ FIXED: dict[str, str] = {
     "0 ms": "v5.sandbox.protocol_allowance_farming",
     "O wave 3b review: one lineage's flood of computations evicted every other world's anchors from the shared meter "
     "memo file": "v5.crossworld.meter_memo_eviction_is_per_lineage",
+    "O wave 3b review: System V shared memory / message queues / semaphores passed a canary between two worlds' "
+    "sandboxed programs (different tenant uids; not path objects, so Landlock did not mediate them)":
+        "v5.crossworld.kernel_ipc_does_not_cross_worlds",
+    "O wave 3b review: jailed learner processes shared one uid: a learner SIGKILLed another learner process "
+    "(F_SETOWN + F_SETSIG), probed pids (F_SETOWN ESRCH) and carried state to a fresh learner process (SysV IPC)":
+        "v5.sandbox.hosted_learners_cannot_reach_each_other",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the
