@@ -35,10 +35,7 @@ class LMBrain:
 
     def service(self, capability: str):
         from .. import routing
-        model = self.model_for(capability)
-        if model in self.routes.values() and model != routing.route(capability):
-            return routing.service_for_model(model, max_batch=self.max_batch)
-        return routing.service(capability, max_batch=self.max_batch)
+        return routing.service_for_model(self.model_for(capability), max_batch=self.max_batch)
 
     def choose(self, ctx, capability: str, requests: list[dict]) -> list[int]:
         if not requests:

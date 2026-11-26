@@ -265,3 +265,22 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-36 Semantic participant routing from the measured SP-3.2b report (2026-11-26, workstream D)
+The SP-3.2b benchmark was re-run on the integrated tree (six candidates: a 2.1M hashed n-gram head trained from
+scratch, MiniLM-L6 with trained heads, SmolLM2-135M and -360M, Qwen3-0.6B, Qwen3-1.7B; eight capabilities; seed 0;
+53 min on the GPU). On held-out templates the smallest effective model (accuracy or generation pass rate >= 0.6 with
+p <= 0.01, generation Wilson lower bound >= 0.4) is: content understanding Qwen3-0.6B (0.82), tool choice Qwen3-0.6B
+(0.61, no held-out subset), communication SmolLM2-135M (generation pass rate 0.75), situation interpretation
+Qwen3-1.7B (0.65; Qwen3-0.6B 0.28), incentive adaptation Qwen3-1.7B (0.63; 0.6B 0.57), programming Qwen3-1.7B (0.89;
+0.6B 0.50), strategic decisions Qwen3-1.7B (0.85; 0.6B 0.35); negotiation has no effective candidate (best Qwen3-1.7B
+0.53). Decision: semantic participants route every request by its capability to that model
+(`crucible.semantic.routing`, committed record `crucible/semantic/data/routing.json` with the report's measurements
+and SHA-256; the rule picks the best-measured language model where none is effective). This supersedes D-10's
+"0.6B everywhere, optional escalation": the participants' own situation interpretation (goal and next-action
+formation, choice among known identifiers) and negotiation, programming and strategy use Qwen3-1.7B, which exceeds
+the 0.5-1B target of H.n1; the 0.6B model stays the default for content understanding and tool choice, and short
+writing goes to SmolLM2-135M. H.n1 reports the default model and, separately, the escalation model and the
+capabilities escalated. Weakness carried over from the audit: the communication benchmark checks copied facts and
+surface heuristics, not coherence judged independently, so routing writing to the 135M model rests on a weak test.
+
