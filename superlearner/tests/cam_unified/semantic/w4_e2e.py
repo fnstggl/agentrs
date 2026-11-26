@@ -153,8 +153,9 @@ def sample_strings(model, steps, protocol: int, batch: int = 4) -> dict:
             actions += acts
             for progs in captured:
                 for p in progs:
-                    for h in p.holes:
-                        holes.append({"kind": h.kind, "value": h.value, "n_tokens": len(h.tokens),
+                    for k, h in enumerate(p.holes):
+                        holes.append({"kind": h.kind, "path": h.node.path, "value": h.value,
+                                      "n_tokens": len(h.tokens), "cap": int(p.cap[k]), "max_len": int(h.max_len),
                                       "own_close": bool(h.own_close), "consumed": int(h.consumed),
                                       "close_token": filler.tables.texts[h.tokens[-1]]})
             captured.clear()
@@ -173,6 +174,11 @@ def sample_strings(model, steps, protocol: int, batch: int = 4) -> dict:
             "digit_runs_12plus": digit_runs, "json_fragments": frag, "init_phrase_leaks": leak,
             "tokens_mean": sum(h["n_tokens"] for h in holes) / max(n, 1),
             "tokens_max": max([h["n_tokens"] for h in holes] + [0]),
+            "forced_by_kind": {k: sum(1 for h in holes if h["kind"] == k and not h["own_close"])
+                               for k in ("str", "pattern", "key")},
+            "slots_by_kind": {k: sum(1 for h in holes if h["kind"] == k) for k in ("str", "pattern", "key")},
+            "forced": [{"kind": h["kind"], "path": h["path"], "value": h["value"][:60], "n_tokens": h["n_tokens"],
+                        "cap": h["cap"], "max_len": h["max_len"]} for h in holes if not h["own_close"]][:20],
             "examples": [{"value": h["value"][:80], "close": h["close_token"], "own": h["own_close"]}
                          for h in holes[:12]]}
 
@@ -191,8 +197,8 @@ def part_c_init(model, held) -> dict:
             prefix, c = decision_conditioning(model, held[:4])
             tails = [gen.filler.stub_ids + gen.filler.segment(p, 0) for p in progs]
             emb, att, pos, _ = gen.filler._assemble(prefix, ctxs, tails)
-            l_c = enc.lm_logits(enc.decoder_hidden(emb, att, pos, cond=c))
-            l_n = enc.lm_logits(enc.decoder_hidden(emb, att, pos))
+            l_c = enc.lm_logits(enc.decoder_hidden(emb, att, pos, cond=c)[:, -48:])   # last 48 positions (memory)
+            l_n = enc.lm_logits(enc.decoder_hidden(emb, att, pos)[:, -48:])
             s_c, _ = enc.step(emb, att, pos, enc.new_cache(), cond=c)
             s_n, _ = enc.step(emb, att, pos, enc.new_cache())
     return {"actions": len(held), "string_logp_bit_identical": bool(torch.equal(lp_c, lp_n)),
