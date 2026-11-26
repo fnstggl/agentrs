@@ -183,13 +183,18 @@ make(0, "<4.0 world family>", seed, agents=[...])   # any 4.0 family or WorldSpe
 
 A tier whose package has not landed raises `TierUnavailable`; nothing falls back to another world type.
 
-* **Tier 2** consumes the canonical domain contract `crucible.domains.base.Domain` (decision D-17): the world is
-  `domains.base.spec(domain, config, seed, overrides)`, the learner occupies `Domain.participant_principal(world)`
-  (else a new participant), its objective is `Domain.objective(world, principal, difficulty)` (public text in
-  `obs["objective"]`), and `Domain.evaluate(world, principal, objective)` is the evaluator in `verify()`. The domain's
-  scripted `reference` is never reachable. The path is tested with a minimal conforming domain in
-  `tests/test_v5_experience_oo.py`; no v5 domain is registered in this checkout yet (`crucible.domains.base.REGISTRY`
-  is empty: the domains become configurations of the civilisation generator, D-17).
+* **Tier 2** consumes the canonical domain contract `crucible.domains.base.Domain` (`domains-framework/2`, decisions
+  D-17/D-48): names are `"<domain>"` (its first training configuration), `"<domain>:<config>"`,
+  `"tier2:<domain>/<config>"` or `"d5_<domain>_<config>"`. The world is `domains.base.spec(domain, config, seed,
+  overrides)` - a restriction of the civilisation generator (execution mode C) or a standalone semantic world (mode
+  B) - plus the learner-side modules `exp` and `goals` (as in Tier 3). Learners occupy the domain's seats
+  (`Domain.seats`: every seat by default, `agents=n` the first n; explicit handles are new participants); each gets
+  `Domain.objective(world, principal, difficulty)` (its public text is `obs["objective"]`) and
+  `Domain.evaluate(world, principal, objective)` is the evaluator in `verify()` (`verify()["evaluation"]`, never an
+  observation). The domain's scripted reference acts only through this interface and is never reachable. Only the
+  Part 9 domains count as Tier 2 (`crucible.experience.registry.domains()`); a test fixture (`fixture=True`) can be
+  built by name but is never counted. Domains present on the wave-3b branch: startup (9.1), content (9.3),
+  community (9.4), research (9.5), infrastructure (9.7), education (9.10).
 * **Tier 3** expects of the civilisation generator (`crucible.experience.registry.CIV_ENTRY_POINT`):
   `crucible.civ.generate(profile: str, seed: int, *, population: str = "development", overrides: dict | None = None)
   -> World` and `crucible.civ.PROFILES`. The registry passes `overrides = {"params": {"evaluator_access": ...}}` and
@@ -198,7 +203,7 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
   learner-side modules `goals` (self-set goals) and `exp` (self-generated experiments) are added to the
   civilisation's spec (`registry.civ_world`: `crucible.civ.spec(...)` plus those modules, with `generate`'s world-id
   rule); without them the world is `crucible.civ.generate(...)` itself. A civilisation has no objective of its own:
-  an operator assigns one with `env.set_objective(agent, GoalContract(...))`. Tier 2 domains become configurations of
+  an operator assigns one with `env.set_objective(agent, GoalContract(...))`. Tier 2 domains are configurations of
   the same generator (D-17).
 * Kernel worlds take `agents=[handles]`, `endowment`, `objectives` (a `GoalContract` or any
   `begin/step_reward/status` object per agent), `extra_modules`.
