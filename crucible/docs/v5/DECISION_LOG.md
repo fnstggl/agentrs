@@ -492,6 +492,13 @@ gain (constant 0.25) and uses the best-mean strategy tried twice when frozen; 16
 held-out probes of the target scored with common random numbers (before/after and both arms); the curriculum target
 is read after 80 measured items; four planted weaknesses x five learner seeds (20 pairs); reference profile from 12
 probes per category; one-sided sign-flip test at 0.05. Whatever the gate run measures is reported.
+*Curriculum measures (T.5, T.8, before the gate run).* With a frozen planted learner, the raw learning-progress term
+(|slope| x window, weight 0.5) was noise of about the size of the excess regret it was meant to complement, the
+forgetting drop (best 4-item window minus the latest) was positive by chance, and a 6-probe reference profile put
+long horizons 0.15 too easy: the price-blind learner's competitor weakness (0.31 excess regret) was never targeted
+in 3 development runs. Learning progress now counts beyond twice its standard error, forgetting beyond the noise of
+two 4-item means, the uncertainty bonus is 0.25 x the standard error, the reference profile uses 12 probes per
+category, and T.5 reads the curriculum after 80 measured items (as T.8).
 
 ## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
 With `crucible.civ.generate` working, Level 5 test items are the held-out Tier 3 profiles (`EVAL_CIV_PROFILES`), any Tier 2
