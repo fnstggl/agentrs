@@ -1,0 +1,48 @@
+{
+  "schema": "crucible.v5.performance-targets/1",
+  "adopted_by": "DECISION_LOG D-26",
+  "status": "adopted before any official Gate V benchmark run; change only through a new DECISION_LOG entry that names the target, the old and new value and the reason (MASTER_SPEC Part 17 Gate V mandatory note)",
+  "machine": {
+    "inspected": "2026-11-26 (python -m crucible.scale.slots --hardware; audit M_performance section 2)",
+    "cpu": "2 x Intel Xeon Gold 6226, 48 logical CPUs, 2 NUMA nodes; cgroup CPU quota 11.52 CPUs shared with other tenants and about 15 agents",
+    "governor_budget_cpus": 9,
+    "ram_mb": 92642,
+    "gpu": "1 x NVIDIA RTX A6000, 46,068 MiB, shared with other tenants; governor budget 24,000 MB, 4 GPU jobs at once",
+    "disk_free_mb": 14213,
+    "numba": "not installed (and not to be installed into /venv/main)"
+  },
+  "units": {
+    "sim_days_per_cpu_hour": "simulated days per CPU-hour of the world process and its children (CPU-seconds, so the load of other tenants does not move it); simulated days per wall hour are reported next to it",
+    "bytes_per_individual_day": "bytes of event log plus batch blobs written per individual (population row) per simulated day, after retention compaction (crucible.substrate.retention.compact)"
+  },
+  "world": "the integrated v5 world: crucible.civ.generate(\"balanced\", seed, population=<profile>) with every subsystem and the one population; the population-only world (crucible.population.worlds.population_world) is measured as a second row and does not satisfy a target",
+  "targets": [
+    {"id": "T1", "group": "throughput", "quantity": "sim_days_per_cpu_hour", "profile": "development", "op": ">=", "value": 60,
+     "derivation": "Gate suites run development-profile worlds; a 30-day run (the shortest Gate P horizon) of one seed must fit in 30 CPU-minutes so that 3 seeds on 3 CPUs plus world generation finish inside the 3,600 s timeout tier of the slow gate tests: 30 days / 0.5 h = 60."},
+    {"id": "T2", "group": "throughput", "quantity": "sim_days_per_cpu_hour", "profile": "standard", "op": ">=", "value": 15,
+     "derivation": "Gate P requires 365-day runs with several seeds; three seeds on three of the nine budget CPUs must finish within 24 wall hours: 365 / 24 = 15.2, rounded down to 15."},
+    {"id": "T3", "group": "throughput", "quantity": "sim_days_per_cpu_hour", "profile": "large", "op": ">=", "value": 3.75,
+     "derivation": "Large-civilisation experiments at the 90-day Gate P horizon with three seeds on three CPUs must finish within 24 wall hours: 90 / 24 = 3.75."},
+    {"id": "T4", "group": "throughput", "quantity": "internet_capacity", "profile": "internet", "op": "<=",
+     "value": {"wall_s": 7200, "cpus": 4, "peak_rss_mb": 32768, "disk_mb": 5120},
+     "derivation": "The 10M-identity capacity run (V.2: at least 10,000,000 distinct identities with recorded qualifying consumption decisions on the population's columnar path) is one scheduled job: at most 2 wall hours on at most 4 of the 9 budget CPUs, at most one third of the 92.6 GB container RAM (the machine is shared) and at most 5 GB of disk (about a third of the free disk)."},
+    {"id": "T5", "group": "throughput", "quantity": "world_generation_cpu_s", "profile": "development,standard,large", "op": "<=", "value": 120,
+     "derivation": "Generation must stay below 5% of the shortest research run (a 30-day development run = 30 CPU-minutes = 1,800 s; 5% = 90 s), rounded up to 120 s for the larger profiles."},
+    {"id": "T6", "group": "gate_v", "quantity": "bytes_per_individual_day", "profile": "development,standard,large", "op": "<=", "value": 550,
+     "derivation": "A 365-day standard run (10,296 individuals x 365 days = 3.76M individual-days) must fit in 2 GB of store so that three seeds and the other tenants' stores fit in the about 14 GB of free disk: 2e9 / 3.76e6 = 532, rounded to 550."},
+    {"id": "T7", "group": "gate_v", "quantity": "snapshot", "profile": "large", "op": "<=", "value": {"bytes": 500000000, "seconds": 60},
+     "derivation": "Daily snapshots of a large run must be cheap next to a simulated day (at T3 one simulated day takes 16 CPU-minutes; 60 s is 6%) and small next to the 2 GB per-run disk budget of T6 (500 MB keeps four retained snapshots)."},
+    {"id": "T8", "group": "gate_v", "quantity": "class2_batched_decisions_per_cpu_s", "profile": "-", "op": ">=", "value": 10000,
+     "derivation": "At the large profile 1,000 adaptive participants deciding every 15 minutes make 96,000 decisions per simulated day; at T3 (3.75 days per CPU-hour) that is 360,000 decisions per CPU-hour, and the shared policy may use at most 1% of the CPU budget (36 s): 360,000 / 36 = 10,000 decisions per CPU-second."},
+    {"id": "T9", "group": "gate_v", "quantity": "batched_inference_speedup", "profile": "-", "op": ">=", "value": 2.0,
+     "derivation": "The Gate V criterion (ACCEPTANCE_MANIFEST V.4), measured at equal decisions in the integrated world's own class-2 batches and in a backend matrix."},
+    {"id": "T10", "group": "gate_v", "quantity": "event_driven_speedup", "profile": "standard", "op": ">=", "value": 2.0,
+     "derivation": "The Gate V criterion (V.5): dense per-tick policy evaluation of every participant versus event-driven activation, with equal recorded outcomes."},
+    {"id": "T11", "group": "gate_v", "quantity": "embedding_cache_hit_rate", "profile": "-", "op": ">=", "value": 0.9,
+     "derivation": "The Gate V criterion (V.6), on an integrated workload over three worlds sharing the cache, plus at most one encoder run per artifact (SP-13.5)."},
+    {"id": "T12", "group": "gate_v", "quantity": "semantic_generated_tokens_per_s", "profile": "-", "op": ">=", "value": 100,
+     "derivation": "At the large profile 20 semantic generalists deciding every 15 minutes with about 40 generated tokens per decision produce 76,800 tokens per simulated day; at T3 that is 80 tokens per second of wall time; 100 leaves headroom. Measured batched (16 requests) on the GPU within a 4,000 MB grant."},
+    {"id": "T13", "group": "gate_v", "quantity": "compute_budget_violations", "profile": "-", "op": "==", "value": 0,
+     "derivation": "Every benchmark job runs under crucible.scale.slots with declared grants in all seven dimensions; no violation may be recorded (Gate V item 8)."}
+  ]
+}

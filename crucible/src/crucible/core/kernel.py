@@ -443,6 +443,9 @@ class World:
             # 5.0: a typed world validates every registered event type of its modules (crucible.substrate.bus)
             from ..substrate import bus
             bus.enforce_world(self)
+        # 5.0 (MASTER_SPEC 13.7): an active world counts against the job's active-world grant (crucible.scale.slots)
+        from ..scale import governor
+        governor.register_world(self)
 
     # ------------------------------------------------------------------ construction
     def _install_core(self) -> None:
@@ -1268,6 +1271,8 @@ class World:
         self.flush()
         for mod in self.modules.values():
             mod.close()
+        from ..scale import governor
+        governor.release_world(self)
 
 
 def _ap_noop(ev: Event) -> None:
