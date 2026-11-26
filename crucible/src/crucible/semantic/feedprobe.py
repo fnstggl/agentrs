@@ -18,7 +18,9 @@ import base64
 
 import numpy as np
 
-N, DAYS = 3000, 3.0
+# 6,000 individuals over 4 days: at 3,000 x 3 days only about 50-150 individuals' reading of the probed post differed
+# between the arms (Gate E dev run, 2026-11-26), too few for the smaller effects of the controlled pairs
+N, DAYS = 6000, 4.0
 CATALOGUE_TOPICS = ("finance-real-estate", "recipes", "weathertopstories", "movies-celebrity", "travelarticle",
                     "baseball_mlb")
 TITLE = "What happened this week"

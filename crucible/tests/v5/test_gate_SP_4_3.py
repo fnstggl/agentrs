@@ -83,7 +83,8 @@ def test_SP_4_3_meaning_not_tokens():
     for t in TOPICS:
         for kind in ("informative",) + KINDS:
             for r in range(REPLICAS):
-                _, cid, ref = _publish(w, f"{kind[:5]}{t[:6].replace('-', '')}{r}", texts[t][kind], f"{t} today")
+                handle = "".join(ch for ch in f"{kind[:5]}{t[:6]}{r}" if ch.isalnum())
+                _, cid, ref = _publish(w, handle, texts[t][kind], f"{t} today")
                 items.append({"topic": t, "kind": kind, "content": cid, "ref": ref})
     w.advance_time(w.now + int(DAYS * 86400))
     item_of = {rec["content_id"]: int(k) for k, rec in w.state.scan("aud_item_info") if rec.get("content_id")}

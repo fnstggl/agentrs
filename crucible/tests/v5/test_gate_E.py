@@ -229,8 +229,11 @@ def test_E3_controlled_artifact_changes_affect_participant_behaviour():
     p_bonf = min(1.0, p_min * len(results))
     best = min(results, key=lambda r: r["artifact_change_behavior_pvalue"])
     detected = [r for r in results if r["artifact_change_behavior_pvalue"] * len(results) <= 0.01]
+    pairs_any = sorted({r["pair"] for r in detected})
     record("E.3", {"artifact_change_behavior_pvalue": p_bonf, "raw_min_pvalue": p_min, "probes_available": len(probes),
                    "pairs_measured": len(results), "pairs_detected_bonferroni": len(detected),
+                   "controlled_pairs": len({r["pair"] for r in results}),
+                   "controlled_pairs_detected_by_some_probe": len(pairs_any),
                    "probes_with_a_detected_pair": len({r["probe"] for r in detected}),
                    "best_probe": best["probe"], "best_pair": best["pair"],
                    "best_effect": best["effect"], "best_individuals": best["n_individuals"],
