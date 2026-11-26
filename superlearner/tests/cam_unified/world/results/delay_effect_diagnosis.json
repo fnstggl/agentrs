@@ -1,0 +1,895 @@
+{
+ "description": "Diagnosis of the flaky world/test_world_learning.py::test_learns_delayed_versus_immediate_effects (DelayWorld: action A pays +1 now, action B pays +1 two decisions later; the test forecasts open loop from step 2 and requires max |pred - truth| < 0.3 over the 3 plans x 3 horizons). Same fixture, same data seeds (0..15), DoubleCore, train_horizons (1,2,3,4), open_loop_samples=2, open_loop_starts=4, Adam via world_synth.train. 'delayed' = forecast of plan B at h=3 (truth 1.0); 'immediate' = plan A at h=1 (truth 1.0).",
+ "recipes": {
+  "const_lr4e-3_450_steps (old test recipe)": {
+   "runs": [
+    {
+     "model_seed": 0,
+     "file": "sweep_base450.log",
+     "delayed": 0.5849,
+     "immediate": 0.9634,
+     "max_abs_err": 0.4151,
+     "final_loss": 8.038,
+     "max_loss_last100_steps": 17.913,
+     "wall_s": 109.3
+    },
+    {
+     "model_seed": 1,
+     "file": "sweep_base450.log",
+     "delayed": 0.9629,
+     "immediate": 1.0166,
+     "max_abs_err": 0.0371,
+     "final_loss": 7.507,
+     "max_loss_last100_steps": 14.056,
+     "wall_s": 99.9
+    },
+    {
+     "model_seed": 2,
+     "file": "sweep_base450.log",
+     "delayed": 1.0704,
+     "immediate": 1.0458,
+     "max_abs_err": 0.0704,
+     "final_loss": 6.389,
+     "max_loss_last100_steps": 11.269,
+     "wall_s": 84.1
+    },
+    {
+     "model_seed": 3,
+     "file": "sweep_base450.log",
+     "delayed": 0.9685,
+     "immediate": 0.9913,
+     "max_abs_err": 0.0315,
+     "final_loss": 6.284,
+     "max_loss_last100_steps": 10.865,
+     "wall_s": 83.6
+    },
+    {
+     "model_seed": 4,
+     "file": "sweep_base450.log",
+     "delayed": 0.9719,
+     "immediate": 0.9647,
+     "max_abs_err": 0.0353,
+     "final_loss": 6.657,
+     "max_loss_last100_steps": 14.565,
+     "wall_s": 87.0
+    },
+    {
+     "model_seed": 5,
+     "file": "sweep_base450.log",
+     "delayed": 0.9333,
+     "immediate": 1.02,
+     "max_abs_err": 0.0667,
+     "final_loss": 7.707,
+     "max_loss_last100_steps": 10.339,
+     "wall_s": 82.2
+    }
+   ],
+   "n": 6,
+   "n_fail_at_0.3": 1,
+   "max_abs_err_max": 0.4151,
+   "delayed_min": 0.5849
+  },
+  "linear_decay_to_0.1x_450_steps": {
+   "runs": [
+    {
+     "model_seed": 0,
+     "file": "sweep_decay450.log",
+     "delayed": 0.6478,
+     "immediate": 0.9527,
+     "max_abs_err": 0.3522,
+     "final_loss": 7.038,
+     "max_loss_last100_steps": 8.315,
+     "wall_s": 107.4
+    },
+    {
+     "model_seed": 1,
+     "file": "sweep_decay450.log",
+     "delayed": 0.6485,
+     "immediate": 0.9925,
+     "max_abs_err": 0.3515,
+     "final_loss": 6.999,
+     "max_loss_last100_steps": 8.275,
+     "wall_s": 100.9
+    },
+    {
+     "model_seed": 2,
+     "file": "sweep_decay450.log",
+     "delayed": 0.518,
+     "immediate": 1.0013,
+     "max_abs_err": 0.482,
+     "final_loss": 7.336,
+     "max_loss_last100_steps": 9.897,
+     "wall_s": 84.9
+    },
+    {
+     "model_seed": 3,
+     "file": "sweep_decay450.log",
+     "delayed": 0.9845,
+     "immediate": 0.991,
+     "max_abs_err": 0.0235,
+     "final_loss": 7.149,
+     "max_loss_last100_steps": 8.824,
+     "wall_s": 83.7
+    },
+    {
+     "model_seed": 4,
+     "file": "sweep_decay450.log",
+     "delayed": 0.9409,
+     "immediate": 0.9837,
+     "max_abs_err": 0.0591,
+     "final_loss": 7.553,
+     "max_loss_last100_steps": 9.578,
+     "wall_s": 86.9
+    },
+    {
+     "model_seed": 5,
+     "file": "sweep_decay450.log",
+     "delayed": 0.5471,
+     "immediate": 1.0316,
+     "max_abs_err": 0.4529,
+     "final_loss": 7.607,
+     "max_loss_last100_steps": 8.565,
+     "wall_s": 84.3
+    }
+   ],
+   "n": 6,
+   "n_fail_at_0.3": 4,
+   "max_abs_err_max": 0.482,
+   "delayed_min": 0.518
+  },
+  "linear_decay_to_0.1x_600_steps": {
+   "runs": [
+    {
+     "model_seed": 0,
+     "file": "sweep2_decay600.log",
+     "delayed": 1.0031,
+     "immediate": 1.0082,
+     "max_abs_err": 0.0085,
+     "final_loss": 5.718,
+     "max_loss_last100_steps": 6.394,
+     "wall_s": 107.3
+    },
+    {
+     "model_seed": 1,
+     "file": "sweep2_decay600.log",
+     "delayed": 1.0038,
+     "immediate": 0.9899,
+     "max_abs_err": 0.0101,
+     "final_loss": 6.156,
+     "max_loss_last100_steps": 7.213,
+     "wall_s": 103.1
+    },
+    {
+     "model_seed": 2,
+     "file": "sweep2_decay600.log",
+     "delayed": 0.9766,
+     "immediate": 0.9771,
+     "max_abs_err": 0.0234,
+     "final_loss": 5.866,
+     "max_loss_last100_steps": 7.003,
+     "wall_s": 109.2
+    },
+    {
+     "model_seed": 3,
+     "file": "sweep2_decay600.log",
+     "delayed": 0.9536,
+     "immediate": 0.997,
+     "max_abs_err": 0.0464,
+     "final_loss": 6.071,
+     "max_loss_last100_steps": 8.211,
+     "wall_s": 108.9
+    },
+    {
+     "model_seed": 4,
+     "file": "sweep2_decay600.log",
+     "delayed": 0.9992,
+     "immediate": 1.0035,
+     "max_abs_err": 0.0089,
+     "final_loss": 5.836,
+     "max_loss_last100_steps": 6.315,
+     "wall_s": 119.3
+    },
+    {
+     "model_seed": 5,
+     "file": "sweep2_decay600.log",
+     "delayed": 0.9965,
+     "immediate": 1.0114,
+     "max_abs_err": 0.0178,
+     "final_loss": 5.706,
+     "max_loss_last100_steps": 7.212,
+     "wall_s": 109.0
+    }
+   ],
+   "n": 6,
+   "n_fail_at_0.3": 0,
+   "max_abs_err_max": 0.0464,
+   "delayed_min": 0.9536
+  },
+  "linear_decay_to_0.1x_700_steps (new test recipe)": {
+   "runs": [
+    {
+     "model_seed": 0,
+     "file": "sweep_decay700.log",
+     "delayed": 0.9995,
+     "immediate": 0.9983,
+     "max_abs_err": 0.0073,
+     "final_loss": 5.99,
+     "max_loss_last100_steps": 10.557,
+     "wall_s": 167.0
+    },
+    {
+     "model_seed": 1,
+     "file": "sweep_decay700.log",
+     "delayed": 1.0077,
+     "immediate": 1.0021,
+     "max_abs_err": 0.0077,
+     "final_loss": 5.525,
+     "max_loss_last100_steps": 6.328,
+     "wall_s": 132.7
+    },
+    {
+     "model_seed": 2,
+     "file": "sweep_decay700.log",
+     "delayed": 0.9961,
+     "immediate": 0.9907,
+     "max_abs_err": 0.0093,
+     "final_loss": 5.847,
+     "max_loss_last100_steps": 6.439,
+     "wall_s": 132.1
+    },
+    {
+     "model_seed": 3,
+     "file": "sweep_decay700.log",
+     "delayed": 0.9815,
+     "immediate": 1.0029,
+     "max_abs_err": 0.0185,
+     "final_loss": 5.72,
+     "max_loss_last100_steps": 9.994,
+     "wall_s": 128.2
+    },
+    {
+     "model_seed": 4,
+     "file": "sweep_decay700.log",
+     "delayed": 0.9902,
+     "immediate": 0.9939,
+     "max_abs_err": 0.0098,
+     "final_loss": 5.086,
+     "max_loss_last100_steps": 5.804,
+     "wall_s": 99.5
+    },
+    {
+     "model_seed": 5,
+     "file": "sweep_decay700.log",
+     "delayed": 0.9857,
+     "immediate": 0.9974,
+     "max_abs_err": 0.0528,
+     "final_loss": 6.661,
+     "max_loss_last100_steps": 6.917,
+     "wall_s": 95.1
+    },
+    {
+     "model_seed": 0,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 0.9963,
+     "immediate": 1.0079,
+     "max_abs_err": 0.0106,
+     "final_loss": 5.55,
+     "max_loss_last100_steps": 8.572,
+     "wall_s": 124.8
+    },
+    {
+     "model_seed": 1,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 1.0046,
+     "immediate": 0.9981,
+     "max_abs_err": 0.0155,
+     "final_loss": 5.912,
+     "max_loss_last100_steps": 6.655,
+     "wall_s": 120.5
+    },
+    {
+     "model_seed": 2,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 0.9795,
+     "immediate": 0.9814,
+     "max_abs_err": 0.0205,
+     "final_loss": 5.972,
+     "max_loss_last100_steps": 6.766,
+     "wall_s": 126.6
+    },
+    {
+     "model_seed": 3,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 1.0011,
+     "immediate": 1.0076,
+     "max_abs_err": 0.0076,
+     "final_loss": 5.422,
+     "max_loss_last100_steps": 6.311,
+     "wall_s": 137.4
+    },
+    {
+     "model_seed": 4,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 0.9987,
+     "immediate": 0.9898,
+     "max_abs_err": 0.0106,
+     "final_loss": 5.569,
+     "max_loss_last100_steps": 6.513,
+     "wall_s": 122.4
+    },
+    {
+     "model_seed": 5,
+     "file": "sweep2_decay700_rep.log",
+     "delayed": 0.9859,
+     "immediate": 1.0046,
+     "max_abs_err": 0.0141,
+     "final_loss": 5.834,
+     "max_loss_last100_steps": 8.993,
+     "wall_s": 114.0
+    },
+    {
+     "model_seed": 6,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 1.0011,
+     "immediate": 0.9955,
+     "max_abs_err": 0.0101,
+     "final_loss": 5.448,
+     "max_loss_last100_steps": 7.492,
+     "wall_s": 126.2
+    },
+    {
+     "model_seed": 7,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 0.9937,
+     "immediate": 1.0084,
+     "max_abs_err": 0.0125,
+     "final_loss": 5.612,
+     "max_loss_last100_steps": 7.072,
+     "wall_s": 122.6
+    },
+    {
+     "model_seed": 8,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 1.0017,
+     "immediate": 1.0045,
+     "max_abs_err": 0.0134,
+     "final_loss": 5.937,
+     "max_loss_last100_steps": 6.751,
+     "wall_s": 126.9
+    },
+    {
+     "model_seed": 9,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 0.9888,
+     "immediate": 0.9909,
+     "max_abs_err": 0.0135,
+     "final_loss": 5.658,
+     "max_loss_last100_steps": 8.094,
+     "wall_s": 138.3
+    },
+    {
+     "model_seed": 10,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 1.0082,
+     "immediate": 1.0154,
+     "max_abs_err": 0.0154,
+     "final_loss": 5.641,
+     "max_loss_last100_steps": 6.2,
+     "wall_s": 122.3
+    },
+    {
+     "model_seed": 11,
+     "file": "sweep2_decay700_s6.log",
+     "delayed": 1.0007,
+     "immediate": 1.0066,
+     "max_abs_err": 0.0076,
+     "final_loss": 5.782,
+     "max_loss_last100_steps": 6.667,
+     "wall_s": 114.8
+    }
+   ],
+   "n": 18,
+   "n_fail_at_0.3": 0,
+   "max_abs_err_max": 0.0528,
+   "delayed_min": 0.9795
+  }
+ },
+ "learning_curves_const_lr4e-3_1000_steps": {
+  "model_seed_0": [
+   {
+    "step": 50,
+    "immediate": 0.855,
+    "delayed": 0.211,
+    "loss": 11.89
+   },
+   {
+    "step": 100,
+    "immediate": 0.909,
+    "delayed": 0.103,
+    "loss": 10.87
+   },
+   {
+    "step": 150,
+    "immediate": 0.951,
+    "delayed": 0.658,
+    "loss": 10.52
+   },
+   {
+    "step": 200,
+    "immediate": 1.163,
+    "delayed": 0.285,
+    "loss": 10.06
+   },
+   {
+    "step": 250,
+    "immediate": 0.996,
+    "delayed": 0.574,
+    "loss": 8.38
+   },
+   {
+    "step": 300,
+    "immediate": 1.023,
+    "delayed": 0.978,
+    "loss": 7.51
+   },
+   {
+    "step": 350,
+    "immediate": 0.958,
+    "delayed": 0.904,
+    "loss": 8.22
+   },
+   {
+    "step": 400,
+    "immediate": 1.119,
+    "delayed": 0.847,
+    "loss": 7.79
+   },
+   {
+    "step": 450,
+    "immediate": 1.022,
+    "delayed": 0.997,
+    "loss": 7.04
+   },
+   {
+    "step": 500,
+    "immediate": 1.011,
+    "delayed": 1.017,
+    "loss": 5.58
+   },
+   {
+    "step": 550,
+    "immediate": 1.026,
+    "delayed": 1.037,
+    "loss": 7.14
+   },
+   {
+    "step": 600,
+    "immediate": 1.021,
+    "delayed": 1.019,
+    "loss": 6.7
+   },
+   {
+    "step": 650,
+    "immediate": 0.973,
+    "delayed": 0.967,
+    "loss": 5.92
+   },
+   {
+    "step": 700,
+    "immediate": 0.958,
+    "delayed": 0.952,
+    "loss": 6.21
+   },
+   {
+    "step": 750,
+    "immediate": 1.071,
+    "delayed": 1.058,
+    "loss": 6.56
+   },
+   {
+    "step": 800,
+    "immediate": 0.938,
+    "delayed": 0.192,
+    "loss": 12.15
+   },
+   {
+    "step": 850,
+    "immediate": 0.951,
+    "delayed": 0.935,
+    "loss": 5.66
+   },
+   {
+    "step": 900,
+    "immediate": 1.017,
+    "delayed": 1.011,
+    "loss": 5.76
+   },
+   {
+    "step": 950,
+    "immediate": 0.979,
+    "delayed": 0.977,
+    "loss": 6.01
+   },
+   {
+    "step": 1000,
+    "immediate": 0.999,
+    "delayed": 0.999,
+    "loss": 5.83
+   }
+  ],
+  "model_seed_1": [
+   {
+    "step": 50,
+    "immediate": 0.765,
+    "delayed": -0.068,
+    "loss": 12.37
+   },
+   {
+    "step": 100,
+    "immediate": 1.188,
+    "delayed": 0.115,
+    "loss": 10.43
+   },
+   {
+    "step": 150,
+    "immediate": 1.105,
+    "delayed": 0.104,
+    "loss": 9.63
+   },
+   {
+    "step": 200,
+    "immediate": 1.021,
+    "delayed": 0.41,
+    "loss": 8.31
+   },
+   {
+    "step": 250,
+    "immediate": 1.116,
+    "delayed": 0.493,
+    "loss": 8.5
+   },
+   {
+    "step": 300,
+    "immediate": 1.011,
+    "delayed": 0.83,
+    "loss": 7.37
+   },
+   {
+    "step": 350,
+    "immediate": 1.055,
+    "delayed": 0.902,
+    "loss": 8.09
+   },
+   {
+    "step": 400,
+    "immediate": 0.962,
+    "delayed": 1.027,
+    "loss": 7.29
+   },
+   {
+    "step": 450,
+    "immediate": 0.96,
+    "delayed": 0.95,
+    "loss": 6.95
+   },
+   {
+    "step": 500,
+    "immediate": 1.055,
+    "delayed": 0.961,
+    "loss": 6.86
+   },
+   {
+    "step": 550,
+    "immediate": 1.091,
+    "delayed": 1.036,
+    "loss": 7.18
+   },
+   {
+    "step": 600,
+    "immediate": 0.956,
+    "delayed": 0.97,
+    "loss": 6.79
+   },
+   {
+    "step": 650,
+    "immediate": 0.943,
+    "delayed": 0.947,
+    "loss": 6.71
+   },
+   {
+    "step": 700,
+    "immediate": 1.0,
+    "delayed": 1.004,
+    "loss": 6.23
+   },
+   {
+    "step": 750,
+    "immediate": 0.918,
+    "delayed": 0.923,
+    "loss": 7.1
+   },
+   {
+    "step": 800,
+    "immediate": 1.005,
+    "delayed": 1.004,
+    "loss": 5.98
+   },
+   {
+    "step": 850,
+    "immediate": 1.014,
+    "delayed": 1.012,
+    "loss": 5.58
+   },
+   {
+    "step": 900,
+    "immediate": 1.106,
+    "delayed": 0.979,
+    "loss": 10.72
+   },
+   {
+    "step": 950,
+    "immediate": 0.903,
+    "delayed": 0.9,
+    "loss": 7.2
+   },
+   {
+    "step": 1000,
+    "immediate": 1.016,
+    "delayed": 1.02,
+    "loss": 6.08
+   }
+  ],
+  "model_seed_2": [
+   {
+    "step": 50,
+    "immediate": 1.186,
+    "delayed": -0.047,
+    "loss": 11.52
+   },
+   {
+    "step": 100,
+    "immediate": 1.123,
+    "delayed": 0.062,
+    "loss": 10.72
+   },
+   {
+    "step": 150,
+    "immediate": 1.021,
+    "delayed": 0.14,
+    "loss": 9.71
+   },
+   {
+    "step": 200,
+    "immediate": 0.943,
+    "delayed": 0.626,
+    "loss": 11.34
+   },
+   {
+    "step": 250,
+    "immediate": 0.95,
+    "delayed": 1.02,
+    "loss": 8.42
+   },
+   {
+    "step": 300,
+    "immediate": 0.927,
+    "delayed": 0.567,
+    "loss": 10.36
+   },
+   {
+    "step": 350,
+    "immediate": 0.971,
+    "delayed": 0.916,
+    "loss": 7.69
+   },
+   {
+    "step": 400,
+    "immediate": 0.93,
+    "delayed": 0.895,
+    "loss": 11.06
+   },
+   {
+    "step": 450,
+    "immediate": 0.929,
+    "delayed": 0.871,
+    "loss": 7.33
+   },
+   {
+    "step": 500,
+    "immediate": 1.043,
+    "delayed": 1.064,
+    "loss": 10.41
+   },
+   {
+    "step": 550,
+    "immediate": 1.03,
+    "delayed": 1.028,
+    "loss": 5.17
+   },
+   {
+    "step": 600,
+    "immediate": 1.001,
+    "delayed": 1.004,
+    "loss": 6.08
+   },
+   {
+    "step": 650,
+    "immediate": 1.016,
+    "delayed": 1.048,
+    "loss": 6.8
+   },
+   {
+    "step": 700,
+    "immediate": 1.041,
+    "delayed": 1.06,
+    "loss": 6.62
+   },
+   {
+    "step": 750,
+    "immediate": 1.061,
+    "delayed": 1.033,
+    "loss": 6.5
+   },
+   {
+    "step": 800,
+    "immediate": 0.93,
+    "delayed": 0.924,
+    "loss": 6.46
+   },
+   {
+    "step": 850,
+    "immediate": 0.98,
+    "delayed": 0.97,
+    "loss": 5.91
+   },
+   {
+    "step": 900,
+    "immediate": 1.046,
+    "delayed": 1.053,
+    "loss": 6.18
+   },
+   {
+    "step": 950,
+    "immediate": 0.957,
+    "delayed": 0.963,
+    "loss": 5.77
+   },
+   {
+    "step": 1000,
+    "immediate": 1.127,
+    "delayed": 1.135,
+    "loss": 6.89
+   }
+  ],
+  "model_seed_3": [
+   {
+    "step": 50,
+    "immediate": 1.166,
+    "delayed": 0.168,
+    "loss": 11.58
+   },
+   {
+    "step": 100,
+    "immediate": 0.961,
+    "delayed": 0.022,
+    "loss": 10.88
+   },
+   {
+    "step": 150,
+    "immediate": 1.079,
+    "delayed": 0.441,
+    "loss": 9.55
+   },
+   {
+    "step": 200,
+    "immediate": 1.269,
+    "delayed": 0.767,
+    "loss": 9.45
+   },
+   {
+    "step": 250,
+    "immediate": 1.112,
+    "delayed": 1.032,
+    "loss": 9.96
+   },
+   {
+    "step": 300,
+    "immediate": 1.0,
+    "delayed": 0.978,
+    "loss": 7.52
+   },
+   {
+    "step": 350,
+    "immediate": 0.86,
+    "delayed": 0.878,
+    "loss": 7.76
+   },
+   {
+    "step": 400,
+    "immediate": 1.004,
+    "delayed": 0.966,
+    "loss": 6.84
+   },
+   {
+    "step": 450,
+    "immediate": 1.014,
+    "delayed": 0.84,
+    "loss": 7.73
+   },
+   {
+    "step": 500,
+    "immediate": 0.966,
+    "delayed": 0.98,
+    "loss": 6.42
+   },
+   {
+    "step": 550,
+    "immediate": 1.118,
+    "delayed": 1.109,
+    "loss": 7.28
+   },
+   {
+    "step": 600,
+    "immediate": 0.929,
+    "delayed": 0.91,
+    "loss": 10.36
+   },
+   {
+    "step": 650,
+    "immediate": 1.057,
+    "delayed": 1.044,
+    "loss": 6.24
+   },
+   {
+    "step": 700,
+    "immediate": 0.974,
+    "delayed": 0.962,
+    "loss": 6.1
+   },
+   {
+    "step": 750,
+    "immediate": 1.032,
+    "delayed": 1.031,
+    "loss": 5.57
+   },
+   {
+    "step": 800,
+    "immediate": 1.034,
+    "delayed": 1.034,
+    "loss": 5.64
+   },
+   {
+    "step": 850,
+    "immediate": 0.979,
+    "delayed": 0.971,
+    "loss": 6.22
+   },
+   {
+    "step": 900,
+    "immediate": 1.008,
+    "delayed": 1.0,
+    "loss": 5.53
+   },
+   {
+    "step": 950,
+    "immediate": 1.056,
+    "delayed": 1.048,
+    "loss": 5.47
+   },
+   {
+    "step": 1000,
+    "immediate": 1.025,
+    "delayed": 1.021,
+    "loss": 5.79
+   }
+  ]
+ },
+ "note_gpu_nondeterminism": "The fixture is fully seeded; differences between repeated runs with the same seeds (e.g. sweep_decay700 vs sweep2_decay700_rep, or the historical 0.43 vs 0.75 vs 1.03 at seed 0) come from non-deterministic CUDA kernels. sweep2_* runs include the world/dynamics.py latent_floor_rms change.",
+ "previously_reported_runs": {
+  "merged_suite_wave1": "2 of 4 runs failed (delayed 0.43)",
+  "this_worktree_before_fix": [
+   0.7514,
+   1.0342
+  ]
+ }
+}

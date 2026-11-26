@@ -156,7 +156,8 @@ class WorldModel(nn.Module):
                  open_loop_samples: int = 4, open_loop_starts: Optional[int] = 8, latent_temperature: float = 0.25,
                  obs_temperature: float = 0.1, obs_max_groups: int = 64, obs_max_tokens: int = 32,
                  var_target: float = 0.5, detach_obs_targets: bool = True, use_autocast: bool = True,
-                 train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory"):
+                 train_horizons: Optional[Sequence[int]] = None, open_loop_credit: str = "trajectory",
+                 latent_floor_rms: float = 0.1):
         super().__init__()
         if open_loop_credit not in ("trajectory", "row", "per_term"):
             raise ValueError("open_loop_credit must be 'trajectory', 'row' or 'per_term'")
@@ -173,6 +174,7 @@ class WorldModel(nn.Module):
         self.open_loop_samples = open_loop_samples
         self.open_loop_starts = open_loop_starts
         self.latent_temperature = latent_temperature
+        self.latent_floor_rms = latent_floor_rms
         self.obs_temperature = obs_temperature
         self.obs_max_groups, self.obs_max_tokens = obs_max_groups, obs_max_tokens
         self.var_target = var_target
@@ -389,14 +391,25 @@ class WorldModel(nn.Module):
         p = Zh.float() + self.latent_pred(self.state_norm(Zh))
         return (((p - Zt.detach().float()) / scale) ** 2).mean((-1, -2))
 
-    @staticmethod
-    def _target_scale(Z_tgt: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
-        """Across-sample std of valid target states [S,D] with a floor at 10% of the mean std."""
+    def _target_scale(self, Z_tgt: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
+        """Across-sample std of valid target states [S,D] with a floor at 10% of the mean std and, in addition, at
+        ``latent_floor_rms`` x the root-mean-square magnitude of the target states.
+
+        The second floor matters for backbones whose output is RMS-normalised (B's UnifiedCore): at initialisation
+        their states share almost everything (measured: across-sample std ~1% of the state RMS), so standardising by
+        the across-sample spread alone made the latent term ~10^3 times larger than every other world-model term
+        (latent 717-1215 vs outcome ~1.1 at init in the integrated stack), and under the trainer's global gradient
+        clipping it suppressed every other objective. With the floor the error is measured in units of at least 10%
+        of the state magnitude while sample-specific variation is small, and the 1 - R^2 semantics are unchanged once
+        the spread exceeds the floor (as for cores whose states carry large sample variation)."""
         X = Z_tgt[valid].float()
         if X.shape[0] < 2:
             return torch.ones(Z_tgt.shape[-2:], device=Z_tgt.device)
         var = X.var(0)
-        return torch.sqrt(var + 0.01 * var.mean() + 1e-8)
+        floor = 0.01 * var.mean()
+        if self.latent_floor_rms > 0:
+            floor = torch.maximum(floor, (self.latent_floor_rms ** 2) * X.pow(2).mean())
+        return torch.sqrt(var + floor + 1e-8)
 
     def _obs_logp(self, Zh, nxt: TokenSet, n_samples: int, gen: Optional[torch.Generator]):
         """Multi-positive InfoNCE log-probabilities of the actual next-observation tokens.

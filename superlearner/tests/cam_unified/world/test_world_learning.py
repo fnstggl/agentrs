@@ -43,30 +43,73 @@ def _wm(cfg, **kw):
     return WorldModel(cfg, DoubleCore(cfg), **kw).to(DEV)
 
 
-def test_learns_delayed_versus_immediate_effects():
-    """A has an immediate unit effect on y, B the same effect two decisions later (spec 6.6(1),(2))."""
+DELAY_STEPS, DELAY_LR, DELAY_LR_END = 700, 4e-3, 0.1
+DELAY_TRUTH = torch.tensor([[1.0, 0, 0], [0, 0, 1.0], [0, 0, 0]])
+
+
+def _delay_run(model_seed: int = 0):
+    """Train the DelayWorld model and forecast the three plans open loop from step 2 -> (pred [plan, h], loss
+    history, world, model, test batch).
+
+    Recipe (diagnosis in world/results/delay_effect_diagnosis.json): the immediate effect is learned within ~100
+    steps, the delayed one (credit through two open-loop transitions) only between ~250 and ~550 steps, and with a
+    constant learning rate 4e-3 the loss keeps spiking (max loss over the last 100 steps 10-18 vs ~6-8 final), which
+    transiently erases the delayed effect first. The old recipe (450 steps, constant lr) stopped inside that
+    transient, so non-deterministic CUDA kernels decided pass or fail (1 of 6 seeds failed, 2 of 4 runs in the merged
+    suite; a decay to 0.1x within 450 steps fails 4 of 6 - it is under-training, not a marginal threshold). 700 steps
+    with a linear decay to 0.1x passed 18 of 18 runs (12 model seeds, 6 of them repeated) with max error <= 0.053."""
     cfg = tiny_config()
     w = DelayWorld(cfg.d_model)
     batches = [batch_to(w.batch(64, seed=i), DEV) for i in range(16)]
-    wm = _wm(cfg, train_horizons=(1, 2, 3, 4), open_loop_samples=2, open_loop_starts=4)
-    t0 = time.time()
-    hist = train(wm, batches, 450, lr=4e-3)
+    torch.manual_seed(model_seed)
+    wm = WorldModel(cfg, DoubleCore(cfg), train_horizons=(1, 2, 3, 4), open_loop_samples=2,
+                    open_loop_starts=4).to(DEV)
+    hist = train(wm, batches, DELAY_STEPS, lr=DELAY_LR, lr_end_frac=DELAY_LR_END, seed=model_seed)
     wm.eval()
     plans = [[0, 0, 1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]]
     tb = batch_to(w.batch(3, seed=999, plans=plans), DEV)
     f = wm.forecast(tb, 2, (1, 2, 3), n_samples=8, generator=_gen())
     pred = torch.stack([f[h]["mean"][:, 0] for h in (1, 2, 3)], 1).cpu()        # [plan, horizon]
-    truth = torch.tensor([[1.0, 0, 0], [0, 0, 1.0], [0, 0, 0]])
-    print(f"delay world: {time.time() - t0:.0f}s, loss {hist[0]:.2f}->{hist[-1]:.2f}, predictions\n{pred}")
-    assert float((pred - truth).abs().max()) < 0.3, pred
+    return pred, hist, w, wm, tb, batches
+
+
+def _chance_max_err(batches) -> float:
+    """Max error of the climatology forecast (the training mean of y for every plan and horizon): what a model
+    that represents neither effect scores against the same truth table."""
+    ys = torch.cat([s.outcomes.y[s.outcomes.y_mask].cpu() for b in batches for s in b.steps])
+    return float((torch.full_like(DELAY_TRUTH, float(ys.mean())) - DELAY_TRUTH).abs().max())
+
+
+def test_learns_delayed_versus_immediate_effects():
+    """A has an immediate unit effect on y, B the same effect two decisions later (spec 6.6(1),(2))."""
+    t0 = time.time()
+    pred, hist, w, wm, tb, batches = _delay_run(0)
+    chance = _chance_max_err(batches)
+    print(f"delay world: {time.time() - t0:.0f}s, loss {hist[0]:.2f}->{hist[-1]:.2f}, predictions\n{pred}\n"
+          f"climatology max error {chance:.2f}")
+    assert chance >= 0.3                          # the criterion separates learning from the chance forecast
+    assert float((pred - DELAY_TRUTH).abs().max()) < 0.3, pred
     # A07 (learned): from the same filtered state, contemplated A vs noop predict different consequences
-    Z = wm.filter(SequenceBatch(tb.steps[:3]))[-1][2:3]
-    ob = tb.steps[2].outcomes
-    q = type(ob)(ob.q.select([0]), ob.lik[:1], ob.n_classes[:1], ob.y[:1], ob.censored[:1], ob.y_mask[:1],
-                 ob.channel[:1])
-    yA = wm.outcome_dist(wm.prior(Z, w.act_tokens([1]).to(DEV), None, 1.0, sample=False)[0], q).mean()
-    y0 = wm.outcome_dist(wm.prior(Z, w.act_tokens([0]).to(DEV), None, 1.0, sample=False)[0], q).mean()
+    with torch.no_grad():
+        Z = wm.filter(SequenceBatch(tb.steps[:3]))[-1][2:3]
+        ob = tb.steps[2].outcomes
+        q = type(ob)(ob.q.select([0]), ob.lik[:1], ob.n_classes[:1], ob.y[:1], ob.censored[:1], ob.y_mask[:1],
+                     ob.channel[:1])
+        yA = wm.outcome_dist(wm.prior(Z, w.act_tokens([1]).to(DEV), None, 1.0, sample=False)[0], q).mean()
+        y0 = wm.outcome_dist(wm.prior(Z, w.act_tokens([0]).to(DEV), None, 1.0, sample=False)[0], q).mean()
     assert float(yA - y0) > 0.7
+
+
+@pytest.mark.slow
+def test_delayed_effect_learning_is_reliable_across_model_seeds():
+    """The same criterion on three further model seeds (all must pass; the diagnosis file has 18 runs)."""
+    errs = []
+    for s in (1, 2, 3):
+        pred, *_ = _delay_run(s)
+        errs.append(float((pred - DELAY_TRUTH).abs().max()))
+        print(f"model seed {s}: delayed {float(pred[1, 2]):.3f} immediate {float(pred[0, 0]):.3f} "
+              f"max err {errs[-1]:.3f}")
+    assert max(errs) < 0.3, errs
 
 
 def test_learns_interaction_of_two_interventions():

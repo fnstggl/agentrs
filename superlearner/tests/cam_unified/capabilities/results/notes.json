@@ -1,0 +1,14 @@
+{
+ "what": "Workstream-Y capability results through the real assembled CAM (build_model with QwenSemantic Qwen3-0.6B, A's ObservationTokenizer and ActionGenerator, B/C/D/E components; CamUnifiedAgent + D's CombinedTrainer + E's archive/replay/index/consolidator). Each <name>.json is the full output of `python -m superlearner.cam_unified.capabilities.run` (its `command` field); summary.json is `python -m superlearner.cam_unified.capabilities.report <this dir>`.",
+ "hardware": "CPU only (2 torch threads per run, 4 runs in parallel on the shared ~23-core quota), no GPU lock needed",
+ "seeds": "training seeds seed*10007+row; evaluation on development offsets 100,000+ (beliefs 100,000-103,000; reasoning 100,000; imagination/exploration 100,000 / 110,000 / 150,000); diagnostics 300,000-510,000 (untrained-model diagnostics only, no training on them). No confirmation offsets (200,000+) used.",
+ "code_state": {
+  "all runs": "SyncedReplay and TargetSyncTrainer adapters active; world/dynamics.py latent_floor_rms = 0.1",
+  "before 08:36 UTC (beliefs_s0, beliefs_bern_s0, beliefs_film02_s0, beliefs_bern_film02_s0, reasoning_adaptive_s0, exploration_lp_s0, exploration_ext_s0, exploration_lp_film02_s0, imagination_s0, imagination_es_s0, imagination_es_film02_s0, causal_s0)": "without the ProspectiveIngest adapter (first-decision outcome queries lack numeric keys delivered at reset) and without the enumerated-intervention measurement",
+  "from 08:36 UTC (all other runs)": "ProspectiveIngest adapter active; memory runs use ServingConsolidator and the evaluation re-batching fix",
+  "film02": "component_kwargs outcome_head.film_init_std = 0.2 (default 0.0)",
+  "std": "standardized_readout = True (capabilities/readout.py, experimental condition)",
+  "ent": "cfg.entropy_coef = 0.05 (default 3e-3)",
+  "es": "ProbeEnv exploring_starts during training only"
+ }
+}
