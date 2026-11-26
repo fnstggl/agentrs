@@ -21,8 +21,8 @@
     "tests/test_v5_innovation_pkg.py",
     "tests/test_v5_innovation_devs.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "products of the population's autonomous developers (services, packages) that executed for independent users"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "products of the population's autonomous developers (services, packages) that executed for independent users | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.2": {
    "implementation_files": [
@@ -40,8 +40,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "published = live and declared (services) or released (packages) at the end"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "published = live and declared (services) or released (packages) at the end | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.3": {
    "implementation_files": [
@@ -59,8 +59,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "min over task categories of the best product's individuals who considered it after the interface check or tried it"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "min over task categories of the best product's individuals who considered it after the interface check or tried it | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.4": {
    "implementation_files": [
@@ -78,8 +78,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "min over categories: individuals for whom it executed on their own input"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "min over categories: individuals for whom it executed on their own input | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.5": {
    "implementation_files": [
@@ -97,8 +97,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "Fisher test kept/tried, factual vs garbage arm (developers ship input-ignoring programs), summed over categories"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "Fisher test kept/tried, factual vs garbage arm (developers ship input-ignoring programs), summed over categories | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.6": {
    "implementation_files": [
@@ -116,8 +116,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "paid calls net of refunds from independent payers (commerce.integrity payer weights)"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "paid calls net of refunds from independent payers (commerce.integrity payer weights) | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.7": {
    "implementation_files": [
@@ -135,8 +135,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "population hand-work minutes saved against the arm where the category is not built (pre-existing resource); developers' compute drawn from providers reported"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "population hand-work minutes saved against the arm where the category is not built (pre-existing resource); developers' compute drawn from providers reported | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "J.n1": {
    "implementation_files": [
@@ -154,8 +154,8 @@
    "tests": [
     "tests/v5/test_gate_J.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "task categories passing J.1-J.7, incl. generated undocumented and composed categories"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "task categories passing J.1-J.7, incl. generated undocumented and composed categories | creation worlds (unofficial, 10 days, n=300, seeds 5-8): J.1 14-17 products by population developers (0 scripted), J.3 12-21 discoverers, J.4 12-15 users, J.5 p 1.9e-30..7.3e-77, J.6 34-120 paid calls from 12-15 payers, J.7 743-4294 hand-work minutes saved, J.n1 2-4 categories (1-2 generated)"
   },
   "L.1": {
    "implementation_files": [
@@ -173,8 +173,8 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "pre-existing conditions changed by inventions (counterfactual removal): hand-work minutes of novel and documented activities, tasks lost, incumbents' subscriptions, provider compute"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "pre-existing conditions changed by inventions (counterfactual removal): hand-work minutes of novel and documented activities, tasks lost, incumbents' subscriptions, provider compute | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.2": {
    "implementation_files": [
@@ -193,8 +193,8 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "needs first labelled after genesis by the evaluator's relation graph"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "needs first labelled after genesis by the evaluator's relation graph | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.3": {
    "implementation_files": [
@@ -213,8 +213,8 @@
     "tests/v5/test_gate_L.py",
     "tests/test_v5_innovation_needs.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "needs served by a provider created after the need's chain began and adopted by holders"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "needs served by a provider created after the need's chain began and adopted by holders | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.4": {
    "implementation_files": [
@@ -232,8 +232,8 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "chains mined generically (need -> public request -> developer artifact -> adoption -> relief; adoption creating a need; package -> independent developer's adoption by execution -> service -> adoption); distinct first changes; no scripted stage"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "chains mined generically (need -> public request -> developer artifact -> adoption -> relief; adoption creating a need; package -> independent developer's adoption by execution -> service -> adoption); distinct first changes; no scripted stage | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.5": {
    "implementation_files": [
@@ -251,8 +251,8 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "chains whose later stages do not happen in the arm where the first change was removed"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "chains whose later stages do not happen in the arm where the first change was removed | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "L.n1": {
    "implementation_files": [
@@ -270,8 +270,8 @@
    "tests": [
     "tests/v5/test_gate_L.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
-   "notes": "system credits to creators after admission (population income deposits verified against the population's deposit records) + static scan"
+   "status_claim": "implemented; verified on small creation worlds (4 seeds, unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "system credits to creators after admission (population income deposits verified against the population's deposit records) + static scan | creation worlds (unofficial, 10 days, n=300, seeds 5-8): L.1 5 effects, L.2 3-4 emerged needs, L.3 5-8, L.4 9-10 independent chains (min 5 stages, top 3 cover artifact/social/technical, 0 scripted stages), L.5 5-9 confirmed by removal arms, L.n1 0 bonuses (208-270 income deposits verified)"
   },
   "SP-6.3": {
    "implementation_files": [
@@ -290,7 +290,7 @@
     "tests/v5/test_gate_SP_6_3.py",
     "tests/test_v5_innovation_caps.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
+   "status_claim": "implemented; verified on small creation worlds (unofficial); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
    "notes": "a service for a generated undocumented category, created after genesis, discovered, tried on own input, adopted; garbage counterpart tried and not adopted"
   },
   "SP-6.3b": {
@@ -309,7 +309,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_3b.py"
    ],
-   "status_claim": "implemented; creation world (10 days) passes single-judge 0 and novel-category adoptions 27 but registers 0 composed workflows in 10 days (earlier 24-day creation run: 2); civilisation run queued",
+   "status_claim": "implemented; single-judge paths 0 and novel-category adoptions 24-55 on creation worlds; composed workflows: 0 in 10-day worlds, 1 verified in a 24-day world (seed 5) after developers learned to switch weak two-stage services to workflows (devs._to_workflow); civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet - at risk if no converting transform service appears",
    "notes": "workflows: caps.compose registry objects verified by observed service-to-service calls (D-44); single-judge scan is static (AST) over the usefulness decision functions with an LM negative control"
   },
   "SP-6.5b": {
@@ -329,7 +329,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_5b.py"
    ],
-   "status_claim": "implemented; passes on a small creation world locally (seed 5, 10 days, n=300, unofficial); civilisation run (balanced seed 3, 24 days, 4 arms) queued in the G slot lane",
+   "status_claim": "implemented; lean parts verified locally (6 forgeries 0 credited, honest control credited, star-only 0); developer adoptions 3-6 on creation worlds; civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
    "notes": "attested package boundary (D-42); autonomous developers adopt other developers' packages through CI; creators' deployments never trusted in-process"
   },
   "W.4 (G share)": {
@@ -342,7 +342,7 @@
     "tests/v5/test_gate_W.py::test_W4_metric_manipulation",
     "tests/test_v5_innovation_pkg.py"
    ],
-   "status_claim": "closed for G: v5.innovation.adoption_by_reading_the_package_source holds (moved to FIXED_BY_OWNERS); 9 innovation probes hold locally",
+   "status_claim": "closed for G: all 9 innovation red-team probes hold locally (continuation run): 6 adoption forgeries, advisory by sniffing the source, honest use credited, compute forgery",
    "notes": "W.4 is owned by O; only G's KNOWN_OPEN entry is closed here"
   },
   "SP-6.4b": {
@@ -352,14 +352,15 @@
     "src/crucible/innovation/civexp.py",
     "src/crucible/innovation/devs.py",
     "src/crucible/innovation/caps.py",
-    "src/crucible/innovation/inventworld.py"
+    "src/crucible/innovation/inventworld.py",
+    "src/crucible/innovation/experiments.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_6_4b.py",
     "tests/test_v5_innovation_relations.py"
    ],
-   "status_claim": "partially implemented; expected to FAIL need_mechanism_examples >= 5",
-   "notes": "Measured on the civilisation arms with the one relation graph (new providers: compute providers' capacity, freight network). Of the five listed mechanisms only workflow change arises from live state (creation world, 10 days: 1 of 5; civilisation pending); coordination and content communities/tools have no live module state to read; education is inert in civilisations and the learn module is being rewritten by dom2 (learn v2). designer_supplied_demand_paths = 0 on the creation world. Novel combination: verified workflows adopted by individuals that save hand work against the removal arm (0 in a 10-day creation world; civilisation pending)."
+   "status_claim": "partially implemented; expected to FAIL need_mechanism_examples >= 5 (creation worlds: 1 of 5 - workflow change); designer_supplied_demand_paths 0; civilisation run (balanced seed 3, 30 days, 4 arms; tests/v5/_invention_kit.py) queued in the G slot lane (scratch lane/README.txt); no civilisation evidence yet",
+   "notes": "One relation graph with providers over work activities, cloud, compute providers' capacity (compute_market), the freight network (freight), organisations' coordination overhead (orgs, civ coupling org_coordination) and communities' moderation backlog (community); mechanisms classified by the provider and rule of each need's derivation path. Workflow change arises in every measured world; coordination overhead is read but stays 6.5-15% (headcounts fixed at genesis); community backlogs and freight congestion depend on the run; education has no provider (learn inert in civilisations, rewritten by dom2)."
   }
  },
  "limitations": [
@@ -628,5 +629,24 @@
     "Evidence files under docs/v5/evidence/ produced while testing on this branch were not committed."
    ]
   }
+ },
+ "test_results_unofficial": {
+  "continuation (CPU, single thread, CUDA hidden)": {
+   "tests/test_v5_innovation_devs.py": "5 passed",
+   "tests/test_v5_innovation_caps.py": "11 passed",
+   "tests/test_v5_innovation_needs.py": "5 passed",
+   "tests/test_v5_innovation_pkg.py": "8 passed",
+   "tests/test_v5_innovation_relations.py": "4 passed",
+   "tests/test_v5_innovation_gates.py": "2 passed",
+   "tests/test_npc_innovation.py": "3 passed",
+   "tests/test_kernel.py": "29 passed",
+   "tests/test_invariants.py": "22 passed",
+   "tests/test_v5_econ_work.py": "6 passed",
+   "tests/test_sandbox.py": "6 passed",
+   "tests/test_v5_security_redteam.py": "3 passed",
+   "tests/test_services_comm.py": "17 passed",
+   "red-team innovation probes": "9 held, 0 unexpected findings"
+  },
+  "gate tests in the civilisation": "pending (slot lane)"
  }
 }
