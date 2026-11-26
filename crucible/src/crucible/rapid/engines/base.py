@@ -136,8 +136,24 @@ def register(cls: type[RapidEngine]) -> type[RapidEngine]:
     return cls
 
 
+SCENARIOS: dict[tuple[str, str], type[RapidEngine]] = {}
+
+
+def register_scenario(cls: type[RapidEngine]) -> type[RapidEngine]:
+    """Further scenarios of an existing engine kind, implemented in their own module: `cls.kind` names the kind
+    and `cls.scenarios` the scenario names; `build` dispatches configs with those scenarios to `cls`."""
+    if cls.kind not in ENGINE_KINDS:
+        raise ValueError(f"scenarios of unknown engine kind {cls.kind}")
+    for sc in cls.scenarios:
+        if (cls.kind, sc) in SCENARIOS and SCENARIOS[(cls.kind, sc)] is not cls:
+            raise ValueError(f"scenario {cls.kind}/{sc} registered twice")
+        SCENARIOS[(cls.kind, sc)] = cls
+    return cls
+
+
 def build(config: dict) -> RapidEngine:
-    return ENGINE_KINDS[config["engine"]](config)
+    cls = SCENARIOS.get((config["engine"], config.get("scenario"))) or ENGINE_KINDS[config["engine"]]
+    return cls(config)
 
 
 def jsonable(x: Any) -> Any:
