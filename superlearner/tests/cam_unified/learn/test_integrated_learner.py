@@ -378,7 +378,7 @@ def test_reward_model_output_must_be_detached():
 
 
 def test_legacy_condition_uses_the_verified_increment_and_sparse_condition_the_joined_label(tmp_path):
-    st = _Stack(_cfg(reward_mode="legacy"))
+    st = _Stack(_cfg(reward_mode="legacy", declared_conditions=("exp-d:legacy",)))
     L = I.IntegratedLearner(st.model, ConstReward(), None, agent=st.agent)
     run_steps(st.agent, st.env, 4, evaluator=st.evaluator, update_every=None)
     want = [float(s.reward[j]) + st.cfg.lp_coef * float(s.lp[j]) for s in st.agent.fresh for j in range(len(s.rows))]
@@ -386,7 +386,7 @@ def test_legacy_condition_uses_the_verified_increment_and_sparse_condition_the_j
     assert info["reward"]["condition"] == "D1"
     assert info["reward"]["n"] > 0 and min(want) - 1e-6 <= info["reward"]["min"] <= info["reward"]["max"] <= max(want) + 1e-6
     # sparse verified: episodes end (horizon), the operator releases labels, only terminal decisions are rewarded
-    st2 = _Stack(_cfg(reward_mode="sparse_verified"), horizon=0.02)
+    st2 = _Stack(_cfg(reward_mode="sparse_verified", declared_conditions=("exp-d:sparse_verified",)), horizon=0.02)
     store = LabelStore(str(tmp_path / "labels"))
     L2 = I.IntegratedLearner(st2.model, ConstReward(), store, agent=st2.agent, sparse_beta=2.0)
     run_steps(st2.agent, st2.env, 6, evaluator=None, update_every=None)
@@ -398,6 +398,16 @@ def test_legacy_condition_uses_the_verified_increment_and_sparse_condition_the_j
     info2 = L2.step()
     assert info2["reward"]["condition"] == "D2" and info2["reward"]["labelled"] == len(terms)
     assert info2["reward"]["max"] == pytest.approx(1.5)
+
+
+def test_observation_only_is_the_default_and_baselines_must_be_declared():
+    st = _Stack(_cfg(reward_mode="legacy"))                 # the CamConfig default, not declared
+    L = I.IntegratedLearner(st.model, ConstReward(), None, agent=st.agent)
+    assert L.reward_mode == "observation_only" and "not declared" in L.reward_mode_note
+    with pytest.raises(ValueError, match="non-compliant baseline"):
+        I.IntegratedLearner(st.model, ConstReward(), None, cfg=_cfg(reward_mode="sparse_verified"), agent=st.agent)
+    assert I.IntegratedLearner(st.model, ConstReward(), None, agent=st.agent,
+                               reward_mode="sparse_verified").reward_mode == "sparse_verified"   # explicit choice
 
 
 def test_label_batch_reaches_the_reward_model_with_a_grad_carrying_encoder(tmp_path):

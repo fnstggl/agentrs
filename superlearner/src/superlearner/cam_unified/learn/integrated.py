@@ -463,9 +463,22 @@ class IntegratedLearner:
         self.reward_model = reward_model if reward_model is not None else RewardModel(cfg)
         self.label_store = label_store
         self.agent = agent
-        self.reward_mode = str(reward_mode or getattr(cfg, "reward_mode", "legacy"))
-        if self.reward_mode not in REWARD_CONDITIONS:
-            raise ValueError(f"reward_mode {self.reward_mode!r}; known: {sorted(REWARD_CONDITIONS)}")
+        mode = str(reward_mode or getattr(cfg, "reward_mode", "legacy"))
+        if mode not in REWARD_CONDITIONS:
+            raise ValueError(f"reward_mode {mode!r}; known: {sorted(REWARD_CONDITIONS)}")
+        self.reward_mode_note = None
+        if reward_mode is None and mode != OBSERVATION_ONLY and \
+                not any(mode in str(c) for c in getattr(cfg, "declared_conditions", ()) or ()):
+            # observation-only is the default of every new CAM path; the non-compliant Exp D baselines run only when
+            # chosen explicitly (reward_mode=...) or declared (cfg.declared_conditions names the mode)
+            if mode == "legacy":                 # the CamConfig default (pre-seam behaviour of old configs)
+                self.reward_mode_note = ("cfg.reward_mode 'legacy' (CamConfig default) not declared: the integrated "
+                                         "learner runs observation_only")
+                mode = OBSERVATION_ONLY
+            else:
+                raise ValueError(f"reward_mode {mode!r} is a non-compliant baseline condition: declare it in "
+                                 "cfg.declared_conditions or pass reward_mode= explicitly")
+        self.reward_mode = mode
         rm = self.reward_model
         dev = model.device
         if isinstance(rm, torch.nn.Module) and any(True for _ in rm.parameters()):
@@ -1087,7 +1100,7 @@ class IntegratedLearner:
                 "microbatches": None if mbs is None else [len(x) for x in mbs],
                 "probe_policy": None if (table is None or mbs is None) else
                 "actor/value norms from microbatch 0 scaled by N / n_mb0 (estimate)",
-                "reward_mode": self.reward_mode}
+                "reward_mode": self.reward_mode, "reward_mode_note": self.reward_mode_note}
         if table is not None:
             info["grad_table"] = table.to_dict()
             info["core_share"] = table.share()

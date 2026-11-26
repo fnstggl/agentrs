@@ -64,6 +64,8 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
         f"w7-e2e:microbatch={mb}" + ("(full-batch policy recompute: exact probe)" if not mb else
                                      "(probe actor/value norms estimated from microbatch 0)"),
         f"w7-e2e:tool_entropy_coef={over['tool_entropy_coef']}(dom presets leave it 0)")
+    if over.get("reward_mode") not in (None, "observation_only"):    # a labelled, non-compliant Exp D baseline
+        over["declared_conditions"] += (f"exp-d:{over['reward_mode']}(labelled baseline)",)
     cfg = make_preset(preset, **over)
     dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
     if dev.type == "cuda":
