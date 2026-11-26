@@ -2,10 +2,15 @@
 
 Three scales with identical capabilities (spec Part 1.1). Every ablation switch an experiment needs is a field, so a
 run is fully described by its config (`asdict(cfg)` is written next to every checkpoint).
+
+`make_preset("dom" | "dom_dev" | "dom_150m")` gives the DOM configurations of the redesign plan 2026-11-26 §2 (the
+1B Superlearner core with Qwen3-4B, its 8 x 384 development twin with Qwen3-0.6B, and a 16 x 768 scaling point).
+Their fields were pre-declared by the seam commit with defaults that keep the pre-seam behaviour.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, replace
+from typing import Optional
 
 SCALES = {
     #        layers width heads state-tokens
@@ -130,6 +135,59 @@ class CamConfig:
     math_explore_assist: bool = False  # feed CAM 7.0-style KG/EIG scores as policy inputs (baseline condition)
     declared_conditions: tuple = ()    # experimental conditions in force, e.g. ("demo-init:example_inductor",)
 
+    # ---- DOM integrated runtime (redesign plan 2026-11-26 §2), pre-declared by the seam commit. The defaults keep
+    # the pre-seam behaviour exactly (old configs and checkpoints describe the same system); the `dom*` presets
+    # (`make_preset`) switch them on. [Wn] = the workstream that implements the switch; until it merges, a switch is
+    # inert unless noted.
+    preset: str = ""                  # name of the make_preset preset this config came from ("" = none)
+    # core F_theta / reasoner [W3]
+    state_gate: bool = False          # gated persistence Z = u*Z_new + (1-u)*Z_prev, u = sigmoid(W[Z_prev; Z_new] + b)
+    state_emb_std: float = 0.5        # init std of the additive kind / state-slot / time embeddings (backbone emb_std)
+    reason_iters_fixed: int = 0       # J > 0: fixed reasoning iterations (CamUnifiedModel.reason_iters defaults to it,
+                                      # live now); 0 = adaptive halting / the model's reason_iters kwarg
+    d_satellite: int = 0              # width of the satellite modules (entities, beliefs, heads); 0 = d_model
+    # semantic stream and decoder conditioning [W4]
+    value_channel: bool = False       # NUMERIC tokens = proj([norm(value features); norm(description + unit)])
+    sem_lora: bool = True             # PEFT LoRA adapters on the semantic model's decoder path (QwenSemantic lora=)
+    dec_alpha_init: float = 0.05      # initial gate alpha of the decoder latent cross-attention (tanh(alpha) scale)
+    # decision bottleneck (Mechanism B) [W5]
+    n_intent: int = 0                 # intent tokens I_t = IntentHead(R_t, ctx_out); 0 = no intent bottleneck
+    n_candidates: int = 1             # K candidate actions per decision scored by decision/evaluator
+    select_tau: float = 1.0           # selection k ~ softmax(Q / select_tau) over the K candidates
+    veto_q: Optional[float] = None    # evaluator veto: candidates with Q_k < veto_q are rejected (None = no veto)
+    # world model and beliefs [W6]
+    wm_transition_blocks: int = 0     # prior Z_hat = WM.prior(R, A, B, dt) through the last k core blocks
+                                      # (0 = the world model's own transition network)
+    wm_ema_target: bool = True        # EMA target encoder for the latent targets (False = no EMA target)
+    kl_free_bits_group: float = 0.0   # free bits per stochastic group (0 = kl_free_nats over the whole latent)
+    wm_consistency: float = 0.0       # weight of L_cons = ||(Z_hat_{t+1} - sg(Z_post)) / sd||^2 (0 = off)
+    burn_in: int = 0                  # replay burn-in decisions without gradient before the graded steps
+    bptt_steps: int = 0               # graded replay decisions after the burn-in (0 = the agent's seq_len)
+    # reward channels, labels and the integrated learner [W1 / W2 / W7 / W8]
+    reward_mode: str = "legacy"       # "legacy": the verified return increment is the actor reward (pre-seam);
+                                      # "observation_only": actor reward = R_psi (selfeval/reward_model.py), labels
+                                      # reach the learner only; "sparse_verified": labelled baseline condition
+    reward_in_beliefs: bool = True    # realised reward is an observed outcome of the belief / Kalman updates
+                                      # (CamUnifiedModel.reward_in_beliefs defaults to it, live now)
+    lambda_ig: float = 0.05           # initial information-gain weight of R_psi (a member of psi)
+    lambda_c: float = 0.01            # initial resource-cost weight of R_psi (a member of psi)
+    update_every: int = 8             # canonical loop (runtime.run_lifetime): learner.step() every k rounds
+    meta_every: int = 0               # learner.meta_step() every k updates (0 = never)
+    meta_inner_steps: int = 2         # functional inner steps on the fast set phi per meta step
+    ppo_epochs: int = 1               # epochs over the fresh buffer per update
+    target_kl: float = 0.0            # stop the policy epochs at this approximate KL (0 = off)
+    tool_entropy_coef: float = 0.0    # entropy bonus of the tool-pointer distribution (0 = off)
+    lr_core: float = 0.0              # backbone learning rate (0 = lr)
+    lr_heads: float = 0.0             # heads, satellites and conditioning adapters (0 = lr)
+    lr_psi: float = 1e-3              # reward-model parameters psi (separate AdamW)
+    lr_warmup_updates: int = 0        # linear warmup of the core learning rate (0 = none)
+    clip_mode: str = "global"         # "global": one norm clipped at grad_clip; "per_group": per parameter group at
+                                      # clip_median_mult x its running median norm
+    clip_median_mult: float = 5.0
+    balance_every: int = 0            # recompute loss weights from the named-group gradient probe every k updates
+    world_core_share_max: float = 1.0  # cap on the world objective's share of the core gradient (balancing target)
+    microbatch: int = 0               # learner microbatch in decisions (0 = the whole batch)
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -152,3 +210,48 @@ def make_config(scale: str = "dev", **over) -> CamConfig:
     base = CamConfig(scale=scale, n_layers=layers, d_model=width, n_heads=heads, n_state=state, d_particle=d_particle,
                      mem_key_dim=min(256, width))
     return replace(base, **over)
+
+
+# ============================================================================ DOM presets (plan 2026-11-26 §2)
+# The switches every dom preset shares (dimensions and the semantic model are per preset).
+DOM_SWITCHES = dict(
+    state_gate=True, state_emb_std=0.02,
+    sem_xattn_every=4, sem_xattn_max_tokens=256,
+    dec_xattn_every=6, dec_alpha_init=0.0,
+    n_intent=16, n_candidates=4, select_tau=1.0,
+    value_channel=True,
+    wm_transition_blocks=6, wm_ema_target=False, kl_free_bits_group=0.02, wm_consistency=1.0, burn_in=16,
+    bptt_steps=8, train_horizons=(1, 2, 4, 8),
+    reason_iters_fixed=2, max_reason_iters=32,
+    use_imagination=False, use_memory=False,
+    reward_mode="observation_only", reward_in_beliefs=False, meta_every=16, meta_inner_steps=2,
+    sem_lora=False, sem_encoder_lora=False,
+    ppo_epochs=2, target_kl=0.03,
+    lr_core=3e-5, lr_heads=1e-4, lr_psi=1e-3, lr_warmup_updates=500,
+    clip_mode="per_group", clip_median_mult=5.0, balance_every=25, world_core_share_max=0.45,
+    microbatch=4, update_every=8,
+)
+
+# Per preset: the base scale (SCALES: layers x width x heads, state tokens), the semantic model and its hidden width,
+# the context budget and the satellite width. dom_150m keeps dom's Qwen3-4B (a core-scaling point, not a new stack).
+PRESETS = {
+    "dom":      dict(scale="superlearner", sem_model="Qwen/Qwen3-4B", sem_xattn_dim=2560, max_ctx_tokens=512,
+                     d_satellite=768),                    # 32 x 1536 x 24, S=128, SwiGLU d_ff 4096 (~1B core)
+    "dom_dev":  dict(scale="dev", sem_model="Qwen/Qwen3-0.6B", sem_xattn_dim=1024, max_ctx_tokens=512,
+                     d_satellite=0),                      # 8 x 384 x 6, S=32 (tests and development ablations)
+    "dom_150m": dict(scale="research", sem_model="Qwen/Qwen3-4B", sem_xattn_dim=2560, max_ctx_tokens=512,
+                     d_satellite=0),                      # 16 x 768 x 12, S=64 (scaling point / Condition H)
+}
+
+
+def make_preset(name: str, **over) -> CamConfig:
+    """A named DOM configuration: `make_config(<base scale>)` + DOM_SWITCHES + the preset's own fields, then `over`.
+    dom: 32 x 1536 x 24, 128 state tokens, d_ff 4096, Qwen3-4B, max_ctx_tokens 512 (the 1B Superlearner core);
+    dom_dev: 8 x 384 with Qwen3-0.6B and the same switches; dom_150m: 16 x 768 with the same switches."""
+    if name not in PRESETS:
+        raise KeyError(f"unknown preset {name!r}; known: {sorted(PRESETS)}")
+    p = dict(PRESETS[name])
+    scale = p.pop("scale")
+    kw = {**DOM_SWITCHES, **p, "preset": name}
+    kw.update(over)
+    return make_config(scale, **kw)

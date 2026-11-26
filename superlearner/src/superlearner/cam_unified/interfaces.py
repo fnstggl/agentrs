@@ -1,4 +1,4 @@
-"""CAM Unified shared interface contract (version 3; see CONTRACT_VERSION and §V3 at the end). Owned by the master architect.
+"""CAM Unified shared interface contract (version 4; see CONTRACT_VERSION, §V3 and §V4 at the end). Owner: W1.
 
 Every workstream codes against these types and signatures; none edits this file. Change requests go to the master,
 who versions them here (`CONTRACT_VERSION`). Shapes use B = batch of environments/actors, S = n_state latent tokens,
@@ -21,9 +21,13 @@ import uuid
 from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Iterator, Optional, Protocol, Sequence, runtime_checkable
 
-CONTRACT_VERSION = 3   # 1.1: TokenSet.entity2; 2: seq cursors, time/money/duration semantics (stage-0 critic);
+CONTRACT_VERSION = 4   # 1.1: TokenSet.entity2; 2: seq cursors, time/money/duration semantics (stage-0 critic);
                        # 3: wave-1 change requests (optional fields, optional protocol kwargs, reserved keys; §V3)
+                       # 4: seam commit of the DOM rebuild (plan 2026-11-26 §3): LabelSource, LearnerHook,
+                       #    RewardModelP, EventRecord.extra["versions"] (cam-event/4); additive only (§V4)
 OBS_SCHEMA_VERSION = 1
+EVENT_SCHEMA = "cam-event/4"           # v4: EventRecord.extra["schema"] of records that carry extra["versions"]
+EVENT_VERSION_KEYS = ("policy", "reward_model", "evaluator", "env", "code")   # v4: keys of extra["versions"]
 
 
 def new_id(prefix: str = "") -> str:
@@ -255,6 +259,13 @@ class EventRecord(_Rec):
     #   "incarnation"        actor process incarnation (WAL / restart bookkeeping)
     #   "kind"               "decision" (default) | "post_action_observations" (action=None world-event record
     #                        that archives observations delivered after an action; excluded from training windows)
+    # v4 reserved `extra` keys (schema "cam-event/4"; written by the canonical loop, see `event_versions`):
+    #   "versions"           {"policy": weights version that acted (model.version), "reward_model": psi version of
+    #                        the actor reward model (RewardModelP.version; None in reward_mode "legacy"),
+    #                        "evaluator": version of the operator-side evaluator / label source, "env": environment
+    #                        or adapter version, "code": code commit (git sha)}; every key present, None = unknown
+    #   "schema"             "cam-event/4" (EVENT_SCHEMA) on records that carry "versions"
+    #   "reward_mode"        cfg.reward_mode in force when the decision was taken
     # episode_id is unique only within (env_id, actor_id); streams are keyed by that triple.
 
     @staticmethod
@@ -266,6 +277,11 @@ class EventRecord(_Rec):
         d["provenance"] = Provenance(d.get("provenance", "real"))
         d["evidence"] = EvidenceKind(d.get("evidence", "controlled"))
         return EventRecord(**d)
+
+
+def event_versions(policy=None, reward_model=None, evaluator=None, env=None, code=None) -> dict:
+    """v4: the EventRecord.extra["versions"] dict (every key of EVENT_VERSION_KEYS present; None = unknown)."""
+    return {"policy": policy, "reward_model": reward_model, "evaluator": evaluator, "env": env, "code": code}
 
 
 @dataclass
@@ -334,6 +350,53 @@ class GoalEvaluator(Protocol):
     def evaluate_goal(self, env_index: int) -> IndependentGoalResult: ...
     # optional (v3), used by the lifetime harness: take_rewards() -> list[float] (verified increments since the last
     # call), state_dict() / load_state(d) for checkpoint/resume; operators may add checkpoint(path) / restore(path)
+
+
+@runtime_checkable
+class LabelSource(Protocol):
+    """v4. Operator / evaluator side source of verified labels (OpenWorldEvaluator wrapping its RewardGate,
+    ExperienceOperator, ...). `take_labels()` returns the labels produced since the previous call (label records of
+    envs/labels.py: env id, episode, verified outcome / utility, pending flag), each exactly once. Labels go to the
+    trainer-only LabelStore and reach the learner only as targets (ProspectEvaluator, V_L, the meta objective); the
+    acting agent never holds a reference to a LabelSource, and in reward_mode "observation_only" no label enters an
+    actor reward or an actor input."""
+
+    def take_labels(self) -> list: ...
+
+
+@runtime_checkable
+class LearnerHook(Protocol):
+    """v4. The learner side the canonical loop (runtime.run_lifetime) drives. `on_step(transition)` is called once
+    per round after `agent.observe(transition)` (envs.agent_protocol.Transition; the learner may buffer it, it never
+    changes the acting agent's inputs); `step()` runs one integrated update every cfg.update_every rounds and returns
+    an UpdateInfo-like dict ({"updated": bool, ...}). Optional: `meta_step() -> dict` every cfg.meta_every updates,
+    `state_dict()` / `load_state_dict(d)` for checkpoints (trainer and psi state)."""
+
+    def on_step(self, transition) -> None: ...
+
+    def step(self) -> dict: ...
+
+
+@runtime_checkable
+class RewardModelP(Protocol):
+    """v4. The actor reward model R_psi (selfeval/reward_model.py; plan 2026-11-26 §2):
+
+        r_t = [Gamma_t * Phi(R_{t+1}, G) - Phi(R_t, G)] + lambda_ig * IG_t - lambda_c * c_t + rho_psi(...)
+
+    `reward(...)` -> [B] float tensor, always detached (no actor loss back-propagates into psi or Phi);
+    `potential(R, G)` -> Phi [B] in [0, 1] (P(success by horizon | R, G), trained on verified labels only);
+    `losses(label_batch)` -> {name: scalar tensor} of the reward model's own supervised objectives (ProspectEvaluator,
+    V_L) on joined verified labels. Attribute `version` (int): psi version, bumped by every psi update (recorded in
+    EventRecord.extra["versions"]["reward_model"]). R/R_next: reasoned latents [B,S,D]; goal: GOAL TokenSet [B,Ng,D];
+    dt: [B] simulated days; the keyword inputs are optional actor-visible signals (info_gain [B] from belief_change,
+    cost [B] observed resource spend, belief / belief_next TokenSets, intent [B,n_intent,D], signals dict)."""
+
+    def reward(self, R, R_next, goal, dt, *, info_gain=None, cost=None, belief=None, belief_next=None,
+               intent=None, signals=None) -> Any: ...
+
+    def potential(self, R, G) -> Any: ...
+
+    def losses(self, label_batch) -> dict: ...
 
 
 # ============================================================================ 3. tensor side
@@ -697,4 +760,18 @@ class CheckpointOpsP(Protocol):               # workstream E: cam_unified/memory
 #   (e.g. "demo-init:example_inductor"; non-privileged demonstrators only).
 # * Agent-level protocols live with their owners and are structural: envs.agent_protocol.AgentP (harness),
 #   dist.actor ActorPolicyP / dist.learner LearnerModelP (actor-learner), agent.AgentP / model.PlannerP (integration).
+
+
+# ============================================================================ §V4 conventions (seam commit)
+# Additive only: no existing field, signature or default changed; every v3 consumer is a v4 consumer.
+# * New protocols: LabelSource.take_labels(), LearnerHook.on_step(transition) / step(), RewardModelP.reward /
+#   potential / losses (+ .version). Default RewardModel: selfeval/reward_model.py (seam stub returns zeros).
+# * EventRecord.extra["versions"] = event_versions(policy, reward_model, evaluator, env, code), extra["schema"] =
+#   EVENT_SCHEMA ("cam-event/4"), extra["reward_mode"]; records without them are v3 records (cam-event/3).
+# * Optional keyword arguments the DOM workstreams add (callers pass them only when the component accepts them):
+#   UnifiedCoreP.forward(..., sem=None) and ReasonerP.forward(..., sem=None) with sem a
+#   core.semantic_xattn.SemanticContext (Mechanism C); WorldModelP.prior(R, act, belief, dt, sample=True, z=None)
+#   (the first argument may be the reasoned latent R_t; z = a given stochastic latent sample).
+# * Config switches of the DOM runtime are CamConfig fields (config.py, "DOM integrated runtime"), presets
+#   config.make_preset("dom" | "dom_dev" | "dom_150m"); cfg.reward_mode "legacy" is the pre-v4 behaviour.
 
