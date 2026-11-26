@@ -83,7 +83,7 @@ class Design:
     transfer_families: tuple[str, ...]
     seeds: tuple[int, ...] = (0, 1, 2, 3, 4)
     train_tasks: int = 24
-    repeats: int = 4
+    repeats: int = 3
     eval_seeds: tuple[int, ...] = (1_000_101, 1_000_102)
     transfer_seeds: tuple[int, ...] = (1_000_201,)
     repeat_probe: int = 8
@@ -96,18 +96,95 @@ class Design:
         return asdict(self)
 
 
-def default_design(registry: Registry | None = None, *, n_eval: int = 8, n_transfer: int = 4, **kw) -> Design:
-    """Training families: rapid primitive-graph lever families of the training split; unfamiliar worlds: new seeds
-    (validation partition) of a fixed subset of them; transfer: training-split families never used for training
-    (unfamiliar to the learner) - all validation items, never evaluation or sealed ones."""
+ESTABLISH_SEEDS = (1_500_001, 1_500_002, 1_500_003)
+ESTABLISH_MIN = 0.05
+
+
+def _cache_path(name: str, key) -> str:
+    import hashlib
+    import json
+    base = os.environ.get("CRUCIBLE_CACHE") or os.path.join(os.path.expanduser("~"), ".cache", "crucible")
+    from .distribution import source_digest
+    h = hashlib.sha256(json.dumps([source_digest(), key], sort_keys=True, default=str).encode()).hexdigest()[:20]
+    d = os.path.join(base, "research_v5")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f"{name}-{h}.json")
+
+
+def establish(registry: Registry | None = None, families: Sequence[str] | None = None) -> dict:
+    """Independently establish, per family, the capabilities the positive controls are built to have, on seeds
+    no protocol uses (`ESTABLISH_SEEDS`, validation partition): the within-episode adapter's gain over its own blind
+    run, and the weights learner's gain on new seeds after training on that family alone. Cached by source digest."""
+    import json
     reg = registry or build_registry()
-    fams = lever_entries(reg, "train")
-    rng = np.random.default_rng(20261126)
-    order = [fams[i] for i in rng.permutation(len(fams))]
-    transfer = tuple(sorted(order[:n_transfer]))
-    train = tuple(sorted(order[n_transfer:]))
-    ev = tuple(sorted(train[:: max(1, len(train) // n_eval)][:n_eval]))
-    return Design(train_families=train, eval_families=ev, transfer_families=transfer, **kw)
+    fams = list(families or lever_entries(reg, "train"))
+    path = _cache_path("establish", fams)
+    if os.path.exists(path):
+        return json.load(open(path))
+    out = {}
+    for f in fams:
+        rng = np.random.default_rng(5)
+        ad = LR.make("adapter", 0)
+        ctx = [score_episode(reg, f, s, ad, learn=False, rng=rng)["score"] -
+               score_episode(reg, f, s, ad, learn=False, rng=rng, blind=True)["score"] for s in ESTABLISH_SEEDS]
+        w = LR.make("weights", 0)
+        base = [score_episode(reg, f, s, w, learn=False, rng=rng)["score"] for s in ESTABLISH_SEEDS]
+        for i in range(8):
+            for _ in range(3):
+                run_episode(build_env(reg[f], 700_000 + i, {}, {"mode": "assigned"}), w, learn=True, rng=rng,
+                            verify=False)
+        w.frozen = True
+        after = [score_episode(reg, f, s, w, learn=False, rng=rng)["score"] for s in ESTABLISH_SEEDS]
+        out[f] = {"adapter_gain": float(np.mean(ctx)), "weights_gain": float(np.mean(after) - np.mean(base)),
+                  "adapter_gains": ctx, "weights_gains": [a - b for a, b in zip(after, base)]}
+    json.dump(out, open(path, "w"))
+    return out
+
+
+def establish_transfer(registry: Registry, train: Sequence[str], candidates: Sequence[str],
+                       budgets=(0, 1, 2, 4, 8, 16)) -> dict:
+    """Per candidate held-out family: AUC of a transfer learner trained on `train` minus an untrained one, on the
+    establishment seeds (independent of every protocol seed). Cached."""
+    import json
+    path = _cache_path("establish_transfer", [list(train), list(candidates), list(budgets)])
+    if os.path.exists(path):
+        return json.load(open(path))
+    rng = np.random.default_rng(9)
+    T = LR.make("transfer", 999)
+    for i in range(24):
+        f = train[i % len(train)]
+        for _ in range(4):
+            run_episode(build_env(registry[f], 800_000 + i, {}, {"mode": "assigned"}), T, learn=True, rng=rng,
+                        verify=False)
+    out = {}
+    for f in candidates:
+        g = []
+        for s in ESTABLISH_SEEDS[:2]:
+            T.clear_memory()
+            a = CV.practice_curve(registry, {"entry": f, "seed": s}, T, budgets=budgets, rng=rng)["auc"]
+            u = CV.practice_curve(registry, {"entry": f, "seed": s}, LR.make("transfer", 998), budgets=budgets,
+                                  rng=rng)["auc"]
+            g.append(a - u)
+        out[f] = {"transfer_gain": float(np.mean(g)), "gains": g}
+    json.dump(out, open(path, "w"))
+    return out
+
+
+def default_design(registry: Registry | None = None, *, n_train: int = 6, n_transfer: int = 4, **kw) -> Design:
+    """Families on which the controls' capabilities were established independently (`establish`): training and
+    unfamiliar-world families are the `n_train` families with the largest established gains of both the adapter
+    and the weights learner (each at least `ESTABLISH_MIN`); transfer families are the `n_transfer` other families
+    with the largest established transfer gain. All items are validation-partition items."""
+    reg = registry or build_registry()
+    est = establish(reg)
+    ok = sorted((f for f, v in est.items() if v["adapter_gain"] >= ESTABLISH_MIN and
+                 v["weights_gain"] >= ESTABLISH_MIN), key=lambda f: -min(est[f]["adapter_gain"],
+                                                                         est[f]["weights_gain"]))
+    train = tuple(sorted(ok[:n_train]))
+    rest = [f for f in est if f not in train]
+    tr = establish_transfer(reg, train, rest)
+    tf = sorted((f for f in rest if tr[f]["transfer_gain"] >= ESTABLISH_MIN), key=lambda f: -tr[f]["transfer_gain"])
+    return Design(train_families=train, eval_families=train, transfer_families=tuple(sorted(tf[:n_transfer])), **kw)
 
 
 def _training_worlds(d: Design) -> list[tuple[str, int]]:
@@ -271,5 +348,35 @@ def run_controls(archs: Sequence[str], d: Design, *, jobs: int = 1, workdir: str
         c = classify(runs, hold, d)
         c["check"] = check(a, c["labels"]) if a in CONTROLS else None
         c["fresh_checks_all_passed"] = all(all(r["fresh_checks"].values()) for r in runs)
+        c["fresh_checks"] = {k: all(r["fresh_checks"].get(k) for r in runs) for k in runs[0]["fresh_checks"]}
+        c["params_changed"] = [bool(r["params_changed"]) for r in runs]
+        c["seeds"] = [r["seed"] for r in runs]
         out[a] = c
     return {"design": d.to_json(), "controls": out, "effects": dict(EFFECTS)}
+
+
+def controls_result(archs: Sequence[str] = tuple(CONTROLS), *, seeds: Sequence[int] = (0, 1, 2, 3, 4),
+                    jobs: int | None = None) -> dict:
+    """`run_controls` on the default design (established families), cached on disk by source digest, design and
+    controls, so the gate files that read the same confirmation run (U.3, U.4, SP-15.0, SP-15.4, SP-15.6) share
+    one execution. `jobs` defaults to $CRUCIBLE_RESEARCH_JOBS (run through the slot scheduler)."""
+    import json
+    d = default_design(seeds=tuple(seeds))
+    path = _cache_path("controls", [d.to_json(), list(archs)])
+    if os.path.exists(path):
+        res = json.load(open(path))
+        res["cached"] = path
+        return res
+    jobs = int(jobs if jobs is not None else os.environ.get("CRUCIBLE_RESEARCH_JOBS", "1"))
+    res = run_controls(list(archs), d, jobs=jobs)
+    json.dump(res, open(path, "w"), default=_json_default)
+    res["cached"] = None
+    return res
+
+
+def _json_default(x):
+    if isinstance(x, np.generic):
+        return x.item()
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+    raise TypeError(type(x).__name__)

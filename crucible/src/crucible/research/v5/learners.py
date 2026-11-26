@@ -38,6 +38,7 @@ import numpy as np
 
 VERSION = "crucible.v5.levers/1"
 L_MAX = 6
+BRIEF_DIM = 16                              # episodes.BRIEF_DIM: hashed words of the public brief
 _PROCESS_STASH: dict[str, dict] = {}       # the stateful control's out-of-checkpoint memory (by design)
 
 # within-episode search strategies: (step, settle ticks, measure ticks, commit fraction)
@@ -277,14 +278,15 @@ class Memoriser(LeverLearner):
 
 
 class WeightLearner(LeverLearner):
-    """A 2-layer network x -> offset of the settings from the public defaults; SGD toward searched settings."""
+    """A 2-layer network x -> offset of the settings from the public defaults; SGD toward searched settings.
+    x = [1, public defaults, lever count (one-hot), hashed words of the public brief]."""
     arch = "weights"
     H = 12
 
     def __init__(self, seed=0, lr: float = 0.05, **cfg):
         super().__init__(seed, lr=lr, **cfg)
         r = np.random.default_rng(self.seed + 7919)
-        d = 1 + L_MAX + L_MAX
+        d = 1 + L_MAX + L_MAX + BRIEF_DIM
         self.W1 = r.normal(0.0, 0.5, (d, self.H))
         self.b1 = np.zeros(self.H)
         self.W2 = np.zeros((self.H, L_MAX))
@@ -294,7 +296,8 @@ class WeightLearner(LeverLearner):
     def _x(self, ctx) -> np.ndarray:
         oh = np.zeros(L_MAX)
         oh[min(ctx["n"], L_MAX) - 1] = 1.0
-        return np.concatenate([[1.0], self._pad(np.asarray(ctx["u0"])), oh])
+        bv = np.asarray(ctx.get("brief_vec") if ctx.get("brief_vec") is not None else np.zeros(BRIEF_DIM))
+        return np.concatenate([[1.0], self._pad(np.asarray(ctx["u0"])), oh, bv])
 
     def _net(self):
         return self.W1, self.b1, self.W2, self.b2

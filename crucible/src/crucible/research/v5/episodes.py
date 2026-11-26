@@ -99,7 +99,8 @@ class LeverInterface:
     def context(self) -> dict:
         """What a learner is told at the start of an episode (public face only)."""
         return {"n": len(self.names), "u0": self.u_default(), "horizon": self.horizon,
-                "key": sha([self.names, self.brief])[:16], "brief_digest": sha(self.brief)[:16]}
+                "key": sha([self.names, self.brief])[:16], "brief_digest": sha(self.brief)[:16],
+                "brief_vec": brief_vector(self.brief)}
 
     def to_values(self, u: np.ndarray) -> dict:
         x = self.lo + np.clip(np.asarray(u, dtype=float)[: len(self.names)], 0.0, 1.0) * self.span
@@ -119,6 +120,18 @@ class LeverInterface:
         if r.get("ok"):
             self.current = new
         return r
+
+
+BRIEF_DIM = 16
+
+
+def brief_vector(text: str, dim: int = BRIEF_DIM) -> np.ndarray:
+    """A hashed bag of the brief's words (public text; lever names, which seeds draw, are not words of it)."""
+    v = np.zeros(dim)
+    for w in re.findall(r"[a-z]{3,}", text.lower()):
+        v[int(sha(w)[:8], 16) % dim] += 1.0
+    n = np.linalg.norm(v)
+    return v / n if n > 0 else v
 
 
 def verified_value(v: Mapping) -> float:
