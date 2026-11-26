@@ -13,7 +13,7 @@ the appliers of `semp.agent` (genesis) and `semp.update` (one per participant pe
 activation added). It is part of every snapshot, fork and replay of the world; a resumed world continues each
 participant exactly where it stopped. Nothing lives on a Python object between activations.
 
-Config: ``{steps: 3, shortlist: 10, gap_s: [10800, 21600], patience: 4, max_failures: 4, brain: "lm" | "ablated",
+Config: ``{steps: 3, shortlist: 10, gap_s: [14400, 28800], patience: 4, max_failures: 4, brain: "lm" | "ablated",
 routes: {capability: model id}, memory: 40, history: 80}``. The brain is the shared models of
 `crucible.semantic.routing` (one weight copy per model per process); ``brain="ablated"`` replaces every model
 decision by a uniform random one (SP-3.2d ablation).
@@ -99,7 +99,7 @@ class SemanticGeneralists(Module):
     def install(self, world):
         from ... import population
         world.state.declare_table(TABLE)
-        self.cfg = {"steps": 3, "shortlist": 10, "gap_s": [3 * 3600, 6 * 3600], "patience": 4, "max_failures": 4,
+        self.cfg = {"steps": 3, "shortlist": 10, "gap_s": [4 * 3600, 8 * 3600], "patience": 4, "max_failures": 4,
                     "brain": "lm", "routes": {}, "memory": 40, "history": 80, **self.config}
         population.register_class_runtime(world, CLASS, self._activate, owner=NAME)
         bus.enforce(world, owner=NAME)
