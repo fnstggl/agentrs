@@ -1727,13 +1727,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-B-4 (high, open): No gate test exists for B, G, SP-3.1, SP-3.3, SP-3.4 or SP-4.1.
+### DEF-B-4 (high, fixed): No gate test exists for B, G, SP-3.1, SP-3.3, SP-3.4 or SP-4.1.
 
 ```json
 {
  "area": "B_population",
+ "fixed_by": "c5c/w3b-pop: gate tests for every B-owned requirement (B.1-B.6, G.1-G.7, G.n1, SP-3.1, SP-3.2, SP-3.2c, SP-3.3, SP-3.4, SP-4.0, SP-4.1, SP-4.4), each asserting the manifest criteria on the measured values",
  "id": "DEF-B-4",
  "owner": "B",
+ "regression_tests": "tests/v5/test_gate_B.py, tests/v5/test_gate_G.py, tests/v5/test_gate_SP_3_1.py, tests/v5/test_gate_SP_3_2.py, tests/v5/test_gate_SP_3_2c.py, tests/v5/test_gate_SP_3_3.py, tests/v5/test_gate_SP_3_4.py, tests/v5/test_gate_SP_4_0.py, tests/v5/test_gate_SP_4_1.py, tests/v5/test_gate_SP_4_4.py",
  "requirements": [
   "B.1",
   "SP-3.1",
@@ -1748,7 +1750,7 @@ B_population verdict) and P's own findings.
   "finding": 2,
   "section": "critical_findings (also docs/v5/audit/B_population.md, 1. Verdict)"
  },
- "status": "open",
+ "status": "fixed",
  "summary": "No gate test exists for B, G, SP-3.1, SP-3.3, SP-3.4 or SP-4.1."
 }
 ```
@@ -2203,14 +2205,16 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-B-5 (critical, open): Class-2 learning is real (identical-init learning vs frozen: utility +0.11..+0.15, CI>0 in 3/3 seeds; held-out
+### DEF-B-5 (critical, fixed): Class-2 learning is real (identical-init learning vs frozen: utility +0.11..+0.15, CI>0 in 3/3 seeds; held-out
 
 ```json
 {
  "area": "B_population",
+ "fixed_by": "c5c/w3b-pop (D-32): class-2 networks also choose the activity of every session (which steps the personal memory once per session); activity examples are replayed per member through the GRU (backpropagation through time over up to 12 sessions), so memory can carry what the observation does not; the in-world benefit of personal state is measured in SP-3.4 (reported with its CI)",
  "id": "DEF-B-5",
  "notes": "registered by workstream P (wave 3): the B_population audit JSON was committed after the register was opened; whether the wave-2a population/semantic merge resolved it is for CORE-POP/CORE-SEM to show with gate evidence",
  "owner": "B (CORE-POP)",
+ "regression_tests": "tests/test_v5_population_core.py::test_adaptive_memory_learns_through_time, ::test_adaptive_policy_learns_from_examples",
  "requirements": [
   "B.3",
   "SP-3.2"
@@ -2221,19 +2225,21 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/B_population.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Class-2 learning is real (identical-init learning vs frozen: utility +0.11..+0.15, CI>0 in 3/3 seeds; held-out MSE halves) but limited to one decision, and personal GRU memory gives no measurable benefit."
 }
 ```
 
-### DEF-B-6 (critical, open): Content judgement is a closed 160-word bag-of-words x length/distinct-token score: a meaningless word-salad of
+### DEF-B-6 (critical, fixed): Content judgement is a closed 160-word bag-of-words x length/distinct-token score: a meaningless word-salad of
 
 ```json
 {
  "area": "B_population",
+ "fixed_by": "c5c/w3b-pop: page relevance in the shared space (MiniLM topic block, wave 2) and readable content = length x the text's intrinsic legibility (real words, function-word use, little repetition) instead of a distinct-token share; generated sites retell the real news corpus (rich/thin/offtopic), spam stays keyword lists; willingness to pay depends on the individual's income and the product page's relevance",
  "id": "DEF-B-6",
- "notes": "registered by workstream P (wave 3): the B_population audit JSON was committed after the register was opened; whether the wave-2a population/semantic merge resolved it is for CORE-POP/CORE-SEM to show with gate evidence",
+ "notes": "registered by workstream P (wave 3); remaining: the reader model is plausible, unvalidated (no fitted model of page quality); usefulness labels of generated sites (B.4) still come from the generator's behaviour",
  "owner": "B, D (CORE-SEM)",
+ "regression_tests": "tests/test_v5_population_core.py::test_reader_model_does_not_reward_keyword_stuffing",
  "requirements": [
   "SP-4.0",
   "D.1"
@@ -2244,7 +2250,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/B_population.json",
   "finding": 5
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Content judgement is a closed 160-word bag-of-words x length/distinct-token score: a meaningless word-salad of topic words scored as well as a 'rich' article site (utility 0.099 vs 0.090, 1-day return 0.21 vs 0.18) and an agent's thin site equalled its rich site (0.152 vs 0.147)."
 }
 ```
