@@ -128,7 +128,7 @@ def _score(e: Mapping, seed: int, learner, rng) -> float:
     return normalised(rec["value"], references(e, seed))
 
 
-def reference_profile(n_per: int = 4, seed: int = 0) -> dict[str, float]:
+def reference_profile(n_per: int = 6, seed: int = 0) -> dict[str, float]:
     """Regret of the reference adapter per weakness category (category difficulty, not a learner weakness)."""
     rng = np.random.default_rng(seed)
     out = {}
@@ -161,8 +161,8 @@ def measure(curriculum: Curriculum, learner, n_items: int, seed: int) -> list[di
 
 def selection_experiment(planted: Sequence[str] = tuple(PLANTED), seeds: Sequence[int] = (0, 1, 2),
                          n_items: int = 48, reference: Mapping | None = None) -> dict:
-    """For each planted weakness and curriculum seed: the categories in which the planted learner's measured excess
-    regret over the reference adapter is largest (measured on independent probe worlds) versus the curriculum's
+    """For each planted weakness and curriculum seed: the category in which the planted learner's excess regret over
+    the reference adapter is largest (paired on the same independent probe worlds) versus the curriculum's
     targeted weights after `n_items` measured items. Statistic: rank of the planted learner's measured weakest
     category in the curriculum's weights; p-value against uniform ranks (exact, by enumeration of the sum)."""
     ref = dict(reference or reference_profile())
@@ -170,9 +170,10 @@ def selection_experiment(planted: Sequence[str] = tuple(PLANTED), seeds: Sequenc
     for p in planted:
         truth = {}
         rng = np.random.default_rng(77)
-        for c in TEMPLATES:
-            sc = [_score(e, s, PlantedAdapter.planted(p), rng) for e, s in probe_worlds(c, 4, 1900)]
-            truth[c] = float(1.0 - np.mean(sc)) - ref[c]
+        for c in TEMPLATES:                      # paired: planted versus reference adapter on the same worlds
+            ws = probe_worlds(c, 5, 1900)
+            truth[c] = float(np.mean([_score(e, s, PlantedAdapter(0), rng) - _score(e, s, PlantedAdapter.planted(p), rng)
+                                      for e, s in ws]))
         weakest = max(truth, key=truth.get)
         for sd in seeds:
             cur = Curriculum(seed=sd, reference=ref)
