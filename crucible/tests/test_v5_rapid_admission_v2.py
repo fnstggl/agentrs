@@ -147,3 +147,34 @@ def test_identify_goals_are_scored_against_the_counterfactual():
     e2 = F.make("sci_functional_law", 0, objective=g)
     e2.step({"kind": "message", "to": "journal", "content": {"goal": g["id"], "sign": -int(tr["value"]) or 1}})
     assert not GE.evaluate(e2, g)["success"]
+
+
+# ====================================================================== the mechanism check (DEF-H-4)
+def test_a_family_whose_own_claims_fail_is_not_admitted():
+    """Admission's eleventh check runs the family's own controlled-intervention claims: a world built like
+    ch_silent_reversal but without its reversal keeps the family's claim, the claim fails and the mechanism check
+    rejects the world on every seed, while the real family passes it."""
+    from crucible.rapid import admission as AD
+    from crucible.rapid import claims as CL
+    from crucible.rapid.families_v2 import ch_silent_reversal
+    assert "mechanism" in AD.CHECKS
+    f = F.FAMILIES["ch_silent_reversal"]
+
+    def no_reversal(rng, d):
+        cfg = ch_silent_reversal(rng, dict(d))
+        for nd in cfg["nodes"]:
+            if nd.get("prim", "").startswith("regime_change"):
+                nd["params"]["after"] = nd["params"]["before"]
+        return cfg
+    name = "ctl_claim_without_mechanism"
+    F.FAMILIES[name] = F.Family(name, f.engine, f.category, f.item, "train", "negative control", "negative control",
+                                no_reversal, dict(f.axes), f.objective, (), f.claims, f.identify, f.reference,
+                                f.oracle)
+    try:
+        for seed in (0, 1):
+            bad = CL.run(name, seed)
+            good = CL.run("ch_silent_reversal", seed)
+            assert bad and not all(r.get("ok") for r in bad.values())
+            assert good and all(r.get("ok") for r in good.values())
+    finally:
+        F.FAMILIES.pop(name, None)

@@ -739,13 +739,18 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-H-2 (critical, open): Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0
+### DEF-H-2 (critical, fixed): Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0
 
 ```json
 {
  "area": "H_rapid",
+ "fixed_by": "c5c/w3-rapid + c5c/w3b-rapid: fingerprints (rapid-fp/3) are purely categorical components measured from instantiated worlds (core causal graph without distractors, motif census, temporal and observation structure, action interface, objective, participants, engine and scenario) - no counts, sizes, horizons or buckets; the M.n1 variant builder handles nested parameters. Measured on c5c/w3b-rapid: 454 renamed, parameter and difficulty-axis variants of the 92 families, 0 at nonzero distance, 0 counted, 0 not buildable; the closest pair of real families is at 0.02 (> 0)",
  "id": "DEF-H-2",
  "owner": "H",
+ "regression_tests": [
+  "tests/test_v5_rapid_admission_v2.py::test_fingerprints_ignore_axes_and_are_purely_categorical",
+  "tests/v5/test_gate_M.py::test_Mn1_renamed_or_parameter_variants_do_not_count"
+ ],
  "requirements": [
   "M.n1"
  ],
@@ -755,7 +760,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/H_rapid.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Fingerprint is not structural: 116/178 horizon/size/distractor variants have distance>0 to their own family (0.025-0.06 vs 0.063 closest real pair), so parameter variants would count. M.n1 gate test crashes (TypeError)."
 }
 ```
@@ -785,13 +790,19 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-H-4 (critical, open): Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 f
+### DEF-H-4 (critical, fixed): Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 f
 
 ```json
 {
  "area": "H_rapid",
+ "fixed_by": "c5c/w3-rapid + c5c/w3b-rapid: `mechanism` is the eleventh admission check (admission.CHECKS): a family whose own controlled-intervention claims fail on a seed fails that seed's check; the claims of every family were repaired or the family redesigned. Measured on c5c/w3b-rapid: 92 families, 690 claim runs on seeds 0-2 and 10-12, 0 failures (Gate M.8); the look-alike matrix distinguishes the four rules",
  "id": "DEF-H-4",
  "owner": "H",
+ "regression_tests": [
+  "tests/test_v5_rapid_admission_v2.py::test_a_family_whose_own_claims_fail_is_not_admitted",
+  "tests/v5/test_gate_M.py::test_M8_mechanism_level_intervention_tests",
+  "tests/v5/test_gate_SP_7_4.py::test_SP_7_4_admission_checks_with_evaluator_side_oracles"
+ ],
  "requirements": [
   "M.8"
  ],
@@ -801,7 +812,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/H_rapid.json",
   "finding": 3
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Intervention claims are not an admission check: 13 families fail their own controlled-intervention tests (29 failures), 9 of them admitted (cx_balancing_loop, plan_distribution, strat_bargain, team_assembly...). Gate M.8 fails."
 }
 ```
