@@ -47,6 +47,8 @@ FINISH = {"name": "finish", "description": "your goal is achieved, or it cannot 
 WAIT = {"name": "wait", "description": "do nothing more now (for example while you wait for someone's answer)"}
 OTHER = "(another value: I will write it)"
 OMIT = "(leave this out)"
+COMPOSE = "(new text: I will write it now)"
+COMPOSED = "__compose__"          # marker of an argument whose artifact the participant writes in this call
 SHORT_TEXT = ("title", "subject", "name", "handle", "board", "q", "query", "label", "role", "slug", "tag", "host",
               "topic", "keywords", "currency", "city", "region")
 CODE_FIELDS = ("files", "code", "script", "html", "source", "program", "style", "tests")
@@ -398,21 +400,30 @@ def tool_line(t: dict, n: int = 150) -> str:
 
 
 def started(a: Agent) -> bool:
-    """Whether the participant has already acted on its active goal (stopping or waiting is offered only then: a goal
-    it has just set itself, with nothing done yet, cannot be achieved already)."""
+    """Whether the participant has already acted on its active goal (waiting is offered only then)."""
     g = a.goal()
     return bool(g and int(g.get("steps", 0)) > 0)
 
 
+def achieved_something(a: Agent) -> bool:
+    """Whether at least one call for its active goal succeeded (only then can it judge the goal achieved: a goal it
+    has just set itself, or one on which every call failed, cannot be achieved already)."""
+    g = a.goal()
+    return bool(g and int(g.get("ok", 0)) > 0)
+
+
 def intent_request(a: Agent, now: int, qv) -> dict:
     """The participant names its next action in general words (what kind of action, not its details): that phrase
-    is what the service directory is searched for. Once it has acted on the goal it may instead say that the goal
-    is achieved ("stop") or that it waits for someone ("wait")."""
-    alt = ("If your last actions above already achieved your goal, answer \"stop\" instead; if you are waiting for "
-           "someone's answer, answer \"wait\" instead.\n") if started(a) else ""
-    user = (f"{a.header(now, qv)}\n\n{alt}What single action do you take next for your goal? Describe it in "
-            "general terms, in at most six words, without names, numbers or other details (for example: \"reply to "
-            "a message\" or \"publish a blog post\"). Answer with the action only.")
+    is what the service directory is searched for. Once something it did for the goal succeeded it may instead say
+    that the goal is achieved ("stop"); once it has acted, that it waits for someone ("wait")."""
+    alt = ""
+    if achieved_something(a):
+        alt += "If your last actions above already achieved your goal, answer \"stop\" instead. "
+    if started(a):
+        alt += "If you are waiting for someone's answer, answer \"wait\" instead."
+    user = (f"{a.header(now, qv)}\n\n{alt.strip() + chr(10) if alt else ''}What single action do you take next for "
+            "your goal? Describe it in general terms, in at most six words, without names, numbers or other details "
+            "(for example: \"reply to a message\" or \"write an article\"). Answer with the action only.")
     return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
             "max_new_tokens": 16, "temperature": 0.0, "seed": 0, "prefix_messages": 1}
 
@@ -425,8 +436,9 @@ def clean_intent(text: str) -> str:
 
 
 def endings(a: Agent) -> list[str]:
-    """The non-actions offered beside the services: finish and wait once the participant has acted on its goal."""
-    return ["finish", "wait"] if started(a) else []
+    """The non-actions offered beside the services: finish once something it did for the goal succeeded, wait once
+    it has acted on it."""
+    return (["finish"] if achieved_something(a) else []) + (["wait"] if started(a) else [])
 
 
 def service_request(a: Agent, now: int, hosts: list[str], summaries: dict, qv) -> dict:
@@ -468,7 +480,7 @@ class Slot:
     name: str
     schema: dict
     required: bool
-    kind: str                     # choose | number | text | json | list
+    kind: str                     # choose | number | text | json | list | compose
     options: list = field(default_factory=list)
     values: list = field(default_factory=list)
     tokens: int = 24
@@ -480,6 +492,12 @@ MAX_OPTIONS = 12
 def _recent(a: Agent) -> list[str]:
     """Known identifiers, most recently learned first."""
     return list(reversed(list(a.known)))
+
+
+def publishes_content(tool: dict, arg: str) -> bool:
+    """A publishing or updating tool's artifact argument (``ref`` of *.publish / content.update)."""
+    short = tool["name"].split(".", 1)[-1]
+    return arg == "ref" and short in ("publish", "update")
 
 
 def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
@@ -538,7 +556,12 @@ def plan_slots(a: Agent, tool: dict, max_slots: int = 6) -> list[Slot]:
             pat, mx = ps.get("pattern"), int(ps.get("maxLength", 200) or 200)
             ids = [x for x in _recent(a) if len(x) <= mx and (not pat or re.fullmatch(pat, x)) and
                    _ID_PATTERNS.fullmatch(x) and compatible(k, ps, x)][:MAX_OPTIONS]
-            if ids:
+            if publishes_content(tool, k):
+                # the content of a publication: an artifact it already made, or text it writes now (stored as its
+                # own artifact by the same call, see `execute`) - as a publishing form offers a text box
+                out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [COMPOSE],
+                                ids + [COMPOSE]) if ids else Slot(k, ps, required, "compose", tokens=200))
+            elif ids:
                 out.append(Slot(k, ps, required, "choose", [f"{x} ({a.known[x]})" for x in ids] + [OTHER],
                                 ids + [OTHER]))
             else:
@@ -559,7 +582,11 @@ def slot_request(a: Agent, now: int, tool: dict, slot: Slot, sofar: dict, qv) ->
         choices = [o.split(" (", 1)[0] if not o.startswith("(") else o for o in slot.options]
         return {"messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
                 "choices": choices, "normalize": "mean", "prefix_messages": 1}
-    if slot.kind == "number":
+    if slot.kind == "compose":
+        ask = ("Write the text you publish now: the article, post or message itself, at least four sentences "
+               "with concrete details about its subject, in plain words. Do not describe what you will do; write "
+               "the text itself, nothing else.")
+    elif slot.kind == "number":
         ask = "Write the number only (digits)."
     elif slot.kind == "json":
         ask = "Write the value as one JSON object on one line, nothing else."
@@ -615,6 +642,9 @@ def written_value(slot: Slot, text: str):
         return int(m.group(0)) if "integer" in typ else float(m.group(0))
     if slot.kind == "json":
         return parse_json_object(t)
+    if slot.kind == "compose":
+        t = t.strip().strip('"').strip()
+        return {COMPOSED: t[:6000]} if len(t.split()) >= 3 else None
     if slot.kind == "list":
         parts = [p.strip().strip('"').strip("'") for p in re.split(r"[,\n]", t) if p.strip()]
         return parts[:5] or None
@@ -705,8 +735,8 @@ def decide(ctx, brain, live: list[Agent], now: int, cfg: Config, step: int = 0) 
     rest = []
     for a in live:                          # the participant itself said its goal is done / it must wait
         word = a.intent.lower().strip(" .!")
-        if word in ("stop", "wait") and not started(a):
-            a.intent = ""                   # not offered before the first action: the goal itself is the query
+        if (word == "stop" and not achieved_something(a)) or (word == "wait" and not started(a)):
+            a.intent = ""                   # not offered (see intent_request): the goal itself is the query
             a.count("premature_stop")
             rest.append(a)
         elif word in ("stop", "wait"):
@@ -786,8 +816,9 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
                 out = brain.choose(ctx, cap if cap != "tool_choice" else "situation_interpretation", reqs)
                 for (j, slot, _), o in zip(items, out):
                     v = slot.values[o] if 0 <= o < len(slot.values) else None
-                    if v == OTHER:
-                        written.append((j, slot))
+                    if v in (OTHER, COMPOSE):
+                        written.append((j, slot if v == OTHER else Slot(slot.name, slot.schema, slot.required,
+                                                                        "compose", tokens=200)))
                     elif v is not None:
                         vals[j][slot.name] = v
             else:
@@ -800,14 +831,15 @@ def fill_arguments(ctx, brain, acting: list, now: int, cfg: Config) -> list[dict
             reqs, caps = [], []
             for j, slot in written:
                 a, tool, qv = acting[j]
-                s2 = Slot(slot.name, slot.schema, slot.required, "number" if slot.kind == "number" else "text",
-                          tokens=10 if slot.kind == "number" else 24)
+                s2 = slot if slot.kind == "compose" else \
+                    Slot(slot.name, slot.schema, slot.required, "number" if slot.kind == "number" else "text",
+                         tokens=10 if slot.kind == "number" else 24)
                 reqs.append((j, s2, slot_request(a, now, tool, s2, vals[j], qv)))
             out = brain.generate(ctx, "communication", [x[2] for x in reqs])
             for (j, s2, _), o in zip(reqs, out):
                 v = written_value(s2, o)
                 if v is not None:
-                    vals[j][s2.name] = [v] if "array" in str(s2.schema.get("type")) else v
+                    vals[j][s2.name] = [v] if ("array" in str(s2.schema.get("type")) and s2.kind != "compose") else v
     return vals
 
 
@@ -821,6 +853,28 @@ KIND_OF_HOST = {"mail": "talk", "msg": "talk", "forum": "talk", "social": "talk"
                 "jobs": "work", "labor": "work", "cloud": "build"}
 
 
+def compose_artifacts(ctx, a: Agent, args: dict, g: dict | None) -> dict:
+    """Arguments whose content the participant wrote in this call (`COMPOSED`) become artifacts of its own, stored
+    as itself with the world's ordinary tools (`studio.write`, else `artifact.put`) inside the same decision, so
+    their events belong to the call it chose."""
+    out = dict(args)
+    for k, v in args.items():
+        if not (isinstance(v, dict) and set(v) == {COMPOSED}):
+            continue
+        body = str(v[COMPOSED])
+        title = clip(str(args.get("title") or (g or {}).get("text") or "Notes"), 120)
+        if "studio" in ctx.world.modules:
+            made = ctx.call("studio.write", {"format": "text", "title": title, "body": body},
+                            as_principal=a.principal)
+        else:
+            import base64
+            made = ctx.call("artifact.put", {"data_b64": base64.b64encode(body.encode("utf-8")).decode("ascii"),
+                                             "mime": "text/plain", "kind": "text"}, as_principal=a.principal)
+        out[k] = made["ref"]
+        a.learn_ids({made["ref"]: f"the text you wrote ('{clip(title, 40)}')"})
+    return out
+
+
 def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> None:
     name = tool["name"]
     ro = bool((tool.get("annotations") or {}).get("readOnlyHint"))
@@ -831,6 +885,7 @@ def execute(ctx, a: Agent, tool: dict, args: dict, now: int, cfg: Config) -> Non
     a.count("calls")
     n0, seq0, mark = len(ctx.events), ctx.world.seq, ctx.state.savepoint()
     try:
+        args = compose_artifacts(ctx, a, args, g)
         res = ctx.call(name, args, as_principal=a.principal)
         rec["ok"] = True
         evs = ctx.events[n0:]
