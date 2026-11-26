@@ -1,0 +1,1377 @@
+{
+ "decision": "DECISION_LOG D-36",
+ "report": {
+  "capabilities": [
+   "content_understanding",
+   "situation_interpretation",
+   "tool_choice",
+   "communication",
+   "incentive_adaptation",
+   "negotiation",
+   "programming",
+   "strategic_decisions"
+  ],
+  "effective_threshold": {
+   "accuracy": 0.6,
+   "gen_wilson_lo": 0.4,
+   "p_vs_chance": 0.01
+  },
+  "recommendation": {
+   "communication": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 1.0,
+    "metric": "generation_pass_rate",
+    "params": 134515008,
+    "recommended": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "value": 0.75,
+    "within_best_interval": false
+   },
+   "content_understanding": {
+    "best": "Qwen/Qwen3-0.6B",
+    "best_value": 0.9,
+    "metric": "accuracy",
+    "params": 596049920,
+    "recommended": "Qwen/Qwen3-0.6B",
+    "value": 0.9,
+    "within_best_interval": true
+   },
+   "incentive_adaptation": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.8167,
+    "metric": "accuracy",
+    "params": 2130433,
+    "recommended": "ngram-bag+head (from scratch)",
+    "value": 0.6833,
+    "within_best_interval": true
+   },
+   "negotiation": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.6333,
+    "metric": "accuracy",
+    "params": 1720574976,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.6333,
+    "within_best_interval": true
+   },
+   "programming": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.8929,
+    "metric": "generation_pass_rate",
+    "params": 1720574976,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.8929,
+    "within_best_interval": true
+   },
+   "situation_interpretation": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.7667,
+    "metric": "accuracy",
+    "params": 2130433,
+    "recommended": "ngram-bag+head (from scratch)",
+    "value": 0.625,
+    "within_best_interval": true
+   },
+   "strategic_decisions": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.825,
+    "metric": "accuracy",
+    "params": 1720574976,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.825,
+    "within_best_interval": true
+   },
+   "tool_choice": {
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.75,
+    "metric": "accuracy",
+    "params": 596049920,
+    "recommended": "Qwen/Qwen3-0.6B",
+    "value": 0.6083,
+    "within_best_interval": true
+   }
+  },
+  "recommendation_held_out": {
+   "communication": {
+    "basis": "primary measurement (no held-out subset)",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 1.0,
+    "metric": "generation_pass_rate",
+    "params": 134515008,
+    "recommended": "HuggingFaceTB/SmolLM2-135M-Instruct",
+    "value": 0.75,
+    "within_best_interval": false
+   },
+   "content_understanding": {
+    "basis": "held-out templates",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.8333,
+    "n": 60,
+    "recommended": "Qwen/Qwen3-0.6B",
+    "value": 0.8167
+   },
+   "incentive_adaptation": {
+    "basis": "held-out templates",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.6333,
+    "n": 60,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.6333
+   },
+   "negotiation": {
+    "basis": "held-out templates",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.5333,
+    "n": 30,
+    "recommended": null,
+    "value": null
+   },
+   "programming": {
+    "basis": "primary measurement (no held-out subset)",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.8929,
+    "metric": "generation_pass_rate",
+    "params": 1720574976,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.8929,
+    "within_best_interval": true
+   },
+   "situation_interpretation": {
+    "basis": "held-out templates",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.65,
+    "n": 60,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.65
+   },
+   "strategic_decisions": {
+    "basis": "held-out templates",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.85,
+    "n": 60,
+    "recommended": "Qwen/Qwen3-1.7B",
+    "value": 0.85
+   },
+   "tool_choice": {
+    "basis": "primary measurement (no held-out subset)",
+    "best": "Qwen/Qwen3-1.7B",
+    "best_value": 0.75,
+    "metric": "accuracy",
+    "params": 596049920,
+    "recommended": "Qwen/Qwen3-0.6B",
+    "value": 0.6083,
+    "within_best_interval": true
+   }
+  },
+  "results": [
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "n": 60,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.4667,
+       "chance": 0.25,
+       "ci95": [
+        0.3463,
+        0.5911
+       ],
+       "correct": 28,
+       "n": 60,
+       "p_vs_chance": 0.000224
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.3583,
+       "chance": 0.25,
+       "ci95": [
+        0.2782,
+        0.4473
+       ],
+       "correct": 43,
+       "held_out_templates": {
+        "accuracy": 0.2667,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.00537,
+       "seen_templates": {
+        "accuracy": 0.45,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.6833,
+       "chance": 0.25,
+       "ci95": [
+        0.5955,
+        0.7598
+       ],
+       "correct": 82,
+       "held_out_templates": {
+        "accuracy": 0.5,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 2.42e-23,
+       "seen_templates": {
+        "accuracy": 0.8667,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "n": 60,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.4167,
+       "chance": 0.25,
+       "ci95": [
+        0.3006,
+        0.5427
+       ],
+       "correct": 25,
+       "held_out_templates": {
+        "accuracy": 0.4,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 0.00342,
+       "seen_templates": {
+        "accuracy": 0.4333,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "n": 28,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.2,
+       "chance": 0.25,
+       "ci95": [
+        0.0567,
+        0.5098
+       ],
+       "correct": 2,
+       "n": 10,
+       "p_vs_chance": 0.756
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.625,
+       "chance": 0.25,
+       "ci95": [
+        0.5358,
+        0.7065
+       ],
+       "correct": 75,
+       "held_out_templates": {
+        "accuracy": 0.5,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 4.69e-18,
+       "seen_templates": {
+        "accuracy": 0.75,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.4917,
+       "chance": 0.25,
+       "ci95": [
+        0.4039,
+        0.58
+       ],
+       "correct": 59,
+       "held_out_templates": {
+        "accuracy": 0.3167,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 1.03e-08,
+       "seen_templates": {
+        "accuracy": 0.6667,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.1333,
+       "chance": 0.1,
+       "ci95": [
+        0.0838,
+        0.2056
+       ],
+       "correct": 16,
+       "n": 120,
+       "p_vs_chance": 0.144
+      }
+     }
+    },
+    "gen_tokens_per_s": null,
+    "mc_ms_per_item": null,
+    "model": {
+     "kind": "from_scratch_small_network",
+     "name": "ngram-bag+head (from scratch)",
+     "params": 2130433
+    },
+    "peak_vram_mb": null
+   },
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "n": 60,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.45,
+       "chance": 0.25,
+       "ci95": [
+        0.3309,
+        0.5751
+       ],
+       "correct": 27,
+       "n": 60,
+       "p_vs_chance": 0.000593
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.4417,
+       "chance": 0.25,
+       "ci95": [
+        0.356,
+        0.531
+       ],
+       "correct": 53,
+       "held_out_templates": {
+        "accuracy": 0.3,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 3.78e-06,
+       "seen_templates": {
+        "accuracy": 0.5833,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.625,
+       "chance": 0.25,
+       "ci95": [
+        0.5358,
+        0.7065
+       ],
+       "correct": 75,
+       "held_out_templates": {
+        "accuracy": 0.3833,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 4.69e-18,
+       "seen_templates": {
+        "accuracy": 0.8667,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "n": 60,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.3833,
+       "chance": 0.25,
+       "ci95": [
+        0.2709,
+        0.5098
+       ],
+       "correct": 23,
+       "held_out_templates": {
+        "accuracy": 0.3667,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 0.0154,
+       "seen_templates": {
+        "accuracy": 0.4,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "n": 28,
+       "not_applicable": "this candidate cannot generate text or programs",
+       "pass_rate": null
+      },
+      "mc": {
+       "accuracy": 0.0,
+       "chance": 0.25,
+       "ci95": [
+        0.0,
+        0.2775
+       ],
+       "correct": 0,
+       "n": 10,
+       "p_vs_chance": 1.0
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.65,
+       "chance": 0.25,
+       "ci95": [
+        0.5612,
+        0.7295
+       ],
+       "correct": 78,
+       "held_out_templates": {
+        "accuracy": 0.5167,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 3.16e-20,
+       "seen_templates": {
+        "accuracy": 0.7833,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.575,
+       "chance": 0.25,
+       "ci95": [
+        0.4856,
+        0.6598
+       ],
+       "correct": 69,
+       "held_out_templates": {
+        "accuracy": 0.4667,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 4.04e-14,
+       "seen_templates": {
+        "accuracy": 0.6833,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.0583,
+       "chance": 0.1,
+       "ci95": [
+        0.0285,
+        0.1155
+       ],
+       "correct": 7,
+       "n": 120,
+       "p_vs_chance": 0.962
+      }
+     }
+    },
+    "gen_tokens_per_s": null,
+    "mc_ms_per_item": null,
+    "model": {
+     "kind": "task_specific_encoder",
+     "name": "minilm-l6+head",
+     "params": 23106945,
+     "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+    },
+    "peak_vram_mb": null
+   },
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "ci95": [
+        0.6277,
+        0.8422
+       ],
+       "n": 60,
+       "pass_rate": 0.75,
+       "passed": 45
+      },
+      "mc": {
+       "accuracy": 0.5333,
+       "chance": 0.25,
+       "ci95": [
+        0.4089,
+        0.6537
+       ],
+       "correct": 32,
+       "n": 60,
+       "p_vs_chance": 2.47e-06
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.225,
+       "chance": 0.25,
+       "ci95": [
+        0.1595,
+        0.3076
+       ],
+       "correct": 27,
+       "held_out_templates": {
+        "accuracy": 0.1833,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.767,
+       "seen_templates": {
+        "accuracy": 0.2667,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.45,
+       "chance": 0.25,
+       "ci95": [
+        0.3639,
+        0.5392
+       ],
+       "correct": 54,
+       "held_out_templates": {
+        "accuracy": 0.3333,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 1.53e-06,
+       "seen_templates": {
+        "accuracy": 0.5667,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "ci95": [
+        0.0092,
+        0.1136
+       ],
+       "n": 60,
+       "pass_rate": 0.0333,
+       "passed": 2
+      },
+      "mc": {
+       "accuracy": 0.4167,
+       "chance": 0.25,
+       "ci95": [
+        0.3006,
+        0.5427
+       ],
+       "correct": 25,
+       "held_out_templates": {
+        "accuracy": 0.4,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 0.00342,
+       "seen_templates": {
+        "accuracy": 0.4333,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "ci95": [
+        0.057,
+        0.3149
+       ],
+       "n": 28,
+       "pass_rate": 0.1429,
+       "passed": 4
+      },
+      "mc": {
+       "accuracy": 0.4,
+       "chance": 0.25,
+       "ci95": [
+        0.1682,
+        0.6873
+       ],
+       "correct": 4,
+       "n": 10,
+       "p_vs_chance": 0.224
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.5333,
+       "chance": 0.25,
+       "ci95": [
+        0.4444,
+        0.6202
+       ],
+       "correct": 64,
+       "held_out_templates": {
+        "accuracy": 0.5333,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 3.07e-11,
+       "seen_templates": {
+        "accuracy": 0.5333,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.2167,
+       "chance": 0.25,
+       "ci95": [
+        0.1524,
+        0.2985
+       ],
+       "correct": 26,
+       "held_out_templates": {
+        "accuracy": 0.1667,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.828,
+       "seen_templates": {
+        "accuracy": 0.2667,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.1083,
+       "chance": 0.1,
+       "ci95": [
+        0.0644,
+        0.1766
+       ],
+       "correct": 13,
+       "n": 120,
+       "p_vs_chance": 0.424
+      }
+     }
+    },
+    "gen_tokens_per_s": 411.2,
+    "mc_ms_per_item": 65.8,
+    "model": {
+     "kind": "language_model",
+     "name": "HuggingFaceTB/SmolLM2-135M-Instruct",
+     "params": 134515008,
+     "revision": "12fd25f77366fa6b3b4b768ec3050bf629380bac"
+    },
+    "peak_vram_mb": 825.9
+   },
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "ci95": [
+        0.5923,
+        0.8149
+       ],
+       "n": 60,
+       "pass_rate": 0.7167,
+       "passed": 43
+      },
+      "mc": {
+       "accuracy": 0.7333,
+       "chance": 0.25,
+       "ci95": [
+        0.6099,
+        0.8287
+       ],
+       "correct": 44,
+       "n": 60,
+       "p_vs_chance": 5.49e-15
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.2667,
+       "chance": 0.25,
+       "ci95": [
+        0.1957,
+        0.3521
+       ],
+       "correct": 32,
+       "held_out_templates": {
+        "accuracy": 0.25,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.37,
+       "seen_templates": {
+        "accuracy": 0.2833,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.3583,
+       "chance": 0.25,
+       "ci95": [
+        0.2782,
+        0.4473
+       ],
+       "correct": 43,
+       "held_out_templates": {
+        "accuracy": 0.2,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.00537,
+       "seen_templates": {
+        "accuracy": 0.5167,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "ci95": [
+        0.0,
+        0.0602
+       ],
+       "n": 60,
+       "pass_rate": 0.0,
+       "passed": 0
+      },
+      "mc": {
+       "accuracy": 0.3333,
+       "chance": 0.25,
+       "ci95": [
+        0.2273,
+        0.4594
+       ],
+       "correct": 20,
+       "held_out_templates": {
+        "accuracy": 0.3,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 0.0925,
+       "seen_templates": {
+        "accuracy": 0.3667,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "ci95": [
+        0.1268,
+        0.4336
+       ],
+       "n": 28,
+       "pass_rate": 0.25,
+       "passed": 7
+      },
+      "mc": {
+       "accuracy": 0.7,
+       "chance": 0.25,
+       "ci95": [
+        0.3968,
+        0.8922
+       ],
+       "correct": 7,
+       "n": 10,
+       "p_vs_chance": 0.00351
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.25,
+       "chance": 0.25,
+       "ci95": [
+        0.1811,
+        0.3344
+       ],
+       "correct": 30,
+       "held_out_templates": {
+        "accuracy": 0.2167,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.535,
+       "seen_templates": {
+        "accuracy": 0.2833,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.4083,
+       "chance": 0.25,
+       "ci95": [
+        0.3246,
+        0.4978
+       ],
+       "correct": 49,
+       "held_out_templates": {
+        "accuracy": 0.2167,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 0.000102,
+       "seen_templates": {
+        "accuracy": 0.6,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.1333,
+       "chance": 0.1,
+       "ci95": [
+        0.0838,
+        0.2056
+       ],
+       "correct": 16,
+       "n": 120,
+       "p_vs_chance": 0.144
+      }
+     }
+    },
+    "gen_tokens_per_s": 338.1,
+    "mc_ms_per_item": 75.2,
+    "model": {
+     "kind": "language_model",
+     "name": "HuggingFaceTB/SmolLM2-360M-Instruct",
+     "params": 361821120,
+     "revision": "a10cc1512eabd3dde888204e902eca88bddb4951"
+    },
+    "peak_vram_mb": 1595.7
+   },
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "ci95": [
+        0.9114,
+        0.9971
+       ],
+       "n": 60,
+       "pass_rate": 0.9833,
+       "passed": 59
+      },
+      "mc": {
+       "accuracy": 1.0,
+       "chance": 0.25,
+       "ci95": [
+        0.9398,
+        1.0
+       ],
+       "correct": 60,
+       "n": 60,
+       "p_vs_chance": 7.52e-37
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.9,
+       "chance": 0.25,
+       "ci95": [
+        0.8333,
+        0.9419
+       ],
+       "correct": 108,
+       "held_out_templates": {
+        "accuracy": 0.8167,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 3.29e-51,
+       "seen_templates": {
+        "accuracy": 0.9833,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.5833,
+       "chance": 0.25,
+       "ci95": [
+        0.4939,
+        0.6676
+       ],
+       "correct": 70,
+       "held_out_templates": {
+        "accuracy": 0.5667,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 9.72e-15,
+       "seen_templates": {
+        "accuracy": 0.6,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "ci95": [
+        0.2709,
+        0.5098
+       ],
+       "n": 60,
+       "pass_rate": 0.3833,
+       "passed": 23
+      },
+      "mc": {
+       "accuracy": 0.3667,
+       "chance": 0.25,
+       "ci95": [
+        0.2562,
+        0.4932
+       ],
+       "correct": 22,
+       "held_out_templates": {
+        "accuracy": 0.3667,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 0.0298,
+       "seen_templates": {
+        "accuracy": 0.3667,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "ci95": [
+        0.3263,
+        0.6737
+       ],
+       "n": 28,
+       "pass_rate": 0.5,
+       "passed": 14
+      },
+      "mc": {
+       "accuracy": 1.0,
+       "chance": 0.25,
+       "ci95": [
+        0.7225,
+        1.0
+       ],
+       "correct": 10,
+       "n": 10,
+       "p_vs_chance": 9.54e-07
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.6083,
+       "chance": 0.25,
+       "ci95": [
+        0.5189,
+        0.691
+       ],
+       "correct": 73,
+       "held_out_templates": {
+        "accuracy": 0.2833,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 1.1e-16,
+       "seen_templates": {
+        "accuracy": 0.9333,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.4917,
+       "chance": 0.25,
+       "ci95": [
+        0.4039,
+        0.58
+       ],
+       "correct": 59,
+       "held_out_templates": {
+        "accuracy": 0.35,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 1.03e-08,
+       "seen_templates": {
+        "accuracy": 0.6333,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.6083,
+       "chance": 0.1,
+       "ci95": [
+        0.5189,
+        0.691
+       ],
+       "correct": 73,
+       "n": 120,
+       "p_vs_chance": 4.4e-42
+      }
+     }
+    },
+    "gen_tokens_per_s": 297.1,
+    "mc_ms_per_item": 343.1,
+    "model": {
+     "kind": "language_model",
+     "name": "Qwen/Qwen3-0.6B",
+     "params": 596049920,
+     "revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+    },
+    "peak_vram_mb": 4455.5
+   },
+   {
+    "capabilities": {
+     "communication": {
+      "gen": {
+       "ci95": [
+        0.9398,
+        1.0
+       ],
+       "n": 60,
+       "pass_rate": 1.0,
+       "passed": 60
+      },
+      "mc": {
+       "accuracy": 1.0,
+       "chance": 0.25,
+       "ci95": [
+        0.9398,
+        1.0
+       ],
+       "correct": 60,
+       "n": 60,
+       "p_vs_chance": 7.52e-37
+      }
+     },
+     "content_understanding": {
+      "mc": {
+       "accuracy": 0.9,
+       "chance": 0.25,
+       "ci95": [
+        0.8333,
+        0.9419
+       ],
+       "correct": 108,
+       "held_out_templates": {
+        "accuracy": 0.8333,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 3.29e-51,
+       "seen_templates": {
+        "accuracy": 0.9667,
+        "n": 60
+       }
+      }
+     },
+     "incentive_adaptation": {
+      "mc": {
+       "accuracy": 0.8167,
+       "chance": 0.25,
+       "ci95": [
+        0.738,
+        0.8757
+       ],
+       "correct": 98,
+       "held_out_templates": {
+        "accuracy": 0.6333,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 1.21e-38,
+       "seen_templates": {
+        "accuracy": 1.0,
+        "n": 60
+       }
+      }
+     },
+     "negotiation": {
+      "gen": {
+       "ci95": [
+        0.1578,
+        0.3723
+       ],
+       "n": 60,
+       "pass_rate": 0.25,
+       "passed": 15
+      },
+      "mc": {
+       "accuracy": 0.6333,
+       "chance": 0.25,
+       "ci95": [
+        0.5068,
+        0.7438
+       ],
+       "correct": 38,
+       "held_out_templates": {
+        "accuracy": 0.5333,
+        "n": 30
+       },
+       "n": 60,
+       "p_vs_chance": 4.1e-10,
+       "seen_templates": {
+        "accuracy": 0.7333,
+        "n": 30
+       }
+      }
+     },
+     "programming": {
+      "gen": {
+       "ci95": [
+        0.728,
+        0.9629
+       ],
+       "n": 28,
+       "pass_rate": 0.8929,
+       "passed": 25
+      },
+      "mc": {
+       "accuracy": 1.0,
+       "chance": 0.25,
+       "ci95": [
+        0.7225,
+        1.0
+       ],
+       "correct": 10,
+       "n": 10,
+       "p_vs_chance": 9.54e-07
+      }
+     },
+     "situation_interpretation": {
+      "mc": {
+       "accuracy": 0.7667,
+       "chance": 0.25,
+       "ci95": [
+        0.6834,
+        0.8333
+       ],
+       "correct": 92,
+       "held_out_templates": {
+        "accuracy": 0.65,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 2.54e-32,
+       "seen_templates": {
+        "accuracy": 0.8833,
+        "n": 60
+       }
+      }
+     },
+     "strategic_decisions": {
+      "mc": {
+       "accuracy": 0.825,
+       "chance": 0.25,
+       "ci95": [
+        0.7472,
+        0.8826
+       ],
+       "correct": 99,
+       "held_out_templates": {
+        "accuracy": 0.85,
+        "n": 60
+       },
+       "n": 120,
+       "p_vs_chance": 8.93e-40,
+       "seen_templates": {
+        "accuracy": 0.8,
+        "n": 60
+       }
+      }
+     },
+     "tool_choice": {
+      "mc": {
+       "accuracy": 0.75,
+       "chance": 0.1,
+       "ci95": [
+        0.6656,
+        0.8189
+       ],
+       "correct": 90,
+       "n": 120,
+       "p_vs_chance": 7.47e-64
+      }
+     }
+    },
+    "gen_tokens_per_s": 237.2,
+    "mc_ms_per_item": 441.8,
+    "model": {
+     "kind": "language_model",
+     "name": "Qwen/Qwen3-1.7B",
+     "params": 1720574976,
+     "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    },
+    "peak_vram_mb": 6822.1
+   }
+  ],
+  "schema": "crucible.v5.sp32b/1",
+  "seed": 0,
+  "set_sizes": {
+   "communication": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "content_understanding": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "incentive_adaptation": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "negotiation": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "programming": {
+    "dev": 6,
+    "test": 38,
+    "train": 23
+   },
+   "situation_interpretation": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "strategic_decisions": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   },
+   "tool_choice": {
+    "dev": 40,
+    "test": 120,
+    "train": 240
+   }
+  },
+  "wall_s": 3155.0
+ },
+ "report_command": "python -m crucible.semantic.capbench (seed 0, 6 candidates x 8 capabilities, GPU)",
+ "report_sha256": "093b1b3a743216e38728675a49329a1f151c967eb139fb72b36020ad17f4fbea",
+ "routes": {
+  "communication": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.75,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.7167,
+    "Qwen/Qwen3-0.6B": 0.9833,
+    "Qwen/Qwen3-1.7B": 1.0
+   },
+   "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "content_understanding": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1833,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.25,
+    "Qwen/Qwen3-0.6B": 0.8167,
+    "Qwen/Qwen3-1.7B": 0.8333
+   },
+   "model": "Qwen/Qwen3-0.6B",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "incentive_adaptation": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.3333,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2,
+    "Qwen/Qwen3-0.6B": 0.5667,
+    "Qwen/Qwen3-1.7B": 0.6333
+   },
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "negotiation": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.4,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.3,
+    "Qwen/Qwen3-0.6B": 0.3667,
+    "Qwen/Qwen3-1.7B": 0.5333
+   },
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "no candidate effective on held-out templates: best measured model"
+  },
+  "programming": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1429,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.25,
+    "Qwen/Qwen3-0.6B": 0.5,
+    "Qwen/Qwen3-1.7B": 0.8929
+   },
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "situation_interpretation": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.5333,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
+    "Qwen/Qwen3-0.6B": 0.2833,
+    "Qwen/Qwen3-1.7B": 0.65
+   },
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "strategic_decisions": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1667,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.2167,
+    "Qwen/Qwen3-0.6B": 0.35,
+    "Qwen/Qwen3-1.7B": 0.85
+   },
+   "model": "Qwen/Qwen3-1.7B",
+   "reason": "smallest model effective on held-out templates"
+  },
+  "tool_choice": {
+   "measured": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": 0.1083,
+    "HuggingFaceTB/SmolLM2-360M-Instruct": 0.1333,
+    "Qwen/Qwen3-0.6B": 0.6083,
+    "Qwen/Qwen3-1.7B": 0.75
+   },
+   "model": "Qwen/Qwen3-0.6B",
+   "reason": "smallest model effective on held-out templates"
+  }
+ },
+ "rule": "per capability the smallest model effective on held-out templates (accuracy or generation pass rate >= 0.6, p <= 0.01 / Wilson lower bound >= 0.4); where none is effective, the best-measured language model"
+}

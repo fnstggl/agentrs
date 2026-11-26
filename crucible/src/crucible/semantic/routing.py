@@ -119,16 +119,23 @@ def granted_gpu_mb() -> int:
 
 
 def device_for(model_id: str, dtype_bytes: int = 2) -> tuple[str, str | None]:
-    """(device, quantization) for a model under this process's slot."""
+    """(device, quantization) for a model under this process's slot: the GPU when the grant holds this model's
+    weights together with the weights of the models this process already placed on the GPU, with room for
+    activations and caches (`HEADROOM`); otherwise CPU."""
+    from .service import _LOADED
     params = PARAMS.get(model_id, 600_000_000)
-    need_mb = params * dtype_bytes * HEADROOM / 2 ** 20
+    need_mb = params * dtype_bytes / 2 ** 20
+    on_gpu = {k[0] for k in list(_LOADED) if str(k[2]).startswith("cuda")}
+    if model_id in on_gpu:                     # one copy per model: share the copy already on the GPU
+        return "cuda", None
+    placed_mb = sum(PARAMS.get(m, 600_000_000) * dtype_bytes / 2 ** 20 for m in on_gpu)
     try:
         import torch
         cuda = torch.cuda.is_available()
     except ImportError:
         cuda = False
     gmb = granted_gpu_mb()
-    if cuda and gmb and need_mb <= gmb:
+    if cuda and gmb and (need_mb + placed_mb) * HEADROOM <= gmb:
         return "cuda", None
     return "cpu", ("int8-dynamic" if params >= 1_000_000_000 else None)
 
