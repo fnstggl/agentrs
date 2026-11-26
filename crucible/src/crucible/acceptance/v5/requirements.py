@@ -16,6 +16,14 @@ from __future__ import annotations
 
 C = tuple  # a criterion
 
+# SHA-256 of MASTER_SPEC.md as saved verbatim from the request (commit 4a7591e, unchanged through a881d18); the
+# checker refuses to derive or verify anything against a different specification.
+MASTER_SPEC_SHA256 = "7b35feb343ce7fdd9b50e4e485b3a10110c3e07e6a6ce6124ae0b66826c45690"
+
+# Per-requirement reproduction tolerances {rid: {metric: {"abs": a, "rel": r}}} used when a review re-executes the
+# tests. Default: exact for integers, booleans and strings; floats within max(1e-9, 1e-6 * |value|). Change-controlled.
+TOLERANCES: dict = {}
+
 
 def crit(*pairs):
     return [{"metric": m, "op": o, "value": v} for m, o, v in pairs]
