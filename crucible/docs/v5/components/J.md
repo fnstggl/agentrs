@@ -26,7 +26,8 @@ MASTER_SPEC Part 10, Part 2.1 Mode C; Gates O and P; SP-10.1, SP-10.3; ONE_WORLD
 | `civ/events.py` | typed schemas of the civilisation modules' own events (`links.*`, `goods.*`); civilisation worlds are typed (`params.typed_events`) and, by default, strict |
 | `civ/history.py` | historical queries on a recorded run (state at a past time, entity timelines, per-day activity, past balances from postings, provenance back from an event) and `verify` (each kind checked against an independent source) |
 | `civ/slices.py` | the seven Phase 3 vertical slices (SP-19.3), with `crucible.experience.ReferenceLearner` in place of CAM |
-| `civ/redemo.py` | SP-17.1: world gates measured with their own code on civilisations (J/L creation experiment, B/C/K on an autonomous run), per-requirement manifest criteria; gates without a civilisation measurement fail with the reason |
+| `civ/redemo.py` | SP-17.1: world gates measured with their own code on civilisations (J/L creation experiment, B/C/K on an autonomous run, Gate D's whole battery, Gate G's adaptation experiment with 256 adaptive individuals), per-requirement manifest criteria; gates without a civilisation measurement fail with the reason |
+| `civ/determinism.py` | exact checks under contract 1.7 (D-47): `first_divergence` (where two logs part and whether a recorded non-reproducible outcome or the world's logic is the origin) and `regenerate_continuation` (`World.regenerate` from a loaded snapshot); used by the long-run resume checks, SP-10.0 forks and the interruption test |
 
 Additive changes outside `civ/`: `economy/industry.py` gains `draw_energy` (`make.energy`), `retail_sale`
 (`make.retail_sold`) and `retail_close_day` (`make.retail_day`) so datacenters and the population use the 4.0
@@ -42,6 +43,15 @@ Gate P suite can be restarted any number of times. Launch long suites from a fro
 never mix into a running horizon), e.g. `git archive <commit> crucible/src | tar -x -C <dir>` and
 `PYTHONPATH=<dir>/crucible/src CRUCIBLE_CIV_RUNS=... python -m crucible.civ.gates long`.
 
+## Determinism (D-47, DEF-J-1)
+
+Batched neural inference is not bit-reproducible, so two free runs of one spec and seed can part through one
+recorded inference outcome (the shared space's vectors depend on batch composition and on the machine-wide cache).
+The checks that count are the exact ones: a fresh process regenerates a recorded run from genesis from the store
+alone (`World.regenerate`, SP-10.0 replications), a resumed copy re-executes the live run's recorded continuation
+(Gate P.3), and a fork or an interrupted run may part from its reference only through a recorded outcome
+(`first_divergence`). Free agreement is reported beside them.
+
 ## How to run
 
     PYTHONPATH=src python -m pytest -q tests/test_v5_civ_core.py
@@ -56,7 +66,9 @@ never mix into a running horizon), e.g. `git archive <commit> crucible/src | tar
 * Until CORE-POP/ECON merge, the v5 social, commerce, innovation, labour and community modules are present but
   receive no population activity, so Gate O's strict subsystem count and O.n1 fail honestly; `feed` is not
   composable yet (population hook not exported).
-* Cross-process resume fails while `pop_adaptive` rebuilds from blobs in `on_load` before the store is attached
-  (audit K1, workstream A).
+* Cross-process resume of civilisations with `pop_adaptive` is exact since kernel D-21 (on_load after the store is
+  attached): tests/test_v5_civ_determinism.py (DEF-A-5 fixed).
+* Gate P suites are memory-bound (~16 MB of state per simulated day; a 365-day run and its verification child need
+  ~15 GB at the end): `suite(max_long=1)` runs at most one 365-day run at a time.
 * Removing anything that records events reshuffles every later random draw (seq-keyed `Ctx.rng`); the placebo arms
   measure this and effects must exceed it.
