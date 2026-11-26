@@ -32,7 +32,7 @@
    "tests": [
     "tests/v5/test_gate_E.py::test_E3_controlled_artifact_changes_affect_participant_behaviour"
    ],
-   "status_claim": "probe registered; gate E result in test_results_unofficial",
+   "status_claim": "criteria met in an unofficial run on this branch (artifact_change_behavior_pvalue 1.5e-4 <= 0.01)",
    "notes": "Probe 'population_reading': 10,000 population individuals, CORE-SEM's space_read world, 14 days. Exploration (CPU, first three controlled text pairs): transport effect 0.005 p 0.49, cooking 0.041 p 5e-5, sports 0.114 p 5e-5. The probe is a reading world, not the social internet's feeds; a feed-based probe on social_world is still to be written (CORE-POP)."
   },
   "E.5": {
@@ -49,7 +49,7 @@
    "tests": [
     "tests/v5/test_gate_E.py::test_E5_no_creator_assigned_quality_scores"
    ],
-   "status_claim": "audit 0 violations (12 exempt lines with reasons) in an unofficial run on this branch",
+   "status_claim": "criteria met in an unofficial run on this branch (creator_assigned_quality_fields_read 0; 12 exempt lines with reasons)",
    "notes": "After the wave-2 merge the audit flagged 11 reads in participant scope; none is a creator-assigned content score: industrial process quality (civ), measured task outcome (domains/firms), real MIND topic shares (population, social/meaning), the name of a validation baseline (semantic/space/prior.py) and the scripted reader's own judgement (social/reference.py). Each carries the audit's pragma with the reason (12 exempt lines)."
   },
   "civ composition (O.1 / O.n1 / SP-10.0 / SP-17.1 inputs)": {
@@ -90,7 +90,7 @@
   "tests/test_v5_social_audience.py, _calibrated, _idset, _meaning, _recsys": "21 passed, 0 failed (GPU slot)",
   "tests/test_v5_civ_core.py": "11 passed, 0 failed (GPU slot)",
   "tests/test_v5_semantic_*.py (6 files)": "63 passed, 0 failed (GPU slot, after updating two stale CORE-SEM key assertions; an earlier run with TMPDIR in a 0700 scratch dir failed the jailed-Chromium render test)",
-  "tests/v5/test_gate_E.py": "pending",
+  "tests/v5/test_gate_E.py": "6 passed, 0 failed (GPU slot, 3.1 min; unofficial metrics: E.3 artifact_change_behavior_pvalue 1.5e-4 Bonferroni over 3 pairs (raw 5e-5, cooking pair effect 0.037 opens/individual, 10,000 individuals); E.5 creator_assigned_quality_fields_read 0, 12 exempt lines, 522 files scanned). Before INT: E.3 failed (no probe), E.5 failed (11 reads).",
   "tests/v5/test_gate_B.py": "6 passed, 0 failed (GPU slot, 26.7 min; unofficial metrics: B.1 10,256 distinct participants; B.2 484,789 autonomous sessions, 0 learner-initiated, 0 forced audience rows, 0 failed processes; B.3 effect 0.155, p 0; B.4 return gap 0.173, abandon gap 0.262; B.5 30 days, last/first week 0.896, 0 invariant errors; B.6 3 seeds, p 2.5e-50). The first run (before the pop_wake rename) errored in the strict world at seq 2016.",
   "tests/v5/test_gate_C.py": "7 passed, 0 failed (GPU slot, 9 min; unofficial metrics: C.2 7 discovery channels, 37,479 views; C.3 46,506 consumption events, 0 analytics mismatches, 0 rows without provenance; C.4 11 communities formed, 1 active after 30 days, 7 active from week 1 to the end; C.5 follow/share/subscription effects p 1.8e-54 / 4.5e-12 / 2.3e-27; C.6 8/8 browser steps; C.n1 0 direct counter writes)"
  },
