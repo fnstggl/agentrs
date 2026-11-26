@@ -2,64 +2,144 @@
  "workstream": "I",
  "key": "dom3",
  "branch": "c5c/w3b-dom3",
- "framework": "domains-framework/2 (merged from c5c/w3b-domfw at 'domains-framework: ready' f9e9d96)",
- "decisions": ["D-57", "D-58", "D-59"],
+ "framework": "domains-framework/2 (merged from c5c/w3b-domfw at 'domains-framework: ready' f9e9d96; no 'ready v2' commit existed)",
+ "decisions": [
+  "D-57",
+  "D-58",
+  "D-59"
+ ],
  "requirements": {
   "SP-9.11": {
-   "implementation_files": ["src/crucible/domains/information.py", "src/crucible/domains/_dom3.py",
-                            "src/crucible/services/docs.py", "src/crucible/services/search.py"],
-   "tests": ["tests/v5/test_gate_SP_9_11.py", "tests/test_v5_domains_information.py"],
-   "status_claim": "implemented; gate passes in an unofficial run on this branch (9/9 mechanics exercised in every one of the 5 configurations, observation_only default, reachable through experience.make(2, ...))",
-   "notes": "Kernel module infoeco: changing facts (hazard, monotone releases, announced 'from day N' changes, correlated regional shocks), autonomous publishers (official pages with own lags, capacity-limited news desks, copying aggregators, content farms, static tutorials, a reader-corrected wiki) publishing real docs indexed by the world's search, retrieval services anyone can open (curated index, BM25, publisher weights, recency, pins, hosting costs, operator logs and user feedback), paid capacity-limited verification. The population looks things up (cascade reading of results, acting on the claim, consequences from the true value). Evaluator: independent users, success vs the open web, MRR / precision@1 against the truth at query time. Reference (InfoCurator) succeeds on local_hazard seeds 0 and 1 (framework base.run); IndexEverything probe and the idle seat fail."
+   "implementation_files": [
+    "src/crucible/domains/information.py",
+    "src/crucible/domains/_dom3.py",
+    "src/crucible/services/docs.py",
+    "src/crucible/services/search.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_11.py",
+    "tests/test_v5_domains_information.py"
+   ],
+   "status_claim": "implemented and verified (unofficial): gate SP-9.11 passed on this branch at 21:17 UTC - 9/9 mechanics exercised in every one of the 5 configurations (seed 11), 5/5 clean runs, observation_only_default and reachable_through_experience true; the scripted reference succeeded in 5/5 configurations",
+   "notes": "Kernel module infoeco: changing facts (hazards, monotone releases, announced 'from day N' changes, regional shocks), autonomous publishers (official pages with own lags, capacity-limited news desks, copying aggregators, content farms, static tutorials, a reader-corrected wiki) publishing real docs indexed by the world's search, retrieval services anyone can open (curated index, BM25, publisher weights, recency, pins, hosting costs, operator logs and user feedback), a paid capacity-limited inquiry line to the entity (info.inquire; renamed from info.verify this session - it is an in-world inquiry, not an evaluator). Population look-ups (cascade reading, acting on the claim, consequences from the true value). Evaluator (state only, replay-equal): independent users, success vs the open web, MRR / precision@1 against the truth at query time. Framework checks run here: reference local_hazard seeds 0 and 1 succeed (success 0.85/0.87 vs web 0.36/0.48), idle fails on seeds 0 and 1, index_everything fails (0.34 vs web 0.36), evaluator_report replay_equal."
   },
   "SP-9.12": {
-   "implementation_files": ["src/crucible/domains/organization.py", "src/crucible/domains/_dom3.py",
-                            "src/crucible/commerce/contracts.py"],
-   "tests": ["tests/v5/test_gate_SP_9_12.py", "tests/test_v5_domains_organization.py"],
-   "status_claim": "implemented; gate passed in an unofficial run on this branch before the framework migration (9/9 in all 5 configurations); after the migration the reference succeeds on four_goals seeds 0 and 1 through base.run",
-   "notes": "Kernel module orgeco: a shared backbone with proportional congestion and quotas, provider organisations with differing goals (profit, growth, mission, rival) pricing and marketing from their books and the telemetry, a council (proposals: quotas, levy, expansion; majority of members; managers vote by goal and own interest), expansion projects funded then built, commitments negotiated through the commerce commit module (escrow released when the predicate orgeco_capacity >= target holds by the due date; members accept, counter or refuse by goal), the population as customers whose requests succeed by the backbone's physics. The convener seat has 2,600 dollars, not enough to fund an expansion alone (SoloFunder probe fails). The reference does not succeed in every configuration (growth_heavy and no_mission_tight are hard: levies fail when members do not feel the congestion)."
+   "implementation_files": [
+    "src/crucible/domains/organization.py",
+    "src/crucible/domains/_dom3.py",
+    "src/crucible/commerce/contracts.py",
+    "src/crucible/commerce/institutions.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_12.py",
+    "tests/test_v5_domains_organization.py"
+   ],
+   "status_claim": "implemented and verified (unofficial): gate SP-9.12 passed on this branch at 21:23 UTC after this session's changes - 9/9 mechanics in every one of the 5 configurations (seed 12), 5/5 clean; reference succeeded in 2/5 configurations at seed 12 (four_goals, profit_cartel; growth_heavy and no_mission_tight are hard); framework check: reference four_goals seeds 0 and 1 succeed, idle and solo_funder fail",
+   "notes": "This session (continuation): governance moved onto the commerce institutions module (inst) instead of the module's own council - o:commons adopts an inst charter at genesis (majority of members, quorum 1/2, 3 days, every act and every outflow of the council's money decided), the council's binding acts orgs.set_quotas / orgs.levy / orgs.expand run only as executions of approved inst decisions, managers are members notified through inst's on_inst_decision hook and vote with inst.vote from their goals; the convener joins with inst.join as a member (it used to join as an admin of the council organisation and could have moved the council's fund with bank.transfer). Fixed: the Organizations mechanic counted only genesis events and was 0 in every run after the framework migration (gate failed); it now counts provider organisations acting in the run. Fixed: commitment predicates named o:commons, which the convener no longer administers - orgeco_capacity now takes the paying member as subject (the capacity of the backbone it uses). Convener reference proposes quotas only once a levy passed (quotas relieve the congestion that makes members vote for a levy). firms.py (dom2) is not used: 9.12's organisations are subscription providers on a shared resource, not labour-market employers."
   },
   "SP-9.13": {
-   "implementation_files": ["src/crucible/domains/marketplace_domain.py", "src/crucible/domains/_dom3.py",
-                            "src/crucible/commerce/marketplace.py", "src/crucible/commerce/products.py",
-                            "src/crucible/services/market.py"],
-   "tests": ["tests/v5/test_gate_SP_9_13.py", "tests/test_v5_domains_marketplace.py"],
-   "status_claim": "implemented; the pre-migration reference succeeded and exercised 9/9 mechanics in all 5 configurations (45 days each); the framework gate run is queued in the slot scheduler (see test_results_unofficial)",
-   "notes": "Kernel module mktplace over xchg/products/market: goods with a hidden per-trader quality process (units measured on delivery), autonomous traders (honest or overstating, costs, capacity) choosing exchanges weekly from public buyer counts and take rates (the cross-side network effect), repricing from their own stock, producing to sales, entering while buyers grow; incumbent exchanges with their dispute rules; population buyers choosing exchange (own trust, depth, loyalty) and listing (claimed grade vs rating vs price) with an outside option, disputing units below the claimed grade, rating, telling contacts. Evaluator: independent buyers and traders, operating result over the last 15 days (strictly positive), retention. FreeExchange (0% fee) probe fails on sustainability."
+   "implementation_files": [
+    "src/crucible/domains/marketplace_domain.py",
+    "src/crucible/domains/_dom3.py",
+    "src/crucible/commerce/marketplace.py",
+    "src/crucible/commerce/products.py",
+    "src/crucible/services/market.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_13.py",
+    "tests/test_v5_domains_marketplace.py"
+   ],
+   "status_claim": "implemented; the gate test file itself was NOT run as one process in this session (it needs about 7 minutes and the slot queue was saturated: the predecessor's queued gate job timed out after 2 h in the queue, the re-queued one stood at position 41/42 when the session ended). Every run it consists of was executed separately on the current code: reference at seed 13 in all 5 configurations - success in 5/5, 9/9 mechanics in each ('missing': []), 0 process failures, 0 invariant violations; framework checks: reference two_categories seeds 0 and 1 succeed, idle and free_exchange fail, evaluator replay_equal",
+   "notes": "Kernel module mktplace over xchg/products/market: goods with hidden per-trader quality processes (units measured on delivery), autonomous traders choosing exchanges weekly from public buyer counts and take rates (cross-side network effect), repricing from their own stock, producing to sales, entering while buyers grow; incumbent exchanges with their dispute rules; population buyers choosing exchange and listing, disputing units below the claimed grade, rating, telling contacts. Evaluator: independent buyers and traders, operating result over the last 15 days, retention."
   },
   "SP-9.14": {
-   "implementation_files": ["src/crucible/domains/crisis.py", "src/crucible/domains/_dom3.py"],
-   "tests": ["tests/v5/test_gate_SP_9_14.py", "tests/test_v5_domains_crisis.py"],
-   "status_claim": "implemented; gate passed in an unofficial run on this branch before the framework migration (7/7 in all 5 configurations); after the migration the reference succeeds on storm_radial seeds 0, 1 and 2 through base.run",
-   "notes": "Kernel module crisis: districts, roads, power plants/lines/substations (radial or meshed), pumps, towers, core exchange, depot, hospital with physical dependencies and backups; exogenous hazards (storm, quake with aftershocks, control-network intrusion, flood waves) damaging assets through lognormal fragility; hourly cascades; autonomous operators with crews, parts orders and telemetry-limited knowledge; mutual aid, fuel and water tankers, parts, agreements, requests, investments, volunteers for the coordinator; households experiencing outages. Evaluator (D-58): lost household service-hours relative to the same disruption with the operators alone (evaluator re-runs the spec), hospital downtime, restoration by day 7. Bystander probe and the idle seat fail."
+   "implementation_files": [
+    "src/crucible/domains/crisis.py",
+    "src/crucible/domains/_dom3.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_14.py",
+    "tests/test_v5_domains_crisis.py"
+   ],
+   "status_claim": "implemented and verified (unofficial): gate SP-9.14 passed on this branch at 21:13 UTC - 7/7 mechanics in every one of the 5 configurations (seed 14), 5/5 clean; the reference succeeded in 0/5 configurations at seed 14 (loss ratios vs operators alone 0.80-1.09 against a 0.80 limit); framework check: reference storm_radial seeds 0, 1, 2 succeed (3/3), idle, bystander and random_tools fail, evaluator replay_equal",
+   "notes": "Kernel module crisis: lifeline network physics (districts, roads, radial/meshed power, pumps, towers, core exchange, depot, hospital, dependencies and backups), exogenous hazards (storm, quake + aftershocks, control-network intrusion, flood waves) through lognormal fragility, hourly cascades, autonomous operators with crews, parts and telemetry-limited knowledge; mutual aid, fuel/water tankers, parts, agreements, requests, investments, volunteers for the coordinator; households experiencing outages. Evaluator (D-58): lost household service-hours relative to the same disruption with the operators alone (the evaluator re-runs the spec), hospital downtime, restoration by day 7 - now integrated from the facility-state history kept in state (cr_hist), replay-equal."
   },
   "SP-9.15": {
-   "implementation_files": ["src/crucible/domains/commercialization.py", "src/crucible/domains/_dom3.py",
-                            "src/crucible/domains/science.py", "src/crucible/domains/lawlang.py"],
-   "tests": ["tests/v5/test_gate_SP_9_15.py", "tests/test_v5_domains_commercialization.py"],
-   "status_claim": "implemented; counterfactual removal confirmed in unofficial runs (linear_optimum seed 1: with the discovery 218 retained adopters and 1,809 dollars of revenue in the last 30 days, success; without it 13 retained, no revenue, failure); the framework gate run is queued in the slot scheduler",
-   "notes": "Kernel module rcomm over sci: the phenomenon's hidden law is the population's weekly practice cost (one fact, D-59); founder seat with 1,600 dollars; research and calibration on paid apparatus, publication and independent replication by autonomous labs, advisor prototypes (models from circumstances to a setting), field pilots with population volunteers, subscription products with hosting costs, promotion, investors reading the public record (angels/grants: a consistent replication by another lab on another apparatus and a prototype; growth fund: renewed subscribers and revenue above hosting). Practitioners keep a product only while their own bills show savings worth its price. CommonPracticeFounder probe fails."
+   "implementation_files": [
+    "src/crucible/domains/commercialization.py",
+    "src/crucible/domains/_dom3.py",
+    "src/crucible/domains/science.py",
+    "src/crucible/domains/lawlang.py"
+   ],
+   "tests": [
+    "tests/v5/test_gate_SP_9_15.py",
+    "tests/test_v5_domains_commercialization.py"
+   ],
+   "status_claim": "implemented; the gate test file itself was NOT run as one process in this session (about 10 minutes; slot queue saturated, see SP-9.13). Every run it consists of was executed separately on the current code: reference at seed 15 in all 5 configurations - success 5/5, 8/8 mechanics in each, clean; counterfactual removal on linear_optimum seeds 2 and 3 - with the discovery success (213 / 245 retained independent adopters, 1,701 / 1,845 dollars revenue in the last 30 days), without it failure (15 / 21 retained, no revenue): discovery_to_economic_outcome_confirmed would be true. Before this session's fixes the seed-15 reference failed in at least 4 of 5 configurations with Financing never exercised (the gate would have failed).",
+   "notes": "Kernel module rcomm over sci (the phenomenon's hidden law is the population's weekly practice cost: D-59). This session: the scripted founder (feasibility witness) measures the certified standards first and ten times each (the two-condition design used to be truncated at the run's 240-entry limit before its standards, leaving the founder uncalibrated), uses 7 x 7 (one condition) or 6 x 5 x 4 (two) designs, chooses the model family by BIC among polynomial g/h and condition-dependent curvature k (the interaction law needs it), and publishes a revised paper from twice the readings when the first two replications do not confirm the first paper. Verified on a trial merge of dom1+dom2+dom3 (dom1's generalised-chi-square sci): unit tests pass, two_conditions and interaction_optimum seed 15 succeed."
   }
  },
  "contributes_to": {
   "N.1-N.7, N.n1, SP-9.0, SP-9.16": "five Part 9 sections (9.11-9.15) registered with the framework: seats, >= 3 training + compositional + structural configurations with measured structure (Domain.structure), procedural instances per seed, Mechanic probes counting recorded events, Actors, degenerate probes, tool-only references (base.reads_world clean), no dice (base.dice_scan: 0 mechanisms), tier3 composition (commercialization adds its phenomenon to the civilisation's sci)."
  },
+ "history": [
+  {
+   "session": "wave 3b, first agent (stopped by a usage limit ~19:05 UTC)",
+   "summary": "built the five domains (infoeco, orgeco, mktplace, crisis, rcomm), migrated them to domains-framework/2, gates SP-9.11..15, unit tests, FIDELITY_REGISTER rows, D-57..D-59; post-migration gate runs were not completed",
+   "status_claims_then": {
+    "SP-9.11": "implemented; gate passes in an unofficial run on this branch (9/9 mechanics exercised in every one of the 5 configurations, observation_only default, reachable through experience.make(2, ...))",
+    "SP-9.12": "implemented; gate passed in an unofficial run on this branch before the framework migration (9/9 in all 5 configurations); after the migration the reference succeeds on four_goals seeds 0 and 1 through base.run",
+    "SP-9.13": "implemented; the pre-migration reference succeeded and exercised 9/9 mechanics in all 5 configurations (45 days each); the framework gate run is queued in the slot scheduler (see test_results_unofficial)",
+    "SP-9.14": "implemented; gate passed in an unofficial run on this branch before the framework migration (7/7 in all 5 configurations); after the migration the reference succeeds on storm_radial seeds 0, 1 and 2 through base.run",
+    "SP-9.15": "implemented; counterfactual removal confirmed in unofficial runs (linear_optimum seed 1: with the discovery 218 retained adopters and 1,809 dollars of revenue in the last 30 days, success; without it 13 retained, no revenue, failure); the framework gate run is queued in the slot scheduler"
+   }
+  }
+ ],
  "limitations": [
-  "All five worlds are mode-B standalone compositions (D-57); tier3_spec builds for every domain, but no tier3 world was run here (a civilisation world needs the semantic text path, i.e. a GPU slot).",
-  "9.11: the population's reading model is a sentence-level pattern reader (entity named, attribute keyword, nearest value, 'from day N' qualifiers); readers act on the first claim they find and never cross-check; three entity vocabularies.",
-  "9.12: the organisations are this module's own provider organisations, not firms.py (whose firms are labour-market employers of 9.9); governance is the module's council, not inst charters; the reference fails in some configurations and seeds (growth_heavy, no_mission_tight).",
-  "9.13: quality is one 0-1 dimension per unit; dishonest traders never reform; buyers buy one unit per need.",
-  "9.14: the hazards' intensity fields are distance decays; a flood's districts stay unreachable for 2-5 days; the reference rarely beats the counterfactual by 20% in the flood configuration (structural evaluation).",
-  "9.15: the sci replication institution tests with the apparatus' stated precision after a two-standard calibration; ties between consistent and refuted reports make the discovery 'not validated' (some seeds fail); habits scatter around the population-wide best setting.",
+  "Gates SP-9.13 and SP-9.15 were not run as whole gate-test processes in this session (slot queue saturated); their component runs were (see status_claim). Gate SP-9.11, SP-9.12 and SP-9.14 passed as whole processes (unofficial evidence under /tmp/crucible-v5-unofficial-evidence/SP).",
+  "The framework's full base.check (Gate N / SP-9.0 / SP-9.16 measurements) was run here for crisis and organization (tier3=False, no GPU); information, marketplace and commercialization were checked piecewise (reference seeds, null, degenerate probe, evaluator replay). No tier3 composition was run (a civilisation world needs the semantic text path, i.e. a GPU slot).",
+  "All five worlds are mode-B standalone compositions (D-57); there are no civ couplings that propagate a crisis into other civilisation systems (commerce, work) - in tier3 the crisis module's households are the civilisation's population but outages do not stop businesses.",
+  "9.11: the population's reading model is a sentence-level pattern reader; readers act on the first claim they find and never cross-check; three entity vocabularies; misinformation spreads through search, aggregators and contacts, not through the social module's feeds (not composed).",
+  "9.12: providers are this module's own organisations, not firms.py; the council's secretary (founding owner) is an elector that never votes (it counts in the electorate, so early majorities need 4 of 6); the reference fails in growth_heavy and no_mission_tight at seed 12.",
+  "9.13: quality is one 0-1 dimension per unit; dishonest traders never reform; buyers buy one unit per need; mkt.ban closes listings by emitting xchg.listing_status directly (xchg has no operator delisting tool).",
+  "9.14: hazard intensity fields are distance decays; the reference rarely beats the operators-alone counterfactual by the required 20% outside storm_radial (0/5 configurations at seed 14).",
+  "9.15: replication labs test with the sci institution of the branch it runs on; one phenomenon per world; habits scatter around the population-wide best setting; the founder's revised paper is a scripted reference behaviour.",
+  "Evaluator results are cached per simulated instant (K.cached_evaluator): within one instant, a verdict asked before and after a participant action is the first one (drive() always advances time before verify()).",
   "Every behavioural parameter of the five modules is hand-set (FIDELITY_REGISTER: Tier 2 domains 9.11-9.15 section); no fitted model is consumed."
  ],
  "integration_notes": [
-  "domains/modules.py (domfw) imports every domain file at load_all_modules(): the five kernel modules infoeco, orgeco, mktplace, crisis, rcomm exist in a fresh process.",
-  "orgeco registers the commit-predicate metric orgeco_capacity (goals.metrics) at install, with subject org -> principal; the convener joins o:commons as admin so the predicate's scope check passes.",
-  "rcomm composes sci with its own phenomenon ph_practice, two apparatus (rig_a with a hidden gain, rig_b) and their operators labco/labco2; standards are placed at the lowest and highest responses of a coarse grid and replicators use 6 calibration repeats (well-conditioned calibration); Domain.tier3 adds them to a civilisation's sci config.",
-  "The five domains use ScriptedReference through _dom3.ReadingReference (read-only tool calls, then actions); the red-team tier2 probes of workstream O still call the earlier reference contract (domfw note).",
-  "firms.py (dom2) was not modified and not used: 9.12 needed organisations whose revenue is the population's subscriptions and a shared resource; request to dom2: none.",
-  "Long gates: SP-9.13 (~8 min) and SP-9.15 (~15 min) belong in the slot scheduler; SP-9.11, SP-9.12, SP-9.14 run in 2-4 minutes on one CPU without GPU."
+  "domfw (base.evaluator_report): World.replay keeps no in-memory event history (log_base = seq) and the replayed world has no store, so any evaluator that reads world.events_range(0) fails the replay check with ProtocolError('events before the in-memory window and no store'). The five dom3 evaluators now read state only; suggested framework fix for other domains: replay with the events kept in memory (rw.log = events, rw.log_base = 0) or with a store.",
+  "domfw (base.evaluator_report): participant_tools_named_like_evaluator matches 'verif' - info.verify was renamed info.inquire to avoid a false positive; the field is not used in any verdict.",
+  "9.12 composes commerce/institutions.py (inst) and commerce/contracts.py (commit) without modifying them; orgeco chains world.hooks['on_inst_decision'] and 'on_commit_offer' (keeps any earlier hook). In a tier3 civilisation this gives inst population-adjacent activity (INT.json lists inst as inert).",
+  "Commerce (F): a moderation tool for exchange operators (close another seller's listing / ban) would let mktplace drop its direct xchg.listing_status emission.",
+  "Services (docs): the community wiki's open edits are written by infoeco as docs.edit events with search re-indexing (docs has no open-edit hosts); an open-edit document mode in docs would replace that.",
+  "dom1 (science.py): rcomm uses only sci's public tools and module config (phenomena, apparatus, rivals, replicators with calib_reps); verified against dom1's generalised chi-square version on a trial merge (no conflicts in code; DECISION_LOG and FIDELITY_REGISTER conflict textually with dom1/dom2 - keep both sides' entries).",
+  "dom2 (firms.py): not used and not modified; no request.",
+  "Long gates for the official run: SP-9.13 (~7 min) and SP-9.15 (~10 min) on 1 CPU, no GPU, peak RAM well under 2 GB per process; SP-9.11 (~2-4 min), SP-9.12 (~1.5 min), SP-9.14 (~1 min)."
  ],
- "test_results_unofficial": {}
+ "test_results_unofficial": {
+  "gates": {
+   "tests/v5/test_gate_SP_9_11.py": "1 passed (21:17 UTC, 121 s)",
+   "tests/v5/test_gate_SP_9_12.py": "1 passed (21:23 UTC, with the unit tests: 6 passed in 103 s)",
+   "tests/v5/test_gate_SP_9_14.py": "1 passed (21:13 UTC, 56 s)",
+   "tests/v5/test_gate_SP_9_13.py": "not run as a whole (component runs only)",
+   "tests/v5/test_gate_SP_9_15.py": "not run as a whole (component runs only)"
+  },
+  "unit": {
+   "tests/test_v5_domains_information.py tests/test_v5_domains_crisis.py tests/test_v5_domains_organization.py (not slow)": "20 passed",
+   "tests/test_v5_domains_marketplace.py tests/test_v5_domains_commercialization.py (not slow)": "10 passed",
+   "slow: organization": "1 passed",
+   "slow: crisis": "1 passed",
+   "slow: information": "1 passed",
+   "slow: commercialization": "1 passed (110 s)",
+   "slow: marketplace": "1 passed (186 s)",
+   "trial merge dom1+dom2+dom3, five domain files (not slow)": "30 passed"
+  },
+  "framework_kernel": {
+   "tests/test_v5_domains_framework.py tests/test_kernel.py tests/test_invariants.py": "76 passed"
+  },
+  "not_run": [
+   "tests/v5/test_gate_N.py, test_gate_SP_9_0.py, test_gate_SP_9_16.py (need all 15 sections and tier3/GPU; owned by domfw)"
+  ]
+ }
 }

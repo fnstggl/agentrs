@@ -331,7 +331,10 @@ inside the population's sessions). They do not compose the civilisation generato
 needs the semantic text path (no world runs Qwen); `tier3` composes each into a civilisation (commercialization adds
 its phenomenon to the civilisation's laboratories). References are tool-only two-phase policies
 (`_dom3.ReadingReference`: read-only tool calls, then actions) and every evaluator is cached per simulated instant
-(the learner interface asks it after every action).
+(the learner interface asks it after every action). Evaluators read recorded world state only: the histories they
+integrate (facts' value histories and look-up records in 9.11, customers' usage in 9.12, facility states in 9.14)
+are kept in module tables by appliers of recorded events, because a world rebuilt from its log (`World.replay`) keeps
+no in-memory event history and must be judged the same (framework replay check).
 
 ## D-58 Crisis recovery is judged against the same disruption without the coordinator (2026-11-26, workstream I-3)
 Absolute restoration thresholds did not separate a coordinator from the operators acting alone: instance severity
