@@ -150,12 +150,12 @@
     }
    },
    "represented_by": "crucible.semantic.space.vectors_of_bytes (modality text)",
-   "version": "6cc04f5e24cdce0a"
+   "version": "f455005900ab0232"
   }
  },
  "space_dim": 422,
  "space_id": "crucible.space.minilm384+affect4+quant34",
- "space_version": "6cc04f5e24cdce0a",
+ "space_version": "f455005900ab0232",
  "topics": [
   "animals",
   "autosclassics",
