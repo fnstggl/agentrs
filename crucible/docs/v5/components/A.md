@@ -224,3 +224,47 @@ current state or a retained snapshot roots them. The event log remains the large
 | S7 (K7) an event could commit without its subscribers | the savepoint is taken before the triggering event is applied; a failing subscriber undoes the event too, even if the emitter swallows the error | `tests/test_v5_substrate_bus.py` |
 | S5 (K5) `_unflushed` grew without a store; trimmed logs counted as "replay not checked" | store-less worlds keep no second copy; the mode check reads a trimmed log from the store or fails | `tests/test_v5_substrate_bus.py`, modes |
 | S8 attention could be minted invisibly | conservation invariant (left + spent == budget since the last reset); attention columns written only through `spend`/`reset` (or by their declaring module when it creates rows) | `tests/test_v5_substrate_columns.py` |
+
+## Wave 3 continuation (c5c/w3-kernel, on the integrated tree 87a6c54)
+
+Re-verified the wave-1 repairs after the wave-1/2a merges; what the merges broke and what the adversarial probes
+found, and the repairs:
+
+| finding on the integrated tree | repair | test |
+|---|---|---|
+| D-20 (parent-measured sandbox CPU) made the same spec and seed give **different event hashes in two new processes** (157 of 1,795 events of a half-day population world differed in `cpu_ms`/`cu`, which feed cloud billing), so cross-process resume could not continue with the uninterrupted run's hashes (K1 gate metric false) | the deterministic memo's anchors (first measurement of a computation per world lineage) are shared by every process of the machine: `sandbox.metering.DiskMemo` (SQLite, first writer wins, the 3x + 1 ms tolerance rule unchanged, lineages never share anchors), `SandboxConfig.memo_path`, worlds use `metering.default_memo_path()` (`$CRUCIBLE_METER_MEMO`, `off` = per process) unless `params.meter_memo` is `process` | `tests/test_v5_substrate_memo.py` (two processes bill one anchor; without the file each measures afresh; the same population world in two new processes: identical hash/digest, different with `off`) |
+| K2 tests failed: a world with one more module (or `typed_events`) has another spec hash, hence another measurement lineage, so its sandboxed requests were billed by fresh measurements | `params.meter_lineage`: an experiment's arms whose specs differ share a lineage (forks share it anyway); the K2 tests give every arm the same lineage and a new test shows the confound without it (only `ext`/`cloud.usage` differ) | `tests/test_v5_substrate_streams.py` |
+| the mandatory scan found 3 unclassified wave-2 tables | `pop_social.cols:pop` (population extension), `space.space_items` (derived representations of artifacts), `space_read.space_read_items` (private) | `tests/test_v5_substrate_facts.py` |
+| **blind spot of the scan**: columns of the owner's own column table were never checked - `pop.contacts` (who knows whom: a fourth tie graph), `pop.communities` (memberships of their own) and the audience engine's creator follower sets (a third follow graph) were silent duplicates | every column of every column table is scanned on its own name; the three are duplicates on the allow-list with migrations (B+C, C); `pop.wallet_cents` reviewed (a pre-ledger claim deposited through `bank.move`); the `edge` signature no longer matches `knowledge` | `test_every_column_is_scanned_on_its_own_name` |
+| SP-2.3 counted all 25 OWNERS kinds (6 of them refinements the spec does not list), so 19 could be reached while Part 2.3 primitives still had copies | `primitives.SPEC_PRIMITIVES` (the 19 Part 2.3 primitives in the spec's words, checked against MASTER_SPEC.md by the gate); `shared_primitive_kinds` counts only those; refinements reported apart | gate SP-2.3 |
+| 4.0 tables (forum follows/boards, gov constitutions, 4.0 populations) can never be retired (4.0 worlds stay byte-identical), so their kinds could never count | facts role `legacy`: a 4.0 table holding a kind's facts only in worlds without the kind's owner; enforced on data in every world (`facts.legacy_split`: facts in it while the owner is installed = problem) and certified by a named test (`verified_by`); a legacy table is not a known duplicate | `test_a_legacy_table_never_holds_facts_where_the_owner_is_installed` |
+| the Mode C composition check accepted a hub-and-spoke world (one scripted driver calling into 13 domains plus a population in 6 satisfies domains, reach and pairs) | criterion `initiators`: >= 5 distinct sources (the population counts once) engage domains outside their own | `test_a_scripted_hub_that_calls_into_every_domain_is_not_an_integrated_civilization` |
+| SP-2.3 fault injection found only 30 multi-module targets in 18 simulated hours of the merged all-module world (floor 40) | search window two simulated days | gate SP-2.3 |
+
+Blocked by the concurrent integration fix (not A's code): the merged tree registers two kernel modules named
+`space` (`population/semantics.py`, `semantic/space/store.py`); the population's `space.recorded` events reach the
+other module's applier (`KeyError: 'items'`), so every population tick fails, and `civ.generate` refuses to build
+(`missing dependencies ['space']`). Every A test that runs a population world fails on the tree until that lands
+(resume, streams, retention, history, the data-level fact report, the pop-only Mode C control, the cross-process
+memo test). They were run in a scratch mirror of this branch that re-registers `population.semantics.Space` as
+`space` (probe only, never committed): all pass there, as do the gates' measurements below.
+
+Measured in that mirror (single CPU, slot scheduler):
+
+* gate SP-2.3: `shared_primitive_kinds` = 14 of the 19 Part 2.3 primitives (content artifacts, relationships,
+  communities, institutions, contracts have known duplicates; all 19 have an owner); `cross_module_rollback_failures`
+  = 0 (30 fault-injected real multi-module transactions of a 99-module world before the window change, up to 9
+  modules each, 22 touching v5 modules; 240 composed scenarios, 215 failing as intended); `inference_replay_without_rerun`
+  = true (139 recorded population inferences; replay and regeneration in new processes: 0 inference runs, exact;
+  cross-process resume exact with the shared memo).
+* gate SP-2.1: `execution_modes` = 1 (A: rapid 9/9 engines responsive, 63 families, and the 4.0 mechanisms; B: the
+  domains provider lists no environments; C: `civ.generate` fails on the `space` dependency). The all-module control
+  world (99 modules) engages 8 of 17 domains and is refused.
+* 365 simulated days, stored population world (400 individuals, adaptive participants checkpointing daily, 6
+  sandboxed sites), weekly snapshot + `retention.compact(prune=True)`: 1,109,544 events; live blob bytes grow at a
+  constant 3.9 -> 3.7 MB/week (first vs last quarter; 222,337 of 222,353 blobs packed into 52 chunks, 159.7 MB, +
+  25.8 MB pointers, 12.6 MB unpacked roots), event payloads at a constant 5.2 -> 4.8 MB/week (256 MB); snapshots
+  15 retained, 119.9 MB, growing 1.4 -> 3.3 MB/week (each snapshot holds the state, which grows linearly with the
+  artifact metadata rows: 222,702 at day 364); SQLite file 859 MB (unvacuumed). At the end, in a fresh store
+  object: replay from genesis exact (297 s), recount of the population's 271,993 visits from blobs read through the
+  packed chunks exact, resume exact (16 s). Wall time per simulated day 2.5 s (first quarter) -> 4.5 s (last).
