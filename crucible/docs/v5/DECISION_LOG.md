@@ -317,3 +317,12 @@ calling every component successfully (service-to-service calls through the cloud
 result", `usefulness.category.compose`, registered by `economy.work` from a `compose` family: an additive change);
 developers compose when live services of other developers for both stages convert their triers, else write the
 task stage by stage. Independence of the component creators is the evaluator's verdict (`innovation.gates`).
+
+Addendum (same wave, continuation): SP-6.4b is measured on the same civilisation arms with the one relation graph,
+which gained two providers that read world state (compute providers' core capacity, `compute_market`; the freight
+network, `freight`). A mechanism counts only when a need of that kind first appears after genesis and its derivation
+path (rule plus the providers of its edges, never a node name) shows it; of Part 6.4's seven examples only the five
+SP-6.4b names (workflow change, transport or market access, coordination, content communities and tools, education)
+count towards `need_mechanism_examples`; reliability bottleneck and computing demand are reported separately.
+Mechanisms with no live module are reported as not demonstrated rather than supplied as data (relations given as
+data are SP-6.4's generality instrument and count as designer-supplied demand here).

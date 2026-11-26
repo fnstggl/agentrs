@@ -20,8 +20,8 @@ Gate J (per product *category* = the task a product's users rely on it for; `civ
 * J.7 resource_consumption_delta - min over categories: hand-work minutes of the activities with that step in the
   arm where nobody builds for it, minus the factual arm (a pre-existing resource: people's working time); the
   compute the developers' services draw from the providers is reported too;
-* J.n1 product_categories - categories whose best product passes J.1-J.7 (and whether one is a generated,
-  undocumented category: `novel`).
+* J.n1 product_categories - categories whose best product passes J.1-J.7 on its own, including the category's own
+  Fisher test of J.5 (and whether one is a generated, undocumented category: `novel`).
 
 Gate L:
 
@@ -121,8 +121,10 @@ def j_measure(A: dict) -> dict:
     b_ = sum(b["tried"] - b["kept"] for b in best.values())
     c_ = sum(b["kept_garbage"] for b in best.values())
     d = sum(b["tried_garbage"] - b["kept_garbage"] for b in best.values())
+    # a category passes when its best product passes J.1-J.7 on its own: executable, published, >= 10 independent
+    # discoverers and users, a paid call, hand work saved, and its own measured-behaviour test (J.5 per category)
     passing = sorted(c for c, r in best.items() if r["executable"] and r["published"] and r["discoverers"] >= 10
-                     and r["users"] >= 10 and r["tx"] >= 1 and r["delta_minutes"] > 0)
+                     and r["users"] >= 10 and r["tx"] >= 1 and r["delta_minutes"] > 0 and per[c] <= 0.05)
     ok = [best[c] for c in passing] or list(best.values())
     fc, rc = A["factual"]["outcome"]["dev_compute"], A["ban_published"]["outcome"]["dev_compute"]
     executable = [r for r in rows.values() if r["executable"] and r["users"] > 0]
