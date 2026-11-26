@@ -343,7 +343,7 @@ def lab_kinetics(rng, d):
                instruments={"probe": {"cost": 1.0, "measures": [species[1]], "sd": round(0.02 * noise, 6)},
                             "chromatograph": {"cost": 4.0, "measures": list(species), "sd": round(0.006 * noise, 6)}},
                heldout=heldout, tol=0.01, hidden=hid)
-    cfg["objective"] = {"type": "predict_heldout", "quantity": species[1],
+    cfg["objective"] = {"type": "predict_heldout", "scoring": "gaussian_tolerance", "quantity": species[1],
                         "text": f"Predict the noise-free concentration of {species[1]} at these conditions "
                                 f"(loads, and one temperature, beyond what you can set; 'time' is the sampling "
                                 f"time; a prediction is judged with tolerance 0.01): {heldout}. "
@@ -375,7 +375,7 @@ def lab_drift_blanks(rng, d):
                vars=[{"name": nx, "min": 0.0, "max": 4.0, "default": 0.0}], quantity=q, monitor_name=mon,
                max_replicates=6, instruments={"meter": {"cost": 1.0, "measures": [q], "sd": round(0.15 * noise, 6)}},
                heldout=heldout, tol=0.08, hidden=hid)
-    cfg["objective"] = {"type": "predict_heldout", "quantity": q,
+    cfg["objective"] = {"type": "predict_heldout", "scoring": "gaussian_tolerance", "quantity": q,
                         "text": f"Predict the drift-free effect on {q} (reading minus a blank's reading in the "
                                 f"same tick, without noise) at these doses: {heldout}. " + JOURNAL}
     cfg["brief"] = (f"A meter reads {q} of a preparation at dose {nx} (0-4). Its baseline may move between "
