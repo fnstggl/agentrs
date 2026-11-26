@@ -193,6 +193,9 @@ def measure(world: World, item: int | None = None) -> dict:
     top = int(np.argmax(viewers))
     item = top if item is None else int(item)
     exposed_or_viewed = np.unique(np.concatenate([decision_rows(world, "imp", 0)["viewer"], con["viewer"]]))
+    # distinct identities with at least one qualifying consumption event (spec 4.6: a claim of N unique viewers needs
+    # N distinct identities with qualifying consumption), from the recorded rows
+    viewing_identities = int(np.unique(con["viewer"][con["is_view"]]).size) if con["viewer"].size else 0
     out = {"distinct_identities": n, "identities_with_decisions": int(exposed_or_viewed.size),
            "exposures_checked": rc["exposures_checked"], "exposure_recount_mismatches": rc["exposure_recount_mismatches"],
            "distinct_viewers_checked": rc["distinct_viewers_checked"],
@@ -200,6 +203,7 @@ def measure(world: World, item: int | None = None) -> dict:
            "total_recount_mismatches": rc["total_mismatches"], "impression_rows": rc["impression_rows"],
            "consumption_rows": rc["consumption_rows"], "qualifying_views": rc["views"],
            "qualifying_distinct_consumption_events": rc["distinct_viewers_checked"],
+           "distinct_identities_with_qualifying_consumption": viewing_identities,
            "attention_ledger_violations": len(att), "daily_consumption_over_budget": over,
            "attention_budget_violations": len(att) + over,
            "forced_view_assignments": rc["views_without_prior_exposure"],

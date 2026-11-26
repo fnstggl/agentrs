@@ -19,16 +19,23 @@ competes for their attention and time with reading, browsing, searching and the 
   (`prod.access`, then reading the delivered document: its value is the document's fit to the buyer's interests and
   its legibility, from the bytes), and rate it (`prod.rate`) - which later visitors read. Everything goes through
   the commerce tools as the member's own principal; no bonus anywhere.
-* `social.create` - write a piece about what one cares about (the nearest corpus topic to one's interests, with
-  personal variation) in one's own words (`population.writing`, from real news text; skill shapes length and
-  coherence), store it as one's artifact and publish it on the text platform that suits its length (`posts` for
-  short pieces, `blog` for articles). Its utility is what the creator observes: the platform's published,
-  delayed and noisy analytics of its earlier pieces (views gained since it last looked) against the time the
-  writing took - so the creators whose pieces find an audience keep creating and the others stop (habit learning
-  in the population's tick). No piece carries a quality, relevance or virality figure.
+* `social.create` - make something for an audience on every platform (`social.popcreate`): a text post, a status
+  update, an article (sent as an issue of one's newsletter once one has followers), an image card, a narrated audio
+  piece, a narrated short or long slide video (`social.popmedia`, recorded rendering), an answer or a question on the
+  knowledge and developer platforms, or a recommendation of a service that works for one's own work (naming its
+  address). The medium is chosen by taste and ability plus what one's earlier pieces of each medium earned (the
+  platforms' delayed, noisy analytics), so creators move to where they find an audience. No piece carries a quality,
+  relevance or virality figure.
+* `social.inbox` - messages (`social.popinbox`): read one's conversations, open linked items, answer, recommend what
+  one liked to the contact it suits best; review paid creator memberships. After every feed session viewers may
+  subscribe to newsletters, join creator memberships, vote and accept answers on the Q&A platforms, unsubscribe
+  from newsletters that stopped paying off, and look into a service for their own work they read about (a `shop`
+  session of `economy.work`).
 
-Decision provenance: the decision to write and the choice of topic and platform are recorded (`pop_social.created`
-batch through `population.record_decisions`, model `pop-create@1`).
+Decision provenance: every decision is recorded through `population.record_decisions` (`pop_social.created`, model
+`pop-create@2`; `pop_social.inbox`, `pop-inbox@1`; `pop_social.followup`, `pop-followup@1`; communities
+`pop-community@1`; product discovery `pop-shop@1`). Config keys `platforms`, `minutes` and `topic_noise` are kept for
+compatibility (the media table of `social.popcreate` sets platforms and effort per medium).
 
 Fidelity: plausible, unvalidated (FIDELITY_REGISTER: population creator model).
 """

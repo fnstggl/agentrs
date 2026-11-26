@@ -88,6 +88,8 @@ def _notes(pc):
 def test_I1_ten_million_identities(positive_control):
     m = positive_control["m"]
     evidence.record("I.1", {"distinct_identities": m["distinct_identities"],
+                            "distinct_identities_with_qualifying_consumption":
+                                m["distinct_identities_with_qualifying_consumption"],
                             "distinct_state_rows": m["distinct_state_rows"],
                             "identities_with_decisions": m["identities_with_decisions"],
                             "materialised_sample_principals": m["materialised_sample"], "estimated": False},
@@ -170,12 +172,16 @@ def test_I6_positive_control_cascade(positive_control):
 def test_I7_ten_million_qualifying_distinct_consumption_events(positive_control):
     m = positive_control["m"]
     evidence.record("I.7", {"qualifying_distinct_consumption_events": m["qualifying_distinct_consumption_events"],
+                            "distinct_identities_with_qualifying_consumption":
+                                m["distinct_identities_with_qualifying_consumption"],
                             "qualifying_views": m["qualifying_views"], "consumption_rows": m["consumption_rows"],
                             "distinct_viewer_recount_mismatches": m["distinct_viewer_recount_mismatches"],
                             "run_wall_s": m["run_wall_s"]},
                     command=CMD, notes="Qualifying distinct consumption events = distinct (identity, item) pairs with "
-                    "at least one consumption row meeting the view rule, recounted exactly from the recorded batches. "
-                    "Capacity, not realism. " + _notes(positive_control))
+                    "at least one consumption row meeting the view rule, recounted exactly from the recorded batches; "
+                    "distinct_identities_with_qualifying_consumption counts the identities among them (spec 4.6's "
+                    "condition for an exact claim of that many unique viewers). Capacity, not realism. " +
+                    _notes(positive_control))
     assert m["qualifying_distinct_consumption_events"] == m["distinct_viewers_checked"]
 
 

@@ -265,3 +265,40 @@ population-only world are reported as a second row and do not satisfy a target.
 Numbering note (integration merge): workstreams P and M both wrote D-26 in parallel; this entry was renumbered
 D-27 on merge. targets.json still says "adopted_by": "DECISION_LOG D-26" because editing it would change the
 SHA-256 that this entry adopts; that field refers to this entry.
+
+## D-33 Population media are rendered from the population's own writing; no image, audio or video corpus (2026-11-26, workstream C)
+The population had made only text, so 9 of 11 distributed platforms carried no population items. No real image,
+audio or video corpus exists under /workspace/data/crucible and none may be downloaded, and large generative models
+must not be required for ordinary simulation actions (Part 4.2). Decision: population creators make images, audio and
+video with the lightweight studio tools from their own piece of writing (real MIND text, `population.writing`):
+poster cards of the title and lead sentence (the genre the shared space's image map is fitted and measured on,
+`semantic.space.fit`), the piece narrated by FFmpeg's built-in flite voices after a short melodic jingle (Ogg Opus,
+accepted by the audio format registry through a jailed ffprobe), and narrated slide videos timed to the narration with
+a mov_text subtitle track. Every rendering is recorded (`social.render.recorded_bytes`), so replay never reruns a
+tool. A creator chooses a medium per piece by taste and ability plus the value its earlier pieces of that medium
+earned (delayed noisy analytics), so the population's media mix is an outcome, not a setting. Limits stated in the
+fidelity register (`population-media-creation`): text cards are not photographs, five synthetic voices, slide shows.
+Alternative rejected: Qwen- or diffusion-generated media (cost; a generative model would define what content "is").
+
+## D-34 The short-video platform decides with the fitted KuaiRand model and runs a random-exposure experiment (2026-11-26, workstream C)
+`crucible.social.worlds.feed_config` sets, for the short-video platform of every social world, the open decision
+from workstream E's runtime decision model `content_open@1` (scoped to video_short; inputs computed row by row from
+day-start snapshots of the platform's counters in feed-owned column tables, not on the population table) and a
+random-exposure experiment (5% of feeds hold one uniformly drawn recent item, impression source `random`; the open
+decisions are recorded per arm with `extra.experiment = {"id": "random_exposure", "arm": "random" | "recommended"}`),
+so `calibration.inworld.random_exposure_experiment` can compare the world with KuaiRand's random-exposure log
+(SP-5.5b). Watch time stays the engine's built-in rule. Three inputs are flags from exact audience sets where the
+contract asks for counts (own_creator_views, own_item_exposures, own_item_consumed; documented in
+`social.contentopen`). Civilisations adopt it by building their feed config with `feed_config` (integration note).
+
+## D-35 Engagement integrity detects coordinated clusters; platform representations are never observable (2026-11-26, workstream C)
+(1) `social.integrity` excludes, besides related, funded, footprint-less sybil and ring accounts, a coordinated
+cluster: admitted agents engaging the target that are tied by reciprocal follows into a group of at least 3 and whose
+own activity drew no independent attention (no population individual viewed (>= 10 distinct viewers), followed or
+answered a member; no independent agent followed or answered one). A believable footprint no longer validates a
+ring; only independent attention does. Cost: a genuine friend group of 3+ agents following each other and one creator,
+whose own posts nobody else ever engaged with, is excluded (a false negative for that creator, never a false success).
+Colluders who do not tie themselves together remain indistinguishable from independent fans by state (stated limit).
+(2) The audience module's item events (`aud.item`, `aud.item_updated`: the item's vector, term weights and legibility)
+are internal: a learner could otherwise read the platform's encoder output and optimise content against it (audit C
+skeptic S4); Gate D.4 now probes representation leaks in every visible event and tool result.
