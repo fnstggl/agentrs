@@ -19,11 +19,12 @@ Weakness categories (Part 14.3), each with the generator structures that exercis
     generalization          the same structures at new seeds and harder difficulty levels
     long_horizon            long horizons with drivers that pay off late or keep moving
 
-Measures per category (`WeaknessProfiler`): learning progress (slope of recent scores), regret (1 - mean score),
-uncertainty (standard error of the mean score) and task success (share of episodes at or above the competence
-threshold); forgetting is the drop from a category's best window to its latest, generalization the gap between
-seen and unseen worlds. A category's weakness is its regret in excess of a reference profile (category difficulty
-is not a learner weakness), plus a learning-progress bonus (where scores are moving, practice pays).
+Measures per category (`WeaknessProfiler`): learning progress (slope of recent scores, with its standard error),
+regret (1 - mean score), uncertainty (standard error of the mean score) and task success (share of episodes at or
+above the competence threshold); forgetting is the drop from a category's best window to its latest beyond what
+noise explains, generalization the gap between seen and unseen worlds. A category's weakness is its regret in excess
+of a reference profile (category difficulty is not a learner weakness), plus a learning-progress bonus where scores
+are moving by more than twice their standard error (practice pays there), plus a small uncertainty bonus.
 
 Selection (`Curriculum.next`): with probability `random_share` (default 0.3) a uniform draw from the training
 distribution or the structural grammar; otherwise a category drawn from the targeted weights (softmax of weakness),
@@ -196,13 +197,25 @@ class WeaknessProfiler:
         if len(h) == 0:
             return {"n": 0, "regret": None, "success": None, "uncertainty": None, "learning_progress": None}
         k = len(h)
-        lp = float(np.polyfit(np.arange(k), h, 1)[0]) * k if k >= 3 else 0.0
+        lp, lp_se = 0.0, 0.0
+        if k >= 3:
+            x = np.arange(k, dtype=float)
+            b, a = np.polyfit(x, h, 1)
+            resid = h - (a + b * x)
+            sxx = float(((x - x.mean()) ** 2).sum())
+            s = float(np.sqrt((resid ** 2).sum() / max(k - 2, 1)))
+            lp, lp_se = float(b) * k, s / math.sqrt(sxx) * k
         return {"n": k, "regret": float(1.0 - h.mean()), "success": float((h >= self.q).mean()),
-                "uncertainty": float(h.std(ddof=1) / math.sqrt(k)) if k > 1 else 1.0, "learning_progress": lp}
+                "uncertainty": float(h.std(ddof=1) / math.sqrt(k)) if k > 1 else 1.0, "learning_progress": lp,
+                "learning_progress_se": lp_se}
 
     def profile(self) -> dict:
         out = {c: self.measures(c) for c in WEAKNESSES}
-        drops = [self.best[c] - float(np.mean(list(self.hist[c])[-4:])) for c in self.best if len(self.hist[c]) >= 4]
+        # a drop counts beyond what two 4-item means of the category differ by noise (2 sd of their difference;
+        # the best window is a maximum over windows, so a frozen learner's raw drop is positive by chance)
+        drops = [self.best[c] - float(np.mean(list(self.hist[c])[-4:]))
+                 - 2.0 * float(np.std(list(self.hist[c]), ddof=1)) * math.sqrt(0.5)
+                 for c in self.best if len(self.hist[c]) >= 4]
         out["forgetting"] = dict(out["forgetting"], forgetting_drop=float(max(drops)) if drops else None)
         gaps = [float(np.mean(self.seen[c]) - np.mean(self.unseen[c])) for c in WEAKNESSES
                 if self.seen.get(c) and self.unseen.get(c)]
@@ -260,7 +273,11 @@ class Curriculum:
                 w[c] = 0.5                               # unmeasured: worth measuring
                 continue
             excess = m["regret"] - float(self.reference.get(c, 0.0))
-            w[c] = max(0.0, excess) + 0.5 * abs(m["learning_progress"] or 0.0) + 0.5 * (m["uncertainty"] or 0.0)
+            # learning progress counts where it is distinguishable from noise (beyond twice its standard error);
+            # the raw |slope| of a frozen learner's noisy scores swamped excess regret (T.5/T.8 development,
+            # 2026-11-26: the planted price-blind learner's competitor weakness, 0.31 excess regret, was never targeted)
+            lp = max(0.0, abs(m["learning_progress"] or 0.0) - 2.0 * (m.get("learning_progress_se") or 0.0))
+            w[c] = max(0.0, excess) + 0.5 * lp + 0.25 * (m["uncertainty"] or 0.0)
         return w
 
     def weights(self) -> dict[str, float]:
