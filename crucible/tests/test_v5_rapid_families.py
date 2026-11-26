@@ -23,7 +23,8 @@ def test_registry_entries_carry_the_contract_fields():
         assert e["category"] in F.CATEGORIES and e["split"] in ("train", "val", "test")
         assert e["distinct_because"] and e["action_kinds"] and set(e["axes"]) <= set(F.DIFFICULTY_AXES)
     cats = {e["category"] for e in F.REGISTRY.values()}
-    assert len(cats) == 10 and len({e["engine"] for e in F.REGISTRY.values()}) == 5
+    from crucible.rapid.engines import ENGINE_KINDS
+    assert len(cats) == 10 and {e["engine"] for e in F.REGISTRY.values()} == set(ENGINE_KINDS)
 
 
 def test_make_respects_difficulty_axes_and_refuses_unknown_ones():

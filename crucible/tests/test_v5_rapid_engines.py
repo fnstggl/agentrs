@@ -18,11 +18,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ONE_PER_ENGINE = ["hc_conditional", "des_inventory", "net_diffusion", "posm_fault_diagnosis", "srch_tools"]
 
 
-def test_five_engines_registered_and_four_spec_kinds_covered():
-    assert set(ENGINE_KINDS) == {"primitive_graph", "discrete_event", "graph_dynamical", "state_machine", "search"}
-    done = [k for k, v in SPEC_ENGINE_KINDS.items() if v]
-    assert sorted(done) == ["discrete-event", "graph dynamical", "partially observed state machine",
-                            "search/information"]
+V5_ENGINES = {"primitive_graph", "discrete_event", "graph_dynamical", "state_machine", "search", "program_exec",
+              "experiment_lab", "planning", "strategic"}
+# what an engine module may import besides the contract: program_exec runs agent-written controllers inside the
+# dynamics through the sandbox (Landlock + seccomp), which is infrastructure, not another engine's transition code
+EXTRA_IMPORTS = {"program_exec": {"...sandbox.runner"}}
+
+
+def test_nine_engines_registered_and_all_eight_spec_kinds_covered():
+    assert set(ENGINE_KINDS) == V5_ENGINES
+    assert all(v in ENGINE_KINDS for v in SPEC_ENGINE_KINDS.values())
+    assert sorted(SPEC_ENGINE_KINDS) == sorted(["discrete-event", "graph dynamical", "search/information",
+                                                "executable program", "multi-agent strategic",
+                                                "scientific experiment", "planning/resource",
+                                                "partially observed state machine"])
+    assert len(set(SPEC_ENGINE_KINDS.values())) == 8 and "primitive_graph" not in SPEC_ENGINE_KINDS.values()
 
 
 def test_engine_modules_share_only_the_contract():
@@ -31,8 +41,10 @@ def test_engine_modules_share_only_the_contract():
         tree = ast.parse(open(os.path.join(edir, f"{name}.py")).read())
         rel = {("." * n.level) + (n.module or "") for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level}
         absolute = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
-        assert rel <= {"..", ".base", "..primitives", "..actions"}, (name, rel)        # the contract, nothing else
+        allowed = {"..", ".base", "..primitives", "..actions"} | EXTRA_IMPORTS.get(name, set())
+        assert rel <= allowed, (name, rel - allowed)        # the contract, nothing else
         assert not any(m.startswith("crucible") for m in absolute), (name, absolute)
+        assert not rel & {f".{o}" for o in ENGINE_KINDS if o != name}, name      # no other engine's code
 
 
 @pytest.mark.parametrize("family", ONE_PER_ENGINE + ["coop_split_info", "net_repair", "des_maintenance"])
