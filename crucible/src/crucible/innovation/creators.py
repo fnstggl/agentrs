@@ -165,8 +165,8 @@ class NoveltyCreator:
             self._do(world, "support.resolve", ticket=t["ticket"], note="handled")
         for b in self.built.values():
             m = self._do(world, "cloud.metrics", host=b["host"], hours=24)
-            if sum(int(h.get("overload", 0)) for h in (m.get("hours") or [])) and b["cores"] < 16:
-                b["cores"] += 1
+            if sum(int(h.get("overload", 0)) for h in (m.get("hours") or [])) and b["cores"] < 32:
+                b["cores"] = min(32, b["cores"] * 2)        # autoscale: double on overload
                 self._do(world, "cloud.resize", instance=b["instance"], cores=b["cores"])
 
     def _build(self, world, title: str, posts: list[dict]) -> None:
