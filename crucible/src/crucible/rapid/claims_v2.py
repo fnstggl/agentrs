@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import dominance as D
 from .identify import PublicView
 from .oracles import fork
 
@@ -895,3 +896,23 @@ def identify_wear_reversal(env) -> dict:
             est = hard - 3
     return {"ok": est is not None and abs(est - int(c["level"])) <= 6, "question": "hard ticks before damage",
             "estimate": est, "truth": int(c["level"])}
+
+
+def probe_the_other_end(view, env) -> None:
+    """Scripted public reference for a lever whose effect sign follows a hidden regime: hold the end of the
+    lever's range that earned more; every seventh tick try the other end for one tick and move there if it
+    earned more net income than the tick before (net income is observed exactly)."""
+    sp = view.action_space()
+    (name, p), = sp.kinds["levers"]["properties"]["values"]["properties"].items()
+    ends = (float(p["minimum"]), float(p["maximum"]))
+    cur = 1
+    last = None
+    while not view.done:
+        if view.t % 7 == 6 and last is not None:
+            r = view.step({"kind": "levers", "values": {name: ends[1 - cur]}})
+            if D._net(r["observation"]) > last:
+                cur = 1 - cur
+            last = D._net(r["observation"])
+            continue
+        r = view.step({"kind": "levers", "values": {name: ends[cur]}})
+        last = D._net(r["observation"])

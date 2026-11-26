@@ -17,19 +17,24 @@ def u(rng, lo, hi):
 
 @family("posm_sign_switch", engine="state_machine", category="8.10", item="8.10.4", split="train",
         doc="Demand switches abruptly between hidden regimes (a sticky Markov chain); in some regimes the lever "
-            "raises sales, in others it lowers them.",
+            "raises sales, in others it lowers them, and at the middle setting every regime sells the same, so the "
+            "regime shows only in the response to moving the lever.",
         distinct_because="a hidden Markov regime process; the lever's effect sign is a function of the hidden "
                          "state, which has to be tracked from noisy readings",
-        axes={"hidden_state_complexity": 2, "horizon": 80, "observation_noise": 2.0}, objective="maximize_net",
-        claims=(C + "regime_sign",), identify=I + "regime_switch", lever_view=True)
+        axes={"hidden_state_complexity": 2, "horizon": 160, "observation_noise": 2.0}, objective="maximize_net",
+        claims=(C + "regime_sign",), identify=I + "regime_switch", lever_view=True,
+        reference="crucible.rapid.claims_v2:probe_the_other_end")
 def posm_sign_switch(rng, d):
     S = int(d["hidden_state_complexity"])
     names = neutral_names(rng, 2)
-    stay = u(rng, 0.85, 0.92)
+    stay = u(rng, 0.94, 0.97)
     T = np.full((S, S), (1 - stay) / max(1, S - 1))
     np.fill_diagonal(T, stay)
-    slope = [u(rng, 1.5, 3.0) * (1 if k % 2 == 0 else -1) for k in range(S)]
-    base = [u(rng, 20.0, 30.0) + (12.0 if slope[k] < 0 else 0.0) for k in range(S)]
+    slope = [u(rng, 2.0, 3.0) * (1 if k % 2 == 0 else -1) for k in range(S)]
+    # level-neutral at the middle setting: every regime sells the same there, so sales levels alone do not tell
+    # the regimes apart - only moving the lever does
+    mid = u(rng, 30.0, 40.0)
+    base = [mid - 5.0 * slope[k] for k in range(S)]
     return {"engine": "state_machine", "scenario": "sign_switch", "horizon": int(d["horizon"]), "T": T.tolist(),
             "p0": [1.0 / S] * S, "slope": slope, "base": base, "noise": float(d["observation_noise"]),
             "price": 100.0, "lever_cost": u(rng, 20.0, 40.0), "lever_name": names[0], "lever_default": 5.0,
