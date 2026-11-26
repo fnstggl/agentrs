@@ -17,7 +17,7 @@ tickets, its service's overloads in `cloud.metrics`) and the public market (comp
 * **support** - it answers open tickets with probability `reply_p` a day and resolves them; it grants refund
   requests that name an invoice with probability `refund_p`;
 * **staff** (wave 3b, worlds with the labour market `labor`) - the founder answers at most `founder_tickets`
-  tickets a day; when the tickets left unresolved average `hire_backlog` or more over three days and its cash covers
+  tickets a day; when the tickets left unresolved average `hire_backlog` or more over two days and its cash covers
   six months of the top salary, it posts a part-time support job (`labor.post`), offers the applicant with the best
   verified support record (then: declared writing skill, then first applicant) the middle of its salary range,
   accepts counters within the range, and closes the posting when it hired; it dismisses its latest hire when no
@@ -46,7 +46,7 @@ from ..core.kernel import Module, applier, process, register_module
 DAY = 86400
 DEFAULTS = {"window_days": 14, "lose_share": 0.15, "cut": 0.9, "floor": 0.55, "grow_share": 0.3, "raise_": 1.05,
             "min_rating": 3.2, "min_ratings": 5, "dev_days": 21, "max_cores": 12, "reply_p": 0.7, "refund_p": 0.6,
-            "first_day": 3, "pass_markup": 1.25, "pass_days": 30, "founder_tickets": 3, "hire_backlog": 4,
+            "first_day": 3, "pass_markup": 1.25, "pass_days": 30, "founder_tickets": 3, "hire_backlog": 3,
             "max_staff": 4, "salary_min": 120_000, "salary_max": 220_000, "job_hours": 20, "display_ads": True,
             "display_every_days": 30, "display_days": 14, "display_bid": 20, "display_budget": 3_000}
 REFUND_RE = re.compile(r"(sinv_[0-9]+)")
@@ -240,7 +240,7 @@ class Rivals(Module):
             self._do(ctx, inc, "labor.dismiss", worker=last["worker"], org=org)
             actions.append(["dismissed", last["worker"], "cash" if cash < 2 * payroll else "no backlog"])
             return
-        busy = len(hist) >= 3 and sum(hist[-3:]) / 3.0 >= float(self.cfg("hire_backlog"))
+        busy = len(hist) >= 2 and sum(hist[-2:]) / 2.0 >= float(self.cfg("hire_backlog"))
         if busy and not posts and len(team) < int(self.cfg("max_staff")) and cash >= 6 * (payroll + smax):
             r = self._do(ctx, inc, "labor.post", org=org, title="Customer support (part-time)",
                          skills={"writing": 0.3}, salary_min=smin, salary_max=smax,

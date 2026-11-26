@@ -41,7 +41,8 @@ def test_the_known_duplicates_are_exactly_the_reviewed_allow_list(registry_audit
     kinds = {facts.REVIEWED[k]["kind"] for k in facts.KNOWN_DUPLICATES}
     # the audit's duplicates (A6) are all on record: people, employment, relationships, communities, institutions,
     # contracts, subscriptions, listings, content metadata
-    assert kinds >= {"population", "employment", "relationship", "community", "institution", "contract",
+    # (institution: migrated in wave 3b - 4.0 gov writes through inst charters, its tables are legacy entries)
+    assert kinds >= {"population", "employment", "relationship", "community", "contract",
                      "subscription", "listing", "content_artifact"}
     assert sum(1 for k in facts.KNOWN_DUPLICATES if facts.REVIEWED[k]["kind"] == "population") >= 8
 

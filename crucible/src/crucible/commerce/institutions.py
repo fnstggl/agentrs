@@ -47,6 +47,14 @@ project with partner organisations is a cooperative venture: partners join by co
 venture has a procedure - decide allocations and closure together (weighted by contribution if they choose);
 on closure what is left in the pool returns to contributors pro rata.
 
+**Profit sharing and the 4.0 constitutions** (wave 3b, SP-2.3 migration). A charter may share a monthly part of
+the organisation's positive operating result (`profit_sharing`: basis equity (cap table), equal (members) or labor
+(recorded labour hours), share 0..1), paid by the monthly process `inst.distribute`. This module is the one owner of
+institutional rules (`primitives.OWNERS["institution"]`): where it is installed, the 4.0 `gov` module writes
+through it - a constitution adopted with `gov.adopt` becomes a charter (its rules translated into procedures and
+rules, its distribution into `profit_sharing`), `gov.propose` / `gov.vote` are `inst` decisions and ballots, and
+`gov` keeps no constitution, proposal or vote of its own (`services.governance`).
+
 **Founding and dues** (wave 3b). Any person - an agent or an individual of the population - can found an
 organisation and charter it in one step (`inst.found`), optionally with published membership terms (`terms`:
 monthly dues and a benefit, e.g. a mutual-aid association). Members pay dues with `inst.pay_dues`: a bank move from
@@ -82,7 +90,8 @@ WEIGHTS = ("equal", "shares", "contribution", "tenure")
 ACTION_KINDS = ("tool", "amend", "admit", "expel", "role", "unit_create", "unit_assign", "unit_dissolve",
                 "office", "office_remove", "allocate", "project_close", "merge", "absorb", "spin_off", "dissolve")
 VENTURE_KINDS = ("allocate", "project_close", "admit_partner")
-CHARTER_KEYS = ("procedures", "rules", "default", "membership", "offices", "dissolution")
+CHARTER_KEYS = ("procedures", "rules", "default", "membership", "offices", "dissolution", "profit_sharing")
+PROFIT_BASES = ("equity", "equal", "labor")
 DISTRIBUTIONS = ("equal", "shares", "contribution")
 AMOUNT_KEYS = ("amount", "amount_cents", "salary_cents_month", "price_cents", "reward_cents", "budget_cents",
                "cents", "max_per_period", "endowment", "capital_cents", "daily_budget_cents")
@@ -202,6 +211,64 @@ class Institutions(Module):
             self.check(ctx, owner, tool, args)
         world.hooks["gov_check"] = chained
 
+    def adopt_charter(self, ctx: Ctx, org: str, charter: dict) -> dict:
+        """Adopt a first charter for `org` (internal: `inst.adopt`, `inst.found` and the 4.0 `gov` write-through)."""
+        c = self.validate_charter(ctx, org, charter)
+        ctx.emit("inst.charter", {"org": org, "charter": c, "by": ctx.actor}, vis="public")
+        self._sync_offices(ctx, org, c["offices"])
+        if c.get("profit_sharing") and not ctx.state.has("sched", "inst.distribute"):
+            month = 30 * DAY
+            ctx.schedule((ctx.now // month + 1) * month, "inst.distribute", {}, prio=81, period=month,
+                         key="inst.distribute")
+        return c
+
+    @process("distribute")
+    def pr_distribute(self, ctx):
+        """Monthly profit sharing of charters with `profit_sharing` (as 4.0 gov.distribute did for constitutions)."""
+        st = ctx.state
+        bank = ctx.world.modules["bank"]
+        ops = ctx.world.modules.get("ops")
+        if ops is None:
+            return
+        for org, rec in sorted(st.scan("inst_charters")):
+            d = (rec["charter"] or {}).get("profit_sharing")
+            if not d:
+                continue
+            profit = ops.window(st, org, 30, ctx.now // DAY + 1)["operating"]
+            acct = bank.primary_account(st, org)
+            if profit <= 0 or acct is None:
+                continue
+            pool = min(int(profit * d["share"]), max(0, bank.balance(st, acct)))
+            if d["basis"] == "equity":
+                w: dict = {}
+                for x in st.find("shares", "org", org) if "shares" in st.tables else ():
+                    w[x["holder"]] = w.get(x["holder"], 0) + x["shares"]
+            elif d["basis"] == "equal":
+                w = {m["person"]: 1 for m in st.find("members", "org", org)}
+            else:
+                w = dict((st.meta.get(f"labor_hours:{org}") or {}))
+            tot = sum(w.values())
+            paid = 0
+            for who in sorted(w):
+                amt = int(pool * w[who] / tot) if tot else 0
+                dst = bank.primary_account(st, who)
+                if amt > 0 and dst and dst != acct:
+                    bank.move(ctx, acct, dst, amt, "distribution", f"profit share of {org}")
+                    paid += amt
+            ctx.emit("inst.distributed", {"org": org, "pool": pool, "paid": paid, "basis": d["basis"],
+                                          "recipients": len(w)}, vis=(org,))
+
+    def effort(self, st, org: str, n_members: int) -> float:
+        """Working members' effort under the charter's profit sharing (the 4.0 `gov.effort` rule, unchanged)."""
+        rec = st.get("inst_charters", org)
+        d = ((rec or {}).get("charter") or {}).get("profit_sharing")
+        if not d or d["basis"] == "equity":
+            return 1.0
+        sh = d["share"] / max(1, n_members)
+        if d["basis"] == "labor":
+            sh += 0.25
+        return float(min(1.15, max(0.4, 0.55 + 2.5 * sh)))
+
     def genesis(self, ctx):
         ctx.emit("bank.account", {"id": ESCROW, "owner": SYSTEM, "kind": "escrow", "name": "institution escrow",
                                   "overdraft": 0}, vis="internal")
@@ -276,8 +343,13 @@ class Institutions(Module):
         dist = dis.get("distribution", "shares")
         if dist not in DISTRIBUTIONS:
             raise InvalidAction(f"distribution must be one of {DISTRIBUTIONS}")
+        ps = charter.get("profit_sharing")
+        if ps is not None:
+            if not isinstance(ps, dict) or set(ps) - {"basis", "share"} or ps.get("basis") not in PROFIT_BASES:
+                raise InvalidAction(f"profit_sharing: {{basis: {'|'.join(PROFIT_BASES)}, share: 0..1}}")
+            ps = {"basis": ps["basis"], "share": _num(ps.get("share", 0.5), 0.0, 1.0, "profit_sharing share")}
         return {"procedures": procs, "rules": rules, "default": default, "membership": membership,
-                "offices": offices, "dissolution": {"distribution": dist}}
+                "offices": offices, "dissolution": {"distribution": dist}, "profit_sharing": ps}
 
     def validate_procedure(self, p, what: str = "procedure") -> dict:
         if not isinstance(p, dict) or set(p) - {"type", "electorate", "threshold", "quorum", "window_s", "weights",
@@ -1365,9 +1437,7 @@ class Institutions(Module):
         ident(ctx.world).authorize(ctx, org, "org.admin")
         if st.has("inst_charters", org):
             raise Conflict("already chartered: amend it with inst.propose {kind: amend}")
-        c = self.validate_charter(ctx, org, charter)
-        ctx.emit("inst.charter", {"org": org, "charter": c, "by": ctx.actor}, vis="public")
-        self._sync_offices(ctx, org, c["offices"])
+        c = self.adopt_charter(ctx, org, charter)
         return {"ok": True, "procedures": sorted(c["procedures"]), "rules": len(c["rules"])}
 
     @endpoint("found", S.obj({"handle": S.s_str("lowercase handle", pattern=r"[a-z][a-z0-9-]{1,30}", maxLength=31),
@@ -1386,10 +1456,8 @@ class Institutions(Module):
         idm = ident(ctx.world)
         bank = ctx.world.modules["bank"]
         oid = idm.create_org(ctx, handle, name, ctx.actor, kind, {"terms": dict(terms or {})})
-        c = self.validate_charter(ctx, oid, charter)
         bank.open_account(ctx, oid, "operating")
-        ctx.emit("inst.charter", {"org": oid, "charter": c, "by": ctx.actor}, vis="public")
-        self._sync_offices(ctx, oid, c["offices"])
+        self.adopt_charter(ctx, oid, charter)
         return {"org": oid}
 
     @endpoint("pay_dues", S.obj({"org": S.s_str(maxLength=40), "amount": S.s_int(minimum=1, maximum=10**8)},
@@ -1782,6 +1850,10 @@ class Institutions(Module):
         self.world.state.patch("inst_decisions", ev.payload["id"], status=ev.payload["status"], decided_t=ev.t,
                                result=ev.payload["result"])
 
+    @applier("inst.distributed")
+    def ap_distributed(self, ev):
+        return None
+
     @applier("inst.delegation")
     def ap_delegation(self, ev):
         p = ev.payload
@@ -1974,6 +2046,68 @@ class Institutions(Module):
         if not pending and not tasks:
             return None
         return {"decisions_to_vote": pending[-20:], "tasks_assigned": tasks[-20:]}
+
+
+def charter_from_constitution(rules: list, distribution: dict | None) -> dict:
+    """A 4.0 `gov` constitution as a charter (the write-through of `services.governance` where `inst` is installed).
+    Each rule becomes a charter rule with its own procedure: a vote of members / admins (majority, or
+    supermajority above one half) or of shareholders (weighted by shares), with the rule's threshold, quorum and
+    window; an approval by the owners (or admins) is a majority of them; a delegation is an office held by the first
+    delegate with the rule's monthly budget, deciding alone (officer). Distribution becomes `profit_sharing`.
+    Approximation (documented): a 4.0 vote counted yes against the whole electorate, a charter procedure counts the
+    votes cast against its quorum."""
+    procs, crules, offices = {}, [], {}
+    for k, r in enumerate(rules or []):
+        req, m = r.get("require") or {}, dict(r.get("match") or {"tool": "*"})
+        name = f"rule{k}"
+        t = req.get("type")
+        if t == "vote":
+            el = req.get("electorate", "members")
+            thr = max(0.5, float(req.get("threshold", 0.5)))
+            proc = {"electorate": el, "threshold": thr, "quorum": float(req.get("quorum", 0.0)),
+                    "window_s": int(req.get("window_s", 2 * DAY))}
+            proc["type"] = "weighted" if el == "shareholders" else ("majority" if thr <= 0.5 else "supermajority")
+            if el == "shareholders":
+                proc["weights"] = "shares"
+            procs[name] = proc
+        elif t == "approval":
+            procs[name] = {"type": "majority", "electorate": "admins" if req.get("by") == "admin" else "owners",
+                           "threshold": 0.5, "window_s": int(req.get("window_s", 2 * DAY))}
+        elif t == "delegate":
+            office = f"delegate{k}"
+            to = list(req.get("to") or [])
+            offices[office] = {"holder": to[0] if to else None,
+                               "budget_cents_month": int(req.get("budget_cents_month", 0)),
+                               "tools": [m.get("tool", "*")]}
+            procs[name] = {"type": "officer", "office": office}
+        else:
+            raise InvalidAction("require.type must be vote, approval or delegate")
+        match = {"kind": "tool", "tool": m.get("tool", "*")}
+        if "min_amount" in m:
+            match["min_amount"] = int(m["min_amount"])
+        crules.append({"match": match, "procedure": name})
+    ch = {"procedures": procs, "rules": crules, "offices": offices}
+    if distribution:
+        ch["profit_sharing"] = {"basis": distribution["basis"], "share": float(distribution.get("share", 0.5))}
+    return ch
+
+
+def constitution_view(charter: dict | None) -> dict:
+    """The 4.0 view of a charter (what `gov.constitution` returns where `inst` is installed)."""
+    if not charter:
+        return {"rules": [], "distribution": None}
+    out = []
+    for r in charter["rules"]:
+        p = charter["procedures"][r["procedure"]]
+        if p["type"] == "officer":
+            o = charter["offices"].get(p["office"]) or {}
+            req = {"type": "delegate", "to": [o.get("holder")] if o.get("holder") else [],
+                   "budget_cents_month": o.get("budget_cents_month", 0)}
+        else:
+            req = {"type": "vote", "electorate": p["electorate"], "threshold": p["threshold"], "quorum": p["quorum"],
+                   "window_s": p["window_s"]}
+        out.append({"match": {k: v for k, v in r["match"].items() if k in ("tool", "min_amount")}, "require": req})
+    return {"rules": out, "distribution": charter.get("profit_sharing")}
 
 
 def is_person(principal: str) -> bool:

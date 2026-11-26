@@ -204,10 +204,12 @@ REVIEWED: dict[str, dict] = {
     "needs.needs_open": _r("need", _P, "open needs", "needs.needs_nodes"),
     "needs.needs_requests": _r("need", _P, "requests attached to needs", "needs.needs_nodes"),
     # ---------------------------------------------------------------- institution
-    "gov.proposals": _r("institution", _P, "governance proposals", "gov.constitutions"),
-    "gov.votes": _r("institution", _P, "governance votes", "gov.constitutions"),
-    "gov.gov_spend": _r("institution", _P, "governed spending", "gov.constitutions"),
-    "inst.inst_charters": _r("institution", _D, "v5 adaptable institutions (charters)"),
+    # D-21 migration (F, wave 3b): 4.0 constitutions and their proposals, votes and delegated spending hold facts
+    # only in worlds without `inst`; where `inst` is installed `gov` writes through the charters
+    **{f"gov.{t}": _r("institution", _L, f"4.0 governance {w} (written through inst charters where inst is installed)",
+                      verified_by="tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters")
+       for t, w in (("constitutions", "constitutions"), ("proposals", "proposals"), ("votes", "votes"),
+                    ("gov_spend", "delegated spending"))},
     **{f"inst.inst_{x}": _r("institution", _P, f"institution {x.replace('_', ' ')}", "inst.inst_charters")
        for x in ("ballots", "contributions", "decisions", "delegations", "merge_offers", "office_spend", "offices",
                  "partners", "projects", "tasks", "unit_members", "units")},
@@ -286,11 +288,6 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                               "migration": "a forum board becomes the discussion space of a community (board -> "
                                            "community id); forum_boards keeps no membership of its own; then "
                                            "OWNERS.community = community.communities"},
-    "inst.inst_charters": {"target_owner": "inst.inst_charters", "decision": "D-21", "workstream": "F+A",
-                           "expires": _WAVE2,
-                           "migration": "a 4.0 gov constitution becomes a charter (its rules as charter rules, "
-                                        "proposals/votes as inst decisions); gov keeps 4.0 families only; then "
-                                        "OWNERS.institution = inst.inst_charters"},
     "commit.commitments": {"target_owner": "contracts.contracts", "decision": "D-21", "workstream": "F",
                            "expires": _WAVE2,
                            "migration": "a commitment is a contract with an escrow clause (or references one): "

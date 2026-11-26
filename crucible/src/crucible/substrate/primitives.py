@@ -69,9 +69,12 @@ OWNERS: dict[str, dict] = {
                             "`organization`, contract parties part of `contract`"},
     "community": {"module": "forum", "table": "forum_boards", "since": "2", "ids": "<board name>",
                   "api": "Forum.create_board (genesis/config), forum.post/reply/feed", "doc": "communities (discussion boards)"},
-    "institution": {"module": "gov", "table": "constitutions", "since": "3", "ids": "<org>",
-                    "api": "gov.adopt/amend/propose/vote (proposals, votes)",
-                    "doc": "institutional rules of organisations (constitutions, decisions)"},
+    # D-21 migration (workstream F, wave 3b): the v5 charter is the one institution; 4.0 `gov` writes through it
+    # where `inst` is installed (gov.constitutions and its parts are legacy tables, substrate.facts)
+    "institution": {"module": "inst", "table": "inst_charters", "since": "5", "ids": "<org>",
+                    "api": "inst.adopt/found/propose/vote (decisions, ballots, offices, units, projects); 4.0 "
+                           "gov.adopt/amend/propose/vote write through it",
+                    "doc": "institutional rules of organisations (charters, decisions, profit sharing)"},
     "contract": {"module": "contracts", "table": "contracts", "since": "1", "ids": "ctr_<n>",
                  "api": "contracts.propose/sign/terminate (parties, clauses, claims)", "doc": "binding agreements"},
     "knowledge_artifact": {"module": "docs", "table": "documents", "since": "2", "ids": "doc_<n>",

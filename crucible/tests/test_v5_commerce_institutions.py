@@ -169,24 +169,42 @@ def test_amendment_changes_the_procedure_through_the_amendment_rule():
     assert w.state.tables["inst_decisions"][d2]["procedure"]["weights"] == "tenure"
 
 
-def test_both_institutions_apply_and_a_gov_proposal_cannot_bypass_the_charter():
+def test_gov_writes_through_inst_charters():
+    """SP-2.3 institution migration: where `inst` is installed the 4.0 `gov` module keeps no constitution, proposal,
+    vote or delegated spending of its own - a constitution becomes a charter (rules -> procedures, distribution ->
+    profit sharing), gov proposals and votes are inst decisions and ballots, the charter governs, and the 4.0 view
+    and effort rule read the charter. The legacy tables stay empty (facts.legacy_split)."""
+    from crucible.substrate import facts, primitives
     w, (ann, bob, cat), org, acct = _coop(8)
-    assert _ex(w, ann, "inst.adopt", org=org, charter={"procedures": {"maj": MAJ}, "rules": [
-        {"match": {"kind": "tool", "tool": "bank.transfer"}, "procedure": "maj"}]}).ok
-    # a 4.0 gov proposal approved by the owner alone executes as the organisation - and is refused by the charter
-    p = _ex(w, ann, "gov.propose", org=org, tool="bank.transfer",
-            args={"from_account": acct, "to": ann, "amount": 30_000}).result["proposal"]
-    assert _ex(w, ann, "gov.vote", proposal=p, approve=True).ok
-    assert w.state.tables["proposals"][p]["status"] == "failed"
-    # and where a gov constitution governs a tool too, an inst decision alone cannot execute it
-    assert _ex(w, ann, "gov.adopt", org=org, rules=[{"match": {"tool": "bank.transfer"},
-                                                    "require": {"type": "vote", "electorate": "members"}}]).ok
-    did = _propose(w, bob, org, {"kind": "tool", "tool": "bank.transfer",
-                                 "args": {"from_account": acct, "to": bob, "amount": 30_000}})
-    _ex(w, bob, "inst.vote", decision=did, choice="yes")
-    _ex(w, cat, "inst.vote", decision=did, choice="yes")
-    assert _status(w, did) == "failed"
-    assert "constitution" in w.state.tables["inst_decisions"][did]["result"]["message"]
+    assert primitives.owner("institution")["module"] == "inst"
+    r = _ex(w, ann, "gov.adopt", org=org, rules=[{"match": {"tool": "bank.transfer", "min_amount": 10_000},
+                                                  "require": {"type": "vote", "electorate": "members",
+                                                              "quorum": 0.5}}],
+            distribution={"basis": "labor", "share": 0.6})
+    assert r.ok, r.error
+    ch = w.state.tables["inst_charters"][org]["charter"]
+    assert ch["rules"][0]["match"] == {"kind": "tool", "tool": "bank.transfer", "min_amount": 10_000}
+    assert ch["profit_sharing"] == {"basis": "labor", "share": 0.6}
+    view = _ex(w, cat, "gov.constitution", org=org).result
+    assert view["rules"][0]["require"]["type"] == "vote" and view["distribution"]["basis"] == "labor"
+    # the charter governs: the owner alone cannot move the money; a gov proposal is an inst decision
+    assert not _ex(w, ann, "bank.transfer", from_account=acct, to=ann, amount=50_000).ok
+    p = _ex(w, bob, "gov.propose", org=org, tool="bank.transfer",
+            args={"from_account": acct, "to": cat, "amount": 30_000}).result["proposal"]
+    assert p in w.state.tables["inst_decisions"]
+    before = OW.balance(w, cat)
+    assert _ex(w, cat, "gov.vote", proposal=p, approve=True).ok
+    assert _status(w, p) == "executed" and OW.balance(w, cat) == before + 30_000
+    assert [d["proposal"] for d in _ex(w, ann, "gov.proposals", org=org, status="any").result] == [p]
+    # effort follows the charter's profit sharing (labour basis: 0.55 + 2.5 (0.6/3 + 0.25), capped)
+    assert w.modules["gov"].effort(w.state, org, 3) == w.modules["inst"].effort(w.state, org, 3) == 1.15
+    # a second adoption is refused; amending is an inst decision
+    assert not _ex(w, ann, "gov.adopt", org=org, rules=[]).ok
+    r = _ex(w, ann, "gov.amend", org=org, rules=[], distribution={"basis": "equal", "share": 0.2})
+    assert r.ok and w.state.tables["inst_decisions"][r.result["decision"]]["action"]["kind"] == "amend"
+    for t in ("constitutions", "proposals", "votes", "gov_spend"):
+        assert not w.state.tables[t], t
+    assert facts.legacy_split(w) == [] and w.check_invariants() == []
 
 
 def test_membership_admission_rules_expulsion_and_offices_vacate_on_leaving():
