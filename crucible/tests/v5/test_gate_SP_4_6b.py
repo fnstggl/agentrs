@@ -153,14 +153,15 @@ def test_SP_4_6b_no_virality_multipliers_and_views_have_provenance():
     rc = AUD.recount(w, events=events)
     prov = rc["provenance"]
     # positive control: rows injected by module code on a fork are detected as forced
+    hist = list(events)
     f = w.fork("forged")
     fake = np.arange(50, dtype=np.int64)
     target = int(AUD.items_on(f, "posts")[0])
-    f._run_system("forgery", lambda ctx: (AUD.impressions(ctx, "posts", fake, np.full(50, target), np.zeros(50)),
-                                          AUD.consumption(ctx, "posts", fake, np.full(50, target), np.full(50, 300.0),
+    f._run_system("forgery", lambda ctx: (AUD.impressions(ctx, "posts", fake, np.full(50, target), np.zeros(50, np.int64)),
+                                          AUD.consumption(ctx, "posts", fake, np.full(50, target), np.full(50, float(AUD.item_col(f, "duration_s")[target])),
                                                           np.ones(50, bool), np.zeros(50, bool), np.zeros(50, bool),
                                                           np.zeros(50, bool))))
-    fprov = AUD.recount(f, events=f.events_range(0))["provenance"]
+    fprov = AUD.recount(f, events=hist + list(f.log))["provenance"]
     metrics = {"virality_multipliers_found": len(static) + dynamic, "static_hits": len(static),
                "dynamic_hits": dynamic, "views_without_decision_provenance": int(prov["forced_rows"]),
                "consumption_rows": int(rc["consumption_rows"]), "recount_mismatches": int(rc["total_mismatches"]),
