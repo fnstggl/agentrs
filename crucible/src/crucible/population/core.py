@@ -30,7 +30,7 @@ from ..core import schema as S
 from ..core.errors import Forbidden, InvalidAction, NotFound, ProtocolError
 from ..core.kernel import Ctx, Module, applier, endpoint, process, register_module
 from ..substrate import attention, bus, columns, ids
-from . import models, profiles, schema
+from . import models, profiles, schema, semantics
 from .schema import NEVER, TABLE
 
 DAY = 86400
@@ -61,6 +61,17 @@ def register_activity(world, name: str, handler, *, owner: str, prior: float = 0
     reg["order"].append(name)
     reg["spec"][name] = {"handler": handler, "owner": owner, "slot": len(reg["order"]) - 1, "prior": float(prior),
                          "goals": tuple(int(g) for g in goals)}
+
+
+def register_class_runtime(world, cls: int, handler, *, owner: str) -> None:
+    """Bind a participant class (3 strategic, 4 semantic) to a runtime of its own: due rows of that class are handed
+    to `handler(ctx, idx, now) -> next_active_at (int64 per row) or None` by the population's tick, inside the same
+    recorded session machinery (decision provenance, attention). Call in Module.install (before genesis) so the
+    class's rows get activation times. This is the hook the semantic participant runtime (class 4) binds to."""
+    rt = world.runtime.setdefault("pop.class_runtimes", {})
+    if int(cls) in rt and rt[int(cls)]["owner"] != owner:
+        raise ProtocolError(f"class {cls} is bound to {rt[int(cls)]['owner']}")
+    rt[int(cls)] = {"handler": handler, "owner": owner}
 
 
 def activities(world) -> list[str]:
@@ -101,7 +112,8 @@ def n_individuals(world) -> int:
 
 
 FEATURE_DOC = {
-    "interests": "float32[n, D] unit interest vector",
+    "interests": "float32[n, semantics.DIM] unit interest vector in the shared space",
+    "interest_coords": "float32[n, D] the same interests as coordinates of the space's topic subspace",
     "knowledge": "float32[n, D] accumulated topic knowledge (0..1 per dimension)",
     "prefs": "float32[n, P] preferences, names in schema.PREF_NAMES",
     "skills": "float32[n, S] skills, names in schema.SKILL_NAMES",
@@ -132,7 +144,8 @@ def features(world, idx: np.ndarray) -> dict[str, np.ndarray]:
     bud = c("attention_budget_min").astype(np.float32)
     left = c("attention_left_min").astype(np.float32)
     out = {
-        "interests": c("interests").astype(np.float32), "knowledge": c("knowledge").astype(np.float32),
+        "interests": semantics.lift(c("interests")), "interest_coords": c("interests").astype(np.float32),
+        "knowledge": c("knowledge").astype(np.float32),
         "prefs": c("prefs").astype(np.float32), "skills": c("skills").astype(np.float32),
         "beliefs": c("beliefs").astype(np.float32), "goals": c("goals").copy(), "habit": c("habit").copy(),
         "satisfaction": c("satisfaction").copy(), "attention_left_min": left, "attention_budget_min": bud,
@@ -187,6 +200,13 @@ bus.event_type("pop.policy_update", S.obj({
     doc="a neural policy group's parameters changed by learning from its participants' experience")
 
 
+bus.event_type("pop.decision_model", S.obj({"key": {"type": "string"}, "model_id": {"type": "string"},
+                                            "model_version": {"type": "string"}, "fidelity_id": {"type": "string"},
+                                            "kind": {"type": "string"}},
+                                           ["key", "model_id", "model_version", "fidelity_id"]), owner="pop",
+               doc="a decision model was used for the first time in this world (decision provenance registry)")
+
+
 # ============================================================================================ the module
 @register_module
 class Population(Module):
@@ -213,6 +233,7 @@ class Population(Module):
         st = world.state
         st.declare_table("pop_policies")
         st.declare_table("pop_policy_log", index=("group",))
+        st.declare_table("pop_decision_models")
         world.runtime["pop.models"] = models.build(self.config)
         _registry(world)
         bus.enforce(world, owner="pop")
@@ -245,7 +266,6 @@ class Population(Module):
 
     def _initial(self, world, lo: int, hi: int, now: int, derived: bool = False) -> dict[str, np.ndarray]:
         """Heterogeneous initial state of rows [lo, hi): a deterministic function of the world seed."""
-        from . import text
         d = self.d
         m = hi - lo
         rng = world.rng_for("pop-init", lo, hi)
@@ -259,10 +279,9 @@ class Population(Module):
         if wts.sum() <= 0:
             raise ProtocolError("seed_mix needs a positive weight")
         seg = rng.choice(len(SEGMENTS), size=m, p=wts / wts.sum()).astype(np.uint8)
-        # interests: a mixture of 1-3 dominant topics plus idiosyncratic noise
-        T = len(text.TOPIC_NAMES)
-        tw = rng.dirichlet(np.full(T, 0.25), size=m)
-        interests = text.interest_vector(tw, d["D"], rng.normal(0, 0.35 / math.sqrt(d["D"]), (m, d["D"])))
+        # interests: unit coordinates in the shared space's topic subspace, drawn from the embeddings of a real topic
+        # corpus (MIND-small news subcategories; population.semantics, D-16)
+        interests = semantics.interest_prior_coords(rng, m, d["D"])
         # preferences (schema.PREF_NAMES), segment-shifted
         P = d["P"]
         prefs = rng.beta(2.0, 2.0, size=(m, P))
@@ -330,7 +349,8 @@ class Population(Module):
             "wtp_scale": np.exp(rng.normal(0, 0.4, m)).astype(np.float16), "employer": employer,
             "commit_start_min": commit_start, "commit_len_min": commit_len, "day_start_min": day_start,
             "day_len_min": day_len, "mean_gap_s": mean_gap, "session_min": session_min,
-            "next_active_at": np.where(cls <= 2, nxt, NEVER).astype(np.int64), "habit": habit,
+            "next_active_at": np.where((cls <= 2) | np.isin(cls, list(world.runtime.get("pop.class_runtimes", {}))),
+                                       nxt, NEVER).astype(np.int64), "habit": habit,
             "contacts": contacts, "contact_trust": trust.astype(np.float16),
             "attention_budget_min": budget, "attention_left_min": budget,
         }
@@ -346,6 +366,26 @@ class Population(Module):
         nxt = columns.col(w, TABLE, "next_active_at")
         wk = columns.col(w, TABLE, "wake_at")
         cls = columns.col(w, TABLE, "class")
+        runtimes = w.runtime.get("pop.class_runtimes") or {}
+        for c_, rt in sorted(runtimes.items()):
+            if c_ <= 2:
+                continue
+            bound = np.flatnonzero(((nxt <= now) | (wk <= now)) & (cls == c_))
+            if bound.size:
+                decided: list[str] = []
+                w.runtime["pop.tick.decisions"] = decided
+                try:
+                    nx = rt["handler"](ctx, bound, now)
+                finally:
+                    w.runtime.pop("pop.tick.decisions", None)
+                nx = np.full(bound.size, now + 6 * 3600, np.int64) if nx is None else np.asarray(nx, np.int64)
+                columns.batch(ctx, TABLE, "pop.session", bound, {
+                    "next_active_at": np.maximum(nx, now + 60), "wake_at": np.full(bound.size, NEVER, np.int64),
+                    "last_session_at": np.full(bound.size, now, np.int64),
+                    "n_sessions": columns.col(w, TABLE, "n_sessions")[bound] + 1},
+                    extra={"t": int(now), "activations": int(bound.size), "sessions": int(bound.size), "woken": 0,
+                           "by_activity": {f"class{c_}.{rt['owner']}": int(bound.size)}, "left_platform": 0,
+                           "switches": 0, "mean_utility": 0.0, "decisions": decided})
         due = np.flatnonzero(((nxt <= now) | (wk <= now)) & (cls <= 2))
         if due.size and self.window > self.tick_s and now % self.window:
             # event aggregation: adaptive participants that are due wait for the next decision round, so their
@@ -384,9 +424,12 @@ class Population(Module):
         if st_ix.size:
             goals = c("goals")[st_ix]
             logits = np.zeros((st_ix.size, len(slots)))
+            derived = self.prof["init"] == "derived"
             for j, a in enumerate(reg["order"]):
                 sp = reg["spec"][a]
                 logits[:, j] = habit[st_ix, sp["slot"]]
+                if derived:            # derived initial state: the activities' priors were not known at install
+                    logits[:, j] += sp["prior"] - 0.3
                 for g in sp["goals"]:
                     logits[:, j] += 0.5 * (goals == g).any(axis=1)
             logits += rng.gumbel(size=logits.shape) * (0.6 + 0.6 * prefs[st_ix, 1:2])
@@ -396,18 +439,24 @@ class Population(Module):
             chosen[st_ix] = pick
         util = np.zeros(due.size, np.float64)
         by_act = {}
-        for a in reg["order"]:
-            sp = reg["spec"][a]
-            sel = np.flatnonzero(chosen == sp["slot"])
-            if sel.size == 0:
-                continue
-            by_act[a] = int(sel.size)
-            out = sp["handler"](ctx, due[sel], now)
-            if out is not None:
-                u = np.asarray(out, np.float64).reshape(-1)
-                if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
-                    raise ProtocolError(f"activity {a} returned {u.shape[0]} utilities for {sel.size} individuals")
-                util[sel] = np.clip(u, -2.0, 2.0)
+        decided: list[str] = []
+        w.runtime["pop.tick.decisions"] = decided       # record_decisions lists its batches here (provenance)
+        try:
+            for a in reg["order"]:
+                sp = reg["spec"][a]
+                sel = np.flatnonzero(chosen == sp["slot"])
+                if sel.size == 0:
+                    continue
+                by_act[a] = int(sel.size)
+                out = sp["handler"](ctx, due[sel], now)
+                if out is not None:
+                    u = np.asarray(out, np.float64).reshape(-1)
+                    if u.shape[0] != sel.size or not np.all(np.isfinite(u)):
+                        raise ProtocolError(f"activity {a} returned {u.shape[0]} utilities for {sel.size} "
+                                            f"individuals")
+                    util[sel] = np.clip(u, -2.0, 2.0)
+        finally:
+            w.runtime.pop("pop.tick.decisions", None)
         # ---- recorded session outcome for every activated individual (re-read: handlers changed state)
         sat = c("satisfaction").astype(np.float64)
         habit = c("habit").astype(np.float32)
@@ -439,16 +488,26 @@ class Population(Module):
             np.where(had, 1.0, 0.5) / (0.6 + 0.8 * np.clip(sat, 0, 1))
         nxt = schedule_times(now, np.clip(gaps, 600, 3 * DAY), c("day_start_min"), c("day_len_min"), rng)
         left_plat = int(np.sum(had & (habit[np.arange(due.size), np.maximum(chosen, 0)] < -1.0)))
-        vals = {"next_active_at": nxt, "wake_at": np.where(woken, NEVER, c("wake_at")).astype(np.int64),
-                "wake_act": np.where(woken, -1, wact).astype(np.int16), "satisfaction": sat.astype(np.float32),
-                "habit": habit, "n_sessions": n_sess.astype(np.int32), "n_switches": n_sw.astype(np.int32),
-                "last_activity": last_act.astype(np.int16), "experience": exp_.astype(np.float32),
-                "last_utility": last_u.astype(np.float32), "last_session_at": last_at}
-        columns.batch(ctx, TABLE, "pop.session", due, vals, mode="set",
-                      extra={"t": int(now), "activations": int(due.size), "sessions": int(rows.size),
-                             "woken": int(woken.sum()), "by_activity": by_act, "left_platform": left_plat,
-                             "switches": int(np.sum(n_sw - c("n_switches"))),
-                             "mean_utility": float(util[rows].mean()) if rows.size else 0.0})
+        wake_at = np.where(woken, NEVER, c("wake_at")).astype(np.int64)
+        wake_act = np.where(woken, -1, wact).astype(np.int16)
+        extra = {"t": int(now), "activations": int(due.size), "sessions": int(rows.size), "woken": int(woken.sum()),
+                 "by_activity": by_act, "left_platform": left_plat, "switches": int(np.sum(n_sw - c("n_switches"))),
+                 "mean_utility": float(util[rows].mean()) if rows.size else 0.0, "decisions": decided}
+        # storage on the hot path: individuals who took a session get their learned state written; those who were
+        # activated but did not start one only get their next activation (no rewrite of unchanged columns)
+        if rows.size:
+            columns.batch(ctx, TABLE, "pop.session", due[rows], {
+                "next_active_at": nxt[rows], "wake_at": wake_at[rows], "wake_act": wake_act[rows],
+                "satisfaction": sat[rows].astype(np.float32), "habit": habit[rows],
+                "n_sessions": n_sess[rows].astype(np.int32), "n_switches": n_sw[rows].astype(np.int32),
+                "last_activity": last_act[rows].astype(np.int16), "experience": exp_[rows].astype(np.float32),
+                "last_utility": last_u[rows].astype(np.float32), "last_session_at": last_at[rows]}, mode="set",
+                extra=extra)
+        idle = np.flatnonzero(~had)
+        if idle.size:
+            columns.batch(ctx, TABLE, "pop.activation", due[idle], {
+                "next_active_at": nxt[idle], "wake_at": wake_at[idle], "wake_act": wake_act[idle]}, mode="set",
+                extra={"t": int(now), "activations": int(idle.size)} if rows.size else extra)
         return {"activations": int(due.size), "sessions": int(rows.size), "by_activity": by_act}
 
     # ------------------------------------------------------------------ daily
@@ -539,6 +598,13 @@ class Population(Module):
         (their weights hashes stay in the hash-chained log and in pop_policies)."""
         return [ck[1] for _g, meta in sorted(world.state.tables.get("pop_policies", {}).items())
                 for ck in (meta.get("checkpoints") or [])[:-1]]
+
+    @applier("pop.decision_model")
+    def ap_decision_model(self, ev):
+        p = ev.payload
+        self.world.state.insert("pop_decision_models", p["key"], {
+            "model_id": p["model_id"], "model_version": p["model_version"], "fidelity_id": p["fidelity_id"],
+            "kind": p.get("kind", ""), "first_t": ev.t})
 
     @applier("pop.genesis")
     def ap_genesis(self, ev):

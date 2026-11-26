@@ -49,8 +49,9 @@ DAY = 86400
 DEFAULT_MIX = [{"name": "interest", "weight": 1.0}, {"name": "social", "weight": 1.0},
                {"name": "fresh", "weight": 0.5}, {"name": "explore", "weight": 0.3}]
 DEFAULTS = {"platforms": {"posts": {"recommenders": DEFAULT_MIX}, "articles": {"recommenders": DEFAULT_MIX}},
-            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {}}
-_PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule"}
+            "inbox": 4, "share_delay_s": 900, "train_interval_s": 21600, "behaviour": {}, "calibrated": {},
+            "activity_prior": 0.3, "adapt": {}}
+_PCFG_KEYS = {"k", "pool", "pool_days", "inbox_slots", "recommenders", "schedule", "adapt"}
 
 
 def _mod(world) -> "Feed":
@@ -131,6 +132,13 @@ class Feed(Module):
             raise NotFound(f"no platform {platform!r}")
         return {k: v for k, v in {**DEFAULT_PLATFORM, **pc}.items() if k in DEFAULT_PLATFORM}
 
+    def adapt_cfg(self, platform: str) -> dict | None:
+        a = self.cfg["platforms"].get(platform, {}).get("adapt")
+        if not a:
+            return None
+        return {"every_s": int(a.get("every_s", DAY)), "eta": float(a.get("eta", 0.6)),
+                "min_impressions": int(a.get("min_impressions", 200)), "floor": float(a.get("floor", 0.05))}
+
     def platform_index(self, platform: str) -> int:
         return self.platforms.index(platform)
 
@@ -173,7 +181,12 @@ class Feed(Module):
                                           "feed_social": ("int32", (self.R,), -1),
                                           "feed_habit": ("float32", (len(self.platforms),), 0.0)})
         if self.cfg["calibrated"]:                       # per-individual consumption history by topic
-            columns.declare(world, "pop", n, {"feed_topic_views": ("uint16", (len(TOPIC_NAMES),), 0)})
+            if self.aud.cfg.get("encoder") == "space":
+                from ...population import semantics
+                ntop = len(semantics.topic_names())
+            else:
+                ntop = len(TOPIC_NAMES)
+            columns.declare(world, "pop", n, {"feed_topic_views": ("uint16", (ntop,), 0)})
         world.state.declare_table("feed_private")
         world.state.declare_table("feed_models")
         self.engine = Engine(self)
@@ -182,11 +195,12 @@ class Feed(Module):
             from ..scale import register_activity
             register_activity(world, "browse", self.browse, owner="feed")
         elif "pop" in world.modules:
+            # the one population (D-15): every platform is an activity of its own, competing for each individual's
+            # finite attention and time with everything else the population does
             from ... import population
-            reg = getattr(population, "register_activity", None)
-            if reg is None:
-                raise ProtocolError("feed: the population module does not provide register_activity")
-            reg(world, "browse", self.browse, owner="feed")
+            for p in self.platforms:
+                population.register_activity(world, f"feed.{p}", self._platform_activity(p), owner="feed",
+                                             prior=float(self.cfg["activity_prior"]), goals=(1, 4))
         else:
             raise ProtocolError("feed needs a population module (crowd or pop) listed before it")
         bus.enforce(world, owner="feed")
@@ -202,10 +216,29 @@ class Feed(Module):
         if any(len(v) > 1 for v in self.versions.values()):
             ctx.schedule(DAY, "feed.daily", {}, prio=5, period=DAY, key="feed.daily")
         for p in self.platforms:
+            a = self.adapt_cfg(p)
+            if a:
+                ctx.schedule(a["every_s"], "feed.adapt", {"platform": p}, prio=6, period=a["every_s"],
+                             key=f"feed.adapt.{p}")
+        for p in self.platforms:
             ctx.emit("feed.mixture", {"platform": p, "version": "v0", "day": 0, "names":
                                       [e["name"] for e in self.versions[p][0][1]]}, vis="internal")
 
-    # ------------------------------------------------------------------ the population's browse activity
+    # ------------------------------------------------------------------ the population's activities
+    def _platform_activity(self, platform: str):
+        def act(ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
+            idx = np.asarray(idx, dtype=np.int64)
+            out = self.engine.run(ctx, platform, idx)
+            u = np.asarray(out.get("utility", np.zeros(np.unique(idx).size)), np.float64)
+            after = (ctx.world.hooks.get("feed.after_session") or {}).get(platform)
+            if after is not None and out.get("sessions"):
+                # what members do next with what they saw (e.g. visit and buy a launched product): ordinary tools
+                u = u + np.asarray(after(ctx, out), np.float64)
+            # the engine works on the sorted unique cohort; hand utilities back in the caller's row order
+            uniq = np.unique(idx)
+            return u[np.searchsorted(uniq, idx)]
+        return act
+
     def browse(self, ctx: Ctx, idx: np.ndarray, now: int) -> None:
         idx = np.asarray(idx, dtype=np.int64)
         if idx.size == 0:
@@ -233,6 +266,80 @@ class Feed(Module):
                 if d == day and j > 0:
                     ctx.emit("feed.mixture", {"platform": p, "version": f"v{j}", "day": day,
                                               "names": [e["name"] for e in ents]}, vis="internal")
+
+    @process("adapt")
+    def pr_adapt(self, ctx, platform: str):
+        """A platform changes how it distributes by its OWN measured feedback: from its recorded impressions and
+        consumption of the last period it computes, per mechanism of its mixture, the share of impressions placed
+        by that mechanism that became qualifying views, and reweights the mixture multiplicatively towards what
+        worked (weights floored, so no mechanism disappears). The new mixture is recorded like an operator change
+        (internal `feed.mixture_set`, by the platform). An operator can switch it off (`feed.set_adapt`)."""
+        a = self.adapt_cfg(platform)
+        if a is None or ctx.state.meta.get(f"feed.adapt_off.{platform}"):
+            return
+        w = ctx.world
+        since = ctx.now - a["every_s"]
+        src_of: dict[int, int] = {}
+        n_imp = np.zeros(len(AUD.SOURCES), np.int64)
+        npop = AUD.n_people(w)
+        for b in AUD.batches(w, kind="imp", platform=platform, since_t=since):
+            arr = artifacts.get_array_blob(w, b["ref"])
+            key = arr["v.aud_i_item"].astype(np.int64) * npop + arr["idx"].astype(np.int64)
+            srcs = arr["v.aud_i_src"].astype(np.int64)
+            np.add.at(n_imp, srcs, 1)
+            for k_, s_ in zip(key.tolist(), srcs.tolist()):
+                src_of.setdefault(k_, s_)
+        n_view = np.zeros(len(AUD.SOURCES), np.int64)
+        for b in AUD.batches(w, kind="consume", platform=platform, since_t=since):
+            arr = artifacts.get_array_blob(w, b["ref"])
+            it = arr["v.aud_c_item"].astype(np.int64)
+            dur = AUD.item_col(w, "duration_s")[it].astype(np.float64)
+            ok = arr["v.aud_c_watch_s"].astype(np.float64) >= AUD.view_threshold(dur)
+            for k_ in (it[ok] * npop + arr["idx"].astype(np.int64)[ok]).tolist():
+                s_ = src_of.get(k_)
+                if s_ is not None:
+                    n_view[s_] += 1
+        vid, ents = self.mixture_entries(w, platform, ctx.now)
+        rates = {}
+        for e in ents:
+            code = AUD.SOURCE_CODE.get(e["name"])
+            if code is None or n_imp[code] < a["min_impressions"]:
+                continue
+            rates[e["name"]] = n_view[code] / n_imp[code]
+        if len(rates) < 2:
+            return
+        mu = float(np.mean(list(rates.values())))
+        sd = float(np.std(list(rates.values()))) + 1e-9
+        tot = sum(e["weight"] for e in ents)
+        new = []
+        for e in ents:
+            wgt = e["weight"]
+            if e["name"] in rates:
+                wgt = wgt * float(np.exp(a["eta"] * (rates[e["name"]] - mu) / sd))
+            new.append({"name": e["name"], "weight": wgt, "params": dict(e.get("params") or {})})
+        s_ = sum(e["weight"] for e in new)
+        for e in new:
+            e["weight"] = round(max(a["floor"] * tot / len(new), e["weight"] * tot / s_), 6)
+        if [round(e["weight"], 4) for e in new] == [round(e["weight"], 4) for e in ents]:
+            return
+        ver = int(ctx.state.meta.get(f"feed.override.{platform}", 0)) + 1
+        ctx.emit("feed.mixture_set", {"platform": platform, "entries": new, "from_t": int(ctx.now), "version": ver,
+                                      "by": "platform", "measured": {k: round(float(v), 5) for k, v in rates.items()}},
+                 vis="internal")
+
+    @endpoint("set_adapt", S.obj({"platform": S.s_str("platform name", maxLength=32), "enabled": S.s_bool()},
+                                 ["platform", "enabled"]), cost_s=0)
+    def ep_set_adapt(self, ctx, platform, enabled):
+        """Operator only: switch a platform's self-adaptation of its distribution on or off."""
+        if ctx.actor != SYSTEM:
+            raise Forbidden("only the simulator operator can change a platform's distribution")
+        self._platform(platform)
+        ctx.emit("feed.adapt_set", {"platform": platform, "enabled": bool(enabled)}, vis="internal")
+        return {"platform": platform, "enabled": bool(enabled)}
+
+    @applier("feed.adapt_set")
+    def ap_adapt_set(self, ev):
+        self.world.state.meta_set(f"feed.adapt_off.{ev.payload['platform']}", not ev.payload["enabled"])
 
     @process("train")
     def pr_train(self, ctx):
@@ -276,6 +383,9 @@ class Feed(Module):
                                                 "version": p["version"]})
         st.meta_set(f"feed.override.{p['platform']}", p["version"])
         st.meta_set(f"feed.changes.{p['platform']}", int(st.meta.get(f"feed.changes.{p['platform']}", -1)) + 1)
+        if p.get("by") == "platform":
+            st.meta_set(f"feed.self_changes.{p['platform']}",
+                        int(st.meta.get(f"feed.self_changes.{p['platform']}", 0)) + 1)
 
     @applier("feed.model")
     def ap_model(self, ev):
@@ -417,12 +527,28 @@ class Feed(Module):
         AUD.consumption(ctx, rec["platform"], np.array([i]), np.array([item]), np.array([got]), np.array([comp]),
                         np.array([bool(share)]), np.array([bool(follow)]), np.array([bool(like)]))
         graph = ctx.world.runtime.get("crowd.graph")
+        con = None
         if share and graph is not None:
             con = graph.contacts(np.array([i]))[0]
+        elif share and "pop" in ctx.world.modules:
+            con = columns.col(ctx.world, "pop", "contacts")[i].astype(np.int64)
+            con = con[con >= 0]
+        if con is not None:
             con = con[con != i]
             g = int(columns.col(ctx.world, "pop", "aud_i_gen")[i]) if \
                 int(columns.col(ctx.world, "pop", "aud_i_item")[i]) == item else 0
-            self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)))
+            if con.size:
+                self.engine.deliver(ctx, con, np.full(con.size, item), np.full(con.size, min(g + 1, 255)),
+                                    platform=rec["platform"])
+        if "social" in ctx.world.modules and (follow or share):
+            from .. import graph as G
+            from . import features as F
+            if follow:
+                dst = F.creator_nodes(ctx.world, np.array([int(rec["creator_code"])]))
+                if dst[0] >= 0:
+                    G.follow_batch(ctx, np.array([i]), dst, via="feed")
+            if share and isinstance(rec.get("content_id"), str):
+                G.share_batch(ctx, np.array([i]), np.array([int(rec["content_id"][1:])]), via="feed")
         view = got >= float(AUD.view_threshold(dur)) and rec["creator"] != ctx.actor
         return {"item": item, "watched_s": round(got, 3), "counted_as_view": bool(view), "completed": bool(comp)}
 

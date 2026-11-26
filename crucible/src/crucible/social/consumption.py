@@ -55,6 +55,9 @@ BUILTIN = {
     # continuing the session
     "continue_bias": 2.2, "continue_sat": 2.0, "continue_view": 0.3, "continue_minutes": -0.12,
     # state updates
+    # legibility of the artifact (population.semantics.legibility, from its bytes; 1.0 on the lexical path): text
+    # nobody can read is left within seconds and abandoned fast
+    "bounce_legib": 4.0, "hazard_legib": 2.5,
     "sat_lr": 0.12, "sat_ref_affinity": 0.2, "sat_skip": -0.004, "habit_lr": 0.5, "habit_decay": 0.02,
     "taste_drift": 0.02, "scroll_s": 2.0, "notice_prob": 0.3, "gap_mean_s": 6 * 3600.0, "gap_sat": 1.0, "need_weight": 0.3,
 }
@@ -130,9 +133,20 @@ def group_into_rows(recipients: np.ndarray, values: list[np.ndarray], R: int):
     return u, cnt, outs
 
 
+def _catalogue_n(world, item: int) -> int:
+    """The content-catalogue index of an audience item (-1 when it never went through content.publish)."""
+    rec = world.state.tables["aud_item_info"].get(str(int(item)))
+    cid = None if rec is None else rec.get("content_id")
+    return int(cid[1:]) if isinstance(cid, str) and cid.startswith("c") else -1
+
+
 def item_topics(world, items: np.ndarray) -> np.ndarray:
-    """Each item's topic: the topic vocabulary nearest to its representation (computed from the artifact)."""
+    """Each item's topic: the topic nearest to its representation (computed from the artifact): a corpus topic of
+    the shared space, or a topic vocabulary on the lexical path."""
     from . import textrep
+    if F.space_world(world):
+        from ..population import semantics
+        return semantics.nearest_topic(F.item_emb(world, items))
     E = F.item_emb(world, items).astype(np.float64)
     return np.argmax(E @ textrep.topic_centroids(E.shape[1]).T, axis=1)
 
@@ -236,12 +250,18 @@ class Engine:
             self.calibrated[p] = CALIBRATED_OPEN[c["open"]](c["open"], c.get("affinity_space"), c.get("content_kind"))
 
     # ------------------------------------------------------------------ distribution
-    def build_feed(self, ctx, platform: str, idx: np.ndarray, rng):
+    def build_feed(self, ctx, platform: str, idx: np.ndarray, rng, *, pool: np.ndarray | None = None,
+                   mixture=None):
+        """`pool` / `mixture` override the platform's candidate pool and recommender mixture (a community's own
+        posts in its chronological feed, a search result list)."""
         w = ctx.world
         pc = {**DEFAULT_PLATFORM, **self.feed.platform_cfg(platform)}
         k = int(pc["k"])
         V = idx.size
-        pool = candidate_pool(w, platform, int(pc["pool"]), float(pc["pool_days"]))
+        if pool is None:
+            pool = candidate_pool(w, platform, int(pc["pool"]), float(pc["pool_days"]))
+        else:
+            pool = np.unique(np.asarray(pool, np.int64))
         feed = np.full((V, k), -1, np.int64)
         src = np.zeros((V, k), np.int8)
         gen = np.zeros((V, k), np.uint8)
@@ -270,7 +290,7 @@ class Engine:
             feed[rr, slot] = ring[rr, cc]
             gen[rr, slot] = rgen[rr, cc]
             src[rr, slot] = AUD.SOURCE_CODE["share"]
-        mix = self.feed.mixture(platform, ctx.now)
+        mix = self.feed.mixture(platform, ctx.now) if mixture is None else mixture
         if pool.size and k > 0:
             recs, rsrc = mix.rank(w, platform, idx, pool, k + islots, rng)
             # drop recommended items already placed from the inbox, then fill the remaining slots in order
@@ -292,15 +312,17 @@ class Engine:
         return feed, src, gen, used_inbox
 
     # ------------------------------------------------------------------ the session
-    def run(self, ctx, platform: str, idx: np.ndarray) -> dict:
+    def run(self, ctx, platform: str, idx: np.ndarray, *, pool: np.ndarray | None = None, mixture=None,
+            activity: str | None = None) -> dict:
         w = ctx.world
         b = self.b
         idx = np.unique(np.asarray(idx, dtype=np.int64))
         V = idx.size
         if V == 0:
-            return {"sessions": 0}
+            return {"sessions": 0, "utility": np.zeros(0)}
         rng = ctx.rng("feed.session", platform)
-        feed, src, gen, used_inbox = self.build_feed(ctx, platform, idx, rng)
+        feed, src, gen, used_inbox = self.build_feed(ctx, platform, idx, rng, pool=pool, mixture=mixture)
+        self._activity = activity or f"feed.{platform}"
         k = feed.shape[1]
         has_item = feed >= 0
         fe = np.where(has_item, feed, 0)
@@ -312,16 +334,17 @@ class Engine:
         cpop = columns.col(w, AUD.CREATORS, "pop_index")[cre]
         self_item = (cpop == idx[:, None]) & has_item
         fam = rowwise_member(w, "cv", np.where(has_item, cre, -1), idx)
-        fol = rowwise_member(w, "fo", np.where(has_item, cre, -1), idx)
+        fol = F.follows_matrix(w, idx, np.where(has_item, cre, -1))
+        illeg = 1.0 - np.clip(F.item_legibility(w, fe), 0.0, 1.0)
         seen = rowwise_member(w, "vw", np.where(has_item, feed, -1), idx)
         from_share = src == AUD.SOURCE_CODE["share"]
         sat = columns.col(w, "pop", "satisfaction")[idx].astype(np.float64)
         left_min = columns.col(w, "pop", "attention_left_min")[idx].astype(np.float64)
         L = left_min * 60.0
-        try:
+        if "pop" in w.modules:          # the one population: sociable people share more (prefs.sociability)
+            sprop = 0.4 + 1.2 * columns.col(w, "pop", "prefs")[idx, 6].astype(np.float64)
+        else:
             sprop = columns.col(w, "pop", "share_prop")[idx].astype(np.float64)
-        except Exception:
-            sprop = np.ones(V)
         util = (b["open_bias"] + b["open_affinity"] * aff + b["open_familiar"] * fam + b["open_follow"] * fol +
                 b["open_share"] * from_share + b["open_seen"] * seen + b["open_sat"] * (sat[:, None] - 0.5) +
                 b["open_len"] * np.log(np.maximum(dur, 1.0) / 60.0))
@@ -333,9 +356,10 @@ class Engine:
         p_open = eu / (math.exp(b["outside"]) + win)
         if platform in self.calibrated:
             p_open = np.where(self_item, 0.0, self.calibrated[platform].p_open(w, platform, idx, feed, aff, has_item))
-        p_bounce = _sigmoid(b["bounce_bias"] + b["bounce_affinity"] * aff)
+        p_bounce = _sigmoid(b["bounce_bias"] + b["bounce_affinity"] * aff + b["bounce_legib"] * illeg)
         lam = b["hazard_per_s"] * np.exp(b["hazard_affinity"] * aff + b["hazard_familiar"] * fam +
-                                         b["hazard_sat"] * (sat[:, None] - 0.5) + b["hazard_seen"] * seen)
+                                         b["hazard_sat"] * (sat[:, None] - 0.5) + b["hazard_seen"] * seen +
+                                         b["hazard_legib"] * illeg)
         thr = AUD.view_threshold(dur)
         R = rng.random((V, k, 8))
         active = np.ones(V, dtype=bool)
@@ -402,6 +426,10 @@ class Engine:
             left = columns.col(w, "pop", "attention_left_min")[idx[spent]].astype(np.float64)
             mins = np.minimum(mins, left)                         # elapsed <= left by construction
             attention.spend(ctx, idx[spent], mins, activity=f"feed.{platform}")
+        sess_val = np.where(n_open > 0, value / np.maximum(n_open, 1), b["sat_skip"])
+        if "pop" in w.modules:
+            return self._record_pop(ctx, platform, idx, feed, gen, used_inbox, view, watch, liked, shared,
+                                    followed, sess_val, vr.size, vo.size)
         # the individuals' new state
         st_vals = {"satisfaction": sat.astype(np.float32)}
         left_after = (L - elapsed) / 60.0
@@ -414,7 +442,6 @@ class Engine:
         P = len(self.feed.platforms)
         pcode = self.feed.platform_index(platform)
         hab = columns.col(w, "pop", "feed_habit")[idx].astype(np.float64)
-        sess_val = np.where(n_open > 0, value / np.maximum(n_open, 1), b["sat_skip"])
         hab = hab * (1 - float(b["habit_decay"]))
         hab[:, pcode] += float(b["habit_lr"]) * sess_val
         st_vals["feed_habit"] = hab.astype(np.float32)
@@ -467,7 +494,76 @@ class Engine:
         return {"sessions": int(V), "impressions": int(vr.size), "opened": int(vo.size), "views": int(view.sum()),
                 "shares": int(shared.sum()), "deliveries": n_deliv}
 
-    def deliver(self, ctx, recipients: np.ndarray, items: np.ndarray, gens: np.ndarray) -> None:
+    def _record_pop(self, ctx, platform, idx, feed, gen, used_inbox, view, watch, liked, shared, followed, sess_val,
+                    n_imp, n_open) -> dict:
+        """The session's consequences for members of the one population (`pop`): the population's tick learns
+        satisfaction, habits and the next activation from the returned utility; here the inbox entries read, the
+        interest drift towards what was enjoyed (`population.experience`), follows and shares into the social
+        graph (one owner per fact), and share deliveries to the sharers' contacts."""
+        from .. import population
+        w = ctx.world
+        V, k = feed.shape
+        if np.any(used_inbox):
+            ring = columns.col(w, "pop", "feed_inbox")[idx].copy()
+            ring[used_inbox] = -1
+            rows = np.flatnonzero(used_inbox.any(axis=1))
+            columns.batch(ctx, "pop", "feed.inbox_read", idx[rows], {"feed_inbox": ring[rows]}, mode="set",
+                          extra={"platform": platform})
+        if float(self.b["taste_drift"]) > 0 and np.any(view):
+            fe = np.where(view, feed, 0)
+            E = F.item_emb(w, fe.reshape(-1)).reshape(V, k, -1).astype(np.float64)
+            dur = columns.col(w, AUD.ITEMS, "duration_s")[fe].astype(np.float64)
+            pull = np.einsum("vk,vkd->vd", view * (watch / np.maximum(dur, 1.0)), E)
+            rows = np.flatnonzero(view.any(axis=1))
+            population.experience(ctx, idx[rows], getattr(self, "_activity", None) or f"feed.{platform}",
+                                  sess_val[rows], item_vecs=pull[rows])
+        social = "social" in w.modules
+        vf, pf = np.nonzero(followed)
+        if vf.size and social:
+            from . import graph
+            cre = columns.col(w, AUD.ITEMS, "creator")[feed[vf, pf]].astype(np.int64)
+            dst = F.creator_nodes(w, cre)
+            ok = dst >= 0
+            graph.follow_batch(ctx, idx[vf][ok], dst[ok], via="feed")
+        n_deliv = 0
+        vs, ps = np.nonzero(shared)
+        if vs.size:
+            sharers = idx[vs]
+            items = feed[vs, ps]
+            if social:
+                from . import graph
+                cn = np.array([_catalogue_n(w, int(i)) for i in items], np.int64)
+                ok = cn >= 0
+                if ok.any():
+                    graph.share_batch(ctx, sharers[ok], cn[ok], via="feed")
+            g = np.minimum(gen[vs, ps].astype(np.int64) + 1, 255)
+            con = columns.col(w, "pop", "contacts")[sharers].astype(np.int64)
+            rec = con.reshape(-1)
+            it = np.repeat(items, con.shape[1])
+            gg = np.repeat(g, con.shape[1])
+            okr = (rec >= 0) & (rec != np.repeat(sharers, con.shape[1]))
+            rec, it, gg = rec[okr], it[okr], gg[okr]
+            n_deliv = int(rec.size)
+            if n_deliv:
+                self.deliver(ctx, rec, it, gg, platform=platform)
+        vl, pl = np.nonzero(liked)
+        if vl.size:
+            likers = idx[vl]
+            con = columns.col(w, "pop", "contacts")[likers].astype(np.int64)
+            rec = con.reshape(-1)
+            it = np.repeat(feed[vl, pl], con.shape[1])
+            okr = (rec >= 0) & (rec != np.repeat(likers, con.shape[1]))
+            if okr.any():
+                u_, cnt, (newi,) = group_into_rows(rec[okr], [it[okr].astype(np.int32)], self.feed.R)
+                old = columns.col(w, "pop", "feed_social")[u_]
+                columns.batch(ctx, "pop", "feed.activity", u_, {"feed_social": ring_push(old, newi, cnt)},
+                              mode="set")
+        return {"sessions": int(V), "impressions": int(n_imp), "opened": int(n_open), "views": int(view.sum()),
+                "shares": int(shared.sum()), "deliveries": n_deliv, "follows": int(vf.size), "utility": sess_val,
+                "idx": idx, "feed": feed, "view": view, "watch": watch}
+
+    def deliver(self, ctx, recipients: np.ndarray, items: np.ndarray, gens: np.ndarray, *,
+                platform: str | None = None) -> None:
         """Put shared items into the recipients' inboxes (newest first); each recipient notices the notification
         with probability `notice_prob` and then comes back after `share_delay_s` (unless it was coming back sooner)."""
         w = ctx.world
@@ -482,6 +578,10 @@ class Engine:
         if noticed.size:
             if "crowd" in w.modules:
                 from .scale import wake
+                wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")
             else:
+                # the notification brings the recipient back to the platform of the shared item (its inbox
+                # entries open that platform's feed)
                 from ..population import wake
-            wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity="share")
+                plat = platform or w.state.tables["aud_item_info"][str(int(items[0]))]["platform"]
+                wake(ctx, noticed, ctx.now + int(self.feed.cfg["share_delay_s"]), activity=f"feed.{plat}")

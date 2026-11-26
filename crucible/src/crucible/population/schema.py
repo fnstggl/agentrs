@@ -35,9 +35,10 @@ VIA = {0: "known", 1: "link", 2: "contact", 3: "search", 4: "forum", 5: "genesis
 
 
 def dims(cfg: dict) -> dict:
-    """Column dimensions: interest D, known slots K, habit slots H, memory M, contacts C, goals G, skills S,
+    """Column dimensions: interest D (coordinates in the shared space's topic subspace,
+    population.semantics), known slots K, habit slots H, memory M, contacts C, goals G, skills S,
     beliefs B, prefs P, recent R, communities Q, abandoned A, purchased U."""
-    d = {"D": 32, "K": 12, "H": 16, "M": 32, "C": 8, "G": 4, "S": len(SKILL_NAMES), "B": len(BELIEF_NAMES),
+    d = {"D": 64, "K": 12, "H": 16, "M": 32, "C": 8, "G": 4, "S": len(SKILL_NAMES), "B": len(BELIEF_NAMES),
          "P": len(PREF_NAMES), "R": 8, "Q": 4, "A": 4, "U": 4}
     d.update({k: int(v) for k, v in (cfg or {}).items() if k in d})
     if "interest_dim" in (cfg or {}):

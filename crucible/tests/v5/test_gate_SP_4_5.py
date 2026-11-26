@@ -31,14 +31,15 @@ PLATFORMS = {
                                         {"name": "cf", "weight": 0.8}, {"name": "engagement", "weight": 0.8},
                                         {"name": "explore", "weight": 0.5}, {"name": "social", "weight": 0.8},
                                         {"name": "fresh", "weight": 0.5}, {"name": "trending", "weight": 0.4}]},
-    "articles": {"k": 8, "recommenders": [{"name": "diversity", "weight": 0.8}, {"name": "reputation", "weight": 0.8},
+    "blog": {"k": 8, "recommenders": [{"name": "diversity", "weight": 0.8}, {"name": "reputation", "weight": 0.8},
                                           {"name": "search", "weight": 0.8}, {"name": "random", "weight": 0.2}]},
 }
 
 
 @pytest.fixture(scope="module")
 def run():
-    w = World.create(X.spec("sp45", 31, n=2500, creators=30, platforms=PLATFORMS), strict=True)
+    # the one population (crucible.population; the crowd stand-in is not used)
+    w = World.create(X.pop_spec("sp45", 31, n=2500, platforms=PLATFORMS), strict=True)
     X.run(w, 2 * DAY)
     snap = w.snapshot_blob()
     s2 = w.seq

@@ -74,10 +74,103 @@ def interests(world, viewers: np.ndarray, *, need_weight: float = 0.0) -> np.nda
     return u / np.maximum(n, 1e-6)
 
 
+def space_world(world) -> bool:
+    """Does this world represent content and interests in the shared semantic space (D-16)?"""
+    m = world.modules.get("aud")
+    return m is not None and m.cfg.get("encoder") == "space"
+
+
 def item_emb(world, items: np.ndarray) -> np.ndarray:
+    """Item representations. In the shared space: the item's coordinates in the interest subspace, NOT
+    renormalised, so `interests . emb` is the full-space cosine (population.semantics). On the lexical path of the
+    crowd stand-in: unit vectors."""
     e = columns.col(world, AUD.ITEMS, "emb")[items].astype(np.float32)
+    if space_world(world):
+        return e
     n = np.linalg.norm(e, axis=1, keepdims=True)
     return e / np.maximum(n, 1e-6)
+
+
+def item_legibility(world, items: np.ndarray) -> np.ndarray:
+    return columns.col(world, AUD.ITEMS, "legib")[items].astype(np.float64)
+
+
+def creator_nodes(world, codes: np.ndarray) -> np.ndarray:
+    """Social node ids of audience creator codes (population individuals are their own row)."""
+    from .. import nodes
+    codes = np.asarray(codes, np.int64)
+    out = np.full(codes.shape, -1, np.int64)
+    tbl = world.state.tables.get("aud_creator_info", {})
+    for c in np.unique(codes):
+        if c < 0:
+            continue
+        rec = tbl.get(str(int(c)))
+        n = None if rec is None else nodes.node_of(world, rec["principal"])
+        out[codes == c] = -1 if n is None else int(n)
+    return out
+
+
+def _follow_keys(world) -> np.ndarray:
+    """Sorted pair keys of the active follow edges of the social graph (the one follow relation, module
+    `social`), cached for the graph's current (rows used, active edges) state."""
+    from .. import graph
+    from ..edges import pair_keys
+    v = graph.FOLLOW.view(world)
+    act = v["active"]
+    key = ("follow.keys", id(world.state), int(act.size), int(np.count_nonzero(act)))
+    c = world.runtime.setdefault("recsys.follow_keys", {})
+    hit = c.get("k")
+    if hit is not None and hit[0] == key:
+        return hit[1]
+    keys = np.unique(pair_keys(v["src"][act], v["dst"][act])) if act.any() else np.zeros(0, np.uint64)
+    c["k"] = (key, keys)
+    return keys
+
+
+def follows_matrix(world, viewers: np.ndarray, creator_codes: np.ndarray) -> np.ndarray:
+    """bool, the shape of `creator_codes` broadcast against viewers: does viewer v follow the creator? Read from
+    the social graph when the world has one (the follow relation has one owner), else from the audience module's
+    follower sets (crowd stand-in)."""
+    viewers = np.asarray(viewers, np.int64)
+    cc = np.asarray(creator_codes, np.int64)
+    if "social" not in world.modules:
+        if cc.ndim == 1:
+            return membership(world, "fo", cc, viewers)
+        out = np.zeros(cc.shape, bool)
+        for c in np.unique(cc):
+            if c < 0:
+                continue
+            m = cc == c
+            r = np.nonzero(m)[0]
+            out[m] = idset.contains(world.state, idset.key("fo", int(c)), viewers[r])
+        return out
+    from ..edges import pair_keys
+    keys = _follow_keys(world)
+    if cc.ndim == 1:
+        cn = creator_nodes(world, cc)
+        V, C = viewers.size, cn.size
+        if not keys.size or not V or not C:
+            return np.zeros((V, C), bool)
+        src = np.repeat(viewers, C)
+        dst = np.tile(cn, V)
+        ok = dst >= 0
+        out = np.zeros(V * C, bool)
+        if ok.any():
+            k = pair_keys(src[ok], dst[ok])
+            pos = np.minimum(np.searchsorted(keys, k), keys.size - 1)
+            out[ok] = keys[pos] == k
+        return out.reshape(V, C)
+    cn = creator_nodes(world, cc)
+    out = np.zeros(cc.shape, bool)
+    if not keys.size:
+        return out
+    vv = np.broadcast_to(viewers.reshape(-1, *([1] * (cc.ndim - 1))), cc.shape)
+    ok = cn >= 0
+    if ok.any():
+        k = pair_keys(vv[ok], cn[ok])
+        pos = np.minimum(np.searchsorted(keys, k), keys.size - 1)
+        out[ok] = keys[pos] == k
+    return out
 
 
 def membership(world, kind: str, keys: np.ndarray, viewers: np.ndarray) -> np.ndarray:
@@ -99,10 +192,13 @@ def creators_of(world, items: np.ndarray) -> np.ndarray:
 
 
 def creator_membership(world, kind: str, items: np.ndarray, viewers: np.ndarray) -> np.ndarray:
-    """[V, C] bool: viewer v in the creator set (cv / fo) of the creator of items[c]."""
+    """[V, C] bool: viewer v in the creator set (cv: has viewed; fo: follows) of the creator of items[c]."""
     cre = creators_of(world, items)
     uc, inv = np.unique(cre, return_inverse=True)
-    m = membership(world, kind, uc, viewers)
+    if kind == "fo":
+        m = memo(world, "follows", lambda: follows_matrix(world, viewers, uc), uc, viewers)
+    else:
+        m = membership(world, kind, uc, viewers)
     return m[:, inv]
 
 

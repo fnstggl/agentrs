@@ -183,7 +183,7 @@ def test_strategic_participants_act_through_tools(run2):
 
 def test_modules_pass_admission():
     from crucible.worldgen.admission import admit
-    base = ["identity", "bank", "admin", "artifacts", "cols", "code", "search", "forum", "cloud", "net", "appdb"]
+    base = ["identity", "bank", "admin", "artifacts", "cols", "space", "code", "search", "forum", "cloud", "net", "appdb"]
     cfg = {"popsites": {"n": 3, "mix": {"rich": 1.0}}, "pop": {"profile": "development", "n": 40, "tick_s": 3600,
                                                                "classes": {"adaptive": 6, "strategic": 1,
                                                                            "semantic": 0}},

@@ -53,6 +53,56 @@ def internet_spec(n: int, seed: int, *, positive_control: bool, creators: int = 
                      {"log_retain": 10_000_000})
 
 
+def pop_internet_spec(n: int | None, seed: int, *, positive_control: bool, k: int = 8, pool: int = 200,
+                      creator_prior: float = -2.5, profile: str = "internet", classes: dict | None = None
+                      ) -> WorldSpec:
+    """The internet-profile world of the ONE population (`crucible.population`, profile `internet`, D-15): n
+    identities of `pop` (interests in the shared semantic space, derived initial state), members who write and
+    publish (`pop_social`: few, as on real platforms), one posts platform with the ordinary recommenders, sharing to
+    each member's contacts, exact audience accounting with decision provenance. With `positive_control=True` the
+    mixture weights trending and an experimenter account publishes one informative post at the start (the control
+    item, `positive_control_post`). Nothing assigns a view."""
+    mix = [{"name": "interest", "weight": 1.0}, {"name": "social", "weight": 0.8}, {"name": "fresh", "weight": 0.4},
+           {"name": "explore", "weight": 0.3}]
+    if positive_control:
+        mix = [{"name": "trending", "weight": 1.0}, {"name": "interest", "weight": 1.0},
+               {"name": "social", "weight": 0.8}, {"name": "explore", "weight": 0.3}]
+    platforms = {"posts": {"k": k, "pool": pool, "pool_days": 3, "inbox_slots": 2, "recommenders": mix}}
+    pcfg = {"profile": profile, "tick_s": 900,
+            "classes": dict(classes) if classes is not None else {"adaptive": 0, "strategic": 0, "semantic": 0}}
+    if n is not None:
+        pcfg["n"] = int(n)
+    mods = [{"name": m, "config": {}} for m in ("identity", "bank", "admin", "artifacts", "cols", "space", "search")]
+    mods += [{"name": "pop", "config": pcfg}]
+    mods += [{"name": m, "config": {}} for m in ("social_ids", "social_rows", "content", "studio", "social", "posts")]
+    mods += [{"name": "aud", "config": {"platforms": ["posts"], "max_items": 8192, "max_creators": 2048,
+                                        "analytics_interval_s": 3 * 3600}},
+             {"name": "feed", "config": {"platforms": platforms, "behaviour": SCALE_BEHAVIOUR,
+                                         "train_interval_s": DAY}},
+             {"name": "pop_social", "config": {"prior": float(creator_prior), "creator_share": 0.002}}]
+    return WorldSpec("pop-internet-positive-control" if positive_control else "pop-internet-organic", seed, mods,
+                     {"log_retain": 10_000_000})
+
+
+def positive_control_post(world: World, topic: str = "football_nfl") -> int:
+    """The experimenter's informative post at the start of a positive-control run (real abstracts of a popular
+    topic, ordinary tools: artifact.put + posts.publish). Returns its audience item id."""
+    import base64
+    from ..population import semantics, writing
+    lab = world.system_call("admin.join", {"handle": "lab", "endowment": 1000, "password": "pw-lab"})["principal"]
+    rng = np.random.default_rng(world.spec.seed)
+    title, body = writing.compose(rng, semantics.topic_names().index(topic), 5, 1.0)
+    data = f"{title}\n\n{body}\n".encode("utf-8")
+    a = world.execute(lab, {"tool": "artifact.put", "args": {"data_b64": base64.b64encode(data).decode("ascii"),
+                                                             "mime": "text/plain", "kind": "text"}})
+    if not a.ok:
+        raise RuntimeError(a.error)
+    r = world.execute(lab, {"tool": "posts.publish", "args": {"ref": a.result["ref"], "title": title}})
+    if not r.ok:
+        raise RuntimeError(r.error)
+    return int(world.state.tables["content"][r.result["id"]]["aud_item"])
+
+
 def _other_topics(t):
     from .vocab import TOPIC_NAMES
     return [x for x in TOPIC_NAMES if x != t]
@@ -153,6 +203,7 @@ def measure(world: World, item: int | None = None) -> dict:
            "attention_ledger_violations": len(att), "daily_consumption_over_budget": over,
            "attention_budget_violations": len(att) + over,
            "forced_view_assignments": rc["views_without_prior_exposure"],
+           "decision_rows_without_provenance": int(rc["views_without_decision_provenance"] or 0),
            "share_generations_observed": max(gens) if gens else 0,
            "share_generation_views": {str(k): v for k, v in gens.items()},
            "item": item, "item_unique_viewers": int(viewers[item]),

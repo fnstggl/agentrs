@@ -424,8 +424,14 @@ class Letters(Module):
                           f"(http://letters.crucible/item?id={cid})")
             mailed = len(to)
         from . import integration
-        reached = 0 if paid else integration.deliver_impressions(ctx, "letters", pop,
-                                                                 ctx.state.tables["content"][cid].get("aud_item"))
+        aud_item = ctx.state.tables["content"][cid].get("aud_item")
+        reached = 0 if paid else integration.deliver_impressions(ctx, "letters", pop, aud_item)
+        feed = ctx.world.modules.get("feed")
+        if reached and feed is not None and "letters" in feed.platforms and "pop" in ctx.world.modules:
+            # the issue lands in the population subscribers' inboxes: they read it when they next open the
+            # newsletters platform (or are brought back by the notification)
+            feed.engine.deliver(ctx, pop.astype(np.int64), np.full(pop.size, int(aud_item), np.int64),
+                                np.zeros(pop.size, np.uint8), platform="letters")
         iid = ctx.state.new_id("issue")
         bus.emit(ctx, "letters.issue", {"id": iid, "newsletter": newsletter, "item": cid, "paid": bool(paid),
                                         "mailed": mailed, "population": reached}, vis="public")

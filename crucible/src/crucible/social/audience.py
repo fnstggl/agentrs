@@ -93,7 +93,9 @@ def _item_cols(dim: int) -> dict:
     cols = {"creator": ("int32", (), -1), "platform": ("int16", (), -1), "kind": ("int8", (), -1),
             "duration_s": ("float32", (), 0.0), "published_at": ("int64", (), -1), "removed": ("bool", (), False),
             "emb": ("float16", (dim,), 0.0), "pub_t": ("int64", (), -1), "stg_t": ("int64", (), -1),
-            "prev_views": ("int64", (), 0), "vel_views": ("float32", (), 0.0)}
+            "prev_views": ("int64", (), 0), "vel_views": ("float32", (), 0.0),
+            # artifact-intrinsic legibility in [0, 1] (population.semantics.legibility; 1.0 for the lexical path)
+            "legib": ("float32", (), 1.0), "version": ("int32", (), 0)}
     for c, dt in _COUNTERS.items():
         cols[c] = (dt, (), 0)
     for q in QUANTITIES:
@@ -109,7 +111,9 @@ _CREATOR_COLS = {"pop_index": ("int64", (), -1), "followers": ("int64", (), 0), 
 
 DEFAULTS = {"platforms": ["posts", "articles"], "max_items": 4096, "max_creators": 1024,
             "analytics_interval_s": 21600, "analytics_noise": 0.05, "batch_retention_days": 14,
-            "encoder": "c2-random-indexing", "dim": textrep.DIM}
+            "encoder": "auto", "dim": textrep.DIM}
+#: decision provenance of the consumption engine's built-in behaviour model (FIDELITY_REGISTER: plausible, unvalidated)
+ENGINE_DECISION = {"model_id": "c2-consumption", "model_version": "2", "fidelity_id": "social-consumption-builtin"}
 
 
 def view_threshold(duration_s) -> np.ndarray:
@@ -183,7 +187,8 @@ def index_item(ctx: Ctx, ref: str, kind: str, platform: str, creator: str, title
         raise InvalidAction("only published artifacts can be distributed (artifact.publish first)")
     if not artifacts.readable(ctx.world, creator, ref):
         raise Forbidden(f"{creator} cannot distribute {ref}")
-    emb, terms, words = mod.encode(ctx.world, ref, a["mime"])
+    emb, terms, words, legib, rep = mod.encode(ctx.world, ref, a["mime"], ctx=ctx,
+                                               caption=" ".join(x for x in (str(title), " ".join(tags)) if x))
     if duration_s is None:
         if not a["mime"].startswith("text/"):
             raise InvalidAction("duration_s is required for non-text content")
@@ -200,8 +205,30 @@ def index_item(ctx: Ctx, ref: str, kind: str, platform: str, creator: str, title
     ctx.emit("aud.item", {"item": item, "ref": ref, "kind": kind, "platform": platform, "creator": creator,
                           "creator_code": code, "title": title, "tags": tags, "duration_s": duration_s,
                           "content_id": content_id, "terms": terms, "words": int(words),
-                          "emb": [round(float(x), 6) for x in emb]}, vis="public")
+                          "emb": [round(float(x), 6) for x in emb], "legib": round(float(legib), 6), "rep": rep},
+             vis="public")
     return item
+
+
+def reindex_item(ctx: Ctx, item: int, ref: str, *, title: str | None = None, tags=None,
+                 duration_s: float | None = None) -> None:
+    """A new version of a distributed item (content.update): its representation, terms, words, legibility and
+    duration are recomputed from the new bytes, so distribution and choice follow what the item is now."""
+    mod = _mod(ctx.world)
+    rec = ctx.state.get("aud_item_info", str(int(item)))
+    if rec is None:
+        raise NotFound(f"no item {item}")
+    a = artifacts.info(ctx.world, ref)
+    title = rec["title"] if title is None else str(title)[:200]
+    tags = list(rec["tags"]) if tags is None else [str(t)[:40] for t in list(tags)[:16]]
+    emb, terms, words, legib, rep = mod.encode(ctx.world, ref, a["mime"], ctx=ctx,
+                                               caption=" ".join(x for x in (title, " ".join(tags)) if x))
+    if duration_s is None:
+        duration_s = max(5.0, words / WORDS_PER_S) if a["mime"].startswith("text/") else float(rec["duration_s"])
+    ctx.emit("aud.item_updated", {"item": int(item), "ref": ref, "title": title, "tags": tags,
+                                  "duration_s": float(duration_s), "terms": terms, "words": int(words),
+                                  "emb": [round(float(x), 6) for x in emb], "legib": round(float(legib), 6),
+                                  "rep": rep}, vis="public")
 
 
 def remove_item(ctx: Ctx, item: int) -> None:
@@ -259,8 +286,22 @@ def _check_items(world, platform: str, items: np.ndarray) -> np.ndarray:
     return item_col(world, "duration_s")[items].astype(np.float64)
 
 
+def _decision_batch(ctx: Ctx, kind: str, v: np.ndarray, vals: dict, extra: dict, decision: dict | None) -> str:
+    """Record audience decision rows: through `population.record_decisions` (decision provenance) when the world's
+    population is `pop`; the crowd stand-in of the historical tests records plain batches."""
+    if "pop" not in ctx.world.modules:
+        return columns.batch(ctx, POP, kind, v, vals, mode="set", extra=extra)
+    from .. import population
+    if decision is None:
+        decision = population.participant_decision(ctx) if ids.index(ctx.actor) is not None else ENGINE_DECISION
+    return population.record_decisions(ctx, kind, v, vals, model_id=decision["model_id"],
+                                       model_version=decision["model_version"],
+                                       fidelity_id=decision["fidelity_id"], extra=extra)
+
+
 def impressions(ctx: Ctx, platform: str, viewers: np.ndarray, items: np.ndarray, slot: np.ndarray, *,
-                source: np.ndarray | None = None, gen: np.ndarray | None = None) -> str | None:
+                source: np.ndarray | None = None, gen: np.ndarray | None = None,
+                decision: dict | None = None) -> str | None:
     """Record that each viewer was shown each item at a feed slot (one row per impression). `source` (int8 codes of
     `SOURCES`) and `gen` (share generation: 0 = not via a share) are optional provenance. Returns the blob REF."""
     v = _arr(viewers, "viewers", "int")
@@ -278,16 +319,16 @@ def impressions(ctx: Ctx, platform: str, viewers: np.ndarray, items: np.ndarray,
     if np.any(g < 0) or np.any(g > 255):
         raise InvalidAction("gen must be in [0, 255]")
     _check_items(ctx.world, platform, it)
-    ref = columns.batch(ctx, POP, f"impress.{platform}", v,
-                        {"aud_i_item": it, "aud_i_slot": sl, "aud_i_src": src, "aud_i_gen": g,
-                         "aud_i_t": np.full(n, ctx.now, np.int64)}, mode="set",
-                        extra={"platform": platform, "rows": int(n)})
+    ref = _decision_batch(ctx, f"impress.{platform}", v,
+                          {"aud_i_item": it, "aud_i_slot": sl, "aud_i_src": src, "aud_i_gen": g,
+                           "aud_i_t": np.full(n, ctx.now, np.int64)}, {"platform": platform, "rows": int(n)}, decision)
     ctx.emit("aud.impressed", {"platform": platform, "ref": ref, "n": int(n)}, vis="internal")
     return ref
 
 
 def consumption(ctx: Ctx, platform: str, viewers: np.ndarray, items: np.ndarray, watch_s: np.ndarray,
-                completed: np.ndarray, shared: np.ndarray, followed: np.ndarray, liked: np.ndarray) -> str | None:
+                completed: np.ndarray, shared: np.ndarray, followed: np.ndarray, liked: np.ndarray, *,
+                decision: dict | None = None) -> str | None:
     """Record viewing decisions (one row per viewing): seconds watched and whether the viewer completed, shared,
     followed (subscribed to the creator) and liked. The ONLY way audience state changes. A row needs a prior
     exposure of that viewer to that item; whether it is a view is decided by the applier from watch_s and the item's
@@ -324,10 +365,9 @@ def consumption(ctx: Ctx, platform: str, viewers: np.ndarray, items: np.ndarray,
             raise InvalidAction(f"item {int(its[s0])} was not shown to every viewer of this batch (no view without "
                                 f"exposure)")
     flags = (c * F_COMPLETED + sh * F_SHARED + fo * F_FOLLOWED + li * F_LIKED).astype(np.uint8)
-    ref = columns.batch(ctx, POP, f"consume.{platform}", v,
-                        {"aud_c_item": it, "aud_c_watch_s": w.astype(np.float32), "aud_c_flags": flags,
-                         "aud_c_t": np.full(n, ctx.now, np.int64)}, mode="set",
-                        extra={"platform": platform, "rows": int(n)})
+    ref = _decision_batch(ctx, f"consume.{platform}", v,
+                          {"aud_c_item": it, "aud_c_watch_s": w.astype(np.float32), "aud_c_flags": flags,
+                           "aud_c_t": np.full(n, ctx.now, np.int64)}, {"platform": platform, "rows": int(n)}, decision)
     ctx.emit("aud.consumed", {"platform": platform, "ref": ref, "n": int(n)}, vis="internal")
     return ref
 
@@ -438,8 +478,9 @@ class Audience(Module):
             if not isinstance(p, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", p):
                 raise ProtocolError(f"aud: bad platform name {p!r}")
         self.platforms = plats
-        if self.cfg["encoder"] not in ("c2-random-indexing", "semantic"):
-            raise ProtocolError("aud: encoder must be 'c2-random-indexing' or 'semantic'")
+        if self.cfg["encoder"] not in ("auto", "space", "c2-random-indexing", "semantic"):
+            raise ProtocolError("aud: encoder must be 'auto', 'space' (the shared semantic space, D-16), "
+                                "'c2-random-indexing' or 'semantic' (historical paths of the crowd population)")
 
     def platform_code(self, platform: str) -> int:
         try:
@@ -451,6 +492,13 @@ class Audience(Module):
         if POP not in columns.tables(world):
             raise ProtocolError("aud needs the population table 'pop' (list the population module before aud)")
         n = columns.rows(world, POP)
+        if self.cfg["encoder"] == "auto":
+            # the one population lives in the shared semantic space; the lexical path stays for the crowd only
+            self.cfg["encoder"] = "space" if "pop" in world.modules else "c2-random-indexing"
+        if self.cfg["encoder"] == "space":
+            if "space" not in world.modules:
+                raise ProtocolError("aud: the shared-space encoder needs the kernel module 'space'")
+            self.cfg["dim"] = int(columns.col(world, POP, "interests").shape[1])
         columns.declare(world, POP, n, _POP_COLS)
         columns.declare(world, ITEMS, int(self.cfg["max_items"]), _item_cols(int(self.cfg["dim"])))
         columns.declare(world, CREATORS, int(self.cfg["max_creators"]), _CREATOR_COLS)
@@ -465,8 +513,28 @@ class Audience(Module):
                      period=int(self.cfg["analytics_interval_s"]), key="aud.analytics")
 
     # ------------------------------------------------------------------ representation
-    def encode(self, world, ref: str, mime: str) -> tuple[np.ndarray, dict, int]:
+    def encode(self, world, ref: str, mime: str, *, ctx: Ctx | None = None, caption: str = "") -> tuple:
+        """(representation, BM25 terms, words, legibility, how it was represented)."""
         dim = int(self.cfg["dim"])
+        if self.cfg["encoder"] == "space":
+            from ..population import semantics
+            terms, words = {}, 0
+            if mime.startswith("text/"):
+                _, terms, words = textrep.encode_bytes(artifacts.get(world, ref), dim)
+            try:
+                vec = semantics.item_vector(world, ref, ctx=ctx)
+                feats = semantics.item_features(world, ref)
+                legib, rep = float(feats.get("legibility", 1.0)), "bytes"
+            except semantics.EncodingError:
+                # images, audio, video: the bridge has no aligned media encoder; the item is represented by the
+                # text a viewer sees with it (CORE-SEM's aligned encoders replace this at merge)
+                if not caption.strip():
+                    raise InvalidAction(f"no representation for {mime} without a caption in this world") from None
+                vec = semantics.text_vector(world, caption, ctx=ctx)
+                legib, rep = 1.0, "caption"
+                terms = dict(textrep.term_counts(caption))
+            e = semantics.project(vec[None, :], dim)[0]
+            return e, terms, words, legib, rep
         if self.cfg["encoder"] == "semantic":
             from .. import semantic                       # workstream D (raises if it is not merged)
             modality = mime.split("/", 1)[0]
@@ -478,11 +546,12 @@ class Audience(Module):
             terms, words = {}, 0
             if mime.startswith("text/"):
                 _, terms, words = textrep.encode_bytes(artifacts.get(world, ref), dim)
-            return e, terms, words
+            return e, terms, words, 1.0, "bytes"
         if not mime.startswith("text/"):
             raise InvalidAction(f"no encoder for {mime} in this world (configure aud.encoder='semantic' once "
                                 f"crucible.semantic is available)")
-        return textrep.encode_bytes(artifacts.get(world, ref), dim)
+        e, terms, words = textrep.encode_bytes(artifacts.get(world, ref), dim)
+        return e, terms, words, 1.0, "bytes"
 
     # ------------------------------------------------------------------ appliers: catalogue
     @applier("aud.creator")
@@ -512,8 +581,22 @@ class Audience(Module):
                      ("kind", KINDS.index(p["kind"])), ("duration_s", p["duration_s"]), ("published_at", ev.t)):
             st.array_rows_mut(f"{ITEMS}.{c}", r)[i] = v
         st.array_rows_mut(f"{ITEMS}.emb", r)[i] = np.asarray(p["emb"], dtype=np.float16)
+        st.array_rows_mut(f"{ITEMS}.legib", r)[i] = float(p.get("legib", 1.0))
         st.array_rows_mut(f"{CREATORS}.items", np.array([p["creator_code"]]))[p["creator_code"]] += 1
         st.meta_set("aud.n_items", i + 1)
+
+    @applier("aud.item_updated")
+    def ap_item_updated(self, ev):
+        p = ev.payload
+        st = self.world.state
+        i = int(p["item"])
+        st.patch("aud_item_info", str(i), ref=p["ref"], title=p["title"], tags=p["tags"], duration_s=p["duration_s"],
+                 terms=p["terms"], words=p["words"])
+        r = np.array([i])
+        st.array_rows_mut(f"{ITEMS}.emb", r)[i] = np.asarray(p["emb"], dtype=np.float16)
+        st.array_rows_mut(f"{ITEMS}.legib", r)[i] = float(p.get("legib", 1.0))
+        st.array_rows_mut(f"{ITEMS}.duration_s", r)[i] = float(p["duration_s"])
+        st.array_rows_mut(f"{ITEMS}.version", r)[i] += 1
 
     @applier("aud.item_removed")
     def ap_removed(self, ev):
@@ -877,7 +960,13 @@ def recount(world, events=None, *, check_members: bool = True) -> dict:
             for i in range(ni):
                 if i not in seen and idset.size(st, idset.key(kind, i)):
                     member_mism[nm] += 1
+    prov = None
+    if "pop" in world.modules:
+        from .. import population
+        prov = population.check_provenance(world, events)
     return {"items": ni, "impression_rows": int(ik.size), "exposures_checked": int(uk.size),
+            "provenance": prov,
+            "views_without_decision_provenance": None if prov is None else int(prov["forced_rows"]),
             "distinct_viewers_checked": int(viewers_by_item.size),
             "consumption_rows": int(sum(c[1].size for c in con)), "views": int(rc["views"].sum()),
             "mismatches": mism, "member_mismatches": member_mism, "views_without_prior_exposure": forced,

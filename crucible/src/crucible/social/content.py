@@ -372,6 +372,11 @@ class Content(Module):
                                           "format": a["format"], "facts": to_jsonable(a["facts"]), "by": ctx.actor},
                  vis="public")
         self._index(ctx, content_id)
+        if rec.get("aud_item") is not None and rec["access"] == "public":
+            # the distributed representation follows the new bytes (no bait-and-switch through an update)
+            from . import integration
+            integration.reindex(ctx, int(rec["aud_item"]), ref, title=None if title is None else str(title),
+                                tags=None if tags is None else list(tags), duration_s=a["duration_s"])
         return v
 
     def remove(self, ctx: Ctx, content_id: str, reason: str = "", *, role: str | None = None) -> None:
@@ -619,7 +624,28 @@ class Content(Module):
             ctx.world.learn(ctx, ctx.actor, "host", h)
         out = self.view(ctx.world, rec, ctx.actor)
         out.update(data_b64=base64.b64encode(data).decode("ascii"), text=text[:SEARCH_TEXT])
+        if rec.get("aud_item") is not None and ids_index(ctx.actor) is not None and not rec["removed"]:
+            # a population member opened a distributed item: an exposure (source "direct"), never a view by itself
+            from . import integration
+            integration.record_open(ctx, rec["platform"], ids_index(ctx.actor), int(rec["aud_item"]))
         return out
+
+    @endpoint("read", S.obj({"id": _ID, "seconds": S.s_num("how long you read, watch or listen", minimum=0,
+                                                           maximum=86400),
+                             "like": S.s_bool(default=False), "share": S.s_bool(default=False),
+                             "follow": S.s_bool("follow its creator", default=False)}, ["id", "seconds"]), cost_s=5)
+    def ep_read(self, ctx, id, seconds, like=False, share=False, follow=False):
+        """Spend time on an item you opened (content.open): for up to `seconds` (at most its duration and the
+        attention you have left today). Counts as a view when you spend at least min(30 s, half its duration)."""
+        rec = self._rec(ctx, id)
+        if rec.get("aud_item") is None or rec["removed"]:
+            raise InvalidAction(f"{id} is not distributed on a platform")
+        i = ids_index(ctx.actor)
+        if i is None:
+            raise InvalidAction("reading time is recorded for population members")
+        from . import integration
+        return integration.record_read(ctx, rec["platform"], i, int(rec["aud_item"]), float(seconds),
+                                       bool(like), bool(share), bool(follow))
 
     @endpoint("list", S.obj({"creator": S.s_str(maxLength=60), "platform": S.s_enum(list(PLATFORMS)),
                              "kind": S.s_enum(list(KINDS)), "community": S.s_str(maxLength=40),
