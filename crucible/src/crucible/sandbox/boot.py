@@ -262,11 +262,74 @@ def _load(msg: dict) -> dict:
         sys.stdout, sys.stderr = old_out, old_err
 
 
+# --- Crucible 4.0 historical cost model (DECISION_LOG D-82; minimal edit by workstream P in workstream O's module) ---
+# Only when the parent world host was explicitly started as the Crucible 4.0 historical baseline
+# (CRUCIBLE_HISTORICAL_BASELINE=4.0) and the world uses the deterministic cost model: 4.0's executed-line count, made
+# here exactly as 4.0 made it (sys.monitoring LINE events, import shims so loading code is never counted). The
+# program can tamper with a count made in its own process - that is the 4.0 behaviour D-20 retired; it exists only
+# to reproduce 4.0 results and tests unchanged, never in a 5.0 world.
+_V4_LINES = [0]
+_V4_MON = [None]
+_V4_IMPORTING = [0]
+if CFG.get("v4_count_lines"):
+    import builtins as _v4_builtins
+    import importlib as _v4_importlib
+    _V4_REAL_IMPORT, _V4_REAL_IMPORT_MODULE = _v4_builtins.__import__, _v4_importlib.import_module
+
+    def _v4_quiet_import(name, globals=None, locals=None, fromlist=(), level=0):
+        _V4_IMPORTING[0] += 1
+        try:
+            return _V4_REAL_IMPORT(name, globals, locals, fromlist, level)
+        finally:
+            _V4_IMPORTING[0] -= 1
+
+    def _v4_quiet_import_module(name, package=None):
+        _V4_IMPORTING[0] += 1
+        try:
+            return _V4_REAL_IMPORT_MODULE(name, package)
+        finally:
+            _V4_IMPORTING[0] -= 1
+    _v4_builtins.__import__ = _v4_quiet_import
+    _v4_importlib.import_module = _v4_quiet_import_module
+    _V4_SHIMS = (_v4_quiet_import.__code__, _v4_quiet_import_module.__code__)
+
+    def _v4_on_line(code, line):
+        if code in _V4_SHIMS:
+            return sys.monitoring.DISABLE
+        if not _V4_IMPORTING[0]:
+            _V4_LINES[0] += 1
+
+
+def _v4_count_on() -> None:
+    mon = sys.monitoring
+    if _V4_MON[0] is None:
+        mon.use_tool_id(4, "crucible-work")
+        mon.register_callback(4, mon.events.LINE, _v4_on_line)
+        _V4_MON[0] = mon
+    _V4_LINES[0] = 0
+    mon.set_events(4, mon.events.LINE)
+
+
+def _v4_count_off() -> int:
+    _V4_MON[0].set_events(4, 0)
+    return _V4_LINES[0]
+
+
 def _run(job: dict) -> dict:
     out_cap = int(CFG.get("out_bytes", 65536))
     buf = io.StringIO()
     old_out, old_err = sys.stdout, sys.stderr
+    v4 = bool(CFG.get("v4_count_lines"))
+    if v4 and job.get("kind", "call") == "call":
+        sys.stdout = sys.stderr = io.StringIO()      # 4.0: load before counting, so a fresh worker counts like a warm one
+        try:
+            _resolve(job["target"])
+        except BaseException:  # noqa: BLE001 - the counted run below reports the failure
+            pass
     sys.stdout = sys.stderr = buf
+    if v4:
+        _v4_count_on()
+    v4_lines = None
     try:
         kind = job.get("kind", "call")
         if kind == "call":
@@ -287,8 +350,13 @@ def _run(job: dict) -> dict:
         ok, result = False, None
         err = _capture_err(e)
     finally:
+        if v4:
+            v4_lines = _v4_count_off()
         sys.stdout, sys.stderr = old_out, old_err
-    return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap]}
+    out = {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap]}
+    if v4_lines is not None:
+        out["v4_work_lines"] = v4_lines
+    return out
 
 
 def _run_tests(folder: str) -> dict:

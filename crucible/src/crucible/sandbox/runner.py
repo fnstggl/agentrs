@@ -231,6 +231,10 @@ class Worker:
         self.carry_ns = 0                     # background work of a predecessor worker, billed with the next job
         self.uid: int | None = None
         self._last_bytes = 0
+        # Crucible 4.0 historical cost model (D-82): only with the deterministic cost model, in a process explicitly
+        # started as the 4.0 historical baseline (CRUCIBLE_HISTORICAL_BASELINE=4.0); never in a 5.0 world
+        from ..experience.modes import historical_baseline
+        self._v4 = bool(self.cfg.count_lines) and historical_baseline() == "4.0"
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> "Worker":
@@ -274,7 +278,8 @@ class Worker:
         boot_cfg = {"uid": uid, "gid": gid, "read_paths": reads,
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
                     "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
-                    "preload": preload_list(self.files, tuple(cfg.packages))}
+                    "preload": preload_list(self.files, tuple(cfg.packages)),
+                    "v4_count_lines": self._v4}               # 4.0 historical cost model only (D-82, boot.py)
         env = {"PATH": "/nonexistent", "LANG": "C.UTF-8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1",
                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "HOME": self.workdir}
         limits = (cfg.mem_mb, cfg.cpu_s, cfg.nproc, cfg.nofile, cfg.fsize_mb)
@@ -421,12 +426,19 @@ class Worker:
         return None
 
     def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
-                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0) -> dict:
-        """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo."""
+                transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0, v4_lines: Any = None) -> dict:
+        """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo
+        (or, in a Crucible 4.0 historical baseline process, by 4.0's executed-line count: D-82)."""
         error = self._clean(error) if error else None
         stdout = self._clean(stdout or "")[: self.cfg.out_bytes]
         cpu = max(0, int(cpu))
         billed, memo = cpu, None
+        if self._v4 and isinstance(v4_lines, int) and not isinstance(v4_lines, bool):
+            meter = {**meter, "cpu_ns": cpu, "billed_ns": cpu, "wall_ms": round(wall_s * 1000.0, 3),
+                     "cost_model": "crucible-4.0 executed lines (historical baseline, D-82)"}
+            return {"ok": bool(ok), "result": result if ok else None, "error": error, "stdout": stdout,
+                    "cpu_ms": round(cpu / 1e6, 4), "wall_ms": meter["wall_ms"], "rpc_calls": len(transcript),
+                    "meter": meter, "work_lines": max(0, v4_lines)}
         if self.cfg.count_lines:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
@@ -582,7 +594,8 @@ class Worker:
                     ok, err = False, {"type": "DiskQuota", "message": q}
                 return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg + load_bill,
                                     job=job, transcript=transcript, wall_s=time.monotonic() - t0 - broker_s,
-                                    meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""))
+                                    meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""),
+                                    v4_lines=msg.get("v4_work_lines") if self._v4 else None)
             reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
                       "garbage": "protocol violation"}.get(op, f"protocol violation (unexpected {op!r} message)")
             return died(reason, c_start=c_start, extra=load_bill)

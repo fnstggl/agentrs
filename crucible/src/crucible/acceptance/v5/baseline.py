@@ -1,8 +1,8 @@
 """Gate A machinery: measurements of Crucible 4.0 baseline preservation on the real tree.
 
 * A.1 `regression`: run the 4.0 test files of the recorded baseline (docs/v5/evidence/gate_A/regression_baseline.json
-  and its JUnit files, 1,076 node ids at 777f28c) and require every baseline node id to pass by exact id; the 4.0 test
-  files must be byte-identical to c07098b.
+  and its JUnit files, 1,076 node ids at 777f28c) byte-identical to c07098b (restored in a fresh clone of HEAD) as the
+  4.0 historical baseline (D-82) and require every baseline node id to pass by exact id.
 * A.2 `definitions`: every 4.0 world family (74), mechanism family (25) and useful-work category family (10) is still
   registered with the same split (and engine/transfer/kind/relation), and generates byte-identical content on two seeds
   (hashes computed by `_v4probe.py` against an extracted c07098b tree and against this tree).
@@ -112,21 +112,33 @@ def _groups(root: str, files: list[str], n: int) -> list[list[str]]:
 
 
 def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 1, timeout: int = 4 * 3600,
-                      extra_env: dict | None = None) -> dict:
-    """Run test files in `workers` concurrent pytest processes (one thread each); returns cases and exit codes."""
+                      extra_env: dict | None = None, isolate: tuple = (), plugins: tuple = (),
+                      extra_path: tuple = ()) -> dict:
+    """Run test files in `workers` concurrent pytest processes (one thread each); returns cases and exit codes.
+    Files in `isolate` run in a pytest process of their own each (after the groups); `plugins` are loaded with -p in
+    every process; `extra_path` entries follow the checkout's src on PYTHONPATH."""
     os.makedirs(out_dir, exist_ok=True)
     env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_") and k not in (
-        "PYTHONPATH", "CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT")}
-    env.update(PYTHONPATH=os.path.join(root, "src"), OMP_NUM_THREADS="1", MKL_NUM_THREADS="1",
-               PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
-    procs = []
-    for i, g in enumerate(_groups(root, files, workers)):
+        "PYTHONPATH", "CRUCIBLE_V5_RUN_ID", "CRUCIBLE_V5_EVIDENCE_OUT", "CRUCIBLE_HISTORICAL_BASELINE")}
+    env.update(PYTHONPATH=os.pathsep.join([os.path.join(root, "src"), *extra_path]), OMP_NUM_THREADS="1",
+               MKL_NUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1", **(extra_env or {}))
+    plug = [x for p in plugins for x in ("-p", p)]
+    batches = [(g, True) for g in _groups(root, [f for f in files if f not in isolate], workers)]
+    batches += [([f], False) for f in files if f in isolate]
+    procs, pending = [], list(enumerate(batches))
+    rcs, cases = [], []
+
+    def start(i, g):
         junit = os.path.join(out_dir, f"group{i}.xml")
         log = open(os.path.join(out_dir, f"group{i}.log"), "w")
-        procs.append((junit, log, subprocess.Popen(
-            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", f"--junitxml={junit}",
-             *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)))
-    rcs, cases = [], []
+        return junit, log, subprocess.Popen(
+            [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", *plug,
+             f"--junitxml={junit}", *g], cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT)
+    for i, (g, concurrent) in pending:
+        if concurrent:
+            procs.append(start(i, g))
+    serial = [(i, g) for i, (g, concurrent) in pending if not concurrent]
+    finished = []
     for junit, log, p in procs:
         try:
             rcs.append(p.wait(timeout=timeout))
@@ -134,6 +146,17 @@ def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 
             p.kill()
             rcs.append("timeout")
         log.close()
+        finished.append(junit)
+    for i, g in serial:                         # isolated files: one process each, after the groups
+        junit, log, p = start(i, g)
+        try:
+            rcs.append(p.wait(timeout=timeout))
+        except subprocess.TimeoutExpired:
+            p.kill()
+            rcs.append("timeout")
+        log.close()
+        finished.append(junit)
+    for junit in finished:
         if os.path.exists(junit):
             for tc in ET.parse(junit).getroot().iter("testcase"):
                 outcome = "passed"
@@ -145,26 +168,73 @@ def run_pytest_groups(root: str, files: list[str], out_dir: str, workers: int = 
     return {"rcs": rcs, "cases": cases, "out_dir": out_dir}
 
 
+V4_ISOLATED = ("tests/test_realworld_gate.py",)   # D-82: the v5 world-hosting latch (Part 16) forbids the real-world
+#                                                  bridge in a process that hosted worlds; 4.0 ran it after them
+V4_ALIAS_PLUGIN = "agentrs.cam2.envs.crucible_v4_names"   # D-81/D-82: 4.0 names of the relocated CAM adapters
+HISTORICAL_ENV = {"CRUCIBLE_HISTORICAL_BASELINE": "4.0"}  # D-82: the 4.0 reward contract, selected explicitly (OO.8)
+
+
+def v4_test_clone(root: str, dest: str) -> tuple[str, list[str], list[str]]:
+    """A fresh clone of HEAD whose `tests/` files that exist at c07098b are restored to their c07098b bytes (the tree's
+    copies of some carry v5 additions; Gate A.1 runs 4.0's own). Returns (the clone's crucible root, the restored
+    files, the 4.0 test files whose bytes in the clone still differ from c07098b - empty unless the restore failed)."""
+    croot = _plain_clone(root, dest)
+    top = _git(croot, "rev-parse", "--show-toplevel").strip()
+    prefix = os.path.relpath(os.path.realpath(croot), os.path.realpath(top))
+    want = {}
+    for ln in _git(top, "ls-tree", "-r", V4_COMMIT, "--", f"{prefix}/tests").splitlines():
+        meta, path = ln.split("\t", 1)
+        want[path] = meta.split()[2]
+
+    def differing() -> list[str]:
+        return sorted(p for p, b in want.items()
+                      if not os.path.exists(os.path.join(top, p)) or _blob(os.path.join(top, p)) != b)
+    restored = differing()
+    if restored:
+        subprocess.run(["git", "checkout", V4_COMMIT, "--", *restored], cwd=top, check=True)
+    return croot, [os.path.relpath(p, prefix) for p in restored], [os.path.relpath(p, prefix) for p in differing()]
+
+
+def _blob(path: str) -> str:
+    data = open(path, "rb").read()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
 def regression(root: str | None = None, workers: int | None = None, out_dir: str | None = None) -> dict:
+    """A.1 (D-82): the Crucible 4.0 regression suite as 4.0 wrote it - every 4.0 test file byte-identical to c07098b,
+    restored in a fresh clone of HEAD - runs against the current implementation in processes started as the 4.0
+    historical baseline (`CRUCIBLE_HISTORICAL_BASELINE=4.0`: the 4.0 reward contract for every constructor that names
+    no mode); the 4.0 names of the CAM adapters moved to the AGENTRS side (D-81) resolve to the relocated modules;
+    tests/test_realworld_gate.py runs in a process of its own (the v5 hosting latch). Every one of the 1,076 baseline
+    node ids must pass by exact id. The tree's own copies of the 11 4.0 test files that carry v5 additions are v5 tests
+    (X.2/X.4); `v4_test_files_modified` counts the 4.0 test files of this run that differ from c07098b, and
+    `v4_test_files_modified_in_tree` reports the tree's."""
     root = root or M.crucible_root()
     workers = workers or int(os.environ.get("CRUCIBLE_GATE_A_WORKERS", "1"))
     nodes = baseline_nodes(root)
     files = baseline_files(nodes)
-    missing_files = [f for f in files if not os.path.exists(os.path.join(root, f))]
-    res = run_pytest_groups(root, [f for f in files if f not in missing_files],
-                            out_dir or tempfile.mkdtemp(prefix="gateA1-", dir=scratch_dir()), workers)
+    work = out_dir or tempfile.mkdtemp(prefix="gateA1-", dir=scratch_dir())
+    croot, restored, differ = v4_test_clone(root, os.path.join(work, "clone"))
+    agentrs_src = os.path.join(_git(croot, "rev-parse", "--show-toplevel").strip(), "src")
+    missing_files = [f for f in files if not os.path.exists(os.path.join(croot, f))]
+    res = run_pytest_groups(croot, [f for f in files if f not in missing_files], os.path.join(work, "junit"), workers,
+                            extra_env=HISTORICAL_ENV, isolate=V4_ISOLATED, plugins=(V4_ALIAS_PLUGIN,),
+                            extra_path=(agentrs_src,))
     by = {(c["classname"], c["name"]): c["outcome"] for c in res["cases"]}
     not_run = [n for n in nodes if n not in by]
     not_passed = [n for n in nodes if n in by and by[n] != "passed"]
     outcomes = [c["outcome"] for c in res["cases"]]
-    changed = v4_test_files_changed(root)
+    relocated = [n for n in nodes if n[0] == "tests.test_agents_llm" and n[1].startswith(("test_cam2", "test_sl_"))]
     return {"metrics": {
         "tests_total": len(res["cases"]), "tests_failed": outcomes.count("failure"),
         "tests_errors": outcomes.count("error"), "tests_skipped": outcomes.count("skipped"),
         "baseline_node_ids_checked": len(nodes), "baseline_node_ids_missing": len(not_run),
-        "baseline_node_ids_not_passed": len(not_passed), "v4_test_files_modified": len(changed),
+        "baseline_node_ids_not_passed": len(not_passed), "v4_test_files_modified": len(differ),
+        "v4_test_files_run": len(files) - len(missing_files),
+        "v4_test_files_modified_in_tree": len(restored), "v4_relocated_adapter_node_ids": len(relocated),
         "pytest_groups": len(res["rcs"]), "gpu_visible": _gpu_visible()},
-        "not_run": not_run[:50], "not_passed": not_passed[:50], "changed_test_files": changed, "rcs": res["rcs"]}
+        "not_run": not_run[:50], "not_passed": not_passed[:50], "changed_test_files": restored,
+        "differ_after_restore": differ, "rcs": res["rcs"], "work": work}
 
 
 def _gpu_visible() -> bool:
