@@ -14,8 +14,10 @@ and the ONE population, which takes part through two activities:
   civic side of membership - vote on open proposals by one's own experienced value and preferences, propose changes
   when one sees a problem one can name (a moderation backlog, removals, an absent owner, an exclusive door that
   keeps people out), schedule shared activities (owners and moderators of lively communities), answer invitations to
-  them and attend while they run, invite and message one's contacts about a community one values. Every choice is
-  a recorded population decision (model `commlife@1`).
+  them and attend while they run, invite and message one's contacts about a community one values, and - when the
+  owner of an owner-ruled community has been absent for a week, so that nobody else can change anything - found a
+  new home for its members and move there (members of the abandoned community follow). Every choice is a recorded
+  population decision (model `commlife@1`).
 
 Configurations differ in structure measured on the built world: whether communities exist at genesis (founded by
 population members through the ordinary API) or only grow from the population's own founding, their governance
@@ -68,6 +70,7 @@ class CommunityLife(Module):
         from .. import population
         n = population.n_individuals(world)
         columns.declare(world, "commlife", n, {"choice": ("int16", (), -1), "acts": ("int32", (), 0)})
+        world.state.declare_table("commlife_succ")
         population.register_activity(world, "community.civic", self.act_civic, owner="commlife",
                                      prior=float(self.cfg("prior")), goals=(3,))
 
@@ -173,7 +176,27 @@ class CommunityLife(Module):
             yes = self._judge(ctx, p, c, pp, value, pr, rng)
             if self._call(ctx, p, "community.vote", {"proposal": pp["proposal"], "approve": bool(yes)}) is not None:
                 return "vote", 0.1
-        # 3. invitations to upcoming events
+        # 3. an absent owner: under owner rule nobody else can change anything, so members found a new home and
+        #    move there (community forks after absentee owners); members of an abandoned community follow
+        succ = ctx.state.get("commlife_succ", cid)
+        if succ is not None and succ["to"] != cid and value <= 0.6 and rng.random() < 0.5 + 0.3 * float(pr[4]):
+            if self._call(ctx, p, "community.join", {"community": succ["to"]}) is not None:
+                self._call(ctx, p, "community.leave", {"community": cid})
+                return "propose", 0.05
+        if succ is None and self._owner_absent(ctx, c, now) and c["rules"]["governance"] == "owner" \
+                and value > 0 and rng.random() < 0.15 * (0.5 + float(pr[1])):
+            cm = ctx.world.modules["community"]
+            if cm.trust(ctx.world, p, c)["level"] >= 1:
+                new_id = f"{cid[:30]}-new"
+                res = self._call(ctx, p, "community.found", {
+                    "id": new_id, "name": f"{c['name']} (new home)"[:80],
+                    "subject": str(c["subject"])[:400] or "the same subject",
+                    "description": f"A new home for the members of {c['name']}: its owner is gone."})
+                if res is not None:
+                    ctx.emit("commlife.successor", {"from": cid, "to": new_id, "by": p}, vis="public")
+                    self._call(ctx, p, "community.leave", {"community": cid})
+                    return "propose", 0.15
+        # 4. invitations to upcoming events
         for e in evs:
             if e["at"] > now and not ctx.state.has("community_rsvps", f"{e['event']}|{p}"):
                 going = rng.random() < _sig(-0.5 + 2.5 * value + 1.5 * (float(pr[6]) - 0.5))
@@ -182,7 +205,7 @@ class CommunityLife(Module):
                         from .. import population
                         population.wake(ctx, np.array([i]), int(e["at"]) + 60, "community.civic")
                     return "rsvp", 0.05
-        # 4. organisers schedule shared activities in lively communities
+        # 5. organisers schedule shared activities in lively communities
         if role >= 1 and not evs:
             from ..social import communities as CM
             act7 = int(CM.members(ctx.world, int(c["n"]), active_days=7).size)
@@ -195,7 +218,7 @@ class CommunityLife(Module):
                     "description": f"A get-together of {c['name']}: {c['subject']}", "duration_s": 2 * 3600})
                 if res is not None:
                     return "event", 0.15
-        # 5. a trusted member of a large community starts a local chapter (a spin-off under it)
+        # 6. a trusted member of a large community starts a local chapter (a spin-off under it)
         if role >= 1 or value > 0.2:
             cm = ctx.world.modules["community"]
             from ..social import communities as CM
@@ -209,13 +232,13 @@ class CommunityLife(Module):
                         "subject": f"local chapter of {c['name']}: {c['subject']}"[:400], "parent": cid})
                     if res is not None:
                         return "propose", 0.2
-        # 6. propose a change one can name
+        # 7. propose a change one can name
         prop = self._proposal(ctx, p, c, role, value, pr, now)
         if prop is not None:
             res = self._call(ctx, p, "community.propose", {"community": cid, **prop})
             if res is not None:
                 return "propose", 0.1
-        # 7. bring a contact along (an invitation, and a message where messaging exists)
+        # 8. bring a contact along (an invitation, and a message where messaging exists)
         if value > 0 and rng.random() < float(self.cfg("invite_p")) * (0.5 + float(pr[6])):
             cs = [int(x) for x in contacts if x >= 0]
             if cs:
@@ -234,6 +257,19 @@ class CommunityLife(Module):
                     if inv is not None:
                         return "invite", 0.05
         return "none", 0.0
+
+    def _owner_absent(self, ctx, c, now) -> bool:
+        """The owner has not taken part for a week in a community older than a week (public: the member list shows
+        when members were last active)."""
+        from ..social import communities as CM
+        from ..social import nodes
+        if now - int(c.get("created", now)) < 7 * DAY:
+            return False
+        v = CM.CMEMBER.view(ctx.world)
+        rows = np.flatnonzero((v["comm"] == int(c["n"])) & (v["status"] == CM.MEMBER) & (v["role"] == 2))
+        if rows.size == 0:
+            return True
+        return int(v["last_active"][rows].max()) < now - 7 * DAY
 
     def _judge(self, ctx, p, c, pp, value, pr, rng) -> bool:
         """A member's vote: its own experienced value of the community and preferences, never a scripted outcome."""
@@ -297,9 +333,10 @@ class CommunityLife(Module):
                         "reason": "the community has grown: one more moderator"}
         return None
 
-    @applier("commlife.chapter")
-    def ap_chapter(self, ev):
-        pass
+    @applier("commlife.successor")
+    def ap_successor(self, ev):
+        self.world.state.put("commlife_succ", ev.payload["from"], {"to": ev.payload["to"], "by": ev.payload["by"],
+                                                                   "t": ev.t})
 
 
 # ====================================================================== configurations (world generation)
