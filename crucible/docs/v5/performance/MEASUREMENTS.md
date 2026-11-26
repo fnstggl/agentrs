@@ -196,7 +196,7 @@ as the pages in use after a WAL checkpoint, without VACUUM (seed 0 and 1 and lar
 earlier code; seed 2 and the population row use the fix).
 
 Large, seed 0 (101,120 individuals), first days: generation 7.9 CPU-s (1.8 GB); day 1 225 CPU-s (cold cache), days
-2-4 741, 739 and 806 CPU-s: 5.7 simulated days per CPU-hour over 4 days (T3 >= 3.75: met so far, about 4.9 on days
+2-4 741, 739 and 806 CPU-s: 5.7 simulated days per CPU-hour over 4 days (T3 >= 3.75: met so far, about 4.7 on days
 2-4), peak RAM 3.87 GB, store 120 MB per simulated day (705 MB after 4 days). The shopping search is about 70% of a
 large day (R1).
 
