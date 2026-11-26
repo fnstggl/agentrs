@@ -13,9 +13,11 @@ Why placebos: the kernel's random streams are keyed by event sequence numbers (`
 records events reshuffles every later random draw, and until workstream A's subscriber-RNG isolation lands so does
 adding or removing an event subscriber (audit A_J, defect K2). Two placebo arms with different footprints
 (1 and 5 no-op events) measure how much a quantity moves from reshuffling alone (`noise` = P1 - P5, per seed). An
-effect is confirmed only when, across seeds, the intervention minus the placebo mean is consistently signed, its
+effect is confirmed only when, across seeds, the intervention minus its baseline arm is consistently signed, its
 paired 95% confidence interval excludes zero, and its mean exceeds twice the reshuffling noise (root mean square of
-P1 - P5). The noise is reported with every effect as the measured confounding.
+P1 - P5). The noise is reported with every effect as the measured confounding. Each intervention is compared with
+the arm of equal footprint at the fork (an operator command with one event: `placebo_1`; an agent's own actions:
+the factual arm), whose random streams coincide with the intervention's until its consequences diverge.
 
 Experiments are named entries of `crucible.civ.experiments.EXPERIMENTS`, so a seed can run in its own process
 (`python -m crucible.civ.counterfactual seed <name> <seed> <out.json>`): `run(name, seeds, workers=k)` runs k seeds
@@ -135,6 +137,21 @@ def _chain_record(c: dict) -> dict:
 
 
 # --------------------------------------------------------------------------------------------- statistics
+def _baseline(r: dict, arm: str, m: str) -> float:
+    """The comparison arm of one seed: the arm (factual or a placebo) whose footprint at the fork equals the
+    intervention's - their random streams coincide until the intervention's consequences diverge (common random
+    numbers) - else the mean of the two placebos."""
+    fp = r["footprint"][arm]
+    for a in ("factual", *PLACEBOS):
+        if r["footprint"].get(a) == fp:
+            return float(r["arms"][a][m])
+    return float(np.mean([r["arms"][a][m] for a in PLACEBOS]))
+
+
+def _baseline_arm(r: dict, arm: str) -> str:
+    fp = r["footprint"][arm]
+    return next((a for a in ("factual", *PLACEBOS) if r["footprint"].get(a) == fp), "placebo_mean")
+
 def _t_crit(df: int) -> float:
     from scipy.stats import t
     return float(t.ppf(0.975, max(1, df)))
@@ -147,7 +164,7 @@ def analyze(exp: Experiment, per_seed: list[dict]) -> dict:
     for arm in exp.interventions:
         res["effects"][arm] = {}
         for m in exp.measures:
-            p = np.array([np.mean([r["arms"][a][m] for a in PLACEBOS]) for r in per_seed], float)
+            p = np.array([_baseline(r, arm, m) for r in per_seed], float)
             c = np.array([r["arms"][arm][m] for r in per_seed], float)
             f = np.array([r["arms"]["factual"][m] for r in per_seed], float)
             noise = np.array([r["arms"]["placebo_1"][m] - r["arms"]["placebo_5"][m] for r in per_seed], float)
@@ -162,7 +179,8 @@ def analyze(exp: Experiment, per_seed: list[dict]) -> dict:
             ci = [mean - half, mean + half]
             confirmed = bool(n >= 2 and consistent and (ci[0] > 0 or ci[1] < 0) and abs(mean) > 2 * rms)
             res["effects"][arm][m] = {
-                "intervention": c.tolist(), "placebo_mean": p.tolist(), "factual": f.tolist(),
+                "intervention": c.tolist(), "baseline": p.tolist(), "factual": f.tolist(),
+                "baseline_arm": [_baseline_arm(r, arm) for r in per_seed],
                 "effect_mean": mean, "effect_sd": sd, "ci95": ci, "reshuffle_noise_rms": rms,
                 "noise": noise.tolist(), "relative_effect": float(mean / np.mean(np.abs(p))) if np.mean(np.abs(p)) > 0
                 else math.nan, "sign_consistent": consistent, "confirmed": confirmed}

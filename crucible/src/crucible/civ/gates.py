@@ -215,7 +215,11 @@ def long_horizon(horizons=P_HORIZONS, seeds_per_horizon: int = 2) -> dict:
         return {"reports": reps}
     res = cached("longrun", {"horizons": list(horizons), "seeds": seeds_per_horizon,
                              "profile": longrun.GATE_P_PROFILE}, run)
-    reps = res["reports"]
+    return {"metrics": p_metrics(res["reports"], horizons), "reports": res["reports"]}
+
+
+def p_metrics(reps: list[dict], horizons=P_HORIZONS) -> dict:
+    """Gate P metrics from long-run reports (crucible.civ.longrun.run_horizon)."""
     by_h = {h: [r for r in reps if r["days"] == h] for h in horizons}
 
     def ok(r):
@@ -236,7 +240,7 @@ def long_horizon(horizons=P_HORIZONS, seeds_per_horizon: int = 2) -> dict:
     m["min_late_over_early_social_activity"] = min((s.get("late_over_early_social", 0.0) for s in S), default=0.0)
     m["independent_seeds_per_horizon"] = min((len({r["seed"] for r in by_h[h] if ok(r)}) for h in horizons),
                                              default=0)
-    return {"metrics": m, "reports": reps}
+    return m
 
 
 def _main(argv):

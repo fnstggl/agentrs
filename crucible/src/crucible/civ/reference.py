@@ -9,9 +9,9 @@ show that a chain CAN happen in a generated civilisation; they are not evidence 
 * `WebShopAgent`   writes a web shop (its own repository and code from the site template), rents compute from the
                    cheapest provider, deploys it, lets its service read its account, and (optionally) announces it
                    on the forum for a few days.
-* `ResearcherAgent` studies a phenomenon about an industrial process: books a grid of measurements plus the
-                   certified standards, fits a peaked response model (least squares on its own readings, the
-                   standards giving its calibration), and publishes the model with its data.
+* `ResearcherAgent` studies the phenomena about industrial processes: books a grid of measurements plus the
+                   certified standards for each, fits a peaked response model (least squares on its own readings,
+                   the standards giving its calibration), and publishes each model with its data.
 """
 from __future__ import annotations
 
@@ -114,16 +114,22 @@ class WebShopAgent:
 
 
 class ResearcherAgent:
-    """Studies the first phenomenon whose title names a machine model; publishes a fitted peak model."""
+    """Studies every phenomenon whose title names an industrial machine model (a research programme on process
+    physics): books a grid design and the certified standards for each, fits a peaked model to its own readings and
+    publishes one paper per phenomenon with its data."""
     name = "crucible.civ.reference.ResearcherAgent"
 
     def __init__(self, handle: str = "refsci", *, publish: bool = True, grid: int = 7):
         self.handle, self.publish, self.grid = handle, bool(publish), int(grid)
         self.p: str | None = None
         self.state = "new"
-        self.runs: list[str] = []
-        self.paper = None
+        self.studies: list[dict] = []
+        self.papers: list[str] = []
         self.log: list[dict] = []
+
+    @property
+    def paper(self):
+        return self.papers[0] if self.papers else None
 
     def admit(self, world) -> str:
         self.p = admit(world, self.handle, self.name, endowment=2_000_000)
@@ -135,52 +141,50 @@ class ResearcherAgent:
         who = self.p
         if self.state == "new":
             phens, _ = _do(world, who, "sci.phenomena", {})
-            ph = next((x for x in phens or [] if "machine model" in x.get("title", "")), None)
-            if ph is None:
-                self.state = "failed"
-                return
-            apps, _ = _do(world, who, "sci.apparatus", {"phenomenon": ph["id"]})
-            if not apps:
-                self.state = "failed"
-                return
-            app = sorted(apps, key=lambda a: (a["price_cents"], a.get("apparatus") or a.get("id")))[0]
-            aid = app.get("apparatus") or app.get("id")
-            names = [v["name"] for v in ph["vars"]]
-            rng = app.get("range") or {v["name"]: [v["lo"], v["hi"]] for v in ph["vars"]}
-            axes = [np.linspace(rng[n][0], rng[n][1], self.grid) for n in names]
-            design = [{"at": {names[0]: round(float(a), 4), names[1]: round(float(b), 4)}, "n": 1}
-                      for a in axes[0] for b in axes[1]]
-            stds = [{"standard": s["id"], "n": 3} for s in ph.get("standards", [])]
-            r1, err = _do(world, who, "sci.run", {"apparatus": aid, "design": design})
-            r2, _ = _do(world, who, "sci.run", {"apparatus": aid, "design": stds}) if stds else (None, None)
-            if r1 is None:
-                self.log.append({"error": err})
-                self.state = "failed"
-                return
-            self.ph, self.names = ph, names
-            self.runs = [r1["run"]] + ([r2["run"]] if r2 else [])
-            self.state = "measuring"
+            for ph in [x for x in phens or [] if "machine model" in x.get("title", "")]:
+                apps, _ = _do(world, who, "sci.apparatus", {"phenomenon": ph["id"]})
+                if not apps:
+                    continue
+                app = sorted(apps, key=lambda a: (a["price_cents"], a.get("apparatus") or a.get("id")))[0]
+                aid = app.get("apparatus") or app.get("id")
+                names = [v["name"] for v in ph["vars"]]
+                rng = app.get("range") or {v["name"]: [v["lo"], v["hi"]] for v in ph["vars"]}
+                axes = [np.linspace(rng[n][0], rng[n][1], self.grid) for n in names]
+                design = [{"at": {names[0]: round(float(a), 4), names[1]: round(float(b), 4)}, "n": 1}
+                          for a in axes[0] for b in axes[1]]
+                stds = [{"standard": s["id"], "n": 3} for s in ph.get("standards", [])]
+                r1, err = _do(world, who, "sci.run", {"apparatus": aid, "design": design})
+                r2, _ = _do(world, who, "sci.run", {"apparatus": aid, "design": stds}) if stds else (None, None)
+                if r1 is None:
+                    self.log.append({"phenomenon": ph["id"], "error": err})
+                    continue
+                self.studies.append({"ph": ph, "names": names, "runs": [r1["run"]] + ([r2["run"]] if r2 else []),
+                                     "done": False})
+            self.state = "measuring" if self.studies else "failed"
             return
         if self.state == "measuring":
             mine, _ = _do(world, who, "sci.runs", {})
             done = {r["run"] for r in mine or [] if r["status"] == "done"}
-            if not set(self.runs) <= done:
-                return
-            data, _ = _do(world, who, "sci.data", {"run": self.runs[0]})
-            cal = None
-            if len(self.runs) > 1:
-                cal, _ = _do(world, who, "sci.data", {"run": self.runs[1]})
-            model = self._fit(data, cal)
-            self.model = model
-            if self.publish and model:
-                r, err = _do(world, who, "sci.publish", {
-                    "phenomenon": self.ph["id"], "title": f"The operating optimum of {self.ph['title'].split()[-1]}",
-                    "abstract": "A grid study of the quality response; the response peaks at one operating point.",
-                    "model": model, "data": self.runs[:1], "calibration_runs": self.runs[1:]})
-                self.paper = (r or {}).get("paper")
-                if r is None:
-                    self.log.append({"error": err})
-            self.state = "done"
+            for st in self.studies:
+                if st["done"] or not set(st["runs"]) <= done:
+                    continue
+                data, _ = _do(world, who, "sci.data", {"run": st["runs"][0]})
+                cal = _do(world, who, "sci.data", {"run": st["runs"][1]})[0] if len(st["runs"]) > 1 else None
+                self.ph, self.names = st["ph"], st["names"]
+                model = self._fit(data, cal)
+                st["model"], st["done"] = model, True
+                if self.publish and model:
+                    r, err = _do(world, who, "sci.publish", {
+                        "phenomenon": st["ph"]["id"],
+                        "title": f"The operating optimum of {st['ph']['title'].split()[-1]}",
+                        "abstract": "A grid study of the quality response; it peaks at one operating point.",
+                        "model": model, "data": st["runs"][:1], "calibration_runs": st["runs"][1:]})
+                    if r is not None:
+                        self.papers.append(r["paper"])
+                    else:
+                        self.log.append({"phenomenon": st["ph"]["id"], "error": err})
+            if all(st["done"] for st in self.studies):
+                self.state = "done"
 
     def _fit(self, data, cal) -> str | None:
         """Least squares fit of A * exp(-((x - x0)^2 + (z - z0)^2) / c) to own readings (grid over x0, z0, c; A
