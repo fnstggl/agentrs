@@ -44,7 +44,8 @@ def _commit() -> str:
 
 
 def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7_e2e", families=FAMILIES,
-        out: str = None, overrides: dict = None, max_rounds: int = None, preset: str = "dom_dev") -> dict:
+        out: str = None, overrides: dict = None, max_rounds: int = None, preset: str = "dom_dev",
+        max_wall_s: float = None) -> dict:
     from ..config import make_preset
     from ..envs import experience as X
     from ..envs.agent_protocol import Transition
@@ -95,7 +96,11 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     updates, rounds, n_labels, episodes, n_dec = [], 0, 0, 1, 0
     errors = []
     max_rounds = max_rounds or (n_updates * cfg.update_every * 4)
+    stopped = None
     while len(updates) < n_updates and rounds < max_rounds:
+        if max_wall_s is not None and time.time() - t_start > max_wall_s:
+            stopped = f"wall budget {max_wall_s:.0f} s (shared GPU lock hold) reached after {len(updates)} updates"
+            break
         tools = env.available_tools()
         actions = agent.act(ob, tools)
         results = env.execute(actions)
@@ -139,7 +144,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     rep.update({"commit": commit, "preset": preset, "device": str(dev), "families": list(families),
                 "seed": seed, "run_dir": run_dir, "rounds": rounds, "decisions": n_dec, "episodes": episodes, "labels": n_labels,
                 "n_updates": len(updates), "wall_s": time.time() - t_start, "errors": errors,
-                "share_guard_on": learner.share_guard,
+                "share_guard_on": learner.share_guard, "stopped_early": stopped,
                 "param_counts": model.count_parameters(), "reward_model": type(rm).__name__ +
                 (" (seam stub: reward 0)" if getattr(rm, "stub", False) else ""),
                 "cfg": {k: v for k, v in cfg.to_dict().items() if k in (
@@ -239,6 +244,7 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--preset", default="dom_dev", help="dom_dev (W7 check) | dom (1B, W1 only) | dom_150m")
     ap.add_argument("--microbatch", type=int, default=0, help="cfg.microbatch (0 = full-batch policy recompute)")
+    ap.add_argument("--max-wall-s", type=float, default=None, help="stop (partial report) after this wall time")
     ap.add_argument("--share-guard", default="on", choices=("on", "off"),
                     help="per-update core-share guard of the learner (off = factors-only balancing, run 4)")
     ap.add_argument("--reward-mode", default=None,
@@ -247,7 +253,8 @@ def main(argv=None) -> int:
     over = {"microbatch": a.microbatch, "share_guard": a.share_guard == "on"}
     if a.reward_mode:
         over["reward_mode"] = a.reward_mode
-    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset, overrides=over)
+    rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset, overrides=over,
+              max_wall_s=a.max_wall_s)
     print(json.dumps(rep["checks"], indent=1, default=str))
     return 0
 
