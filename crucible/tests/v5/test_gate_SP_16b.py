@@ -21,8 +21,10 @@ Measured on the real system:
 * media: every FFmpeg/ffprobe/SoX/Chromium launch at the participant call sites (studio and media tools) observed
   through audit events, and Pillow decodes inside the world process; an unjailed launch or an in-process decode of
   participant bytes is an unrestricted media-tool run;
-* tenants: per-world sandbox uids, per-world pools and meter memo, the artifact pool across worlds, and the jail
-  uids (distinct per tool kind, outside the tenant range, not root or nobody);
+* tenants: per-world sandbox uids, per-world pools and meter memo, the artifact pool across worlds, kernel objects
+  two tenants share on one kernel (SysV IPC / POSIX mq, advisory locks, inotify), jailed learner processes against
+  each other (own uids, no signals by descriptor ownership, no state carried to a fresh process), and the jail uids
+  (distinct per tool kind, outside the tenant range, not root or nobody);
 * out-of-process evaluation: Tier 1 and a 4.0 kernel world hosted by `crucible.experience.remote.host`, driven only
   through the participant handle, verified through the evaluator handle; the participant pipe refuses evaluator
   operations and runs nothing it receives.
@@ -55,7 +57,10 @@ ABUSE = ("v5.isolation.world_code_cannot_import_evaluator_side_code", "v5.networ
 MEDIA = ("v5.network.media_tools_at_participant_call_sites_are_jailed",
          "v5.network.image_decoders_run_outside_the_world_process")
 TENANTS = ("v5.sandbox.tenants_do_not_share_a_uid", "v5.crossworld.sandbox_pools_and_meter_memo_are_per_world",
-           "v5.crossworld.artifact_bytes_do_not_cross_worlds")
+           "v5.crossworld.artifact_bytes_do_not_cross_worlds",
+           # kernel objects shared by tenants of one kernel, and jailed learner processes (wave-3b review)
+           "v5.crossworld.kernel_ipc_does_not_cross_worlds", "v5.crossworld.file_locks_do_not_cross_worlds",
+           "v5.crossworld.file_watches_do_not_cross_worlds", "v5.sandbox.hosted_learners_cannot_reach_each_other")
 REMOTE = ("v5.isolation.remote_participant_cannot_run_code_in_the_world",)
 
 
