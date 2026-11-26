@@ -123,6 +123,41 @@ class LossBalancer:
                 break
         return g
 
+    def guard(self, core_norm: dict, min_scale: float = 0.02, margin: float = 0.97) -> dict:
+        """Per-update share guard: scales s_i in [min_scale, 1] (only down-scaling; shares are invariant to a common
+        factor, so the solution is normalised to max s_i = 1) such that the shares s_i * n_i / sum_j s_j * n_j of the
+        MEASURED core norms `core_norm` (weights in force) lie inside every range (with `margin`). The factors above
+        track the slow drift between probes; the guard removes the per-batch variance that the factors cannot see
+        (measured, dom_dev run 4: the adaptation loss of one batch doubled and took 0.72 of the core, the actor 0.058,
+        although the calibrated factors held both inside their ranges on the probes before). Returns {"scale": {k:
+        s_k}, "share_measured", "share_applied", "satisfied", "violated_measured"}; objectives without a target keep
+        s = 1 relative to the others (they are scaled with the common normalisation only)."""
+        cn = {k: float(v) for k, v in core_norm.items() if math.isfinite(float(v)) and float(v) >= 0}
+        tot = sum(cn.values())
+        out = {"scale": {k: 1.0 for k in cn}, "share_measured": {k: (v / tot if tot > 0 else 0.0) for k, v in cn.items()},
+               "violated_measured": [], "satisfied": True}
+        if tot <= 0 or not self._active(cn):
+            out["share_applied"] = dict(out["share_measured"])
+            return out
+        out["violated_measured"] = self.violated(out["share_measured"])
+        if not out["violated_measured"]:
+            out["share_applied"] = dict(out["share_measured"])
+            return out
+        keep = self.margin
+        try:
+            self.margin = float(margin)
+            g = self._solve(cn)
+        finally:
+            self.margin = keep
+        top = max(g.values()) if g else 1.0
+        s = {k: max(float(min_scale), min(1.0, g.get(k, 1.0) / top)) for k in cn}
+        app = {k: s[k] * cn[k] for k in cn}
+        at = sum(app.values())
+        out["scale"] = s
+        out["share_applied"] = {k: (v / at if at > 0 else 0.0) for k, v in app.items()}
+        out["satisfied"] = not self.violated(out["share_applied"])
+        return out
+
     def update(self, n_update: int, table, calibrate: Optional[bool] = None) -> dict:
         """Adjust the factors from one probe (`GradTable` or {"core_norm": {...}}). `core_norm` is measured with the
         weights in force (factors included). `calibrate`: solve directly (default: only until the first successful

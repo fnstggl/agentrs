@@ -12,7 +12,8 @@ learner `rewards=None` - no environment reward exists on this channel (Experienc
         --out docs/evidence/dom/W7/w7_e2e_dom_dev.json
 
 Checks (plan §3 W7): actor share of the core gradient >= 0.1 and world share <= 0.7 (every probe after the
-calibration probe); DOM-08 table nonzero after one optimiser step for the required groups (absent groups reported as
+warmup probes; with the learner's share guard on (default) every update is probed and the share is that of the
+APPLIED core gradient, the pre-guard share is reported as core_shares_measured); DOM-08 table nonzero after one optimiser step for the required groups (absent groups reported as
 absent = not built yet); lag>0 decisions routed to V-trace (n_stale > 0) without StalePolicyError; per-group clip
 rate < 0.5 after warmup.
 """
@@ -58,6 +59,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     commit = _commit()
     over = dict(microbatch=0, tool_entropy_coef=0.01)
     over.update(overrides or {})
+    guard_on = bool(over.pop("share_guard", True))
     mb = int(over["microbatch"])
     over["declared_conditions"] = (
         "w7-e2e:interim-loop(runtime.run_lifetime pending, W1)",
@@ -81,7 +83,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     env = op.adapter()
     labels = LabelStore(os.path.join(run_dir, "labels"))
     rm = RewardModel(cfg)
-    learner = IntegratedLearner(model, rm, labels, cfg, agent=agent, seed=seed,
+    learner = IntegratedLearner(model, rm, labels, cfg, agent=agent, seed=seed, share_guard=guard_on,
                                 log_path=os.path.join(run_dir, "updates.jsonl"), probe_every=5)
     think = cfg.think_s / 86400.0
     B = env.B
@@ -137,6 +139,7 @@ def run(n_updates: int = 20, seed: int = 0, device=None, run_dir: str = "/tmp/w7
     rep.update({"commit": commit, "preset": preset, "device": str(dev), "families": list(families),
                 "seed": seed, "run_dir": run_dir, "rounds": rounds, "decisions": n_dec, "episodes": episodes, "labels": n_labels,
                 "n_updates": len(updates), "wall_s": time.time() - t_start, "errors": errors,
+                "share_guard_on": learner.share_guard,
                 "param_counts": model.count_parameters(), "reward_model": type(rm).__name__ +
                 (" (seam stub: reward 0)" if getattr(rm, "stub", False) else ""),
                 "cfg": {k: v for k, v in cfg.to_dict().items() if k in (
@@ -156,8 +159,22 @@ def summarise(updates: list, required, warm: int = 8) -> dict:
     """The W7 checks over the UpdateInfo dicts of a run (`warm` = the learner's probe_warmup: share and clip-rate
     checks use the probes / updates after it; the final probe is reported separately)."""
     probes = [u for u in updates if u.get("grad_table") is not None]
-    shares = [{"update": u["update"], **{k: u["core_share"].get(k) for k in ("world", "adapt", "actor", "value",
-                                                                             "pred")}} for u in probes]
+    keys = ("world", "adapt", "actor", "value", "pred")
+    # core_share = shares of the APPLIED core gradient (after the learner's per-update share guard, when on);
+    # core_share_measured = at the balanced weights before the guard (what the balancer factors alone achieve)
+    shares = [{"update": u["update"], **{k: u["core_share"].get(k) for k in keys}} for u in probes]
+    measured = [{"update": u["update"], **{k: (u.get("core_share_measured") or u["core_share"]).get(k)
+                                           for k in keys}} for u in probes]
+    guarded = [u for u in probes if u.get("share_guard")]
+    guard = {"updates_probed": len(probes), "updates_guarded": len(guarded),
+             "updates_scaled": sum(1 for u in guarded if min(u["share_guard"]["scale"].values()) < 1.0),
+             "unsatisfied_updates": [u["update"] for u in guarded if not u["share_guard"]["satisfied"]],
+             "min_scale": {k: min(u["share_guard"]["scale"].get(k, 1.0) for u in guarded) for k in keys
+                           if any(k in u["share_guard"]["scale"] for u in guarded)} if guarded else {},
+             "measured_actor_after_warmup_min": min(((m["actor"] or 0.0) for m in measured if m["update"] > warm),
+                                                    default=None),
+             "measured_adapt_after_warmup_max": max(((m["adapt"] or 0.0) for m in measured if m["update"] > warm),
+                                                    default=None)}
     after = [s for s in shares if s["update"] > warm]
     final = shares[-1] if shares else None
     actor_ok = bool(after) and all((s["actor"] or 0.0) >= 0.1 for s in after)
@@ -194,6 +211,8 @@ def summarise(updates: list, required, warm: int = 8) -> dict:
                                               "rate": clip_rate, "pairs": pairs, "warmup_updates": warm},
         },
         "core_shares": shares,
+        "core_shares_measured": measured,
+        "share_guard": guard,
         "balance": [{"update": u["update"], **(u.get("balance") or {})} for u in updates if u.get("balance")],
         "per_update": [{"update": u["update"], "losses": u["losses"], "weights": u["weights"],
                         "grad_norm": u["grad_norm"], "clipped": u["clipped"],
@@ -201,6 +220,7 @@ def summarise(updates: list, required, warm: int = 8) -> dict:
                             "n_fresh_steps", "n_stale_steps", "kl", "max_lag", "n_nodes", "n_segments", "entropy",
                             "tool_entropy", "rerouted_by_kl", "vtrace_rho_mean", "clip_frac", "n_fresh_rows",
                             "n_stale_rows", "logp_maxdev_lag0", "logp_meandev_lag0")},
+                        "weights_applied": u.get("weights_applied"), "share_guard": u.get("share_guard"),
                         "epochs": u.get("epochs"), "reward": u.get("reward"), "wall_s": u.get("wall_s"),
                         "actor_psi_grad_norm": u.get("actor_psi_grad_norm")} for u in updates],
         "grad_tables": {str(u["update"]): {"norm": u["grad_table"]["norm"], "core_share": u["core_share"],
@@ -219,10 +239,12 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--preset", default="dom_dev", help="dom_dev (W7 check) | dom (1B, W1 only) | dom_150m")
     ap.add_argument("--microbatch", type=int, default=0, help="cfg.microbatch (0 = full-batch policy recompute)")
+    ap.add_argument("--share-guard", default="on", choices=("on", "off"),
+                    help="per-update core-share guard of the learner (off = factors-only balancing, run 4)")
     ap.add_argument("--reward-mode", default=None,
                     help="Exp D condition: observation_only (default of the preset) | sparse_verified")
     a = ap.parse_args(argv)
-    over = {"microbatch": a.microbatch}
+    over = {"microbatch": a.microbatch, "share_guard": a.share_guard == "on"}
     if a.reward_mode:
         over["reward_mode"] = a.reward_mode
     rep = run(a.updates, a.seed, a.device, a.run_dir, out=a.out, preset=a.preset, overrides=over)

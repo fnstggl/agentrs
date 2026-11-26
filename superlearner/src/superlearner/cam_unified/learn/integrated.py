@@ -432,6 +432,10 @@ class IntegratedLearner:
         meta role at lr_psi, per-group clipping per cfg.clip_mode).
       balancer: LossBalancer (default core-share ranges: world (0.2, cfg.world_core_share_max = 0.45 in dom), actor
         (0.1, 0.4), pred (0.1, 0.4)); `balance=False` turns balancing off (the "no loss balancing" ablation).
+      share_guard (default cfg.share_guard, else True; needs the balancer): probe every update and down-scale whole
+        objectives of that update (LossBalancer.guard, scales in [guard_min_scale, 1]) so the shares of the APPLIED
+        core gradient lie in the ranges; UpdateInfo "core_share" is then the applied share and "core_share_measured"
+        the share at the balanced weights before the guard (the balancer factors learn from the measured one).
       probe_warmup / probe_every: the per-objective named-group probe runs on updates 1..probe_warmup and then every
         probe_every updates (default cfg.balance_every or 25); balancing calibrates at the first probe, refines with
         the clipped rule on every warmup probe and then every cfg.balance_every updates.
@@ -452,7 +456,8 @@ class IntegratedLearner:
                  extra_objectives: Optional[dict] = None, meta_trainer=None,
                  label_batch_fn: Optional[Callable] = None, sparse_beta: float = 1.0, episode_base: int = 1,
                  seed: int = 0, amp: Optional[bool] = None, trainer_kw: Optional[dict] = None,
-                 objective_kw: Optional[dict] = None):
+                 objective_kw: Optional[dict] = None, share_guard: Optional[bool] = None,
+                 guard_min_scale: float = 0.02):
         from ..selfeval.reward_model import RewardModel
         from .balance import LossBalancer
         from .grad_probe import named_groups
@@ -502,6 +507,9 @@ class IntegratedLearner:
                    "pred": (0.10, 0.40)}
             balancer = LossBalancer(tgt)
         self.balancer = balancer
+        sg = getattr(cfg, "share_guard", True) if share_guard is None else share_guard
+        self.share_guard = bool(sg) and balancer is not None
+        self.guard_min_scale = float(guard_min_scale)
         self.epochs = int(epochs if epochs is not None else max(1, int(getattr(cfg, "ppo_epochs", 1) or 1)))
         tk = target_kl if target_kl is not None else (getattr(cfg, "target_kl", 0.0) or None)
         self.target_kl = None if not tk else float(tk)
@@ -528,6 +536,10 @@ class IntegratedLearner:
         self._episodes_seen: Counter = Counter()  # env_id -> episodes registered
         self._labels_seen = 0
         self._probe_cache: dict = {}
+        self._feat: "OrderedDict[str, tuple]" = OrderedDict()     # W8 label join: event id -> cached features
+        self.feature_cache_max = 2048
+        self.pred_max_rows = 64
+        self._join, self._join_n, self._last_join = None, -1, None
         self.integrity = {"transitions": 0, "env_reward_nonzero": 0, "fresh_reward_nonzero": 0,
                           "replay_reward_nonzero": 0}
         self.history: list = []
@@ -562,6 +574,8 @@ class IntegratedLearner:
         if len(self.cost_by_event) > 200_000:            # bounded: costs are consumed within one or two updates
             for k in list(self.cost_by_event)[:100_000]:
                 del self.cost_by_event[k]
+        if self.meta_trainer is not None and callable(getattr(self.meta_trainer, "on_round", None)):
+            self.meta_trainer.on_round(self)            # MetaWindowDriver: the psi meta step spans rounds
 
     def _register_episode(self, env_id, episode_id) -> int:
         key = (str(env_id), str(episode_id))
@@ -940,9 +954,82 @@ class IntegratedLearner:
                 mets.update(out.get("metrics", {}))
         return losses, mets
 
+    def _joinable(self) -> bool:
+        rm = self.reward_model
+        if self.label_store is None or self.agent is None or getattr(self.agent, "archive", None) is None:
+            return False
+        if getattr(rm, "stub", False) or not callable(getattr(rm, "supervised_parameters", None)):
+            return False
+        try:
+            from ..selfeval import label_join  # noqa: F401  (W8)
+        except ImportError:
+            return False
+        return True
+
+    def _cache_features(self, pb: Optional[PolicyBatch]) -> None:
+        """Learner-side cache event id -> (R [S,D] bf16 cpu, goal row) of this update's decisions: labels resolve
+        episodes after their decisions left the fresh buffer (W8 label_join supervises every prefix)."""
+        got = pb.reward_info.get("_R") if pb is not None else None
+        if got is None:
+            return
+        R, goal = got
+        for i, nd in enumerate(pb.nodes):
+            eid = nd.st.event_ids[nd.j] if nd.st.event_ids else None
+            if eid is None or eid in self._feat:
+                continue
+            g = goal.select([i]) if hasattr(goal, "select") else None
+            self._feat[eid] = (R[i].detach().to("cpu", torch.bfloat16),
+                               g.to("cpu") if g is not None and hasattr(g, "to") else g)
+        while len(self._feat) > self.feature_cache_max:
+            self._feat.popitem(last=False)
+
+    def _joined_label_batch(self, pb: Optional[PolicyBatch]):
+        """W8 change request: L_pred = reward_model.losses(label_join.join(label_store, archive).with_features(R,
+        goal)). Rows of decisions in this update's policy batch carry R recomputed WITH gradient (plan §2: L_pred
+        updates theta_core, share >= 0.1); older rows use the cached detached features. At most pred_max_rows rows
+        (uniform sample) per update; the join is redone only when new labels arrived."""
+        from ..model import cat_rows
+        from ..selfeval import label_join as LJ
+        self._cache_features(pb)
+        labels = list(self.label_store.iterate())
+        if not labels:
+            return None
+        if self._join is None or len(labels) != self._join_n:
+            arch = self.agent.archive
+            if hasattr(arch, "flush"):
+                arch.flush()
+            self._join, self._join_n = LJ.join(self.label_store, arch, episode_base=self.episode_base), len(labels)
+        lb = self._join
+        keep = [i for i, e in enumerate(lb.event_ids) if e in self._feat]
+        if not keep:
+            return None
+        if len(keep) > self.pred_max_rows:
+            keep = sorted(self.py_rng.sample(keep, self.pred_max_rows))
+        lb = lb.select(keep)
+        dev = self.model.device
+        rows = [self._feat[e][0].to(dev, torch.float32) for e in lb.event_ids]
+        pos = {}
+        if pb is not None:
+            for i, nd in enumerate(pb.nodes):
+                if nd.st.event_ids:
+                    pos[nd.st.event_ids[nd.j]] = i
+        live = [(k, pos[e]) for k, e in enumerate(lb.event_ids) if e in pos]
+        if live:
+            sub = pb.inputs.select([i for _, i in live])
+            Rg, _, _ = self._encode_all(sub, grad=True)
+            for (k, _), r_ in zip(live, Rg):
+                rows[k] = r_.float()
+        goals = [self._feat[e][1] for e in lb.event_ids]
+        G = cat_rows(goals).to(dev) if goals and all(g is not None for g in goals) else None
+        out = lb.with_features(torch.stack(rows), G)
+        self._last_join = {"rows": len(lb), "grad_rows": len(live), "labels": len(labels)}
+        return out
+
     def _label_batch(self, batch, pb: Optional[PolicyBatch]):
         if self.label_batch_fn is not None:
             return self.label_batch_fn(self, batch, pb)
+        if self._joinable():
+            return self._joined_label_batch(pb)
         labels = list(self.label_store.iterate()) if self.label_store is not None else []
         new = labels[self._labels_seen:]
         self._labels_seen = len(labels)
@@ -994,6 +1081,9 @@ class IntegratedLearner:
         """One integrated update (module docstring); returns the UpdateInfo dict ({"updated": bool, ...})."""
         from .grad_probe import objective_gradients
         t0 = time.perf_counter()
+        if getattr(self.meta_trainer, "active", False):
+            return {"updated": False, "reason": "meta window open: slow step suspended (phi substituted)",
+                    "version": int(self.model.version)}
         extras = {}
         own = batch is None
         if own:
@@ -1043,22 +1133,39 @@ class IntegratedLearner:
             weighted = OrderedDict((k, weights[k] * v.float()) for k, v in losses.items() if weights[k] != 0)
             raw = {k: float(v.detach()) for k, v in losses.items()}
             self.trainer.zero_grad()
-            probe = self._probe_due(n)
-            table, bal = None, {}
+            guard = self.share_guard and self.balancer is not None
+            probe = self._probe_due(n) or guard
+            table, bal, gd = None, {}, None
             if probe:
-                table = objective_gradients(weighted, self.groups, accumulate=True, _sample_cache=self._probe_cache)
+                table = objective_gradients(weighted, self.groups, accumulate=True, _sample_cache=self._probe_cache,
+                                            retain_graph=guard)
             else:
                 sum(weighted.values()).backward()
+            if table is not None and mbs is not None:   # the probe saw microbatch 0 only: scale to the batch (estimate)
+                sc = len(pb.nodes) / len(mbs[0])
+                for k in ("actor", "value"):
+                    if k in table.norms:
+                        table.norms[k] = {g: v * sc for g, v in table.norms[k].items()}
+                        table.core_norm[k] *= sc
+            scale = {k: 1.0 for k in weighted}
+            if guard:
+                # per-update share guard (LossBalancer.guard): down-scale whole objectives so that the shares of
+                # the core gradient actually applied lie in their ranges; the correction sum_i (s_i - 1) L_i adds
+                # into .grad (which holds sum_i L_i's gradient), so .grad = gradient of sum_i s_i L_i exactly
+                gd = self.balancer.guard(table.core_norm, min_scale=self.guard_min_scale)
+                scale.update({k: float(v) for k, v in gd["scale"].items() if k in scale})
+                corr = [(scale[k] - 1.0) * v for k, v in weighted.items() if scale[k] != 1.0]
+                if corr:
+                    sum(corr).backward()
+            weighted_f = {k: float(v.detach()) for k, v in weighted.items()}
+            if guard:                             # release the retained graph before the remaining passes
+                weighted = losses = pred = lb = None
+                pol = {k: v for k, v in pol.items() if not torch.is_tensor(v)}
             if mbs is not None and "actor" in weights and "value" in weights:
+                wa, wv = weights["actor"] * scale.get("actor", 1.0), weights["value"] * scale.get("value", 1.0)
                 for idx in mbs[1:]:
                     d_ = self._policy_losses(pb, idx, pbase)
-                    (weights["actor"] * d_["actor"].float() + weights["value"] * d_["value"].float()).backward()
-                if table is not None:        # the probe saw microbatch 0 only: scale its norms to the batch (estimate)
-                    sc = len(pb.nodes) / len(mbs[0])
-                    for k in ("actor", "value"):
-                        if k in table.norms:
-                            table.norms[k] = {g: v * sc for g, v in table.norms[k].items()}
-                            table.core_norm[k] *= sc
+                    (wa * d_["actor"].float() + wv * d_["value"].float()).backward()
             if table is not None and self.balancer is not None and (self._balance_due(n)
                                                                     or self._hard_violation(table)):
                 bal = self.balancer.update(n, table, calibrate=n <= self.probe_warmup)
@@ -1096,7 +1203,8 @@ class IntegratedLearner:
             return {"updated": False, "reason": "non-finite gradient (step skipped)", "version": int(m.version),
                     "losses": raw}
         info = {"updated": True, "update": n, "losses": raw, "weights": weights, "base_weights": base,
-                "weighted": {k: float(v.detach()) for k, v in weighted.items()}, "skipped_losses": skipped,
+                "weighted": weighted_f, "skipped_losses": skipped,
+                "weights_applied": {k: weights[k] * scale.get(k, 1.0) for k in weights},
                 "grad_norm": res["grad_norm"], "group_grad_norm": res["group_grad_norm"], "clipped": res["clipped"],
                 "clip": res["clip"], "clip_rate": self.trainer.clip_rate(), "balance": bal,
                 "balance_factors": dict(self.balancer.factors) if self.balancer is not None else {},
@@ -1105,10 +1213,17 @@ class IntegratedLearner:
                 "microbatches": None if mbs is None else [len(x) for x in mbs],
                 "probe_policy": None if (table is None or mbs is None) else
                 "actor/value norms from microbatch 0 scaled by N / n_mb0 (estimate)",
-                "reward_mode": self.reward_mode, "reward_mode_note": self.reward_mode_note}
+                "reward_mode": self.reward_mode, "reward_mode_note": self.reward_mode_note,
+                "label_join": self._last_join}
         if table is not None:
             info["grad_table"] = table.to_dict()
-            info["core_share"] = table.share()
+            info["core_share_measured"] = table.share()
+            info["core_share"] = dict(gd["share_applied"]) if gd is not None else table.share()
+            if gd is not None:
+                info["share_guard"] = {"scale": gd["scale"], "satisfied": gd["satisfied"],
+                                       "violated_measured": gd["violated_measured"],
+                                       "note": "core_share = shares of the applied core gradient (after the guard); "
+                                               "grad_table norms and core_share_measured are before it"}
             info["dom08"] = table.dom08()
             psi = [g for g in ("psi",) if table.sizes.get(g)]
             info["actor_psi_grad_norm"] = (float(table.norms.get("actor", {}).get("psi", 0.0)) if psi else None)
@@ -1125,6 +1240,10 @@ class IntegratedLearner:
             m.version = m.version + 1
             info["version"] = int(m.version)
         info["integrity"] = dict(self.integrity)
+        pend = getattr(self.meta_trainer, "pending", None)
+        if pend:
+            info["meta"] = list(pend)
+            pend.clear()
         info["wall_s"] = time.perf_counter() - t0
         self.history.append({k: info[k] for k in ("update", "losses", "weights", "clip_rate") if k in info})
         if self.log_path:
@@ -1184,15 +1303,48 @@ class IntegratedLearner:
 
     # ------------------------------------------------------------------ meta step / state
     def meta_step(self) -> dict:
-        """One outer step on psi, delegated to W8's meta trainer (`meta_trainer.meta_step(learner)`)."""
+        """One outer step on psi, delegated to W8's meta trainer (`meta_trainer.meta_step(learner)`). With a
+        `meta_window.MetaWindowDriver` (around W8's MetaRewardTrainer) this opens a meta window that the following
+        rounds complete (on_step); its outer-step entry is reported in the next update's UpdateInfo["meta"]."""
         if self.meta_trainer is None:
             return {"meta": False, "reason": "no meta trainer attached (W8 MetaRewardTrainer)"}
         out = self.meta_trainer.meta_step(self)
         self.n_meta += 1
         return dict(out or {}, meta=True, n_meta=self.n_meta)
 
+    def _bump_policy_version(self) -> None:
+        """New policy version without a slow update (the meta window consolidated phi_K / acted with phi_k)."""
+        if self.agent is not None and hasattr(self.agent, "version"):
+            self.agent.version = self.agent.version + 1
+            if int(self.model.version) != int(self.agent.version):
+                self.model.version = self.agent.version
+        else:
+            self.model.version = self.model.version + 1
+
+    @classmethod
+    def from_system(cls, system, **kw) -> "IntegratedLearner":
+        """The LearnerHook of `build.build_agent`'s System (W1 change request): the system's model, reward model,
+        trainer-side LabelStore, cfg and acting agent; this learner's own named-group CombinedTrainer (per-group
+        clipping, role optimisers; the System's trainer stays the agent's legacy one); the policy recompute is
+        microbatched by cfg.microbatch (dom presets: 4 decisions; the agent's own update OOMed at 1B with 32);
+        UpdateInfo lines to <run_dir>/learner/integrated.jsonl. W8's MetaRewardTrainer is attached through a
+        MetaWindowDriver when it is importable, the reward model is not the seam stub and cfg.meta_every > 0
+        (`meta_trainer=` overrides)."""
+        cfg = system.cfg
+        rd = getattr(system, "run_dir", None)
+        kw.setdefault("log_path", os.path.join(rd, "learner", "integrated.jsonl") if rd else None)
+        kw.setdefault("seed", int(getattr(getattr(system, "sc", None), "seed", 0) or 0))
+        rm = getattr(system, "reward_model", None)
+        if "meta_trainer" not in kw:
+            kw["meta_trainer"] = default_meta_driver(system.model, rm, cfg)
+        return cls(system.model, rm, getattr(system, "label_store", None), cfg, agent=system.agent, **kw)
+
     def state_dict(self) -> dict:
+        drv = self.meta_trainer
+        if getattr(drv, "active", False):     # never checkpoint phi_k as the slow weights
+            drv.abort(self, "checkpoint during an open meta window")
         return {"trainer": self.trainer.state_dict(),
+                "meta_trainer": drv.state_dict() if callable(getattr(drv, "state_dict", None)) else None,
                 "balancer": None if self.balancer is None else self.balancer.state_dict(),
                 "n_updates": self.n_updates, "n_meta": self.n_meta,
                 "adapt_k_hist": dict(self.adapt_k_hist), "episode_ordinal": [[k[0], k[1], v] for k, v in
@@ -1220,11 +1372,30 @@ class IntegratedLearner:
             self.py_rng.setstate((st[0], tuple(st[1]), st[2]) if isinstance(st, list) else st)
         if s.get("reward_model") is not None and isinstance(self.reward_model, torch.nn.Module):
             self.reward_model.load_state_dict(s["reward_model"])
+        if s.get("meta_trainer") is not None and callable(getattr(self.meta_trainer, "load_state_dict", None)):
+            self.meta_trainer.load_state_dict(s["meta_trainer"])
         if s.get("reward_version") is not None and hasattr(self.reward_model, "version"):
             try:
                 self.reward_model.version = int(s["reward_version"])
             except AttributeError:
                 pass
+
+
+def default_meta_driver(model, reward_model, cfg):
+    """MetaWindowDriver over W8's MetaRewardTrainer (selfeval.metagrad + selfeval.fast_policy) for a non-stub reward
+    model with cfg.meta_every > 0; None when any of it is missing (seam-0: the stub reward model, no fast_policy)."""
+    if reward_model is None or getattr(reward_model, "stub", True) or not int(getattr(cfg, "meta_every", 0) or 0):
+        return None
+    try:
+        from ..selfeval import fast_policy as FP
+        from ..selfeval.metagrad import MetaRewardTrainer
+    except ImportError:
+        return None
+    from .meta_window import MetaWindowDriver
+    tr = MetaRewardTrainer(model, reward_model, logp_fn=FP.cam_logp_fn, reward_fn=FP.cam_reward_fn(reward_model),
+                           K=int(getattr(cfg, "meta_inner_steps", 2) or 2), outer_lr=float(cfg.lr_psi))
+    return MetaWindowDriver(tr, fp=FP, window_rounds=int(getattr(cfg, "update_every", 8) or 8),
+                            kappa=float(getattr(cfg, "kappa", 0.0) or 0.0))
 
 
 def _json_default(x):

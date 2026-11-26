@@ -9,6 +9,8 @@ exactly one DOM-08 group by its qualified name, first matching rule wins:
     core.blocks_other                                 the remaining backbone blocks
     core.sem_xattn_gate / core.sem_xattn              Mechanism C gates / projections (gated semantic cross-attention)
     core.state_gate                                   the gated state update (W3)
+    core.sem_proj                                     Mechanism C's semantic projection inside the core (W3: a core
+                                                      tensor - lr_core, counted in the core share)
     core.embed                                        the rest of the core (state / kind / time embeddings, norms)
     sem_proj                                          tokenizer projections (numeric value channel, pools, unit/desc)
     entities, reasoner, beliefs (+ bayes), world_model, outcome_head (+ query encoder)
@@ -47,9 +49,11 @@ CORE_PREFIX = "core."
 DOM08_REQUIRED = ("core.block0", "core.block_mid", "core.block_last", "sem_proj", "core.sem_xattn_gate", "reasoner",
                   "beliefs", "world_model", "intent", "dec_xattn", "exploration", "policy", "v_int", "predictors")
 GROUP_ORDER = ("core.block0", "core.block_mid", "core.block_last", "core.blocks_other", "core.sem_xattn_gate",
-               "core.sem_xattn", "core.state_gate", "core.embed", "sem_proj", "entities", "reasoner", "beliefs",
+               "core.sem_xattn", "core.state_gate", "core.sem_proj", "core.embed", "sem_proj", "entities", "reasoner", "beliefs",
                "world_model", "outcome_head", "intent", "evaluator", "dec_xattn", "dec_bridge", "exploration",
                "policy", "v_int", "predictors", "psi", "other")
+# a DOM-08 entry covered by several groups: "sem projections" are the tokenizer's (sem_proj) and the core's (W3)
+DOM08_ALIASES = {"sem_proj": ("sem_proj", "core.sem_proj")}
 _XATTN = re.compile(r"(sem_xattn|semantic_xattn|xattn|cross_attn|crossattn)")
 _GATE = re.compile(r"(gate|alpha)")
 
@@ -86,10 +90,12 @@ def classify(name: str, n_layers: int, hint: Optional[str] = None) -> str:
     if hint is not None:
         if hint == "core.sem_xattn" and _GATE.search(leaf):
             return "core.sem_xattn_gate"
+        if hint == "sem_proj" and name.startswith(CORE_PREFIX):
+            return "core.sem_proj"
         return hint
     if name.startswith(CORE_PREFIX):
         if name.startswith("core.sem_proj."):
-            return "sem_proj"
+            return "core.sem_proj"
         if _XATTN.search(name) or name.startswith("core.cond_proj."):
             return "core.sem_xattn_gate" if _GATE.search(leaf) else "core.sem_xattn"
         if "state_gate" in name or re.search(r"core\.gate[._]", name):
@@ -198,8 +204,9 @@ class GradTable:
         """{group: "nonzero" | "zero" | "absent"} for the DOM-08 groups."""
         out = {}
         for g in required:
-            nz = self.nonzero(g)
-            out[g] = "absent" if nz is None else ("nonzero" if nz else "zero")
+            nzs = [self.nonzero(a) for a in DOM08_ALIASES.get(g, (g,))]
+            nzs = [x for x in nzs if x is not None]
+            out[g] = "absent" if not nzs else ("nonzero" if any(nzs) else "zero")
         return out
 
 
@@ -217,10 +224,12 @@ class _CoreSample:
 
 def objective_gradients(weighted: "OrderedDict[str, Tensor]", groups: dict, accumulate: bool = True,
                         cos_exact_numel: int = 20_000_000, cos_sample: int = 2_000_000,
-                        _sample_cache: Optional[dict] = None) -> GradTable:
+                        _sample_cache: Optional[dict] = None, retain_graph: bool = False) -> GradTable:
     """Back-propagate each objective of `weighted` ({name: scalar tensor}, already multiplied by its loss weight)
     separately into the parameters of `groups` ({group: [(name, param)]}), accumulating into ``.grad`` when
-    `accumulate` (the caller zeroes the gradients first and steps afterwards). Returns the `GradTable`."""
+    `accumulate` (the caller zeroes the gradients first and steps afterwards). `retain_graph` keeps the graph of the
+    last objective too (a correction backward follows: the integrated learner's share guard). Returns the
+    `GradTable`."""
     names = list(weighted)
     flat = [(g, p) for g, ps in groups.items() for _, p in ps]
     params = [p for _, p in flat]
@@ -247,7 +256,7 @@ def objective_gradients(weighted: "OrderedDict[str, Tensor]", groups: dict, accu
         parts = []
         if n in live:
             last = n == live[-1]
-            gs = torch.autograd.grad(weighted[n], params, retain_graph=not last, allow_unused=True)
+            gs = torch.autograd.grad(weighted[n], params, retain_graph=retain_graph or not last, allow_unused=True)
         else:
             gs = [None] * len(params)
         ci = 0

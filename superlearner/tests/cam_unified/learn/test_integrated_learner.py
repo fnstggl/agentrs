@@ -163,7 +163,11 @@ def test_classify_assigns_dom08_groups_by_name():
     assert classify("core.blocks.2.ffn.w1.weight", L) == "core.blocks_other"
     assert classify("core.xattn.3.gate_in.weight", L) == "core.sem_xattn_gate"
     assert classify("core.xattn.3.attn.q.weight", L) == "core.sem_xattn"
-    assert classify("core.sem_proj.proj.weight", L) == "sem_proj"
+    assert classify("core.sem_proj.proj.weight", L) == "core.sem_proj"        # W3: a core tensor
+    assert classify("core.sem_proj.num.weight", L, hint="sem_proj") == "core.sem_proj"
+    assert classify("core.state_gate.weight", L) == "core.state_gate"
+    assert classify("core.cond_proj.weight", L) == "core.sem_xattn"
+    assert classify("core.xattn.1.alpha", L, hint="core.sem_xattn") == "core.sem_xattn_gate"
     assert classify("core.state_pos", L) == "core.embed"
     assert classify("tokenizer.num_mlp.0.weight", L) == "sem_proj"
     assert classify("action_generator.bridge.w.weight", L) == "dec_bridge"
@@ -497,3 +501,236 @@ def test_ppo_clip_loss_still_refuses_stale_rows_directly():
     m = torch.ones(1, 2, dtype=torch.bool)
     with pytest.raises(StalePolicyError):
         ppo_clip_loss(torch.zeros(1, 2), torch.zeros(1, 2), torch.ones(1, 2), m, 0.2, lag=torch.ones(1, 2))
+
+
+# ============================================================================ share guard, from_system, meta window, label join
+
+def test_share_guard_solves_into_the_ranges_by_down_scaling_only():
+    bal = LossBalancer({"world": (0.2, 0.45), "adapt": (0.0, 0.45), "actor": (0.10, 0.40)})
+    # the measured dom_dev update 20 of run 4: adapt took 0.72, the actor 0.058
+    cn = {"world": 0.188, "adapt": 0.715, "actor": 0.058, "value": 0.038}
+    g = bal.guard(cn)
+    assert set(g["violated_measured"]) == {"adapt", "actor", "world"} and g["satisfied"]   # world 0.188 < 0.2
+    assert max(g["scale"].values()) == pytest.approx(1.0) and min(g["scale"].values()) >= 0.02
+    sh = g["share_applied"]
+    assert sh["adapt"] <= 0.45 and sh["actor"] >= 0.10 and 0.2 <= sh["world"] <= 0.45
+    tot = sum(g["scale"][k] * v for k, v in cn.items())
+    assert all(sh[k] == pytest.approx(g["scale"][k] * v / tot) for k, v in cn.items())
+    inside = bal.guard({"world": 0.4, "adapt": 0.2, "actor": 0.4})
+    assert inside["scale"] == {"world": 1.0, "adapt": 1.0, "actor": 1.0} and inside["satisfied"]
+    # an objective with (almost) no core gradient cannot be lifted past min_scale: reported, not hidden
+    dead = bal.guard({"world": 1.0, "adapt": 0.1, "actor": 1e-6}, min_scale=0.02)
+    assert not dead["satisfied"] and min(dead["scale"].values()) == pytest.approx(0.02)
+
+
+def test_share_guard_correction_gives_the_gradient_of_the_scaled_sum():
+    torch.manual_seed(0)
+    core, ha, hb = nn.Linear(5, 5), nn.Linear(5, 1), nn.Linear(5, 1)
+    groups = {"core.block0": list(core.named_parameters()), "policy": list(ha.named_parameters()),
+              "world_model": list(hb.named_parameters())}
+    x = torch.randn(7, 5)
+    h = core(x)
+    la, lb = ha(h).pow(2).mean(), 10 * hb(h).sum()
+    s = {"actor": 1.0, "world": 0.1}
+    ref = torch.autograd.grad(s["actor"] * la + s["world"] * lb, list(core.parameters()) + list(hb.parameters()),
+                              retain_graph=True)
+    tab = objective_gradients({"actor": la, "world": lb}, groups, retain_graph=True)
+    sum((s[k] - 1.0) * v for k, v in (("actor", la), ("world", lb))).backward()
+    for p, g in zip(list(core.parameters()) + list(hb.parameters()), ref):
+        assert torch.allclose(p.grad, g, atol=1e-5)
+    assert tab.core_norm["world"] > 0
+
+
+def test_step_with_the_guard_reports_applied_and_measured_core_shares():
+    st = _Stack()
+    L = I.IntegratedLearner(st.model, ConstReward(1.0), None, agent=st.agent)
+    assert L.share_guard
+    infos = _run(st, L, 12, every=4)
+    assert all(i["updated"] for i in infos)
+    for i in infos:
+        assert "core_share_measured" in i and "share_guard" in i      # probed every update
+        sh = i["core_share"]
+        assert sum(sh.values()) == pytest.approx(1.0)
+        if i["share_guard"]["satisfied"]:
+            assert sh["world"] <= 0.45 + 1e-6 and sh["actor"] >= 0.10 - 1e-6 and sh.get("adapt", 0) <= 0.45 + 1e-6
+        for k, w in i["weights_applied"].items():
+            assert w == pytest.approx(i["weights"][k] * i["share_guard"]["scale"].get(k, 1.0))
+    off = I.IntegratedLearner(st.model, ConstReward(1.0), None, agent=st.agent, share_guard=False, probe_every=1)
+    assert not off.share_guard
+    i0 = _run(st, off, 4, every=4)[0]
+    assert "share_guard" not in i0 and i0["core_share"] == i0["core_share_measured"]
+
+
+def test_from_system_builds_the_learner_hook_of_the_canonical_factory(tmp_path):
+    st = _Stack(_cfg(microbatch=3), B=3)
+    store = LabelStore(str(tmp_path / "labels"))
+    system = SimpleNamespace(cfg=st.cfg, model=st.model, agent=st.agent, reward_model=ConstReward(),
+                             label_store=store, run_dir=str(tmp_path), sc=SimpleNamespace(seed=3))
+    L = I.IntegratedLearner.from_system(system)
+    assert L.agent is st.agent and L.label_store is store and L.meta_trainer is None     # stub-like reward model
+    assert L.log_path == str(tmp_path / "learner" / "integrated.jsonl")
+    infos = _run(st, L, 8, every=4)
+    assert all(i["updated"] for i in infos) and infos[0]["microbatches"][0] == 3
+    assert (tmp_path / "learner" / "integrated.jsonl").exists()
+
+
+class _FakeMetaTrainer:
+    """MetaRewardTrainer protocol double (W8 API: start / act_with / inner_step / outer_step / commit)."""
+    K = 2
+
+    def __init__(self, param):
+        self.p = param
+        self.calls = []
+        self.version = 0
+
+    def start(self):
+        self.calls.append("start")
+        return {"w": self.p.detach().clone()}
+
+    def act_with(self, fast):
+        import contextlib
+        drv = self
+
+        @contextlib.contextmanager
+        def cm():
+            saved = drv.p.detach().clone()
+            with torch.no_grad():
+                drv.p.copy_(fast["w"])
+            drv.calls.append("enter")
+            try:
+                yield
+            finally:
+                with torch.no_grad():
+                    drv.p.copy_(saved)
+                drv.calls.append("exit")
+        return cm()
+
+    def inner_step(self, fast, batch, on_policy=True):
+        self.calls.append(("inner", batch))
+        return {"w": fast["w"] + 0.01}, {}
+
+    def outer_step(self, fast, q, score_baseline=None):
+        self.calls.append(("outer", q, score_baseline))
+        self.version += 1
+        return {"psi_change": 0.5, "psi_version": self.version}
+
+    def commit(self, fast):
+        self.calls.append("commit")
+        with torch.no_grad():
+            self.p.copy_(fast["w"])
+
+
+class _FakeFP:
+    @staticmethod
+    def window(model, steps):
+        return list(steps)
+
+    @staticmethod
+    def window_batch(w, kappa=0.0):
+        return ("window", len(w))
+
+    @staticmethod
+    def query_batch(w, utility):
+        return ("query", len(w), dict(utility))
+
+
+def test_meta_window_spans_rounds_suspends_the_slow_step_and_reads_verified_query_utilities(tmp_path):
+    from superlearner.cam_unified.learn.meta_window import MetaWindowDriver
+    from superlearner.cam_unified.runtime import run_steps as rs
+    st = _Stack(horizon=0.05)
+    store = LabelStore(str(tmp_path / "labels"))
+    p = next(st.model.action_generator.parameters())
+    slow0 = p.detach().clone()
+    tr = _FakeMetaTrainer(p)
+    drv = MetaWindowDriver(tr, fp=_FakeFP, window_rounds=2, max_wait_rounds=50)
+    L = I.IntegratedLearner(st.model, ConstReward(), store, agent=st.agent, meta_trainer=drv)
+    v0 = int(st.model.version)
+    out = L.meta_step()
+    assert out["started"] and drv.active and torch.equal(p.detach(), slow0)      # phi_0 = slow at start
+    assert L.step()["updated"] is False                                         # suspended while phi is in use
+
+    def on_step(i, row):
+        L.on_step(SimpleNamespace(rewards=None, records=[]))
+        if drv.phase == "wait":                    # the operator releases the query episodes' verified labels
+            for s in st.agent.fresh[-1:]:
+                for j, e in enumerate(s.env_ids):
+                    o = L._register_episode(e, s.episode_ids[j])
+                    if not any(l.env_id == e and l.episode == o for l in store.iterate()):
+                        store.append(LabelRecord(e, o, "success", 0.25 + 0.5 * j, 1.0, 0.0, "op"))
+    rs(st.agent, st.env, 12, evaluator=None, update_every=None, on_step=on_step)
+    kinds = [c if isinstance(c, str) else c[0] for c in tr.calls]
+    assert kinds[:1] == ["start"] and kinds.count("inner") == 2 and kinds.count("outer") == 1
+    assert kinds.index("outer") < kinds.index("commit") and kinds[kinds.index("commit") - 1] == "exit"
+    q = [c for c in tr.calls if not isinstance(c, str) and c[0] == "outer"][0][1]
+    assert q[0] == "query" and q[2] and all(0.0 <= u <= 1.0 for u in q[2].values())
+    assert not drv.active and int(st.model.version) == v0 + 1                   # window decisions are lag >= 1
+    assert torch.allclose(p.detach(), slow0 + 0.02)                             # phi_K consolidated
+    info = L.step()
+    assert info["updated"] and info["meta"][0]["meta"] and info["meta"][0]["outer"]["psi_change"] == 0.5
+    assert info["policy"]["n_stale_steps"] > 0                                  # V-trace on phi-acted decisions
+
+
+def test_meta_window_aborts_without_query_labels_and_on_checkpoint(tmp_path):
+    from superlearner.cam_unified.learn.meta_window import MetaWindowDriver
+    st = _Stack()
+    p = next(st.model.action_generator.parameters())
+    slow0 = p.detach().clone()
+    drv = MetaWindowDriver(_FakeMetaTrainer(p), fp=_FakeFP, window_rounds=1, max_wait_rounds=2)
+    L = I.IntegratedLearner(st.model, ConstReward(), LabelStore(str(tmp_path / "l")), agent=st.agent,
+                            meta_trainer=drv)
+    L.meta_step()
+
+    def on_step(i, row):
+        L.on_step(SimpleNamespace(rewards=None, records=[]))
+    run_steps(st.agent, st.env, 8, evaluator=None, update_every=None, on_step=on_step)
+    assert not drv.active and drv.log[-1]["aborted"].startswith("no verified query utility")
+    assert torch.equal(p.detach(), slow0)                                       # slow weights restored
+    L.meta_step()
+    assert drv.active
+    L.state_dict()
+    assert not drv.active and drv.log[-1]["aborted"].startswith("checkpoint")
+
+
+def test_joined_label_batch_uses_w8_label_join_with_grad_rows_for_this_update(tmp_path, monkeypatch):
+    import sys
+    st = _Stack()
+    store = LabelStore(str(tmp_path / "labels"))
+
+    class _LB:
+        def __init__(self, ids):
+            self.event_ids = list(ids)
+            self.R = self.goal = None
+
+        def select(self, idx):
+            return _LB([self.event_ids[i] for i in idx])
+
+        def with_features(self, R, goal):
+            self.R, self.goal = R, goal
+            return self
+
+        def __len__(self):
+            return len(self.event_ids)
+
+    joined = []
+    fake = SimpleNamespace(join=lambda ls, arch, episode_base=0: joined.append(episode_base) or
+                           _LB([e for s in st.agent.fresh for e in (s.event_ids or [])] + ["unknown-event"]))
+    monkeypatch.setitem(sys.modules, "superlearner.cam_unified.selfeval.label_join", fake)
+    import superlearner.cam_unified.selfeval as SE
+    monkeypatch.setattr(SE, "label_join", fake, raising=False)
+
+    class _RM(ConstReward):
+        stub = False
+
+        def supervised_parameters(self):
+            return []
+
+    rm = _RM()
+    L = I.IntegratedLearner(st.model, rm, store, agent=st.agent)
+    assert L._joinable()
+    run_steps(st.agent, st.env, 4, evaluator=None, update_every=None)
+    store.append(LabelRecord("shop0", 1, "success", 1.0, 1.0, 0.1, "op"))
+    info = L.step()
+    lb = rm.last_batch
+    assert joined == [1] and isinstance(lb, _LB) and "unknown-event" not in lb.event_ids
+    assert lb.R is not None and lb.R.requires_grad and lb.R.shape[0] == len(lb.event_ids)
+    assert info["label_join"]["grad_rows"] == len(lb.event_ids) and info["label_join"]["labels"] == 1
