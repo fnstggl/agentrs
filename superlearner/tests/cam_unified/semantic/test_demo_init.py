@@ -153,3 +153,21 @@ def test_behaviour_cloning_raises_heldout_demo_logp_through_decoder_and_core(mod
                 "action_generator.length_head.", "action_generator.lora."):
         assert changed(pre), pre
     assert any(r["core_grad"] > 0 for r in bc.log) and any(r["lora_grad"] > 0 for r in bc.log)
+
+
+def test_behaviour_cloning_clips_core_and_semantic_gradients_separately(model, demos):
+    """One string-bearing BC step: each optimiser group is clipped to its own norm, so the semantic side's much
+    larger gradients do not shrink the core / pointer update (audit 2026-11-26: under one global norm the core
+    update was scaled by 1.7e-4..6.9e-3). The DOM conditioning adapters, when attached, train in the semantic group."""
+    train, _, _ = demos
+    steps = [s for s in DI.representable(DI.teacher_forced_rollout(model, train, batch=2)) if not s.is_wait][:4]
+    bc = DI.BehaviourCloning(model, DI.BCConfig(batch=4, lr=1e-6, lr_sem=1e-6))
+    groups = {g["name"]: g["params"] for g in bc.opt.param_groups}
+    assert {id(p) for p in DI.conditioning_params(model)} <= {id(p) for p in groups["semantic"]}
+    rec = bc.step(steps)
+    pre = rec["group_grad_norms"]
+    assert set(pre) == {"core", "semantic"} and pre["core"] > 0 and pre["semantic"] > 0
+    post = {k: sum(float(p.grad.norm()) ** 2 for p in ps if p.grad is not None) ** 0.5 for k, ps in groups.items()}
+    clip = bc.bc.grad_clip
+    for k in ("core", "semantic"):
+        assert post[k] == pytest.approx(min(pre[k], clip), rel=1e-3), (k, pre, post)

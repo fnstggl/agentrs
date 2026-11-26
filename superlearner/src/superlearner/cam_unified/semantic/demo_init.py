@@ -599,10 +599,18 @@ class BCConfig:
     seed: int = 0
 
 
+def conditioning_params(model) -> list:
+    """DOM Mechanism A cross-attention adapters (enc.conditioning). QwenSemantic is not an nn.Module, so these are
+    not in model.parameters() and have to be handed to the optimiser explicitly."""
+    cond = getattr(getattr(model.action_generator, "enc", None), "conditioning", None)
+    return [] if cond is None else [p for p in cond.parameters() if p.requires_grad]
+
+
 def semantic_param_ids(model) -> set:
     gen = model.action_generator
     ids = {id(p) for p in gen.lora}
     ids |= {id(p) for p in gen.bridge.parameters()}
+    ids |= {id(p) for p in conditioning_params(model)}
     if getattr(gen, "length_head", None) is not None:
         ids |= {id(p) for p in gen.length_head.parameters()}
     return ids
@@ -612,7 +620,7 @@ def make_optimizer(model, bc: BCConfig) -> torch.optim.Optimizer:
     sem = semantic_param_ids(model)
     ps = [p for p in model.parameters() if p.requires_grad]
     lora = {id(p) for p in model.action_generator.lora}
-    for p in model.action_generator.lora:
+    for p in list(model.action_generator.lora) + conditioning_params(model):
         if all(p is not q for q in ps):
             ps.append(p)
     core = [p for p in ps if id(p) not in sem]
@@ -653,7 +661,11 @@ class BehaviourCloning:
         loss = -lp.mean()
         self.opt.zero_grad(set_to_none=True)
         loss.backward()
-        gn = torch.nn.utils.clip_grad_norm_(self.params(), self.bc.grad_clip)
+        # per-group clipping (audit 2026-11-26: under one global norm the semantic side's 10^2-10^3 larger gradients
+        # scaled the core / pointer updates by 1.7e-4..6.9e-3 on string-bearing batches)
+        group_g = {g.get("name", str(i)): float(torch.nn.utils.clip_grad_norm_(g["params"], self.bc.grad_clip))
+                   for i, g in enumerate(self.opt.param_groups)}
+        gn = sum(v ** 2 for v in group_g.values()) ** 0.5
         core_g = sum(float(p.grad.norm()) ** 2 for p in m.core.parameters() if p.grad is not None) ** 0.5
         lora_g = sum(float(p.grad.norm()) ** 2 for p in m.action_generator.lora if p.grad is not None) ** 0.5
         self.opt.step()
@@ -663,7 +675,8 @@ class BehaviourCloning:
             sem.mark_updated()                   # LoRA changed: decoder version (and merged acting weights)
         m.bump_weights_epoch()
         rec = {"update": self.updates, "loss": float(loss.detach()), "grad_norm": float(gn), "core_grad": core_g,
-               "lora_grad": lora_g, "n": len(steps), **{f"lp_{k}": float(v.detach().mean()) for k, v in
+               "lora_grad": lora_g, "group_grad_norms": group_g, "n": len(steps),
+               **{f"lp_{k}": float(v.detach().mean()) for k, v in
                                                         parts.items()}}
         self.log.append(rec)
         return rec
