@@ -380,3 +380,45 @@ def _json_default(x):
     if isinstance(x, np.ndarray):
         return x.tolist()
     raise TypeError(type(x).__name__)
+
+
+def transfer_curves(*, seeds: Sequence[int] = (0, 1, 2), budgets: Sequence[int] = CV.SCHEDULE + CV.LONG,
+                    arch: str = "transfer") -> dict:
+    """Learning curves of untrained and trained copies of `arch` on the design's held-out (transfer) families, per
+    learner seed and task, with N_q at the design's threshold, retention (score on the first task after practising
+    the others) and accounting. Cached by source digest."""
+    import json
+    reg = build_registry()
+    d = default_design(reg)
+    path = _cache_path("transfer_curves", [d.to_json(), list(seeds), list(budgets), arch])
+    if os.path.exists(path):
+        return json.load(open(path))
+    tasks = [{"entry": f, "seed": 1_000_211} for f in d.transfer_families]
+    runs = {"untrained": [], "trained": []}
+    retention = []
+    for sd in seeds:
+        rng = np.random.default_rng(4000 + sd)
+        T = LR.make(arch, sd)
+        for i in range(d.train_tasks):
+            f = d.train_families[i % len(d.train_families)]
+            for _ in range(4):
+                run_episode(build_env(reg[f], 740_000 + 100 * sd + i, {}, {"mode": "assigned"}), T, learn=True,
+                            rng=rng, verify=False)
+        T.clear_memory()
+        first = None
+        for t in tasks:
+            r = CV.practice_curve(reg, t, T, budgets=budgets, rng=rng, q=d.q)
+            runs["trained"].append(dict(r, task=f"{t['entry']}:{t['seed']}", learner_seed=sd))
+            if first is None:
+                first = (t, r["curve"][-1]["score"])
+        s_after, _ = CV._score(reg, first[0], T, rng)        # retention of the first task after the others
+        retention.append({"learner_seed": sd, "task": first[0]["entry"], "score_after_practice": first[1],
+                          "score_after_other_tasks": s_after})
+        for t in tasks:
+            U = LR.make(arch, sd)
+            r = CV.practice_curve(reg, t, U, budgets=budgets, rng=rng, q=d.q)
+            runs["untrained"].append(dict(r, task=f"{t['entry']}:{t['seed']}", learner_seed=sd))
+    out = {"design": d.to_json(), "q": d.q, "budgets": list(budgets), "runs": runs, "retention": retention,
+           "acceleration": CV.acceleration(runs["untrained"], runs["trained"], n_boot=500)}
+    json.dump(out, open(path, "w"), default=_json_default)
+    return out

@@ -176,7 +176,7 @@ class _Server:
                              "accesses": 0, "generation": 0, "contaminated": False, "refused": 0}
         return {"ok": True, "items": len(entries) * int(per_entry)}
 
-    def ev_open_sealed(self, name: str, ack: str, purpose: str, prereg: str | None = None) -> dict:
+    def ev_open_sealed(self, name: str, ack: str, purpose: str, prereg: str | None = None, copies: int = 1) -> dict:
         s = self.sealed.get(name)
         if s is None:
             return self._refuse("evaluator", "open_sealed", "unknown sealed set")
@@ -196,11 +196,12 @@ class _Server:
         for e in s["entries"]:
             for k in range(s["per_entry"]):
                 alias = f"sealed/{name}/g{s['generation']}/{e}/{k}"
-                r = self.ev_open_episode(e, self._sealed_seed(name, s["generation"], e, k), purpose=purpose,
-                                         prereg=prereg, _sealed_alias=alias)
-                if not r.get("ok"):
-                    return r
-                tickets.append({"ticket": r["ticket"], "item": alias})
+                for c in range(max(1, min(int(copies), 64))):     # one access: every run of the session
+                    r = self.ev_open_episode(e, self._sealed_seed(name, s["generation"], e, k), purpose=purpose,
+                                             prereg=prereg, _sealed_alias=alias)
+                    if not r.get("ok"):
+                        return r
+                    tickets.append({"ticket": r["ticket"], "item": alias, "copy": c})
         return {"ok": True, "tickets": tickets, "access": s["accesses"], "budget": s["budget"]}
 
     def ev_sealed_status(self) -> dict:
