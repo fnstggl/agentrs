@@ -320,12 +320,15 @@ def ch_constraint_tightens(rng, d):
 
 @_pg("ch_drifting_ideal", category="8.10", item="8.10.3", split="train",
         doc="Customers like a design feature most at a particular level, and that level drifts gradually during the "
-            "episode (up in some worlds, down in others). A setting that was right early is wrong late.",
+            "episode (up in some worlds, down in others). A setting that was right early is wrong late. Predict "
+            "sales under the taste at the end of the episode, at settings partly outside what can be set.",
         distinct_because="compose chain of a non-monotonic response whose input is shifted by a hidden slowly "
                          "accumulating stock (decay with constant inflow): a gradually drifting optimum, not an "
                          "abrupt switch",
-        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="maximize_net",
-        claims=(C + "drifting_optimum",), identify=C + "drift_direction", lever_view=True)
+        axes={"horizon": 60, "observation_noise": 0.3, "n_variables": 0}, objective="predict_heldout",
+        claims=(C + "drifting_optimum",), identify=C + "drift_direction", lever_view=True,
+        reference="crucible.rapid.refs_adapt:drifting_bump_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def ch_drifting_ideal(rng, d):
     H = int(d["horizon"])
     c = Composed(rng, _base(d, topology="chain", motifs=["non_monotonic"]))
@@ -356,6 +359,18 @@ def ch_drifting_ideal(rng, d):
                           "start_best": a0, "end_best": a1})
     cb = price_levers_at(cfg, {b: u(rng, 2.0, 4.0), a: a0})[b]
     cfg["nodes"][int(a[1:])]["lever"]["cost"] = 0.04 * cb
+    held = [{c.name_of(a): float(p), c.name_of(b): float(q)} for p, q in
+            ((1.0, 4.0), (3.0, 12.0), (5.0, 2.0), (7.0, 13.0), (9.0, 6.0), (11.0, 3.0), (6.0, 15.0), (8.0, 0.5))]
+    text = ("Predict mean units sold with customers' taste as it is at the end of the episode, if the design "
+            f"setting and promotion were held at these values (partly outside what you can set): {held}. File "
+            "predictions with the journal: message to 'journal' with content {\"predictions\": [{\"set\": "
+            "<condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    # the taste stock moves on its own (no lever drives it): held for a whole horizon from the start, it is where
+    # the episode leaves it, so the scored truth is the response under the end-of-episode taste
+    cfg["objective"] = {"type": "predict_heldout", "heldout": held, "gauge": c.gauge_of(c.sold), "text": text,
+                        "settle_ticks": H}
+    cfg["journal"] = True
+    cfg["affordances"] = list(cfg["affordances"]) + ["message"]
     return cfg
 
 

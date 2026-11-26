@@ -1129,3 +1129,67 @@ def rival_model_predict(view, env, seed: int = 0, hold: tuple = (1, 4)) -> None:
         view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== drifting preferences: a bump that moves
+def _bump(x: np.ndarray, c, w: float) -> np.ndarray:
+    """A liked band: zero below c - w, rising to 1 at c, falling slowly beyond (r e^(1-r), r = (x - c + w) / w)."""
+    r = np.maximum(x - c + w, 0.0) / w
+    return r * np.exp(1.0 - r)
+
+
+def drifting_bump_predict(view, env, seed: int = 0) -> None:
+    """Scripted public reference for predicting sales under the taste at the end of an episode in which the liked
+    level of a design setting drifts smoothly: settings are randomised every tick; sales are modelled as
+    A + B bump(design - c(t), w) + C sat(promotion), the liked level moving as c(t) = c0 + D (1 - q^t) (a drift that
+    slows down); c0, D, q, the band width w and the promotion's half-saturation come from grids, A, B, C by least
+    squares; the law with c at the end of the episode is filed. Public: the objective names the design setting
+    first, the promotion second."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj.get("gauge")
+    xn, pn = list(held[0])[:2]
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    lo = {n: float(props[n]["minimum"]) for n in (xn, pn)}
+    hi = {n: float(props[n]["maximum"]) for n in (xn, pn)}
+    X, Q, y, T = [], [], [], []
+    while view.t < view.horizon - 2 and not view.done:
+        x = float(lo[xn] + rng.random() * (hi[xn] - lo[xn]))
+        q = float(lo[pn] + rng.random() * (hi[pn] - lo[pn]))
+        r = view.step({"kind": "levers", "values": {xn: x, pn: q}})
+        nums = r["observation"]["numbers"]
+        X.append(x)
+        Q.append(q)
+        y.append(float(nums.get(gauge, np.nan)))
+        T.append(float(view.t))
+    X, Q, y, T = map(np.asarray, (X, Q, y, T))
+    ok = np.isfinite(y)
+    X, Q, y, T = X[ok], Q[ok], y[ok], T[ok]
+    if len(y) >= 20 and not view.done:
+        H = float(view.horizon)
+        best = None
+        sat_cols = {h: Q / (Q + h) for h in (1.0, 2.5, 5.0, 10.0)}
+        for qd in (0.93, 0.96, 0.98, 0.995):
+            g = 1.0 - qd ** T
+            for c0 in np.arange(lo[xn], hi[xn] + 0.01, 0.5):
+                for Dl in np.arange(-9.0, 9.01, 0.5):
+                    c = c0 + Dl * g
+                    for w in (1.5, 2.5, 3.5, 5.0):
+                        bmp = _bump(X, c, w)
+                        for h, sc in sat_cols.items():
+                            F_ = np.c_[np.ones(len(y)), bmp, sc]
+                            coef, *_ = np.linalg.lstsq(F_, y, rcond=None)
+                            err = float(np.sum((F_ @ coef - y) ** 2))
+                            if best is None or err < best[0]:
+                                best = (err, qd, c0, Dl, w, h, coef)
+        _, qd, c0, Dl, w, h, coef = best
+        c_end = c0 + Dl * (1.0 - qd ** H)
+        out = []
+        for cond in held:
+            x, q = float(cond[xn]), float(cond[pn])
+            v = coef[0] + coef[1] * float(_bump(np.array([x]), c_end, w)[0]) + coef[2] * max(q, 0.0) / (max(q, 0.0) + h)
+            out.append({"set": cond, "value": float(v)})
+        view.step({"kind": "message", "to": "journal", "content": {"predictions": out}})
+    while not view.done:
+        view.step(None)
