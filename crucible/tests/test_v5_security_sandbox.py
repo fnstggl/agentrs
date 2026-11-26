@@ -227,3 +227,60 @@ def test_pool_bills_a_worker_that_worked_and_exited_while_idle_without_failing_t
         assert r2["meter"]["background_ns"] > 20_000_000, r2["meter"]      # the predecessor's work, billed here
     finally:
         pool.close()
+
+
+def _jail_ok():
+    from crucible.sandbox import isolation
+    return isolation.available()[0]
+
+
+@pytest.mark.skipif(not _jail_ok(), reason="the tool jail needs root, Landlock and libseccomp")
+def test_jailed_image_decoder_gives_identical_pixels_and_cannot_reach_host_or_network():
+    import io
+    import tempfile
+    from PIL import Image
+    from crucible.sandbox import isolation
+    im = Image.new("RGB", (40, 30), (10, 200, 30))
+    for x in range(40):
+        im.putpixel((x, x % 30), (x * 5, 255 - x, 7))
+    for fmt in ("PNG", "JPEG"):
+        buf = io.BytesIO()
+        im.save(buf, fmt)
+        r = isolation.decode_image(buf.getvalue())
+        ref = Image.open(io.BytesIO(buf.getvalue()))
+        ref.load()
+        assert r["ok"] and r["raw"] == ref.convert("RGB").tobytes() and r["size"] == [40, 30], r.get("error")
+    bad = isolation.decode_image(b"garbage" * 20)
+    assert not bad["ok"] and "/var/tmp" not in bad["error"]
+    w = tempfile.mkdtemp(dir=isolation._base())
+    code = ("import os, socket, sys\nout = []\n"
+            "for name, fn in (('passwd', lambda: open('/etc/passwd').read()), ('socket', lambda: socket.socket()),\n"
+            "                 ('unix', lambda: socket.socket(socket.AF_UNIX)), ('fork', lambda: os.fork()),\n"
+            "                 ('write_tmp', lambda: open('/tmp/x-decoder-probe', 'w'))):\n"
+            "    try:\n        fn()\n        out.append(name)\n    except BaseException:\n        pass\n"
+            "open(os.path.join(sys.argv[1], 'r.txt'), 'w').write(','.join(out))\n")
+    cmd, cfg = isolation.python_command(w, code)
+    try:
+        subprocess.run(cmd, capture_output=True, timeout=30)
+        assert open(os.path.join(w, "r.txt")).read() == ""            # every attempt refused
+    finally:
+        os.unlink(cfg)
+        import shutil
+        shutil.rmtree(w, ignore_errors=True)
+
+
+@pytest.mark.skipif(not _jail_ok(), reason="the tool jail needs root, Landlock and libseccomp")
+def test_isolation_run_is_a_jailed_drop_in_for_media_tool_call_sites():
+    import shutil
+    import tempfile
+    from crucible.sandbox import isolation
+    if not shutil.which("ffprobe"):
+        pytest.fail("ffprobe is required on this host for the media tools")
+    d = tempfile.mkdtemp(prefix="rt-run-")
+    try:
+        p = isolation.run(["ffprobe", "-v", "error", "-f", "data", "-i", "/etc/passwd"], cwd=d, timeout=20)
+        assert p.returncode != 0                                     # host file unreadable in the jail
+        ok = isolation.run(["ffprobe", "-version"], cwd=d, timeout=20)
+        assert ok.returncode == 0 and b"ffprobe" in ok.stdout
+    finally:
+        shutil.rmtree(d, ignore_errors=True)

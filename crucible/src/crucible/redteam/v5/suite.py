@@ -44,6 +44,18 @@ KNOWN_OPEN: dict[str, dict] = {
         "outcome": "false_success", "severity": "low", "owner": "O",
         "note": "the deterministic cost model bills an identical computation by its first measurement while a repeat "
                 "stays within MEMO_TOL (3x) + 1 ms; a stateful program can hide up to that much repeated work"},
+    "v5.network.media_tools_at_participant_call_sites_are_jailed": {
+        "outcome": "integrity_break", "severity": "high", "owner": "C",
+        "note": "social/render.run_tool (studio audio/video creation and editing) starts FFmpeg/SoX on participant "
+                "bytes as the world process's user with rlimits only; the fix is one call: "
+                "crucible.sandbox.isolation.run(argv, cwd=..., timeout=..., preexec_fn=_limits, env=...) (semantic/"
+                "media.run_tool is jailed). Not changed by O in wave 3: social/ internals were frozen for the "
+                "integration fix"},
+    "v5.network.image_decoders_run_outside_the_world_process": {
+        "outcome": "integrity_break", "severity": "medium", "owner": "C",
+        "note": "Pillow decodes participant images inside the world process (social/formats.inspect, social/render."
+                "open_image, semantic/media.open_image; owners C and D): a decoder memory-safety bug would run "
+                "outside every sandbox"},
     "v5.innovation.adoption_by_reading_the_package_source": {
         "outcome": "false_success", "severity": "medium", "owner": "G",
         "note": "ablation evidence cannot tell 'output depends on the package's files' from 'uses the package' (nor "

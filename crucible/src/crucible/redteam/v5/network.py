@@ -278,6 +278,197 @@ class JailedBrowserHasNoNetwork(V5Probe):
                              "no connection", evd)
 
 
+# ---------------------------------------------------------------------------------------------- real call sites
+# The probes above test the jail itself; these measure whether the participant-facing tools of the integrated tree
+# actually use it. Every process the world process starts is observed through CPython's audit events
+# ("subprocess.Popen": executable and argv), and in-process image decoding through sys.monitoring on Pillow's
+# ImageFile.load - observation only, nothing is replaced.
+MEDIA_TOOLS = ("ffmpeg", "ffprobe", "sox", "chrome", "chromium", "headless_shell")
+_POPEN: list = []
+_AUDIT = {"on": False, "hooked": False}
+
+
+def _audit(event, args):
+    if _AUDIT["on"] and event == "subprocess.Popen":
+        try:
+            _POPEN.append([str(args[0]), [str(a) for a in list(args[1] or [])[:10]]])
+        except Exception:  # noqa: BLE001 - an audit hook never raises into the audited code
+            pass
+
+
+class launches:
+    """Context manager recording (executable, argv) of every subprocess started in this process."""
+
+    def __enter__(self):
+        import sys
+        if not _AUDIT["hooked"]:
+            sys.addaudithook(_audit)
+            _AUDIT["hooked"] = True
+        _POPEN.clear()
+        _AUDIT["on"] = True
+        return _POPEN
+
+    def __exit__(self, *exc):
+        _AUDIT["on"] = False
+
+
+def media_launches(rows: list) -> list[dict]:
+    """The media-tool launches among recorded (executable, argv) rows, each marked jailed or not."""
+    from ...sandbox.isolation import JAIL
+    out = []
+    for exe, argv in rows:
+        words = [exe] + argv
+        tool = next((t for w in words for t in MEDIA_TOOLS if os.path.basename(w).startswith(t)), None)
+        if tool is None:
+            continue
+        jailed = any(os.path.realpath(w) == os.path.realpath(JAIL) for w in argv[:6])
+        out.append({"tool": tool, "jailed": jailed, "argv0": os.path.basename(argv[0]) if argv else exe})
+    return out
+
+
+class decodes:
+    """Context manager counting Pillow ImageFile.load calls in this process (image bytes decoded here)."""
+
+    def __enter__(self):
+        import sys
+        from PIL import ImageFile
+        mon = sys.monitoring
+        self.tid = next((i for i in (4, 3, 5) if mon.get_tool(i) is None), None)
+        if self.tid is None:
+            raise NotApplicable("no free sys.monitoring tool id to observe image decoding")
+        self.n = 0
+        mon.use_tool_id(self.tid, "crucible-redteam-decodes")
+        self.code = ImageFile.ImageFile.load.__code__
+
+        def cb(code, offset):
+            self.n += 1
+        mon.register_callback(self.tid, mon.events.PY_START, cb)
+        mon.set_local_events(self.tid, self.code, mon.events.PY_START)
+        return self
+
+    def __exit__(self, *exc):
+        import sys
+        mon = sys.monitoring
+        mon.set_local_events(self.tid, self.code, 0)
+        mon.register_callback(self.tid, mon.events.PY_START, None)
+        mon.free_tool_id(self.tid)
+
+
+def _wav(seconds: float = 0.5, sr: int = 8000) -> bytes:
+    import io
+    import struct
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(struct.pack(f"<{int(sr * seconds)}h", *([1000, -1000] * (int(sr * seconds) // 2))))
+    return buf.getvalue()
+
+
+def _png() -> bytes:
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (32, 24), (200, 30, 30)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+class _CallSites(V5Probe):
+    target = "media tools at participant call sites"
+    world = {"v5": "social", "extra": ["media"]}
+    needs_sandbox = True
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join(self.name.rsplit(".", 1)[-1][:16].replace("_", "-"), 5_000_000)
+        from ...sandbox import isolation
+        ok, why = isolation.available()
+        if not ok:
+            raise NotApplicable(f"the jail cannot be applied here: {why}")
+
+    def upload(self, a: Attacker, data: bytes, mime: str, kind: str) -> str:
+        return a.must(self.att, "artifact.put", data_b64=b64(data), mime=mime, kind=kind)["ref"]
+
+    def calls(self, a: Attacker) -> list:
+        wav = self.upload(a, _wav(), "audio/wav", "audio")
+        png = self.upload(a, _png(), "image/png", "image")
+        steps = [("studio.edit_audio", {"ref": wav, "effects": [{"effect": "gain", "db": -3}]}),
+                 ("studio.audio", {"kind": "tone", "seconds": 0.3, "effects": [{"effect": "fade"}]}),
+                 ("studio.edit_image", {"ref": png, "ops": [{"op": "grayscale"}]}),
+                 ("studio.video", {"images": [png], "seconds_per_image": 0.2, "width": 32, "height": 24, "fps": 5}),
+                 ("media.transcode", {"ref": wav, "format": "flac"}),
+                 ("media.probe", {"ref": wav}),
+                 ("media.edit_image", {"ref": png, "ops": [{"op": "grayscale"}]})]
+        out = []
+        for tool, args in steps:
+            r = a.act(self.att, tool, **args)
+            out.append([tool, r.ok, (r.error or {}).get("code"), (r.error or {}).get("message", "")[:120]])
+            if tool == "studio.video" and r.ok and isinstance(r.result, dict) and r.result.get("ref"):
+                v = a.act(self.att, "studio.edit_video", ref=r.result["ref"], duration_s=0.2)
+                out.append(["studio.edit_video", v.ok, (v.error or {}).get("code"), (v.error or {}).get("message", "")[:120]])
+        return out
+
+
+class MediaToolsAtCallSitesAreJailed(_CallSites):
+    name = "v5.network.media_tools_at_participant_call_sites_are_jailed"
+    attack_class = "sandbox/media_tools"
+    gates = ("W.1",)
+    owner = "C"
+    description = ("An agent uploads its own WAV and PNG and uses every participant tool that hands media to a native "
+                   "tool: studio audio/image/video creation and editing (social studio) and the media tools "
+                   "(transcode, probe, edit_image). Every process the world process starts is recorded through "
+                   "CPython's audit events. Checked: each FFmpeg/ffprobe/SoX/Chromium launch goes through the jail "
+                   "(own uid, Landlock, seccomp without sockets) - Part 16: agent-supplied media is processed outside "
+                   "the sandbox only under sandbox-equivalent restrictions.")
+
+    def attack(self, a: Attacker) -> None:
+        with launches() as rows:
+            self.steps = self.calls(a)
+            self.rows = list(rows)
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        ls = media_launches(self.rows)
+        bad = [x for x in ls if not x["jailed"]]
+        evd = {"steps": self.steps, "media_launches": len(ls), "jailed": sum(x["jailed"] for x in ls),
+               "unrestricted_media_tool_runs": len(bad),
+               "unjailed": sorted({x["argv0"] for x in bad}), "network_escapes": 0}
+        if not ls:
+            raise NotApplicable(f"no media tool ran: {self.steps}")
+        if bad:
+            return Verdict(INTEGRITY_BREAK, f"{len(bad)} of {len(ls)} media-tool runs on participant input were not "
+                           f"jailed ({evd['unjailed']}; social/render.run_tool runs FFmpeg/SoX as the world "
+                           "process's user with rlimits only)", evd, severity="high",
+                           fix="social/render.py::run_tool: start the tool through "
+                               "crucible.sandbox.isolation.run_tool (as semantic/media.run_tool does)")
+        return Verdict(HELD, f"all {len(ls)} media-tool runs went through the jail", evd)
+
+
+class ImageDecodersOutsideWorldProcess(_CallSites):
+    name = "v5.network.image_decoders_run_outside_the_world_process"
+    attack_class = "sandbox/media_decoders"
+    gates = ("W.1",)
+    owner = "C"
+    description = ("The same participant media tools, observed for image decoding in the world process itself "
+                   "(Pillow's ImageFile.load, which drives the native PNG/JPEG/GIF/WebP decoders). Checked: no "
+                   "agent-supplied image is decoded inside the world process (a decoder memory-safety bug would "
+                   "then run as the world process, outside every sandbox).")
+
+    def attack(self, a: Attacker) -> None:
+        with decodes() as d:
+            self.steps = self.calls(a)
+        self.n = d.n
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        evd = {"steps": self.steps, "in_process_image_decodes": self.n}
+        if self.n:
+            return Verdict(INTEGRITY_BREAK, f"{self.n} images were decoded by Pillow inside the world process "
+                           "(social/formats.inspect, social/render.open_image, semantic/media.open_image)", evd,
+                           severity="medium", fix="decode agent images in the jail (crucible.sandbox.isolation."
+                                                  "decode_image) and pass raw pixels to Pillow")
+        return Verdict(HELD, "no image was decoded inside the world process", evd)
+
+
 def probes() -> list:
     return [PopulationWorldOffline(), SocialWorldOffline(), JailedMediaToolsHaveNoNetwork(),
-            JailedBrowserHasNoNetwork()]
+            JailedBrowserHasNoNetwork(), MediaToolsAtCallSitesAreJailed(), ImageDecodersOutsideWorldProcess()]
