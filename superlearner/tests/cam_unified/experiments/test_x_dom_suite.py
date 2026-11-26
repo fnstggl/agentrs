@@ -128,6 +128,23 @@ def test_frozen_groups_and_the_decoder_conditioning_switch():
     assert torch.equal(m.action_generator.bridge(torch.ones(2, 3)), 2 * torch.ones(2, 3))
 
 
+def test_exp_rows_carry_checkpoint_and_code_provenance(tmp_path):
+    """Audit 'h' Exp1: runs.jsonl recorded no checkpoint path, digest or commit (provenance only by reproduction)."""
+    import argparse
+    import hashlib
+    from superlearner.cam_unified.experiments import exp1 as E1
+    ck = tmp_path / "ckpt"
+    ck.mkdir()
+    (ck / "weights.safetensors").write_bytes(b"weights-bytes")
+    a = argparse.Namespace(learner="cam", tag=None, seed=2, set="dev", ckpt=str(ck))
+    m = E1.run_meta(a, "decide")
+    assert m["ckpt_sha256"] == hashlib.sha256(b"weights-bytes").hexdigest()
+    assert m["cmd"] == "decide" and m["run_id"].startswith("decide-cam-s2-") and m["t_wall"] > 0
+    assert "code_commit" in m and "legacy" in m["reward_mode"]
+    assert E1.run_meta(argparse.Namespace(learner="nig_meta", tag=None, seed=0, set="dev", ckpt=None),
+                       "predict")["ckpt_sha256"] is None
+
+
 def test_meta_suite_records_blocked_conditions_instead_of_running_them(tmp_path):
     pre = MS.prerequisites()
     assert set(pre) == {"rpsi_real", "loop_reward_mode", "goal_free", "meta_step", "credit", "curriculum"}
