@@ -37,12 +37,13 @@ import math
 
 import numpy as np
 
-from ..core import schema as S  # noqa: F401
+import json
+
 from ..core.kernel import Module, applier, register_module
 from ..substrate import columns, ids
 from . import _t2kit as K
 from . import lawlang
-from .base import Domain, DomainConfig, register
+from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register
 
 DAY = 86400
 DECISION = {"model_id": "sci-research", "model_version": "1", "fidelity_id": "FR-SCIPOP-1"}
@@ -618,7 +619,7 @@ def _phenomenon(rng, pid: str, family: str, noise_rel: float) -> tuple[dict, dic
     s2 = {x: round(0.7 * vr[j][1], 3) for j, x in enumerate(xs)}
     ph = {"id": pid, "title": f"{', '.join(xs)} response of sample {pid}",
           "doc": "Response of a sample as a function of its conditions.", "vars": phys, "response": "response",
-          "law": law["law"], "noise_rel": float(noise_rel),
+          "law": law["law"], "form": law["form"], "noise_rel": float(noise_rel),
           "standards": [{"id": f"{pid}s1", "at": s1}, {"id": f"{pid}s2", "at": s2}]}
     return ph, {"reach": reach, "vars": xs, "form": law["form"]}
 
@@ -672,10 +673,15 @@ DOCS = {
 }
 
 
-def build(config: DomainConfig, rng, overrides: dict) -> dict:
+def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
+    """A slice of the civilisation's scientific-research subsystem (`base.civ_recipe`): `sci` with this
+    configuration's phenomena, apparatus and bureau, documents and search, the population and its researchers."""
+    import zlib
+    from . import base
     st = STRUCTURES[config.name]
     ov = dict(overrides or {})
     n_pop = int(ov.pop("population", 900))
+    rng = np.random.default_rng([int(seed), 9050, zlib.crc32(config.name.encode())])
     phen, apps, meta = [], [], {}
     forms = list(st["law_forms"])
     for k in range(int(st["phenomena"])):
@@ -695,42 +701,33 @@ def build(config: DomainConfig, rng, overrides: dict) -> dict:
                          {"handle": "instr3", "name": "Field Instruments", "cash": 100_000}],
            "rivals": {"n": 0}, "replicators": {"n": 0},
            "challenge": {"every_days": 10, "start_day": 8, "points": 8}}
-    mods = {
-        "identity": {}, "bank": {}, "admin": {}, "artifacts": {}, "cols": {}, "search": {}, "docs": {},
-        "pop": {"profile": "development", "n": n_pop, "tick_s": 1800,
-                "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}},
-        "sci": sci,
-        "scipop": {"share": 0.05 if st["competition"] == "high" else 0.025},
-        "seat": {"seats": [{"handle": "researcher", "name": "Independent researcher", "endowment": 800_000,
-                            "kind": "agent"}]},
-    }
-    for m, c in (ov.pop("module_config", {}) or {}).items():
-        mods[m] = {**mods.get(m, {}), **c}
-    r = K.recipe(mods, {"target_phenomenon": "ph0", **ov.pop("params", {})}, extra_order=("scipop", "seat"))
     if ov:
         raise ValueError(f"research domain: unknown overrides {sorted(ov)}")
-    return r
-
-
+    return base.civ_recipe(int(seed), subsystems=["scientific_research"], modules=["search", "docs", "scipop"],
+                           population_modules=("pop",),
+                           module_config={"sci": sci, "scipop": {"share": 0.05 if st["competition"] == "high"
+                                                                 else 0.025},
+                                          "pop": {"profile": "development", "n": n_pop, "tick_s": 1800,
+                                                  "classes": {"adaptive": 0, "strategic": 0, "semantic": 0}}},
+                           params={"target_phenomenon": "ph0"})
 # ====================================================================== objective, evaluator
 THRESHOLD = {1: 0.10, 2: 0.05, 3: 0.025}
 REPLICATIONS = {1: 1, 2: 2, 3: 2}
-
-
-def participant(world) -> str:
-    from .seats import seat_principal
-    return seat_principal(world)
+CO_DISCOVERY_DAYS = 2.0          # independent discoveries this close together are simultaneous (credited to both)
+HORIZON_DAYS = 30.0
 
 
 def objective(world, principal: str, difficulty: int = 1) -> dict:
     d = int(min(3, max(1, difficulty)))
     target = world.spec.params.get("target_phenomenon", "ph0")
-    return {"domain": "research", "difficulty": d, "phenomenon": target,
-            "description": (f"Discover the law that relates the response of phenomenon {target} to its conditions "
-                            f"and demonstrate its validity: publish (sci.publish) a model that predicts the "
-                            f"response well, including at conditions beyond what the bookable apparatus reach, "
-                            f"before anyone else has published an equally accurate one, and have it replicated as "
-                            f"consistent by at least {REPLICATIONS[d]} independent lab(s).")}
+    text = (f"Discover the law that relates the response of phenomenon {target} to its conditions and demonstrate "
+            f"its validity within {HORIZON_DAYS:.0f} days: your latest paper on {target} (sci.publish) must state a "
+            f"model that predicts the response well, including at conditions beyond what the bookable apparatus "
+            f"reach; you must have found an accurate law no later than {CO_DISCOVERY_DAYS:.0f} days after anyone "
+            f"else did, in your own words (not a copy of another paper's model); and at least {REPLICATIONS[d]} "
+            f"independent lab(s) must have replicated it as consistent.")
+    return {"text": text, "description": text, "domain": "research", "difficulty": d, "phenomenon": target,
+            "window_days": HORIZON_DAYS}
 
 
 def _eval_points(world, phenomenon: str, n: int = 240) -> list[dict]:
@@ -746,7 +743,9 @@ def _eval_points(world, phenomenon: str, n: int = 240) -> list[dict]:
     ahi = np.array([max(a["range"][k][1] for a in apps) for k in names])
     rng = np.random.default_rng([int(world.spec.seed), 90517, len(phenomenon)])
     out = []
-    while len(out) < n:
+    for _ in range(200 * n):
+        if len(out) >= n:
+            break
         x = rng.uniform(lo, hi)
         if np.any((x < alo - 1e-9) | (x > ahi + 1e-9)):
             out.append({k: float(v) for k, v in zip(names, x)})
@@ -757,6 +756,8 @@ def novel_error(world, phenomenon: str, model_text: str) -> float:
     """Normalised RMSE of a model against the true law at the evaluator's novel conditions (inf if invalid)."""
     sci = world.modules["sci"]
     pts = _eval_points(world, phenomenon)
+    if not pts:
+        return float("inf")
     truth = sci.truth(phenomenon, pts)
     try:
         m = lawlang.compile_expr(model_text, sci.vars[phenomenon]).at(pts)
@@ -769,31 +770,46 @@ def novel_error(world, phenomenon: str, model_text: str) -> float:
 
 
 def evaluate(world, principal: str, obj: dict) -> dict:
+    """Evaluator side. The principal's claim is its latest paper on the target phenomenon. Success: the claim's
+    novel-condition error is within the difficulty's threshold; the principal's first accurate paper came no later
+    than `CO_DISCOVERY_DAYS` after the first accurate paper by anyone else; the claim's model text is not a copy of
+    an earlier paper by another author; and independent labs replicated the claim as consistent often enough."""
     d = int(obj.get("difficulty", 1))
     target = obj.get("phenomenon", "ph0")
     st = world.state
     thr, need = THRESHOLD[d], REPLICATIONS[d]
+    mine_p = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
     papers = sorted(((p["t"], pid, p) for pid, p in st.scan("sci_papers") if p["phenomenon"] == target),
                     key=lambda x: (x[0], x[1]))
-    first_ok_t = None
-    rows = []
+    first_other, first_mine, rows, seen_texts = None, None, [], {}
     for t, pid, p in papers:
         err = novel_error(world, target, p["model"])
-        if err <= thr and first_ok_t is None:
-            first_ok_t = (t, pid)
-        if p["author"] in world.principals_of(principal) or p["author"] == principal:
+        mine = p["author"] in mine_p
+        copied = mine and any(a not in mine_p and t0 <= t for a, t0 in seen_texts.get(p["model"], []))
+        seen_texts.setdefault(p["model"], []).append((p["author"], t))
+        if err <= thr:
+            if mine and not copied and first_mine is None:
+                first_mine = t
+            if not mine and first_other is None:
+                first_other = t
+        if mine:
             reps = [st.tables["sci_reps"][r] for r in st.find_ids("sci_reps", "paper", pid)]
-            ind = sum(1 for r in reps if r["independent"] and r["verdict"] == "consistent")
-            rows.append({"paper": pid, "t": t, "novel_nrmse": round(err, 5), "independent_consistent": ind,
-                         "priority": first_ok_t is not None and first_ok_t[1] == pid,
-                         "reports": len(reps)})
-    ok_rows = [r for r in rows if r["novel_nrmse"] <= thr and r["priority"] and r["independent_consistent"] >= need]
-    best = min([r["novel_nrmse"] for r in rows] or [float("inf")])
+            ind = sum(1 for r in reps if r["independent"] and r["verdict"] == "consistent"
+                      and r["reporter"] not in mine_p)
+            rows.append({"paper": pid, "t": t, "novel_nrmse": round(err, 5) if math.isfinite(err) else None,
+                         "independent_consistent": ind, "copied": copied, "reports": len(reps)})
+    claim = rows[-1] if rows else None
+    priority = first_mine is not None and (first_other is None or
+                                           first_mine <= first_other + CO_DISCOVERY_DAYS * DAY)
+    accurate = bool(claim) and claim["novel_nrmse"] is not None and claim["novel_nrmse"] <= thr
+    ok = bool(claim) and accurate and not claim["copied"] and priority and claim["independent_consistent"] >= need
+    best = min([r["novel_nrmse"] for r in rows if r["novel_nrmse"] is not None] or [float("inf")])
     score = 0.0 if not math.isfinite(best) else float(max(0.0, 1.0 - best / (4 * thr)))
-    return {"success": bool(ok_rows), "score": round(score + (1.0 if ok_rows else 0.0), 5),
-            "details": {"papers": rows, "threshold": thr, "replications_needed": need,
+    return {"success": bool(ok), "score": round(score, 5),
+            "details": {"papers": rows, "claim": claim["paper"] if claim else None, "threshold": thr,
+                        "replications_needed": need, "priority": bool(priority),
                         "best_novel_nrmse": None if not math.isfinite(best) else round(best, 5),
-                        "first_accurate_paper": first_ok_t[1] if first_ok_t else None}}
+                        "first_accurate_other_t": first_other, "first_accurate_mine_t": first_mine}}
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -862,11 +878,12 @@ def reference_script(target: str = "ph0", reps: int = 1):
     return script
 
 
-def reference(world, principal: str, obj: dict):
+def reference(principal: str, obj: dict):
+    """The hidden reference policy factory (LABELLED SCRIPTED): tool-only, never handed the World."""
     return K.ScriptPolicy(reference_script(obj.get("phenomenon", "ph0")), label="research-reference")
 
 
-def null_policy(world=None, principal=None, obj=None):
+def null_policy(principal=None, obj=None):
     """The null baseline: never acts."""
     def script(pol):
         while True:
@@ -874,79 +891,185 @@ def null_policy(world=None, principal=None, obj=None):
     return K.ScriptPolicy(script, label="null")
 
 
-# ====================================================================== mechanics (measured on the recorded world)
-REQUIRED = ("Experimental apparatus", "Hidden laws", "Measurement noise", "Experimental costs", "Data collection",
-            "Hypothesis testing", "Independent replication", "Novel-condition evaluation")
+# ---------------------------------------------------------------------- degenerate strategies (SP-9.16)
+def _constant_script(target: str):
+    """Measure a small grid on the cheapest apparatus and claim the mean response as the law (a constant)."""
+    def script(pol):
+        phs = K.ok((yield {"tool": "sci.phenomena", "args": {}})) or []
+        ph = next(p for p in phs if p["id"] == target)
+        names = [v["name"] for v in ph["vars"]]
+        apps = K.ok((yield {"tool": "sci.apparatus", "args": {"phenomenon": target}})) or []
+        a = min(apps, key=lambda x: (x["price_cents"], x["apparatus"]))
+        design = [{"at": {k: round(float(a["range"][k][0] + f * (a["range"][k][1] - a["range"][k][0])), 4)
+                          for k in names}, "n": 1} for f in (0.1, 0.3, 0.5, 0.7, 0.9)]
+        r = K.ok((yield {"tool": "sci.run", "args": {"apparatus": a["apparatus"], "design": design}}))
+        while r:
+            mine = K.ok((yield {"tool": "sci.runs", "args": {}})) or []
+            if any(x["run"] == r["run"] and x["status"] == "done" for x in mine):
+                break
+            for _ in range(4):
+                yield None
+        d = K.ok((yield {"tool": "sci.data", "args": {"run": r["run"]}})) if r else None
+        if d:
+            mean = float(np.mean([x["value"] for x in d["readings"]]))
+            yield {"tool": "sci.publish", "args": {"phenomenon": target, "title": "A constant response",
+                                                   "model": lawlang.fmt(mean), "data": [r["run"]]}}
+        while True:
+            yield None
+    return script
 
 
-def mechanics(world) -> dict:
-    """Each required mechanic: whether the recorded world contains and exercised it (from events and state)."""
-    st = world.state
+def _copy_script(target: str):
+    """Book a small run at once, then republish the first model someone else publishes (a copy)."""
+    def script(pol):
+        apps = K.ok((yield {"tool": "sci.apparatus", "args": {"phenomenon": target}})) or []
+        phs = K.ok((yield {"tool": "sci.phenomena", "args": {}})) or []
+        ph = next(p for p in phs if p["id"] == target)
+        names = [v["name"] for v in ph["vars"]]
+        a = min(apps, key=lambda x: (x["price_cents"], x["apparatus"]))
+        design = [{"at": {k: round(float(sum(a["range"][k]) / 2), 4) for k in names}, "n": 3}]
+        r = K.ok((yield {"tool": "sci.run", "args": {"apparatus": a["apparatus"], "design": design}}))
+        copied = set()
+        while r:
+            papers = K.ok((yield {"tool": "sci.papers", "args": {"phenomenon": target, "limit": 200}})) or []
+            mine = K.ok((yield {"tool": "sci.runs", "args": {}})) or []
+            ready = any(x["run"] == r["run"] and x["status"] == "done" for x in mine)
+            for p in papers:
+                if ready and p["paper"] not in copied and p["author"] != pol.actor:
+                    copied.add(p["paper"])
+                    yield {"tool": "sci.publish", "args": {"phenomenon": target, "title": "Our law",
+                                                           "model": p["model"], "data": [r["run"]]}}
+            for _ in range(2):
+                yield None
+        while True:
+            yield None
+    return script
+
+
+def constant_model(principal: str, obj: dict):
+    return K.ScriptPolicy(_constant_script(obj.get("phenomenon", "ph0")), label="constant-model")
+
+
+def copy_model(principal: str, obj: dict):
+    return K.ScriptPolicy(_copy_script(obj.get("phenomenon", "ph0")), label="copy-model")
+
+
+# ====================================================================== mechanics (recorded-event probes)
+def _events(world, since: int, prefix: tuple[str, ...] = ("sci.", "bank.txn", "artifact.stored")):
+    return [e for e in world.events_range(int(since), world.seq) if e.type.startswith(prefix)]
+
+
+def _done_runs(world, since: int) -> list[dict]:
+    ids_ = {e.payload["id"] for e in world.events_range(int(since), world.seq) if e.type == "sci.completed"}
+    return [r for rid, r in world.state.scan("sci_runs") if rid in ids_]
+
+
+def count_lawful_readings(world, since: int) -> int:
+    """Completed runs whose readings follow the hidden law through the apparatus' hidden calibration (median
+    absolute residual below half the response spread), provided no public event payload carries a law's text."""
     sci = world.modules["sci"]
-    evs = [e for e in world.events_range(0, world.seq) if e.type.startswith(("sci.", "bank.txn", "artifact.stored"))]
-    by = {}
-    for e in evs:
-        by.setdefault(e.type, []).append(e)
-    booked = by.get("sci.booked", [])
-    done = [r for _, r in st.scan("sci_runs") if r["status"] == "done"]
-    pop_runs = [r for r in done if K.is_population(r["owner"])]
-    apps_used = sorted({r["apparatus"] for r in done})
-    # hidden laws: readings follow the law (corrected residuals small relative to the response) and no public event
-    # payload carries a law's text
     laws = [sci._phen_cfg(pid)["law"] for pid in sci.laws]
-    leaked = sum(1 for e in world.events_range(0, world.seq) if e.vis == "public" and
-                 any(law in str(e.payload) for law in laws))
-    resid, spread = [], []
-    for r in done:
+    if any(e.vis == "public" and any(law in str(e.payload) for law in laws)
+           for e in world.events_range(0, world.seq)):
+        return 0
+    n = 0
+    for r in _done_runs(world, since):
         pts = [p for p in r["points"] if not p.get("standard")]
-        if not pts:
+        if len(pts) < 3:
             continue
         tr = sci.truth(r["phenomenon"], [p["at"] for p in pts])
         vals = np.array([v for p, v in zip(r["points"], r["values"]) if not p.get("standard")])
         a = sci.apps[r["apparatus"]]
-        resid.append(float(np.mean(np.abs(vals - (float(a.get("gain", 1.0)) * tr + float(a.get("offset", 0.0)))))))
-        spread.append(float(np.std(tr)))
-    law_followed = bool(resid) and float(np.median(resid)) < 0.5 * float(np.median(spread) or 1.0)
-    # noise: repeated readings at the same condition differ
-    rep_sd = []
-    for r in done:
-        seen = {}
-        for p, v in zip(r["points"], r["values"]):
-            key = (p.get("standard"), tuple(sorted(p["at"].items())))
-            seen.setdefault(key, []).append(v)
-        rep_sd += [float(np.std(v)) for v in seen.values() if len(v) > 1]
-    exp_txns = [e for e in by.get("bank.txn", []) if e.payload.get("kind") == "experiment"]
-    pop_paid = [e for e in exp_txns if any(K.is_population(world.state.tables["accounts"].get(a, {}).get("owner"))
-                                           for a, amt in e.payload.get("postings", []) if amt < 0)]
-    datasets = [e for e in by.get("artifact.stored", []) if e.payload.get("kind") == "dataset"]
-    papers = by.get("sci.paper", [])
-    reps = by.get("sci.replication", [])
-    verdicts = sorted({e.payload["verdict"] for e in reps})
-    ind_pop = [e for e in reps if e.payload["independent"] and K.is_population(e.payload["reporter"])]
-    chal = by.get("sci.challenge", [])
-    chal_results = sum(len(e.payload["results"]) for e in chal)
-    dec = sum(1 for e in world.events_range(0, world.seq) if e.type == "cols.batch" and
-              e.payload.get("kind") == "scipop.decide")
-    return {
-        "Experimental apparatus": K.mechanic(len(apps_used) >= 2 and len(booked) >= 2, apparatus_used=apps_used,
-                                             runs_booked=len(booked)),
-        "Hidden laws": K.mechanic(law_followed and leaked == 0, public_events_with_law_text=leaked,
-                                  median_residual=round(float(np.median(resid)), 4) if resid else None,
-                                  laws=len(laws)),
-        "Measurement noise": K.mechanic(bool(rep_sd) and float(np.mean(rep_sd)) > 0.0, replicate_groups=len(rep_sd),
-                                        mean_replicate_sd=round(float(np.mean(rep_sd)), 4) if rep_sd else 0.0),
-        "Experimental costs": K.mechanic(len(exp_txns) >= 2 and len(pop_paid) >= 1, experiment_payments=len(exp_txns),
-                                         paid_by_population=len(pop_paid)),
-        "Data collection": K.mechanic(len(done) >= 2 and len(datasets) >= 2, runs_completed=len(done),
-                                      datasets=len(datasets), population_runs=len(pop_runs)),
-        "Hypothesis testing": K.mechanic(len(papers) >= 1 and len(reps) >= 1, papers=len(papers), replications=len(reps),
-                                         verdicts=verdicts),
-        "Independent replication": K.mechanic(len(ind_pop) >= 1, independent_reports_by_population=len(ind_pop)),
-        "Novel-condition evaluation": K.mechanic(len(chal) >= 1 and chal_results >= 1, challenges=len(chal),
-                                                 papers_tested=chal_results),
-        "_population_decisions": dec,
-    }
+        res = np.abs(vals - (float(a.get("gain", 1.0)) * tr + float(a.get("offset", 0.0))))
+        n += int(float(np.median(res)) < 0.5 * (float(np.std(tr)) or 1.0))
+    return n
 
+
+def count_noisy_replicates(world, since: int) -> int:
+    """Groups of repeated readings at the same condition in one run whose values differ (noise is real)."""
+    n = 0
+    for r in _done_runs(world, since):
+        seen: dict = {}
+        for p, v in zip(r["points"], r["values"]):
+            seen.setdefault((p.get("standard"), tuple(sorted(p["at"].items()))), []).append(v)
+        n += sum(1 for v in seen.values() if len(v) > 1 and float(np.std(v)) > 0)
+    return n
+
+
+def count_experiment_payments(world, since: int) -> int:
+    return sum(1 for e in world.events_range(int(since), world.seq)
+               if e.type == "bank.txn" and e.payload.get("kind") == "experiment")
+
+
+def count_datasets(world, since: int) -> int:
+    return sum(1 for e in world.events_range(int(since), world.seq)
+               if e.type == "artifact.stored" and e.payload.get("kind") == "dataset")
+
+
+def count_independent_replications(world, since: int) -> int:
+    return sum(1 for e in world.events_range(int(since), world.seq)
+               if e.type == "sci.replication" and e.payload.get("independent"))
+
+
+def count_challenge_tests(world, since: int) -> int:
+    return sum(len(e.payload["results"]) for e in world.events_range(int(since), world.seq)
+               if e.type == "sci.challenge")
+
+
+MECHANICS = (
+    Mechanic("Experimental apparatus", ("sci.booked",), "runs booked on paid, queued, capacity-limited apparatus"),
+    Mechanic("Hidden laws", (), "readings generated by the phenomena's hidden laws, never published",
+             count=count_lawful_readings),
+    Mechanic("Measurement noise", (), "repeated readings at one condition differ (absolute and relative noise)",
+             count=count_noisy_replicates),
+    Mechanic("Experimental costs", (), "measurements paid to the apparatus operators through the bank",
+             count=count_experiment_payments),
+    Mechanic("Data collection", ("sci.completed",), "completed runs stored as dataset artifacts",
+             count=count_datasets),
+    Mechanic("Hypothesis testing", ("sci.paper", "sci.replication"),
+             "claimed models tested against data by the generalised chi-square statistic"),
+    Mechanic("Independent replication", (), "replication reports by unrelated labs on other apparatus",
+             count=count_independent_replications),
+    Mechanic("Novel-condition evaluation", ("sci.challenge",),
+             "blind challenges outside every bookable range; papers tested against them",
+             count=count_challenge_tests),
+)
+REQUIRED = tuple(m.name for m in MECHANICS)
+
+
+def mechanics(world, since: int = 0) -> dict:
+    """Each required mechanic with its recorded-event count after `since` (the framework's probes) - a readable
+    report for tests and notes; the gates use `base.mechanics_exercised`."""
+    from . import base
+    rep = base.mechanics_exercised(world, DOMAIN, since)
+    return {m: K.mechanic(rep["counts"][m] > 0, count=rep["counts"][m]) for m in REQUIRED}
+
+
+def structure(world) -> dict:
+    """The domain's measured structure of a built world (discrete: names and categories, never magnitudes)."""
+    cfg = world.modules["sci"].config
+    phen = cfg.get("phenomena") or []
+    apps = cfg.get("apparatus") or []
+    if not phen:
+        return {}
+    t = phen[0]
+    names = [v["name"] for v in t["vars"]]
+    tapps = [a for a in apps if a["phenomenon"] == t["id"]]
+    layouts = {json.dumps({k: a["range"][k] for k in names}, sort_keys=True) for a in tapps}
+    rel_true = [float(a.get("rel", t.get("noise_rel", 0.0))) for a in apps]
+    rel_stated = [float(a["stated_rel"]) if a.get("stated_rel") is not None else r for a, r in zip(apps, rel_true)]
+    return {"phenomena": {1: "one", 2: "two"}.get(len(phen), "many"), "variables": f"v{len(names)}",
+            "apparatus_layout": "tiled" if len(layouts) > 1 else "full",
+            "drift": any(float(a.get("drift_per_measure", 0.0)) > 0 for a in apps),
+            "datasheet": "optimistic" if any(s < r - 1e-12 for s, r in zip(rel_stated, rel_true)) else "honest",
+            "standards": f"s{len(t['standards'])}",
+            "law_form_in_handbook": all(str(ph.get("form")) in HANDBOOK_FAMILIES for ph in phen),
+            "challenge_bureau": bool(cfg.get("challenge"))}
+
+
+# the hidden law families whose functional form the public handbook lists (a researcher who knows the form can fit
+# it exactly); the structural evaluation configuration draws from families outside it
+HANDBOOK_FAMILIES = frozenset({"sat_lin", "thresh_quad", "peak", "power_exp", "sat_exp3", "interact3"})
 
 CONFIGS = (
     DomainConfig("bench", "train", STRUCTURES["bench"], DOCS["bench"]),
@@ -958,7 +1081,15 @@ CONFIGS = (
 
 DOMAIN = register(Domain(
     name="research", title="Scientific research", spec_part="9.5", required_mechanics=REQUIRED, configs=CONFIGS,
-    build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=mechanics,
-    participant_principal=participant,
+    build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
+    seats=(Seat("researcher", 800_000, "Independent researcher", "a researcher with its own lab budget"),),
+    actors=(Actor("population researchers", ("cols.batch:scipop.decide",),
+                  "individuals of the population who study, publish and replicate with their own money"),
+            Actor("standards bureau", ("sci.challenge",), "blind prediction challenges at novel conditions")),
+    null_baseline=null_policy,
+    degenerate=(Probe("constant_model", "claim the mean of a few readings as the law", constant_model),
+                Probe("copy_model", "republish another lab's model as one's own", copy_model)),
+    structure=structure, horizon_days=HORIZON_DAYS, slowest_effect_days=10.0, dt=6 * 3600,
+    reference_seeds=(0, 1), sources=("research_domain.py", "science.py", "lawlang.py"),
     doc="Phenomena with hidden laws studied by the population's researchers with paid, noisy, capacity-limited "
         "apparatus; papers, independent replication and blind challenges at novel conditions."))

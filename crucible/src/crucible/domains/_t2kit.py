@@ -52,6 +52,8 @@ class ScriptPolicy:
         self.failures: list[dict] = []
         self.done = False
         self.t = 0
+        self._last: dict | None = None
+        self.actor = ""
 
     # 4.0 Policy protocol
     def reset(self, actor: str, rng=None) -> None:
@@ -74,7 +76,14 @@ class ScriptPolicy:
         except StopIteration:
             self.done = True
             return None
+        self._last = act
         return act
+
+    def observe(self, reward, result, next_obs, done) -> None:
+        """The framework's policy protocol (`crucible.domains.base.drive`): the result of the last action."""
+        if self._last is not None:
+            self.observe_result(self._last, result or {})
+            self._last = None
 
     def observe_result(self, action: dict, result: dict) -> None:
         ok = bool(result.get("ok"))
@@ -103,6 +112,7 @@ def drive(env, agent: str, policy: ScriptPolicy, days: float, dt: int = 3600, ma
                 break
             res = env.execute(agent, act)
             policy.observe_result(act, res)
+            policy._last = None
             actions += 1
         if on_turn is not None:
             on_turn(env)

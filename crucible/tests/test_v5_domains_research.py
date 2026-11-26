@@ -128,8 +128,11 @@ def test_research_world_population_researchers_act_with_provenance_and_no_law_le
     obs = env.observe("p:researcher")
     assert law not in str(obs)
     # researchers paid for their own measurements
-    m = RD.DOMAIN.mechanics(w)
-    assert m["Experimental costs"]["paid_by_population"] >= 3
+    m = RD.mechanics(w)
+    paid = [e for e in w.events_range(0, w.seq) if e.type == "bank.txn" and e.payload["kind"] == "experiment"
+            and any(K.is_population(w.state.tables["accounts"][a]["owner"]) for a, amt in e.payload["postings"]
+                    if amt < 0)]
+    assert len(paid) >= 3 and all(m[k]["exercised"] for k in ("Experimental costs", "Data collection"))
     assert not w.check_invariants()
     ev = RD.DOMAIN.evaluate(w, "p:researcher", RD.DOMAIN.objective(w, "p:researcher", 1))
     assert ev["success"] is False and ev["details"]["papers"] == []          # the null baseline fails
@@ -154,13 +157,24 @@ def test_configurations_are_structurally_different_worlds():
     assert "sigmoid" in law or "cos" in law or "/ (1 + (" in law
 
 
+def test_degenerate_strategies_fail():
+    """SP-9.16 probes of this domain: a constant model and a copied model never satisfy the evaluator."""
+    from crucible.domains import base
+    for probe in ("constant_model", "copy_model"):
+        r = base.run("research", "bench", 0, policy=probe, days=14)
+        assert r["success"] is False, (probe, r["outcome"])
+        assert r["drive"]["agents"]["p:researcher"]["ok"] >= 3
+    r = base.run("research", "bench", 0, policy="copy_model", days=14)
+    assert any(p["copied"] for p in r["outcome"]["details"]["papers"]), r["outcome"]
+
+
 def test_reference_publishes_an_accurate_law_and_null_fails():
     """LABELLED SCRIPTED reference: feasibility on one seed (its paper predicts novel conditions within the
     difficulty-1 threshold); the evaluator is separate and the observation never carries its verdict."""
     env = experience.make(2, "research:bench", 0, semantic=False)
     a = env.agents()[0]
     obj = RD.DOMAIN.objective(env.world, a, 1)
-    pol = RD.reference(env.world, a, obj)
+    pol = RD.reference(a, obj)
     assert pol.kind == "scripted"
     K.drive(env, a, pol, days=6, dt=6 * 3600)
     ev = RD.DOMAIN.evaluate(env.world, a, obj)
