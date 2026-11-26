@@ -609,6 +609,18 @@ def test_OO8_historical_reward_experiments_reproducible_by_explicit_selection():
 
 
 # ====================================================================== OO.9
+def _mcp_default(mcp_server):
+    """An MCP handler with no reward mode named, over a world a WorldServer created from a plain spec: the handler
+    reports observation_only and puts the world in the evaluator-hidden policy."""
+    from crucible.api.local import WorldServer
+    srv = WorldServer("memory://")
+    wid = srv.create_world({"family": "tiny", "overrides": {"n_consumers": 30}}, 0)
+    who = srv.join_world(wid, "mcp-learner", endowment=1000)
+    h = mcp_server.MCPHandler(srv, wid, who)
+    h.world = srv.world(wid)
+    return h
+
+
 def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
     """Each public entry point constructed or called with NOTHING selected; then each explicit selection is checked
     to be recorded (the environment reports it, experience records carry it)."""
@@ -652,7 +664,7 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
         "experience.reference.ReferenceLearner": lambda: ReferenceLearner(),
         "experience.gym.ExperienceGymEnv": lambda: ExperienceGymEnv(1, "rapid:net_routing", 0),
         "experience.gym.ExperienceParallelEnv": lambda: ExperienceParallelEnv(1, "rapid:team_commons", 0),
-        "api.mcp_server.MCPHandler": lambda: mcp_server.MCPHandler(),
+        "api.mcp_server.MCPHandler": lambda: _mcp_default(mcp_server),
     }
     for name, mk in entries.items():
         o, err = _attempt(mk)
@@ -687,9 +699,10 @@ def test_OO9_every_public_entry_point_defaults_to_observation_only(tmp_path):
         if 'default="observation_only"' not in inspect.getsource(mod.main):
             bad.append(name)
     out = tmp_path / "cli"
-    rc = cli_main(["run", "--tier", "1", "--name", "rapid:net_routing", "--steps", "6", "--out", str(out)])
+    rc = cli_main(["run", "--tier", "1", "--name", "rapid:net_routing", "--steps", "6", "--store", str(out),
+                   "--out", str(tmp_path / "cli.json")])
     checked.append("python -m crucible.experience run")
-    cli_records = [json.loads(x) for f in sorted(out.rglob("*.jsonl")) for x in open(f) if x.strip()]
+    cli_records = list(ExperienceStore(str(out)).iterate())
     if rc not in (0, None) or not cli_records or any(r.get("reward_mode") != OBSERVATION_ONLY for r in cli_records):
         bad.append(f"experience CLI: rc={rc}, records={len(cli_records)}")
     # explicit selections are recorded: the environment reports the mode and every stored record carries it
@@ -723,14 +736,17 @@ def test_OO10_assigned_objectives_delivered_progress_never():
     def kernel_tier(mk):
         env = mk()
         a = env.agents()[0]
+        # target 2,718,281 cents: the verifier's progress (netted revenue / target) is a distinctive fraction
         ids = PT.revenue_scenario(env, {t: "N" * 31 for t in ("RUNTIME", "INTERNAL", "PRIVATEMAIL", "SPEC")},
-                                  unit=HOUR, window_units=720)
+                                  unit=HOUR, window_units=720, target=2_718_281)
         reach = [env.observe(a), env.observe_since(a, 0), env.tools(a)]
         for _ in range(3):
             env.advance(HOUR)
             reach.append(env.observe(a))
         v = env.verify()["agents"][a]
         prog = float(v["progress"])
+        if not PT.distinctive(prog, [400_000.0, 500_000.0, 900_000.0, *map(float, PT.PAYMENTS)]):
+            raise RuntimeError(f"the verifier's progress {prog} is not distinctive: the probe proves nothing")
         data = _plain(reach)
         hits = len(exact_hits({"progress": prog}, data)) + len(exact_hits({"progress": prog}, data,
                                                                           text_numbers(data)))

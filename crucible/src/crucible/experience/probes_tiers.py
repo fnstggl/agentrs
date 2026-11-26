@@ -202,7 +202,8 @@ def _revenue_goal(window_s: int, target: int = 1_000_000):
                          "target": target}, 60 * DAY)
 
 
-def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: int, handle: str = "learnco") -> dict:
+def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: int, handle: str = "learnco",
+                     target: int = 1_000_000) -> dict:
     """The learner founds an organisation; a genuine customer pays 400,000; the learner pays 500,000 to a friend
     who pays it to the organisation (the evaluator nets that out); then the customer pays `PAYMENTS`, one per `unit`
     seconds. Only evaluator-side data differ between calls: the window of the objective's metric and the strings in
@@ -241,7 +242,7 @@ def revenue_scenario(env, values: dict[str, str], *, unit: int, window_units: in
         env.advance(unit)
         pay(amount)
     env.advance(min(HOUR, unit))
-    env.set_objective(a, _revenue_goal(window_units * unit))
+    env.set_objective(a, _revenue_goal(window_units * unit, target))
     env.advance(min(HOUR, unit))
     return {"me": me, "org": org, "oacct": oacct}
 

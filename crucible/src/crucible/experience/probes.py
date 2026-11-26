@@ -200,6 +200,18 @@ def exact_hits(values: dict[str, float], reach: Any, kind_numbers: list[tuple[st
     return hits
 
 
+def _public_text(v: Any, depth: int = 0) -> bool:
+    """A public objective: text, nothing, or texts keyed by participant (a team family's objectives); a verifier
+    status carries numbers or booleans (progress, success)."""
+    if v is None or isinstance(v, str):
+        return True
+    if depth < 3 and isinstance(v, dict):
+        return all(isinstance(k, str) and _public_text(x, depth + 1) for k, x in v.items())
+    if depth < 3 and isinstance(v, list):
+        return all(_public_text(x, depth + 1) for x in v)
+    return False
+
+
 def _key_hits(x: Any, keys=EVALUATOR_KEYS, path: str = "", out: list | None = None, depth: int = 0) -> list[str]:
     out = [] if out is None else out
     if depth > 40:
@@ -211,7 +223,7 @@ def _key_hits(x: Any, keys=EVALUATOR_KEYS, path: str = "", out: list | None = No
                 out.append(f"{path}.{k}")
             elif last == "independent" and isinstance(v, (bool, dict)):
                 out.append(f"{path}.{k}")       # a relatedness verdict (or a verdict per package)
-            elif last == "objective" and not (v is None or isinstance(v, str)):
+            elif last == "objective" and not _public_text(v):
                 out.append(f"{path}.{k}")       # a verifier status, not the public objective text
             _key_hits(v, keys, f"{path}.{k}", out, depth + 1)
     elif isinstance(x, (list, tuple)):
