@@ -2,7 +2,8 @@
 
 Hidden laws in the `sci` module and the models that participants publish are written in the same language: Python
 expression syntax over named variables, numeric constants, + - * / **, unary minus, comparisons (which give 1.0 or
-0.0), `a if c else b`, and the functions exp, log, sqrt, abs, min, max, tanh, sigmoid, step, clip and pow. Nothing
+0.0), `a if c else b`, and the functions exp, log, sqrt, abs, min, max, tanh, sigmoid, step, clip, pow, sin and
+cos. Nothing
 else is accepted (no attribute access, no names other than the declared variables, no calls of anything else), so an
 expression can be evaluated inside the kernel without running participant code.
 
@@ -18,6 +19,19 @@ service would embed a model).
 * `power_exp`     A * x ** p * exp(-k / z)                       power law times an activation (Arrhenius-like) term
 
 A generator returns the law text (hidden), the variables it actually uses, and a reasonable "practice" point.
+
+`EXTRA_FAMILIES` (Tier 2 scientific-research domain, `crucible.domains.research_domain`) adds further structurally
+different forms without changing `LAW_FAMILIES` (whose order the civilisation generator relies on):
+
+* `sat_exp3`      A * x / (K + x) * (b + c * z) * exp(-d * y)    three variables: saturation, linear modifier, decay
+* `interact3`     a + b * x * z / (1 + c * y ** 2)                three variables: a multiplicative interaction damped
+                                                                 by a third
+* `logistic_shift` A * sigmoid(k * (x - m - s * z)) + b           a switch whose position moves with z
+* `damped_osc`    A * exp(-x / L) * cos(f * x + g * z) + b        damped oscillation with a phase shift
+* `ratio_power`   A * x ** p / (1 + (z / K) ** q)                  power law suppressed by a Hill-type inhibition
+
+`HELD_OUT` lists the families no training configuration of the domain uses (its structural evaluation
+configuration draws from them).
 """
 from __future__ import annotations
 
@@ -30,7 +44,7 @@ import numpy as np
 
 MAX_LEN = 2000
 MAX_NODES = 300
-FUNCS = ("exp", "log", "sqrt", "abs", "min", "max", "tanh", "sigmoid", "step", "clip", "pow")
+FUNCS = ("exp", "log", "sqrt", "abs", "min", "max", "tanh", "sigmoid", "step", "clip", "pow", "sin", "cos")
 BOUND = 1e12
 
 PRELUDE = ("import math\n"
@@ -41,7 +55,9 @@ PRELUDE = ("import math\n"
            "def sigmoid(x):\n    return 1.0 / (1.0 + math.exp(-max(-700.0, min(700.0, x))))\n"
            "def step(x):\n    return 1.0 if x > 0 else 0.0\n"
            "def clip(x, lo, hi):\n    return lo if x < lo else hi if x > hi else x\n"
-           "def pow(a, b):\n    return math.pow(a, b) if a > 0 else 0.0\n")
+           "def pow(a, b):\n    return math.pow(a, b) if a > 0 else 0.0\n"
+           "def sin(x):\n    return math.sin(x)\n"
+           "def cos(x):\n    return math.cos(x)\n")
 
 
 class LawError(ValueError):
@@ -78,7 +94,8 @@ def _f_pow(a, b):
 _IMPL: dict[str, tuple[Callable, tuple[int, ...]]] = {
     "exp": (_f_exp, (1,)), "log": (_f_log, (1,)), "sqrt": (_f_sqrt, (1,)), "abs": (np.abs, (1,)),
     "min": (np.minimum, (2,)), "max": (np.maximum, (2,)), "tanh": (np.tanh, (1,)), "sigmoid": (_f_sigmoid, (1,)),
-    "step": (_f_step, (1,)), "clip": (np.clip, (3,)), "pow": (_f_pow, (2,)),
+    "step": (_f_step, (1,)), "clip": (np.clip, (3,)), "pow": (_f_pow, (2,)), "sin": (np.sin, (1,)),
+    "cos": (np.cos, (1,)),
 }
 _BIN = {ast.Add: np.add, ast.Sub: np.subtract, ast.Mult: np.multiply, ast.Div: None, ast.Pow: None}
 _CMP = {ast.Gt: np.greater, ast.Lt: np.less, ast.GtE: np.greater_equal, ast.LtE: np.less_equal}
@@ -248,3 +265,51 @@ def draw_variables(rng, n: int) -> list[str]:
     """n distinct neutral variable names (seeded)."""
     idx = rng.permutation(len(VAR_POOL))[:n]
     return [VAR_POOL[int(i)] for i in idx]
+
+
+# ---------------------------------------------------------------------- further families (Tier 2 research domain)
+def law_sat_exp3(rng, xs: Sequence[str]) -> dict:
+    x, z, y = xs[0], xs[1], xs[2]
+    A, K, b, c, d = _u(rng, 8, 14), _u(rng, 1.5, 4.0), _u(rng, 0.6, 1.2), _u(rng, 0.15, 0.4), _u(rng, 0.08, 0.25)
+    return {"law": f"{fmt(A)} * {x} / ({fmt(K)} + {x}) * ({fmt(b)} + {fmt(c)} * {z}) * exp(-{fmt(d)} * {y})",
+            "uses": [x, z, y], "form": "sat_exp3"}
+
+
+def law_interact3(rng, xs: Sequence[str]) -> dict:
+    x, z, y = xs[0], xs[1], xs[2]
+    a, b, c = _u(rng, 1.0, 3.0), _u(rng, 0.25, 0.6), _u(rng, 0.03, 0.12)
+    return {"law": f"{fmt(a)} + {fmt(b)} * {x} * {z} / (1 + {fmt(c)} * {y} ** 2)", "uses": [x, z, y],
+            "form": "interact3"}
+
+
+def law_logistic_shift(rng, xs: Sequence[str]) -> dict:
+    x, z = xs[0], xs[1]
+    A, k, m, s_, b = _u(rng, 6, 12), _u(rng, 0.8, 2.0), _u(rng, 2.0, 4.0), _u(rng, 0.3, 0.8), _u(rng, 1.0, 3.0)
+    return {"law": f"{fmt(A)} * sigmoid({fmt(k)} * ({x} - {fmt(m)} - {fmt(s_)} * {z})) + {fmt(b)}", "uses": [x, z],
+            "form": "logistic_shift"}
+
+
+def law_damped_osc(rng, xs: Sequence[str]) -> dict:
+    x, z = xs[0], xs[1]
+    A, L, f, g, b = _u(rng, 5, 9), _u(rng, 4.0, 9.0), _u(rng, 0.5, 1.0), _u(rng, 0.2, 0.5), _u(rng, 6.0, 9.0)
+    return {"law": f"{fmt(A)} * exp(-{x} / {fmt(L)}) * cos({fmt(f)} * {x} + {fmt(g)} * {z}) + {fmt(b)}",
+            "uses": [x, z], "form": "damped_osc"}
+
+
+def law_ratio_power(rng, xs: Sequence[str]) -> dict:
+    x, z = xs[0], xs[1]
+    A, p, K, q = _u(rng, 3.0, 6.0), _u(rng, 0.4, 0.8), _u(rng, 1.5, 3.0), _u(rng, 1.5, 3.0)
+    return {"law": f"{fmt(A)} * {x} ** {fmt(p)} / (1 + ({z} / {fmt(K)}) ** {fmt(q)})", "uses": [x, z],
+            "form": "ratio_power"}
+
+
+EXTRA_FAMILIES: dict[str, Callable[[Any, Sequence[str]], dict]] = {
+    "sat_exp3": law_sat_exp3, "interact3": law_interact3, "logistic_shift": law_logistic_shift,
+    "damped_osc": law_damped_osc, "ratio_power": law_ratio_power}
+ALL_FAMILIES = {**LAW_FAMILIES, **EXTRA_FAMILIES}
+N_VARS = {"sat_exp3": 3, "interact3": 3}
+HELD_OUT = ("logistic_shift", "damped_osc", "ratio_power")
+
+
+def n_vars(form: str) -> int:
+    return int(N_VARS.get(form, 2))

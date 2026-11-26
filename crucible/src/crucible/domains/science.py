@@ -15,15 +15,30 @@ World physics (config, never returned by any tool):
 Measurement: `noise ~ N(0, sd) + N(0, rel * |truth|)`, drawn with the world's seeded randomness when the run
 completes (`sci.complete`, a scheduled process); the readings are stored as a JSON dataset artifact owned by the
 experimenter (`crucible.substrate.artifacts`) and returned only to the experimenter (or to everyone once shared or
-cited in a publication).
+cited in a publication). An apparatus states its precision the way instrument datasheets do: an absolute part
+(`stated_sd`) plus a part relative to the reading (`stated_rel`). By default the datasheet is honest (the stated
+parts equal the true `sd` and `rel`); a configuration may give an apparatus an optimistic datasheet (`sd_mult`, or a
+`stated_rel` below its `rel`), which only replicate measurements reveal.
 
 Science as an institution: `sci.publish` records a paper - a public `docs` document plus a model (an expression in
 the law language) and the runs it rests on (which become public); the module computes the model's fit on that data.
 `sci.replicate` files a replication report: the module itself tests the paper's model against the reporter's own
 completed runs (corrected by the reporter's own measurements of the certified standards on the same apparatus, when
-given) with a chi-square test against the apparatus' stated precision; reports state whether the reporter is
-related to the author and whether it used other apparatus than the paper's data (independence is recorded, never
-assumed).
+given) with a generalised chi-square test: each reading's variance is the apparatus' stated precision (absolute and
+relative parts, at the model's prediction) and the uncertainty of the reporter's own calibration (the weighted
+least-squares covariance of gain and offset from the standards it measured) is propagated as a correlated term, so a
+true law is refuted at about the nominal rate (`p_threshold`) and a wrong one is refuted as data accumulate. Reports
+state whether the reporter is related to the author and whether it used other apparatus than the paper's data
+(independence is recorded, never assumed). The same statistic is shown with a paper (`sci.publish`) on the author's
+own data: a statistics service over the participant's own measurements, never a reward or an evaluator verdict.
+
+Novel-condition evaluation (`challenge` config, off by default): a standards bureau with a traceable instrument
+that can be set anywhere inside the phenomenon's physical ranges - beyond what any bookable apparatus reaches -
+announces blind prediction challenges every `every_days`: it measures the response at freshly drawn conditions
+outside every bookable range (outside the published data when the apparatus cover the whole physical box), tests
+every paper published on the phenomenon against these readings with the same statistic, and publishes the readings
+(a public dataset) and the per-paper results (`sci.challenge`). How well a claimed law extrapolates is thus an
+observable fact of the world, measured with noise like everything else.
 
 Autonomous participants (module config, all acting only through the tools above, as themselves):
 
@@ -35,7 +50,7 @@ Autonomous participants (module config, all acting only through the tools above,
   spread design over its range, and file the replication report computed by the module.
 
 Tools: sci.phenomena, sci.apparatus, sci.run, sci.runs, sci.data, sci.share, sci.publish, sci.papers, sci.paper,
-sci.replicate, sci.replications.
+sci.replicate, sci.replications, sci.challenges.
 """
 from __future__ import annotations
 
@@ -64,6 +79,8 @@ RIVAL = {"n": 0, "prefix": "rival", "budget": [40_000, 80_000], "points": [6, 12
          "cooldown_days": [3, 8], "start_day": 0}
 REPLICATOR = {"n": 0, "prefix": "repl", "budget_month": 60_000, "points": 8, "reps": 1, "every_days": 1,
               "max_parallel": 2, "start_day": 0, "calib_reps": 2}
+CHALLENGE = {"every_days": 14, "start_day": 14, "points": 8, "sd": 0.15, "rel": 0.005, "handle": "bureau",
+             "name": "Standards Bureau", "max_papers": 60, "pass_p": 0.01}
 
 
 def _chi2_sf(x: float, k: int) -> float:
@@ -99,10 +116,22 @@ class Science(Module):
         for a in self.apps.values():
             if a["phenomenon"] not in self.laws:
                 raise ValueError(f"sci: apparatus {a['id']} measures unknown phenomenon {a['phenomenon']}")
+        st.declare_table("sci_chal", index=("phenomenon",))
+        st.declare_table("sci_bureau")
+        ch = self.config.get("challenge")
+        self.challenge = {**CHALLENGE, **ch} if ch else None
 
     def truth(self, phenomenon: str, points: list[dict]) -> np.ndarray:
         """Noise-free response (world physics; used by world mechanics and by evaluators, never by a tool)."""
         return self.laws[phenomenon].at(points)
+
+    def _phen_cfg(self, phenomenon: str) -> dict:
+        return next(ph for ph in self.config.get("phenomena") or [] if ph["id"] == phenomenon)
+
+    def true_rel(self, apparatus: str) -> float:
+        """The apparatus' true relative noise (hidden; default: the phenomenon's `noise_rel`)."""
+        a = self.apps[apparatus]
+        return float(a["rel"]) if a.get("rel") is not None else float(self._phen_cfg(a["phenomenon"]).get("noise_rel", 0.0))
 
     def genesis(self, ctx):
         w = ctx.world
@@ -133,9 +162,21 @@ class Science(Module):
                                        "operator": oid, "account": acct,
                                        "range": {k: [float(v[0]), float(v[1])] for k, v in a["range"].items()},
                                        "price_cents": int(a["price_cents"]), "stated_sd": float(a["sd"]),
+                                       "stated_rel": float(a["stated_rel"]) if a.get("stated_rel") is not None
+                                       else self.true_rel(a["id"]),
                                        "capacity_per_day": int(a["capacity_per_day"]),
                                        "setup_s": int(a.get("setup_s", 1800))}, vis="public")
         self._genesis_npcs(ctx)
+        if self.challenge:
+            ch = self.challenge
+            head = idm.create_person(ctx, f"{ch['handle']}-head", f"{ch['name']} director", "npc", {"role": "owner"})
+            bank.open_account(ctx, head, "checking")
+            bid = idm.create_org(ctx, ch["handle"], ch["name"], head, "group", {"sector": "standards"})
+            bank.open_account(ctx, bid, "operating")
+            ctx.emit("sci.bureau", {"org": bid, "every_days": int(ch["every_days"]), "points": int(ch["points"]),
+                                    "stated_sd": float(ch["sd"]), "stated_rel": float(ch["rel"])}, vis="public")
+            ctx.schedule(ctx.now + int(ch["start_day"]) * DAY + 12 * 3600, "sci.challenge", {}, prio=60,
+                         period=int(ch["every_days"]) * DAY, key="sci.challenge")
 
     def _genesis_npcs(self, ctx):
         w = ctx.world
@@ -220,9 +261,18 @@ class Science(Module):
         r = st.tables["sci_runs"][rid]
         return [{"at": p["at"], "standard": p.get("standard"), "value": v} for p, v in zip(r["points"], r["values"] or [])]
 
-    def correction(self, st, owner: str, apparatus: str, calibration_runs: list[str]) -> tuple[float, float, int]:
-        """(gain, offset, n standards) estimated from the certified standards measured in `calibration_runs`
-        (runs of `owner` on `apparatus`). Without standards: (1, 0, 0)."""
+    @staticmethod
+    def precision(app: dict, values) -> np.ndarray:
+        """Stated variance of a reading at true response `values`: the apparatus' datasheet precision (absolute part
+        plus a part relative to the response)."""
+        v = np.abs(np.asarray(values, dtype=float))
+        return float(app["stated_sd"]) ** 2 + (float(app.get("stated_rel", 0.0)) * v) ** 2
+
+    def correction(self, st, owner: str, apparatus: str, calibration_runs: list[str]) -> tuple:
+        """(gain, offset, n standards, cov) estimated by weighted least squares from the certified standards measured
+        in `calibration_runs` (completed runs of `owner` on `apparatus`), with the 2x2 covariance of (offset, gain)
+        under the apparatus' stated precision. With one distinct standard only the offset is corrected (gain 1);
+        without standards: (1, 0, 0, zeros)."""
         app = st.tables["sci_app"][apparatus]
         stds = {s["id"]: s["certified"] for s in st.tables["sci_phen"][app["phenomenon"]]["standards"]}
         xs, ys = [], []
@@ -234,37 +284,58 @@ class Science(Module):
                 if p.get("standard") in stds:
                     xs.append(stds[p["standard"]])
                     ys.append(v)
+        zero = np.zeros((2, 2))
         if not xs:
-            return 1.0, 0.0, 0
-        xs, ys = np.array(xs), np.array(ys)
-        if len(set(np.round(xs, 6))) >= 2:
-            g, o = np.polyfit(xs, ys, 1)
-            if not (0.2 < g < 5.0):
-                g, o = 1.0, float(np.mean(ys - xs))
-        else:
-            g, o = 1.0, float(np.mean(ys - xs))
-        return float(g), float(o), len(xs)
+            return 1.0, 0.0, 0, zero
+        xs, ys = np.array(xs, dtype=float), np.array(ys, dtype=float)
+        wts = 1.0 / np.maximum(self.precision(app, xs), 1e-12)
+
+        def offset_only():
+            o = float(np.sum(wts * (ys - xs)) / np.sum(wts))
+            return 1.0, o, len(xs), np.array([[1.0 / float(np.sum(wts)), 0.0], [0.0, 0.0]])
+        if len(set(np.round(xs, 6))) < 2:
+            return offset_only()
+        A = np.stack([np.ones(len(xs)), xs], 1)
+        info = A.T @ (A * wts[:, None])
+        try:
+            cov = np.linalg.inv(info)
+        except np.linalg.LinAlgError:
+            return offset_only()
+        o, g = cov @ (A.T @ (wts * ys))
+        if not (0.2 < g < 5.0):
+            return offset_only()
+        return float(g), float(o), len(xs), cov
 
     def fit_stats(self, st, model, owner: str, runs: list[str], calibration_runs: list[str]) -> dict:
-        """Chi-square test of `model` against the readings of `runs` (all by `owner`), corrected per apparatus by the
-        owner's standards in `calibration_runs`. Uses the apparatus' stated precision."""
-        res, z2, n = [], 0.0, 0
-        ymeans = []
+        """Generalised chi-square test of `model` against the readings of `runs` (all by `owner`), corrected per
+        apparatus by the owner's standards in `calibration_runs`. Per apparatus, the covariance of the corrected
+        readings is the stated precision at the model's prediction (diagonal) plus the propagated uncertainty of the
+        owner's gain/offset estimate (one correlated term shared by every reading of that apparatus)."""
+        z2, n = 0.0, 0
+        res, ymeans = [], []
+        by_app: dict[str, list] = {}
         for rid in runs:
             r = st.tables["sci_runs"][rid]
-            app = st.tables["sci_app"][r["apparatus"]]
-            g, o, _ = self.correction(st, owner, r["apparatus"], calibration_runs)
-            pts = [p for p in r["points"] if not p.get("standard")]
-            vals = [v for p, v in zip(r["points"], r["values"]) if not p.get("standard")]
-            if not pts:
-                continue
-            y = (np.array(vals) - o) / g
-            m = model.at([p["at"] for p in pts])
+            for p, v in zip(r["points"], r["values"]):
+                if not p.get("standard"):
+                    by_app.setdefault(r["apparatus"], []).append((p["at"], float(v)))
+        for aid in sorted(by_app):
+            app = st.tables["sci_app"][aid]
+            pts = [a for a, _ in by_app[aid]]
+            raw = np.array([v for _, v in by_app[aid]], dtype=float)
+            g, o, _, cov = self.correction(st, owner, aid, calibration_runs)
+            y = (raw - o) / g
+            m = model.at(pts)
             if not np.all(np.isfinite(m)):
                 return {"n": len(pts), "chi2": None, "p": 0.0, "rmse": None, "rel_err": None, "valid": False}
-            sd = float(app["stated_sd"]) / abs(g)
             d = y - m
-            z2 += float(np.sum((d / max(sd, 1e-9)) ** 2))
+            var = self.precision(app, m) / (g * g)
+            J = np.stack([-np.ones(len(y)) / g, -y / g], 1)
+            sigma = np.diag(np.maximum(var, 1e-12)) + J @ cov @ J.T
+            try:
+                z2 += float(d @ np.linalg.solve(sigma, d))
+            except np.linalg.LinAlgError:
+                z2 += float(np.sum(d * d / np.maximum(var, 1e-12)))
             n += len(pts)
             res.append(d)
             ymeans.append(np.abs(y))
@@ -285,7 +356,8 @@ class Science(Module):
     @endpoint("apparatus", S.obj({"phenomenon": S.s_str(maxLength=40)}), read_only=True)
     def ep_apparatus(self, ctx, phenomenon=None):
         """Measuring apparatus: phenomenon, settable range, price per measurement, stated precision (standard
-        deviation of a reading), capacity, current queue (measurements waiting) and operator."""
+        deviation of a reading: `stated_sd` plus `stated_rel` times the response), capacity, current queue
+        (measurements waiting) and operator."""
         out = []
         for aid, a in ctx.state.scan("sci_app"):
             if phenomenon is not None and a["phenomenon"] != phenomenon:
@@ -293,6 +365,7 @@ class Science(Module):
             q = max(0, int(a["busy_until"]) - ctx.now)
             out.append({"apparatus": aid, "phenomenon": a["phenomenon"], "title": a["title"], "operator": a["operator"],
                         "range": a["range"], "price_cents": a["price_cents"], "stated_sd": a["stated_sd"],
+                        "stated_rel": a.get("stated_rel", 0.0),
                         "capacity_per_day": a["capacity_per_day"], "queue_wait_s": q, "measured": a["measured"]})
         return out
 
@@ -454,7 +527,8 @@ class Science(Module):
     def ep_replicate(self, ctx, paper, runs, calibration_runs=()):
         """File a replication report on a paper from your own completed runs on its phenomenon. The model is tested
         against your readings (corrected with your measurements of certified standards on the same apparatus, if you
-        give calibration runs) by a chi-square test using the apparatus' stated precision; the report is public."""
+        give calibration runs) by a generalised chi-square test using the apparatus' stated precision and the
+        uncertainty of your calibration; the report is public."""
         st = ctx.state
         p = st.get("sci_papers", paper)
         if p is None:
@@ -513,7 +587,7 @@ class Science(Module):
         k = np.arange(len(truth), dtype=float) + float(app["measured"])
         gain = float(acfg.get("gain", 1.0)) + float(acfg.get("drift_per_measure", 0.0)) * k
         sd = float(acfg["sd"]) * float(acfg.get("sd_mult", 1.0))
-        rel = float(next((ph.get("noise_rel", 0.0) for ph in self.config["phenomena"] if ph["id"] == r["phenomenon"]), 0.0))
+        rel = self.true_rel(r["apparatus"])
         noise = rng.normal(0.0, sd, len(truth)) + rel * np.abs(truth) * rng.normal(0.0, 1.0, len(truth))
         vals = gain * truth + float(acfg.get("offset", 0.0)) + noise
         values = [round(float(v), 4) for v in vals]
@@ -524,6 +598,97 @@ class Science(Module):
         ref = artifacts.put(ctx, data, "application/json", owner=r["owner"],
                             meta={"run": run, "apparatus": r["apparatus"]}, kind="dataset")
         ctx.emit("sci.completed", {"id": run, "values": values, "dataset": ref}, vis=(r["owner"],))
+
+    @process("challenge")
+    def pr_challenge(self, ctx):
+        """The standards bureau's blind prediction challenge (see the module doc): fresh conditions outside every
+        bookable range, measured on its traceable instrument, every paper on the phenomenon tested against them."""
+        ch = self.challenge
+        if not ch:
+            return
+        st = ctx.state
+        k = len(st.tables["sci_chal"])
+        bureau = next((r for _, r in st.scan("sci_bureau")), None) if "sci_bureau" in st.tables else None
+        if bureau is None:
+            return
+        from ..substrate import artifacts
+        for pid in sorted(self.laws):
+            papers = [(x, p) for x, p in st.scan("sci_papers") if p["phenomenon"] == pid][: int(ch["max_papers"])]
+            if not papers:
+                continue
+            ph = st.tables["sci_phen"][pid]
+            names = [v["name"] for v in ph["vars"]]
+            rng = ctx.rng("sci-challenge", pid, k)
+            pts = self.novel_points(st, pid, papers, rng, int(ch["points"]))
+            truth = self.truth(pid, pts)
+            sd, rel = float(ch["sd"]), float(ch["rel"])
+            vals = truth + rng.normal(0.0, sd, len(pts)) + rel * np.abs(truth) * rng.normal(0.0, 1.0, len(pts))
+            vals = np.round(vals, 4)
+            results = []
+            for x, p in papers:
+                m = compile_expr(p["model"], names).at(pts)
+                if not np.all(np.isfinite(m)):
+                    results.append({"paper": x, "valid": False, "chi2": None, "p": 0.0, "rmse": None,
+                                    "rel_err": None, "verdict": "failed"})
+                    continue
+                d = vals - m
+                var = np.maximum(sd ** 2 + (rel * np.abs(m)) ** 2, 1e-12)
+                chi2 = float(np.sum(d * d / var))
+                pv = _chi2_sf(chi2, len(pts))
+                results.append({"paper": x, "valid": True, "chi2": round(chi2, 4), "p": round(pv, 6),
+                                "rmse": round(float(np.sqrt(np.mean(d * d))), 6),
+                                "rel_err": round(float(np.mean(np.abs(d))) / (float(np.mean(np.abs(vals))) or 1.0), 6),
+                                "verdict": "passed" if pv >= float(ch["pass_p"]) else "failed"})
+            rows = [{"at": a, "value": float(v)} for a, v in zip(pts, vals)]
+            cid = f"chal_{k:04d}_{pid}"
+            data = json.dumps({"challenge": cid, "phenomenon": pid, "readings": rows}, sort_keys=True).encode()
+            ref = ctx.run_as(bureau["org"], lambda c: artifacts.put(c, data, "application/json", owner=bureau["org"],
+                                                                     meta={"challenge": cid}, kind="dataset"))
+            ctx.run_as(bureau["org"], lambda c: artifacts.publish(c, ref))
+            ctx.emit("sci.challenge", {"id": cid, "phenomenon": pid, "readings": rows, "dataset": ref,
+                                       "stated_sd": sd, "stated_rel": rel, "results": results}, vis="public")
+
+    def novel_points(self, st, phenomenon: str, papers, rng, n: int) -> list[dict]:
+        """Conditions no bookable apparatus can set (some variable outside the union of the apparatus' ranges, inside
+        the physical range); when the apparatus cover the whole physical box: outside the bounding box of the
+        papers' data; otherwise anywhere in the physical box."""
+        ph = st.tables["sci_phen"][phenomenon]
+        names = [v["name"] for v in ph["vars"]]
+        lo = np.array([float(v["lo"]) for v in ph["vars"]])
+        hi = np.array([float(v["hi"]) for v in ph["vars"]])
+        apps = [a for _, a in st.scan("sci_app") if a["phenomenon"] == phenomenon]
+        alo = np.array([min(a["range"][k][0] for a in apps) for k in names]) if apps else hi
+        ahi = np.array([max(a["range"][k][1] for a in apps) for k in names]) if apps else lo
+        dlo, dhi = hi.copy(), lo.copy()
+        for _, p in papers:
+            for rid in p["data"]:
+                r = st.get("sci_runs", rid)
+                for q in (r["points"] if r else []):
+                    if not q.get("standard"):
+                        x = np.array([float(q["at"][k]) for k in names])
+                        dlo, dhi = np.minimum(dlo, x), np.maximum(dhi, x)
+        out = []
+        for box in ((alo, ahi), (dlo, dhi), None):
+            for _ in range(400 * n):
+                if len(out) >= n:
+                    break
+                x = rng.uniform(lo, hi)
+                if box is None or np.any((x < box[0] - 1e-9) | (x > box[1] + 1e-9)):
+                    out.append({k: round(float(v), 4) for k, v in zip(names, x)})
+            if len(out) >= n:
+                break
+        return out[:n]
+
+    @endpoint("challenges", S.obj({"phenomenon": S.s_str(maxLength=40), "limit": S.s_int(minimum=1, maximum=100)}),
+              read_only=True)
+    def ep_challenges(self, ctx, phenomenon=None, limit=20):
+        """The standards bureau's blind prediction challenges (newest last): the conditions it measured (outside
+        every bookable range), its readings and stated precision, and how each published paper's model fared."""
+        out = []
+        for cid, c in ctx.state.scan("sci_chal"):
+            if phenomenon is None or c["phenomenon"] == phenomenon:
+                out.append(dict(c, challenge=cid))
+        return out[-int(limit):]
 
     @process("grants")
     def pr_grants(self, ctx):
@@ -746,6 +911,15 @@ class Science(Module):
     @applier("sci.npc_failed")
     def ap_npc_failed(self, ev):
         pass
+
+    @applier("sci.bureau")
+    def ap_bureau(self, ev):
+        self.world.state.insert("sci_bureau", ev.payload["org"], dict(ev.payload))
+
+    @applier("sci.challenge")
+    def ap_challenge(self, ev):
+        p = dict(ev.payload)
+        self.world.state.insert("sci_chal", p.pop("id"), dict(p, t=ev.t))
 
     def check_invariants(self, world):
         errs = []
