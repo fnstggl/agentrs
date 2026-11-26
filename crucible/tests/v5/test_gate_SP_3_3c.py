@@ -53,9 +53,15 @@ def test_SP_3_3c_semantic_participants_persist_and_are_bound_to_population_rows(
     w.advance_time(w.now + 43200)
     r.advance_time(r.now + 43200)
     rows_w, rows_r = G.members(w), G.members(r)
-    continued = sum(1 for a, b in zip(rows0, rows_r) if len(b["memory"]) >= len(a["memory"]) and
-                    b["memory"][:len(a["memory"])][-5:] == a["memory"][-5:] and
-                    int(b["counts"].get("activations", 0)) > int(a["counts"].get("activations", 0)))
+    def continued_from(a, b):
+        """b is a's state continued: more activations, a's goals kept (by id), a's latest memory item still
+        remembered (unless memory is at its bound) and a's history a prefix of b's recent history."""
+        goals_kept = {g["id"] for g in a["goals"]} <= {g["id"] for g in b["goals"]} or len(b["goals"]) >= 24
+        mem_kept = (not a["memory"]) or a["memory"][-1] in b["memory"] or len(b["memory"]) >= 40
+        hist_kept = (not a["history"]) or a["history"][-1] in b["history"] or len(b["history"]) >= 80
+        return int(b["counts"].get("activations", 0)) > int(a["counts"].get("activations", 0)) and goals_kept \
+            and mem_kept and hist_kept
+    continued = sum(1 for a, b in zip(rows0, rows_r) if continued_from(a, b))
     with tempfile.NamedTemporaryFile(suffix=".blob", delete=False) as fh:
         fh.write(blob)
         path = fh.name
