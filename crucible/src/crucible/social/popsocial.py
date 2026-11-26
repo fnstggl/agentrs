@@ -80,12 +80,15 @@ class PopSocial(Module):
         import functools
         from . import popcreate, popinbox
         from .platforms import PLATFORMS
-        columns.declare(world, "pop", n, {"soc_items": ("int32", (), 0), "soc_seen_views": ("int64", (), 0),
-                                          "soc_last_item": ("int32", (), -1), **popcreate.columns_spec(),
-                                          **popinbox.columns_spec()})
+        names = {m["name"] for m in world.spec.modules}
+        cols = {"soc_items": ("int32", (), 0), "soc_seen_views": ("int64", (), 0), "soc_last_item": ("int32", (), -1)}
+        if int(popcreate.available(world).sum()) > 1:      # a choice of media to learn about (not the 1-platform
+            cols.update(popcreate.columns_spec())           # internet profile: 10M rows stay lean)
+        if "msg" in names or "letters" in names:
+            cols.update(popinbox.columns_spec())
+        columns.declare(world, "pop", n, cols)
         population.register_activity(world, "social.create", self.act_create, owner="pop_social",
                                      prior=float(self.cfg["prior"]), goals=(3, 5))
-        names = {m["name"] for m in world.spec.modules}
         if "msg" in names:
             population.register_activity(world, "social.inbox", self.act_inbox, owner="pop_social",
                                          prior=float(self.cfg["inbox_prior"]), goals=(3,))

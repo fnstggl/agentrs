@@ -40,7 +40,7 @@ MEMBERSHIP_WTP_CENTS = 800  # monthly support a member with wtp_scale 1 would pa
 
 
 def columns_spec() -> dict:
-    return {"soc_msgs_sent": ("int32", (), 0), "soc_msgs_read": ("int32", (), 0), "soc_subs": ("int16", (), 0)}
+    return {"soc_msgs_sent": ("int32", (), 0), "soc_msgs_read": ("int32", (), 0), "soc_letters": ("int16", (), 0)}
 
 
 def _sig(x):
@@ -206,7 +206,7 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
     dur = AUD.item_col(w, "duration_s")
     legib = AUD.item_col(w, "legib")
     wtp = columns.col(w, "pop", "wtp_scale")[idx].astype(np.float64)
-    subs_n = columns.col(w, "pop", "soc_subs")[idx].astype(np.int64).copy()
+    subs_n = columns.col(w, "pop", "soc_letters")[idx].astype(np.int64).copy()
     letters = w.modules.get("letters")
     cm = w.modules.get("creators")
     from . import graph
@@ -298,13 +298,69 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
                     deciders.add(a)
                 except CrucibleError:
                     pass
+    n_lead = _service_leads(ctx, out, vv, pp, rng)
     if deciders:
         rows = np.array(sorted(deciders), np.int64)
         population.record_decisions(ctx, "pop_social.followup", idx[rows],
-                                    {"soc_subs": subs_n[rows].astype(np.int16)}, **FOLLOWUP_MODEL,
+                                    {"soc_letters": subs_n[rows].astype(np.int16)}, **FOLLOWUP_MODEL,
                                     extra={"platform": platform, "subscribed": n_sub, "joined": n_join,
-                                           "votes": n_vote, "accepted": n_accept, "unsubscribed": n_unsub})
+                                           "votes": n_vote, "accepted": n_accept, "unsubscribed": n_unsub,
+                                           "service_leads": n_lead})
     return U
+
+
+LEAD_DELAY_S = 1800        # a member who read about a service for its own work looks into it about half an hour later
+
+
+def _hosts_of(world, cid: str) -> list[str]:
+    """Service hosts an item's text names (the search index's own extraction; derived from the bytes)."""
+    cache = world.runtime.setdefault("pop_social.hosts", {})
+    if cid not in cache:
+        from ..services import search
+        from .content import text_of
+        try:
+            cache[cid] = sorted(search.extract_hosts(world, text_of(world, cid)))
+        except Exception:  # noqa: BLE001 - an item whose text cannot be extracted names no host
+            cache[cid] = []
+    return cache[cid]
+
+
+def _service_leads(ctx: Ctx, out: dict, vv, pp, rng) -> int:
+    """Viewers who read about a launched service for a task of their own work (a launch post linking it, or an
+    item naming its address) look into it: a `shop` session of `economy.work` is scheduled for them, where they
+    search, weigh and maybe try it by work's own rules (MASTER_SPEC 4.8). Returns the number of leads."""
+    w = ctx.world
+    st = ctx.state
+    work = w.modules.get("work")
+    if work is None or "products" not in st.tables:
+        return 0
+    from ..population import activities
+    if "shop" not in activities(w):
+        return 0
+    fam = columns.col(w, "work", "fam")
+    act = columns.col(w, "work", "active")
+    leads = set()
+    for a, b in zip(vv.tolist(), pp.tolist()):
+        i = int(out["idx"][a])
+        if fam[i] < 0 or not act[i]:
+            continue
+        info = st.tables["aud_item_info"].get(str(int(out["feed"][a, b])))
+        cid = None if info is None else info.get("content_id")
+        if not cid:
+            continue
+        L = st.get("launches", cid) if "launches" in st.tables else None
+        prods = []
+        if L is not None and L["link"] == "product":
+            prods.append(L["target"])
+        for h in _hosts_of(w, cid):
+            prods += [pid for pid, p in st.scan("products") if (p["delivery"] or {}).get("host") == h]
+        needs = {n for _, n in work._steps(i)}
+        relied = {r for n in needs for r, _ in work.relied(st, i, n)}
+        if any((st.get("products", pid) or {}).get("need") in needs and pid not in relied for pid in prods):
+            leads.add(i)
+    if leads:
+        population.wake(ctx, np.array(sorted(leads), np.int64), ctx.now + LEAD_DELAY_S, "shop")
+    return len(leads)
 
 
 def creator_channels(self, ctx: Ctx, i: int, p: str, rng, title: str) -> str | None:

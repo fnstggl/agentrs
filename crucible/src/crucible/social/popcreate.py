@@ -207,6 +207,35 @@ def _topic_for(coords: np.ndarray, rng, tech: bool, k: int) -> np.ndarray:
     return np.argmax(score, axis=1)
 
 
+REVIEW_P = 0.35            # a member who relies on a provider that works for it recommends it this often
+
+
+def _recommendation(ctx: Ctx, i: int, rng) -> tuple[str, str] | None:
+    """(title, body) of a recommendation of a service the member relies on in its work and that works for it (its
+    own adoption record of `economy.work`: at least 3 uses, at least 2/3 accepted), naming the service's address -
+    or None. Read-only use of the member's own experience; the text is the member's (no score, no bonus)."""
+    st = ctx.state
+    work = ctx.world.modules.get("work")
+    if work is None or "work_exp" not in st.tables:
+        return None
+    good = []
+    for key in st.find_ids("work_exp", "i", int(i)):
+        r = st.tables["work_exp"][key]
+        if r["active"] and r["uses"] >= 3 and r["ok"] >= (2.0 / 3.0) * r["uses"]:
+            prov = work._provider(st, r["prov"])
+            if prov is not None and prov.get("host"):
+                good.append((r["prov"], r, prov))
+    if not good or rng.random() >= REVIEW_P:
+        return None
+    pid, r, prov = good[int(rng.integers(0, len(good)))]
+    task = work.task_text(r["step_need"])
+    name = (st.get("products", pid) or {}).get("name") or prov["host"]
+    title = f"How I get my {task.split()[0].lower()} work done"[:C.MAX_TITLE]
+    body = (f"For my work I need {task}. I use {name} (http://{prov['host']}.crucible/): it handled {int(r['ok'])} "
+            f"of my last {int(r['uses'])} tasks well enough for my employer. Recommended if you do the same work.")
+    return title, body
+
+
 def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     w = ctx.world
     idx = np.asarray(idx, np.int64)
@@ -217,8 +246,9 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     skills = columns.col(w, "pop", "skills")[idx].astype(np.float64)
     prefs = columns.col(w, "pop", "prefs")[idx].astype(np.float64)
     left = columns.col(w, "pop", "attention_left_min")[idx].astype(np.float64)
-    value = columns.col(w, "pop", "soc_med_value")[idx].astype(np.float64).copy()
-    seen = columns.col(w, "pop", "soc_med_seen")[idx].astype(np.int64).copy()
+    learn = "soc_med_value" in columns.tables(w)["pop"]["columns"]
+    value = columns.col(w, "pop", "soc_med_value")[idx].astype(np.float64).copy() if learn else np.zeros((n, NM))
+    seen = columns.col(w, "pop", "soc_med_seen")[idx].astype(np.int64).copy() if learn else np.zeros((n, NM), np.int64)
     seen_tot = columns.col(w, "pop", "soc_seen_views")[idx].astype(np.int64).copy()
     last_item = columns.col(w, "pop", "soc_last_item")[idx].astype(np.int64).copy()
     nitems = columns.col(w, "pop", "soc_items")[idx].astype(np.int64).copy()
@@ -247,7 +277,13 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
             u[j] = -0.3 if not writer[j] else -0.05
             continue
         # what the creator learns from the platforms about its earlier pieces, per medium
-        if nitems[j]:
+        if nitems[j] and not learn:
+            p_ = ids.pid(i)
+            tot = int(sum(int(AUD.audience(w, int(r), principal=p_)["views"])
+                          for r in w.state.find_ids("aud_item_info", "creator", p_)))
+            g_all = max(0, tot - int(seen_tot[j]))
+            seen_tot[j] = tot
+        elif nitems[j]:
             views = views_by_medium(w, i)
             gained = np.maximum(0, views - seen[j])
             seen[j] = views
@@ -262,8 +298,16 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         skill = float(skills[j, 1])
         n_sent = int(rng.integers(s_lo, s_hi + 1))
         cid = None
+        rec_post = _recommendation(ctx, i, rng) if m in ("post", "status", "article") else None
         try:
-            if m in ("answer", "tech"):
+            if rec_post is not None:
+                # a recommendation of a service that works for the member (text naming its address)
+                title, body = rec_post
+                data = f"{title}\n\n{body}\n".encode("utf-8")
+                ref = artifacts.put(ctx, data, "text/plain", owner=p, meta={"title": title[:80]}, kind="text")
+                cid = C.module(w).publish(ctx, p, ref, kind, plat, title)
+                media_made.append("recommendation")
+            elif m in ("answer", "tech"):
                 cid = _qa(ctx, plat, p, coords[j], rng, skill, k)
             else:
                 topic = int(tech_topics[j] if m == "tech" else topics[j])
@@ -295,9 +339,10 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     sp = np.flatnonzero(made & (spent > 0))
     if sp.size:
         attention.spend(ctx, idx[sp], spent[sp], activity="social.create")
-    population.record_decisions(ctx, "pop_social.created", idx, {
-        "soc_items": nitems.astype(np.int32), "soc_seen_views": seen_tot, "soc_last_item": last_item.astype(np.int32),
-        "soc_med_value": value.astype(np.float32), "soc_med_seen": seen},
-        **CREATE_MODEL, extra={"t": int(now), "created": int(made.sum()),
-                               "topics": [int(t) for t in topics[made]], "media": media_made})
+    vals = {"soc_items": nitems.astype(np.int32), "soc_seen_views": seen_tot, "soc_last_item": last_item.astype(np.int32)}
+    if learn:
+        vals.update(soc_med_value=value.astype(np.float32), soc_med_seen=seen)
+    population.record_decisions(ctx, "pop_social.created", idx, vals,
+                                **CREATE_MODEL, extra={"t": int(now), "created": int(made.sum()),
+                                                       "topics": [int(t) for t in topics[made]], "media": media_made})
     return u
