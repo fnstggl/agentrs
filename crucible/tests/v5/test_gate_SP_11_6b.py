@@ -7,8 +7,8 @@ against this requirement:
 
     algorithmic_limitation   a cannot-learn control practising an unfamiliar task never reaches the competence
                              threshold (a completed, censored run)
-    environment_failure      a Tier 2 world that this checkout cannot build (`TierUnavailable` from the experience
-                             registry), and the Tier 3 / Level 5 run when the civilisation generator fails
+    environment_failure      a Tier 2 or Tier 3 world that this checkout cannot build (`TierUnavailable` from the
+                             experience registry; Level 5 itself executes in U.1 - running it here on CPU timed out)
     interface_failure        a lever learner given a world that offers no continuous lever interface
     partition_refusal        a training request for an evaluation item
     infrastructure_failure   a request to an evaluator process after its channel closed
@@ -23,7 +23,6 @@ from crucible.research.v5 import curves as CV
 from crucible.research.v5 import distribution as D
 from crucible.research.v5 import evaluator as EV
 from crucible.research.v5 import learners as LR
-from crucible.research.v5 import levels as LV
 from crucible.research.v5 import sampler as S
 from crucible.research.v5.episodes import lever_entries, run_episode
 from crucible.research.v5.integrity import FAILURE_CAUSES, classify_failure
@@ -62,12 +61,14 @@ def test_SP11_6b_failure_causes_classified():
         ev.must("ping")
     except Exception as e:  # noqa: BLE001
         reports.append({"case": "closed_evaluator", **classify_failure(e)})
-    l5 = LV.run_level(LV.build_level(5, reg), seeds=(0, 1, 2), reg=reg)
-    if not l5["executed"] and l5.get("failure"):
-        reports.append({"case": "level5", **l5["failure"]})
+    try:                                  # a Tier 3 world this checkout cannot build (Level 5 itself runs in U.1)
+        make(3, "no_such_profile", 0)
+    except Exception as e:  # noqa: BLE001
+        reports.append({"case": "tier3_world", **classify_failure(e)})
     causes = {r["case"]: r["cause"] for r in reports}
     unclassified = sum(1 for r in reports if r["cause"] not in FAILURE_CAUSES)
     expected = {"cannot_learn_practice": "algorithmic_limitation", "tier2_world": "environment_failure",
+                "tier3_world": "environment_failure",
                 "no_lever_interface": "interface_failure", "evaluation_item_for_training": "partition_refusal",
                 "closed_evaluator": "infrastructure_failure"}
     right = sum(1 for k, v in expected.items() if causes.get(k) == v)
