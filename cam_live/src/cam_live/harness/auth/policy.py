@@ -523,6 +523,12 @@ class PolicyService:
         if tc is None:
             return self._decision(DENY, ah, terr), info
 
+        prior = self.approvals_q.find(ah, now)
+        if prior is not None and prior["status"] == REJECTED:
+            return self._decision(DENY, ah, [("P-APPROVAL-REJECTED", f"the operator rejected this action "
+                                                                     f"({prior['resolved_by']}: {prior['note']})")],
+                                  approval_id=prior["approval_id"]), info
+
         flat = Evaluator.flatten(action)
         location = self._location(tc.task_id, ctx)
         nodes = [self._eval.node(n, tc, location) for n in flat]
@@ -554,11 +560,7 @@ class PolicyService:
         approve: List[Finding] = [f for ne in nodes for f in ne.approve]
         approval_id = ""
         if approve:
-            entry = self.approvals_q.find(ah, now)
-            if entry is not None and entry["status"] == REJECTED:
-                return self._decision(DENY, ah, [("P-APPROVAL-REJECTED", f"the operator rejected this action "
-                                                                         f"({entry['resolved_by']}: {entry['note']})")],
-                                      approval_id=entry["approval_id"]), info
+            entry = prior
             if entry is None or entry["status"] not in (PENDING, APPROVED):
                 entry = self.approvals_q.request(bind_hash=ah, action_hash=ah, task_id=tc.task_id, kind="action",
                                                  preview=self._preview(action, nodes, tc, money), action=action.to_dict(),

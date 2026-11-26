@@ -190,14 +190,19 @@ tools:
     dests: [{kind: url, from: [arguments.destination, arguments.url, arguments.site, arguments.channel, target],
              required: true}]
   - id: T-DISCORD-DM
-    ops: [discord.dm, discord.send_dm, discord.direct_message, discord.create_dm, "*.dm", "*.send_dm",
-          "*.direct_message"]
+    ops: [discord.dm, discord.send_dm, discord.direct_message, discord.create_dm]
     modalities: [api, skill]
     effect: external_write
     kind: direct_message
     platform: discord
     dests: [{kind: account, platform: discord, from: [arguments.user_id, arguments.recipient, arguments.recipient_id,
                                                       target], required: true}]
+  - id: T-DM                        # any other direct-message tool; the recipient is a typed destination string
+    ops: ["*.dm", "*.send_dm", "*.direct_message"]
+    modalities: [api, skill]
+    effect: external_write
+    kind: direct_message
+    dests: [{kind: url, from: [arguments.recipient, arguments.to, target], required: true}]
   - id: T-DISCORD-MEMBERSHIP
     ops: [discord.add_member, discord.add_members, "discord.join*", discord.accept_invite, discord.create_account,
           discord.register]
