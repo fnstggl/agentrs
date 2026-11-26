@@ -22,7 +22,7 @@ def _run(a) -> dict:
     from .registry import make
     from .store import ExperienceStore
     kw = {}
-    if a.tier == 1:
+    if a.tier == 1 and not a.name.startswith("rapid:"):
         kw["validate"] = not a.unvalidated
     if a.tier in (0, 2, 3) and a.agents:
         kw["agents"] = a.agents.split(",")

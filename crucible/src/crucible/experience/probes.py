@@ -946,3 +946,32 @@ def run_all(surfaces: Iterable[str] | None = None, errors: str = "raise") -> dic
 if __name__ == "__main__":          # python -m crucible.experience.probes [surface ...]
     res = run_all(sys.argv[1:] or None, errors="record")
     print(json.dumps(res, indent=1, default=str))
+
+
+# ====================================================================== positive control
+def positive_control() -> dict:
+    """The probes must find the leaks the 4.0 contract has: the same probes in an explicitly selected
+    ``legacy_shaped_reward`` world (evaluator tools available to participants, the mechanism's score in reports)
+    recover the evaluator's values. Returns the leaks found per kind (all must be > 0 for the probes to be
+    sensitive)."""
+    from ..goals.metrics import evaluate_metric
+    from ..research.tasks import make_task
+    from ..selfplay.arena import SelfPlayEnv
+    P = Probe("positive control (legacy_shaped_reward, the 4.0 contract)")
+    tags = ("RUNTIME", "INTERNAL", "PRIVATEMAIL", "SPEC")
+    env, a, ids = _kernel_world(7, LEGACY, {t: "N" * 31 for t in tags}, window_days=30)
+    truth = float(evaluate_metric(env.world, "independent_revenue", {"principal": ids["org"], "window_s": 30 * DAY}))
+    _predicate_oracles(P, env, a, ids, truth)
+    tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}), "legacy kernel")
+    task = make_task("tech_shared_pool", 2, validate=False)
+    sp = SelfPlayEnv([task], reward_mode=LEGACY)
+    sp.reset()
+    rng = np.random.default_rng(0)
+    for _ in range(4):
+        out = sp.step([rng.uniform(-1, 1, size=(1, 12)) for _ in range(2)])
+        vals = {f"seat{s}.score": float(sp.sims[0].last[s]["score"]) for s in range(2)}
+        scan(P, out, values=vals, label="legacy SelfPlayEnv", extra_keys=("score",))
+    rewards(P, np.asarray(out[1]).ravel().tolist(), "legacy SelfPlayEnv")
+    r = P.result()
+    r["kinds_with_leaks"] = sorted(k for k, v in r["kinds"].items() if v["leaks"] > 0)
+    return r

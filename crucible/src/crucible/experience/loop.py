@@ -81,7 +81,7 @@ def run_learner(env, learner, steps: int, *, agent: str | None = None, think_s: 
             summary["updates"] += int(u.get("updates", 0))
             summary["params_changed_updates"] += int(bool(u.get("changed")))
             summary["update_log"].append({k: u.get(k) for k in ("updates", "transitions", "loss", "changed",
-                                                                "params_hash_after")})
+                                                                "params_hash_after", "signal_sum")})
         obs = nxt
         if done and hasattr(env, "reset"):
             env.reset()

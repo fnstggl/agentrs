@@ -29,22 +29,38 @@ def _learner(env, seed=0):
 
 
 def test_S1_reference_learner_acts_in_tier1():
-    env = make(1, "mech:scm_additive", 11, "observation_only")
+    from crucible.experience.loop import run_learners
+    env = make(1, "mech:scm_additive", 11)                       # observation_only by default
     L = _learner(env)
     s = run_learner(env, L, 220, update_every=40)
-    metrics = {"tier1_actions": s["actions"], "tier1_world_changes": s["world_changes"], "tier1_ok": s["ok"],
-               "tier1_rejected": s["rejected"], "tier1_updates": s["updates"]}
-    record("S.1", metrics, command=CMD, notes="Tier 1 = 4.0 hidden-mechanism facility scm_additive:11 through "
-           "MechExperienceEnv (the kernel facility's own rig.* tools); world change = an executed action changed the "
-           "settings the facility runs at")
+    rapid = {}
+    for fam in ("net_routing", "ch_sign_reversal", "lab_kinetics"):          # v5 rapid families, single participant
+        e = make(1, f"rapid:{fam}", 11)
+        rapid[fam] = run_learner(e, _learner(e, 1), 120, update_every=40)
+    team = make(1, "rapid:team_commons", 11)                         # a v5 multi-agent family: joint ticks
+    multi = run_learners(team, {a: _learner(team, 2 + k) for k, a in enumerate(team.agents())}, 60, update_every=30)
+    v5_actions = sum(r["actions"] for r in rapid.values()) + sum(r["actions"] for r in multi["agents"].values())
+    v5_changes = sum(r["world_changes"] for r in rapid.values()) + multi["world_changes"]
+    fails = sum(r["schema_failures"] for r in rapid.values()) + sum(r["schema_failures"]
+                                                                     for r in multi["agents"].values())
+    metrics = {"tier1_actions": s["actions"] + v5_actions, "tier1_world_changes": s["world_changes"] + v5_changes,
+               "tier1_ok": s["ok"], "tier1_rejected": s["rejected"], "tier1_updates": s["updates"],
+               "v5_rapid_actions": v5_actions, "v5_rapid_world_changes": v5_changes,
+               "v5_rapid_schema_failures": fails, "rapid_multi_agent_world_changes": multi["world_changes"]}
+    record("S.1", metrics, command=CMD, notes="Tier 1 = the 4.0 hidden-mechanism facility scm_additive:11 "
+           "(MechExperienceEnv, the kernel facility's own rig.* tools; world change = settings the facility runs at "
+           "changed) and v5 rapid families (RapidExperienceEnv: net_routing, ch_sign_reversal, lab_kinetics, and "
+           "team_commons with three ReferenceLearners acting in joint ticks; world change = an effectful action "
+           "carried out)")
     assert metrics["tier1_actions"] >= 100 and metrics["tier1_world_changes"] >= 1, metrics
+    assert v5_actions >= 100 and v5_changes >= 1 and fails == 0, metrics
 
 
 def _tier_run(tier: int, names: list[str], steps: int) -> dict:
     acts = changes = 0
     worlds = []
     for name in names:
-        env = make(tier, name, 0, "observation_only", agents=["learner"])
+        env = make(tier, name, 0, "observation_only")          # the learner occupies the domain's / civ's seat
         L = _learner(env)
         s = run_learner(env, L, steps, update_every=32, think_s=3600)
         acts += s["actions"]
@@ -114,6 +130,14 @@ def test_S4_experience_storage_and_updates(tmp_path):
     assert stored == n >= 1000 and u["updates"] >= 1 and metrics["params_changed"], metrics
 
 
+def _receiver(env):
+    """A team family seen by a participant that has just received a message (its entities carry it)."""
+    a = env.agents()
+    env.execute(a[1], {"tool": "rapid.message", "args": {"to": a[0], "text": "hello"}})
+    env.advance(env.tick_s)
+    return env
+
+
 def test_S5_one_interface_many_world_types():
     """One learner instance (the same weights) across world types; every observation validated."""
     from crucible.research.tasks import make_task
@@ -128,12 +152,16 @@ def test_S5_one_interface_many_world_types():
               ("kernel-hosted facility (rig world)", 0, lambda: KernelExperienceEnv(
                   generate(cfg, seed), agents=["agent"], endowment=task.endowment, reward_mode="observation_only")),
               ("4.0 economy (tiny)", 0, lambda: make(0, "tiny", 1, "observation_only", agents=["learner"])),
+              ("tier1 v5 rapid family", 1, lambda: make(1, "rapid:net_routing", 1)),
+              ("tier1 v5 rapid team family (receiver)", 1, lambda: _receiver(make(1, "rapid:team_commons", 1))),
               ("4.0 open digital economy", 0, lambda: make(0, "open_digital", 1, "observation_only",
                                                           agents=["learner"]))]
     for dn in sorted(domains())[:3]:
-        worlds.append((f"v5 domain {dn}", 2, lambda dn=dn: make(2, dn, 0, "observation_only", agents=["learner"])))
+        worlds.append((f"v5 domain {dn}", 2, lambda dn=dn: make(2, dn, 0, "observation_only")))
     if civ_available():
-        worlds.append(("v5 civilisation", 3, lambda: make(3, "default", 0, "observation_only", agents=["learner"])))
+        import crucible.civ as civ
+        prof = sorted(getattr(civ, "PROFILES", {"default": None}))[0]
+        worlds.append(("v5 civilisation", 3, lambda: make(3, prof, 0, "observation_only")))
     L = ReferenceLearner(seed=0, reward_mode="observation_only")
     failures, ran, tiers = 0, [], set()
     action_shapes = set()
@@ -159,7 +187,8 @@ def test_S5_one_interface_many_world_types():
 def test_S6_checkpoint_persistence(tmp_path):
     env = make(1, "mech:scm_gate", 7, "observation_only", validate=False)
     L = _learner(env, 3)
-    run_learner(env, L, 120, update_every=30)
+    run_learner(env, L, 120, update_every=50, learn=True)            # leaves transitions buffered mid-episode
+    assert L.buf, "the checkpoint must be taken with transitions in the buffer"
     path = str(tmp_path / "ref.pt")
     L.save(path)
     L2 = ReferenceLearner(seed=12345, reward_mode="observation_only")
@@ -173,14 +202,14 @@ def test_S6_checkpoint_persistence(tmp_path):
             x, y = oa["state"][k][f], ob["state"][k][f]
             mism += int(not bool((x == y).all())) if hasattr(x, "shape") else int(x != y)
     mism += int(L.params_hash() != L2.params_hash()) + int(L.memory != L2.memory) + int(L.updates != L2.updates)
-    # the same future: same sampled actions on the same observations, same update result
+    # the same future from the middle of an episode: the recurrent state, the buffered transitions and the
+    # transition in flight are part of the checkpoint, so nothing is reset before comparing
+    mism += int(len(L.buf) != len(L2.buf)) + int(float((L.h - L2.h).abs().sum()) != 0.0)
     env2 = make(1, "mech:scm_gate", 7, "observation_only", validate=False)
     obs = [env2.observe(env2.agents()[0])]
     for _ in range(10):
         env2.advance(env2.tick_s)
         obs.append(env2.observe(env2.agents()[0]))
-    L.reset()
-    L2.reset()
     for o in obs:
         mism += int(json.dumps(L.act(o, explore=True), sort_keys=True) != json.dumps(L2.act(o, explore=True),
                                                                                        sort_keys=True))
@@ -190,9 +219,10 @@ def test_S6_checkpoint_persistence(tmp_path):
     mism += int(ua["params_hash_after"] != ub["params_hash_after"])
     metrics = {"checkpoint_roundtrip_mismatches": mism, "checkpoint_bytes": os.path.getsize(path),
                "params": L.params()}
-    record("S.6", metrics, command=CMD, notes="save -> load into a learner built with another seed: weights, optimiser "
-           "state, RNG states, parameter-spec memory, counters; then identical sampled actions on 11 observations and "
-           "an identical update")
+    record("S.6", metrics, command=CMD, notes="mid-episode save -> load into a learner built with another seed: "
+           "weights, optimiser state, RNG states, parameter-spec memory, counters, recurrent state, buffered and "
+           "in-flight transitions; then, without any reset, identical sampled actions on 11 observations and an "
+           "identical update")
     assert mism == 0, metrics
 
 
@@ -219,29 +249,35 @@ def test_S7_parallel_environments(tmp_path):
     finally:
         fr.close()
     store.close()
-    metrics = {"parallel_environments": int(out["max_concurrent_environments"]),
+    metrics = {"parallel_environments": min(int(out["max_concurrent_environments"]), len(out["worker_pids"])),
                "vectorised_environments": vec.n, "vectorised_steps": steps,
                "farm_worker_processes": len(out["worker_pids"]), "farm_steps": out["steps"],
                "farm_failures": len(out["failures"]), "farm_learner_updates": out["updates"],
                "farm_param_versions": out["params_versions"]}
-    record("S.7", metrics, command=CMD, notes="parallel_environments = most environments whose worker intervals "
-           "overlapped in the RolloutFarm run (separate processes); also a vectorised run of 8 environments in one "
-           "process; experience from the farm stored, the learner updated and new parameters published per round")
+    record("S.7", metrics, command=CMD, notes="parallel_environments = most environments that ran at the same time in "
+           "distinct worker processes, from worker-side wall-clock stamps (Rollout.started_at/ended_at), bounded by "
+           "the number of distinct worker pids; also a vectorised run of 8 environments in one process; experience "
+           "from the farm stored, the learner updated and new parameters published per round")
     assert metrics["parallel_environments"] >= 4 and metrics["farm_failures"] == 0, metrics
+    assert metrics["farm_worker_processes"] >= 4, metrics
 
 
 def test_S8_reproducible_commands(tmp_path):
     outs = []
-    for i in range(2):
-        d = tmp_path / f"run{i}"
-        cmd = [sys.executable, "-m", "crucible.experience", "run", "--tier", "1", "--name", "mech:scm_additive",
-               "--seed", "0", "--steps", "120", "--reward-mode", "observation_only", "--store", str(d / "store"),
-               "--checkpoint", str(d / "ref.pt"), "--out", str(d / "out.json")]
-        env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"), OMP_NUM_THREADS="1")
-        subprocess.run(cmd, cwd=ROOT, env=env, check=True, capture_output=True, timeout=600)
-        outs.append(json.loads((d / "out.json").read_text()))
+    for name in ("mech:scm_additive", "rapid:net_routing"):
+        pair = []
+        for i in range(2):
+            d = tmp_path / f"{name.replace(':', '_')}{i}"
+            cmd = [sys.executable, "-m", "crucible.experience", "run", "--tier", "1", "--name", name,
+                   "--seed", "0", "--steps", "120", "--reward-mode", "observation_only", "--store", str(d / "store"),
+                   "--checkpoint", str(d / "ref.pt"), "--out", str(d / "out.json")]
+            env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "src"), OMP_NUM_THREADS="1")
+            subprocess.run(cmd, cwd=ROOT, env=env, check=True, capture_output=True, timeout=600)
+            pair.append(json.loads((d / "out.json").read_text()))
+        outs.append(pair)
     keys = ("store_digest", "params_hash_after", "env_digest", "actions", "world_changes", "updates")
-    same = all(outs[0][k] == outs[1][k] for k in keys)
+    same = all(p[0][k] == p[1][k] for p in outs for k in keys)
+    outs = outs[0]
     metrics = {"reproducible_commands_verified": bool(same), "digests_compared": len(keys),
                "store_digest": outs[0]["store_digest"], "params_hash": outs[0]["params_hash_after"]}
     record("S.8", metrics, command=" ".join(["python -m crucible.experience run --tier 1 --name mech:scm_additive",
