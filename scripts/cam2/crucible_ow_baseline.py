@@ -8,10 +8,14 @@ Arms, all on the same goal instances and evaluated greedily with no weight updat
     idle          never acts.
     builder       the scripted competent control (it knows the reference solvers: a feasibility witness, not a peer).
 
-CAM acts through the ordinary tool interface via `integrations.agentrs_cam2.CrucibleAdapter`: one tool call per step,
-then the world advances by `--dt` seconds.
+CAM acts through the ordinary tool interface via `agentrs.cam2.envs.crucible_adapter.CrucibleAdapter`: one tool call
+per step, then the world advances by `--dt` seconds. This is a Crucible 4.0 experiment: its pool selects the 4.0
+reward contract explicitly (``reward_mode="legacy_shaped_reward"``, Crucible OO.8; the default is observation-only).
 
-    PYTHONPATH=../src:src python examples/ow_cam_baseline.py --ckpt-dir ../runs/cam2/main_s0/ckpt
+Moved from crucible/examples/ow_cam_baseline.py to the AGENTRS side (Crucible DECISION_LOG D-81: Crucible never imports
+CAM). From the repository root:
+
+    PYTHONPATH=src:crucible/src python scripts/cam2/crucible_ow_baseline.py --ckpt-dir runs/cam2/main_s0/ckpt --run-dir ...
 """
 import argparse
 import json
@@ -21,7 +25,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [os.path.join(HERE, "..", "src"), os.path.join(HERE, "..", "..", "src")]
+REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
+sys.path[:0] = [os.path.join(REPO, "crucible", "src"), os.path.join(REPO, "src")]
 
 
 def gpu_free_mb() -> int:
@@ -52,7 +57,7 @@ def controls(families, seeds, max_days):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt-dir", default=os.path.join(HERE, "..", "..", "..", "..", "runs", "cam2", "main_s0", "ckpt"))
+    ap.add_argument("--ckpt-dir", default=os.path.join(REPO, "runs", "cam2", "main_s0", "ckpt"))
     ap.add_argument("--families", default="service:ow_tiny:0,revenue:ow_tiny:0")
     ap.add_argument("--seeds", default="0,1,2,3")
     ap.add_argument("--max-steps", type=int, default=40)
@@ -60,7 +65,7 @@ def main():
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--run-dir", required=True)
     ap.add_argument("--min-gpu-mb", type=int, default=8000)
-    ap.add_argument("--out", default=os.path.join(HERE, "..", "docs", "experiments", "ow_cam_baseline.json"))
+    ap.add_argument("--out", default=os.path.join(REPO, "crucible", "docs", "experiments", "ow_cam_baseline.json"))
     a = ap.parse_args()
     free = gpu_free_mb()
     if free < a.min_gpu_mb:
@@ -72,7 +77,8 @@ def main():
     families, seeds = a.families.split(","), [int(s) for s in a.seeds.split(",")]
     tasks = [TaskRef(env="crucible", family=f, seed=s) for f in families for s in seeds]
     t0 = time.time()
-    pool = EnvPool("crucible", a.workers, {"max_steps": a.max_steps, "dt": a.dt})
+    pool = EnvPool("crucible", a.workers, {"max_steps": a.max_steps, "dt": a.dt,
+                                           "reward_mode": "legacy_shaped_reward"})   # the 4.0 experiment, named
     out = {"what": __doc__.split("\n")[0], "families": families, "seeds": seeds, "max_steps": a.max_steps, "dt_s": a.dt,
            "simulated_days_per_episode": a.max_steps * a.dt / 86400, "gpu_free_mb_at_start": free, "arms": {}}
     try:

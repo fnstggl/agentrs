@@ -1,9 +1,12 @@
 # Learning agents in Crucible: frozen LLM, CAM 2.0, superlearner, neural RL
 
-Code: `crucible/src/crucible/agents/{llm.py, rl.py}`, `crucible/src/crucible/integrations/{__init__.py,
-agentrs_cam2.py, agentrs_sl.py}`, `src/agentrs/cam2/envs/crucible_env.py` (AGENTRS side; `"crucible"` kind in
-`cam2/envs/pool.py` and `cam2/tasks.py`). Tests: `crucible/tests/test_agents_llm.py` (13 tests; 2 need a GPU and the
-locally cached Qwen3-0.6B and are skipped otherwise).
+Code: `crucible/src/crucible/agents/{llm.py, rl.py}`, `crucible/src/crucible/integrations/__init__.py`; AGENTRS side
+(Crucible 5.0 moved the CAM adapters there, docs/v5/DECISION_LOG.md D-81: Crucible never imports CAM):
+`src/agentrs/cam2/envs/{crucible_adapter.py, crucible_env.py}` (`"crucible"` kind in `cam2/envs/pool.py` and
+`cam2/tasks.py`) and `src/agentrs/sl/crucible_world.py`. Tests: `crucible/tests/test_agents_llm.py` (LLM policy,
+action templates, neural RL) and, at the repository root, `tests/cam2/test_crucible_adapter.py` and
+`tests/test_sl_crucible_world.py` (13 tests together; 2 need a GPU and the locally cached Qwen3-0.6B and are skipped
+otherwise).
 
 ```
 cd crucible && PYTHONPATH=../src:src python -m pytest -q tests/test_agents_llm.py
@@ -93,7 +96,10 @@ error message. The first replies show the model copying the goal text into tool 
 (script `runs/crucible_llm/eval_llm.py`). This is a 2-day probe of a small model with a single prompt format, not a
 benchmark result.
 
-## 4. CAM 2.0 adapter (`integrations/agentrs_cam2.py`, `agentrs/cam2/envs/crucible_env.py`)
+## 4. CAM 2.0 adapter (AGENTRS side: `src/agentrs/cam2/envs/crucible_adapter.py`, `agentrs/cam2/envs/crucible_env.py`)
+
+Moved out of the Crucible tree in Crucible 5.0 (docs/v5/DECISION_LOG.md D-81: Crucible never imports CAM; CAM
+imports Crucible). Its tests: `tests/cam2/test_crucible_adapter.py` at the repository root.
 
 * `TaskRef(env="crucible", family="<goal>:<world family>:<level>[:<prefix>]", seed=s)`, e.g. `service:tiny:0` or
   `revenue:tiny:1:deployed_service`. `TrainSampler("crucible")` draws train seeds `[0, 1e6)`; `val_tasks("crucible")`
@@ -115,7 +121,7 @@ benchmark result.
   progress and all counters; `evaluate()` reports the `GoalVerifier` status with the counters and rates **separately**
   from task success. `snapshot`/`restore` use the kernel's snapshot blob.
 * Run: `EnvPool("crucible", n, {"max_steps": 8})`, `RunConfig(env="crucible", train_families=[...])`, or the smoke run
-  `PYTHONPATH=src:crucible/src python -m crucible.integrations.agentrs_cam2 --llm Qwen/Qwen3-0.6B`.
+  `PYTHONPATH=src:crucible/src python -m agentrs.cam2.envs.crucible_adapter --llm Qwen/Qwen3-0.6B`.
 
 Protocol tests (CAM 2.0's known failure modes made visible): (a) unparseable JSON is counted as `json_invalid`, never
 reaches the world (no `cmd`/`cmd.rejected` record) and does not end or fail the task; (b) every parseable call is
@@ -141,7 +147,7 @@ Smoke run (frozen Qwen3-0.6B, untrained CAM with the default configuration, 4 `E
 Typical generated arguments (untrained CAM): `"{\n  \"action_control_signal\": \"code.log\",\n  \"arguments\": {\n    \"repo\": \"code\",\n    \"limit\":"`, `"{\n  \"action\": \"cloud.status\",\n  \"arguments\": {\n    \"host\": \"your_cloud_host\",\n    \"days\": "` -
 the arguments are syntactically valid JSON but wrapped or polluted with extra keys, hence the schema rejections.
 
-## 5. Superlearner adapter (`integrations/agentrs_sl.py`)
+## 5. Superlearner adapter (AGENTRS side: `src/agentrs/sl/crucible_world.py`, moved under D-81; tests: `tests/test_sl_crucible_world.py` at the repository root)
 
 Importing the module registers `crucible/<goal family>` for every non-held-out goal family (`outperform`, `recruit`,
 `revenue`, `service`, `solvency` at the time of writing; `HELDOUT_GOAL_FAMILIES` are never registered) and

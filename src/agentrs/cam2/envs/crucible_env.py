@@ -1,6 +1,7 @@
 """Crucible (event-sourced persistent synthetic-internet worlds, ``crucible/`` in this repository) as a CAM 2.0
-environment. The adapter itself lives with Crucible (``crucible.integrations.agentrs_cam2``) so that it is versioned
-with the world's tool and goal APIs; this module only makes the Crucible package importable and re-exports it.
+environment. The adapter lives on the AGENTRS side (``agentrs.cam2.envs.crucible_adapter``; moved out of the Crucible
+tree under Crucible's DECISION_LOG D-81: Crucible is independent of CAM, CAM imports Crucible); this module re-exports
+it under the name the env pool uses.
 
 Task families: ``"<goal family>:<world family>:<level>[:<start-state prefix>]"``, e.g. ``"service:tiny:0"``; the
 TaskRef seed is the goal/world seed. See ``crucible/docs/RL_INTEGRATION.md``.
@@ -20,7 +21,7 @@ except ImportError:  # running from the AGENTRS tree: use the in-repo Crucible s
         raise DependencyUnavailable(f"Crucible sources not found at {_src}; add crucible/src to PYTHONPATH")
     sys.path.insert(0, str(_src))
 
-from crucible.integrations.agentrs_cam2 import (CrucibleAdapter, crucible_tool_spec, parse_family,  # noqa: E402,F401
+from agentrs.cam2.envs.crucible_adapter import (CrucibleAdapter, crucible_tool_spec, parse_family,  # noqa: E402,F401
                                                 SCHEMA_CODES)
 
 DEFAULT_TRAIN_FAMILIES = ["service:tiny:0"]

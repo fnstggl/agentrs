@@ -55,7 +55,7 @@ Set `CRUCIBLE_CACHE=<dir>` so validated tasks are built once. Every long script 
 | transfer | `python examples/ow_benchmark.py transfer --learners ppo_gru,model_based --seeds 0,1 --budget 60000 --adapt-budget 20000 --n-eval 4 --workers 2 --tag final` |
 | self-play | `python examples/ow_selfplay.py --work <dir> --workers 3` |
 | frozen LLM | `python examples/ow_llm_baseline.py llm ablation open short open_v3 sens summary` |
-| existing CAM controller | `PYTHONPATH=../src:src python examples/ow_cam_baseline.py --ckpt-dir ../runs/cam2/main_s0/ckpt --run-dir <dir>` (needs that checkpoint, which is not in git) |
+| existing CAM controller | from the repository root: `PYTHONPATH=src:crucible/src python scripts/cam2/crucible_ow_baseline.py --ckpt-dir runs/cam2/main_s0/ckpt --run-dir <dir>` (moved to the AGENTRS side under v5 D-81) (needs that checkpoint, which is not in git) |
 | long runs | `python examples/long_run4.py --family ow_market --seeds 1,2,3 --days 365 --arms full --shock-day 120 --prefix ow_longrun365 --jobs 3` |
 | | `python examples/long_run4.py --family ow_frontier --seeds 1,2 --days 180 --arms full --shock-day 90 --prefix ow_longrun180 --jobs 2` |
 | | `python examples/long_run4.py --family ow_heldout --seeds 1,2 --days 90 --arms full --shock-day 45 --prefix ow_longrun90 --jobs 2` |

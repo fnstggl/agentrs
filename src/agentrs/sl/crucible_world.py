@@ -30,8 +30,21 @@ module is imported.
   success, else 0.0. ``"legacy_shaped_reward"`` (explicit): the 4.0 adapter - a small native cost for schema-invalid
   calls, episodes end on verified success, `goal()` names the progress metric and target, ``evaluate_goal`` reads
   Crucible's `GoalVerifier` progress (sl's own RewardContract adds potential shaping on it).
+
+AGENTRS side (relocated from crucible/src/crucible/integrations/agentrs_sl.py (D-81)): Crucible never imports CAM; CAM imports Crucible.
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+
+try:                                                  # Crucible is independent of CAM (Clarification 1, D-81): the
+    import crucible  # noqa: F401                     # adapter lives on the AGENTRS side and imports Crucible, never
+except ImportError:                                   # the other way round; from the AGENTRS tree use its sources
+    _src = _Path(__file__).resolve().parents[3] / "crucible" / "src"
+    if not (_src / "crucible").is_dir():
+        raise ImportError(f"Crucible sources not found at {_src}; add crucible/src to PYTHONPATH")
+    _sys.path.insert(0, str(_src))
 
 import copy
 import pickle
@@ -40,8 +53,8 @@ from typing import Optional
 from agentrs.sl import worlds as W
 from agentrs.sl.world import ActionSpace, Consequence, GoalStatus, Obs, Task, World
 
-from ..api import render as R
-from . import DAY, OMIT, ActionTemplates, ActorView, EntityMemory, id_kind, make_goal_world, symlog
+from crucible.api import render as R
+from crucible.integrations import DAY, OMIT, ActionTemplates, ActorView, EntityMemory, id_kind, make_goal_world, symlog
 
 SPLIT_BASE = {"train": 10_000_000, "val": 1_000_000, "test": 0}
 MAX_OPTIONS = 24
@@ -70,7 +83,7 @@ class CrucibleSLWorld(World):
     def __init__(self, goal_family: str = "service", world_family: str = "tiny", level: int = 0, dt: int = 3600,
                  max_decisions: int = 48, prefix: Optional[str] = None, prefix_kw: Optional[dict] = None,
                  reward_mode: Optional[str] = None):
-        from ..experience.modes import check_mode
+        from crucible.experience.modes import check_mode
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
         self.goal_family, self.world_family, self.level = goal_family, world_family, level
@@ -93,9 +106,9 @@ class CrucibleSLWorld(World):
         self.reset_world()
 
     def reset_world(self) -> None:
-        from ..core.kernel import World as CW
-        from ..experience.modes import prepare_world
-        from ..goals.contracts import GoalVerifier
+        from crucible.core.kernel import World as CW
+        from crucible.experience.modes import prepare_world
+        from crucible.goals.contracts import GoalVerifier
         self.world = prepare_world(CW.from_blob(self.base, world_id=f"{self.world_id}-e{self.n_episode}"),
                                    self.reward_mode)
         self._paid = False
@@ -278,8 +291,8 @@ class CrucibleSLWorld(World):
                 "obs": copy.deepcopy(self._obs)}
 
     def restore_world_state(self, s) -> None:
-        from ..core.kernel import World as CW
-        from ..experience.modes import prepare_world
+        from crucible.core.kernel import World as CW
+        from crucible.experience.modes import prepare_world
         self.world = prepare_world(CW.from_blob(s["blob"], world_id=s["wid"]), self.reward_mode)
         self.view.rebind(self.world)
         self.view.cursor = s["cursor"]
@@ -301,7 +314,7 @@ def register_families(world_family: str = "tiny", level: int = 0, max_decisions:
     """Register the goal families with ``agentrs.sl.worlds``: ``crucible/<goal family>`` in the default
     (observation-only) mode, and ``crucible-legacy/<goal family>`` in the explicitly selected 4.0 mode for historical
     baselines (`FAMILY_NAMES`, `LEGACY_FAMILY_NAMES`)."""
-    from ..goals.contracts import GOAL_FAMILIES, HELDOUT_GOAL_FAMILIES
+    from crucible.goals.contracts import GOAL_FAMILIES, HELDOUT_GOAL_FAMILIES
     names = []
     for gf in sorted(set(GOAL_FAMILIES) - set(HELDOUT_GOAL_FAMILIES)):   # held-out goal families are never registered
         name = f"{prefix_name}/{gf}"

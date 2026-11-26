@@ -30,8 +30,21 @@
   and no termination on verified outcomes (truncation only); `evaluate()` (operator side) is unchanged.
   ``"verified_terminal_outcome"``: reward 1.0 once at the first verified success, else 0.0; ``info["eval"]`` at the
   end of an episode carries only ``success``/``failed``.
+
+AGENTRS side (relocated from crucible/src/crucible/integrations/agentrs_cam2.py (D-81)): Crucible never imports CAM; CAM imports Crucible.
 """
 from __future__ import annotations
+
+import sys as _sys
+from pathlib import Path as _Path
+
+try:                                                  # Crucible is independent of CAM (Clarification 1, D-81): the
+    import crucible  # noqa: F401                     # adapter lives on the AGENTRS side and imports Crucible, never
+except ImportError:                                   # the other way round; from the AGENTRS tree use its sources
+    _src = _Path(__file__).resolve().parents[4] / "crucible" / "src"
+    if not (_src / "crucible").is_dir():
+        raise ImportError(f"Crucible sources not found at {_src}; add crucible/src to PYTHONPATH")
+    _sys.path.insert(0, str(_src))
 
 import copy
 import json
@@ -41,8 +54,8 @@ from typing import Optional
 from agentrs.cam2.envs.base import EnvironmentAdapter, EvalResult, StepResult, TaskRef
 from agentrs.cam2.tools import ArgSpec, Element, Observation, ToolCall, ToolSpec, validate_call, validate_json_args
 
-from ..api import render as R
-from . import ActorView, agent_tools, compact_json, make_goal_world, tool_signature
+from crucible.api import render as R
+from crucible.integrations import ActorView, agent_tools, compact_json, make_goal_world, tool_signature
 
 SCHEMA_CODES = ("invalid_action", "unknown_tool")
 TEXT_SKIP = ("time", "principal", "events", "events_dropped")
@@ -102,7 +115,7 @@ class CrucibleAdapter(EnvironmentAdapter):
                  lifetime: str = "fresh", split: str = "dev", prefix_kw: Optional[dict] = None,
                  handle: str = "agent", overrides: Optional[dict] = None,
                  reward_mode: str | None = None):
-        from ..experience.modes import check_mode
+        from crucible.experience.modes import check_mode
         self.reward_mode = check_mode(reward_mode)
         self._paid = False
         if lifetime not in ("fresh", "continue"):
@@ -126,14 +139,14 @@ class CrucibleAdapter(EnvironmentAdapter):
 
     # ------------------------------------------------------------------ episode
     def reset(self, task: TaskRef) -> Observation:
-        from ..goals.contracts import RewardContract
+        from crucible.goals.contracts import RewardContract
         same = self.task is not None and task.key() == self.task.key() and self.world is not None
         if not (self.lifetime == "continue" and same):
             fam = parse_family(task.family)
             self.goal, self.world, self.actor, self.pinfo = make_goal_world(
                 fam["goal_family"], fam["world_family"], int(task.seed), fam["level"], split=self.split,
                 prefix=fam["prefix"], prefix_kw=self.prefix_kw, handle=self.handle, overrides=self.overrides)
-            from ..experience.modes import prepare_world
+            from crucible.experience.modes import prepare_world
             prepare_world(self.world, self.reward_mode)
             self.view = ActorView(self.world, self.actor, max_events=max(40, self.max_events))
             self.hist: list = []
@@ -291,8 +304,8 @@ class CrucibleAdapter(EnvironmentAdapter):
                 "counters": copy.deepcopy(self.episode_counters), "done": self._done}
 
     def restore(self, snap) -> Observation:
-        from ..core.kernel import World
-        from ..experience.modes import prepare_world
+        from crucible.core.kernel import World
+        from crucible.experience.modes import prepare_world
         self.world = prepare_world(World.from_blob(snap["blob"], world_id=snap["world_id"] + "-r"), self.reward_mode)
         self.view.rebind(self.world)
         self.view.cursor = snap["cursor"]

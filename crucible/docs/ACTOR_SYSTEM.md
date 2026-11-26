@@ -40,8 +40,8 @@ the world seed (they draw from `ctx.rng`), so worlds regenerate exactly.
 | scripted controls | `agents/scripted.py` | Builder, Employer, Composer, BountyHunter |
 | random / idle probes | `agents/scripted.py` | exploit and inactivity probes |
 | frozen LLM | `agents/llm.py` | local Qwen3 (see RL_INTEGRATION.md) |
-| CAM 2.0 (+ frozen LLM) | `integrations/agentrs_cam2.py` | AGENTRS learner through its EnvironmentAdapter |
-| AGENTRS superlearner | `integrations/agentrs_sl.py` | sl `World` adapter |
+| CAM 2.0 (+ frozen LLM) | AGENTRS `src/agentrs/cam2/envs/crucible_adapter.py` (moved under v5 D-81) | AGENTRS learner through its EnvironmentAdapter |
+| AGENTRS superlearner | AGENTRS `src/agentrs/sl/crucible_world.py` (moved under v5 D-81) | sl `World` adapter |
 | small neural RL learner | `agents/rl.py` | online, from verified consequences |
 | human | web frontend (`web/`) or `crucible actor` CLI | same tools |
 | league / self-play populations | `training/league.py` | opponent pools, held-out populations |
