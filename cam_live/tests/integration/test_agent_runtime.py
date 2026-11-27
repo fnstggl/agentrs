@@ -29,7 +29,10 @@ from cam_live.runtime.logs import iter_jsonl
 from cam_live.validation import HeldOutProbe, weight_swap
 from int_helpers import AGENT_METHODS, Recorder, agent_config, count, run_lifetime
 
-SEEDS = (11, 12, 13)
+# five independent lifetimes: the meta-update needs >= 3 independent verified outcome groups outside the promotion
+# hold-out, and every decision of a lifetime with a signed verdict belongs to that lifetime's group (seed 15's
+# objective group would be held out for promotion evidence)
+SEEDS = (11, 12, 13, 14, 16)
 TRAINABLE = ("experiential", "semantic_adapters", "heads", "reward")
 
 
@@ -41,11 +44,17 @@ def _tv(p, q):
 def session(tmp_path_factory):
     root = str(tmp_path_factory.mktemp("integrated"))
     clock = SimClock()
-    agent = CamLiveAgent(agent_config(), os.path.join(root, "agent"), clock=clock)
+    # policy updates every 6 rewarded decisions: each update's query window then holds ~6 decisions, enough for the
+    # importance-weighted meta estimator's effective-sample-size floor per lifetime (with 3 it was below the floor
+    # in every attempt that had enough independent groups: measured, docs/INTEGRATION.md §9)
+    agent = CamLiveAgent(agent_config(policy_update_every=6), os.path.join(root, "agent"), clock=clock)
     rec = Recorder(agent)
     probe = HeldOutProbe(agent)
     p0, s0 = probe.distribution(), agent.model.trainable_state()
-    lifetimes = [run_lifetime(rec, clock, root, seed, max_steps=40, max_decisions=22) for seed in SEEDS]
+    # attribution windows of 30 min (LabWorld default in this family: 6 h): the interventions' outcomes mature
+    # inside a test-sized lifetime whatever the agent chooses, instead of only when it happens to wait
+    lab = {"outcome_horizon_s": 1800.0, "mean_delay_s": (300.0, 900.0)}
+    lifetimes = [run_lifetime(rec, clock, root, seed, max_steps=40, max_decisions=22, lab_kw=lab) for seed in SEEDS]
     status = lifetimes[-1].report.get("agent", {})
     yield {"root": root, "agent": agent, "rec": rec, "probe": probe, "p0": p0, "s0": s0, "lifetimes": lifetimes,
            "status": status, "clock": clock}
