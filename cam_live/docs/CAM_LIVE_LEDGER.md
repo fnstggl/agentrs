@@ -49,6 +49,37 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 - Launched build wave 1 (12 agents): A model; B1/C1/D1 tensor-level parts; EB/EC/EA/ES harness; F runtime; then
   B2/C2/D2 on the real model.
 
+### 2026-11-27 — session 1 (continued after context compaction)
+
+- Wave 1 stage 1 finished 01:27 UTC: A, B1, C1, D1, EA, EB, EC, ES, F committed with status files and change
+  requests (`docs/status/`, `docs/change_requests/`). Stage 2 (B2, C2, D2 on the real model) started 01:28 UTC.
+- **Operator supplied Discord resources (2026-11-27):** application "CAM Live" (id 1575681780462129232), server
+  "CAM's lab" (id 1575680989060010034), a bot token and a dedicated account. Operator instructions, verbatim scope:
+  run the authorized integration tests now; do **not** launch the public-facing experiment until readiness is
+  verified and the operator explicitly authorizes it; credentials stay isolated from the learner, training data and
+  logs; operate only in the designated server with scoped permissions; do not choose niche / branding / strategy.
+- Credentials are held root-only in `/root/.config/camlive/` (`discord_bot_token`, `discord_account.json`,
+  `discord_ids.json`, operator signing key `operator_ed25519{,.pub}`); never in the repository, logs or agent prompts.
+  Entry path for a run: `python -m cam_live.harness.credentials set discord_bot_token --run-dir R --from-file ...`
+  (vault copy for executors + verifier's own copy).
+- Read-only checks against the real API: the token authenticates as the bot user; application flags 565248 = the
+  limited presence / guild-members / message-content intents are enabled in the portal; `bot_public` is true;
+  **the bot was not a member of the server** (`/users/@me/guilds` = `[]`). Operator was given the OAuth2 URL
+  (`scope=bot`, permissions 2269727275740401, guild pre-selected). A background watcher polls once a minute.
+- Direct login with the dedicated account (operator asked to try): one attempt from Playwright Chromium stopped at
+  Discord's hCaptcha challenge. Not circumvented, not retried. User-account automation stays out of CAM's action
+  space (Discord Community Guidelines "no self-bots or user-bots"; spec 12.5; policy rule
+  `PL-DISCORD-NO-USER-AUTOMATION`).
+- Master additions: `harness/credentials.py`, `harness/discord_membership.py` (verifier-side member list),
+  `harness/operator_requests.py` + tool `internal.request_operator` (CAM asks the operator for capabilities; the
+  answer returns as an event), tests in `tests/integration/`.
+- A separate agent is extending the Discord adapter (server settings, channels, roles, permission report + operator
+  scope, membership events by snapshot diff, bounded Gateway window, staging gateway, `tools/discord_live_check.py`).
+- **Push blocked by GitHub push protection**: the fake Discord-token-shaped fixture in
+  `tests/runtime/test_rt_logs_journal.py` (commit `ed56d46`, local only) is flagged. Fix at the next quiescent point
+  (no agent committing): build the fixture at run time and rewrite the unpushed commits `ed56d46..HEAD`, record the
+  old→new commit map in `docs/evidence/commit_map.tsv`, then push. Last pushed commit: `d9f8dde`.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
@@ -57,7 +88,11 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
 
 ## Next steps
 
-1. When wave 1 returns: read `docs/status/*.json` and `docs/change_requests/*.md`; write `cam_live/agent.py`
-   (integrated `AgentAPI`), `validation.py` (staging), `verify_completion.py`; run the whole suite.
+0. Discord: when the bot is in the server, store the token in an integration run directory, sign and register a
+   live authorization for `tasks/discord_integration.yaml`, run `tools/discord_live_check.py`, save evidence under
+   `docs/evidence/discord/`.
+1. When wave 1 returns: apply the additive change requests to the master files; write `harness/factories.py`
+   (all executors incl. Discord for the exec service), `cam_live/agent.py` (integrated `AgentAPI`),
+   `validation.py` (staging), `configs/authorization.yaml`; run the whole suite.
 2. Wave 2: `S` (baselines, experiments, transfer) and `G` (independent verification, three lenses), then fixes.
 3. Real-backbone runs under the GPU lock; staging validation; preflight; research report; operator list.
