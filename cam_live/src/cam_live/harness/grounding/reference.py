@@ -19,7 +19,8 @@ from .base import GroundingError, decode_png, point_result
 
 _STOP = {"the", "a", "an", "button", "link", "icon", "element", "field", "input", "box", "tab", "menu", "item",
          "click", "on", "press", "tap", "select", "open", "labelled", "labeled", "called", "named", "that", "says",
-         "with", "text", "label", "of", "to", "in", "for", "control", "checkbox", "option", "at", "which", "is"}
+         "with", "text", "label", "of", "to", "in", "for", "control", "checkbox", "option", "at", "which", "is",
+         "circle", "square", "dot", "tile", "rectangle", "area", "bar", "row", "small", "large", "big"}
 _COLOURS = {"red": (220, 40, 40), "green": (40, 160, 70), "blue": (40, 100, 220), "yellow": (240, 200, 40),
             "orange": (240, 140, 30), "purple": (140, 60, 190), "black": (20, 20, 20), "grey": (128, 128, 128),
             "gray": (128, 128, 128), "pink": (240, 110, 170)}
@@ -57,8 +58,8 @@ class ReferenceGrounder:
     heavy = False
     noncommercial = False
 
-    def __init__(self, sizes: Sequence[int] = (11, 12, 13, 14, 15, 16, 18, 20, 24), min_score: float = 0.45,
-                 max_fonts: int = 4):
+    def __init__(self, sizes: Sequence[int] = (12, 13, 14, 15, 16, 18, 20), min_score: float = 0.68,
+                 max_fonts: int = 2):
         self.sizes, self.min_score = tuple(sizes), float(min_score)
         self._fonts: Optional[List[str]] = None
         self._max_fonts = max_fonts
@@ -106,22 +107,30 @@ class ReferenceGrounder:
         return out
 
     @staticmethod
-    def _ncc(image: Any, templ: Any) -> Tuple[float, int, int]:
-        """Best zero-mean normalised cross-correlation of ``templ`` over ``image`` -> (score, x, y of the centre)."""
+    def _prepare(image: Any) -> Dict[str, Any]:
+        """Everything about the screenshot that is shared by all templates: its spectrum and integral images."""
         import numpy as np
         H, W = image.shape
+        shape = (H + 64, W + 640)                        # room for templates up to 64 x 640
+        return {"image": image, "shape": shape, "fft": np.fft.rfft2(image, shape),
+                "ii": np.pad(image, ((1, 0), (1, 0))).cumsum(0).cumsum(1),
+                "ii2": np.pad(image * image, ((1, 0), (1, 0))).cumsum(0).cumsum(1)}
+
+    @staticmethod
+    def _ncc(prep: Dict[str, Any], templ: Any) -> Tuple[float, int, int]:
+        """Best zero-mean normalised cross-correlation of ``templ`` over the image -> (score, x, y of the centre)."""
+        import numpy as np
+        image, shape = prep["image"], prep["shape"]
+        H, W = image.shape
         h, w = templ.shape
-        if h > H or w > W:
+        if h > min(H, 64) or w > min(W, 640):
             return 0.0, 0, 0
         t = templ - templ.mean()
         tn = float(np.sqrt((t * t).sum()))
         if tn < 1e-6:
             return 0.0, 0, 0
-        shape = (H + h - 1, W + w - 1)
-        fi = np.fft.rfft2(image, shape)
-        corr = np.fft.irfft2(fi * np.fft.rfft2(t[::-1, ::-1], shape), shape)[h - 1:H, w - 1:W]
-        ii = np.pad(image, ((1, 0), (1, 0))).cumsum(0).cumsum(1)
-        ii2 = np.pad(image * image, ((1, 0), (1, 0))).cumsum(0).cumsum(1)
+        corr = np.fft.irfft2(prep["fft"] * np.fft.rfft2(t[::-1, ::-1], shape), shape)[h - 1:H, w - 1:W]
+        ii, ii2 = prep["ii"], prep["ii2"]
         s = ii[h:, w:] - ii[:-h, w:] - ii[h:, :-w] + ii[:-h, :-w]
         s2 = ii2[h:, w:] - ii2[:-h, w:] - ii2[h:, :-w] + ii2[:-h, :-w]
         var = np.maximum(s2 - s * s / (h * w), 1e-6)
@@ -133,14 +142,16 @@ class ReferenceGrounder:
 
     def _by_text(self, gray_edges: Any, labels: Sequence[str]) -> Optional[Tuple[float, int, int, str]]:
         best: Optional[Tuple[float, int, int, str]] = None
+        prep = self._prepare(gray_edges)
         for label in labels:
-            variants = {label, label.capitalize(), label.title(), label.upper()}
-            for text in variants:
+            for text in dict.fromkeys((label, label.capitalize(), label.upper())):
                 for templ in self._templates(text):
-                    score, x, y = self._ncc(gray_edges, templ)
+                    score, x, y = self._ncc(prep, templ)
                     score *= min(1.0, 0.6 + 0.08 * len(text))        # very short strings match by accident
                     if best is None or score > best[0]:
                         best = (score, x, y, text)
+            if best is not None and best[0] >= 0.75:
+                break                                    # a clear match for an earlier (more specific) label
         return best
 
     @staticmethod
