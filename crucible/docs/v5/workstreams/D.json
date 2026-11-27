@@ -17,10 +17,11 @@
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
-    "tests/test_v5_semantic_generalists.py"
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "failed in the third unofficial standard run (2026-11-26 22:45, GPU slot): semantic_participants 6 of 8 acting (two participants had every call refused: required titles/queries discarded as copies of the prompt); fixed in mind.py (2a6fd4d), rerun queued (job 'D: semantic gates H, SP-3.2d, SP-13.4, SP-3.3c (rerun after argument fixes)', outputs gates4_*.log in the scratch directory)",
+   "notes": "standard civilisation, 10,296 individuals, 8 class-4 rows bound, 3 simulated days, 144 calls, 33 ok, 571 tools available, 10 used"
   },
   "H.2": {
    "implementation_files": [
@@ -30,9 +31,11 @@
     "src/crucible/semantic/generalists/module.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "verified in the third unofficial standard run: model_weight_copies 1 per model, participants_sharing_weights 8 (Qwen3-1.7B, SmolLM2-360M)",
    "notes": ""
   },
   "H.3": {
@@ -42,9 +45,10 @@
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
-    "tests/test_v5_semantic_generalists.py"
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "verified in the third unofficial standard run: distinct_goals 8, distinct_histories 8 (38 goals)",
    "notes": ""
   },
   "H.4": {
@@ -56,10 +60,12 @@
     "src/crucible/semantic/routing.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in the third unofficial run: tool_selection_accuracy 0.708 [0.595, 0.801] on 72 held-out TEST items (12 templates) with tool choice on Qwen3-1.7B, vs random 0.033 (p 8.7e-62), retrieval only 0.389",
+   "notes": "if the D-38 in-situ measurement routes tool choice to Qwen3-0.6B (reasoning first), H.4 is re-measured with that route in the queued rerun"
   },
   "H.5": {
    "implementation_files": [
@@ -69,10 +75,12 @@
     "src/crucible/semantic/generalists/verify.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in the third unofficial run: comprehension_accuracy 0.844 [0.756, 0.905] on 120 held-out items (Qwen3-0.6B, thinking-mode scoring chosen on DEV), p 3e-32; shortcut rule 0.25",
+   "notes": "in-world answered requests 0 in that run (no participant answered another's request)"
   },
   "H.6": {
    "implementation_files": [
@@ -81,9 +89,11 @@
     "src/crucible/semantic/generalists/verify.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "failed in the third unofficial standard run: consequential_actions_executed 5 (< 8; blog.publish 2, forum.follow 2, bank.invoice 1), 77% of calls refused by argument-filling defects; fixed (2a6fd4d), rerun queued",
    "notes": ""
   },
   "H.7": {
@@ -93,10 +103,12 @@
     "src/crucible/semantic/generalists/verify.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in the third unofficial standard run: verified_productive_results 2 (blog articles with >= 3 independent viewers, max 12)",
+   "notes": "collaborative_verified 0"
   },
   "H.8": {
    "implementation_files": [
@@ -104,9 +116,11 @@
     "src/crucible/semantic/generalists/module.py"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "verified in the third unofficial standard run: peak_vram_mb 8,361 (measured), tokens_per_second 38.8 (measured), 1,213 requests, prefix hits 1,211, 19 KB state per participant",
    "notes": ""
   },
   "H.n1": {
@@ -116,10 +130,12 @@
     "src/crucible/semantic/data/routing.json"
    ],
    "tests": [
-    "tests/v5/test_gate_H.py"
+    "tests/v5/test_gate_H.py",
+    "tests/test_v5_semantic_generalists.py",
+    "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "failed in the third unofficial run: the ordinary class-4 decisions (situation interpretation, tool choice) were routed to Qwen3-1.7B (D-36/D-37), 81% of requests above 1.1B parameters. D-38: the queued rerun first measures Qwen3-0.6B reasoning first in its thinking mode on the DEV bench and applies the pre-registered rule (probes2/apply_think.py) before Gate H; H.n1 now measures the largest model serving every activation's decisions and asserts escalated decisions <= 20%",
+   "notes": "smaller alternatives benchmarked: SmolLM2-135M 0.0, SmolLM2-360M 0.11 on the TEST bench"
   },
   "SP-3.2b": {
    "implementation_files": [
@@ -131,8 +147,8 @@
    "tests": [
     "tests/v5/test_gate_SP_3_2b.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "measured on the integrated tree (capbench, 2026-11-26, GPU slot, 53 min): 6 candidates (2.1M n-gram head, MiniLM-L6 + heads, SmolLM2-135M/-360M, Qwen3-0.6B/-1.7B) x 8 capabilities, held-out templates; routing D-36 derived from it",
+   "notes": "model_sizes_compared 6, capabilities_benchmarked 8; the gate test re-runs the benchmark"
   },
   "SP-3.2d": {
    "implementation_files": [
@@ -146,7 +162,7 @@
    "tests": [
     "tests/v5/test_gate_SP_3_2d.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "failed in the third unofficial run by the then-asserted successful-call share (models 0.25 < ablated 0.28); D-38: the degradation is asserted on consequential-call share (models 16 vs ablated 3 consequential calls, p 3.6e-5 in that run) and verified productive results (8 vs 0); scripted paths 0, own goals 8, routing rederivable, 4 checkpoints with licence and tool use verified; rerun queued",
    "notes": ""
   },
   "SP-3.3c": {
@@ -160,8 +176,8 @@
     "tests/v5/test_gate_SP_3_3c.py",
     "tests/test_v5_semantic_generalists.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in an unofficial run on this branch (GPU slot, 2026-11-26): standard civilisation (10,296 individuals), semantic_participants_bound_to_population 8 of 8 class-4 rows; snapshot after 36 h restored exactly in-process and in a fresh process (blob plus 9,604 exported artifacts, 0 missing); 8 of 8 participants continued from the restored state (34 -> 47 activations); rerun after the argument fixes queued",
+   "notes": "Continuation digests differ between the original and the resumed worlds (resumed_digest_equal false): GPU bf16 batched inference is not bitwise reproducible; every model output is recorded, so replay of a log is exact."
   },
   "SP-4.2b": {
    "implementation_files": [
@@ -171,7 +187,7 @@
    "tests": [
     "tests/v5/test_gate_SP_4_2b.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
+   "status_claim": "verified in an unofficial run on this branch: development civilisation, 1 day: ordinary_actions_requiring_generation 0 (19 generation requests, all by class-4 participants; 368 ordinary decision batches, 1,699 rows, 5 decision models)",
    "notes": ""
   },
   "SP-4.3": {
@@ -183,8 +199,8 @@
    "tests": [
     "tests/v5/test_gate_SP_4_3.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "failed in an unofficial run on this branch: adversarial_content_wins_over_informative 3 of 24 (all word salad); gibberish 0, keyword stuffing 2.8 and token-optimised text 23 mean viewers vs informative 131; structured_representation_kinds 2; value_defined_solely_by_semantic_prediction 0 (identical bytes reach different audiences in 6 of 6 topics; the space's click prediction is validated on held-out MIND impressions, AUC 0.638 vs random 0.500); stale_encodings_after_update 0",
+   "notes": "Cause outside this workstream's files: the population judges text with its lexical reader model (population.semantics.legibility), which scores a shuffle of the same words like the original; the space's comprehension index separates it (0.10 vs 0.98). Integration request to CORE-POP in integration_notes (DEF-B-6)."
   },
   "SP-13.4": {
    "implementation_files": [
@@ -201,8 +217,8 @@
     "tests/v5/test_gate_SP_13_4.py",
     "tests/test_v5_semantic_service.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in an unofficial run on this branch (GPU slot): inference_service_features 9 of 9 (batching: batched = single = continuous, 19 mixed-caller steps; int8 dynamic on CPU, choice agreement 0.83; context bound 256 with head/tail truncation flagged, participant prompts median 585 / max 789 tokens; service recall of the participants' own next-step phrases on DEV situations 0.92 and memory retrieval of the answering fact; prefix cache 24/24 + 12/12 identical, speedup 1.26 / 1.05; bounded generation 16 of 500 asked; revision + weights hash recorded; CPU execution; selective GPU: CPU with a 100 MB grant, CUDA in the 9 GB slot), network_calls_in_default_simulation 0",
+   "notes": "The first run of this test counted prompt sizes wrongly (2 tokens: a 2-key encoding) and measured retrieval only for the goal sentence (0.67); both fixed."
   },
   "SP-13.5": {
    "implementation_files": [
@@ -213,8 +229,8 @@
    "tests": [
     "tests/v5/test_gate_SP_13_5.py"
    ],
-   "status_claim": "implemented on this branch; measurement pending (GPU slot queued)",
-   "notes": ""
+   "status_claim": "verified in an unofficial run on this branch: development civilisation, fresh cache: encoder_runs_per_artifact 1.0 (192 artifacts, 192 model runs, 879 impressions and 224 views from them); the same civilisation generated again: cross_world_representation_reuse 192, model_runs_world2 0",
+   "notes": "digests_equal false for the two generations (see the kernel integration note)."
   },
   "E.3": {
    "implementation_files": [
@@ -299,7 +315,13 @@
    "notes": ""
   }
  },
- "limitations": [],
+ "limitations": [
+  "Class-4 participants live in civilisations only through crucible.semantic.generalists.civ_world until civ lists pop_semantic in its ORDER (integration note); civ.generate alone leaves class-4 rows inert (DEF-D-5).",
+  "SP-4.3 fails on word salad because the population judges legibility lexically (population.semantics, DEF-B-6, workstream B); the shared space's comprehension index separates it.",
+  "GPU bf16 batched inference is not bitwise reproducible across processes or batch compositions: fresh runs of the same spec diverge (replay of a recorded log is exact).",
+  "Cheap LM features (SmolLM2-135M coherence + distilled valence head) were measured not equivalent (valence Pearson 0.75 < 0.85) and not adopted; the space keeps Qwen3-0.6B (batched, cached by artifact hash).",
+  "Small models still fail multi-step tasks often; refused calls are part of their history. Value filters (prompt echo, one sampled rewrite) and the activation cadence are hand-set."
+ ],
  "integration_notes": [
   "CIV (J): please list \"pop_semantic\" in crucible.civ.generator.ORDER right after \"pop_strategic\" and in civ.subsystems.POPULATION_MODULES. Until then crucible.semantic.generalists.civ_world(profile, seed, population) builds exactly civ.spec(...) with pop_semantic inserted after pop_strategic (it becomes civ.generate once ORDER lists the module); Gate H / SP-3.2d / SP-3.3c / SP-4.2b / SP-13.4 use civ_world. Without the module the class-4 rows of every civilisation stay inert (next_active_at NEVER), so DEF-D-5 stays open until this lands.",
   "CORE-POP (B), SP-4.3 / DEF-B-6: in the unofficial SP-4.3 run (3,000 individuals, posts and blog, 3 days, 2 creators per kind and topic) gibberish (0 viewers), keyword stuffing (2.8) and token-optimised text (23) lose to informative text (131) on every topic, but a word salad of the informative text's own words reaches 138 and beats it on 3 of 6 topics: the population's legibility (population.semantics.legibility: valid words, function-word share, distinct share, compressibility) is identical for a shuffle of the same words. The shared space already rates it: crucible.semantic.space.comprehension(features) = 0.10 for word salad, 0.006 gibberish, 0.26 keyword stuffing, 0.98 informative (token-optimised 0.91: grammatical template text is not caught by an LM either). Request: in population.semantics.item_rep multiply the reader-model legibility by min(1, comprehension(feats)/0.8) (or replace it), keeping the lexical model only as the text-feature fallback; SP-4.3 (tests/v5/test_gate_SP_4_3.py) measures the effect.",
@@ -340,6 +362,6 @@
    ]
   },
   "CORE-SEM (wave 2, c5c/w2-coresem)": "one shared semantic space crucible.semantic.space (DIM 422), MIND prior, alignment maps, E.5 taint audit, prefix-first exact caching, continuous batcher",
-  "W3b (wave 3b, c5c/w3b-sem)": "class-4 runtime pop_semantic bound to population class 4 (generalists package), routing D-36 from the measured SP-3.2b report, structured representations (software, products), Gate E.3 feed probe, jailed image decode (SPACE_VERSION f455005900ab0232, MIND prior and population interest asset rebuilt), cheap LM feature candidate measured and not adopted; first agent stopped by a usage limit, continued by a second agent"
+  "W3b (wave 3b, c5c/w3b-sem)": "class-4 runtime pop_semantic bound to population class 4 (generalists package), routing D-36 from the measured SP-3.2b report and D-37 in-situ measurements, structured representations (software, products), Gate E.3 feed probe, jailed image decode (SPACE_VERSION f455005900ab0232, MIND prior and population interest asset rebuilt), cheap LM feature candidate measured and not adopted; first and second agents stopped by usage limits; the third fixed argument filling from the third standard run (77% of calls refused), added reasoning-first routing variants (D-38) with a pre-registered in-situ application, redefined H.n1 over every activation's decisions and the SP-3.2d ablation measure (D-38)"
  }
 }
