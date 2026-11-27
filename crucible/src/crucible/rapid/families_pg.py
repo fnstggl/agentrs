@@ -268,30 +268,45 @@ def dl_delayed_returns(rng, d):
 
 
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
-        doc="Overdriving raises output now but accumulates hidden wear; past a hidden level the machine latches "
-            "into a permanently degraded state.",
-        distinct_because="a stock of wear drives a hysteresis latch that never resets (irreversible long-term "
-                         "deterioration from a short-term gain)",
-        axes={"horizon": 60, "observation_noise": 0.3}, objective="maximize_net",
-        claims=(C + "damage_persists",), identify=I + "lever_sign", lever_view=True)
+        doc="Overdriving raises output now but accumulates wear (shown by a noisy vibration reading) that drains "
+            "only below a hidden rate; past a hidden level the machine latches into a permanently degraded state. "
+            "Predict the output a new machine gives after forty ticks at constant drives, some above what can be "
+            "set: the short-run gain of a high drive turns into a long-run loss.",
+        distinct_because="a stock of wear (inflow the drive, a hidden drain) drives a hysteresis latch that never "
+                         "resets (irreversible long-term deterioration from a short-term gain); scored by the "
+                         "long-run output at held-out constant drives, which needs the drain, the latch level and "
+                         "the degraded yield, each learned from one episode in which the latch can trip only once",
+        axes={"horizon": 60, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=(C + "damage_persists",), identify="crucible.rapid.claims_w3b:identify_latch_level", lever_view=True,
+        reference="crucible.rapid.refs_adapt:wear_latch_predict", oracle="crucible.rapid.oracles:science_oracle",
+        version="2")
 def dl_short_term_damage(rng, d):
     gb = GraphBuilder(rng)
-    boost = gb.lever(0.0, 10.0, 2.0, cost=u(rng, 5, 15))
+    boost = gb.lever(0.0, 10.0, 2.0, cost=0.0)
+    drain = u(rng, 2.5, 3.5)
     wear = gb.prim("stock", {"init": 0.0, "cap": 1e6}, role="wear", inflow=[(boost, 0, 1.0)], outflow=[],
-                   bias={"outflow": 3.0})
+                   bias={"outflow": drain})
     hi = u(rng, 30, 45)
     broken = gb.prim("hysteresis", {"lo": -1.0, "hi": hi, "off": 1.0, "on": u(rng, 0.3, 0.45), "init": 0.0},
                      role="health", x=[(wear, 0, 1.0)])
     raw = gb.prim("linear_nonlinear", {"form": "linear", "a": u(rng, 2.5, 3.5), "b": u(rng, 18, 24)},
                   x=[(boost, 0, 1.0)])
     out = gb.prim("multiplicative", {"k": 1.0}, role="outcome", a=[(raw, 0, 1.0)], b=[(broken, 0, 1.0)])
-    gb.gauge(out, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
+    gy = gb.gauge(out, [("measurement_noise", {"sd": float(d["observation_noise"]) * 3})])
+    gb.gauge(wear, [("measurement_noise", {"sd": 1.0})])
     gb.gauge(broken, [("measurement_noise", {"sd": 0.02})], on_demand=True, query_cost=0.0)
+    held = [{gb.name_of(boost): x} for x in (1.0, 2.0, 3.0, 5.0, 7.0, 11.0, 13.0)]
+    text = ("Predict the output a new machine would give after forty ticks if it were driven at these constant "
+            f"levels (partly above what you can set): {held}. File predictions with the journal: message to "
+            "'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only "
+            "the last filing counts.")
     return gb.build(horizon=int(d["horizon"]), money={"revenue_node": out, "price": 100.0, "cap": 200.0},
-                    affordances=["levers"], endowment=500_000,
-                    objective={"type": "maximize_net", "text": "Maximise your net income over the horizon."},
-                    brief="A machine with a drive lever. Gauge: units produced.",
-                    claim={"lever": boost, "outcome": out, "threshold": hi})
+                    affordances=["levers", "message"], endowment=500_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text,
+                               "settle_ticks": 40},
+                    journal=True,
+                    brief="A machine with a drive lever. Gauges: units produced and a vibration reading.",
+                    claim={"lever": boost, "outcome": out, "threshold": hi, "drain": drain, "wear": wear})
 
 
 # ====================================================================== 8.3 complex engineering (control)

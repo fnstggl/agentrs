@@ -1491,3 +1491,81 @@ def delayed_plant_predict(view, env, hold: int = 14) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== a wear stock behind a latch
+def wear_latch_predict(view, env, settle: int | None = None) -> None:
+    """Scripted public reference for predicting long-run output of a machine whose wear (a noisy vibration
+    reading) accumulates with the drive above a hidden drain rate and trips a permanent degradation latch at a
+    hidden level. Design: a low drive (output law, wear stays near zero), a high drive (wear rises: drain = drive -
+    slope), a medium drive below the drain (wear falls: a second drain estimate), then a fast climb and a slow
+    approach until the output drops (the latch level = wear just before the drop), and a few broken ticks at two
+    drives (the degraded yield). The output law is linear in the drive (least squares on intact readings); each
+    held-out drive is simulated from a new machine (wear w' = max(0, w + d - drain)) and predicted intact or
+    degraded. Public: the objective names the lever and the settling time."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gy = obj["gauge"]
+    name = list(held[0])[0]
+    T_settle = int(settle or obj.get("settle_ticks", 40))
+    gauges = [g["name"] for g in env._config["gauges"]]
+    gw = next(g for g in gauges if g != gy and not any(x.get("name") == g and x.get("on_demand")
+                                                        for x in env._config["gauges"]))
+    rows = []                      # (drive, output, wear reading, phase)
+
+    def run(drive, n, phase):
+        for _ in range(n):
+            if view.done or view.t >= view.horizon - 2:
+                return False
+            r = view.step({"kind": "levers", "values": {name: float(drive)}})
+            x = r["observation"]["numbers"]
+            rows.append((float(drive), float(x.get(gy, np.nan)), float(x.get(gw, np.nan)), phase))
+        return True
+
+    run(1.0, 4, "low")
+    run(7.0, 4, "high")
+    run(1.5, 5, "fall")
+
+    def slope(phase):
+        w = np.asarray([r[2] for r in rows if r[3] == phase])
+        return float(np.polyfit(np.arange(len(w)), w, 1)[0]) if len(w) >= 3 else np.nan
+    s_hi, s_lo = slope("high"), slope("fall")
+    d1 = 7.0 - s_hi
+    falling = [r[2] for r in rows if r[3] == "fall"]
+    d2 = 1.5 - s_lo if falling and falling[-1] > 3.0 else np.nan     # only while wear was above zero
+    drain = float(np.nanmean([d1, d2])) if np.isfinite(d1) else 3.0
+    # intact output law from the readings so far
+    intact = [(r[0], r[1]) for r in rows]
+    A = np.c_[[x for x, _ in intact], np.ones(len(intact))]
+    a, b = np.linalg.lstsq(A, np.asarray([y for _, y in intact]), rcond=None)[0]
+    # climb fast, then approach slowly, until output drops well below the intact law
+    trip_wear, before = None, None
+    phase_n = 0
+    while not view.done and view.t < view.horizon - 8:
+        w_now = rows[-1][2]
+        drive = 10.0 if w_now < 20.0 else min(10.0, drain + 1.0)
+        run(drive, 1, f"climb{phase_n}")
+        phase_n += 1
+        d_, y_, w_, _ = rows[-1]
+        if y_ < 0.75 * (a * d_ + b):
+            trip_wear = float(np.mean([before, w_])) if before is not None else w_
+            break
+        before = w_
+    on = 0.4
+    if trip_wear is not None:
+        run(2.0, 3, "broken2")
+        run(8.0, 3, "broken8")
+        bro = [(r[0], r[1]) for r in rows if r[3].startswith("broken")]
+        on = float(np.median([y / max(1e-6, a * x + b) for x, y in bro]))
+    hi = trip_wear if trip_wear is not None else max(r[2] for r in rows) + 5.0
+    preds = []
+    for cnd in held:
+        dv = float(cnd[name])
+        w, br = 0.0, False
+        for _ in range(T_settle):
+            w = max(0.0, w + dv - drain)
+            br = br or w >= hi
+        preds.append({"set": cnd, "value": float((a * dv + b) * (on if br else 1.0))})
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

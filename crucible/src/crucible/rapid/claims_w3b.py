@@ -933,3 +933,33 @@ def identify_heater_delay(env) -> dict:
     truth = int(env._config["claim"]["lag"])
     return {"question": "the heater's dead time in ticks", "estimate": int(L + 1), "truth": truth,
             "ok": bool(L + 1 == truth)}
+
+
+# ====================================================================== dl_short_term_damage (8.6.6, version 2)
+def identify_latch_level(env) -> dict:
+    """Question: at what level of the vibration (wear) reading does the machine latch into its degraded state
+    (within 15%)? Public: drive hard until wear reaches 20, then just above the drain rate (estimated from the rise
+    at full drive), and read the wear just before output falls below three quarters of what it was."""
+    view = PublicView(env)
+    c = env._config
+    obj = c["objective"]
+    gy = obj["gauge"]
+    name = list(obj["heldout"][0])[0]
+    gw = next(g["name"] for g in c["gauges"] if g["name"] != gy and not g.get("on_demand"))
+    W, Y, D = [], [], []
+    est = None
+    while not view.done:
+        w_now = W[-1] if W else 0.0
+        drive = 10.0 if w_now < 20.0 else 4.5
+        x = view.step({"kind": "levers", "values": {name: drive}})["observation"]["numbers"]
+        W.append(float(x.get(gw, np.nan)))
+        Y.append(float(x.get(gy, np.nan)))
+        D.append(drive)
+        # output falls well below the last reading at the same drive: the latch has tripped
+        same = [k for k in range(len(D) - 1) if D[k] == drive]
+        if same and Y[-1] < 0.75 * Y[same[-1]]:
+            est = float(0.5 * (W[same[-1]] + W[-1]))
+            break
+    truth = float(c["claim"]["threshold"])
+    return {"question": "the wear level at which the machine latches into its degraded state",
+            "estimate": est, "truth": round(truth, 2), "ok": bool(est is not None and abs(est - truth) <= 0.15 * truth)}
