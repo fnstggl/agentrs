@@ -142,3 +142,35 @@ reference), `net_cascade` (zone heat waves), `strat_price_war` (two learning riv
 seasonality), first attempts at `ch_drifting_ideal`. Untouched and not admitted: `dl_short_term_damage`,
 `eng_delayed_controller`, `pe_rollout_targeting`, `plan_distribution`, `plan_perishable`, `des_perishable`,
 `net_topology_shift`, `pe_router`, `cxs_lockin`, `cxs_selected_layers`, `ch_wandering_taste`.
+
+## Wave 3b second continuation (2026-11-27)
+
+Admission and the gate tests are unchanged. Every change below was re-measured with the full eleven-check admission on
+seeds 0-2 and 10-12 (single-CPU probes, not evidence); the registry-wide run is the slot job `H: rapid final 2`.
+Probe counts: 63 training and 22 evaluation families, all 60 named Part 8 items; the six SP-8.0b category checks pass
+on the probe-admitted families.
+
+* **Incompetent references fixed (worlds unchanged):** `plan_distribution` (reference and oracle bought stock that
+  could not be sold before the end) and `des_inventory` (an order every tick against a fixed order cost; now an
+  (s, Q) policy - demand = sales + customers turned away, lead time from deliveries, economic order quantity; the
+  oracle adds (s, Q) policies with the true terms). Regression tests: `tests/test_v5_rapid_inventory_refs.py`.
+* **Category requirements:** `plan_distribution` accepts a replenishment/shipping program (8.4 needs programmatic
+  actions); `lab_drift_blanks` scores only doses above its settable range (8.2), with a reference that measures more
+  at the top of the range.
+* **Prediction tasks (D-63, version bumps):** `ch_tech_transition` v3 (the new process loses money while it is
+  learned, so the early-best constant fails after obsolescence: 8.10 check passes), `eng_delayed_controller` v2
+  (settled temperature of a delayed first-order plant above the settable range; control of 8.3.3 stays with
+  `pe_deadtime_control`), `dl_short_term_damage` v2 (output after forty ticks of constant drive; wear visible on a
+  noisy vibration reading). References `refs_adapt.learning_transition_predict`, `delayed_plant_predict`
+  (`step_hold_design`, `first_order_fit`) and `wear_latch_predict`.
+* **New compact primitive-graph families for items no family covered (D-65 amendment):** `dl_delayed_adoption`
+  (8.6.3), `plan_spoilage` (8.4.2), `plan_serial_stages` (8.4.3), `net_congestion_routes` (8.7.1), all training, and
+  `net_interdependent` (8.7.4, evaluation). Each has an intervention claim and an identification question in
+  `claims_w3b`, a model-class reference in `refs_adapt` and a fidelity record. Stock-based ones bound their
+  saturating outflows so that no stock ever gives up more than it holds (tested). Two pair protocols in `distinct`
+  verify differences to same-interface nearest families. `cascading_failure` now broadcasts per-instance parameters on
+  the batch path.
+* **Tried and not adopted** (the worlds are unchanged and not admitted): demand regimes and holding costs for
+  `plan_supply_chain`, demand regimes for `plan_perishable`, a dynamic-pricing seats world (`plan_seats`, simple
+  pacing rules came within 0.9 of the oracle), readiness-aware targeting references for `pe_rollout_targeting`, a
+  model-predictive controller for the control version of `eng_delayed_controller`, a lot tracker for `des_perishable`.
