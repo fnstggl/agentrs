@@ -599,12 +599,12 @@
   "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py (9fcb0a0e, CPU, one run)": "76 passed, 0 failed",
   "tests/v5/test_gate_B.py (9fcb0a0e snapshot, GPU slot)": "6 passed in 2897.6 s",
   "queued slot jobs (wave 3b continuation 3; outputs under the scratch directory)": {
-   "gate G, category condition (snapshot snapG of fc76bb66, CPU, 10 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full",
    "gate SP-4.4 (snapshot snapQ of a50d20da, CPU)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_Q44.full",
    "gate SP-3.3 profiles (snapshot snapQ of a50d20da, CPU, 16 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_Q33.full",
    "trial pop 62f0d442 + sem 04ea1d37 + soc a173da24 (src, tests): SP-3.2, SP-4.0 (CPU, 16 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_T3.full",
    "predecessor's jobs still queued (snapshot snapR_head of e05f5266)": "regression of 25 population-dependent test files /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full; gates SP-3.1 SP-4.1 SP-3.2c SP-3.4 /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_I2.full",
-   "unofficial evidence": "/tmp/crucible-v5-unofficial-evidence/<gate>/<id>.json with tree.commit = the snapshot's own commit"
+   "unofficial evidence": "/tmp/crucible-v5-unofficial-evidence/<gate>/<id>.json with tree.commit = the snapshot's own commit",
+   "gate G, category condition (snapshot snapG refreshed to 5cfe1482 before it started, CPU, 10 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full"
   },
   "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_v5_perf_batching.py (d8c75ce3, CPU)": "34 passed, 1 failed: test_same_seed_same_hashes_replay_regeneration_and_resume (first assertion, two same-seed worlds in one process; sandbox billing beyond the D-20 memo tolerance; fails identically without this session's changes; see the kcal integration note)"
  },
