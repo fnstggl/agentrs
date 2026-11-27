@@ -37,7 +37,8 @@
     "src/crucible/population/core.py",
     "src/crucible/sandbox/metering.py",
     "src/crucible/services/code.py",
-    "src/crucible/substrate/integrity.py"
+    "src/crucible/substrate/integrity.py",
+    "src/crucible/substrate/bench.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_3.py",
