@@ -13,8 +13,11 @@ its behaviour, not a label:
     single_lever       only ever moves its first lever: cannot combine several levers
 
 `measure` runs a learner on curriculum-chosen probe worlds (validation seeds) and feeds the measured, verified
-scores to the curriculum; `selection_experiment` asks whether the curriculum's targeted weights put the planted
-learner's weakest categories first (a rank test against uniform selection); `targeted_training_experiment` trains a
+scores to the curriculum; `selection_experiment` asks whether the curriculum's targeted weights follow each learner's
+independently measured weakness profile more closely than other learners' profiles (a learner-label permutation
+test, `T5_DESIGN`; wave 3b repair: the earlier rank test against uniform ranks on 1..10 had an invalid null -
+forgetting and generalization always ranked 9-10 for frozen learners, and two of its four learners shared their
+weakest category); `targeted_training_experiment` trains a
 learner whose search strategy is learnable (`TargetableMeta`) either on curriculum-targeted worlds or on uniformly
 drawn worlds with the same number of episodes and compares the improvement on held-out probes of the weakness the
 curriculum targeted.
@@ -173,18 +176,126 @@ def measure(curriculum: Curriculum, learner, n_items: int, seed: int) -> list[di
             sc = _score(e, sd, learner, rng)
         except Exception:  # noqa: BLE001 - a world that cannot be built gives no measurement
             continue
-        rec = {"partition": "validation", "structure": it["structure"], "category": it["category"], "score": sc}
-        curriculum.observe(rec)
+        rec = {"partition": "validation", "structure": it["structure"], "category": it["category"], "score": sc,
+               "seed": it["seed"], "revisit_of": it.get("revisit_of")}
+        curriculum.observe(rec, item=it)
         out.append(rec)
     return out
 
 
+# T.5 design (wave 3b repair, D-69 addendum; fixed before the confirmation run, whose seeds were never used in
+# development): eight frozen learners with different within-episode search strategies or lever masks; the truth is
+# each learner's excess regret over the reference adapter per template category, paired on independent probe worlds
+# (`truth_probes` per category, probe seed `truth_seed`); the curriculum (reference profile from `reference_probes`
+# per category, seed `reference_seed`) measures each learner for `n_items` items at each curriculum seed. Statistic
+# (primary): the mean over runs of the Spearman correlation between the run's targeted weights and its learner's
+# truth profile over the eight template categories (forgetting and generalization have no truth for a frozen
+# learner and are excluded); p-value: exact learner-label permutation test (the curriculum's weights of learner i
+# against the truth of learner pi(i), all 8! relabellings). Secondary, reported: the same test with the rank of the
+# learner's measured weakest category.
+T5_LEARNERS = {"lag_blind": PLANTED["lag_blind"], "price_blind": PLANTED["price_blind"],
+               "early_committer": PLANTED["early_committer"], "single_lever": PLANTED["single_lever"],
+               "frozen_defaults": (LR.META_ARMS[0], None), "big_steps": (LR.META_ARMS[5], None),
+               "late_small_steps": (LR.META_ARMS[6], None), "slow_settler": (LR.META_ARMS[3], None)}
+T5_DESIGN = {"learners": tuple(T5_LEARNERS), "curriculum_seeds": (20, 21, 22), "n_items": 80, "truth_probes": 8,
+             "truth_seed": 4900, "reference_probes": 12, "reference_seed": 7, "categories": tuple(TEMPLATES)}
+
+
+def t5_learner(name: str, seed: int = 0) -> "PlantedAdapter":
+    arm, mask = T5_LEARNERS[name]
+    return PlantedAdapter(seed, arm=arm, mask=mask)
+
+
+def _spearman(a: Sequence[float], b: Sequence[float]) -> float:
+    from scipy.stats import rankdata
+    ra, rb = rankdata(a), rankdata(b)
+    if ra.std() == 0 or rb.std() == 0:
+        return 0.0
+    return float(np.corrcoef(ra, rb)[0, 1])
+
+
+def truth_profiles(learners: Sequence[str], n: int, seed: int) -> dict[str, dict[str, float]]:
+    """Each learner's excess regret over the reference adapter per template category, paired on the same `n`
+    independent probe worlds per category (probe seed `seed`), learner rng seeded by the probe (common random
+    numbers)."""
+    out = {p: {} for p in learners}
+    for c in TEMPLATES:
+        ws = probe_worlds(c, n, seed)
+        ref = [_probe_score(e, sd, PlantedAdapter(0)) for e, sd in ws]
+        for p in learners:
+            out[p][c] = float(np.mean([r - _probe_score(e, sd, t5_learner(p)) for r, (e, sd) in zip(ref, ws)]))
+    return out
+
+
+def _curriculum_run(args) -> dict:
+    p, sd, n_items, ref = args
+    import os
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    cur = Curriculum(seed=sd, reference=ref)
+    measure(cur, t5_learner(p), n_items, seed=sd)
+    return {"learner": p, "seed": sd, "weights": cur.weights(), "draws": cur.stats()["category_counts"]}
+
+
+def permutation_pvalue(M: np.ndarray) -> tuple[float, float, int]:
+    """Exact one-sided permutation test on M[i, j] = sum over learner i's runs of the statistic of its weights
+    against learner j's truth: (observed sum over i of M[i, i], p = share of relabellings pi with sum M[i, pi(i)]
+    >= observed, number of relabellings)."""
+    import itertools
+    L = M.shape[0]
+    obs = float(np.trace(M))
+    cnt = tot = 0
+    idx = np.arange(L)
+    for perm in itertools.permutations(range(L)):
+        tot += 1
+        cnt += int(M[idx, list(perm)].sum() >= obs - 1e-12)
+    return obs, cnt / tot, tot
+
+
+def selection_experiment_v2(design: Mapping = T5_DESIGN, jobs: int = 1, reference: Mapping | None = None) -> dict:
+    """T.5 (design `T5_DESIGN`, module doc)."""
+    learners = list(design["learners"])
+    cats = list(design["categories"])
+    ref = dict(reference or reference_profile(int(design["reference_probes"]), int(design["reference_seed"])))
+    truth = truth_profiles(learners, int(design["truth_probes"]), int(design["truth_seed"]))
+    tasks = [(p, int(sd), int(design["n_items"]), ref) for p in learners for sd in design["curriculum_seeds"]]
+    if jobs > 1:
+        import concurrent.futures as cf
+        import multiprocessing as mp
+        with cf.ProcessPoolExecutor(max_workers=jobs, mp_context=mp.get_context("spawn")) as ex:
+            runs = list(ex.map(_curriculum_run, tasks))
+    else:
+        runs = [_curriculum_run(t) for t in tasks]
+    L = len(learners)
+    Ms, Mr = np.zeros((L, L)), np.zeros((L, L))
+    weakest = {q: max(cats, key=lambda c: truth[q][c]) for q in learners}
+    for r in runs:
+        i = learners.index(r["learner"])
+        w = [r["weights"][c] for c in cats]
+        order = sorted(cats, key=lambda c: -r["weights"][c])
+        r["rank_of_weakest"] = order.index(weakest[r["learner"]]) + 1
+        r["spearman"] = _spearman(w, [truth[r["learner"]][c] for c in cats])
+        for j, q in enumerate(learners):
+            Ms[i, j] += _spearman(w, [truth[q][c] for c in cats])
+            Mr[i, j] -= order.index(weakest[q]) + 1                  # higher is better (minus the rank)
+    obs_s, p_s, n_perm = permutation_pvalue(Ms)
+    obs_r, p_r, _ = permutation_pvalue(Mr)
+    off = ~np.eye(L, dtype=bool)
+    per = len(design["curriculum_seeds"])
+    return {"runs": runs, "truth": truth, "weakest": weakest, "reference_regret": ref,
+            "p_value": p_s, "mean_spearman": obs_s / len(runs),
+            "mean_spearman_other_learners": float(Ms[off].mean() / per),
+            "rank_p_value": p_r, "mean_rank_of_weakest": -obs_r / len(runs),
+            "mean_rank_of_other_learners_weakest": float(-Mr[off].mean() / per),
+            "distinct_weakest_categories": len(set(weakest.values())), "permutations": n_perm,
+            "design": {k: list(v) if isinstance(v, tuple) else v for k, v in design.items()}}
+
+
 def selection_experiment(planted: Sequence[str] = tuple(PLANTED), seeds: Sequence[int] = (0, 1, 2),
                          n_items: int = 48, reference: Mapping | None = None) -> dict:
-    """For each planted weakness and curriculum seed: the category in which the planted learner's excess regret over
-    the reference adapter is largest (paired on the same independent probe worlds) versus the curriculum's
-    targeted weights after `n_items` measured items. Statistic: rank of the planted learner's measured weakest
-    category in the curriculum's weights; p-value against uniform ranks (exact, by enumeration of the sum)."""
+    """Superseded for T.5 by `selection_experiment_v2` (kept for the wave-3b record; its p-value against uniform
+    ranks on 1..10 is not a valid null, see the module doc). For each planted weakness and curriculum seed: the
+    category in which the planted learner's excess regret over the reference adapter is largest versus the
+    curriculum's targeted weights after `n_items` measured items."""
     ref = dict(reference or reference_profile())
     runs = []
     for p in planted:

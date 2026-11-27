@@ -56,8 +56,7 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
             if sc is None:                       # a structure the grammar admits but whose world cannot be built
                 unbuildable += 1
                 continue
-            cur.observe({"partition": "validation", "structure": it["structure"], "category": it["category"],
-                         "score": sc, "seen": False})
+            cur.observe({"partition": "validation", "score": sc}, item=it)
             n += 1
         # results the curriculum is offered but must refuse
         for part in ("evaluation", "sealed"):
@@ -70,7 +69,11 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
     finally:
         ev.close()
     prof = cur.prof.profile()
-    measured = [c for c in CU.WEAKNESSES if all(prof[c].get(m) is not None for m in CU.MEASURES)]
+    # a category is measured when its own statistic is computed: the four measures, and for forgetting and
+    # generalization also their history statistic (paired revisit drop, seen-versus-unseen gap) - counting them on
+    # the four measures alone reported them as measured while their statistics were None (verifier, wave 3b)
+    measured = [c for c in CU.WEAKNESSES if all(prof[c].get(m) is not None for m in CU.MEASURES)
+                and (c not in CU.HISTORY_STATISTIC or prof[c].get(CU.HISTORY_STATISTIC[c]) is not None)]
     measures = [m for m in CU.MEASURES if all(prof[c].get(m) is not None for c in measured)]
     accesses = served + len(_OPENS)
     st = cur.stats()
@@ -78,7 +81,9 @@ def test_SP14_3_curriculum_categories_measures_and_sealed_isolation(tmp_path):
                        "sealed_result_accesses": int(accesses), "refused_evaluation_results":
                        st["refused_results"]["evaluation"], "refused_sealed_results": st["refused_results"]["sealed"],
                        "random_share": float(st["random_share"]), "normalised_entropy": float(st["normalised_entropy"]),
-                       "unbuildable_draws": unbuildable},
+                       "unbuildable_draws": unbuildable,
+                       "forgetting_revisits": int(prof["forgetting"].get("revisits") or 0),
+                       "generalization_seen_items": int(prof["generalization"].get("seen_items") or 0)},
            notes=f"Profile {({c: {k: (round(v, 3) if isinstance(v, float) else v) for k, v in prof[c].items()} for c in CU.WEAKNESSES})}; "
                  f"weights {cur.weights()}")
     assert len(measured) >= 10 and len(measures) >= 4, prof

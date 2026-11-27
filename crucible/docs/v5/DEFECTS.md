@@ -1462,6 +1462,28 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-N-8 (high, fixed): The wandering-optimum generator published the hidden centre of the optimum's path as the key lever's default; T.4's validated worlds depended on it
+
+```json
+{
+ "area": "N_research",
+ "fixed_by": "c5c/w3b-research (wave 3b repair): compose._wandering draws the default uniformly over the lever range independently of c0, w and the path (n-compose/5); genref scans before tracking; T.4 re-measured on the unchanged sample",
+ "id": "DEF-N-8",
+ "owner": "N",
+ "regression_tests": "tests/test_v5_research_adversarial.py::test_wandering_default_does_not_disclose_the_hidden_centre, tests/test_v5_research_adversarial.py::test_wandering_reference_reads_no_hidden_parameter",
+ "requirements": [
+  "T.4"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "independent verifier of c5c/w3b-research (probe_t4.py, probe_t4b.py)",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "In every wandering_optimum world compose._wandering set nd['lever']['default'] = c0, the hidden centre of the optimum's path (|default - c0| <= 9e-16 in 24/24 worlds); the scripted reference started its tracker at the default, and admission's dominance check measured gains over waiting at the centre. Mirroring only the default validated 0/20 worlds against 11/20; 49 of T.4's 54 validated worlds were wandering worlds. no_leakage cannot see a disclosed parameter that is not a literal number of the hidden state, and adversarial.calibration_shortcut tested fixed rules only."
+}
+```
+
 ### DEF-O-1 (critical, open): Sandbox metering is self-reported: agent code rewrote boot's __main__._LINES (or forged a done message) so pkg
 
 ```json

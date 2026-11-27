@@ -204,14 +204,27 @@ def reference():
     return CL.reference_profile()
 
 
-def test_T5_curriculum_selection_from_measured_behaviour(reference):
-    """The curriculum reads its weights after the same measurement budget as T.8 (80 items; D-69 addendum)."""
-    r = CL.selection_experiment(seeds=(0, 1, 2), n_items=CL.T8_DESIGN["measure_items"], reference=reference)
-    record("T.5", {"weakness_selection_pvalue": r["p_value"], "mean_rank_of_measured_weakness": r["mean_rank"],
-                   "mean_rank_of_other_learners_weakness": r["mismatched_mean_rank"],
-                   "runs": len(r["runs"]), "categories": len(CU.WEAKNESSES)},
-           notes=f"Per run (planted, seed, measured weakest category, its rank in the curriculum weights): "
-                 f"{[(x['planted'], x['seed'], x['weakest_measured'], x['rank']) for x in r['runs']]}")
+def test_T5_curriculum_selection_from_measured_behaviour():
+    """Design `curriculum_lab.T5_DESIGN` (wave 3b repair, D-69 addendum, fixed before this run; seeds never used in
+    development): does the curriculum's targeting follow the learner it measures? Eight frozen learners; the truth
+    is each learner's paired excess regret over the reference adapter per template category on independent probe
+    worlds; the statistic is the mean Spearman correlation between a run's targeted weights and its own learner's
+    truth profile, tested against all 8! relabellings of learners to truths (a curriculum biased to some categories
+    whatever the learner does gains nothing from the relabelling null). The rank-of-weakest-category version of the
+    same test is reported as secondary."""
+    r = CL.selection_experiment_v2(CL.T5_DESIGN, jobs=JOBS)
+    record("T.5", {"weakness_selection_pvalue": r["p_value"], "mean_spearman_own_learner": r["mean_spearman"],
+                   "mean_spearman_other_learners": r["mean_spearman_other_learners"],
+                   "rank_test_pvalue": r["rank_p_value"], "mean_rank_of_measured_weakness": r["mean_rank_of_weakest"],
+                   "mean_rank_of_other_learners_weakness": r["mean_rank_of_other_learners_weakest"],
+                   "runs": len(r["runs"]), "learners": len(r["design"]["learners"]),
+                   "distinct_weakest_categories": r["distinct_weakest_categories"],
+                   "categories_compared": len(r["design"]["categories"]), "permutations": r["permutations"]},
+           notes=f"Design {r['design']}. Measured weakest category per learner {r['weakest']}. Per run (learner, "
+                 f"seed, Spearman with own truth, rank of own weakest among 8): "
+                 f"{[(x['learner'], x['seed'], round(x['spearman'], 3), x['rank_of_weakest']) for x in r['runs']]}. "
+                 f"Truth profiles {({k: {c: round(v, 3) for c, v in t.items()} for k, t in r['truth'].items()})}. "
+                 "Forgetting and generalization are excluded: a frozen learner has no truth there.")
     assert r["p_value"] <= 0.05
 
 

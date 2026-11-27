@@ -15,19 +15,29 @@ Weakness categories (Part 14.3), each with the generator structures that exercis
                             stops working)
     adaptive_competitors    adaptive rivals that learn the participant's price
     skill_combination       two drivers and complementary or multiplicative pathways
-    forgetting              revisits of structures the learner did well on earlier (spaced review)
-    generalization          the same structures at new seeds and harder difficulty levels
+    forgetting              exact revisits (same structure, same world seed) of items measured earlier, drawn
+                            uniformly among items at least `REVISIT_GAP` measurements old (spaced review)
+    generalization          structures measured earlier, at new world seeds (seen structure, unseen world)
     long_horizon            long horizons with drivers that pay off late or keep moving
 
 Measures per category (`WeaknessProfiler`): learning progress (slope of recent scores, with its standard error),
 regret (1 - mean score), uncertainty (standard error of the mean score) and task success (share of episodes at or
-above the competence threshold); forgetting is the drop from a category's best window to its latest beyond what
-noise explains, generalization the gap between seen and unseen worlds. A category's weakness is its regret in excess
-of a reference profile (category difficulty is not a learner weakness), plus a learning-progress bonus where scores
-are moving by more than twice their standard error (practice pays there), plus a small uncertainty bonus.
+above the competence threshold). The two categories that are properties of a learner's history have their own
+statistics (wave 3b repair, SP-14.3: both were reported as measured while their statistics were never computed):
+forgetting is the mean paired drop from an item's first score to its exact revisit's score, beyond twice its
+standard error (`forgetting_drop`; revisits are drawn without regard to the first score, so a learner that does not
+change has an expected drop of zero - revisiting items selected for scoring well would make it positive by
+regression to the mean); generalization is the gap between the scores of seen structures at new seeds and of
+first encounters of structures, within each structural category and the recent window, pooled over categories and
+beyond twice its standard error (`seen_unseen_gap`). A category's weakness is its regret in excess of a reference
+profile (category difficulty is not a learner weakness), plus a learning-progress bonus where scores are moving by
+more than twice their standard error (practice pays there), plus a small uncertainty bonus; forgetting's weakness is
+its drop and generalization's its gap (each at least 0).
 
 Selection (`Curriculum.next`): with probability `random_share` (default 0.3) a uniform draw from the training
-distribution or the structural grammar; otherwise a category drawn from the targeted weights (softmax of weakness),
+distribution or the structural grammar; otherwise, with probability `review_share` (default 0.1) a review item (an
+exact revisit or a seen structure at a new seed, alternately: forgetting and generalization are only measurable
+from revisits, so they are sampled whatever their weights), else a category drawn from the targeted weights (softmax of weakness),
 mixed with uniform until its entropy is at least `entropy_floor` (collapse guard), then a structure from that
 category's templates with every other field random. Partition guard: `observe` accepts only results of the
 train and validation partitions; evaluation and sealed results are refused, counted and never stored.
@@ -46,8 +56,11 @@ from .distribution import PartitionError, Registry, build_registry, generated_en
 WEAKNESSES = ("causal_discovery", "memory", "delayed_credit", "experimentation", "strategic_flexibility",
               "adaptive_competitors", "skill_combination", "forgetting", "generalization", "long_horizon")
 MEASURES = ("learning_progress", "regret", "uncertainty", "success")
+# the category-specific statistic without which a category is not measured (the four MEASURES for the others)
+HISTORY_STATISTIC = {"forgetting": "forgetting_drop", "generalization": "seen_unseen_gap"}
 ALLOWED_PARTITIONS = ("train", "validation")
 Q = 0.3
+REVISIT_GAP = 8                 # an exact revisit is of an item at least this many measurements old
 
 
 def _base(rng: np.random.Generator) -> dict:
@@ -176,21 +189,25 @@ class WeaknessProfiler:
     def __init__(self, window: int = 24, q: float = Q):
         self.window, self.q = int(window), float(q)
         self.hist: dict[str, deque] = defaultdict(lambda: deque(maxlen=self.window))
-        self.best: dict[str, float] = {}
-        self.seen: dict[str, list] = defaultdict(list)
-        self.unseen: dict[str, list] = defaultdict(list)
+        # per structural category, the recent window of (score, seen) of non-exact items (first encounters and seen
+        # structures at new seeds)
+        self.fam: dict[str, deque] = defaultdict(lambda: deque(maxlen=self.window))
+        self.drops: list[float] = []                     # first score - exact revisit score
         self.n = 0
 
-    def update(self, category: str, score: float, *, seen: bool = False) -> None:
+    def update(self, category: str, score: float, *, seen: bool = False, structural: str | None = None,
+               first_score: float | None = None) -> None:
+        """One measured item: `category` is what the item was drawn for, `structural` the category its structure
+        exercises (`category_of`), `seen` whether its structure was measured before, `first_score` the first
+        score of the same item when this is an exact revisit."""
         if category not in WEAKNESSES:
             raise ValueError(f"unknown weakness category {category}")
         self.n += 1
-        h = self.hist[category]
-        h.append(float(score))
-        (self.seen if seen else self.unseen)[category].append(float(score))
-        if len(h) >= 4:
-            m = float(np.mean(list(h)[-4:]))
-            self.best[category] = max(self.best.get(category, -math.inf), m)
+        self.hist[category].append(float(score))
+        if first_score is not None:
+            self.drops.append(float(first_score) - float(score))
+        elif structural is not None:
+            self.fam[structural].append((float(score), bool(seen)))
 
     def measures(self, category: str) -> dict:
         h = np.array(self.hist.get(category) or [])
@@ -209,30 +226,49 @@ class WeaknessProfiler:
                 "uncertainty": float(h.std(ddof=1) / math.sqrt(k)) if k > 1 else 1.0, "learning_progress": lp,
                 "learning_progress_se": lp_se}
 
+    def forgetting(self) -> dict:
+        d = np.array(self.drops)
+        if len(d) < 3:
+            return {"forgetting_drop": None, "revisits": int(len(d)), "mean_drop": float(d.mean()) if len(d) else None}
+        se = float(d.std(ddof=1) / math.sqrt(len(d)))
+        return {"forgetting_drop": float(d.mean() - 2.0 * se), "revisits": int(len(d)), "mean_drop": float(d.mean()),
+                "drop_se": se}
+
+    def generalization(self) -> dict:
+        diffs, var, n_seen = [], [], 0
+        for c, rows in self.fam.items():
+            a = np.array([sc for sc, sn in rows if sn])
+            b = np.array([sc for sc, sn in rows if not sn])
+            if len(a) >= 2 and len(b) >= 2:
+                diffs.append(float(a.mean() - b.mean()))
+                var.append(float(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b)))
+                n_seen += len(a)
+        if not diffs:
+            return {"seen_unseen_gap": None, "categories_compared": 0, "seen_items": 0}
+        g = float(np.mean(diffs))
+        se = float(math.sqrt(sum(var)) / len(diffs))
+        return {"seen_unseen_gap": float(g - 2.0 * se), "raw_gap": g, "gap_se": se,
+                "categories_compared": len(diffs), "seen_items": n_seen}
+
     def profile(self) -> dict:
         out = {c: self.measures(c) for c in WEAKNESSES}
-        # a drop counts beyond what two 4-item means of the category differ by noise (2 sd of their difference;
-        # the best window is a maximum over windows, so a frozen learner's raw drop is positive by chance)
-        drops = [self.best[c] - float(np.mean(list(self.hist[c])[-4:]))
-                 - 2.0 * float(np.std(list(self.hist[c]), ddof=1)) * math.sqrt(0.5)
-                 for c in self.best if len(self.hist[c]) >= 4]
-        out["forgetting"] = dict(out["forgetting"], forgetting_drop=float(max(drops)) if drops else None)
-        gaps = [float(np.mean(self.seen[c]) - np.mean(self.unseen[c])) for c in WEAKNESSES
-                if self.seen.get(c) and self.unseen.get(c)]
-        out["generalization"] = dict(out["generalization"], seen_unseen_gap=float(np.mean(gaps)) if gaps else None)
+        out["forgetting"] = dict(out["forgetting"], **self.forgetting())
+        out["generalization"] = dict(out["generalization"], **self.generalization())
         return out
 
 
 class Curriculum:
     def __init__(self, registry: Registry | None = None, *, seed: int = 0, random_share: float = 0.3,
                  entropy_floor: float = 0.6, temperature: float = 0.1, reference: Mapping | None = None,
-                 q: float = Q):
+                 q: float = Q, review_share: float = 0.1):
         if not 0.2 <= random_share < 1.0:
             raise ValueError("the random-diversity share must be at least 0.2")
         self.reg = registry or build_registry()
         self.rng = np.random.default_rng(seed)
         self.random_share, self.entropy_floor, self.temperature = float(random_share), float(entropy_floor), \
             float(temperature)
+        self.review_share = float(review_share)
+        self._review = 0
         self.reference = dict(reference or {})
         self.prof = WeaknessProfiler(q=q)
         self.refused = {"evaluation": 0, "sealed": 0, "other": 0}
@@ -240,19 +276,41 @@ class Curriculum:
         self.by_category: dict[str, int] = defaultdict(int)
         self.history: list[dict] = []
         self.good: list[dict] = []
+        self.items: list[dict] = []                     # measured items: structure, seed, first score, id
+        self.seen_ids: set[str] = set()
 
     # ---------------------------------------------------------------- measurement
-    def observe(self, result: Mapping) -> bool:
-        """Feed one measured result {partition, category | structure, score, seen?}. Results of the evaluation or
-        sealed partitions are refused (returns False) and never stored."""
+    def observe(self, result: Mapping, item: Mapping | None = None) -> bool:
+        """Feed one measured result {partition, category | structure, score, seed?, revisit_of?}; `item` (the
+        `next()` item the result measures) supplies structure, category, seed and revisit link when given.
+        Whether the structure was seen before is the curriculum's own record (`seen_ids`), not the caller's claim.
+        Results of the evaluation or sealed partitions are refused (returns False) and never stored."""
         part = result.get("partition")
         if part not in ALLOWED_PARTITIONS:
             self.refused[part if part in ("evaluation", "sealed") else "other"] += 1
             return False
-        cat = result.get("category") or category_of(result["structure"])
-        self.prof.update(cat, float(result["score"]), seen=bool(result.get("seen")))
-        if float(result["score"]) >= self.prof.q and result.get("structure") is not None:
-            self.good.append(dict(result["structure"]))
+        src = dict(result)
+        for k in ("structure", "category", "seed", "revisit_of"):
+            if item is not None and item.get(k) is not None:
+                src[k] = item[k]
+        score = float(src["score"])
+        struct = src.get("structure")
+        cat = src.get("category") or (category_of(struct) if struct is not None else None)
+        if cat is None:
+            raise ValueError("a result needs a category or a structure")
+        sid = C.structure_id(struct) if struct is not None else None
+        rev = src.get("revisit_of")
+        first = self.items[int(rev)]["score"] if rev is not None and 0 <= int(rev) < len(self.items) else None
+        seen = bool(sid is not None and sid in self.seen_ids)
+        self.prof.update(cat, score, seen=seen, structural=category_of(struct) if struct is not None else None,
+                         first_score=first)
+        if struct is not None:
+            if first is None:
+                self.items.append({"structure": dict(struct), "seed": src.get("seed"), "score": score,
+                                   "n": self.prof.n})
+            self.seen_ids.add(sid)
+            if score >= self.prof.q:
+                self.good.append(dict(struct))
         return True
 
     def weakness(self) -> dict[str, float]:
@@ -263,14 +321,9 @@ class Curriculum:
             if m["n"] == 0:
                 w[c] = 0.5                               # unmeasured: worth measuring
                 continue
-            if c == "forgetting":
-                w[c] = max(0.0, m.get("forgetting_drop") or 0.0)
-                continue
-            if c == "generalization":
-                w[c] = max(0.0, m.get("seen_unseen_gap") or 0.0)
-                continue
-            if m["n"] == 0:
-                w[c] = 0.5                               # unmeasured: worth measuring
+            if c in HISTORY_STATISTIC:
+                v = m.get(HISTORY_STATISTIC[c])
+                w[c] = 0.5 if v is None else max(0.0, v)    # not yet computable: worth measuring
                 continue
             excess = m["regret"] - float(self.reference.get(c, 0.0))
             # learning progress counts where it is distinguishable from noise (beyond twice its standard error);
@@ -309,17 +362,28 @@ class Curriculum:
             self.draws["targeted"] += 1
             wts = self.weights()
             cat = WEAKNESSES[int(self.rng.choice(len(WEAKNESSES), p=[wts[c] for c in WEAKNESSES]))]
-            if cat == "forgetting" and self.good:
-                s = self.good[int(self.rng.integers(len(self.good)))]
-            elif cat in ("forgetting", "generalization"):
+            if self.rng.random() < self.review_share:    # review item (module doc), alternating the two kinds
+                cat = ("forgetting", "generalization")[self._review % 2]
+                self._review += 1
+            old = [i for i, it in enumerate(self.items) if self.prof.n - it["n"] >= REVISIT_GAP and it["seed"] is not None]
+            revisit = None
+            if cat == "forgetting" and old:              # exact revisit, drawn without regard to its score
+                revisit = old[int(self.rng.integers(len(old)))]
+                s = self.items[revisit]["structure"]
+            elif cat == "generalization" and self.items:  # a seen structure at a new world seed
+                s = self.items[int(self.rng.integers(len(self.items)))]["structure"]
+            elif cat in ("forgetting", "generalization"):  # nothing to revisit yet: a first encounter
                 s = targeted_structure(str(self.rng.choice(sorted(TEMPLATES))), self.rng)
             else:
                 s = targeted_structure(cat, self.rng)
-            item = {"kind": "targeted", "structure": s, "category": cat,
-                    "level": "2" if cat == "generalization" else "0"}
+            item = {"kind": "targeted", "structure": s, "category": cat}
+            if revisit is not None:
+                item["revisit_of"] = revisit
         if item.get("category"):
             self.by_category[item["category"]] += 1
         item["seed"] = int(self.rng.integers(0, 1_000_000))
+        if item.get("revisit_of") is not None:
+            item["seed"] = int(self.items[item["revisit_of"]]["seed"])
         self.history.append({k: item.get(k) for k in ("kind", "category")})
         return item
 

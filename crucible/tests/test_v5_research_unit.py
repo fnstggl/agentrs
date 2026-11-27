@@ -116,6 +116,52 @@ def test_curriculum_refuses_evaluation_results_and_keeps_random_share():
         assert CU.category_of(CU.targeted_structure(w, rng)) == w
 
 
+def _stream(kind: str, n: int = 160, seed: int = 0) -> dict:
+    """Feed a curriculum `n` of its own items, scored by a synthetic learner (unit test of the measurement only:
+    acceptance runs measure real learners on generated worlds). ``frozen``: a score that depends only on the
+    item's structure category plus noise; ``forgets``: exact revisits score 0.4 below the item's first score;
+    ``memorises``: seen structures at new seeds score 0.4 above first encounters."""
+    cur = CU.Curriculum(seed=seed)
+    rng = np.random.default_rng(seed + 1)
+    base = {c: 0.2 + 0.06 * i for i, c in enumerate(CU.WEAKNESSES)}
+    first: dict = {}
+    for _ in range(n):
+        it = cur.next()
+        if "structure" not in it:
+            continue
+        sid = CU.C.structure_id(it["structure"])
+        sc = base[CU.category_of(it["structure"])] + float(rng.normal(0, 0.1))
+        if it.get("revisit_of") is not None and kind == "forgets":
+            sc = cur.items[it["revisit_of"]]["score"] - 0.4 + float(rng.normal(0, 0.05))
+        elif sid in first and it.get("revisit_of") is None and kind == "memorises":
+            sc += 0.4
+        first.setdefault(sid, sc)
+        cur.observe({"partition": "validation", "score": sc}, item=it)
+    return {"profile": cur.prof.profile(), "weakness": cur.weakness(), "stats": cur.stats()}
+
+
+def test_curriculum_history_statistics_are_computed_and_read_the_learner():
+    """SP-14.3 (verifier, wave 3b): forgetting and generalization are measured by their own statistics - the paired
+    drop from an item's first score to its exact revisit, and the gap between seen structures at new seeds and first
+    encounters - and those statistics are computed (not None) on the curriculum's own item stream. A learner that
+    does not change shows neither (revisits are drawn without regard to their first score, so regression to the
+    mean does not fake forgetting); a forgetting learner shows a drop and a memorising one a gap, and each raises
+    exactly its own category's weakness."""
+    fz = [_stream("frozen", seed=s) for s in range(4)]
+    for r in fz:
+        p = r["profile"]
+        assert p["forgetting"]["forgetting_drop"] is not None and p["forgetting"]["revisits"] >= 3
+        assert p["generalization"]["seen_unseen_gap"] is not None
+    assert np.mean([r["weakness"]["forgetting"] for r in fz]) <= 0.05
+    assert np.mean([r["weakness"]["generalization"] for r in fz]) <= 0.05
+    fg = _stream("forgets")
+    assert fg["profile"]["forgetting"]["forgetting_drop"] >= 0.25 and fg["weakness"]["forgetting"] >= 0.25
+    assert fg["weakness"]["generalization"] <= 0.1
+    mm = _stream("memorises")
+    assert mm["profile"]["generalization"]["seen_unseen_gap"] >= 0.15 and mm["weakness"]["generalization"] >= 0.15
+    assert mm["weakness"]["forgetting"] <= 0.1
+
+
 def test_proposal_safety_refuses_partition_fields_and_free_text(reg):
     v = P.validate_proposal(reg, {"topology": "chain", "split": "val"})
     assert not v["accepted"] and not v["checks"]["safety"]

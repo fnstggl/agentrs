@@ -500,6 +500,47 @@ in 3 development runs. Learning progress now counts beyond twice its standard er
 two 4-item means, the uncertainty bonus is 0.25 x the standard error, the reference profile uses 12 probes per
 category, and T.5 reads the curriculum after 80 measured items (as T.8).
 
+**D-69 addendum 2 (wave 3b repair, 2026-11-27, after an independent verification; recorded before any confirmation
+run of the designs below).** The verifier found that four results rested on artefacts; each is repaired and re-measured
+on seeds never used in development:
+*T.4 - the default disclosed the optimum (DEF-N-8).* `compose._wandering` set the wandering lever's public default to
+the hidden centre c0 of the optimum's path; the scripted reference started its tracker there, and admission's
+no_dominant_strategy check measured gains over a waiting policy already sitting at the centre (with the default
+mirrored, 0 of 20 of the same worlds validated, against 11 of 20). The default is now drawn uniformly over the lever's
+range independently of every hidden parameter (`n-compose/5`), and `genref` scans the range (6 settings per lever,
+one tick each) before tracking and rescans when two consecutive cycles fall below 0.35 of the best recent cycle. The
+wandering parameters (`compose.WANDER`) are unchanged; the 2-3/7-8 centre bands remain a generator prior (which side
+is drawn 50/50 and is not public). Development (structure stream seed 4242, never the T.4 sample): 2-4 of 20
+wandering worlds pass the dominance check; the tracking headroom of these worlds - the per-tick best setting on a
+21-point grid against the best constant in hindsight, noise-free - is a median 1.2, below the 1.25 a reference
+must reach over the best simple policy when waiting earns little, so no public reference can validate most of them;
+narrower fits (half-width 0.4-0.7) raise the headroom to 1.7-2.1, but the perturbation tracker then reaches only
+about half of the hindsight simple policies' gain (development sweeps, 20 worlds each). The generator was not tuned
+further to pass; the T.4 sample definition is unchanged (first 200 structures of stream 7, calibrated at seed 0,
+seeds 0-4) and whatever it measures is reported.
+*T.5 - an invalid null.* The rank test against uniform ranks on 1..10 ignored that forgetting and generalization
+always rank 9-10 for frozen learners, and two of its four learners shared their weakest category (a learner-label
+permutation null gave p = 2/24). New design `curriculum_lab.T5_DESIGN`: eight frozen learners (the four planted
+deficiencies and four other search strategies of `learners.META_ARMS`, fixed by construction, not by measured
+profiles); truth = each learner's paired excess regret over the reference adapter per template category on 8
+independent probe worlds per category (probe seed 4900); curriculum seeds 20-22, 80 measured items, reference profile
+12 probes per category (seed 7); primary statistic the mean Spearman correlation of a run's targeted weights with its
+own learner's truth over the eight template categories, exact one-sided permutation test over all 8! relabellings of
+learners to truths at 0.05; secondary (reported, not the criterion) the same test on the rank of the measured weakest
+category. Forgetting and generalization are excluded from T.5 (no truth for a frozen learner).
+*SP-14.3 - history categories counted without their statistics.* Forgetting is now the mean paired drop from an
+item's first score to its exact revisit (same structure and world seed), beyond twice its standard error, with
+revisits drawn uniformly among items at least 8 measurements old (the earlier revisits of items selected for scoring
+well would fake forgetting by regression to the mean); generalization is the gap between seen structures at new
+seeds and first encounters, within each structural category and the recent window, beyond twice its standard error;
+10% of targeted draws are review items (alternately an exact revisit and a seen structure at a new seed), so both are
+measured whatever their weights; whether a structure was seen is the curriculum's own record. The SP-14.3 gate counts
+a category as measured only when its own statistic is computed.
+*DEF-O-12.* The weights-only child refuses parameters whose dtype differs from the freshly constructed
+architecture's (complex128, float32, float16, int64 under a rehashed manifest were accepted and scored).
+*Development and confirmation (SP-15.0, U.4).* The control battery's confirmation seeds are moved off the learner
+seeds whose development batteries informed the transfer_sham specification and LABEL_LEVEL (see N.json).
+
 ## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
 With `crucible.civ.generate` working, Level 5 test items are the held-out Tier 3 profiles (`EVAL_CIV_PROFILES`), any Tier 2
 evaluation configurations, and three 4.0 mechanism tasks (the rig.* interface, other engines); training items are four
