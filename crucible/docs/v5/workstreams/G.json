@@ -309,7 +309,7 @@
    "tests": [
     "tests/v5/test_gate_SP_6_3b.py"
    ],
-   "status_claim": "implemented; civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b)): SP-6.3b FAILED composed_workflows_registered 0 (single-judge paths 0, novel-category adoptions 108, 353/353 adoptions grounded, 11 providers kept and dropped): one workflow (wflow_000001, p271, components of two independent developers) was registered on day 14 but never called. 29ae7f7 fixes the SP-6.3b cause (offline on the 7bc3ddc dump: the workflow's announcement replies ranked 18th-28th behind short off-topic replies under the same Re: title, so the 68 holders of the composed activity - 64 with positive expected value and an interface match - never saw it; with replies that say what the service does they rank 1st-8th); re-run of the lane at the new head queued (slot queue position 35 of 38 at 02:20 UTC, not run in this session). Expected to pass after the re-run; not verified.",
+   "status_claim": "implemented; civilisation lane run at 7bc3ddc (unofficial; tests/v5/_invention_kit.py: balanced seed 3, development population, 30 days, 4 arms; 2026-11-26 23:32-00:01 UTC; 18 passed, 2 failed (SP-6.3b, SP-6.4b)): SP-6.3b FAILED composed_workflows_registered 0 (single-judge paths 0, novel-category adoptions 108, 353/353 adoptions grounded, 11 providers kept and dropped): one workflow (wflow_000001, p271, components of two independent developers) was registered on day 14 but never called. 29ae7f7 fixes the SP-6.3b cause (offline on the 7bc3ddc dump: the workflow's announcement replies ranked 18th-28th behind short off-topic replies under the same Re: title, so the 68 holders of the composed activity - 64 with positive expected value and an interface match - never saw it; with replies that say what the service does they rank 1st-8th); re-run of the lane at the new head queued (slot queue position 35 of 38 at 02:20 UTC, not run in this session). 7c9447c removes a second failure mode the composed workflow would have met once used: its service paid the components under a fixed 30-day grant of 400 calls, after which every call failed with 402 and maintenance could rewrite the workflow as an own program; the grant now grows with the workflow's own profitable use (creation world seed 5, 24 days: workflow verified, 25 users, 10 keep it, 78 calls ok, 0 errors, cap raised once). Expected to pass after the civilisation re-run; not verified in the civilisation.",
    "notes": "workflows: caps.compose registry objects verified by observed service-to-service calls (D-44); single-judge scan is static (AST) over the usefulness decision functions with an LM negative control"
   },
   "SP-6.5b": {
@@ -662,7 +662,14 @@
     "Primitives (A, section 1.5): pkg adds package/release/dependency records over 4.0 code repositories (the software_repository owner) and does not declare a second repository table; caps declarations add typed descriptions of 4.0 cloud services (the service owner).",
     "Evidence files under docs/v5/evidence/ produced while testing on this branch were not committed."
    ]
-  }
+  },
+  "wave 3b continuation 3 (c5c/w3b-econ2, 2026-11-27)": [
+   "read the civilisation lane result of the previous agent (7bc3ddc: 18 of 20 G gate tests passed; SP-6.3b, SP-6.4b failed)",
+   "diagnosed SP-6.3b offline from the dumped civilisation: the only workflow was never found (announcement replies ranked below off-topic replies under the same Re: title); 29ae7f7 replies say what the service does (regression test)",
+   "7c9447c workflow spending grant grows with profitable use; maintenance never rewrites a registered workflow",
+   "DEF-G-5 closed with the civilisation Gate L run; G.json, FIDELITY_REGISTER updated",
+   "civilisation lane re-run queued (slot queue position 34-35 of 40; not run in this session)"
+  ]
  },
  "test_results_unofficial": {
   "continuation (CPU, single thread, CUDA hidden)": {
@@ -681,6 +688,22 @@
    "tests/test_services_comm.py": "17 passed",
    "red-team innovation probes": "9 held, 0 unexpected findings"
   },
-  "gate tests in the civilisation": "7bc3ddc lane (one pytest session, tests/v5/test_gate_J.py test_gate_L.py test_gate_SP_6_3.py test_gate_SP_6_3b.py test_gate_SP_6_4b.py test_gate_SP_6_5b.py test_gate_SP_6_4.py test_gate_SP_6_5.py): 18 passed, 2 failed (SP-6.3b composed_workflows_registered 0; SP-6.4b novel_combinations_changing_state 0, need_mechanism_examples 2), 1703 s; re-run at the new head queued"
+  "gate tests in the civilisation": "7bc3ddc lane (one pytest session, tests/v5/test_gate_J.py test_gate_L.py test_gate_SP_6_3.py test_gate_SP_6_3b.py test_gate_SP_6_4b.py test_gate_SP_6_5b.py test_gate_SP_6_4.py test_gate_SP_6_5.py): 18 passed, 2 failed (SP-6.3b composed_workflows_registered 0; SP-6.4b novel_combinations_changing_state 0, need_mechanism_examples 2), 1703 s; re-run at the new head queued",
+  "continuation 3 (CPU, single thread, CUDA hidden, at 7c9447c)": {
+   "tests/test_v5_innovation_devs.py": "7 passed (6 + the slow workflow switch test, run separately)",
+   "tests/test_v5_innovation_caps.py": "11 passed",
+   "tests/test_v5_innovation_needs.py": "5 passed",
+   "tests/test_v5_innovation_pkg.py": "8 passed",
+   "tests/test_v5_innovation_relations.py": "4 passed",
+   "tests/test_v5_innovation_gates.py": "2 passed",
+   "tests/test_npc_innovation.py": "3 passed",
+   "tests/test_kernel.py": "29 passed",
+   "tests/test_invariants.py": "22 passed",
+   "tests/test_v5_econ_work.py": "6 passed",
+   "tests/test_sandbox.py": "6 passed",
+   "tests/test_v5_security_redteam.py": "3 passed",
+   "red-team innovation probes": "9 held, 0 unexpected findings",
+   "note": "caps/needs/pkg/relations/gates/kernel/invariants/econ_work/sandbox/redteam/npc ran at 29ae7f7 (the later commits change only devs.py, whose tests ran at 7c9447c)"
+  }
  }
 }
