@@ -1,0 +1,28 @@
+{
+ "backbone": "Qwen/Qwen3-4B",
+ "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+ "n_same": 9,
+ "n_different": 46,
+ "same_goal_cosine": {
+  "min": 0.35119915171094607,
+  "mean": 0.5400455867967343
+ },
+ "different_goal_cosine": {
+  "max": 0.5706499039073877,
+  "mean": 0.41060521356927837
+ },
+ "separating_threshold": null,
+ "texts": [
+  "Reach 10 members",
+  "Get ten members",
+  "Grow the community to ten people",
+  "Recruit 10 members",
+  "Learn which posting time gets the most replies",
+  "Find out when posts receive the most answers",
+  "Discover the best hour to post for replies",
+  "Translate the welcome page into Spanish",
+  "Fix the broken link in the rules channel",
+  "Measure how long the bot takes to respond",
+  "Reduce the budget spent on advertising"
+ ]
+}
