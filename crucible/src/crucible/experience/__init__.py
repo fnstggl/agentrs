@@ -11,7 +11,7 @@ Public interface (everything a learner needs; nothing else is required to connec
     Observation, validate_observation, validate_action, validate_result, kinds_present, OBSERVATION_KINDS, TIME_UNIT
     REWARD_MODES, LEGACY, VERIFIED, OBSERVATION_ONLY, DEFAULT_MODE
     ExperienceStore, make_record
-    ReferenceLearner (crucible.experience.reference)
+    ReferenceLearner (crucible.experience.reference), ToolValueLearner (crucible.experience.statistical)
     run_learner, run_learners (crucible.experience.loop), VecExperience / farm hooks (crucible.experience.parallel)
     ExperienceGymEnv, ExperienceParallelEnv (crucible.experience.gym: Gymnasium / PettingZoo over any tier)
     host -> (RemoteParticipant, RemoteEvaluator) (crucible.experience.remote: the world in its own process)
@@ -35,7 +35,7 @@ _LAZY = {
     "MechExperienceEnv": ".tier1", "RapidExperienceEnv": ".tier1",
     "KernelExperienceEnv": ".kernel",
     "ExperienceStore": ".store", "make_record": ".store",
-    "ReferenceLearner": ".reference",
+    "ReferenceLearner": ".reference", "ToolValueLearner": ".statistical",
     "run_learner": ".loop", "run_learners": ".loop",
     "ExperienceGymEnv": ".gym", "ExperienceParallelEnv": ".gym",
     "host": ".remote", "RemoteParticipant": ".remote", "RemoteEvaluator": ".remote",
