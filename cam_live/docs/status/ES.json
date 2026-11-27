@@ -328,7 +328,7 @@
  },
  "measured_commands": {
   "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
-  "skills_vs_primitives.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live  (values of the final full run, as written to docs/evidence/ES/skills_vs_primitives.json; latencies vary with machine load: the skill / primitive latency ratio was about 1.9 to 2.3 in the runs made after the last change to skill persistence)",
+  "skills_vs_primitives.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live  (values of the final full run, as written to docs/evidence/ES/skills_vs_primitives.json; latencies vary with machine load: the skill / primitive latency ratio was about 1.7 to 2.3 in the runs made after the last change to skill persistence)",
   "modality.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live",
   "integration smoke": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
  },
