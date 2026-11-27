@@ -28,6 +28,7 @@ measurements supervise the meta objective only when the verifier can authenticat
 from __future__ import annotations
 
 import collections
+import copy
 import dataclasses
 import hashlib
 import json
@@ -1919,7 +1920,9 @@ class CamLiveAgent:
         evidence only: held-out validation losses of the learner's providers (``ContinualLearner.validate``, each
         with its declared provenance; a provider trained on the agent's own reward never counts) and measured
         retention on fixed sets of earlier experience. When the gates refuse it, the learner returns to the last
-        promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back."""
+        promoted checkpoint (weights, optimizers, schedules, fast state) except what the gates do not judge: R_psi
+        (with the meta optimizer) always stays, the policy head stays unless its retention (decision agreement) is a
+        reason of the refusal (LRN-6); experience is never rolled back."""
         from .credit.checkpoint import promote_learner
         from .storage import dir_bytes
         if self.ckpts is None:
@@ -1934,6 +1937,10 @@ class CamLiveAgent:
         before = self.model.trainable_state()
         hb = self.model.group_hashes()
         now = float(self.clock.now())
+        # LRN-6: what the gates below do not judge is not rolled back with the learner
+        keep_psi = {k: v.detach().clone() for k, v in self.meta.reward.state_dict().items()}
+        keep_policy = {k: v.detach().clone() for k, v in self.meta.policy.state_dict().items()}
+        keep_opt = copy.deepcopy(self.meta.optimizer.state_dict())
         try:
             dec, info, rb = promote_learner(
                 self.ckpts, self.learner, retention=retention, notes=trigger[:200],
@@ -1945,7 +1952,18 @@ class CamLiveAgent:
             self.last["promotion_error"] = f"{type(e).__name__}: {e}"
             self.counters["promotion_errors"] += 1
             return []
+        kept: List[str] = []
         if rb is not None:
+            # psi changes only by the outer meta-gradient on verified evidence and no gate judges it: it stays (with
+            # the meta optimizer). The policy head is judged only through the retention metric decision_agreement:
+            # it stays unless that metric is among the reasons of the refusal (then it is forgetting, and goes back)
+            with torch.no_grad():
+                self.meta.reward.load_state_dict(keep_psi)
+                kept.append("reward")
+                if not any("decision_agreement" in r for r in dec.reasons):
+                    self.meta.policy.load_state_dict(keep_policy)
+                    kept.append("policy_head")
+            self.meta.optimizer.load_state_dict(keep_opt)
             self.predictor.set_fast_state(self.learner.fast_state)
             self.counters["rollbacks"] += 1
         self.counters["promotions" if dec.promoted else "promotions_refused"] += 1
@@ -1953,7 +1971,7 @@ class CamLiveAgent:
         row = {"ts": now, "trigger": trigger, "checkpoint_id": info.checkpoint_id, "promoted": dec.promoted,
                "baseline_id": dec.baseline_id, "reasons": list(dec.reasons)[:8], "validation": dict(dec.validation),
                "retention": dict(dec.retention), "deltas": dict(dec.deltas), "ignored": list(dec.ignored),
-               "rolled_back_to": (rb or {}).get("rolled_back_to", ""), "weight_delta": delta}
+               "rolled_back_to": (rb or {}).get("rolled_back_to", ""), "weight_delta": delta, "kept": kept}
         self.promotions = (self.promotions + [_jsonable(row)])[-32:]
         rec = LearningUpdateRecord(
             update_id=new_id("upd"), ts=now, trigger=("rollback: " if rb is not None else "promotion: ") + trigger,

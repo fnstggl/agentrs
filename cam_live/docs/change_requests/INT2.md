@@ -145,3 +145,15 @@ processes is not equivalent.
 * **LRN-6** a refused promotion's rollback also reverts psi and the policy head (not judged by the promotion gates):
   4-10 rollbacks per 8-lifetime debug run, 3 in the real-model pathway run, where it undid the applied meta-step
   before the next live update. Proposed diff (keep `reward` params + policy head across the rollback) in LRN.md.
+
+### Applied by INT2 (round 2)
+
+* **LRN-1** applied: default `selection_rule = "thompson_policy"`; `tests/integration/test_int2_selection.py` runs the
+  `policy` + value-prior ablation explicitly.
+* **LRN-6** applied with one difference: R_psi (its whole module state: parameters, normalisers, lifetime context)
+  and the meta optimizer are kept across a rollback; the policy head is kept **unless** the refusal names its
+  retention metric `decision_agreement` — that gate (frozen action distributions on earlier objectives' retention
+  sets, `CamLiveAgent.retention_metrics`) does judge the policy, so there a rollback is the forgetting it guards
+  against. `promotions[-1]["kept"]` records what stayed; test
+  `tests/integration/test_int2_checkpoints.py::test_promotion_needs_independent_evidence_and_a_refusal_rolls_back`.
+* **LRN-3** not applied this round (not blocking).

@@ -58,17 +58,29 @@ def test_promotion_needs_independent_evidence_and_a_refusal_rolls_back(tmp_path)
             for n, p in agent.model.named_parameters():
                 if p.requires_grad and ("predict_policy" in n or "predict_world" in n):
                     p.add_(torch.randn(p.shape, generator=g, dtype=p.dtype).to(p.device) * 0.5)
+        psi_before = {k: v.clone() for k, v in agent.meta.reward.state_dict().items()}
+        pol_before = {k: v.clone() for k, v in agent.meta.policy.state_dict().items()}
         out = agent.promote("test: after a damaging change")
         last = agent.promotions[-1]
         assert not last["promoted"] and any("retention" in r or "dropped" in r for r in last["reasons"]), last
         assert last["rolled_back_to"] == promoted and out and out[0].timescale == "checkpoint"
         assert out[0].diagnostics["rolled_back"] and sum(out[0].weight_delta.values()) > 0
+        # LRN-6: R_psi is not judged by the gates and stays; the policy head goes back only when its retention
+        # (decision agreement) is a reason of the refusal
+        assert "reward" in last["kept"]
+        assert all(torch.equal(v, psi_before[k]) for k, v in agent.meta.reward.state_dict().items())
+        policy_forgot = any("decision_agreement" in r for r in last["reasons"])
+        assert ("policy_head" in last["kept"]) == (not policy_forgot), last
+        if not policy_forgot:
+            assert all(torch.equal(v, pol_before[k]) for k, v in agent.meta.policy.state_dict().items())
         restored = agent.model.trainable_state()
         for grp, tensors in good.weights.items():
             if grp == "reward":
                 continue
             for name, t in tensors.items():
-                if name in restored:
+                if name.startswith("heads.reward."):          # R_psi's buffers (normalisers, lifetime) stay too
+                    continue
+                if name in restored and (policy_forgot or "predict_policy" not in name):
                     assert torch.equal(restored[name], t.to(restored[name].dtype)), (grp, name)
         assert agent.store.count() == n_rec                     # experience is never rolled back
         assert agent.ckpts.get(last["checkpoint_id"]) is not None   # the refused checkpoint is kept for comparison
