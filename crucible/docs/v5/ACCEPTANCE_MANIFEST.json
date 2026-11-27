@@ -5186,7 +5186,11 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py",
+    "src/crucible/experience/registry.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5235,7 +5239,10 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5284,7 +5291,10 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5343,7 +5353,11 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py",
+    "src/crucible/experience/registry.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5392,7 +5406,10 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5441,7 +5458,10 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -5490,7 +5510,10 @@
     "G",
     "C"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -10782,7 +10805,10 @@
    "dependencies": [
     "N"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_N.py"
    ],
@@ -11184,7 +11210,8 @@
     "src/crucible/acceptance/v5/qa.py"
    ],
    "tests": [
-    "tests/v5/test_gate_X.py"
+    "tests/v5/test_gate_X.py",
+    "tests/test_v5_acceptance_qa.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement X.n1",
    "criteria": [
@@ -14275,7 +14302,8 @@
     "tests/test_v5_acceptance_checker.py",
     "tests/test_v5_acceptance_probes.py",
     "tests/test_v5_acceptance_defects.py",
-    "tests/test_v5_acceptance_baseline.py"
+    "tests/test_v5_acceptance_baseline.py",
+    "tests/test_v5_acceptance_qa.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-21",
    "criteria": [
@@ -15887,7 +15915,8 @@
     "src/crucible/scale/slots.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_1_2.py"
+    "tests/v5/test_gate_SP_1_2.py",
+    "tests/test_v5_slots.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-1.2",
    "criteria": [
@@ -18151,7 +18180,12 @@
    "dependencies": [
     "N"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py",
+    "src/crucible/domains/modules.py",
+    "src/crucible/domains/seats.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_9_0.py"
    ],
@@ -18229,7 +18263,10 @@
    "dependencies": [
     "N"
    ],
-   "implementation_files": [],
+   "implementation_files": [
+    "src/crucible/domains/base.py",
+    "src/crucible/domains/__init__.py"
+   ],
    "tests": [
     "tests/v5/test_gate_SP_9_16.py"
    ],
@@ -19059,10 +19096,13 @@
     "G"
    ],
    "implementation_files": [
-    "src/crucible/scale/bench5.py"
+    "src/crucible/scale/bench5.py",
+    "src/crucible/substrate/inference_batch.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_13_1.py"
+    "tests/v5/test_gate_SP_13_1.py",
+    "tests/test_v5_perf_batching.py",
+    "tests/test_v5_perf_units.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement SP-13.1",
    "criteria": [
