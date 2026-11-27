@@ -342,3 +342,96 @@ def bench_encoder(n: int = 16, seed: int = 0) -> dict:
             "speedup": round(single / max(batched, 1e-12), 3), "items_per_s_batched": round(n / batched, 3),
             "warmup_s": round(warm, 3), "threads": int(_torch().get_num_threads()),
             "device": os.environ.get("CUDA_VISIBLE_DEVICES", "unset")}
+
+
+# ====================================================================== the shared batching service
+def bench_service(sites: int = 6, rows: int = 4, reps: int = 3, semantic: bool = True) -> dict:
+    """The shared batching service (crucible.substrate.inference_batch) on the tree's real models inside a world
+    transaction: `sites` call sites each asking for `rows` decisions of one shared model, recorded as `sites`
+    separate calls vs grouped into one call (`decide_many`). Class 2: the adaptive network at the population's
+    dimensions; class 3: the strategic GRU and MLP groups; class 4: the semantic service's option scoring (on the GPU
+    when one is granted). Reports wall and CPU seconds per round, recorded calls per round and the speedup; the
+    merged outputs are checked against the separate ones."""
+    import crucible
+    crucible.load_all_modules()
+    from ..core.kernel import World, WorldSpec
+    from ..population.adaptive import AdaptivePolicy
+    from ..population.strategic import HIST, OBS_DIM, StrategicGroup
+    from ..substrate import inference_batch as IB
+    torch = _torch()
+    torch.set_num_threads(1)
+    w = World.create(WorldSpec("ib-bench", 1, [{"name": m, "config": {}} for m in
+                                                ("identity", "bank", "admin", "artifacts")]))
+    wl = adaptive_workload(sites * rows)
+    d = wl["dims"]
+    pol = AdaptivePolicy(0, d["obs"], d["cand"], d["mem"], hidden=d["hidden"], seed=3)
+    grp_gru = StrategicGroup({"group": "B", "arch": "gru", "hidden": 576, "learning": False, "code": 1}, seed=4)
+    grp_mlp = StrategicGroup({"group": "A", "arch": "mlp", "hidden": 1024, "learning": False, "code": 0}, seed=5)
+    rng = np.random.default_rng(9)
+    cases = {}
+    reqs2 = [IB.adaptive_request(pol, wl["obs"][k * rows:(k + 1) * rows], wl["mem"][k * rows:(k + 1) * rows],
+                                 wl["cand"][k * rows:(k + 1) * rows]) for k in range(sites)]
+    cases["class2_adaptive"] = reqs2
+    for name, grp in (("class3_strategic_gru", grp_gru), ("class3_strategic_mlp", grp_mlp)):
+        cases[name] = [IB.strategic_request(grp, rng.normal(size=(rows, OBS_DIM)).astype(np.float32),
+                                            rng.normal(size=(rows, HIST, OBS_DIM)).astype(np.float32))
+                       for _ in range(sites)]
+    if semantic:
+        from ..semantic.service import service_for
+        svc = service_for()
+        topics = ("weather", "football", "cooking", "taxes", "music", "gardening", "travel", "software")
+        cases["class4_semantic_choose"] = [IB.semantic_request(svc, "choose", [
+            {"messages": [{"role": "user", "content": f"You read a post about {topics[(k + j) % len(topics)]}. "
+                                                     f"Do you reply, share it or skip it?"}],
+             "choices": ["reply", "share", "skip"]} for j in range(rows)]) for k in range(sites)]
+    out = {"sites": sites, "rows_per_site": rows, "reps": reps, "cases": {}}
+    for name, reqs in cases.items():
+        res = {}
+        for mode in ("warm", "separate", "merged", "separate", "merged"):
+            got = {}
+
+            def run(ctx, mode=mode, got=got):
+                if mode == "merged":
+                    got["out"] = IB.decide_many(ctx, reqs)
+                else:
+                    got["out"] = [IB.decide(ctx, r) for r in reqs]
+            t, c = time.perf_counter(), time.process_time()
+            for _ in range(1 if mode == "warm" else reps):
+                w._run_system("bench.batching", run)
+            if mode != "warm":
+                res.setdefault(mode, []).append(((time.perf_counter() - t) / reps, (time.process_time() - c) / reps))
+            res[f"out_{mode}"] = got["out"]
+        sep, mer = min(res["separate"]), min(res["merged"])
+
+        def flat(o):
+            if isinstance(o, dict):
+                return np.concatenate([np.asarray(v, np.float64).reshape(len(v), -1) for _, v in sorted(o.items())], 1)
+            if isinstance(o, list):
+                return np.asarray([x["logprobs"] for x in o], np.float64)
+            return np.asarray(o, np.float64)
+        def choices(o):
+            if isinstance(o, list):                  # class 4: the option the participant acts on
+                return [int(x["choice"]) for x in o]
+            if isinstance(o, dict):                  # class 2 / 3: the argmax of each row's first output head
+                v = np.asarray(o[sorted(o)[0]], np.float64)
+                return list(np.argmax(v.reshape(len(v), -1), 1))
+            v = np.asarray(o, np.float64)
+            return list(np.argmax(v.reshape(len(v), -1), 1))
+        a = np.concatenate([flat(o) for o in res["out_separate"]])
+        b = np.concatenate([flat(o) for o in res["out_merged"]])
+        ca = [c for o in res["out_separate"] for c in choices(o)]
+        cb = [c for o in res["out_merged"] for c in choices(o)]
+        out["cases"][name] = {"separate_wall_s": round(sep[0], 5), "merged_wall_s": round(mer[0], 5),
+                              "separate_cpu_s": round(sep[1], 5), "merged_cpu_s": round(mer[1], 5),
+                              "calls_separate": sites, "calls_merged": 1,
+                              "speedup_wall": round(sep[0] / max(mer[0], 1e-12), 3),
+                              "max_abs_diff": float(np.max(np.abs(a - b))) if a.size else 0.0,
+                              # grouping changes floating-point reduction order (bfloat16 on the GPU: logprob
+                              # differences of ~0.1-0.3 nats measured 2026-11-26); what a participant does follows
+                              # the chosen option, so the agreement of choices is the behavioural check
+                              "choice_agreement": round(sum(x == y for x, y in zip(ca, cb)) / max(1, len(ca)), 4),
+                              "rows": len(ca)}
+    st = IB.report(IB.stats(w))
+    out["service_stats"] = {"calls": st["calls"], "merged_calls": st["merged_calls"], "by_class": st["by_class"]}
+    w.close()
+    return out

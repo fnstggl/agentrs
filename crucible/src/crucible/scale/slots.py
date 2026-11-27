@@ -8,7 +8,8 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
     python -m crucible.scale.slots --cpu 2 --ram-mb 4000 --label "M: tests" -- python -m pytest -q tests/test_x.py
     python -m crucible.scale.slots --cpu 1 --gpu-mb 2000 --gpu-s 600 --inference 4 --worlds 8 \\
         --disk-mb 500 --disk-dir /path/to/store -- python bench.py
-    python -m crucible.scale.slots --status          # budget, held slots, queue
+    python -m crucible.scale.slots --status          # budget, held slots (with what each job uses now), queue
+                                                     # (with what each request waits for)
     python -m crucible.scale.slots --hardware        # the inspected hardware
 
 | dimension | grant | enforcement |
@@ -16,13 +17,22 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
 | CPU workers | `--cpu N` | the job is pinned (`sched_setaffinity`) to N CPUs chosen disjoint from other governed jobs; thread pools are capped by environment (OMP, BLAS, MKL, NumExpr, Numba, Rayon); the watchdog re-pins every task of every process of the job each sample, so a process that widens its own affinity is put back; the CPU rate is measured per window |
 | RAM | `--ram-mb M` (undeclared: the budget's `default_ram_mb` ceiling) | the watchdog sums the proportional set size (PSS) of every process of the job and kills the job when the sum exceeds the grant |
 | GPU memory | `--gpu-mb M` | `--gpu-mb 0` hides the GPU (`CUDA_VISIBLE_DEVICES=""`; a job process that holds a GPU context anyway is killed). Otherwise every Python process of the job caps torch's allocator at the grant when it initialises CUDA (interpreter hook `_slotsite/sitecustomize.py`) and reports its usage; the watchdog kills the job when the sum over its processes exceeds the grant |
-| GPU time | `--gpu-s S` (default 4 h when GPU memory is granted) | seconds each job process holds a CUDA context, summed; the job is killed beyond the grant; at most `gpu_jobs` GPU jobs run at once |
+| GPU time | `--gpu-s S` (default when GPU memory is granted: the longer of 4 h and `--timeout`, per CPU worker) | seconds each job process holds a CUDA context, summed; the job is killed beyond the grant; at most `gpu_jobs` GPU jobs run at once |
 | disk | `--disk-mb M` over `--disk-dir D` (repeatable) and the job's scratch directory | growth of those directories (allocated blocks) is measured and the job is killed beyond the grant; no single file may exceed the grant (`RLIMIT_FSIZE`); admission requires that much free disk above a floor |
 | inference concurrency | `--inference N` | N token files per job; `crucible.scale.governor.inference()` (used by `substrate.inference.recorded`) holds one per call, job-wide across processes |
 | active worlds | `--worlds N` | every `World` registers on construction (`governor.register_world`); job-wide count; construction beyond N raises `ResourceLimitExceeded` |
 
-Admission is FIFO: a request is admitted only when it is at the head of the queue and fits, so small requests cannot
-starve a large one. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
+Admission is FIFO with EASY backfilling: the head of the queue is admitted when it fits; a request behind it is
+admitted only when it fits next to what is held plus the protected earlier requests (the head's whole request and
+every earlier request that could start now), in the dimensions it uses (`fits_behind`). So the head is never delayed
+by a later request and small requests cannot starve a large one (each request reaches the head in queue order and
+is then protected), and a job that needs nothing the waiting jobs are short of (a CPU-only job while GPU jobs wait
+for the GPU slots) does not idle behind them. Jobs with a time limit (`--timeout`) carry a deadline in the ledger;
+while the head waits for held resources, a request whose deadline comes before the head's planned start (the time
+the jobs it waits for reach their deadlines, `shadow_time`) may also use the head's share, so a CPU the head keeps
+for a GPU slot that is hours away runs short jobs meanwhile without delaying it. A head that waits only for free disk gives up after `DISK_WAIT_S`
+(exit status 75) instead of blocking the queue. Ledger and queue entries carry their process's start time, so a
+reused pid never keeps a dead holder's slot; signals go through a pidfd after the same identity check. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
 time; widen it only with `--set-budget`, which keeps a history), so a caller cannot enlarge it through its own
 environment. Requests larger than the budget are clamped to it (and the record says so). Liveness reads the process
 state, so a zombie holds nothing. The supervisor is a child subreaper: descendants that detach from the command (a
@@ -67,7 +77,7 @@ THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NU
                "NUMEXPR_MAX_THREADS", "VECLIB_MAXIMUM_THREADS", "BLIS_NUM_THREADS", "NUMBA_NUM_THREADS",
                "RAYON_NUM_THREADS", "POLARS_MAX_THREADS")
 HOOK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_slotsite")
-DEFAULT_GPU_S = 4 * 3600
+DEFAULT_GPU_S = 4 * 3600                 # GPU time per CPU worker when neither --gpu-s nor a longer --timeout is given
 UNDECLARED_RAM_PER_CPU_MB = 2048         # what a job that declares no RAM counts against the RAM budget at admission
 CPU_TOLERANCE = 1.10                     # a window may use up to 10% (+0.2 CPU) above the grant (sampling jitter)
 CPU_STRIKES = 3                          # consecutive windows over the grant, or re-pins of one task, before a kill
@@ -304,6 +314,23 @@ def _stat(pid: int) -> list[str] | None:
     return s[s.rindex(")") + 2:].split()
 
 
+def _starttime(pid: int) -> str | None:
+    """The process's start time in clock ticks since boot (/proc/<pid>/stat field 22): with the pid, a process
+    identity that survives pid reuse."""
+    st = _stat(pid)
+    return st[19] if st is not None else None
+
+
+def _holder_alive(entry: dict) -> bool:
+    """A ledger or queue entry is live while its process is alive and is the process that made it (an entry that
+    recorded its process's start time is dead once that pid belongs to another process)."""
+    pid = int(entry["pid"])
+    if not _alive(pid):
+        return False
+    start = entry.get("start")
+    return start is None or _starttime(pid) in (None, str(start))
+
+
 def _alive(pid: int) -> bool:
     """True while the process exists and is not a zombie (a zombie holds no resources and no slot)."""
     st = _stat(pid)
@@ -367,8 +394,10 @@ def _write_bytes(pid: int) -> int:
     return 0
 
 
-def _gpu_context(pid: int) -> bool:
-    """True when the process holds a GPU device (/dev/nvidia<N>) open and is not a device query tool."""
+def _gpu_device_open(pid: int) -> bool:
+    """True when the process holds a GPU device (/dev/nvidia<N>) open and is not a device query tool. Opening the
+    device does not make a GPU job: `torch.cuda.is_available()` (cuInit or NVML) opens it too, and every process that
+    imports the shared semantic space evaluates that at import time (semantic/space/lm.py device())."""
     try:
         with open(f"/proc/{pid}/comm") as fh:
             if fh.read().strip() in GPU_TOOLS:
@@ -385,6 +414,26 @@ def _gpu_context(pid: int) -> bool:
     return False
 
 
+def _context_mapped(pid: int) -> bool:
+    """True when the process has a CUDA context: creating one maps the driver's control device and the unified
+    memory device into the process (/dev/nvidiactl, /dev/nvidia-uvm in /proc/<pid>/maps; measured 2026-11-26: 22
+    and 1 mappings in every governed GPU job, none in a process that only asked whether a GPU exists)."""
+    try:
+        with open(f"/proc/{pid}/maps") as fh:
+            for ln in fh:
+                if "/dev/nvidiactl" in ln or "/dev/nvidia-uvm" in ln:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def _gpu_context(pid: int) -> bool:
+    """True when the process holds a CUDA context (a GPU device open AND a context mapped), not merely a device
+    query, and is not a device query tool."""
+    return _gpu_device_open(pid) and _context_mapped(pid)
+
+
 def _dir_mb(path: str) -> float:
     total = 0
     for dp, _dn, fn in os.walk(path):
@@ -397,15 +446,19 @@ def _dir_mb(path: str) -> float:
 
 
 def gpu_census() -> dict:
-    """Processes of this container holding a GPU context, split by whether each runs inside a governed job that was
-    granted GPU memory (SP-1.2). Processes of other tenants on the host are not visible from here (nvidia-smi reports
+    """Processes of this container holding a CUDA context, split by whether each runs inside a governed job that was
+    granted GPU memory (SP-1.2); processes that only opened the device to ask whether a GPU exists are counted
+    apart (`device_queries_without_context`). Processes of other tenants on the host are not visible from here (nvidia-smi reports
     host pids); their number is `foreign_gpu_apps` = device compute apps minus the ones found here."""
-    inside, outside = [], []
+    inside, outside, queried = [], [], []
     for name in os.listdir("/proc"):
         if not name.isdigit():
             continue
         pid = int(name)
-        if pid == os.getpid() or not _gpu_context(pid):
+        if pid == os.getpid() or not _gpu_device_open(pid):
+            continue
+        if not _context_mapped(pid):            # asked whether a GPU exists; holds no context, uses no GPU memory
+            queried.append({"pid": pid})
             continue
         env = {}
         try:
@@ -430,8 +483,9 @@ def gpu_census() -> dict:
         apps = [ln for ln in out.strip().splitlines() if ln.strip()]
     except (OSError, subprocess.SubprocessError):
         pass
-    return {"governed": inside, "ungoverned": outside, "device_compute_apps": len(apps),
-            "foreign_gpu_apps": max(0, len(apps) - len(inside) - len(outside)), "t": time.time()}
+    return {"governed": inside, "ungoverned": outside, "device_queries_without_context": len(queried),
+            "device_compute_apps": len(apps), "foreign_gpu_apps": max(0, len(apps) - len(inside) - len(outside)),
+            "t": time.time()}
 
 
 # ====================================================================== ledger
@@ -442,28 +496,48 @@ def _ledger(d: str | None = None):
     with open(os.path.join(d, "lock"), "a+") as lk:
         fcntl.flock(lk, fcntl.LOCK_EX)
         path, qpath = os.path.join(d, "ledger.json"), os.path.join(d, "queue.json")
-        try:
-            with open(path) as fh:
-                held = json.load(fh)
-        except (OSError, ValueError):
-            held = []
-        try:
-            with open(qpath) as fh:
-                queue = json.load(fh)
-        except (OSError, ValueError):
-            queue = []
-        held = [h for h in held if _alive(int(h["pid"]))]          # reclaim entries of dead or zombie holders
-        queue = [q for q in queue if _alive(int(q["pid"]))]
+        raw = {}
+        for p in (path, qpath):
+            try:
+                with open(p) as fh:
+                    raw[p] = fh.read()
+            except OSError:
+                raw[p] = ""
+        held, queue = _loads_list(raw[path]), _loads_list(raw[qpath])
+        held = [h for h in held if _holder_alive(h)]          # reclaim entries of dead, zombie or replaced holders
+        queue = [q for q in queue if _holder_alive(q)]
         box = {"held": held, "queue": queue}
         try:
             yield box
         finally:
-            for p, v in ((path, box["held"]), (qpath, box["queue"])):
-                tmp = f"{p}.{os.getpid()}.tmp"
-                with open(tmp, "w") as fh:
-                    json.dump(v, fh)
-                os.replace(tmp, p)
-            fcntl.flock(lk, fcntl.LOCK_UN)
+            try:
+                for p, v in ((path, box["held"]), (qpath, box["queue"])):
+                    text = json.dumps(v)
+                    if text == raw[p]:
+                        continue                       # unchanged: no write (dozens of waiters poll this file)
+                    tmp = f"{p}.{os.getpid()}.tmp"
+                    try:
+                        with open(tmp, "w") as fh:
+                            fh.write(text)
+                        os.replace(tmp, p)
+                    except OSError:
+                        try:
+                            os.unlink(tmp)
+                        except OSError:
+                            pass
+                        raise
+            finally:
+                fcntl.flock(lk, fcntl.LOCK_UN)
+
+
+def _loads_list(text: str) -> list:
+    if not text.strip():
+        return []
+    try:
+        v = json.loads(text)
+    except ValueError:
+        return []
+    return [x for x in v if isinstance(x, dict) and "pid" in x] if isinstance(v, list) else []
 
 
 def _ram_of(h: dict) -> int:
@@ -493,6 +567,30 @@ def fits(held: list[dict], cpu: int, gpu_mb: int, budget: Budget, *, ram_mb: int
     if disk_mb and free_disk_mb is not None and free_disk_mb - budget.disk_floor_mb < disk_mb:
         return False
     return True
+
+
+def short_of(held: list[dict], req: dict, budget: Budget, free_disk_mb: float | None = None) -> list[str]:
+    """The budget dimensions in which `req` does not fit next to `held` (empty: it fits) - what a request waits for."""
+    r = _as_req(req)
+    out = []
+    if len(held) >= budget.jobs:
+        out.append("jobs")
+    if sum(int(h["cpu"]) for h in held) + r["cpu"] > budget.cpus:
+        out.append("cpu")
+    if r["gpu_mb"] > 0:
+        if sum(int(h.get("gpu_mb") or 0) for h in held) + r["gpu_mb"] > budget.gpu_mb:
+            out.append("gpu_mb")
+        if budget.gpu_jobs is not None and sum(1 for h in held if int(h.get("gpu_mb") or 0) > 0) >= budget.gpu_jobs:
+            out.append("gpu_jobs")
+    if budget.ram_mb is not None and sum(_ram_of(h) for h in held) + _ram_of(r) > budget.ram_mb:
+        out.append("ram_mb")
+    for key in ("disk_mb", "inference", "worlds"):
+        cap, want = getattr(budget, key), int(r.get(key) or 0)
+        if cap is not None and want and sum(int(h.get(key) or 0) for h in held) + want > cap:
+            out.append(key)
+    if r.get("disk_mb") and free_disk_mb is not None and free_disk_mb - budget.disk_floor_mb < int(r["disk_mb"]):
+        out.append("free_disk")
+    return out
 
 
 def clamp(req: dict, budget: Budget) -> tuple[dict, list[str]]:
@@ -536,11 +634,113 @@ def choose_cpus(held: list[dict], n: int, allowed: list[int] | None = None) -> l
     return sorted(sorted(allowed, key=lambda c: (use[c], *key(c)))[:n])
 
 
+class AdmissionError(RuntimeError):
+    """A request that the scheduler will not admit (it waited at the head of the queue only for free disk that did
+    not appear within DISK_WAIT_S)."""
+
+
+def _as_req(a: dict) -> dict:
+    return {"cpu": int(a.get("cpu") or 1), "gpu_mb": int(a.get("gpu_mb") or 0), "ram_mb": a.get("ram_mb"),
+            "disk_mb": a.get("disk_mb"), "inference": a.get("inference"), "worlds": a.get("worlds")}
+
+
+def protected(held: list[dict], ahead: list[dict], budget: Budget, free_disk_mb: float | None = None) -> list[dict]:
+    """The waiting requests whose share a later request must leave free: the head of the queue always (its whole
+    request, also in the dimensions it is still waiting for), and every other earlier request that could start now
+    next to what is held and the protected requests before it (it is only waiting for its turn)."""
+    out = []
+    for k, a in enumerate(ahead):
+        r = _as_req(a)
+        if k == 0 or fits(list(held) + out, r["cpu"], r["gpu_mb"], budget, ram_mb=r["ram_mb"],
+                          disk_mb=int(r["disk_mb"] or 0), inference=int(r["inference"] or 0),
+                          worlds=int(r["worlds"] or 0), free_disk_mb=free_disk_mb):
+            out.append(r)
+    return out
+
+
+def shadow_time(held: list[dict], req: dict, budget: Budget, now: float,
+                free_disk_mb: float | None = None) -> float | None:
+    """The earliest time `req` fits if every holder ends at its deadline (`until`: admission + time limit + stop
+    grace) - the head's start time EASY backfilling plans around. None when no such time is known: a holder without
+    a deadline (no `--timeout`, or a ledger entry of an older version of this module) is never assumed to end."""
+    r = _as_req(req)
+    kw = dict(ram_mb=r["ram_mb"], disk_mb=int(r["disk_mb"] or 0), inference=int(r["inference"] or 0),
+              worlds=int(r["worlds"] or 0), free_disk_mb=free_disk_mb)
+    alive = list(held)
+    if fits(alive, r["cpu"], r["gpu_mb"], budget, **kw):
+        return now
+    ends = sorted((float(h["until"]), k) for k, h in enumerate(alive) if h.get("until") is not None)
+    gone: set[int] = set()
+    for t, k in ends:
+        gone.add(k)
+        if fits([h for j, h in enumerate(alive) if j not in gone], r["cpu"], r["gpu_mb"], budget, **kw):
+            return max(now, t)
+    return None
+
+
+def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budget: Budget, *,
+                ram_mb: int | None = None, disk_mb: int = 0, inference: int = 0, worlds: int = 0,
+                free_disk_mb: float | None = None, run_s: float | None = None, now: float | None = None) -> bool:
+    """Backfill rule (EASY backfilling): a request that is not at the head of the queue may start now only if it
+    fits next to what is held PLUS the protected earlier requests (`protected`: the head's whole request and every
+    earlier request that could start now), counting only the dimensions it uses. So the head is never delayed by a
+    later request, no request that is only waiting for its turn is overtaken, and every request reaches the head
+    in queue order and is then protected (no starvation). A later request may start while an earlier one waits for
+    something held (e.g. CPU-only jobs while GPU jobs wait for one of the GPU slots); that can delay the earlier one
+    by at most the run time of the jobs started meanwhile, never indefinitely.
+
+    Deadlines (`run_s`, the request's time limit; holders' `until`): while the head cannot start, its share is
+    free until its shadow time (`shadow_time`: the holders it waits for have ended at their deadlines). A request
+    whose own deadline comes before that may use the head's share meanwhile: it is stopped by then at the latest, so
+    the head never starts later than its planned start (if a holder ends early, the head can wait for the rest of
+    the short job's run time, the usual EASY trade-off). Without a known shadow time nothing changes."""
+    pend = protected(held, ahead, budget, free_disk_mb)
+    if run_s is not None and pend and ahead:
+        now = time.time() if now is None else float(now)
+        head = pend[0]
+        hk = dict(ram_mb=head["ram_mb"], disk_mb=int(head["disk_mb"] or 0), inference=int(head["inference"] or 0),
+                  worlds=int(head["worlds"] or 0), free_disk_mb=free_disk_mb)
+        if not fits(held, head["cpu"], head["gpu_mb"], budget, **hk):
+            ts = shadow_time(held, head, budget, now, free_disk_mb)
+            if ts is not None and now + float(run_s) + STOP_GRACE_S <= ts:
+                pend = pend[1:]
+    allx = list(held) + pend
+    if len(allx) + 1 > budget.jobs:
+        return False
+    if sum(int(h["cpu"]) for h in allx) + max(1, int(cpu)) > budget.cpus:
+        return False
+    if gpu_mb > 0:
+        if sum(int(h.get("gpu_mb") or 0) for h in allx) + gpu_mb > budget.gpu_mb:
+            return False
+        if budget.gpu_jobs is not None and sum(1 for h in allx if int(h.get("gpu_mb") or 0) > 0) + 1 > budget.gpu_jobs:
+            return False
+    if budget.ram_mb is not None and sum(_ram_of(h) for h in allx) + _ram_of({"cpu": cpu, "ram_mb": ram_mb}) \
+            > budget.ram_mb:
+        return False
+    for key, want in (("disk_mb", disk_mb), ("inference", inference), ("worlds", worlds)):
+        cap = getattr(budget, key)
+        if cap is not None and want and sum(int(h.get(key) or 0) for h in allx) + want > cap:
+            return False
+    if disk_mb and free_disk_mb is not None and \
+            free_disk_mb - budget.disk_floor_mb - sum(int(a.get("disk_mb") or 0) for a in pend) < disk_mb:
+        return False
+    return True
+
+
+BACKFILL = True                          # requests behind the head may start when they cannot delay it (fits_behind)
+STOP_GRACE_S = 60.0                      # a job's deadline: admission + its time limit + this (stop, reap, release)
+DISK_WAIT_S = 900.0                      # the head gives up when only free disk keeps it waiting this long
+
+
 def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, poll_s: float = 2.0,
             timeout_s: float | None = None, pid: int | None = None, *, ram_mb: int | None = None,
             gpu_s: int | None = None, disk_mb: int | None = None, inference: int | None = None,
-            worlds: int | None = None, job: str | None = None, d: str | None = None) -> dict:
-    """Wait (FIFO) until the request fits, then record it. Returns the ledger entry (pinned CPUs, clamped grant)."""
+            worlds: int | None = None, job: str | None = None, d: str | None = None,
+            run_s: float | None = None) -> dict:
+    """Wait (FIFO with EASY backfilling, `fits_behind`) until the request fits, then record it. `run_s` is the
+    job's time limit (`--timeout`): the entry then carries its deadline (`until`), which lets shorter requests
+    backfill around a blocked head (`shadow_time`). Returns the ledger entry (pinned CPUs, clamped grant).
+    `timeout_s` limits the wait for admission."""
     d = d or slots_dir()
     eff = _tighter(stored_budget(d, default=budget), budget)
     req, cut = clamp({"cpu": int(cpu), "gpu_mb": max(0, int(gpu_mb)), "ram_mb": ram_mb, "disk_mb": disk_mb,
@@ -548,9 +748,11 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
     pid = int(pid or os.getpid())
     ticket = uuid.uuid4().hex[:12]
     t0 = time.time()
-    qentry = {"ticket": ticket, "pid": os.getpid(), "since": t0, "label": label[:80], **req}
+    qentry = {"ticket": ticket, "pid": os.getpid(), "start": _starttime(os.getpid()), "since": t0,
+              "label": label[:80], **req, **({"run_s": float(run_s)} if run_s is not None else {})}
     with _ledger(d) as box:
         box["queue"].append(qentry)
+    disk_blocked_since = None
     try:
         while True:
             free = None
@@ -560,22 +762,37 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                 except OSError:
                     free = 0.0
             eff = _tighter(stored_budget(d), budget)          # a budget change applies to waiting requests
+            dims = dict(ram_mb=req["ram_mb"], disk_mb=int(req["disk_mb"] or 0), inference=int(req["inference"] or 0),
+                        worlds=int(req["worlds"] or 0))
             with _ledger(d) as box:
                 q = box["queue"]
                 if not any(x["ticket"] == ticket for x in q):
                     q.append(qentry)
+                pos = next(i for i, x in enumerate(q) if x["ticket"] == ticket)
                 others = [h for h in box["held"] if h.get("reserving") != ticket]
-                head = q[0]["ticket"] == ticket
-                if head and fits(others, req["cpu"], req["gpu_mb"], eff, ram_mb=req["ram_mb"],
-                                 disk_mb=int(req["disk_mb"] or 0), inference=int(req["inference"] or 0),
-                                 worlds=int(req["worlds"] or 0), free_disk_mb=free):
+                head = pos == 0
+                if head:
+                    admit = fits(others, req["cpu"], req["gpu_mb"], eff, free_disk_mb=free, **dims)
+                    if not admit and free is not None and fits(others, req["cpu"], req["gpu_mb"], eff, **dims):
+                        disk_blocked_since = disk_blocked_since or time.time()
+                    else:
+                        disk_blocked_since = None
+                else:
+                    real = [h for h in box["held"] if not h.get("reserving")]
+                    admit = BACKFILL and fits_behind(real, q[:pos], req["cpu"], req["gpu_mb"], eff,
+                                                     free_disk_mb=free, run_s=run_s, **dims)
+                if admit:
                     box["queue"] = [x for x in q if x["ticket"] != ticket]
-                    entry = {"pid": pid, "cpu": req["cpu"], "gpu_mb": req["gpu_mb"], "label": label,
-                             "since": time.time(), "v": 2, "job": job or ticket,
+                    now = time.time()
+                    entry = {"pid": pid, "start": _starttime(pid), "cpu": req["cpu"], "gpu_mb": req["gpu_mb"],
+                             "label": label, "since": now, "v": 2, "job": job or ticket,
                              "cpus": choose_cpus(others, req["cpu"]), "ram_mb": req["ram_mb"], "gpu_s": gpu_s,
                              "disk_mb": req["disk_mb"], "inference": req["inference"], "worlds": req["worlds"],
-                             "clamped": cut, "waited_s": round(time.time() - t0, 3)}
-                    box["held"] = others + [entry]
+                             "clamped": cut, "waited_s": round(now - t0, 3), "queue_pos": pos,
+                             "backfilled": not head}
+                    if run_s is not None:
+                        entry["until"] = round(now + float(run_s) + STOP_GRACE_S, 3)
+                    box["held"] = _trim_reservations(others + [entry], eff)
                     return entry
                 if head:
                     # The head reserves what is free now and keeps it while it waits for the rest, so that clients
@@ -585,11 +802,16 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                     r_cpu = max(0, min(req["cpu"], eff.cpus - used_cpu))
                     r_gpu = max(0, min(req["gpu_mb"], eff.gpu_mb - used_gpu))
                     if r_cpu or r_gpu:
-                        box["held"] = others + [{"pid": os.getpid(), "cpu": r_cpu, "gpu_mb": r_gpu, "ram_mb": 0,
+                        box["held"] = others + [{"pid": os.getpid(), "start": qentry["start"], "cpu": r_cpu,
+                                                 "gpu_mb": r_gpu, "ram_mb": 0,
                                                  "label": f"(reserving for) {label}"[:120], "since": t0, "v": 2,
                                                  "reserving": ticket, "cpus": []}]
                     else:
                         box["held"] = others
+            if disk_blocked_since is not None and time.time() - disk_blocked_since > DISK_WAIT_S:
+                raise AdmissionError(f"waited {DISK_WAIT_S:.0f}s at the head of the queue for "
+                                     f"{req['disk_mb']} MB of free disk above the {eff.disk_floor_mb} MB floor "
+                                     f"({free:.0f} MB free); ask for less disk or free some")
             if timeout_s is not None and time.time() - t0 > timeout_s:
                 raise TimeoutError(f"no slot for cpu={cpu} gpu_mb={gpu_mb} within {timeout_s}s")
             time.sleep(poll_s)
@@ -598,6 +820,23 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
             box["queue"] = [x for x in box["queue"] if x["ticket"] != ticket]
             box["held"] = [h for h in box["held"] if h.get("reserving") != ticket]
         raise
+
+
+def _trim_reservations(held: list[dict], budget: Budget) -> list[dict]:
+    """Shrink waiting heads' reservations (never a real grant) so that the held CPUs and GPU memory stay within the
+    budget after a request was admitted into a head's share (deadline backfilling); each head recomputes its own
+    reservation at its next poll."""
+    out = [dict(h) for h in held]
+    for key, cap in (("cpu", budget.cpus), ("gpu_mb", budget.gpu_mb)):
+        over = sum(int(h.get(key) or 0) for h in out) - int(cap)
+        for h in reversed(out):
+            if over <= 0:
+                break
+            if h.get("reserving") and int(h.get(key) or 0) > 0:
+                cut = min(over, int(h[key]))
+                h[key] = int(h[key]) - cut
+                over -= cut
+    return [h for h in out if not h.get("reserving") or int(h.get("cpu") or 0) or int(h.get("gpu_mb") or 0)]
 
 
 def release(pid: int, d: str | None = None) -> None:
@@ -611,12 +850,33 @@ def release_job(job: str, d: str | None = None) -> None:
 
 
 def status(d: str | None = None) -> dict:
+    """Budget, held slots (each with `live`: what its job uses now and at peak, published by its supervisor every
+    LIVE_S seconds, when it runs this version) and the queue."""
     d = d or slots_dir()
     with _ledger(d) as box:
         held, queue = list(box["held"]), list(box["queue"])
-    return {"ledger": d, "budget": stored_budget(d).to_dict(), "held": held, "queue": queue,
+    in_use = 0.0
+    for h in held:
+        live = None if h.get("reserving") else _read_live(d, h.get("job"))
+        if live is not None:
+            h["live"] = live
+            in_use += float(live.get("ram_mb") or 0)
+    # what each waiting request waits for: the head against what is held (and, when every holder it waits for has a
+    # deadline, its planned start); a later request against what is held plus the protected earlier requests
+    b = stored_budget(d)
+    real = [h for h in held if not h.get("reserving")]
+    now = time.time()
+    for k, q in enumerate(queue):
+        if k == 0:
+            q["waiting_for"] = short_of(real, q, b)
+            ts = shadow_time(real, q, b, now) if q["waiting_for"] else now
+            q["planned_start"] = None if ts is None else round(ts, 1)
+        else:
+            q["waiting_for"] = short_of(real + protected(real, queue[:k], b), q, b) or ["its turn"]
+    return {"ledger": d, "budget": b.to_dict(), "held": held, "queue": queue,
             "cpu_used": sum(int(h["cpu"]) for h in held), "gpu_mb_used": sum(int(h["gpu_mb"]) for h in held),
-            "ram_mb_reserved": sum(_ram_of(h) for h in held)}
+            "ram_mb_reserved": sum(_ram_of(h) for h in held), "ram_mb_in_use_reported": round(in_use, 1),
+            "jobs_reporting_use": sum(1 for h in held if "live" in h)}
 
 
 def _log_usage(rec: dict, d: str | None = None) -> None:
@@ -673,6 +933,7 @@ class Job:
     leader: subprocess.Popen | None = None
     sid: int = -1
     known: set = field(default_factory=set)
+    start: dict = field(default_factory=dict)          # pid -> start time when first seen as a member
     violations: list = field(default_factory=list)
     signals: list = field(default_factory=list)
     killed_by: str | None = None
@@ -687,6 +948,41 @@ class Job:
     over: int = 0
     samples: int = 0
     pss_ratio: float = 1.0
+    cur: dict = field(default_factory=dict)            # the last sample: RAM and GPU memory in use now
+    live_at: float = 0.0
+
+
+#: how often a supervisor publishes what its job uses (jobdir/live.json)
+LIVE_S = float(os.environ.get("CRUCIBLE_SLOTS_LIVE_S", "10"))
+
+
+def _write_live(job: Job, now: float) -> None:
+    """Publish what the job uses now and at peak (`--status` shows it next to the grant, so a waiting engineer can
+    see how much of the held budget is in use). Atomic replace, no ledger lock; failures are ignored."""
+    if now - job.live_at < LIVE_S:
+        return
+    job.live_at = now
+    rec = {"t": round(now, 1), "ram_mb": round(float(job.cur.get("ram_mb", 0.0)), 1),
+           "peak_ram_mb": round(float(job.peak["rss_mb"]), 1), "gpu_mb": round(float(job.cur.get("gpu_mb", 0.0)), 1),
+           "peak_gpu_mb": round(float(job.peak["gpu_mb"]), 1), "peak_cpu": round(float(job.peak["cpu"]), 3),
+           "procs": int(job.peak["procs"])}
+    path = os.path.join(job.jobdir, "live.json")
+    try:
+        with open(path + ".tmp", "w") as fh:
+            json.dump(rec, fh)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+
+
+def _read_live(d: str, job_id: str | None) -> dict | None:
+    if not job_id:
+        return None
+    try:
+        with open(os.path.join(d, "jobs", str(job_id), "live.json")) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 
 def _tree(job: Job) -> list[int]:
@@ -707,6 +1003,8 @@ def _tree(job: Job) -> list[int]:
         st = _stat(p)
         if st is None or st[0] in "ZX":
             continue
+        if job.start.setdefault(p, st[19]) != st[19]:
+            job.start[p] = st[19]             # the pid now names a newer process found inside the job's tree
         seen.add(p)
         stack.extend(_children(p))
     seen.discard(os.getpid())
@@ -717,11 +1015,33 @@ def _tree(job: Job) -> list[int]:
 def _signal_tree(job: Job, sig: int) -> None:
     """Signal the job's processes - only those, re-checked as members right before the signal."""
     for p in _tree(job):
-        try:
-            os.kill(p, sig)
-            job.signals.append([p, int(sig)])
-        except (ProcessLookupError, PermissionError):
-            pass
+        _signal_member(job, p, sig)
+
+
+def _signal_member(job: Job, pid: int, sig: int) -> bool:
+    """Signal one member found by `_tree`. The process is pinned by a pidfd first and its start time compared with
+    the one seen when it was found inside the job's tree, so a pid that was reused by another process between the
+    check and the signal is never signalled (no race with pid reuse)."""
+    fd = None
+    try:
+        fd = os.pidfd_open(pid)
+    except (OSError, AttributeError):
+        fd = None
+    try:
+        st = _stat(pid)
+        if st is None or st[0] in "ZX" or job.start.get(pid) != st[19]:
+            return False
+        if fd is not None:
+            signal.pidfd_send_signal(fd, sig)
+        else:
+            os.kill(pid, sig)
+        job.signals.append([pid, int(sig)])
+        return True
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def _reap(job: Job) -> None:
@@ -841,6 +1161,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
             return
     else:
         mem = rss * job.pss_ratio
+    job.cur["ram_mb"] = mem
     job.peak["rss_mb"] = max(job.peak["rss_mb"], mem)
     job.peak["write_mb"] = max(job.peak["write_mb"], sum(job.writes.values()) / MB)
     # GPU memory and GPU time from the interpreter hook's reports; GPU contexts without a report
@@ -861,6 +1182,7 @@ def _sample(job: Job, now: float, dt: float) -> None:
                     _violation(job, "gpu_mem", 1, 0, "killed", pid=p, why="GPU context in a job granted no GPU")
                     _stop(job, "gpu_mem")
                     return
+    job.cur["gpu_mb"] = gpu_mb
     job.peak["gpu_mb"] = max(job.peak["gpu_mb"], gpu_mb)
     if g["gpu_mb"] > 0 and gpu_mb > g["gpu_mb"]:
         _violation(job, "gpu_mem", gpu_mb, g["gpu_mb"], "killed")
@@ -901,6 +1223,16 @@ def _proc_stats(jobdir: str) -> dict:
     return out
 
 
+def default_gpu_s(cpu: int, timeout_s: float | None) -> int:
+    """GPU time granted when the caller names none: what the job's workers can hold over its whole time limit.
+
+    GPU time sums the seconds every process of the job holds a CUDA context, so a job of N workers that each hold one
+    spends N GPU-seconds per second. A fixed default (4 h) stopped a governed benchmark of two parallel GPU runs with
+    an 18-hour timeout after 2 hours of wall time (2026-11-26). The default is therefore the longer of 4 h and the
+    time limit, per granted CPU worker; an explicit `--gpu-s` still sets any tighter limit."""
+    return int(math.ceil(max(float(DEFAULT_GPU_S), float(timeout_s or 0.0)) * max(1, int(cpu))))
+
+
 def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budget: Budget | None = None,
             timeout_s: float | None = None, *, ram_mb: int | None = None, gpu_s: int | None = None,
             disk_mb: int | None = None, disk_dirs=(), inference: int | None = None, worlds: int | None = None,
@@ -917,10 +1249,10 @@ def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budg
     nested = _nested() is not None
     job_id = f"{time.strftime('%Y%m%d%H%M%S')}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
     if gpu_mb > 0 and gpu_s is None:
-        gpu_s = DEFAULT_GPU_S
+        gpu_s = default_gpu_s(cpu, timeout_s)
     waited0 = time.time()
     entry = acquire(cpu, gpu_mb, label or " ".join(cmd)[:120], budget, poll_s=poll_s, ram_mb=ram_mb, gpu_s=gpu_s,
-                    disk_mb=disk_mb, inference=inference, worlds=worlds, job=job_id, d=d)
+                    disk_mb=disk_mb, inference=inference, worlds=worlds, job=job_id, d=d, run_s=timeout_s)
     waited = time.time() - waited0
     eff = _tighter(stored_budget(d), budget)
     grant = {"cpu": entry["cpu"], "gpu_mb": entry["gpu_mb"], "ram_mb": entry["ram_mb"], "gpu_s": gpu_s,
@@ -995,6 +1327,7 @@ def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budg
                 _reap(job)
                 if job.killed_by is None:
                     _sample(job, now, now - last)
+                    _write_live(job, now)
                 last = now
                 done = job.leader.returncode is not None
                 if done and leader_done_at is None:
@@ -1132,9 +1465,16 @@ def main(argv: list[str] | None = None) -> int:
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, _term)
     b = Budget.from_dict(json.loads(a.budget_json)) if a.budget_json else None
-    rec = run_job(cmd, a.cpu, a.gpu_mb, a.label, b, timeout_s=a.timeout, ram_mb=a.ram_mb, gpu_s=a.gpu_s,
-                  disk_mb=a.disk_mb, disk_dirs=a.disk_dir, inference=a.inference, worlds=a.worlds,
-                  sample_s=a.sample, orphan_grace_s=a.orphan_grace, poll_s=a.poll, cli=True)
+    try:
+        rec = run_job(cmd, a.cpu, a.gpu_mb, a.label, b, timeout_s=a.timeout, ram_mb=a.ram_mb, gpu_s=a.gpu_s,
+                      disk_mb=a.disk_mb, disk_dirs=a.disk_dir, inference=a.inference, worlds=a.worlds,
+                      sample_s=a.sample, orphan_grace_s=a.orphan_grace, poll_s=a.poll, cli=True)
+    except AdmissionError as exc:
+        print(f"[crucible.scale.slots] not admitted: {exc}", file=sys.stderr)
+        if a.record_out:
+            with open(a.record_out, "w") as fh:
+                json.dump({"rc": 75, "killed_by": f"not admitted: {exc}", "violations": [], "signals": []}, fh)
+        return 75
     if a.record_out:
         with open(a.record_out, "w") as fh:
             json.dump(rec, fh)

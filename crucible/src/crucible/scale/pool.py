@@ -61,6 +61,11 @@ __all__ = ["WorldPool", "world_job", "run_world_job", "Supervisor", "PoolBroken"
 DAY = 86400
 BLAS_ENV = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS",
             "VECLIB_MAXIMUM_THREADS", "BLIS_NUM_THREADS")
+#: Workers ask NVML, not the CUDA driver, whether a GPU exists: importing the shared semantic space evaluates
+#: torch.cuda.is_available() at import time (semantic/space/lm.py device()), and a driver-based check starts the CUDA
+#: driver's own thread in every CPU-only world worker (measured 2026-11-26: 2 threads per worker instead of 1). A world
+#: that really runs on the GPU still initialises CUDA lazily on first use.
+CUDA_CHECK_ENV = {"PYTORCH_NVML_BASED_CUDA_CHECK": "1"}
 #: Hard cap on workers per pool. Raise it deliberately with the environment variable, never by accident.
 MAX_WORKERS = int(os.environ.get("CRUCIBLE_SCALE_MAX_WORKERS", "8"))
 _ENV_LOCK = threading.Lock()
@@ -336,6 +341,8 @@ def _worker_main(wid: int, conn, factory: str, cfg: dict, log_path: str | None, 
     engage("scale.pool worker")                # Part 16: no real-world bridge in a process that hosts worlds
     for k in BLAS_ENV:
         os.environ[k] = str(blas_threads)
+    for k, v in CUDA_CHECK_ENV.items():
+        os.environ.setdefault(k, v)
     _LIVE.clear()                                    # (fork) the parent's supervisors are not ours to stop
     signal.signal(signal.SIGINT, signal.SIG_IGN)     # Ctrl-C goes to the whole terminal group; the parent decides
     signal.signal(signal.SIGTERM, _on_term)          # terminate = unwind, close worlds (and their sandboxes), exit
@@ -518,10 +525,12 @@ class Supervisor:
                                  args=(slot, child_conn, self.factory, self.cfg, log_path, parent_pid,
                                        self.blas_threads, self._own_log_dir))
         with _ENV_LOCK:                              # the child must see the thread limits before it imports numpy
-            saved = {k: os.environ.get(k) for k in BLAS_ENV}
+            saved = {k: os.environ.get(k) for k in BLAS_ENV + tuple(CUDA_CHECK_ENV)}
             try:
                 for k in BLAS_ENV:
                     os.environ[k] = str(self.blas_threads)
+                for k, v in CUDA_CHECK_ENV.items():
+                    os.environ.setdefault(k, v)
                 proc.start()
             finally:
                 for k, v in saved.items():
