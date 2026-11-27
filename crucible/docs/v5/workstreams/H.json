@@ -3,7 +3,7 @@
  "branch": "c5c/w3b-rapid",
  "base": "55433e7 (integration head after waves 1, 2a, 3a and the integration fix) + feat/crucible-5-complete docs merge cb96e1c",
  "measured_at": "2026-11-27 (second wave-3b continuation; per-family probes on seeds 0-2 and 10-12, registry-wide run queued as slot job 'H: rapid final 2')",
- "status": "in progress (continuation): counts below are probe counts, the registry-wide measurement replaces them",
+ "status": "Second wave-3b continuation: M.1 63/60, M.2 22/20, SP-8.0 60/60 and all six SP-8.0b category checks in per-family probes on seeds 0-2 and 10-12; registry-wide confirmation queued (slot job 'H: rapid final 2').",
  "progress": {
   "baseline_integrated_tree": {
    "robust_train": 22,
@@ -95,7 +95,7 @@
    "plan_serial_stages (8.4.3)",
    "net_interdependent (8.7.4, evaluation)"
   ],
-  "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (10 files incl. the two new ones), direct single-CPU run 2026-11-27 03:44: 457 passed, 1 failed (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters) -> fixed in fed6640b; tests/test_v5_rapid_engines.py + test_v5_rapid_primitives.py then 196 passed",
+  "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (test_v5_rapid_families, _h1h2, _admission_v2, _primitives, _actions, _engines, _inventory_refs, _prediction_v3, test_kernel, test_invariants), direct single-CPU run on 571ff996 (2026-11-27 04:22): 458 passed, 0 failed. An earlier run found one failure (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters), fixed in fed6640b.",
   "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job."
  },
  "requirements": {
