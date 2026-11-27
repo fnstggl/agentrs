@@ -180,3 +180,14 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
 - Resumed at 19:27 UTC (5-hour window reset) with the same run id; the post-Finish prompts were edited to be
   resume-safe (merge progress file `docs/evidence/wave3/merge_progress.md`, G3G4 evidence committed incrementally) and
   the verifier-label misalignment in the fix prompt was corrected. Script copy: `docs/evidence/wave3/wave3b.js`.
+
+#### 2026-11-27 01:50 UTC — continuation attempt 2 cut again; integration run wave3c
+
+- Attempt 2 of `wf_f5adc73d-1e6` (19:27-22:32): only the W6 finisher ran (7 more commits, 15680eb..152b7d1:
+  beta-NLL outcome loss, standardised action input, LP probe, adapt-learning 3/3 seeds at 5000 steps) before the
+  5-hour limit; merge and later steps were refused without touching the checkout. Weekly usage went 27% -> 54%:
+  a long-context agent waking every ~10 min to babysit GPU diagnostics re-creates its whole prompt cache each time.
+- W6's DOM causal e2e (`docs/evidence/dom/W6/e2e_dom_dev_causal.json`) still FAILS consistency (all worlds), delay t2
+  and switch t4; t1 interventions and t3 contrast pass. Recorded in the orchestrator-written W6 report.
+- All six finisher reports saved to `docs/evidence/wave3/finisher_reports.json`. Integration continues as a new run
+  (`docs/evidence/wave3/wave3c.js`: merge -> Gate1B -> 5 verifiers -> fix, with resume-safety and cost discipline).

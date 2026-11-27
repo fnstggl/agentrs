@@ -1,0 +1,474 @@
+{
+ "W7": {
+  "workstream": "W7 LEARN: integrated learner, optimisation, gradient routing",
+  "branch": "worktree-wf_477a68f9-804-7",
+  "final_commit": "89bbc63",
+  "worktree_path": "/workspace/agentrs/.claude/worktrees/wf_477a68f9-804-7",
+  "summary": "I picked up where the previous W7 agent stopped at aa164e1. It had left one uncommitted real dom_dev run (run 4, the factors-only balancing code at aa164e1). In that run the actor-share check FAILED: at update 20 a single batch's adaptation loss doubled, took 0.72 of the core gradient, and pushed the actor down to 0.058. I committed that run as failed evidence (w7_e2e_dom_dev_run4_factors_only.json).\n\nWhat I added:\n- **Share guard** (LossBalancer.guard, on by default; switched with share_guard in the learner or --share-guard on|off in the e2e driver). The learner now probes every update. It scales whole objectives down (scales between 0.02 and 1, largest = 1) so that the shares of the core gradient actually applied stay inside their ranges. A correction backward pass of sum_i (s_i - 1) L_i makes .grad exactly the gradient of sum_i s_i L_i; a unit test checks this. UpdateInfo reports both the applied share (core_share) and the pre-guard share (core_share_measured), plus weights_applied. The balancer factors still learn from the measured share.\n- **W1 request:** IntegratedLearner.from_system(system) is the LearnerHook that build_agent picks up. It microbatches the policy recompute by cfg.microbatch.\n- **W8 requests:**\n  - The supervised-label loss (L_pred) now comes from selfeval.label_join.join(label_store, archive).with_features(R, goal). Rows for this update's decisions get R recomputed with gradient; older rows use a bounded detached feature cache.\n  - Phi and V_L stay in the lr_heads group, and psi stays out of the slow optimiser.\n  - meta_step() runs W8's MetaRewardTrainer through a new learn/meta_window.MetaWindowDriver (start, then act_with/inner_step K times, then the query window, verified utilities from the LabelStore, outer_step, commit). The driver works across rounds of the loop. It suspends the slow step while a window is open and bumps the policy version afterwards, so decisions acted with the fast weights go to V-trace. It aborts if no query label arrives or a checkpoint is taken mid-window.\n- **W3 request:** core.sem_proj.* is now a core group (core learning rate, counted in the core share). The DOM-08 'sem_proj' entry covers both projections, and the existing rules already route core.state_gate, core.xattn and core.cond_proj.\n\nThe final real dom_dev run (run 5, share guard on, commit 7bb036b, real stack, no test doubles, observation-only) did 19 of the 20 planned updates. It stopped when its 860 s budget for the shared GPU lock ran out: the guard's per-update probe raised the cost from 16.5 to 20.4 s per update under GPU contention. Every W7 plan check passes on those 19 updates, except DOM-08 for all required groups: four groups are absent because their components are not built in this seam-0 worktree.",
+  "checks": [
+   {
+    "name": "e2e actor share of core gradient >= 0.1 (every update after warmup)",
+    "passed": true,
+    "evidence": "docs/evidence/dom/W7/w7_e2e_dom_dev.json (run 5, commit 7bb036b, real dom_dev 8x384 + Qwen3-0.6B, 4 rapid worlds, 608 decisions): applied actor share on updates 9-19 min 0.103, values 0.10-0.40; the guard was unsatisfied only at update 1, where the actor gradient is the entropy bonus alone. Pre-guard (measured) actor share after warmup went as low as 0.007, which is why the guard is needed."
+   },
+   {
+    "name": "e2e world share of core gradient <= 0.7 (plan cap 0.45)",
+    "passed": true,
+    "evidence": "run 5: applied world share on updates 9-19 max 0.448 (<= 0.45 cap)"
+   },
+   {
+    "name": "e2e DOM-08 nonzero for every built group after one step",
+    "passed": true,
+    "evidence": "run 5 update 2: core.block0/mid/last, sem_proj, reasoner, beliefs, world_model, exploration, policy, v_int all nonzero"
+   },
+   {
+    "name": "e2e DOM-08 nonzero for ALL required groups",
+    "passed": false,
+    "evidence": "core.sem_xattn_gate (W3), dec_xattn (W4), intent (W5), predictors (W8) are absent: those components are not in this seam-0 worktree; needs a rerun on the merged stack"
+   },
+   {
+    "name": "e2e lag>0 decisions routed to V-trace without StalePolicyError",
+    "passed": true,
+    "evidence": "run 5: 103 stale steps on V-trace, 501 fresh steps, no errors"
+   },
+   {
+    "name": "e2e clip rate < 0.5 after warmup",
+    "passed": true,
+    "evidence": "run 5: 0.0 over 162 group-update pairs after 8 warmup updates"
+   },
+   {
+    "name": "e2e 20 updates",
+    "passed": false,
+    "evidence": "run 5 did 19/20: the 860 s lock-hold budget ran out (896 s total, 15.9 GB peak GPU); run 4 did 20/20 but failed the actor-share check"
+   },
+   {
+    "name": "run 4 (factors-only balancing, aa164e1) actor share",
+    "passed": false,
+    "evidence": "docs/evidence/dom/W7/w7_e2e_dom_dev_run4_factors_only.json: actor 0.058 at update 20 (adapt 0.72); this failure is what motivated the share guard"
+   },
+   {
+    "name": "CPU suite tests/cam_unified/learn",
+    "passed": true,
+    "evidence": "120 passed, 3 deselected (109 s) at 7bb036b"
+   },
+   {
+    "name": "CPU suite tests/cam_unified/integration",
+    "passed": true,
+    "evidence": "97 passed, 5 skipped, 2 deselected at 7bb036b"
+   },
+   {
+    "name": "CPU suite tests/cam_unified/dist",
+    "passed": true,
+    "evidence": "65 passed, 9 deselected (139.5 s) at 7bb036b; a first attempt was killed by a 900 s timeout under CPU contention"
+   },
+   {
+    "name": "CPU tests/cam_unified/dom (non-gpu)",
+    "passed": true,
+    "evidence": "4 passed, 6 deselected"
+   },
+   {
+    "name": "meta window / W8 label join on the real stack",
+    "passed": false,
+    "evidence": "not run: W8's MetaRewardTrainer, fast_policy, label_join and the non-stub RewardModel are not in this worktree; only unit tests with protocol doubles, which are not evidence"
+   }
+  ],
+  "tests_added": [
+   "tests/cam_unified/learn/test_integrated_learner.py::test_share_guard_solves_into_the_ranges_by_down_scaling_only",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_share_guard_correction_gives_the_gradient_of_the_scaled_sum",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_step_with_the_guard_reports_applied_and_measured_core_shares",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_from_system_builds_the_learner_hook_of_the_canonical_factory",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_meta_window_spans_rounds_suspends_the_slow_step_and_reads_verified_query_utilities",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_meta_window_aborts_without_query_labels_and_on_checkpoint",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_joined_label_batch_uses_w8_label_join_with_grad_rows_for_this_update",
+   "tests/cam_unified/learn/test_integrated_learner.py::test_classify_assigns_dom08_groups_by_name (updated: core.sem_proj.* -> core.sem_proj per W3 request; added state_gate/cond_proj/xattn alpha cases)"
+  ],
+  "requirements_advanced": [
+   "UR-03: integrated training algorithm with an explicit loss/parameter/gradient-routing table. IntegratedLearner.step -> UpdateInfo with the named-group gradient table, balanced and applied loss weights, and a per-update share guard. On real dom_dev (run 5) the applied core shares hold world <= 0.45 and actor >= 0.1 on every update after warmup.",
+   "D08: per-objective gradient contribution into the shared backbone is now tracked on every update (core.sem_proj added as a core group); DOM-08 table logged per update.",
+   "D05: PPO on lag-0 and V-trace on lag>0 again on real dom_dev (103 stale steps). Decisions acted during a meta window get lag >= 1, so they go to V-trace with their recorded behaviour log-probabilities.",
+   "A13: per-group verified shared-core updates from real experience on dom_dev with per-group clipping (clip rate 0.0 after warmup).",
+   "IR-04: meta_step now drives W8's MetaRewardTrainer start/inner/query/outer/commit protocol inside the canonical loop (MetaWindowDriver). Unit-tested with doubles only; the real-stack run waits on the W8 merge."
+  ],
+  "not_done": [
+   "The final real e2e did 19 of 20 updates: the 15 min GPU lock hold ran out under contention (20.4 s/update with the per-update guard probe). I did not re-run, to stay economical with the shared GPU.",
+   "DOM-08 for all required groups is not checked: core.sem_xattn_gate, dec_xattn, intent and predictors are absent in this seam-0 worktree. It needs a rerun on the merged W3/W4/W5/W8 stack (W1).",
+   "MetaWindowDriver and the W8 label_join path have not run on the real stack; W8's modules are not in this worktree (unit tests with doubles only).",
+   "With the seam stub RewardModel the actor reward is 0 in every run here. Real R_psi learning signal arrives only with W8's RewardModel after the merge.",
+   "tests/cam_unified/dom/test_dom08_gradients.py (gpu-marked) not run as pytest: its peak memory is above 4 GB, which needs the GPU lock, and pytest must not run under the lock. The same code path ran through integrated_e2e.py under the lock."
+  ],
+  "change_requests": [
+   "W8 selfeval/reward_model.py - in RewardModel.losses remove `R = label_batch.R.detach()` (keep .float()) - plan \u00a72 says L_pred updates theta_core with share >= 0.1. IntegratedLearner._joined_label_batch already passes gradient-carrying R only for this update's decisions (cached rows are detached), so with the detach L_pred never reaches the core and the balancer's pred floor cannot be met.",
+   "W1 runtime.py checkpoint - call learner.state_dict() BEFORE the model weights are written - while a meta window is open the parameters hold phi_k. IntegratedLearner.state_dict aborts the window and restores the slow weights first, but only if it runs before the weights are saved.",
+   "W1 config.py - add `share_guard: bool = True` to CamConfig (and leave it True in the dom presets) - the learner reads getattr(cfg, 'share_guard', True), and integrated_e2e currently pops it from the overrides because the field does not exist; the factors-only ablation should be declarable in a config.",
+   "W1 integration - after merging W3/W4/W5/W8, rerun `python -m superlearner.cam_unified.learn.integrated_e2e --updates 20 --max-wall-s 860` (or the gpu test tests/cam_unified/dom/test_dom08_gradients.py) on the merged dom_dev stack, plus the 1B variant - the DOM-08 all-required check (Mech C gates, dec_xattn, intent, predictors) and the real MetaWindowDriver / label_join paths can only be verified there. build_agent already selects IntegratedLearner.from_system automatically.",
+   "W1/W2 runtime loop - stamp record.extra['label_episode'] (the label source's episode number) on archived decisions (also requested by W8) - label_join and IntegratedLearner._register_episode currently both rely on episode first-appearance order plus episode_base=1."
+  ]
+ },
+ "W2": {
+  "workstream": "W2 ENV: environments, reward channels, labels",
+  "branch": "worktree-wf_477a68f9-804-2",
+  "final_commit": "f3a5a94e76e3a70c605526df2bf01c4db8062cf2",
+  "summary": "I picked up the stopped W2 worktree at /workspace/agentrs/.claude/worktrees/wf_477a68f9-804-2 at a7fbd35. Factory, LabelSource, RewardGate, result delivery, split guard and canary scans were already committed. One evidence correction was left uncommitted; it was valid (the cross-build state flags had used a comparison that treats NaN as unequal), so I committed it as 2ed5c76.\n\nNew work (f0225f9) handles the change requests W1 and W8 sent to W2:\n(1) ExperienceAdapter.execute now catches Crucible engine exceptions and returns an observable engine_error ERROR result, and the world keeps running. Real reproduction: rapid posm_sign_switch, rapid.levers with an empty values object, raises KeyError upstream.\n(2) ExecutionResult.cost is now the charge the action's own direct result reports (top-level cost_cents/fee_cents/... keys; 0 for read-only tools and rejected actions). It was always 0. IntegrityWorld expert.consult now reports its 2000-cent cost.\n(3) Utility references are per episode. IntegrityWorld.oracle_value uses the current episode's demand parameters (episode 0 is unchanged), the operator caches references per episode_key() and recomputes them on reset_world, and a resolved episode's label survives the reset that starts the next one.\n(4) Fixed a defect I found myself: worlds without an in-place reset (kernel tier) are rebuilt, but the actor's callables stayed bound to the old world. They now follow the rebuilt world.\nOpaque env/goal ids and ExperienceOperator.take_labels were already done in 33e55f4.\n\nPlan \u00a73 real check (dom_dev, ow_tiny, 12 decisions, 2 updates) re-run at f0225f9: 14 of 14 checks pass. An earlier run at a7fbd35 also passed all of them.\n\nI also ran a W1xW2 integration check in a temporary detached merge of W1's main tip 19a7a4c with this branch (clean merge, nothing committed or pushed, worktree removed). Through W1's run_lifetime, Transition.rewards is None in every round and the labels and canary checks pass. But every one of the 36 direct results reached the next input twice: W2's delivered copy plus the copy W1's loop merges itself. This needs a W1 fix (change request below).",
+  "checks": [
+   {
+    "name": "W2 CPU test suite (envs + autonomy + seam structure, not slow/gpu)",
+    "passed": true,
+    "evidence": "153 passed, 1 skipped, 0 failed in 264 s at f0225f9; the 40 tests in W2's new test files all pass (test_label_source, test_result_delivery, test_reward_integrity, test_experience_operator). docs/evidence/dom/W2/tests_cpu.json"
+   },
+   {
+    "name": "New change-request tests (test_experience_operator.py)",
+    "passed": true,
+    "evidence": "5/5 pass. Real posm_sign_switch KeyError becomes an engine_error ERROR delivered with caused_by and the world keeps executing; costs [600, 0, 0, 2000, 0] for produce/set_price/status/consult/rejected; episode-0 oracle identical to the old definition, episode-1 oracle uses episode-1 parameters; label survives reset and is released once; rebuilt world is what the actor sees."
+   },
+   {
+    "name": "Plan \u00a73 W2 real e2e: dom_dev CamUnifiedAgent on ow_tiny, 12 decisions",
+    "passed": true,
+    "evidence": "14/14 checks true at f0225f9: decision 0 calls world.hosts and its TOOL_RESULT with caused_by = that action id is in the next input; every result is in the next input; rewards all 0.0; twin world with payout x7+3.5 (operator legacy total 42.0 vs 0.0) gives identical streams and bit-identical FastState belief updates at all 12 decisions; no canaries in inputs, records or run dir (25 files); positive controls found the canaries where planted; label emitted; core hash 23e783b0 -> d20c9917; GPU peak 11.26 GB, loop 99.8 s. docs/evidence/dom/W2/env_e2e_dom_dev.json"
+   },
+   {
+    "name": "Transition.rewards is None in observation_only (plan \u00a73 W2)",
+    "passed": true,
+    "evidence": "Not measurable in this checkout: the seam-0 harness shim passes [0.0]. Measured through W1's runtime.run_lifetime in the merged integration tree: rewards_none_every_round=true and record_rewards_zero=true over 12 rounds, B=3. docs/evidence/dom/W2/env_int_w1_runtime.json"
+   },
+   {
+    "name": "W1xW2 integration: each direct result delivered exactly once",
+    "passed": false,
+    "evidence": "36/36 results reached the next input twice (1 W2 delivered copy + 1 copy W1's run_lifetime merges from ExecutionResult.observations; merge_by_seq keeps all observations without a seq). The integration's other checks passed: labels_taken=1, labels_appended=1, core hash changed by 2 updates, no canaries or privileged keys, 0 engine errors. GPU peak 7.18 GB."
+   },
+   {
+    "name": "Cross-build e2e evidence correction",
+    "passed": true,
+    "evidence": "Committed 2ed5c76. The NaN-unaware per-decision state flags in env_e2e_dom_dev_crossbuild.json are marked invalid; the lock-step twin design replaces that run."
+   }
+  ],
+  "tests_added": [
+   "superlearner/tests/cam_unified/envs/test_experience_operator.py::test_engine_exception_becomes_an_observable_error_and_the_world_keeps_running",
+   "superlearner/tests/cam_unified/envs/test_experience_operator.py::test_execution_cost_is_the_observed_charge_of_the_action",
+   "superlearner/tests/cam_unified/envs/test_experience_operator.py::test_integrity_oracle_uses_the_current_episode_parameters",
+   "superlearner/tests/cam_unified/envs/test_experience_operator.py::test_references_and_labels_follow_each_episode",
+   "superlearner/tests/cam_unified/envs/test_experience_operator.py::test_rebuilt_world_is_what_the_actor_sees_after_reset",
+   "superlearner/tests/cam_unified/envs/int_w1_runtime_check.py (GPU integration script, not a pytest module; needs W1's build/runtime after merge)"
+  ],
+  "requirements_advanced": [
+   "W2 make_env(kind, specs|tasks, n_envs, reward_mode, split) -> (adapter, operator, LabelSource): in place (33e55f4) and verified end to end with the real dom_dev agent through both the seam harness and W1's run_lifetime",
+   "W2 LabelSource.take_labels: ExperienceOperator and OpenWorldEvaluator implement it; ExperienceOperator now also releases episodes that resolved before a reset, exactly once",
+   "W2 result observations with caused_by in the next batch: verified on ow_tiny with the real model (decision after world.hosts), and in the integration run (duplicated by W1's loop, see change request)",
+   "W2 observation_only: zero rewards to the actor, bit-identical FastState under altered evaluator payout (12/12 decisions); Transition.rewards is None measured through W1's run_lifetime",
+   "W2 integrity canaries: no hits in actor inputs, records, archive, traces or transcript in both real runs; positive controls pass",
+   "W2 env robustness: Crucible engine exceptions no longer crash a run; ExecutionResult.cost carries the observed spend; utility normalisation is per episode for IntegrityWorld; kernel-tier rebuild re-points the actor"
+  ],
+  "not_done": [
+   "The bit-exact payout-invariance check runs on the seam-0 harness shim, not on W1's run_lifetime. Through run_lifetime I measured rewards None, labels and canaries, but not the twin-world FastState comparison.",
+   "The W2 e2e still declares the deviation use_memory=True, because stage1.build_system at seam-0 needs a retriever. W1's build_agent is not in this branch, so I could not drop it.",
+   "I made no upstream Crucible fix. The empty-values KeyError is in crucible rapid (posm_sign_switch), outside the files W2 may optionally edit (experience/{tier1,kernel}.py). It is handled CAM-side.",
+   "ExecutionResult.cost for rapid and kernel worlds stays 0 unless their direct results report a charge key. Rapid tools report no per-action charge (costs accrue during advance), so lambda_c sees spend only where the world reports it, e.g. the integrity worlds and OpenWorld's own cash-delta cost."
+  ],
+  "change_requests": [
+   "W1 cu/runtime.py run_lifetime - Drop the direct-result observations that the adapter already delivered when merging into the next input. Concretely: skip a res_obs entry whose envs.ow_convert.result_key matches a delivered copy (ow_convert.is_delivered_result) in nxt.observations[b]; envs.factory.merge_results already does exactly this. Also make ConcatEnv and GuardedEnv forward delivers_results (any part). Why: with W2's make_env adapters, which deliver by default, every one of the 36 direct results reached the agent's next input twice in the measured integration run (docs/evidence/dom/W2/env_int_w1_runtime.json).",
+   "W1 cu/build.py System.make_env - Alternative to the request above, if W1 prefers the loop to be the only place results are delivered: pass deliver_results=False to envs.factory.make_env. The canonical loop then delivers them itself. Why: the same duplicate result delivery.",
+   "W1 cu/build.py OperatorLabels and stage1/dom_e2e.py - These can now use ExperienceOperator.take_labels() directly. It releases each resolved episode once, including episodes that resolved before a reset, with opaque env and goal ids. Why: it replaces the release_labels adapter, which loses nothing but duplicates W2's logic.",
+   "W1 tests/cam_unified/envs/test_env_real_e2e.py deviation (owned by W2, needs W1's build_agent after merge) - After the merge, the orchestrator could switch the W2 e2e from stage1.build_system with use_memory=True to build.build_agent('dom_dev'), and run the twin payout-invariance check through run_lifetime. Why: it removes the declared preset deviation and asserts Transition.rewards is None in the same run."
+  ]
+ },
+ "W9": {
+  "workstream": "W9 MEM+EVID: checkpoints, memory hygiene, experiment drivers, statistics, governance",
+  "branch": "worktree-wf_477a68f9-804-9",
+  "final_commit": "311e140c629111df652d5c75ac3568083e7da1a9",
+  "worktree_path": "/workspace/agentrs/.claude/worktrees/wf_477a68f9-804-9",
+  "summary": "I continued from where the previous W9 agent stopped. It had 20 commits and a clean tree; the checkpoint end-to-end run was stuck at 40 of 200 updates and the W1 change request was still open. This session added 8 commits (28 since seam-0). The working tree is clean, nothing was pushed, and the branch merges cleanly into feat/cam-7.0-unified-complete (git merge-tree, no conflicts).\n\n1. **Checkpoint end-to-end check: passed.** Real dom_dev (Qwen3-0.6B) was trained to 200 updates (400 decisions, about 1431 GPU-seconds, peak 6.45 GB) under the GPU lock, in 10 resumable chunks. The weights were saved (sha 7a899d7f\u2026) and loaded weights-only in two fresh processes with seed 7.\n   - After the load, the learner state is empty: no buffered experience, trainer at 0 updates, version 0.\n   - The first update after the load used 6 events and 6 decisions and replayed 8 events, all from the new lifetime's own archive. None of them is among the 442 source-archive events or 422 source decision ids.\n   - The two processes acted identically: their 8 decisions match bit for bit in value, dt_pred, logp (-2.636213779449463) and entropy.\n   - The trained policy chose 'wait' at all 8 decisions, so I also compared the continuous outputs, not just the actions.\n   - This ran on runtime.run_steps, because W1's run_lifetime is not in this seam-0 checkout.\n2. **Condition G smoke against W1's real loop and factory: passed.** I ran it on a scratch extraction of this branch merged with W1's branch at 19a7a4c. It went through runtime.run_lifetime and build.build_agent: 12 decisions, integrity ok, peak 2.7 GB, and the dashboard renders the provenance rows.\n   - It needed `--legacy-decision-path`, because W1's loop refuses unstamped actions and W5's stamp is not merged. The run records this as a deviation.\n   - The latent swap changed Z by about 0.03 relative but changed no action (rate 0.0). That is a null at smoke budget, not the E0 claim.\n   - The earlier fallback-loop smoke G evidence still stands.\n3. **Coverage simulation (0.955 at S=3) and rejection of the audit-probe manifests:** already done by the previous agent, unchanged.\n4. **W1 change request: done.** `predict.collect_support` now acts through the canonical loop (mechrun.run_batch, which wraps run_lifetime on W1's branch), observation_only. Its output matches the old loop exactly for conditions A, C and D, both in this worktree and on the merged tree, and predict.py no longer has a loop of its own.\n5. **Driver fixes for W1's run_lifetime, found on the merged tree:**\n   - Budgets are now passed in rounds (W1 counts `max_decisions` in rounds).\n   - Loop results are now read from W1's result fields (per-round rows, labels written to the LabelStore).\n   - Every label source now gets a LabelStore.\n   - The factory now receives the seed, the shared semantic model and the deterministic setting.\n   - GPU timing is switched on so GPU time and peak memory get recorded.\n   - The legacy decision path is now an explicit flag that is written into each provenance row.\n   - An import that W1's code moved now comes from its new location (stage1.branch).\n6. **verify_completion:** W1's core/bench.py (a benchmark that builds an environment operator) is now allowed in core/, and the check fails if any actor-side module imports it. A plugin test now accepts an empty commit outside a git checkout.\n\n**Tests:**\n- Worktree, W9 test directories: 192 passed, 3 skipped, 1 failed.\n- Merged tree, the same plus the single-loop test: 205 passed, 3 skipped, 1 failed.\n- The one failure is the same in both: test_manifest.py::test_claims_are_backed_by_recorded_evidence (177 problems in the worktree run, mostly acceptance tests with no recorded result). It is designed to fail until the owner of CAM_UNIFIED_COMPLETION.json records results or lowers the claims.\n\n**Not done:**\n- The DOM conditions, meta-reward conditions and confirm sets were not evaluated beyond smoke runs; that is the experiment queue's job.\n- meta_suite was not smoke-run on the GPU against W1's loop; it is covered by unit tests only.",
+  "checks": [
+   {
+    "name": "Checkpoint e2e: real dom_dev trained to 200 updates and saved weights-only",
+    "passed": true,
+    "evidence": "superlearner/docs/evidence/dom/W9/ckpt_e2e.json: updates 200, 400 decisions, about 1431 GPU-seconds, peak 6454 MB, weights sha 7a899d7f..., arch_hash 62f57f7d..., code_commit 7ec4011. Run dir /workspace/agentrs/runs/cam_unified/W9/ckpt_e2e. The loop was runtime.run_steps, the canonical loop of the seam-0 base."
+   },
+   {
+    "name": "Weights-only load in a fresh process: next update consumes 0 source decisions",
+    "passed": true,
+    "evidence": "Both loads: learner state empty after the load (fresh buffer 0, trainer at 0 updates, version 0). The first update used 6 events and 6 decisions and replayed 8 events, all from the new lifetime's own archive; 0 of them among the 442 source-archive events or 422 source decision ids."
+   },
+   {
+    "name": "Two fresh processes with the same seed act identically",
+    "passed": true,
+    "evidence": "8 of 8 archived decisions are bitwise equal in value, dt_pred, behavior, logp (-2.636213779449463) and logp_parts (entropy 2.292951822280884). The trained policy chose 'wait' at all 8 decisions, so the continuous outputs were compared as well."
+   },
+   {
+    "name": "dom_suite --condition G --smoke writes provenance rows that the dashboard renders",
+    "passed": true,
+    "evidence": "Fallback loop: smoke_G.json (previous agent). W1's loop and factory: smoke_G_w1loop.json on the merged tree (W9 7ec4011 + W1 19a7a4c): 12 decisions, integrity ok, peak 2716 MB, Z changed by about 0.033 relative, action change rate 0.0, dashboard_renders_rows true. Needed the declared --legacy-decision-path, recorded as a deviation."
+   },
+   {
+    "name": "Coverage simulation >= 0.93 at S=3",
+    "passed": true,
+    "evidence": "stats_coverage.json (previous agent): studentised t interval covers 0.955 at S=3/W=16, against 0.825 for the bootstrap."
+   },
+   {
+    "name": "Synthetic manifests from the audit probe are all rejected",
+    "passed": true,
+    "evidence": "verify_completion_probe.json (previous agent). test_verify_completion.py: 22 passed in the worktree and on the merged tree."
+   },
+   {
+    "name": "predict.collect_support migrated to the canonical loop with identical output",
+    "passed": true,
+    "evidence": "predict_canonical_loop.json. test_x_predict_canonical_loop.py: 5 passed in the worktree and on the merged tree; conditions A, C and D match the old loop exactly. test_single_loop finds no act/execute/advance loop left in predict.py."
+   },
+   {
+    "name": "W9 unit tests (worktree: memory, observe, experiments, verify_completion, manifest)",
+    "passed": false,
+    "evidence": "192 passed, 3 skipped, 1 failed. The failure is test_manifest.py::test_claims_are_backed_by_recorded_evidence (177 problems, mostly acceptance tests never executed). It is designed to fail until the owner of CAM_UNIFIED_COMPLETION.json records results or lowers the claims; it is not a code defect."
+   },
+   {
+    "name": "W9 tests on the merge of this branch with W1's branch (+ test_single_loop)",
+    "passed": false,
+    "evidence": "205 passed, 3 skipped, 1 failed: the same manifest test. Two other merged-tree failures (core/bench.py flagged by the integrity scan; empty commit outside git) were fixed in 47fbb6f and now pass there (22/22)."
+   }
+  ],
+  "tests_added": [
+   "superlearner/tests/cam_unified/experiments/test_x_predict_canonical_loop.py::test_canonical_loop_support_equals_the_pre_migration_loop[A,C,D]",
+   "superlearner/tests/cam_unified/experiments/test_x_predict_canonical_loop.py::test_design_policy_holds_no_operator_side_object",
+   "superlearner/tests/cam_unified/experiments/test_x_predict_canonical_loop.py::test_predict_has_no_act_execute_advance_loop",
+   "superlearner/tests/cam_unified/experiments/legacy_support_ref.py (test-only reference copy of the old support loop)",
+   "superlearner/tests/cam_unified/experiments/test_x_dom_suite.py::test_legacy_decision_path_is_only_ever_a_declared_deviation",
+   "superlearner/tests/cam_unified/test_verify_completion.py::test_exempt_operator_side_harness_must_not_be_imported_by_the_acting_path"
+  ],
+  "requirements_advanced": [
+   "W9 checkpoints: weights-only reset and migration checked on real dom_dev after 200 updates: two fresh processes, the next update uses 0 source events or decisions, decisions bitwise identical (ckpt_e2e.json).",
+   "W9 drivers: dom_suite and meta_suite now run on W1's run_lifetime and build_agent: round budgets, LifetimeResult fields, LabelStore for every label source, GPU timing, explicit legacy-decision-path deviation. Condition G smoke ran through both on the merged tree (smoke_G_w1loop.json).",
+   "W1 change request: experiments/predict.py collect_support goes through the canonical loop (run_batch, which wraps run_lifetime), observation_only, and reproduces the old support exactly.",
+   "W9 verify_completion: core/bench.py is allowed in core/, and any actor-side import of an allowed operator-side module is now flagged.",
+   "Already done by the previous W9 agent: checkpoint migration (allow_new, arch_hash, code_commit), leak-free memory featurizer and archive links table, studentised-t statistics with paired seeds, pre-registrations U-DOM-1 / U-MR-1 / U-OW-1 / U-SC-1 (5b7095e), verify_completion hardening, coverage simulation 0.955 at S=3."
+  ],
+  "not_done": [
+   "test_manifest.py::test_claims_are_backed_by_recorded_evidence fails by design. CAM_UNIFIED_COMPLETION.json is orchestrator-owned, and only its owner can record results or lower the claims.",
+   "The checkpoint e2e training and loads ran on runtime.run_steps, not W1's run_lifetime, because run_lifetime is not in this seam-0 checkout. Only the Condition G smoke was run against W1's loop (on a scratch merged tree, so its row has code_commit null).",
+   "Condition G against W1's loop needed --legacy-decision-path because W5's cam_eval stamp is not merged. A DOM-path G run with authorised actions is still outstanding, as is the E0 claim (>= 90% donor-following after imitation); the smoke measured an action change rate of 0.0 at a 4-round training budget.",
+   "meta_suite was not smoke-run on the GPU against W1's loop; it has unit tests only.",
+   "No confirm-set evaluations and no full DOM-11 or meta-reward condition runs; these belong to the experiment queue."
+  ],
+  "change_requests": [
+   "Orchestrator superlearner/docs/CAM_UNIFIED_COMPLETION.json - record results by running 'python -m superlearner.verify_completion --run-tests' on the merged branch, or lower the claims - test_manifest::test_claims_are_backed_by_recorded_evidence fails until claims are backed by commit-bound records (177 problems in the W9 worktree, mostly acceptance tests never executed).",
+   "W1 superlearner/tests/cam_unified/integration/test_single_loop.py - remove 'experiments/predict.py' from KNOWN_OTHER_LOOPS after merging W9 - collect_support no longer has its own loop (checked on the merged tree).",
+   "W1 superlearner/src/superlearner/cam_unified/core/bench.py - consider moving the benchmark harness out of the actor-side core/ package - it builds an ExperienceOperator; W9's integrity scan now allows it explicitly and fails if any actor-side module imports it.",
+   "W5 decision/select (Action.proposal['cam_eval']) - stamp every CAM action - until then W1's run_lifetime refuses dom_dev actions, and the W9 drivers can run on W1's loop only with the declared --legacy-decision-path."
+  ]
+ },
+ "W4": {
+  "workstream": "W4 SEM: tokenizer value channel, semantic stream, decoder conditioning, strings",
+  "branch": "worktree-wf_477a68f9-804-4",
+  "final_commit": "dd5cdc6538e6f716a5490c4a8cbb5d5d24edccf2",
+  "summary": "I picked up from the previous agent's last commit (e8d09b9; working tree was clean, the only evidence was probes.json) and worked only in /workspace/agentrs/.claude/worktrees/wf_477a68f9-804-4. Six commits since then, b44d077..dd5cdc6, and the tree is clean.\n\n1. JSON-value holes (the main remaining item). The previous agent found that code.run demo inputs could not be represented at any untyped depth: 0/21. Schemas with no type (like code.run `input`) are now a single hole in which the decoder writes one whole JSON value.\n   - constraints.py gains JsonValueTables, a pushdown automaton over (lexical state, container stack). Each token's effect is precomputed per state, and the masks depend only on (state, remaining budget, text that follows the hole), so recorded values replay exactly.\n   - The hole's closing token may carry the start of the following forced text (such as `}` or `,`), like the existing merged string closers.\n   - Every sampled value parses and fits its token cap and the nesting limit of 16. This was tested with random adversarial logits.\n   - grammar.py: `GrammarOptions.json_holes` (default on) and `json_max_depth`; `Node`/`Hole` kind \"json\". serialize, encode_value, materialize (which now accepts a JSON null), HoleFiller program/masks/sample/score and the demo tokenizer all handle it. The tables take about 2 s to build, once per process.\n2. Merged-LoRA acting is now off unless `cfg.sem_merged_acting` is set; when unset it stays on only for models under 3B parameters. This follows the audit's 4B memory finding (encoder.py).\n3. `semantic_context` passes `refs` through the constructor of W3's SemanticContext, which is the change W3 asked of W4. It falls back to setting the attribute for the older class.\n4. The end-to-end script w4_e2e.py:\n   - Stage B now samples until at least 60 string slots have been generated.\n   - New stage B2 measures string closure on the demonstrated templates, before and after behaviour cloning (BC).\n   - Stage G now runs code.run through the real decoder.\n   - Stages E and G report decoder replay separately from whether the core gives the same output for a different batch order.\n\nThe real end-to-end check ran on dom_dev (8x384 core, Qwen3-0.6B, A6000) under the GPU lock, on run-3 commit 109d203 (534 s, peak 9.3 GB):\n- **A (pass):** cos(+1,-1) for numeric tokens is 0.304 (0.458 for the same entity; legacy 0.991).\n- **B (fail):** on the untrained model's own generated arguments (greedy, no length prior), 50/62 slots close by the LM's own choice, 80.6% against the 90% target. There are 0 trailing commas and 61 merged closes. On the same inputs the old closing rule (protocol 3) gives 22/62 (35.5%) with 4 trailing commas. All 12 failures are strings that hit their maxLength.\n- **B2 (pass):** held-out decisions with the demonstrated templates and evidence give 90/90 own closes and 0 trailing commas, both at init and after BC. Exact match with the demonstration rises from 32% to 76-79%.\n- **C (pass):** with the conditioning gates at init, logits are bit-identical with and without the latent (42 actions, 2886 tokens).\n- **D (pass):** after 100 BC steps (run 2, commit 3801409), removing the latent changes held-out logp by 78.3 nats mean and 3.78 median. Per-token NLL falls from 1.722 to 0.136. In run 3 a time guard stopped BC at 93 steps: 74.1 mean, 3.78 median.\n- **E (pass):** strings sampled with conditioning rescore bit-identically, twice and in a different batch order, with gradients.\n- **F (pass):** `semantic_context` feeds the gated core with shape [4,256,1024]; the cached second call is identical and the core's parameters receive gradient.\n- **G (pass):** code.run demos are 21/21 representable (602-1093 tokens each). Decoder replay is bit-identical. Greedy decoding gives 4/4 schema-valid arguments, with the JSON closed by the LM.\n\nTests are listed below.",
+  "checks": [
+   {
+    "name": "A VALUE channel cos(+1,-1) < 0.5 at init (real dom_dev tokenizer)",
+    "passed": true,
+    "evidence": "e2e.json A_value_channel: 0.3037 (same entity 0.4575; legacy path 0.9912)"
+   },
+   {
+    "name": "B >= 90% of >= 50 ow_tiny string slots close by the LM's own choice, 0 trailing commas (generated templates, untrained CAM choosing fields/evidence, greedy, no length prior)",
+    "passed": false,
+    "evidence": "e2e.json B_string_closure.v4: 50/62 = 0.806, 0 trailing commas, 61 merged closes; all 12 forced closes hit maxLength (7x .host 31, .category/.account 40, pattern .name 40, .name 120) after digit runs; pre-v4 protocol on same inputs 22/62 = 0.355 with 4 trailing commas"
+   },
+   {
+    "name": "B2 string closure on demonstrated templates (held-out decisions, demo fields/evidence, latent conditioning, greedy, no length prior)",
+    "passed": true,
+    "evidence": "e2e.json B2_demo_templates_at_init 90/90 own close, 0 commas, exact demo match 0.322; B2_demo_templates_after_bc 90/90, 0 commas, exact match 0.756"
+   },
+   {
+    "name": "C gates at init: logits bit-identical with/without the CAM latent",
+    "passed": true,
+    "evidence": "e2e.json C_conditioning_at_init: string logp, decoder_hidden logits and KV-step logits torch.equal (42 actions, 2886 tokens, gates 0.0 at layers 5/11/17/23)"
+   },
+   {
+    "name": "D after 100 BC steps ablating Z changes logp by > 1 nat per action (held-out)",
+    "passed": true,
+    "evidence": "run2 (commit 3801409, evidence cd593fb) 100 steps: |dlogp| mean 78.28, median 3.776; run3 93 steps (time guard): mean 74.05, median 3.779; caveat: swapping in another decision's Z changes only 0.15-0.23 nats mean"
+   },
+   {
+    "name": "E rescored logp equals recomputed logp bit for bit with conditioning on",
+    "passed": true,
+    "evidence": "e2e.json E: rescore twice and other batch composition bit-identical, requires_grad true; but CAM tokens recomputed by the core in another batch order differ (max abs 1.4e-3)"
+   },
+   {
+    "name": "F semantic_context() -> GatedUnifiedCore consumption",
+    "passed": true,
+    "evidence": "h [4,256,1024], budget 256, refs goal/obs, cached second call identical (0.006 s vs 0.21 s), gradient reaches sem_proj and xattn"
+   },
+   {
+    "name": "G code.run demo arguments representable",
+    "passed": true,
+    "evidence": "21/21 via JSON-value holes (602-1093 tokens; before: 0/21 at untyped_depth 2/3/4); decoder replay bit-identical in reversed order; greedy 4/4 schema-valid, JSON closed by LM, rescore bit-identical"
+   },
+   {
+    "name": "Unit/regression tests (GPU Qwen3-0.6B, not under lock)",
+    "passed": true,
+    "evidence": "semantic/ 95 passed 9 skipped + test_acting/test_actions 18 passed; test_json_hole 6 passed; test_grammar 29; test_decoder_conditioning+test_acting 10; dom/ 8; integration test_i_model+test_seam_structure 61 passed 1 skipped; experiments/test_x_stack 4; capabilities/test_integrated_mechanics 9"
+   },
+   {
+    "name": "Flaky test observation",
+    "passed": false,
+    "evidence": "test_actions::test_replay_refuses_a_different_tool_list_or_evidence_candidates failed once (bit-exact replay assert) in the first full-suite run, passed in 5 later runs; its tools have no untyped args (JSON holes not involved)"
+   }
+  ],
+  "tests_added": [
+   "superlearner/tests/cam_unified/semantic/test_json_hole.py: 6 tests - automaton accepts and rejects JSON; natural tokenizations of 200 random values replay under the masks (host check agrees with the device masks); sampling with adversarial random logits always completes within budget and depth; untyped schemas compile to JSON holes and demonstrations encode; demonstrated values (including a 429-token code.run input, 42, null) tokenize and replay bit-exactly; sampled code.run inputs validate and rescore bit for bit",
+   "superlearner/tests/cam_unified/semantic/test_decoder_conditioning.py::test_merged_acting_is_off_unless_allowed",
+   "superlearner/tests/cam_unified/semantic/w4_e2e.py: stages B (>= 60 generated slots), B2 (demonstrated templates before/after BC) and G (real-model code.run) extended",
+   "Updated (not weakened): test_grammar._random_fill fills JSON holes with JSON values; the numeric-slot test runs with json_holes=False because its >= 90 slot count includes the typed untyped-union numbers that JSON holes replace"
+  ],
+  "requirements_advanced": [
+   "plan \u00a73 W4 code.run demo arguments representable: untyped arguments are JSON-value holes under an exact, replayable JSON automaton (21/21 demos, bit-exact replay, valid greedy output)",
+   "plan \u00a73 W4 decode record v4 / string protocol 4: boundary-aware closing verified end to end on the real model (61/62 merged closes, 0 trailing commas, bit-exact rescoring with conditioning)",
+   "plan \u00a73 W4 / DOM-03 Mechanism A: bit-identical at init (C) and > 1 nat latent dependence after 100 BC steps (D) on dom_dev",
+   "plan \u00a73 W4 NUMERIC value channel: cos(+1,-1) 0.304 < 0.5 at init",
+   "plan \u00a73 W4 / DOM-05 semantic_context producer: real observations feed GatedUnifiedCore, refs passed in the constructor of W3's SemanticContext (W3 change request handled)",
+   "plan \u00a71 Semantic QwenSemantic 'merged-LoRA acting off': off unless cfg.sem_merged_acting is set, default only for models < 3B parameters"
+  ],
+  "not_done": [
+   "Check B fails: 80.6% own close (50/62) on arguments generated by the untrained CAM (it chooses optional fields and evidence). Every failure is a maxLength-bounded short field where the 0.6B LM writes digit runs. Nothing in W4's files fixes this without changing the policy. B2 (demonstrated templates) passes 90/90.",
+   "DECODE_VERSION bump and recording/verifying per-hole consumed characters in the decode record live in semantic/actions.py, which W5 owns (change request). Records from before protocol 4 are already refused through prompt_hash ('strings/4').",
+   "Runtime wiring of Mechanism A: the ActionGenerator does not pass cond= to HoleFiller.sample/score. That is W5's file (change request); today only demo_init BC and the e2e use the conditioning.",
+   "End-to-end recompute is not bit-exact across batch orders: the core recomputing the CAM tokens in another batch order differs by up to 1.4e-3, which changes code.run logp by up to 1.15 nats. This is in the core (W3/W5); decoder-level replay is bit-exact.",
+   "After BC, the latent dependence is mostly on whether a latent is present, not on its content: swapping in another decision's Z changes logp by 0.15-0.23 nats mean.",
+   "demo_init BPTT (marked optional in the plan) is not implemented; the semantic objectives extension is deferred per the plan.",
+   "JSON-hole limits: no \\uXXXX escapes, at most 2 exponent digits, no whitespace around the top-level value, nesting at most 16, and a token cap of cfg.max_arg_tokens (1536).",
+   "Untrained greedy code.run inputs are poor: the LM writes a bare number such as 15222982 instead of the demonstrated table."
+  ],
+  "change_requests": [
+   "W5 superlearner/src/superlearner/cam_unified/semantic/actions.py - bump DECODE_VERSION 3 -> 4; store Program.consumed() per action in the decode record and set Hole.expect_consumed from it on replay (HoleFiller.score raises GrammarError on a mismatch) - plan \u00a73 W4 'decode record v4, DECODE_VERSION bump; old records refused'",
+   "W5 superlearner/src/superlearner/cam_unified/semantic/actions.py _forward - pass cond=self.bridge.cond_tokens(R, goal, belief) to self.filler.sample(...) and self.filler.score(...) for acting and log_prob - otherwise Mechanism A (enc.conditioning, 11.5M params at dom_dev) is unused at runtime; it is bit-identical at init (e2e C) and gives > 1 nat dependence after BC (e2e D)",
+   "W5 superlearner/src/superlearner/cam_unified/model.py - pass sem=self.tokenizer.semantic_context(obs_lists, tools, goals) (returns core.semantic_xattn.SemanticContext h [B,Ns,sem_dim] standardised, mask, refs; budget cfg.sem_xattn_max_tokens) to core/reasoner - the W4 producer is ready; same as W3's request",
+   "W3 superlearner/src/superlearner/cam_unified/core/backbone.py (or W5 learner recompute in model.py) - CAM tokens [R;G;B] recomputed in another batch order differ by up to 1.4e-3 (e2e E), changing code.run string logp by up to 1.15 nats (e2e G) - make the core batch-invariant or recompute row-wise in the learner so behaviour logp replays bit for bit end to end",
+   "W1 superlearner/src/superlearner/cam_unified/config.py - add sem_merged_acting: Optional[bool] = None (None = merged-LoRA acting only for models < 3B parameters; QwenSemantic reads it with getattr) - audit: merged copy costs ~1.9 GB at 4B, off by default for dom",
+   "W5 superlearner/src/superlearner/cam_unified/semantic/actions.py _prompt (optional) - state each string slot's maxLength next to the field in the decoder prompt - all 12 forced closes in e2e B hit maxLength (31/40 chars) on generated templates"
+  ]
+ },
+ "W5": {
+  "workstream": "W5 DEC: decision bottleneck (Mechanism B, DOM-04/09)",
+  "branch": "worktree-wf_477a68f9-804-5",
+  "final_commit": "5d4d233343ece4d1cd407f03e3467749d2e7e48b",
+  "summary": "I picked up where the previous W5 agent stopped, in worktree /workspace/agentrs/.claude/worktrees/wf_477a68f9-804-5. It had already committed bb53e2c..9f6bb9d with a clean tree: the intent head, the intent-mode generator, the candidate evaluator, selection with an HMAC cam_eval stamp, the fast parameter set, the Condition G driver, the W5 tests and the evidence.\n\nThis session handled the change requests addressed to W5 (commit 8890968):\n(1) W1: the stamp now goes into Action.proposal[\"cam_eval\"], the v4 slot that runtime.cam_eval_stamp reads first. It adds the fields k, n_candidates, policy_version, psi_version and sel_logp_all. stamp_of still accepts the old logp_parts location, and candidate_record strips stamps from both places.\n(2) W8: Decision.candidate_set is a new decision.select.CandidateSet with emb [B,K,D] (pooled action-token embeddings of the scored candidates), mask, q, sel_logp (the behaviour selection log-probs, one-hot when greedy), gen_logp, chosen, vetoed and tau. model.candidate_set_of(actions, tools) rebuilds it from archived actions. fast_params(model) already existed.\n(3) W3: encode_step passes entity_encoder.make_type_tokens(registries, semantic) as type_tokens when the encoder accepts them and its type width equals the semantic width. The sem= pass-through to core and reasoner was already in place, also gated on the signature. Both stay inactive on seam-0's core and EntityEncoder and switch on when W3 merges.\nThe Condition G driver gained candidate_set_check and counts of actions stamped in the v4 slot.\n\nI re-ran the plan \u00a73 real end-to-end check on dom_dev (Qwen3-0.6B, under the GPU lock) at 8890968; all five checks pass. Evidence is in superlearner/docs/evidence/dom/W5/{condition_g_dom_dev.json, ow_tiny_strings_and_agent_loop_dom_dev.json, w5_summary.json}.\n\nOne honest finding: swapping R_t alone, before the intent head, moves 0 of 16 actions to the donor. After imitation the goal reaches I_t through ctx_out (the core-processed context), not through the 8 R slots. Swapping I alone, or (R, I) together, moves 16 of 16.",
+  "checks": [
+   {
+    "name": "Zeroing I_t makes the tool distribution goal-independent",
+    "passed": true,
+    "evidence": "condition_g_dom_dev.json @8890968: max probability gap between goals with I=0 is 0.0; with the trained I it is 1.0"
+   },
+   {
+    "name": "Condition G: after imitation, swapping I/R rows makes >= 90% of actions follow the donor",
+    "passed": true,
+    "evidence": "swap (R,I): 16/16 follow the donor (1.0); I alone: 1.0; no swap: own goal 1.0; R swapped before the intent head: 0.0 (goal is carried by ctx_out -> I, reported); 120 imitation steps, sampled and greedy accuracy 1.0"
+   },
+   {
+    "name": "KL(pi || pi with I permuted) > 0.1 nats after training",
+    "passed": true,
+    "evidence": "trained mean KL 32.73 nats (min/max about 31.9/33.7); untrained 8.9e-4"
+   },
+   {
+    "name": "Behaviour logp including selection replays exactly",
+    "passed": true,
+    "evidence": "max abs diff 0.0 for same batch, gen, sel and gradient mode; ow_tiny replay diffs [0,0,0,0]; a permuted half batch is within tolerance only (1.9e-5, documented)"
+   },
+   {
+    "name": "No execution without a stamp",
+    "passed": true,
+    "evidence": "unstamped, tampered and forged actions are all refused; real CamUnifiedAgent loop: 192 executed, 0 unstamped, 192/192 stamped in proposal['cam_eval'], 3 learner updates"
+   },
+   {
+    "name": "Candidate set recorded and recomputable (W8 change request)",
+    "passed": true,
+    "evidence": "emb [8,4,384], mask all True, sel_logp at the chosen slot equals the recorded selection exactly (diff 0.0), rows sum to 1 (dev 0.0), rebuilt from archived actions: chosen and sel_logp equal, emb diff 0.0; stamp in logp_parts: 0 of 8"
+   },
+   {
+    "name": "ow_tiny string tools on the real Crucible catalogue",
+    "passed": true,
+    "evidence": "145 tools, B=4, K=4: 85 Qwen string holes decoded from I, 0 unauthorized batches, peak 6.29 GB, decide 6.6-15.2 s under contention"
+   },
+   {
+    "name": "W5 test files (CPU + GPU on the real dom_dev stack)",
+    "passed": true,
+    "evidence": "21 passed in 61 s across test_dom_bottleneck, test_selection_replay and test_dom_condition_g"
+   },
+   {
+    "name": "CPU regression in the affected directories",
+    "passed": true,
+    "evidence": "dom 12, integration 103 (+1 skipped), learn 96, world 60 (+4 skipped), experiments 21, envs 69, selfeval 12, memory 96 (+3 skipped), observe 11, credit 22, semantic test_actions + test_acting + test_length 23: all passed"
+   },
+   {
+    "name": "Full semantic/ directory and core/, dist/ test directories",
+    "passed": false,
+    "evidence": "Not completed, so this is not a pass: semantic/ hit a 1500 s timeout under CPU contention (no failure was reported before the kill). core/ and dist/ take the GPU lock inside the test process (core/conftest.py), so I stopped them rather than run pytest under the lock. They are W3's and other owners' files, and nothing I changed is in them."
+   }
+  ],
+  "tests_added": [
+   "tests/cam_unified/dom/test_dom_bottleneck.py::test_stamp_lives_in_the_v4_proposal_slot_with_the_runtime_fields",
+   "tests/cam_unified/dom/test_dom_bottleneck.py::test_candidate_set_from_stamps_is_the_recorded_behaviour_distribution",
+   "tests/cam_unified/dom/test_dom_bottleneck.py::test_entity_type_tokens_reach_an_entity_encoder_that_takes_them",
+   "tests/cam_unified/dom/test_selection_replay.py::test_decision_records_the_candidate_set_for_credit (GPU, real dom_dev)",
+   "(previous agent, already committed) test_dom_bottleneck.py, test_selection_replay.py, test_dom_condition_g.py"
+  ],
+  "requirements_advanced": [
+   "DOM-04: execution is refused for unstamped, tampered or forged actions. The HMAC stamp now sits in Action.proposal['cam_eval'], which W1's runtime.authorise reads. 192/192 actions the real agent loop executed carry it.",
+   "DOM-09: the I_t bottleneck holds on dom_dev. Zeroing I removes the goal dependence (gap 0.0), swapping I or (R,I) moves 16/16 actions to the donor, and KL under an I permutation is 32.7 nats (8.9e-4 before training).",
+   "Exact behaviour logp: gen + selection + option replays bit for bit, including after to_dict/from_dict and in gradient mode.",
+   "W8 credit (CR-06/07): every DOM decision records its candidate set (embeddings, mask, Q, selection log-probs, chosen slot), and it can be rebuilt from archived actions.",
+   "Mechanism C / entity types: encode_step passes sem= and entity type_tokens to W3's interfaces as soon as they are merged (gated on the signatures)."
+  ],
+  "not_done": [
+   "The entity type-token and sem= pathways cannot run end to end in this branch: seam-0's EntityEncoder has no make_type_tokens and its core takes no sem. They switch on after W3 (and W4's semantic_context) are merged. They are unit-tested with W3's API on doubles only, which does not count as evidence.",
+   "The decoder's cond= (W4 Mechanism A) is absent on seam-0 (decoder_cond_api sample and score are both false). actions.py passes cond=(I_t, None) once W4's filler accepts it, matching the (Z [R,n,D], mask) format in W4's grammar.py. This is not exercised in this branch.",
+   "The plan's 'ActionGenerator.sample/log_prob(I, ...)' is exposed as sample_from_intent / log_prob(_parts)_from_intent. The old sample/log_prob refuse in intent mode rather than being renamed.",
+   "The full semantic/ test directory did not finish within its timeout under CPU contention; only the action-related files (23 tests) were confirmed.",
+   "core/ and dist/ tests were not run (they take the GPU lock inside pytest)."
+  ],
+  "change_requests": [
+   "W1 cu/runtime.py authorise(): it only checks that a stamp is present. Have it call decision.select.require_stamp (or authorize) so the HMAC digest is verified and tampered or forged stamps are refused, not only missing ones. Actor processes that execute each other's decisions need decision.select.set_stamp_key(shared_key).",
+   "W1 cu/runtime.py cam_eval_stamp docstring: the W5 stamp fields are q, k (= chosen), n_candidates, gen_logp, sel_logp, sel_logp_all, probs, vetoed, tau, greedy, policy_version, psi_version, versions, candidates and digest. The stamp now lives in Action.proposal['cam_eval'].",
+   "W8 cu/selfeval (default_fast_params stand-in): switch to decision.fast.fast_params(model) (14.95M fast parameters at dom_dev: action-generator heads, value_head, intent_head, decision_evaluator).",
+   "W8 cu/credit/candidates.py callers: read the candidate set from Decision.candidate_set (emb [B,K,D], mask, q, sel_logp, gen_logp, chosen, vetoed), or rebuild it from archived actions with model.candidate_set_of(actions, tools). Stamped rows give logp_sel = sel_logp; rows with no stamp are fully masked.",
+   "W6 cu/world/planner_runtime.py (line ~118, model.reasoner(Z, ...) in imagination): pass sem=enc.sem with sem_rows mapping imagination branches to their source rows, so Mechanism C (W3 change request) also acts in the planner. StepEncoding.sem is already returned by encode_step.",
+   "W3 cu/core/entities.py: keep type_dim equal to the semantic model's sem_dim (your default sem_xattn_dim). Otherwise model.py leaves the type pathway off: it is gated on type_dim == semantic.sem_dim."
+  ],
+  "worktree_path": "/workspace/agentrs/.claude/worktrees/wf_477a68f9-804-5"
+ },
+ "W6": {
+  "workstream": "W6 PRED: world model and beliefs",
+  "branch": "cam-unified/W6-pred (alias worktree-wf_477a68f9-804-6 points at the same commit)",
+  "final_commit": "152b7d1",
+  "worktree_path": "/workspace/agentrs/.claude/worktrees/wf_477a68f9-804-6",
+  "summary": "ORCHESTRATOR-WRITTEN (the W6 finisher was cut off twice by usage limits before reporting; worktree clean at 152b7d1). 21 commits seam-0..152b7d1, 24 files, +7330/-204: DOM world model and beliefs (block transition on R via core transition blocks, no EMA target by default (EMA optional), free bits per group, consistency loss, mode-latent open loop, gated belief fusion with closed-form NIG evidence-aware gate, observation-only outcomes, differentiable belief_change, adapt_loss over all k), W3/W8/W1 change requests (sem/sem_rows/code_rows threaded through filter/transition/prior/loss/forecast/train_seq; per-channel normalised kalman_ig; reward None in outcomes_from_results), beta-NLL outcome loss, unit-gain running-standardised action input to the block transition, integrated LP probe, DOM causal driver.",
+  "checks": [
+   {
+    "name": "adapt-learning port, gated fusion, 5000 steps",
+    "passed": true,
+    "evidence": "docs/evidence/dom/W6/adapt_learning_gated_fusion.json criteria_5000: 3/3 seeds NLL(k=2) <= oracle+0.05 and z-sd in [0.8,1.2] (2500 steps: 2/3; dom_dev widths k2 NLL fails)"
+   },
+   {
+    "name": "DOM causal e2e on the real dom_dev stack (plan 6.6 t1..t4 + consistency)",
+    "passed": false,
+    "evidence": "docs/evidence/dom/W6/e2e_dom_dev_causal.json: t1 intervention pairwise diff PASS (delay, interaction), t3 contrast PASS (interaction); FAIL: t2 delay max abs err, t4 switch (non-finite fused payout predictions from step 4 at seed 0 in an earlier run), consistency MSE/var (teacher-forced and mode-1) in all three worlds"
+   },
+   {
+    "name": "EMA vs no-EMA DelayWorld on the real core",
+    "passed": false,
+    "evidence": "world_model_ema_vs_noema_delayworld.json: mixed - 4/8 runs meet delay<0.3, 4/8 meet consistency<0.1"
+   },
+   {
+    "name": "latent_rep_weight ablation",
+    "passed": false,
+    "evidence": "world_model_latent_rep_ablation.json: beta 0.1 delay 1/3, interaction 3/3, consistency 0/3"
+   }
+  ],
+  "tests_added": [
+   "see git log seam-0..152b7d1 -- superlearner/tests (world/test_world_learning_dom.py etc.)"
+  ],
+  "requirements_advanced": [
+   "A05..A09/C01..C05 world-model and belief mechanisms implemented; empirical causal criteria partially failing"
+  ],
+  "not_done": [
+   "Consistency (MSE/var) fails in all DOM synthetic worlds; delay t2 and switch t4 fail; the last W6 agent was mid-way updating tests for zero-init action-input semantics (verify W6 tests pass after merge)",
+   "plan \u00a73 W6 real e2e not passed",
+   "orphan diag outputs in scratchpad/w6 and w6b are not evidence"
+  ],
+  "change_requests": []
+ }
+}
