@@ -396,5 +396,14 @@
  },
  "defects_open": [
   "DEF-K-7 (medium): SP-12.0 not established on the civilisation at the branch head (replication pending)"
- ]
+ ],
+ "repair2_checks": {
+  "commit": "90e2a51 / 61ddbe7",
+  "verifier_probe_D_shared_group_signals": "re-run (open_digital 24 h, 4 groups): 0 signals dropped, 0 decisions trained with 0 against a nonzero own signal (was alpha 24/144, beta 12/96 lost at f013d086)",
+  "verifier_probe_A_capability_direction": "re-run: two 1-core rentals below capacity -> compete_for_scarce_resources ok False (was True); buying only -> create_services_used_by_others False (unit test)",
+  "verifier_probe_H_bc_paths": "re-run: shipped 12 x imitate(epochs=1) held-out mean-prob/argmax 0.145/0.296 = single imitate(epochs=12) (was 0.133/0.273)",
+  "constrained_civ_compute_probe": "scripted demonstrators (labelled scripted) in civ infrastructure_constrained seed 7 on CPU: 24 cores at o:compute0, 22 held by the population's sites and incumbents after 2 h; at 20 h two cloud.rent requests refused capacity_exceeded -> scarce_resource records against the holders (binding scarcity exists there; the balanced profile's 2 x 256 cores never bind)",
+  "dry_runs_cpu_kernel_world": "test_gate_SP_12_0.py (two seeds, prepared clones, frozen controls, 4-branch strategy switch) and test_gate_Q.py executed end to end at tiny sizes on open_digital (threshold misses only: Q.2/Q.3/Q.7 updates 45 < 100, Q.n1 by the dry plugin's patch; Q.6 with both held-out families passed; Q.7 signal-directed 4 of 4, 0 dropped)",
+  "unit": "tests/test_v5_selfplay_multiagent.py + test_v5_selfplay_obsonly.py + test_selfplay.py + test_kernel.py + test_invariants.py + test_v5_experience_oo.py: 119 passed (CPU, 130 s)"
+ }
 }
