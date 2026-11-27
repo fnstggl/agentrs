@@ -174,3 +174,33 @@ on the probe-admitted families.
   `plan_supply_chain`, demand regimes for `plan_perishable`, a dynamic-pricing seats world (`plan_seats`, simple
   pacing rules came within 0.9 of the oracle), readiness-aware targeting references for `pe_rollout_targeting`, a
   model-predictive controller for the control version of `eng_delayed_controller`, a lot tracker for `des_perishable`.
+
+## Wave 3b repair pass (2026-11-27, after the verifier's review of c09eb24a)
+
+What the verifier found and what changed (each with a regression test in `tests/test_v5_rapid_repair.py` or an
+updated test; decisions in the D-63 and D-64 amendments of the repair pass):
+
+* **Prediction dominance was too weak.** `dominance._naive_predictors` now also runs *hold and fit*: the corners and
+  middle of the settable box (`hold_settings`) held for equal blocks, the scored reading averaged over the last third
+  of each block, a line, an additive quadratic and their leave-one-out choice extrapolated to the public held-out
+  list (labels `naive_prediction:hold_linear|hold_quadratic|hold_cv`). SP-7.4 gained a prediction negative control
+  (`ctl_dominant_prediction`, a delayed straight line: random designs miss it, hold and fit answers it, so it is
+  rejected by `no_dominant_strategy` with a hold arm as the best simple policy). Families that this dominated were
+  redesigned (held-out conditions where the mechanism decides the answer; better references), not the check:
+  `plan_spoilage`, `net_congestion_routes` (capacities inside the settable range; reference designs at heavy flows,
+  BPR exponent by nonnegative least squares), `cx_balancing_loop` (reference `held_hub_predict`), `ch_tech_transition`
+  (conditions weighted to the obsolete process), the four look-alike markets (one shared list at price and promotion
+  extremes). `mk_drift` and `cxc_balancing_constraint` stay dominated (not admitted).
+* **Program worlds were not deterministic.** Compute is billed per call in whole quanta of the parent's measurement
+  (`program_exec.billed_units`: 100 units per call, plus 10,000 per whole 10,000 measured); references measure at most
+  ~2,600 units per call, so outcomes repeat exactly in fresh processes (`CRUCIBLE_METER_MEMO=off`, tested).
+* **8.10 on the scored channel.** `categories.beliefs_fail_after_change` (used by `constants_fail_after_change` for
+  primitive-graph prediction families): the truth for the world as it stood at the end of the first fifth
+  (`true_response(..., t_frozen, exogenous_ticks)`: timed regimes frozen, exogenous stocks held) filed as predictions
+  must fall short of perfect by at least a quarter. A lever cost no longer decides it (mutation test).
+* **Revenue bypassed observation noise.** Prediction worlds that book revenue book realised quantities
+  (`families._realised_revenue`, relative sd 0.1 x observation_noise; one extra normal draw per tick after all others,
+  none in the warm-up; the scalar twin follows the same contract).
+* **Smaller items.** `claims_w3b.claim_spoilage` requires the late rise to be at most 0.8 of the early one (a linear or
+  barely concave sales law fails); the inventory worlds state their trading terms in the brief and
+  `references.inventory` reads them there (`public_inventory_terms`).

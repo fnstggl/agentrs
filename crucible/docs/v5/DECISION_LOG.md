@@ -292,6 +292,31 @@ where the reading saturates. Reverted: `ch_tech_transition` - its prediction ver
 constant (invest in the new process from the start) does not change after obsolescence, so it fails the 8.10
 belief-revision requirement of SP-8.0b; a family is converted only if the category requirements still hold.
 
+Amendment (repair pass, 2026-11-27, after the verifier's review of c09eb24a): (1) the dominance search of
+prediction objectives was too weak - its only generic predictors set the levers at random every tick and fitted a
+mean or a line to the current setting, a strawman wherever responses are delayed or accumulate (all 37 prediction
+families were admitted, all non-admitted families were income worlds). The search now also runs *hold and fit*
+(`dominance._naive_predictors`): the corners and middle of the settable box held for equal blocks, the reading
+averaged late in each block, a line, an additive quadratic and their leave-one-out choice extrapolated to the
+public held-out list; H-D1 (0.8, two of three seeds) is unchanged and SP-7.4 has a prediction negative control
+(`ctl_dominant_prediction`: a delayed straight line that hold and fit answers as well as any reference). Families
+that the stronger search dominated were redesigned, not the check: held-out conditions moved to where the stated
+mechanism decides the answer (`plan_spoilage` production up to 45 where sales are spoilage-limited,
+`net_congestion_routes` flows up to 24 with link capacities inside the settable range, `cx_balancing_loop` settings
+in the saturated region, `ch_tech_transition` conditions weighted to the obsolete process, the four look-alike
+markets at price and promotion extremes, one shared list); `cx_balancing_loop` now uses the held-hub reference
+(hold until settled, one saturating channel of both levers, saturating output link) and `net_congestion_routes`'s
+reference designs two thirds of its tests at heavy flows and fits the BPR exponent by nonnegative least squares.
+Not repaired and not admitted: `mk_drift` (its path-dependent flip inside a held price is not identified by the
+shared market reference) and the evaluation family `cxc_balancing_constraint` (reference below hold and fit).
+(2) The 8.10 requirement of a prediction family is measured on its scored channel
+(`categories.beliefs_fail_after_change`): the scored truth computed for the world as it stood at the end of the
+first fifth (timed regimes frozen, the world's own drifting stocks held there) must score at least a quarter below
+perfect predictions; the income of constant settings decided the old verdict through a lever cost that never enters
+the score. (3) Prediction worlds that book revenue book realised quantities (relative sd 0.1 x observation_noise,
+fidelity record `rapid.realised_revenue`); revenue was price x the noise-free scored node, so the observation_noise
+axis did not limit what a learner knew about the scored quantity.
+
 ## D-64 Public references may model the other participants' policy class (2026-11-26, workstream H)
 A family's admission reference may assume the *class* of an opponent's or counterpart's policy that the brief
 describes (a contest player best-responding to an average of past efforts, an attacker learning route values from its
@@ -333,6 +358,17 @@ machine after forty ticks at constant drives; wear becomes visible through a noi
 drain and latch level were not identifiable from one episode). Two category requirements of SP-8.0b were also met by
 family changes: `plan_distribution` accepts a replenishment/shipping program (Part 8.4 asks for programmatic actions
 and no admitted 8.4 family offered one) and `lab_drift_blanks` scores only doses above its settable range.
+
+Amendment (repair pass, 2026-11-27): two world-side changes found by the verifier. (1) Program worlds billed compute
+by the parent's exact CPU measurement (D-20), memoised per process, so the same spec and seed gave different outcomes
+in fresh processes and under load (`pe_stream_processor`'s reference scored 1371.6 to 124.1 on one seed;
+`pe_contention_sched`'s claim failed once under load). Compute is now billed per call in whole quanta of the same
+parent-side measurement (`program_exec.billed_units`: 100 work units per call plus 10,000 for every whole 10,000
+measured, fidelity record `rapid.compute_quanta`); the reference programs stay below 2,600 units per call, so their
+outcomes repeat exactly in fresh processes (tested), while heavy programs still pay quantum by quantum. Nothing a
+sandboxed program reports about itself is used. (2) The inventory worlds' public reference read the fixed order cost
+and the holding cost from the private configuration; both terms (and the prices) are now stated in the brief, and
+the reference reads them from there (`references.public_inventory_terms`).
 
 ## D-65 Families for the four Part 8 items that had none (2026-11-26, workstream H)
 8.5.1 `srch_leads` (a stream of expiring leads with screen/audit investigation), 8.5.4 `srch_ventures` (delayed
