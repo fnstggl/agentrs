@@ -120,8 +120,12 @@ def v4_module(relpath: str, package: str, name: str) -> types.ModuleType:
     full = f"{package}.{name}"
     if full in sys.modules:
         return sys.modules[full]
-    src = subprocess.check_output(["git", "show", f"{V4_COMMIT}:crucible/src/crucible/{relpath}"], cwd=repo_root(),
-                                  text=True)
+    try:
+        src = subprocess.check_output(["git", "show", f"{V4_COMMIT}:crucible/src/crucible/{relpath}"], cwd=repo_root(),
+                                      text=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"the 4.0 commit {V4_COMMIT} is not readable in {repo_root()} ({(e.stderr or '').strip()[:200]});"
+                           f" a shallow clone lacks it: git fetch --depth 1 origin <full sha of {V4_COMMIT}>") from e
     spec = importlib.util.spec_from_loader(full, loader=None)
     mod = importlib.util.module_from_spec(spec)
     mod.__package__ = package
