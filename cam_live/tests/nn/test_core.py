@@ -7,23 +7,71 @@ from cam_live.nn import fast
 from cam_live.nn.api import CoreState, GROUP_EXPERIENTIAL
 
 
-def test_h_is_causal(model, items):
-    base = items(8)
-    tb = model.tokenize([base])
-    h0 = model.core_forward(tb).h
-    for k in (3, 6, 7):
+def _live_time_bias(model, std=0.5):
+    """The attention time bias starts at zero; randomise it so the time-conditioned attention path is exercised."""
+    g = torch.Generator().manual_seed(3)
+    with torch.no_grad():
+        for blk in model.exp.core.blocks:
+            blk.attn.time_bias.weight.copy_(torch.randn(blk.attn.time_bias.weight.shape, generator=g) * std)
+
+
+def _causality_violation(model, base):
+    """Largest change of h[:, :k] when items >= k change (text, values, kind, and timestamps — also *only* the later
+    timestamps), and the largest |d h[:, i] / d x[:, j]| over j > i."""
+    h0 = model.core_forward(model.tokenize([base])).h
+    worst = 0.0
+    for k in (2, 5, 7):
         changed = list(base)
         changed[k] = ExperienceItem(kind=ItemKind.FAILURE, text="something completely different happened",
                                     ts=base[k].ts + 500000.0, quantities=[Quantity("other", -9e6)])
-        for j in range(k + 1, 8):               # later items move in time too
+        for j in range(k + 1, len(base)):               # later items move in time too
             changed[j] = ExperienceItem(kind=base[j].kind, text=base[j].text + " changed", ts=base[j].ts + 500000.0,
                                         quantities=base[j].quantities)
-        h1 = model.core_forward(model.tokenize([changed])).h
-        assert torch.equal(h0[:, :k], h1[:, :k]), k            # earlier latents are bit-identical
-        assert not torch.allclose(h0[:, k:], h1[:, k:], atol=1e-3)
+        only_time = list(base[:k]) + [ExperienceItem(kind=it.kind, text=it.text, ts=it.ts + 7.0e5 * (i + 1),
+                                                     quantities=it.quantities) for i, it in enumerate(base[k:])]
+        for c in (changed, only_time):
+            h1 = model.core_forward(model.tokenize([c])).h
+            worst = max(worst, float((h0[:, :k] - h1[:, :k]).abs().max()))
+            assert not torch.allclose(h0[:, k:], h1[:, k:], atol=1e-3)
+    tb = model.tokenize([base])
+    x = tb.x.detach().clone().requires_grad_(True)
+    tb.x = x
+    h = model.core_forward(tb).h
+    for i in range(x.shape[1] - 1):
+        (gx,) = torch.autograd.grad(h[0, i].sum(), x, retain_graph=True)
+        worst = max(worst, float(gx[0, i + 1:].abs().max()))
+    return worst
+
+
+def test_h_is_causal(model, items):
+    """h[:, i] depends on items <= i only — with the time-conditioned attention live (randomised time bias), also
+    when only later timestamps move. The check is shown to detect a leak: a time basis that sees the newest
+    timestamp makes it fail."""
+    base = items(8, dt=37.0)
+    _live_time_bias(model)
+    assert _causality_violation(model, base) == 0.0                      # bit-identical prefixes, exact zeros
+    # the randomised time bias really changes h (the path is exercised)
+    h_live = model.core_forward(model.tokenize([base])).h
+    _live_time_bias(model, std=0.0)
+    h_zero_bias = model.core_forward(model.tokenize([base])).h
+    assert float((h_live - h_zero_bias).abs().max()) > 1e-2
     # appending items never changes the latents of the prefix
+    _live_time_bias(model)
+    h0 = model.core_forward(model.tokenize([base])).h
     h_short = model.core_forward(model.tokenize([base[:5]])).h
     assert torch.allclose(h_short, h0[:, :5], atol=1e-6)
+    # the check fails on a broken time basis (relative to the newest timestamp of the context)
+    import cam_live.nn.core as core_mod
+    real = core_mod.elapsed_features
+
+    def leaky(d):
+        return real(d - d.amin(-1, keepdim=True)) if d.dim() == 3 else real(d)
+
+    core_mod.elapsed_features = leaky
+    try:
+        assert _causality_violation(model, base) > 1e-4
+    finally:
+        core_mod.elapsed_features = real
 
 
 def test_padding_does_not_change_a_row(model, items):

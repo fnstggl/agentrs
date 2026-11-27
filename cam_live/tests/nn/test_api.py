@@ -71,14 +71,151 @@ def test_api_shapes_and_dtypes(model, items):
     assert info["kl"] > 0 and fs.n_updates(OutcomeKind.COUNT) == 1
 
 
-def test_feature_gram_is_well_conditioned(model, items):
-    """phi must be usable by a Bayesian last layer: no collapsed directions at init."""
-    g = torch.Generator().manual_seed(0)
-    z = torch.randn(64, 8, model.d_model, generator=g)
-    e_q = torch.randn(64, 4, model.d_model, generator=g)
-    phi = model.features(z, e_q).reshape(-1, model.n_features).double()
-    ev = torch.linalg.eigvalsh(phi.T @ phi / phi.shape[0])
-    assert float(ev.max() / ev.min()) < 1e4, float(ev.max() / ev.min())
+def _realistic_decisions(model, n_ctx=48, seed=0):
+    """phi over realistic (context, action, goal, query) combinations through the whole pipeline: contexts of 1-6
+    items of mixed kinds with texts, quantities spanning many magnitudes and irregular timestamps; eight different
+    actions with arguments; four goals; six queries of every fast-layer kind. -> phi [n_ctx, 8, 6, F]."""
+    from cam_live.contracts import ExperienceItem, ItemKind, Quantity
+    g = torch.Generator().manual_seed(seed)
+    kinds = [ItemKind.OBSERVATION, ItemKind.ACTION, ItemKind.OUTCOME, ItemKind.EVENT, ItemKind.DOCUMENT,
+             ItemKind.FAILURE, ItemKind.SOFTWARE]
+    words = ("checkout form export job search results login page error log pricing table signup funnel api "
+             "response unit tests").split()
+    rint = lambda lo, hi: int(torch.randint(lo, hi, (1,), generator=g))
+    ctxs = []
+    for i in range(n_ctx):
+        its = []
+        for t in range(rint(1, 7)):
+            w = " ".join(words[rint(0, len(words))] for _ in range(rint(2, 9)))
+            v = float(torch.sinh(torch.randn(1, generator=g) * 2.0))
+            its.append(ExperienceItem(kind=kinds[rint(0, len(kinds))], text=w,
+                                      ts=1000.0 * i + 10.0 ** float(torch.rand(1, generator=g) * 6) + 10.0 * t,
+                                      quantities=[Quantity(f"{w.split()[0]}.count", round(v, 2))] if t % 2 == 0 else []))
+        ctxs.append(sorted(its, key=lambda it: it.ts))
+    acts = [ActionSpec("a1", "browser.click", arguments={"ref": "e3"}),
+            ActionSpec("a2", "sandbox.python", modality="code", arguments={"code": "print(1)"}),
+            ActionSpec("a3", "internal.wait", arguments={"seconds": 600}),
+            ActionSpec("a4", "browser.type", arguments={"ref": "e7", "text": "hello"}),
+            ActionSpec("a5", "api.call", modality="api", arguments={"endpoint": "/export", "rows": 100}),
+            ActionSpec("a6", "skill.run", modality="skill", level="procedure", arguments={"skill": "publish_page"}),
+            ActionSpec("a7", "browser.navigate", arguments={"url": "https://example.org/docs"}),
+            ActionSpec("a8", "visual.click", modality="visual", arguments={"x": 310, "y": 88})]
+    qs = [OutcomeQuery("q1", "signups", kind=OutcomeKind.COUNT, horizon_s=3600.0),
+          OutcomeQuery("q2", "signups", kind=OutcomeKind.COUNT, horizon_s=30 * 86400.0),
+          OutcomeQuery("q3", "latency", horizon_s=30.0, description="seconds until the job is done"),
+          OutcomeQuery("q4", "done", kind=OutcomeKind.BINARY, horizon_s=600.0),
+          OutcomeQuery("q5", "time_to_first_reply", kind=OutcomeKind.TIME_TO_EVENT, horizon_s=86400.0),
+          OutcomeQuery("q6", "revenue", horizon_s=7 * 86400.0, description="money received")]
+    goals = ["Reach the stated target within the time limit.", "Find out why the export job fails.",
+             "Increase voluntary sign-ups.", "Reduce the page load time."]
+    with torch.no_grad():
+        o = model.core_forward(model.tokenize(ctxs))
+        e_a, _ = model.encode_actions([acts] * n_ctx)
+        e_g = model.encode_goals([goals[i % 4] for i in range(n_ctx)])
+        e_q = model.encode_queries([qs] * n_ctx)[0]
+        return model.features(model.decision_latent(o.b, e_a, e_g), e_q)
+
+
+def _gram_stats(phi):
+    P = phi.reshape(-1, phi.shape[-1]).double()
+    ev = torch.linalg.eigvalsh(P.T @ P / P.shape[0]).flip(0)
+    return float(ev[0] / ev[-1]), float(ev.sum() ** 2 / ev.pow(2).sum())
+
+
+def test_features_on_realistic_inputs_conditioning_and_fast_layer_numerics(model):
+    """Measured, not assumed: on realistic pipeline inputs phi is NOT well-conditioned at initialisation (the
+    earlier test fed white noise: max / min eigenvalue ~10). Debug model, 2304 combinations: max / min ~70 over all
+    queries, ~0.6-2.2e3 for one query (participation ratio 2-3.5 of 16); the real configuration measures ~1e4-1e6
+    (docs/status/A.json). What must hold is that the Bayesian last layer stays exact on such features."""
+    phi = _realistic_decisions(model)
+    cond_all, pr_all = _gram_stats(phi)
+    per_q = [_gram_stats(phi[:, :, q]) for q in range(phi.shape[2])]
+    assert cond_all < 500 and pr_all > 3.0, (cond_all, pr_all)          # regression guard (measured ~70 / 6.4)
+    assert max(c for c, _ in per_q) < 2e4, per_q                       # measured <= 2.2e3
+    # the fast layer on these features: 2304 sequential Joseph updates == the closed-form posterior, SPD
+    from cam_live.nn import fast
+    from cam_live.nn.fast import F64, FastBeliefState
+    P = phi.reshape(-1, phi.shape[-1]).double()
+    g = torch.Generator().manual_seed(1)
+    y = P @ torch.randn(P.shape[1], generator=g, dtype=F64) + 0.3 * torch.randn(P.shape[0], generator=g, dtype=F64)
+    prior = model.exp.fast_prior
+    st = FastBeliefState(prior, change_h=0.0, forgetting=1.0)
+    st.noise_mode = "fixed"                          # known-noise recursion against the closed form
+    p0 = {k: v.detach() for k, v in prior.prior(OutcomeKind.REAL).items()}
+    st._post[OutcomeKind.REAL].update(mu=p0["mu"].clone(), cov=p0["cov"].clone())
+    st.update(P, y, OutcomeKind.REAL)
+    mu_ref, cov_ref = fast.gaussian_fit(P, y, None, p0["mu"], p0["cov"], p0["noise"])
+    post = st.posterior(OutcomeKind.REAL)
+    assert torch.allclose(post["mu"], mu_ref, atol=1e-8) and torch.allclose(post["cov"], cov_ref, atol=1e-10)
+    assert float(torch.linalg.eigvalsh(post["cov"]).min()) > 0 and torch.equal(post["cov"], post["cov"].T)
+
+
+def test_candidates_differing_in_one_argument_are_distinguishable(model, items):
+    """An action was the pooled embedding of its rendered text: one changed argument token left z almost unchanged
+    (cos 0.9997 on Qwen3-4B for {"ref": "e3"} vs {"ref": "e4"}). Arguments and the target now reach the encoding
+    through the exact value channel."""
+    b = model.core_forward(model.tokenize([items(4)])).b
+    e_g = model.encode_goals(["reach the stated target"])
+
+    def z_of(acts):
+        e_a, _ = model.encode_actions([acts])
+        return model.decision_latent(b, e_a, e_g)[0]
+
+    cos = lambda u, v: float(Fn.cosine_similarity(u, v, -1))
+    pairs = {"ref e3 / e4": (ActionSpec("a", "browser.click", arguments={"ref": "e3"}),
+                             ActionSpec("b", "browser.click", arguments={"ref": "e4"})),
+             "seconds 600 / 601": (ActionSpec("a", "internal.wait", arguments={"seconds": 600}),
+                                   ActionSpec("b", "internal.wait", arguments={"seconds": 601})),
+             "text hello / hellp": (ActionSpec("a", "browser.type", arguments={"ref": "e7", "text": "hello"}),
+                                    ActionSpec("b", "browser.type", arguments={"ref": "e7", "text": "hellp"})),
+             "nested rows 100 / 200": (ActionSpec("a", "api.call", arguments={"q": {"rows": 100, "f": "csv"}}),
+                                       ActionSpec("b", "api.call", arguments={"q": {"rows": 200, "f": "csv"}})),
+             "target e3 / e4": (ActionSpec("a", "browser.click", target="e3"), ActionSpec("b", "browser.click", target="e4"))}
+    got = {}
+    for name, (a1, a2) in pairs.items():
+        z = z_of([a1, a2])
+        got[name] = cos(z[0], z[1])
+    # measured on the debug model: 0.69-0.88 for a one-leaf argument / target change; 0.95 when one of three leaves
+    # changes (a bag of leaves: one change is a third of the argument vector)
+    assert max(v for k, v in got.items() if not k.startswith("nested")) < 0.92, got
+    assert got["nested rows 100 / 200"] < 0.98, got
+    # identical candidates are identical, key order is irrelevant, other candidates do not matter
+    z = z_of([ActionSpec("a", "api.call", arguments={"x": 1, "y": "u"}), ActionSpec("b", "api.call", arguments={"y": "u", "x": 1}),
+              ActionSpec("c", "internal.wait", arguments={"seconds": 5})])
+    assert torch.allclose(z[0], z[1], atol=1e-6)
+    z_alone = z_of([ActionSpec("c", "internal.wait", arguments={"seconds": 5})])
+    assert torch.allclose(z[2], z_alone[0], atol=1e-6)
+    # magnitudes stay ordered in the value part: 600 vs 601 closer than 600 vs 6e5
+    z = z_of([ActionSpec("a", "internal.wait", arguments={"seconds": 600}), ActionSpec("b", "internal.wait", arguments={"seconds": 601}),
+              ActionSpec("c", "internal.wait", arguments={"seconds": 6e5})])
+    assert cos(z[0], z[1]) > cos(z[0], z[2])
+    # more than MAX_ARGUMENTS leaves are dropped and counted
+    from cam_live.nn.tokens import MAX_ARGUMENTS
+    before = model.exp.tokenizer.stats["dropped_arguments"]
+    model.encode_actions([[ActionSpec("a", "api.call", arguments={f"k{i}": i for i in range(MAX_ARGUMENTS + 3)})]])
+    assert model.exp.tokenizer.stats["dropped_arguments"] == before + 3
+
+
+def test_arch_signature_covers_every_behaviour_relevant_setting():
+    """Same-shape configurations that compute different functions must have different signatures (a state saved
+    with max_text_tokens 48 loaded under strict=True into a model with 8, signature unchanged, outputs different)."""
+    base = build_model(CamLiveConfig.debug()).arch_signature()
+    assert json.loads(json.dumps(base)) == base
+    for name, mut in (("max_text_tokens", lambda c: setattr(c.backbone, "max_text_tokens", 8)),
+                      ("lora_alpha", lambda c: setattr(c.backbone, "lora_alpha", 8.0)),
+                      ("tap_layers", lambda c: setattr(c.backbone, "tap_layers", (0.5, 1.0, 1.0))),
+                      ("tiny LM seed (frozen weights)", lambda c: setattr(c, "seed", 1)),
+                      ("dropout", lambda c: setattr(c.core, "dropout", 0.1)),
+                      ("max_prompt_tokens", lambda c: c.sections.setdefault("nn", {}).update(max_prompt_tokens=64)),
+                      ("embedding batch shape", lambda c: c.sections.setdefault("nn", {}).update(embed_batch_tokens=64))):
+        c = CamLiveConfig.debug()
+        mut(c)
+        assert build_model(c).arch_signature() != base, name
+    for name, mut in (("cache size", lambda c: setattr(c.backbone, "embed_cache_items", 7)),
+                      ("checkpointing", lambda c: setattr(c.backbone, "grad_checkpoint", False))):
+        c = CamLiveConfig.debug()
+        mut(c)
+        assert build_model(c).arch_signature() == base, name
 
 
 def test_permuted_belief_changes_the_decision_latent(model, items):

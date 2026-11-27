@@ -119,7 +119,7 @@ def test_embedding_cache_bypass_and_invalidation(model):
     assert bb.stats["cache_hits"] == hits0 + 5 and bb.stats["cache_misses"] == miss0
     eg = model.embed_texts(TEXTS, with_grad=True)                          # bypasses the cache
     assert bb.stats["cache_hits"] == hits0 + 5 and eg.requires_grad
-    assert torch.allclose(eg.detach(), e1, atol=2e-2, rtol=2e-2)           # same values up to float16 cache storage
+    assert torch.equal(eg.detach(), e1)          # the graph path returns exactly the cached numbers (straight-through)
     assert float(torch.nn.functional.cosine_similarity(e1[0], e1[1], 0)) < 0.95   # texts are distinguishable
     # an optimizer step on the adapters invalidates the cache automatically
     v0 = bb.adapter_version
@@ -195,3 +195,124 @@ def test_tiny_backbone_is_labelled_and_deterministic(cfg):
     assert a.group_hashes() == b.group_hashes()
     with pytest.raises(ValueError):
         a.generate(["x", "y"], latent=torch.zeros(1, a.d_model))
+
+
+def _set_B(model, seed, scale=0.5, via_data=False):
+    g = torch.Generator().manual_seed(seed)
+    for m in model.backbone.lora_modules:
+        new = torch.randn(m.lora_B.shape, generator=g) * scale
+        if via_data:
+            m.lora_B.data.copy_(new)                 # bumps no version counter
+        else:
+            with torch.no_grad():
+                m.lora_B.copy_(new)
+
+
+@pytest.mark.parametrize("how", ["data", "inplace", "sgd", "adam_foreach", "adam_fused", "load_state", "calibration"])
+def test_caches_are_invalidated_by_any_change_of_what_they_depend_on(how):
+    """The embedding cache and the LoRA inference casts follow the adapter *content*: a write through ``.data``
+    (no version bump) left both stale before (cached embedding off by 22, no-grad logits off by 5.9)."""
+    model = build_model(CamLiveConfig.debug())
+    bb = model.backbone
+    if how != "calibration":
+        _set_B(model, 0, 0.3)                       # non-zero adapters so the inference path caches real casts
+    e0 = model.embed_texts(TEXTS).clone()
+    with torch.no_grad():
+        l0 = bb.next_token_logits(["the page"]).clone()
+    v0 = bb.adapter_version
+    if how == "data":
+        _set_B(model, 1, via_data=True)
+    elif how == "inplace":
+        _set_B(model, 1)
+    elif how in ("sgd", "adam_foreach", "adam_fused"):
+        params = bb.lora_parameters()
+        opt = {"sgd": lambda: torch.optim.SGD(params, lr=1.0),
+               "adam_foreach": lambda: torch.optim.Adam(params, lr=0.1, foreach=True),
+               "adam_fused": lambda: torch.optim.Adam(params, lr=0.1, fused=True)}[how]()
+        opt.zero_grad()
+        model.embed_texts(TEXTS, with_grad=True).pow(2).sum().backward()
+        opt.step()
+    elif how == "load_state":
+        other = build_model(CamLiveConfig.debug())
+        _set_B(other, 2)
+        sd = {k: v for k, v in other.backbone.state_dict().items() if "lora_" in k}
+        bb.load_state_dict(sd, strict=False)        # plain nn.Module API, no mark_adapters_updated()
+    else:
+        bb.cal_mu.data.add_(0.5)                    # the standardisation statistics of cached embeddings
+    e1 = model.embed_texts(TEXTS)
+    fresh = model.embed_texts(TEXTS, with_grad=True).detach()
+    with torch.no_grad():
+        l_ng = bb.next_token_logits(["the page"])
+    l_g = bb.next_token_logits(["the page"]).detach()          # grad mode: live float32 adapters, no cast cache
+    assert bb.adapter_version > v0
+    assert not torch.equal(e1, e0) and torch.equal(e1, fresh)
+    assert torch.equal(l_ng, l_g), float((l_ng - l_g).abs().max())
+    if how != "calibration":
+        assert not torch.allclose(l_ng, l0, atol=1e-4)
+    # no change -> no invalidation, cache hits
+    hits = bb.stats["cache_hits"]
+    v1 = bb.adapter_version
+    model.embed_texts(TEXTS)
+    assert bb.adapter_version == v1 and bb.stats["cache_hits"] == hits + len(TEXTS)
+    # mark_adapters_updated() clears the LoRA inference casts too
+    model.mark_adapters_updated()
+    assert all(m._cast_key is None for m in bb.lora_modules)
+
+
+def test_embedding_is_independent_of_the_other_texts_in_the_call(model):
+    """Bit-exact: a text's embedding (and so the cache, and b) does not depend on batch composition or order. With
+    batch-dependent shapes the bf16 backbone gave ~1 % relative differences and the cache kept whichever came
+    first."""
+    bb = model.backbone
+    t = "the export job finished after twelve minutes"
+    long1 = " ".join(f"word{i}" for i in range(150))
+    long2 = " ".join(f"other{i}" for i in range(37))
+    bb.mark_adapters_updated()
+    alone = model.embed_texts([t])[0].clone()
+    for others in ([long1, long2], [long2], [long1] * 3 + [long2] * 30, [f"{t} {i}" for i in range(40)]):
+        bb.mark_adapters_updated()
+        batch = model.embed_texts(others[: len(others) // 2] + [t] + others[len(others) // 2:])
+        assert torch.equal(batch[len(others) // 2], alone)
+    assert torch.equal(model.embed_texts([t], with_grad=True).detach()[0], alone)
+    # through the core: b of a context does not depend on the other contexts in the batch (cold cache)
+    ctx = [ExperienceItem(kind=ItemKind.OBSERVATION, text=t, ts=1.0), ExperienceItem(kind=ItemKind.ACTION, text=long2, ts=5.0)]
+    bb.mark_adapters_updated()
+    b_alone = model.core_forward(model.tokenize([ctx])).b[0].clone()
+    bb.mark_adapters_updated()
+    other = [ExperienceItem(kind=ItemKind.DOCUMENT, text=long1, ts=2.0)] * 3
+    b_batch = model.core_forward(model.tokenize([other, ctx])).b[1]
+    assert torch.allclose(b_alone, b_batch, atol=1e-6)         # the core itself is batch-invariant to float32 rounding
+    # every forward has the fixed shape of its bucket
+    for n in (1, 7, 8, 9, 64, 65, 129, 384):
+        Lb = bb.embed_bucket(n)
+        assert Lb >= n and Lb - n < max(8, n // 4) and bb.embed_rows(Lb) * Lb <= max(Lb, bb.nn_cfg.embed_batch_tokens)
+
+
+def test_float32_head_matches_a_float64_reference_with_its_gradient():
+    """The output layer used by generation_logprob / the sampler: float32 logits and log-probabilities (no bf16
+    rounding of logits), chunked over the vocabulary, gradient w.r.t. the hidden state; the weight is used in its
+    stored dtype."""
+    from cam_live.nn import backbone as bbm
+    g = torch.Generator().manual_seed(0)
+    V, H, P = 70001, 48, 9                         # V spans three chunks
+    w = (torch.randn(V, H, generator=g) * 0.4).to(torch.bfloat16)
+    bias = torch.randn(V, generator=g) * 0.1
+    h = (torch.randn(P, H, generator=g) * 3).requires_grad_(True)
+    tgt = torch.randint(0, V, (P,), generator=g)
+    tgt[0], tgt[1] = 0, V - 1
+    ref_logits = h.detach().double() @ w.double().T + bias.double()
+    ref = torch.log_softmax(ref_logits, -1).gather(1, tgt[:, None]).squeeze(1)
+    lg = bbm._HeadLogits.apply(h, w, bias)
+    lp = bbm._TokenLogprob.apply(h, w, bias, tgt)
+    assert lg.dtype == torch.float32 and lp.dtype == torch.float32
+    assert float((lg.double() - ref_logits).abs().max()) < 2e-4
+    assert float((lp.double() - ref).abs().max()) < 2e-4
+    # gradients against autograd in float64
+    hd = h.detach().double().requires_grad_(True)
+    torch.log_softmax(hd @ w.double().T + bias.double(), -1).gather(1, tgt[:, None]).sum().backward()
+    lp.sum().backward()
+    assert torch.allclose(h.grad.double(), hd.grad, atol=1e-4, rtol=1e-4)
+    h.grad = None
+    probe = torch.randn(P, V, generator=g)
+    (lg * probe).sum().backward()
+    assert torch.allclose(h.grad.double(), probe.double() @ w.double(), atol=1e-3, rtol=1e-4)
