@@ -41,6 +41,7 @@ def main(argv=None) -> int:
     ap.add_argument("--agent", default='{"selection_rule": "thompson_policy"}')
     ap.add_argument("--min-independent", type=int, default=4)
     ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--meta", default="{}", help="JSON overrides of reward.meta (e.g. a fixed mix for a pathway check)")
     a = ap.parse_args(argv)
     import torch
     from cam_live.agent import CamLiveAgent
@@ -57,12 +58,17 @@ def main(argv=None) -> int:
     cfg = staging_config(None, real, 0)
     cfg.optim.meta_min_independent_outcomes = int(a.min_independent)
     cfg.sections["agent"].update(json.loads(a.agent))
+    rw = dict(cfg.sections.get("reward", {}))
+    rw["meta"] = {**rw.get("meta", {}), **json.loads(a.meta)}
+    cfg.sections["reward"] = rw
     report = {"kind": "real_model_reward_meta_pathway" if real else "debug_reward_meta_pathway", "executed": False,
               "started_utc": stamp, "git_head": _git_head(), "backbone": cfg.backbone.name,
               "core_scale": cfg.core.scale, "agent_settings": cfg.section("agent"),
               "optim": {k: getattr(cfg.optim, k) for k in ("inner_lr", "inner_steps", "lr_reward",
                                                            "meta_min_independent_outcomes")},
-              "lifetimes": [], "meta_updates": [], "applied": [], "live_updates": [], "promotions": []}
+              "reward_meta_overrides": json.loads(a.meta),
+              "lifetimes": [], "meta_updates": [], "applied": [], "live_updates": [], "promotions": [],
+              "checkpoint_rollbacks": []}
     lock = None
     t_start = time.time()
     if real:
@@ -173,7 +179,9 @@ def main(argv=None) -> int:
                 report["applied"][k]["next_live_update"] = {
                     "event_id": ev.event_id, "mix": mix, "step": ev.inner_lr,
                     "psi_used_is_psi_after_meta_step": all(torch.equal(psi_used[n], psi1[n].to(psi_used[n].device))
-                                                           for n in psi_used) or "later meta-steps applied since",
+                                                           for n in psi_used),
+                    "psi_used_minus_psi_after_meta_step_norm": math.sqrt(sum(
+                        float((psi_used[n] - psi1[n].to(psi_used[n].device)).double().pow(2).sum()) for n in psi_used)),
                     "change_caused_by_meta_step_mean_tv": float(_tv(pa, pb).mean()),
                     "change_caused_by_meta_step_max_abs_prob": float((pa - pb).abs().max())}
         except Exception as e:  # noqa: BLE001
@@ -183,10 +191,14 @@ def main(argv=None) -> int:
 
     meta.meta_update, meta.policy_update = wrapped_meta, wrapped_pol
     try:
+        longest = 0.0
         for i in range(a.lifetimes):
-            if time.time() - t_lock > a.budget_s:
-                report["stopped"] = f"lock budget {a.budget_s:.0f} s reached before lifetime {i}"
+            if time.time() - t_lock + longest > a.budget_s:      # never start a lifetime that would overrun the hold
+                report["stopped"] = (f"lock budget {a.budget_s:.0f} s: {time.time() - t_lock:.0f} s used, the longest "
+                                     f"lifetime took {longest:.0f} s, not starting lifetime {i}")
                 break
+            t_lt = time.time()
+            n_rb = int(agent.counters.get("rollbacks", 0))
             n_dec = len(meta.mixer.decisions)
             lt = run_lifetime(agent, "F1", 10_000 + i, os.path.join(work, f"lt{i:02d}"), clock,
                               max_decisions=a.decisions, k=16)
@@ -194,6 +206,9 @@ def main(argv=None) -> int:
                                       "mix_before": x.mix_before, "mix_after": x.mix_after, "n": x.n_independent,
                                       "mean_diff": x.mean_diff, "lower": x.lower_bound, "upper": x.upper_bound,
                                       "margin": getattr(x, "margin", None)} for x in meta.mixer.decisions[n_dec:]]
+            longest = max(longest, time.time() - t_lt)
+            if int(agent.counters.get("rollbacks", 0)) > n_rb:
+                report["checkpoint_rollbacks"].append({"lifetime": i, "n": int(agent.counters["rollbacks"]) - n_rb})
             rows = lt["decision_rows"]
             q = []
             for r in rows:
@@ -237,6 +252,7 @@ def main(argv=None) -> int:
         "next_live_update_change_by_meta_step_mean_tv": [x["change_caused_by_meta_step_mean_tv"] for x in nxt],
         "mix_trajectory": [lt["mix_end"] for lt in report["lifetimes"]],
         "promotion_actions": [p["action"] for p in report["promotions"]],
+        "checkpoint_rollbacks": sum(r["n"] for r in report["checkpoint_rollbacks"]),
         "live_updates": len(report["live_updates"]),
         "live_update_dependence_on_R_psi_shape_mean_tv": [u.get("dependence_on_R_psi_shape_mean_tv")
                                                           for u in report["live_updates"]],

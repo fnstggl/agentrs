@@ -142,3 +142,6 @@ processes is not equivalent.
   exploration / learning-progress terms have inputs in runtime runs.
 * **INT2-8 done by LRN** (5ad3777): events that will still be differentiated are checkpointed with their support
   batch; experiment assignment no longer depends on the random experiment id. Both recovery tests pass.
+* **LRN-6** a refused promotion's rollback also reverts psi and the policy head (not judged by the promotion gates):
+  4-10 rollbacks per 8-lifetime debug run, 3 in the real-model pathway run, where it undid the applied meta-step
+  before the next live update. Proposed diff (keep `reward` params + policy head across the rollback) in LRN.md.

@@ -86,3 +86,36 @@ which amplifies that pre-existing float drift through the next policy updates. T
 6e83bcf (before LRN), run the same isolated way, failed differently (a different randomised arm), so it is also
 load-sensitive. **Proposed:** bound the gap at 1e-5 (or find the batch-dependent summation, e.g. cached vs recomputed
 item embeddings) — the decisions themselves are identical.
+
+## LRN-6 (agent `promote` / `credit.checkpoint.promote_learner`, owners INT2 / D): a refused promotion rolls back psi and the policy head
+
+**Measured.** `CamLiveAgent.promote` returns the learner to the last promoted checkpoint when the promotion gates
+(held-out validation of the learner's providers, retention) refuse; `restore_learner` restores *every* trainable
+group, including `reward` (psi, changed only by the outer meta-gradient on verified evidence and never judged by
+those gates) and the policy head (trained by `MetaLearner.policy_update` on verified / calibrated-predicted
+progress, also not judged by them). Counts: 4-10 rollbacks per 8-lifetime run in the debug diagnostics
+(`docs/evidence/B/choice_runs_20261127.tar.xz`, `status.counters.rollbacks`), 3 in the 5-lifetime real-model run
+(`docs/evidence/C/real_pathway_20261127T200546Z.json`): there the one applied meta-step's psi was no longer in force
+at the next live policy update (`psi_used_is_psi_after_meta_step` false). Every rollback also makes the meta-learner's
+update events stale (their theta snapshots no longer chain to the live parameters: the outer estimator falls back to
+importance weighting).
+
+**Proposed** (agent.py; no change in `credit/` needed):
+```diff
+     def promote(self, trigger):
+         ...
++        keep = {n: p.detach().clone() for n, p in self.meta.reward.named_parameters()}
++        keep.update({"policy." + n: p.detach().clone() for n, p in self.meta.policy.named_parameters()})
++        keep_opt = copy.deepcopy(self.meta.optimizer.state_dict())
+         dec, info, rb = promote_learner(...)
+         if rb is not None:
++            with torch.no_grad():                   # psi and the policy head are not judged by these gates
++                for n, p in self.meta.reward.named_parameters():
++                    p.copy_(keep[n])
++                for n, p in self.meta.policy.named_parameters():
++                    p.copy_(keep["policy." + n])
++            self.meta.optimizer.load_state_dict(keep_opt)
+             self.predictor.set_fast_state(self.learner.fast_state)
+```
+(or give `promote_learner` a `keep_groups` argument). Workaround meanwhile: none in LRN's files; the real-model
+pathway check is also run with `agent.promotion = false` (stated in its evidence file).
