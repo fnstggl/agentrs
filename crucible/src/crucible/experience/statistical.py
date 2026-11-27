@@ -16,8 +16,8 @@ It acts by a softmax over the tools' values (``wait`` is an option with its own 
 (so the noise of its money's own movements is not mistaken for a tool's effect, and a rare windfall does not flatten
 its preferences); a tool it never tried has the prior value 0. A copy with no values (the frozen initial copy) acts
 uniformly at random over the offered tools. Arguments come from the tool's JSON schema and what the learner was
-shown (`ArgumentMemory`, as in `ReferenceLearner`): enums and bounded numbers uniformly, ids and name tokens it saw under the argument's name,
-its own accounts for account arguments.
+shown (`ArgumentMemory`, as in `ReferenceLearner`): enums and bounded numbers uniformly, ids and name tokens it
+saw under the argument's name, its own accounts for account arguments.
 
 It is deliberately simple and transparent: values do not depend on the state, credit reaches only the step of the
 action, and a one-off windfall keeps a tool's value high. It exists so that improvement over a frozen copy can be
@@ -59,8 +59,9 @@ class ToolValueLearner(ArgumentMemory):
         civilisation: a person's fees are worth $0.7-$6 a call on average - a $5 listing, a $20 domain, a $30
         subscription that succeeds one call in ten - and at $10 the trained values hardly changed what it did).
         `recency` is the smallest weight of a new sample in a running mean (1/n before that). `credit_horizon` > 1
-        also credits a change to the actions of the previous steps, the j-th back with weight ``credit_decay ** j`` (for consequences that
-        arrive later than the next observation); 1 credits only the step's own action."""
+        also credits a change to the actions of the previous steps, the j-th back with weight
+        ``credit_decay ** j`` (for consequences that arrive later than the next observation); 1 credits only the
+        step's own action."""
         self.seed = int(seed)
         self.credit_horizon, self.credit_decay = max(1, int(credit_horizon)), float(credit_decay)
         self.trace: list[str] = []                      # the tools of the last credit_horizon - 1 steps
