@@ -57,7 +57,9 @@
     "src/crucible/semantic/generalists/catalog.py",
     "src/crucible/semantic/generalists/bench.py",
     "src/crucible/semantic/generalists/brain.py",
-    "src/crucible/semantic/routing.py"
+    "src/crucible/semantic/routing.py",
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/data/routing.json"
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
@@ -127,7 +129,9 @@
    "implementation_files": [
     "src/crucible/semantic/routing.py",
     "src/crucible/semantic/generalists/bench.py",
-    "src/crucible/semantic/data/routing.json"
+    "src/crucible/semantic/data/routing.json",
+    "src/crucible/semantic/generalists/brain.py",
+    "src/crucible/semantic/participants.py"
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
@@ -157,7 +161,8 @@
     "src/crucible/semantic/generalists/brain.py",
     "src/crucible/semantic/generalists/verify.py",
     "src/crucible/semantic/routing.py",
-    "src/crucible/semantic/data/routing.json"
+    "src/crucible/semantic/data/routing.json",
+    "src/crucible/semantic/participants.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_2d.py"
@@ -327,11 +332,12 @@
   "CORE-POP (B), SP-4.3 / DEF-B-6: in the unofficial SP-4.3 run (3,000 individuals, posts and blog, 3 days, 2 creators per kind and topic) gibberish (0 viewers), keyword stuffing (2.8) and token-optimised text (23) lose to informative text (131) on every topic, but a word salad of the informative text's own words reaches 138 and beats it on 3 of 6 topics: the population's legibility (population.semantics.legibility: valid words, function-word share, distinct share, compressibility) is identical for a shuffle of the same words. The shared space already rates it: crucible.semantic.space.comprehension(features) = 0.10 for word salad, 0.006 gibberish, 0.26 keyword stuffing, 0.98 informative (token-optimised 0.91: grammatical template text is not caught by an LM either). Request: in population.semantics.item_rep multiply the reader-model legibility by min(1, comprehension(feats)/0.8) (or replace it), keeping the lexical model only as the text-feature fallback; SP-4.3 (tests/v5/test_gate_SP_4_3.py) measures the effect.",
   "CORE-POP (B): please export a deposit function in the population API (population.deposit(ctx, i) = core.money_deposit): class-4 participants receive their accrued income before each activation; pop_semantic calls population.deposit when exported and core.money_deposit otherwise.",
   "ALL: SPACE_VERSION is f455005900ab0232 on this branch (6cc04f5e24cdce0a -> f455005900ab0232: jailed image decode in semantic/media.py, private LM run-time counters). The MIND prior for it was rebuilt under /workspace/data/crucible/semantic/space/f455005900ab0232/ (python -m crucible.semantic.space build-prior; held-out click AUC 0.638, identical to the previous version) and the population interest asset population/data/interest_space_v2.* rebuilt and committed (npz unchanged, metadata version only). Any branch that edits a vector source (space/textual.py, lm.py, align.py, compute.py, encoders/*, media.py) changes the version again and must rebuild both.",
-  "M (Gate V): with pop_semantic in civilisations, class-4 participants run Qwen3-1.7B (situation interpretation, tool choice; D-36/D-37), Qwen3-0.6B (content understanding, plus the space's text LM) and SmolLM2-135M (writing) about 2-3 activations a day each: run civilisation benchmarks in GPU slots of at least 9 GB (the standard Gate H run peaked at 7,954 MiB), or set the module config brain='ablated' for a model-free control row.",
-  "P / QA: the manifest's implementation_files for H.*, SP-3.2d, SP-3.3c, SP-4.2b, SP-4.3, SP-13.4, SP-13.5, E.3 should list the files given per requirement in this JSON. H.n1's semantic_model_params is now the largest model class-4 decisions are routed to in the standard run (D-37), which is Qwen3-1.7B: H.n1 fails by measurement (see D-37 for why the target conflicts with smallest-effective routing).",
+  "M (Gate V): with pop_semantic in civilisations, class-4 participants run Qwen3-1.7B (situation interpretation, tool choice as committed by D-36/D-37; D-38 may move both to Qwen3-0.6B reasoning first, see below), Qwen3-0.6B (content understanding, plus the space's text LM) and SmolLM2-360M (writing), about 2-3 activations a day each: run civilisation benchmarks in GPU slots of at least 9 GB (the standard Gate H run peaked at 8,361 MiB), or set the module config brain='ablated' for a model-free control row.",
+  "P / QA: the manifest's implementation_files for H.*, SP-3.2d, SP-3.3c, SP-4.2b, SP-4.3, SP-13.4, SP-13.5, E.3 should list the files given per requirement in this JSON. H.n1's semantic_model_params is now the largest model serving every activation's decisions (situation interpretation, tool choice, writing, content understanding; D-38), with escalated decisions above 1.1B asserted <= 20%; SP-3.2d asserts the ablation on consequential-call share and verified productive results (D-38); H.6 counts identical repeated calls once.",
   "O (security): semantic/media.open_image decodes participant images in the jail (isolation.decode_image) and fails closed without the jail unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1; every image decode site in crucible/semantic goes through it (encoders/image.py, space/compute.py). social/formats.inspect and social/render.open_image (C) still decode in-process.",
   "KERNEL (kcal): SP-13.5 records digests_equal false for the same civilisation (balanced, seed 4, development) generated twice in one process and run one day with class-4 participants on GPU models; every model output is recorded so replay is exact, but two fresh runs diverge (GPU bf16 batched inference is not bitwise reproducible across batch compositions; also see the K1 cross-process digest note).",
-  "Facts registry (A): pop_semantic's only table is semp_state (module-private mind state keyed by population row; no shared-kind signature)."
+  "Facts registry (A): pop_semantic's only table is semp_state (module-private mind state keyed by population row; no shared-kind signature).",
+  "ORCHESTRATOR / successor of D: an unofficial rerun is queued in the slot scheduler (label 'D: semantic gates H, SP-3.2d, SP-13.4, SP-3.3c (rerun after argument fixes)'; script scratchpad/w3b-sem/probes2/gpu_gates4.sh, plan scratchpad/w3b-sem/plan4, outputs gates4_*.log and bench_think.json, analysis probes2/analyse4.py). Its step apply_think applies the pre-registered D-38 rule to the DEV bench measurement and rewrites src/crucible/semantic/data/routing.json in the worktree (uncommitted) before Gate H runs. After it finishes: if the rewrite is consistent with bench_think.json, commit it and append the measured values to D-38; otherwise `git checkout` the file. At the time of this note the job was 16th of 34 in the queue."
  ],
  "history": {
   "D1 (wave 1, encoders)": {
