@@ -381,10 +381,92 @@ def reservation(d: str) -> dict:
             "head_admitted": bool(got), "contained": bool(blocked and got and reserved == 1)}
 
 
+def backfill(d: str) -> dict:
+    """Budget 3 CPUs, one GPU slot. A holds 1 CPU and the GPU slot; B (1 CPU + GPU) waits at the head; C (1 CPU,
+    no GPU) queues behind B and D (1 CPU) behind C. C uses nothing B waits for and leaves B's CPU free, so it starts
+    at once (backfill); D would take B's CPU, so it must wait while A holds. When A ends, B starts immediately
+    (the backfilled C did not delay it)."""
+    os.environ["CRUCIBLE_SLOTS_DIR"] = d
+    b = slots.Budget(cpus=3, gpu_mb=1000, jobs=8, gpu_jobs=1)
+    sleeper = [PY, "-c", "import time; time.sleep(60)"]
+    a = subprocess.Popen(sleeper)
+    slots.acquire(1, 500, "A", b, pid=a.pid, d=d)
+    order, kids, when = [], {}, {}
+
+    def ask(name, cpu, gpu, delay):
+        time.sleep(delay)
+        k = kids[name] = subprocess.Popen(sleeper)
+        slots.acquire(cpu, gpu, name, b, poll_s=0.05, pid=k.pid, d=d)
+        order.append(name)
+        when[name] = time.time()
+    ts = [threading.Thread(target=ask, args=x) for x in (("B", 1, 500, 0.0), ("C", 1, 0, 0.3), ("D", 1, 0, 0.6))]
+    for t in ts:
+        t.start()
+    time.sleep(1.5)
+    while_a = list(order)
+    a.kill()
+    a.wait()
+    t_free = time.time()
+    for t in ts:
+        t.join(10)
+    for k in kids.values():
+        k.kill()
+        k.wait()
+    b_delay = round(when.get("B", 1e18) - t_free, 3)
+    contained = while_a == ["C"] and "B" in order and b_delay < 2.0
+    return {"rule": "backfill", "while_A_held": while_a, "order": list(order), "head_start_delay_s": b_delay,
+            "contained": bool(contained)}
+
+
+def deadline_backfill(d: str) -> dict:
+    """Budget 2 CPUs, one GPU slot. A holds 1 CPU and the GPU slot with a 1-hour time limit; B (1 CPU + GPU) waits
+    at the head and keeps the other CPU. C (1 CPU, 2-minute time limit) ends before B could start (A's deadline), so
+    it may use B's CPU meanwhile; D (1 CPU, no time limit) and E (1 CPU, 2-hour limit) could outlive A, so they wait.
+    When A ends, B starts at once next to C: the short job did not delay the head."""
+    os.environ["CRUCIBLE_SLOTS_DIR"] = d
+    b = slots.Budget(cpus=2, gpu_mb=1000, jobs=8, gpu_jobs=1)
+    sleeper = [PY, "-c", "import time; time.sleep(60)"]
+    a = subprocess.Popen(sleeper)
+    slots.acquire(1, 500, "A", b, pid=a.pid, d=d, run_s=3600)
+    order, kids, when = [], {}, {}
+
+    def ask(name, cpu, gpu, delay, run_s):
+        time.sleep(delay)
+        k = kids[name] = subprocess.Popen(sleeper)
+        try:
+            slots.acquire(cpu, gpu, name, b, poll_s=0.05, pid=k.pid, d=d, run_s=run_s, timeout_s=8)
+        except TimeoutError:
+            return
+        order.append(name)
+        when[name] = time.time()
+    ts = [threading.Thread(target=ask, args=x) for x in (("B", 1, 500, 0.0, 3600), ("C", 1, 0, 0.3, 120),
+                                                         ("D", 1, 0, 0.6, None), ("E", 1, 0, 0.9, 7200))]
+    for t in ts:
+        t.start()
+    time.sleep(1.8)
+    while_a = list(order)
+    held_cpu = slots.status(d)["cpu_used"]
+    a.kill()
+    a.wait()
+    t_free = time.time()
+    time.sleep(1.0)
+    after_a = list(order)
+    for t in ts:
+        t.join(12)
+    for k in kids.values():
+        k.kill()
+        k.wait()
+    b_delay = round(when.get("B", 1e18) - t_free, 3)
+    contained = while_a == ["C"] and held_cpu <= 2 and after_a[:2] == ["C", "B"] and b_delay < 2.0
+    return {"rule": "deadline_backfill", "while_A_held": while_a, "after_A": after_a, "order": list(order),
+            "held_cpu_while_A": held_cpu, "head_start_delay_s": b_delay, "contained": bool(contained)}
+
+
 DIMENSION_PROBES = {"cpu": cpu, "ram": ram, "gpu_mem": gpu_mem, "gpu_time": gpu_time, "disk": disk,
                     "inference": inference, "worlds": worlds}
 RULE_PROBES = {"fifo": fifo, "reservation": reservation, "zombie": zombie, "escape": escape, "foreign": foreign,
-               "self_declared_budget": self_declared, "oversize": oversize, "nested": nested}
+               "self_declared_budget": self_declared, "oversize": oversize, "nested": nested, "backfill": backfill,
+               "deadline_backfill": deadline_backfill}
 
 
 def run_all(base: str | None = None, only: list[str] | None = None) -> dict:
