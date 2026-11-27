@@ -127,8 +127,10 @@ def _strip(r: dict) -> dict:
 # --------------------------------------------------------------------------------------------- SP-2.1b
 # six seeds: with three, a paired 95% interval (t = 4.30) did not exclude zero although every seed's factual arm
 # had the effect and no counterfactual arm had it (adopters 118/130/5 vs 0/0/0 at e77fef3: one seed's population
-# found the service late); more seeds, not a weaker test
-INVENTION_SEEDS = (51, 52, 53, 54, 55, 56)
+# found the service late); more seeds, not a weaker test. Seeds 51-56 measured the inventor without its replies to
+# the public requests (02c300f: no adopter in seed 54); since the invention is also a technical chain, ONE run on the
+# chain seeds (21-26, never run for the invention before) serves SP-2.1b and the chain (the same cache entry)
+INVENTION_SEEDS = CHAIN_SEEDS
 
 
 def invention(seeds=INVENTION_SEEDS) -> dict:
@@ -136,7 +138,7 @@ def invention(seeds=INVENTION_SEEDS) -> dict:
     confirmed when one of its measures is confirmed by the counterfactual (no_invention arm) across seeds against the
     placebo reshuffling noise."""
     from . import experiments as X
-    r = _safe("invention", "effect", seeds)
+    r = _safe("invention", "chain" if X.EXPERIMENTS["invention"].chain else "effect", seeds)
     eff = r["effects"].get("no_invention", {})
     kinds = {}
     for kind, ms in X.INVENTION_KINDS.items():
