@@ -1,31 +1,35 @@
 {
  "workstream": "M-int",
- "commit": "0c3e4666252e888adb5a57574429f2f58977da6a",
- "summary": "Integrated agent cam_live.agent.CamLiveAgent (contracts.AgentAPI + drain_experiments + explain_obstacle; build_agent factory) composed only from the workstreams' components, driven by runtime.loop.LiveRuntime. Contract 1.1 (additive change requests, APPLIED.md). CPU integration tests (LabWorld + PolicyService + signing LabVerifier over several verified lifetimes; save -> fresh process -> load; kill -9 -> restart) and the Phase-4 staging validation cam_live.validation.run_staging (real Qwen3-4B + 50m core on the GPU; computer environment with the staging sites, Chromium and the staging Discord service; LabWorld family).",
+ "commit": "4b46a97",
+ "summary": "Integrated agent (M-int round 1, INT2 round 2): runtime wiring fixed (look-only grants, verifier to the agent, signed measurements, validate options), checkpoints with promotion / rollback / weights-only export, candidates grounded in the observed interface, backbone proposals executable (S-6), selection with the world model (S-5, LRN-1), attributed verified progress, storage guard, drain, planning task; separated-services run; real-model meta-updates with non-zero meta-gradients; diagnosis of the near-random LabWorld choices.",
  "requirements": {
   "IN-01": {
    "state": "partial",
    "files": [
-    "src/cam_live/agent.py"
+    "src/cam_live/agent.py",
+    "src/cam_live/runtime/loop.py",
+    "src/cam_live/runtime/loop_service.py"
    ],
    "integration_points": [
-    "cam_live.agent.CamLiveAgent"
+    "cam_live.agent.CamLiveAgent",
+    "cam_live.agent.build_agent"
    ],
    "tests": [
     "tests/integration/test_agent_runtime.py::test_every_runtime_step_calls_the_agent",
-    "tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights",
-    "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient"
+    "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient",
+    "tests/integration/test_int2_wiring.py::test_runtime_executes_in_the_computer_environment_without_grant_refusals",
+    "tests/integration/test_int2_wiring.py::test_loop_service_passes_the_verifier_to_the_agent",
+    "tests/integration/test_int2_queries.py::test_no_unanswerable_duplicate_question_and_decisions_resolve"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/M-int_fix.xml",
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/separated/separated_20261127T183623Z.json",
+    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json"
    ],
-   "limitations": "Every workstream's learning component is called by the agent in the runtime loop; the computer environment's executors (browser, http, Discord staging) only in the staging validation; sandbox, visual and skill executors are not registered there; CheckpointManager promotion is not called."
+   "limitations": "Round-1 wiring defects M-int-1/2/3/6 fixed; separated-services run through cam-live run executed (debug core). Not done: no live service; LRN-3 (two bootstrap inputs) not written."
   },
   "IN-07": {
    "state": "implemented",
@@ -34,22 +38,22 @@
     "src/cam_live/validation.py"
    ],
    "integration_points": [
-    "cam_live.validation.run_staging"
+    "cam_live.validation.run_staging",
+    "cam_live.validation.MetaStepProbe"
    ],
    "tests": [
-    "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights"
+    "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights",
+    "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml",
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml",
     "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
    ],
    "evidence": [
-    "docs/evidence/test_results/M-int_fix.xml",
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json"
    ],
-   "limitations": "Pathway shown on LabWorld (diagnostic) and the staging services; no live service."
+   "limitations": "Pathway shown with the real configuration on LabWorld (diagnostic) - psi -> R_psi -> inner update -> verified query outcomes -> non-zero meta-gradient -> changed next inner update - and on the staging services; not on a live service."
   },
   "LX-11": {
    "state": "partial",
@@ -95,7 +99,8 @@
   "CU-22": {
    "state": "partial",
    "files": [
-    "src/cam_live/agent.py"
+    "src/cam_live/agent.py",
+    "src/cam_live/validation.py"
    ],
    "integration_points": [
     "cam_live.agent.CamLiveAgent"
@@ -104,34 +109,38 @@
     "tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/M-int_fix.xml",
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/learning/debug_store_entry_20261127/summary.json",
+    "docs/evidence/validation/diagnosis/debug_f1_20261127/summary.json"
    ],
-   "limitations": "Neural updates from interaction experience: LabWorld (tests) and the staging computer environment (validation). No comparison against the skill library's contribution."
+   "limitations": "Neural updates from interaction experience happen (non-zero deltas, tests and runs). Repeated staging task at debug scale: no improvement with repetition (learn_primitive 0.42 -> 0.25, CI of the change [-0.29, -0.04]); no real-configuration repeated-task run; skills never registered, so no comparison with the skill library."
   },
   "CU-30": {
    "state": "partial",
    "files": [
+    "src/cam_live/agent.py",
     "src/cam_live/validation.py"
    ],
    "integration_points": [
-    "cam_live.agent.CamLiveAgent"
+    "cam_live.agent.grounded_candidates",
+    "cam_live.validation.StagingComputer"
    ],
-   "tests": [],
+   "tests": [
+    "tests/integration/test_int2_grounding.py::test_the_agent_offers_grounded_candidates_and_records_inclusion",
+    "tests/integration/test_int2_grounding.py::test_grounded_actions_execute_on_the_staging_sites"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/learning/debug_store_entry_20261127/summary.json",
+    "docs/evidence/validation/separated/separated_20261127T183623Z.json"
    ],
-   "limitations": "Browser / HTTP / staging Discord actions chosen by the agent on the staging sites (validation phase A); task success on those interfaces is not established."
+   "limitations": "Grounded browser actions on the staging sites complete an unfamiliar two-step form task in 9-33 % of objectives (debug scale); not better with repetition; real-configuration task success not established."
   },
   "CL-09": {
    "state": "implemented",
@@ -161,22 +170,19 @@
     "src/cam_live/agent.py"
    ],
    "integration_points": [
-    "cam_live.agent.CamLiveAgent"
+    "cam_live.agent.CamLiveAgent.load"
    ],
    "tests": [
     "tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions",
     "tests/integration/test_agent_recovery.py::test_kill_9_mid_run_then_restart_without_duplicate_actions"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/M-int_fix.xml",
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml"
    ],
-   "limitations": "Bit-identical decisions across processes with the same PYTHONHASHSEED; with different hash seeds the probabilities differed by < 1e-8 and the reward-parameter hash after a meta-update."
+   "limitations": "Save -> fresh process -> load: decisions identical (first bit-identical). Restored update events used to rebuild their support batches from the store (INT2-8, measured: docs/evidence/validation/diagnosis/inner_batch_rebuild_20261127.txt); fixed by LRN in reward/ (5ad3777). Same PYTHONHASHSEED in both processes."
   },
   "AE-03": {
    "state": "partial",
@@ -299,15 +305,14 @@
     "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/M-int_fix.xml",
-    "docs/evidence/validation/staging_20261127T052759Z.json",
-    "docs/evidence/validation/staging_20261127T053639Z.json",
-    "docs/evidence/validation/staging_20261127T055041Z.json"
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json",
+    "docs/evidence/validation/diagnosis/meta_evidence_20261127.json"
    ],
-   "limitations": "Applied meta-updates with non-zero meta-gradients at debug scale; an applied update with an exactly zero meta-gradient was also recorded as applied (Adam momentum still moves psi; reported to C)."
+   "limitations": "Real configuration: 4 of 63 meta-update calls applied with non-zero meta-gradients (0.050-2.886), ESS 2.1-2.9, 56 skipped for insufficient independent outcomes. Recorded under rule policy + value prior (before LRN-1). Whether R_psi's changes improve decisions is not measured."
   },
   "PI-02": {
    "state": "implemented",
@@ -371,6 +376,72 @@
     "docs/evidence/validation/staging_20261127T055041Z.json"
    ],
    "limitations": "Every number in this file comes from the commands listed."
+  },
+  "OP-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/runtime/loop.py",
+    "src/cam_live/agent.py",
+    "configs/cam_live.yaml"
+   ],
+   "integration_points": [
+    "cam_live.runtime.loop.LiveRuntime",
+    "cam_live.agent.CamLiveAgent.promote"
+   ],
+   "tests": [
+    "tests/runtime/test_int2_storage_drain.py::test_runtime_pauses_instead_of_checkpointing_when_disk_is_low",
+    "tests/integration/test_int2_storage.py::test_agent_promotion_checks_the_guard_and_the_runtime_pauses"
+   ],
+   "commands": [
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/INT2_full.xml"
+   ],
+   "limitations": "Runtime and learner use cam_live.storage.DiskGuard (M's guard) before checkpoints, saves and promotions; below storage.min_free_gb (20) nothing is written and the run pauses with a resource obstacle."
+  },
+  "OP-02": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/runtime/loop.py",
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.runtime.loop.RuntimeConfig",
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_int2_storage.py::test_two_checkpoints_kept_and_optimizer_state_only_in_the_newest"
+   ],
+   "commands": [
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/INT2_full.xml"
+   ],
+   "limitations": "Runtime checkpoints: newest 2, optimizer state only in the newest; learner promotions keep_last 2 + promoted."
+  },
+  "OP-11": {
+   "state": "partial",
+   "files": [
+    "tasks/discord_100_planning.yaml",
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.AgentProposer"
+   ],
+   "tests": [
+    "tests/integration/test_int2_planning.py::test_planning_task_file",
+    "tests/integration/test_int2_planning.py::test_backbone_notes_and_operator_requests_become_candidates",
+    "tests/integration/test_int2_prompts.py::test_constant_templates_carry_no_strategy"
+   ],
+   "commands": [
+    "per test directory from a frozen copy of the commit (git archive): PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=...; merged into docs/evidence/test_results/INT2_full.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/INT2_full.xml"
+   ],
+   "limitations": "Planning task prepared (objective verbatim, confirmed by hash); not run. A live read-only observation run is prepared (docs/evidence/validation/discord_live/run_live_observe.py) but was not executed: its launch was refused by the session's permission system and needs the operator's permission."
   }
  },
  "public_api": [
@@ -380,7 +451,7 @@
   "cam_live.agent.AgentSettings (config section 'agent')",
   "cam_live.validation.run_staging(cfg=None, *, out_dir=None, real_model=True, n_decisions=40, seed=0, evidence_dir=None, budget_s=780, lab_seeds=(101, 102), computer_share=0.25) -> report"
  ],
- "change_requests": 6,
+ "change_requests": 9,
  "measured": {
   "integration_tests": {
    "tests": 22,
@@ -588,26 +659,51 @@
    "reward": 949121,
    "heads_total": 6055337,
    "total_persistent_trainable": 74672079
-  }
+  },
+  "full_suite": {
+   "tests": 1467,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 90,
+   "passed": 1377,
+   "time_s": 1628.9,
+   "wall_s": 619,
+   "failed": [],
+   "commit": "4b46a97",
+   "command": "frozen copy of the commit (git archive); one pytest process per test directory, 5 at a time: PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest cam_live/tests/<dir> -q --rootdir=cam_live --junitxml=<dir>.xml; merged into docs/evidence/test_results/INT2_full.xml",
+   "note": "default suite (gpu / slow / browser / privileged / network tests skip by the suite's own markers); load average 13-29 during this run. An earlier run of the same procedure at 07be9ba under load ~55 had 7 errors (the 900 s per-test guard on the runtime module's shared session; the module guard is 2400 s since 4b46a97) and 1 failure (tests/reward state round-trip, fixed by LRN in f0df920)",
+   "per_directory": [
+    "predict rc=0 176s 157 passed, 10 skipped in 172.26s (0:02:52)",
+    "reward rc=0 197s 143 passed, 3 skipped, 1 warning in 192.66s (0:03:12)",
+    "credit rc=0 217s 114 passed, 7 skipped in 214.83s (0:03:34)",
+    "eval rc=0 316s 32 passed, 1 skipped in 314.04s (0:05:14)",
+    "integration rc=0 496s 47 passed, 1 skipped in 493.99s (0:08:13)",
+    "storage rc=0 1s 3 passed in 0.86s",
+    "diagnostics rc=0 4s 8 passed in 2.32s",
+    "test_verify_completion rc=0 11s 27 passed in 6.28s",
+    "nn rc=0 60s 99 passed, 13 skipped, 2 warnings in 56.23s",
+    "runtime rc=0 67s 212 passed, 3 skipped in 64.76s (0:01:04)",
+    "harness rc=0 123s 535 passed, 52 skipped in 120.78s (0:02:00)",
+    "wall 619s"
+   ]
+  },
+  "int2_evidence": [
+   "docs/evidence/validation/separated/separated_20261127T183623Z.json",
+   "docs/evidence/validation/meta_real/meta_real_20261127T184014Z.json",
+   "docs/evidence/validation/learning/debug_store_entry_20261127/summary.json",
+   "docs/evidence/validation/diagnosis/debug_f1_20261127/summary.json",
+   "docs/evidence/validation/diagnosis/meta_evidence_20261127.json"
+  ]
  },
  "not_done": [
-  "No live service was contacted; every result is LabWorld (diagnostic) or the local staging services (staging). Nothing here is evidence about the Discord objective.",
-  "Learning quality is not established: the tests and the staging runs show the pathway (non-zero updates, meta-gradients at debug scale, a behaviour change that lives in the weights), not that decisions get better.",
-  "runtime.loop_service does not pass the verifier to build_agent (M-int-1): under cam-live run the agent refuses verified outcomes for supervision until attach_verifier is called.",
-  "runtime.verifier does not sign measurements (M-int-3): in a real run only signed objective outcomes can supervise the meta objective.",
-  "runtime.loop consumes the authorization grant before env.execute (M-int-6): with ComputerEnvironment + PolicyService every action is refused unless the runtime is given cam_live.validation.LookOnlyGrants (done in the staging validation only).",
-  "cam-live validate --mode staging calls run_staging(cfg) without options (M-int-2); the defaults run the real-model validation.",
-  "Save -> fresh process -> load: decisions are the same and the first is bit-identical; later probabilities agree to ~1e-7 and the reward-parameter hash can differ after a meta-update (summation order on the meta / learning path, not located).",
-  "Sandbox (code), visual and skill executors were part of the staging computer environment only in run 3 (harness.factories.all_executors, 80 tools), where the agent made 2 decisions; none of their tools was exercised by the agent.",
-  "In the staging computer environment the agent's actions were mostly element-less clicks / fills (schema-valid, environment-invalid) and inspections; no staging task was completed there.",
-  "CheckpointManager promotion / rollback and weights-only export are not called by the agent (the runtime's own checkpoints are used).",
-  "The planner's imagined values are recorded as candidate extras only when its horizon controller allows >= 1 step; no selection rule uses them.",
-  "Goal-free mode is exercised by one CPU test (goals proposed, chosen, resolved, abandoned, none admitted to the meta ledger); its usefulness for later objectives is not measured.",
-  "The integration tests ran in a worktree where other agents changed reward/, credit/ and runtime/ concurrently; the final JUnit is from a copy of the committed tree plus M-int's files.",
-  "reward.metalearner records an update with an exactly zero meta-gradient as applied (staging run 2); Adam then leaves psi unchanged on the first step but moves it on later steps through its moments (seen at debug scale). Reported here for workstream C; not changed by M-int."
+  "No live service was contacted; the read-only live Discord observation run was prepared but not executed (launch refused by the session's permission system; needs the operator's permission).",
+  "Learning quality is not established: no improvement with repetition at debug scale; no real-configuration repeated-task learning run.",
+  "LRN-3 (bootstrap inputs epistemic_after / learning_progress) not wired.",
+  "S-6: backbone proposals are executable (16/16 valid in the probe, 12 of 13 chosen actions executed) but the software objective was not attempted on the real configuration (no code written).",
+  "Outcomes still pending when an objective completes are not measured (drain covers an exhausted decision budget only)."
  ],
  "scientific_failures": [
-  "Real configuration (Qwen3-4B + 50m core), three staging runs: no reward meta-update with a non-zero meta-gradient was observed. Run 1: 26 skips (insufficient independent verified outcomes; both LabWorld lifetimes reached their targets after 8 decisions). Run 2: one update recorded as applied by reward.metalearner with an importance-weighted meta-gradient of exactly 0 and unchanged reward parameters, 19 skips. Run 3: 9 decisions only (loaded machine), no update.",
-  "Behaviour change on the held-out context is small (TV 0.010 - 0.026 on the real configuration) and its direction (better or worse decisions) is not evaluated."
+  "Repeated staging task, debug scale: success fell with repetition (learn_primitive 0.42 -> 0.25, CI [-0.29, -0.04]); skills never registered.",
+  "Real configuration: meta-updates rare (4 of 63 calls applied) and small (policy change TV <= 0.027); effect on decision quality not measured."
  ]
 }

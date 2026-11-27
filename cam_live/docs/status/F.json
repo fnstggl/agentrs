@@ -47,7 +47,8 @@
     "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop",
     "tests/runtime/test_rt_fix_runtime.py::test_D8_a_prediction_with_a_learner_defined_query_is_measured",
     "tests/runtime/test_rt_fix_crash.py::test_D2_kill_during_a_wait_loses_no_decision",
-    "tests/runtime/test_rt_fix_crash.py::test_D15_kill_after_an_outcome_record_gives_no_second_outcome"
+    "tests/runtime/test_rt_fix_crash.py::test_D15_kill_after_an_outcome_record_gives_no_second_outcome",
+    "tests/runtime/test_int2_storage_drain.py::test_drain_after_exhaustion_waits_for_the_verdict"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -56,9 +57,10 @@
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/F/FIXES.md"
+    "docs/F/FIXES.md",
+    "docs/evidence/test_results/INT2_full.xml"
    ],
-   "limitations": "Evidence that arrives without a scheduled wake is only seen at the configured evidence poll interval (the environment contract has no push channel). Learner-defined prediction queries are measured for actions that happened, at most 16 per decision and 2000 pending."
+   "limitations": "Evidence that arrives without a scheduled wake is only seen at the configured evidence poll interval (the environment contract has no push channel). Learner-defined prediction queries are measured for actions that happened, at most 16 per decision and 2000 pending. INT2: RuntimeConfig.drain_after_exhaustion (S-1, opt-in): after the decision budget the run keeps measuring and verifying without deciding until a terminal verdict or the deadline; outcomes still pending when an objective completes are not measured."
   },
   "LX-01": {
    "state": "implemented",
@@ -329,7 +331,8 @@
     "tests/runtime/test_rt_fix_runtime.py::test_D4_actions_approved_together_are_rechecked_against_the_limits",
     "tests/runtime/test_rt_fix_runtime.py::test_D4_learning_never_gets_more_than_the_compute_left",
     "tests/runtime/test_rt_fix_runtime.py::test_D5_an_invalid_limit_ends_the_run_at_once_and_is_reported",
-    "tests/runtime/test_rt_fix_runtime.py::test_D13_stop_condition_authorization_revoked_ends_the_run"
+    "tests/runtime/test_rt_fix_runtime.py::test_D13_stop_condition_authorization_revoked_ends_the_run",
+    "tests/runtime/test_int2_storage_drain.py::test_runtime_pauses_instead_of_checkpointing_when_disk_is_low"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -338,9 +341,10 @@
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/F/FIXES.md"
+    "docs/F/FIXES.md",
+    "docs/evidence/test_results/INT2_full.xml"
    ],
-   "limitations": "Every execution (also of approved actions) is preceded by the limit checks; money uses the larger of the learner's and the tool's estimate, so an action whose actual cost exceeds both overshoots by that action. Learning calls get at most the remaining compute. Invalid limits fail closed. authorization_revoked recognises revocation from the authorization service's reason text (change request F-9)."
+   "limitations": "Every execution (also of approved actions) is preceded by the limit checks; money uses the larger of the learner's and the tool's estimate, so an action whose actual cost exceeds both overshoots by that action. Learning calls get at most the remaining compute. Invalid limits fail closed. authorization_revoked recognises revocation from the authorization service's reason text (change request F-9). INT2: below storage.min_free_gb the runtime writes no checkpoint and pauses with a resource obstacle; keep_checkpoints 2, optimizer state only in the newest."
   },
   "LX-15": {
    "state": "implemented",
@@ -373,7 +377,9 @@
     "tests/runtime/test_rt_fix_crash.py::test_D14_a_torn_journal_line_does_not_swallow_the_next_entry",
     "tests/runtime/test_rt_fix_crash.py::test_D15_kill_between_decision_record_and_journal_closes_the_decision",
     "tests/runtime/test_rt_fix_crash.py::test_D18_inflight_action_without_dedup_is_booked_at_its_estimate",
-    "tests/runtime/test_rt_fix_runtime.py::test_D17_a_malformed_result_after_execution_is_counted_logged_and_delivered"
+    "tests/runtime/test_rt_fix_runtime.py::test_D17_a_malformed_result_after_execution_is_counted_logged_and_delivered",
+    "tests/integration/test_int2_wiring.py::test_look_grant_leaves_the_grant_to_the_executor",
+    "tests/integration/test_int2_wiring.py::test_runtime_executes_in_the_computer_environment_without_grant_refusals"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
@@ -382,9 +388,11 @@
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/F/FIXES.md"
+    "docs/F/FIXES.md",
+    "docs/evidence/test_results/INT2_full.xml",
+    "docs/evidence/validation/separated/separated_20261127T183623Z.json"
    ],
-   "limitations": "Kill tests use LabWorld served over the project RPC (F's test agent and G's stand-in); M's integration tests run the same kill -9 restart with the integrated agent. Without environment de-duplication an interrupted action's effect is unknown: it is booked at its estimate (can over-count by one action, never under-count). The journal and the exact resume state are sealed with a per-run key in <run_dir>/learner/."
+   "limitations": "Kill tests use LabWorld served over the project RPC (F's test agent and G's stand-in); M's integration tests run the same kill -9 restart with the integrated agent. Without environment de-duplication an interrupted action's effect is unknown: it is booked at its estimate (can over-count by one action, never under-count). The journal and the exact resume state are sealed with a per-run key in <run_dir>/learner/. INT2: the runtime only looks at grants (check_grant(consume=False) where the signature names it); the executor consumes (M-int-6); separated-services staging run with 0 grant refusals (docs/evidence/validation/separated/separated_20261127T183623Z.json)."
   },
   "LX-16": {
    "state": "implemented",
@@ -484,16 +492,18 @@
     "cam-live validate --mode staging"
    ],
    "tests": [
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_doctor_preflight_and_refusals"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_doctor_preflight_and_refusals",
+    "tests/integration/test_int2_wiring.py::test_cli_validate_passes_its_options"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/F/FIXES.md"
+    "docs/F/FIXES.md",
+    "docs/evidence/test_results/INT2_full.xml"
    ],
-   "limitations": "Delegates to cam_live.validation:run_staging (M; now present). Its staging run took longer than G's p10 timeout of 240 s here and was not completed by F. A missing module is reported as 'not available yet'."
+   "limitations": "Delegates to cam_live.validation:run_staging (M; now present). Its staging run took longer than G's p10 timeout of 240 s here and was not completed by F. A missing module is reported as 'not available yet'. INT2: validate --mode staging takes --debug/--cpu or --real-model, --decisions, --out, --evidence-dir, --seed and passes them to run_staging (M-int-2)."
   },
   "CM-05": {
    "state": "implemented",
@@ -640,15 +650,17 @@
    ],
    "tests": [
     "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop",
-    "tests/runtime/test_rt_dashboard.py::test_controls_pause_resume_approve_reject_export_stop"
+    "tests/runtime/test_rt_dashboard.py::test_controls_pause_resume_approve_reject_export_stop",
+    "tests/integration/test_int2_checkpoints.py::test_export_weights_reads_in_a_fresh_process"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/evidence/test_results/INT2_full.xml"
    ],
-   "limitations": "With a running runtime the export is agent.save(dest) plus an export manifest; with no process it uses cam_live.credit.checkpoint.export_weights when the checkpoint has that format and otherwise copies the committed checkpoint (the manifest says which). Only the copy path was exercised (test agent checkpoints)."
+   "limitations": "With a running runtime the export is agent.save(dest) plus an export manifest; with no process it uses cam_live.credit.checkpoint.export_weights when the checkpoint has that format and otherwise copies the committed checkpoint (the manifest says which). Only the copy path was exercised (test agent checkpoints). INT2: a running runtime exports through agent.export_weights (weights.safetensors + config.json); with no process the committed checkpoint is exported weights-only with the configuration stored in it; load_exported_model reads it in a fresh process."
   },
   "CM-12": {
    "state": "implemented",
@@ -722,5 +734,16 @@
   "authorization_revoked recognises revocation by the reason text of limits_state (change request F-9).",
   "M's tests/integration: 21 of 22 passed with this runtime; test_save_fresh_process_load_gives_identical_decisions failed on a 9.4e-9 probability gap in the agent's save/load path (no runtime involved)."
  ],
- "scientific_failures": []
+ "scientific_failures": [],
+ "int2_changes": {
+  "note": "runtime files changed by INT2 (round 2) after F's commit; F's own claims above are unchanged except the appended 'INT2:' notes",
+  "files": [
+   "src/cam_live/runtime/loop.py",
+   "src/cam_live/runtime/loop_service.py",
+   "src/cam_live/runtime/cli.py",
+   "src/cam_live/runtime/tasks.py",
+   "src/cam_live/runtime/verifier.py"
+  ],
+  "junit": "docs/evidence/test_results/INT2_full.xml"
+ }
 }

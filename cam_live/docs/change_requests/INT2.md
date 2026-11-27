@@ -83,9 +83,12 @@ directories have no `__init__.py`, so collecting the whole default suite in one 
 **Proposed diff.** `git mv cam_live/tests/predict/test_providers.py cam_live/tests/predict/test_predict_providers.py`
 (or the credit one to `test_credit_providers.py`).
 
-**Workaround.** The whole-suite JUnit (`docs/evidence/test_results/INT2_full.xml`) is produced by two pytest runs —
-the suite with `--deselect`-free `--ignore=cam_live/tests/predict/test_providers.py`, then that file alone — merged
-into one file (`docs/evidence/test_results/merge_junit.py` is not needed: the merge is a `<testsuites>` wrapper).
+**Second clash (measured in a whole-suite run, 2026-11-27).** `from conftest import build_record` in four
+`tests/credit/` modules (five tests) resolves to whichever `conftest` module was imported first (`tests/runtime/conftest.py` in a
+whole-suite collection), so those five tests fail only when the whole tree is collected in one process (they pass per
+directory). Proposed: move the shared helpers of `tests/credit/conftest.py` into `tests/credit/credit_helpers.py`.
+**Workaround.** The whole-suite JUnit (`docs/evidence/test_results/INT2_full.xml`) is produced by one pytest process
+per test directory from a frozen copy of the commit, merged into one `<testsuites>` file.
 
 ## INT2-6 (reward, `reward/bootstrap.py` / `reward/integrity.bound_reward`, owner C): the verified term saturates
 

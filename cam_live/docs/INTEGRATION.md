@@ -3,8 +3,11 @@
 Code: `src/cam_live/agent.py` (`CamLiveAgent`, `build_agent`, `register_agent_heads`), `src/cam_live/validation.py`
 (`run_staging`, `StagingComputer`, `run_episode`, `MetaStepProbe`), the runtime (`src/cam_live/runtime/`).
 Tests: `tests/integration/` (M-int: `test_agent_runtime.py`, `test_agent_recovery.py`; INT2: `test_int2_wiring.py`,
-`test_int2_checkpoints.py`, `test_int2_grounding.py`), `tests/runtime/test_int2_verifier_origin.py`.
-Evidence: `docs/evidence/validation/` (staging runs, `learning/` repeated-task experiment, `separated/`).
+`test_int2_checkpoints.py`, `test_int2_grounding.py`, `test_int2_queries.py`, `test_int2_selection.py`,
+`test_int2_storage.py`, `test_int2_prompts.py`, `test_int2_planning.py`, `test_int2_policy_s3s4.py`),
+`tests/runtime/test_int2_verifier_origin.py`, `tests/runtime/test_int2_storage_drain.py`.
+Evidence: `docs/evidence/validation/` (staging runs, `learning/` repeated-task experiment, `separated/`, `meta_real/`,
+`diagnosis/`, `s6/`).
 Change requests: `docs/change_requests/M-int.md` (round 1), `docs/change_requests/INT2.md` (round 2).
 
 ## 1. One learner, composed
@@ -99,7 +102,12 @@ observations, and the task's site addresses were not in `learner_view`'s resourc
 outcomes to decisions* (it declared goal-relevant attributed queries, e.g. LabWorld's adopters per intervention):
 then the attributed questions are the goal-relevant ones and the level would mix earlier decisions' consequences
 into a candidate's value. The runtime queues the agent's goal-relevant questions; the independent verifier measures
-and signs them; the record holds them as pending queries, so the store attaches the answers.
+and signs them; the record holds them as pending queries, so the store attaches the answers. A template question
+(a) that the environment's own declared measurement covers after execution (same metric, or linked to it by
+`Predictor.adopt_queries`) is not kept pending: the runtime never queues a copy of a covered question
+(`LiveRuntime._add_learner_queries`), so until this round that copy stayed unanswered and every intervention stayed
+unresolved for the meta-learner (`MetaLearner._resolved`) and for the verified-progress annotation (§9 d;
+`tests/integration/test_int2_queries.py` fails on the earlier code).
 
 **Verified progress of a decision** (`_annotate_verified_delta`, written once as the decision's
 `reward_signals.verified_progress_delta` — the stored-signal path of `reward.assemble`, INT2-1): when every
@@ -158,7 +166,9 @@ the level change to every decision, which paid waits and probes for adopters tha
   (provenance `retention`). Gates: `PromotionGates(max_validation_drop, max_retention_drop)`. Internal reward is
   ignored by the manager whatever it is called.
 * **Rollback**: a refused promotion restores the last promoted checkpoint (weights, optimizers, schedules, fast
-  state); experience, counters and registries are never rolled back; the refused checkpoint stays on disk.
+  state); experience, counters and registries are never rolled back; the refused checkpoint stays on disk. What the
+  gates do not judge stays (LRN-6): R_psi with the meta optimizer always, and the policy head unless its retention
+  metric (`decision_agreement`) is among the reasons of the refusal (`promotions[-1]["kept"]`).
 * Both are `LearningUpdateRecord(timescale="checkpoint")` in the runtime's learning log (weight deltas of a rollback).
 * **Export**: `agent.export_weights(dest)` and `cam-live export-checkpoint` (running: operator command → the same
   hook; not running: the committed checkpoint through `export_weights_only` with the configuration stored in it)
@@ -167,8 +177,104 @@ the level change to every decision, which paid waits and probes for adopters tha
 
 ## 7. Measured
 
-(see the sections below; every number is from a file under `docs/evidence/`)
+Every number is from a file under `docs/evidence/` (named in each line). LabWorld is a diagnostic world; the
+staging sites are local services; nothing here is evidence about the Discord objective.
+
+**7.1 Separated services (`cam-live run` as root, staging mode)** — `evidence/validation/separated/`
+`separated_20261127T183623Z.json` (run 2; run 1 `...181748Z` refused navigation because the staging site was not a
+registered local service, which the run script now does through `opctl local-service add`): learner under uid 999
+(`camlearn`), browser 997, sandbox 996, auth 995, verifier 994; grounded browser actions executed by the executor;
+**0 grant refusals**; signed outcomes accepted by the agent; 27 non-zero learning updates; journal; clean stop
+(`exhausted` after 20 decisions; objective not achieved, debug core).
+
+**7.2 Grounded computer use, repeated staging task (debug scale)** — `evidence/validation/learning/`
+`debug_store_entry_20261127/` (4 arms x 4 seeds x 12 objectives): the agent completes an unfamiliar two-step form task
+in 9–33 % of objectives with grounded browser actions; it does **not** improve with repetition (learn_primitive
+0.42 -> 0.25, change CI [-0.29, -0.04]); no skill was registered (9 induce attempts failed validation), so
+primitive-only vs skills shows nothing attributable to skills. Debug scale (tiny random LM): a diagnostic, not a
+conclusion about the real configuration.
+
+**7.3 Reward meta-updates, real configuration** — `evidence/validation/meta_real/meta_real_20261127T184014Z.json`
+(Qwen3-4B + 50m core, 946 s under the GPU lock, peak 10.4 GB; 5 LabWorld lifetimes): 63 meta-update calls,
+**4 applied with non-zero meta-gradients** (norms 0.050, 0.831, 1.837, 2.886), psi deltas 0.06–0.10, importance
+weighted (ESS 2.1–2.9), internal reward on the support decisions changed by 0.017–0.067, and recomputing the same
+inner update with the new psi changes the policy by TV 0.004–0.027 (the meta-step changes the next inner update);
+56 skipped for insufficient independent outcomes. Whether the changed reward makes later decisions better is not
+established.
+
+**7.4 LabWorld F1 at debug scale, before / after the wiring fixes** — `evidence/validation/diagnosis/
+debug_f1_20261127/` (same world seeds per arm): verified progress 0.31 [0.07, 0.58] (round-2 code before the
+diagnosis) -> 0.72 [0.43, 0.96] (complete enumeration of small candidate spaces, attributed verified progress,
+selection with the predicted goal value) and 0.79 [0.58, 0.95] with a larger live policy step. Mechanisms in §9.
+
+**7.5 Executable open-ended proposals, real configuration (S-6)** — `evidence/validation/s6/probe_sw_20261127.json`
+(`python -m cam_live.eval.proposal_probe --family SW --problem rle --rounds 4`, snapshot of d55986d, Qwen3-4B + 50m):
+the backbone wrote 16 actions in 4 rounds (prompt 3.6 k characters), **16 / 16 parsed as valid candidates** (6 needed
+the program form lifted, nothing else normalised, 0 rejections; before the S-6 work: no backbone-written candidate in
+15 decisions, `docs/change_requests/S.md` S-6). What it wrote: programs of `internal.inspect` steps, notes restating
+the task, a `wait`, and in every round a `internal.request_operator` asking for the capability to write
+`solution.py`. `sandbox.write_file` / `sandbox.python` are among the task's 16 tools; whether they were among the
+12 shown in a round's prompt is not recorded by the probe (half the slots rotate at random over the tools only the
+backbone can instantiate). **The software objective was not attempted** by any backbone proposal in this probe.
+Through the runtime (`s6/oe_seq_20261127.json`, `eval.oe_runner sequence --plan SW:rle,MECH:7`, same snapshot; each
+objective stopped by the runner's ~790 s lock budget at 110–150 s per decision): SW — 7 decisions, all executed, 3
+chosen from the backbone (`wait`, `internal.inspect`), `solution.py` never written; MECH — 6 decisions, 5 executed, 5
+chosen from the backbone (`http.get` measurements at points it chose, notes of the values, one `program` refused by
+the authorization layer because the parser gave it its first step's modality: INT2-9, fixed in the agent since).
+Valid-and-executed: 12 of 13 chosen actions, 7 of 8 chosen backbone actions.
+
+**7.6 Tests** — whole default suite of commit 4b46a97, one pytest process per test directory (module-name clashes,
+INT2-5), from a frozen copy: **1467 tests, 1377 passed, 90 skipped, 0 failed, 0 errors**, 619 s wall (1629 s summed),
+JUnit `evidence/test_results/INT2_full.xml`, summary in `docs/status/M-int.json` (`measured.full_suite`). An earlier run
+at 07be9ba under load ~55 had 7 errors (900 s per-test guard on the runtime module's session, now 2400 s) and 1 reward
+test failure fixed by LRN since.
 
 ## 8. Not yet validated / known limits
 
-(see below)
+* **No live service was contacted.** The read-only live Discord observation run (`evidence/validation/discord_live/
+  run_live_observe.py`) is prepared but was **not executed**: its launch was refused by the session's permission
+  system, and it needs the operator's explicit permission. The planning-phase task (`tasks/discord_100_planning.yaml`)
+  is prepared, not run.
+* **Learning quality is not established.** Debug scale: no improvement with repetition on the staging task (§7.2);
+  LabWorld gains in §7.4 come from wiring fixes, not from learning over lifetimes. Real configuration: the meta
+  pathway works (§7.3) but whether R_psi's changes improve decisions is not measured; no repeated-task learning run
+  of the real configuration was made (GPU time).
+* **Skills**: induction never produced a validated skill in these runs, so skills-vs-primitive is not evaluated.
+* **Meta-update evidence is scarce by design**: every decision of a lifetime with a signed verdict belongs to that
+  lifetime's independent group, and the importance-weighted estimator needs ESS >= 2 per lifetime; at test scale a
+  meta-update needs ~5 lifetimes with outcomes that mature inside them (§9 e). Outcomes still pending when an
+  objective *completes* are not measured (drain covers only an exhausted decision budget).
+* **Save / load**: restored update events rebuilt their support batches from the store, so a restored agent's
+  meta-step differed (INT2-8, measured §9 f); fixed by LRN in `reward/` (5ad3777: events still to be differentiated
+  are checkpointed with their batch; experiment assignment no longer depends on the random experiment id).
+* **Selection rule**: the default is `thompson_policy` since LRN-1 (this round). The real-model meta evidence
+  (§7.3) was recorded under rule `policy` + value prior, before that change.
+* **Bootstrap inputs** `epistemic_after` / `learning_progress` are still not written (LRN-3, not blocking): those two
+  bootstrap terms are 0 in runtime runs.
+* INT2-6 (verified term saturates at the reward bound) and INT2-7 (live policy step) are addressed in LRN's files
+  (trust-region step, unsaturated verified term); not re-measured by INT2 on the real configuration.
+
+## 9. Diagnosis: why LabWorld choices were near random, and wiring defects found (measured)
+
+(a) **Candidate generation** — the schema walker offered 4 of the 12 interventions (4 evenly spaced settings per
+tool); complete enumeration of small spaces is the largest single effect (verified progress 0.31 -> 0.65,
+`debug_f1_20261127/`). (b) **Verified reward** — the verified term never had an input in runtime runs (INT2-1); the
+first fix credited the objective level change to the decision in flight and paid waits (0.57) and probes (0.33)
+more than interventions (0.43); crediting attributed outcomes only pays interventions alone (0.43 vs 0.001).
+(c) **Live policy step** — one update moves the selection probabilities by < 0.01 (16 candidates, uniform 0.0625;
+one SGD step of 0.1 moves a probability from 0.0826 to 0.0852, `sep_debug.json`; INT2-7). (d) **Unanswerable
+duplicate questions** (found this round) — each intervention kept, besides the environment's declared measurement,
+the agent's own copy of the same question, which the runtime never queues. `diagnosis/meta_evidence_20261127.json`
+(`meta_evidence.py`, the runtime test's configuration): before the fix (ecaec2b) 23 of 24 interventions carried such a
+copy and **0 of 24** were resolved for the meta-learner; 27 of 29 meta-update calls skipped
+`insufficient_independent_outcomes:0<3`. After it (5a43737): no copies; 2 of 17 resolved (the other interventions'
+6-h attribution windows had not matured when their lifetimes ended). (e) **Meta-update evidence in the CPU test** —
+same file: with 5 lifetimes, drain after the decision budget and 30-min windows, 23 of 28 interventions resolve but no
+meta-update is applied (30 skips for fewer than 3 independent groups — every decision of a lifetime with a signed
+verdict belongs to that lifetime's group — and 5 `effective_sample_size_too_small` with 3 query decisions per
+policy update); with policy updates every 6 decisions, 1 of 39 calls is applied (non-zero meta-gradient). The runtime
+test now uses that configuration (passed 2 of 2 runs of the module); the margin is small. (f) **Restored meta events**
+(INT2-8): `diagnosis/inner_batch_rebuild.py` — rebuilt support batches differ from the cached ones in features,
+signals, bootstrap reward and normaliser state for every event but the newest (`inner_batch_rebuild_20261127.txt`);
+fixed by LRN (5ad3777). (g) **Rollbacks undid meta-steps** (LRN-6, LRN's measurement): applied with the policy-retention
+exception (§6).
