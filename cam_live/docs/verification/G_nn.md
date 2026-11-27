@@ -1,8 +1,8 @@
 # G-nn — independent verification of the neural architecture (workstream A)
 
 Verifier: G, lens `nn`. Scope: requirements NA-01 NA-02 NA-03 NA-04 NA-05 NA-07 NA-09 NA-10 NA-11 NA-12 NA-13.
-Code under test: `src/cam_live/nn/` at branch `feat/cam-live` (A's status commit `40b55ab`, last change under `nn/` `b9e671e`; nothing under `nn/`
-changed afterwards). Environment: torch 2.15.0+cu132, transformers 5.24.0, RTX A6000 (shared), Qwen/Qwen3-4B at
+Code under test: `src/cam_live/nn/` at branch `feat/cam-live` (A's status commit `40b55ab`; last change under `nn/`:
+`b9e671e`). Line numbers outside `nn/` and `tests/nn/` are not given: those files were being edited by their owners. Environment: torch 2.15.0+cu132, transformers 5.24.0, RTX A6000 (shared), Qwen/Qwen3-4B at
 revision `1cfa9a7208912126459214e8b04321603b3df60c` (local, offline). No source file and no existing test was
 modified. Verdicts: `verdicts_nn.json`. All commands run from `/workspace/camlive`.
 
@@ -10,7 +10,7 @@ modified. Verdicts: `verdicts_nn.json`. All commands run from `/workspace/camliv
 
 | What | Command | Result |
 |---|---|---|
-| A's default tests | `.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live` | 61 passed, 7 skipped (6 gpu + 1 slow) |
+| A's default tests | `.venv/bin/python -m pytest cam_live/tests/nn -q --rootdir=cam_live` | 61 passed, 7 skipped (6 gpu + 1 slow); 372 s and 626 s on the loaded machine |
 | A's GPU tests (real Qwen3-4B) | `... -m gpu` | 6 passed, 13.5 s |
 | A's slow test | `... -m slow` | 1 passed, 32 s |
 | Invariants, debug and 50M core | `.venv/bin/python cam_live/docs/verification/repro/nn/probe_invariants.py [--scale 50m]` | 23 / 23 checks hold at both scales |
@@ -27,8 +27,8 @@ modified. Verdicts: `verdicts_nn.json`. All commands run from `/workspace/camliv
 | Real backbone: throughput / memory | `... --part throughput`, `... --part misc` | claims reproduce (section 5) |
 | Real backbone: decision-path separation, feature conditioning | `... --part phi`, `... --part cond` | D6, D7, D8 |
 | Fast-adaptation evidence, seed 0, full length | `cd cam_live && PYTHONPATH=src ../.venv/bin/python -m cam_live.nn.fast_compare --steps 2000 --seeds 0 --threads 8 --out /tmp/x.json` | recorded per-seed numbers reproduce to 4 decimals (section 4) |
-| Noise-mode ablation, seed 0, full length | `... -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 --threads 8 --out /tmp/y.json` | see section 4 |
-| Stronger recurrent baseline | `.../probe_fast_compare_gru.py --hidden 256 --steps 16000 --kind real` | see section 4 |
+| Noise-mode ablation, seed 0, full length | `... -m cam_live.nn.fast_compare --noise-ablation --steps 2000 --seeds 0 --threads 8 --out /tmp/y.json` | recorded numbers reproduce exactly (section 4) |
+| Stronger recurrent baseline | `.../probe_fast_compare_gru.py --hidden 256 --steps 16000 --kind real` (also 128 / 8000, real and count) | held-out verdict holds, in-distribution lead does not (section 4) |
 
 Every probe prints `[PASS]` / `[FAIL]` per check and exits non-zero when a check is refuted. GPU probes take the
 shared lock through `cam_live.nn.gpu.gpu_lock` for one part at a time (longest hold: 156 s, the float32 part, peak
@@ -43,8 +43,8 @@ trunk 4,720,128 · feature map 3,343,104 · fast prior 33,539); total persistent
 keys are exactly `nn.api.GROUPS`, groups are disjoint, their union is `model.parameters()`, and the set of
 `requires_grad` tensors equals the union of the trainable groups. `trainable_state()` holds 315 tensors / 0.252 GB,
 no frozen tensor, every trainable tensor, plus five calibration buffers. The only optimizers built over the model
-(`credit/learner.py:236-250`, `predict/labdata.py:95`) take `experiential` / `heads` / `semantic_adapters` only, and
-`credit/checkpoint.py:160-170` drops the frozen group.
+(`credit/learner.py::_sync_optimizers`, `predict/labdata.py`) take `experiential` / `heads` / `semantic_adapters`
+only, and `credit/checkpoint.py::collect_weights` drops the frozen group.
 
 **Not a frozen-LLM wrapper — gradient paths, with magnitudes.** With the backbone loaded in float32 (same code path,
 `cfg.backbone.dtype="float32"`), central finite differences along the analytic gradient agree with its norm to
@@ -120,8 +120,8 @@ minor = limited effect, weak test or reporting gap. No critical defect was found
 ### D1 — major — GLM (count / time-to-event) updates are not the Laplace update when the observation is far from the prior predictor
 `src/cam_live/nn/fast.py:248-258` (`_laplace_1d`: a fixed number of Newton steps from `eta0`; for Poisson /
 exponential likelihoods a downward step is ≈ −1 per iteration whatever the distance), defaults `fast.py:490`
-(`FastBeliefState`, 12 steps), `fast.py:435` (`online_nll`, 6 steps — the training path used by
-`predict/providers.py:152,251`), `fast.py:291` (8).
+(`FastBeliefState`, 12 steps), `fast.py:435` (`online_nll`, 6 steps — the training path used by the two
+`online_nll(...)` calls in `predict/providers.py`), `fast.py:291` (8).
 Measured with the default prior (reference: Brent root on the same scalar problem, float64):
 
 | Observation | reference mode | stateful (12 steps) | rate error | reported surprise vs brute force | `online_nll` default (6 steps) |
@@ -134,7 +134,7 @@ Measured with the default prior (reference: Brent root on the same scalar proble
 
 Upward moves converge (count 1e9 with exposure 1: exact). `DESIGN.md` ("found exactly on the scalar linear predictor
 (safeguarded Newton)") and the docstring `fast.py:14-17, 295-299` are therefore not true in general.
-`predict/predictor.py:596-601` rescales exposure / time by the head's own prediction before calling the fast layer,
+`predict/predictor.py` (the `self.fast.update(...)` calls) rescales exposure / time by the head's own prediction before calling the fast layer,
 which bounds the effect in the running system once the head is roughly right; the layer's own API (`exposure` =
 "the time unit `y` is expressed in") does not.
 Repro: `.venv/bin/python cam_live/docs/verification/repro/nn/probe_fast.py | grep "Laplace mode"`.
@@ -163,7 +163,7 @@ Repro: `... probe_real_backbone.py --part gradsave --dir DIR`, `--part fd32 --di
 (b/(a−1))(1+q). Ratio a/(a−1): 2.0 at the default prior (a0 = 2), 4.4 at the prior learned in A's recorded
 experiment (a0 = 1.298). On data drawn from the model's own prior a Gaussian 90 % interval built from `predict()`
 covers 0.84 / 0.87 / 0.86 / 0.87 at support sizes 0 / 1 / 5 / 24 (the Student-t interval covers 0.899). The docstring
-says "plug-in"; `predict/predictor.py:180` consumes the pair as mean and variance.
+says "plug-in"; `predict/predictor.py` (`fast.predict(phi, OutcomeKind.REAL)`) consumes the pair as mean and variance.
 Repro: `... probe_fast.py | grep NIG`.
 
 ### D5 — minor — impossible observations are absorbed
@@ -209,11 +209,11 @@ Repro: `.venv/bin/python cam_live/docs/verification/repro/nn/probe_stale_cache.p
 ### D11 — minor — tests that cannot fail where it matters
 * `tests/nn/test_core.py:10` (causality) runs with the attention time bias at its zero initialisation, so the
   time-conditioned attention path is not exercised (it does hold when randomised — section 2).
-* `tests/nn/test_gpu_qwen.py:149-197`: gradients on the real backbone are only asserted to be non-zero.
+* `tests/nn/test_gpu_qwen.py:111-160`: gradients on the real backbone are only asserted to be non-zero.
 * `tests/nn/test_fast.py:178`: see D1; the stateful path, binary and time-to-event are never compared with an exact
   solution (D2).
-* `tests/nn/test_api.py:145`: the round trip is within one process.
-* `tests/nn/test_fast_compare.py:46`: checks the structure of the recorded JSON only.
+* `tests/nn/test_api.py:182`: the round trip is within one process.
+* `tests/nn/test_fast_compare.py:44`: checks the structure of the recorded JSON only.
 
 ## 4. Fast-adaptation evidence (NA-13)
 
@@ -242,8 +242,23 @@ noise 0.8907 held-out / 0.2206 in-distribution; fixed learned noise 1.9935 / 0.3
 1.9256, i.e. over-confident as evidence accumulates), learned noise variance 0.0938 / 0.0768, learned shape a0 1.2977.
 The fixed-noise failure is real and is reported as a failure.
 
-**Stronger recurrent baseline.** (run in progress when this revision was committed; see the next revision.)
+**Stronger recurrent baseline** (same tasks, evaluation set and training loop as the recorded seed 0; only the GRU
+changes; recorded GRU: hidden 64, 8000 steps):
 
+| Mean prequential NLL, seed 0 | learned-prior Bayes | GRU 64 / 8000 (recorded) | GRU 128 / 8000 | GRU 256 / 16000 |
+|---|---:|---:|---:|---:|
+| Gaussian, held-out families | 0.8907 | 1.1238 | 1.9264 | 1.3825 |
+| Gaussian, training families | 0.2206 | 0.5762 | 0.3882 | **0.1825** |
+| Count, held-out families | 2.6132 | 2.6317 | 2.6306 | not run |
+| Count, training families | 2.2577 | 2.3684 | 2.3291 | not run |
+
+The held-out verdict survives: wider GRUs fit the training families better and transfer worse (they become
+over-confident on unseen families — 2.52 at k = 31 for the 128-wide one). The **in-distribution** lead of the learned
+prior does not survive: a 256-wide GRU trained twice as long reaches 0.1825 against 0.2206. The recorded
+in-distribution column (0.2132 vs 0.5753 in `A.json` / `DESIGN.md`) therefore reflects the size of the baseline, not
+an advantage of the Bayesian layer. On counts the gap to the GRU stays inside the noise (−0.017, s.e. 0.037).
+Repro: `.venv/bin/python cam_live/docs/verification/repro/nn/probe_fast_compare_gru.py --hidden 256 --steps 16000 --kind real`
+(29 min here), `... --hidden 128 --steps 8000 --kind count`.
 
 ## 5. Status-file numbers spot-checked on the GPU
 
@@ -260,7 +275,7 @@ The fixed-noise failure is real and is reported as a failure.
 | "about 15 % slower with trained adapters" (`not_done`, no number in the evidence file) | 15 % | 16.2 % (batch 1), 10.0 % (batch 8) |
 | `init_diagnostics_real_configuration` (12 numbers) | — | identical |
 
-## 6. Status-file statements that are not true as written
+## 6. Status-file statements that are not true as written (1–4) or need a caveat (5–7)
 
 1. `DESIGN.md` "Fast state": the Laplace approximation "is found exactly" — not for observations whose mode is more
    than about 11 (stateful) / 5 (`online_nll`) nats below the prior predictor (D1).
@@ -270,10 +285,15 @@ The fixed-noise failure is real and is reported as a failure.
    not for real inputs (D6).
 4. `backbone.py` docstring / `mark_adapters_updated`: the cache "is invalidated automatically when any adapter
    tensor changes" — only for writes that bump the version counter (D10).
-5. `DESIGN.md` "default: CPU, seeded, ~35 s": the default suite took 372 s here, on a machine loaded by my own
-   concurrent jobs; not re-timed on an idle machine.
+5. `DESIGN.md` "default: CPU, seeded, ~35 s" (and the < 5 min rule of the architecture document): the default suite
+   took 372 s and, in a second run, 626 s here (`test_persistent_state_is_learnable_eight_step_recall` alone 407 s) —
+   on a machine with more runnable processes than cores (other agents' jobs and my own); A's recorded JUnit file
+   says 33.8 s. Not re-timed on an idle machine, so this is a caveat about the timing claim, not a refutation.
 6. `A.json` NA-13 / `scientific_failures` name the count RMSE but not that the GRU also has the lower RMSE on
    held-out **Gaussian** families (0.8185 against 0.8629, mean over support sizes ≥ 1; in the evidence file).
+7. `A.json` `measured.fast_adaptation.gaussian.in_distribution_mean_nll` / `DESIGN.md` table row "Gaussian, training
+   families": the numbers are reproduced, but the ranking they suggest (learned prior 0.21 far ahead of the GRU 0.58)
+   is not robust — a wider GRU trained longer is ahead in-distribution (0.1825 vs 0.2206, seed 0; section 4).
 
 Everything else checked in `A.json` (`measured`, `not_done`, `scientific_failures`) matched what was reproduced.
 
@@ -281,5 +301,5 @@ Everything else checked in `A.json` (`measured`, `not_done`, `scientific_failure
 
 Qwen3-8B (not loaded, as A states); presets above 50m on the GPU; usefulness of trained representations or of a
 trained bridge for candidate quality (needs the learner: D / S); adapter updates driven by real experience (D's
-slow schedule — `credit/providers.py:633` passes `latent=b.detach()` to `generation_logprob`, so in that provider
+slow schedule — `credit/providers.py` passes `latent=batch.b...detach()` to `generation_logprob`, so in that provider
 the generation loss does not reach the experiential weights); seed 1 of the fast-adaptation runs.
