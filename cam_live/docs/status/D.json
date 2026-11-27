@@ -420,9 +420,9 @@
     "tests/credit/test_learner_checkpoint.py::test_saved_learner_state_is_complete_and_continues_identically",
     "tests/credit/test_learner_checkpoint.py::test_a_head_added_after_the_checkpoint_is_reported_not_fatal_and_strict_loading_refuses",
     "tests/credit/test_learner_checkpoint.py::test_weights_only_export_builds_a_fresh_model_without_experience_and_with_reset_fast_beliefs",
+    "tests/credit/test_learner_checkpoint.py::test_reward_parameters_and_their_optimizer_travel_with_the_checkpoint_but_belong_to_no_learner_optimizer",
     "tests/credit/test_evidence.py::test_kill_minus_nine_mid_update_resumes_from_the_last_atomic_checkpoint_identically",
-    "tests/credit/test_evidence.py::test_fresh_process_weights_only_reload_reproduces_predictions_without_experience",
-    "tests/credit/test_learner_checkpoint.py::test_reward_parameters_and_their_optimizer_travel_with_the_checkpoint_but_belong_to_no_learner_optimizer"
+    "tests/credit/test_evidence.py::test_fresh_process_weights_only_reload_reproduces_predictions_without_experience"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
@@ -835,30 +835,9 @@
   "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
   "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
   "stage_1_numbers": {
-   "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-   "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
-   "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
-   "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
-   "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
-   "stage_1_numbers": {
-    "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-    "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
-    "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
-    "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
-    "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
-    "stage_1_numbers": {
-     "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
-     "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
-     "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
-     "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
-     "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
-     "stage_1_numbers": {
-      "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
-      "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
-      "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
-     }
-    }
-   }
+   "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
+   "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
+   "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
   }
  },
  "not_done": [
@@ -879,27 +858,6 @@
   "The redistributed return-to-go gives no variance reduction over REINFORCE at the key decision (key-to-door variance 8.09 for both); the reduction comes only from the contributions of a well-trained decomposer (0.14) or from COCOA (0.059).",
   "In the one seeded run of the synthetic experiment world, a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3) and the selector rejected it; the same 400 steps with cosine annealing gave RMSE 0.018. One seed, one task: it shows sensitivity to training quality, not a rate.",
   "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018).",
-  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
-  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
-  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
-  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
-  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
-  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
-  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
-  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
-  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
-  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
-  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
-  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
-  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
-  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
-  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
-  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
-  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
-  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
-  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
-  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
-  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
   "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
   "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
   "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
