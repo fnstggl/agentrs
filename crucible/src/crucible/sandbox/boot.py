@@ -315,21 +315,57 @@ def _v4_count_off() -> int:
     return _V4_LINES[0]
 
 
-def _run(job: dict) -> dict:
+def _run_v4(job: dict) -> dict:
+    """Crucible 4.0's `_run` (c07098b), line for line in the counted region: the executed-line count bills every line
+    run between switching counting on and off - this function's own lines included - so the statements there are
+    4.0's, in 4.0's order, or 4.0's counts would not reproduce (D-82). The child reports no timings (D-20)."""
     out_cap = int(CFG.get("out_bytes", 65536))
     buf = io.StringIO()
     old_out, old_err = sys.stdout, sys.stderr
-    v4 = bool(CFG.get("v4_count_lines"))
-    if v4 and job.get("kind", "call") == "call":
-        sys.stdout = sys.stderr = io.StringIO()      # 4.0: load before counting, so a fresh worker counts like a warm one
+    sys.stdout = sys.stderr = buf
+    if job.get("kind", "call") == "call":
+        # load the program before counting starts (and drop what it prints while loading): the first request a
+        # fresh worker serves then costs, and records, exactly what every later request does
+        sys.stdout = sys.stderr = io.StringIO()
         try:
             _resolve(job["target"])
         except BaseException:  # noqa: BLE001 - the counted run below reports the failure
             pass
+        sys.stdout = sys.stderr = buf
+    _v4_count_on()
+    try:
+        kind = job.get("kind", "call")
+        if kind == "call":
+            fn = _resolve(job["target"])
+            result = fn(job.get("args"), job.get("caller")) if job.get("two_args", True) else fn(job.get("args"))
+        elif kind == "import":
+            __import__(job["target"], fromlist=["_"])
+            result = {"imported": job["target"]}
+        elif kind == "tests":
+            result = _run_tests(job.get("pattern", "tests"))
+        else:
+            raise ValueError(f"unknown job kind {kind}")
+        json.dumps(result, allow_nan=False)
+        ok, err = True, None
+    except SystemExit as e:
+        ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}
+    except BaseException as e:  # noqa: BLE001 - user code may raise anything
+        ok, result = False, None
+        tb = traceback.format_exc(limit=6)
+        err = {"type": type(e).__name__, "message": str(e)[:2000], "traceback": tb[-4000:]}
+    finally:
+        lines = _v4_count_off()
+        sys.stdout, sys.stderr = old_out, old_err
+    return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap], "v4_work_lines": lines}
+
+
+def _run(job: dict) -> dict:
+    if CFG.get("v4_count_lines"):
+        return _run_v4(job)              # Crucible 4.0 historical baseline only (D-82)
+    out_cap = int(CFG.get("out_bytes", 65536))
+    buf = io.StringIO()
+    old_out, old_err = sys.stdout, sys.stderr
     sys.stdout = sys.stderr = buf
-    if v4:
-        _v4_count_on()
-    v4_lines = None
     try:
         kind = job.get("kind", "call")
         if kind == "call":
@@ -350,13 +386,8 @@ def _run(job: dict) -> dict:
         ok, result = False, None
         err = _capture_err(e)
     finally:
-        if v4:
-            v4_lines = _v4_count_off()
         sys.stdout, sys.stderr = old_out, old_err
-    out = {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap]}
-    if v4_lines is not None:
-        out["v4_work_lines"] = v4_lines
-    return out
+    return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap]}
 
 
 def _run_tests(folder: str) -> dict:
@@ -388,19 +419,20 @@ _send({"op": "ready", "landlock_abi": LANDLOCK_ABI, "seccomp": SECCOMP, "uid": o
 # The parent bills CPU used between a job's result and the next request as background work (and stops the worker).
 # A cyclic garbage collection triggered by a small allocation while waiting would be such work, so automatic
 # collection runs only while a job runs: a job's garbage is collected during jobs.
-gc.disable()
+_GC_OFF = gc.enable if CFG.get("v4_count_lines") else gc.disable   # 4.0 historical baseline: 4.0's collector (D-82)
+_GC_OFF()
 while True:
     msg = _recv()
     if msg.get("op") == "job":
         gc.enable()
         res = _run(msg)
-        gc.disable()
+        _GC_OFF()
         res["op"], res["id"] = "done", msg["id"]
         _send(res)
     elif msg.get("op") == "load":
         gc.enable()
         res = _load(msg)
-        gc.disable()
+        _GC_OFF()
         res["op"], res["id"] = "loaded", msg["id"]
         _send(res)
     elif msg.get("op") == "exit":

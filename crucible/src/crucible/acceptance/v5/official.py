@@ -10,9 +10,11 @@ requirement's tests in another fresh clone of the evidence commit, compares the 
 within the requirement's declared tolerance, checks the criteria on the reproduction, and writes a review bound to the
 requirement text, criteria version, evidence hash and commit, plus the reproduction's own run record, JUnit and
 records. The review also ablates the implementation: a third fresh clone in which every function of the requirement's
-listed implementation modules raises; the producing test is run there alone, and the measurement must not survive
-(no record, or different metrics) - a test whose metrics do not depend on its implementation measures nothing. The
-reviewer commits all of it; the checker re-verifies all of it (`checker.py`).
+listed implementation modules raises when it is executed; the producing test is run there alone, and the measurement
+must not survive (no record, or different criteria metrics) - a test whose metrics do not depend on its implementation
+measures nothing. The ablation blocks execution and leaves the implementation's files and code objects byte-identical
+(`ABLATION_HOOK`, D-83): a measurement computed from the implementation's text or bytecode instead of its behaviour
+survives it. The reviewer commits all of it; the checker re-verifies all of it (`checker.py`).
 
 The measured process gets a scrubbed environment: no PYTHON* variable except the clone's PYTHONPATH and the runner's
 own settings, no PYTEST_* variable, no LD_PRELOAD / LD_AUDIT, no user site-packages (`python -s`,
@@ -147,6 +149,53 @@ def ablate_source(src: str, label: str) -> tuple[str, int]:
     return ast.unparse(tree) + "\n", count
 
 
+# The behavioural ablation (D-83, wave 3b): appended to the clone's `src/crucible/__init__.py`, so every process that
+# imports Crucible from the clone (the measured pytest process: the evidence plugin imports it first; worker and
+# subprocesses; clones made from the ablated clone) blocks the implementation. A sys.monitoring PY_START callback
+# raises a BaseException when a function (a code object with CO_OPTIMIZED: functions, methods, lambdas, generator
+# bodies - not module or class bodies) of a listed implementation file starts, except while a module is being imported
+# (an importlib bootstrap frame is on the stack), so modules still load. Nothing of the implementation is rewritten:
+# its files, code objects, docstrings and line numbers are the evidence commit's. Not covered: processes that do not
+# import Crucible from a clone (the sandbox's `python -I -S` boot and jail scripts; every requirement listing them
+# also lists the in-process modules that start them) and generators started during an import and resumed later.
+ABLATION_HOOK = """
+
+# --- crucible-v5 review: behavioural ablation (acceptance/v5/official.py; exists only in a throwaway clone) ---
+def _crucible_v5_ablation(suffixes):
+    import sys
+    mon = sys.monitoring
+    tool = next((t for t in (5, 3, 2) if mon.get_tool(t) is None), None)
+    if tool is None:
+        raise RuntimeError("crucible-v5 ablation: no free sys.monitoring tool id")
+
+    class __CrucibleAblated__(BaseException):
+        pass
+
+    def start(code, offset):
+        if not (code.co_flags & 1 and code.co_filename.endswith(suffixes)):
+            return mon.DISABLE
+        f = sys._getframe(1)
+        while f is not None:
+            if f.f_code.co_filename.startswith("<frozen importlib._bootstrap"):
+                return None
+            f = f.f_back
+        raise __CrucibleAblated__(code.co_filename + ":" + code.co_qualname)
+    mon.use_tool_id(tool, "crucible-v5-ablation")
+    mon.register_callback(tool, mon.events.PY_START, start)
+    mon.set_events(tool, mon.events.PY_START)
+
+
+_crucible_v5_ablation(%r)
+del _crucible_v5_ablation
+"""
+ABLATION_PACKAGE_INIT = "src/crucible/__init__.py"
+
+
+def function_count(src: str) -> int:
+    """Functions and methods defined in a module (what the behavioural ablation blocks; lambdas not counted)."""
+    return sum(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) for n in ast.walk(ast.parse(src)))
+
+
 def ablatable(root: str, e: dict, commit: str) -> list[str]:
     """The requirement's implementation modules (Python files) present at `commit`."""
     out = []
@@ -175,19 +224,28 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
     ablation = None
     if ablate:
         done = {}
+        init = os.path.join(croot, ABLATION_PACKAGE_INIT)
+        mode = "block" if os.path.exists(init) else "rewrite"
         for f in ablate:
             fp = os.path.join(croot, f)
-            new, n = ablate_source(open(fp, encoding="utf-8").read(), f)
-            with open(fp, "w", encoding="utf-8") as fh:
-                fh.write(new)
-            done[f] = n
+            src = open(fp, encoding="utf-8").read()
+            if mode == "block":
+                done[f] = function_count(src)
+            else:                       # a tree without the package's __init__.py: D-26 file ablation
+                new, done[f] = ablate_source(src, f)
+                with open(fp, "w", encoding="utf-8") as fh:
+                    fh.write(new)
+        if mode == "block":
+            sufs = tuple(sorted({os.sep + os.path.normpath(f) for f in ablate}))
+            with open(init, "a", encoding="utf-8") as fh:
+                fh.write(ABLATION_HOOK % (sufs,))
         _git(dest, "-c", "user.name=crucible-v5-ablation", "-c", "user.email=ablation@invalid", "commit", "-qam",
              "ablation (never pushed)")
         ablated_sha = _git(croot, "rev-parse", "HEAD")
         gd = _git(dest, "rev-parse", "--absolute-git-dir")
         with open(os.path.join(gd, MARKER), "w") as fh:
             json.dump({"run_id": run_id, "commit": ablated_sha, "created_at": _now()}, fh)
-        ablation = {"base_commit": sha, "ablated_commit": ablated_sha, "functions_ablated": done}
+        ablation = {"base_commit": sha, "ablated_commit": ablated_sha, "functions_ablated": done, "mode": mode}
     before = _status(dest)
     present = [t for t in tests if os.path.exists(os.path.join(croot, t))]
     missing = [t for t in tests if t not in present]

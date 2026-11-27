@@ -278,7 +278,7 @@ class Worker:
         boot_cfg = {"uid": uid, "gid": gid, "read_paths": reads,
                     "sys_path": syspath + [pkgs], "out_bytes": cfg.out_bytes, "allow_root": cfg.allow_root,
                     "require_landlock": not cfg.allow_weak, "require_seccomp": not cfg.allow_weak,
-                    "preload": preload_list(self.files, tuple(cfg.packages)),
+                    "preload": [] if self._v4 else preload_list(self.files, tuple(cfg.packages)),  # 4.0: none (D-82)
                     "v4_count_lines": self._v4}               # 4.0 historical cost model only (D-82, boot.py)
         env = {"PATH": "/nonexistent", "LANG": "C.UTF-8", "PYTHONHASHSEED": "0", "OMP_NUM_THREADS": "1",
                "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1", "HOME": self.workdir}

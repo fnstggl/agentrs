@@ -376,3 +376,20 @@ and constants laundered through arithmetic with measured values (beyond a multip
 through another module pass the static detector - the caller binding, the release reproduction and reviewers reading the test remain the
 defence. Data patches (module constants, registries, instances) installed by test helpers are not detected at run
 time. Consequence: records of schema evidence/3 are rejected.
+Addendum (wave 3b, continuation after the second usage-limit stop; probe P38): the stated residual "a test that reads
+the implementation's files records differently under the ablation" was a general hole, not only a deliberate detector:
+criteria metrics computed from the implementation's source text or bytecode, with the implementation imported and
+never executed, reached VERIFIED (both variants of P38 on the D-83 code), because the D-26 ablation rewrote the
+implementation's files and so changed exactly what such a test reads. Decision (no criterion changes): the review's
+ablation now blocks execution instead of rewriting - the clone's `src/crucible/__init__.py` gets a sys.monitoring hook
+(`official.ABLATION_HOOK`) under which every function of a listed implementation file raises a BaseException when it
+starts outside a module import, in every process that imports Crucible from the clone; the implementation's files,
+code objects, docstrings and line numbers stay the evidence commit's, so a measurement of the text survives and is
+rejected. The run record says `ablation.mode = "block"` (a tree without that `__init__.py` falls back to the D-26
+rewrite). Consequence for gate tests: the measurement must execute the implementation during the test (setup, body or
+anything they call); a value computed only from state built while modules were imported (a registry filled at import
+time, read in the body) survives the block and is rejected - call a function of the implementation that produces it.
+Not covered (stated): implementation functions executed only in processes that do not import Crucible from a clone
+(the sandbox's `python -I -S` boot and jail scripts; each requirement listing them also lists the in-process modules that
+start them), generators started during an import and resumed later, and a test that detects the hook itself (it is
+visible to the measured process) - reviewers still read the tests.

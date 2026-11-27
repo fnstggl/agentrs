@@ -925,3 +925,42 @@ def _attempt(fn):
     assert not testscan.dynamic_code_findings(__import__("ast").parse("m = load().eval()\nx = re.compile('a')\n"))
     assert checker.is_compiled("src/w/__pycache__/x.cpython-312.pyc") and checker.is_compiled("src/w/_c.so")
     assert not checker.is_compiled("src/w/x.py")
+
+
+# ------------------------------------------------------------------------------------------- wave 3b, third agent
+TEXT_DERIVED = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    src = open(widgets.__file__, encoding="utf-8").read()
+    n = len(src) // 5
+    leaks = src.count("raise")
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+CODE_DERIVED = '''from crucible.acceptance.v5 import evidence
+import widgets
+
+
+def test_z():
+    n = 10 + len(widgets.leaks.__code__.co_code) % 3
+    leaks = len(widgets.leaks.__code__.co_names)
+    evidence.record("Z.1", {"widgets": n, "leaks": leaks})
+    assert n >= 10 and leaks == 0
+'''
+
+
+@pytest.mark.parametrize("src", [TEXT_DERIVED, CODE_DERIVED], ids=["source_text", "bytecode"])
+def test_P38_criteria_derived_from_the_implementation_text_without_executing_it_are_rejected(tmp_path, monkeypatch,
+                                                                                            src):
+    """The implementation (defective: leaks() returns 1) is imported but never executed; the criteria metrics are
+    computed from its source text or its bytecode. Nothing is constant for the static detector, the review's
+    reproduction gives the same values, and the D-83 ablation - which rewrites the implementation's files - changes
+    the text and the bytecode, so every criteria metric differed and the measurement looked dependent. The ablation
+    now blocks the implementation's execution and leaves its files and code objects byte-identical (D-83)."""
+    r = Repo(str(tmp_path), monkeypatch, widgets=DEFECT, test_src=src)
+    _, row = attempt(r)
+    assert row["status"] != "VERIFIED", row["problems"]
+    assert has(row, "ablat"), row["problems"]
