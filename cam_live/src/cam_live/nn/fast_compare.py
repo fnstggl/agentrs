@@ -124,7 +124,7 @@ def sample_tasks(families: Sequence[str], n: int, T: int, kind: str, g: torch.Ge
 # Methods. Each exposes parameters() and prequential(batch) -> (nll [n, T], predictive mean [n, T]).
 # ------------------------------------------------------------------------------------------------------------------
 def _bayes_prequential(prior: Dict[str, Tensor], phi: Tensor, y: Tensor, kind: str, exposure: Tensor,
-                       noise_mode: str, n_newton: int = 6) -> Tuple[Tensor, Tensor]:
+                       noise_mode: str, n_newton: int = fast.NEWTON_MAX_ITER) -> Tuple[Tensor, Tensor]:
     """Predict each row from the rows before it with the fast layer's functional updates."""
     lead, T, Fd = phi.shape[:-2], phi.shape[-2], phi.shape[-1]
     mu = prior["mu"].expand(*lead, Fd)
@@ -290,7 +290,7 @@ def _stateful_agreement(method: LearnedPriorBayes, data: Dict[str, Tensor], n_ta
         phi = method.features(data["x"][:n_tasks])
     worst = 0.0
     for i in range(n_tasks):
-        st = FastBeliefState(method.prior, forgetting=1.0, change_h=0.0, n_newton=6)
+        st = FastBeliefState(method.prior, forgetting=1.0, change_h=0.0)
         ex = data["exposure"][i] if method.kind == OutcomeKind.COUNT else None
         out = st.update(phi[i], data["y"][i], method.kind, exposure=ex)
         worst = max(worst, float((torch.tensor(out["surprises"], dtype=F64) - nll[i]).abs().max()))

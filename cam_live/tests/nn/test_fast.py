@@ -107,11 +107,43 @@ def test_predict_returns_mean_epistemic_noise(mode):
     phi = _unit(torch.ones(3, F))
     mean, epi, noise = st.predict(phi, K.REAL)
     assert mean.shape == epi.shape == noise.shape == (3,) and mean.dtype == torch.float32
-    assert torch.allclose(epi, torch.ones(3), atol=1e-5) and torch.allclose(noise, torch.full((3,), 0.5), atol=1e-5)
+    if mode == "fixed":
+        assert torch.allclose(epi, torch.ones(3), atol=1e-5) and torch.allclose(noise, torch.full((3,), 0.5), atol=1e-5)
+    else:
+        # prior: a0 = 2, b0 = a0 * 0.5 = 1, V = I / 0.5 -> q = 2; E[s2] = b / (a - 1) = 1
+        assert torch.allclose(noise, torch.ones(3), atol=1e-5) and torch.allclose(epi, torch.full((3,), 2.0), atol=1e-5)
     for _ in range(50):
         st.update(phi[0], 2.0, K.REAL)
     mean2, epi2, _ = st.predict(phi, K.REAL)
     assert float(epi2[0]) < 0.05 and abs(float(mean2[0]) - 2.0) < 0.1     # epistemic part shrinks with evidence
+
+
+def test_nig_predict_variance_is_the_student_t_variance():
+    """epistemic + noise of the inferred-noise Gaussian is the variance of its own Student-t predictive (the old
+    plug-in b / a under-stated it by a / (a - 1), a factor 2 at the default prior)."""
+    g = torch.Generator().manual_seed(21)
+    F = 6
+    prior = FastPrior(F, noise=0.4, noise_mode="nig")
+    st = FastBeliefState(prior, change_h=0.0)
+    Phi = _unit(torch.randn(40, F, generator=g, dtype=F64))
+    y = Phi @ torch.randn(F, generator=g, dtype=F64) + 0.7 * torch.randn(40, generator=g, dtype=F64)
+    q = _unit(torch.randn(5, F, generator=g, dtype=F64))
+    for k in (0, 1, 3, 40):
+        st.reset()
+        if k:
+            st.update(Phi[:k], y[:k], K.REAL)
+        m, epi, noise = st.predict(q, K.REAL)
+        s = st._post[K.REAL]
+        loc, scale2, dof = fast.predict_nig(s["mu"], s["cov"], s["a"], s["b"], q)
+        ref = torch.distributions.StudentT(dof, loc, scale2.sqrt()).variance        # independent: torch's Student-t
+        assert torch.allclose((epi + noise).double(), ref, rtol=1e-6), (k, epi + noise, ref)
+        assert torch.allclose(m.double(), loc, atol=1e-12)
+        # the epistemic part is the posterior variance of the mean phi^T w (law of total variance)
+        _, lin_var = st.linear(q, K.REAL)
+        assert torch.allclose(lin_var, epi, rtol=1e-6)
+    # Monte-Carlo: the variance of phi^T w under joint posterior draws of (w, s2) is the reported epistemic part
+    w = st.sample_weights(200_000, K.REAL, torch.Generator().manual_seed(3))
+    assert abs(float((w @ q[0]).var()) / float(epi[0]) - 1.0) < 0.03
 
 
 def _glm_data(kind, w, n, g, F):
@@ -175,33 +207,211 @@ def test_censoring_is_used_not_ignored():
     assert torch.allclose(a.posterior(K.TIME_TO_EVENT)["mu"], b.posterior(K.TIME_TO_EVENT)["mu"], atol=1e-12)
 
 
-def test_laplace_update_is_the_exact_posterior_mode():
-    """For one Poisson observation the update must land on the true MAP (checked by a generic optimiser)."""
-    F = 4
-    g = torch.Generator().manual_seed(7)
+def _ref_glm_map(kind, mu, cov, phi, y, exposure=1.0, censored=False, disp=1.0):
+    """Independent float64 reference (numpy / scipy only): the exact MAP of the full weight vector lies on
+    mu + Sigma phi t, so it is found by scipy's bracketing root finder (brentq) on the scalar stationarity
+    condition; the Laplace covariance is formed at that MAP. Returns (w, cov, eta, kkt) where ``kkt(w)`` is the
+    length of the full-vector Newton step of the negative log posterior from ``w`` (its distance to the MAP)."""
+    from scipy import optimize, special
+    mu, cov, phi = (np.asarray(t, dtype=np.float64) for t in (mu, cov, phi))
+    lam = np.linalg.inv(cov)
+
+    def terms(eta):                         # loglik'(eta), -loglik''(eta) of the stated likelihood
+        if kind == K.COUNT:
+            m = exposure * math.exp(eta)
+            return y - m, m
+        if kind == K.TIME_TO_EVENT:
+            m = (y / exposure) * math.exp(eta)
+            return (0.0 if censored else 1.0) - m, m
+        p, q = special.expit(eta), special.expit(-eta)
+        return (y - exposure + exposure * q) if eta > 0 else (y - exposure * p), exposure * p * q
+
+    eta0, s = float(phi @ mu), float(phi @ cov @ phi)
+    f = lambda e: terms(e)[0] / disp - (e - eta0) / s
+    lo, hi = eta0 - 1.0, eta0 + 1.0
+    while f(lo) < 0:
+        lo = eta0 - 2 * (eta0 - lo)
+    while f(hi) > 0:
+        hi = eta0 + 2 * (hi - eta0)
+    eta = optimize.brentq(f, lo, hi, xtol=1e-15, rtol=1e-15, maxiter=1000)
+    w = mu + cov @ phi * (eta - eta0) / s
+
+    def kkt(wx):                            # length of the full-vector Newton step from wx (distance to the MAP)
+        wx = np.asarray(wx, dtype=np.float64)
+        gr, h = terms(float(phi @ wx))
+        grad = lam @ (wx - mu) - gr / disp * phi
+        return float(np.linalg.norm(np.linalg.solve(lam + h / disp * np.outer(phi, phi), grad)))
+
+    h = terms(eta)[1] / disp                # Laplace covariance (lam + h phi phi^T)^-1 by Sherman-Morrison
+    sp = cov @ phi
+    return w, cov - (h / (1.0 + h * s)) * np.outer(sp, sp), eta, kkt
+
+
+#: observations far from the prior predictor, in the units the agent uses (seconds, raw exposures)
+EXTREME = [
+    ("time to event censored at 30 days, unit 1 s", K.TIME_TO_EVENT, 2.592e6, dict(censored=True)),
+    ("time to event censored at one year, unit 1 s", K.TIME_TO_EVENT, 3.1536e7, dict(censored=True)),
+    ("event after 30 days, unit 1 s", K.TIME_TO_EVENT, 2.592e6, dict(censored=False)),
+    ("event after 1 ms, unit 1 s", K.TIME_TO_EVENT, 1e-3, dict(censored=False)),
+    ("3 events in 1e7 impressions", K.COUNT, 3.0, dict(exposure=1e7)),
+    ("0 events at exposure 1e9", K.COUNT, 0.0, dict(exposure=1e9)),
+    ("1e9 events at exposure 1", K.COUNT, 1e9, {}),
+    ("5 events at exposure 1e-12", K.COUNT, 5.0, dict(exposure=1e-12)),
+    ("0 successes of 1e6 trials", K.BINARY, 0.0, dict(exposure=1e6)),
+    ("1e6 successes of 1e6 trials", K.BINARY, 1e6, dict(exposure=1e6)),
+    ("moderate count", K.COUNT, 4.0, dict(exposure=2.0)),
+    ("one success", K.BINARY, 1.0, {}),
+]
+
+
+@pytest.mark.parametrize("name,kind,y,kw", EXTREME, ids=[e[0] for e in EXTREME])
+def test_laplace_mode_is_exact_far_from_the_prior(name, kind, y, kw):
+    """The stateful update, the functional update and the training path (online_nll) all land on the exact Laplace
+    mode of the full weight vector (independent scipy optimiser), with a non-trivial prior. The previous fixed
+    number of clipped Newton steps stopped short by up to 6 nats (a rate wrong by x339) for these inputs."""
+    F = 5
+    g = torch.Generator().manual_seed(17)
     A = torch.randn(F, F, generator=g, dtype=F64)
-    cov = A @ A.T + 0.5 * torch.eye(F, dtype=F64)
-    mu = torch.randn(F, generator=g, dtype=F64)
-    phi = _unit(torch.randn(F, generator=g, dtype=F64))
-    y, ex = 9.0, 2.0
-    mu_n, cov_n, info = fast.glm_update(mu, cov, phi, y, K.COUNT, exposure=ex, n_newton=30)
-    w = mu.clone().requires_grad_(True)
-    lam = torch.linalg.inv(cov)
-    opt = torch.optim.LBFGS([w], lr=1.0, max_iter=500, tolerance_grad=1e-14, tolerance_change=1e-16,
-                            line_search_fn="strong_wolfe")
+    for scale in (1.0, 25.0):                                   # prior variance of the linear predictor ~1 and ~25
+        prior = FastPrior(F, prior_var=scale)
+        with torch.no_grad():
+            prior.mu0[prior.index(kind)].copy_(0.3 * torch.randn(F, generator=g))
+            prior.chol_lower[prior.index(kind)].copy_(0.3 * torch.randn(F * (F - 1) // 2, generator=g))
+        p = {k: v.detach() for k, v in prior.prior(kind).items()}
+        phi = _unit(torch.randn(F, generator=g, dtype=F64) + A[0])
+        st = FastBeliefState(prior, change_h=0.0)
+        out = st.update(phi, y, kind, **kw)
+        post = st.posterior(kind)
+        ex = float(kw.get("exposure", 1.0))
+        w_ref, c_ref, eta_ref, kkt = _ref_glm_map(kind, p["mu"], p["cov"], phi, y, ex, bool(kw.get("censored", False)))
+        eta = float(phi @ post["mu"])
+        assert abs(eta - eta_ref) < 1e-8 * (1 + abs(eta_ref)), (name, scale, eta, eta_ref)
+        assert np.allclose(post["mu"].numpy(), w_ref, rtol=1e-8, atol=1e-8)
+        assert kkt(post["mu"].numpy()) < 1e-8 * (1 + float(post["mu"].norm()))     # stationary in weight space
+        assert np.allclose(post["cov"].numpy(), c_ref, rtol=1e-9, atol=1e-10)
+        assert out["converged"] and 1 <= out["newton_iters"] <= 20, out
+        # the functional update and the prequential training path use the same converged mode
+        mu_f, cov_f, info = fast.glm_update(p["mu"], p["cov"], phi, y, kind, kw.get("exposure"), kw.get("censored"))
+        assert torch.allclose(mu_f, post["mu"], rtol=0, atol=1e-12) and bool(info["converged"])
+        ex_t = None if "exposure" not in kw else torch.tensor([[ex]], dtype=F64)
+        ce_t = None if "censored" not in kw else torch.tensor([[float(kw["censored"])]], dtype=F64)
+        two = fast.online_nll(prior.prior(kind), phi.expand(1, 2, F), torch.full((1, 2), y, dtype=F64), kind,
+                              exposure=None if ex_t is None else ex_t.expand(1, 2),
+                              censored=None if ce_t is None else ce_t.expand(1, 2))
+        st2 = FastBeliefState(prior, change_h=0.0)
+        ref2 = st2.update(phi.expand(2, F), torch.full((2,), y, dtype=F64), kind, **kw)["surprises"]
+        # log-likelihood terms of size y * |eta| cancel in the surprise: float64 resolves it to ~1e-16 of that size
+        tol = 1e-9 + 1e-14 * abs(y) * (1 + abs(eta_ref))
+        assert torch.allclose(two[0].detach(), torch.tensor(ref2, dtype=F64), rtol=1e-10, atol=tol), (two, ref2)
 
-    def closure():
-        opt.zero_grad()
-        eta = phi @ w
-        loss = -(y * eta - ex * eta.exp()) + 0.5 * (w - mu) @ lam @ (w - mu)
-        loss.backward()
-        return loss
 
-    opt.step(closure)
-    assert torch.allclose(mu_n, w.detach(), atol=1e-6)
-    h = ex * float((phi @ mu_n).exp())
-    assert torch.allclose(cov_n, torch.linalg.inv(lam + h * torch.outer(phi, phi)), atol=1e-9)
-    assert float(info["kl"]) > 0
+def test_glm_surprise_matches_accurate_quadrature_for_extreme_observations():
+    """The reported surprise is the predictive NLL -log int p(y | eta) N(eta; eta0, s) d eta (scipy quad around
+    the integrand's peak as reference)."""
+    from scipy import integrate, special
+    phi = _unit(torch.ones(4, dtype=F64))
+    for name, kind, y, kw in EXTREME:
+        st = FastBeliefState(FastPrior(4), change_h=0.0)
+        got = st.update(phi, y, kind, **kw)["surprise"]
+        ex, cens = float(kw.get("exposure", 1.0)), bool(kw.get("censored", False))
+        if kind == K.COUNT:
+            ll = lambda e: y * (math.log(ex) + e) - ex * math.exp(e) - math.lgamma(y + 1)
+        elif kind == K.TIME_TO_EVENT:
+            ll = lambda e: (0.0 if cens else e) - y * math.exp(e)
+        else:
+            ll = lambda e: (y * e - ex * np.logaddexp(0.0, e) + math.lgamma(ex + 1) - math.lgamma(y + 1)
+                            - math.lgamma(ex - y + 1))
+        lp = lambda e: ll(e) - 0.5 * e * e - 0.5 * math.log(2 * math.pi)          # prior eta ~ N(0, 1)
+        grid = np.linspace(-60, 60, 120001)
+        vals = np.array([lp(e) for e in grid])
+        peak = float(grid[int(np.argmax(vals))])
+        top = float(vals.max())
+        width = 1.0 / math.sqrt(max(1.0 + abs(float(np.gradient(np.gradient(vals, grid), grid)[int(np.argmax(vals))])), 1.0))
+        val, _ = integrate.quad(lambda e: math.exp(lp(e) - top), peak - 40 * width, peak + 40 * width,
+                                points=[peak], limit=500, epsabs=0, epsrel=1e-13)
+        ref = -(top + math.log(val))
+        assert abs(got - ref) < 1e-6 * (1 + abs(ref)), (name, got, ref)
+
+
+def test_dispersion_tempers_counts_only():
+    """A trained count dispersion must not change binary or time-to-event updates (it tempered all three kinds)."""
+    F = 4
+    phi = _unit(torch.ones(F, dtype=F64))
+    prior = FastPrior(F)
+    assert float(prior.dispersion()) == 1.0                    # exactly Poisson at initialisation
+    with torch.no_grad():
+        prior.disp_raw.fill_(math.log(3.0))
+    p = {k: v.detach() for k, v in prior.prior(K.BINARY).items()}
+    for kind, y, kw in ((K.BINARY, 1.0, {}), (K.TIME_TO_EVENT, 2.0, {"censored": True}),
+                        (K.TIME_TO_EVENT, 0.5, {}), (K.COUNT, 7.0, {"exposure": 2.0})):
+        st = FastBeliefState(prior, change_h=0.0)
+        for _ in range(20):
+            st.update(phi, y, kind, **kw)
+        mu_e, cov_e = p["mu"].numpy(), p["cov"].numpy()
+        disp = 3.0 if kind == K.COUNT else 1.0
+        for _ in range(20):
+            mu_e, cov_e, _, _ = _ref_glm_map(kind, mu_e, cov_e, phi.numpy(), y, float(kw.get("exposure", 1.0)),
+                                             bool(kw.get("censored", False)), disp=disp)
+        post = st.posterior(kind)
+        assert np.allclose(post["mu"].numpy(), mu_e, atol=1e-8), (kind, post["mu"], mu_e)
+        assert np.allclose(post["cov"].numpy(), cov_e, atol=1e-9), kind
+    # the training path: binary / time-to-event NLLs do not depend on the dispersion, counts do
+    g = torch.Generator().manual_seed(4)
+    Phi = _unit(torch.randn(2, 6, F, generator=g, dtype=F64))
+    for kind, y in ((K.BINARY, torch.bernoulli(torch.full((2, 6), 0.4, dtype=F64), generator=g)),
+                    (K.TIME_TO_EVENT, torch.rand(2, 6, generator=g, dtype=F64) * 3),
+                    (K.COUNT, torch.poisson(torch.full((2, 6), 3.0, dtype=F64), generator=g))):
+        a = fast.online_nll(prior.prior(kind), Phi, y, kind)
+        with torch.no_grad():
+            prior.disp_raw.fill_(0.0)
+        b = fast.online_nll(prior.prior(kind), Phi, y, kind)
+        with torch.no_grad():
+            prior.disp_raw.fill_(math.log(3.0))
+        same = torch.allclose(a, b, rtol=0, atol=1e-12)
+        assert same == (kind != K.COUNT), kind
+
+
+def test_mode_search_reports_iterations_and_non_convergence():
+    phi = _unit(torch.ones(3, dtype=F64))
+    mu, cov = torch.zeros(3, dtype=F64), torch.eye(3, dtype=F64)
+    _, _, ok = fast.glm_update(mu, cov, phi, 3.15e7, K.TIME_TO_EVENT, censored=True)
+    assert bool(ok["converged"]) and int(ok["newton_iters"]) <= 10
+    _, _, capped = fast.glm_update(mu, cov, phi, 3.15e7, K.TIME_TO_EVENT, censored=True, n_newton=1)
+    assert not bool(capped["converged"]) and int(capped["newton_iters"]) == 1
+    st = FastBeliefState(FastPrior(3), change_h=0.0, n_newton=1)
+    out = st.update(phi, 3.15e7, K.TIME_TO_EVENT, censored=True)
+    assert out["converged"] is False and out["newton_iters"] == 1 and st.stats["unconverged_updates"] == 1
+    st = FastBeliefState(FastPrior(3), change_h=0.0)
+    out = st.update(phi.expand(3, 3), torch.tensor([3.15e7, 1.0, 0.0]), K.TIME_TO_EVENT,
+                    censored=torch.tensor([True, False, True]))
+    assert out["converged"] is True and 1 <= out["newton_iters"] <= 10 and st.stats["unconverged_updates"] == 0
+    assert "newton_iters" not in st.update(phi, 1.0, K.REAL)
+
+
+@pytest.mark.parametrize("kind,y,kw,why", [
+    (K.COUNT, -5.0, {}, "negative"), (K.COUNT, 2.0, {"exposure": 0.0}, "zero exposure"),
+    (K.COUNT, 2.0, {"exposure": -1.0}, "negative"), (K.BINARY, 2.0, {}, "successes"),
+    (K.BINARY, -1.0, {}, "successes"), (K.BINARY, 1.0, {"exposure": -3.0}, "trials"),
+    (K.TIME_TO_EVENT, -3.0, {}, "negative"), (K.TIME_TO_EVENT, 3.0, {"exposure": 0.0}, "time unit"),
+    (K.TIME_TO_EVENT, 3.0, {"censored": 0.5}, "censored"), (K.COUNT, float("inf"), {}, "finite")])
+def test_impossible_observations_are_rejected_without_touching_the_state(kind, y, kw, why):
+    phi = _unit(torch.ones(4, dtype=F64))
+    st = FastBeliefState(FastPrior(4), change_h=0.0)
+    st.update(phi, 1.0, kind)
+    before = {k: (v.clone() if isinstance(v, torch.Tensor) else v) for k, v in st._post[kind].items()}
+    with pytest.raises(ValueError, match=why):
+        st.update(phi.expand(2, 4), torch.tensor([1.0, y], dtype=F64), kind, **kw)
+    for k, v in st._post[kind].items():
+        assert (torch.equal(v, before[k]) if isinstance(v, torch.Tensor) else v == before[k]), k
+    # the training path rejects the same rows, but ignores rows that are masked out
+    yy = torch.tensor([[1.0, y]], dtype=F64)
+    kws = {n: torch.tensor([[1.0, float(v)]], dtype=F64) for n, v in kw.items()}
+    with pytest.raises(ValueError, match=why):
+        fast.online_nll(FastPrior(4).prior(kind), phi.expand(1, 2, 4), yy, kind, **kws)
+    if math.isfinite(y):
+        nll = fast.online_nll(FastPrior(4).prior(kind), phi.expand(1, 2, 4), yy, kind,
+                              mask=torch.tensor([[True, False]]), **kws)
+        assert torch.isfinite(nll).all() and float(nll[0, 1]) == 0.0
 
 
 def test_forgetting_and_change_detection_track_a_mechanism_change():
@@ -365,3 +575,16 @@ def test_gradcheck_of_the_functional_updates():
 
     assert torch.autograd.gradcheck(f_gauss, (mu, cov, phi), atol=1e-6)
     assert torch.autograd.gradcheck(f_glm, (mu, cov, phi), atol=1e-5)
+
+    # far from the prior predictor (one year of censoring in seconds; 0 of 1e6 trials): the gradient is the
+    # implicit-function gradient of the converged mode
+    def f_tte(mu, cov, phi):
+        m, c, info = fast.glm_update(mu, fast._sym(cov), phi, 3.15e7, K.TIME_TO_EVENT, censored=True)
+        return m.sum() + c.sum() + 1e-2 * info["surprise"] + info["kl"]
+
+    def f_bin(mu, cov, phi):
+        m, c, info = fast.glm_update(mu, fast._sym(cov), phi, 0.0, K.BINARY, exposure=1e6)
+        return m.sum() + c.sum() + 1e-2 * info["surprise"] + info["kl"]
+
+    assert torch.autograd.gradcheck(f_tte, (mu, cov, phi), atol=1e-5, rtol=1e-4)
+    assert torch.autograd.gradcheck(f_bin, (mu, cov, phi), atol=1e-5, rtol=1e-4)

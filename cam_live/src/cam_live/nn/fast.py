@@ -13,8 +13,11 @@ For each outcome kind a Bayesian last layer ``w ~ N(mu, Sigma)`` over the learne
 
 Everything is float64. Gaussian updates use the Joseph form (symmetric positive semi-definite by construction, also
 after thousands of collinear updates). A GLM observation only moves the posterior along ``Sigma phi``, so its Laplace
-approximation is found by a safeguarded Newton iteration on the scalar linear predictor and applied as a Joseph
-update with pseudo-noise ``1 / h``.
+approximation is the mode of a strictly concave scalar problem on the linear predictor, found by a monotone
+safeguarded Newton search run to the tolerance ``NEWTON_TOL`` (iteration cap ``NEWTON_MAX_ITER``; iterations and
+convergence are reported), and applied as a Joseph update with pseudo-noise ``1 / h``. The search stays exact for
+observations far from the prior predictor (a censoring window of a year measured in seconds, 3 events in 1e7
+impressions). The learned dispersion tempers count likelihoods only.
 
 Two forms are provided:
 
@@ -54,6 +57,7 @@ _gh_x, _gh_w = np.polynomial.hermite.hermgauss(_GH_N)
 _GH_X = torch.tensor(_gh_x, dtype=F64)
 _GH_LOGW = torch.tensor(np.log(_gh_w) - 0.5 * math.log(math.pi), dtype=F64)
 _ETA_MAX = 40.0
+_LOG_MAX = 700.0          # exp(700) ~ 1e304: largest exponent formed in float64
 
 
 def _f64(x: Any, like: Tensor) -> Tensor:
@@ -178,6 +182,11 @@ def predict_gaussian(mu: Tensor, cov: Tensor, phi: Tensor, noise: Any) -> Tuple[
     return mean, epi, _f64(noise, mean).expand_as(mean)
 
 
+def _nig_noise_mean(a: Tensor, b: Tensor) -> Tensor:
+    """E[s2] = b / (a - 1) under s2 ~ InvGamma(a, b) (infinite for a <= 1)."""
+    return torch.where(a > 1.0, b / (a - 1.0).clamp_min(1e-300), torch.full_like(b, math.inf))
+
+
 def predict_nig(mu: Tensor, V: Tensor, a: Any, b: Any, phi: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
     """Student-t predictive (loc, squared scale, degrees of freedom)."""
     phi = phi.to(F64)
@@ -221,19 +230,73 @@ def _glm_terms(kind: str, y: Tensor, exposure: Optional[Any], censored: Optional
     raise ValueError(f"outcome kind {kind!r} has no GLM fast update (supported: {GLM_KINDS})")
 
 
-def _glm_grad_hess(family: str, eta: Tensor, c: Tensor, e: Tensor) -> Tuple[Tensor, Tensor]:
-    """(d loglik / d eta, -d2 loglik / d eta2 >= 0)."""
+def check_observations(kind: str, y: Tensor, exposure: Optional[Tensor] = None, censored: Optional[Tensor] = None,
+                       mask: Optional[Tensor] = None) -> None:
+    """Raise ``ValueError`` for an observation its likelihood cannot have produced (only rows where ``mask`` is
+    True are checked): non-finite values; a negative count, a positive count at zero exposure, a negative exposure;
+    successes outside [0, trials] or a negative number of trials; a negative time, a non-positive time unit, a
+    censoring flag other than 0 / 1."""
+    y = y.to(F64)
+    m = torch.ones_like(y, dtype=torch.bool) if mask is None else mask.bool().expand_as(y)
+
+    def bad(cond: Tensor) -> bool:
+        return bool((cond & m).any())
+
+    def full(t: Optional[Tensor]) -> Optional[Tensor]:
+        return None if t is None else torch.as_tensor(t, dtype=F64, device=y.device).expand_as(y)
+
+    ex, ce = full(exposure), full(censored)
+    if bad(~torch.isfinite(y)):
+        raise ValueError(f"{kind} outcome is not finite (mask unobservable outcomes instead)")
+    if ex is not None and bad(~torch.isfinite(ex)):
+        raise ValueError(f"{kind} exposure is not finite")
+    if kind == OutcomeKind.COUNT:
+        if bad(y < 0):
+            raise ValueError("a count cannot be negative")
+        if ex is not None and bad(ex < 0):
+            raise ValueError("a count's exposure cannot be negative")
+        if ex is not None and bad((ex == 0) & (y > 0)):
+            raise ValueError("a positive count is impossible at zero exposure")
+    elif kind == OutcomeKind.BINARY:
+        n = torch.ones_like(y) if ex is None else ex
+        if bad(n < 0):
+            raise ValueError("the number of trials cannot be negative")
+        if bad((y < 0) | (y > n)):
+            raise ValueError("binary outcome: successes must lie in [0, trials]")
+    elif kind == OutcomeKind.TIME_TO_EVENT:
+        if bad(y < 0):
+            raise ValueError("a time to event cannot be negative")
+        if ex is not None and bad(ex <= 0):
+            raise ValueError("the time unit of a time-to-event outcome must be positive")
+        if ce is not None and bad((ce != 0) & (ce != 1)):
+            raise ValueError("censored must be 0 / 1 (False / True)")
+
+
+def _log_mean(family: str, eta: Tensor, e: Tensor) -> Tensor:
+    """log of the likelihood's mean parameter: log(e exp(eta)) (Poisson family) or log(e sigmoid(eta)) (binomial)."""
     if family == "poisson":
-        m = e * torch.exp(eta.clamp(max=_ETA_MAX))
+        return torch.log(e) + eta
+    return torch.log(e) + Fn.logsigmoid(eta)
+
+
+def _glm_grad_hess(family: str, eta: Tensor, c: Tensor, e: Tensor) -> Tuple[Tensor, Tensor]:
+    """(d loglik / d eta, -d2 loglik / d eta2 >= 0). The Poisson mean is formed as exp(log e + eta) (capped at
+    exp(700)), so a large exposure or a large linear predictor is exact instead of clipped."""
+    if family == "poisson":
+        m = torch.exp((torch.log(e) + eta).clamp(max=_LOG_MAX))
         return c - m, m
-    p = torch.sigmoid(eta)
-    return c - e * p, e * p * (1.0 - p)
+    return _binomial_score(eta, c, e), e * torch.sigmoid(eta) * torch.sigmoid(-eta)
+
+
+def _binomial_score(eta: Tensor, c: Tensor, n: Tensor) -> Tensor:
+    """c - n sigmoid(eta), formed as (c - n) + n sigmoid(-eta) for eta > 0 (no cancellation near all-success)."""
+    return torch.where(eta > 0, (c - n) + n * torch.sigmoid(-eta), c - n * torch.sigmoid(eta))
 
 
 def _glm_loglik(family: str, eta: Tensor, c: Tensor, e: Tensor, kind: str) -> Tensor:
     """Normalised log pmf / pdf at linear predictor ``eta`` (broadcasts over a trailing quadrature dimension)."""
     if family == "poisson":
-        ll = c * eta - e * torch.exp(eta.clamp(max=_ETA_MAX))
+        ll = c * eta - torch.exp((torch.log(e) + eta).clamp(max=_LOG_MAX))
         if kind == OutcomeKind.COUNT:
             ll = ll + c * torch.log(e.clamp_min(1e-300)) - torch.lgamma(c + 1.0)
         return ll
@@ -245,17 +308,129 @@ def _gh_eta(eta0: Tensor, s: Tensor) -> Tensor:
     return eta0.unsqueeze(-1) + torch.sqrt(2.0 * s.clamp_min(0.0)).unsqueeze(-1) * _GH_X.to(eta0.device)
 
 
-def _laplace_1d(family: str, eta0: Tensor, s_safe: Tensor, c: Tensor, e: Tensor, disp: Tensor, n_newton: int
-                ) -> Tuple[Tensor, Tensor]:
-    """Mode eta* of loglik(eta) / disp - (eta - eta0)^2 / (2 s) by safeguarded Newton steps, and the curvature
-    h = -loglik''(eta*) / disp."""
-    eta = eta0
-    for _ in range(int(n_newton)):
-        g, h = _glm_grad_hess(family, eta, c, e)
-        step = (g / disp - (eta - eta0) / s_safe) / (h / disp + 1.0 / s_safe)
-        eta = eta + step.clamp(-3.0, 3.0)
+#: stopping rule of the scalar mode search: |last step| <= NEWTON_TOL * (1 + |eta|)
+NEWTON_TOL = 1e-11
+#: iteration cap of the scalar mode search (the default everywhere; measured need: <= 40 even for exposures of 1e15)
+NEWTON_MAX_ITER = 100
+
+
+@torch.no_grad()
+def _mode_poisson(eta0: Tensor, s: Tensor, c: Tensor, e: Tensor, disp: Tensor, max_iter: int, tol: float
+                  ) -> Tuple[Tensor, Tensor, Tensor]:
+    """Root of r(x) = c - e exp(x) - k (x - eta0), k = disp / s (the tempered stationarity condition times disp).
+
+    r is concave and decreasing, and G(x) = log(e exp(x)) - log(c + k (eta0 - x)) (same root, defined where
+    c + k (eta0 - x) > 0) is convex and increasing. A Newton step on r from the left of the root lands on its right
+    (and inside G's domain); from the right, Newton steps on r and on G both stay right of the root, so their minimum
+    is taken. The iterates decrease monotonically to the root: no overshoot, no clipping, quadratic convergence
+    whichever term dominates (G when the exponential does, e.g. a censoring window of a year in seconds; r when the
+    prior does)."""
+    k = disp / s
+    log_e = torch.log(e)
+    x = eta0.clone()
+    iters = torch.zeros_like(eta0, dtype=torch.long)
+    done = torch.zeros_like(eta0, dtype=torch.bool)
+    tiny = torch.finfo(F64).tiny
+    for _ in range(int(max_iter)):
+        lmu = log_e + x
+        big = lmu > _LOG_MAX
+        mu = torch.exp(lmu.clamp(max=_LOG_MAX))
+        L = c + k * (eta0 - x)
+        left = (~big) & (mu < L)
+        em = torch.exp(-lmu.clamp(min=_LOG_MAX))                    # only used where lmu > 700 (then em < 1e-304)
+        ratio = torch.where(big, (1.0 - L * em) / (1.0 + k * em), (mu - L) / (mu + k))
+        x_r = x - ratio
+        okg = (~left) & (L > 0) & (mu > 0)
+        Ls = L.clamp_min(tiny)
+        x_g = x - (lmu - torch.log(Ls)) / (1.0 + k / Ls)
+        x_new = torch.where(okg, torch.minimum(x_r, x_g), x_r)
+        step = (x_new - x).abs()
+        x = torch.where(done, x, x_new)
+        iters = iters + (~done).long()
+        done = done | (step <= tol * (1.0 + x.abs())) | (ratio == 0)
+        if bool(done.all()):
+            break
+    return x, iters, done
+
+
+@torch.no_grad()
+def _mode_binomial(eta0: Tensor, s: Tensor, c: Tensor, n: Tensor, disp: Tensor, max_iter: int, tol: float
+                   ) -> Tuple[Tensor, Tensor, Tensor]:
+    """Root of g(x) = (c - n sigmoid(x)) / disp - (x - eta0) / s inside a bracket that shrinks every iteration.
+
+    The initial bracket follows from concavity of the log-likelihood: the root lies between eta0 and
+    eta0 + s g(eta0). Each iteration evaluates four candidates — the Newton step on g, Newton steps on the two
+    tail forms log(n sigmoid(x)) = log(c + k (eta0 - x)) and log(n sigmoid(-x)) = log(n - c + k (x - eta0))
+    (k = disp / s; these are nearly linear where the likelihood is exponential in x, e.g. 0 successes in 1e6
+    trials), and the bracket midpoint — updates the bracket with the sign of g at each, and continues from the
+    candidate with the smallest |g|. The bracket at least halves per iteration, so the search cannot stall."""
+    k = disp / s
+
+    def grad(x: Tensor) -> Tensor:
+        return _binomial_score(x, c, n) / disp - (x - eta0) / s
+
+    g0 = grad(eta0)
+    lo = torch.where(g0 >= 0, eta0, eta0 + s * g0)
+    hi = torch.where(g0 >= 0, eta0 + s * g0, eta0)
+    x, gx = eta0.clone(), g0
+    log_n = torch.log(n)
+    tiny = torch.finfo(F64).tiny
+    iters = torch.zeros_like(eta0, dtype=torch.long)
+    done = g0 == 0
+    for _ in range(int(max_iter)):
+        if bool(done.all()):
+            break
+        p = torch.sigmoid(x)
+        h = n * p * (1.0 - p) / disp + 1.0 / s
+        cands = [x + gx / h, 0.5 * (lo + hi)]
+        L = c + k * (eta0 - x)                                   # lower tail: n sigmoid(x) = L at the root
+        Ls = L.clamp_min(tiny)
+        G = log_n + Fn.logsigmoid(x) - torch.log(Ls)
+        cands.append(torch.where(L > 0, x - G / (torch.sigmoid(-x) + k / Ls), x))
+        U = (n - c) + k * (x - eta0)                             # upper tail: n sigmoid(-x) = U at the root
+        Us = U.clamp_min(tiny)
+        H = log_n + Fn.logsigmoid(-x) - torch.log(Us)
+        cands.append(torch.where(U > 0, x + H / (p + k / Us), x))
+        best_x, best_g = x, gx
+        for cx in cands:
+            inside = torch.isfinite(cx) & (cx >= lo) & (cx <= hi)
+            cx = torch.where(inside, cx, 0.5 * (lo + hi))
+            gc = grad(cx)
+            lo = torch.where(gc > 0, torch.maximum(lo, cx), lo)
+            hi = torch.where(gc < 0, torch.minimum(hi, cx), hi)
+            better = gc.abs() < best_g.abs()
+            best_x, best_g = torch.where(better, cx, best_x), torch.where(better, gc, best_g)
+        lo = torch.where(gx > 0, torch.maximum(lo, x), lo)
+        hi = torch.where(gx < 0, torch.minimum(hi, x), hi)
+        step = (best_x - x).abs()
+        x = torch.where(done, x, best_x)
+        gx = torch.where(done, gx, best_g)
+        iters = iters + (~done).long()
+        done = done | (step <= tol * (1.0 + x.abs())) | (gx == 0) | (hi - lo <= tol * (1.0 + x.abs()))
+    return x, iters, done
+
+
+def _laplace_1d(family: str, eta0: Tensor, s_safe: Tensor, c: Tensor, e: Tensor, disp: Tensor,
+                max_iter: int = NEWTON_MAX_ITER, tol: float = NEWTON_TOL
+                ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Mode eta* of loglik(eta) / disp - (eta - eta0)^2 / (2 s) (a strictly concave scalar problem), its curvature
+    h = -loglik''(eta*) / disp, the iterations used and whether the stopping rule |step| <= tol (1 + |eta|) was met
+    within ``max_iter`` iterations.
+
+    The search runs without a graph (:func:`_mode_poisson` / :func:`_mode_binomial`); one Newton step from the
+    converged point is then taken with the graph, so the value is unchanged (the step is ~1e-20) and its gradient is
+    the exact implicit-function gradient d eta* / d(eta0, s, c, e, disp)."""
+    with torch.no_grad():
+        a = [t.detach() for t in (eta0, s_safe, c, e, disp)]
+        if family == "poisson":
+            x, iters, conv = _mode_poisson(*a, max_iter, tol)
+        else:
+            x, iters, conv = _mode_binomial(*a, max_iter, tol)
+    g, h = _glm_grad_hess(family, x, c, e)
+    gt = g / disp - (x - eta0) / s_safe
+    eta = x + gt / (h / disp + 1.0 / s_safe)
     _, h = _glm_grad_hess(family, eta, c, e)
-    return eta, h / disp
+    return eta, h / disp, iters, conv
 
 
 def _adaptive_gh_nll(family: str, kind: str, eta0: Tensor, s_safe: Tensor, eta_star: Tensor, h: Tensor, c: Tensor,
@@ -273,39 +448,46 @@ def _adaptive_gh_nll(family: str, kind: str, eta0: Tensor, s_safe: Tensor, eta_s
 
 
 def nll_glm(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
-            censored: Optional[Any] = None, n_newton: int = 8) -> Tensor:
+            censored: Optional[Any] = None, n_newton: int = NEWTON_MAX_ITER) -> Tensor:
     """Predictive negative log-likelihood -log E_{w ~ N(mu, Sigma)} p(y | phi^T w) by adaptive Gauss-Hermite
-    quadrature. For time-to-event the density is taken w.r.t. time in units of ``exposure`` (survival probability
-    if censored)."""
+    quadrature centred on the (converged) mode of the integrand. For time-to-event the density is taken w.r.t. time
+    in units of ``exposure`` (survival probability if censored). ``n_newton`` caps the mode search."""
     mu, cov, phi = mu.to(F64), cov.to(F64), phi.to(F64)
     eta0 = (phi * mu).sum(-1)
     y = _f64(y, eta0).expand_as(eta0)
     _, s = _quad(cov, phi)
     s_safe = s.clamp_min(1e-12)
     family, c, e, _ = _glm_terms(kind, y, exposure, censored)
-    eta, h = _laplace_1d(family, eta0, s_safe, c, e, torch.ones_like(eta0), n_newton)
+    eta, h, _, _ = _laplace_1d(family, eta0, s_safe, c, e, torch.ones_like(eta0), n_newton)
     return _adaptive_gh_nll(family, kind, eta0, s_safe, eta, h, c, e)
 
 
 def glm_update(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
-               censored: Optional[Any] = None, dispersion: Any = 1.0, n_newton: int = 8
-               ) -> Tuple[Tensor, Tensor, Dict[str, Tensor]]:
+               censored: Optional[Any] = None, dispersion: Any = 1.0, n_newton: int = NEWTON_MAX_ITER,
+               tol: float = NEWTON_TOL) -> Tuple[Tensor, Tensor, Dict[str, Tensor]]:
     """One assumed-density update for a count / binary / time-to-event observation.
 
     The exact posterior mode lies on the line mu + Sigma phi * c, so the Laplace approximation is found on the scalar
-    linear predictor eta = phi^T w: maximise loglik(eta) / dispersion - (eta - eta0)^2 / (2 s), s = phi^T Sigma phi,
-    by ``n_newton`` safeguarded Newton steps (concave problem), then applied as a Joseph update with curvature
-    h = -loglik''(eta*) / dispersion. ``dispersion`` >= 1 tempers the likelihood (quasi-likelihood for over-dispersed
-    counts). Differentiable through the unrolled iterations.
+    linear predictor eta = phi^T w: maximise loglik(eta) / dispersion - (eta - eta0)^2 / (2 s), s = phi^T Sigma phi
+    (strictly concave), by a monotone safeguarded Newton search (:func:`_laplace_1d`) run until
+    |step| <= tol (1 + |eta|), at most ``n_newton`` iterations; then applied as a Joseph update with curvature
+    h = -loglik''(eta*) / dispersion. ``dispersion`` (> 0) tempers the **count** likelihood (quasi-likelihood for
+    over- / under-dispersed counts); binary and time-to-event likelihoods have no dispersion and ignore it.
+    Differentiable in every tensor argument (implicit-function gradient at the converged mode).
+
+    ``info`` holds surprise (predictive NLL of the untempered likelihood), kl (KL(new || old) of the Gaussian
+    approximations), z2 / err (standardised residual for change detection), eta (the mode), newton_iters and
+    converged (per observation).
     """
     mu, cov, phi = mu.to(F64), cov.to(F64), phi.to(F64)
     eta0 = (phi * mu).sum(-1)
     y = _f64(y, eta0).expand_as(eta0)
     pf, s = _quad(cov, phi)
     s_safe = s.clamp_min(1e-12)
-    disp = _f64(dispersion, eta0).expand_as(eta0)
+    one = torch.ones_like(eta0)
+    disp = _f64(dispersion, eta0).expand_as(eta0) if kind == OutcomeKind.COUNT else one
     family, c, e, _ = _glm_terms(kind, y, exposure, censored)
-    eta, h = _laplace_1d(family, eta0, s_safe, c, e, disp, n_newton)
+    eta, h, iters, conv = _laplace_1d(family, eta0, s_safe, c, e, disp, n_newton, tol)
     delta = eta - eta0
     denom = 1.0 + h * s
     gain = pf * (h / denom).unsqueeze(-1)
@@ -320,9 +502,15 @@ def glm_update(mu: Tensor, cov: Tensor, phi: Tensor, y: Any, kind: str, exposure
         m = e * p
         var = e * p * (1.0 - p)
     z2 = (c - m) ** 2 / var.clamp_min(1e-12)
-    info = {"surprise": _adaptive_gh_nll(family, kind, eta0, s_safe, eta, h * disp, c, e),
+    # the surprise integrates the untempered likelihood: centre the quadrature on its own mode
+    if kind == OutcomeKind.COUNT and bool((disp != 1.0).any()):
+        eta_u, h_u, it_u, conv_u = _laplace_1d(family, eta0, s_safe, c, e, one, n_newton, tol)
+        iters, conv = torch.maximum(iters, it_u), conv & conv_u
+    else:
+        eta_u, h_u = eta, h * disp
+    info = {"surprise": _adaptive_gh_nll(family, kind, eta0, s_safe, eta_u, h_u, c, e),
             "kl": 0.5 * (-(h * s) / denom + delta * delta / s_safe + torch.log(denom)),
-            "z2": z2, "err": c - m, "eta": eta}
+            "z2": z2, "err": c - m, "eta": eta, "newton_iters": iters, "converged": conv}
     return mu_n, cov_n, info
 
 
@@ -379,7 +567,8 @@ def _inv_softplus(x: float) -> float:
 class FastPrior(nn.Module):
     """Learned prior of the Bayesian fast layer: per outcome kind a mean ``mu0`` and a full covariance
     ``L0 L0^T`` (Cholesky-parameterised, positive diagonal), the Gaussian noise variance with its inverse-gamma
-    shape, and the count dispersion. Trained through :func:`online_nll` (ALPaCA-style). ``experiential`` group."""
+    shape, and the count dispersion ``exp(disp_raw)`` (exactly 1 = Poisson at initialisation; it tempers count
+    updates only). Trained through :func:`online_nll` (ALPaCA-style). ``experiential`` group."""
 
     def __init__(self, n_features: int, *, prior_var: float = 1.0, noise: float = 0.5, a0: float = 2.0,
                  noise_mode: str = "nig", kinds: Sequence[str] = FAST_KINDS):
@@ -395,7 +584,7 @@ class FastPrior(nn.Module):
         self.chol_lower = nn.Parameter(torch.zeros(K, F * (F - 1) // 2))
         self.log_noise = nn.Parameter(torch.tensor(math.log(noise)))
         self.a0_raw = nn.Parameter(torch.tensor(_inv_softplus(a0 - 1.0)))
-        self.disp_raw = nn.Parameter(torch.tensor(-4.0))
+        self.disp_raw = nn.Parameter(torch.tensor(0.0))          # log of the count dispersion
         self.register_buffer("_tril", torch.tril_indices(F, F, -1), persistent=False)
 
     def index(self, kind: str) -> int:
@@ -408,7 +597,8 @@ class FastPrior(nn.Module):
         F = self.n_features
         L = torch.zeros(F, F, dtype=F64, device=self.mu0.device)
         L = L.index_put((self._tril[0], self._tril[1]), self.chol_lower[k].to(F64))
-        return L + torch.diag(Fn.softplus(self.chol_diag_raw[k].to(F64)) + 1e-6)
+        # floor, not an offset: the default prior is exactly prior_var * I (up to the float32 storage of the raw value)
+        return L + torch.diag(Fn.softplus(self.chol_diag_raw[k].to(F64)).clamp_min(1e-6))
 
     def noise(self) -> Tensor:
         return self.log_noise.to(F64).exp()
@@ -417,12 +607,13 @@ class FastPrior(nn.Module):
         return 1.0 + Fn.softplus(self.a0_raw.to(F64))
 
     def dispersion(self) -> Tensor:
-        return 1.0 + Fn.softplus(self.disp_raw.to(F64))
+        """Count dispersion (quasi-Poisson tempering factor), > 0; 1 at initialisation."""
+        return self.disp_raw.to(F64).exp()
 
     def prior(self, kind: str) -> Dict[str, Tensor]:
         """Differentiable float64 prior for ``kind``: ``mu`` [F], ``cov`` [F, F] (weights covariance; for the
         normal-inverse-gamma mode the scale-free ``V = cov / noise`` is under ``"V"`` with ``a``, ``b``),
-        ``noise``, ``dispersion``."""
+        ``noise``, ``dispersion`` (applies to counts only)."""
         L = self.chol(kind)
         cov = L @ L.T
         noise, a0 = self.noise(), self.a0()
@@ -432,36 +623,44 @@ class FastPrior(nn.Module):
 
 def online_nll(prior: Dict[str, Tensor], phi: Tensor, y: Tensor, kind: str, *, mask: Optional[Tensor] = None,
                exposure: Optional[Tensor] = None, censored: Optional[Tensor] = None, noise_mode: str = "nig",
-               n_newton: int = 6, update_mask: Optional[Tensor] = None) -> Tensor:
+               n_newton: int = NEWTON_MAX_ITER, update_mask: Optional[Tensor] = None) -> Tensor:
     """Prequential (predict, then update) negative log-likelihood of a sequence — the ALPaCA training signal.
 
     phi [..., T, F], y [..., T]; ``mask`` [..., T] marks rows that exist; ``update_mask`` (default = mask) marks rows
     the posterior may learn from (set it to the support rows to score later held-out rows without learning from
-    them). Returns per-row NLL [..., T] (0 where masked), differentiable w.r.t. ``phi`` and every prior tensor.
+    them). GLM rows use the converged Laplace update (``n_newton`` caps the mode search; see :func:`glm_update`);
+    the learned dispersion tempers count rows only. Rows that exist must be possible observations
+    (:func:`check_observations`, else ``ValueError``). Returns per-row NLL [..., T] (0 where masked),
+    differentiable w.r.t. ``phi`` and every prior tensor.
     """
     phi, y = phi.to(F64), y.to(F64)
     lead, T = phi.shape[:-2], phi.shape[-2]
     Fd = phi.shape[-1]
     mask = torch.ones_like(y, dtype=torch.bool) if mask is None else mask.bool()
     upd = mask if update_mask is None else (update_mask.bool() & mask)
-    mu = prior["mu"].expand(*lead, Fd)
     gauss = kind == OutcomeKind.REAL
     nig = gauss and noise_mode == "nig"
+    check_observations(kind, y.detach(), None if exposure is None else torch.as_tensor(exposure).detach(),
+                       None if censored is None else torch.as_tensor(censored).detach(), mask)
+    mu = prior["mu"].expand(*lead, Fd)
     cov = (prior["V"] if nig else prior["cov"]).expand(*lead, Fd, Fd)
     a = prior["a"].expand(lead) if nig else None
     b = prior["b"].expand(lead) if nig else None
+    disp = prior["dispersion"] if kind == OutcomeKind.COUNT else 1.0
     out = []
     for t in range(T):
         f, yt = phi[..., t, :], y[..., t]
         yt = torch.where(mask[..., t], yt, torch.zeros_like(yt))
         ex = None if exposure is None else exposure[..., t]
         ce = None if censored is None else censored[..., t]
+        if ex is not None:                       # a masked row may carry any placeholder exposure
+            ex = torch.where(mask[..., t], torch.as_tensor(ex, dtype=F64), torch.ones_like(yt))
         if nig:
             mu_n, cov_n, a_n, b_n, info = nig_update(mu, cov, a, b, f, yt)
         elif gauss:
             mu_n, cov_n, info = gaussian_update(mu, cov, f, yt, prior["noise"])
         else:
-            mu_n, cov_n, info = glm_update(mu, cov, f, yt, kind, ex, ce, prior["dispersion"], n_newton)
+            mu_n, cov_n, info = glm_update(mu, cov, f, yt, kind, ex, ce, disp, n_newton)
         out.append(torch.where(mask[..., t], info["surprise"], torch.zeros_like(info["surprise"])))
         u = upd[..., t]
         mu = torch.where(u[..., None], mu_n, mu)
@@ -483,11 +682,12 @@ class FastBeliefState:
         change_k / change_h / change_clip: CUSUM on the squared standardised surprise ``z2`` — the statistic
             ``c <- max(0, c + min(z2, clip) - 1 - k)`` raises a change when ``c > h`` (``h <= 0`` disables it).
         change_forget: gamma applied once when a change is detected (0.1 = keep 10 % of the evidence).
-        n_newton: Newton iterations of the GLM updates.
+        n_newton: iteration cap of the GLM mode search (converged to |step| <= NEWTON_TOL (1 + |eta|); measured
+            need <= 40 iterations even for exposures of 1e15). ``stats`` counts updates whose search hit the cap.
     """
 
     def __init__(self, prior: FastPrior, *, forgetting: float = 1.0, change_k: float = 1.0, change_h: float = 12.0,
-                 change_clip: float = 9.0, change_forget: float = 0.1, n_newton: int = 12,
+                 change_clip: float = 9.0, change_forget: float = 0.1, n_newton: int = NEWTON_MAX_ITER,
                  device: Optional[torch.device] = None):
         if not 0.0 < forgetting <= 1.0:
             raise ValueError("forgetting must be in (0, 1]")
@@ -499,6 +699,7 @@ class FastBeliefState:
         self.change_clip, self.change_forget = float(change_clip), float(change_forget)
         self.n_newton = int(n_newton)
         self.device = torch.device(device or "cpu")
+        self.stats: Dict[str, int] = {"glm_updates": 0, "unconverged_updates": 0, "max_newton_iters": 0}
         self._prior: Dict[str, Dict[str, Tensor]] = {}
         self._post: Dict[str, Dict[str, Any]] = {}
         self.reset(prior=prior)
@@ -523,13 +724,14 @@ class FastBeliefState:
 
     def clone(self) -> "FastBeliefState":
         new = copy.copy(self)
+        new.stats = dict(self.stats)
         new._prior = {k: {n: v.clone() for n, v in p.items()} for k, p in self._prior.items()}
         new._post = {k: {n: (v.clone() if isinstance(v, Tensor) else v) for n, v in p.items()}
                      for k, p in self._post.items()}
         return new
 
     def state_dict(self) -> Dict[str, Any]:
-        return {"version": 1, "n_features": self.n_features, "noise_mode": self.noise_mode,
+        return {"version": 2, "n_features": self.n_features, "noise_mode": self.noise_mode,
                 "config": {"forgetting": self.forgetting, "change_k": self.change_k, "change_h": self.change_h,
                            "change_clip": self.change_clip, "change_forget": self.change_forget,
                            "n_newton": self.n_newton},
@@ -542,6 +744,8 @@ class FastBeliefState:
             raise ValueError("fast state does not match this model (n_features / noise_mode)")
         for name, v in sd["config"].items():
             setattr(self, name, v)
+        if int(sd.get("version", 1)) < 2:        # version 1 stored a fixed number of Newton steps, not a cap
+            self.n_newton = NEWTON_MAX_ITER
         self.kinds = tuple(sd["post"].keys())
         self._prior = {k: {n: v.to(self.device, F64).clone() for n, v in p.items()} for k, p in sd["prior"].items()}
         self._post = {k: {n: (v.to(self.device, F64).clone() if isinstance(v, Tensor) else v) for n, v in p.items()}
@@ -563,7 +767,9 @@ class FastBeliefState:
 
     def posterior(self, kind: str) -> Dict[str, Any]:
         """Current posterior: ``mu`` [F], ``cov`` [F, F] (covariance of the weights; for the inferred-noise Gaussian
-        this is ``(b / a) V``), ``n`` updates so far, ``noise`` plug-in noise variance, change-detector state."""
+        the scale matrix ``(b / a) V`` of the multivariate-t weight marginal, whose covariance is
+        ``(b / (a - 1)) V``), ``n`` updates so far, ``noise`` (known noise; or the plug-in ``b / a``, the scale of the
+        Student-t predictive — :meth:`predict` reports the predictive variance), change-detector state."""
         self._check(kind)
         s = self._post[kind]
         nig = self._nig(kind)
@@ -577,11 +783,15 @@ class FastBeliefState:
         return int(self._post[kind]["n"])
 
     def linear(self, phi: Tensor, kind: str) -> Tuple[Tensor, Tensor]:
-        """(mean, variance) of the linear predictor phi^T w under the current posterior, shaped like phi[..., 0]."""
-        post = self.posterior(kind)
+        """(mean, variance) of the linear predictor phi^T w under the current posterior, shaped like phi[..., 0].
+        For the inferred-noise Gaussian the weights are multivariate-t: variance (b / (a - 1)) phi^T V phi."""
+        self._check(kind)
+        s = self._post[kind]
         f = self._phi(phi)
-        mean = (f * post["mu"]).sum(-1)
-        var = torch.einsum("...f,fg,...g->...", f, post["cov"], f).clamp_min(0.0)
+        mean = (f * s["mu"]).sum(-1)
+        var = torch.einsum("...f,fg,...g->...", f, s["cov"], f).clamp_min(0.0)
+        if self._nig(kind):
+            var = var * _nig_noise_mean(s["a"], s["b"])
         return mean.to(phi.device, phi.dtype), var.to(phi.device, phi.dtype)
 
     def kl_from_prior(self, kind: str) -> float:
@@ -597,18 +807,21 @@ class FastBeliefState:
     # ---- prediction ---------------------------------------------------------------------------------------------
     def predict(self, phi: Tensor, kind: str, exposure: Optional[Any] = None) -> Tuple[Tensor, Tensor, Tensor]:
         """(mean, epistemic variance, noise) for features phi [..., F], each shaped like phi[..., 0], on phi's device
-        and dtype. ``mean`` is in outcome units (see :func:`predict_glm` for the non-Gaussian kinds); ``epistemic
-        variance`` is the part that more evidence removes; ``noise`` is the aleatoric variance of one observation
-        (real: the noise variance — plug-in ``b / a`` when inferred; count: the dispersion-scaled Poisson variance;
-        binary: p(1-p); time-to-event: the exponential variance)."""
+        and dtype; epistemic + noise is the variance of the predictive distribution. ``mean`` is in outcome units
+        (see :func:`predict_glm` for the non-Gaussian kinds); ``epistemic variance`` is the part that more evidence
+        removes; ``noise`` is the aleatoric variance of one observation (real, known noise: the noise variance;
+        real, inferred noise: its posterior mean ``E[s2] = b / (a - 1)``, so that epistemic + noise =
+        ``(b / (a - 1)) (1 + phi^T V phi)`` is the variance of the Student-t predictive; count: the dispersion-scaled
+        Poisson variance; binary: p(1-p); time-to-event: the exponential variance)."""
         self._check(kind)
         f = self._phi(phi)
         s = self._post[kind]
         if kind == OutcomeKind.REAL:
             if self._nig(kind):
-                loc, scale2, _ = predict_nig(s["mu"], s["cov"], s["a"], s["b"], f)
-                noise = (s["b"] / s["a"]).expand_as(loc)
-                out = (loc, (scale2 - noise).clamp_min(0.0), noise)
+                loc = (f * s["mu"]).sum(-1)
+                q = torch.einsum("...f,fg,...g->...", f, s["cov"], f).clamp_min(0.0)
+                noise = _nig_noise_mean(s["a"], s["b"]).expand_as(loc)
+                out = (loc, noise * q, noise)
             else:
                 out = predict_gaussian(s["mu"], s["cov"], f, self._prior[kind]["noise"])
         else:
@@ -673,7 +886,8 @@ class FastBeliefState:
                 return {"mu": mu, "cov": cov, "a": a, "b": b}, info
             mu, cov, info = gaussian_update(s["mu"], s["cov"], f, y, p["noise"])
         else:
-            mu, cov, info = glm_update(s["mu"], s["cov"], f, y, kind, ex, ce, p["dispersion"], self.n_newton)
+            disp = p["dispersion"] if kind == OutcomeKind.COUNT else 1.0
+            mu, cov, info = glm_update(s["mu"], s["cov"], f, y, kind, ex, ce, disp, self.n_newton)
         return {"mu": mu, "cov": cov}, info
 
     def update(self, phi: Tensor, y: Any, kind: str, exposure: Optional[Any] = None,
@@ -682,10 +896,13 @@ class FastBeliefState:
 
         ``exposure``: counts — the exposure the count refers to; binary — number of trials (y = successes);
         time-to-event — the time unit ``y`` is expressed in. ``censored`` (time-to-event): True where the event
-        had not happened by time ``y`` (right-censoring). Returns {"surprise": predictive NLL summed over the
-        observations (nats), "kl": belief change KL(posterior || previous posterior) summed (nats), "z2": last
-        squared standardised residual, "change_detected": bool, "n": updates of this kind so far, and the per-
-        observation lists "surprises" / "kls"}.
+        had not happened by time ``y`` (right-censoring). Impossible observations (a negative count or time,
+        successes outside [0, trials], ...) raise ``ValueError`` before anything is absorbed
+        (:func:`check_observations`). Returns {"surprise": predictive NLL summed over the observations (nats),
+        "kl": belief change KL(posterior || previous posterior) summed (nats), "z2": last squared standardised
+        residual, "change_detected": bool, "n": updates of this kind so far, the per-observation lists
+        "surprises" / "kls", and for GLM kinds "newton_iters" (largest number of mode-search iterations used) and
+        "converged" (every mode search met its tolerance)}.
         """
         self._check(kind)
         f = self._phi(phi).reshape(-1, self.n_features)
@@ -695,10 +912,12 @@ class FastBeliefState:
         ce = None if censored is None else torch.as_tensor(censored, dtype=F64, device=self.device).reshape(-1).expand(M)
         if not torch.isfinite(yt).all() or not torch.isfinite(f).all():
             raise ValueError("fast update needs finite features and outcomes (mask unobservable outcomes instead)")
+        check_observations(kind, yt, ex, ce)
         s, p = self._post[kind], self._prior[kind]
         surprises: List[float] = []
         kls: List[float] = []
         changed, z2 = False, 0.0
+        iters, converged = 0, True
         for i in range(M):
             fi, yi = f[i], yt[i]
             exi = None if ex is None else ex[i]
@@ -720,6 +939,14 @@ class FastBeliefState:
             s["n"] += 1
             surprises.append(float(info["surprise"]))
             kls.append(float(info["kl"]))
+            if "newton_iters" in info:
+                it, ok = int(info["newton_iters"].max()), bool(info["converged"].all())
+                iters, converged = max(iters, it), converged and ok
+                self.stats["glm_updates"] += 1
+                self.stats["unconverged_updates"] += int(not ok)
+                self.stats["max_newton_iters"] = max(self.stats["max_newton_iters"], it)
         out = {"surprise": float(sum(surprises)), "kl": float(sum(kls)), "z2": z2, "change_detected": changed,
                "n": int(s["n"]), "surprises": surprises, "kls": kls}
+        if kind in GLM_KINDS:
+            out.update(newton_iters=iters, converged=converged)
         return out
