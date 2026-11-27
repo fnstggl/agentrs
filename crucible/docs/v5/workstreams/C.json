@@ -341,12 +341,14 @@
    "notes": "",
    "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
-    "tests/v5/test_gate_SP_4_7b.py"
+    "tests/v5/test_gate_SP_4_7b.py",
+    "tests/test_v5_social_communities.py"
    ]
   },
   "SP-4.8": {
    "implementation_files": [
     "src/crucible/social/launch.py",
+    "src/crucible/social/popcreate.py",
     "src/crucible/social/popsocial.py"
    ],
    "notes": "after the fix a 2-day run of the SP-4.8 world had 0 failed ticks, 892 exposed / 293 viewers of the launch post and 63 shop decision batches",
@@ -357,6 +359,7 @@
   },
   "SP-4.8b": {
    "implementation_files": [
+    "src/crucible/social/launch.py",
     "src/crucible/social/popcreate.py",
     "src/crucible/social/popinbox.py",
     "src/crucible/social/popsocial.py"
@@ -364,7 +367,8 @@
    "notes": "",
    "status_claim": "implemented; measurement queued (gate job in the slot queue on a snapshot of the committed head)",
    "tests": [
-    "tests/v5/test_gate_SP_4_8b.py"
+    "tests/v5/test_gate_SP_4_8b.py",
+    "tests/test_v5_social_leads.py"
    ]
   },
   "W.1/SP-16b (social call sites)": {
