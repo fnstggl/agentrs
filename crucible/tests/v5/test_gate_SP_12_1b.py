@@ -49,7 +49,7 @@ def test_SP_12_1b_heterogeneous_learning_population(tmp_path):
                         "groups_adapting_through_lifetime": len(lifetime),
                         "semantic_goals": json.dumps(sorted({mm.goal for mm in m.members.values()
                                                              if mm.role == "semantic"}))},
-           command=CMD, labels={"learned": True},
+           command=CMD, labels=C.EVIDENCE_LABELS,
            notes="independently updated participants = policy groups updated in the civilisation, each its own "
                  "parameters/optimiser/generators (alpha and beta are shared training systems of several identities)")
     m.close()

@@ -20,15 +20,36 @@ from crucible.multiagent.registry import PolicyRegistry
 torch.set_num_threads(1)
 
 
+class TracingGroup(PolicyGroup):
+    """A policy group that also lists, per identity, the decisions it recorded and the signal each decision was
+    trained with (test instrument; the learning rule is PolicyGroup's)."""
+
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self.recorded: dict[str, list[int]] = {}
+        self.trained: list[tuple[str, int, float]] = []
+
+    def record(self, rec):
+        if not self.frozen:
+            self.recorded.setdefault(rec["identity"], []).append(rec["t"])
+        super().record(rec)
+
+    def _split_buffer(self):
+        streams, keep = super()._split_buffer()
+        self.trained += [(k, r["t"], r["r"]) for k, v in streams.items() for r in v]
+        return streams, keep
+
+
 @pytest.fixture(scope="module")
 def run():
-    """One short match: two independently updated groups (alpha: 2 identities sharing one REINFORCE policy;
+    """One short match: two independently updated groups (alpha: 3 identities sharing one REINFORCE policy;
     beta: one PPO identity) and an A2C identity with an unrelated objective."""
     reg = PolicyRegistry()
     env = kernel_env("open_digital", 3)
-    groups = {"alpha": PolicyGroup("alpha", "reinforce", seed=1), "beta": PolicyGroup("beta", "ppo", seed=2),
+    groups = {"alpha": TracingGroup("alpha", "reinforce", seed=1), "beta": PolicyGroup("beta", "ppo", seed=2),
               "gamma": PolicyGroup("gamma", "a2c", seed=3)}
     members = [Member("al1", "current", "ctrl:alpha", "alpha"), Member("al2", "current", "ctrl:alpha", "alpha"),
+               Member("al3", "current", "ctrl:alpha", "alpha"),
                Member("be1", "current", "ctrl:beta", "beta"),
                Member("ga1", "independent", "ctrl:gamma", "gamma", drive="reach")]
     h0 = {g: groups[g].hash for g in groups}
@@ -94,7 +115,7 @@ def test_shared_training_and_independent_groups_update_from_their_own_experience
     # alpha's updates pooled both of its identities; beta's only its own
     alpha_ids = {i for u in reg.updates if u["group"] == "alpha" and u["changed"] for i in u["identities"]}
     beta_ids = {i for u in reg.updates if u["group"] == "beta" and u["changed"] for i in u["identities"]}
-    assert len(alpha_ids) == 2 and len(beta_ids) == 1 and not alpha_ids & beta_ids
+    assert len(alpha_ids) == 3 and len(beta_ids) == 1 and not alpha_ids & beta_ids
     assert I.independence(g, run["m"].agents)["violations"] == []
 
 
@@ -286,3 +307,224 @@ def test_behaviour_regularised_update_pulls_towards_the_pretrained_prior_and_kee
     assert not ctl.update()["changed"] and ctl.hash == h
     other = base.frozen_copy("b", seed=99)              # own generators; the prior travels with the checkpoint
     assert other.prior is not None and I.independence({"a": base, "b": other}, {})["violations"] == []
+
+
+def test_a_shared_training_system_trains_every_decision_with_its_own_signal(run):
+    """Verifier probe D (shared-group signal loss): run_learners observes and updates agent by agent, so one
+    identity's update can run before the other identities of its group have observed. Every decision of the shared
+    group alpha (3 identities) must be trained with the signal its own identity computed for it - never with the
+    default 0.0, never another decision's - and no signal may be dropped."""
+    m, g = run["m"], run["groups"]["alpha"]
+    assert g.signals_dropped == 0 and g.orphans == 0
+    assert len(g.identities) == 3 and g.updates >= 2
+    checked = nonzero = 0
+    for p in g.identities:
+        a = m.agents[p]
+        own = [e + i for _, e, i in a.signals]            # this identity's k-th signal is for its k-th decision
+        idx = {t: k for k, t in enumerate(g.recorded[p])}
+        assert len(own) == len(g.recorded[p])
+        for ident, t, r in g.trained:
+            if ident == p:
+                assert r == pytest.approx(own[idx[t]], abs=1e-12), (p, t)
+                checked += 1
+                nonzero += own[idx[t]] != 0.0
+    trained_ids = {(i, t) for i, t, _ in g.trained}
+    assert len(trained_ids) == len(g.trained)              # no decision trained twice
+    assert checked == len(g.trained) and checked >= 30 and nonzero >= 1
+    # every decision is trained once, except each identity's last ones still waiting for the final update
+    assert sum(len(v) for v in g.recorded.values()) - checked <= 3 * g.hp["update_every"] + 3
+    for gid in ("beta", "gamma"):
+        assert run["groups"][gid].signals_dropped == 0 and run["groups"][gid].orphans == 0
+
+
+def test_signal_waits_for_its_decision_when_another_identity_triggers_the_update():
+    """The ordering of run_learners in miniature: three identities of one group decide, then each observes and
+    calls maybe_update in turn. The update triggered by the first identity trains only decisions that have their
+    signal; the other two identities' latest decisions wait and are trained later with their own signals."""
+    rng = np.random.default_rng(4)
+    kn = Knowledge("p:x")
+    tools = [{"name": f"h{i}.do", "inputSchema": {"type": "object", "properties": {}}} for i in range(4)]
+    obs = {"t": 0, "agent": "p:x", "numbers": {}, "tools": tools, "events": []}
+    g = TracingGroup("shared", "a2c", seed=8, hp={"update_every": 2})
+    ids = ["p:a", "p:b", "p:c"]
+    given: dict[tuple, float] = {}
+    for step in range(9):
+        recs = {}
+        for i in ids:
+            _, rec, _ = g.decide(i, dict(obs, t=step * 60), kn, rng.normal(size=STATE_DIM).astype(np.float32), None)
+            g.record(rec)
+            recs[i] = rec
+        for k, i in enumerate(ids):
+            sig = round(0.1 * (k + 1) + 0.01 * step, 6)          # unique and nonzero per decision
+            assert g.add_signal(i, sig, rec=recs[i])
+            given[(i, step * 60)] = sig
+            g.maybe_update()
+    g.update()
+    assert g.signals_dropped == 0 and g.orphans == 0 and g.pending() == 0
+    assert sorted((i, t) for i, t, _ in g.trained) == sorted(given)
+    assert all(r == given[(i, t)] for i, t, r in g.trained)
+    # a signal for a decision already trained (or never recorded) is counted, never attached elsewhere
+    assert not g.add_signal("p:a", 1.0, rec={"identity": "p:a"}) and g.signals_dropped == 1
+
+
+def test_learning_controls_train_on_the_same_batches_with_shuffled_and_negated_signals():
+    """Q.7 controls (verifier: a no-signal twin cannot change by construction). Twins cloned from the group train on
+    exactly its batches with the signals permuted across the batch or negated; their parameters change too. The
+    signal-direction measure (expected mean own signal of the chosen tool) rises for the group trained on its real
+    signal more than for either twin."""
+    from crucible.multiagent import campaign as C
+    from crucible.multiagent.policy import PolicyGroup as PG
+    kn = Knowledge("p:x")
+    tools = [{"name": f"h{i}.do", "inputSchema": {"type": "object", "properties": {}}} for i in range(6)]
+    obs = {"t": 0, "agent": "p:x", "numbers": {}, "tools": tools, "events": []}
+    for algo in ("reinforce", "a2c", "ppo"):
+        g = PG(f"g-{algo}", algo, seed=6)
+        init = g.clone("init")
+        sh, ng = g.add_control("shuffled"), g.add_control("negated")
+        seen_batches = []
+        orig_update = sh.update
+
+        def spy(orig=orig_update, c=sh):
+            seen_batches.append(sorted(round(r["r"], 9) for v in c.buffer.values() for r in v))
+            return orig()
+        sh.update = spy
+        rng = np.random.default_rng(7)
+        hist, recs = [], []
+        for _ in range(12):
+            batch = []
+            for k in range(8):
+                x = rng.normal(size=STATE_DIM).astype(np.float32)
+                act, rec, _ = g.decide("p:x", obs, kn, x, None)
+                g.record(rec)
+                tool = (act or {}).get("tool")
+                sig = 1.0 if tool == "h0.do" else -0.2
+                g.add_signal("p:x", sig, rec=rec)
+                batch.append(round(sig, 9))
+                hist.append({"tool": tool, "ext": sig, "intr": 0.0})
+                recs.append(rec)
+            g.update()
+            assert seen_batches[-1] == sorted(batch)            # the twin got a permutation of the same signals
+        assert sh.hash != init.hash and ng.hash != init.hash and g.hash != init.hash
+        means = C.tool_signal_means(hist)
+        d0 = C.signal_direction(init, recs, means)
+        gains = {k: C.signal_direction(p, recs, means) - d0 for k, p in (("real", g), ("shuffled", sh),
+                                                                          ("negated", ng))}
+        assert gains["real"] > gains["shuffled"] and gains["real"] > gains["negated"], (algo, gains)
+        assert gains["negated"] < 0 < gains["real"], (algo, gains)
+
+
+def test_capabilities_credit_the_provider_and_only_binding_scarcity():
+    """Verifier probe A (SP-12.0 measurement). (1) A learning party that only BUYS from a non-learning seller has
+    not created a service used by others; it has once a non-learning party buys from it. (2) Two learning parties
+    renting a little compute from a provider far below capacity do not compete for a scarce resource; a learning
+    party's rental refused for capacity another party holds is such a competition."""
+    from crucible.commerce.integrity import _Driver
+    env = kernel_env("open_digital", 3)
+    w = env.world
+    d = _Driver(w)
+    t0 = int(w.now)
+    seller = d.join("worldseller", 2_000_000, controller="world:firm")
+    alpha = d.join("alpha0", 2_000_000, controller="ctrl:alpha")
+    _, _, _, off = I._business(d, seller, "wsell", 4_000)
+    d.do(alpha, "prod.buy", offer=off)
+    ctrl = {alpha: "ctrl:alpha"}
+
+    def caps():
+        inter = AN.interactions(w, ctrl, t0)
+        return inter, AN.capabilities(inter, ventures=[], groups_learning={}, strategy_response=None,
+                                      parties={"ctrl:alpha"})
+    inter, c = caps()
+    assert c["trade"]["ok"] and not c["create_services_used_by_others"]["ok"]
+    buyer = d.join("worldbuyer", 2_000_000, controller="world:people")
+    _, _, _, off2 = I._business(d, alpha, "alphaco", 3_000)
+    d.do(buyer, "prod.buy", offer=off2)
+    inter, c = caps()
+    sv = c["create_services_used_by_others"]
+    assert sv["ok"] and sv["providers"] == ["ctrl:alpha"] and sv["cents"] >= 3_000
+    env.close()
+
+    env = kernel_env("open_digital", 4)
+    w = env.world
+    d = _Driver(w)
+    t0 = int(w.now)
+    a = d.join("alpha0", 50_000_000, controller="ctrl:alpha")
+    b = d.join("beta0", 50_000_000, controller="ctrl:beta")
+    ctrl = {a: "ctrl:alpha", b: "ctrl:beta"}
+
+    def rent(who, cores):
+        return w.execute(who, {"tool": "cloud.rent", "args": {"provider": "o:cloud1", "cores": int(cores),
+                                                               "account": d.acct(who)}})
+    assert rent(a, 1).ok and rent(b, 1).ok
+    inter = AN.interactions(w, ctrl, t0)
+    c = AN.capabilities(inter, ventures=[], groups_learning={}, strategy_response=None,
+                        parties={"ctrl:alpha", "ctrl:beta"})
+    assert not c["compete_for_scarce_resources"]["ok"]
+    assert [r["kind"] for r in inter["shared_capacity"]] == ["shared_capacity"]
+    free = next(p for p in w.execute(b, {"tool": "cloud.providers", "args": {}}).result
+                if p["provider"] == "o:cloud1")["cores_free"]
+    while free > 0:                                    # beta takes the rest of the provider's capacity
+        assert rent(b, min(64, free)).ok
+        free -= min(64, free)
+    r = rent(a, 2)
+    assert not r.ok and "capacity" in str(r.error).lower()
+    inter = AN.interactions(w, ctrl, t0)
+    c = AN.capabilities(inter, ventures=[], groups_learning={}, strategy_response=None,
+                        parties={"ctrl:alpha", "ctrl:beta"})
+    sc = c["compete_for_scarce_resources"]
+    assert sc["ok"] and sc["refusals"] >= 1 and sc["utilisation_at_refusal_max"] >= 0.98
+    rec = next(x for x in inter["competitive"] if x["kind"] == "scarce_resource" and x["holder_party"] == "ctrl:beta")
+    assert rec["refused_party"] == "ctrl:alpha" and rec["both_learners"]
+    env.close()
+
+
+def test_behaviour_cloning_versions_are_not_counted_as_updates_and_its_order_continues_across_calls():
+    """Q.5: versions made by behaviour cloning carry origin 'behaviour_cloning', reinforcement updates 'update'.
+    Pre-training epoch by epoch (imitate(epochs=1) n times) is the same training as imitate(epochs=n): one optimiser
+    and one minibatch order continued across calls (verifier nit: the order used to restart every call)."""
+    from crucible.multiagent.policy import PolicyGroup as PG
+    kn = Knowledge("p:x")
+    tools = [{"name": f"h{i}.do", "inputSchema": {"type": "object", "properties": {}}} for i in range(5)]
+    obs = {"t": 0, "agent": "p:x", "numbers": {}, "tools": tools, "events": []}
+    rng = np.random.default_rng(9)
+    base = PG("base", "reinforce", seed=3)
+    demos = []
+    for k in range(40):
+        _, rec, _ = base.decide("p:x", obs, kn, rng.normal(size=STATE_DIM).astype(np.float32), None)
+        demos.append(dict(rec, ti=1 + (k % 3)))
+    a, b = PG("bc", "reinforce", seed=3), PG("bc", "reinforce", seed=3)
+    for _ in range(3):
+        a.imitate(demos, epochs=1, batch=16)
+    b.imitate(demos, epochs=3, batch=16)
+    assert a.hash == b.hash
+    reg = PolicyRegistry()
+    g = PG("g", "reinforce", seed=3)
+    reg.register_group(g)
+    g.imitate(demos, epochs=1, batch=16)
+    for k in range(8):
+        act, rec, _ = g.decide("p:x", obs, kn, rng.normal(size=STATE_DIM).astype(np.float32), None)
+        g.record(rec)
+        g.add_signal("p:x", 1.0 if (act or {}).get("tool") == "h0.do" else -0.3, rec=rec)
+    assert g.update()["changed"]
+    origins = sorted(v["origin"] for v in reg.versions.values())
+    assert origins == ["behaviour_cloning", "initialised", "update"], origins
+
+
+def test_arguments_from_a_syntax_grammar_are_labelled_scripted_syntax():
+    """grammar.py: code files, contract clauses and service inputs come from syntax grammars; a decision that uses
+    one records which slots ('scripted_syntax'), and so does the identity's history (the evidence labels say so)."""
+
+    class Pick:
+        def choose_tool(self, tools):
+            return [t["name"] for t in tools].index("svc.run")
+
+        def choose_value(self, tool, slot, cands, args):
+            return 0
+    kn = Knowledge("p:x")
+    g = PolicyGroup("g", "reinforce", seed=2)
+    tool = {"name": "svc.run", "inputSchema": {"type": "object", "properties": {"input": {"type": "object"}},
+                                               "required": ["input"]}}
+    obs = {"t": 0, "agent": "p:x", "numbers": {}, "tools": [tool], "events": []}
+    act, rec, _ = g.decide("p:x", obs, kn, np.zeros(STATE_DIM, np.float32), None, chooser=Pick())
+    assert act["tool"] == "svc.run" and rec["scripted_syntax"] == ["input"]
+    act, rec, _ = g.decide("p:x", dict(obs, tools=[]), kn, np.zeros(STATE_DIM, np.float32), None)
+    assert act is None and rec["scripted_syntax"] == []

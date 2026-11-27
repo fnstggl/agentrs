@@ -15,6 +15,7 @@ import json
 import pytest
 
 from crucible.acceptance.v5.evidence import record
+from crucible.multiagent import campaign as C
 from crucible.multiagent import analysis as AN
 
 from _selfplay_kit import campaign
@@ -51,7 +52,7 @@ def test_SP_12_1_population_mixes_seven_member_kinds(tmp_path):
                        "kinds_present": json.dumps(present), "acting_counts": json.dumps(acting),
                        "learned_groups": len(learned), "distinct_weight_hashes": len(set(hashes.values())),
                        "mean_pairwise_js_divergence": float(sum(js) / len(js)) if js else 0.0},
-           command=CMD, labels={"learned": True, "scripted_demonstrations_for_pretraining": True})
+           command=CMD, labels=C.EVIDENCE_LABELS)
     m.close()
     assert len(set(hashes.values())) == len(hashes)            # no two groups share one latest policy
     assert len(kinds) >= 7, kinds

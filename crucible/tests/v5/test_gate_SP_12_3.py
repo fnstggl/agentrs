@@ -16,6 +16,7 @@ import json
 import pytest
 
 from crucible.acceptance.v5.evidence import record
+from crucible.multiagent import campaign as C
 from crucible.commerce.integrity import _Driver
 from crucible.multiagent import integrity as I
 from crucible.multiagent.evaluate import revenue
@@ -66,7 +67,7 @@ def test_SP_12_3_controlled_identity_transfers_not_counted(tmp_path):
                        "alpha_beta_shared_orgs": len(shared_orgs),
                        "owners_checked": after["owners_checked"],
                        "hidden_shared_state_violations": len(audit["violations"])},
-           command=CMD, labels={"learned": True, "scripted_plants": True})
+           command=CMD, labels=dict(C.EVIDENCE_LABELS, scripted_plants=True))
     m.close()
     assert after["naive_same_controller_cents"] >= 10_000                 # the plant moved money between them
     # the unrelated buyer's purchase is independent revenue (positive control); nothing of alpha1/alpha2 is; beta0's

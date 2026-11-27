@@ -16,6 +16,7 @@ import json
 import pytest
 
 from crucible.acceptance.v5.evidence import record
+from crucible.multiagent import campaign as C
 from crucible.multiagent import integrity as I
 
 from _selfplay_kit import campaign
@@ -75,7 +76,7 @@ def test_SP_12_3b_private_observations_shared_reward_collusion(tmp_path):
                         "collusion_probes_passed": battery["probes_passed"],
                         "collusion_schemes": json.dumps({k: [v["detected"], v["clean_flagged"]]
                                                          for k, v in battery["schemes"].items()})},
-           command=CMD, labels={"learned": True, "scripted_plants": True},
+           command=CMD, labels=dict(C.EVIDENCE_LABELS, scripted_plants=True),
            notes="shared evaluator information: participants receive only their own observations and results "
                  "(observation-only world: evaluator tools and fields are refused/removed by the kernel); the tap "
                  "scans everything they receive")

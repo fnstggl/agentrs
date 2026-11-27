@@ -35,7 +35,7 @@ from _selfplay_kit import PROFILE, campaign
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(7200)]
 CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --gate Q"
 LEARNING = ("alpha", "beta", "gamma", "delta")
-LABELS = {"learned": True, "scripted_demonstrations_for_pretraining": True}
+LABELS = C.EVIDENCE_LABELS
 
 
 @pytest.fixture(scope="module")
@@ -145,15 +145,23 @@ def test_Q_4_shared_world_consequences(q):
 
 def test_Q_5_policy_versioning(q):
     reg, m = q["registry"], q["match"]
+    # reinforcement-update versions only (behaviour-cloning pre-training versions have their own origin)
     v = [x for x in reg.versions.values() if x["group"] in LEARNING and x["origin"] == "update"]
+    bc = [x for x in reg.versions.values() if x["group"] in LEARNING and x["origin"] == "behaviour_cloning"]
     ok_chain = all(x["parent"] in reg.versions and x["provenance"]["decisions"] > 0 for x in v)
+    in_civ = all(x["world_id"] == m.world.world_id for x in v)
     final = {g: reg.vid(m.groups[g]) for g in LEARNING}
     reload_ok = all(reg.load(final[g], f"{g}_reload").hash == m.groups[g].hash for g in LEARNING)
     record("Q.5", {"policy_versions_recorded": len(v), "versions_with_provenance": sum(1 for x in v if x["provenance"]),
                    "parent_chain_complete": ok_chain, "final_checkpoints_reload_to_hash": reload_ok,
+                   "update_versions_trained_in_the_civilisation": in_civ,
+                   "behaviour_cloning_versions": len(bc),
                    "versions_total_including_bc_and_frozen": len(reg.versions)},
-           command=CMD, labels=LABELS)
-    assert ok_chain and reload_ok
+           command=CMD, labels=LABELS,
+           notes="policy_versions_recorded counts the reinforcement-update versions of the learning groups (origin "
+                 "'update', each with its parent, hash and training-data provenance); behaviour-cloning versions "
+                 "(origin 'behaviour_cloning') are reported separately")
+    assert ok_chain and reload_ok and in_civ
     assert len(v) >= 4
 
 
@@ -181,20 +189,35 @@ def test_Q_7_evidence_of_neural_learning(q):
     ev = q["evidence"]
     upd = sum(ev[g]["updates_in_run"] for g in LEARNING)
     changed = all(ev[g]["weight_hash_changed"] for g in LEARNING)
-    ctl = [ev[g]["control_hash_changed"] for g in LEARNING]
+    modes = C.CONTROL_MODES
+    directed = [g for g in LEARNING if ev[g]["signal_directed"]]
+    controls_live = all(ev[g]["controls"][k]["hash_changed"] for g in LEARNING for k in modes)
+    lost = sum(ev[g]["signals_dropped"] + ev[g]["orphan_decisions"] for g in LEARNING)
     record("Q.7", {"weight_updates": upd, "weight_hash_changed": changed,
-                   "no_signal_controls_changed": sum(1 for c in ctl if c),
+                   "signal_directed_groups": len(directed), "signal_directed": json.dumps(directed),
+                   "signal_direction_gain": json.dumps({g: dict(real=round(ev[g]["signal_direction_gain"], 6),
+                                                                **{k: round(ev[g]["controls"][k]
+                                                                            ["signal_direction_gain"], 6)
+                                                                   for k in modes}) for g in LEARNING}),
                    "behaviour_tv_mean": float(np.mean([ev[g]["behaviour_tv_mean"] for g in LEARNING])),
-                   "control_behaviour_tv_mean": float(np.mean([ev[g]["control_behaviour_tv_mean"] for g in LEARNING])),
+                   **{f"{k}_control_behaviour_tv_mean": float(np.mean([ev[g]["controls"][k]["behaviour_tv_mean"]
+                                                                       for g in LEARNING])) for k in modes},
+                   "learning_controls_changed": sum(1 for g in LEARNING for k in modes
+                                                    if ev[g]["controls"][k]["hash_changed"]),
+                   "signals_dropped_or_orphaned": lost,
                    "early_late": json.dumps({g: {"early": ev[g]["early"], "late": ev[g]["late"]} for g in LEARNING})},
            command=CMD, labels=LABELS,
            notes="updates = parameter-changing reinforcement updates in the civilisation from each group's own "
-                 "observation-derived signal (behaviour-cloning pre-training not counted); each group's no-signal "
-                 "twin received the same batches with signal 0 and must not change; behaviour change = mean total "
-                 "variation between the initial and final tool distributions on recorded situations of the run")
-    assert changed and not any(ctl)
-    assert upd >= 100
-    assert all(ev[g]["behaviour_tv_mean"] > ev[g]["control_behaviour_tv_mean"] for g in LEARNING)
+                 "observation-derived signal (behaviour-cloning pre-training not counted). Controls: each group "
+                 "trains two twins on exactly its batches, with the signals permuted across the batch (shuffled) or "
+                 "negated; both change their parameters and behaviour too (behaviour TV is reported for all three, "
+                 "it is not evidence of learning from the signal). A group is signal-directed when the expected mean "
+                 "own signal of the tool it picks, on decisions of the run, rose from its initial policy more than "
+                 "for either twin (in-sample)")
+    assert changed and upd >= 100
+    assert controls_live                 # the controls are trained twins, not inert copies
+    assert lost == 0                     # every decision trained with its own identity's signal
+    assert len(directed) >= 1, {g: (ev[g]["signal_direction_gain"], ev[g]["controls"]) for g in LEARNING}
 
 
 def test_Q_8_collusion_checks(q):

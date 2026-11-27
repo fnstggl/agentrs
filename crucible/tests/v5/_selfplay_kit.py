@@ -54,3 +54,27 @@ def campaign(root: str, size: str = "full", *, semantic: bool = True, heldout: b
                     wrap=wrap, **extra)
     run.update(registry=reg, groups=groups, heldout=ho, demos=demos, service=svc, size=size)
     return run
+
+
+def frozen_control(run: dict, *, seed: int = TRAIN_SEED, historical_at: float | None = 0.5) -> dict:
+    """The same civilisation (profile, seed, members, semantic participants) played by the campaign's policies frozen
+    as they were after pre-training (`run["initial"]`): what behaviour cloning alone brings to the world, to compare
+    with what the learning campaign did (verifier: the Part 12 capabilities may come from pre-training, not from
+    self-play learning)."""
+    torch.set_num_threads(1)
+    z = SIZES[run["size"]]
+    svc = run.get("service")
+    groups = {}
+    for gid, g in run["initial"].items():
+        c = g.clone(gid)
+        c.frozen = True
+        groups[c.gid] = c
+    env = civ_env(PROFILE, seed, extra_modules=("semantic_inference",) if svc is not None else ())
+    assert is_civilisation(env.world)
+    out = C.civ_run(env, PolicyRegistry(), groups,
+                    C.standard_members(semantic=z["semantic"] if svc is not None else 0,
+                                       semantic_every=z.get("semantic_every", 4)),
+                    hours=z["civ_hours"], seed=seed, semantic_service=svc, historical_at=historical_at,
+                    controls=False)
+    out["groups"] = groups
+    return out

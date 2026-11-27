@@ -4,7 +4,9 @@ population composition of self-play (MASTER_SPEC 12.2).
 Everything a self-play claim rests on is recorded here, by the harness and the evaluator (never by a learner):
 
 * ``versions``     every parameter version of every policy group: ``<group>@<n>`` with its weights hash (sha256
-                   over the state dict), the parent version, algorithm, architecture, parameter count, the world and
+                   over the state dict) and its origin (``update``: a reinforcement update from self-play experience;
+                   ``behaviour_cloning``: a pre-training step on demonstrations; or how it was made: initialised,
+                   frozen copy, loaded), the parent version, algorithm, architecture, parameter count, the world and
                    seed it was trained in and its *training-data provenance* (which identities' decisions, at which
                    world times, went into the update that produced it, and the experience store holding them);
                    checkpoints (content-addressed by hash) for the initial, every `every`-th and the final version and
@@ -89,7 +91,10 @@ class PolicyRegistry:
         self.versions[v] = {"vid": v, "group": group.gid, "lineage": group.lineage, "version": group.version,
                             "hash": group.hash, "parent": self.vid(group, info.get("version_before")),
                             "parent_hash": info.get("params_hash_before"), "algo": group.algo, "arch": group.arch,
-                            "n_params": group.n_params(), "world_id": world_id, "seed": seed, "origin": "update",
+                            "n_params": group.n_params(), "world_id": world_id, "seed": seed,
+                            # a reinforcement update from self-play experience ("update") or a supervised
+                            # pre-training step on (scripted) demonstrations ("behaviour_cloning")
+                            "origin": "behaviour_cloning" if info.get("algo") == "behaviour_cloning" else "update",
                             "frozen": False, "provenance": prov, "checkpoint": None,
                             "signal_sum": info.get("signal_sum"), "loss": info.get("loss")}
         if group.version % self.every == 0:

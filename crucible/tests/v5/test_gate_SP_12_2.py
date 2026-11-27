@@ -11,6 +11,7 @@ import json
 import pytest
 
 from crucible.acceptance.v5.evidence import record
+from crucible.multiagent import campaign as C
 from crucible.multiagent import league as L
 from crucible.multiagent.registry import FIELD_KINDS
 
@@ -43,7 +44,7 @@ def test_SP_12_2_versioning_reproducible_crossplay_league(tmp_path):
                        "crossplay_matches": len(recs), "versions_recorded": len(reg.versions),
                        "experience_records": sum(e["records"] for e in reg.experience),
                        "replayed_digest_equal": again["digest"] == recs[0]["digest"]},
-           command=CMD, labels={"learned": True})
+           command=CMD, labels=C.EVIDENCE_LABELS)
     assert set(kinds) == set(FIELD_KINDS)
     assert sum(kinds.values()) >= 6
     assert again["mismatches"] == []

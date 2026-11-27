@@ -16,11 +16,14 @@ cooperative  negotiation (a deal between parties answered: accepted, rejected or
              parties), trade (a commerce payment between parties: purchases, subscriptions, licences, contract and
              service payments), service_use (a call of another party's deployed service, executed and metered),
              venture (a shared project with partners of several parties, or an organisation with members of several
-             parties);
-competitive  same_market (two parties selling products of one kind or listing in one need), scarce_resource (two
-             parties renting capacity from one provider whose capacity is finite), contested_customer (one
-             third-party customer paying two parties), competing_tech (two parties' released packages exposing a
-             function of the same family).
+             parties); records of something one party provides to another (trade, service_use, dependency) name
+             the ``provider`` (the payee, the service's owner, the package's owner) and the ``user``;
+competitive  same_market (two parties selling products of one kind or listing in one need), scarce_resource (a
+             request for compute capacity refused because the provider's finite capacity was taken, while another
+             party held capacity there: the refused party and each holder, with the provider's utilisation at the
+             refusal), contested_customer (one third-party customer paying two parties), competing_tech (two
+             parties' released packages exposing a function of the same family).
+shared_capacity (reported, not competition) two parties renting from one provider with no request refused there.
 
 `consequences(world, controllers, seq0)` attributes every event to the party whose command (directly, or through
 the processes the command scheduled) caused it and counts the events visible to identities of *other* parties, and
@@ -145,6 +148,7 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
         a, b = P.repo(d.get("repo", "")), pkg_owner.get(d.get("package"))
         if two(a, b):
             coop.append({"kind": "dependency", "id": did, "parties": [a, b], "package": d.get("package"),
+                         "provider": b, "user": a, "provider_is_learner": P.is_learner(b),
                          "both_learners": P.is_learner(a) and P.is_learner(b)})
     for gid, g in _rows(st, "grants"):
         a, b = P(g.get("owner")), P(g.get("grantee"))
@@ -163,6 +167,7 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
                 if a != b and (P.is_learner(a) or P.is_learner(b)) and "world:sys" not in (a, b):
                     coop.append({"kind": "trade", "id": tid, "parties": [a, b], "ledger_kind": tx["kind"],
                                  "cents": int(sum(d for _, d in pay if d > 0)),
+                                 "provider": b, "user": a, "provider_is_learner": P.is_learner(b),
                                  "both_learners": P.is_learner(a) and P.is_learner(b)})
     # shared projects / mixed organisations
     for pid, pj in _rows(st, "inst_projects"):
@@ -182,18 +187,55 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
             if len([x for x in cs if P.is_learner(x)]) >= 2:
                 coop.append({"kind": "venture", "id": o, "parties": sorted(cs), "how": "organisation of several "
                              "parties", "both_learners": True})
-    # services executed for another party (metered calls in the caller's transaction)
+    # one pass over the event log: services executed for another party (metered calls in the caller's
+    # transaction) and compute capacity (instances held at each provider, replayed, and refused requests)
     dep_owner = {k: v.get("owner") for k, v in _rows(st, "deployments")}
     seen = set()
+    cap_now = {k: int(v.get("cores", 0) or 0) for k, v in _rows(st, "providers")}
+    delivered: list[tuple[int, str, int]] = []   # hardware added later (capacity at a refusal = now - later adds)
+    inst: dict[str, dict] = {}                 # instance -> {owner, provider, cores, running}
+    refusals: list[dict] = []
     for e in world.events_range(0, world.seq):
-        if e.type != "cloud.usage" or e.t < t0:
-            continue
-        owner = dep_owner.get(e.payload.get("dep"))
-        a, b = P(e.actor), P(owner)
-        if two(a, b) and (a, b, e.payload.get("dep")) not in seen:
-            seen.add((a, b, e.payload.get("dep")))
-            coop.append({"kind": "service_use", "id": e.payload.get("dep"), "parties": [a, b], "caller": e.actor,
-                         "both_learners": P.is_learner(a) and P.is_learner(b)})
+        typ = e.type
+        pl = e.payload
+        if typ == "cloud.usage":
+            if e.t < t0:
+                continue
+            owner = dep_owner.get(pl.get("dep"))
+            a, b = P(e.actor), P(owner)
+            if two(a, b) and (a, b, pl.get("dep")) not in seen:
+                seen.add((a, b, pl.get("dep")))
+                coop.append({"kind": "service_use", "id": pl.get("dep"), "parties": [a, b], "caller": e.actor,
+                             "provider": b, "user": a, "provider_is_learner": P.is_learner(b),
+                             "both_learners": P.is_learner(a) and P.is_learner(b)})
+        elif typ == "cloud.hw_delivered":
+            delivered.append((int(e.t), pl.get("provider"), int(pl.get("cores", 0) or 0)))
+        elif typ == "cloud.instance":
+            inst[pl["id"]] = {"owner": pl.get("owner"), "provider": pl.get("provider"),
+                              "cores": int(pl.get("cores", 0) or 0), "running": True}
+        elif typ == "cloud.instance_status" and pl.get("id") in inst:
+            inst[pl["id"]]["running"] = pl.get("status") == "running"
+        elif typ == "cloud.resize" and pl.get("id") in inst:
+            inst[pl["id"]]["cores"] = int(pl.get("cores", 0) or 0)
+        elif typ == "cmd.rejected" and e.t >= t0 and pl.get("tool") in ("cloud.rent", "cloud.resize") \
+                and (pl.get("error") or {}).get("code") == "capacity_exceeded":
+            args = pl.get("args") or {}
+            prov = args.get("provider") if pl["tool"] == "cloud.rent" else (inst.get(args.get("instance")) or {}
+                                                                              ).get("provider")
+            if prov not in cap_now and isinstance(prov, str):
+                prov = next((k for k, v in _rows(st, "providers") if v.get("name") == prov), prov)
+            held = defaultdict(int)
+            for x in inst.values():
+                if x["running"] and x["provider"] == prov:
+                    held[P(x["owner"]) or f"world:{x['owner']}"] += x["cores"]
+            refusals.append({"t": int(e.t), "provider": prov, "party": P(pl.get("actor")) or
+                             f"world:{pl.get('actor')}", "tool": pl["tool"],
+                             "cores_requested": int(args.get("cores", 0) or 0), "holders": dict(held),
+                             "capacity_cores": None, "cores_held": int(sum(held.values()))})
+    for rf in refusals:
+        if rf["provider"] in cap_now:
+            rf["capacity_cores"] = cap_now[rf["provider"]] - sum(c for t, pv, c in delivered
+                                                                 if pv == rf["provider"] and t > rf["t"])
     # ------------------------------------------------------------------ competition
     by_kind: dict[str, set] = defaultdict(set)
     for _, p in _rows(st, "products"):
@@ -210,25 +252,44 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
             for j in range(i + 1, len(ps)):
                 comp.append({"kind": "same_market", "market": market, "parties": [ps[i], ps[j]],
                              "both_learners": True})
+    # scarce compute: a request refused for capacity at a provider while another party held capacity there
+    contests: dict[tuple, dict] = {}
+    for rf in refusals:
+        for holder, cores in rf["holders"].items():
+            a, b = rf["party"], holder
+            if a == b or not (P.is_learner(a) or P.is_learner(b)):
+                continue
+            key = (rf["provider"], a, b)
+            c = contests.setdefault(key, {"kind": "scarce_resource", "resource": f"compute:{rf['provider']}",
+                                          "parties": [a, b], "refused_party": a, "holder_party": b,
+                                          "capacity_cores": rf["capacity_cores"], "refusals": 0,
+                                          "holder_cores_max": 0, "utilisation_at_refusal_max": 0.0,
+                                          "first_t": rf["t"], "both_learners": P.is_learner(a) and P.is_learner(b)})
+            c["refusals"] += 1
+            c["holder_cores_max"] = max(c["holder_cores_max"], int(cores))
+            if rf["capacity_cores"]:
+                c["utilisation_at_refusal_max"] = max(c["utilisation_at_refusal_max"],
+                                                      round(rf["cores_held"] / rf["capacity_cores"], 4))
+    comp += [contests[k] for k in sorted(contests, key=str)]
+    shared: list[dict] = []
     rent: dict[str, set] = defaultdict(set)
     used: Counter = Counter()                 # cores currently rented at each provider, by anyone
-    for _, inst in _rows(st, "instances"):
-        if inst.get("status") == "running":
-            used[inst.get("provider")] += int(inst.get("cores", 0) or 0)
-        a = P(inst.get("owner"))
+    for _, row in _rows(st, "instances"):
+        if row.get("status") == "running":
+            used[row.get("provider")] += int(row.get("cores", 0) or 0)
+        a = P(row.get("owner"))
         if a is not None and P.is_learner(a):
-            rent[inst.get("provider")].add(a)
+            rent[row.get("provider")].add(a)
     for prov, ps in sorted(rent.items()):
-        pr = st.get("providers", prov) if "providers" in st.tables else None
-        cap = int((pr or {}).get("cores", (pr or {}).get("cores_total", 0)) or 0)
+        if any(k[0] == prov for k in contests):
+            continue
         ps = sorted(ps)
         for i in range(len(ps)):
             for j in range(i + 1, len(ps)):
-                # evidence of how binding the capacity is (not a condition): cores rented now / capacity
-                comp.append({"kind": "scarce_resource", "resource": f"compute:{prov}", "capacity_cores": cap,
-                             "cores_rented": int(used[prov]),
-                             "utilisation": round(used[prov] / cap, 4) if cap else None,
-                             "parties": [ps[i], ps[j]], "both_learners": True})
+                shared.append({"kind": "shared_capacity", "resource": f"compute:{prov}",
+                               "capacity_cores": cap_now.get(prov), "cores_rented": int(used[prov]),
+                               "utilisation": round(used[prov] / cap_now[prov], 4) if cap_now.get(prov) else None,
+                               "parties": [ps[i], ps[j]], "both_learners": True})
     payers: dict[str, set] = defaultdict(set)
     for r in coop:
         if r["kind"] == "trade":
@@ -253,7 +314,8 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
             for j in range(i + 1, len(ps)):
                 comp.append({"kind": "competing_tech", "family": fam, "parties": [ps[i], ps[j]],
                              "both_learners": True})
-    return {"cooperative": coop, "competitive": comp}
+    return {"cooperative": coop, "competitive": comp, "shared_capacity": shared,
+            "capacity_refusals": [dict(r, holders=dict(r["holders"])) for r in refusals]}
 
 
 # ====================================================================== consequences
@@ -378,18 +440,31 @@ def capabilities(inter: dict, *, ventures: list[dict], groups_learning: dict[str
             seen_ids[ident] = g
     out["learn_from_independent_experiences"] = {"ok": len(indep) >= 2 and disjoint, "groups": indep,
                                                  "disjoint_experience": disjoint}
-    used = kinds(co, "service_use") + kinds(co, "dependency") + [r for r in tr if r.get("ledger_kind") in
-                                                                    ("product_sale", "subscription", "license",
-                                                                     "api_call", "usage")]
+    def provided_by_learning_party(r):
+        # the learning party is the one that PROVIDES (paid seller, service owner, depended-on package owner)
+        return (r.get("provider") in parties) if parties is not None else bool(r.get("provider_is_learner"))
+    used = [r for r in kinds(co, "service_use") + kinds(co, "dependency") +
+            [r for r in tr if r.get("ledger_kind") in ("product_sale", "subscription", "license", "api_call",
+                                                       "usage")] if provided_by_learning_party(r)]
     out["create_services_used_by_others"] = {"ok": bool(used), "n": len(used),
-                                             "kinds": sorted({r["kind"] for r in used})}
+                                             "kinds": sorted({r["kind"] for r in used}),
+                                             "providers": sorted({r["provider"] for r in used}),
+                                             "users": sorted({r["user"] for r in used}),
+                                             "cents": int(sum(r.get("cents", 0) for r in used))}
     ven = kinds(co, "venture") + [r for r in kinds(co, "agreement") if len(r.get("clauses", [])) >= 1]
     out["form_cooperative_ventures"] = {"ok": bool(ven), "n": len(ven),
                                         "kinds": sorted({r.get("how") or r["kind"] for r in ven})}
-    sc = kinds(cm, "scarce_resource") + kinds(cm, "contested_customer")
+    # binding scarcity only: a learning party's request refused for capacity another party held, or a learning
+    # party holding capacity another party was refused (a third-party customer paying two parties is reported but
+    # is not a scarce resource: nothing shows that the customer's spending was the binding limit)
+    sc = kinds(cm, "scarce_resource")
     out["compete_for_scarce_resources"] = {"ok": bool(sc), "n": len(sc), "kinds": sorted({r["kind"] for r in sc}),
-                                           "max_utilisation": max((r.get("utilisation") or 0.0 for r in sc),
-                                                                  default=None)}
+                                           "refusals": int(sum(r.get("refusals", 0) for r in sc)),
+                                           "resources": sorted({r["resource"] for r in sc}),
+                                           "utilisation_at_refusal_max": max(
+                                               (r.get("utilisation_at_refusal_max") or 0.0 for r in sc),
+                                               default=None),
+                                           "contested_customers_reported": len(kinds(cm, "contested_customer"))}
     sr = strategy_response or {}
     out["respond_to_changing_strategies"] = {"ok": bool(sr.get("responded")), **{k: v for k, v in sr.items()
                                                                                   if k != "responded"}}

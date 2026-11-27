@@ -96,7 +96,10 @@ class LearnerAgent:
             self.chooser.result(act, result, self.kn)
         ext, intr = self.objective.signal(self.prev_obs, next_obs, act, result, self.kn, ro)
         sig = ext + intr
-        self.group.add_signal(self.principal, sig)
+        if self.chooser is None and self.last_rec is not None:
+            # the signal of THIS identity's last decision, attached to that decision's record (in a shared
+            # training system another identity's update may run before this identity has observed)
+            self.group.add_signal(self.principal, sig, rec=self.last_rec)
         self.signal_ema = 0.9 * self.signal_ema + 0.1 * sig
         t = int(next_obs.get("t", 0))
         self.signals.append((t, float(ext), float(intr)))
@@ -106,7 +109,8 @@ class LearnerAgent:
                              ((result.get("error") or {}).get("code") if isinstance(result.get("error"), dict)
                               else str(result.get("error"))[:40]),
                              "read_only": ro, "version": self.group.version, "ext": float(ext),
-                             "intr": float(intr)})
+                             "intr": float(intr),
+                             "scripted_syntax": list((self.last_rec or {}).get("scripted_syntax") or [])})
 
     def update(self) -> dict:
         return self.group.maybe_update()

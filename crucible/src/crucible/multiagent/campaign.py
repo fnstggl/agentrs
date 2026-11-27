@@ -15,7 +15,10 @@
 4. **Civilisation self-play** (`civ_run`): the learning groups (shared-training group of several identities,
    independently updated groups with other algorithms and unrelated objectives), semantic generalists and, from
    half-time, a frozen historical checkpoint of the main group act in one Tier 3 civilisation with its whole
-   population; every learning group also feeds a *no-signal control* twin (same batches, signal 0).
+   population; every learning group also trains two *learning controls*: twins cloned at the start and trained on
+   exactly the group's batches with the signals permuted across each batch (shuffled) or negated
+   (`PolicyGroup.add_control`). What learning from the signal itself did shows as the difference between the group
+   and its twins (`learning_evidence`).
 5. **Strategy switch** (`strategy_switch`): the world and every participant are forked; in one branch a competitor
    group's policy is replaced, in two others nothing changes; the main group's decisions are compared across the
    branches (it responds to the competitor's strategy exactly when its decisions differ from the unchanged branches,
@@ -38,6 +41,13 @@ from .policy import PolicyGroup
 from .registry import PolicyRegistry
 
 TRAINING_WORLD = "open_digital"
+CONTROL_MODES = ("shuffled", "negated")
+# how the participants' competence came about, attached to every self-play evidence record
+EVIDENCE_LABELS = {"learned": True, "scripted_demonstrations_for_pretraining": True,
+                   "scripted_syntax": "code files, contract clauses and service inputs come from syntax grammars "
+                                      "(crucible.multiagent.grammar); the policy chooses among them",
+                   "heldout_training_source": "behaviour cloning of the same scripted demonstrator (other worlds and "
+                                              "seeds), then gru+ppo self-play outside the league"}
 
 
 # ====================================================================== 1-3: training before the civilisation
@@ -151,12 +161,10 @@ def civ_run(env, registry: PolicyRegistry, groups: dict[str, PolicyGroup], membe
         g.frozen = True
         registry.register_group(g, world_id=env.world.world_id, seed=seed, origin=f"frozen copy of {gid} at start",
                                 checkpoint=True)
-    ctl = {}
+    ctl: dict[str, dict] = {}
     if controls:
         for gid, g in groups.items():
-            c = g.clone(f"{gid}_nosignal")
-            g.controls.append(c)
-            ctl[gid] = c
+            ctl[gid] = {mode: g.add_control(mode, f"{gid}_{mode}") for mode in CONTROL_MODES}
     m = Match(env, groups, members, registry=registry, seed=seed, think_s=think_s,
               semantic_service=semantic_service, store_root=store_root, wrap=wrap)
     for a in m.agents.values():
@@ -194,19 +202,50 @@ def _inner(a):
     return a.__dict__.get("agent", a) if hasattr(a, "__dict__") else a
 
 
+def tool_signal_means(history: list[dict]) -> dict[str, float]:
+    """Mean own training signal (ext + intr) of each tool an identity used, from its own decision history (the
+    signal of a decision arrives with the next observation; ``wait`` is a decision too)."""
+    acc: dict[str, list[float]] = {}
+    for h in history:
+        acc.setdefault(h.get("tool") or "wait", []).append(float(h.get("ext", 0.0)) + float(h.get("intr", 0.0)))
+    return {k: float(np.mean(v)) for k, v in acc.items()}
+
+
+def signal_direction(policy: PolicyGroup, recs: list[dict], means: dict[str, float]) -> float:
+    """Expected mean own signal of the tool `policy` picks in the recorded situations `recs`: sum over tools of
+    pi(tool | situation) * (mean signal of that tool in the run); tools never used count at the run's overall
+    mean. A policy that learned from its signal moves this up; one trained on permuted signals does not."""
+    if not recs:
+        return 0.0
+    base = float(np.mean(list(means.values()))) if means else 0.0
+    out = []
+    for r in recs:
+        d = policy.tool_probs_of(r)
+        out.append(sum(p * means.get(n, base) for n, p in d.items()))
+    return float(np.mean(out))
+
+
 def learning_evidence(run: dict) -> dict:
     """Parameter and behaviour change of every learning group over the civilisation run, against its frozen
-    initial copy and its no-signal control; and the early/late action outcomes of its identities."""
+    initial copy and its learning controls (twins trained on the same batches with shuffled / negated signals);
+    and the early/late action outcomes of its identities.
+
+    * behaviour_tv_mean: mean total variation between the initial and the final tool distribution on recorded
+      situations of the run (any training changes it, with or without a meaningful signal);
+    * signal_direction_gain: change of `signal_direction` from the initial to the final policy, for the group and
+      for each twin; ``signal_directed`` when the group's gain exceeds every twin's (the change is attributable to
+      the signal it learned from, not to the anchor, the entropy bonus, the optimiser or the data alone). The
+      situations are decisions the group trained on (an in-sample test of learning from the signal)."""
     m = run["match"]
     out = {}
     for gid, g in m.groups.items():
         if gid not in run["initial"]:
             continue
-        init, ctl = run["initial"][gid], run["controls"].get(gid)
+        init, ctls = run["initial"][gid], run["controls"].get(gid) or {}
         ags = [_inner(a) for a in m.agents.values()]
-        recs = [h for a in ags if isinstance(a, LearnerAgent) and a.group is g for h in getattr(a, "_decisions", [])]
-        hist = sorted((h for a in ags if isinstance(a, LearnerAgent) and a.group is g for h in a.history),
-                      key=lambda x: x["t"])
+        mine = [a for a in ags if isinstance(a, LearnerAgent) and a.group is g]
+        recs = [h for a in mine for h in getattr(a, "_decisions", [])]
+        hist = sorted((h for a in mine for h in a.history), key=lambda x: x["t"])
         k = max(1, len(hist) // 3)
 
         def rates(xs):
@@ -216,16 +255,28 @@ def learning_evidence(run: dict) -> dict:
                     "waits": sum(1 for x in xs if x.get("tool") is None) / n}
         probe = [r for r in recs[:: max(1, len(recs) // 40)]][:40]
         tv = [AN.tv_distance(init.tool_probs_of(r), g.tool_probs_of(r)) for r in probe]
-        tv_ctl = [AN.tv_distance(init.tool_probs_of(r), ctl.tool_probs_of(r)) for r in probe] if ctl else []
+        means = tool_signal_means(hist)
+        d0 = signal_direction(init, recs, means)
+        gain = signal_direction(g, recs, means) - d0
+        controls = {}
+        for mode, c in ctls.items():
+            controls[mode] = {"hash_changed": c.hash != init.hash, "updates": c.updates,
+                              "behaviour_tv_mean": float(np.mean([AN.tv_distance(init.tool_probs_of(r),
+                                                                                 c.tool_probs_of(r))
+                                                                  for r in probe])) if probe else 0.0,
+                              "signal_direction_gain": signal_direction(c, recs, means) - d0}
         changed = [u for u in g.update_log if u.get("changed") and u.get("algo") != "behaviour_cloning"]
         out[gid] = {"algo": g.algo, "identities": list(g.identities), "updates_in_run": len(changed),
                     "weights_hash_initial": init.hash, "weights_hash_final": g.hash,
                     "weight_hash_changed": init.hash != g.hash,
-                    "control_hash_changed": (ctl.hash != init.hash) if ctl else None,
-                    "control_updates": ctl.updates if ctl else None,
-                    "probe_situations": len(probe),
+                    "probe_situations": len(probe), "direction_situations": len(recs),
                     "behaviour_tv_mean": float(np.mean(tv)) if tv else 0.0,
-                    "control_behaviour_tv_mean": float(np.mean(tv_ctl)) if tv_ctl else 0.0,
+                    "signal_direction_initial": d0, "signal_direction_gain": gain,
+                    "controls": controls,
+                    "signal_directed": bool(controls) and all(gain > c["signal_direction_gain"]
+                                                              for c in controls.values()),
+                    "signals_dropped": g.signals_dropped, "orphan_decisions": g.orphans,
+                    "tools_with_signal": len(means),
                     "early": rates(hist[:k]), "late": rates(hist[-k:])}
     return out
 

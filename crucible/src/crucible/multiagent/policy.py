@@ -37,8 +37,20 @@ intrinsic signal, learning refines the demonstrated competence instead of drifti
 
 Evidence-scaled updates (audit K skeptic S.3/S.7): advantages are divided by a running scale of the signal (never
 re-normalised per batch, so a batch of tiny differences is not blown up to unit size); a batch whose signals are
-all zero is not trained on at all, so a no-signal control's parameters - and behaviour - do not change; an
-update counts only when the parameters changed (its weights hash differs).
+all zero is not trained on at all; an update counts only when the parameters changed (its weights hash differs).
+
+Signals and decisions. Each identity's signal for a decision arrives with the observation that follows it
+(`LearnerAgent.observe`) and is attached to *that* decision record. A group trains only on decisions whose signal
+has arrived; a decision still waiting for its signal stays in the buffer for the next update. So in a shared
+training system the update one identity triggers never trains another identity's latest decision with a default
+signal, and no signal arrives at an emptied buffer (`signals_dropped` and `orphans` count what could not be
+attached; both stay 0 under `crucible.experience.loop.run_learners`).
+
+Learning controls (Q.7). `add_control(mode)` keeps a twin (an exact clone at that moment) trained on exactly the
+batches of the group, with the signals permuted across the batch (``shuffled``), negated (``negated``) or zeroed
+(``zero``). Behaviour change that is attributable to the training signal - not to the KL anchor, the entropy
+bonus, the optimiser or the data alone - shows as a difference between the group and its shuffled/negated twins
+(`crucible.multiagent.campaign.learning_evidence`).
 """
 from __future__ import annotations
 
@@ -279,9 +291,13 @@ class PolicyGroup:
         self.decisions = 0
         self.identities: list[str] = []
         self.on_update = None                 # callback(group, record) set by the harness (versioning)
-        self.controls: list = []              # no-signal controls: twins trained on this group's batches, signal 0
+        self.controls: list = []              # learning controls: (mode, twin) trained on this group's batches
+        self._ctl_rng = np.random.default_rng([int(seed), 0xC7])     # permutations of the shuffled controls
+        self.signals_dropped = 0              # signals that found no decision of theirs waiting (never trained)
+        self.orphans = 0                      # decisions whose signal never arrived (dropped, never trained)
         self.prior = None                     # frozen copy of the pre-trained network (behaviour-regularised RL)
         self._bc_opt: dict = {}               # behaviour-cloning optimiser(s), kept across imitate() calls
+        self._bc_order = np.random.default_rng([int(seed), 0xBC])   # minibatch order, continued across calls
 
     # ------------------------------------------------------------------ deciding
     def candidates(self, obs: dict, kn: Knowledge, rng: np.random.Generator) -> list[tuple[dict, list]]:
@@ -342,14 +358,17 @@ class PolicyGroup:
                 else:
                     ci = int(torch.multinomial(sp, 1, generator=self.gen))
                 logp += float(torch.log(sp[ci] + 1e-12))
-                slot_recs.append({"ftok": ftok, "ctoks": ctoks, "cnum": cnum.numpy(), "ci": ci})
+                slot_recs.append({"ftok": ftok, "ctoks": ctoks, "cnum": cnum.numpy(), "ci": ci, "src": cs[ci].source,
+                                  "slot": sl.name})
                 if cs[ci].value is not G.OMIT:
                     args[sl.name] = cs[ci].value
                     meta.update({k: v for k, v in cs[ci].meta.items() if k != "addressed"})
         self.decisions += 1
         rec = {"identity": identity, "t": int(obs.get("t", 0)), "x": state, "h": h_prev, "names": names,
                "ttoks": ttoks, "tflags": tfl.numpy(), "htoks": htoks, "hidx": hidx, "ti": ti, "slots": slot_recs, "logp": logp, "v": value,
-               "r": 0.0, "tool": tool["name"], "version": self.version, "n_tools": len(cands), "meta": meta}
+               "r": 0.0, "tool": tool["name"], "version": self.version, "n_tools": len(cands), "meta": meta,
+               # arguments taken from a syntax grammar (code files, contract clauses, service inputs): scripted syntax
+               "scripted_syntax": sorted({x["slot"] for x in slot_recs if x["src"] == "grammar"})}
         action = None if tool["name"] == "wait" else {"tool": tool["name"], "args": args}
         h_out = None if h is None else h.numpy()[0].copy()
         return action, rec, h_out
@@ -372,15 +391,56 @@ class PolicyGroup:
     def record(self, rec: dict) -> None:
         if self.frozen:
             return
+        rec["signalled"] = False
         self.buffer.setdefault(rec["identity"], []).append(rec)
 
-    def add_signal(self, identity: str, r: float) -> None:
-        buf = self.buffer.get(identity)
-        if buf:
-            buf[-1]["r"] = float(r)
+    def add_signal(self, identity: str, r: float, rec: dict | None = None) -> bool:
+        """Attach the training signal of one decision: `rec` (the decision record itself) or, without it, the
+        identity's latest decision still waiting for its signal. Returns whether it was attached; a signal that
+        finds no waiting decision is counted in `signals_dropped` (it is never attached to another decision)."""
+        if self.frozen:
+            return False
+        target = None
+        for x in reversed(self.buffer.get(identity) or ()):
+            if (x is rec) if rec is not None else not x.get("signalled", True):
+                target = x
+                break
+        if target is None or target.get("signalled", False):
+            self.signals_dropped += 1
+            return False
+        target["r"] = float(r)
+        target["signalled"] = True
+        return True
 
     def pending(self) -> int:
-        return sum(len(b) for b in self.buffer.values())
+        """Decisions whose signal has arrived and that the next update will train on."""
+        return sum(1 for b in self.buffer.values() for x in b if x.get("signalled", True))
+
+    def add_control(self, mode: str, gid: str | None = None) -> "PolicyGroup":
+        """A learning control (see the module docstring): a clone of the group now, trained from then on on the
+        group's own batches with the signals ``shuffled`` (permuted across the batch), ``negated`` or ``zero``."""
+        if mode not in ("shuffled", "negated", "zero"):
+            raise ValueError("mode must be shuffled, negated or zero")
+        c = self.clone(gid or f"{self.gid}_{mode}")
+        c.frozen = False
+        self.controls.append((mode, c))
+        return c
+
+    def _split_buffer(self) -> tuple[dict, dict]:
+        """(trainable, waiting): per identity, its decisions with their signal, and the trailing decisions still
+        waiting for theirs (an unsignalled decision followed by signalled ones never gets its signal: an orphan)."""
+        streams, keep = {}, {}
+        for k, v in self.buffer.items():
+            j = len(v)
+            while j > 0 and not v[j - 1].get("signalled", True):
+                j -= 1
+            done = [x for x in v[:j] if x.get("signalled", True)]
+            self.orphans += j - len(done)
+            if done:
+                streams[k] = done
+            if v[j:]:
+                keep[k] = v[j:]
+        return streams, keep
 
     # ------------------------------------------------------------------ learning
     def _logp_value(self, recs: list[dict], tool_lsm: list | None = None):
@@ -450,19 +510,24 @@ class PolicyGroup:
     def update(self) -> dict:
         torch = _torch()
         hp = self.hp
-        streams = {k: v for k, v in self.buffer.items() if v}
+        streams, keep = self._split_buffer()
         if not streams:
             return {"updates": 0, "changed": False, "reason": "empty"}
         recs, adv, ret = [], [], []
         rs = np.array([r["r"] for v in streams.values() for r in v], dtype=np.float64)
-        for c in self.controls:               # the same experience with every signal set to zero
-            c.buffer = {k: [dict(r, r=0.0) for r in v] for k, v in streams.items()}
-            c.update()
+        if self.controls:                     # the same experience with the signals permuted / negated / zeroed
+            perm = self._ctl_rng.permutation(len(rs))
+            for mode, c in self.controls:
+                alt = rs[perm] if mode == "shuffled" else (-rs if mode == "negated" else np.zeros_like(rs))
+                it = iter(alt.tolist())
+                c.buffer = {k: [dict(r, r=float(next(it)), signalled=True) for r in v] for k, v in streams.items()}
+                c.update()
         info = {"identities": sorted(streams), "transitions": int(len(rs)), "signal_sum": float(rs.sum()),
                 "signal_abs_max": float(np.abs(rs).max()) if len(rs) else 0.0,
                 "decisions": [[r["identity"], r["t"]] for v in streams.values() for r in v],
-                "version_before": self.version, "params_hash_before": self.hash}
-        self.buffer = {}
+                "version_before": self.version, "params_hash_before": self.hash,
+                "waiting_for_signal": sum(len(v) for v in keep.values())}
+        self.buffer = keep
         if not len(rs) or float(np.abs(rs).max()) == 0.0:
             self.skipped_no_signal += 1
             info.update(updates=0, changed=False, reason="no signal")
@@ -476,6 +541,7 @@ class PolicyGroup:
         for ident, v in streams.items():
             r = np.array([x["r"] for x in v], dtype=np.float64)
             vals = np.array([x["v"] for x in v], dtype=np.float64)
+            nxt_v = float(keep[ident][0]["v"]) if keep.get(ident) else float(vals[-1])   # value after the last
             g = hp["gamma"]
             if self.algo == "reinforce":
                 G_ = np.zeros(len(r))
@@ -487,7 +553,7 @@ class PolicyGroup:
                 self.baseline = 0.9 * self.baseline + 0.1 * float(G_.mean())
                 rt = G_
             elif self.algo == "a2c":
-                boot = vals[-1]
+                boot = nxt_v
                 rt = np.zeros(len(r))
                 acc = boot
                 for i in range(len(r) - 1, -1, -1):
@@ -495,7 +561,7 @@ class PolicyGroup:
                     rt[i] = acc
                 a = rt - vals
             else:                                   # ppo: GAE
-                nxt = np.append(vals[1:], vals[-1])
+                nxt = np.append(vals[1:], nxt_v)
                 delta = r + g * nxt - vals
                 a = np.zeros(len(r))
                 acc = 0.0
@@ -559,7 +625,7 @@ class PolicyGroup:
         opt = self._bc_opt.get(rate)
         if opt is None:                       # one optimiser across calls (epoch by epoch pre-training keeps its moments)
             opt = self._bc_opt[rate] = torch.optim.Adam(self.net.parameters(), lr=rate)
-        order_rng = np.random.default_rng([self.seed, 0xBC])
+        order_rng = self._bc_order              # continued across calls (epoch by epoch pre-training)
         losses, steps = [], 0
         h0 = self.hash
         for _ in range(int(epochs)):
@@ -628,6 +694,7 @@ class PolicyGroup:
         """An exact copy (parameters, optimiser, generators, counters) that shares nothing with this group."""
         g = PolicyGroup.from_bytes(gid, self.state_bytes(), frozen=self.frozen)
         g.updates, g.skipped_no_signal, g.lineage = self.updates, self.skipped_no_signal, self.lineage
+        g.signals_dropped, g.orphans = self.signals_dropped, self.orphans
         return g
 
     def tool_probs_of(self, rec: dict):
