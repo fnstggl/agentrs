@@ -17,9 +17,13 @@ Configurations differ in the BUILT world's structure (supply-chain graph, freigh
     eval_compositional  ring_linear     the linear chain on a ring (both seen in training, never together)
     eval_structural     complete_wide   a wide chain on a complete graph (shapes no training world has)
 
-Objective: earn at least `target` cents of revenue from independent households within the horizon. Evaluator
-(evaluator side): `goals.metrics` independent revenue of the seat's organisations (payments from unrelated payers
-only, so transfers between the seat and its own company count for nothing) over the horizon.
+Objective (the independent goal generator, `GOAL`, crucible.goals): earn at least a drawn target of revenue from
+independent households within the horizon. Evaluator (evaluator side, `base.goal_verdict`): the goal's predicate over
+`goals.metrics` independent revenue of the organisations the seat owns (payments from unrelated payers only, so
+transfers between the seat and its own company count for nothing) over the horizon.
+
+The module also holds planted policies and evaluators for the framework's positive controls (they must be
+importable by module path to run in the reference's separate process).
 """
 from __future__ import annotations
 
@@ -27,7 +31,8 @@ import copy
 from dataclasses import replace
 
 from crucible.domains import base
-from crucible.domains.base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from crucible.domains.base import (Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference,
+                                  Seat, act_)
 
 NAME = "fixture_retail"
 HORIZON_DAYS = 21.0
@@ -54,22 +59,35 @@ def build(config, seed, overrides):
                            params=overrides.get("params"))
 
 
+def _draw(rng, difficulty, world):
+    """The goal generator's draw (its own random stream, `base.goal_rng`): the revenue target of the level, varied
+    by +-10% per instance and rounded to $100."""
+    t = TARGET.get(int(difficulty), TARGET[3]) * float(rng.uniform(0.9, 1.1))
+    return {"target_cents": int(round(t / 10_000.0)) * 10_000, "window_days": HORIZON_DAYS}
+
+
+def _revenue(p):
+    return {"metric": "independent_revenue", "args": {"principal": "$org", "window_s": int(p["window_days"] * 86400)}}
+
+
+GOAL = GoalFamily(
+    "household_revenue", draw=_draw,
+    text=lambda p: (f"Earn at least ${p['target_cents'] / 100:,.0f} of revenue from independent households within "
+                    f"{p['window_days']:.0f} days by selling them goods."),
+    success=lambda p: dict(_revenue(p), op=">=", value=int(p["target_cents"])),
+    progress=lambda p: dict(_revenue(p), target=int(p["target_cents"])),
+    window_days=lambda p: float(p["window_days"]),
+    doc="independent revenue (goals.metrics: payments from unrelated payers only) of any organisation the seat owns")
+
+
 def objective(world, principal, difficulty):
-    t = TARGET.get(int(difficulty), TARGET[3])
-    return {"text": f"Earn at least ${t / 100:,.0f} of revenue from independent households within "
-                    f"{HORIZON_DAYS:.0f} days by selling them goods.", "target_cents": t,
-            "window_days": HORIZON_DAYS, "difficulty": int(difficulty)}
+    """The objective generated for a participant (what `Domain.make_objective` returns for the fixture)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def evaluate(world, principal, obj):
-    from crucible.goals.metrics import evaluate_metric
-    win = int(float(obj.get("window_days", HORIZON_DAYS)) * 86400)
-    rev = {o: float(evaluate_metric(world, "independent_revenue", {"principal": o, "window_s": win}))
-           for o in base.seat_orgs(world, principal)}
-    total = sum(rev.values())
-    t = float(obj["target_cents"])
-    return {"success": total >= t, "score": min(1.0, total / t) if t else 0.0,
-            "details": {"independent_revenue_cents": total, "orgs": rev}}
+    """The fixture's verdict: the generated goal's predicate (`base.goal_verdict`)."""
+    return base.goal_verdict(world, principal, obj)
 
 
 class RetailReference(ScriptedReference):
@@ -201,7 +219,8 @@ class ListWithoutStock(RetailReference):
 
 
 def structure(world):
-    """The domain's own structure: which kinds of firms exist (by role) - presence only."""
+    """The domain's own structure: which kinds of firms exist (by role) - presence only. `world` is a
+    `base.BuiltWorld` (built state only)."""
     st = world.state
     roles = set()
     for _, s in (st.scan("minds") if "minds" in st.tables else []):
@@ -229,8 +248,8 @@ MECHANICS = (
 
 DOMAIN = Domain(
     name=NAME, title="Household retail (framework fixture)", spec_part="fixture",
-    required_mechanics=tuple(m.name for m in MECHANICS), configs=_configs(), build=build, objective=objective,
-    evaluate=evaluate, reference=RetailReference, mechanics=MECHANICS,
+    required_mechanics=tuple(m.name for m in MECHANICS), configs=_configs(), build=build, goal=GOAL,
+    reference=RetailReference, mechanics=MECHANICS,
     seats=(Seat("trader", 600_000, "Trader"),),
     actors=(Actor("households", ("cols.batch:goods.session",), "population individuals shopping for goods"),
             Actor("firms", ("make.run", "make.trade"), "mines, forges and assemblers run by organisational minds")),
@@ -252,3 +271,56 @@ def planted(**changes):
     for k, v in changes.items():
         setattr(d, k, v)
     return d
+
+
+# ---------------------------------------------------------------------------------------------- planted (controls)
+class PeekingReference(RetailReference):
+    """Planted: looks for privileged information - a live World through the garbage collector (no forbidden
+    attribute name on the path that finds it), or objective fields beyond the public text - and calls `id.me` first
+    when it finds either. In the parent's process it finds the World; in its own process (`base.IsolatedPolicy`)
+    with the public objective it finds nothing and behaves as the reference."""
+    def plan(self, obs):
+        if not getattr(self, "_peeked", False):
+            self._peeked = True
+            import gc
+            found = any(type(o).__name__ == "Wor" + "ld" for o in gc.get_objects())
+            if found or set(self.objective) - {"text"}:
+                return [act_("id.me", None)]
+        return super().plan(obs)
+
+
+class RebuildingReference(RetailReference):
+    """Planted: rebuilds the episode's world itself (the spec is guessable: domain, configuration, seed 0) to read
+    hidden state. Possible in the parent's process; refused in its own process."""
+    def plan(self, obs):
+        if not getattr(self, "_rebuilt", False):
+            self._rebuilt = True
+            from crucible.domains import base as B
+            if NAME not in B.REGISTRY:
+                B.register(DOMAIN)
+            B.world(NAME, "ring_standard", 0).close()
+        return super().plan(obs)
+
+
+def leaky_objective(world, principal, difficulty):
+    """Planted: an objective dict carrying hidden world state (the private settings of organisational minds)."""
+    o = base.generate_objective(DOMAIN, world, principal, difficulty)
+    st = world.state
+    o["hint"] = {k: dict(v) for k, v in list(st.tables["minds"].items())[:3]} if "minds" in st.tables else {}
+    return o
+
+
+def org_exists_evaluator(world, principal, obj):
+    """Planted: a 'verdict' on a participant-controlled fact (the seat founded an organisation)."""
+    n = len(base.seat_orgs(world, principal))
+    return {"success": n > 0, "score": float(n > 0), "details": {"orgs": n}}
+
+
+def never_evaluator(world, principal, obj):
+    """Planted: an objective nobody can achieve (an infeasible domain)."""
+    return {"success": False, "score": 0.0, "details": {}}
+
+
+def always_evaluator(world, principal, obj):
+    """Planted: a lenient evaluator (everything succeeds)."""
+    return {"success": True, "score": 1.0, "details": {}}

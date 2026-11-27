@@ -8,10 +8,11 @@
                                 (`crucible.domains.base.Domain`, the canonical contract by decisions D-17/D-48):
                                 the world is `domains.base.spec(domain, config, seed, overrides)`; learners occupy
                                 the domain's seats (`Domain.seats`, every seat by default, ``agents=n`` the first
-                                n; else `Domain.participant_principal`, else a new participant); the domain's public
-                                objective (`Domain.objective(world, principal, difficulty)`) is the agent's objective
-                                and `Domain.evaluate(world, principal, objective)` the independent evaluator. The
-                                domain's scripted `reference` is evaluator-side and never reachable.
+                                n; else `Domain.participant_principal`, else a new participant); each seat's
+                                objective is generated for it (`Domain.make_objective(world, principal, difficulty)`:
+                                the domain's goal generator, D-48; its text is public) and `Domain.judge(world,
+                                principal, objective)` is the independent evaluator. The domain's scripted
+                                `reference` is evaluator-side and never reachable.
     tier 3  "<profile>"         a v5 civilisation: `crucible.civ.generate(profile, seed, population=...,
                                 overrides=...) -> World` with ``crucible.civ.PROFILES`` (workstream J; see
                                 `CIV_ENTRY_POINT`)
@@ -217,7 +218,8 @@ class DomainObjective:
         hit = self._at.get(actor)
         if hit is not None and hit[0] == key:
             return hit[1]
-        ev = self.dom.evaluate(world, actor, self.objective)
+        judge = getattr(self.dom, "judge", None) or self.dom.evaluate      # workstream I hook (D-48)
+        ev = judge(world, actor, self.objective)
         ev = ev if isinstance(ev, dict) else {"value": ev}
         self._at[actor] = (key, ev)
         return ev
@@ -251,10 +253,12 @@ def attach_domain(env, dom, difficulty: int = 1) -> None:
     """Give every agent of `env` the domain's public objective (evaluated per principal) and make the domain's
     evaluator part of `env.verify()`."""
     objectives = {}
+    make = getattr(dom, "make_objective", None) or dom.objective          # workstream I hook: the goal generator
+    judge = getattr(dom, "judge", None) or dom.evaluate                   # (crucible.domains.base, D-48)
     for a in env.agents():
-        objectives[a] = dom.objective(env.world, a, difficulty)
+        objectives[a] = make(env.world, a, difficulty)
         env.set_objective(a, DomainObjective(dom, objectives[a]))
-    env.evaluator = lambda w, a: dom.evaluate(w, a, objectives[a])
+    env.evaluator = lambda w, a: judge(w, a, objectives[a])
 
 
 # ====================================================================== Tier 3
