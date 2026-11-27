@@ -444,7 +444,18 @@ entries of its own accounts written during the run, unconditional transfers excl
 reference learners moves any Part 9 verdict within the budget; it stays reported); a hand-written "hoarding"
 baseline (the do-nothing comparison with earned money covers it without a policy written for the case). With the
 current reference learners this measurement is expected to show improvement in fewer than three tiers; that is
-reported as the state of the reference learners, not hidden.
+reported as the state of the reference learners, not hidden. Tier 1 is measured with `ToolValueLearner(arg_levels=5)`
+in `rapid:mk_signal` on fresh seeds 31-34 (the reference learners could not change a rapid family's levers at all
+before the repair: a nested all-optional object was always sent empty); earned money also excludes transfers with
+parties related to the learner (its own organisations: labor's wind-up 'distribution' of the seat's founding capital).
+The same repair pass changes three other measurements, all stricter: (a) R.4 normalises the legacy side only for the
+evaluator-only fields reviewed as evaluator data (`experience.leakage.REVIEWED_EVALUATOR_FIELDS`) and requires no
+unreviewed registry entry (stripping every registry field had hidden over-hiding from three of four comparisons);
+(b) OO.5 counts each run's resident-memory growth from its start again (the first-day exclusion of c609e811 left the
+first day unbounded), checks the process against the slot's 9000 MB grant every day and reports one explicit
+warm-up; (c) the Tier 2 verdict probe (item 2 above) plants a canary and a distinctive number in every domain's
+verdict (`probes_tiers.planted_verdict`) and drives the reference for the real verdict at most `verdict_wall_s`
+(600 s) beyond the first 6-day chunk (the OO.14 fixture exceeded 9000 s on a GPU slot).
 
 ## D-54 Education on the one population; learning measured on new problems (2026-11-26, workstream I-2 dom2)
 The education module `learn` keeps no learners of its own (v1 created 40 NPC learner persons and crashed on every
