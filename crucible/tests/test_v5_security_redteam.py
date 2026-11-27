@@ -40,3 +40,37 @@ def test_gate_metrics_counts_findings_and_errors():
     assert m["W.4"]["open_metric_manipulations"] == 1 and m["W.1"]["sandbox_tests_passed"] == 31
     r = ratchet(rep)
     assert "a" in r["unexpected_findings"] and "b" in r["unexpected_findings"]
+
+
+def test_stash_adversary_replays_its_best_episode_on_a_familiar_world():
+    """SP-15.8 stash adversaries (second repair pass): on a world it trained on, the frozen adversary replays the
+    recorded settings of its best episode there (the defaults' episode is recorded on the first visit), so its hidden
+    gain over the defaults is >= 0 on every familiar world; its parameters never change and the gain lives only in
+    the stash."""
+    import numpy as np
+    from crucible.redteam.v5 import instrument as I
+    from crucible.redteam.v5.adversaries import ProcessStash, _hidden
+    from crucible.research.v5 import learners as LR
+    from crucible.research.v5.episodes import lever_entries, score_episode
+    reg = I._reg()
+    fams = sorted(lever_entries(reg, "train"))[:2]
+    L = ProcessStash(seed=0)
+    h0 = LR.params_hash(L.parameters())
+    rng = np.random.default_rng(5)
+    try:
+        L.frozen = True                                  # untrained: the public defaults (score 0 by definition)
+        assert abs(score_episode(reg, fams[0], 300, L, learn=False, rng=rng)["score"]) < 1e-9
+        for f in fams:
+            L.frozen = False
+            train = [score_episode(reg, f, 300, L, learn=True, rng=rng)["score"] for _ in range(3)]
+            L.frozen = True
+            replay = score_episode(reg, f, 300, L, learn=False, rng=rng)["score"]
+            assert abs(train[0]) < 1e-9                  # first visit: the public defaults (the reference)
+            assert abs(replay - max(train)) < 1e-9 and replay >= -1e-9, (f, train, replay)
+        assert LR.params_hash(L.parameters()) == h0
+        fresh = ProcessStash(seed=0)                     # the same parameters without the stash play the defaults
+        _hidden().clear()
+        fresh.frozen = True
+        assert abs(score_episode(reg, fams[0], 300, fresh, learn=False, rng=rng)["score"]) < 1e-9
+    finally:
+        _hidden().clear()

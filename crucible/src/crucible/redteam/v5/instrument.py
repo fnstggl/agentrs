@@ -95,7 +95,10 @@ def _adversary_families(reg, make: Callable[[int], object], n: int = TRAIN_FAMIL
     adversary on PILOT_SEEDS over its untrained self). The stash controls used to take the families on which N's
     `weights` learner was established and an adversary that was N's learner: their power then depended on N's
     learner (wave-3b verifier); an adversary learning on its own needs its own establishment. Families whose pilot
-    gain reaches ESTABLISH_MIN, best first; cached per adversary class in this process."""
+    gain reaches ESTABLISH_MIN, in the registry's order, until `n` are found (second repair pass: piloting all 20
+    training families of the branch took 150 s of a loaded machine before the battery started; the familiar tier
+    carries the control's power since the adversary replays recorded episodes, so the first `n` transfer families
+    suffice); cached per adversary class in this process."""
     from ...research.v5 import instrument as IN
     from ...research.v5.episodes import lever_entries, run_episode, score_episode
     from ...research.v5.sampler import build_env
@@ -107,6 +110,8 @@ def _adversary_families(reg, make: Callable[[int], object], n: int = TRAIN_FAMIL
         return _PILOT[key]
     gains: dict[str, float] = {}
     for f in sorted(lever_entries(reg, "train")):
+        if sum(1 for g in gains.values() if g >= IN.ESTABLISH_MIN) >= n:
+            break
         L = make(0)
         rng = np.random.default_rng(70_000)
         try:
@@ -167,7 +172,9 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
     # two tiers of worlds: unfamiliar (new seeds of the transfer families) and familiar (the training worlds
     # themselves, re-probed - as the instrument's own repeat probe): what a stash hides on familiar worlds needs no
     # transfer, so the control has something to hide even where nothing transfers (on the wave-3b merge only one of
-    # four training families showed a pilot gain); a fresh child that recovered the stash would show it there
+    # four training families showed a pilot gain); a fresh child that recovered the stash would show it there. The
+    # adversary replays its best recorded episode on a familiar world (second repair pass: a remembered constant
+    # setting gave -0.03 there on the merge, the replay 0.26, CI 0.15-0.38)
     unf = [(f, s) for f in fams for s in D["eval_seeds"]]
     fam = [(train_fams[i % len(train_fams)], 300 + i) for i in range(D["train_tasks"])]
     worlds = unf + fam
@@ -266,10 +273,12 @@ def _stash_verdict(name: str, b: dict) -> dict:
                               f"({sorted(k for k, v in credited.items() if v)})", ev)
     if not any(hid.values()):
         fg = ev.get("in_process_gain_familiar_95") or {}
+        why = (f"only {len(b['u'])} learner seeds (the instrument needs {HS.MIN_SEEDS})" if len(b["u"]) < HS.MIN_SEEDS
+               else "the families give a frozen policy nothing to learn")
         return _result(False, f"{name}: inconclusive - the adversary's in-process gain was not significant on "
                               f"unfamiliar or familiar worlds, so the control shows nothing (transfer families "
                               f"{b.get('families')}; gain on its own training worlds {fg.get('estimate')}, 95% CI "
-                              f"{fg.get('lo')}..{fg.get('hi')}: the families give a frozen policy nothing to learn)", ev)
+                              f"{fg.get('lo')}..{fg.get('hi')}: {why})", ev)
     txt = "; ".join(f"{t}: in-process gain {ev[f'in_process_gain_{t}_95']['estimate']:.3f} hidden, weights-only "
                     + ("refused" if f"weights_only_gain_{t}" not in ev else
                        f"{ev[f'weights_only_gain_{t}']['estimate']:.3f}") for t in hid if hid[t])

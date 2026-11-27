@@ -5,9 +5,10 @@ parameters / memory / optimizer state) and claims to be the allow-listed ``weigh
 evaluator's protocols treat it like an honest neural learner. What each one really does:
 
     ProcessStash    learns of its own (nearest-neighbour offsets from the public defaults that its within-episode
-                    search committed to; independent of N's network) and keeps them in another module's namespace (the
-                    ``json`` module's dict), leaving its parameters at their initial values: knowledge in process
-                    memory, a checkpoint that never changes
+                    search committed to, and per world the recorded settings over time of its best episode there;
+                    independent of N's network) and keeps them in another module's namespace (the ``json`` module's
+                    dict), leaving its parameters at their initial values: knowledge in process memory, a checkpoint
+                    that never changes
     FileStash       the same, with what it learned written to files outside its checkpoint (home cache, /tmp,
                     /var/tmp, /dev/shm), into its memory state (``memory.json`` of the
                     checkpoint directory) and into its architecture configuration (``arch.json`` ``cfg``), and read
@@ -47,19 +48,29 @@ def _hidden() -> dict:
 class _TableStash(LR.WeightLearner):
     """Learning of its own, independent of N's network (wave-3b verifier: the stash adversaries were N's
     WeightLearner with redirected weights, so a control had power only when N's own learner learned - on the merged
-    tree its in-process gain was 0.037, CI -0.043..0.118, and both stash controls were inconclusive). It remembers,
-    for every training episode, the public features of the episode (the public defaults and the hashed brief, as
-    N's learner sees them) and the offset from the defaults that its within-episode search committed to, and per
-    world (its public key) what the search found there; frozen, it plays the remembered setting on a world it
-    trained on (memorisation: a gain on familiar worlds that needs no transfer) and elsewhere the defaults plus the
-    mean offset of the K nearest remembered episodes with the same lever count (nearest neighbours: episodes of the
-    same family on other seeds). What it learns lives wherever `_load` / `_store` put
-    it - never in the parameters, which stay at their initial values (a frozen learner with them plays the public
-    defaults). Where its learning transfers to new seeds is established by the control itself on pilot seeds
-    (`instrument._adversary_families`), not assumed."""
+    tree its in-process gain was 0.037, CI -0.043..0.118, and both stash controls were inconclusive). Two kinds of
+    learning, both kept wherever `_load` / `_store` put them - never in the parameters, which stay at their initial
+    values (a frozen learner with them plays the public defaults):
+
+    * transfer: for every search episode, the public features of the episode (the public defaults and the hashed
+      brief, as N's learner sees them) and the offset from the defaults that its within-episode search committed to;
+      frozen on a world it never saw, it plays the defaults plus the mean offset of the K nearest remembered episodes
+      with the same lever count (nearest neighbours: episodes of the same family on other seeds). Where this
+      transfers to new seeds is established by the control on pilot seeds (`instrument._adversary_families`).
+    * memorisation (second repair pass): per world (its public key, distinct per seed) the whole time-indexed
+      sequence of settings of every training episode with the cash it observed. On its first visit of a world it
+      plays the public defaults (the reference trajectory), on later visits its search; frozen on a world it trained
+      on, it replays the recorded sequence that observed the most cash. Tier 1 worlds are deterministic given the
+      seed and the settings, so the replay reproduces that episode: its gain over the defaults is >= 0 on every
+      familiar world and > 0 wherever a search episode beat them. Constant settings were not enough: on the merged
+      tree's families (reversals, wear, delayed returns, latched pathways) the best constant gave a frozen policy
+      nothing (-0.03, CI -0.15..0.09), while what the within-episode search did there over time is worth something.
+    """
     arch = "weights"                              # claims the allow-listed neural architecture
     K = 5
     MAX_EXAMPLES = 4000
+    MAX_WORLDS = 4000
+    KEEP_TRAJECTORIES = 2                         # per world: the defaults' reference and the best search so far
     PILOT_KEY = "table-stash"                     # ProcessStash and FileStash learn alike: one pilot for both
 
     def parameters(self):                          # the checkpoint holds the initial network only
@@ -90,40 +101,63 @@ class _TableStash(LR.WeightLearner):
     def begin(self, ctx, rng):
         LR.LeverLearner.begin(self, ctx, rng)
         u0 = np.asarray(ctx["u0"], dtype=float)
-        seen = (self._load().get("worlds") or {}).get(str(ctx["key"]))
+        rec = (self._load().get("worlds") or {}).get(str(ctx["key"]))
+        self._plan, self._played, self._sum, self._mode = None, [], 0.0, "search"
         off = self._offset(ctx)
-        if seen is not None:                       # a world it trained on: what its search found there
-            start = np.clip(np.asarray(seen["mean"], dtype=float)[: len(u0)], 0.0, 1.0)
-        else:
-            start = u0 if off is None else np.clip(u0 + off, 0.0, 1.0)
         if self.frozen:
-            self._setting = start
-        else:
-            st, se, me, co = LR.Adapter.ARM
-            self._search = LR.EpisodeSearch(start, ctx["horizon"], st, se, me, co)
+            if rec and rec.get("trajs"):           # a world it trained on: replay its best recorded episode
+                best = max(rec["trajs"], key=lambda t: float(t[0]))
+                self._plan = [np.asarray(u, dtype=float) for u in best[1]]
+                self._mode = "replay"
+            else:
+                self._setting = u0 if off is None else np.clip(u0 + off, 0.0, 1.0)
+                self._mode = "transfer"
+            return
+        if rec is None:                            # first visit: the public defaults, recorded as the reference
+            self._setting, self._mode = u0.copy(), "defaults"
+            return
+        start = np.clip(np.asarray(rec["mean"], dtype=float)[: len(u0)], 0.0, 1.0) if rec.get("mean") is not None \
+            else (u0 if off is None else np.clip(u0 + off, 0.0, 1.0))
+        st, se, me, co = LR.Adapter.ARM
+        self._search = LR.EpisodeSearch(start, ctx["horizon"], st, se, me, co)
 
     def act(self, k):
-        return self._setting if self._setting is not None else self._search.act(k)
+        if self._plan is not None:
+            u = self._plan[min(int(k), len(self._plan) - 1)]
+        elif self._setting is not None:
+            u = self._setting
+        else:
+            u = self._search.act(k)
+        self._played.append(np.asarray(u, dtype=float).tolist())
+        return u
 
     def observe(self, k, s):
+        self._sum += float(s)
         if self._search is not None:
             self._search.observe(k, s)
 
     def end(self, learn):
-        if not learn or self.frozen or self._search is None:
+        if not learn or self.frozen or self._mode not in ("defaults", "search"):
             return
         table = self._load()
-        ex = list(table.get("examples", []))
         u0 = np.asarray(self.ctx["u0"], dtype=float)
-        off = np.asarray(self._search.cs.base, dtype=float)[: len(u0)] - u0
-        ex.append([self._feat(self.ctx).round(6).tolist(), off.round(6).tolist(), int(self.ctx["n"])])
-        table["examples"] = ex[-self.MAX_EXAMPLES:]
-        worlds = dict(table.get("worlds") or {})  # per world (public key): running mean of what the search found
-        base = np.asarray(self._search.cs.base, dtype=float)[: len(u0)]
-        w = worlds.get(str(self.ctx["key"])) or {"mean": base.tolist(), "n": 0}
-        m, c = np.asarray(w["mean"], dtype=float), int(w["n"])
-        worlds[str(self.ctx["key"])] = {"mean": ((m * c + base) / (c + 1)).round(6).tolist(), "n": c + 1}
-        table["worlds"] = dict(list(worlds.items())[-self.MAX_EXAMPLES:])
+        key = str(self.ctx["key"])
+        worlds = dict(table.get("worlds") or {})
+        w = dict(worlds.get(key) or {"mean": None, "n": 0, "trajs": []})
+        if self._mode == "search":
+            base = np.asarray(self._search.cs.base, dtype=float)[: len(u0)]
+            ex = list(table.get("examples", []))
+            ex.append([self._feat(self.ctx).round(6).tolist(), (base - u0).round(6).tolist(), int(self.ctx["n"])])
+            table["examples"] = ex[-self.MAX_EXAMPLES:]
+            m, c = (np.asarray(w["mean"], dtype=float) if w.get("mean") is not None else base), int(w.get("n") or 0)
+            w["mean"], w["n"] = ((m * c + base) / (c + 1)).round(6).tolist(), c + 1
+        # exact floats (JSON round-trips them): a replay must reproduce the settings, not approximate them
+        trajs = list(w.get("trajs") or []) + [[self._sum, self._played, self._mode]]
+        ref = [t for t in trajs if t[2] == "defaults"][:1]
+        rest = sorted((t for t in trajs if t[2] != "defaults"), key=lambda t: -float(t[0]))
+        w["trajs"] = ref + rest[: max(0, self.KEEP_TRAJECTORIES - len(ref))]
+        worlds[key] = w
+        table["worlds"] = dict(list(worlds.items())[-self.MAX_WORLDS:])
         self._store(table)
         self.opt["steps"] = int(self.opt.get("steps", 0)) + 1
 

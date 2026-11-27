@@ -57,6 +57,10 @@ def test_SP15_8_instrument_resists_adversarial_learners():
         **{f"control_{n}": bool(r["passed"]) for n, r in out.items()},
         "stash_weights_only_gain": (ev.get("process_memory_stash") or {}).get("weights_only_gain", {}).get("estimate"),
         "stash_in_process_gain": (ev.get("process_memory_stash") or {}).get("in_process_gain", {}).get("estimate"),
+        "stash_in_process_gain_familiar": ((ev.get("process_memory_stash") or {}).get("in_process_gain_familiar_95")
+                                           or {}).get("estimate"),
+        "file_stash_in_process_gain_familiar": ((ev.get("files_outside_checkpoint") or {})
+                                                .get("in_process_gain_familiar_95") or {}).get("estimate"),
         "tampered_checkpoints_accepted": len((ev.get("checkpoint_tampering") or {}).get("accepted_tampered") or []),
         "in_process_driver_reach": len((ev.get("evaluator_internals") or {}).get("reach") or {}),
         "hosted_learner_reach": len((ev.get("evaluator_internals_hosted") or {}).get("reach") or {}),
