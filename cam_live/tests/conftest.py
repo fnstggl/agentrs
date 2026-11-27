@@ -18,12 +18,17 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 
 
 def pytest_collection_modifyitems(config, items):
-    """gpu / slow tests run only when asked for with -m (keeps the default suite fast and CPU-only)."""
+    """Opt-in tests run only when asked for with -m (keeps the default suite fast, CPU-only and offline).
+    ``gpu`` / ``slow``: every such mark on a test must be named. ``browser`` / ``privileged`` / ``network``: a test
+    carrying several of them runs when any one is named (``-m privileged`` runs privileged browser tests)."""
     expr = config.getoption("-m") or ""
     for item in items:
         for mark in ("gpu", "slow"):
             if mark in item.keywords and mark not in expr:
                 item.add_marker(pytest.mark.skip(reason=f"run with -m {mark}"))
+        env_marks = [m for m in ("browser", "privileged", "network") if m in item.keywords]
+        if env_marks and not any(m in expr for m in env_marks):
+            item.add_marker(pytest.mark.skip(reason=f"run with -m {env_marks[0]}"))
 
 
 @contextlib.contextmanager
