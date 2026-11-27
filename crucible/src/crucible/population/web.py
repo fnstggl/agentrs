@@ -917,7 +917,7 @@ class PopWeb(Module):
         if new_seen:
             rs = np.array(sorted(new_seen), np.int64)
             recs = [new_seen[int(r)] for r in rs]
-            columns.batch(ctx, RES_TABLE, "popweb.seen", rs, {
+            seen = {
                 "vec": np.array([r["vec"] for r in recs], np.float32).astype(np.float16),
                 "chars": np.array([r["chars"] for r in recs], np.int32),
                 "uniq": np.array([r["uniq"] for r in recs], np.float16),
@@ -926,7 +926,16 @@ class PopWeb(Module):
                                   np.int16),
                 "kind": np.array([r["kind"] for r in recs], np.uint8),
                 "status": np.array([r["status"] for r in recs], np.int16),
-                "fetched_at": np.array([r["t"] for r in recs], np.int64)}, mode="set")
+                "fetched_at": np.array([r["t"] for r in recs], np.int64)}
+            # delta-only (R6/R7): an entry page served from its cached record (same fetch) changes nothing in the
+            # resource table, so only resources whose record changed are rewritten
+            chg = np.zeros(rs.size, bool)
+            for k_, v_ in seen.items():
+                cur = columns.col(w, RES_TABLE, k_)[rs]
+                chg |= (np.asarray(v_).astype(cur.dtype, copy=False) != cur).reshape(rs.size, -1).any(axis=1)
+            if chg.any():
+                columns.batch(ctx, RES_TABLE, "popweb.seen", rs[chg], {k_: v_[chg] for k_, v_ in seen.items()},
+                              mode="set")
         # word of mouth: satisfied visitors recommend the resource to a contact
         Fr = {"page_utility": U, "sociability": prefs[:, 6], "resource_satisfaction": ks[np.arange(n), slot]}
         rj = np.flatnonzero(ds["recommend"].sample(Fr, rng) & has & ~abandoned)
