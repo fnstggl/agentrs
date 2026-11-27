@@ -170,6 +170,7 @@ class Demonstrator:
             elif r.get("package") and not r.get("released"):
                 out.append(("pkg.release", {"package": r["package"], "version": "0.1.0"}))
             elif r.get("released") and not r.get("deployed") and not self.fails.get(("cloud.deploy", repo)) \
+                    and names & {"cloud.rent", "cloud.providers"} \
                     and (self.instances or provs or not self.looked_providers):
                 # serve what it released: compute from a provider, then a deployment of the repository
                 if self.instances:
