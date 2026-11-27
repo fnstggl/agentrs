@@ -110,6 +110,8 @@ class SemanticGeneralists(Module):
         if b is None:
             from . import brain
             kw = {"routes": dict(self.cfg.get("routes") or {})} if self.cfg["brain"] == "lm" else {}
+            if kw and self.cfg.get("think") is not None:      # {capability: tokens}; default: the routing decision
+                kw["think"] = dict(self.cfg["think"])
             b = world.runtime["semp.brain"] = brain.make(self.cfg["brain"], **kw)
         return b
 
