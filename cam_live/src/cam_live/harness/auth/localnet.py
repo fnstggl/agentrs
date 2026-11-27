@@ -220,13 +220,21 @@ def own_socket_inodes() -> Set[int]:
     return out
 
 
+_LISTEN_TTL_S = 1.0
+
+
 def own_listener(port: int) -> bool:
     """True when at least one socket listens on ``port`` on a loopback-reachable address and every such socket
-    belongs to this process. A port with no listener, or with any listener of another process, is not."""
+    belongs to this process. A port with no listener, or with any listener of another process, is not.
+
+    The kernel's socket table is expensive to read on a busy machine; a reading up to one second old may confirm a
+    port (the listener was this process's a moment ago), but a refusal is always re-checked on a fresh reading."""
     if not isinstance(port, int) or not 0 < port < 65536:
         return False
-    mine = [ino for addr, p, ino in listeners() if p == port and addr == LOOPBACK]
-    if not mine:
-        return False
     own = own_socket_inodes()
-    return all(ino in own for ino in mine)
+    for fresh in (False, True):
+        table = listeners() if fresh else _cached("listen", _LISTEN_TTL_S, listeners)
+        mine = [ino for addr, p, ino in table if p == port and addr == LOOPBACK]      # type: ignore[union-attr]
+        if mine and all(ino in own for ino in mine):
+            return True
+    return False

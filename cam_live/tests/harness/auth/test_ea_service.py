@@ -24,7 +24,8 @@ EXPECTED = {     # who, besides the operator, may call what
     "sandbox": set(), "stranger": set(),
 }
 OPERATOR_ONLY = {"resolve_approval", "reset_stop", "resume", "revoke", "reload_policy", "register_task",
-                 "register_live_authorization", "put_secret", "secret_names", "audit_tail", "verify_audit"}
+                 "register_live_authorization", "put_secret", "secret_names", "audit_tail", "verify_audit",
+                 "register_local_service", "unregister_local_service", "local_services"}
 
 
 def test_declared_matrix_is_the_specified_one():
@@ -50,6 +51,8 @@ def _args(svc, method, ctx):
         "revoke": ("grants", "x"), "reload_policy": ("x",), "register_task": (task(oid="other"), "x"),
         "register_live_authorization": ({"record_id": "r"}, "x"), "put_secret": ("n2", "another-secret-value", ["127.0.0.1"]),
         "secret_names": (), "audit_tail": (5,), "verify_audit": (),
+        "register_local_service": ("127.0.0.1:18650", "x"), "unregister_local_service": ("127.0.0.1:18650", "x"),
+        "local_services": (),
     }[method]
 
 

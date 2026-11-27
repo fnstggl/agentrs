@@ -32,8 +32,21 @@ These hold **only if every executor calls the authorization service as the contr
 before execution, `ExecContext.check` → `check_primitive` for every primitive that leaves the process, `record`
 afterwards):
 
+* **This machine's control plane.** No mode may reach the instance's own services: the policy denies, in every
+  mode, every address of this machine or its link — loopback in every spelling (canonicalised to one host before
+  any pattern is matched, so a deny entry for `127.0.0.1:P` also covers `localhost:P`, `localhost.:P`, `[::1]:P`,
+  `0.0.0.0:P`, `127.1:P`, `2130706433:P`, `[::ffff:127.0.0.1]:P`), link-local and metadata addresses, private
+  networks, the machine's own interface addresses and names `/etc/hosts` maps to them — unless the exact
+  `host:port` is a registered local service (policy list, operator registration at run start, or in staging a
+  port served only by the authorization service's own process) [`test_ea_fix_policy`]. This is policy-path
+  enforcement, like everything in this section: there is no kernel egress filter. DNS is never queried at decision
+  time, so a public name whose record points at this machine (DNS rebinding) is caught only if the executor reports
+  the address it connected to (`peer_ip`); the browser executor does not yet (change request EA-10).
 * **Per-destination network scoping.** Which hosts, paths, accounts and channels an action may reach is decided
-  from the typed `ActionSpec` / `PrimitiveOp`. Nothing in this container stops a process that already has network
+  from the typed `ActionSpec` / `PrimitiveOp`. URLs are read as a WHATWG parser (Chromium) reads them — `\\` is a
+  path separator, slashes after `scheme:` are skipped, user-info ends at the last `@`, the host is percent-decoded
+  and IDNA-mapped before it is recognised as an IP address — and control characters are refused, so the policy and
+  the browser agree on the host. Nothing in this container stops a process that already has network
   access from opening a socket to another host: there is no `CAP_NET_ADMIN`, so no netfilter rules, no network
   namespace per service, no egress proxy enforced by routing. The browser uid and the executor uid have ordinary
   outbound network access. Redirects are a concrete case: a permitted URL that redirects to a host outside the
@@ -45,12 +58,30 @@ afterwards):
   secret values (including base64 / hex / URL-encoded / reversed forms). Obfuscation that the scan does not know
   (string concatenation, compression, encryption) is not detected; the sandbox's lack of network is what actually
   stops such code.
-* **Limits.** Money, compute, counts and rates are accounted from what the executor reports in `record`. A granted
-  action that is never recorded is charged its estimate, but an executor that under-reports is believed.
-* **Prohibited classes (spec 12.6).** Structural detectors (recipient counts, duplicate content across
-  destinations, identity-override fields, membership operations, incentive fields, audience fields, data classes)
-  and content patterns. Content that needs judgement goes to the operator (`needs_approval`); the detectors are not
-  a classifier of intent.
+* **Limits.** Every declared step of an action is charged at authorization (all steps must fit the remaining
+  external-action budget and every rate window), and every external-effect primitive an executor reports through
+  `check_primitive` is charged too (the declared step it realises pays for it; anything else is charged anew and
+  refused once the budget or a window is used up). A program or a skill therefore never makes more external writes,
+  external actions or payments than the remaining budget allows, whatever it carries [`test_ea_fix_limits`]. This
+  holds as far as executors report what they send: an executor that does not call `check_primitive` for a request
+  is not charged for it (and is not checked either). Money actually spent is also taken from `record`; a granted
+  action that is never recorded is charged its estimate.
+* **Prohibited classes (spec 12.6) — lexical classifiers are evadable, so approval is the default.** The
+  detectors are structural and lexical: recipient-shaped values (addresses, numbers, mentions, handles, user ids)
+  in a list under *any* field name, more than `max_mentions` individual mentions or a broadcast / role mention in
+  any content field, identity-override fields also inside JSON- and form-encoded string bodies, membership
+  operations, incentive fields, audience fields, data classes, a stored secret also when spaced out, re-cased,
+  punctuated or split into parts, profiling words in generated code, and content patterns for join-for-join,
+  reciprocal membership, member swaps, rewards conditional on engagement in either word order, claims to be human
+  or not automated, platform-staff / authority claims and account phishing, and vulnerable groups in outbound text.
+  **Every lexical classifier can be evaded by a sufficiently different phrasing**; these detectors reduce what
+  slips through, they do not guarantee it. The guarantee is the approval rule: in live mode every publication or
+  message to an external destination, every write and every interaction on an owned page needs the operator's
+  approval unless the operator pre-authorized that destination in the signed live record (`preauthorized`), and a
+  write to anything not owned is denied. Pre-authorizing a destination therefore means accepting that the
+  detectors are the only check on what is posted there; an operator who does not accept that leaves
+  `preauthorized` empty (or sets `publishing.require_approval: always`). Content that needs judgement always goes
+  to the operator (`needs_approval`), never through silently.
 * **Secrets after release.** Once a secret has been handed to the executor for a granted action and destination,
   what the executor process does with it is not controlled by the kernel. `scrub` removes known values and their
   common encodings from observations; an encoding it does not know would pass.
@@ -66,6 +97,14 @@ authorization uid can read, and a head file records the last sequence number and
 edited, deleted, inserted, duplicated, reordered and truncated entries and a chain rebuilt without the key
 [`test_ea_audit`]. An attacker who *is* the authorization uid can rewrite log, head and MACs consistently; only an
 anchor kept elsewhere (`expect_head=(seq, hash)`, e.g. recorded by the verifier or the operator) reveals that.
+`verify_audit_log` requires the head file (or an `expect_head` anchor) by default, so a log emptied or truncated
+together with the removal of its head fails; `require_head=False` checks chain consistency only.
+
+**Emergency stop.** `emergency_stop`, `opctl stop` (online or offline) and `touch R/auth/STOP` have the same effect:
+the first time the service sees a stop flag it voids every outstanding grant (bumps the revocation epoch), and
+`reset_stop` voids whatever is still outstanding, so no grant issued before a stop is usable after the reset
+[`test_ea_fix_policy::test_a_stop_set_by_any_means_voids_grants_for_good`]. A flag created and removed by hand while
+the service made no call at all is not seen; reset with `opctl reset-stop`.
 
 ## 4. What a VM deployment would add
 
