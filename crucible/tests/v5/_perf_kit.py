@@ -37,10 +37,12 @@ def suite() -> dict:
 
 
 def _governed_json(cmd: list[str], out: str, label: str, profile: str = "standard", cpu: int = 1,
-                   gpu_mb: int | None = None) -> tuple[dict | None, dict]:
+                   gpu_mb: int | None = None, timeout_s: float = 7200) -> tuple[dict | None, dict]:
+    """Run one workload as a governed job with a time grant (about 3-6x its measured wall time on 2026-11-26, so a
+    hung workload cannot hold its grants for the rest of the suite)."""
     store = os.path.join(WORK, "stores", os.path.basename(out))
     os.makedirs(store, exist_ok=True)
-    rec = bench5.governed(cmd, profile, label, store, cpu=cpu, gpu_mb=gpu_mb)
+    rec = bench5.governed(cmd, profile, label, store, cpu=cpu, gpu_mb=gpu_mb, timeout_s=timeout_s)
     try:
         return json.load(open(out)), rec
     except (OSError, ValueError):
@@ -73,7 +75,8 @@ def v4_rows() -> dict:
             out = os.path.join(WORK, f"v4-{n}.json")
             r, rec = _governed_json([sys.executable, "-m", "crucible.scale.bench5", "v4", "--consumers", str(n),
                                      "--days", str(DAYS), "--seed", "0", "--work", os.path.join(WORK, "v4"),
-                                     "--out", out], out, f"M: 4.0 bazaar {n} consumers {DAYS:g}d", prof, gpu_mb=0)
+                                     "--out", out], out, f"M: 4.0 bazaar {n} consumers {DAYS:g}d", prof, gpu_mb=0,
+                                    timeout_s=3600)
             recs.append(rec)
             if r is not None:
                 rows.append(r)
@@ -88,8 +91,10 @@ def backend_matrix() -> dict:
         code = ("import json, sys\nfrom crucible.scale import backends\n"
                 "b = backends.bench_adaptive(batches=(1, 8, 32, 64, 256, 1024), reps=5)\n"
                 "json.dump({'adaptive': b, 'choice': backends.choose(b), 'strategic': backends.bench_strategic(),"
-                " 'encoder': backends.bench_encoder()}, open(sys.argv[1], 'w'), default=str)\n")
-        r, rec = _governed_json([sys.executable, "-c", code, out], out, "M: backend matrix", "standard", gpu_mb=1500)
+                " 'encoder': backends.bench_encoder(), 'service': backends.bench_service()}, open(sys.argv[1], 'w'),"
+                " default=str)\n")
+        r, rec = _governed_json([sys.executable, "-c", code, out], out, "M: backend matrix", "standard", gpu_mb=3500,
+                                timeout_s=3600)
         return {"ok": r is not None, "result": r, "usage": rec}
     return _cached("backends", compute)
 
@@ -118,11 +123,14 @@ def event_driven() -> dict:
 
 @functools.lru_cache(maxsize=1)
 def cache_workload() -> dict:
+    # 96 simulated hours per world: content is consumed over days after it is published (a 30-day development civ
+    # world looks each representation up about 36 times), so a 12-hour world measures little more than first
+    # lookups (measured 2026-11-26: 0.67 over three 12-hour worlds, each item requested about twice)
     def compute():
         out = os.path.join(WORK, "cache.json")
         work = os.path.join(WORK, "cachework")
         r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "cache", "--world", "civ",
-                                 "--profile", "development", "--hours", "12", "--work", work, "--out", out], out,
+                                 "--profile", "development", "--hours", "96", "--work", work, "--out", out], out,
                                 "M: representation cache over three worlds", "standard")
         return {"ok": r is not None, "result": r, "usage": rec}
     return _cached("cache", compute)
@@ -133,7 +141,7 @@ def capacity() -> dict:
     def compute():
         out = os.path.join(WORK, "capacity.json")
         r, rec = _governed_json([sys.executable, "-m", "crucible.scale.gatev", "capacity", "--n", "10000000",
-                                 "--out", out], out, "M: 10M capacity", "internet")
+                                 "--out", out], out, "M: 10M capacity", "internet", timeout_s=14400)
         return {"ok": r is not None, "result": r, "usage": rec}
     return _cached("capacity-10M", compute)
 

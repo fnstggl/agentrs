@@ -89,7 +89,9 @@ def outcomes(run: dict) -> dict:
     rev = np.array([int(s[d + 1]["res_revenue_cents"].sum() - s[d]["res_revenue_cents"].sum()) for d in range(D)])
     end = s[-1]
     uniq = end["res_uniq"].astype(np.float64)
-    reach = np.stack([s[d + 1]["res_uniq"] for d in range(D)]).astype(np.float64) / max(N, 1)     # [D, R]
+    R = int(uniq.size)                 # resources created during the run are appended: earlier days pad with 0
+    reach = np.stack([np.pad(s[d + 1]["res_uniq"].astype(np.float64), (0, R - s[d + 1]["res_uniq"].size))
+                      for d in range(D)]) / max(N, 1)                                                     # [D, R]
     ret = [float((active[d] & active[d + 1]).sum() / max(1, active[d].sum())) for d in range(D - 1)]
     return {"N": N, "days": D,
             "adoption": [float(a.mean()) for a in adopted],

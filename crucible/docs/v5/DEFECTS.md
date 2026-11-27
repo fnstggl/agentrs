@@ -886,13 +886,15 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-I-3 (critical, open): Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); T
+### DEF-I-3 (critical, fixed): Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); T
 
 ```json
 {
  "area": "I_domains",
+ "fixed_by": "c5c/w3b-domfw (D-48): one contract crucible.domains.base.Domain consumed unchanged by crucible.experience.make(2, '<domain>:<config>' | 'tier2:<domain>/<config>' | 'd5_<domain>_<config>'); learners occupy the domain's seats; make() defaults to observation_only (reward 0.0, evaluator verdict only in verify()); the legacy score-delta reward exists only when legacy_shaped_reward is named",
  "id": "DEF-I-3",
  "owner": "I",
+ "regression_tests": "tests/test_v5_domains_framework.py::test_learner_occupies_the_seat_in_an_observation_only_civ_world, ::test_spec_is_a_restricted_civilisation_recipe_with_seats, tests/test_v5_experience_oo.py::test_tier2_path_against_domains_base",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -900,7 +902,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/I_domains.json",
   "finding": 2
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Framework/contract split: base.Domain vs experience.registry (module DOMAIN, dict configs, build(cfg,seed)); Tier 2 unreachable via experience.make (AttributeError); make() defaults to legacy_shaped_reward = evaluator score delta."
 }
 ```
@@ -1195,35 +1197,40 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-M-1 (critical, open): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
+### DEF-M-1 (critical, fixed): Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; 
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "c5c/w3-perf (merged 3ffbcdb) + c5c/w3b-perf: v5 benchmark harness crucible.scale.bench5 (12 quantities per profile on the civ world, 4.0 equivalent workload), gatev (event-driven, cache, 10M capacity), approx (estimated cohort mode), backends (backend matrix); gate tests tests/v5/test_gate_V.py (V.1-V.9, V.n1), test_gate_SP_13_7.py, test_gate_SP_13_8.py and the other M gates; machine targets docs/v5/performance/targets.json adopted by DECISION_LOG D-27 before any official run",
  "id": "DEF-M-1",
  "owner": "M",
+ "regression_tests": "tests/v5/test_gate_V.py, tests/v5/test_gate_SP_13_7.py, tests/v5/test_gate_SP_13_8.py, tests/test_v5_perf_units.py::test_targets_are_checked_against_the_target_world",
  "requirements": [
   "SP-13.7",
   "SP-13.8"
  ],
+ "resolution_note": "The defect was the absence of the workstream's harness, gate tests and targets; they exist and run. Whether each requirement is MET is decided by its gate test (V.1 and SP-13.1 still fail until class 4 is bound; see docs/v5/workstreams/M.json).",
  "severity": "critical",
  "source": {
   "audit": "M_performance",
   "file": "docs/v5/audit/M_performance.json",
   "finding": 0
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Workstream M never ran: no gate V / SP-13.7 / SP-13.8 tests, no v5 benchmark, no recorded throughput targets; all 12 M requirements unmet."
 }
 ```
 
-### DEF-M-2 (critical, open): crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB;
+### DEF-M-2 (critical, fixed): crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB;
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "c5c/w3-perf (merged 3ffbcdb): crucible.scale.slots/governor enforce all seven dimensions (affinity + re-pinning, summed-PSS RAM watchdog, torch allocator cap + reporter, GPU-seconds, disk growth + RLIMIT_FSIZE, inference tokens, active-world registry), FIFO with stored budget, zombie-aware liveness, subreaper supervision; c5c/w3b-perf: backfill that never delays an earlier request, pid-identity liveness, pidfd signalling",
  "id": "DEF-M-2",
  "owner": "M",
+ "regression_tests": "tests/v5/test_gate_SP_13_7.py (adversarial probes: 7 dimensions stopped, 9 scheduling rules held; passed unofficially 2026-11-26 on 55433e7), tests/test_v5_slots.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1231,7 +1238,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 1
  },
- "status": "open",
+ "status": "fixed",
  "summary": "crucible.scale.slots enforces nothing: 3 of 7 dimensions tracked; a 100 MB GPU reservation allocated 1,024 MB; affinity 48 CPUs, no rlimits; 13/219 logged jobs exceeded reserved CPU; no FIFO; zombies keep slots; simulation never consults it."
 }
 ```
@@ -1251,11 +1258,12 @@ B_population verdict) and P's own findings.
   "finding": 2
  },
  "status": "open",
- "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk."
+ "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk.",
+ "progress": "2026-11-26 (c5c/w3b-perf, measured, not fixed): after daily retention compaction, VACUUM and WAL checkpoint the civ world stores 7,843 B per individual-day at development (5 days) and 2,846 B at standard (3 days) against T6 550 B; the 10M capacity run (9 h, no store) fits T4. Remaining work is in the event and blob formats and event volume of kcal, B, C and D: docs/v5/performance/OPTIMISATION_REQUESTS.md R5, R6 (artifact.stored folded into cols.batch, one scheduler event per firing, space vectors stored once, delta-only set batches, raw small-blob format). 2026-11-27 (30-day runs, standard profile, no VACUUM): 758 MB and 737 MB for seeds 0 and 1 after 30 days, 2,454 B per individual-day (T6 550 B: missed); large 120-150 MB per simulated day (1,051 MB after 7 days). Still open: the fixes are in the formats and event volume of the owners named above."
 }
 ```
 
-### DEF-M-4 (critical, open): No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' cl
+### DEF-M-4 (critical, fixed): No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' cl
 
 ```json
 {
@@ -1271,18 +1279,22 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 3
  },
- "status": "open",
- "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code."
+ "status": "fixed",
+ "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code.",
+ "fixed_by": "c5c/w3-perf + c5c/w3b-perf: crucible.scale.approx, the estimated cohort mode ('approx-cohort/1', labelled estimated, never used inside a world; FIDELITY_REGISTER scale.approx_cohort) and approx.validate, its comparison against high-fidelity individual simulations (fit on 400-individual runs, predict 1,600 individuals on 3 other seeds and a shop-share intervention; errors with 95% intervals for the 7 quantities of Part 13.6; measured 2026-11-26 in docs/v5/performance/MEASUREMENTS.md section 6); dc8f900 fixed its crash on web resources created during a run",
+ "regression_tests": "tests/test_v5_perf_units.py::test_the_estimated_mode_is_labelled_and_measures_errors, tests/test_v5_perf_units.py::test_outcomes_handle_resources_created_during_the_run, tests/v5/test_gate_V.py::test_V_9_approximation_errors_quantified"
 }
 ```
 
-### DEF-M-5 (critical, open): Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (ro
+### DEF-M-5 (critical, fixed): Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (ro
 
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "4a2d27e (workstream L): WorldEnv(reward_mode=None) -> check_mode(None) = observation_only (D-19); the shaped balance-change reward only when selected",
  "id": "DEF-M-5",
  "owner": "M",
+ "regression_tests": "tests/test_v5_perf_units.py::test_rollout_world_env_defaults_to_observation_only_regression_def_m_5, tests/v5/test_gate_OO.py, tests/v5/test_gate_R.py",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1290,7 +1302,7 @@ B_population verdict) and P's own findings.
   "file": "docs/v5/audit/M_performance.json",
   "finding": 4
  },
- "status": "open",
+ "status": "fixed",
  "summary": "Amendment (a) violated in the owned path: crucible.scale.rollout.WorldEnv defaults to legacy_shaped_reward (rollout.py:128); probe returned reward 12345.0 for an exogenous deposit with no action."
 }
 ```
@@ -1310,7 +1322,8 @@ B_population verdict) and P's own findings.
   "finding": 5
  },
  "status": "open",
- "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation."
+ "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation.",
+ "progress": "2026-11-26 (c5c/w3b-perf): event-driven policy compute 28.2x cheaper than dense on the civ standard world with 200 pop.wake trigger batches and equal outcomes over three forks (MEASUREMENTS.md section 6); 10M identities on the one population with the posts platform (13.1M recounted distinct consumption events, 596 s, 16.4 GB; section 7); quadratic set(own) removed on c5c/w3b-pop (B, not yet merged). Open: class-4 rows act only once D's runtime (c5c/w3b-sem semantic/generalists) is merged; the world's cost is dominated by consequences (shopping search R1, consumption engine R2, shared-space text path R3, sandbox metering R4, per-event costs R5): measured requests to their owners in docs/v5/performance/OPTIMISATION_REQUESTS.md. 2026-11-27: class 4 is bound by D (c5c/w3b-sem) but no civ profile installs module pop_semantic (request to J and D in docs/v5/workstreams/M.json); at the large profile the cost per event grows 4.7x in 7 days at a steady event rate (R1)."
 }
 ```
 

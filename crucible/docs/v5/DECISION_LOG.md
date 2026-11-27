@@ -339,3 +339,85 @@ the ablation's degradation on the share of calls that are consequential (Fisher 
 productive results; the share of successful calls is reported, not asserted: uniform random choices spread over
 argument-free read tools (31 distinct tools ablated vs 5 with the models in the third run), which succeed whatever
 the caller understands (ablated 0.28 vs models 0.25 in that run, while consequential calls were 3 vs 16, p 3.6e-5).
+
+## D-48 The Tier 2 domain contract `domains-framework/2` (2026-11-26, workstream I, wave 3b)
+Resolves the contract split of audit I_domains section 2 (DEF-I-3) on the D-17 side: `crucible.domains.base.Domain`
+is the only domain contract and `crucible.experience` consumes it unchanged. A configuration's world is
+`build(config, seed, overrides) -> recipe`, normally `base.civ_recipe(...)` - `crucible.civ.recipe` restricted to the
+configuration's subsystems, population modules and extra modules with their declared dependencies (mode C
+composition); a standalone semantic world is allowed where the spec allows mode B (`Domain.mode = "B"`). Learners
+occupy the domain's `Seat`s (module `seat`, created at genesis; every seat by default, so multi-learner worlds work).
+The objective is public; the evaluator is evaluator-side and must be a function of recorded state (it is re-run on a
+world replayed from the event log). The reference is a scripted policy of the learner protocol (`act(obs, tools)`,
+`observe(...)`) that receives observations and its own results only, never the World (the audit's skeptic S.1: an
+omniscient reference does not show feasibility for an observation-limited learner); it is driven through
+`crucible.experience.make(2, ...)` like a learner and labelled scripted. Mechanics and autonomous participants are
+recorded-event probes (`Mechanic`, `Actor`) counted by the framework, never self-reports. Rules out: references that
+read world state, `mechanics(world) -> {name: True}` self-reports, worldgen `d5_*` families registered into the 4.0
+family table (the `d5_<domain>_<config>` names stay accepted by `experience.make`).
+
+**Amendment (2026-11-27, wave-3b repair pass; API `domains-framework/3`, commit `domains-framework: ready v2`).** An
+independent verifier showed that `/2` accepted declarations where D-48 promised measurements. Now: (1) evidence of a
+mechanic or actor is recorded events - patterns or an evidence function returning event SEQUENCE NUMBERS that the
+framework checks against the log; kernel bookkeeping never counts, substrate-generic types (`bank.txn`, `id.*`,
+`artifact.stored`, `space.recorded`, the population's own batches) only with a payload filter, a number returned by an
+evidence function is a self-report (`unverified`, counts 0), two mechanics with the same evidence are one; an actor's
+event counts only when it is a decision of a non-seat principal or a population batch with decision provenance.
+(2) Objectives come from the independent goal generator: `Domain.goal: GoalFamily` draws the goal's parameters from
+its own stream (`goal_rng`, never the world's), states the outcome as a `crucible.goals.metrics` predicate and
+publishes only its text; `base.goal_verdict` evaluates it; a free `objective` callable is reported as such and does
+not satisfy N.1. (3) The reference runs in its own process (`IsolatedPolicy`) and receives the objective's text
+only, so neither a garbage-collector walk nor a field of the objective dict is a privileged channel; the static
+`reads_world` also scans same-module helpers, introspection and computed `getattr`. (4) The evaluator must not be a
+participant tool (by name, description or handler) and its verdict must need the autonomous participants: with the
+processes that made their decisions in the null run frozen, the reference must fail. Rules out: count-only
+mechanics returning numbers, report-function self-reports, actors on system events, references in the parent
+process, objective dicts carrying hidden state to the reference, verdicts on participant-controlled facts.
+
+## D-49 Configuration structure is measured on built worlds, with magnitudes reduced to presence (2026-11-26, workstream I)
+Audit I_domains section 2 item 2 and skeptic S.1: `validate()` accepted configurations that differ only in numbers.
+The structure of a configuration is `base.fingerprint(world)` of its built world (module set, participant types,
+civilisation couplings, supply-chain and freight graph shapes, regimes, and the domain's own measured structure),
+reduced by `base.discrete`: a magnitude becomes presence/absence, a numeric sequence its set of degree classes
+(0, 1, 2, 3+), a graph a scale-invariant shape. Consequences: 4 vs 6 regions on a ring is one structure; a
+configuration whose structure changes with the seed is not counted (seeds are instances, not configurations); a
+structurally unfamiliar evaluation configuration has a fingerprint atom no training configuration has; a
+compositionally unfamiliar one has no new atom and a combination no training configuration has. The declared
+`DomainConfig.structure` stays documentation (the research registry shows it) and is never used for counting.
+
+**Amendment (2026-11-27, wave-3b repair pass).** The verifier built five configurations of one world that counted as
+five structures through a hook reading `spec.params["domain_config"]`, and made inert modules (calendar, support,
+studio) count as structure. Now the domain hook receives a `BuiltWorld` (read-only tables and columns, engaged module
+names, the clock; no spec, parameters, module objects or configuration) and its source is scanned for declaration
+reads; the fingerprint's module set is the ENGAGED modules (an applier recorded an event, a declared table or column
+table holds rows - at genesis plus what the configuration's null run engaged), never the declared list. Procedural
+instances (N.6) are distinct genesis CONTENT (`instance_digest`: tables and arrays without the hash chain, sequence,
+clock and counters): the hash chain alone made every seed distinct. Configurations of different domains with equal
+framework-measured structure count as differing only in objective text. Consequence for authors: a structural choice
+that lives only in module configuration must show in built state (rows, graphs, rules) to count.
+
+## D-50 How the Gate N, SP-9.0 and SP-9.16 metrics count (2026-11-26, workstream I)
+No manifest criterion changes; this fixes their measurement. A Part 9 section counts when one of its registered
+domains (fixtures excluded) satisfies the criterion; a section without a domain counts as failing (0 configurations,
+every mechanic missing), so the gate tests fail and never skip while fewer than fifteen sections are covered.
+`domains_implemented` (N.1) counts sections whose domain satisfies every other Gate N criterion plus clean runs (no
+failed process, no invariant violation) and observation-only defaults. Feasibility (N.5) is a tool-only reference
+that succeeds on a majority (and at least one) of its reference instances; `reference_paths_exposed` (N.n1) counts
+canary identifiers of the reference and its own ordered tool sequence in the objective, observation notes and tool
+schemas, tools named after it, and sandbox importability of `crucible`, and is asserted together with fifteen scanned
+sections (the skeptic's vacuity objection). SP-9.16 `arbitrary_failure_probability_mechanisms` counts Bernoulli
+draws about failure or success in a domain's sources without a `# fidelity: <id>` pragma naming a FIDELITY_REGISTER
+record. Every gate test carries positive controls on the fixture domain (a planted defect must be detected).
+
+**Amendment (2026-11-27, wave-3b repair pass).** `check` runs the reference and the null baseline on every
+configuration (the first reference seed; the reference configurations on every reference seed); an evaluation
+configuration counts for N.7 only when it runs clean and its reference succeeds there while its null baseline fails.
+SP-9.16 `domains_where_null_baseline_fails` and `domains_with_degenerate_strategy_probe` count a section only when
+its domain is feasible (a failure where nothing can succeed shows nothing). `reference_paths_exposed` (N.n1) now
+scans everything the seat receives - every observation field and tool result of every run for canaries; the null
+runs' observations and results, every argument-free read-only query result, the tool list and the objectives for
+the reference's ordered tool path (catalogues listing half the tools excluded). `arbitrary_failure_probability_
+mechanisms` scans the domain's files AND the kernel module files of its worlds, and detects thresholded integer and
+uniform draws, binomial draws, weighted True/False choices and `ok: False` / status-down / raise branches. The
+observation-only verdict reads every reward of every run. `domains_implemented` additionally requires generated
+objectives (`domains_with_generated_objectives`, reported). No manifest criterion changed.
