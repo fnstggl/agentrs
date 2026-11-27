@@ -1,7 +1,7 @@
 {
  "workstream": "D",
  "stage": "1 of 2",
- "commit": "1b3e432f056993dfcbad6644a60bd68158681d5f",
+ "commit": "491fa23ee3aed862bf056d4fda018e1d650dba7d",
  "summary": "Stage 1: durable storage, linking, credit estimators at reference level and checkpoint IO. SqliteExperienceStore (WAL + blobs, single writer, SIGKILL-safe, outcome de-duplication, provenance strata, stratified seeded replay sampler with checkpointable state); OutcomeLinker (evidence-only fractional links, no future leakage, retrospective re-training queue); exact REINFORCE / all-actions / COCOA / RUDDER estimators validated against enumerated gradients; ReturnDecomposer (conservation under exp(-beta dt), return-to-go signal, no credit for pending trajectories); HindsightModel (policy-logit prior, elapsed time, ensemble and support uncertainty, UNSUPPORTED refusal, three separate fields); simple attribution with Welch arm differences; evidence-based estimator selector; SMDP traces and a credit-once ledger; atomic checkpoints with tolerant loading, weights-only export, promotion and rollback. Nothing is wired onto the real model or the agent yet: the continual learner (NA-08, CL-02, CL-03, CL-04, CL-08) is stage 2.",
  "requirements": {
   "RC-01": {
@@ -528,5 +528,6 @@
   "In the one seeded run of the synthetic experiment world, a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3) and the selector rejected it; the same 400 steps with cosine annealing gave RMSE 0.018. One seed, one task: it shows sensitivity to training quality, not a rate.",
   "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018)."
  ],
- "change_requests_note": "D-1 .. D-5 propose diffs to master-owned files; D-6 only records an integration point that already works."
+ "change_requests_note": "D-1 .. D-5 propose diffs to master-owned files; D-6 only records an integration point that already works.",
+ "commit_note": "last commit that changed Workstream D code, tests or evidence; later commits on the branch belong to other workstreams or are this status file"
 }
