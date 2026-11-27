@@ -433,9 +433,12 @@ class CascadingFailure(Primitive):
     def apply(self, p, x, s, z, u, t):
         m = int(p["m"])
         B = x["stress"].shape[0]
-        base = p["load"] * (1.0 + p["spread"] * np.cos(np.linspace(0.0, 2 * np.pi, m, endpoint=False)))
-        load = np.zeros((B, m)) + base[None, :] + x["stress"][:, None]
-        cap = np.zeros((B, m)) + p["cap"]
+        # load, spread and cap may be per-instance (B,) arrays on the batch path: broadcast them over the ring
+        ld = np.asarray(p["load"], dtype=float).reshape(-1, 1)
+        sp = np.asarray(p["spread"], dtype=float).reshape(-1, 1)
+        base = ld * (1.0 + sp * np.cos(np.linspace(0.0, 2 * np.pi, m, endpoint=False))[None, :])
+        load = np.zeros((B, m)) + base + x["stress"][:, None]
+        cap = np.zeros((B, m)) + np.asarray(p["cap"], dtype=float).reshape(-1, 1)
         adj = ring(m)
         failed = cascade(load, cap, adj)
         return failed.mean(axis=1), s
