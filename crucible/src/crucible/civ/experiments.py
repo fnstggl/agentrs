@@ -440,6 +440,25 @@ def m_adopted_from_papers(w, t0, t1, ctx):
 INVENTOR = {"handle": "inventor", "host": "inventor-svc", "price": 3}
 
 
+_JSON_TYPES = ((bool, "boolean"), (int, "integer"), (float, "number"), (str, "string"), (list, "array"),
+               (dict, "object"))
+
+
+def derived_schema(need: str, seed: int) -> dict:
+    """The interface an inventor writes for a published format that has no public schema (crucible.innovation.worlds
+    .FORMAT_SCHEMAS covers five of the seven work formats): the format's input fields with their JSON types, read off
+    an example input of the format (the format is public; its example generator is the format's own), every field
+    required, extra fields allowed; any JSON object as output. Experimenter-side setup of a scripted agent."""
+    from ..economy.needs import NEEDS
+    inp, _ = NEEDS[need].generate(np.random.default_rng([int(seed), 2101]), 0.4)
+    props = {}
+    for k, v in sorted(inp.items()):
+        t = next((t for py, t in _JSON_TYPES if isinstance(v, py)), None)
+        props[k] = {"type": t} if t else {}
+    return {"inputs": {"type": "object", "properties": props, "required": sorted(props), "additionalProperties": True},
+            "outputs": {"type": "object", "additionalProperties": True}}
+
+
 def _invention_setup(w, ctx):
     """A scripted reference inventor (labelled `scripted`, crucible.civ.reference.InventorAgent) is admitted in every
     arm; in the factual arm it writes, deploys and declares a service for one of the civilisation's published work
@@ -450,15 +469,19 @@ def _invention_setup(w, ctx):
     from ..innovation.worlds import FORMAT_SCHEMAS
     from .reference import InventorAgent
     fams = (w.modules["work"].config.get("families") or []) if "work" in w.modules else []
-    # the first of the world's published work formats whose interface an operator can declare (a public schema)
-    cands = sorted(f["need"] for f in fams if f.get("need") in FORMAT_SCHEMAS)
-    if not cands:
-        raise ValueError(f"no work format of this civilisation has a public interface schema: {fams}")
-    need = cands[0]
+    needs = sorted(f["need"] for f in fams if f.get("need") in NEEDS)
+    if not needs:
+        raise ValueError(f"this civilisation publishes no work format: {fams}")
+    # the first of the world's published work formats whose interface has a public schema; when none has one (e.g.
+    # match.stable + route.tsp, chain seed 22), the first format with the inventor's own schema of its input
+    with_schema = [n for n in needs if n in FORMAT_SCHEMAS]
+    need = with_schema[0] if with_schema else needs[0]
+    schema = None if with_schema else derived_schema(need, int(ctx["seed"]))
     tier = len(NEEDS[need].tiers) - 1
     board = w.modules["work"].cfg("ask_board") if "work" in w.modules else "help"
     ag = InventorAgent(INVENTOR["handle"], need, INVENTOR["host"], tier=tier, price=INVENTOR["price"], at=w.now,
-                       cores=1, announce=True, board=board)
+                       cores=1, announce=True, board=board, schema=schema)
+    ctx["schema_derived"] = schema is not None
     ag.ensure(w)
     provs = w.query(ag.actor, "cloud.providers")
     ctx["provider"] = sorted(provs, key=lambda p: (-p["cores_free"], p["provider"]))[0]["provider"] if provs else None

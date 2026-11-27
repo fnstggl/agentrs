@@ -199,3 +199,25 @@ def test_chain_results_counts_scripted_stages_only_among_the_stages_that_count(m
     assert inv["confirmed_stages"][0] == "technology_invention" and inv["n_confirmed_stages"] == 3
     assert inv["scripted_stages_after_root"] == 2                  # its counted population stage was scripted-only
     assert r["scripted_chain_stages"] == 2 and r["multi_stage_chains"] == 2
+
+
+def test_inventor_declares_a_format_without_a_public_schema_with_its_own_schema():
+    """Chain seed 22 publishes only match.stable and route.tsp, neither in FORMAT_SCHEMAS: the inventor declares the
+    first of them with a schema of the format's input (`derived_schema`) that accepts the population's own inputs."""
+    import numpy as np
+    from crucible.civ.experiments import derived_schema
+    from crucible.civ.reference import InventorAgent
+    from crucible.core import schema as S
+    from crucible.economy.needs import NEEDS
+    from crucible.innovation.worlds import FORMAT_SCHEMAS, innovation_spec
+    assert "match.stable" not in FORMAT_SCHEMAS
+    sch = derived_schema("match.stable", 22)
+    for k in range(10):
+        assert not S.validate(sch["inputs"], NEEDS["match.stable"].generate(np.random.default_rng(k), 0.5)[0], "input")
+    w = World.create(innovation_spec(1, with_adopters=False))
+    ag = InventorAgent("inv", "match.stable", "inv-svc", tier=len(NEEDS["match.stable"].tiers) - 1, price=3, at=w.now,
+                       cores=1, announce=True, board="market", schema=sch)
+    ag.act(w)
+    assert ag.declaration is not None, ag.log
+    d = w.state.get("cap_decls", ag.declaration)
+    assert d["status"] == "active" and d["inputs"] == sch["inputs"]
