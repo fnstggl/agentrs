@@ -63,6 +63,23 @@ DAY = 86400
 # the model-only run had been seen; the tolerances are unchanged.
 TOLERANCE = {"activity_tv": 0.10, "sessions_tv": 0.10, "retention_max_abs": 0.05, "heterogeneity_ks": 0.10,
              "heterogeneity_sd_ratio": (0.8, 1.25), "drift_mean_abs": 0.03, "stationarity_abs": 0.05}
+# prespecified equivalence margins of the in-world randomised experiments (wave-3b repair, verifier finding: a match
+# was a non-rejecting z test plus a powered estimate, so an interval far wider than any useful agreement still
+# "matched"; equivalence was never tested). A match now also needs a two one-sided tests (TOST, 5% each side)
+# equivalence: the 90% interval of (world - reference) inside +-margin. Set before any in-world run, from the
+# references' magnitudes: Criteo's display shift is 1.39 log-odds (margin 0.5, ~36%), KuaiRand's random-exposure open
+# rate 0.186 (margin 0.03, ~16%) and own-topic log-odds ratio 0.40 (margin 0.2, 50%).
+EQUIVALENCE = {"ad_shift_log_odds": 0.5, "open_rate": 0.03, "own_topic_log_odds_ratio": 0.2}
+Z_TOST = 1.6448536269514722          # one-sided 5%: the 90% interval
+
+
+def tost(diff: float, se: float, margin: float) -> dict:
+    """Two one-sided tests at 5%: equivalent when the 90% interval of `diff` lies inside (-margin, margin)."""
+    lo, hi = diff - Z_TOST * se, diff + Z_TOST * se
+    return {"diff": float(diff), "ci90": [float(lo), float(hi)], "margin": float(margin),
+            "equivalent": bool(-margin < lo and hi < margin)}
+
+
 ACTIVITY_MODELS = ("daily_return@1", "return_daily@1")
 SESSION_MODELS = ("extra_sessions@1", "session_rate@1")
 HISTORY_BINS = ((0, 1), (2, 3), (4, 5), (6, 7))
@@ -509,29 +526,36 @@ def random_exposure_experiment(world, experiment: str = "random_exposure", au: A
 def random_exposure_estimate(opened, own_topic, ref: dict | None = None) -> dict:
     """Open rate and own-topic log-odds ratio of randomly inserted items (`opened`, `own_topic`: one row per inserted
     item) against KuaiRand's random-exposure log (`ref`, default `kuairand_random_exposure_reference()`), with z
-    tests; `matching` needs both within 1.96 and the world's own estimate to detect the own-topic preference."""
+    tests; `matching` needs both within 1.96, both equivalent within the prespecified margins (`EQUIVALENCE`, TOST)
+    and the world's own estimate to detect the own-topic preference."""
     y, o = np.asarray(opened, float), np.asarray(own_topic, bool)
     ref = ref or kuairand_random_exposure_reference()
     if y.size == 0:
         raise NotWired("the random-exposure experiment recorded no inserted item")
     p = float(y.mean())
-    z_rate = (p - ref["open_rate"]) / math.sqrt(p * (1 - p) / y.size + ref["open_rate_se"] ** 2)
-    out = {"rows": int(y.size), "open_rate": p, "reference": ref, "z_open_rate": float(z_rate)}
+    se_rate = math.sqrt(p * (1 - p) / y.size + ref["open_rate_se"] ** 2)
+    z_rate = (p - ref["open_rate"]) / se_rate if se_rate > 0 else float("inf")
+    out = {"rows": int(y.size), "open_rate": p, "reference": ref, "z_open_rate": float(z_rate),
+           "equivalence_open_rate": tost(p - ref["open_rate"], se_rate, EQUIVALENCE["open_rate"])}
     p1 = float(y[o].mean()) if o.any() else float("nan")
     p0 = float(y[~o].mean()) if (~o).any() else float("nan")
     if 0 < p1 < 1 and 0 < p0 < 1:
         lor = math.log(p1 / (1 - p1)) - math.log(p0 / (1 - p0))
         se = math.sqrt(1 / (o.sum() * p1 * (1 - p1)) + 1 / ((~o).sum() * p0 * (1 - p0)))
         out["own_topic_log_odds_ratio"] = lor
-        out["z_log_odds_ratio"] = (lor - ref["own_topic_log_odds_ratio"]) / math.sqrt(
-            se ** 2 + ref["own_topic_log_odds_ratio_se"] ** 2)
+        se_d = math.sqrt(se ** 2 + ref["own_topic_log_odds_ratio_se"] ** 2)
+        out["z_log_odds_ratio"] = (lor - ref["own_topic_log_odds_ratio"]) / se_d
         out["own_topic_log_odds_ratio_se"] = se
+        out["equivalence_log_odds_ratio"] = tost(lor - ref["own_topic_log_odds_ratio"], se_d,
+                                                 EQUIVALENCE["own_topic_log_odds_ratio"])
     # a match must be informative (wave 3b): besides agreeing with KuaiRand (|z| < 1.96 for the open rate and for the
     # own-topic log-odds ratio), the world's own estimate must detect the own-topic preference KuaiRand measures
     # (|LOR| / se > 1.96) - an experiment too small to tell an effect from none can never "match"
     out["powered"] = bool("own_topic_log_odds_ratio" in out and
                           abs(out["own_topic_log_odds_ratio"]) > 1.96 * out["own_topic_log_odds_ratio_se"])
-    out["matching"] = bool(out["powered"] and abs(out["z_open_rate"]) < 1.96
+    out["equivalent"] = bool(out["equivalence_open_rate"]["equivalent"]
+                             and (out.get("equivalence_log_odds_ratio") or {}).get("equivalent", False))
+    out["matching"] = bool(out["powered"] and out["equivalent"] and abs(out["z_open_rate"]) < 1.96
                            and abs(out.get("z_log_odds_ratio", 99.0)) < 1.96)
     return out
 
@@ -631,12 +655,15 @@ def match_criteo(est: dict) -> dict:
     a = float(load("ad_exposure_response").predictor.a)
     se_c = (ci[1] - ci[0]) / 3.92
     se_w = (est["shift_ci95"][1] - est["shift_ci95"][0]) / 3.92
-    zz = (est["shift_attention_adjusted"] - a) / math.sqrt(se_c ** 2 + se_w ** 2)
+    se_d = math.sqrt(se_c ** 2 + se_w ** 2)
+    zz = (est["shift_attention_adjusted"] - a) / se_d
     # informative (wave 3b): the world's own 95% interval must exclude a null display effect, so a campaign too small
-    # to detect any effect never "matches" through a wide interval
+    # to detect any effect never "matches" through a wide interval; and (wave-3b repair) the difference must be
+    # shown equivalent within the prespecified margin (TOST), not merely not rejected
     powered = bool(est["shift_ci95"][0] > 0.0)
-    return {"criteo_shift": a, "criteo_ci95": ci, "z_shift": float(zz), "powered": powered,
-            "matching": bool(powered and abs(zz) < 1.96)}
+    eq = tost(est["shift_attention_adjusted"] - a, se_d, EQUIVALENCE["ad_shift_log_odds"])
+    return {"criteo_shift": a, "criteo_ci95": ci, "z_shift": float(zz), "powered": powered, "equivalence": eq,
+            "matching": bool(powered and eq["equivalent"] and abs(zz) < 1.96)}
 
 
 # ====================================================================== SP-5.0 measurements on a world

@@ -1,10 +1,11 @@
 """Child process for the cross-process snapshot/resume tests (tests/test_v5_substrate_resume.py, gate SP-2.3).
 
-    python tests/v5_resume_child.py ref    SPEC.json DAYS             uninterrupted in-memory run to DAYS
+    python tests/v5_resume_child.py ref    SPEC.json DAYS [DB]        uninterrupted run to DAYS (in memory; with DB its
+                                                                       events are also written there, for diagnosis)
     python tests/v5_resume_child.py part   SPEC.json DB SNAP_DAY DAYS SQLite-stored run: snapshot at SNAP_DAY, run to
                                                                        DAYS, flush, then die with os._exit (no close:
                                                                        the process's artifact pool is lost)
-    python tests/v5_resume_child.py resume SPEC.json DB DAYS          a NEW process: World.load from the store
+    python tests/v5_resume_child.py resume SPEC.json DB DAYS [--flush] a NEW process: World.load from the store
                                                                        (snapshot + replay of the events after it), run
                                                                        on to DAYS
     python tests/v5_resume_child.py replay SPEC.json DB               a NEW process: replay the whole stored log from
@@ -15,7 +16,9 @@
 Every mode prints one JSON line: seq, last hash, digest, invariant violations, how many recorded neural inferences
 were (re-)executed in this process (`inference_runs`, counted at the recorded-inference boundary) and how many torch
 backward passes ran (`backward_passes`: training re-executed, e.g. when on_load rebuilds weights from an older
-checkpoint plus logged updates).
+checkpoint plus logged updates), and the deterministic cost model's memo outcomes in this process (`meter`: anchors
+this process set, remembered, and measurements above the tolerance that were billed fresh - the one way measurement
+noise can enter a trajectory, D-20/D-80).
 """
 import json
 import os
@@ -61,9 +64,39 @@ for _m in list(sys.modules.values()):          # modules that imported the funct
         _m.recorded = _counting
 
 
+_EXCEEDED: list = []
+
+
+def _watch_exceeded():
+    """Record every job the deterministic cost model billed fresh above its anchor's tolerance (diagnosis)."""
+    from crucible.sandbox import runner as R
+    orig = R.Worker._finish
+
+    def _finish(self, ok, result, error, stdout, **kw):
+        out = orig(self, ok, result, error, stdout, **kw)
+        m = out.get("meter") or {}
+        if m.get("memo") == "exceeded":
+            _EXCEEDED.append({"label": getattr(self, "label", None), "cold": getattr(self, "cold", None),
+                              "worker_jobs": getattr(self, "jobs", None), "cpu_ns": m.get("cpu_ns"),
+                              "billed_ns": m.get("billed_ns"), "kind": (kw.get("job") or {}).get("kind"),
+                              "target": str((kw.get("job") or {}).get("target"))[:60]})
+        return out
+    R.Worker._finish = _finish
+
+
+_watch_exceeded()
+
+
+def _meter() -> dict:
+    from crucible.sandbox import metering as M
+    return {"first": M.MEMO.misses, "remembered": M.MEMO.hits, "exceeded": M.MEMO.exceeded,
+            "disk_errors": M.MEMO.disk_errors, "memo_path": M.default_memo_path(), "exceeded_jobs": _EXCEEDED[:20]}
+
+
 def report(w, **extra):
     out = {"seq": w.seq, "hash": w.last_hash, "digest": w.digest(), "invariants": w.check_invariants()[:5],
-           "inference_runs": RUNS["n"], "backward_passes": RUNS["backward"], "modules": sorted(w.modules), **extra}
+           "inference_runs": RUNS["n"], "backward_passes": RUNS["backward"], "modules": sorted(w.modules),
+           "meter": _meter(), **extra}
     print(json.dumps(out), flush=True)
 
 
@@ -72,8 +105,10 @@ def main(argv):
     spec = WorldSpec.from_dict(json.load(open(spec_path)))
     day = 86400
     if mode == "ref":
-        w = World.create(spec, world_id="resume")
+        st = SQLiteStore(argv[4]) if len(argv) > 4 else None
+        w = World.create(spec, world_id="resume", store=st)
         w.advance_time(int(float(argv[3]) * day))
+        w.flush()
         report(w)
     elif mode == "part":
         db, snap_day, days = argv[3], float(argv[4]), float(argv[5])
@@ -91,6 +126,8 @@ def main(argv):
         w = World.load(SQLiteStore(db), "resume")
         loaded = {"loaded_seq": w.seq, "loaded_hash": w.last_hash}
         w.advance_time(int(days * day))
+        if "--flush" in argv:          # diagnosis: keep the resumed run's events in the store (the test does not)
+            w.flush()
         report(w, **loaded)
     elif mode == "replay":
         st = SQLiteStore(argv[3])

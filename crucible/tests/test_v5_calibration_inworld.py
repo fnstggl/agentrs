@@ -289,6 +289,28 @@ def test_a_random_exposure_experiment_too_small_to_detect_anything_never_matches
     assert weak and not any(r["matching"] for r in weak)
 
 
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_a_powered_campaign_too_imprecise_for_equivalence_is_not_a_match(seed):
+    """Wave-3b repair (verifier finding): a campaign of 6,000 individuals has an interval that excludes a null
+    effect ("powered") and a z test that does not reject Criteo's shift, yet it is far wider than the prespecified
+    equivalence margin (EQUIVALENCE["ad_shift_log_odds"]): before, it counted as a match."""
+    est = _campaign(1.0, n=6000, seed=seed)
+    m = IW.match_criteo(est)
+    assert m["powered"] and abs(m["z_shift"]) < 1.96, m
+    assert not m["equivalence"]["equivalent"] and not m["matching"], m
+    big = IW.match_criteo(_campaign(1.0))
+    assert big["equivalence"]["equivalent"] and big["matching"]
+
+
+def test_random_insertions_too_few_for_equivalence_are_not_a_match():
+    """Wave-3b repair: 1,500 insertions detect the own-topic preference and agree with KuaiRand by the z tests, but
+    the own-topic log-odds ratio is not shown equivalent within its margin (TOST): not a match."""
+    r = IW.random_exposure_estimate(*_inserted(1500, 0.40), ref=KR_REF)
+    assert r["powered"] and abs(r["z_open_rate"]) < 1.96 and abs(r["z_log_odds_ratio"]) < 1.96, r
+    assert not r["equivalence_log_odds_ratio"]["equivalent"] and not r["matching"], r
+    assert IW.random_exposure_estimate(*_inserted(60_000, 0.40), ref=KR_REF)["equivalent"]
+
+
 def test_a_world_without_display_effect_does_not_match():
     est = _campaign(0.5, shift_world=False)
     assert not IW.match_criteo(est)["matching"]
