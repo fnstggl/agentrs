@@ -1,0 +1,256 @@
+{
+ "PI-01": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Mechanism verified: every predictive family's log-likelihood equals scipy (normal, student-t, Poisson with exposure, negative binomial, Bernoulli, categorical, discrete hazard vs geometric), predictions are action-conditioned and registered at two horizons on the real Qwen3-4B configuration, and they change when only experiential weights change (max relative change of the predicted means 0.15 % / 7.6 % for perturbations of 5 % / 50 % of each tensor's std; adapters, heads and reward bit-identical). Learning evidence is debug-scale only (B's 86 measured numbers bit-reproduce on the committed code); on new mechanisms the heads do not beat the action-independent baseline; nothing is trained on the real configuration; not called by the runtime.",
+  "evidence": [
+   "G_PR_SRC=<git archive HEAD>/cam_live/src .venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py",
+   "B suite on the HEAD snapshot with CAM_LIVE_B_MEASURE: 142 passed, 86/86 measured values equal docs/evidence/B/measured.json"
+  ]
+ },
+ "PI-02": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "PredictionRegistry refuses re-registration (edit), predictions dated after the registry clock, resolutions at or before registration, second resolutions; mutating the caller's object does not change the stored record; editing the log is detected; resolved NLL equals scipy. On the real configuration every lab.act prediction is in the registry with made_at == clock when evaluate_candidates returns. Limits: observed_at is supplied by whoever builds the observation; registry is single-writer.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py"
+  ]
+ },
+ "PI-03": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Targets are built only from matured observed outcomes (build_targets masks pending / unobservable / missing / censored counts, refuses imagined); likelihoods correct. Training has run only with predict.labdata.train (plain Adam) at debug scale, not under the continual learner and not on the real configuration (B states this).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py",
+   ".venv/bin/python -m pytest cam_live/tests/predict -m 'not gpu and not slow' -q --rootdir=cam_live"
+  ]
+ },
+ "PI-04": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Two horizons (6 h, 2 d) predicted and registered per candidate on the real configuration (2 records per lab.act candidate); horizon is a continuous input. More horizons only measured as an API property.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py"
+  ]
+ },
+ "PI-05": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Epistemic (ensemble + fast posterior) and aleatoric parts are reported; epistemic_std > 0 on every real-configuration prediction; B's tests that epistemic uncertainty shrinks with data pass when re-run. Not measured by anyone: calibration of the combined uncertainty on the real model.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py",
+   ".venv/bin/python -m pytest cam_live/tests/predict -m 'not gpu and not slow' -q --rootdir=cam_live"
+  ]
+ },
+ "PI-06": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Pending, unobservable and missing outcomes are masked with y left at 0 and mask False (never filled); censored non-time-to-event outcomes are masked; an imagined observation raises; a pending objective gives exactly zero evaluator loss and gradient. Minor: targets are stored as float32 (world.py:138).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "PI-07": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Agrees with B's own 'partial': the planner exists and its outputs are flagged imagined, but the latent transition is worse than predicting the mean on held-out real transitions, the horizon never exceeds one step, and no decision comparison with/without planning exists. Not independently re-measured beyond B's re-run tests.",
+  "evidence": [
+   ".venv/bin/python -m pytest cam_live/tests/predict -m 'not gpu and not slow' -q --rootdir=cam_live"
+  ]
+ },
+ "PI-08": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "For policy, greedy, UCB, VOI-weighted and Thompson (posterior samples and normal marginals) the recorded Decision.probabilities are what the index is drawn from (chi-square p 0.055-0.93 over 20000 draws each), the infeasible candidate gets exactly 0, the eps floor holds; the mean Thompson propensity from normal marginals matches the true P(best) within 0.01; randomised assignment matches the recorded 0.3/0.7 within 4 se and is registered before the first assignment. Gaps (B's own): rules not compared on a task beyond greedy vs VOI. On the real configuration an experiential-only change moves the decision distribution (Thompson TV 0.061 at a 5 % perturbation; greedy/UCB argmax flips, TV 0.98, at 50 %; policy-rule TV only 8e-5 / 8.5e-4 because the policy head is near-uniform at initialisation).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_decisions.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py"
+  ]
+ },
+ "PI-09": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "On real Qwen3-4B the proposer produced 4 schema-valid backbone actions merged with 13 schema-walker candidates, every candidate carries its provenance and decisions record exact probabilities. But the backbone is NOT conditioned on the latent in effect: log p(completion | prompt, b) is bit-identical for two different beliefs at initialisation (bridge output projection zero); the path exists (|dlogp| = 0.87 after perturbing the bridge) and only D's consequence provider (credit/providers.py:632) can train it. Proposal usefulness not measured.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py"
+  ]
+ },
+ "PI-10": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Imagined objects (imagined flag / imagined_horizon_steps) are refused by build_targets, the registry and the evaluator path (B tests + own probe). Residual risk B states itself: code outside B could wrap an imagined value in an ordinary observation. C's ledger screen does not read an OutcomeObservation.imagined field (the field is being added to the contract in the working tree).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-01": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "GoalEvaluator on the shared latent; success loss equals BCE-with-logits exactly; heads exist and run on the real configuration (B gpu evidence). Debug-scale training only.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-02": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "prefix_targets applies one signed outcome to every earlier prefix (prefixes at/after evaluation masked, 1/n weight per trajectory); unsigned refused; pending -> zero loss and gradient; an 80 % forecast that fails receives gradient p - y. Integration (who calls EvaluatorLoss.add_outcome) is open.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-03": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Count magnitudes by negative binomial (== scipy, -> Poisson), time to achievement by a censoring-aware discrete hazard (== geometric; censored = survival of completed bins), resources by a normal on log1p. Accuracy only at debug scale.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-04": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Brier, NLL, reliability and slope/intercept are computed correctly on synthetic data with known calibration (true 0.7/0.3 inside the intervals) and predictions are prospective. DEFECT D5: the slope/intercept intervals ignore clustering (Brier/NLL use clusters): on a clustered null (40 lifetimes x 16 forecasts, true slope 0) the 95 % interval excludes 0 in 61 % of runs, so B's reported 'slope 254.16 (CI 122.43..385.90)' is not a valid interval. The trained evaluator does not beat the base rate (B).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_predict_numerics.py"
+  ]
+ },
+ "SE-05": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "action_quality = q[chosen] - E_pi q, regret, and quality + luck = surprise hold exactly; a lucky success of a poor decision has quality < 0, luck > 0. B reports that the raw outcome is the better indicator of true advantage at debug scale.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_extras.py"
+  ]
+ },
+ "SE-06": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Reference VOI estimators are correct (E[max affine] and the knowledge gradient vs Monte Carlo; a decision-irrelevant observation with large surprise has VOI exactly 0) and the Predictor uses the Jensen gap E[max] - max E. Not done (B's own): the probe is not valued above the noisy gauge, VOI-aware selection did not beat greedy, the learned downstream estimator has no loss provider.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_decisions.py"
+  ]
+ },
+ "AE-01": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "propose_experiment picks the least-certain ordered pair; select_experiment registers question, hypothesis and copies of the predictions before the first assignment, refuses infeasible arms, and assignment frequencies match the recorded probabilities. Hypotheses only restate predictions; analyse/conclude are left to the agent loop.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_decisions.py"
+  ]
+ },
+ "CU-12": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Candidates are generated from discovered tool descriptors (schema walker + real backbone, provenance merged) on LabWorld tools; not measured on the harness's discover_tools() output; multi-step programs from the real backbone not observed; latent conditioning ineffective at initialisation (see PI-09).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_real_model.py"
+  ]
+ },
+ "MR-01": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "R_psi rewards every real decision of the debug model in LabWorld; intrinsic_reward, bootstrap_reward and reward_version are written to the record. Most predict-derived signals were masked in the runs (C states this); not wired into the agent.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metalearner_path.py"
+  ]
+ },
+ "MR-02": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "psi is changed only by applied meta-updates (psi hash changes on an applied update, bit-identical on skips and policy updates); 20 applied meta-updates per seed in 80 reproduced LabWorld lifetimes. Trainable is not useful: see MR-05/MR-09.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metalearner_path.py",
+   "G_PR_SRC=<HEAD snapshot> .venv/bin/python cam_live/docs/verification/repro/pr/probe_labworld_reduced.py --lifetimes 80"
+  ]
+ },
+ "MR-03": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "MetaLearner.policy_update equals my own K=2 SGD on the documented loss driven by R_psi (max |diff| 1.1e-7 vs update 1.7e-2); the reward enters the update (meta-gradient through it non-zero, exactly 0 when R_psi is detached).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_real.py"
+  ]
+ },
+ "MR-04": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Independent torch.func implementation (nested grad, value baseline held fixed only for the inner derivative, per-group clip) agrees with C's engine to 1e-15 for K = 1, 2, 4, 8 on the real adaptable subset (62,211 parameters, 30,049 psi) and on a small configuration; K = 8 on the real subset was not in C's evidence and holds.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_real.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_small.py"
+  ]
+ },
+ "MR-05": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "The applied meta-gradient equals my recomputation from the episodes (rel 1.8e-7); importance weighting is unbiased with logged propensities (MC |z| 2.2) and biased with wrong ones; refusals (missing / invalid / below-floor propensities, ESS, unverified) give no gradient and leave psi bit-identical; the inner-data score term is exact (enumerated). DEFECT D1 (major): with utility='return_to_go' (default) and verifier measurements, a row's leave-group-out baseline contains its own measured outcome (d b / d own outcome = 0.28 at row 2 of 8), so the outer gradient is biased. D7 (minor): cold start switches to the on-policy estimator within a 1e-3 tolerance. The LabWorld experiment's learned reward hurt (reproduced).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metalearner_path.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_integrity.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_small.py"
+  ]
+ },
+ "MR-06": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Unsigned, forged, replayed, invented and prediction-sourced outcomes are rejected and the ledger is hash-chained. DEFECT D2 (major): a validly signed outcome is admitted with any caller-chosen utility (1e6 for a signed value of 14) and credited to any exp_ids, so the utility number that supervises psi is not authenticated. DEFECT D3 (major): exclusion of self-generated goals depends on a caller argument objective_origin that defaults to OPERATOR; a verifier-signed outcome of a self-generated task is admitted by default.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_integrity.py"
+  ]
+ },
+ "MR-07": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Own reference: torch.func dJ/dpsi vs central FD on all 73 psi coordinates (rel <= 3.3e-9) for K = 1, 2, 4, 8 and on 43 sampled coordinates of the real subset (rel <= 1.6e-7) plus directional FD; C's engine (unroll and checkpoint) equals it to ~1e-15; C's own numbers reproduce exactly on the committed code (real subset 9.52e-6 / 9.56e-6 / 9.63e-6, |g| to 5 digits; tabular J and FD agreement for K = 1..8).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_small.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_real.py",
+   "G_PR_SRC=<HEAD snapshot> .venv/bin/python cam_live/docs/verification/repro/pr/probe_reproduce_numbers.py"
+  ]
+ },
+ "MR-08": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "Bootstrap mode needs no pretraining, every record and MetaUpdateRecord carries the bootstrap label/mix, the shadow meta-update uses logged propensities (log(decision.probabilities[chosen]) to float32 precision). Minor: the label 'learned' is used for mix 0 even before any meta-update (bootstrap.py:182). The cold-start path showed no detectable benefit (C).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metalearner_path.py"
+  ]
+ },
+ "MR-09": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Tests exist and execute (C suite 115 passed). Guards hold for magnitude inflation (bounded; r -> 50 r leaves the update unchanged), duplicates, forged / unsigned / invented outcomes, ledger edits. Successful attacks: caller-chosen utility (D2), default-open self-goal origin (D3), paraphrased self-goals not discounted (D6), ledger truncation undetected by verify_chain (D8); the learned reward paid the noisy gauge in C's own experiment (reproduced collapse on seed 11).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_integrity.py",
+   "G_PR_SRC=<HEAD snapshot> .venv/bin/python cam_live/docs/verification/repro/pr/probe_labworld_reduced.py --lifetimes 80"
+  ]
+ },
+ "MR-10": {
+  "status": "partial",
+  "by": "G-pr",
+  "notes": "Meta-updates are skipped with a recorded reason until enough independent verified groups exist and query rows without logged propensities never supervise. Within one lifetime the return-to-go utilities of different decisions are counted as independent groups while their baselines share outcomes (D1); only LabWorld multi-lifetime runs exercised it; no live/staging experience.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metalearner_path.py"
+  ]
+ },
+ "MR-11": {
+  "status": "verified",
+  "by": "G-pr",
+  "notes": "psi bit-identical after the live policy update and after skipped meta-updates; the reward optimizer holds exactly psi; R_psi detached in the learner loss. Minor: a truncated ledger file still has a valid chain (only a recorded head reveals it). Guards are in-process, not isolation.",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_metagrad_real.py",
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_integrity.py"
+  ]
+ },
+ "AE-04": {
+  "status": "failed",
+  "by": "G-pr",
+  "notes": "DEFECT D4 (major): the goal-free budget is not enforced for goals that are selected but not yet resolved: SelfGoalSelector.select(k=5) returns 5 goals under a 2-decision budget and six successive selections while goals are pending return 6 (unbounded); can_afford checks each candidate alone and the budget is charged only on record_result/resolve. Spec 11.4: no unbounded activity outside the fixed budget. Also not called by the runtime; transfer is a constant (C).",
+  "evidence": [
+   ".venv/bin/python cam_live/docs/verification/repro/pr/probe_extras.py"
+  ]
+ }
+}

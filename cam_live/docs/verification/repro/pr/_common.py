@@ -10,7 +10,9 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "src"))
+#: G_PR_SRC=<dir> runs a probe against another copy of cam_live/src (e.g. a `git archive HEAD` snapshot, so that
+#: uncommitted edits by concurrently working agents do not change the numbers)
+SRC = os.environ.get("G_PR_SRC") or os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "src"))
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 os.environ.setdefault("HF_HOME", "/workspace/.hf_home")
@@ -20,6 +22,7 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "4")
 
 RESULTS = []
+print(f"[INFO] cam_live source: {SRC}", flush=True)
 
 
 def check(name, ok, detail=""):

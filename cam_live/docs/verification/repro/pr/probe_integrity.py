@@ -114,8 +114,10 @@ v3 = verifier.verify(lab_task(world, objective_id=good.objective_id))
 r = ml.admit_objective(v3, exp_ids=["exp_that_does_not_exist"])
 C.info("validly signed outcome credited to arbitrary exp_ids", f"accepted={r.accepted} reason={r.reason!r}")
 # a self-generated goal, evaluated and signed by the verifier, admitted through the default API
+_kw = {"origin": Trust.SELF} if "origin" in {f.name for f in dataclasses.fields(TaskSpec)} else {}
 self_task = TaskSpec(objective_id="self_goal_1", objective="reach 1 adopter (self-generated)",
-                     success={"target": 1}, limits=lab_task(world).limits, origin=Trust.SELF)
+                     success={"target": 1}, limits=lab_task(world).limits, **_kw)
+C.info("TaskSpec carries an origin field in this source tree", bool(_kw))
 vs = verifier.verify(self_task)
 r = ml.admit_objective(vs)
 C.check("a verifier-signed outcome of a self-generated goal does not supervise the outer objective by default",
