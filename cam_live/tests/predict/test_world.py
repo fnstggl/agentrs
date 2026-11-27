@@ -365,7 +365,7 @@ def test_to_distribution_for_every_kind(gen):
         np.testing.assert_allclose(got, float(member_lik[:, q].detach().mean()), rtol=1e-4)
     # moment-matched count: total variance = aleatoric + epistemic
     nb = D.from_record(out.to_distribution(0, 1, 1))
-    np.testing.assert_allclose(float(nb.variance), float(pred["total_std"][0, 1, 1]) ** 2, rtol=1e-3)
+    np.testing.assert_allclose(float(nb.variance), float(pred["total_std"][0, 1, 1].detach()) ** 2, rtol=1e-3)
     assert len(out.to_distribution(0, 0, 4).params["probs"]) == 3
 
 
