@@ -361,3 +361,9 @@ programs (`techmkt`, interface process_control/1, sandboxed, constraint-checked)
 their own production and keep on their own measurements (FR-TECH-ADOPT); the evaluator's gain is the expected
 efficiency at the operating points the adopters ran versus their former point, from the hidden physics (noise-free,
 so a no-op technology kept after a lucky trial scores zero).
+Addendum (2026-11-27): one decision path per worker - `job_search` leaves an individual whose labour-market record
+another path entered (economy.jobs' own registration, workstream F) to that path, as economy.jobs leaves the
+simulated workers of `firms` to their worker model. Labour-market decisions caused by education name the recorded
+education events they rest on as explicit provenance `refs` (crucible.civ.chains): `firms.reprofile` (the
+individual's latest study session, the certificates it newly declares) and `firms.shortlist` (the certificates an
+offer used).
