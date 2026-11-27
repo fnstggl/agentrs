@@ -1,0 +1,16 @@
+{
+ "fsync_on": {
+  "decisions": 300,
+  "seconds": 21.763,
+  "ms_per_decision": 72.54,
+  "log_bytes_per_decision": 41586,
+  "agent_compute_s": 2.879
+ },
+ "fsync_off": {
+  "decisions": 300,
+  "seconds": 7.376,
+  "ms_per_decision": 24.59,
+  "log_bytes_per_decision": 41586,
+  "agent_compute_s": 1.206
+ }
+}

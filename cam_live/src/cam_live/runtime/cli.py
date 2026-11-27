@@ -319,8 +319,9 @@ def cmd_run(a: argparse.Namespace) -> int:
     home = cfg.resolved_home()
     run_dir = os.path.abspath(a.run_dir) if a.run_dir else os.path.join(
         home, "runs", a.run_id or f"{task.objective_id}-{new_id('run')[4:12]}")
-    if pid_alive(read_pid(run_dir)):
-        print(f"cam-live run: a runtime is already running in {run_dir} (pid {read_pid(run_dir)})", file=sys.stderr)
+    sup = read_json(os.path.join(run_dir, SUPERVISOR_PID))
+    if pid_alive(read_pid(run_dir)) or pid_alive(sup if isinstance(sup, int) else None):
+        print(f"cam-live run: a runtime or its supervisor is already running in {run_dir}", file=sys.stderr)
         return 3
     os.makedirs(run_dir, exist_ok=True)
     task_copy = os.path.join(run_dir, "task.yaml")
@@ -390,6 +391,10 @@ def cmd_supervise(a: argparse.Namespace) -> int:
     extra.setdefault("exec", [])
     if "--auth-socket" not in extra["exec"]:
         extra["exec"] += ["--auth-socket", os.path.join(sock, SOCK_AUTH), "--provenance", task.mode]
+    if "--run-dir" not in extra["exec"]:
+        # the executor's own state (workspace, execution log) lives in <run_dir>/exec, the directory the launcher
+        # creates for its uid; the run directory itself holds the runtime's records
+        extra["exec"] += ["--run-dir", os.path.join(run_dir, "exec")]
     extra["verifier"] = extra.get("verifier", []) + ["--task", a.task] + (
         ["--source", a.verifier_source] if a.verifier_source else [])
     extra["learner"] = extra.get("learner", []) + ["--task", a.task, "--wait-for", go] + (

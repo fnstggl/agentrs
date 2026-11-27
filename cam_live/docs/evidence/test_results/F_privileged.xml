@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="8.223" timestamp="2026-11-27T00:13:12.538084+00:00" hostname="ebecdb7e42eb"><testcase classname="tests.runtime.test_rt_separated" name="test_separated_run_through_the_cli" time="8.147" /></testsuite></testsuites>

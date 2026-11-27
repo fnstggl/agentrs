@@ -72,8 +72,12 @@ class RuntimeConfig:
     pending_retry_s: float = 300.0       # re-ask for an outcome the environment says is not available yet
     error_backoff_s: float = 30.0
     max_consecutive_errors: int = 5      # service or learner errors in a row before the run pauses itself
-    journal_every: int = 25              # cycles between journal regenerations (also at pause / finish)
+    journal_every: int = 200             # cycles between journal regenerations (always at pause / finish / stop) ...
+    journal_min_interval_s: float = 600.0   # ... and not more often than this (clock seconds): it re-reads the logs
     fsync: bool = True                   # False keeps atomic renames but skips fsync (fast tests; never for live runs)
+    record_at_policy: bool = False       # call policy.record after execute; only for an environment that does not
+                                         # record its results at the authorization service itself (the computer
+                                         # environment does, under the executor's identity)
     sleeper: str = "auto"                # "auto": simulated sleeping for advanceable clocks, real otherwise; "wall" | "sim"
     redaction: Dict[str, Any] = field(default_factory=dict)
 
@@ -161,6 +165,7 @@ class LiveRuntime:
         self._metrics: Dict[str, float] = {}
         self._interrupt_checks = 0
         self._last_result_ok = True
+        self._last_journal_at = float("-inf")
         self._wal_fh = None
         self._wal_path = os.path.join(self.run_dir, WAL_FILE)
         self._state_path = os.path.join(self.run_dir, RunFiles.STATE)
@@ -930,9 +935,9 @@ class LiveRuntime:
             delta["failures"] = 1
         self._wal_write({"t": "end", "kind": kind, "action_id": action.action_id, "result": result.to_dict(),
                          "delta": delta, "approval_id": approval_id})
-        if kind == "execute":
+        if kind == "execute" and self.cfg.record_at_policy:
             try:
-                self.policy.record(action, result)             # audit and limit accounting at the authorization service
+                self.policy.record(action, result)
             except Exception as e:  # noqa: BLE001
                 self._note_error("authorization", "record", e)
         self.log.event("action_result",
@@ -1033,6 +1038,7 @@ class LiveRuntime:
         return True
 
     def _journal(self) -> None:
+        self._last_journal_at = self.clock.now()
         try:
             from .journal import write_journal
             self.log.sync()
@@ -1170,7 +1176,8 @@ class LiveRuntime:
             self._finish(EXHAUSTED, f"limit {exhausted} exhausted")
         else:
             self._commit()
-            if self.cycles % max(1, self.cfg.journal_every) == 0:
+            if (self.cycles % max(1, self.cfg.journal_every) == 0
+                    and self.clock.now() - self._last_journal_at >= self.cfg.journal_min_interval_s):
                 self._journal()
         rep["status"] = self.status
         if self._error_total == errors_before:
