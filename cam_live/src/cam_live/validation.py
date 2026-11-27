@@ -273,7 +273,7 @@ def phase_computer(agent: Any, clock: OffsetClock, root: str, n_decisions: int, 
 # phase B: a LabWorld family (delayed consequences, several verified lifetimes)
 # --------------------------------------------------------------------------------------------------------------
 def phase_lab(agent: Any, clock: OffsetClock, root: str, seeds: Sequence[int], per_lifetime: int,
-              budget_s: float) -> Dict[str, Any]:
+              budget_s: float, target: int = 24) -> Dict[str, Any]:
     from .diagnostics.world import LabVerifier, LabWorld, lab_task
     from .harness.auth import PolicyService
     from .runtime.loop import LiveRuntime, RuntimeConfig
@@ -284,7 +284,7 @@ def phase_lab(agent: Any, clock: OffsetClock, root: str, seeds: Sequence[int], p
             out["stopped"] = f"time budget of {budget_s:.0f} s reached before lifetime {seed}"
             break
         run = os.path.join(root, f"lab_{seed}")
-        world = LabWorld(lab_config(seed), clock)
+        world = LabWorld(lab_config(seed, target=int(target)), clock)
         task = lab_task(world, f"obj_staging_lab_{seed}")
         task.limits.max_decisions = int(per_lifetime)
         verifier = LabVerifier(world)
@@ -387,7 +387,7 @@ def _count(xs: Any) -> Dict[str, int]:
 def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] = None, real_model: bool = True,
                 n_decisions: int = 40, seed: int = 0, evidence_dir: Optional[str] = None,
                 budget_s: float = 780.0, lab_seeds: Sequence[int] = (101, 102),
-                computer_share: float = 0.25) -> Dict[str, Any]:
+                computer_share: float = 0.15, lab_target: int = 24) -> Dict[str, Any]:
     """Run the staging validation and write its evidence file. ``budget_s`` bounds the time the GPU lock is held
     for the learning phases (the lock is held for at most ~15 minutes in total)."""
     from .agent import CamLiveAgent
@@ -396,6 +396,11 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
     root = os.path.abspath(out_dir or os.path.join(cfg.resolved_home(), "validation", f"staging_{stamp}"))
     os.makedirs(root, exist_ok=True)
     report: Dict[str, Any] = {"executed": False, "ok": False, "kind": "staging_validation", "started_utc": stamp,
+                              "settings": {"n_decisions": n_decisions, "budget_s": budget_s, "lab_seeds": list(lab_seeds),
+                                           "computer_share": computer_share, "lab_target": lab_target,
+                                           "agent": cfg.section("agent"), "credit": cfg.section("credit"),
+                                           "meta_min_independent_outcomes": cfg.optim.meta_min_independent_outcomes,
+                                           "backbone": cfg.backbone.name, "scale": cfg.core.scale},
                               "git_head": _git_head(), "real_model": bool(real_model), "seed": seed,
                               "root": root, "requirements": list(REQUIREMENTS), "failures": []}
     lock = contextlib.nullcontext()
@@ -426,7 +431,8 @@ def run_staging(cfg: Optional[CamLiveConfig] = None, *, out_dir: Optional[str] =
                 report["failures"].append({"phase": "computer", "error": f"{type(e).__name__}: {e}",
                                            "trace": traceback.format_exc(limit=12)})
             left = budget_s - (time.time() - t_lock)
-            report["phase_lab"] = phase_lab(agent, clock, root, lab_seeds, n_b, max(0.0, left - 30.0))
+            report["phase_lab"] = phase_lab(agent, clock, root, lab_seeds, n_b, max(0.0, left - 30.0),
+                                            target=lab_target)
             p1 = probe.distribution()
             s1 = agent.model.trainable_state()
             # behaviour change on the held-out context, and what the weights alone explain
