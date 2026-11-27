@@ -36,7 +36,7 @@
     "tests/test_v5_domains_content.py"
    ],
    "status_claim": "implemented; framework check + gate test queued in GPU slots since 2026-11-26 20:13 UTC (the shared space's text path needs the GPU: CPU runs time out)",
-   "notes": "Social-media slice: content/studio, the shared semantic space, aud exact distinct-viewer bitsets, feed recommender mixtures per platform, follow/share graph, pop_social creators. Configurations by platform set and recommender mechanisms (posts, pics+posts, blog, blog+pics, kb+posts). Difficulty levels 1-4 -> 300/3k/100k/10M viewers on development/standard/large/internet populations (D-53). Copycat (re-typed texts) and spam probes."
+   "notes": "Social-media slice: content/studio, the shared semantic space, aud exact distinct-viewer bitsets, feed recommender mixtures per platform, follow/share graph, pop_social creators. Configurations by platform set and recommender mechanisms (posts, pics+posts, blog, blog+pics, kb+posts). Difficulty levels 1-4 -> 300/3k/100k/10M viewers on development/standard/large/internet populations (D-53). Copycat (re-typed texts) and spam probes. Third agent: the evaluator's originality test compared a seat item only with the first 5,000 items of other creators, so a re-typed copy of a newer item (content.list lists newest first) counted as original; it is now exact against every earlier item (inverted five-word-shingle index, content_domain.Originality, regression test test_originality_is_exact_against_every_earlier_item)."
   },
   "SP-9.4": {
    "implementation_files": [
@@ -105,7 +105,9 @@
   "tests/test_kernel.py (third agent, after merging feat/crucible-5-complete)": "29 passed",
   "tests/test_invariants.py (third agent)": "22 passed",
   "tests/test_v5_domains_startup.py (third agent, CPU)": "3 passed",
-  "tests/test_v5_domains_research.py (third agent, CPU)": "7 passed"
+  "tests/test_v5_domains_research.py (third agent, CPU)": "7 passed",
+  "tests/test_v5_domains_software.py (third agent, CPU, two runs)": "4 passed (2 + 2; the file exceeds 5 min in one run)",
+  "tests/test_v5_domains_community.py, _content.py (third agent, CPU)": "static tests passed (structure, genesis communities, difficulty levels, originality: 3 + 1 new); the run tests need the GPU text path (CPU runs exceed 5 min), queued in a GPU slot"
  },
  "history": [
   {
