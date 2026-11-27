@@ -161,8 +161,12 @@ def _mk(path: str, is_dir: bool, uid: int, gid: int, mode: int, chown: bool) -> 
         if st is None:
             os.mkdir(path, 0o700)
         fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    elif st is None:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     else:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+        # no O_CREAT on an existing file: with fs.protected_regular the kernel refuses even root an O_CREAT open of
+        # another uid's file inside a sticky directory
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
     try:
         if chown:
             os.fchown(fd, uid, gid)
@@ -172,7 +176,8 @@ def _mk(path: str, is_dir: bool, uid: int, gid: int, mode: int, chown: bool) -> 
 
 
 def _write_private(path: str, data: bytes, uid: int, gid: int, chown: bool, mode: int = 0o600) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    flags = os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW
+    fd = os.open(path, flags if os.path.lexists(path) else flags | os.O_CREAT | os.O_EXCL, mode)
     try:
         os.write(fd, data)
         os.fsync(fd)

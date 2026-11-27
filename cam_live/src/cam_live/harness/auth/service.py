@@ -31,6 +31,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Set
 from ... import contracts as C
 from .. import SERVICE_GROUP, uid_of, users_exist
 from .. import rpc
+from . import landlock
 from .policy import PolicyService
 
 LEARNER, EXECUTOR, VERIFIER, OPERATOR = "learner", "executor", "verifier", "operator"
@@ -170,6 +171,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--executor-uid", action="append", type=int, default=[])
     ap.add_argument("--no-fsync", action="store_true")
     ap.add_argument("--single-uid", action="store_true", help="development mode: every role is this process's uid")
+    ap.add_argument("--no-landlock", action="store_true", help="do not confine this process's file writes")
     a = ap.parse_args(argv)
     _harden()
     single = a.single_uid or not users_exist()
@@ -180,7 +182,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: done.set())
     pol: PolicyService = server.target.policy
-    print(f"auth service ready on {a.socket} (policy {'ok' if pol.policy else 'INVALID: ' + pol.policy_error}, "
+    confined = "off"
+    if not a.no_landlock:
+        # from here on the kernel lets this process write only to its own state, the vault, the audit log and the
+        # socket directory, whatever a request manages to make it do
+        try:
+            ok = landlock.restrict_writes([pol.auth_dir, pol.vault_dir, os.path.dirname(os.path.abspath(a.socket))],
+                                          [pol.audit.path])
+            confined = "enforced" if ok else "unavailable"
+        except OSError as e:
+            confined = f"failed ({e})"
+    pol._log("service_confinement", landlock=confined, no_new_privs=True)
+    print(f"auth service ready on {a.socket} (landlock {confined}; policy {'ok' if pol.policy else 'INVALID: ' + pol.policy_error}, "
           f"roles {{{', '.join(f'{k}: {sorted(v)}' for k, v in sorted(server.target.roles.items()))}}})", flush=True)
     done.wait()
     pol.caller = lambda: "service"

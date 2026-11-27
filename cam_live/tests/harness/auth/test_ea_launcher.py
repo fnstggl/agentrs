@@ -244,3 +244,60 @@ def test_launcher_main_runs_until_signalled(tmp_path):
         out, _ = p.communicate(timeout=20)
     assert p.returncode == 0 and json.loads(out)["services"]["auth"]["state"] == "running"
     assert not os.path.exists(os.path.join(run, "sock", "auth.sock"))
+
+
+def test_authorization_service_confines_its_own_writes_with_landlock(tmp_path):
+    """Kernel-enforced: after start-up the service process can write only below its own directories."""
+    import subprocess
+    from cam_live.harness.auth import landlock as ll
+    from ea_helpers import SRC
+    if ll.abi_version() < 1:
+        pytest.skip("kernel without Landlock")
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    inside.mkdir(); outside.mkdir()
+    (inside / "log").write_text("")
+    (outside / "existing").write_text("keep")
+    code = (
+        "import errno, json, os, sys\n"
+        "from cam_live.harness.auth import landlock as ll\n"
+        "inside, outside = sys.argv[1], sys.argv[2]\n"
+        "ok = ll.restrict_writes([inside])\n"
+        "out = {'applied': ok}\n"
+        "def t(name, fn):\n"
+        "    try:\n        fn(); out[name] = 'ok'\n    except OSError as e:\n        out[name] = errno.errorcode[e.errno]\n"
+        "t('write_inside', lambda: open(os.path.join(inside, 'new'), 'w').write('x'))\n"
+        "t('append_inside', lambda: open(os.path.join(inside, 'log'), 'a').write('x'))\n"
+        "t('unlink_inside', lambda: os.unlink(os.path.join(inside, 'new')))\n"
+        "t('read_outside', lambda: open(os.path.join(outside, 'existing')).read())\n"
+        "t('create_outside', lambda: open(os.path.join(outside, 'new'), 'w'))\n"
+        "t('overwrite_outside', lambda: open(os.path.join(outside, 'existing'), 'w'))\n"
+        "t('unlink_outside', lambda: os.unlink(os.path.join(outside, 'existing')))\n"
+        "t('mkdir_outside', lambda: os.mkdir(os.path.join(outside, 'd')))\n"
+        "t('child_create_outside', lambda: (_ for _ in ()).throw(OSError(errno.EACCES, 'x')) if os.system("
+        "'touch ' + os.path.join(outside, 'by-child') + ' 2>/dev/null') else None)\n"
+        "print(json.dumps(out))\n")
+    cp = subprocess.run([sys.executable, "-c", code, str(inside), str(outside)], env={"PYTHONPATH": SRC, "PATH": "/usr/bin:/bin"},
+                        capture_output=True, text=True, timeout=30)
+    assert cp.returncode == 0, cp.stderr
+    out = json.loads(cp.stdout)
+    assert out == {"applied": True, "write_inside": "ok", "append_inside": "ok", "unlink_inside": "ok", "read_outside": "ok",
+                   "create_outside": "EACCES", "overwrite_outside": "EACCES", "unlink_outside": "EACCES",
+                   "mkdir_outside": "EACCES", "child_create_outside": "EACCES"}
+    assert (outside / "existing").read_text() == "keep" and not (outside / "by-child").exists()
+    # the launched service applies it to itself and keeps working (state, vault, audit, stop flag)
+    run = str(tmp_path / "run")
+    h = launch(run, ["auth"], dict(FAST))
+    try:
+        c = connect(run)
+        conf = [e for e in c.audit_tail(20) if e["event"] == "service_confinement"]
+        assert conf and conf[-1]["data"]["landlock"] == "enforced"
+        c.put_secret("site_token", "tok_Zx81kQ0pLm4RvT7yWb2N", ["127.0.0.1"], [], "olga")
+        a = act("http.get", arguments={"url": LOOP})
+        d = c.authorize(a, task(), {})
+        assert d.verdict == ALLOW and c.check_grant(a, d)
+        c.emergency_stop("drill", "olga")
+        assert c.stopped() and c.reset_stop("olga") and c.verify_audit()["ok"]
+        with open(os.path.join(run, "logs", "auth.log")) as f:
+            assert "landlock enforced" in f.read()
+    finally:
+        h.stop()
