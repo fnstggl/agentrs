@@ -16,7 +16,7 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
 | CPU workers | `--cpu N` | the job is pinned (`sched_setaffinity`) to N CPUs chosen disjoint from other governed jobs; thread pools are capped by environment (OMP, BLAS, MKL, NumExpr, Numba, Rayon); the watchdog re-pins every task of every process of the job each sample, so a process that widens its own affinity is put back; the CPU rate is measured per window |
 | RAM | `--ram-mb M` (undeclared: the budget's `default_ram_mb` ceiling) | the watchdog sums the proportional set size (PSS) of every process of the job and kills the job when the sum exceeds the grant |
 | GPU memory | `--gpu-mb M` | `--gpu-mb 0` hides the GPU (`CUDA_VISIBLE_DEVICES=""`; a job process that holds a GPU context anyway is killed). Otherwise every Python process of the job caps torch's allocator at the grant when it initialises CUDA (interpreter hook `_slotsite/sitecustomize.py`) and reports its usage; the watchdog kills the job when the sum over its processes exceeds the grant |
-| GPU time | `--gpu-s S` (default 4 h when GPU memory is granted) | seconds each job process holds a CUDA context, summed; the job is killed beyond the grant; at most `gpu_jobs` GPU jobs run at once |
+| GPU time | `--gpu-s S` (default when GPU memory is granted: the longer of 4 h and `--timeout`, per CPU worker) | seconds each job process holds a CUDA context, summed; the job is killed beyond the grant; at most `gpu_jobs` GPU jobs run at once |
 | disk | `--disk-mb M` over `--disk-dir D` (repeatable) and the job's scratch directory | growth of those directories (allocated blocks) is measured and the job is killed beyond the grant; no single file may exceed the grant (`RLIMIT_FSIZE`); admission requires that much free disk above a floor |
 | inference concurrency | `--inference N` | N token files per job; `crucible.scale.governor.inference()` (used by `substrate.inference.recorded`) holds one per call, job-wide across processes |
 | active worlds | `--worlds N` | every `World` registers on construction (`governor.register_world`); job-wide count; construction beyond N raises `ResourceLimitExceeded` |
@@ -73,7 +73,7 @@ THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NU
                "NUMEXPR_MAX_THREADS", "VECLIB_MAXIMUM_THREADS", "BLIS_NUM_THREADS", "NUMBA_NUM_THREADS",
                "RAYON_NUM_THREADS", "POLARS_MAX_THREADS")
 HOOK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_slotsite")
-DEFAULT_GPU_S = 4 * 3600
+DEFAULT_GPU_S = 4 * 3600                 # GPU time per CPU worker when neither --gpu-s nor a longer --timeout is given
 UNDECLARED_RAM_PER_CPU_MB = 2048         # what a job that declares no RAM counts against the RAM budget at admission
 CPU_TOLERANCE = 1.10                     # a window may use up to 10% (+0.2 CPU) above the grant (sampling jitter)
 CPU_STRIKES = 3                          # consecutive windows over the grant, or re-pins of one task, before a kill
@@ -1124,6 +1124,16 @@ def _proc_stats(jobdir: str) -> dict:
     return out
 
 
+def default_gpu_s(cpu: int, timeout_s: float | None) -> int:
+    """GPU time granted when the caller names none: what the job's workers can hold over its whole time limit.
+
+    GPU time sums the seconds every process of the job holds a CUDA context, so a job of N workers that each hold one
+    spends N GPU-seconds per second. A fixed default (4 h) stopped a governed benchmark of two parallel GPU runs with
+    an 18-hour timeout after 2 hours of wall time (2026-11-26). The default is therefore the longer of 4 h and the
+    time limit, per granted CPU worker; an explicit `--gpu-s` still sets any tighter limit."""
+    return int(math.ceil(max(float(DEFAULT_GPU_S), float(timeout_s or 0.0)) * max(1, int(cpu))))
+
+
 def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budget: Budget | None = None,
             timeout_s: float | None = None, *, ram_mb: int | None = None, gpu_s: int | None = None,
             disk_mb: int | None = None, disk_dirs=(), inference: int | None = None, worlds: int | None = None,
@@ -1140,7 +1150,7 @@ def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budg
     nested = _nested() is not None
     job_id = f"{time.strftime('%Y%m%d%H%M%S')}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
     if gpu_mb > 0 and gpu_s is None:
-        gpu_s = DEFAULT_GPU_S
+        gpu_s = default_gpu_s(cpu, timeout_s)
     waited0 = time.time()
     entry = acquire(cpu, gpu_mb, label or " ".join(cmd)[:120], budget, poll_s=poll_s, ram_mb=ram_mb, gpu_s=gpu_s,
                     disk_mb=disk_mb, inference=inference, worlds=worlds, job=job_id, d=d)

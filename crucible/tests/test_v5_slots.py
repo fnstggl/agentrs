@@ -314,3 +314,22 @@ def test_status_shows_what_each_held_job_uses_next_to_its_grant(ledger_dir, monk
     assert 100 < live["peak_ram_mb"] < 1500 and live["ram_mb"] <= live["peak_ram_mb"] + 1e-6
     assert total["jobs_reporting_use"] >= 1 and total["ram_mb_in_use_reported"] > 0
     assert recs and recs[0]["rc"] == 0 and slots.status()["held"] == []
+
+
+def test_the_default_gpu_time_covers_every_worker_for_the_whole_time_limit(ledger_dir):
+    """A fixed 4-hour default stopped a two-run GPU benchmark with an 18-hour timeout after 2 hours of wall time
+    (GPU time sums the context-holding seconds of every process). The default now covers the time limit per worker."""
+    assert slots.default_gpu_s(1, None) == slots.DEFAULT_GPU_S
+    assert slots.default_gpu_s(2, None) == 2 * slots.DEFAULT_GPU_S
+    assert slots.default_gpu_s(1, 600) == slots.DEFAULT_GPU_S           # a short job keeps the 4-hour floor
+    assert slots.default_gpu_s(2, 18 * 3600) == 36 * 3600
+    rec = slots.run_job([sys.executable, "-c",
+                         "import os,sys; sys.exit(0 if os.environ['CRUCIBLE_SLOT_GPU_S']=='72000' else 9)"],
+                        cpu=2, gpu_mb=100, label="gpu-s-default", budget=slots.Budget(4, 1000, 2, ram_mb=4000),
+                        ram_mb=500, timeout_s=36000, sample_s=0.1, poll_s=0.05)
+    assert rec["rc"] == 0 and rec["gpu_s_grant"] == 72000
+    rec = slots.run_job([sys.executable, "-c", "import os,sys; sys.exit(0 if os.environ['CRUCIBLE_SLOT_GPU_S']=='60' "
+                         "else 9)"], cpu=2, gpu_mb=100, label="gpu-s-explicit", gpu_s=60,
+                        budget=slots.Budget(4, 1000, 2, ram_mb=4000), ram_mb=500, timeout_s=36000, sample_s=0.1,
+                        poll_s=0.05)
+    assert rec["rc"] == 0 and rec["gpu_s_grant"] == 60
