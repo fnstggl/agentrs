@@ -256,9 +256,19 @@ def rolling_violations() -> tuple[int, dict]:
 
 
 # ---------------------------------------------------------------------------------------------- systems / catalogues
+def _subscription_memo(node) -> bool:
+    """A payment memo that names a subscription: a string constant, or an f-string whose text starts with it."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value.lower().startswith("subscription")
+    if isinstance(node, ast.JoinedStr) and node.values and isinstance(node.values[0], ast.Constant):
+        return str(node.values[0].value).lower().startswith("subscription")
+    return False
+
+
 def recurring_billing_modules() -> dict[str, list[str]]:
-    """{module: [files]} of shipped kernel modules whose source posts ledger kind "subscription" (a recurring
-    charge) itself, through bank.move or bank.debit (syntax-tree scan of each module's defining file)."""
+    """{module: [files]} of shipped kernel modules whose source posts a recurring charge itself (syntax-tree scan of
+    each module's defining file): a bank.move / bank.debit of ledger kind "subscription", or a payment (move, debit,
+    or the population's own `pay`) whose memo names a subscription (e.g. `pay(..., memo=f"subscription {pid}")`)."""
     import crucible
     from crucible.core.kernel import MODULES
     from crucible.substrate import facts
@@ -274,10 +284,13 @@ def recurring_billing_modules() -> dict[str, list[str]]:
             if not owners:
                 continue
             for n in ast.walk(cls):
-                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in ("move", "debit"):
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and \
+                        n.func.attr in ("move", "debit", "pay"):
                     vals = [a.value for a in n.args if isinstance(a, ast.Constant)] + \
                         [k.value.value for k in n.keywords if k.arg == "kind" and isinstance(k.value, ast.Constant)]
-                    if "subscription" in vals:
+                    memo = any(_subscription_memo(a) for a in n.args) or \
+                        any(_subscription_memo(k.value) for k in n.keywords if k.arg == "memo")
+                    if (n.func.attr != "pay" and "subscription" in vals) or memo:
                         for m in owners:
                             out.setdefault(m, []).append(f"{path.split('/src/')[-1]}:{n.lineno}")
     return out
