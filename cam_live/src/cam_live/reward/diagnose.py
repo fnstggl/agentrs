@@ -95,6 +95,11 @@ def make_stack(seed: int, ec: ExperimentConfig, *, mix: float = 1.0, mix_step: f
                **meta_over: Any) -> Tuple[Any, MemoryStore, SimClock, MetaLearner]:
     """Debug model + in-memory store + shared simulated clock + MetaLearner for LabWorld."""
     from ..nn.model import build_model
+    # the controlled diagnostics isolate R_psi: fixed inner step (no trust region), no replay, no goal / model term
+    meta_over.setdefault("target_kl", 0.0)
+    meta_over.setdefault("replay_matured", 0)
+    goal_coef = float(meta_over.pop("goal_coef", 0.0))
+    model_coef = float(meta_over.pop("model_coef", 0.0))
     cfg = CamLiveConfig.debug(seed=seed)
     model = build_model(cfg)
     store, clock = MemoryStore(), SimClock()
@@ -108,7 +113,8 @@ def make_stack(seed: int, ec: ExperimentConfig, *, mix: float = 1.0, mix_step: f
         torch.manual_seed(10_007 + seed)
         ml = MetaLearner(model, store, cfg, check_signature=key.check_signature,
                          check_measurement=check_measurement, clock=clock, meta_cfg=mc,
-                         inner_cfg=InnerConfig(entropy_coef=ec.entropy_coef, half_life_s=DAY))
+                         inner_cfg=InnerConfig(entropy_coef=ec.entropy_coef, half_life_s=DAY, goal_coef=goal_coef,
+                                               model_coef=model_coef))
     return model, store, clock, ml
 
 

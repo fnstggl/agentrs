@@ -10,9 +10,11 @@ yet earned trust; it is never described or logged as meta-learned.
                          uncertainty stops falling; aleatoric noise earns nothing
     verified outcomes    sparse verifier measurements that were already observed
 
-``RewardMixer`` computes r = mix * r_bootstrap + (1 - mix) * r_learned with mix starting at 1.0. The mix is
-lowered only when held-out verified query evidence shows the learned reward does not hurt, raised when it shows
-harm, and held when the evidence is too thin to tell. Every use is logged with what each component produced.
+``RewardMixer`` computes r = mix * r_bootstrap + (1 - mix) * r_learned with mix starting at 1.0 (the inner update
+standardises both before mixing, ``reward.inner``). The mix is lowered only when held-out verified query evidence
+shows the learned reward is not worse than the bootstrap by more than a margin (non-inferiority), raised when it
+shows harm, and held when the evidence is too thin or inconclusive. Every use and every promotion decision is logged
+with what each component produced.
 """
 from __future__ import annotations
 
@@ -155,6 +157,7 @@ class PromotionDecision:
     mean_diff: float = 0.0
     lower_bound: float = 0.0
     upper_bound: float = 0.0
+    margin: float = 0.0
 
 
 # one-sided 95 % Student-t quantiles for df = 1..30
@@ -170,11 +173,12 @@ class RewardMixer:
     """r = mix * r_bootstrap + (1 - mix) * r_learned, with an evidence-gated promotion rule."""
 
     def __init__(self, mix: float = 1.0, step: float = 0.1, min_mix: float = 0.0, min_independent: int = 8,
-                 tolerance: float = 0.0, log_size: int = 10_000):
+                 tolerance: float = 0.0, log_size: int = 10_000, rel_margin: float = 0.0):
         if not 0.0 <= mix <= 1.0:
             raise ValueError("mix must be in [0, 1]")
         self.mix, self.step, self.min_mix = float(mix), float(step), float(min_mix)
         self.min_independent, self.tolerance = int(min_independent), float(tolerance)
+        self.rel_margin = float(rel_margin)
         self.log: Deque[Dict[str, Any]] = collections.deque(maxlen=log_size)
         self.decisions: List[PromotionDecision] = []
         self.meta_updates_applied = 0     # outer updates of psi that were applied (MetaLearner.meta_update)
@@ -216,18 +220,22 @@ class RewardMixer:
         self.log.append(entry)
         return out
 
-    def update(self, diffs: Sequence[float]) -> PromotionDecision:
+    def update(self, diffs: Sequence[float], *, scale: float = 0.0) -> PromotionDecision:
         """One promotion step from held-out verified query evidence. ``diffs[g]`` is, for independent outcome
         group g that was held out of the meta-update, (verified utility attributed to the policy updated with the
         learned reward) - (the same for the policy updated with the bootstrap reward); see
-        :func:`paired_policy_value_diffs`. One number per *independent* group, never per row.
+        :func:`paired_policy_value_diffs`. One number per *independent* group, never per row. ``scale`` is the
+        typical size of a verified utility (e.g. the RMS of the held-out utilities): the non-inferiority margin is
+        ``delta = tolerance + rel_margin * scale``.
 
-        lower  : enough groups and the one-sided 95 % lower bound of the mean difference >= -tolerance
-        raise  : enough groups and that bound is below -tolerance (no evidence that the learned reward is harmless)
-        hold   : fewer than ``min_independent`` groups — keep collecting, change nothing"""
+        lower  : enough groups and the one-sided 95 % lower bound of the mean difference >= -delta (the learned
+                 reward is shown not to be worse by more than the margin: promotion)
+        raise  : enough groups and the one-sided 95 % upper bound < 0 (the learned reward is shown to hurt: revert)
+        hold   : fewer than ``min_independent`` groups, or the evidence is inconclusive — change nothing"""
         d = [float(x) for x in diffs]
         n = len(d)
         before = self.mix
+        delta = self.tolerance + self.rel_margin * max(float(scale), 0.0)
         if n < max(2, self.min_independent) or any(not math.isfinite(x) for x in d):
             dec = PromotionDecision("hold", f"insufficient_independent_evidence:{n}<{max(2, self.min_independent)}"
                                     if n < max(2, self.min_independent) else "non_finite_evidence",
@@ -237,28 +245,33 @@ class RewardMixer:
             se = math.sqrt(sum((x - mean) ** 2 for x in d) / (n - 1) / n)
             t = _t95(n - 1)
             lo, hi = mean - t * se, mean + t * se
-            if lo >= -self.tolerance:
+            if lo >= -delta:
                 self.mix = max(self.min_mix, self.mix - self.step)
                 dec = PromotionDecision("lower", "held_out_evidence_shows_no_harm", before, self.mix, n, mean, lo, hi)
                 if self.meta_updates_applied > 0:
                     self.promotions += 1
-            else:
+            elif hi < 0.0:
                 self.mix = min(1.0, self.mix + self.step)
-                dec = PromotionDecision("raise", "no_harm_not_established", before, self.mix, n, mean, lo, hi)
+                dec = PromotionDecision("raise", "held_out_evidence_shows_harm", before, self.mix, n, mean, lo, hi)
+            else:
+                dec = PromotionDecision("hold", "inconclusive_evidence", before, before, n, mean, lo, hi)
+        dec.margin = delta
         self.decisions.append(dec)
         self.log.append({"label": "promotion", "action": dec.action, "reason": dec.reason,
                          "mix_before": dec.mix_before, "mix_after": dec.mix_after, "n_independent": n,
-                         "mean_diff": dec.mean_diff, "lower_bound": dec.lower_bound})
+                         "mean_diff": dec.mean_diff, "lower_bound": dec.lower_bound, "upper_bound": dec.upper_bound,
+                         "margin": delta})
         return dec
 
     def state_dict(self) -> Dict[str, Any]:
-        return {"mix": self.mix, "step": self.step, "min_mix": self.min_mix,
+        return {"mix": self.mix, "step": self.step, "min_mix": self.min_mix, "rel_margin": self.rel_margin,
                 "min_independent": self.min_independent, "tolerance": self.tolerance,
                 "meta_updates_applied": self.meta_updates_applied, "promotions": self.promotions}
 
     def load_state_dict(self, d: Mapping[str, Any]) -> None:
         self.mix, self.step, self.min_mix = float(d["mix"]), float(d["step"]), float(d["min_mix"])
         self.min_independent, self.tolerance = int(d["min_independent"]), float(d["tolerance"])
+        self.rel_margin = float(d.get("rel_margin", 0.0))
         self.meta_updates_applied = int(d.get("meta_updates_applied", 0))
         self.promotions = int(d.get("promotions", 0))
 

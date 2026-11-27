@@ -3,9 +3,30 @@
     L_inner(theta; psi, D) = - mean_i log pi_theta(a_i | b_i, C_i) * A_i
                              + c_v * mean_i 1/2 (V_theta(b_i, C_i) - G_i)^2  -  c_e * mean_i H[pi_theta(. | b_i, C_i)]
 
-    r_i = mix * r_bootstrap,i + (1 - mix) * R_psi(b_i, e_a_i, b'_i, e_g_i, signals_i, life_ctx_i)
+    r_i = mix * n(r_bootstrap)_i + (1 - mix) * n(R_psi(b_i, e_a_i, b'_i, e_g_i, signals_i, life_ctx_i))_i
+          + c_g * u_i / rms(u)
     G_i = r_i + exp(-beta * (t_{i+1} - t_i)) * G_{i+1}        duration-aware discounting, within one lifetime
     A_i = standardise(G)_i - V_theta(b_i, C_i).detach()
+
+``n`` standardises each reward component within the batch (``InnerConfig.component_norm``), so ``mix`` is the true
+share of the bootstrap and the learned reward in the update and neither can gain weight by its magnitude (spec 7.8):
+the update is invariant to ``R_psi -> c * R_psi + d`` for every c > 0 *at every mix*; what psi controls is which
+decisions R_psi rewards more than others (its shape), with weight ``1 - mix`` (``RewardMixer``: the promotion rule).
+
+``u_i`` is the goal term (``InnerConfig.goal_coef``; labelled, never mixed, never meta-learned): the verified progress
+attributed to decision i once it is final (the agent's signed per-decision annotation, :func:`verified_progress`) —
+through G its return-to-go credits earlier decisions with the verified progress that followed them — and, while
+that is still pending, the world model's decision-time prediction of the chosen candidate's goal value, calibrated
+on verified outcomes by ``predict.policy.SelectionCalibration`` (labelled ``predicted``; it is never stored or
+counted as an outcome). The policy is thereby trained toward the choices that the verifier (and, until it has
+spoken, the calibrated world model) says are better, not only toward the bootstrap signals.
+
+    - c_m * beta_q^+ * mean_i sum_j pi_theta(j | b_i, C_i) * z_ij        (``InnerConfig.model_coef``)
+
+is the all-candidate term: ``z_ij`` the world model's recorded predicted value of candidate j of decision i,
+standardised within the decision, weighted by its calibrated worth ``beta_q^+`` (``SelectionCalibration``). It
+teaches the policy to evaluate every candidate on offer — the executed-action policy gradient alone cannot push
+mass away from candidates that are never chosen. Constant in psi; labelled ``model_term`` in the aux output.
 
 ``theta`` is the *adaptable subset*: the ``CandidatePolicy`` head and the model's decision trunk, passed as a
 dictionary (``"policy.<name>"`` / ``"trunk.<name>"``); the latents ``b``, ``e_a``, ``e_g``, ``b_next`` are constants
@@ -21,6 +42,7 @@ One function, two uses — :meth:`PolicyImprovementLoss.functional`:
   differentiates.
 
 Returns are standardised within the batch, so multiplying or shifting the reward output cannot change the update.
+Reward *scale* therefore never carries psi's influence by design; reward *shape* (and the mix) does.
 The per-group norm clip of the inner gradient (:class:`GroupClip`) is part of the differentiated function.
 """
 from __future__ import annotations
@@ -46,7 +68,36 @@ POLICY_PREFIX, TRUNK_PREFIX = "policy.", "trunk."
 NORM_BUFFERS = tuple(f"{n}.{s}" for n in ("norm_b", "norm_a", "norm_g", "norm_s") for s in ("mean", "var"))
 
 __all__ = ["InnerConfig", "AdaptableSubset", "InnerBatch", "GroupClip", "PolicyImprovementLoss", "POLICY_PREFIX",
-           "TRUNK_PREFIX"]
+           "TRUNK_PREFIX", "verified_progress", "predicted_goal_value"]
+
+
+def verified_progress(rec: ExperienceRecord) -> Optional[float]:
+    """The verified progress attributed to one executed decision, once it is final: the agent's per-decision
+    annotation ``decision.diagnostics["reward_signals"]["verified_progress_delta"]`` (written once, from
+    verifier-signed readings only, when every goal-relevant answer of the decision is in). None before."""
+    d = rec.decision.diagnostics if isinstance(rec.decision.diagnostics, dict) else {}
+    st = d.get("reward_signals")
+    if not isinstance(st, dict) or "verified_progress_delta" not in st:
+        return None
+    try:
+        v = float(st["verified_progress_delta"])
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def predicted_goal_value(rec: ExperienceRecord) -> Optional[float]:
+    """The world model's decision-time prediction of the chosen candidate's gross goal-relevant value
+    (``CandidateEvaluation.extras["q_goal"]``), or None when none was recorded."""
+    d = rec.decision
+    if not d.candidates or not 0 <= d.chosen_index < len(d.candidates):
+        return None
+    v = (d.candidates[d.chosen_index].extras or {}).get("q_goal")
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
 
 
 @dataclass
@@ -58,6 +109,10 @@ class InnerConfig:
     sequence: bool = True            # recompute the lifetime context in-graph along each lifetime segment
     adapt_trunk: bool = True         # theta = policy head + decision trunk (False: policy head only)
     weight: float = 1.0
+    component_norm: bool = True      # standardise bootstrap and learned reward separately before mixing
+    goal_coef: float = 1.0           # weight of the goal term u (verified progress, else calibrated prediction)
+    goal_predicted: bool = True      # pending decisions use the calibrated decision-time prediction (else 0)
+    model_coef: float = 1.0          # weight of the all-candidate term -sum_i pi(i) beta_q z_i (world model's values)
 
     @classmethod
     def from_cfg(cls, cfg: Any) -> "InnerConfig":
@@ -158,12 +213,18 @@ class InnerBatch:
     mix: float = 1.0                   # weight of the bootstrap reward
     boot_components: Dict[str, Tensor] = field(default_factory=dict)
     lifetime: Optional[Tensor] = None  # (engine hook; one lifetime per batch here)
+    r_goal: Optional[Tensor] = None    # [n] goal term u before scaling (0 where nothing is known)
+    goal_source: List[str] = field(default_factory=list)   # "verified" | "predicted" | "" per row
+    z_pred: Optional[Tensor] = None    # [n, N] recorded predicted value of every candidate, standardised per row
+    z_ok: Optional[Tensor] = None      # [n] bool: the row's candidates all carried a prediction
+    model_weight: float = 0.0          # calibrated weight of the world model's values (beta_q^+, constant)
 
     @property
     def n(self) -> int:
         return int(self.b.shape[0])
 
-    _FLOAT = ("b", "e_a", "e_g", "z", "b_next", "e_a_chosen", "signals", "signal_mask", "r_boot", "gamma")
+    _FLOAT = ("b", "e_a", "e_g", "z", "b_next", "e_a_chosen", "signals", "signal_mask", "r_boot", "gamma", "r_goal",
+              "z_pred")
 
     def to(self, dtype: Optional[torch.dtype] = None, device: Optional[torch.device] = None) -> "InnerBatch":
         kw: Dict[str, Any] = {}
@@ -175,6 +236,7 @@ class InnerBatch:
         kw["h0"] = [h.to(device=device, dtype=dtype or h.dtype) for h in self.h0]
         kw["norm_state"] = {k: v.to(device=device) for k, v in self.norm_state.items()}
         kw["boot_components"] = dict(self.boot_components)
+        kw["goal_source"] = list(self.goal_source)
         return InnerBatch(**kw)
 
     def with_mix(self, mix: float) -> "InnerBatch":
@@ -208,7 +270,9 @@ class PolicyImprovementLoss:
         self.cfg = cfg or InnerConfig()
         self.weight = float(self.cfg.weight)
         self.mixer = mixer or RewardMixer()
-        self.bootstrap = bootstrap or BootstrapReward()
+        # bound 4: the verified component (2 * symlog of the attributed progress) is not clipped flat at typical values
+        # (1 and 42 adopters gave the same bounded reward with bound 1: INT2-6); the inner update standardises anyway
+        self.bootstrap = bootstrap or BootstrapReward(bound=4.0)
         self.assembler = assembler or SignalAssembler()
         self.subset = AdaptableSubset(model, policy, self.cfg.adapt_trunk)
         self.lifetime_of = lifetime_of or (lambda exp_id: 0)
@@ -296,6 +360,8 @@ class PolicyImprovementLoss:
         boot = self._bootstrap(asm, gate_update)
         ib.r_boot = boot.total.to(dev, torch.float32)
         ib.boot_components = {k: v.detach() for k, v in boot.components.items()}
+        ib.r_goal, ib.goal_source = self._goal_term(recs, dev)
+        ib.z_pred, ib.z_ok, ib.model_weight = self._model_values(recs, int(a_mask.shape[1]), dev)
         life = [self.lifetime_of(r.exp_id) for r in recs]
         beta = self.cfg.beta
         gam = [math.exp(-beta * max(0.0, recs[i + 1].decision.ts - recs[i].decision.ts))
@@ -312,6 +378,60 @@ class PolicyImprovementLoss:
                  else torch.zeros(d_life, device=dev) for a, _ in segs]
         ib.norm_state = {k: v.detach().clone() for k, v in self.reward.named_buffers() if k in NORM_BUFFERS}
         return ib
+
+    def _goal_term(self, recs: Sequence[ExperienceRecord], dev: Any) -> Tuple[Tensor, List[str]]:
+        """u per row: verified progress when final, else the calibrated decision-time prediction (labelled)."""
+        cal = None
+        if self.cfg.goal_predicted:
+            from ..predict.policy import selection_calibration
+            cal = selection_calibration(self.policy)
+        vals, src = [], []
+        for r in recs:
+            v = verified_progress(r)
+            if v is not None:
+                vals.append(v)
+                src.append("verified")
+                continue
+            pred = None
+            if cal is not None:
+                f = cal.features(r.decision)
+                pred = cal.predict(f[0]) if f is not None else None
+                if pred is None:                       # no verified scale yet: the prediction in its own units
+                    pred = predicted_goal_value(r)
+            vals.append(0.0 if pred is None else float(pred))
+            src.append("" if pred is None else "predicted")
+        return torch.tensor(vals, dtype=torch.float32, device=dev), src
+
+    def _model_values(self, recs: Sequence[ExperienceRecord], n_cand: int, dev: Any
+                      ) -> Tuple[Optional[Tensor], Optional[Tensor], float]:
+        """The world model's recorded predicted value of every candidate, standardised within each decision, and the
+        calibrated weight beta_q^+ (``SelectionCalibration``; its prior mean before any verified outcome)."""
+        if not self.cfg.model_coef:
+            return None, None, 0.0
+        from ..predict.policy import SelectionCalibration, selection_calibration
+        post = selection_calibration(self.policy).posterior()
+        w = max(float(post["mean"][1]), 0.0)
+        z = torch.zeros(len(recs), n_cand, dtype=torch.float32)
+        ok = torch.zeros(len(recs), dtype=torch.bool)
+        for i, r in enumerate(recs):
+            v = SelectionCalibration.candidate_values(r.decision)
+            if v is not None and len(v) <= n_cand:
+                z[i, :len(v)] = torch.tensor(v, dtype=torch.float32)
+                ok[i] = True
+        return z.to(dev), ok.to(dev), w
+
+    def goal_term(self, ib: InnerBatch, dtype: torch.dtype) -> Optional[Tensor]:
+        """c_g * u / rms(u over rows with a value) [n], or None when the batch has no goal information."""
+        if not self.cfg.goal_coef or ib.r_goal is None or not ib.goal_source:
+            return None
+        known = torch.tensor([bool(x) for x in ib.goal_source], device=ib.r_goal.device)
+        if not bool(known.any()):
+            return None
+        u = ib.r_goal.to(dtype)
+        rms = torch.sqrt((u[known] ** 2).mean())
+        if not float(rms) > 0:
+            return None
+        return self.cfg.goal_coef * torch.where(known, u / rms, torch.zeros_like(u))
 
     # --------------------------------------------------------------------------------------------- reward
     def learned_reward(self, psi: Params, ib: InnerBatch) -> Tensor:
@@ -347,7 +467,15 @@ class PolicyImprovementLoss:
         else:
             rl = self.learned_reward(psi, ib)
         rb = ib.r_boot.to(rl.dtype)
-        return ib.mix * rb + (1.0 - ib.mix) * rl, rl
+        n = scale_normalise if self.cfg.component_norm else (lambda x: x)
+        if ib.mix >= 1.0:                     # a component with weight 0 is left out (not multiplied by 0)
+            r = n(rb)
+        elif ib.mix <= 0.0:
+            r = n(rl)
+        else:
+            r = ib.mix * n(rb) + (1.0 - ib.mix) * n(rl)
+        g = self.goal_term(ib, rl.dtype)
+        return (r if g is None else r + g), rl
 
     # --------------------------------------------------------------------------------------------- the loss
     def functional(self, theta: Params, psi: Params, ib: InnerBatch, *, detach_reward: bool = False,
@@ -366,10 +494,22 @@ class PolicyImprovementLoss:
         ent = out.entropy()
         loss = -(lp * adv).mean() + self.cfg.value_coef * (0.5 * (v - Gn) ** 2).mean() \
             - self.cfg.entropy_coef * ent.mean()
+        model = None
+        if self.cfg.model_coef and ib.z_pred is not None and ib.z_ok is not None and bool(ib.z_ok.any()) \
+                and ib.model_weight > 0:
+            # all-candidate (expected-value) term: the policy is moved toward the candidates the world model, as
+            # calibrated on verified outcomes, predicts to be better — every candidate of the decision, not only the
+            # executed one (a policy gradient on executed actions alone pushes mass onto never-chosen candidates)
+            ev_pi = (out.probs * ib.z_pred.to(out.probs.dtype)).sum(-1)
+            model = ev_pi[ib.z_ok].mean()
+            loss = loss - self.cfg.model_coef * ib.model_weight * model
         if not return_aux:
             return loss
         return loss, {"reward": r.detach(), "learned": rl.detach(), "returns": G.detach(), "logp": lp.detach(),
-                      "entropy": ent.detach(), "value": v.detach()}
+                      "entropy": ent.detach(), "value": v.detach(), "advantage": adv.detach(),
+                      "model_term": None if model is None else float(model.detach()),
+                      "goal_verified": float(sum(1 for x in ib.goal_source if x == "verified")),
+                      "goal_predicted": float(sum(1 for x in ib.goal_source if x == "predicted"))}
 
     def inner_loss(self, theta: Params, psi: Params, ib: InnerBatch, theta_sg: Optional[Params] = None) -> Tensor:
         """``reward.meta.InnerLoss`` (stop-gradient aware): what the meta unroll differentiates."""

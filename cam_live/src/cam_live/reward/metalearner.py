@@ -54,7 +54,8 @@ from ..learning_api import matured_outcomes
 from ..nn.api import GROUP_HEADS, GROUP_REWARD
 from .assemble import SignalAssembler
 from .bootstrap import BootstrapReward, RewardMixer, paired_policy_value_diffs
-from .inner import POLICY_PREFIX, TRUNK_PREFIX, GroupClip, InnerBatch, InnerConfig, PolicyImprovementLoss
+from .inner import (POLICY_PREFIX, TRUNK_PREFIX, GroupClip, InnerBatch, InnerConfig, PolicyImprovementLoss,
+                    verified_progress)
 from .integrity import (SUPERVISING_ORIGINS, AdmitResult, IntegrityError, OutcomeLedger, PsiGuard,
                         assert_optimizers_disjoint, assert_reward_optimizer_exclusive, params_hash, screen_verified)
 from .intrinsic import IntrinsicReward
@@ -89,13 +90,17 @@ class MetaConfig:
     provenance: Optional[str] = None     # None: provenance of the query rows (never mixed)
     min_gap_s: float = 0.0
     mix: float = 1.0                     # initial bootstrap mix
-    mixer_step: float = 0.1
-    mixer_min_independent: int = 8
+    mixer_step: float = 0.25             # mix change per promotion decision (spec 7.6 "gradually ... promote")
+    mixer_min_independent: int = 4       # held-out independent groups per promotion decision (Student-t bound)
     mixer_tolerance: float = 0.0
+    mixer_rel_margin: float = 0.05       # non-inferiority margin, in units of the held-out verified utility RMS
     reward_hidden: int = 256
     reward_life: int = 64
     reward_bound: float = 1.0
     policy_hidden: int = 192
+    target_kl: float = 0.05              # trust region of the live policy step (0: fixed inner_lr; INT2-7)
+    max_inner_lr: float = 2.0            # largest live step the trust region may choose
+    replay_matured: int = 16             # earlier decisions with final verified outcomes added to a support batch
 
     @classmethod
     def from_cfg(cls, cfg: Any, **over: Any) -> "MetaConfig":
@@ -181,6 +186,11 @@ class MetaLearner:
                     model.d_model, d_hidden=mc.reward_hidden, d_life=mc.reward_life, bound=mc.reward_bound),
                     GROUP_REWARD)
         self.policy, self.reward = policy, reward
+        from ..predict.policy import selection_calibration
+        self.selection = selection_calibration(policy)          # learned action value of the selection rule
+        self._sel_pending: List[str] = []
+        self._reg_at: Dict[str, int] = {}                          # exp_id -> registration count when registered
+        self._n_registered = 0
         if assembler is None:
             try:                                             # B's evaluator, when it is registered and context-free
                 ev = model.head(evaluator_head)
@@ -188,7 +198,7 @@ class MetaLearner:
             except KeyError:
                 assembler = SignalAssembler()
         self.mixer = mixer or RewardMixer(mix=mc.mix, step=mc.mixer_step, min_independent=mc.mixer_min_independent,
-                                          tolerance=mc.mixer_tolerance)
+                                          tolerance=mc.mixer_tolerance, rel_margin=mc.mixer_rel_margin)
         self._life = 0
         self._life_of: Dict[str, int] = {}
         self._life_states: Dict[str, Tensor] = {}
@@ -216,6 +226,7 @@ class MetaLearner:
         self._used: Set[str] = set()
         self._tried: Set[str] = set()
         self._promo: List[float] = []
+        self._promo_scale: List[float] = []
         self._u_ema: Optional[float] = None
         self._base_at: Dict[str, float] = {}                         # exp_id -> prefix baseline at registration
         self.records: List[MetaUpdateRecord] = []
@@ -246,12 +257,53 @@ class MetaLearner:
             self._by_objective.setdefault(rec.objective_id, []).append(rec.exp_id)
             if self.events:
                 self.events[-1].query_ids.append(rec.exp_id)
+            self._sel_pending.append(rec.exp_id)
+            self._reg_at[rec.exp_id] = self._n_registered
+            self._n_registered += 1
             new.append(rec)
+        if len(self._sel_pending) > 4096:
+            for i in self._sel_pending[:len(self._sel_pending) - 4096]:
+                self._reg_at.pop(i, None)
+            del self._sel_pending[:len(self._sel_pending) - 4096]
         return new
+
+    # ------------------------------------------------------------------------------------------- selection evidence
+    @staticmethod
+    def verified_progress(rec: ExperienceRecord) -> Optional[float]:
+        """``reward.inner.verified_progress``: the final, signed verified progress attributed to one decision."""
+        return verified_progress(rec)
+
+    def refresh_selection(self) -> int:
+        """Feed the selection rule's calibration (``predict.policy.SelectionCalibration``) with every registered
+        decision whose verified progress has become final since the last call. Returns how many were added."""
+        if not self._sel_pending:
+            return 0
+        many = getattr(self.store, "get_many", None)
+        recs = many(self._sel_pending) if many is not None else [self.store.get(i) for i in self._sel_pending]
+        by_id = {r.exp_id: r for r in recs if r is not None}
+        n, keep = 0, []
+        for i in self._sel_pending:
+            rec = by_id.get(i)
+            if rec is None:
+                continue
+            y = self.verified_progress(rec)
+            if y is None:
+                # a decision whose goal-relevant answers are all final but that carries no annotation 64 decisions
+                # later never will (no goal-relevant question, or no signed reading): stop asking
+                if self._resolved(rec) and self._n_registered - self._reg_at.get(i, self._n_registered) > 64:
+                    self._reg_at.pop(i, None)
+                    continue
+                keep.append(i)
+                continue
+            self._reg_at.pop(i, None)
+            n += int(self.selection.observe_decision(i, rec.decision, y))
+        self._sel_pending = keep
+        return n
 
     def internal_rewards(self, records: Sequence[ExperienceRecord], *, write: bool = True) -> Dict[str, Any]:
         """Step 13 of the loop: reward every new decision once (learned and bootstrap parts logged separately)."""
         new = self.observe(records)
+        self.refresh_selection()
         mixed = self.inner.reward_step(self.store, new, write=write)
         tot = [float(m.total[0]) for m in mixed]
         return {"n": len(new), "mix": self.mixer.mix, "label": self.mixer.label,
@@ -286,25 +338,81 @@ class MetaLearner:
         return self._push_event(self.subset.snapshot(), ib, recs, inner_lr or self.mc.inner_lr,
                                 steps or self.mc.inner_steps, external=True)
 
+    def _replay_matured(self, recs: Sequence[ExperienceRecord]) -> List[ExperienceRecord]:
+        """Up to ``replay_matured`` earlier registered decisions (newest first) whose verified progress is final and
+        that are not in ``recs``: the support batch then carries verified outcomes, which arrive long after the
+        decisions that produced them (spec 10.1 replay of delayed outcomes)."""
+        n = int(self.mc.replay_matured)
+        if n <= 0:
+            return []
+        have = {r.exp_id for r in recs}
+        ids = [i for i in reversed(list(self._life_of)) if i not in have][:max(4 * n, 64)]
+        many = getattr(self.store, "get_many", None)
+        cand = many(ids) if many is not None else [self.store.get(i) for i in ids]
+        by_id = {r.exp_id: r for r in cand if r is not None}
+        out = []
+        for i in ids:
+            r = by_id.get(i)
+            if r is not None and self.inner.eligible(r) and verified_progress(r) is not None:
+                out.append(r)
+                if len(out) >= n:
+                    break
+        return out
+
+    def _kl(self, theta0: Params, theta: Params, ib: InnerBatch) -> Tuple[Tensor, Tensor, Tensor]:
+        with torch.no_grad():
+            out0, out1 = self.subset.forward(theta0, ib), self.subset.forward(theta, ib)
+            kl = (out0.probs * (out0.log_probs - out1.log_probs).masked_fill(~ib.a_mask, 0.0)).sum(-1)
+        return kl, out0.probs, out1.probs
+
     def policy_update(self, records: Sequence[ExperienceRecord], *, steps: Optional[int] = None,
                       inner_lr: Optional[float] = None, trigger: str = "policy_improvement"
                       ) -> Optional[LearningUpdateRecord]:
-        """The real inner update of the live policy: K functional SGD steps of L_inner on ``records``."""
+        """The real inner update of the live policy: K functional SGD steps of L_inner on ``records`` (plus up to
+        ``replay_matured`` earlier decisions with final verified outcomes).
+
+        Step size: with ``target_kl > 0`` (and no explicit ``inner_lr``) the step is scaled so that the mean KL
+        between the policy before and after the update on the support batch is about ``target_kl`` (a trust region
+        in policy space, step in [inner_lr, max_inner_lr]; KL grows ~ step^2 for small steps). The step chosen is
+        recorded in the update event, so the meta-gradient differentiates exactly the SGD update that was applied
+        (the step is a constant of that function, like any other hyper-parameter)."""
         recs = [r for r in records if self.inner.eligible(r)]
         if not recs:
             return None
+        recs = recs + self._replay_matured(recs)
         K, lr = int(steps or self.mc.inner_steps), float(inner_lr or self.mc.inner_lr)
         ib = self.inner.build_batch(self.store, recs)
         theta0 = self.subset.snapshot()
         psi = {k: v.detach() for k, v in self.reward.psi().items()}
         h_reward = params_hash(self.reward)
+        tried: List[Tuple[float, float]] = []
         with PsiGuard(self.reward, "policy update"):
             trace = self.engine.inner_update(theta0, psi, [ib], lr, K, create_graph=False)
             theta = trace.detached()
+            kl, p0, p1 = self._kl(theta0, theta, ib)
+            tried.append((lr, float(kl.mean())))
+            if inner_lr is None and self.mc.target_kl > 0:
+                tgt = float(self.mc.target_kl)
+                lo, hi = float(self.mc.inner_lr), max(float(self.mc.max_inner_lr), float(self.mc.inner_lr))
+                below, above = None, None                  # largest step under / smallest step over the target
+                for _ in range(6):
+                    m = float(kl.mean())
+                    if not math.isfinite(m) or m <= 0 or tgt / 1.5 <= m <= 1.5 * tgt:
+                        break
+                    if m < tgt:
+                        below = lr if below is None else max(below, lr)
+                    else:
+                        above = lr if above is None else min(above, lr)
+                    new = math.sqrt(below * above) if (below is not None and above is not None) else \
+                        min(hi, max(lo, lr * math.sqrt(tgt / m)))
+                    if abs(new - lr) <= 0.02 * lr:
+                        break
+                    lr = new
+                    trace = self.engine.inner_update(theta0, psi, [ib], lr, K, create_graph=False)
+                    theta = trace.detached()
+                    kl, p0, p1 = self._kl(theta0, theta, ib)
+                    tried.append((lr, float(kl.mean())))
             with torch.no_grad():
-                out0, out1 = self.subset.forward(theta0, ib), self.subset.forward(theta, ib)
-                p0, p1 = out0.probs, out1.probs
-                kl = (p0 * (out0.log_probs - out1.log_probs).masked_fill(~ib.a_mask, 0.0)).sum(-1)
                 _, aux = self.inner.functional(theta0, psi, ib, detach_reward=True, return_aux=True)
             self.subset.write(theta)
         ev = self._push_event(theta0, ib, recs, lr, K, external=False)
@@ -331,6 +439,10 @@ class MetaLearner:
             prediction_change={"policy_prob_mean_abs_change": float((p1 - p0).abs().sum(-1).mean()),
                                "policy_prob_max_abs_change": float((p1 - p0).abs().max()),
                                "policy_kl": float(kl.mean())},
+            diagnostics={"step_search": [list(t) for t in tried], "target_kl": float(self.mc.target_kl),
+                         "n_replayed_matured": len(recs) - len([r for r in records if self.inner.eligible(r)]),
+                         "goal_verified_rows": aux["goal_verified"], "goal_predicted_rows": aux["goal_predicted"],
+                         "mix": ib.mix},
             notes=f"inner SGD K={K} lr={lr:g}; grad_norms = update norm / (lr*K); reward_version={ev.reward_version}")
 
     # ------------------------------------------------------------------------------------------- verified utility
@@ -513,6 +625,7 @@ class MetaLearner:
     def meta_update(self, now: Optional[float] = None) -> MetaUpdateRecord:
         """One outer step of psi if the verified query evidence allows it; otherwise a skipped record."""
         now = self._now() if now is None else float(now)
+        self.refresh_selection()
         ok, bad = self.ledger.verify_chain()
         if not ok:
             raise IntegrityError(f"the outcome ledger fails its hash chain at entry {bad}")
@@ -729,12 +842,16 @@ class MetaLearner:
         gi = torch.tensor([keys.index(g) for g in grp], dtype=torch.long)
         self._promo.extend(paired_policy_value_diffs(torch.cat(lp_l), torch.cat(lp_b), torch.cat(blp), torch.cat(U),
                                                      gi, weight_clip=self.mc.weight_clip))
+        u_all = torch.cat(U)
+        self._promo_scale.extend(float(x) for x in u_all)
         if len(self._promo) >= max(2, self.mixer.min_independent):
-            dec = self.mixer.update(self._promo)
-            self._promo = []
+            scale = math.sqrt(sum(x * x for x in self._promo_scale) / max(len(self._promo_scale), 1))
+            dec = self.mixer.update(self._promo, scale=scale)
+            self._promo, self._promo_scale = [], []
             out.update({"promotion": {"lower": 1.0, "raise": -1.0}.get(dec.action, 0.0),
                         "promotion_mean_diff": dec.mean_diff, "promotion_lower_bound": dec.lower_bound,
-                        "promotion_n": float(dec.n_independent)})
+                        "promotion_upper_bound": dec.upper_bound, "promotion_margin": dec.margin,
+                        "promotion_n": float(dec.n_independent), "mix_after_promotion": dec.mix_after})
         out["promotion_buffer"] = float(len(self._promo))
         return out
 
@@ -745,10 +862,13 @@ class MetaLearner:
                 "by_objective": {k: list(v) for k, v in self._by_objective.items()},
                 "objective_seen": {k: list(v) for k, v in self._objective_seen.items()},
                 "used": sorted(self._used), "tried": sorted(self._tried), "promo": list(self._promo),
+                "promo_scale": list(self._promo_scale),
                 "base_at": dict(self._base_at), "objective_origins": self.ledger.origins(),
                 "u_ema": self._u_ema, "n_events": self._n_events, "optimizer": self.optimizer.state_dict(),
                 "ledger_head": self.ledger.head, "stats": dict(self.stats),
                 "gate": self.inner.bootstrap.gate.state_dict(),
+                "selection": self.selection.state_dict(), "selection_pending": list(self._sel_pending),
+                "selection_registered": [self._n_registered, dict(self._reg_at)],
                 "records": [r.to_dict() for r in self.records[-256:]],
                 "events": [{"event_id": e.event_id, "ts": e.ts, "exp_ids": list(e.exp_ids), "inner_lr": e.inner_lr,
                             "steps": e.steps, "mix": e.mix, "reward_version": e.reward_version,
@@ -774,11 +894,17 @@ class MetaLearner:
         self._objective_seen = {k: (int(v[0]), float(v[1])) for k, v in sd["objective_seen"].items()}
         self._used, self._tried = set(sd["used"]), set(sd["tried"])
         self._promo, self._u_ema, self._n_events = list(sd["promo"]), sd["u_ema"], int(sd["n_events"])
+        self._promo_scale = [float(x) for x in sd.get("promo_scale", [])]
         self._base_at = {k: float(v) for k, v in sd.get("base_at", {}).items()}
         self.ledger.load_origins(sd.get("objective_origins", {}))
         self.optimizer.load_state_dict(sd["optimizer"])
         self.stats.update(sd.get("stats", {}))
         self.inner.bootstrap.gate.load_state_dict(sd["gate"])
+        if "selection" in sd:                       # checkpoints from before the selection calibration: empty
+            self.selection.load_state_dict(sd["selection"])
+            self._sel_pending = list(sd.get("selection_pending", []))
+            n_reg, reg_at = sd.get("selection_registered", [0, {}])
+            self._n_registered, self._reg_at = int(n_reg), {k: int(v) for k, v in reg_at.items()}
         self.records = [MetaUpdateRecord.from_dict(d) for d in sd.get("records", [])]
         self.events = [UpdateEvent(event_id=e["event_id"], ts=e["ts"], exp_ids=list(e["exp_ids"]),
                                    inner_lr=e["inner_lr"], steps=e["steps"], mix=e["mix"],

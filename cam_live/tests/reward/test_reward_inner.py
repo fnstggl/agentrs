@@ -93,13 +93,14 @@ def test_signal_sources_are_documented_and_causal(rig):
     assert sig["cost_seconds"] == rec.result.cost.seconds and sig["elapsed_s"] > 0
     assert t_r >= rec.decision.ts
     # values the agent recorded at decision time win; learning progress is a bootstrap-only extra
-    ev = CandidateEvaluation(action=rec.decision.chosen, p_success=0.3, voi=0.2, uncertainty=0.8,
-                             extras={"info_gain": 0.11, "epistemic_after": 0.6})
+    ev = CandidateEvaluation(action=rec.decision.chosen, p_success=0.9, voi=0.2, uncertainty=0.8,
+                             extras={"info_gain": 0.11, "epistemic_after": 0.6, "v_state": 0.3})
     cands = list(rec.decision.candidates)
     cands[rec.decision.chosen_index] = ev
     dec = dataclasses.replace(rec.decision, candidates=cands,
                               diagnostics={STORED_KEY: {"voi": 0.7, "learning_progress": 0.25, "context_novelty": 0.4}})
     sig2, extras2, _ = record_signals(dataclasses.replace(rec, decision=dec), store)
+    # success_before is the recorded *state* value V(b) (extras["v_state"]), never the candidate's Q(b, a)
     assert sig2["success_before"] == 0.3 and sig2["voi"] == 0.7 and sig2["epistemic_before"] == 0.8
     assert sig2["info_gain"] == 0.11 and sig2["epistemic_after"] == 0.6 and sig2["context_novelty"] == 0.4
     assert extras2 == {"learning_progress": 0.25}

@@ -163,6 +163,7 @@ def test_mixing_is_not_a_gradient_path_into_the_reward_parameters():
 
 
 def test_promotion_lowers_mix_only_on_held_out_evidence_of_no_harm_and_moves_back():
+    """lower on shown non-inferiority, raise (revert) on shown harm, hold while inconclusive or too thin."""
     mixer = B.RewardMixer(step=0.1, min_independent=8)
     hold = mixer.update([0.5, 0.4, 0.6])                                    # 3 independent outcomes: not enough
     assert hold.action == "hold" and mixer.mix == 1.0 and "insufficient_independent_evidence:3<8" in hold.reason
@@ -174,14 +175,22 @@ def test_promotion_lowers_mix_only_on_held_out_evidence_of_no_harm_and_moves_bac
     harmful = [-x for x in good]
     d = mixer.update(harmful)                                               # the learned reward hurts: move back
     assert d.action == "raise" and mixer.mix == pytest.approx(0.9) and d.upper_bound < 0
-    noisy = [0.5, -0.6, 0.4, -0.5, 0.6, -0.4, 0.5, -0.6, 0.1, -0.1]         # cannot rule out harm: not lowered
+    noisy = [0.5, -0.6, 0.4, -0.5, 0.6, -0.4, 0.5, -0.6, 0.1, -0.1]         # inconclusive: neither lowered nor raised
     d = mixer.update(noisy)
-    assert d.action == "raise" and mixer.mix == pytest.approx(1.0)
-    assert mixer.update(noisy).mix_after == 1.0                             # capped
+    assert d.action == "hold" and d.reason == "inconclusive_evidence" and mixer.mix == pytest.approx(0.9)
+    assert mixer.update(harmful).mix_after == pytest.approx(1.0)
+    assert mixer.update(harmful).mix_after == 1.0                           # capped
     assert mixer.update([float("nan")] * 10).action == "hold"
     low = B.RewardMixer(mix=0.05, step=0.1, min_independent=8)
     assert low.update(good).mix_after == 0.0                                # floored
-    assert [x["label"] for x in mixer.log].count("promotion") == 7
+    assert [x["label"] for x in mixer.log].count("promotion") == 8
+    # non-inferiority margin relative to the utility scale: a small mean loss inside the margin still promotes
+    near = [x - 0.03 for x in good]                                         # mean -0.01, lower bound ~ -0.025
+    strict = B.RewardMixer(min_independent=8)
+    assert strict.update(near).action == "hold"
+    lenient = B.RewardMixer(min_independent=8, rel_margin=0.05)
+    dec = lenient.update(near, scale=1.0)
+    assert dec.action == "lower" and dec.margin == pytest.approx(0.05) and lenient.mix == pytest.approx(0.9)
     twin = B.RewardMixer(); twin.load_state_dict(mixer.state_dict())
     assert twin.mix == mixer.mix
 

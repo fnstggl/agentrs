@@ -131,9 +131,13 @@ class LearningProgressTracker:  record_before(key, loss);  progress(key, loss_af
 class BootstrapReward:  __call__(*, learning_progress=None, delta_v=None, epistemic_before=None,
         epistemic_after=None, verified_delta=None, verified_mask=None, context_keys=None) -> BootstrapOutput
         # BootstrapOutput: total [B], components {name: [B]}, label="bootstrap", version="bootstrap-1"
-class RewardMixer:  __init__(mix=1.0, step=0.1, min_mix=0.0, min_independent=8, tolerance=0.0)
+class RewardMixer:  __init__(mix=1.0, step=0.1, min_mix=0.0, min_independent=8, tolerance=0.0, log_size=10000,
+                             rel_margin=0.0)
     combine(r_bootstrap, r_learned, *, reward_version, bootstrap_components=None, exp_ids=None) -> MixedReward
-    update(diffs: Sequence[float]) -> PromotionDecision        # one number per independent held-out group
+    update(diffs: Sequence[float], *, scale=0.0) -> PromotionDecision   # one number per independent held-out group
+        # lower: one-sided 95 % lower bound >= -(tolerance + rel_margin * scale)   (non-inferiority: promote)
+        # raise: one-sided 95 % upper bound < 0                                    (shown harm: revert)
+        # hold : too few groups or inconclusive          PromotionDecision.margin records the margin used
     note_meta_update();  meta_updates_applied;  promotions;  promoted;  label
     log (deque of dicts);  decisions;  state_dict() / load_state_dict()
 paired_policy_value_diffs(logp_learned, logp_bootstrap, behaviour_logp, utility, groups, weight_clip=10.0)
@@ -261,13 +265,17 @@ learning_curve_exact(mdp, r_table, theta0, steps, alpha);  learning_curve_sample
 
 ```python
 InnerConfig(value_coef=0.5, entropy_coef=0.01, half_life_s=86400.0, normalise=True, sequence=True,
-            adapt_trunk=True, weight=1.0);  InnerConfig.from_cfg(cfg)      # cfg.section("reward")["inner"]
+            adapt_trunk=True, weight=1.0, component_norm=True, goal_coef=1.0, goal_predicted=True,
+            model_coef=1.0);  InnerConfig.from_cfg(cfg)      # cfg.section("reward")["inner"]
+verified_progress(rec) -> float | None        # decision.diagnostics["reward_signals"]["verified_progress_delta"]
+predicted_goal_value(rec) -> float | None     # chosen CandidateEvaluation.extras["q_goal"]
 class AdaptableSubset(model, policy, adapt_trunk=True):      # theta = "policy.<n>" + "trunk.<n>" (model.exp.trunk)
     live() -> Dict[str, nn.Parameter];  snapshot(dtype=None) -> Params;  write(theta);  n_params()
     forward(theta, lat: InnerBatch) -> predict.policy.PolicyOutput
 class GroupClip({prefix: max_norm})                          # __call__(names, grads) -> grads, in-graph
 @dataclass class InnerBatch: exp_ids, b, e_a, a_mask, e_g, chosen, behaviour_logp, ts, z, b_next, e_a_chosen,
-    has_goal, signals, signal_mask, r_boot, gamma, segments, h0, norm_state, mix, boot_components
+    has_goal, signals, signal_mask, r_boot, gamma, segments, h0, norm_state, mix, boot_components,
+    r_goal, goal_source ("verified" | "predicted" | ""), z_pred [n, N], z_ok [n], model_weight
     .to(dtype=None, device=None)  .with_mix(mix)  .select(idx)  .n
 class PolicyImprovementLoss:                                 # learning_api.LossProvider, timescale "frequent"
     name = "policy_improvement"
@@ -280,12 +288,19 @@ class PolicyImprovementLoss:                                 # learning_api.Loss
     def inner_loss(self, theta, psi, ib, theta_sg=None) -> Tensor      # reward.meta.InnerLoss (stopgrad_aware)
     def logp(self, theta, ib) -> Tensor;  def probs(self, theta, ib) -> Tensor
     def learned_reward(self, psi, ib) -> Tensor;  def intrinsic(self, psi, ib, *, detach_reward=False)
+    def goal_term(self, ib, dtype) -> Optional[Tensor]        # c_g * u / rms(u) over rows with a value
     def reward_step(self, store, records, *, write=True) -> List[MixedReward]
 ```
 
-`L = -mean(log pi_theta(a|b,C) * A) + c_v * mean(1/2 (V_theta - G)^2) - c_e * mean(H)`, with
-`r = mix * r_bootstrap + (1 - mix) * R_psi`, `G_i = r_i + 0.5 ** (dt_i / half_life_s) * G_{i+1}` inside one lifetime,
-`A = standardise(G) - V` (baseline held fixed for the inner derivative). `loss()` evaluates R_psi under `no_grad`
+`L = -mean(log pi_theta(a|b,C) * A) + c_v * mean(1/2 (V_theta - G)^2) - c_e * mean(H)
+     - c_m * beta_q^+ * mean_i sum_j pi_theta(j|b_i,C_i) z_ij`, with
+`r = mix * n(r_bootstrap) + (1 - mix) * n(R_psi) + c_g * u / rms(u)` (`n` = within-batch standardisation per component;
+a component of weight 0 is left out; `u` = verified progress attributed to the decision when final, else the
+calibrated decision-time prediction, labelled), `G_i = r_i + 0.5 ** (dt_i / half_life_s) * G_{i+1}` inside one
+lifetime, `A = standardise(G) - V` (baseline held fixed for the inner derivative); `z_ij` the recorded predicted
+value of candidate j standardised within decision i, `beta_q^+` its calibrated weight (`predict.policy.
+SelectionCalibration`). The update is invariant to `R_psi -> c R_psi + d` (c > 0) at every mix; R_psi's *shape*
+enters with weight `1 - mix`. `loss()` evaluates R_psi under `no_grad`
 (it cannot move psi); `inner_loss()` is the same function with psi in the graph. Rows are put in lifetime order;
 a row with `goal_text == ""` uses the learned null goal. `build_batch` snapshots R_psi's input statistics into the
 batch so a later recomputation uses the reward the update used. The model's decision trunk is reached as
@@ -300,15 +315,15 @@ reward_time, keys)`; `record_signals(rec, store) -> (signals, extras, reward_tim
 | signal | source (first available) |
 |---|---|
 | any | `decision.diagnostics["reward_signals"][name]` written by the agent at decision / reconciliation time |
-| success_before | chosen `CandidateEvaluation.p_success`; else evaluator head on `b` |
+| success_before | evaluator head on `b` (same function as success_after); else the recorded state value `extras["v_state"]` (never the candidate's Q) |
 | success_after, delta_v | evaluator head on `b_next`; difference |
-| action_quality | `predict.evaluator.action_quality` on recorded `CandidateEvaluation.value` and logged probabilities |
+| action_quality | `predict.evaluator.action_quality` on the recorded `q_goal - net_cost` of every candidate (else `CandidateEvaluation.value`) and logged probabilities |
 | info_gain, epistemic_after | chosen `CandidateEvaluation.extras["info_gain" / "epistemic_after"]` |
 | voi, epistemic_before | chosen `CandidateEvaluation.voi` / `.uncertainty` |
 | cost_* | `ActionResult.cost` |
 | elapsed_s | decision time minus the newest ACTION item in H_t |
 | prediction_error_std | prospective predictions of the chosen candidate vs outcomes observed by reward time |
-| verified_progress_delta | verifier-trust OUTCOME items in H_{t+1} that are not in H_t |
+| verified_progress_delta | verifier-trust OUTCOME items in H_{t+1}, not in H_t, answering *this decision's* goal-relevant questions (ref `<query_id>:out`) |
 | context_novelty | stored only |
 | status.*, failure.* | `ActionResult` |
 
@@ -322,8 +337,9 @@ MetaConfig(inner_lr, inner_steps, lr_reward, clip_reward, clip_policy, clip_trun
            unroll_events=1, on_policy_tol=1e-3, min_meta_grad_norm=0.0, weight_clip=10.0, min_ess=2.0,
            min_ess_fraction=0.05,
            min_propensity=1e-6, heldout_fraction=0.25, meta_mix=0.0, utility="return_to_go", max_events=32,
-           provenance=None, min_gap_s=0.0, mix=1.0, mixer_step=0.1, mixer_min_independent=8, mixer_tolerance=0.0,
-           reward_hidden=256, reward_life=64, reward_bound=1.0, policy_hidden=192)
+           provenance=None, min_gap_s=0.0, mix=1.0, mixer_step=0.25, mixer_min_independent=4, mixer_tolerance=0.0,
+           mixer_rel_margin=0.05, reward_hidden=256, reward_life=64, reward_bound=1.0, policy_hidden=192,
+           target_kl=0.05, max_inner_lr=2.0, replay_matured=16)
 MetaConfig.from_cfg(cfg, **over)          # cfg.optim (inner_lr, inner_steps, lr_reward, clip_*, meta_min_...) +
                                           # cfg.section("reward")["meta"]
 class MetaLearner:
@@ -338,7 +354,11 @@ class MetaLearner:
     def observe(self, records) -> List[ExperienceRecord]
     def internal_rewards(self, records, *, write=True) -> Dict[str, Any]          # AgentAPI step 13
     def policy_update(self, records, *, steps=None, inner_lr=None, trigger="policy_improvement")
-        -> Optional[contracts.LearningUpdateRecord]                               # the real inner update
+        -> Optional[contracts.LearningUpdateRecord]          # the real inner update; trust-region step (target_kl)
+                                                             # unless inner_lr is given; + replay_matured records
+    selection: predict.policy.SelectionCalibration           # = selection_calibration(policy)
+    def refresh_selection(self) -> int                       # feed final verified outcomes (once each)
+    @staticmethod verified_progress(rec) -> float | None
     def note_policy_update(self, records, *, inner_lr=None, steps=None) -> Optional[UpdateEvent]
     def register_objective(self, task_or_objective_id, origin=None) -> Optional[str]   # -> ledger
     def admit_objective(self, verified: VerifiedOutcome, *, exp_ids=None, utility=None, group="",
