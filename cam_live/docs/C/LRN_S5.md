@@ -3,7 +3,7 @@
 Owner of `predict/` and `reward/` for this round. Diagnosis being answered: `docs/S/DIAGNOSIS.md`,
 `docs/change_requests/S.md` S-5, INT2-1 / INT2-6 / INT2-7 (`docs/change_requests/INT2.md`), INT2's measured
 diagnosis `docs/evidence/validation/diagnosis/debug_f1_20261127/`. Engineering diagnostics at debug scale (tiny random
-backbone, debug core, LabWorld F1), plus one real-configuration pathway run; none of this is a scientific result.
+backbone, debug core, LabWorld F1), plus real-configuration pathway runs; none of this is a scientific result.
 
 ## 1. What was wrong — probes on the code before the fix
 
@@ -32,8 +32,11 @@ New rule **`thompson_policy`** (in `RULES`; INT2 sets it as the agent default, L
   weight draw, the `ts_<k>` extras the Predictor already computed), standardised by the mean and spread of the
   posterior means over the decision's feasible candidates (units of the prediction drop out; uncertainty is kept).
   This is Thompson sampling: a candidate is chosen with its posterior probability of being the best.
-* `c_j` — the trainable policy's preference: centred log pi divided by max(1 nat, its spread). An untrained,
-  near-uniform policy has c ~ 0 and no say at all; a very peaked one is bounded like z.
+* `c_j` — the trainable policy's preference *beyond the world model's ranking*: centred log pi minus its least-squares
+  projection on the standardised predicted values of the same candidates, divided by max(1 nat, its spread). An
+  untrained, near-uniform policy, or one that merely repeats the world model, has c ~ 0 and no say; a very peaked one
+  is bounded like z. (Without the projection a policy trained toward the world model's choices was collinear with it
+  and the calibration drove beta_q negative — measured in an intermediate run.)
 * `lambda_s = clip(beta_pi^+ / max(beta_q, 0.05), 0, 10)` with `(beta_q, beta_pi)` drawn per sample from
   **`SelectionCalibration`**: a Bayesian linear regression (exponential forgetting 0.99, prior beta_q ~ N(1, 0.5^2),
   beta_pi ~ N(0, 0.5^2), noise variance plug-in) of the *verified progress* of each executed decision on the chosen
