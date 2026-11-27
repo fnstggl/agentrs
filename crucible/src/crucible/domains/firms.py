@@ -1051,7 +1051,10 @@ class Firms(Module):
         postings for itself and applies to the (at most two) that are best for it - pay against its reservation
         wage, how far it meets the requirements, its interest in the work, the employer's public record. The labour
         market decides the rest with it (offers, work, quitting). A worker already in the market first updates its
-        profile with what it has learned since (`_education_update`). Returns the session's utility."""
+        profile with what it has learned since (`_education_update`). An individual whose labour-market record was
+        entered by another path (not a simulated worker of this model, e.g. economy.jobs' own registration) is
+        decided by that path: this session leaves it alone (one decision path per worker). Returns the session's
+        utility."""
         from .. import population as P
         w = ctx.world
         st = ctx.state
@@ -1065,11 +1068,20 @@ class Firms(Module):
         applied = columns.col(w, JOBS, "applied")
         new_reg, new_s, new_a, last = [], [], [], []
         posts = None
-        n_edu = 0
+        n_edu = n_other = 0
+        last_s = columns.col(w, JOBS, "last_search")
         for j, i in enumerate(idx.tolist()):
             known = bool(reg[i])
             p = self.register_worker(ctx, i)
             wk = st.tables["labor_workers"][p]
+            if not wk["sim"]:
+                # in the market through another path that decides for it: nothing to do here
+                n_other += 1
+                new_reg.append(int(reg[i]))
+                new_s.append(int(searches[i]))
+                new_a.append(int(applied[i]))
+                last.append(int(last_s[i]))
+                continue
             if known and "learn" in w.modules:
                 wk, upd = self._education_update(ctx, p, i, wk)
                 n_edu += int(upd)
@@ -1107,8 +1119,9 @@ class Firms(Module):
         P.record_decisions(ctx, "firms.jobsearch", idx, {
             "registered": np.array(new_reg, np.uint8), "searches": np.array(new_s, np.int32),
             "applied": np.array(new_a, np.int32), "last_search": np.array(last, np.int64)}, table=JOBS, **JOB_MODEL,
-            extra={"applications": int(sum(new_a) - int(applied[idx].sum())), "education_updates": n_edu})
-        del reg
+            extra={"applications": int(sum(new_a) - int(applied[idx].sum())), "education_updates": n_edu,
+                   "other_path": n_other})
+        del reg, last_s
         return util
 
     def _education_update(self, ctx, p: str, i: int, wk: dict) -> tuple[dict, bool]:
