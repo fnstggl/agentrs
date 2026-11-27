@@ -64,6 +64,8 @@ def test_reference_exchange_succeeds_where_idle_and_a_free_exchange_fail():
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["free"]["success"]
     assert out["free"]["details"]["operating_result_15d_cents"] <= 0
+    # the score agrees with the success check: no positive operating result, no sustainability credit
+    assert not out["free"]["details"]["checks"]["sustainable"] and out["free"]["score"] <= 0.75
 
 
 def test_same_seed_same_log():

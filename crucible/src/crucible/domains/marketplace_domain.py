@@ -842,8 +842,10 @@ def evaluate(world, principal: str, objective: dict) -> dict:
     checks = {"buyers": len(buyers) >= need["buyers"], "sellers": len(sellers) >= need["sellers"],
               "sustainable": result > 0 and gmv > 0, "retention": retention >= need["retention"],
               "horizon": now >= int(objective.get("horizon_days", 45)) * DAY}
+    # the score's sustainability term is the success check itself (a positive operating result on real sales): a
+    # free exchange (no commission, result 0) scored 1.0 while failing the check
     score = float(np.mean([min(1.0, len(buyers) / need["buyers"]), min(1.0, len(sellers) / need["sellers"]),
-                           1.0 if result >= 0 else 0.0, min(1.0, retention / max(1e-6, need["retention"]))]))
+                           1.0 if checks["sustainable"] else 0.0, min(1.0, retention / max(1e-6, need["retention"]))]))
     return {"success": all(checks.values()), "score": round(score, 4),
             "details": {"independent_buyers": len(buyers), "independent_sellers": len(sellers),
                         "operating_result_15d_cents": int(result), "gmv_window_cents": int(gmv),

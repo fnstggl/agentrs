@@ -84,7 +84,11 @@ def generate_instance(rng, cfg: dict) -> dict:
 
 
 def _goal_vote(goal: str, kind: str, own_cut: float, congestion: float, convener: bool, rng) -> tuple[bool, str]:
-    """A manager's vote from its goal and own interest (documented in FIDELITY_REGISTER orgs.vote)."""
+    """A manager's vote from its goal and own interest (documented in FIDELITY_REGISTER orgs.vote). Only the
+    council's three acts (quotas, levy, expansion) can win a vote: any other action in the council's name - moving
+    its fund, a contract, anything - is rejected by every manager, a mission manager included."""
+    if kind not in ("expansion", "levy", "quotas"):
+        return False, "not one of the council's acts (quotas, levy, expansion)"
     if goal == "rival" and convener:
         return bool(rng.random() < 0.15), "we do not back the convener"
     if goal == "mission":
@@ -95,11 +99,9 @@ def _goal_vote(goal: str, kind: str, own_cut: float, congestion: float, convener
     if kind == "levy":
         yes = (congestion > 0.04 and goal != "growth") or congestion > 0.15
         return yes, "congestion costs us more than the levy" if yes else "we pay only when congestion costs us more"
-    if kind == "quotas":
-        # a quota that cuts our own load is worth it only when shared congestion already hurts more
-        return own_cut <= congestion + 0.02, "the quota costs us less than the congestion" if own_cut <= congestion \
-            else "the quota cuts our load more than congestion does"
-    return False, "unknown proposal"
+    # quotas: a quota that cuts our own load is worth it only when shared congestion already hurts more
+    return own_cut <= congestion + 0.02, "the quota costs us less than the congestion" if own_cut <= congestion \
+        else "the quota cuts our load more than congestion does"
 
 
 # the council's governed acts (tools only `o:commons` runs, as the execution of an approved inst decision) and the
