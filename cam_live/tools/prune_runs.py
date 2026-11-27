@@ -94,7 +94,10 @@ def plan(root: str, keep: int, keep_optim: int, drop_protected_optim: bool,
         refs = set(pointers(parent))
         protected = [c for c in ckpts if os.path.basename(c) in PROTECTED_NAMES
                      or os.path.basename(c).startswith("export_") or os.path.basename(c) in refs]
-        others = sorted([c for c in ckpts if c not in protected], key=lambda c: (os.path.getmtime(c), c), reverse=True)
+        # newest first by the sequence number in the name (ckpt_00000003, ckpt_000005_<hash>); modification time
+        # only breaks ties (removing an optimizer directory changes a checkpoint's mtime)
+        others = sorted([c for c in ckpts if c not in protected], key=lambda c: (os.path.basename(c),
+                                                                                 os.path.getmtime(c)), reverse=True)
         for c in protected:
             name = os.path.basename(c)
             if frozen and not name.startswith("export_"):
