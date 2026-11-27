@@ -66,7 +66,23 @@
    "eval": 21,
    "named_items_admitted": 54
   },
-  "gate_tests_run_without_admission_cache": "SP-7.0, SP-7.1, SP-7.2, SP-7.5, SP-8.12b, SP-0.9, M.5, M.n1, M.8 passed on the worktree at ef7719b..0f4c27e (single-CPU, unofficial evidence); the admission-based gates wait for the registry-wide run"
+  "gate_tests_run_without_admission_cache": "SP-7.0, SP-7.1, SP-7.2, SP-7.5, SP-8.12b, SP-0.9, M.5, M.n1, M.8 passed on the worktree at ef7719b..0f4c27e (single-CPU, unofficial evidence); the admission-based gates wait for the registry-wide run",
+  "families_fixed_second_continuation": [
+   "plan_distribution",
+   "des_inventory"
+  ],
+  "probe_counts_second_continuation": {
+   "train": 56,
+   "eval": 21,
+   "named_items_admitted": 55
+  },
+  "tried_not_adopted_second_continuation": [
+   "plan_supply_chain (multi-regime demand, alternating regimes, larger single shift, holding 1.0-1.5 at the retailer; echelon base-stock reference with lag identification by matching shipments to receipts)",
+   "plan_perishable (three demand regimes; level-tracking reference with a learned weekday profile)",
+   "pe_rollout_targeting (readiness-aware targeting references: logistic propensity with group intercepts, readiness posterior over adopter-share thresholds; longer horizon and shorter delays)",
+   "eng_delayed_controller (model-predictive controller with lag identification, band search, state filter and integral action)",
+   "des_perishable (FIFO lot tracker for the shelf life inside the (s, Q) reference: still below the best simple policy)"
+  ]
  },
  "requirements": {
   "M.1": {
@@ -94,8 +110,8 @@
     "tests/v5/test_gate_M.py",
     "tests/test_v5_rapid_families.py"
    ],
-   "status_claim": "NOT MET (probe count 54 of 60)",
-   "notes": "Training families admitted on seeds 0-2 AND 10-12 in per-family probes: 22 robust at the start of wave 3b, 37 after the first wave-3b agent, 54 after the continuation (17 more: hc_confounded, strat_entry, team_commons, team_discovery, team_formation, plan_portfolio, pe_cascade_guard, net_diffusion, ch_constraint_tightens, ch_demand_shift, game_adaptive_rival, ch_drifting_ideal, mk_signal, mk_elastic, mk_drift, cx_overdose, cx_reactive_history). Not admitted (10): ch_tech_transition (its prediction version was admitted but failed the 8.10 belief-revision check of SP-8.0b, so it was reverted), des_inventory, dl_short_term_damage, eng_delayed_controller, net_routing, pe_rollout_targeting, plan_distribution, plan_perishable, plan_supply_chain, strat_price_war. The registry-wide run gives the measured count."
+   "status_claim": "NOT MET (probe count 56 of 60)",
+   "notes": "Training families admitted on seeds 0-2 AND 10-12 (full admission per family, single-CPU probes): 22 robust at the start of wave 3b, 37 after the first wave-3b agent, 54 after the first continuation (registry-wide run f1 at 7a4137d: 54 train / 21 eval robust), 56 after the second continuation (plan_distribution, des_inventory: their references and oracles were not competent policies of their own worlds - late orders, an order every tick against a fixed order cost - D-64 amendment). Still not admitted (8): plan_perishable, plan_supply_chain, pe_rollout_targeting, eng_delayed_controller, strat_price_war, net_routing, dl_short_term_damage, ch_tech_transition: in all of them the best simple policy (hindsight-best constant or a two-setting threshold rule on one reading) reaches more than 0.8 of the adaptive reference's gain on two or more seeds of a set; for plan_perishable, plan_supply_chain (held-out seeds), eng_delayed_controller, dl_short_term_damage, ch_tech_transition and net_routing even the privileged oracle is within 0.8 of the best simple policy on two seeds of a set, so they need a world redesign, not a better reference."
   },
   "M.2": {
    "implementation_files": [
@@ -273,8 +289,8 @@
    "tests": [
     "tests/v5/test_gate_SP_8_0.py"
    ],
-   "status_claim": "NOT MET (probe: 54 of 60 named items admitted)",
-   "notes": "All 60 items have a registered family. Items with no family admitted on both seed sets in probes: 8.4.1 (des_inventory, plan_distribution), 8.4.2 (plan_perishable, des_perishable), 8.4.3 (plan_supply_chain), 8.6.3 (pe_rollout_targeting), 8.7.1 (net_routing), 8.7.4 (net_cascade). Redesigns tried for 8.4.1, 8.4.3, 8.7.1 and 8.7.4 did not pass and were reverted (listed in progress.tried_and_reverted_continuation)."
+   "status_claim": "NOT MET (probe: 55 of 60 named items admitted)",
+   "notes": "All 60 items have a registered family. 8.4.1 is admitted again (plan_distribution and des_inventory, second continuation). Items with no family admitted on both seed sets in probes: 8.4.2 (plan_perishable, des_perishable), 8.4.3 (plan_supply_chain: admitted on 0-2 only), 8.6.3 (pe_rollout_targeting), 8.7.1 (net_routing), 8.7.4 (net_cascade). Redesigns tried for 8.4.2, 8.4.3, 8.6.3 (and earlier 8.4.1, 8.7.1, 8.7.4) did not pass and were not adopted (DECISION_LOG D-64 amendments)."
   },
   "SP-8.0b": {
    "implementation_files": [
@@ -321,7 +337,7 @@
   }
  },
  "limitations": [
-  "Gate M counts are probe counts until the registry-wide run lands: M.1 54/60 training families, SP-8.0 54/60 named items; M.2 21/20 evaluation families.",
+  "Gate M counts are probe counts until the registry-wide run lands: M.1 56/60 training families, SP-8.0 55/60 named items; M.2 21/20 evaluation families (last registry-wide run f1 at 7a4137d: 54/21).",
   "Seventeen families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a rival that follows your average price, a peaked dose law, a saturating hub, a saturating output link).",
   "Several prediction references are weak on one seed of a seed set (ch_sign_reversal, ch_demand_shift, cxc_balancing_constraint, cxc_latched_reversal); they pass the two-of-three rule, the margin is small.",
   "Program-execution families pay compute by measured CPU time (D-20 metering); admission values of pe_* families can vary with machine load.",

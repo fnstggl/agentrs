@@ -312,6 +312,17 @@ a privileged oracle that knows the events (planned entry, escapement, freshest p
 schedule, planned seeding) and a public reference that acts on what it observes; two references had bugs that the
 measurements exposed and were fixed (team_formation never read the workers' claimed skills; team_schedule planned
 with the first participant's speed estimates only).
+Amendment (second continuation, 2026-11-27): two 8.4.1 references were not competent policies of their own world and
+were fixed without changing the worlds: the `plan_distribution` reference and oracle kept ordering in the last
+periods, buying units that could not reach a customer before the end (now no order once lead time plus shipping no
+longer fits); the `des_inventory` reference and oracle ordered every tick although every order pays a fixed cost (now
+an (s, Q) policy: demand = sales + customers turned away, lead time from deliveries, batches by the economic order
+quantity of the fixed and holding costs; the oracle adds (s, Q) policies with the true season and mean lead time, so
+it stays the upper reference). Both families are admitted on seeds 0-2 and 10-12 in probes. Tried and not adopted in
+this continuation (worlds unchanged): demand regimes and higher holding costs for `plan_supply_chain` (a two-setting
+rule stayed within 0.8 of the oracle on the held-out seeds), demand regimes for `plan_perishable` (reference 0.56-0.83
+of the oracle), a readiness-aware targeting reference for `pe_rollout_targeting` and a model-predictive controller for
+`eng_delayed_controller` (both still below the best simple policy on most seeds).
 
 ## D-65 Families for the four Part 8 items that had none (2026-11-26, workstream H)
 8.5.1 `srch_leads` (a stream of expiring leads with screen/audit investigation), 8.5.4 `srch_ventures` (delayed
