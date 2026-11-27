@@ -71,14 +71,15 @@ def run_measured(tree: str, commit: str, work: str) -> dict:
                          "store_benchmark": ".venv/bin/python cam_live/docs/evidence/D/bench_store.py",
                          "regenerate": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/regenerate.py"},
            "_code": {"commit": commit, "source": f"git archive {commit}"}}
+    open(os.path.join(work, "measured_pytest_stdout.txt"), "w").write(p.stdout)
+    dec = json.JSONDecoder()
+    pat = re.compile(r"\b(EXACT_NKD|MC_UNBIASED|KTD_VARIANCE|LONG_DELAY_SNR|COCOA_KTD|COCOA_LEARNED_BIAS|"
+                     r"COCOA_ELAPSED|RUDDER_KEY|SELECTION|REPLAY_BALANCE) +([A-Za-z_]+ +)?\{")
     for line in p.stdout.splitlines():
-        m = re.search(r"\b(EXACT_NKD|MC_UNBIASED|KTD_VARIANCE|LONG_DELAY_SNR|COCOA_KTD|COCOA_LEARNED_BIAS|"
-                      r"COCOA_ELAPSED|RUDDER_KEY|SELECTION|REPLAY_BALANCE)\s+(\S+\s+)?(\{.*\})\s*$", line)
-        if not m:
-            continue
-        tag, extra, blob = m.group(1), (m.group(2) or "").strip(), m.group(3)
-        key = f"mc_unbiased_{extra}" if tag == "MC_UNBIASED" else TAGS[tag]
-        out[key] = json.loads(blob.replace("Infinity", "1e999").replace("NaN", "null"))
+        for m in pat.finditer(line):
+            tag, extra = m.group(1), (m.group(2) or "").strip()
+            key = f"mc_unbiased_{extra}" if tag == "MC_UNBIASED" else TAGS[tag]
+            out[key], _ = dec.raw_decode(line[m.end() - 1:])      # the JSON object (pytest may append dots)
     summary = [l for l in p.stdout.splitlines() if re.search(r"\d+ (passed|failed)", l)]
     out["_tests"] = {"summary": summary[-1] if summary else "", "returncode": p.returncode,
                      "seconds": round(time.time() - t0, 1)}
