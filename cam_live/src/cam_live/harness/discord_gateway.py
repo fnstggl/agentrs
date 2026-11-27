@@ -22,11 +22,13 @@ Constraints encoded here:
   one-way pseudonyms (``member_id_hash``), invites carry no inviter, messages carry a length (and text only with
   ``keep_content``), and an event of any guild other than the configured one is counted and dropped.
 * **The token is sent in Identify and nowhere else.** It is fetched at the moment Identify is built, is not stored
-  on the object, and is removed from the text of every exception this module raises.
+  on the object, is removed from the text of every exception this module raises (which carry no ``__context__``),
+  and the websocket library's frame logging is switched off for the connection.
 """
 from __future__ import annotations
 
 import json
+import logging
 import random
 import time as _time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -71,6 +73,15 @@ _MEMBER_EVENTS = ("GUILD_MEMBER_ADD", "GUILD_MEMBER_REMOVE", "GUILD_MEMBER_UPDAT
 KEPT_EVENTS: Tuple[str, ...] = (("READY", "GUILD_CREATE", "GUILD_UPDATE", "INVITE_CREATE", "INVITE_DELETE",
                                  "MESSAGE_CREATE") + _MEMBER_EVENTS + _CHANNEL_EVENTS + _SCHEDULED_EVENTS
                                 + _SCHEDULED_USER_EVENTS)
+
+
+#: The websocket library logs every frame it sends at DEBUG level, and one of the frames is Identify. The
+#: connection is therefore given this logger, which is disabled: no frame of a window is ever logged, whatever the
+#: logging configuration of the process.
+_TRANSPORT_LOG = logging.getLogger("cam_live.harness.discord_gateway.transport")
+_TRANSPORT_LOG.addHandler(logging.NullHandler())
+_TRANSPORT_LOG.propagate = False
+_TRANSPORT_LOG.disabled = True
 
 
 class GatewayError(RuntimeError):
@@ -192,7 +203,7 @@ class GatewayWindow:
         ws: Any = None
         try:
             ws = connect(gateway_connect_url(self.url), open_timeout=self.open_timeout_s, close_timeout=2.0,
-                         ping_interval=None, max_size=16 * 1024 * 1024, proxy=None,
+                         ping_interval=None, max_size=16 * 1024 * 1024, proxy=None, logger=_TRANSPORT_LOG,
                          user_agent_header=f"{self.library} (gateway window)")
         except (OSError, WebSocketException, TimeoutError) as e:
             failure = GatewayError("network", clean(f"could not connect to the gateway: {type(e).__name__}: {e}"))

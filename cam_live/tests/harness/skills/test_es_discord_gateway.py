@@ -307,10 +307,25 @@ def test_the_token_is_in_no_exception_and_no_result(staging):
     with pytest.raises(GatewayError) as e:
         window_for(staging, 1.0, connect=lambda url, **kw: Flaky(real_connect(url, **kw).__enter__())).run()
     assert TOKEN not in str(e.value) and "[token]" in str(e.value) and e.value.__context__ is None
-    # the window object does not keep the token
-    w = window_for(staging, 0.2)
-    w.run()
+    # the window object does not keep the token, and nothing is logged about the frames even with DEBUG logging on
+    import io
+    import logging
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    root = logging.getLogger()
+    old_level = root.level
+    root.addHandler(handler)
+    root.setLevel(logging.DEBUG)
+    for name in ("websockets", "websockets.client", "cam_live.harness.discord_gateway.transport"):
+        logging.getLogger(name).setLevel(logging.DEBUG)
+    try:
+        w = window_for(staging, 0.2)
+        w.run()
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(old_level)
     assert TOKEN not in json.dumps({k: repr(v) for k, v in vars(w).items()})
+    assert TOKEN not in stream.getvalue() and "token" not in stream.getvalue() and '"op": 2' not in stream.getvalue()
     # through the executor: the whole serialized result, including failures
     ex, pol = executor_for(staging), ScopedPolicy(scopes=("discord",))
     gw.on_ready(lambda: st.add_human("x"))

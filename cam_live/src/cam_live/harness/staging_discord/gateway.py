@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import collections
 import json
+import logging
 import threading
 from typing import Any, Callable, Deque, Dict, List, Optional
 
@@ -35,6 +36,13 @@ _EVENT_INTENT = (("GUILD_MEMBER_", "GUILD_MEMBERS"), ("GUILD_SCHEDULED_EVENT_", 
 _ALL_INTENT_BITS = 0
 for _b in INTENT_BITS.values():
     _ALL_INTENT_BITS |= 1 << _b
+
+
+#: the websocket library logs received frames at DEBUG level; Identify frames carry a token, so it gets no logger
+_SILENT = logging.getLogger("cam_live.harness.staging_discord.gateway.transport")
+_SILENT.addHandler(logging.NullHandler())
+_SILENT.propagate = False
+_SILENT.disabled = True
 
 
 def intent_for(event: str) -> Optional[str]:
@@ -72,7 +80,7 @@ class StagingGateway:
         self.acknowledge_heartbeats = True
         self._on_ready: List[Callable[[], None]] = []
         self._ready = threading.Event()
-        self._server = serve(self._handle, host, port, ping_interval=None, close_timeout=1.0,
+        self._server = serve(self._handle, host, port, ping_interval=None, close_timeout=1.0, logger=_SILENT,
                              server_header="cam-live-staging-discord-gateway")
         self.port = self._server.socket.getsockname()[1]
         self.url = f"ws://{host}:{self.port}"
