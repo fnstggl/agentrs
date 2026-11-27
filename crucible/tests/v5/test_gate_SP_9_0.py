@@ -72,7 +72,7 @@ def test_SP_9_0_autonomous_open_ended_structural_composable():
     metrics = {k: m[k] for k in ("domains_with_autonomous_participants", "domains_with_open_ended_actions",
                                  "configurations_differing_only_in_objective_text", "domains_composable_into_tier3",
                                  "domains_registered", "sections_with_domain", "sections_missing",
-                                 "cross_domain_same_structure")}
+                                 "cross_domain_same_structure", "domain_load_errors")}
     for k in ("autonomous", "open_ended", "same_structure_pairs", "tier3"):
         metrics[f"per_domain_{k}"] = ";".join(f"{n}={v[k]}" for n, v in sorted(per.items())) or "none"
     metrics["population_activity_kinds"] = ";".join(

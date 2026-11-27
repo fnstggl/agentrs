@@ -81,7 +81,8 @@ def test_SP_9_16_feasible_not_guaranteed_no_dice(tmp_path):
     world_files = ctl["structure"]["world_sources"]
     metrics = {k: m[k] for k in ("domains_where_null_baseline_fails", "arbitrary_failure_probability_mechanisms",
                                  "domains_with_degenerate_strategy_probe", "domains_registered",
-                                 "sections_with_domain", "sections_missing", "domains_with_successful_reference")}
+                                 "sections_with_domain", "sections_missing", "domains_with_successful_reference",
+                                 "domain_load_errors")}
     for k in ("null_fails", "probes_ok", "dice"):
         metrics[f"per_domain_{k}"] = ";".join(f"{n}={v[k]}" for n, v in sorted(per.items())) or "none"
     metrics["probe_results"] = ";".join(

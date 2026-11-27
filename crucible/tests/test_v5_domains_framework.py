@@ -690,3 +690,20 @@ def test_api_version_and_public_names():
               "instance_digest", "engaged_modules", "evaluator_like_tools"):
         assert hasattr(D, n), n
     assert json.dumps(base.summary())
+
+
+def test_a_domain_module_that_fails_to_register_is_reported_not_fatal(monkeypatch):
+    """One refused or broken domain file must not take the other domains (and the gates) down with it: it is
+    recorded in LOAD_ERRORS and reported by the gate metrics, and its section counts as missing."""
+    import crucible.domains as D
+    real = D.pkgutil.iter_modules
+
+    class Info:
+        name = "zz_broken_probe"
+    monkeypatch.setattr(D.pkgutil, "iter_modules", lambda path: list(real(path)) + [Info()])
+    try:
+        D.load_all()
+        assert "ModuleNotFoundError" in D.LOAD_ERRORS["zz_broken_probe"]
+        assert "zz_broken_probe" in base.gate_metrics({})["domain_load_errors"]
+    finally:
+        D.LOAD_ERRORS.pop("zz_broken_probe", None)

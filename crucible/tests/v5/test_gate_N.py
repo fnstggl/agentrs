@@ -51,7 +51,7 @@ def _metrics():
 
 def _context(m, per, keys):
     out = {"domains_registered": m["domains_registered"], "sections_with_domain": m["sections_with_domain"],
-           "sections_missing": m["sections_missing"]}
+           "sections_missing": m["sections_missing"], "domain_load_errors": m["domain_load_errors"]}
     for k in keys:
         out[f"per_domain_{k}"] = ";".join(f"{n}={v[k]}" for n, v in sorted(per.items())) or "none"
     return out

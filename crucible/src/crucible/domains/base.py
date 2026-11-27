@@ -2742,8 +2742,14 @@ def gate_metrics(reports: dict[str, dict]) -> dict:
         "domains_with_degenerate_strategy_probe": part("probes_ok"),
         "domains_observation_only_default": part("observation_only"),
         "domains_with_generated_objectives": part("objective_generated"),
+        "domain_load_errors": _load_errors(),
     }
     return m
+
+
+def _load_errors() -> str:
+    from . import LOAD_ERRORS
+    return ";".join(f"{k}: {v}" for k, v in sorted(LOAD_ERRORS.items()))[:3000] or "none"
 
 
 def summary() -> dict:

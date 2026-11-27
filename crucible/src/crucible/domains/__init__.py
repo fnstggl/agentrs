@@ -39,9 +39,23 @@ def run_reference(domain: str, config: str, seed: int = 0, *, days: float | None
     return run(domain, config, seed, policy="reference", days=days, difficulty=difficulty)
 
 
+LOAD_ERRORS: dict[str, str] = {}
+
+
 def load_all() -> dict:
-    """Import every domain module in this package (each registers itself) and return the registry."""
+    """Import every domain module in this package (each registers itself) and return the registry. A module that
+    fails to import or whose definition `register` refuses is recorded in `LOAD_ERRORS` (module -> error) instead of
+    breaking every other domain: its domain is then simply not registered, so the gates count its section as
+    missing and report the reason (`base.gate_metrics(...)["domain_load_errors"]`)."""
     for info in pkgutil.iter_modules(__path__):
-        if info.name not in _FRAMEWORK and not info.name.startswith("_"):
-            importlib.import_module(f"{__name__}.{info.name}")
+        if info.name in _FRAMEWORK or info.name.startswith("_"):
+            continue
+        name = f"{__name__}.{info.name}"
+        try:
+            importlib.import_module(name)
+            LOAD_ERRORS.pop(info.name, None)
+        except Exception as e:  # noqa: BLE001 - reported by the gates, never swallowed silently
+            import sys
+            sys.modules.pop(name, None)
+            LOAD_ERRORS[info.name] = f"{type(e).__name__}: {e}"[:600]
     return REGISTRY
