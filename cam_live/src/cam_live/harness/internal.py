@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from typing import Any, Dict, List, Optional
 
@@ -20,7 +21,7 @@ from .operator_requests import KINDS as REQUEST_KINDS, OperatorRequests
 from .perception import Perception
 
 DAY = 86400.0
-_KINDS = ("actions", "action", "results", "events", "pending", "resources", "notes", "log", "tools")
+_KINDS = ("actions", "action", "results", "events", "pending", "resources", "notes", "log", "tools", "blob")
 
 
 class InternalExecutor:
@@ -68,17 +69,30 @@ class InternalExecutor:
                                      data={"action_id": w["action_id"], "wake_at": w["wake_at"]}, source="internal",
                                      parent_action_id=w["action_id"]) for w in due]
         for r in self.requests.undelivered_answers():      # the operator answered a request made earlier
-            o = self.perception.event(
-                "operator.answer", f"operator {r['status']} the request \"{r['title']}\""
-                + (f": {r.get('resolution_note')}" if r.get("resolution_note") else ""),
-                quantities=[Quantity("operator.request.granted", 1.0 if r["status"] == "granted" else 0.0,
-                                     kind="binary")],
-                data={"request_id": r["request_id"], "status": r["status"], "kind": r["kind"],
-                      "waited_s": float(r.get("resolved_at", now)) - float(r.get("ts", now))},
-                source="operator", parent_action_id=r.get("action_id", ""))
-            o.provenance.trust = Trust.OPERATOR
-            out.append(o)
+            out += self.answer_events(r, now)
         return out
+
+    def answer_events(self, r: Dict[str, Any], now: float) -> List[Observation]:
+        """An operator's answer as two observations: what the operator decided (status, the operator's own note)
+        under ``trust=operator``, and — separately, under ``trust=self`` — the request as the learner wrote it
+        (title, description), so nothing the learner wrote is ever returned under the operator's label."""
+        note = str(r.get("resolution_note") or "")
+        op = self.perception.event(
+            "operator.answer", f"operator {r['status']} request {r['request_id']} ({r['kind']})"
+            + (f"; operator note: {note}" if note else ""),
+            quantities=[Quantity("operator.request.granted", 1.0 if r["status"] == "granted" else 0.0, kind="binary")],
+            data={"request_id": r["request_id"], "status": r["status"], "kind": r["kind"], "operator_note": note,
+                  "waited_s": float(r.get("resolved_at", now)) - float(r.get("ts", now))},
+            source="operator", parent_action_id=r.get("action_id", ""))
+        op.provenance.trust = Trust.OPERATOR
+        own = self.perception.event(
+            "operator.request.context", f"request {r['request_id']} as asked: \"{r.get('title', '')}\"",
+            data={"request_id": r["request_id"], "title": r.get("title", ""),
+                  "description": str(r.get("description", ""))[:4000], "answer_obs_id": op.obs_id},
+            source="internal", parent_action_id=r.get("action_id", ""))
+        own.provenance.trust = Trust.SELF
+        op.refs["request_context"] = own.obs_id
+        return [op, own]
 
     # ---- ModalityExecutor -----------------------------------------------------------------------------------------
     def tools(self) -> List[ToolDescriptor]:
@@ -93,11 +107,14 @@ class InternalExecutor:
                            Level.PRIMITIVE, "", "none", Cost()),
             ToolDescriptor("internal.inspect", Modality.INTERNAL, "Read this environment's own records: recent "
                            "actions and results, one action in full, events, pending outcomes, resources, notes, "
-                           "tools.",
+                           "tools, or a slice of the full payload of an observation that was too large (what=blob).",
                            {"type": "object", "properties": {
                                "what": {"type": "string", "enum": list(_KINDS)},
                                "action_id": {"type": "string"},
-                               "limit": {"type": "integer", "minimum": 1, "maximum": 200}},
+                               "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+                               "blob": {"type": "string", "description": "refs.data_blob of a bounded observation"},
+                               "offset": {"type": "integer", "minimum": 0},
+                               "max_chars": {"type": "integer", "minimum": 1, "maximum": 60000}},
                             "required": ["what"], "additionalProperties": False},
                            Level.PRIMITIVE, "", "none", Cost()),
             ToolDescriptor("internal.note", Modality.INTERNAL, "Append a note to the persistent workspace notebook.",
@@ -129,6 +146,9 @@ class InternalExecutor:
                 if action.operation == "internal.inspect" and action.arguments.get("what") == "action" \
                         and not action.arguments.get("action_id"):
                     errs.append("action_id is required to inspect one action")
+                if action.operation == "internal.inspect" and action.arguments.get("what") == "blob" \
+                        and not re.fullmatch(r"(blob:)?[0-9a-f]{64}", str(action.arguments.get("blob", ""))):
+                    errs.append("blob (a refs.data_blob reference) is required to read a stored payload")
                 return errs
         return [f"unknown operation {action.operation!r}"]
 
@@ -257,6 +277,16 @@ class InternalExecutor:
             data = env.get_resource_state()
         elif what == "tools":
             data = [{"name": t.name, "modality": t.modality, "available": t.available} for t in env.discover_tools()]
+        elif what == "blob":
+            try:
+                data = env.read_blob(action.arguments["blob"], int(action.arguments.get("offset", 0)),
+                                     int(action.arguments.get("max_chars", 3000)))
+            except (OSError, ValueError) as e:
+                data = {"error": f"no such stored payload: {type(e).__name__}"}
+            obs = self.perception.document(data.get("text", ""), uri=str(action.arguments["blob"]),
+                                           media_type="text/plain", source="internal")
+            obs.data.update(what=what, **{k: v for k, v in data.items() if k != "text"})
+            return obs
         else:
             data = [{"type": r.get("type"), "ts": r.get("ts"), "action_id": r.get("action_id")}
                     for r in env.records("", limit)]

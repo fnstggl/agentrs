@@ -19,6 +19,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import re
 from collections import Counter
@@ -51,21 +52,27 @@ def parse_number(text: Any) -> Optional[Tuple[float, str, str]]:
     if isinstance(text, bool) or text is None:
         return None
     if isinstance(text, (int, float)):
-        return float(text), "", repr(text)
+        return (float(text), "", repr(text)) if math.isfinite(float(text)) else None
     m = _NUM.match(str(text))
     if not m:
         return None
     lit = m.group("num").replace(",", "").replace("−", "-")
+    exp = m.group("exp")
+    if exp is not None and len(exp.lstrip("+-")) > 4:
+        return None                                   # an exponent beyond any finite float: not a usable number
     try:
         d = Decimal(lit)
-    except InvalidOperation:
+        if exp:
+            d = d.scaleb(int(exp))
+        if m.group("mult"):
+            d *= _MULT[m.group("mult")]
+        value = float(d)
+    except (InvalidOperation, ArithmeticError, ValueError, OverflowError):
         return None
-    if m.group("exp"):
-        d = d.scaleb(int(m.group("exp")))
-    if m.group("mult"):
-        d *= _MULT[m.group("mult")]
+    if not math.isfinite(value) or (value == 0.0 and d != 0):
+        return None                                   # 1e400, 1e-400 and the like: no exact float value exists
     unit = m.group("unit") or m.group("cur") or ""
-    return float(d), unit, str(text).strip()
+    return value, unit, str(text).strip()
 
 
 def digest(text: str, limit: int = MAX_TEXT) -> str:
@@ -151,7 +158,12 @@ def quantities_from_json(obj: Any, prefix: str, bag: _QBag, _depth: int = 0) -> 
         for i, v in enumerate(obj[:200]):
             quantities_from_json(v, f"{prefix}.{i}", bag, _depth + 1)
     elif isinstance(obj, (int, float)) and not isinstance(obj, bool):
-        bag.add(prefix, (float(obj), "", repr(obj)))
+        try:
+            v = float(obj)
+        except OverflowError:                         # an integer too large for a float
+            return
+        if math.isfinite(v):
+            bag.add(prefix, (v, "", repr(obj)))
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -366,11 +378,18 @@ class Perception:
              max_bytes: int = 8 * 1024 * 1024) -> Observation:
         with open(path, "rb") as f:
             raw = f.read(max_bytes + 1)
-        if len(raw) > max_bytes:
+        cut = len(raw) > max_bytes
+        if cut:
             raw = raw[:max_bytes]
         if raw[:8].startswith(b"\x89PNG") or raw[:3] == b"\xff\xd8\xff" or raw[:6] in (b"GIF87a", b"GIF89a"):
-            return self.image(raw, uri=path, ref=path, parent_action_id=parent_action_id, source=source)
-        return self.document(raw, uri=path, media_type=media_type, parent_action_id=parent_action_id, source=source)
+            obs = self.image(raw, uri=path, ref=path, parent_action_id=parent_action_id, source=source)
+        else:
+            obs = self.document(raw, uri=path, media_type=media_type, parent_action_id=parent_action_id, source=source)
+        if cut:                                       # say so: only the first max_bytes were read
+            obs.data.update(truncated=True, bytes_read=max_bytes, file_bytes=os.path.getsize(path))
+            obs.text = digest(obs.text, self.max_text - 80) + f"\n[only the first {max_bytes} of " \
+                                                              f"{obs.data['file_bytes']} bytes were read]"
+        return obs
 
     @staticmethod
     def _sniff(raw: bytes, uri: str, media_type: str) -> str:

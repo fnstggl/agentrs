@@ -28,20 +28,26 @@ from __future__ import annotations
 
 import collections
 import fcntl
+import hashlib
+import inspect
 import json
+import math
 import os
 import re
 import threading
 import time as _time
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ..contracts import (CONTRACT_VERSION, EXEC_INTERFACE_VERSION, ActionResult, ActionSpec, AuthorizationDecision,
                          AuthVerdict, Clock, Cost, ExecContext, FailureClass, Level, Limits, Modality, ModalityExecutor,
                          Observation, OutcomeObservation, OutcomeQuery, OutcomeStatus, PolicyEngine, PrimitiveOp,
                          Quantity, ResultStatus, RunFiles, ToolDescriptor, WallClock)
+from .failures import refusal_class
 from .perception import Perception
 
 _WRITE = ("external_write",)
+#: default bound of one observation (its JSON form); larger content is stored as a blob and referenced
+MAX_OBSERVATION_BYTES = 256 * 1024
 _RETRY_SAFE = ("none", "local", "external_read")
 _SIDE_RANK = {"none": 0, "local": 1, "external_read": 2, "external_write": 3}
 PROGRAM = "program"
@@ -111,27 +117,175 @@ def scrub_with(secrets: Any, text: str) -> str:
     return text
 
 
-def _scrub_obj(secrets: Any, o: Any) -> Any:
+_SEP = r"[\s\-_.,:;|/·•*+]*"
+
+
+def echo_patterns(value: str) -> List["re.Pattern[str]"]:
+    """Patterns for forms in which a page or an API commonly echoes a value it was given, beyond the exact
+    encodings the broker knows: any letter case, its characters separated by spaces or punctuation, and any run of
+    at least half of it (a value cut in two). Values shorter than 6 characters are not scrubbed this way."""
+    if not isinstance(value, str) or len(value) < 6:
+        return []
+    pats = [re.compile(_SEP.join(re.escape(c) for c in value), re.I)]
+    k = max(6, (len(value) + 1) // 2)
+    if k < len(value):
+        pats.append(re.compile("|".join(sorted({re.escape(value[i:i + k]) for i in range(len(value) - k + 1)},
+                                               key=len, reverse=True)), re.I))
+    return pats
+
+
+class EchoScrubber:
+    """Values released to executors during this process (memory only, never written anywhere) and the patterns
+    that remove their transformed echoes from text."""
+
+    def __init__(self, max_values: int = 64):
+        self._pats: "collections.OrderedDict[str, List[re.Pattern[str]]]" = collections.OrderedDict()
+        self._lock, self._max = threading.Lock(), max_values
+
+    def add(self, value: Any) -> None:
+        if isinstance(value, (bytes, bytearray)):
+            value = bytes(value).decode("utf-8", "replace")
+        if not isinstance(value, str) or len(value) < 6:
+            return
+        key = hashlib.sha256(value.encode()).hexdigest()
+        with self._lock:
+            if key in self._pats:
+                self._pats.move_to_end(key)
+                return
+            self._pats[key] = echo_patterns(value)
+            while len(self._pats) > self._max:
+                self._pats.popitem(last=False)
+
+    def __len__(self) -> int:
+        return len(self._pats)
+
+    def scrub(self, text: str) -> str:
+        if not text or not self._pats:
+            return text
+        with self._lock:
+            pats = [p for ps in self._pats.values() for p in ps]
+        for p in pats:
+            text = p.sub("[secret]", text)
+        return text
+
+
+class RecordingSecrets:
+    """The environment's executor-side broker handle. ``get(name, action, decision, destination)`` is the
+    authorization service's (it alone decides whether a value is released); a released value is remembered in
+    memory so that its transformed echoes are scrubbed from every observation and log line, together with the
+    broker's own ``scrub``."""
+
+    def __init__(self, inner: Any, echoes: EchoScrubber):
+        self._inner, self._echoes = inner, echoes
+
+    def get(self, name: str, action: Any, decision: Any, destination: str) -> str:
+        v = self._inner.get(name, action, decision, destination)
+        self._echoes.add(v)
+        return v
+
+    def scrub(self, text: str) -> str:
+        return self._echoes.scrub(scrub_with(self._inner, text))
+
+    def scrub_obj(self, obj: Any) -> Any:
+        fn = getattr(self._inner, "scrub_obj", None)
+        out = obj
+        if callable(fn):
+            try:
+                out = fn(obj)                 # one call for the whole object (one round trip over AuthRPC)
+            except Exception:  # noqa: BLE001 — fall back to scrubbing string by string
+                out = _walk_scrub(self._inner, obj)
+        else:
+            out = _walk_scrub(self._inner, obj)
+        return _walk_scrub(self._echoes, out) if len(self._echoes) else out
+
+    def scrub_record(self, rec: Any) -> Any:
+        return type(rec).from_dict(self.scrub_obj(rec.to_dict()))
+
+    def bind(self, action: Any, decision: Any) -> "_BoundRecording":
+        return _BoundRecording(self, action, decision)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+class _BoundRecording:
+    def __init__(self, handle: RecordingSecrets, action: Any, decision: Any):
+        self._h, self._action, self._decision = handle, action, decision
+
+    def get(self, name: str, destination: str) -> str:
+        return self._h.get(name, self._action, self._decision, destination)
+
+    def scrub(self, text: str) -> str:
+        return self._h.scrub(text)
+
+    def scrub_obj(self, obj: Any) -> Any:
+        return self._h.scrub_obj(obj)
+
+
+def _grant_bound_get(secrets: Any) -> bool:
+    fn = getattr(secrets, "get", None)
+    if not callable(fn) or isinstance(secrets, dict):
+        return False
+    try:
+        req = [p for p in inspect.signature(fn).parameters.values()
+               if p.default is p.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    except (TypeError, ValueError):
+        return False
+    return len(req) == 4
+
+
+def _finite_obj(o: Any) -> Any:
+    """Copy of a JSON-like value with non-finite floats replaced by None (they have no JSON form)."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _finite_obj(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite_obj(v) for v in o]
+    return o
+
+
+def _jsize(o: Any) -> int:
+    return len(json.dumps(o, default=str, ensure_ascii=False).encode("utf-8"))
+
+
+def _walk_scrub(secrets: Any, o: Any) -> Any:
     if isinstance(o, str):
         return scrub_with(secrets, o)
     if isinstance(o, dict):
-        return {k: _scrub_obj(secrets, v) for k, v in o.items()}
+        return {k: _walk_scrub(secrets, v) for k, v in o.items()}
     if isinstance(o, list):
-        return [_scrub_obj(secrets, v) for v in o]
+        return [_walk_scrub(secrets, v) for v in o]
     return o
+
+
+def _scrub_obj(secrets: Any, o: Any) -> Any:
+    """Scrub a JSON-like value: in one call when the broker handle can scrub whole objects, else string by string."""
+    if secrets is None or isinstance(o, str):
+        return scrub_with(secrets, o) if isinstance(o, str) else o
+    fn = getattr(secrets, "scrub_obj", None)
+    if callable(fn) and isinstance(o, (dict, list)):
+        try:
+            out = fn(o)
+            if isinstance(out, type(o)):
+                return out
+        except Exception:  # noqa: BLE001 — scrub string by string instead
+            pass
+    return _walk_scrub(secrets, o)
 
 
 class _Run:
     """Book-keeping of one action while it executes."""
 
-    def __init__(self, action: ActionSpec):
-        self.action = action
-        self.done = threading.Event()
+    def __init__(self, action: ActionSpec, ahash: str = ""):
+        self.action, self.ahash = action, ahash
+        self.done = threading.Event()             # set when the claim ends: finished (result set) or released
         self.cancel = threading.Event()
         self.result: Optional[ActionResult] = None
         self.sunk: List[Observation] = []
         self.checks = 0
         self.finished = False
+        self.phase = "admitting"                  # admitting -> running -> finished | released
 
 
 class ComputerEnvironment:
@@ -140,11 +294,22 @@ class ComputerEnvironment:
 
     def __init__(self, run_dir: str, policy: PolicyEngine, *, clock: Optional[Clock] = None, secrets: Any = None,
                  limits: Optional[Limits] = None, provenance: str = "staging", record_results: bool = True,
-                 perception: Optional[Perception] = None, events_log: Optional[str] = None, name: str = "computer"):
+                 perception: Optional[Perception] = None, events_log: Optional[str] = None, name: str = "computer",
+                 max_observation_bytes: int = MAX_OBSERVATION_BYTES, selector: Any = "default",
+                 duplicate_wait_s: Optional[float] = None):
         if provenance not in ("live", "staging", "diagnostic"):
             raise ValueError("provenance must be live, staging or diagnostic")
         self.run_dir = os.path.abspath(run_dir)
+        self.echoes = EchoScrubber()
+        if secrets is not None and _grant_bound_get(secrets):
+            secrets = RecordingSecrets(secrets, self.echoes)
         self.policy, self.clock, self.secrets = policy, clock or WallClock(), secrets
+        self.max_observation_bytes = max(4096, int(max_observation_bytes))
+        self.duplicate_wait_s = duplicate_wait_s     # None: wait as long as the running execution may take
+        if selector == "default":
+            from .modality import ModalitySelector
+            selector = ModalitySelector(clock=self.clock)
+        self.selector = selector
         self.limits, self.provenance, self.record_results, self.name = limits, provenance, record_results, name
         self.perception = perception or Perception(self.clock)
         self.workspace = os.path.join(self.run_dir, "workspace")
@@ -158,6 +323,7 @@ class ComputerEnvironment:
             self._lockf.close()
             raise RuntimeError(f"another computer environment already owns {self.run_dir}")
         self._events_path = events_log or os.path.join(self.run_dir, RunFiles.EVENTS)
+        self._blob_dir = os.path.join(self._dir, "blobs")
         self._state_path = os.path.join(self._dir, "state.json")
         self._journal_path = os.path.join(self._dir, "actions.jsonl")
         self._stream_path = os.path.join(self._dir, "stream.jsonl")
@@ -202,6 +368,11 @@ class ComputerEnvironment:
             self._res.update(st["resources"])
         self._seq = int(st.get("seq", 0))
         self._saved_exec_state = st.get("executors", {})
+        if self.selector is not None and st.get("selector"):
+            try:
+                self.selector.load_state_dict(st["selector"])
+            except Exception:  # noqa: BLE001 — estimates start again from the prior
+                pass
         # every observation issued by an earlier process is outdated: its surfaces no longer exist
         self._surface_gen = {}
         if os.path.exists(self._journal_path):
@@ -242,6 +413,11 @@ class ComputerEnvironment:
             st = {"version": 1, "saved_at": self.clock.now(), "seq": self._seq,
                   "pending": [q.to_dict() for q in self._pending.values()], "resources": self._res,
                   "executors": ex_state, "stream_events": len(self._stream_offsets)}
+            if self.selector is not None:
+                try:
+                    st["selector"] = self.selector.state_dict()
+                except Exception as e:  # noqa: BLE001
+                    self._log("env.error", where="selector.state_dict", error=repr(e))
             tmp = self._state_path + ".tmp"
             with open(tmp, "w") as f:
                 json.dump(st, f, default=str)
@@ -332,13 +508,18 @@ class ComputerEnvironment:
 
     # ---- observations -----------------------------------------------------------------------------------------
     def _register_obs(self, obs: Observation) -> Observation:
-        """Scrub, and enter the observation in the staleness ledger."""
+        """Scrub, check, bound, and enter the observation in the staleness ledger (once per observation)."""
+        with self._lock:
+            if obs.obs_id in self._ledger:
+                return obs
         if self.secrets is not None:
             obs.text = scrub_with(self.secrets, obs.text)
             obs.data = _scrub_obj(self.secrets, obs.data)
             obs.refs = _scrub_obj(self.secrets, obs.refs)
             obs.entities = _scrub_obj(self.secrets, obs.entities)
             obs.provenance.uri = scrub_with(self.secrets, obs.provenance.uri)
+        self._check_quantities(obs)
+        self._bound(obs)
         surface, gen = obs.data.get("surface"), obs.data.get("generation")
         with self._lock:
             if obs.obs_id in self._ledger:
@@ -349,6 +530,74 @@ class ComputerEnvironment:
             while len(self._ledger) > 4000:
                 self._ledger.popitem(last=False)
         return obs
+
+    @staticmethod
+    def _check_quantities(obs: Observation) -> None:
+        """A quantity must be an exact, finite number: anything else is dropped (and counted), and non-finite
+        numbers inside the payload are replaced by null, so every observation has a strict JSON form."""
+        keep, bad = [], 0
+        for q in obs.quantities:
+            v = getattr(q, "value", None)
+            if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)):
+                keep.append(q)
+            else:
+                bad += 1
+        if bad:
+            obs.quantities = keep
+            obs.data["quantities_rejected"] = int(obs.data.get("quantities_rejected", 0)) + bad
+        try:
+            json.dumps(obs.data, allow_nan=False, default=str)
+        except ValueError:
+            obs.data = _finite_obj(obs.data)
+
+    def _store_blob(self, payload: Any) -> Tuple[str, int]:
+        raw = json.dumps(payload, default=str, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        digest_ = hashlib.sha256(raw).hexdigest()
+        os.makedirs(self._blob_dir, exist_ok=True)
+        path = os.path.join(self._blob_dir, digest_ + ".json")
+        if not os.path.exists(path):
+            tmp = f"{path}.tmp.{os.getpid()}.{threading.get_ident()}"
+            with open(tmp, "wb") as f:
+                f.write(raw)
+            os.replace(tmp, path)
+        return "blob:" + digest_, len(raw)
+
+    def read_blob(self, blob_id: str, offset: int = 0, max_chars: int = 20000) -> Dict[str, Any]:
+        """A slice of a stored observation payload (what :meth:`_bound` moved out of an observation)."""
+        h = str(blob_id or "").split("blob:", 1)[-1]
+        if not re.fullmatch(r"[0-9a-f]{64}", h):
+            raise ValueError("not a blob reference")
+        with open(os.path.join(self._blob_dir, h + ".json"), encoding="utf-8") as f:
+            text = f.read()
+        offset, max_chars = max(0, int(offset)), max(1, min(int(max_chars), 60000))
+        return {"blob": "blob:" + h, "offset": offset, "total_chars": len(text), "text": text[offset:offset + max_chars],
+                "more": offset + max_chars < len(text)}
+
+    def _bound(self, obs: Observation) -> None:
+        """Keep the observation within ``max_observation_bytes``. The complete payload is stored as a blob (its
+        reference is ``refs["data_blob"]``, readable with ``internal.inspect what=blob``) and the largest fields
+        of ``data`` are replaced by a stub naming their size; then the text is digested if still needed."""
+        limit = self.max_observation_bytes
+        if _jsize(obs.to_dict()) <= limit:
+            return
+        blob, nbytes = self._store_blob({"obs_id": obs.obs_id, "data": obs.data, "text": obs.text})
+        obs.refs["data_blob"] = blob
+        keep = ("surface", "generation", "url", "tab", "session", "doc", "event", "failure_class", "status")
+        sizes = sorted(((k, _jsize(v)) for k, v in obs.data.items() if k not in keep), key=lambda kv: -kv[1])
+        for k, n in sizes:
+            if _jsize(obs.to_dict()) <= limit:
+                break
+            v = obs.data[k]
+            preview = json.dumps(v, default=str, ensure_ascii=False)[:400]
+            obs.data[k] = {"omitted": True, "bytes": n, "blob": blob, "preview": preview}
+        if _jsize(obs.to_dict()) > limit:
+            from .perception import digest
+            obs.text = digest(obs.text, max(400, min(len(obs.text), limit // 4)))
+            obs.quantities = obs.quantities[:256]
+            obs.entities = [str(e)[:200] for e in obs.entities[:100]]
+            obs.refs = {k: str(v)[:300] for k, v in list(obs.refs.items())[:200]}
+            obs.refs["data_blob"] = blob
+        obs.data["bounded"] = {"limit_bytes": limit, "stored_bytes": nbytes, "blob": blob}
 
     def is_stale(self, obs_id: str) -> Optional[str]:
         """Why an observation is outdated, or ``None`` if the environment still considers it current."""
@@ -382,7 +631,7 @@ class ComputerEnvironment:
             except Exception as e:  # noqa: BLE001 — one unreadable surface does not hide the others
                 out.append(self.perception.error(f"{label} could not be observed: {type(e).__name__}",
                                                  source=str(label)))
-        m = self.perception.metrics(self.get_observable_metrics(), source=self.name)
+        m = self.perception.metrics(self.get_observable_metrics() + self.modality_estimates(), source=self.name)
         m.data["resources"] = self.get_resource_state()
         out.append(m)
         for o in out:
@@ -476,6 +725,60 @@ class ComputerEnvironment:
                 rec = json.loads(f.readline())
             return ActionResult.from_dict(rec["result"])
 
+    def _claim(self, action: ActionSpec, ahash: str) -> Tuple[Optional[_Run], Optional[ActionResult], bool]:
+        """At most once per action id. Returns (claim, result, interrupted): either this caller now holds the
+        claim (the only one that may execute the action id), or the result to return — the recorded result of an
+        earlier execution, or "in progress" while another caller executes it. A caller whose own admission fails
+        (no grant, invalid, stale) releases the claim without recording anything, so another caller may try."""
+        aid = action.action_id
+        t_end = None
+        while True:
+            with self._lock:
+                entry = self._journal.get(aid)
+                other = self._inflight.get(aid)
+                if (entry is not None and entry["hash"] != ahash) or (other is not None and other.ahash != ahash):
+                    return None, self._refuse(action, ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS,
+                                              "this action_id was already used for a different action"), False
+                if other is None:
+                    if entry is not None and entry["phase"] == "finished":
+                        self._res["duplicates_suppressed"] += 1
+                        self._log("env.duplicate_suppressed", action_id=aid, how="recorded result returned")
+                        return None, self._stored_result(aid), False
+                    run = _Run(action, ahash)
+                    self._inflight[aid] = run
+                    return run, None, entry is not None            # a journal entry "started": interrupted
+            # another caller holds the claim: wait for its result (bounded), then look again
+            if t_end is None:
+                budget = self.duplicate_wait_s if self.duplicate_wait_s is not None else \
+                    float(action.timeout_s or 60.0) + 30.0
+                t_end = _time.monotonic() + max(0.0, budget)
+            left = t_end - _time.monotonic()
+            if left > 0 and other.done.wait(left) and other.result is not None:
+                with self._lock:
+                    self._res["duplicates_suppressed"] += 1
+                self._log("env.duplicate_suppressed", action_id=aid, how="joined the execution in progress")
+                return None, ActionResult.from_dict(other.result.to_dict()), False
+            if left > 0 and other.done.is_set():
+                continue                                     # the other caller released the claim: try again
+            with self._lock:
+                self._res["duplicates_suppressed"] += 1
+            self._log("env.duplicate_suppressed", action_id=aid, how="in progress")
+            now = self.clock.now()
+            res = ActionResult(action_id=aid, status=ResultStatus.TIMEOUT, failure_class=FailureClass.UNKNOWN,
+                               started=now, ended=now,
+                               failure_detail="another submission of this action id is being executed; it is not "
+                                              "executed again and its result is returned once it is recorded")
+            res.observations.append(self._register_obs(self.perception.error(
+                res.failure_detail, failure_class=res.failure_class, parent_action_id=aid, source=self.name)))
+            return None, res, False
+
+    def _release(self, run: _Run) -> None:
+        with self._lock:
+            if self._inflight.get(run.action.action_id) is run:
+                self._inflight.pop(run.action.action_id, None)
+            run.phase = "released"
+        run.done.set()
+
     def execute(self, action: ActionSpec, authorization: AuthorizationDecision) -> ActionResult:
         if self._closed:
             return self._refuse(action, ResultStatus.FAILED, FailureClass.UNKNOWN, "the environment is closed")
@@ -485,90 +788,31 @@ class ComputerEnvironment:
             "policy_ids": getattr(authorization, "policy_ids", []), "expires_at": getattr(authorization, "expires_at", 0.0),
             "approval_id": getattr(authorization, "approval_id", ""), "has_grant": bool(getattr(authorization, "grant", ""))})
         # -- 1. at most once per action id ---------------------------------------------------------------------
-        interrupted = False
-        with self._lock:
-            entry = self._journal.get(action.action_id)
-            waiter = self._inflight.get(action.action_id)
-            if entry is not None and entry["hash"] != ahash:
-                return self._refuse(action, ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS,
-                                    "this action_id was already used for a different action")
-            if entry is not None and waiter is None:
-                if entry["phase"] == "finished":
-                    self._res["duplicates_suppressed"] += 1
-                    self._log("env.duplicate_suppressed", action_id=action.action_id, how="recorded result returned")
-                    return self._stored_result(action.action_id)
-                interrupted = True
-            run = _Run(action)
-        if waiter is not None:
-            self._log("env.duplicate_suppressed", action_id=action.action_id, how="joined the execution in progress")
-            with self._lock:
-                self._res["duplicates_suppressed"] += 1
-            waiter.done.wait()
-            return waiter.result  # type: ignore[return-value]
-        # -- 2. authorization: nothing runs without a verified grant -------------------------------------------
+        run, early, interrupted = self._claim(action, ahash)
+        if early is not None:
+            return early
+        assert run is not None
         try:
-            if self.policy.stopped():
-                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                    "the authorization service is stopped (emergency stop)")
-            if authorization is None or not isinstance(authorization, AuthorizationDecision):
-                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "no authorization")
-            if authorization.verdict == AuthVerdict.NEEDS_APPROVAL:
-                return self._refuse(action, ResultStatus.NEEDS_APPROVAL, FailureClass.NONE,
-                                    "; ".join(authorization.reasons) or "waiting for operator approval",
-                                    approval_id=authorization.approval_id)
-            if authorization.verdict != AuthVerdict.ALLOW:
-                words = " ".join(authorization.reasons + authorization.policy_ids).lower()
-                return self._refuse(action, ResultStatus.DENIED, FailureClass.PLATFORM_RESTRICTION
-                                    if "platform" in words else FailureClass.MISSING_PERMISSION,
-                                    "; ".join(authorization.reasons) or "denied by the authorization layer")
-            if authorization.expires_at and self.clock.now() > authorization.expires_at:
-                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "the grant has expired")
-            if not self.policy.check_grant(action, authorization):
-                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                    "the grant does not verify for this action")
-        except Exception as e:  # noqa: BLE001 — fail closed when the authorization service cannot be asked
-            return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
-                                f"authorization could not be verified: {type(e).__name__}")
-        # -- 3. structure, limits, staleness -----------------------------------------------------------------
-        errs = self.validate_action(action)
-        if errs:
-            return self._refuse(action, ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS, "; ".join(errs))
-        side = self._side_effects(action)
-        if interrupted:
-            with self._lock:
-                safe = self._journal[action.action_id].get("side_effects", "external_write") in _RETRY_SAFE
-            if not safe:
-                now = self.clock.now()
-                res = ActionResult(action_id=action.action_id, status=ResultStatus.FAILED,
-                                   failure_class=FailureClass.UNKNOWN, started=now, ended=now,
-                                   failure_detail="this action was interrupted by a restart before its result was "
-                                                  "recorded; its effect is unknown and it is not executed again")
-                res.observations.append(self._register_obs(self.perception.error(
-                    res.failure_detail, failure_class=res.failure_class, parent_action_id=action.action_id,
-                    source=self.name)))
-                self._finish(run, action, res, ahash, side)
-                return res
-            self._log("env.recovery", action_id=action.action_id, how="interrupted read-only action is run again")
-        lim = self._limit_reason(action, side)
-        if lim:
-            return self._refuse(action, ResultStatus.FAILED, FailureClass.RESOURCE_LIMIT, lim)
-        for a in [action] + self._flatten(action):
-            why = self._stale_reason(a)
-            if why:
-                return self._refuse(action, ResultStatus.FAILED, FailureClass.STALE_OBSERVATION, why)
-        # -- 4. run ---------------------------------------------------------------------------------------------
+            refusal, side = self._admit(run, action, authorization, ahash, interrupted)
+        except BaseException:
+            self._release(run)
+            raise
+        if refusal is not None:
+            if run.phase != "finished":
+                self._release(run)
+            return refusal
+        # -- 4. run: the claim is persisted before anything is executed ------------------------------------------
         with self._lock:
-            again = self._inflight.get(action.action_id)
-            if again is not None:
-                run = again
-            else:
-                self._inflight[action.action_id] = run
-                self._journal[action.action_id] = {"hash": ahash, "phase": "started", "side_effects": side}
-        if again is not None:
-            run.done.wait()
-            return run.result  # type: ignore[return-value]
-        self._append(self._journal_path, {"action_id": action.action_id, "hash": ahash, "phase": "started",
-                                          "side_effects": side, "ts": self.clock.now()}, sync=True)
+            run.phase = "running"
+            self._journal[action.action_id] = {"hash": ahash, "phase": "started", "side_effects": side}
+        try:
+            self._append(self._journal_path, {"action_id": action.action_id, "hash": ahash, "phase": "started",
+                                              "side_effects": side, "ts": self.clock.now()}, sync=True)
+        except BaseException:
+            with self._lock:
+                self._journal.pop(action.action_id, None)
+            self._release(run)
+            raise
         self._log("env.action_started", action_id=action.action_id, operation=action.operation,
                   modality=action.modality, side_effects=side, serialised=side in _WRITE)
         try:
@@ -587,6 +831,62 @@ class ComputerEnvironment:
             return res
         self._finish(run, action, res, ahash, side)
         return res
+
+    def _admit(self, run: _Run, action: ActionSpec, authorization: AuthorizationDecision, ahash: str,
+               interrupted: bool) -> Tuple[Optional[ActionResult], str]:
+        """Steps 2 and 3: authorization, structure, limits, staleness. Returns (refusal or final result, side)."""
+        # -- 2. authorization: nothing runs without a verified grant -------------------------------------------
+        try:
+            if self.policy.stopped():
+                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                    "the authorization service is stopped (emergency stop)"), ""
+            if authorization is None or not isinstance(authorization, AuthorizationDecision):
+                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "no authorization"), ""
+            if authorization.verdict == AuthVerdict.NEEDS_APPROVAL:
+                return self._refuse(action, ResultStatus.NEEDS_APPROVAL, FailureClass.NONE,
+                                    "; ".join(authorization.reasons) or "waiting for operator approval",
+                                    approval_id=authorization.approval_id), ""
+            if authorization.verdict != AuthVerdict.ALLOW:
+                return self._refuse(action, ResultStatus.DENIED,
+                                    refusal_class(authorization.reasons, authorization.policy_ids),
+                                    "; ".join(authorization.reasons) or "denied by the authorization layer"), ""
+            if authorization.expires_at and self.clock.now() > authorization.expires_at:
+                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                    "the grant has expired"), ""
+            if not self.policy.check_grant(action, authorization):
+                return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                    "the grant does not verify for this action"), ""
+        except Exception as e:  # noqa: BLE001 — fail closed when the authorization service cannot be asked
+            return self._refuse(action, ResultStatus.DENIED, FailureClass.MISSING_PERMISSION,
+                                f"authorization could not be verified: {type(e).__name__}"), ""
+        # -- 3. structure, limits, staleness -----------------------------------------------------------------
+        errs = self.validate_action(action)
+        if errs:
+            return self._refuse(action, ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS, "; ".join(errs)), ""
+        side = self._side_effects(action)
+        if interrupted:
+            with self._lock:
+                safe = self._journal[action.action_id].get("side_effects", "external_write") in _RETRY_SAFE
+            if not safe:
+                now = self.clock.now()
+                res = ActionResult(action_id=action.action_id, status=ResultStatus.FAILED,
+                                   failure_class=FailureClass.UNKNOWN, started=now, ended=now,
+                                   failure_detail="this action was interrupted by a restart before its result was "
+                                                  "recorded; its effect is unknown and it is not executed again")
+                res.observations.append(self._register_obs(self.perception.error(
+                    res.failure_detail, failure_class=res.failure_class, parent_action_id=action.action_id,
+                    source=self.name)))
+                self._finish(run, action, res, ahash, side)
+                return res, side
+            self._log("env.recovery", action_id=action.action_id, how="interrupted read-only action is run again")
+        lim = self._limit_reason(action, side)
+        if lim:
+            return self._refuse(action, ResultStatus.FAILED, FailureClass.RESOURCE_LIMIT, lim), side
+        for a in [action] + self._flatten(action):
+            why = self._stale_reason(a)
+            if why:
+                return self._refuse(action, ResultStatus.FAILED, FailureClass.STALE_OBSERVATION, why), side
+        return None, side
 
     def _flatten(self, action: ActionSpec) -> List[ActionSpec]:
         out: List[ActionSpec] = []
@@ -694,7 +994,7 @@ class ComputerEnvironment:
         res.action_id = action.action_id
         res.started = res.started or now
         res.ended = res.ended or self.clock.now()
-        if res.status == ResultStatus.DENIED and res.failure_class not in FailureClass.HARD:
+        if res.status == ResultStatus.DENIED and res.failure_class not in FailureClass.HARD + (FailureClass.RESOURCE_LIMIT,):
             res.failure_class = FailureClass.MISSING_PERMISSION
         return res
 
@@ -850,15 +1150,50 @@ class ComputerEnvironment:
             self._results[action.action_id] = res
             while len(self._results) > 256:
                 self._results.popitem(last=False)
-            run.result, run.finished = res, True
-            self._inflight.pop(action.action_id, None)
+            run.result, run.finished, run.phase = res, True, "finished"
+            if self._inflight.get(action.action_id) is run:
+                self._inflight.pop(action.action_id, None)
         run.done.set()
         if self.record_results:
             try:
                 self.policy.record(action, res)
             except Exception as e:  # noqa: BLE001 — the audit failure is logged here; the action already happened
                 self._log("env.error", where="policy.record", action_id=action.action_id, error=repr(e))
+        self._learn(action, res)
         self._save_state()
+
+    def _learn(self, action: ActionSpec, res: ActionResult) -> None:
+        """Every executed action is material for the execution layer: executors with an ``observe_execution``
+        hook (the skill executor induces skills from these traces) see it, and the modality selector updates its
+        estimates of the realisation used (a refusal blocks the intent and teaches nothing about the modality)."""
+        for label, fn in self._hooks("observe_execution"):
+            try:
+                fn(ActionSpec.from_dict(action.to_dict()), ActionResult.from_dict(res.to_dict()))
+            except Exception as e:  # noqa: BLE001
+                self._log("env.error", where=f"observe_execution:{label}", error=repr(e))
+        if self.selector is None or action.operation == PROGRAM or action.modality == Modality.INTERNAL:
+            return
+        try:
+            from .modality import ExecContextFeatures, default_kind
+            kind = default_kind(action)
+            if kind:
+                self.selector.update(kind, ExecContextFeatures.of(action), res, intent=action)
+        except Exception as e:  # noqa: BLE001 — estimates are advisory; the action already happened
+            self._log("env.error", where="selector.update", error=repr(e))
+
+    def modality_estimates(self) -> List[Quantity]:
+        """The selector's current estimates (success probability, latency, compute, primitive operations,
+        recovery cost, expected cost, attempts) for each realisation kind this environment can execute."""
+        if self.selector is None:
+            return []
+        try:
+            from .modality import KINDS
+            have = set(self._executors)
+            kinds = [k for k in KINDS if k in have or (k.startswith("visual") and Modality.VISUAL in have)]
+            return self.selector.quantities(kinds=kinds) if kinds else []
+        except Exception as e:  # noqa: BLE001
+            self._log("env.error", where="selector.quantities", error=repr(e))
+            return []
 
     def cancel_action(self, action_id: str) -> bool:
         """Ask a running action to stop (executors poll ``ExecContext.cancel``)."""
@@ -1028,7 +1363,8 @@ class ComputerEnvironment:
             "features": {"at_most_once_by_action_id": True, "serialised_external_writes": True,
                          "stale_observation_detection": True, "programs": True, "restart_recovery": True,
                          "execution_log": self._events_path, "secret_scrubbing": self.secrets is not None,
-                         "reward": False},
+                         "max_observation_bytes": self.max_observation_bytes, "reward": False},
+            "modality_estimates": {q.name: q.value for q in self.modality_estimates()},
             "sources": [getattr(s, "name", type(s).__name__) for s in self._sources], "executors": {}}
         for m, ex in self._executors.items():
             fn = getattr(ex, "capabilities", None)
