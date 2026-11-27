@@ -1585,6 +1585,18 @@ class LiveRuntime:
     # ==========================================================================================================
     # the loop
     # ==========================================================================================================
+    def _compute_budget(self, wanted: float) -> float:
+        """The learner's time budget for one learning call: never more than what the compute limit has left (a limit
+        of 0 is not set). 0 = the limit is used up: the call is skipped and recorded."""
+        lim = _finite(self.task.limits.compute_s) or 0.0
+        if lim <= 0:
+            return wanted
+        left = lim - (float(self.counters["compute_s"]) + self._compute_unbooked)
+        if left <= 0:
+            self.log.event("learning_skipped", {"reason": "the compute limit is used up", "limit_s": lim})
+            return 0.0
+        return min(wanted, left)
+
     def _authorization_revoked(self) -> str:
         """Why the authorization service says access for this task was revoked ('' = it does not)."""
         try:
@@ -1694,13 +1706,15 @@ class LiveRuntime:
         rewards = self._agent_try("internal_rewards", default={})                  # step 13
         if rewards:
             self.log.event("internal_rewards", rewards if isinstance(rewards, dict) else {"value": rewards})
-        updates = [u for u in (self._agent_try("learn", self.cfg.learn_budget_s, default=[]) or [])
-                   if u is not None]                                               # step 14
+        budget = self._compute_budget(self.cfg.learn_budget_s)
+        updates = [u for u in (self._agent_try("learn", budget, default=[]) or []) if u is not None] \
+            if budget > 0 else []                                                  # step 14
         for u in updates:
             self.log.learning_update(u)
         self.obstacles.on_learning([u for u in updates if hasattr(u, "update_id")])
-        metas = [m for m in (self._agent_try("meta_learn", self.cfg.meta_budget_s, default=[]) or [])
-                 if m is not None]                                                 # step 15
+        budget = self._compute_budget(self.cfg.meta_budget_s)
+        metas = [m for m in (self._agent_try("meta_learn", budget, default=[]) or []) if m is not None] \
+            if budget > 0 else []                                                  # step 15
         for m in metas:
             self.log.meta_update(m)
         if updates or metas:

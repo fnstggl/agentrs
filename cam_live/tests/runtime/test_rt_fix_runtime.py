@@ -593,3 +593,28 @@ def test_D20_resume_of_a_separated_run_passes_the_records_and_writes_the_supervi
         assert cmd["cmd"] == "resume" and ControlChannel(str(run_dir)).authenticate(cmd)[0]
     finally:
         sleeper.kill()
+
+
+# ---------------------------------------------------------------------------------------------------- D4 compute
+class TimedLearner(ScriptAgent):
+    """Spends up to 0.05 s per learn call, as much as the budget it is given allows."""
+
+    def __init__(self, clock):
+        super().__init__(clock)
+        self.budgets = []
+
+    def learn(self, budget_s):
+        import time
+        self.budgets.append(budget_s)
+        time.sleep(min(0.05, budget_s))
+        return []
+
+
+def test_D4_learning_never_gets_more_than_the_compute_left(tmp_path):
+    clock = SimClock()
+    agent = TimedLearner(clock)
+    rt, *_ = runtime(tmp_path, agent=agent, clock=clock, task=small_task(compute_s=0.3, max_decisions=500))
+    assert rt.run(max_iterations=200) == EXHAUSTED and "compute_s" in rt.status_reason
+    assert agent.budgets and max(agent.budgets) <= 0.3 and all(b > 0 for b in agent.budgets)
+    assert RunReader(rt.run_dir).records(RunFiles.EVENTS, types=["learning_skipped"]) or rt.counters["compute_s"] < 0.3
+    assert rt.counters["compute_s"] <= 0.3 + 0.25         # at most one cycle's other learner calls (5x tolerance)
