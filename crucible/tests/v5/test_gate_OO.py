@@ -468,15 +468,27 @@ def _rss_mb() -> float:
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
 
 
+# every long Tier 2 / Tier 3 run is configured with the civilisation's in-memory event retention and an event store
+# for older events (the operator's configuration of a bounded-memory run; a domain's own default may keep more)
+RETAIN = 300_000
+
+
 def _objective_free(env, days: int, limits: dict, label: str, violations: list, *, act=None) -> dict:
-    """Run a kernel-world environment without any objective for `days` simulated days; check limits every day."""
+    """Run a kernel-world environment without any objective for `days` simulated days; check limits every day.
+    Resident-memory growth is measured from the end of the run's first simulated day: one-time initialisation in a
+    fresh process (the population's text model and the GPU context are loaded on first use, about 0.7 GB measured on
+    a GPU slot) is reported as `first_day_rss_mb`, not counted as growth over operation."""
     a = env.agents()[0]
-    t0, r0 = time.perf_counter(), _rss_mb()
-    peak = r0
+    t0, r_start = time.perf_counter(), _rss_mb()
+    r0 = peak = r_start
+    first_day = 0.0
     for d in range(days):
         if act is not None:
             act(env, a, d)
         env.advance(DAY)
+        if d == 0:
+            r0 = peak = _rss_mb()
+            first_day = r0 - r_start
         if d % 5 == 4 or d == days - 1:
             obs = env.observe(a)
             if validate_observation(obs):
@@ -495,12 +507,26 @@ def _objective_free(env, days: int, limits: dict, label: str, violations: list, 
     if v["invariant_violations"]:
         violations.append(f"{label}: invariant violations {v['invariant_violations'][:3]}")
     return {"days": int(env.now // DAY), "wall_s": round(wall, 1), "rss_growth_mb": round(peak - r0, 1),
-            "events": int(env.world.seq), "log_in_memory": len(env.world.log)}
+            "first_day_rss_mb": round(first_day, 1), "events": int(env.world.seq), "log_in_memory": len(env.world.log),
+            "log_retain": env.world.spec.params.get("log_retain"), "event_store": env.world.store is not None}
+
+
+def _store(tmp_path, label: str):
+    from crucible.storage.sqlite import SQLiteStore
+    d = tmp_path / label.replace(":", "_").replace(" ", "_")
+    d.mkdir(parents=True, exist_ok=True)
+    return SQLiteStore(str(d / "events.sqlite")), d
+
+
+def _drop(env, d) -> None:
+    import shutil
+    env.close()
+    shutil.rmtree(d, ignore_errors=True)           # the scratch event store of one run (disk is shared)
 
 
 @pytest.mark.slow
 @pytest.mark.timeout(21600)
-def test_OO5_operation_without_an_objective_within_resource_limits():
+def test_OO5_operation_without_an_objective_within_resource_limits(tmp_path):
     # configured limits per run (stated before running): wall time, resident-memory growth, in-memory event log
     limits = {"tier1": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0},
               "kernel": {"max_rss_growth_mb": 600.0, "max_wall_s": 900.0, "max_event_log_in_memory": 400_000},
@@ -538,16 +564,21 @@ def test_OO5_operation_without_an_objective_within_resource_limits():
         # civilisation limits; a standalone mode-B domain the kernel-world limits (decided before any Tier 2 run)
         out = {}
         for n in _tier2_names():
-            env = make(2, n, 2)
+            store, d = _store(tmp_path, n)
+            env = make(2, n, 2, overrides={"params": {"log_retain": RETAIN}}, store=store)
             mode = getattr(domains()[n.split(":")[0]], "mode", "C")
             out[n] = _objective_free(env, 90, limits["civ" if mode == "C" else "kernel"], f"tier2 {n}", violations,
                                      act=post)
             out[n]["limits"] = "civ" if mode == "C" else "kernel"
+            _drop(env, d)
         return out
 
     def tier3():
-        return _objective_free(make(3, CIV, 2, agents=["learner"]), 90, limits["civ"], "tier3", violations,
-                               act=post)
+        store, d = _store(tmp_path, "tier3")
+        env = make(3, CIV, 2, agents=["learner"], overrides={"params": {"log_retain": RETAIN}}, store=store)
+        out = _objective_free(env, 90, limits["civ"], "tier3", violations, act=post)
+        _drop(env, d)
+        return out
     for t, fn in ((1, tier1), (2, tier2), (3, tier3)):
         r, err = _attempt(fn)
         if err:
