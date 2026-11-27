@@ -1,0 +1,532 @@
+{
+ "workstream": "D",
+ "stage": "1 of 2",
+ "commit": "1b3e432f056993dfcbad6644a60bd68158681d5f",
+ "summary": "Stage 1: durable storage, linking, credit estimators at reference level and checkpoint IO. SqliteExperienceStore (WAL + blobs, single writer, SIGKILL-safe, outcome de-duplication, provenance strata, stratified seeded replay sampler with checkpointable state); OutcomeLinker (evidence-only fractional links, no future leakage, retrospective re-training queue); exact REINFORCE / all-actions / COCOA / RUDDER estimators validated against enumerated gradients; ReturnDecomposer (conservation under exp(-beta dt), return-to-go signal, no credit for pending trajectories); HindsightModel (policy-logit prior, elapsed time, ensemble and support uncertainty, UNSUPPORTED refusal, three separate fields); simple attribution with Welch arm differences; evidence-based estimator selector; SMDP traces and a credit-once ledger; atomic checkpoints with tolerant loading, weights-only export, promotion and rollback. Nothing is wired onto the real model or the agent yet: the continual learner (NA-08, CL-02, CL-03, CL-04, CL-08) is stage 2.",
+ "requirements": {
+  "RC-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/links.py",
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/simple.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.links.OutcomeLinker.reconcile",
+    "cam_live.credit.links.OutcomeLinker.link_event",
+    "cam_live.credit.links.OutcomeLinker.link_outcome",
+    "cam_live.credit.simple.SimpleAttribution.apply"
+   ],
+   "tests": [
+    "tests/credit/test_links.py::test_declared_query_links_exactly_and_queues_retraining",
+    "tests/credit/test_links.py::test_attribution_key_beats_recency",
+    "tests/credit/test_links.py::test_no_evidence_means_no_link_never_the_latest_action",
+    "tests/credit/test_links.py::test_ambiguous_evidence_gives_fractional_links_with_uncertainty",
+    "tests/credit/test_links.py::test_one_event_answering_two_decisions_is_shared_not_counted_twice",
+    "tests/credit/test_links.py::test_experiment_arm_links",
+    "tests/credit/test_links.py::test_labworld_events_are_linked_through_their_attribution_keys"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Evidence kinds are structural (declared query, attribution keys in event data, parent action, artifact references, experiment arm, declared attribution windows); no learned linker. Not yet called from the agent's reconcile step (stage 2 / master). Events and declared queries that measure the same consequence under different keys cannot be recognised as identical: the simple attribution therefore prefers declared answers over event links (combine='declared_first')."
+  },
+  "RC-02": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/rudder.py",
+    "src/cam_live/credit/estimators.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.rudder.ReturnDecomposer.loss",
+    "cam_live.credit.rudder.ReturnDecomposer.redistribute",
+    "cam_live.credit.rudder.write_credit",
+    "cam_live.credit.estimators.rudder_grad",
+    "cam_live.credit.estimators.rudder_exact_redistribution"
+   ],
+   "tests": [
+    "tests/credit/test_rudder.py::test_predictions_are_causal",
+    "tests/credit/test_rudder.py::test_key_decision_receives_the_credit",
+    "tests/credit/test_rudder.py::test_linear_scale_only_rescales_the_redistribution",
+    "tests/credit/test_rudder.py::test_pending_sequences_yield_no_credit_and_no_loss",
+    "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
+    "tests/credit/test_estimators_exact.py::test_redistribution_as_immediate_reward_starves_the_key_decision_but_return_to_go_does_not",
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error",
+    "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "The learned decomposer is trained and tested on synthetic delayed-reward sequences and tabular MDPs only, never on the real model's decision latents or on real outcomes (stage 2). 1/Gamma_t amplifies prediction error for late decisions when beta * elapsed time is large."
+  },
+  "RC-03": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/rudder.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.rudder.Redistribution.conservation_error",
+    "cam_live.credit.rudder.duration_discount"
+   ],
+   "tests": [
+    "tests/credit/test_rudder.py::test_conservation_to_numerical_precision_under_duration_aware_discounting",
+    "tests/credit/test_rudder.py::test_key_decision_receives_the_credit",
+    "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Convention: G is referenced at the first decision of the trajectory and Gamma_t = exp(-beta * seconds since it); conservation is sum_t Gamma_t c_t = G (max error < 1e-9 in the tests, float64 bookkeeping)."
+  },
+  "RC-04": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/estimators.py",
+    "src/cam_live/credit/longdelay.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.estimators.cocoa_grad",
+    "cam_live.credit.estimators.unbiasedness",
+    "cam_live.diagnostics.tabular.contribution_coefficients"
+   ],
+   "tests": [
+    "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
+    "tests/credit/test_estimators_exact.py::test_contribution_coefficients_are_hindsight_over_policy_minus_one",
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error",
+    "tests/credit/test_estimators_exact.py::test_variance_comparison_on_key_to_door",
+    "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr",
+    "tests/credit/test_estimators_exact.py::test_return_conditioned_hindsight_bias_closed_form"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Finite-action tabular reference only (by definition). Estimator code is adapted from the verified cam_unified implementation (provenance in the file header)."
+  },
+  "RC-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/cocoa.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.cocoa.HindsightModel.contribution",
+    "cam_live.credit.cocoa.check_support",
+    "cam_live.credit.cocoa.CounterfactualCredit.attach_experiment",
+    "cam_live.credit.cocoa.arm_contrast"
+   ],
+   "tests": [
+    "tests/credit/test_cocoa.py::test_untrained_model_equals_the_policy_and_claims_no_credit",
+    "tests/credit/test_cocoa.py::test_learned_coefficients_match_exact_on_key_to_door",
+    "tests/credit/test_cocoa.py::test_learned_coefficients_give_a_nearly_unbiased_gradient_and_the_bias_is_measured",
+    "tests/credit/test_cocoa.py::test_elapsed_time_input_gives_time_indexed_hindsight",
+    "tests/credit/test_cocoa.py::test_support_check_refuses_instead_of_returning_a_number",
+    "tests/credit/test_cocoa.py::test_three_kinds_of_statement_stay_separate",
+    "tests/credit/test_cocoa.py::test_effective_sample_size_per_candidate"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Validated against exact coefficients on tabular problems with one-hot inputs only; not trained on the real model's belief and candidate embeddings (stage 2). The refusal is strict: one candidate below min_prob makes the whole decision UNSUPPORTED. Ensemble spread was not shown to be calibrated. Clipping w to [-1, clip] is a declared bias (reported per candidate in `clipped`)."
+  },
+  "RC-06": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/credit/links.py",
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/rudder.py",
+    "src/cam_live/credit/simple.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.replay.SqliteExperienceStore.mark_for_retraining",
+    "cam_live.credit.replay.SqliteExperienceStore.retrain_queue",
+    "cam_live.credit.replay.SqliteExperienceStore.pop_retrain",
+    "cam_live.credit.rudder.write_credit"
+   ],
+   "tests": [
+    "tests/credit/test_links.py::test_declared_query_links_exactly_and_queues_retraining",
+    "tests/credit/test_replay.py::test_retrain_queue",
+    "tests/credit/test_rudder.py::test_pending_sequences_yield_no_credit_and_no_loss"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 1 delivers the queue and the credit rewrite: when an outcome matures the linked earlier records (and optionally their predecessors) are queued durably and their stored credit is revised. Nothing consumes the queue yet: the learner that re-trains on those records is stage 2."
+  },
+  "RC-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/links.py",
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/rudder.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.links.OutcomeLinker.audit_leakage",
+    "cam_live.credit.links.OutcomeLinker.available_at_decision",
+    "cam_live.credit.replay.SqliteExperienceStore.put_item",
+    "cam_live.credit.replay.SqliteExperienceStore.add_outcome"
+   ],
+   "tests": [
+    "tests/credit/test_links.py::test_no_future_leakage",
+    "tests/credit/test_links.py::test_time_decayed_window_is_bounded_and_causal",
+    "tests/credit/test_replay.py::test_items_are_ordered_immutable_and_never_silently_missing",
+    "tests/credit/test_replay.py::test_pending_due_times_and_outcome_deduplication",
+    "tests/credit/test_rudder.py::test_predictions_are_causal"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Guards at D's level: a decision after the outcome is refused as a cause; an outcome dated before its query is refused; stored context items cannot be rewritten; linking never changes context_item_refs; audit_leakage() reports any context item dated after its decision. Whether the agent builds contexts correctly in the first place is outside D (audit_leakage detects it after the fact). The reference MemoryStore still overwrites items (change request D-3)."
+  },
+  "RC-08": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/credit/select.py",
+    "src/cam_live/credit/simple.py",
+    "src/cam_live/credit/cocoa.py",
+    "src/cam_live/credit/rudder.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.select.EstimatorSelector.select",
+    "cam_live.credit.select.EstimatorSelector.add_from_store",
+    "cam_live.credit.simple.experiment_effects",
+    "cam_live.credit.simple.arm_difference"
+   ],
+   "tests": [
+    "tests/credit/test_simple_select.py::test_selector_starts_simple_and_promotes_only_on_evidence",
+    "tests/credit/test_simple_select.py::test_an_accurate_estimator_is_not_promoted_when_the_default_is_already_right",
+    "tests/credit/test_simple_select.py::test_rudder_and_cocoa_are_exercised_and_compared_with_randomised_differences",
+    "tests/credit/test_simple_select.py::test_experiment_effects_need_real_randomisation",
+    "tests/credit/test_simple_select.py::test_arm_difference_is_welch_and_covers_the_true_effect",
+    "tests/credit/test_simple_select.py::test_student_t_matches_scipy"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "RUDDER and COCOA are exercised and compared with randomised arm differences on a synthetic delayed-effect world (six randomised experiments) and on tabular MDPs. The selector's default is not yet read by any training code, and no comparison on the real model or on staging/live experiments exists (stage 2). Gate thresholds (min 5 experiments, mean z^2 <= 3, sign agreement >= 0.8, 10 % RMSE improvement) are engineering choices, not tuned."
+  },
+  "CL-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/_fs.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.replay.SqliteExperienceStore",
+    "cam_live.credit.replay.SqliteExperienceStore.sample",
+    "cam_live.credit.replay.SqliteExperienceStore.add_outcome",
+    "cam_live.credit.replay.SqliteExperienceStore.state_dict"
+   ],
+   "tests": [
+    "tests/credit/test_replay.py::test_implements_the_contract_and_round_trips",
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record",
+    "tests/credit/test_replay.py::test_sampler_does_not_collapse_onto_recent_successes",
+    "tests/credit/test_replay.py::test_informative_stratum_prefers_stored_surprise_and_credit",
+    "tests/credit/test_replay.py::test_sampling_is_seeded_and_the_sampler_state_checkpoints",
+    "tests/credit/test_replay.py::test_provenance_strata_are_never_mixed_unless_asked",
+    "tests/credit/test_replay.py::test_eligibility_is_per_loss",
+    "tests/credit/test_replay.py::test_pending_due_times_and_outcome_deduplication",
+    "tests/credit/test_replay.py::test_a_query_has_one_final_answer",
+    "tests/credit/test_replay.py::test_large_parts_go_to_blobs_and_updates_do_not_copy_the_static_part",
+    "tests/credit/test_replay.py::test_single_writer_lock_and_read_only_readers",
+    "tests/credit/test_replay.py::test_windows_versions_predictions_and_experiments",
+    "tests/credit/test_replay.py::test_same_answers_as_the_contract_reference_store",
+    "tests/credit/test_replay.py::test_fast_record_decoding_equals_the_contract_decoder",
+    "tests/credit/test_replay.py::test_update_deduplicates_outcomes_inside_a_record"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Durability was tested against SIGKILL of the writer, not against power loss (synchronous=FULL is set but cannot be tested here). Unreferenced blobs are never garbage-collected. No retention/deletion policy for authorised data-retention rules (spec 10.4) yet. Success/failure labels are derived heuristically unless set explicitly (set_success). Not yet used by the learner (stage 2)."
+  },
+  "CL-05": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/credit/checkpoint.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.checkpoint.CheckpointManager.promote",
+    "cam_live.credit.checkpoint.CheckpointManager.rollback",
+    "cam_live.credit.checkpoint.CheckpointManager.save",
+    "cam_live.credit.checkpoint.export_weights"
+   ],
+   "tests": [
+    "tests/credit/test_checkpoint.py::test_promotion_is_gated_by_validation_and_retention_and_rollback_restores_the_promoted_state",
+    "tests/credit/test_checkpoint.py::test_weights_only_export_contains_only_parameters_and_fixed_configuration",
+    "tests/credit/test_checkpoint.py::test_tolerant_loading_reports_added_removed_and_reshaped_modules"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Mechanism only: gates, log, rollback and retention of checkpoints on disk are tested with supplied metrics on plain nn.Modules. No real validation or retention measurement feeds it yet and the agent does not call it (stage 2)."
+  },
+  "CL-06": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/credit/checkpoint.py",
+    "src/cam_live/credit/replay.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.checkpoint.save_checkpoint_at",
+    "cam_live.credit.checkpoint.load_checkpoint",
+    "cam_live.credit.checkpoint.capture_state",
+    "cam_live.credit.checkpoint.restore_state",
+    "cam_live.credit.checkpoint.recover"
+   ],
+   "tests": [
+    "tests/credit/test_checkpoint.py::test_round_trip_is_bit_exact_and_training_continues_identically",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint",
+    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint",
+    "tests/credit/test_checkpoint.py::test_damaged_newest_checkpoint_falls_back_to_the_previous_one",
+    "tests/credit/test_checkpoint.py::test_replay_indices_and_pending_pointer_travel_with_the_checkpoint",
+    "tests/credit/test_checkpoint.py::test_runtime_named_checkpoint_directory_and_export_from_disk",
+    "tests/credit/test_checkpoint.py::test_real_model_class_round_trips_through_a_checkpoint",
+    "tests/credit/test_checkpoint.py::test_checkpoint_of_a_gpu_model_is_stored_on_cpu",
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu   # test_checkpoint_of_a_gpu_model_is_stored_on_cpu (small model, < 1 GB, no lock needed)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_gpu.xml"
+   ],
+   "limitations": "Checkpoint IO and store durability are verified in isolation (plain nn.Modules; the CamLiveModel class with the tiny CPU backbone for weights only). A complete restart of the integrated agent (AgentAPI.save/load with fast state, schedules and the real optimizers, then identical behaviour) has not been run: that is stage 2 plus the runtime. Experiment records live in the store, not in the checkpoint. numpy arrays inside fast_state come back as tensors."
+  },
+  "CU-20": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/smdp.py",
+    "src/cam_live/credit/replay.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.smdp.CreditLedger.assign",
+    "cam_live.credit.smdp.attach_trace",
+    "cam_live.credit.smdp.smdp_target",
+    "cam_live.credit.smdp.smdp_transition",
+    "cam_live.credit.replay.SqliteExperienceStore.ledger_assign"
+   ],
+   "tests": [
+    "tests/credit/test_smdp.py::test_intervention_record_contains_procedure_and_primitive_traces",
+    "tests/credit/test_smdp.py::test_duration_aware_discount_is_consistent_across_timescales",
+    "tests/credit/test_smdp.py::test_one_outcome_is_credited_once_across_the_three_timescales",
+    "tests/credit/test_smdp.py::test_evidence_at_several_levels_of_one_hierarchy_still_counts_once"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Primitive operations can be assigned to procedure steps only when per-step results with time intervals are supplied (PrimitiveOp has no step id: change request D-4). The credit-once guarantee covers outcomes that pass through CreditLedger; estimators that write record.credit directly (simple, rudder) are not forced through it yet. No policy is trained on these records here."
+  },
+  "NA-08": {
+   "state": "not_started",
+   "files": [],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+  },
+  "CL-02": {
+   "state": "not_started",
+   "files": [],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+  },
+  "CL-03": {
+   "state": "not_started",
+   "files": [],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+  },
+  "CL-04": {
+   "state": "not_started",
+   "files": [],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this. (CheckpointManager.promote accepts retention metrics, but nothing measures retention.)"
+  },
+  "CL-08": {
+   "state": "not_started",
+   "files": [],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/D.xml",
+    "docs/evidence/D/measured.json"
+   ],
+   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+  }
+ },
+ "public_api": [
+  "cam_live.credit.replay.SqliteExperienceStore(path, *, provenance=None, seed=0, recent_window=256, recent_fraction=0.25, priority_alpha=0.6, uniform_floor=0.1, delayed_min_s=1.0, blob_threshold=65536, durable=True, readonly=False, eligible_default=True, item_conflict='keep_first', strict_items=False, strata=None)  # contracts.ExperienceStore",
+  "SqliteExperienceStore.sample(n, *, loss, strata=None, seed=None, provenance=None) -> List[ExperienceRecord]",
+  "SqliteExperienceStore.add_outcome(obs: OutcomeObservation, exp_id='') -> AddOutcomeResult(accepted, exp_id, duplicate, upgraded, final, reason, dedup_key)",
+  "SqliteExperienceStore.next_due() -> Optional[float]; .pending_pointer() -> dict; .state_dict() / .load_state_dict(st); .batch()",
+  "SqliteExperienceStore.set_eligible(exp_ids, loss, flag=True); .refresh_eligibility(loss, predicate, *, since_seq=0, exp_ids=None); .set_success(exp_id, success); .set_surprise(exp_id, x); .set_credit(exp_id, estimator, value, uncertainty=None)",
+  "SqliteExperienceStore.retrain_queue(limit=None) -> List[dict]; .pop_retrain(exp_ids) -> int; .mark_for_retraining(exp_ids, reason, *, outcome_key='', now=0.0)",
+  "cam_live.credit.links.OutcomeLinker(store, *, clock=None, retro_predecessors=0, window_half_life_s=None).reconcile(outcomes=(), events=()) -> ReconcileReport",
+  "cam_live.credit.simple.SimpleAttribution(store, *, beta=0.0, goal_relevant_only=True, value_fn=None, combine='declared_first').apply(exp_ids=None) -> Dict[str, CreditValue]",
+  "cam_live.credit.simple.arm_difference(treatment, control, *, confidence=0.95, randomized=False, ...) -> Optional[ArmDifference]; experiment_effects(store, experiment_id, *, control=None, confidence=0.95, metric_prefix='', value_fn=None) -> List[ArmDifference]",
+  "cam_live.credit.rudder.ReturnDecomposer(d_in, d_model=128, n_layers=2, n_heads=4, d_goal=0, beta=0.0, scale=1.0, dropout=0.0, time_unit_s=60.0): .forward(x, mask, e_g=None, times=None) -> [B,T+1]; .loss(x, mask, G, matured, e_g=None, times=None) -> (Optional[Tensor], dict); .redistribute(x, mask, G, matured, e_g=None, times=None) -> Redistribution(contrib, diff, signal, return_to_go, pred, offset, residual, discount, mask, matured)",
+  "cam_live.credit.rudder.write_credit(store, exp_ids, red, *, name='rudder') -> int",
+  "cam_live.credit.cocoa.HindsightModel(d_b, d_u, d_a, d_hidden=128, d_key=64, n_members=4, n_elapsed=2, elapsed_units=(60.0, 1.0), seed=0): .loss(b, u, cand, cand_mask, taken, logp_policy, elapsed=None, generator=None, bootstrap=True) -> (Tensor, dict); .contribution(b, u, cand, cand_mask, logp_policy, elapsed=None, *, outcome_value=None, clip=10.0, min_prob=1e-3, open_ended=False, tracked_proposals=True, n_eff=None, min_ess=0.0) -> CounterfactualCredit(status, reasons, learned_association, counterfactual_estimate, experimental_effect, w, w_std, h, clipped, candidate_supported)",
+  "cam_live.credit.cocoa.check_support(logp_policy, cand_mask, *, min_prob=1e-3, open_ended=False, tracked_proposals=True, norm_tol=1e-3, n_eff=None, min_ess=0.0) -> SupportReport; arm_contrast(w, outcome_value, treatment, control) -> Optional[(estimate, se, n)]",
+  "cam_live.credit.select.EstimatorSelector(*, baseline='simple', min_experiments=5, max_mean_sq_z=3.0, min_sign_agreement=0.8, min_improvement=0.1, log_path=None, clock=None): .add_evidence(ExperimentEvidence); .add_from_store(store, experiment_id, estimators, *, control=None, confidence=0.95, extra=None); .select() -> SelectionRecord; .default",
+  "cam_live.credit.smdp.attach_trace(rec, step_results=None) -> TraceNode; smdp_transition(rec) -> SMDPTransition; smdp_target(reward, duration_s, next_value, beta); CreditLedger(store, max_depth=8).assign(links) -> List[LedgerEntry] (raises DoubleCreditError)",
+  "cam_live.credit.checkpoint.capture_state(model=None, optimizers=None, *, groups=None, store=None, generators=None, **fields) -> CheckpointState; restore_state(state, model=None, optimizers=None, *, strict=False, store=None, generators=None, rng=True, expected_auth_hash=None) -> dict",
+  "cam_live.credit.checkpoint.save_checkpoint(root, state, *, parent='', notes='', clock=None) -> CheckpointInfo; save_checkpoint_at(path, state, *, parent='', notes='', clock=None) -> CheckpointInfo; load_checkpoint(path_or_root, checkpoint_id=None, *, map_location='cpu', verify=True) -> CheckpointState; recover(root) -> dict",
+  "cam_live.credit.checkpoint.load_weights(model, weights, *, strict=False) -> LoadReport(loaded, missing, unexpected, mismatched); load_optimizer_state(optimizer, model, saved) -> dict",
+  "cam_live.credit.checkpoint.export_weights_only(state, out_dir, *, config=None) -> dict; export_weights(checkpoint_path, out_dir, *, config=None) -> dict; load_weights_only(path, *, map_location='cpu') -> (weights_by_group, config)",
+  "cam_live.credit.checkpoint.CheckpointManager(root, *, keep_last=3, keep_promoted=5, gates=None, clock=None): .save(state, *, notes='', parent=None); .load(checkpoint_id=None); .promote(checkpoint_id, *, validation, retention, notes='') -> PromotionDecision; .rollback(reason='') -> (CheckpointInfo, CheckpointState); .promoted(); .latest()",
+  "full reference: docs/D/API.md"
+ ],
+ "change_requests": 6,
+ "extra_packages": [],
+ "measured": {
+  "tests_passed_default": 76,
+  "tests_skipped_default_gpu_marked": 1,
+  "tests_passed_gpu_marked": 1,
+  "suite_seconds": 96.0,
+  "exact_rel_bias_max_unbiased_estimators_enumerated": 7.203e-32,
+  "exact_rel_bias_return_conditioned_hindsight": 0.06099,
+  "exact_rel_var_reinforce": 23.46,
+  "exact_rel_var_cocoa": 10.52,
+  "exact_rel_var_rudder_immediate": 8.585,
+  "exact_rel_var_all_actions": 0.1172,
+  "mc_max_abs_z_all_estimators": 2.83,
+  "mc_max_rel_error_all_estimators": 0.0327,
+  "key_to_door_key_decision_var_reinforce": 8.086872942495749,
+  "key_to_door_key_decision_var_cocoa": 0.05927886632592312,
+  "key_to_door_key_decision_var_rudder_immediate": 0.14454797263208838,
+  "long_delay_snr_reinforce_T16": 0.03474,
+  "long_delay_snr_reinforce_T1024": 2.313e-05,
+  "long_delay_snr_cocoa_T16": 1.0,
+  "long_delay_snr_cocoa_T1024": 1.0,
+  "rudder_key_abs_err": 0.03527312090221115,
+  "rudder_other_steps_abs_mean": 0.006645334122909323,
+  "rudder_key_is_argmax_fraction": 1.0,
+  "rudder_conservation_max_error_bound": 1e-09,
+  "cocoa_learned_w_weighted_abs_err_key_to_door": 0.01562347030289538,
+  "cocoa_learned_w_key_door": 1.1957322301644009,
+  "cocoa_exact_w_key_door": 1.1998696918767409,
+  "cocoa_learned_gradient_rel_bias": 0.001233314792098567,
+  "cocoa_w0_key_rel_bias": 1.0,
+  "cocoa_hindsight_tv_with_elapsed": 0.018817064853114737,
+  "cocoa_hindsight_tv_without_elapsed": 0.0809684713129758,
+  "selection_rmse_rudder": 0.0184,
+  "selection_rmse_cocoa": 0.1207,
+  "selection_rmse_simple_equal_split": 0.9523,
+  "selection_rmse_latest_action": 1.1904,
+  "selection_max_abs_err_vs_true_effect_rudder": 0.03475672006607056,
+  "selection_max_abs_err_vs_true_effect_cocoa": 0.2016505002975464,
+  "replay_fraction_recent_successes_in_batches": 0.3841,
+  "replay_fraction_failures": 0.2084,
+  "replay_fraction_delayed": 0.2623,
+  "replay_old_records_covered_of_1800": 1360,
+  "store_durable_appends_per_s": 437.6,
+  "store_batched_appends_per_s": 1013.8,
+  "store_durable_add_outcome_per_s": 233.0,
+  "store_sample_32_records_ms": 10.39,
+  "store_cached_sample_ids_ms_20k_records": 1.92,
+  "store_db_bytes_per_record": 8674
+ },
+ "measured_commands": {
+  "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
+  "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
+  "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+ },
+ "not_done": [
+  "Stage 2 in full: the continual learner on the real model (NA-08, CL-02, CL-03, CL-04, CL-08): optimizers, schedules, per-group clipping, LearningUpdateRecords, behavioural probes, retention measurement, adapter updates.",
+  "LossProvider wrappers for ReturnDecomposer and HindsightModel on the real model's latents; neither model has been trained on real decision latents or real outcomes.",
+  "No code outside cam_live/credit calls the store, the linker, the selector or the checkpoint functions yet (the runtime CLI looks up credit.checkpoint.export_weights, which exists).",
+  "The selector's default is not consumed by any training code.",
+  "Full agent restart (AgentAPI.save / load) is not verified; only checkpoint IO and store durability are.",
+  "Durability under power loss is configured (synchronous=FULL, fsync of files and directories) but not testable here; only SIGKILL was tested.",
+  "No garbage collection of unreferenced blobs and no data-retention / deletion policy in the store.",
+  "RUDDER auxiliary losses of the original paper (prediction-of-prediction, quality-weighted mixing with the ordinary advantage) are not implemented; only the main squared loss at every prefix.",
+  "COCOA: no learned outcome encoder (u is supplied by the caller) and no sampled-alternatives estimator for candidate sets too large to enumerate."
+ ],
+ "scientific_failures": [
+  "Return-conditioned hindsight is biased, as the literature says: relative bias 0.061 on the enumerated NoisyKeyDoor and exactly 16/81 on the two-armed bandit with rewards (1, -2). It is kept only as a counterexample.",
+  "The redistributed return-to-go gives no variance reduction over REINFORCE at the key decision (key-to-door variance 8.09 for both); the reduction comes only from the contributions of a well-trained decomposer (0.14) or from COCOA (0.059).",
+  "In the one seeded run of the synthetic experiment world, a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3) and the selector rejected it; the same 400 steps with cosine annealing gave RMSE 0.018. One seed, one task: it shows sensitivity to training quality, not a rate.",
+  "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018)."
+ ],
+ "change_requests_note": "D-1 .. D-5 propose diffs to master-owned files; D-6 only records an integration point that already works."
+}
