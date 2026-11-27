@@ -489,9 +489,12 @@ class CamLiveAgent:
         self.retention_ref: Dict[str, Dict[str, Any]] = {}  # family -> reference action distributions
         self.frequent_since_promotion = 0
         self.promotions: List[Dict[str, Any]] = []
+        from .storage import guard_for
+        self.guard = guard_for(self.dir, cfg)                 # checked before any checkpoint is written
+        self._storage_alarm: Any = None                      # a refusal raised where it cannot reach the runtime
         if s.promotion:
             from .credit.checkpoint import CheckpointManager, PromotionGates
-            self.ckpts = CheckpointManager(os.path.join(self.dir, "promoted"), keep_last=3, keep_promoted=5,
+            self.ckpts = CheckpointManager(os.path.join(self.dir, "promoted"), keep_last=2, keep_promoted=1,
                                            gates=PromotionGates(max_validation_drop=s.promotion_max_validation_drop,
                                                                 max_retention_drop=s.promotion_max_retention_drop),
                                            clock=self.clock)
@@ -585,7 +588,11 @@ class CamLiveAgent:
         if self.task is not None:
             self._close_objective_bookkeeping()
             if self.ckpts is not None:                     # the finished objective's learning is judged now
-                self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                from .storage import DiskSpaceLow
+                try:
+                    self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
+                except DiskSpaceLow as e:                  # reported to the runtime by the next learn()
+                    self._storage_alarm = e
             self.meta.new_lifetime()
             self.lifetime += 1
         self.learner.reset_fast()
@@ -1506,6 +1513,9 @@ class CamLiveAgent:
         t0 = time.perf_counter()
         out: List[LearningUpdateRecord] = list(self.fast_records)
         self.fast_records = []
+        if self._storage_alarm is not None:
+            alarm, self._storage_alarm = self._storage_alarm, None
+            raise alarm                                    # the runtime pauses the run with a resource obstacle
         if not self.settings.learning:
             self.rewarded_since_update = []
             return out
@@ -1604,8 +1614,12 @@ class CamLiveAgent:
         retention on fixed sets of earlier experience. When the gates refuse it, the learner returns to the last
         promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back."""
         from .credit.checkpoint import promote_learner
+        from .storage import dir_bytes
         if self.ckpts is None:
             return []
+        last = self.ckpts.latest(verify=False)
+        # raises storage.DiskSpaceLow before anything is written (the runtime pauses the run)
+        self.guard.check(dir_bytes(last.path) if last is not None else 0, "learner promotion checkpoint")
         self.frequent_since_promotion = 0
         if self.task is not None:
             self._freeze_retention_set(self.task.objective_id, self.task.family)
@@ -1677,6 +1691,7 @@ class CamLiveAgent:
 
     # ============================================================================================ step 16
     def save(self, path: str) -> str:
+        self.guard.check(0, "learner checkpoint")          # storage.DiskSpaceLow: nothing is written
         self.store.flush()
         state = capture_learner(self.learner, extra_optimizers={"reward_meta": self.meta.optimizer},
                                 generators={"agent": self.gen, "decider": self.decider.generator},
@@ -1697,6 +1712,7 @@ class CamLiveAgent:
 
     def load(self, path: str) -> None:
         st = load_checkpoint(path, map_location=self.model.device)
+        _generator_states_to_cpu(st.aux_state)     # torch.Generator.set_state takes a CPU ByteTensor only
         restore_learner(self.learner, st, extra_optimizers={"reward_meta": self.meta.optimizer},
                         generators={"agent": self.gen, "decider": self.decider.generator})
         aux = (st.aux_state or {}).get("agent", {})
@@ -1921,6 +1937,24 @@ class CamLiveAgent:
             self.store.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+def _generator_states_to_cpu(x: Any) -> None:
+    """Loading a checkpoint onto the GPU maps every tensor there, including the byte states of CPU generators that
+    providers keep (``RetentionProvider``: ``generator``); ``Generator.set_state`` accepts only a CPU ByteTensor
+    (measured: the real-model restart failed with ``RNG state must be a torch.ByteTensor``)."""
+    if isinstance(x, dict):
+        for k, v in x.items():
+            if isinstance(v, torch.Tensor) and v.dtype == torch.uint8 and v.device.type != "cpu":
+                x[k] = v.cpu()
+            else:
+                _generator_states_to_cpu(v)
+    elif isinstance(x, list):
+        for i, v in enumerate(x):
+            if isinstance(v, torch.Tensor) and v.dtype == torch.uint8 and v.device.type != "cpu":
+                x[i] = v.cpu()
+            else:
+                _generator_states_to_cpu(v)
 
 
 def _rng_state(r: random.Random) -> List[Any]:

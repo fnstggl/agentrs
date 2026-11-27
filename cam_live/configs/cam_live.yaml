@@ -33,3 +33,12 @@ optim:
   adapter_every: 8
   meta_min_independent_outcomes: 8
   batch_size: 16
+
+# Disk space (cam_live.storage): below min_free_gb no checkpoint is written — the runtime pauses the run with a
+# resource obstacle and the learner's promotions are refused; below warn_free_gb a warning is logged.
+storage:
+  min_free_gb: 20
+  warn_free_gb: 50
+
+runtime:
+  keep_checkpoints: 2         # runtime checkpoints kept; optimizer state only in the newest

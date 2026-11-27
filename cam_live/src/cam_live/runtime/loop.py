@@ -47,6 +47,7 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
+from ..storage import DEFAULT_MIN_FREE_GB, DEFAULT_WARN_FREE_GB, DiskGuard, DiskSpaceLow, dir_bytes
 from ..contracts import (ActionResult, ActionSpec, AgentAPI, AuthorizationDecision, AuthVerdict, Clock, Cost, Decision,
                          EnvironmentAdapter, ExperimentRecord, FailureClass, GoalStatus, Modality, Observation,
                          OutcomeObservation, OutcomeQuery, OutcomeStatus, OutcomeVerifier, PolicyEngine,
@@ -94,7 +95,13 @@ class RuntimeConfig:
     learn_budget_s: float = 30.0
     meta_budget_s: float = 30.0
     checkpoint_every_s: float = 0.0      # clock seconds between learner checkpoints; 0 = after every cycle with new experience
-    keep_checkpoints: int = 5            # 0 = keep all
+    keep_checkpoints: int = 2            # 0 = keep all; optimizer state is kept in the newest one only
+    min_free_gb: float = DEFAULT_MIN_FREE_GB    # storage guard (config section ``storage``): below this no checkpoint
+    warn_free_gb: float = DEFAULT_WARN_FREE_GB  # is written and the run pauses with a resource obstacle; below this
+                                                # a warning is logged
+    drain_after_exhaustion: bool = False # S-1: when the decision budget is used up with the objective pending, keep
+                                         # observing (no proposal, no execution) until the verifier's verdict is
+                                         # terminal or the deadline passes, so the experience gets its outcomes
     verify_every_s: float = 0.0          # minimum clock seconds between objective verifications
     evidence_poll_s: float = 0.0         # wake to poll the event stream this often while idle; 0 = only scheduled wakes
     approval_poll_s: float = 0.0         # re-check pending approvals at the policy this often while idle; 0 = on notice only
@@ -119,7 +126,12 @@ class RuntimeConfig:
             return cfg
         if cfg is None:
             return cls()
-        d = cfg.section("runtime") if hasattr(cfg, "section") else dict(cfg)
+        d = dict(cfg.section("runtime")) if hasattr(cfg, "section") else dict(cfg)
+        if hasattr(cfg, "section"):                    # the storage thresholds live in their own section
+            st = cfg.section("storage") or {}
+            for k in ("min_free_gb", "warn_free_gb"):
+                if k in st and k not in d:
+                    d[k] = st[k]
         known = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in known})
 
@@ -132,9 +144,8 @@ def look_grant(policy: Any, action: ActionSpec, auth: AuthorizationDecision) -> 
     two-argument form, e.g. a remote client whose service already forces look-only for the learner uid, or a
     diagnostic policy without single use) is asked with the plain call."""
     fn = policy.check_grant
-    try:
-        params = inspect.signature(fn).parameters
-        takes = "consume" in params or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+    try:                              # only a signature that names ``consume`` (a generic ``**kwargs`` proxy may
+        takes = "consume" in inspect.signature(fn).parameters   # forward to a two-argument engine)
     except (TypeError, ValueError):
         takes = False
     return bool(fn(action, auth, consume=False)) if takes else bool(fn(action, auth))
@@ -170,6 +181,9 @@ class LiveRuntime:
         if task.mode == "live" and not self.cfg.fsync:
             raise ValueError("runtime.fsync=false is not allowed for a live task")
         self._durable = bool(self.cfg.fsync)
+        self.guard = DiskGuard(self.run_dir, float(self.cfg.min_free_gb), float(self.cfg.warn_free_gb))
+        self._storage_warned = False
+        self._draining = False
         self.box = PrivateBox(self.run_dir)
         self.log = RunLog(self.run_dir, clock, provenance=task.mode, durable=self._durable,
                           redactor=Redactor.from_config(self.cfg.redaction, load_salt(self.run_dir),
@@ -686,6 +700,16 @@ class LiveRuntime:
                 return name
         return ""
 
+    def _may_drain(self, exhausted: str) -> bool:
+        """S-1: with ``drain_after_exhaustion``, a run whose *decision* budget is used up while its objective is
+        pending keeps observing — measuring due outcomes, verifying, learning — but decides nothing more, until the
+        verifier's verdict is terminal or the deadline passes (then it finishes as exhausted)."""
+        if not (exhausted == "max_decisions" and self.cfg.drain_after_exhaustion and self.task.objective.strip()
+                and self.task.success):
+            return False
+        d = self._deadline()
+        return d is not None and self.clock.now() < d
+
     def _exhaust_text(self, name: str) -> str:
         why = limit_problems(self.task).get(name)
         return (f"limit {name} is invalid ({why}): the run does not proceed with a limit that cannot be enforced"
@@ -714,6 +738,9 @@ class LiveRuntime:
         try:
             out = self._agent(name, *args)
             return default if out is None else out
+        except DiskSpaceLow as e:                         # the learner refused to write: pause, do not retry
+            self._storage_low(e, f"learner.{name}")
+            return default
         except Exception as e:  # noqa: BLE001 — recorded; repeated errors pause the run (see _note_error)
             self._note_error("learner", name, e)
             return default
@@ -813,9 +840,10 @@ class LiveRuntime:
             return self._assign(str(args.get("path", "")), str(args.get("sha256", "")), by)
         return False, f"unknown command {cmd!r}"
 
-    def _pause(self, reason: str) -> None:
+    def _pause(self, reason: str, commit: bool = True) -> None:
         self._finish_wait()
-        self._commit(force=True)
+        if commit:
+            self._commit(force=True)
         self.status, self.status_reason, self.paused_at = PAUSED, reason, self.clock.now()
         self._set_activity("paused", reason)
         self.log.event("paused", {"reason": reason, "checkpoint": (self._committed.get("ckpt") or {}).get("id", "")},
@@ -1551,11 +1579,24 @@ class LiveRuntime:
             return False
         path = os.path.join(self.run_dir, RunFiles.CHECKPOINTS, f"ckpt_{self.generation + 1:08d}")
         try:
+            need = dir_bytes(self._ckpts[-1]["path"]) if self._ckpts and os.path.isdir(self._ckpts[-1]["path"]) else 0
+            g = self.guard.check(need, "runtime checkpoint")
+            if g["level"] == "warn" and not self._storage_warned:
+                self._storage_warned = True
+                self.log.event("storage_warning", g, consequential=True)
+        except DiskSpaceLow as e:
+            self._storage_low(e, "runtime checkpoint")
+            return False
+        try:
             if os.path.isdir(path):                          # left behind by a commit that never completed
                 shutil.rmtree(path)
             elif os.path.exists(path):
                 os.remove(path)
             cid = self._agent("save", path)
+        except DiskSpaceLow as e:
+            self._storage_low(e, "learner.save")
+            self._save_state()
+            return False
         except Exception as e:  # noqa: BLE001
             self._note_error("learner", "save", e)
             self._save_state()
@@ -1580,8 +1621,24 @@ class LiveRuntime:
                     shutil.rmtree(p, ignore_errors=True)
                 elif os.path.exists(p):
                     os.remove(p)
+        for old in self._ckpts[:-1]:                         # optimizer state only in the newest checkpoint
+            optim = os.path.join(old["path"], "optim")
+            if os.path.isdir(optim):
+                shutil.rmtree(optim, ignore_errors=True)
+                old["optimizer_state"] = "removed (retention: only the newest checkpoint keeps it)"
         return True
 
+    def _storage_low(self, e: DiskSpaceLow, what: str) -> None:
+        """Free disk space is below the minimum: nothing was written. The run pauses with a resource obstacle (logged
+        and journalled); the operator frees space and resumes. Experience since the last commit stays in the
+        write-ahead journal."""
+        detail = {"what": what, "free_gb": round(e.free_gb, 2), "need_gb": round(e.need_gb, 3),
+                  "min_free_gb": e.minimum_gb, "path": e.path, "class": "resource", "failure_class": "resource_limit",
+                  "explanation": "free disk space at the run directory is below the configured minimum"}
+        self.log.event("obstacle", {"kind": "storage_low", **detail}, consequential=True)
+        self.log.event("storage_low", detail, consequential=True)
+        if self.status == RUNNING:
+            self._pause(f"storage: {e}", commit=False)
     def _journal(self) -> None:
         self._last_journal_at = self.clock.now()
         try:
@@ -1685,8 +1742,18 @@ class LiveRuntime:
         if self._refresh_approvals() or any(a["status"] in ("approved", "rejected") for a in self.approvals.values()):
             reasons.append("approval_resolved")
         exhausted = self._exhausted()
-        if exhausted:
+        draining = self._may_drain(exhausted)
+        if exhausted and not draining:
             reasons.append(f"limit:{exhausted}")
+        if draining and not self._draining:
+            self._draining = True
+            reasons.append("draining")
+            self.log.event("draining", {"limit": exhausted, "deadline": self._deadline(),
+                                        "pending_outcomes": len(self.pending),
+                                        "reason": "decision budget used up with the objective pending: observing "
+                                                  "until the verifier's verdict is terminal or the deadline passes"},
+                           consequential=True)
+            self._set_activity("draining", "observing outcomes; no new decisions")
         if not reasons:
             self._sleep(rep)                                                       # step 17: nothing to do
             return rep
@@ -1759,7 +1826,7 @@ class LiveRuntime:
             vo = self._last_verified.get("outcome", {})
             self._finish(terminal, f"verifier status {vo.get('status')}: value {vo.get('value')} "
                                    f"against target {vo.get('target')}")
-        elif exhausted:
+        elif exhausted and not draining:
             self._finish(EXHAUSTED, self._exhaust_text(exhausted))
         else:
             self._commit()
@@ -1775,7 +1842,7 @@ class LiveRuntime:
             self._triggers.append("action_completed")
             if self.cfg.min_cycle_interval_s > 0 and not self._last_result_ok:
                 self.sleeper.sleep_until(self.clock.now() + self.cfg.min_cycle_interval_s, self._interrupted)
-        elif self._exhausted():
+        elif self._exhausted() and not self._may_drain(self._exhausted()):
             self._triggers.append("limit_check")
         if self._triggers:
             return rep
