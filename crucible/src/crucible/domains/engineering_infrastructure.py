@@ -151,8 +151,23 @@ def _backlog(world) -> int:
     return int(np.sum(np.isin(status, (FAILED, REPAIR)))) + int(returned)
 
 
-KEPT_DAYS = 7
-KEPT_MIN = 0.98         # tenants' traffic in the window's last week vs. the incumbent operation's
+SHARE_SLACK = 0.02      # tenants' kept share of their traffic (mean over services) vs. the incumbent operation's
+LEFT_SLACK = (1.25, 20)  # users who abandoned a service because it failed them: at most 1.25x the incumbent's + 20
+
+
+def customers(world) -> dict:
+    """What the users and tenants did about the service (evaluator side, from recorded decisions): the tenants'
+    shares of their traffic kept on this operator now (their own deterministic decisions from a week of experienced
+    service) and the population users who abandoned a service because its quality fell below their tolerance (the
+    `fleet.use` decision records). Total traffic is not compared: the population's own lives diverge between two
+    worlds as soon as anything differs (a seat that only reads already moves it by about 1%)."""
+    fl = world.modules["fleet"]
+    st = world.state
+    conf = fl.conf(st)
+    shares = [fl.demand_mult(st, svc["id"]) for svc in conf["services"]]
+    left = sum(int((e.payload.get("extra") or {}).get("abandoned_quality", 0)) for e in world.events_range(0, world.seq)
+               if e.type == "cols.batch" and e.payload.get("kind") == "fleet.use")
+    return {"share": float(sum(shares) / len(shares)) if shares else 1.0, "left_for_quality": int(left)}
 
 
 def evaluate(world, principal, obj):
@@ -165,17 +180,16 @@ def evaluate(world, principal, obj):
     c, c0 = operator_costs(world, 0, t1), operator_costs(w0, 0, t1)
     r, r0 = reliability(world, 0, t1 // 3600), reliability(w0, 0, t1 // 3600)
     b, b0 = _backlog(world), _backlog(w0)
-    h1 = t1 // 3600
-    h0 = max(0, h1 - KEPT_DAYS * 24)
-    o, o0 = reliability(world, h0, h1)["offered"], reliability(w0, h0, h1)["offered"]
-    kept = o / o0 if o0 > 0 else 1.0
+    cu, cu0 = customers(world), customers(w0)
     red = 1.0 - c["total"] / c0["total"] if c0["total"] > 0 else 0.0
     target = float(obj.get("cost_reduction", TARGET[1]))
-    # reliability as the users and tenants experience it: requests within the SLO, batch deadlines, and the traffic
-    # they still bring (individuals abandon services that fail them and tenants move traffic away: a cost cut that
-    # drives customers off is lost business, not a saving)
+    # reliability as the users and tenants experience it: requests within the SLO, batch deadlines, and whether they
+    # stay (individuals abandon services that fail them and tenants move traffic away: a cost cut that drives
+    # customers off is lost business, not a saving)
+    kept_ok = cu["share"] >= cu0["share"] - SHARE_SLACK and \
+        cu["left_for_quality"] <= LEFT_SLACK[0] * cu0["left_for_quality"] + LEFT_SLACK[1]
     rel_ok = r["attainment"] >= r0["attainment"] - 0.001 and r["batch_on_time"] >= r0["batch_on_time"] - 0.05 \
-        and kept >= KEPT_MIN
+        and kept_ok
     health_ok = b <= b0 + 2
     ok = red >= target and rel_ok and health_ok
     score = max(0.0, min(1.0, red / target)) * (1.0 if rel_ok and health_ok else 0.25)
@@ -183,7 +197,9 @@ def evaluate(world, principal, obj):
             "details": {"cost": c, "baseline_cost": c0, "cost_reduction": round(red, 4),
                         "attainment": round(r["attainment"], 6), "baseline_attainment": round(r0["attainment"], 6),
                         "batch_on_time": r["batch_on_time"], "baseline_batch_on_time": r0["batch_on_time"],
-                        "repair_backlog": b, "baseline_repair_backlog": b0, "traffic_kept": round(kept, 4),
+                        "repair_backlog": b, "baseline_repair_backlog": b0, "tenant_share": round(cu["share"], 4),
+                        "baseline_tenant_share": round(cu0["share"], 4), "users_left": cu["left_for_quality"],
+                        "baseline_users_left": cu0["left_for_quality"],
                         "reliability_ok": rel_ok,
                         "health_ok": health_ok, "days": t1 // day}}
 
@@ -200,18 +216,21 @@ class FleetReference(ScriptedReference):
     of peak work, plus, with several sites, a warm share of the largest other site's work for traffic that moves when
     a site is cut off or trips; batch runs in cheap hours. Replay the recorded hours with each candidate
     (`fleet.experiment`), take the smallest `k` whose replayed attainment stays within a small margin of the deployed
-    controller's, deploy it at the maintenance window and return the machines beyond the cap (keeping room for the
-    demand growth the dashboard shows over the procurement lead time and failure spares). Every week re-check: when
-    a capped site ran hot, raise its cap (and lease more if needed). It never fires the repair crew and returns no
+    controller's, deploy it at the maintenance window and return the machines beyond the cap and a reserve (for
+    tenants' releases, which change the work per request unannounced, the demand growth the dashboard shows and
+    failure spares). Every day re-check: when a site's busiest hour ran hot, raise its cap into the reserve and lease
+    more when the reserve runs low. It never fires the repair crew and returns no
     failed machine."""
     burst = 12
     replan_s = 6 * 3600
     params = TUNED
-    ks = (2.0, 2.2, 2.45, 2.7, 3.0, 3.4)          # machines per machine of peak work, tested on recorded traffic
+    ks = (1.4, 1.6, 1.8, 2.0, 2.2, 2.45, 2.7, 3.0)  # machines per machine of peak work, tested on recorded traffic
     att_margin = 0.0006                           # replayed attainment allowed below the deployed controller's
-    failover = 1.0                                # warm reserve per machine of the largest other site's work
+    failover = 1.2                                # warm machines per machine of work another site may hand over
     spares = 4
-    hot = 0.06                                    # a capped site running this much above 1/k is raised by 10%
+    reserve = 0.1                                 # machines kept off beyond the cap: tenants' releases change CPU per
+                                                  # request unannounced (and the dashboard shows demand growing)
+    hot = 0.04                                    # a site running this much above 1/k at its busiest hour is raised
 
     def __init__(self, principal, objective):
         super().__init__(principal, objective)
@@ -230,13 +249,14 @@ class FleetReference(ScriptedReference):
         self.next_check = None
         self.window_days = float(objective.get("window_days", HORIZON_DAYS)) if isinstance(objective, dict) \
             else HORIZON_DAYS
+        self.installed0: dict[str, int] = {}
 
     def caps_for(self, k: float) -> dict[str, int]:
         out = {}
         for s in self.sites:
             others = [v for o, v in self.work.items() if o != s]
             reserve = self.failover * max(others) / max(1, len(self.sites) - 1) if others else 0.0
-            out[s] = int(math.ceil(k * (self.work.get(s, 0.0) + reserve)))
+            out[s] = int(math.ceil(k * self.work.get(s, 0.0) + reserve))
         return out
 
     def commit(self, tag, caps, msg):
@@ -274,22 +294,26 @@ class FleetReference(ScriptedReference):
             self.stage = "resize"
             return [act_("fleet.status", "status2")]
         if self.stage == "steady" and self.next_check is not None and self.t >= self.next_check:
-            self.next_check = self.t + 7 * day
+            self.next_check = self.t + day
             self.stage = "check"
-            return [act_("fleet.measure", "measure", window_h=7 * 24), act_("fleet.status", "status3")]
+            return [act_("fleet.measure", "measure", window_h=24), act_("fleet.status", "status3")]
         return [act_("fleet.status", "poll")]
 
     def _stats(self, rows):
         """Per site: peak work (machines' worth: utilisation x machines on) and the hottest hour's utilisation;
         the demand growth per day from daily request totals (log-linear fit over full days)."""
         work: dict[str, float] = {}
-        hot: dict[str, float] = {}
+        utils: dict[str, list] = {}
         daily: dict[int, float] = {}
         for row in rows:
             for s, v in row["sites"].items():
                 work[s] = max(work.get(s, 0.0), float(v["util"]) * float(v["on"]))
-                hot[s] = max(hot.get(s, 0.0), float(v["util"]))
+                if not v.get("trip"):
+                    utils.setdefault(s, []).append(float(v["util"]))
             daily[row["hour"] // 24] = daily.get(row["hour"] // 24, 0.0) + float(sum(row["requests"].values()))
+        # a busy hour, not an incident: the third-busiest hour of the window (a cut or a trip elsewhere moves a
+        # region's traffic for a few hours)
+        hot = {s: sorted(u)[-3] if len(u) >= 3 else max(u) for s, u in utils.items() if u}
         days = sorted(daily)[1:-1]
         g = 0.0
         if len(days) >= 3:
@@ -308,6 +332,8 @@ class FleetReference(ScriptedReference):
             dep = result["deployed"]
             self.repo, self.target = dep["repo"], dep["target"]
             self.sites = [s["id"] for s in result.get("sites") or []]
+            self.installed0 = {s: sum(int(c.get(k, 0)) for k in ("on", "booting", "off", "failed", "repairing"))
+                               for s, c in (result.get("machines") or {}).items()}
             self.lead_days = float((result.get("prices") or {}).get("lead_days", 5))
             self.stage = "watch"
         elif tag == "measure":
@@ -333,21 +359,30 @@ class FleetReference(ScriptedReference):
             for site, c in sorted(machines.items()):
                 installed = sum(int(c.get(k, 0)) for k in ("on", "booting", "off", "failed", "repairing"))
                 cap = self.caps.get(site, installed)
-                if tag == "status3" and getattr(self, "hot_now", {}).get(site, 0.0) > 1.0 / self.k + self.hot:
-                    cap = int(math.ceil(cap * 1.1))
+                keep = int(math.ceil(cap * (1.0 + self.reserve) * grow)) + self.spares
+                if tag == "status2":
+                    # return what lies beyond the cap and its reserve (machines that are off; never a failed one)
+                    if installed > keep and int(c.get("off", 0)) > 0:
+                        self.queue.append(act_("fleet.retire", None, site=site, n=int(min(installed - keep,
+                                                                                        c["off"]))))
+                elif getattr(self, "hot_now", {}).get(site, 0.0) > 1.0 / self.k + self.hot and \
+                        self.t >= getattr(self, "raised_at", 0) + 2 * 86400:     # the last raise deployed and measured
+                    # the busiest hour ran hot (a release, growth): raise the cap into the reserve now and lease
+                    # more when the reserve runs low (lead time)
+                    # (never beyond the fleet the operator had: the target is a cheaper operation than that one)
+                    top = self.installed0.get(site, installed)
+                    cap = min(int(math.ceil(cap * 1.12)), top)
+                    raised = raised or cap > self.caps.get(site, 0)
                     self.caps[site] = cap
-                    raised = True
-                    if cap + self.spares > installed:
-                        self.queue.append(act_("fleet.order", None, site=site, n=int(min(200, cap + self.spares -
-                                                                                     installed))))
-                keep = int(math.ceil(cap * grow)) + self.spares
-                if installed > keep and int(c.get("off", 0)) > 0:
-                    self.queue.append(act_("fleet.retire", None, site=site, n=int(min(installed - keep, c["off"]))))
+                    keep = min(top, int(math.ceil(cap * (1.0 + self.reserve) * grow)) + self.spares)
+                    if keep > installed:
+                        self.queue.append(act_("fleet.order", None, site=site, n=int(min(200, keep - installed))))
             if raised:
+                self.raised_at = self.t
                 self.queue.append(self.commit("recommit", dict(self.caps), "raise the caps of hot sites"))
             self.stage = "steady"
             if self.next_check is None:
-                self.next_check = self.t + 7 * 86400
+                self.next_check = self.t + 86400
         elif tag == "recommit":
             self.queue.append(act_("fleet.propose_change", None, repo=self.repo, target=self.target,
                                    ref=result["commit"], note="raise the caps of hot sites"))

@@ -896,8 +896,8 @@ class Fleet(Module):
         short = np.clip(20.0 * (tol[:, None] - qx), 0.0, 1.0)
         rng = ctx.rng("fleet.apps", int(now))
         u = rng.random(uses.shape)
-        abandon = uses & (((qx < tol[:, None]) & (u < pat[:, None] * short)) |
-                          (u > 1.0 - float(self.cfg["users"].get("churn", 0.0))))   # other reasons to stop
+        left_q = uses & (qx < tol[:, None]) & (u < pat[:, None] * short)      # the service failed them
+        abandon = left_q | (uses & (u > 1.0 - float(self.cfg["users"].get("churn", 0.0))))   # other reasons to stop
         contacts = P.features(w, idx)["contacts"]
         all_uses = columns.col(w, USERS, "uses")
         cu = np.where((contacts >= 0)[:, :, None], all_uses[np.maximum(contacts, 0)], 0).astype(np.float64)
@@ -910,7 +910,8 @@ class Fleet(Module):
         changed = np.where(new != uses, now, columns.col(w, USERS, "changed")[idx]).astype(np.int64)
         P.record_decisions(ctx, "fleet.use", idx, {"uses": new.astype(np.uint8), "q": qx.astype(np.float32),
                                                    "changed": changed}, table=USERS, **USE_MODEL,
-                           extra={"abandoned": int(abandon.sum()), "adopted": int(adopt.sum())})
+                           extra={"abandoned": int(abandon.sum()), "abandoned_quality": int(left_q.sum()),
+                                  "adopted": int(adopt.sum())})
         return util
 
     # ------------------------------------------------------------------ exogenous inputs of an hour (hidden)
