@@ -1473,3 +1473,20 @@ def test_V12_a_test_that_writes_the_observers_record_is_rejected(tmp_path, monke
     _, row = attempt(r)
     assert row["status"] != "VERIFIED", row["problems"]
     assert has(row, "acceptance_tamper"), row["problems"]
+
+
+def test_V9b_an_ablation_run_without_its_measured_process_falls_back_to_nothing(repo):
+    """Without the measured pytest pid the verdict cannot tell the test's own blocks from its children's (the V9
+    rule): a block-mode ablation run record without it is not accepted - the review must be rerun."""
+    repo.honest()
+    rv = repo.json("docs/v5/reviews/Z.1.json")
+    run_rel = rv["ablation"]["run_path"]
+    run = repo.json(run_rel)
+    assert isinstance(run.get("main_pid"), int)
+    _, rows = repo.verify()
+    assert rows["Z.1"]["status"] == "VERIFIED", rows["Z.1"]["problems"]
+    del run["main_pid"]
+    repo.dump(run_rel, run)
+    repo.commit("an ablation run from before the observer")
+    _, row = rejected(repo)
+    assert has(row, "does not name its measured process"), row["problems"]

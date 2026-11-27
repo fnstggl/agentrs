@@ -671,6 +671,9 @@ def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str, execut
         if not isinstance(abl.get("blocks"), list):
             probs.append("ablation: the block-mode ablation run carries no block log (it predates D-83's third "
                          "addendum): rerun the review")
+        elif not isinstance(run.get("main_pid"), int):
+            probs.append("ablation: the block-mode ablation run does not name its measured process (it predates D-83's "
+                         "fourth addendum): rerun the review")
         else:
             v = ablation_verdict(ev.get("metrics") or {}, got, abl["blocks"],
                                  e.get("tolerance"), e["criteria"], main_pid=run.get("main_pid"), executed=executed)
