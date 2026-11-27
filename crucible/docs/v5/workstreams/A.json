@@ -179,7 +179,8 @@
   "findings_and_repairs": [
    "facts: the mandatory scan on the scratch merge found dom3's orgeco.org_use unreviewed and the orgeco.org_props allow-list entry stale (dom3 now runs the backbone council through an inst charter); org_use classified as domain physics (per-session usage telemetry read by the domain's evaluator), org_props/org_votes entries removed (commit b78ad51); facts.audit on the merge: 387 items, 115 modules, 0 problems; on this branch alone 312 items, 102 modules, 0 problems, 3 entries reviewed ahead of sibling merges",
    "orchestrator regression list (kcal): the three kernel tests pass on this branch on one CPU without the GPU - test_v5_substrate_streams::test_an_emitting_observer_leaves_every_main_line_event_unchanged (74 s), test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (58 s), test_v5_substrate_resume::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants (226 s)",
-   "a civilisation on one CPU without the GPU: built in 13 s (728 events) but 2 simulated hours did not finish in 277 s even with the shared 3.7 GB embedding cache - civ-world gates need a GPU slot"
+   "a civilisation on one CPU without the GPU: built in 13 s (728 events) but 2 simulated hours did not finish in 277 s even with the shared 3.7 GB embedding cache - civ-world gates need a GPU slot",
+   "store growth (assignment item 4): a durable measurement entry point `python -m crucible.substrate.bench growth` (kernel or population world, weekly snapshot + compaction, exact replay/resume at the end) and a regression test; 365 days of the kernel world: the snapshot stays at 187-192 KB from week 1 to week 52 while 1,460 system blobs are written, 0 artifact rows, 15 retained snapshots 2.8 MB (before D-78 the population world's snapshot grew from 1.4 to 3.3 MB and 15 snapshots held 120 MB)"
   ],
   "measurements": {
    "sp23_primitives_on_scratch_merge": {
@@ -203,6 +204,27 @@
     "column_writes_refused_by_rule": 0,
     "replay_exact": true,
     "events": 3137
+   },
+   "store_growth_365d_kernel_world": {
+    "command": "PYTHONPATH=src python -m crucible.substrate.bench growth --world kernel --days 365 (one CPU, 33 s)",
+    "world": "substrate bench world, 20,000-row column table, 4 cohort batches of 2,000 rows a day (one system array blob each), weekly snapshot + retention.compact(prune=True)",
+    "snapshot_bytes_latest": {
+     "day_7": 186143,
+     "day_182": 190269,
+     "day_365": 187131
+    },
+    "snapshot_bytes_retained_day_365": 2831553,
+    "snapshots_retained_day_365": 15,
+    "blobs_day_365": 1460,
+    "blobs_packed_day_365": 1400,
+    "artifact_rows_max": 0,
+    "compact_s_median": 0.003,
+    "compact_s_max": 1.798,
+    "replay_from_genesis_exact": true,
+    "resume_exact": true,
+    "before_D78_population_world_365d": "snapshot 1.42 MB/week in q1 -> 3.31 MB in q4, 222,702 artifact rows, 15 retained snapshots 120 MB (wave 3)",
+    "test": "tests/test_v5_substrate_retention.py::test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged",
+    "limit": "the kernel path only; the population world of the wave-3 measurement (adaptive daily checkpoints, popweb) runs the shared space's Qwen text path and needs a GPU slot: queued (python -m crucible.substrate.bench growth --world population --days 365), did not start in this session"
    }
   }
  },

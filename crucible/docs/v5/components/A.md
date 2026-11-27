@@ -330,3 +330,13 @@ Measured in wave 3b (one CPU, CUDA hidden; unofficial):
   cross-module writes, 0 handler writes, exact replay (3,137 events). The population, social and civilisation kinds
   need the GPU slot (a population world of 400 individuals did not finish 24 simulated hours in 280 s on the loaded
   machine).
+* Store growth (D-78) has a durable measurement: `PYTHONPATH=src python -m crucible.substrate.bench growth --world
+  kernel|population --days 365 [--json out]` (weekly snapshot + `retention.compact(prune=True)`, per-snapshot bytes,
+  retained bytes, blobs, `artifacts` rows, payload bytes, compaction seconds; exact replay from genesis and resume at
+  the end). Kernel world, 365 days, 4 cohort batches a day (one CPU, 33 s): the snapshot stays at 187-192 KB from week
+  1 to week 52 while 1,460 system blobs are written; 0 `artifacts` rows; 15 retained snapshots hold 2.8 MB (before
+  D-78 the wave-3 population world's snapshot grew from 1.4 MB to 3.3 MB a week and 15 snapshots held 120 MB);
+  compaction 3 ms (1.5-1.8 s on the weeks it packs). Regression test
+  `test_v5_substrate_retention.py::test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged`. The population
+  world needs the GPU slot (the shared space's Qwen text path embeds every new page on one CPU: 6 simulated hours
+  took 20 s, the next 6 more than 220 s) and was queued.
