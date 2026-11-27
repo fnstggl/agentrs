@@ -1,6 +1,6 @@
 {
  "workstream": "EA",
- "commit": "58faf3f",
+ "commit": "1b3e432",
  "summary": "Independent authorization layer: PolicyService (contracts.PolicyEngine) with fail-closed rule evaluation against a declarative policy file, HMAC grants bound to the action hash (single use), persistent approvals / limits / denied-intent tracking (SQLite), hash-chained MAC'd audit log with verifier, secret vault and broker with scrubbing, file-based pause and emergency stop, untrusted-content wrapper / context allowlist / instruction labelling, RPC service with SO_PEERCRED authorization matrix and Landlock self-confinement, launcher that runs services under their own uids, operator CLI. 190 tests (183 default CPU tests in 25 s + 7 privileged tests that create the users and switch uid).",
  "requirements": {
   "IH-07": {
