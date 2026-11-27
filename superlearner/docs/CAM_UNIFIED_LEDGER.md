@@ -192,3 +192,39 @@ engineering-complete — the earlier IMPLEMENTED claims had never had test resul
 - All six finisher reports saved to `docs/evidence/wave3/finisher_reports.json`. Integration continues as a new run
   (`docs/evidence/wave3/wave3c.js`: merge -> Gate1B -> 5 verifiers -> fix, with resume-safety and cost discipline).
 | Wave 3 integration (merge/Gate1B/verify/fix) | `wf_75c42076-5ff` | `Workflow({scriptPath: <scratchpad>/wave3c.js or docs/evidence/wave3/wave3c.js, resumeFromRunId: "wf_75c42076-5ff"})` |
+
+#### 2026-11-27 08:10 UTC — merged, 1B gates measured, first independent verification
+
+- Wave-3 merge done (`wf_75c42076-5ff` merge agent, c6149ce): W3,W4,W6,W2,W5,W7,W8,W9 merged, 13 semantic integration
+  fixes, suite 1066 passed / 3 skipped / 2 failed (manifest claims test by design; one pre-existing flaky GPU test),
+  JUnit `docs/evidence/test_results/wave3_merged.xml`. G1 PASS, G2 partial (16/20 updates: meta window waits for
+  labels), G2b PASS except predictors (no labels in 50 rounds; rapid horizon 60 ticks).
+- 1B: G3 NOT met in one configuration (memory <= 40 GB with Adafactor everywhere but 106-127 s/update; time <= 90 s
+  with AdamW core but 43.9 GB); G4 PASS except predictors (72 stamped decisions, 2 updates, 13/14 DOM-08 groups,
+  canaries clean). `docs/evidence/dom/G3G4/README.md`.
+- Independent verifiers (integrity, dom): `docs/evidence/wave3/verify/{integrity,dom}/report.md`. HIGH: F8 meta step
+  joins the next episode's labels (two episode-id schemes, one ordinal counter); DOM-1 R_t / reasoning iterations do
+  not change trained decisions (intent reads the goal from ctx_out; A03 fails on the real model). MEDIUM: F1 adapter
+  closures reach operator/verifier; F2 CamConfig.reward_mode default legacy; F3 R_psi never attached (FIXED 63df5f6);
+  F4 inner reward has no cost; F5 inner-score constant includes query labels; F6 wait-phase steps dropped; DOM-3
+  generator gradient biased with K candidates; DOM-4 execution gate fail-open without config (bench override FIXED
+  63df5f6); DOM-5 Mech C cond never filled (gate input zeros, cond_proj dead, effect KL ~1e-6). LOW: F7 V_L unused;
+  DOM-6 ~45.8M never-trained params counted; DOM-7 Mech A trained dependence not shown; DOM-8 stale manifest ids.
+- Usage: weekly 87% at 08:10 UTC (resets 2026-11-28 15:00 UTC; another session on this host - /workspace/camlive -
+  shares the account). Remaining work waits for the reset.
+
+## CONTINUATION PLAN (after the 2026-11-28 15:00 UTC weekly reset; rental ends 2026-11-30 03:00 UTC)
+
+1. Two fix agents in worktrees (disjoint files), then merge: (A) integrity/meta: F8, F2 (+reward_in_beliefs False
+   default), F4, F5, F6, F7, F1, DOM-4 fail-closed gate with declared legacy/baseline paths; (B) DOM design: DOM-1
+   (R_t must carry the decision: acceptance = R-before-intent swap >= 0.9 donor-following and forced J=1 vs J=4
+   changes >= 20% of decisions on a 2-hop task), DOM-3, DOM-5, DOM-6 (trained fraction per group), DOM-7.
+   In parallel: read-only verifiers pred, learn, evid (`docs/evidence/wave3/wave3c.js` areas; resume
+   `wf_75c42076-5ff` with args areas=[pred,learn,evid]).
+2. Second fix round for pred/learn/evid findings; full suite JUnit; manifest statuses from evidence
+   (`python -m superlearner.verify_completion --run-tests`).
+3. Experiments (plan §5; pre-registrations U-DOM-1/U-MR-1/U-OW-1/U-SC-1 already committed): E2 dom_dev source
+   lifetimes first (longest GPU), E1 1B single-seed continual run, E3 meta-reward suite (Exp J ProbeEnv, Exp F),
+   E4 ow_tiny, E5 scaling; then confirm-set evaluations exactly once.
+4. Final report RPT-01 (20 questions), ledger, push; 1B checkpoints cannot go to GitHub (CD-04 limitation).
+- Pilot running now (GPU only): `runs/cam_unified/pilot/dd_4k` - dom_dev, 4 rapid worlds, 1000 rounds, update every 8.
