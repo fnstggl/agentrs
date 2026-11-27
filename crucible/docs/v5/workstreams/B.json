@@ -467,7 +467,7 @@
     "tests/v5/test_gate_SP_3_4.py",
     "tests/test_v5_population_core.py"
    ],
-   "status_claim": "criteria met in an unofficial run at 4184cce (5 learning kinds tested); the personal-state benefit itself is not significant (CI -0.065..0.087)",
+   "status_claim": "criteria met in an unofficial gate run at e05f5266 (snapshot snapR_head, governed slot): learning_kinds_tested 5 (shared policy learning, independent policy groups, frozen historical copies, competing architectures, personal state adaptation); the personal-state benefit itself is not significant (mean -0.0025, CI [-0.046, +0.044]), reported, not claimed",
    "notes": ""
   },
   "SP-4.0": {
@@ -559,7 +559,8 @@
   "Personal memory benefit in the integrated worlds is measured (SP-3.4) but not significant: most of what predicts an individual's utility is in its observation; the BPTT unit test shows the memory can carry hidden traits.",
   "G.1 counts members whose policy stepped their memory on one day (day review or session); members that took sessions on one day are fewer (fitted daily return, about 40-60% of class-2 members per day in the small worlds).",
   "Population-world throughput (population-only development world, CPU, warm cache): 377 simulated days per CPU-hour on this branch vs 664 at 55433e7 - the population browses ~4.7x more per day; CPU per web visit fell from 4.01 to 1.50 ms. The R6/R7 batch/event reductions did not measurably reduce CPU per visit. The D-27 targets bind the civilisation world, where the shared space's encoders, the social consumption engine and shopping searches dominate (OPTIMISATION_REQUESTS.md on c5c/w3b-perf).",
-  "Two forks of one snapshot can bill sandboxed site compute differently under heavy machine load (a fresh measurement beyond the D-20 metering tolerance is billed instead of the anchor); G.6's frozen-at-switch fork therefore shares random streams and population decisions with the main world until the first post-switch update, but not necessarily every operator's billed compute."
+  "Two forks of one snapshot can bill sandboxed site compute differently under heavy machine load (a fresh measurement beyond the D-20 metering tolerance is billed instead of the anchor); G.6's frozen-at-switch fork therefore shares random streams and population decisions with the main world until the first post-switch update, but not necessarily every operator's billed compute.",
+  "G.6 (change-specific improvement from learning after a controlled change) failed under both pre-registered conditions; class-2 learning after the change shifts behaviour towards the newly good sites but does not raise realised utility over the frozen-at-switch policy within 5 days (D-32 addendum 4). Fast per-site personal state (satisfaction averages, fitted abandonment) already adapts any policy to per-site changes."
  ],
  "integration_notes": [
   "E (calibration): register the population's in-world probes: `from crucible.population import fidelity_probes; INWORLD_PROBES.update(fidelity_probes.PROBES)` (lazy, inside inworld_claims) - the register's default claims population.daily_return / session_frequency / article_choice and commerce.customer_retention need them (population code may import only calibration.runtime).",
@@ -608,7 +609,11 @@
    "gate G, category condition (snapshot snapG refreshed to 5cfe1482 before it started, CPU, 10 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full"
   },
   "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_v5_perf_batching.py (d8c75ce3, CPU)": "34 passed, 1 failed: test_same_seed_same_hashes_replay_regeneration_and_resume (first assertion, two same-seed worlds in one process; sandbox billing beyond the D-20 memo tolerance; fails identically without this session's changes; see the kcal integration note)",
-  "regression of 24 population-dependent test files (snapshot of e05f5266, governed slot, pinned CPU)": "354 passed, 6 failed in 1674 s: test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (kcal, on the orchestrator's 55433e7 list), test_v5_calibration_inworld x4 (assume pre-D-30 population behaviour; patch in integration_notes), test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (econ; patch in integration_notes). test_v5_population_core (incl. the same-seed hash test), _api, kernel, invariants, substrate history/resume/streams/columns, social and civ files passed."
+  "regression of 24 population-dependent test files (snapshot of e05f5266, governed slot, pinned CPU)": "354 passed, 6 failed in 1674 s: test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (kcal, on the orchestrator's 55433e7 list), test_v5_calibration_inworld x4 (assume pre-D-30 population behaviour; patch in integration_notes), test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (econ; patch in integration_notes). test_v5_population_core (incl. the same-seed hash test), _api, kernel, invariants, substrate history/resume/streams/columns, social and civ files passed.",
+  "gates SP-3.1 SP-4.1 SP-3.2c SP-3.4 (snapshot snapR_head of e05f5266, governed slot)": "3 passed (SP-3.1, SP-3.2c, SP-3.4), 1 failed (SP-4.1: 12 of 13 behaviours, purchase_services 3; repaired at 351ded23, rerun queued)",
+  "tests/v5/test_gate_G.py (snapshot snapG of 5cfe1482, category condition, governed CPU slot)": "G.1, G.2, G.3, G.5, G.n1, G.4 passed; G.6 failed (-0.0018, CI [-0.020, +0.016]); G.7 running at the time of writing",
+  "gates SP-4.4, SP-3.3 (snapshot snapQ of a50d20da, governed CPU slots)": "2 passed (1594 s, 372 s)",
+  "trial pop 62f0d442 + sem 04ea1d37 + soc a173da24: tests/v5/test_gate_SP_4_0.py (governed CPU slot)": "1 passed (Gate B/G mechanisms in the civ world), 1 failed (SP-4.0: 9 of 15 platforms); SP-3.2 with class 4 on the GPU queued (the CPU attempt was stopped for RAM at 16.3 GB)"
  },
  "performance": {
   "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
