@@ -1,0 +1,611 @@
+{
+ "workstream": "M-int",
+ "commit": "0c3e4666252e888adb5a57574429f2f58977da6a",
+ "summary": "Integrated agent cam_live.agent.CamLiveAgent (contracts.AgentAPI + drain_experiments + explain_obstacle; build_agent factory) composed only from the workstreams' components, driven by runtime.loop.LiveRuntime. Contract 1.1 (additive change requests, APPLIED.md). CPU integration tests (LabWorld + PolicyService + signing LabVerifier over several verified lifetimes; save -> fresh process -> load; kill -9 -> restart) and the Phase-4 staging validation cam_live.validation.run_staging (real Qwen3-4B + 50m core on the GPU; computer environment with the staging sites, Chromium and the staging Discord service; LabWorld family).",
+ "requirements": {
+  "IN-01": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_every_runtime_step_calls_the_agent",
+    "tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights",
+    "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Every workstream's learning component is called by the agent in the runtime loop; the computer environment's executors (browser, http, Discord staging) only in the staging validation; sandbox, visual and skill executors are not registered there; CheckpointManager promotion is not called."
+  },
+  "IN-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py",
+    "src/cam_live/validation.py"
+   ],
+   "integration_points": [
+    "cam_live.validation.run_staging"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Pathway shown on LabWorld (diagnostic) and the staging services; no live service."
+  },
+  "LX-11": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/validation.py"
+   ],
+   "integration_points": [
+    "cam_live.validation.run_staging"
+   ],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
+   ],
+   "evidence": [
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Three real-configuration staging runs executed; none passes every check: no reward meta-update with a non-zero meta-gradient on the real model (runs 1, 3: none applied; run 2: one recorded as applied with a zero gradient and unchanged psi); runs 2 and 3 ran out of their time budget before the second LabWorld lifetime on a loaded machine. All other checks held in run 1."
+  },
+  "NA-06": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_behaviour_changes_and_lives_in_the_weights"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "The trainable policy selects among candidates (rule 'policy'); the change of its distribution on a held-out context is attributed to the weights by restoring them. Debug scale in the tests."
+  },
+  "CU-22": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_learning_changes_experiential_and_adapter_weights"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Neural updates from interaction experience: LabWorld (tests) and the staging computer environment (validation). No comparison against the skill library's contribution."
+  },
+  "CU-30": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/validation.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -c \"from cam_live.validation import run_staging, EVIDENCE_DIR; run_staging(None, real_model=True, n_decisions=40, evidence_dir=EVIDENCE_DIR)\""
+   ],
+   "evidence": [
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Browser / HTTP / staging Discord actions chosen by the agent on the staging sites (validation phase A); task success on those interfaces is not established."
+  },
+  "CL-09": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_new_objective_keeps_weights_and_resets_fast_beliefs"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Transfer of the kept knowledge to a new objective is not measured here (workstream S)."
+  },
+  "CL-06": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_recovery.py::test_save_fresh_process_load_gives_identical_decisions",
+    "tests/integration/test_agent_recovery.py::test_kill_9_mid_run_then_restart_without_duplicate_actions"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Bit-identical decisions across processes with the same PYTHONHASHSEED; with different hash seeds the probabilities differed by < 1e-8 and the reward-parameter hash after a meta-update."
+  },
+  "AE-03": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_every_runtime_step_calls_the_agent"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Self-directed experiments (randomised comparisons, registered) run in the loop; their usefulness is not evaluated."
+  },
+  "AE-04": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent._goal_free_candidates"
+   ],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "GoalFreeMode is wired into propose / resolution but no executed test drives a goal-free run."
+  },
+  "AE-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_new_objective_keeps_weights_and_resets_fast_beliefs",
+    "tests/integration/test_agent_runtime.py::test_every_runtime_step_calls_the_agent"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Several LabWorld objectives and the staging computer task in one lifetime of one agent."
+  },
+  "AE-08": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent.explain_obstacle"
+   ],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "explain_obstacle gives data-driven explanations (Dirichlet over observed failure classes); strategy changes are not measured."
+  },
+  "MR-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_internal_rewards_are_stored_per_record"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Bootstrap mix in force."
+  },
+  "MR-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_meta_update_runs_with_a_nonzero_meta_gradient"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Applied meta-updates with non-zero meta-gradients at debug scale; an applied update with an exactly zero meta-gradient was also recorded as applied (Adam momentum still moves psi; reported to C)."
+  },
+  "PI-02": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_predictions_precede_outcomes"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": ""
+  },
+  "RC-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_delayed_outcomes_link_to_their_decisions"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/M-int_fix.xml",
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": ""
+  },
+  "SV-11": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/agent.py"
+   ],
+   "integration_points": [
+    "cam_live.agent.CamLiveAgent"
+   ],
+   "tests": [],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
+   ],
+   "evidence": [
+    "docs/evidence/validation/staging_20261127T052759Z.json",
+    "docs/evidence/validation/staging_20261127T053639Z.json",
+    "docs/evidence/validation/staging_20261127T055041Z.json"
+   ],
+   "limitations": "Every number in this file comes from the commands listed."
+  }
+ },
+ "public_api": [
+  "cam_live.agent.CamLiveAgent(cfg, run_dir, *, clock=None, task=None, verifier=None, model=None, settings=None)",
+  "cam_live.agent.build_agent(cfg=None, run_dir='', clock=None, task=None, verifier=None, **agent_settings)",
+  "CamLiveAgent.attach_verifier(verifier); .policy_distribution(items, candidates, goal_text=None); .close()",
+  "cam_live.agent.AgentSettings (config section 'agent')",
+  "cam_live.validation.run_staging(cfg=None, *, out_dir=None, real_model=True, n_decisions=40, seed=0, evidence_dir=None, budget_s=780, lab_seeds=(101, 102), computer_share=0.25) -> report"
+ ],
+ "change_requests": 6,
+ "measured": {
+  "integration_tests": {
+   "tests": 22,
+   "failures": 0,
+   "errors": 0,
+   "skipped": 0,
+   "time_s": 1370.394,
+   "failed": [],
+   "command": "clean copy of the committed tree (git archive HEAD) + M-int files; PYTHONPATH=<copy>/cam_live/src .venv/bin/python -m pytest <copy>/cam_live/tests/integration -q --rootdir=<copy>/cam_live; load average 28-40 from other jobs during the run"
+  },
+  "staging_validation_runs": [
+   {
+    "file": "docs/evidence/validation/staging_20261127T052759Z.json",
+    "ok": false,
+    "lock_seconds": 458.70898175239563,
+    "gpu_peak_gb": 11.354595184326172,
+    "checks": {
+     "adapter_weights_changed": true,
+     "behaviour_changed_on_held_out_context": true,
+     "computer_environment_decisions": true,
+     "delayed_outcomes_linked": true,
+     "experiential_weights_changed": true,
+     "internal_rewards": true,
+     "lab_lifetimes_verified": true,
+     "meta_update_applied": false,
+     "predictions_before_outcomes": true,
+     "weights_explain_the_change": true
+    },
+    "decisions": 26,
+    "learning_updates": {
+     "fast": 26,
+     "frequent": 35,
+     "slow_adapters": 9
+    },
+    "weight_delta_by_timescale_group": {
+     "frequent:experiential": {
+      "max": 1.5811406373977661,
+      "mean": 0.5458992077191297,
+      "min": 0.0035504881728448154,
+      "n": 35,
+      "nonzero": 35
+     },
+     "frequent:heads": {
+      "max": 0.38939428329467773,
+      "mean": 0.1908903840576361,
+      "min": 0.008775553585712186,
+      "n": 35,
+      "nonzero": 35
+     },
+     "slow_adapters:semantic_adapters": {
+      "max": 0.1716560274362564,
+      "mean": 0.11755017273955876,
+      "min": 0.0698591098189354,
+      "n": 9,
+      "nonzero": 9
+     }
+    },
+    "meta_updates_applied": [],
+    "meta_skipped_reasons": {
+     "insufficient_independent_outcomes": 26,
+     "no_policy_update_recorded": 2
+    },
+    "predictions_resolved": 106,
+    "tv_before_after": 0.02564544603228569,
+    "tv_all_restored_vs_before": 0.0,
+    "tv_only_experiential_restored_vs_before": 0.00463201105594635,
+    "executors": "internal, browser, api (direct)",
+    "failures": [],
+    "note": "meta_update_applied recomputed with the strict rule (non-zero meta-gradient and changed reward version)"
+   },
+   {
+    "file": "docs/evidence/validation/staging_20261127T053639Z.json",
+    "ok": false,
+    "lock_seconds": 778.0648493766785,
+    "gpu_peak_gb": 11.207660675048828,
+    "checks": {
+     "adapter_weights_changed": true,
+     "behaviour_changed_on_held_out_context": true,
+     "computer_environment_decisions": true,
+     "delayed_outcomes_linked": true,
+     "experiential_weights_changed": true,
+     "internal_rewards": true,
+     "lab_lifetimes_verified": false,
+     "meta_update_applied": false,
+     "predictions_before_outcomes": true,
+     "weights_explain_the_change": true
+    },
+    "decisions": 23,
+    "learning_updates": {
+     "fast": 22,
+     "frequent": 28,
+     "slow_adapters": 7
+    },
+    "weight_delta_by_timescale_group": {
+     "frequent:experiential": {
+      "max": 1.5685323476791382,
+      "mean": 0.5986625261680343,
+      "min": 0.0037731355780168657,
+      "n": 28,
+      "nonzero": 28
+     },
+     "frequent:heads": {
+      "max": 0.38828468322753906,
+      "mean": 0.18765394218255743,
+      "min": 0.00938972124051579,
+      "n": 28,
+      "nonzero": 28
+     },
+     "slow_adapters:semantic_adapters": {
+      "max": 0.14076440036296844,
+      "mean": 0.12071581929922104,
+      "min": 0.06992783397436142,
+      "n": 7,
+      "nonzero": 7
+     }
+    },
+    "meta_updates_applied": [
+     {
+      "meta_grad_norm": 0.0,
+      "estimator": "importance_weighted",
+      "n_independent_outcomes": 4,
+      "reward_version_before": "rpsi1-s1.0-ebe4c0da11702c8d",
+      "reward_version_after": "rpsi1-s1.0-ebe4c0da11702c8d"
+     }
+    ],
+    "meta_skipped_reasons": {
+     "insufficient_independent_outcomes": 19,
+     "no_policy_update_recorded": 2,
+     "no_supported_episode": 1
+    },
+    "predictions_resolved": 80,
+    "tv_before_after": 0.01766754314303398,
+    "tv_all_restored_vs_before": 0.0,
+    "tv_only_experiential_restored_vs_before": 0.007340569049119949,
+    "executors": "internal, browser, api (direct)",
+    "failures": [],
+    "note": "meta_update_applied recomputed with the strict rule (non-zero meta-gradient and changed reward version)"
+   },
+   {
+    "file": "docs/evidence/validation/staging_20261127T055041Z.json",
+    "ok": false,
+    "lock_seconds": 784.9256720542908,
+    "gpu_peak_gb": 9.72211217880249,
+    "checks": {
+     "adapter_weights_changed": true,
+     "behaviour_changed_on_held_out_context": true,
+     "computer_environment_decisions": true,
+     "delayed_outcomes_linked": true,
+     "experiential_weights_changed": true,
+     "internal_rewards": true,
+     "lab_lifetimes_verified": false,
+     "meta_update_applied": false,
+     "predictions_before_outcomes": true,
+     "weights_explain_the_change": true
+    },
+    "decisions": 9,
+    "learning_updates": {
+     "fast": 8,
+     "frequent": 11,
+     "slow_adapters": 2
+    },
+    "weight_delta_by_timescale_group": {
+     "frequent:experiential": {
+      "max": 1.515367031097412,
+      "mean": 0.8293322436215056,
+      "min": 0.00665824745127203,
+      "n": 11,
+      "nonzero": 11
+     },
+     "frequent:heads": {
+      "max": 0.3647477626800537,
+      "mean": 0.21084564941970035,
+      "min": 0.019967943699608203,
+      "n": 11,
+      "nonzero": 11
+     },
+     "slow_adapters:semantic_adapters": {
+      "max": 0.13732294738292694,
+      "mean": 0.10363338515162468,
+      "min": 0.06994382292032242,
+      "n": 2,
+      "nonzero": 2
+     }
+    },
+    "meta_updates_applied": [],
+    "meta_skipped_reasons": {
+     "insufficient_independent_outcomes": 7,
+     "no_policy_update_recorded": 2
+    },
+    "predictions_resolved": 29,
+    "tv_before_after": 0.010300867259502411,
+    "tv_all_restored_vs_before": 0.0,
+    "tv_only_experiential_restored_vs_before": 0.007261313498020172,
+    "executors": "harness.factories.all_executors",
+    "failures": [],
+    "note": "meta_update_applied recomputed with the strict rule (non-zero meta-gradient and changed reward version)"
+   }
+  ],
+  "parameters_real_configuration": {
+   "frozen": 4022468096,
+   "experiential": 50953765,
+   "adapters": 16713856,
+   "adapters_lora": 11796480,
+   "adapters_bridge": 4917376,
+   "reward": 949121,
+   "heads_total": 6055337,
+   "total_persistent_trainable": 74672079
+  }
+ },
+ "not_done": [
+  "No live service was contacted; every result is LabWorld (diagnostic) or the local staging services (staging). Nothing here is evidence about the Discord objective.",
+  "Learning quality is not established: the tests and the staging runs show the pathway (non-zero updates, meta-gradients at debug scale, a behaviour change that lives in the weights), not that decisions get better.",
+  "runtime.loop_service does not pass the verifier to build_agent (M-int-1): under cam-live run the agent refuses verified outcomes for supervision until attach_verifier is called.",
+  "runtime.verifier does not sign measurements (M-int-3): in a real run only signed objective outcomes can supervise the meta objective.",
+  "runtime.loop consumes the authorization grant before env.execute (M-int-6): with ComputerEnvironment + PolicyService every action is refused unless the runtime is given cam_live.validation.LookOnlyGrants (done in the staging validation only).",
+  "cam-live validate --mode staging calls run_staging(cfg) without options (M-int-2); the defaults run the real-model validation.",
+  "Save -> fresh process -> load: decisions are the same and the first is bit-identical; later probabilities agree to ~1e-7 and the reward-parameter hash can differ after a meta-update (summation order on the meta / learning path, not located).",
+  "Sandbox (code), visual and skill executors were part of the staging computer environment only in run 3 (harness.factories.all_executors, 80 tools), where the agent made 2 decisions; none of their tools was exercised by the agent.",
+  "In the staging computer environment the agent's actions were mostly element-less clicks / fills (schema-valid, environment-invalid) and inspections; no staging task was completed there.",
+  "CheckpointManager promotion / rollback and weights-only export are not called by the agent (the runtime's own checkpoints are used).",
+  "The planner's imagined values are recorded as candidate extras only when its horizon controller allows >= 1 step; no selection rule uses them.",
+  "Goal-free mode is exercised by one CPU test (goals proposed, chosen, resolved, abandoned, none admitted to the meta ledger); its usefulness for later objectives is not measured.",
+  "The integration tests ran in a worktree where other agents changed reward/, credit/ and runtime/ concurrently; the final JUnit is from a copy of the committed tree plus M-int's files.",
+  "reward.metalearner records an update with an exactly zero meta-gradient as applied (staging run 2); Adam then leaves psi unchanged on the first step but moves it on later steps through its moments (seen at debug scale). Reported here for workstream C; not changed by M-int."
+ ],
+ "scientific_failures": [
+  "Real configuration (Qwen3-4B + 50m core), three staging runs: no reward meta-update with a non-zero meta-gradient was observed. Run 1: 26 skips (insufficient independent verified outcomes; both LabWorld lifetimes reached their targets after 8 decisions). Run 2: one update recorded as applied by reward.metalearner with an importance-weighted meta-gradient of exactly 0 and unchanged reward parameters, 19 skips. Run 3: 9 decisions only (loaded machine), no update.",
+  "Behaviour change on the held-out context is small (TV 0.010 - 0.026 on the real configuration) and its direction (better or worse decisions) is not evaluated."
+ ]
+}
