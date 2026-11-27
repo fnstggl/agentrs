@@ -272,7 +272,36 @@ PAIR_PROTOCOLS: dict[frozenset, str] = {
     frozenset(("des_inventory", "des_perishable")): "crucible.rapid.distinct:overstock_expires",
     frozenset(("net_routing", "net_topology_shift")): "crucible.rapid.distinct:latency_profile_changes",
     frozenset(("plan_serial_stages", "plan_spoilage")): "crucible.rapid.distinct:pulse_reaches_output_later",
+    frozenset(("dl_delayed_adoption", "plan_spoilage")): "crucible.rapid.distinct:small_input_is_gated",
 }
+
+
+def _outcome_under(family: str, seed: int, level: float, ticks: int = 25) -> float:
+    """Largest scored reading over `ticks` ticks with the lever held at `level` (evaluator side: the noise-free
+    node value, so measurement noise cannot hide a zero)."""
+    env = make(family, seed)
+    sp = env.action_space()
+    name = sorted(sp.kinds["levers"]["properties"]["values"]["properties"])[0]
+    out = env._config["claim"]["outcome"]
+    idx = env._engine.idx[out]
+    best = 0.0
+    for _ in range(ticks):
+        env.step({"kind": "levers", "values": {name: float(level)}})
+        best = max(best, float(env._state["h"][0, -1, idx]))
+    return best
+
+
+def small_input_is_gated(seed: int) -> dict:
+    """dl_delayed_adoption vs plan_spoilage (both a lever feeding stocks behind saturating flows): the same
+    intervention - a small constant input, below what lifts the adoption world's awareness over its hidden gate -
+    leaves the adopters at exactly zero but sells in the perishing-stock world from the first ticks."""
+    env = make("dl_delayed_adoption", seed)
+    c = env._config
+    an = next(n for n in c["nodes"] if n["id"] == c["claim"]["awareness"])
+    theta = float(next(n for n in c["nodes"] if n.get("prim", "").startswith("threshold"))["params"]["theta"])
+    level = 0.5 * theta * float(an["params"]["rate"]) / float(an["ports"]["x"][0][2])
+    gated, sells = _outcome_under("dl_delayed_adoption", seed, level), _outcome_under("plan_spoilage", seed, level)
+    return {"ok": bool(gated == 0.0 and sells > 0.0), "input": level, "adopters": gated, "sales": sells}
 
 
 def _first_output_response(family: str, seed: int) -> int:
