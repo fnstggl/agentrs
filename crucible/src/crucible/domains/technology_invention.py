@@ -731,8 +731,9 @@ own runs.
 It scores each operating point the plant has run by units made per unit of input and energy. Around the plant's own
 starting point it first tries the four points one step (0.15) away along each axis; with those five points it fits a
 parabola along each axis and recommends the vertex (at most 0.3 from the start, inside the machine's range) from then
-on, unless the vertex, measured more than once, scores below the starting point (then it goes back to the start). A plant whose runs are slow (under one a day) has no time for a
-five-point star within a trial: it tries one step up along each axis and then the step that looks better along each
+on, unless the vertex, measured more than once, scores below the starting point (then it goes back to the start). A
+plant whose runs are slow (under one a day) has no time for a five-point star within a trial: it tries one step up
+along each axis and then the step that looks better along each
 axis (down where up was worse), then whichever measured point scored best."""
 
 
