@@ -2472,6 +2472,14 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
    "evidence": "c5c/w3b-qa scratch: pytest tests/test_learners.py tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living -> 71 passed in 227 s",
    "reason": "With the D-82 4.0 historical sandbox path counting exactly c07098b's lines (d6c53f6), tests/test_learners.py followed by tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living in ONE process (the 4.0 test bytes, historical baseline, clone of ebf82bf) gives 71 passed: the order dependence (the per-process metering memo deciding long_term_adoption) is gone in the 4.0 reproduction. Owners O/A to re-validate; Gate A.1's single-process run is the official measurement.",
    "verdict": "likely_fixed"
+  },
+  {
+   "at": "2026-11-27T02:58:42+00:00",
+   "by": "P",
+   "commit": "700b996c45475973ee94bc9cb8386892fbb792ed",
+   "evidence": "pytest tests/test_learners.py tests/test_ow_worlds.py::test_end_to_end_only_working_software_earns_a_living -> 1 failed, 70 passed (5.0 mode)",
+   "reason": "Correction of the previous triage: fixed only for the 4.0 reproduction. In 5.0 mode the tree's copy of the test (tests/test_ow_worlds.py, no historical baseline) still fails right after tests/test_learners.py in one process (70 passed, 1 failed at 700b996: the junk service's long_term_adoption 1.0 instead of 0.0), and passes alone. Cause class: the D-20 deterministic cost model bills the first parent-side measurement of a computation per world lineage (metering.MEMO / DiskMemo), so a world's bills - and here an adoption outcome - depend on what earlier worlds of the same lineage measured in the process or on the machine. Gate X.4 runs the suite in shared processes and will fail on it. Owners O/A (kcal): make 5.0 worlds' bills independent of other worlds' measurements (or scope the memo per world instance) and re-validate.",
+   "verdict": "still_open"
   }
  ],
  "requirements": [

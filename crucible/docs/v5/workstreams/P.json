@@ -47,8 +47,8 @@
     "tests/v5/test_gate_A.py",
     "tests/test_v5_acceptance_baseline.py"
    ],
-   "status_claim": "implemented; per-record fast feedback: the 4.0 acceptance records that mismatched on 87a6c54 reproduce now (see notes); official run pending",
-   "notes": "Per-record regeneration as the 4.0 historical baseline (prior_results(only=[record]) in separate processes, fresh clone each): A, B, C, D, E, F, H, I, J, K, L, M reproduce exactly (A, B, H, I, M were DEF-P-27 mismatches on 87a6c54); G mismatched by one count (new_loss_mechanisms 25 vs 24) before the code.forked fix (rerun pending). demo_lifetime (bazaar, seed 7, 4 days): identical in two fresh processes; after the line-count and code.forked fixes event for event equal to c07098b (10,657 events, timeline, agents, all state tables and arrays); the final digest differs only through one recorded API-catalogue hash (a note event; 5.0 changed 4.0 tools' descriptions and schemas), which A.5 still counts as a mismatch (no comparison relaxed). The 30-day record and the 148 trajectories need the official slot run."
+   "status_claim": "implemented; per-record fast feedback: 16 of the 17 attempted 4.0 records reproduce (A-M and P exactly, O as v4-self-irreproducible with v5 == c07098b), N timed out in a 295 s direct process; official run queued",
+   "notes": "Per-record regeneration as the 4.0 historical baseline (prior_results(only=[record]) in separate processes, fresh clone each): A, B, C, D, E, F, H, I, J, K, L, M reproduce exactly (A, B, H, I, M were DEF-P-27 mismatches on 87a6c54); G mismatched by one count (new_loss_mechanisms 25 vs 24) before the code.forked fix and reproduces after it; O is v4-self-irreproducible (c07098b does not regenerate its own committed record; the merged tree regenerates exactly what c07098b does); N (clean installation) did not finish within a 295 s direct process. demo_lifetime (bazaar, seed 7, 4 days): identical in two fresh processes; after the line-count and code.forked fixes event for event equal to c07098b (10,657 events, timeline, agents, all state tables and arrays); the final digest differs only through one recorded API-catalogue hash (a note event; 5.0 changed 4.0 tools' descriptions and schemas), which A.5 still counts as a mismatch (no comparison relaxed). The 30-day record and the 148 trajectories need the official slot run."
   },
   "A.1": {
    "implementation_files": [
@@ -278,7 +278,7 @@
     "tests/test_v5_acceptance_baseline.py"
    ],
    "status_claim": "implemented and adversarially re-verified in wave 3b (P31-P39); measured locally (see tests)",
-   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks)."
+   "notes": "Wave 3b: P31-P37 (D-83) and, after the second usage-limit stop, P38 (criteria computed from the implementation's text or bytecode without executing it reached VERIFIED: the ablation now blocks execution, files byte-identical) and P39 (pinned tree start-up hooks). P38b: a test reading or installing interpreter hooks (sys.monitoring, settrace/setprofile) is a blocking interpreter_probe finding."
   },
   "SP-19.7": {
    "implementation_files": [
@@ -406,7 +406,8 @@
   "Run Gate A.1 with the GPU visible through the slot scheduler (the two Qwen tests), TMPDIR unset (DEF-P-16), and CRUCIBLE_GATE_A_WORKERS=1 so the 4.0 order (one process) is exercised; queued as slot job 'P: Gate A.1 4.0 baseline as historical baseline (D-82)'.",
   "Run Gate X.2/X.4 as one slot job with the resources the whole suite needs (e.g. --cpu 4 --gpu-mb 9000 --ram-mb 28000): its per-class groups schedule inside that grant through the nested ledger.",
   "Gate tests must execute their implementation during the test: the review's ablation now blocks implementation functions (outside imports) and leaves files byte-identical, so measurements of import-time state or of source text are rejected.",
-  "Session identity: give the producer and the reviewer different CRUCIBLE_V5_SESSION values (sub-agents of one harness session share CLAUDE_CODE_SESSION_ID)."
+  "Session identity: give the producer and the reviewer different CRUCIBLE_V5_SESSION values (sub-agents of one harness session share CLAUDE_CODE_SESSION_ID).",
+  "Known failures on c5c/w3b-qa caused by RP.1 and owned by L: tests/test_v5_experience_oo.py::test_sl_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default and tests/test_v5_experience_core.py::test_cam2_adapter_reward_modes import crucible.integrations.agentrs_sl/_cam2 (moved to the AGENTRS side by D-81); L's removal of the CAM probes fixes both."
  ],
  "wave": "3b (continuation after two usage-limit stops; third agent on the branch)",
  "history": [
