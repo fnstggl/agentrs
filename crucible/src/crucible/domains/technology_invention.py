@@ -730,10 +730,9 @@ own runs.
 
 It scores each operating point the plant has run by units made per unit of input and energy. Around the plant's own
 starting point it first tries the four points one step (0.15) away along each axis; with those five points it fits a
-parabola along each axis and recommends the vertex (at most 0.3 from the start, inside the machine's range) from then
-on, unless the vertex, measured more than once, scores below the starting point (then it goes back to the start). A
-plant whose runs are slow (under one a day) has no time for a five-point star within a trial: it tries one step up
-along each axis and then the step that looks better along each
+parabola along each axis and recommends the vertex (at most 0.3 from the start, inside the machine's range); later it
+recommends whichever measured point scored best. A plant whose runs are slow (under one a day) has no time for a
+five-point star within a trial: it tries one step up along each axis and then the step that looks better along each
 axis (down where up was worse), then whichever measured point scored best."""
 
 
@@ -798,11 +797,8 @@ def recommend(request):
     v = (round(min(0.95, max(0.05, s)), 3), round(min(0.95, max(0.05, t)), 3))
     if v not in pts:
         return {"speed": v[0], "temp": v[1]}
-    # exploit the fitted vertex (every further run there is another measurement of it) unless, measured more than
-    # once, it is worse than the plant's own starting point; a single run's score is too noisy to pick an argmax by
-    if len(pts[v]) < 2 or sc[v] >= sc[start]:
-        return {"speed": v[0], "temp": v[1]}
-    return {"speed": start[0], "temp": start[1]}
+    best = max(sc, key=lambda k: (sc[k], k))
+    return {"speed": best[0], "temp": best[1]}
 '''
 
 
