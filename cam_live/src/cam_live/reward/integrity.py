@@ -640,7 +640,9 @@ class SelfGoalDiscount:
     and "obtain 10 members" are one goal), or, when ``embed`` is given (text -> embedding vector, e.g. the
     backbone's semantic embedding of the goal text), a cosine similarity of at least ``similar_above`` with an
     earlier goal: semantic near-duplicates that share no words still count as repeats. The count of a new goal is
-    the number of earlier registered goals it is the same as."""
+    the number of earlier registered goals it is the same as. (Measured with Qwen3-4B's ``embed_texts``: rewordings
+    are closer on average, but no threshold separates them from different goals —
+    docs/evidence/C/semantic_goal_repeats.json — so ``embed`` is off by default.)"""
 
     def __init__(self, decay: float = 0.5, trivial_above: float = 0.9, *,
                  embed: Optional[Callable[[str], Any]] = None, similar_above: float = 0.9, max_remembered: int = 4096):
