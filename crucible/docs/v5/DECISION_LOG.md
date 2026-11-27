@@ -541,6 +541,21 @@ architecture's (complex128, float32, float16, int64 under a rehashed manifest we
 *Development and confirmation (SP-15.0, U.4).* The control battery's confirmation seeds are moved off the learner
 seeds whose development batteries informed the transfer_sham specification and LABEL_LEVEL (see N.json).
 
+**D-69 addendum 3 (wave 3b repair, 2026-11-27 07:40 UTC; recorded before the T.4 gate run on the repaired generator).**
+*T.4 - a sequential generate-then-admit design.* With the wandering lever's default independent of the hidden centre
+(DEF-N-8) the generator's yield of fully validated worlds falls from about 8% to an estimated 2-4% (previews: 6 of 40
+worlds of the first 8 wandering structures of the addendum-2 sample pass the dominance check, a necessary condition;
+2 of 24 development worlds of stream 4242), so the fixed addendum-2 sample (first 200 structures of stream 7, 650
+worlds) is expected to validate about 15-30 worlds. The criterion counts validated generated worlds (at least 50), and
+a generator that feeds a curriculum is used as generate-then-admit: it draws structures until it has enough admitted
+worlds. T.4 therefore walks the same stream (seed 7) in order - its first 200 structures are exactly the addendum-2
+sample, always admitted in full and reported on their own (`fixed_sample_worlds_validated`) - and continues until 50
+worlds are validated or 1000 structures are walked (`genadmit.admit_until`; the count is that of the stream prefix up
+to the stop structure, independent of parallelism). Nothing about the generator, the eleven checks, the references or
+the world seeds changes; the yield (`validated_share`, worlds checked, structures walked) is reported with the count,
+so a low-yield generator is visible as such. Structures 201-1000 of the stream were never used in development. Whatever
+the run measures is reported.
+
 ## D-70 Level 5 is measured as a paired transfer experiment on another tier, interface and simulator (2026-11-26, workstream N, wave 3b)
 With `crucible.civ.generate` working, Level 5 test items are the held-out Tier 3 profiles (`EVAL_CIV_PROFILES`), any Tier 2
 evaluation configurations, and three 4.0 mechanism tasks (the rig.* interface, other engines); training items are four

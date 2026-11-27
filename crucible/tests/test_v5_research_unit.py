@@ -192,3 +192,28 @@ def test_proposal_safety_refuses_partition_fields_and_free_text(reg):
     assert not v["accepted"]
     v = P.validate_proposal(reg, "not a structure")
     assert not v["accepted"]
+
+
+def test_sequential_admission_counts_exactly_the_prefix_whatever_the_batch():
+    """`genadmit.admit_until` (T.4's generate-then-admit design, D-69 addendum 3) counts the worlds of the stream
+    prefix up to its stop structure only: run on the same three generated structures with batch 1 and with batch 3,
+    the counted prefix, its validated count and its cumulative counts agree, and what a larger batch admitted beyond
+    the stop is reported, never counted; the stop never comes before `at_least` structures."""
+    from crucible.research.v5 import compose as C
+    from crucible.research.v5.genadmit import admit_until
+    rng = np.random.default_rng(31)
+    structs = []
+    while len(structs) < 3:
+        s = CU.random_structure(rng)
+        if C.structure_id(s) not in {C.structure_id(x) for x in structs}:
+            structs.append(s)
+    full = admit_until(structs, seeds=(0,), target=10 ** 6, batch=1)
+    assert not full["reached"] and full["structures_walked"] == 3
+    assert full["cumulative_validated"][-1] == full["validated"] == sum(w["validated"] for w in full["worlds"])
+    assert full["structures_calibrated"] == sum(full["calibrated_flags"])
+    target = full["cumulative_validated"][1]                  # reached at the second structure at the latest
+    a = admit_until(structs, seeds=(0,), target=target, batch=3, at_least=2)
+    assert a["reached"] and a["structures_walked"] == 2
+    assert a["validated"] == target and a["cumulative_validated"] == full["cumulative_validated"][:2]
+    assert a["worlds_admitted_beyond_stop"] == (1 if full["calibrated_flags"][2] else 0)
+    assert [w["checks"] for w in a["worlds"]] == [w["checks"] for w in full["worlds"][:len(a["worlds"])]]

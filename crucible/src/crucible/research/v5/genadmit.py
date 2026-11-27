@@ -200,3 +200,68 @@ def admit_generated(structures: Sequence[dict], seeds: Sequence[int] = (0, 1, 2)
     worlds = [w for r in res for w in r]
     return {"worlds": worlds, "validated": sum(1 for w in worlds if w["validated"]),
             "structures_validated": len({w["structure_id"] for w in worlds if w["validated"]})}
+
+
+def _calibrated(structure: dict) -> bool:
+    from . import distribution as D
+    from .sampler import rapid_world
+    return bool(rapid_world(D.generated_entry(structure), 0, {}, None)._config.get("calibrated"))
+
+
+def _admit_if_calibrated(args) -> dict:
+    structure, seeds = args
+    if not _calibrated(structure):
+        return {"calibrated": False, "worlds": []}
+    return {"calibrated": True, "worlds": _admit_one((structure, seeds))}
+
+
+def admit_until(structures: Sequence[dict], seeds: Sequence[int], target: int, jobs: int = 1,
+                batch: int | None = None, at_least: int = 0) -> dict:
+    """Sequential admission, as a generate-then-admit pipeline uses it (T.4, D-69 addendum 3): walk the structure
+    stream in its order, keep the structures whose economics calibrate (at seed 0, as everywhere else), admit every
+    world (structure, seed) with the full eleven checks of `_admit_one`, and stop at the first structure at which
+    the validated worlds of the stream so far reach `target` (or at the end of the stream), but never before the
+    first `at_least` structures are walked (so a fixed sample that is a prefix of the stream is always measured in
+    full). The result counts
+    exactly the worlds of that prefix, so it does not depend on `jobs` or `batch` (structures beyond the stop that a
+    batch already admitted are reported separately and never counted). Returns the prefix's worlds and validated
+    count, the structures walked / calibrated / with a validated world, `reached`, the cumulative validated count
+    after each structure of the prefix (`cumulative_validated`, so any shorter prefix can be read off) and what was
+    admitted beyond the stop."""
+    tasks = [(dict(s), tuple(seeds)) for s in structures]
+    batch = int(batch or max(1, 4 * jobs))
+    results: list[dict] = []
+    ex = None
+    if jobs > 1:
+        import multiprocessing as mp
+        ex = cf.ProcessPoolExecutor(max_workers=jobs, mp_context=mp.get_context("spawn"))
+    try:
+        stop = None
+        while stop is None and len(results) < len(tasks):
+            want = max(batch, min(len(tasks), at_least) - len(results))
+            chunk = tasks[len(results):len(results) + want]
+            results.extend(ex.map(_admit_if_calibrated, chunk) if ex else [_admit_if_calibrated(t) for t in chunk])
+            validated = 0
+            for i, r in enumerate(results):
+                validated += sum(1 for w in r["worlds"] if w["validated"])
+                if validated >= target and i + 1 >= at_least:
+                    stop = i
+                    break
+    finally:
+        if ex is not None:
+            ex.shutdown(wait=True, cancel_futures=True)
+    n = (stop + 1) if stop is not None else len(results)
+    prefix = results[:n]
+    worlds = [w for r in prefix for w in r["worlds"]]
+    beyond = [w for r in results[n:] for w in r["worlds"]]
+    cum, run = [], 0
+    for r in prefix:
+        run += sum(1 for w in r["worlds"] if w["validated"])
+        cum.append(run)
+    return {"worlds": worlds, "validated": sum(1 for w in worlds if w["validated"]), "reached": stop is not None,
+            "target": int(target), "structures_walked": n, "structures_in_stream": len(tasks),
+            "structures_calibrated": sum(1 for r in prefix if r["calibrated"]),
+            "calibrated_flags": [bool(r["calibrated"]) for r in prefix],
+            "structures_validated": len({w["structure_id"] for w in worlds if w["validated"]}),
+            "cumulative_validated": cum, "worlds_admitted_beyond_stop": len(beyond),
+            "validated_beyond_stop": sum(1 for w in beyond if w["validated"])}

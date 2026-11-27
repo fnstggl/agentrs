@@ -166,36 +166,55 @@ def test_T3_independently_varied_objectives(generated):
 # T.1 (alternating curriculum-targeted and uniformly random structures, seed 7), those calibrated at seed 0, each
 # at five world seeds. Every world of the sample is admitted; none is selected by its outcome.
 T4_SAMPLE = {"structures": 200, "structure_seed": 7, "world_seeds": (0, 1, 2, 3, 4)}
+# D-69 addendum 3 (fixed before the run): the stream continues past the addendum-2 sample (its first 200 structures,
+# always admitted in full and reported on their own) and stops at the first structure at which 50 worlds are validated,
+# or after 1000 structures
+T4_STREAM = {"structures": 1000, "target": 50, "prefix": T4_SAMPLE["structures"]}
 
 
 def test_T4_validated_generated_worlds():
     """Full Part 7.4 admission (`crucible.rapid.admission.seed_report`, eleven checks) of generated worlds; a world
     (structure, seed) is validated when every check passes on it. Static generated worlds (a fixed best setting)
     fail no_dominant_strategy by construction of that check - the best constant in hindsight is then near-optimal;
-    worlds whose optimum keeps moving (driver wandering_optimum) are the ones in which adaptation pays."""
-    from crucible.research.v5.genadmit import admit_generated
-    structs = []
-    for s in _structures(T4_SAMPLE["structures"], T4_SAMPLE["structure_seed"]):
-        if rapid_world(D.generated_entry(s), 0, {}, None)._config.get("calibrated"):
-            structs.append(s)
-    res = admit_generated(structs, seeds=T4_SAMPLE["world_seeds"], jobs=JOBS)
-    fails = collections.Counter(c for w in res["worlds"] for c, ok in w["checks"].items() if not ok)
+    worlds whose optimum keeps moving (driver wandering_optimum) are the ones in which adaptation pays. Sequential
+    generate-then-admit design (`genadmit.admit_until`, D-69 addendum 3): the structure stream of T.1 (seed 7) is
+    walked in order (calibrated structures only, five world seeds each) until 50 worlds are validated or 1000
+    structures are walked; its first 200 structures are the fixed sample of D-69 addendum 2, reported on their own.
+    The validated share (the generator's yield) is reported with the count."""
+    from crucible.research.v5.genadmit import admit_until
+    structs = _structures(T4_STREAM["structures"], T4_SAMPLE["structure_seed"])
+    res = admit_until(structs, seeds=T4_SAMPLE["world_seeds"], target=T4_STREAM["target"], jobs=JOBS,
+                      at_least=T4_STREAM["prefix"])
     by_id = {C.structure_id(s): s for s in structs}
+    worlds = res["worlds"]
+    fails = collections.Counter(c for w in worlds for c, ok in w["checks"].items() if not ok)
     kind = collections.Counter()
     checked = collections.Counter()
-    for w in res["worlds"]:
+    for w in worlds:
         k = "wandering_optimum" if "wandering_optimum" in by_id[w["structure_id"]]["drivers"] else "other"
         checked[k] += 1
         kind[k] += int(w["validated"])
-    errors = sum(1 for w in res["worlds"] if w.get("error"))
-    record("T.4", {"generated_worlds_validated": res["validated"], "generated_worlds_checked": len(res["worlds"]),
-                   "validated_share": res["validated"] / max(1, len(res["worlds"])),
+    errors = sum(1 for w in worlds if w.get("error"))
+    pre = T4_STREAM["prefix"]
+    pre_ids = {C.structure_id(s) for s in structs[:pre]}
+    pre_worlds = [w for w in worlds if w["structure_id"] in pre_ids]
+    record("T.4", {"generated_worlds_validated": res["validated"], "generated_worlds_checked": len(worlds),
+                   "validated_share": res["validated"] / max(1, len(worlds)),
                    "structures_with_a_validated_world": res["structures_validated"],
-                   "structures_admitted": len(structs), "worlds_with_admission_errors": errors},
-           notes=f"Sample {T4_SAMPLE}; validated / checked by dynamics: "
-                 f"{({k: f'{kind[k]}/{checked[k]}' for k in checked})}; failed checks over all worlds: {dict(fails)}. "
-                 "The no_dominant_strategy reference of wandering-optimum worlds is the scripted public perturbation "
-                 "tracker research.v5.genref (labelled scripted); other generated worlds use rapid.refs_v2.adaptive.")
+                   "structures_walked": res["structures_walked"], "structures_admitted": res["structures_calibrated"],
+                   "target_reached": bool(res["reached"]), "worlds_with_admission_errors": errors,
+                   "fixed_sample_worlds_validated": sum(1 for w in pre_worlds if w["validated"]),
+                   "fixed_sample_worlds_checked": len(pre_worlds),
+                   "validated_beyond_stop_not_counted": res["validated_beyond_stop"]},
+           notes=f"Stream {T4_SAMPLE['structure_seed']}, design {T4_STREAM}, world seeds {T4_SAMPLE['world_seeds']}; "
+                 f"stopped after {res['structures_walked']} structures ({res['structures_calibrated']} calibrated); "
+                 f"validated / checked by dynamics: {({k: f'{kind[k]}/{checked[k]}' for k in checked})}; failed "
+                 f"checks over all worlds: {dict(fails)}. Fixed sample of D-69 addendum 2 (first {pre} structures): "
+                 f"{sum(1 for w in pre_worlds if w['validated'])} of {len(pre_worlds)} worlds validated. The "
+                 "no_dominant_strategy reference of wandering-optimum worlds is the scripted public scan-then-track "
+                 "reference research.v5.genref (labelled scripted); other generated worlds use "
+                 "rapid.refs_v2.adaptive. The wandering lever's public default is independent of the hidden centre "
+                 "(DEF-N-8).")
     assert res["validated"] >= 50, dict(fails)
 
 
