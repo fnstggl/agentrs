@@ -14,7 +14,11 @@ both the checkout and the interpreter's own directories (`foreign_modules`), fun
 lives in such a foreign file (`patched_functions`: a patch, whatever the injection vector), PYTHON*/LD_* variables of
 the process, and - in official runs, through an audit hook installed when this module is imported - every file
 under the checkout the process opened (`files_read`, with git blob ids), so that a changed data or configuration file
-makes the evidence stale just as a changed module does.
+makes the evidence stale just as a changed module does. `patched_functions` also lists code-object patches, functions
+a module defines that are bound to something else (`rebound_definitions`) and sys.modules entries that do not hold the
+module they name (`substituted_modules`); official records carry `executed_implementation`, the requirement's
+implementation functions that started in the recording process during the test (the review's ablation verdict uses
+it, D-83 fourth addendum).
 
 Evidence is filed only by an official run (`python -m crucible.acceptance.v5 run`): the runner clones the committed
 tree into a fresh directory, marks the clone (a marker inside the clone's git directory, outside the work tree), runs
