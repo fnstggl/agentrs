@@ -534,6 +534,7 @@ class PopWeb(Module):
             P_leg = np.array([float(r.get("leg", 0.5)) for r in recs], np.float64)
             P_prods = [[p for p in r["paths"] if p.startswith("/p/")] for r in recs]
             P_arts = [[p for p in r["paths"] if p.startswith("/a/") or p == "/shop"] for r in recs]
+            P_shop = [["/shop"] if "/shop" in r["paths"] else [] for r in recs]
             P_slate = np.array([bool(r.get("arts")) and r["status"] == 200 for r in recs])
             P_price = np.array([(r["prices"][0] if r["prices"] and r["path"].startswith("/p/") else -1) for r in recs])
             for k, r in enumerate(recs):
@@ -607,7 +608,7 @@ class PopWeb(Module):
                     reads["page_row"] += info["page_row"][sel_].tolist()
             Fc = {"page_utility": u, "attention_ratio": left[act] / np.maximum(bud[act], 1e-3),
                   "quality_sensitivity": qs, "novelty_seeking": nseek, "page_richness": rich}
-            cont = ds["continue"].sample(Fc, rng) & ok & (depth < self.max_depth) & ~P_slate[inv]
+            cont = ds["continue"].sample(Fc, rng) & ok & (depth < self.max_depth)
             Fe = {"page_relevance": rel, "goal_buy": np.maximum(buyer[act], intent[act]), "impulsiveness": prefs[act, 7],
                   "shopping_skill": skills[act, 3], "attention_ratio": left[act] / np.maximum(bud[act], 1e-3)}
             want = ds["evaluate_product"].sample(Fe, rng) | intent[act]
@@ -618,7 +619,13 @@ class PopWeb(Module):
                 nxt = nxt_path[a]
                 if nxt is None and cont[a]:
                     k = inv[a]
-                    lst = P_prods[k] if (want[a] and P_prods[k]) else P_arts[k]
+                    if P_slate[k]:
+                        # on a page with an article slate the fitted article-open decision chose among the headlines;
+                        # a reader who opened none and wants to look at products goes on to the site's products or
+                        # its shop (the page's own links), otherwise it leaves the page
+                        lst = (P_prods[k] or P_shop[k]) if want[a] else []
+                    else:
+                        lst = P_prods[k] if (want[a] and P_prods[k]) else P_arts[k]
                     if lst:
                         nxt = lst[int(r_pick[a] * len(lst))]
                 if nxt is not None and nxt != path[j]:
