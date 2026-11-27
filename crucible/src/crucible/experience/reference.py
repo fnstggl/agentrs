@@ -765,7 +765,7 @@ class _Decider:
         if given is not None:
             return given
         v = lo + (hi - lo) / (1.0 + math.exp(-max(-30.0, min(30.0, z))))
-        return float(round(v)) if integer else float(v)
+        return int(round(v)) if integer else float(v)          # an integer schema rejects 2.0
 
     def _unbounded(self, lo, hi, integer: bool, path: str, given: Any):
         k = self._slot(path)

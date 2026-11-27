@@ -218,6 +218,10 @@ def test_reference_learner_draws_id_arguments_from_ids_it_has_seen(tmp_path):
         if a is not None:
             picked.add(a["args"]["listing"])
     assert picked and picked <= {"xl_000005", "xl_000011"}
+    qty = {"name": "crisis.buy_parts", "inputSchema": {"type": "object", "required": ["qty"], "properties": {
+        "qty": {"type": "integer", "minimum": 1, "maximum": 10}}}}
+    vals = [a["args"]["qty"] for a in (L.act(obs, [qty]) for _ in range(30)) if a is not None]
+    assert vals and all(type(v) is int and 1 <= v <= 10 for v in vals)  # an integer schema rejects 2.0
     p = tmp_path / "ref.pt"
     L.save(str(p))
     L2 = ReferenceLearner(seed=0)
