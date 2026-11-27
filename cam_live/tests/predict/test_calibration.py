@@ -177,3 +177,69 @@ def test_prospective_guard_and_record_scoring():
     assert soft["refused"] == 1 and soft["n_scored"] == 701 and soft["binary"]["overall"]["n"] == 400
     with pytest.raises(C.RetrospectivePredictionError):
         C.score_predictions(recs[:5], registered_at=lambda r: r.resolved_at)
+
+
+def _clustered_null(r):
+    """The verifier's simulation (G-pr D5): 40 lifetimes x 16 forecasts that share one outcome per lifetime; the
+    forecasts are unrelated to the outcome (true slope 0)."""
+    g = np.random.default_rng(1000 + r)
+    life_p = 0.58 + 0.01 * g.normal(size=40)
+    pp = np.repeat(life_p, 16) + 0.002 * g.normal(size=640)
+    yr = np.repeat((g.uniform(size=40) < 0.6).astype(float), 16)
+    return pp, yr, np.repeat(np.arange(40), 16)
+
+
+def test_slope_interval_accounts_for_clustering_under_a_clustered_null():
+    """D5: with the lifetime clusters the CR1 interval covers the true slope 0 at about the nominal rate; without
+    labels the HAC default (row order) is close to nominal too; the model-based Wald interval over 640 rows (the
+    audited default) excludes 0 in most runs."""
+    excl = {"cluster": 0, "hac": 0, "iid": 0}
+    reps = 300
+    for r in range(reps):
+        pp, yr, cl = _clustered_null(r)
+        for how, fit in (("cluster", C.logistic_recalibration(pp, yr, clusters=cl)),
+                         ("hac", C.logistic_recalibration(pp, yr)), ("iid", C.logistic_recalibration(pp, yr, cov="iid"))):
+            assert fit["identifiable"] and fit["cov"] == how
+            excl[how] += int(fit["slope_lo"] > 0 or fit["slope_hi"] < 0)
+    rate = {k: v / reps for k, v in excl.items()}
+    assert rate["cluster"] <= 0.08 and rate["hac"] <= 0.10, rate      # nominal 0.05 (300 runs: se 0.013)
+    assert rate["iid"] > 0.4, rate
+    pp, yr, cl = _clustered_null(0)
+    rep = C.binary_report(pp, yr, clusters=cl)                           # the report uses the clusters everywhere
+    assert rep["calibration"]["cov"] == "cluster" and rep["calibration"]["n_clusters"] == 40
+    assert rep["calibration"]["df"] == 39 and rep["brier"]["n"] == 40 and rep["nll"]["n"] == 40
+    wide = C.ece_ci(pp, yr, clusters=cl)
+    narrow = C.ece_ci(pp, yr)
+    assert wide["hi"] - wide["lo"] > narrow["hi"] - narrow["lo"]          # cluster bootstrap: honest width
+    with pytest.raises(ValueError):
+        C.logistic_recalibration(pp, yr, clusters=cl[:10])
+
+
+def test_independent_rows_keep_their_coverage_under_the_robust_intervals():
+    rng = np.random.default_rng(11)
+    miss = {"hac": 0, "cluster": 0}
+    for r in range(200):
+        p, y = _calibrated(1500, rng, slope=0.7, intercept=0.3)
+        for how, fit in (("hac", C.logistic_recalibration(p, y)),
+                         ("cluster", C.logistic_recalibration(p, y, clusters=np.arange(len(p))))):
+            miss[how] += int(not (fit["slope_lo"] <= 0.7 <= fit["slope_hi"]))
+    assert miss["hac"] / 200 <= 0.09 and miss["cluster"] / 200 <= 0.09, miss
+
+
+def test_score_predictions_clusters_the_nll_intervals():
+    """D10: predictions of one experiment / decision are one cluster in the NLL intervals."""
+    rng = np.random.default_rng(12)
+    recs = []
+    for i in range(240):
+        mu = float(rng.normal())
+        recs.append(_record(i, D.Normal(mu, 1.0).to_record(), 50.0, horizon=86400.0, resolved_at=90000.0,
+                            value=float(mu + rng.normal()), status=OutcomeStatus.OBSERVED, exp=f"x{i // 8}"))
+    rep = C.score_predictions(recs, family_of=lambda r: "f")
+    ci = rep["nll"]["normal|f|<=1d"]
+    assert ci["n"] == 30
+    by = {}
+    for r in recs:
+        by.setdefault(r.query.experiment_id, []).append(-D.record_log_prob(r.dist, r.resolved_value,
+                                                                           r.resolved_status))
+    ref = C.studentised_ci([float(np.mean(v)) for v in by.values()])
+    assert ci["lo"] == pytest.approx(ref["lo"]) and ci["hi"] == pytest.approx(ref["hi"])

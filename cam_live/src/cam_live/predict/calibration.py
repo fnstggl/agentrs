@@ -5,6 +5,14 @@ Binary metrics: Brier score, negative log-likelihood, calibration slope and inte
 b < 1), reliability bins and expected calibration error. Every metric comes with a studentised confidence
 interval, and reports can be grouped by objective family and horizon.
 
+Forecast rows are rarely independent: the forecasts made at the successive prefixes of one decision or lifetime
+share one outcome. Pass ``clusters`` (one label per row: decision, lifetime, experiment) wherever they are known;
+then Brier / NLL intervals are over cluster means, the slope / intercept intervals use the cluster-robust (CR1)
+sandwich covariance with G - 1 degrees of freedom and the ECE interval a cluster bootstrap. Without labels the
+slope / intercept intervals use a HAC (Newey-West, Bartlett kernel, Andrews' AR(1) automatic bandwidth) sandwich
+in the given row order: valid for independent rows and for dependence among neighbouring rows, but it cannot repair
+dependence between rows far apart in the given order (``cov="iid"`` gives the old model-based Wald interval).
+
 Only *prospective* predictions are scored: :func:`prospective_guard` refuses any prediction whose ``made_at`` is not
 strictly before the time its outcome was observed, and :func:`score_predictions` applies it to stored
 ``PredictionRecord``s.
@@ -92,15 +100,47 @@ def studentised_ci(values: Any, level: float = 0.95, clusters: Optional[Sequence
 # ----------------------------------------------------------------------------------------------------------------
 # slope / intercept
 # ----------------------------------------------------------------------------------------------------------------
-def logistic_recalibration(p: Any, y: Any, level: float = 0.95, ridge: float = 1e-8, iters: int = 100
-                           ) -> Dict[str, float]:
-    """Fit ``y ~ sigmoid(intercept + slope * logit(p))`` by Newton's method and return the estimates with
-    t-based Wald intervals (n - 2 degrees of freedom). ``identifiable`` is False when the data cannot determine
-    the fit (one class only, constant forecasts or perfect separation)."""
+def _hac_meat(sc: np.ndarray) -> Tuple[np.ndarray, int]:
+    """Newey-West meat sum_l w_l (G_l + G_l^T) of score contributions ``sc`` [n, k] (Bartlett kernel), lag
+    truncation from Andrews' (1991) AR(1) plug-in bandwidth 1.1447 (alpha(1) n)^(1/3)."""
+    n = sc.shape[0]
+    num = den = 0.0
+    for j in range(sc.shape[1]):
+        u = sc[:, j]
+        d = float(np.dot(u[:-1], u[:-1]))
+        rho = float(np.dot(u[1:], u[:-1]) / d) if d > 0 else 0.0
+        rho = min(max(rho, -0.97), 0.97)
+        s2 = float(np.mean((u[1:] - rho * u[:-1]) ** 2))
+        num += 4.0 * rho * rho * s2 * s2 / ((1.0 - rho) ** 6 * (1.0 + rho) ** 2)
+        den += s2 * s2 / (1.0 - rho) ** 4
+    alpha = num / den if den > 0 else 0.0
+    lag = int(min(n - 1, math.ceil(1.1447 * (alpha * n) ** (1.0 / 3.0)))) if alpha > 0 else 0
+    meat = sc.T @ sc
+    for l in range(1, lag + 1):
+        g = sc[l:].T @ sc[:-l]
+        meat = meat + (1.0 - l / (lag + 1.0)) * (g + g.T)
+    return meat, lag
+
+
+def logistic_recalibration(p: Any, y: Any, level: float = 0.95, ridge: float = 1e-8, iters: int = 100, *,
+                           clusters: Optional[Sequence[Hashable]] = None, cov: str = "auto") -> Dict[str, float]:
+    """Fit ``y ~ sigmoid(intercept + slope * logit(p))`` by Newton's method and return the estimates with t-based
+    intervals. ``cov``: ``"auto"`` = cluster-robust (CR1 sandwich, G - 1 degrees of freedom) when ``clusters`` are
+    given, else HAC in row order (Bartlett / Andrews bandwidth, n - 2 degrees of freedom); ``"cluster"``,
+    ``"hac"``, or ``"iid"`` (model-based Wald, n - 2 df: valid only for independent rows). ``identifiable`` is
+    False when the data cannot determine the fit (one class only, constant forecasts or perfect separation)."""
     x, y = logit(p), _np(y)
     n = len(x)
     out = {"slope": float("nan"), "intercept": float("nan"), "slope_lo": float("nan"), "slope_hi": float("nan"),
            "intercept_lo": float("nan"), "intercept_hi": float("nan"), "n": n, "identifiable": False}
+    if clusters is not None and len(clusters) != n:
+        raise ValueError("clusters must have one label per forecast")
+    method = cov if cov != "auto" else ("cluster" if clusters is not None else "hac")
+    if method not in ("cluster", "hac", "iid"):
+        raise ValueError("cov must be 'auto', 'cluster', 'hac' or 'iid'")
+    if method == "cluster" and clusters is None:
+        raise ValueError("cov='cluster' needs clusters")
+    out["cov"] = method
     if n < 3 or y.min() == y.max() or np.ptp(x) < 1e-9:
         return out
     design = np.stack([np.ones(n), x], 1)
@@ -120,12 +160,33 @@ def logistic_recalibration(p: Any, y: Any, level: float = 0.95, ridge: float = 1
         return out
     eta = np.clip(design @ beta, -40, 40)
     mu = 1.0 / (1.0 + np.exp(-eta))
-    cov = np.linalg.inv(design.T @ (design * (mu * (1 - mu))[:, None]) + ridge * np.eye(2))
-    se = np.sqrt(np.diag(cov))
-    tq = t_quantile(0.5 + level / 2.0, n - 2)
+    bread = np.linalg.inv(design.T @ (design * (mu * (1 - mu))[:, None]) + ridge * np.eye(2))
+    if method == "iid":
+        covm, df = bread, n - 2
+    else:
+        sc = design * (y - mu)[:, None]                                  # per-row score contributions
+        if method == "cluster":
+            labels: Dict[Hashable, int] = {}
+            idx = np.asarray([labels.setdefault(c, len(labels)) for c in clusters])
+            g = len(labels)
+            sums = np.zeros((g, 2))
+            np.add.at(sums, idx, sc)
+            if g < 2:
+                covm, df = np.full((2, 2), np.inf), 1
+            else:
+                covm = bread @ (sums.T @ sums) @ bread * (g / (g - 1.0)) * ((n - 1.0) / (n - 2.0))
+                df = g - 1
+            out["n_clusters"] = g
+        else:
+            meat, lag = _hac_meat(sc)
+            covm, df = bread @ meat @ bread * (n / (n - 2.0)), n - 2
+            out["hac_lags"] = lag
+    se = np.sqrt(np.clip(np.diag(covm), 0.0, None))
+    tq = t_quantile(0.5 + level / 2.0, df)
     out.update(intercept=float(beta[0]), slope=float(beta[1]), intercept_se=float(se[0]), slope_se=float(se[1]),
                intercept_lo=float(beta[0] - tq * se[0]), intercept_hi=float(beta[0] + tq * se[0]),
-               slope_lo=float(beta[1] - tq * se[1]), slope_hi=float(beta[1] + tq * se[1]), identifiable=True)
+               slope_lo=float(beta[1] - tq * se[1]), slope_hi=float(beta[1] + tq * se[1]), identifiable=True,
+               df=float(df))
     return out
 
 
@@ -170,19 +231,27 @@ def ece(p: Any, y: Any, n_bins: int = 10) -> float:
     return _ece_and_se(_np(p), _np(y), n_bins)[0]
 
 
-def ece_ci(p: Any, y: Any, n_bins: int = 10, level: float = 0.95, n_boot: int = 400, seed: int = 0
-           ) -> Dict[str, float]:
+def ece_ci(p: Any, y: Any, n_bins: int = 10, level: float = 0.95, n_boot: int = 400, seed: int = 0,
+           clusters: Optional[Sequence[Hashable]] = None) -> Dict[str, float]:
     """ECE with a studentised (bootstrap-t) interval; the standard error inside each replicate is the binomial
-    plug-in of the binned frequencies. The lower end is clipped at 0."""
+    plug-in of the binned frequencies. With ``clusters`` the bootstrap resamples whole clusters. The lower end is
+    clipped at 0."""
     p, y = _np(p), _np(y)
     est, se = _ece_and_se(p, y, n_bins)
     n = len(p)
     if n < 2 or se <= 0:
         return {"ece": est, "lo": float("nan"), "hi": float("nan"), "se": se, "n": n}
     rng = np.random.default_rng(seed)
+    groups: Optional[List[np.ndarray]] = None
+    if clusters is not None:
+        by: Dict[Hashable, List[int]] = {}
+        for k, c in enumerate(clusters):
+            by.setdefault(c, []).append(k)
+        groups = [np.asarray(v) for v in by.values()]
     ts = []
     for _ in range(n_boot):
-        i = rng.integers(0, n, n)
+        i = rng.integers(0, n, n) if groups is None else \
+            np.concatenate([groups[g] for g in rng.integers(0, len(groups), len(groups))])
         e_b, se_b = _ece_and_se(p[i], y[i], n_bins)
         if se_b > 0:
             ts.append((e_b - est) / se_b)
@@ -200,8 +269,8 @@ def binary_report(p: Any, y: Any, n_bins: int = 10, level: float = 0.95,
             "mean_p": float(p.mean()) if len(p) else float("nan"),
             "brier": studentised_ci(brier(p, y), level, clusters),
             "nll": studentised_ci(binary_nll(p, y), level, clusters),
-            "calibration": logistic_recalibration(p, y, level),
-            "ece": ece_ci(p, y, n_bins, level, seed=seed),
+            "calibration": logistic_recalibration(p, y, level, clusters=clusters),
+            "ece": ece_ci(p, y, n_bins, level, seed=seed, clusters=clusters),
             "reliability": reliability_bins(p, y, n_bins)}
 
 
@@ -266,10 +335,13 @@ def score_predictions(records: Sequence[PredictionRecord], *,
     :func:`prospective_guard` raises when ``strict`` (default) and is otherwise dropped and counted in ``refused``;
     it is never scored. Binary predictions get the full grouped calibration report; every family gets its
     negative log-likelihood, and families with a CDF get the coverage of their central 50 % and 90 % intervals.
+    Rows are clustered by experiment, else decision, else prediction (``query.experiment_id or decision_id or
+    prediction_id``): the NLL intervals are over cluster means and the binary report is cluster-robust.
     """
     fam_fn = family_of or (lambda r: "")
     p_bin, y_bin, fam_bin, hor_bin, cl_bin = [], [], [], [], []
     nll: Dict[str, List[float]] = {}
+    nll_cl: Dict[str, List[str]] = {}
     cover: Dict[str, List[Tuple[bool, bool]]] = {}
     skipped = refused = 0
     for r in records:
@@ -287,6 +359,7 @@ def score_predictions(records: Sequence[PredictionRecord], *,
         key = f"{r.dist.family}|{fam}|{horizon_bucket(r.query.horizon_s, horizon_edges)}"
         lp = D.record_log_prob(r.dist, r.resolved_value, r.resolved_status)
         nll.setdefault(key, []).append(-lp)
+        nll_cl.setdefault(key, []).append(r.query.experiment_id or r.decision_id or r.prediction_id)
         dist = D.from_record(r.dist)
         if r.dist.family == D.FAMILY_BERNOULLI:
             p_bin.append(float(dist.mean))
@@ -303,7 +376,7 @@ def score_predictions(records: Sequence[PredictionRecord], *,
                 ins.append(bool(float(lo) <= y <= float(hi)))
             cover.setdefault(key, []).append((ins[0], ins[1]))
     out: Dict[str, Any] = {"n_scored": sum(len(v) for v in nll.values()), "skipped": skipped, "refused": refused,
-                           "nll": {k: studentised_ci(v, level) for k, v in sorted(nll.items())},
+                           "nll": {k: studentised_ci(v, level, nll_cl[k]) for k, v in sorted(nll.items())},
                            "coverage": {k: {"n": len(v), "cover50": float(np.mean([a for a, _ in v])),
                                             "cover90": float(np.mean([b for _, b in v]))}
                                         for k, v in sorted(cover.items())}}

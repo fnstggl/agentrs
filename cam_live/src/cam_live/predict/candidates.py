@@ -746,6 +746,15 @@ class BackboneProposer:
     ``model`` is a ``LatentModelAPI`` (``generate(prompts, latent=...)``). With the tiny random backbone the text
     is noise and nearly everything is rejected: the merged set is then the schema walker's (plus skills), still
     valid and non-empty whenever a tool is available.
+
+    Conditioning on the belief is *structural until the bridge is trained*: the cross-attention output projections
+    of ``nn.backbone.LatentBridge`` are zero-initialised, so at initialisation the bridge is an exact no-op and
+    log p(completion | prompt, b) is bit-identical for every belief b (and equal to the unconditioned value). The
+    path is live — the bridge receives gradient — and after a bridge update the log-probabilities of proposals
+    change and differ between beliefs (``tests/predict/test_proposer.py``); the update itself comes from the
+    learners that train the bridge (the consequence provider of the credit workstream, ``BridgeGroundingProvider``),
+    not from this class. ``ProposalResult.stats["latent_conditioned"]`` says a belief was *passed*, not that it
+    changed the text.
     """
 
     def __init__(self, model: Any, *, k: int = 8, max_new_tokens: int = 384, temperature: float = 0.7,

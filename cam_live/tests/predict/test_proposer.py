@@ -104,6 +104,38 @@ class _CannedLM:
         return [[self.text] * num_return_sequences]
 
 
+def test_bridge_is_an_exact_no_op_at_init_and_conditions_proposals_after_an_update(lab_rig):
+    """D9 (G-pr): at initialisation log p(proposal | prompt, b) is bit-identical for two beliefs (zero-initialised
+    bridge output); one real gradient step on the bridge parameters makes the proposals' log-probabilities change
+    and depend on the belief."""
+    rig = lab_rig(n_lifetimes=0)
+    tools = rig.world.discover_tools()
+    ctx = rig.context()
+    with torch.no_grad():
+        b1 = rig.model.core_forward(rig.model.tokenize([ctx]), None).b
+    b2 = 3.0 * torch.randn(b1.shape, generator=torch.Generator().manual_seed(2)).to(b1)
+    prop = BackboneProposer(rig.model, max_new_tokens=12, per_tool=4)
+    digest = "\n".join(i.text for i in ctx)
+    res = prop.propose(tools, digest, objective=rig.task.objective, latent=b1, seed=7)
+    prompt, texts = prop.prompt(tools, digest, rig.task.objective), [t for t in res.raw if t]
+    assert texts
+    lp = lambda b: rig.model.generation_logprob([prompt] * len(texts), texts,
+                                                latent=None if b is None else b.expand(len(texts), -1))
+    with torch.no_grad():
+        l1, l2, l0 = lp(b1), lp(b2), lp(None)
+    assert torch.equal(l1, l2) and torch.equal(l1, l0)                     # exact no-op at initialisation
+    bridge = list(rig.model.backbone.bridge.parameters())
+    opt = torch.optim.SGD(bridge, lr=0.05)
+    opt.zero_grad()
+    (-lp(b1).sum()).backward()
+    assert any(p.grad is not None and bool((p.grad != 0).any()) for p in bridge)   # the path is live
+    opt.step()
+    with torch.no_grad():
+        n1, n2 = lp(b1), lp(b2)
+    assert float((n1 - l1).abs().max()) > 1e-4                              # the proposals' log p changed
+    assert float((n1 - n2).abs().max()) > 1e-4                              # and depends on the belief
+
+
 def test_backbone_text_is_parsed_strictly_and_keeps_its_provenance(lab_rig):
     rig = lab_rig(n_lifetimes=0)
     tools = rig.world.discover_tools()

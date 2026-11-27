@@ -106,7 +106,7 @@ class WorldConfig:
 class WorldTargets:
     """Matured outcomes for one row of queries per decision. Only ``observed`` / ``censored`` entries are ever
     used; everything else (pending, unobservable, padding) is masked."""
-    y: Tensor                        # [B, Q] value (count, 0/1, elapsed seconds, class index, real)
+    y: Tensor                        # [B, Q] float64 value (count, 0/1, elapsed seconds, class index, real)
     observed: Tensor                 # [B, Q] bool — OutcomeStatus.OBSERVED
     censored: Tensor                 # [B, Q] bool — OutcomeStatus.CENSORED (time-to-event only)
 
@@ -118,7 +118,7 @@ class WorldTargets:
 class QueryMeta:
     kind_ids: Tensor                 # [B, Q] long
     horizon_s: Tensor                # [B, Q] float64
-    exposure: Tensor                 # [B, Q] float32
+    exposure: Tensor                 # [B, Q] float64
     n_categories: Tensor             # [B, Q] long
     q_mask: Tensor                   # [B, Q] bool
 
@@ -126,16 +126,17 @@ class QueryMeta:
 def build_targets(rows: Sequence[Sequence[Tuple[OutcomeQuery, Optional[OutcomeObservation]]]],
                   device: Optional[torch.device] = None) -> Tuple[QueryMeta, WorldTargets]:
     """Tensors from contract records. A query with no observation, a pending one or an unobservable one is
-    masked — never filled in. Imagined values are refused."""
+    masked — never filled in. Imagined values are refused. Values and exposures are kept in float64 (exact for
+    counts up to 2**53 and for precise real measurements); the likelihoods cast them to the head's dtype."""
     from .imagination import refuse_imagined
     b, q = len(rows), max((len(r) for r in rows), default=0)
     q = max(q, 1)
     kind = torch.zeros(b, q, dtype=torch.long)
     hor = torch.zeros(b, q, dtype=torch.float64)
-    expo = torch.ones(b, q)
+    expo = torch.ones(b, q, dtype=torch.float64)
     ncat = torch.ones(b, q, dtype=torch.long)
     qm = torch.zeros(b, q, dtype=torch.bool)
-    y = torch.zeros(b, q)
+    y = torch.zeros(b, q, dtype=torch.float64)
     obs = torch.zeros(b, q, dtype=torch.bool)
     cen = torch.zeros(b, q, dtype=torch.bool)
     for i, row in enumerate(rows):

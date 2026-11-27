@@ -47,9 +47,9 @@ loss in normalised units). Kind indices are `nn.api.KIND_INDEX` (asserted equal 
 Epistemic = spread of the M bootstrapped members with randomised prior functions; aleatoric = mean member variance.
 
 ```python
-WorldTargets(y [B,Q], observed [B,Q] bool, censored [B,Q] bool).mask(kind_ids)
+WorldTargets(y [B,Q] float64, observed [B,Q] bool, censored [B,Q] bool).mask(kind_ids)
 build_targets(rows: Sequence[Sequence[Tuple[OutcomeQuery, Optional[OutcomeObservation]]]], device=None)
-    -> (QueryMeta(kind_ids, horizon_s, exposure, n_categories, q_mask), WorldTargets)
+    -> (QueryMeta(kind_ids, horizon_s, exposure float64, n_categories, q_mask), WorldTargets)
 bootstrap_weights(keys: Sequence[str], n_members, seed=0) -> Tensor [M,B]     # deterministic per record key
 world_nll(out, targets, *, chosen=None, q_mask=None, member_weights=None, kind_weights=None,
           normaliser: KindNormaliser = None) -> (loss, metrics)
@@ -104,12 +104,23 @@ outcome_decomposition(y, q_chosen, baseline) -> {"quality","luck","surprise"}   
 ## calibration.py
 
 `brier(p, y)`, `binary_nll(p, y)`, `studentised_ci(values, level=0.95, clusters=None)`,
-`logistic_recalibration(p, y, level=0.95)` (slope / intercept with intervals, `identifiable`),
-`reliability_bins(p, y, n_bins=10, strategy="uniform"|"quantile")`, `ece(p, y, n_bins=10)`, `ece_ci(...)`,
+`logistic_recalibration(p, y, level=0.95, ridge=1e-8, iters=100, *, clusters=None, cov="auto")` (slope / intercept
+with intervals, `identifiable`, `cov`, `df`, `n_clusters` or `hac_lags`),
+`reliability_bins(p, y, n_bins=10, strategy="uniform"|"quantile")`, `ece(p, y, n_bins=10)`,
+`ece_ci(p, y, n_bins=10, level=0.95, n_boot=400, seed=0, clusters=None)`,
 `binary_report(p, y, n_bins=10, level=0.95, clusters=None)`,
 `grouped_binary_report(p, y, families, horizons_s, *, horizon_edges=..., clusters=None)`,
 `prospective_guard(made_at, outcome_at, registered_at=None)` (raises `RetrospectivePredictionError`),
 `score_predictions(records, *, family_of=None, registered_at=None, horizon_edges=..., strict=True)`.
+
+Clustering (G-pr D5, D10). Forecasts of one decision / lifetime share an outcome and are not independent evidence.
+`clusters` (one label per row) makes every interval of `binary_report` clustered: Brier / NLL over cluster means,
+slope / intercept with the cluster-robust CR1 sandwich and G - 1 degrees of freedom, ECE by cluster bootstrap.
+`logistic_recalibration` without `clusters` (`cov="auto"`) uses a HAC sandwich (Bartlett kernel, Andrews AR(1)
+bandwidth) in the given row order instead of the model-based Wald interval; `cov="iid"` restores the latter (valid
+only for independent rows; it is what the audited version always did). `score_predictions` clusters by
+`query.experiment_id or decision_id or prediction_id`, for the binary report and now also for every NLL interval.
+Return values only gained keys; the positional signature is unchanged.
 
 ## policy.py
 
@@ -339,7 +350,11 @@ BackboneProposer(model, *, k=8, max_new_tokens=384, temperature=0.7, per_tool=4,
          validate=None, id_prefix="act", parent_decision_id="", seed=None, num_return_sequences=1)
         -> ProposalResult(actions, stats, rejections, raw)
 ```
-`latent` is the belief `b [1, D]` (conditions `model.generate` through the bridge). Merge order: backbone, skills,
+`latent` is the belief `b [1, D]` (conditions `model.generate` through the bridge). At initialisation the bridge
+is an exact no-op (zero-initialised cross-attention outputs): log p(proposal | prompt, b) is bit-identical for every
+b until the bridge has been trained (by D's consequence provider / `BridgeGroundingProvider`); after a bridge update
+the proposals' log-probabilities change and depend on b (`test_bridge_is_an_exact_no_op_at_init_and_conditions_
+proposals_after_an_update`). `stats["latent_conditioned"]` means a belief was passed. Merge order: backbone, skills,
 schema walker; identical content is merged and lists every provenance (`"backbone+schema_walker"`).
 `stats`: `n_texts, n_lines, n_items, n_backbone_valid, fraction_valid_of_items, fraction_valid_of_lines, n_schema,
 n_skills, n_merged, n_environment_invalid, rejection_reasons, by_provenance, latent_conditioned`.

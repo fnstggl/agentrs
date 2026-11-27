@@ -369,6 +369,19 @@ def test_to_distribution_for_every_kind(gen):
     assert len(out.to_distribution(0, 0, 4).params["probs"]) == 3
 
 
+def test_build_targets_keeps_values_in_float64():
+    """D11 (G-pr): large counts and precise real measurements are not truncated to float32."""
+    big, precise = float(2 ** 24 + 1), 1234567.891234
+    rows = [[(OutcomeQuery("qa", "a", kind=OutcomeKind.COUNT, horizon_s=DAY, exposure=float(2 ** 24 + 3)),
+              OutcomeObservation("qa", OutcomeStatus.OBSERVED, big)),
+             (OutcomeQuery("qb", "b", kind=OutcomeKind.REAL, horizon_s=DAY),
+              OutcomeObservation("qb", OutcomeStatus.OBSERVED, precise))]]
+    meta, tg = build_targets(rows)
+    assert tg.y.dtype == torch.float64 and meta.exposure.dtype == torch.float64
+    assert float(tg.y[0, 0]) == big and float(tg.y[0, 1]) == precise
+    assert float(meta.exposure[0, 0]) == float(2 ** 24 + 3)
+
+
 def test_build_targets_masks_pending_and_refuses_imagined():
     def q(i, kind, **kw):
         return OutcomeQuery(query_id=f"q{i}", metric=f"m{i}", kind=kind, horizon_s=DAY, **kw)
