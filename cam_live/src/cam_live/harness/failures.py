@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import errno as _errno
 import random
+import re
 import time as _time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -306,11 +307,12 @@ def failure_of(result: ActionResult) -> Dict[str, Any]:
 
 def run_with_retries(attempt: Callable[[int], ActionResult], policy: RetryPolicy, clock: Clock, *,
                      sleep: Optional[Callable[[float], None]] = None, deadline: float = 0.0,
-                     cancel: Any = None) -> ActionResult:
+                     cancel: Any = None, may_retry: Optional[Callable[[ActionResult], bool]] = None) -> ActionResult:
     """Call ``attempt(retries_done)`` until it succeeds, fails non-transiently or the bounds are reached.
 
-    DENIED / NEEDS_APPROVAL results and HARD failure classes return immediately. The returned result carries the
-    number of retries and the primitive operations of every attempt.
+    DENIED / NEEDS_APPROVAL results and HARD failure classes return immediately. ``may_retry(result)`` can veto a
+    retry the policy would allow (a non-idempotent request that may already have been applied is never repeated).
+    The returned result carries the number of retries and the primitive operations of every attempt.
     """
     retries, waited, prior_ops = 0, 0.0, []
     while True:
@@ -324,6 +326,8 @@ def run_with_retries(attempt: Callable[[int], ActionResult], policy: RetryPolicy
         d = policy.decide(res.failure_class, retries, retry_after_s=info.get("retry_after_s"), waited_s=waited,
                           hard_evidence=any(c in FailureClass.HARD for c in info.get("candidates", {})))
         if not d.retry:
+            return res
+        if may_retry is not None and not may_retry(res):
             return res
         if deadline and clock.now() + d.delay_s > deadline:
             return res
@@ -380,6 +384,28 @@ def failed_result(action: ActionSpec, report: FailureReport, clock: Clock, start
     return res
 
 
+#: how the authorization service marks a refusal by a limit (``harness/auth/limits.py``): a rate window or budget
+RESOURCE_PREFIX = "resource: "
+_RETRY_IN = re.compile(r"retry in (\d+(?:\.\d+)?) ?s\b")
+
+
+def refusal_class(reasons: Sequence[Any], policy_ids: Sequence[Any] = ()) -> str:
+    """Failure class of a refusal by the authorization layer. A refusal whose every reason is a limit is
+    ``RESOURCE_LIMIT`` (waiting for the window changes it); anything else is hard: ``PLATFORM_RESTRICTION`` when a
+    platform rule refused, else ``MISSING_PERMISSION`` — never retried, never routed to another modality."""
+    reasons = [str(r) for r in (reasons or [])]
+    if reasons and all(r.startswith(RESOURCE_PREFIX) for r in reasons):
+        return FailureClass.RESOURCE_LIMIT
+    words = " ".join(reasons + [str(p) for p in (policy_ids or [])]).lower()
+    return FailureClass.PLATFORM_RESTRICTION if "platform" in words else FailureClass.MISSING_PERMISSION
+
+
+def retry_after_of(reasons: Sequence[Any]) -> Optional[float]:
+    """The wait a limit refusal states ("... retry in 3595 s"), if any."""
+    waits = [float(m.group(1)) for r in reasons or [] for m in [_RETRY_IN.search(str(r))] if m]
+    return max(waits) if waits else None
+
+
 def authorization_result(action: ActionSpec, decision: AuthorizationDecision, clock: Clock, started: float, *,
                          ops: Optional[List[PrimitiveOp]] = None) -> Optional[ActionResult]:
     """``None`` when the primitive operation is allowed; otherwise the DENIED / NEEDS_APPROVAL result. Nothing is
@@ -390,9 +416,15 @@ def authorization_result(action: ActionSpec, decision: AuthorizationDecision, cl
     reasons = list(getattr(decision, "reasons", []) or [])
     policy_ids = list(getattr(decision, "policy_ids", []) or [])
     platform = any(str(p).startswith("platform") for p in policy_ids)
-    report = classify(FailureEvidence(auth_verdict=verdict, auth_reasons=reasons, platform_rule=platform,
-                                      modality=action.modality, level=action.level,
-                                      detail="; ".join(reasons) or f"authorization verdict: {verdict}"))
+    if verdict == AuthVerdict.DENY and refusal_class(reasons, policy_ids) == FailureClass.RESOURCE_LIMIT:
+        # refused by a rate window / budget only: a resource limit, not a missing permission
+        report = classify(FailureEvidence(limit_exceeded=True, retry_after_s=retry_after_of(reasons),
+                                          auth_reasons=reasons, modality=action.modality, level=action.level,
+                                          detail="; ".join(reasons)))
+    else:
+        report = classify(FailureEvidence(auth_verdict=verdict, auth_reasons=reasons, platform_rule=platform,
+                                          modality=action.modality, level=action.level,
+                                          detail="; ".join(reasons) or f"authorization verdict: {verdict}"))
     status = ResultStatus.NEEDS_APPROVAL if verdict == AuthVerdict.NEEDS_APPROVAL else ResultStatus.DENIED
     for op in ops or []:
         if op.status == ResultStatus.OK and not op.ended:

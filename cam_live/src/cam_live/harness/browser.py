@@ -10,9 +10,23 @@
   download, wait_for, screenshot. Elements are addressed by ``ref`` + ``obs_id`` or by semantic locator
   (role/name) with recorded fallbacks. A ref whose element vanished or changed since its observation fails with
   ``FailureClass.STALE_OBSERVATION``; a semantic locator that matches nothing fails with ``PAGE_CHANGED``.
-* **Authorization.** Every primitive calls ``ExecContext.check`` before it runs. Every navigation request of every
-  page (typed, clicked, scripted, redirected) and every download is checked per URL; cross-origin subresource
-  requests are checked per origin. A denial is final: the result is ``DENIED`` with a hard failure class.
+* **Authorization.** Every primitive calls ``ExecContext.check`` before it runs. Network requests are checked in
+  two layers before they leave the browser:
+
+  1. the *route layer* (Playwright ``context.route`` / ``route_web_socket``) sees every request a page starts —
+     navigations (typed, clicked, scripted, popups, new tabs) and downloads per URL, writes (any method other than
+     GET / HEAD / OPTIONS, e.g. a script's same-origin POST) per URL, reads per origin and action, WebSockets per URL;
+  2. the *network layer*: Chromium is launched with a private, password-protected forward proxy in this process
+     (:class:`_NetGuard`) as its only way out (also for loopback). It sees what the route layer cannot — every
+     redirect hop (each hop is checked before it is sent, so a redirect to a forbidden destination never reaches
+     it), requests of workers, WebSocket tunnels and anything else — and forwards a request only when the route
+     layer has just authorized exactly that request or the policy allows it now. HTTPS and WebSocket tunnels are
+     judged per host and port (the proxy cannot see inside TLS); plain HTTP per URL.
+
+  Service workers are blocked, QUIC is off and WebRTC may not use unproxied UDP; ``WebTransport`` is removed from
+  pages (none of them could be checked). A denial is final: the result is ``DENIED`` with a hard failure class.
+  Externally supplied browsers (``cdp:``) cannot be given the proxy: for them only the route layer applies and a
+  redirect hop is judged after it happened (the tab is reset); see docs/HARNESS_ADAPTER_GUIDE.md.
 * ``screen()`` exposes screenshot + raw mouse/keyboard for the visual executor (workstream EC).
 
 Playwright's API is driven from one private asyncio thread, so the executor may be called from any thread; actions
@@ -24,15 +38,21 @@ Provenance: the role / accessible-name rules in ``_PAGE_JS`` are adapted from
 from __future__ import annotations
 
 import asyncio
+import base64
 import collections
 import concurrent.futures
+import glob
 import hashlib
+import hmac
 import json
 import os
 import pwd
 import re
+import secrets as _secrets
 import shutil
+import stat
 import subprocess
+import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
@@ -42,6 +62,7 @@ from ..contracts import (ActionResult, ActionSpec, AuthorizationDecision, AuthVe
                          FailureClass, Level, Modality, Observation, PrimitiveOp, ResultStatus, ToolDescriptor,
                          VerificationCondition, WallClock)
 from . import SERVICE_USERS
+from .failures import refusal_class
 from .perception import Perception, digest, sha256_of
 
 REF_ATTR = "data-camlive-ref"
@@ -50,8 +71,9 @@ _ALLOW_SCHEMES = ("http", "https")
 
 _PAGE_JS = r"""
 (o) => {
-  o = Object.assign({mode:'extract', next:1, maxElements:150, maxText:20000, maxRows:40, maxTables:12,
-                     attr:'data-camlive-ref', ref:null, el:null}, o || {});
+  o = Object.assign({mode:'extract', next:1, maxElements:150, maxText:20000, maxRows:40, maxTables:12, maxCols:30,
+                     maxCells:600, maxUrl:1024, maxTitle:300, attr:'data-camlive-ref', ref:null, el:null}, o || {});
+  const clipUrl = (u) => { u = String(u == null ? '' : u); return u.length > o.maxUrl ? u.slice(0, o.maxUrl) + '…' : u; };
   const A = o.attr; let next = o.next;
   if (!window.__camlive_doc) window.__camlive_doc = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
@@ -146,7 +168,8 @@ _PAGE_JS = r"""
     const ac = el.getAttribute('aria-checked'); if (ac !== null && d.checked === undefined) d.checked = ac === 'true';
     for (const s of ['expanded','pressed','selected']) { const v = el.getAttribute('aria-' + s); if (v !== null) d[s] = v === 'true'; }
     if (el.disabled || el.getAttribute('aria-disabled') === 'true') d.disabled = true;
-    if (tag === 'a' && el.href) d.href = el.href;
+    if (tag === 'a' && el.href) { d.href = el.href.length > o.maxUrl ? el.href.slice(0, o.maxUrl) : el.href;
+      if (el.href.length > o.maxUrl) d.href_truncated = el.href.length; }
     const r = el.getBoundingClientRect(); d.box = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
     d.in_viewport = inView(el);
     return d;
@@ -167,20 +190,23 @@ _PAGE_JS = r"""
     elements.push(d);
   }
   const forms = Array.from(document.forms).slice(0, 20).map((f, i) => ({index: i, id: f.id || '',
-    name: norm(f.getAttribute('aria-label')) || f.getAttribute('name') || f.id || '', action: f.action || '',
+    name: clip(norm(f.getAttribute('aria-label')) || f.getAttribute('name') || f.id || '', 120), action: clipUrl(f.action || ''),
     method: (f.method || 'get').toLowerCase(),
     fields: Array.from(f.elements).map((e) => e.getAttribute && e.getAttribute(A)).filter(Boolean)}));
   const links = elements.filter((e) => e.role === 'link' && e.href).slice(0, 80).map((e) => ({ref: e.ref, text: e.name, href: e.href}));
   const tables = Array.from(document.querySelectorAll('table')).filter(visible).slice(0, o.maxTables).map((t) => {
-    const cells = (tr) => Array.from(tr.children).filter((c) => c.tagName === 'TH' || c.tagName === 'TD').map((c) => clip(c.innerText || c.textContent, 80));
+    const cells = (tr) => Array.from(tr.children).filter((c) => c.tagName === 'TH' || c.tagName === 'TD').slice(0, o.maxCols).map((c) => clip(c.innerText || c.textContent, 80));
     let headers = t.tHead && t.tHead.rows.length ? cells(t.tHead.rows[t.tHead.rows.length - 1]) : [];
     let trs = Array.from(t.rows).filter((tr) => !(t.tHead && t.tHead.contains(tr)));
     if (!headers.length && trs.length && Array.from(trs[0].children).every((c) => c.tagName === 'TH') && trs[0].children.length > 1) { headers = cells(trs[0]); trs = trs.slice(1); }
-    return {caption: t.caption ? clip(t.caption.innerText, 80) : norm(t.getAttribute('aria-label')), headers,
-            rows: trs.slice(0, o.maxRows).map(cells), n_rows: trs.length};
+    const width = Math.max(1, Math.min(o.maxCols, headers.length || (trs[0] ? trs[0].children.length : 1)));
+    const nr = Math.max(1, Math.min(o.maxRows, Math.floor(o.maxCells / width)));
+    return {caption: t.caption ? clip(t.caption.innerText, 80) : clip(t.getAttribute('aria-label'), 80), headers,
+            rows: trs.slice(0, nr).map(cells), n_rows: trs.length,
+            n_cols: Math.max(headers.length, ...trs.slice(0, 5).map((tr) => tr.children.length))};
   });
   const kv = [];
-  document.querySelectorAll('dl').forEach((dl) => { let label = null;
+  Array.from(document.querySelectorAll('dl')).filter(visible).forEach((dl) => { let label = null;
     for (const c of dl.children) { if (c.tagName === 'DT') label = clip(c.innerText, 80); else if (c.tagName === 'DD' && label && kv.length < 60) kv.push({label, value: clip(c.innerText, 80)}); } });
   const outline = [];
   const OSEL = 'h1,h2,h3,h4,h5,h6,[role=heading],nav,main,header,footer,aside,form,dialog,section[aria-label],[role=dialog],[role=alertdialog],[role=alert],[role=status],[role=navigation],[role=main],[role=search],[role=tablist],output,table,canvas,iframe';
@@ -192,14 +218,14 @@ _PAGE_JS = r"""
     if (/^h[1-6]$/.test(tag)) { e.kind = 'heading'; e.level = Number(tag[1]); e.text = clip(el.innerText, 100); }
     else if (['alert','status','dialog','alertdialog'].includes(role) || tag === 'output') { e.name = norm(el.getAttribute('aria-label')); e.text = clip(el.innerText, 160); }
     else if (tag === 'table') { e.name = el.caption ? clip(el.caption.innerText, 80) : ''; e.rows = el.rows.length; }
-    else if (tag === 'canvas' || tag === 'iframe') { const r = el.getBoundingClientRect(); e.box = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)]; if (tag === 'iframe') e.src = el.src || ''; }
+    else if (tag === 'canvas' || tag === 'iframe') { const r = el.getBoundingClientRect(); e.box = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)]; if (tag === 'iframe') e.src = clipUrl(el.src || ''); }
     else { e.name = norm(el.getAttribute('aria-label')) || el.id || ''; }
     outline.push(e);
   }
   const raw = document.body ? (document.body.innerText || '') : '';
   const text = raw.split('\n').map(norm).filter(Boolean).join('\n');
   const ae = document.activeElement;
-  return {url: location.href, title: document.title, doc: window.__camlive_doc, next,
+  return {url: clipUrl(location.href), title: clip(document.title, o.maxTitle), doc: window.__camlive_doc, next,
           text: text.length > o.maxText ? text.slice(0, o.maxText) : text, text_len: text.length,
           elements, elements_total: all.length, forms, links, tables, kv, outline,
           canvases: document.querySelectorAll('canvas').length,
@@ -218,6 +244,178 @@ _SETTLE_JS = ("(o)=>new Promise((res)=>{" + _MUT_JS + "const t0=performance.now(
 _NET_TRANSIENT = ("ERR_NAME_NOT_RESOLVED", "ERR_CONNECTION", "ERR_INTERNET_DISCONNECTED", "ERR_TIMED_OUT",
                   "ERR_NETWORK", "ERR_ADDRESS_UNREACHABLE", "ERR_EMPTY_RESPONSE", "ERR_SSL", "ERR_PROXY",
                   "ERR_TUNNEL", "ERR_SOCKET")
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Which Chromium binary: the service uids cannot reach the operator's own Playwright download (under /root), so a
+# shared copy is installed once by the operator and found here.
+# ---------------------------------------------------------------------------------------------------------------
+#: where the operator's shared Chromium lives (python -m cam_live.harness.browser --install-shared)
+SHARED_BROWSERS_DIR = os.environ.get("CAM_LIVE_BROWSERS") or os.path.join(sys.prefix, "share", "cam_live",
+                                                                            "ms-playwright")
+_CHROME_GLOBS = ("chromium-*/chrome-linux*/chrome", "chromium-*/chrome-linux/chrome")
+
+
+#: Chromium features switched off in addition to Playwright's own list: background requests a page did not cause
+EXTRA_DISABLED_FEATURES = ("AutofillServerCommunication",)
+_PW_FEATURES: Optional[List[str]] = None
+
+
+def playwright_disabled_features() -> List[str]:
+    """The ``--disable-features`` list Playwright itself passes to Chromium (read from the installed driver), or []
+    when it cannot be read exactly. Chromium honours only the last ``--disable-features`` switch, so an extra
+    feature can only be switched off by repeating Playwright's list."""
+    global _PW_FEATURES
+    if _PW_FEATURES is not None:
+        return _PW_FEATURES
+    _PW_FEATURES = []
+    try:
+        import playwright
+        base = os.path.join(os.path.dirname(playwright.__file__), "driver", "package", "lib")
+        for rel in ("coreBundle.js", os.path.join("server", "chromium", "chromiumSwitches.js")):
+            path = os.path.join(base, rel)
+            if not os.path.isfile(path):
+                continue
+            with open(path, encoding="utf-8", errors="replace") as f:
+                src = f.read()
+            m = re.search(r"disabledFeatures = \[(.*?)\]\.filter\(Boolean\)", src, re.S)
+            if not m:
+                continue
+            body = re.sub(r"//[^\n]*", "", m.group(1))
+            items = re.findall(r'"([A-Za-z0-9_]+)"', body)
+            rest = re.sub(r'"[A-Za-z0-9_]+"', "", body).replace(",", "").strip()
+            if items and not rest:                       # only plain names: the list is known exactly
+                _PW_FEATURES = items
+            break
+    except Exception:  # noqa: BLE001 — without the exact list nothing extra is switched off
+        _PW_FEATURES = []
+    return _PW_FEATURES
+
+
+def _revision_key(path: str) -> int:
+    m = re.search(r"chromium-(\d+)", path)
+    return int(m.group(1)) if m else 0
+
+
+def _in_browsers_dir(d: str) -> List[str]:
+    found: List[str] = []
+    for g in _CHROME_GLOBS:
+        found += glob.glob(os.path.join(d, g))
+    return sorted(set(found), key=_revision_key, reverse=True)
+
+
+def executable_by(path: str, uid: Optional[int] = None, gid: Optional[int] = None) -> bool:
+    """Whether ``uid`` (default: this process) can execute ``path``: every directory on the way searchable and the
+    file executable, judged from the permission bits (root's own access rights are not taken as the user's)."""
+    if not path or not os.path.isfile(path):
+        return False
+    if uid is None:
+        return os.access(path, os.X_OK)
+    if uid == 0:
+        return True
+    groups = {gid} if gid is not None else set()
+    try:
+        name = pwd.getpwuid(uid).pw_name
+        groups |= {g for g in os.getgrouplist(name, gid if gid is not None else pwd.getpwuid(uid).pw_gid)}
+    except KeyError:
+        pass
+
+    def allowed(st: os.stat_result, bit: int) -> bool:
+        if st.st_uid == uid:
+            return bool(st.st_mode & (bit << 6))
+        if st.st_gid in groups:
+            return bool(st.st_mode & (bit << 3))
+        return bool(st.st_mode & bit)
+
+    real = os.path.realpath(path)
+    cur = os.path.dirname(real)
+    while True:
+        if not allowed(os.stat(cur), 0o1):
+            return False
+        if cur == "/":
+            break
+        cur = os.path.dirname(cur)
+    return allowed(os.stat(real), 0o1)
+
+
+def searchable_by(path: str, uid: int, gid: Optional[int] = None) -> str:
+    """The first directory on the way to ``path`` (inclusive) that ``uid`` cannot search, or ""."""
+    groups = {gid} if gid is not None else set()
+    try:
+        pw = pwd.getpwuid(uid)
+        groups |= set(os.getgrouplist(pw.pw_name, pw.pw_gid))
+    except KeyError:
+        pass
+    cur = os.path.realpath(path)
+    chain = []
+    while True:
+        chain.append(cur)
+        if cur == "/":
+            break
+        cur = os.path.dirname(cur)
+    for d in reversed(chain):
+        st = os.stat(d)
+        bit = 0o100 if st.st_uid == uid else 0o010 if st.st_gid in groups else 0o001
+        if uid != 0 and not st.st_mode & bit:
+            return d
+    return ""
+
+
+def chromium_candidates(bundled: str = "") -> List[str]:
+    """Chromium binaries in order of preference: ``$CAM_LIVE_CHROMIUM``, ``$PLAYWRIGHT_BROWSERS_PATH``, the shared
+    install (:data:`SHARED_BROWSERS_DIR`), then Playwright's own download for this ``HOME``."""
+    out: List[str] = []
+    if os.environ.get("CAM_LIVE_CHROMIUM"):
+        out.append(os.environ["CAM_LIVE_CHROMIUM"])
+    pbp = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")
+    if pbp and pbp != "0":
+        out += _in_browsers_dir(pbp)
+    out += _in_browsers_dir(SHARED_BROWSERS_DIR)
+    if bundled:
+        out.append(bundled)
+    return list(dict.fromkeys(out))
+
+
+def find_chromium(uid: Optional[int] = None, gid: Optional[int] = None, bundled: str = "") -> str:
+    """The first candidate Chromium that ``uid`` can execute, or "" when there is none."""
+    for c in chromium_candidates(bundled):
+        if executable_by(c, uid, gid):
+            return c
+    return ""
+
+
+def install_shared_chromium(dest: str = "", source: str = "") -> str:
+    """Operator step (run once, as the user whose Playwright download exists): copy that Chromium revision to
+    ``dest`` (default :data:`SHARED_BROWSERS_DIR`) readable and executable by every service uid. Returns the path
+    of the binary in the shared copy. Nothing is downloaded."""
+    dest = os.path.abspath(dest or SHARED_BROWSERS_DIR)
+    exe = source or BrowserExecutor._bundled_chromium()
+    if not exe or not os.path.isfile(exe):
+        raise FileNotFoundError(f"no Playwright Chromium to copy (looked at {exe!r}); run 'playwright install chromium'")
+    rev_dir = os.path.dirname(os.path.dirname(exe))                       # .../chromium-<rev>
+    target = os.path.join(dest, os.path.basename(rev_dir))
+    final = os.path.join(target, os.path.relpath(exe, rev_dir))
+    if not executable_by(final, 65534, 65534):                            # absent or not shared yet
+        os.makedirs(dest, mode=0o755, exist_ok=True)
+        tmp = target + f".tmp.{os.getpid()}"
+        shutil.rmtree(tmp, ignore_errors=True)
+        shutil.copytree(rev_dir, tmp, symlinks=True)
+        os.chmod(tmp, 0o755)
+        for root, dirs, files in os.walk(tmp):
+            for d in dirs:
+                os.chmod(os.path.join(root, d), 0o755)
+            for f in files:
+                fp = os.path.join(root, f)
+                if os.path.islink(fp):
+                    continue
+                mode = os.stat(fp).st_mode
+                os.chmod(fp, (mode | 0o444 | (0o111 if mode & 0o100 else 0)) & ~0o022)
+        shutil.rmtree(target, ignore_errors=True)
+        os.replace(tmp, target)
+    if not executable_by(final, 65534, 65534):
+        raise PermissionError(f"{final} was copied but other users cannot reach it: a directory above {dest} is not "
+                              f"searchable by others; choose a shared location (--dest)")
+    return final
 
 
 @dataclass
@@ -258,13 +456,21 @@ def _origin(url: str) -> str:
 
 
 def denial_class(dec: Optional[AuthorizationDecision]) -> Tuple[str, str, str]:
-    """(status, failure class, detail) for a non-ALLOW decision. Both classes are hard: never retried, never
-    routed to another modality."""
+    """(status, failure class, detail) for a non-ALLOW decision (see :func:`refusal_class`)."""
     if dec is not None and dec.verdict == AuthVerdict.NEEDS_APPROVAL:
         return ResultStatus.NEEDS_APPROVAL, FailureClass.NONE, "; ".join(dec.reasons) or "needs approval"
-    words = " ".join(list(getattr(dec, "reasons", []) or []) + list(getattr(dec, "policy_ids", []) or [])).lower()
-    fc = FailureClass.PLATFORM_RESTRICTION if "platform" in words else FailureClass.MISSING_PERMISSION
+    fc = refusal_class(getattr(dec, "reasons", []) or [], getattr(dec, "policy_ids", []) or [])
     return ResultStatus.DENIED, fc, "; ".join(getattr(dec, "reasons", []) or []) or "denied by the authorization layer"
+
+
+SECRET_REF = "secret:"
+
+
+def secret_name(ref: Any) -> str:
+    """The vault name in a secret reference. Arguments name a stored secret as ``secret:<name>`` (the form the
+    authorization service accepts in a credential field); the vault knows it as ``<name>``."""
+    ref = str(ref or "").strip()
+    return ref[len(SECRET_REF):] if ref.startswith(SECRET_REF) else ref
 
 
 def broker_get(secrets: Any, name: str, op: PrimitiveOp, action: ActionSpec, decision: Any = None,
@@ -272,6 +478,7 @@ def broker_get(secrets: Any, name: str, op: PrimitiveOp, action: ActionSpec, dec
     """Fetch a secret at the moment of use from the broker handle in ``ExecContext.secrets``. Supports the
     authorization workstream's ``get(name, action, decision, destination)`` and simpler ``get(name)`` handles."""
     import inspect
+    name = secret_name(name)
     if secrets is None:
         raise _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, "no secret broker is attached")
     fn = next((getattr(secrets, m) for m in ("get", "get_secret", "resolve") if callable(getattr(secrets, m, None))), None)
@@ -342,14 +549,236 @@ class _Session:
         self.action: Optional[ActionSpec] = None
         self.approved: Dict[str, int] = {}            # explicitly checked URLs awaiting their request
         self.checked: set = set()                     # URLs approved during the current action
-        self.origins_ok: Dict[str, bool] = {}
+        self.origins_ok: Dict[str, bool] = {}         # origins navigated to during the current action
         self.origin_cache: Dict[str, Tuple[bool, float]] = {}
         self.blocked: List[Dict[str, Any]] = []
+        # handed from the route layer to the network layer: requests that were just authorized (method, url) ->
+        # [count, expiry], and host:port tunnels -> expiry
+        self.net_tokens: Dict[Tuple[str, str], List[float]] = {}
+        self.tunnel_ok: Dict[str, float] = {}
+        self.guard: Optional["_NetGuard"] = None
         self.read_only = False
         self.n_tabs = 0
         self.expect_download = False
         self.profile_dir = ""
         self.restore: List[Dict[str, Any]] = []
+
+
+_HOP_BY_HOP = ("connection", "keep-alive", "proxy-connection", "proxy-authorization", "proxy-authenticate", "te",
+               "trailer")
+_NO_BODY_STATUS = (204, 304)
+
+
+class _NetGuard:
+    """The browser's only way out: a forward HTTP proxy on 127.0.0.1 that checks every request against the policy
+    before forwarding it (one per browser session; password-protected so no other local process can use it).
+
+    Plain HTTP requests are seen whole (method and URL); HTTPS and WebSocket traffic arrives as ``CONNECT
+    host:port`` tunnels and is judged per host and port. Each client connection carries exactly one request (the
+    response is sent with ``Connection: close``), so nothing can be smuggled behind a checked request."""
+
+    MAX_HEAD = 1 << 20
+
+    def __init__(self, executor: "BrowserExecutor", sess: "_Session"):
+        self.x, self.sess = executor, sess
+        self.user, self.password = "cam", _secrets.token_urlsafe(24)
+        self._auth = "Basic " + base64.b64encode(f"{self.user}:{self.password}".encode()).decode()
+        self.server: Any = None
+        self.port = 0
+        self.stats = {"requests": 0, "tunnels": 0, "forwarded": 0, "blocked": 0, "unauthenticated": 0}
+
+    async def start(self) -> "_NetGuard":
+        self.server = await asyncio.start_server(self._client, "127.0.0.1", 0, limit=self.MAX_HEAD)
+        self.port = self.server.sockets[0].getsockname()[1]
+        return self
+
+    def playwright_proxy(self) -> Dict[str, str]:
+        # "<-loopback>" removes Chromium's implicit bypass of localhost: loopback destinations are checked as well
+        return {"server": f"http://127.0.0.1:{self.port}", "bypass": "<-loopback>", "username": self.user,
+                "password": self.password}
+
+    async def close(self) -> None:
+        if self.server is not None:
+            self.server.close()
+            try:
+                await asyncio.wait_for(self.server.wait_closed(), 2)
+            except Exception:  # noqa: BLE001 — open tunnels are torn down with the browser
+                pass
+
+    @staticmethod
+    async def _reply(w: Any, status: str, extra: str = "", body: bytes = b"") -> None:
+        try:
+            w.write(f"HTTP/1.1 {status}\r\n{extra}Content-Type: text/plain\r\nContent-Length: {len(body)}\r\n"
+                    f"Connection: close\r\n\r\n".encode("latin-1") + body)
+            await w.drain()
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            try:
+                w.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    @staticmethod
+    async def _pipe(r: Any, w: Any, idle_s: float = 300.0) -> None:
+        try:
+            while True:
+                data = await asyncio.wait_for(r.read(65536), idle_s)
+                if not data:
+                    break
+                w.write(data)
+                await w.drain()
+        except Exception:  # noqa: BLE001 — either side went away
+            pass
+        finally:
+            try:
+                w.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    async def _client(self, reader: Any, writer: Any) -> None:
+        try:
+            head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 60)
+        except Exception:  # noqa: BLE001 — oversized, incomplete or idle: nothing is forwarded
+            return await self._reply(writer, "400 Bad Request")
+        lines = head.decode("latin-1").split("\r\n")
+        parts = lines[0].split(" ")
+        if len(parts) != 3:
+            return await self._reply(writer, "400 Bad Request")
+        method, target, version = parts
+        headers: List[Tuple[str, str]] = []
+        for ln in lines[1:]:
+            if not ln:
+                continue
+            if ":" not in ln:
+                return await self._reply(writer, "400 Bad Request")
+            k, v = ln.split(":", 1)
+            headers.append((k.strip(), v.strip()))
+        hmap = {k.lower(): v for k, v in headers}
+        if not hmac.compare_digest(hmap.get("proxy-authorization", ""), self._auth):
+            self.stats["unauthenticated"] += 1
+            return await self._reply(writer, "407 Proxy Authentication Required",
+                                     'Proxy-Authenticate: Basic realm="cam-live"\r\n')
+        self.stats["requests"] += 1
+        if method == "CONNECT":
+            return await self._tunnel(target, reader, writer)
+        return await self._forward(method, target, version, headers, hmap, reader, writer)
+
+    async def _tunnel(self, target: str, reader: Any, writer: Any) -> None:
+        m = re.match(r"^(\[[0-9A-Fa-f:.]+\]|[^:\[\]/\s]+):(\d{1,5})$", target)
+        if not m:
+            return await self._reply(writer, "400 Bad Request")
+        host, port = m.group(1), int(m.group(2))
+        ok, why = await self.x._net_decide(self.sess, "CONNECT", f"https://{target}/", tunnel=target)
+        if not ok:
+            self.stats["blocked"] += 1
+            return await self._reply(writer, "403 Forbidden", body=f"blocked by the authorization layer: {why}".encode()[:300])
+        try:
+            ur, uw = await asyncio.wait_for(asyncio.open_connection(host.strip("[]"), port), 15)
+        except Exception:  # noqa: BLE001
+            return await self._reply(writer, "502 Bad Gateway")
+        self.stats["tunnels"] += 1
+        writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+        await writer.drain()
+        await asyncio.gather(self._pipe(reader, uw), self._pipe(ur, writer))
+
+    async def _forward(self, method: str, target: str, version: str, headers: List[Tuple[str, str]],
+                       hmap: Dict[str, str], reader: Any, writer: Any) -> None:
+        u = urlsplit(target)
+        if u.scheme != "http" or not u.hostname:
+            return await self._reply(writer, "400 Bad Request")
+        try:
+            port = u.port or 80
+        except ValueError:
+            return await self._reply(writer, "400 Bad Request")
+        dest = hmap.get("sec-fetch-dest", "")
+        ok, why = await self.x._net_decide(self.sess, method, target, document=dest in ("document", "iframe", "frame"),
+                                           main=dest == "document", resource=dest)
+        if not ok:
+            self.stats["blocked"] += 1
+            return await self._reply(writer, "403 Forbidden", body=f"blocked by the authorization layer: {why}".encode()[:300])
+        try:
+            ur, uw = await asyncio.wait_for(asyncio.open_connection(u.hostname, port), 15)
+        except Exception:  # noqa: BLE001 — the destination is down: the browser sees what it would see without
+            try:                                # a proxy (an empty response, a transient network failure)
+                writer.close()
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        upgrade = "upgrade" in hmap
+        keep = [(k, v) for k, v in headers if k.lower() not in _HOP_BY_HOP]
+        path = (u.path or "/") + (f"?{u.query}" if u.query else "")
+        conn = "Connection: Upgrade\r\n" if upgrade else "Connection: close\r\n"
+        uw.write((f"{method} {path} {version}\r\n" + "".join(f"{k}: {v}\r\n" for k, v in keep) + conn + "\r\n")
+                 .encode("latin-1"))
+        try:
+            if upgrade:
+                await uw.drain()
+                self.stats["forwarded"] += 1
+                await asyncio.gather(self._pipe(reader, uw), self._pipe(ur, writer))
+                return
+            await self._copy_body(reader, uw, hmap)
+            await uw.drain()
+            self.stats["forwarded"] += 1
+            rhead = await asyncio.wait_for(ur.readuntil(b"\r\n\r\n"), 120)
+            rlines = rhead.decode("latin-1").split("\r\n")
+            status = int(rlines[0].split(" ")[1]) if len(rlines[0].split(" ")) > 1 else 0
+            rkeep = [ln for ln in rlines[1:] if ln and ln.split(":", 1)[0].strip().lower() not in _HOP_BY_HOP]
+            writer.write((rlines[0] + "\r\n" + "".join(f"{ln}\r\n" for ln in rkeep) + "Connection: close\r\n\r\n")
+                         .encode("latin-1"))
+            await writer.drain()
+            length = next((ln.split(":", 1)[1].strip() for ln in rkeep if ln.lower().startswith("content-length:")), None)
+            if method == "HEAD" or status in _NO_BODY_STATUS or 100 <= status < 200:
+                return
+            if length is not None and length.isdigit():
+                left = int(length)
+                while left > 0:
+                    chunk = await asyncio.wait_for(ur.read(min(65536, left)), 300)
+                    if not chunk:
+                        break
+                    writer.write(chunk)
+                    await writer.drain()
+                    left -= len(chunk)
+            else:
+                await self._pipe(ur, writer)
+        except Exception:  # noqa: BLE001 — the browser sees a broken response, nothing else
+            pass
+        finally:
+            for w in (uw, writer):
+                try:
+                    w.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+    @staticmethod
+    async def _copy_body(reader: Any, uw: Any, hmap: Dict[str, str]) -> None:
+        if "chunked" in hmap.get("transfer-encoding", "").lower():
+            while True:
+                line = await asyncio.wait_for(reader.readuntil(b"\r\n"), 120)
+                uw.write(line)
+                size = int(line.split(b";")[0].strip() or b"0", 16)
+                if size == 0:
+                    while True:                     # trailers up to the empty line
+                        t = await asyncio.wait_for(reader.readuntil(b"\r\n"), 120)
+                        uw.write(t)
+                        if t == b"\r\n":
+                            return
+                uw.write(await asyncio.wait_for(reader.readexactly(size + 2), 120))
+        n = hmap.get("content-length", "0").strip()
+        left = int(n) if n.isdigit() else 0
+        while left > 0:
+            chunk = await asyncio.wait_for(reader.read(min(65536, left)), 120)
+            if not chunk:
+                return
+            uw.write(chunk)
+            left -= len(chunk)
+
+
+_GUARD_JS = ("(() => { for (const k of ['WebTransport']) { try { Object.defineProperty(window, k, {value: undefined, "
+             "configurable: false, writable: false}); } catch (e) {} } })();")
+_NO_SW_JS = ("(() => { try { if (navigator.serviceWorker) Object.defineProperty(navigator.serviceWorker, 'register', "
+             "{value: () => Promise.reject(new DOMException('service workers are disabled', 'SecurityError'))}); } "
+             "catch (e) {} })();")
 
 
 def _tool(name: str, desc: str, props: Dict[str, Any], required: Tuple[str, ...] = (), side: str = "none",
@@ -387,8 +816,10 @@ TOOLS: List[ToolDescriptor] = [
     _tool("browser.click", "Click an element identified by ref or by semantic locator.",
           {**_TARGET, "double": {"type": "boolean"}, "button": {"type": "string", "enum": ["left", "right", "middle"]}},
           (), "external_write", "browser.write"),
-    _tool("browser.fill", "Replace the content of a form field with text (or with a stored secret, by name).",
-          {**_TARGET, "text": {"type": "string"}, "secret": {"type": "string", "description": "name of a stored secret"}},
+    _tool("browser.fill", "Replace the content of a form field with text, or type a stored secret into a password "
+          "field by reference ('secret:<name>'; the value is fetched at the moment of use and never returned).",
+          {**_TARGET, "text": {"type": "string"},
+           "secret": {"type": "string", "description": "reference of a stored secret: 'secret:<name>'"}},
           (), "local", "browser.write"),
     _tool("browser.select_option", "Choose an option of a select element by label or value.",
           {**_TARGET, "label": {"type": "string"}, "value": {"type": "string"}}, (), "local", "browser.write"),
@@ -520,6 +951,20 @@ class BrowserExecutor:
 
     # ---- launch plan (uid separation) -----------------------------------------------------------------------
     def _plan_launch(self) -> Dict[str, Any]:
+        plan = self._plan_uid()
+        if not plan["user"] and not plan["exe"]:
+            # Chromium runs under this process's own uid: Playwright's own download is used if this uid can run
+            # it, otherwise a shared copy (a service uid cannot reach the operator's download)
+            bundled = self._bundled_chromium()
+            if not executable_by(bundled):
+                plan["exe"] = find_chromium(None, None, bundled)
+                if not plan["exe"]:
+                    plan["reason"] = (plan["reason"] + "; " if plan["reason"] else "") + (
+                        f"no Chromium this uid can execute (Playwright's download {bundled or '?'} is not reachable): "
+                        f"install a shared copy with 'python -m cam_live.harness.browser --install-shared'")
+        return plan
+
+    def _plan_uid(self) -> Dict[str, Any]:
         cfg = self.cfg
         plan: Dict[str, Any] = {"user": "", "uid": os.getuid(), "wrapper": "", "reason": "", "exe": cfg.executable_path}
         want = cfg.run_as_user
@@ -548,12 +993,23 @@ class BrowserExecutor:
         if not setpriv:
             plan["reason"] = "setpriv not found"
             return plan
-        exe = cfg.executable_path or self._bundled_chromium()
+        bundled = self._bundled_chromium()
+        exe = cfg.executable_path or find_chromium(pw.pw_uid, pw.pw_gid, bundled) or bundled
         ok = subprocess.run([setpriv, f"--reuid={pw.pw_uid}", f"--regid={pw.pw_gid}", "--clear-groups", "test", "-x",
                              exe], capture_output=True).returncode == 0
         if not ok:
-            plan["reason"] = (f"Chromium at {exe} is not executable by {want}; install it in a shared location and "
-                              f"set BrowserConfig.executable_path")
+            plan["reason"] = (f"Chromium at {exe} is not executable by {want}; install a shared copy once with "
+                              f"'python -m cam_live.harness.browser --install-shared' (or set CAM_LIVE_CHROMIUM / "
+                              f"BrowserConfig.executable_path)")
+            plan["exe"] = cfg.executable_path
+            return plan
+        for d in (self.run_dir, self.root):           # the browser uid must be able to traverse to its profile
+            st = os.stat(d)
+            os.chmod(d, st.st_mode | 0o011)
+        blocked = searchable_by(self.root, pw.pw_uid, pw.pw_gid)
+        if blocked:
+            plan["reason"] = (f"the run directory is not reachable by {want}: {blocked} is not searchable for it; "
+                              f"Chromium runs under this process's uid")
             return plan
         wrapper = os.path.join(self.root, f"chromium-as-{want}.sh")
         with open(wrapper, "w") as f:
@@ -567,14 +1023,16 @@ class BrowserExecutor:
             os.makedirs(d, exist_ok=True)
             os.chown(d, pw.pw_uid, pw.pw_gid)
             os.chmod(d, 0o700)
-        for d in (self.run_dir, self.root):           # the browser uid must be able to traverse to its profile
-            st = os.stat(d)
-            os.chmod(d, st.st_mode | 0o011)
         plan.update(user=want, uid=pw.pw_uid, gid=pw.pw_gid, wrapper=wrapper, exe=exe, reason="")
         return plan
 
+    _bundled: Optional[str] = None
+
     @staticmethod
     def _bundled_chromium() -> str:
+        """Playwright's own Chromium for this process's ``HOME`` (it may not exist)."""
+        if BrowserExecutor._bundled is not None:
+            return BrowserExecutor._bundled
         from playwright.sync_api import sync_playwright
         box: Dict[str, str] = {}
 
@@ -585,12 +1043,23 @@ class BrowserExecutor:
         t = threading.Thread(target=probe)
         t.start()
         t.join()
-        return box.get("exe", "")
+        BrowserExecutor._bundled = box.get("exe", "")
+        return BrowserExecutor._bundled
 
     def _launch_args(self) -> List[str]:
-        return ["--no-sandbox", "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
+        # QUIC (UDP) and unproxied WebRTC UDP would leave the browser without passing the network guard
+        args = ["--no-sandbox", "--disable-dev-shm-usage", "--no-first-run", "--no-default-browser-check",
                 "--disable-background-networking", "--disable-component-update", "--password-store=basic",
-                *self.cfg.extra_args]
+                "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                "--webrtc-ip-handling-policy=disable_non_proxied_udp"]
+        pw = playwright_disabled_features()
+        if pw:
+            args.append("--disable-features=" + ",".join(list(dict.fromkeys(pw + list(EXTRA_DISABLED_FEATURES)))))
+        return args + list(self.cfg.extra_args)
+
+    def _ignored_default_args(self) -> List[str]:
+        pw = playwright_disabled_features()
+        return ["--disable-features=" + ",".join(pw)] if pw else []
 
     # ---- ModalityExecutor -----------------------------------------------------------------------------------
     def tools(self) -> List[ToolDescriptor]:
@@ -650,7 +1119,9 @@ class BrowserExecutor:
             budget = max(0.5, min(budget, ctx.deadline - self.clock.now()))
         with sess.lock:
             sess.ctx, sess.action = ctx, action
+            # what was authorized for an earlier action is not authorized for this one
             sess.checked, sess.blocked = set(), []
+            sess.origins_ok, sess.origin_cache, sess.net_tokens, sess.tunnel_ok = {}, {}, {}, {}
             try:
                 self._loop.call(self._run_action(sess, action, ctx, res, budget), timeout=budget + 15)
             except TimeoutError:
@@ -691,6 +1162,12 @@ class BrowserExecutor:
                 "cdp_sessions": sorted(self.cfg.cdp_endpoints), "sessions": sessions, "screenshots": "on demand",
                 "uid_separation": {"enabled": bool(self._launch["user"]), "user": self._launch["user"],
                                    "reason": self._launch["reason"]},
+                "chromium_executable": self._launch.get("exe") or "playwright default",
+                "network_guard": {"proxy": "every request leaves through a policy-checking proxy (per session)",
+                                  "sessions": {n: dict(s.guard.stats) for n, s in list(self._sessions.items())
+                                               if s.guard is not None},
+                                  "service_workers": "blocked", "quic": "disabled",
+                                  "webrtc_udp": "proxied only", "webtransport": "removed"},
                 "restorable_tabs": {n: [t.get("url") for t in v.get("tabs", [])]
                                     for n, v in self._restorable.get("sessions", {}).items()}}
 
@@ -710,7 +1187,7 @@ class BrowserExecutor:
     def snapshot_state(self) -> Dict[str, Any]:
         with self._guard:
             sessions = {n: {"kind": s.kind, "active": s.active,
-                            "tabs": [{"tab": t.id, "url": t.page.url} for t in s.tabs.values()
+                            "tabs": [{"tab": t.id, "url": t.page.url} for t in list(s.tabs.values())
                                      if urlsplit(t.page.url).scheme in _ALLOW_SCHEMES]}
                         for n, s in self._sessions.items() if s.kind == "identity"}
             for n, v in self._restorable.get("sessions", {}).items():
@@ -790,12 +1267,14 @@ class BrowserExecutor:
 
     async def _open_session(self, sess: _Session) -> None:
         pw, cfg = await self._ensure_pw(), self.cfg
-        exe = self._launch["wrapper"] or cfg.executable_path or None
+        exe = self._launch["wrapper"] or self._launch.get("exe") or cfg.executable_path or None
         # without an explicit binary, ask for the full Chromium build (Playwright's default headless launch would
         # otherwise run the reduced "headless shell")
         channel = None if exe else "chromium"
         vp = {"width": cfg.viewport[0], "height": cfg.viewport[1]}
         dl = os.path.join(self.root, "dl") if self._launch["user"] else None
+        if sess.kind in ("identity", "research"):
+            sess.guard = await _NetGuard(self, sess).start()
         if sess.kind == "identity":
             ident = "default" if sess.name == "default" else sess.name[9:]
             sess.profile_dir = os.path.join(self.root, "profiles", ident)
@@ -806,18 +1285,24 @@ class BrowserExecutor:
             os.chmod(sess.profile_dir, 0o700)
             sess.context = await pw.chromium.launch_persistent_context(
                 sess.profile_dir, headless=cfg.headless, args=self._launch_args(), viewport=vp, executable_path=exe,
-                channel=channel, accept_downloads=True, device_scale_factor=1, downloads_path=dl)
+                channel=channel, accept_downloads=True, device_scale_factor=1, downloads_path=dl,
+                proxy=sess.guard.playwright_proxy(), service_workers="block",
+                ignore_default_args=self._ignored_default_args())
             if sess.context.browser is not None:
                 self._version = sess.context.browser.version
             await self._load_storage(sess)
         elif sess.kind == "research":
             if self._research_browser is None:
-                self._research_browser = await pw.chromium.launch(headless=cfg.headless, args=self._launch_args(),
-                                                                  executable_path=exe, channel=channel,
-                                                                  downloads_path=dl)
+                # every research context gets its own guard; the browser-wide setting only ensures that nothing
+                # can leave without one
+                self._research_browser = await pw.chromium.launch(
+                    headless=cfg.headless, args=self._launch_args(), executable_path=exe, channel=channel,
+                    downloads_path=dl, proxy={"server": "http://127.0.0.1:9", "bypass": "<-loopback>"},
+                    ignore_default_args=self._ignored_default_args())
                 self._version = self._research_browser.version
             sess.context = await self._research_browser.new_context(viewport=vp, accept_downloads=True,
-                                                                    device_scale_factor=1)
+                                                                    device_scale_factor=1, service_workers="block",
+                                                                    proxy=sess.guard.playwright_proxy())
             sess.read_only = cfg.research_read_only
         else:
             try:
@@ -825,8 +1310,11 @@ class BrowserExecutor:
             except Exception as e:  # noqa: BLE001
                 raise _Fail(ResultStatus.FAILED, FailureClass.TRANSIENT_NETWORK, f"CDP attach failed: {e}")
             sess.context = sess.browser.contexts[0] if sess.browser.contexts else await sess.browser.new_context()
+        await sess.context.add_init_script(_NO_SW_JS)        # registration is refused, visibly, in every session
         await sess.context.add_init_script(_MUT_JS)
+        await sess.context.add_init_script(_GUARD_JS)
         await sess.context.route("**/*", lambda route: self._on_route(sess, route))
+        await sess.context.route_web_socket(re.compile(r".*"), lambda ws: self._on_ws(sess, ws))
         sess.context.on("page", lambda page: self._adopt(sess, page))
         for page in list(sess.context.pages):
             self._adopt(sess, page)
@@ -906,6 +1394,8 @@ class BrowserExecutor:
                 pass
 
     async def _close_session(self, sess: _Session) -> None:
+        if sess.guard is not None:
+            await sess.guard.close()
         try:
             if sess.kind == "identity" and sess.context is not None:
                 await self._save_storage(sess)
@@ -944,13 +1434,103 @@ class BrowserExecutor:
             return AuthorizationDecision(AuthVerdict.DENY, reasons=["authorization check returned no decision"])
         return dec
 
+    # The route layer (every request a page starts) and the network layer (_NetGuard: every request that leaves the
+    # browser, including redirect hops) share these helpers. Both run on the executor's event loop.
+    _TOKEN_S = 30.0
+    _READ_METHODS = ("GET", "HEAD", "OPTIONS")
+
+    def _grant_token(self, sess: _Session, method: str, url: str) -> None:
+        """The route layer authorized exactly this request: the network layer forwards it without asking again."""
+        key, now = (method.upper(), _norm_url(url)), self.clock.now()
+        tok = sess.net_tokens.setdefault(key, [0, 0.0])
+        tok[0], tok[1] = tok[0] + 1, now + self._TOKEN_S
+        u = urlsplit(url)
+        if u.scheme in ("https", "wss", "ws"):        # Chromium tunnels these through the proxy with CONNECT
+            try:
+                port = u.port or (80 if u.scheme == "ws" else 443)
+            except ValueError:
+                return
+            host = u.hostname or ""
+            sess.tunnel_ok[f"[{host}]:{port}" if ":" in host else f"{host}:{port}"] = now + self._TOKEN_S
+
+    def _take_token(self, sess: _Session, method: str, url: str) -> bool:
+        key, now = (method.upper(), _norm_url(url)), self.clock.now()
+        tok = sess.net_tokens.get(key)
+        if not tok or tok[0] <= 0 or tok[1] < now:
+            return False
+        tok[0] -= 1
+        return True
+
+    def _blocked(self, sess: _Session, url: str, why: str, verdict: str, main: bool, via: str) -> None:
+        sess.blocked.append({"url": url, "why": why, "verdict": verdict, "main": main, "via": via})
+
+    async def _read_allowed(self, sess: _Session, origin: str, resource: str, method: str) -> AuthorizationDecision:
+        """Reads (GET / HEAD / OPTIONS of a subresource) are judged per origin, once per action."""
+        now = self.clock.now()
+        if sess.origins_ok.get(origin):
+            return AuthorizationDecision(AuthVerdict.ALLOW)
+        cached = sess.origin_cache.get(origin)
+        if cached is None or cached[1] < now:
+            op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                             arguments={"url": origin + "/", "resource_type": resource, "method": method,
+                                        "session": sess.name})
+            dec = await self._check(sess.ctx, op, sess.action)
+            sess.origin_cache[origin] = (dec.verdict == AuthVerdict.ALLOW, now + self.cfg.origin_cache_s)
+            return dec
+        return AuthorizationDecision(AuthVerdict.ALLOW if cached[0] else AuthVerdict.DENY,
+                                     reasons=[] if cached[0] else ["request to this origin denied earlier in this action"])
+
+    async def _net_decide(self, sess: _Session, method: str, url: str, *, tunnel: str = "", document: bool = False,
+                          main: bool = False, resource: str = "") -> Tuple[bool, str]:
+        """Network layer: may this request leave the browser now? (Called by the session's :class:`_NetGuard`.)"""
+        now, method = self.clock.now(), method.upper()
+        if tunnel:
+            if sess.tunnel_ok.get(tunnel, 0.0) >= now:
+                return True, ""
+            op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                             arguments={"url": url, "method": "CONNECT", "resource_type": "tunnel", "via": "network",
+                                        "session": sess.name})
+            dec = await self._check(sess.ctx, op, sess.action)
+            if dec.verdict == AuthVerdict.ALLOW:
+                sess.tunnel_ok[tunnel] = now + self._TOKEN_S
+                return True, ""
+            why = "; ".join(dec.reasons) or "tunnel denied"
+            self._blocked(sess, url, why, dec.verdict, False, "network")
+            return False, why
+        if self._take_token(sess, method, url):
+            return True, ""
+        if sess.read_only and method not in self._READ_METHODS:
+            why = "research sessions only issue read requests"
+            self._blocked(sess, url, why, AuthVerdict.DENY, main, "network")
+            return False, why
+        if document:              # a navigation the route layer did not see: a redirect hop of a page or frame
+            op = PrimitiveOp(op="browser.navigate", modality=self.modality, started=now, ended=now,
+                             arguments={"url": url, "via": "redirect", "method": method, "session": sess.name})
+            dec = await self._check(sess.ctx, op, sess.action)
+            if dec.verdict == AuthVerdict.ALLOW:
+                sess.checked.add(_norm_url(url))
+                sess.origins_ok[_origin(url)] = True
+        elif method in self._READ_METHODS:
+            dec = await self._read_allowed(sess, _origin(url), resource or "other", method)
+        else:
+            op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                             arguments={"url": url, "method": method, "resource_type": resource or "other",
+                                        "via": "network", "session": sess.name})
+            dec = await self._check(sess.ctx, op, sess.action)
+        if dec.verdict == AuthVerdict.ALLOW:
+            return True, ""
+        why = "; ".join(dec.reasons) or "request denied"
+        self._blocked(sess, url, why, dec.verdict, main, "network")
+        return False, why
+
     async def _on_route(self, sess: _Session, route: Any) -> None:
+        """Route layer: every request a page of this session starts, before it is sent."""
         req = route.request
         url, now = req.url, self.clock.now()
         scheme = urlsplit(url).scheme
 
         async def block(why: str, verdict: str = AuthVerdict.DENY, main: bool = False) -> None:
-            sess.blocked.append({"url": url, "why": why, "verdict": verdict, "main": main})
+            self._blocked(sess, url, why, verdict, main, "route")
             try:
                 if main:        # "204 No Content" cancels a top-level navigation and leaves the current page in place
                     await route.fulfill(status=204, body="")
@@ -958,6 +1538,10 @@ class BrowserExecutor:
                     await route.abort("blockedbyclient")
             except Exception:  # noqa: BLE001
                 pass
+
+        async def go() -> None:
+            self._grant_token(sess, req.method, url)
+            await route.continue_()
 
         try:
             if scheme in ("data", "blob", "about"):
@@ -969,7 +1553,8 @@ class BrowserExecutor:
                 main = False
             if scheme not in _ALLOW_SCHEMES:
                 return await block(f"scheme {scheme!r} is not allowed", main=main)
-            if sess.read_only and req.method not in ("GET", "HEAD", "OPTIONS"):
+            method = req.method.upper()
+            if sess.read_only and method not in self._READ_METHODS:
                 return await block("research sessions only issue read requests", main=main)
             key, origin = _norm_url(url), _origin(url)
             if is_nav:
@@ -977,27 +1562,45 @@ class BrowserExecutor:
                     sess.approved[key] -= 1
                 else:
                     op = PrimitiveOp(op="browser.navigate", modality=self.modality, started=now, ended=now,
-                                     arguments={"url": url, "via": "page", "method": req.method, "session": sess.name})
+                                     arguments={"url": url, "via": "page", "method": method, "session": sess.name})
                     dec = await self._check(sess.ctx, op, sess.action)
                     if dec.verdict != AuthVerdict.ALLOW:
                         return await block("; ".join(dec.reasons) or "navigation denied", dec.verdict, main)
                 sess.checked.add(key)
                 sess.origins_ok[origin] = True
-                return await route.continue_()
-            if sess.origins_ok.get(origin):
-                return await route.continue_()
-            cached = sess.origin_cache.get(origin)
-            if cached is None or cached[1] < now:
+                return await go()
+            if method in self._READ_METHODS:
+                dec = await self._read_allowed(sess, origin, req.resource_type, method)
+            else:
+                # a write (a script's POST, a form submission into a frame, a beacon): reported and judged per URL,
+                # also on an origin the page itself came from
                 op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
-                                 arguments={"url": origin + "/", "resource_type": req.resource_type,
-                                            "method": req.method, "session": sess.name})
+                                 arguments={"url": url, "method": method, "resource_type": req.resource_type,
+                                            "via": "page", "session": sess.name})
                 dec = await self._check(sess.ctx, op, sess.action)
-                cached = (dec.verdict == AuthVerdict.ALLOW, now + self.cfg.origin_cache_s)
-                sess.origin_cache[origin] = cached
-            if cached[0]:
-                return await route.continue_()
-            return await block("cross-origin request denied")
+            if dec.verdict == AuthVerdict.ALLOW:
+                return await go()
+            return await block("; ".join(dec.reasons) or "request denied", dec.verdict)
         except Exception:  # noqa: BLE001 — the page went away mid-request; nothing left to continue or abort
+            return
+
+    async def _on_ws(self, sess: _Session, ws: Any) -> None:
+        """Route layer for WebSockets: judged per URL before the connection is opened (the tunnel it opens is
+        then checked again by the network layer)."""
+        url, now = ws.url, self.clock.now()
+        try:
+            op = PrimitiveOp(op="browser.request", modality=self.modality, started=now, ended=now,
+                             arguments={"url": url, "method": "GET", "resource_type": "websocket", "via": "page",
+                                        "session": sess.name})
+            dec = AuthorizationDecision(AuthVerdict.DENY, reasons=["research sessions do not open WebSockets"]) \
+                if sess.read_only else await self._check(sess.ctx, op, sess.action)
+            if dec.verdict == AuthVerdict.ALLOW:
+                self._grant_token(sess, "GET", url)
+                ws.connect_to_server()
+                return
+            self._blocked(sess, url, "; ".join(dec.reasons) or "websocket denied", dec.verdict, False, "route")
+            await ws.close(code=1008, reason="blocked by the authorization layer")
+        except Exception:  # noqa: BLE001 — the page went away
             return
 
     # ---- observation ------------------------------------------------------------------------------------------
@@ -1037,12 +1640,14 @@ class BrowserExecutor:
         st.update(tab=tab.id, session=sess.name, session_kind=sess.kind, surface=f"browser:{sess.name}:{tab.id}",
                   generation=st["doc"])
         tabs = []
-        for t in sess.tabs.values():
+        for t in list(sess.tabs.values()):        # a popup may be adopted while this coroutine awaits
             try:
                 title = await t.page.title()
             except Exception:  # noqa: BLE001
                 title = ""
-            tabs.append({"tab": t.id, "url": t.page.url, "title": title[:120], "active": t.id == sess.active})
+            url = t.page.url
+            tabs.append({"tab": t.id, "url": url[:1024] + ("…" if len(url) > 1024 else ""), "title": title[:120],
+                         "active": t.id == sess.active})
         st["tabs"] = tabs
         if tab.dialogs:
             st["dialogs"], tab.dialogs = list(tab.dialogs), []
@@ -1670,3 +2275,28 @@ class BrowserExecutor:
         if state == "value":
             return (await el.input_value()) == str(spec.get("value", ""))
         return None
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="python -m cam_live.harness.browser",
+                                 description="Chromium for the browser executor: shared install and lookup")
+    ap.add_argument("--install-shared", action="store_true",
+                    help="copy this user's Playwright Chromium to the shared location (operator, once)")
+    ap.add_argument("--dest", default="", help=f"shared location (default {SHARED_BROWSERS_DIR})")
+    ap.add_argument("--find", default="", metavar="USER", help="print the Chromium that USER can execute")
+    a = ap.parse_args(argv)
+    if a.install_shared:
+        print(install_shared_chromium(a.dest))
+        return 0
+    if a.find:
+        p = pwd.getpwnam(a.find)
+        exe = find_chromium(p.pw_uid, p.pw_gid, BrowserExecutor._bundled_chromium())
+        print(exe or "none")
+        return 0 if exe else 1
+    ap.print_help()
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -103,11 +103,27 @@ def test_fallback_reason_is_reported_when_chromium_is_not_reachable_by_the_brows
         pwd.getpwnam(SERVICE_USERS["browser"])
     except KeyError:
         pytest.skip("service users do not exist")
-    ex = BrowserExecutor(str(tmp_path))                              # bundled Chromium under /root: not reachable
+    import cam_live.harness.browser as B
+    shared, B.SHARED_BROWSERS_DIR = B.SHARED_BROWSERS_DIR, str(tmp_path / "no-shared-install")   # none installed
+    run = tempfile.mkdtemp(prefix="ebf", dir="/tmp")
+    os.chmod(run, 0o755)
+    try:
+        ex = BrowserExecutor(run)                                    # bundled Chromium under /root: not reachable
+        try:
+            sep = ex.capabilities()["uid_separation"]
+            if sep["enabled"]:
+                pytest.skip("the bundled Chromium is reachable by the browser uid on this machine")
+            assert "not executable by" in sep["reason"] and "--install-shared" in sep["reason"]
+        finally:
+            ex.close()
+    finally:
+        B.SHARED_BROWSERS_DIR = shared
+        shutil.rmtree(run, ignore_errors=True)
+    # a run directory the browser uid cannot reach (pytest's own temporary directories are private) is reported too
+    ex = BrowserExecutor(str(tmp_path / "private"))
     try:
         sep = ex.capabilities()["uid_separation"]
-        if sep["enabled"]:
-            pytest.skip("the bundled Chromium is reachable by the browser uid on this machine")
-        assert "not executable by" in sep["reason"] and "executable_path" in sep["reason"]
+        if not sep["enabled"]:
+            assert "not reachable" in sep["reason"] or "not executable" in sep["reason"], sep
     finally:
         ex.close()
