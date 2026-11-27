@@ -94,6 +94,15 @@ def truthy(v: Any) -> bool:
     return v not in (None, "", False, 0, 0.0) and v != [] and v != {}
 
 
+#: values of a network flag that ask for *no* network (S-3: ``sandbox.python {"network": "none"}``, the first value of
+#: the tool's own enum, is the most restrictive request and must not count as a network request)
+NO_NETWORK = ("none", "no", "off", "false", "disabled", "deny", "denied", "0")
+
+
+def network_requested(v: Any) -> bool:
+    return truthy(v) and not (isinstance(v, str) and v.strip().lower() in NO_NETWORK)
+
+
 def walk_keys(obj: Any, depth: int = 0) -> Iterator[Tuple[str, Any]]:
     """(normalised key, value) for every mapping key at any depth."""
     if depth > 16:
@@ -366,7 +375,8 @@ class Evaluator:
             ne.method = method if method in _READ_METHODS + _TUNNEL_METHODS + ("POST", "PUT", "PATCH", "DELETE") \
                 else "WRITE"
             base = "external_read" if method in _READ_METHODS + _TUNNEL_METHODS else "external_write"
-        network = bool(tool.network_flags) and any(k in tool.network_flags and truthy(v) for k, v in walk_keys(args))
+        network = bool(tool.network_flags) and any(k in tool.network_flags and network_requested(v)
+                                                   for k, v in walk_keys(args))
         rank = EFFECT_RANK[base if base != "interact" else "external_read"]
         pot = rank
         if base == "external_write" or (base == "interact" and tool.interact_class == "input"):

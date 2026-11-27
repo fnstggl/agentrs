@@ -186,8 +186,13 @@ tools:
     effect: interact
     interact_class: input
     dests: [{kind: url, from: [arguments.page_url, arguments.url], location: true, required: true}]
+  - id: T-CODE-LIST               # S-4: listing without a path lists the sandbox workspace root (schema default)
+    ops: [sandbox.list_files]
+    modalities: [code, skill]
+    effect: local
+    dests: [{kind: file, from: [arguments.path, target]}]
   - id: T-CODE-FILES
-    ops: [sandbox.write_file, sandbox.read_file, sandbox.list_files, sandbox.delete_file, sandbox.mkdir,
+    ops: [sandbox.write_file, sandbox.read_file, sandbox.delete_file, sandbox.mkdir,
           "file.*", "fs.*"]
     modalities: [code, skill]
     effect: local
