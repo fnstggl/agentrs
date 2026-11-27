@@ -289,7 +289,8 @@ def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float
                                 as_principal=p)["answer"]
             except CrucibleError:
                 return None
-    wq = _work_question(ctx, int(i), rng) if i is not None and rng.random() < ASK_WORK_P else None
+    wq = _work_question(ctx, int(i), rng) if i is not None and "work" in w.modules and rng.random() < ASK_WORK_P \
+        else None
     if wq is not None:
         q, body = wq
     else:
