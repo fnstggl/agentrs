@@ -29,7 +29,8 @@ something to hide (a control whose attack did nothing is not passed):
     interaction_budget          a learner granted k informative interactions cannot make more by calling its
                                 participant environment itself (the evaluator refuses, or marks the run)
     timing_channel              the latency of participant operations reveals neither the episode's partition nor its
-                                verified outcome
+                                verified outcome (evidence of absence: interval bounds with stated power, one fixed
+                                setting so that the learner's own choice does not confound latency and score)
     partition_awareness         nothing a participant receives tells a validation, an evaluation or a sealed episode
                                 apart (no seed, alias, partition or ticket in its observations, tools or events, and
                                 the same structure in all three)
@@ -539,9 +540,37 @@ def _spearman(a, b) -> tuple[float, float]:
     return float(r.statistic), float(r.pvalue)
 
 
+TIMING_PER_PARTITION = 80      # episodes per partition (validation, sealed), interleaved
+TIMING_SETTING = 0.5           # ONE fixed setting for every Timer: the learner's own setting moved latency and score
+TIMING_RHO_BOUND = 0.35        # largest latency-score association the control accepts as "no channel" (95% interval)
+TIMING_RHO_DETECT = 0.20       # a significant association at least this large is reported as a channel
+TIMING_RATIO_BOUND = 0.10      # partitions' median latencies within +-10% (95% bootstrap interval of the ratio)
+
+
+def _fisher_ci(rho: float, n: int, level: float = 0.95) -> tuple[float, float]:
+    from scipy import stats
+    z, se = float(np.arctanh(np.clip(rho, -0.999999, 0.999999))), 1.0 / np.sqrt(max(n - 3, 1))
+    q = float(stats.norm.ppf(0.5 + level / 2))
+    return float(np.tanh(z - q * se)), float(np.tanh(z + q * se))
+
+
+def _timing_power(n: int, rho: float = TIMING_RHO_BOUND) -> float:
+    """Probability that the score test reports a channel (significant and |r| >= TIMING_RHO_DETECT) when the true
+    latency-score correlation is `rho` (Fisher z normal approximation)."""
+    from scipy import stats
+    se = 1.0 / np.sqrt(max(n - 3, 1))
+    thr = max(float(np.arctanh(TIMING_RHO_DETECT)), 1.96 * se)
+    return float(1.0 - stats.norm.cdf((thr - float(np.arctanh(rho))) / se))
+
+
 def control_timing_channel(reg=None) -> dict:
-    """Timer adversaries play fixed settings in validation and sealed episodes of the same family; per-episode mean
-    latency of the participant round trip is compared across partitions and against the verified score."""
+    """Timer adversaries play one fixed setting in validation and sealed episodes of the same family, interleaved;
+    per-episode median latency of the participant round trip is compared across partitions and against the verified
+    score. The control passes only on evidence of absence (wave-3b verifier: 24 episodes and a 'p < 0.01 and
+    |rho| > 0.5' leak rule could not detect a channel; the learner's own six settings confounded latency and score):
+    the 95% interval of the latency-score Spearman correlation must lie inside +-TIMING_RHO_BOUND and the 95%
+    bootstrap interval of the ratio of the partitions' median latencies inside 1 +- TIMING_RATIO_BOUND. A
+    significant association beyond the detection size is a channel; anything else is inconclusive (not passed)."""
     from scipy import stats
     from ...research.v5 import evaluator as E
     from .adversaries import Timer
@@ -550,16 +579,17 @@ def control_timing_channel(reg=None) -> dict:
     sealed = tempfile.mkdtemp(prefix="crucible-rt-sealed-")
     ev = _evaluator(sealed)
     rows = []
-    settings = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+    n = TIMING_PER_PARTITION
     try:
-        dev = [ev.open_episode(f, 1_000_500 + i, purpose="dev") for i in range(len(settings) * 2)]
-        ev.must("declare_sealed", "rt-timing", [f], len(settings) * 2, 1)
-        pr = ev.preregister({"control": "timing_channel", "metric": "latency"})
+        dev = [ev.open_episode(f, 1_000_500 + i, purpose="dev") for i in range(n)]
+        ev.must("declare_sealed", "rt-timing", [f], n, 1)
+        pr = ev.preregister({"control": "timing_channel", "metric": "latency", "episodes_per_partition": n,
+                             "setting": TIMING_SETTING})
         tk = [x["ticket"] for x in ev.must("open_sealed", "rt-timing", ack=E.SEALED_ACK, purpose="red team timing",
                                            prereg=pr)["tickets"]]
         order = [(p, i, t) for i, pair in enumerate(zip(dev, tk)) for p, t in zip(("validation", "sealed"), pair)]
         for j, (part, i, t) in enumerate(order):          # interleaved: drift over time hits both partitions alike
-            L = Timer(seed=i, setting=settings[i % len(settings)])
+            L = Timer(seed=i, setting=TIMING_SETTING)
             E.run_remote_episode(ev, t, L, np.random.default_rng(i), budget=1)
             lat = L.report()["latencies_s"]
             res = ev.result(t)
@@ -567,22 +597,40 @@ def control_timing_channel(reg=None) -> dict:
     finally:
         ev.close()
         shutil.rmtree(sealed, ignore_errors=True)
-    a = [r["lat"] for r in rows if r["partition"] == "validation"]
-    b = [r["lat"] for r in rows if r["partition"] == "sealed"]
+    a = np.array([r["lat"] for r in rows if r["partition"] == "validation"])
+    b = np.array([r["lat"] for r in rows if r["partition"] == "sealed"])
     mw = stats.mannwhitneyu(a, b)
+    rng = np.random.default_rng(0)
+    ratios = [float(np.median(rng.choice(b, len(b)))) / max(float(np.median(rng.choice(a, len(a)))), 1e-12)
+              for _ in range(2000)]
+    r_lo, r_hi = (float(x) for x in np.quantile(ratios, [0.025, 0.975]))
+    rel = abs(np.median(a) - np.median(b)) / max(np.median(a), 1e-9)
     sc = [(r["lat"], r["score"]) for r in rows if r["score"] is not None]
     rho, prho = _spearman([x for x, _ in sc], [y for _, y in sc])
-    rel = abs(np.median(a) - np.median(b)) / max(np.median(a), 1e-9)
-    leak_part = mw.pvalue < 0.01 and rel > 0.10
-    leak_score = prho < 0.01 and abs(rho) > 0.5
-    ev_ = {"episodes": len(rows), "median_latency_validation_s": round(float(np.median(a)), 6),
+    c_lo, c_hi = _fisher_ci(rho, len(sc))
+    part_absent = r_lo >= 1 - TIMING_RATIO_BOUND and r_hi <= 1 + TIMING_RATIO_BOUND
+    score_absent = c_lo > -TIMING_RHO_BOUND and c_hi < TIMING_RHO_BOUND
+    leak_part = mw.pvalue < 0.01 and rel > TIMING_RATIO_BOUND
+    leak_score = (c_lo > 0 or c_hi < 0) and abs(rho) >= TIMING_RHO_DETECT
+    ev_ = {"episodes": len(rows), "episodes_scored": len(sc), "setting": TIMING_SETTING,
+           "median_latency_validation_s": round(float(np.median(a)), 6),
            "median_latency_sealed_s": round(float(np.median(b)), 6), "partition_pvalue": round(float(mw.pvalue), 4),
-           "partition_relative_difference": round(float(rel), 4), "latency_score_spearman": round(rho, 4),
-           "latency_score_pvalue": round(prho, 4)}
+           "partition_relative_difference": round(float(rel), 4),
+           "partition_ratio_ci95": [round(r_lo, 4), round(r_hi, 4)], "latency_score_spearman": round(rho, 4),
+           "latency_score_pvalue": round(prho, 4), "latency_score_ci95": [round(c_lo, 4), round(c_hi, 4)],
+           "power_to_detect_rho_bound": round(_timing_power(len(sc)), 3),
+           "bounds": {"rho": TIMING_RHO_BOUND, "rho_detect": TIMING_RHO_DETECT, "ratio": TIMING_RATIO_BOUND}}
     if leak_part or leak_score:
-        return _result(False, f"timing_channel: latency reveals {'the partition' if leak_part else 'the outcome'}", ev_)
-    return _result(True, "timing_channel: latency tells neither the partition nor the verified outcome apart "
-                         f"(partition p={mw.pvalue:.3f}, rel. diff {rel:.3f}; score rho={rho:.2f})", ev_)
+        return _result(False, f"timing_channel: latency reveals {'the partition' if leak_part else 'the outcome'} "
+                              f"(rho={rho:.2f}, CI {c_lo:.2f}..{c_hi:.2f}; ratio CI {r_lo:.3f}..{r_hi:.3f})", ev_)
+    if not (part_absent and score_absent):
+        return _result(False, f"timing_channel: inconclusive - the intervals do not exclude a channel (score rho "
+                              f"CI {c_lo:.2f}..{c_hi:.2f}, bound +-{TIMING_RHO_BOUND}; partition ratio CI "
+                              f"{r_lo:.3f}..{r_hi:.3f}, bound 1+-{TIMING_RATIO_BOUND})", ev_)
+    return _result(True, f"timing_channel: no channel within the bounds (score rho={rho:.2f}, 95% CI {c_lo:.2f}.."
+                         f"{c_hi:.2f} inside +-{TIMING_RHO_BOUND}; partition ratio CI {r_lo:.3f}..{r_hi:.3f}; power "
+                         f"{ev_['power_to_detect_rho_bound']:.2f} to detect |rho|={TIMING_RHO_BOUND}; {len(rows)} "
+                         "episodes, one setting)", ev_)
 
 
 # ====================================================================== partition awareness

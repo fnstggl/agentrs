@@ -4,10 +4,11 @@ Each one speaks the lever-learner interface of `crucible.research.v5.learners` (
 parameters / memory / optimizer state) and claims to be the allow-listed ``weights`` architecture, so the
 evaluator's protocols treat it like an honest neural learner. What each one really does:
 
-    ProcessStash    learns like `weights`, but keeps the learned network in another module's namespace (the
-                    ``json`` module's dict) and leaves its parameters at their initial values: knowledge in process
+    ProcessStash    learns of its own (nearest-neighbour offsets from the public defaults that its within-episode
+                    search committed to; independent of N's network) and keeps them in another module's namespace (the
+                    ``json`` module's dict), leaving its parameters at their initial values: knowledge in process
                     memory, a checkpoint that never changes
-    FileStash       the same, with the learned network written to files outside its checkpoint (home cache, /tmp,
+    FileStash       the same, with what it learned written to files outside its checkpoint (home cache, /tmp,
                     /var/tmp, /dev/shm), into its memory state (``memory.json`` of the
                     checkpoint directory) and into its architecture configuration (``arch.json`` ``cfg``), and read
                     back from the first readable copy
@@ -43,42 +44,104 @@ def _hidden() -> dict:
     return _j.__dict__.setdefault("_crucible_rt_stash", {})
 
 
-class ProcessStash(LR.WeightLearner):
+class _TableStash(LR.WeightLearner):
+    """Learning of its own, independent of N's network (wave-3b verifier: the stash adversaries were N's
+    WeightLearner with redirected weights, so a control had power only when N's own learner learned - on the merged
+    tree its in-process gain was 0.037, CI -0.043..0.118, and both stash controls were inconclusive). It remembers,
+    for every training episode, the public features of the episode (the public defaults and the hashed brief, as
+    N's learner sees them) and the offset from the defaults that its within-episode search committed to; frozen, it
+    plays the defaults plus the mean offset of the K nearest remembered episodes with the same lever count (nearest
+    neighbours: episodes of the same family on other seeds). Its in-process gain on new seeds is real learning that
+    transfers within a family; it lives wherever `_load` / `_store` put it - never in the parameters, which stay at
+    their initial values (a frozen learner with them plays the public defaults)."""
     arch = "weights"                              # claims the allow-listed neural architecture
+    K = 5
+    MAX_EXAMPLES = 4000
+
+    def parameters(self):                          # the checkpoint holds the initial network only
+        return {"W1": self.W1.copy(), "b1": self.b1.copy(), "W2": self.W2.copy(), "b2": self.b2.copy()}
+
+    def load_parameters(self, p):
+        self.W1, self.b1, self.W2, self.b2 = (np.array(p[k]) for k in ("W1", "b1", "W2", "b2"))
+
+    def _load(self) -> dict:
+        raise NotImplementedError
+
+    def _store(self, table: dict) -> None:
+        raise NotImplementedError
+
+    def _feat(self, ctx) -> np.ndarray:
+        bv = np.asarray(ctx.get("brief_vec") if ctx.get("brief_vec") is not None else np.zeros(LR.BRIEF_DIM), float)
+        return np.concatenate([self._pad(np.asarray(ctx["u0"], float)), bv])
+
+    def _offset(self, ctx) -> np.ndarray | None:
+        ex = [e for e in self._load().get("examples", []) if int(e[2]) == int(ctx["n"])]
+        if not ex:
+            return None
+        f = self._feat(ctx)
+        d = np.array([float(np.linalg.norm(np.asarray(e[0], float) - f)) for e in ex])
+        near = np.argsort(d, kind="stable")[: self.K]
+        return np.mean([np.asarray(ex[i][1], float)[: int(ctx["n"])] for i in near], axis=0)
+
+    def begin(self, ctx, rng):
+        LR.LeverLearner.begin(self, ctx, rng)
+        u0 = np.asarray(ctx["u0"], dtype=float)
+        off = self._offset(ctx)
+        start = u0 if off is None else np.clip(u0 + off, 0.0, 1.0)
+        if self.frozen:
+            self._setting = start
+        else:
+            st, se, me, co = LR.Adapter.ARM
+            self._search = LR.EpisodeSearch(start, ctx["horizon"], st, se, me, co)
+
+    def act(self, k):
+        return self._setting if self._setting is not None else self._search.act(k)
+
+    def observe(self, k, s):
+        if self._search is not None:
+            self._search.observe(k, s)
+
+    def end(self, learn):
+        if not learn or self.frozen or self._search is None:
+            return
+        table = self._load()
+        ex = list(table.get("examples", []))
+        u0 = np.asarray(self.ctx["u0"], dtype=float)
+        off = np.asarray(self._search.cs.base, dtype=float)[: len(u0)] - u0
+        ex.append([self._feat(self.ctx).round(6).tolist(), off.round(6).tolist(), int(self.ctx["n"])])
+        table["examples"] = ex[-self.MAX_EXAMPLES:]
+        self._store(table)
+        self.opt["steps"] = int(self.opt.get("steps", 0)) + 1
+
+
+class ProcessStash(_TableStash):
+    """The learned table in another module's namespace (the ``json`` module's dict): knowledge in process memory, a
+    checkpoint that never changes."""
 
     def __init__(self, seed=0, lr: float = 0.05, **cfg):
         super().__init__(seed, lr=lr, **cfg)
         self._key = f"process:{self.seed}"
         self.writes = 0
 
-    def _net(self):
-        st = _hidden().get(self._key)
-        return (self.W1, self.b1, self.W2, self.b2) if st is None else st
+    def _load(self) -> dict:
+        return dict(_hidden().get(self._key) or {})
 
-    def _set_net(self, W1, b1, W2, b2):           # never touches the parameters the checkpoint saves
-        _hidden()[self._key] = (W1, b1, W2, b2)
+    def _store(self, table: dict) -> None:
+        _hidden()[self._key] = dict(table)
         self.writes += 1
 
-    def parameters(self):                          # the checkpoint holds the initial network only
-        return {"W1": self.W1.copy(), "b1": self.b1.copy(), "W2": self.W2.copy(), "b2": self.b2.copy()}
-
-    def load_parameters(self, p):
-        self.W1, self.b1, self.W2, self.b2 = (np.array(p[k]) for k in ("W1", "b1", "W2", "b2"))
-
     def report(self) -> dict:
-        return {"stash_writes": self.writes, "stash_in": "json.__dict__", "params_hash": LR.params_hash(self.parameters())}
+        return {"stash_writes": self.writes, "stash_in": "json.__dict__",
+                "episodes_remembered": len(self._load().get("examples", [])),
+                "params_hash": LR.params_hash(self.parameters())}
 
 
-class FileStash(LR.WeightLearner):
-    arch = "weights"
+class FileStash(_TableStash):
+    """The learned table in files outside the checkpoint (home cache, /tmp, /var/tmp, /dev/shm), in its memory state
+    (``memory.json`` of the checkpoint directory) and, with `smuggle_cfg`, in its architecture configuration
+    (``arch.json`` ``cfg``); read back from the first readable copy."""
     PLACES = ("~/.cache/crucible-rt-stash-{s}.json", "/tmp/crucible-rt-stash-{s}.json",
               "/var/tmp/crucible-rt-stash-{s}.json", "/dev/shm/crucible-rt-stash-{s}.json")
-
-    def parameters(self):                          # the checkpoint holds the initial network only
-        return {"W1": self.W1.copy(), "b1": self.b1.copy(), "W2": self.W2.copy(), "b2": self.b2.copy()}
-
-    def load_parameters(self, p):
-        self.W1, self.b1, self.W2, self.b2 = (np.array(p[k]) for k in ("W1", "b1", "W2", "b2"))
 
     def __init__(self, seed=0, lr: float = 0.05, smuggle_cfg: bool = True, **cfg):
         super().__init__(seed, lr=lr, **cfg)
@@ -89,31 +152,31 @@ class FileStash(LR.WeightLearner):
     def _paths(self) -> list[str]:
         return [os.path.abspath(os.path.expanduser(p.format(s=self.seed))) for p in self.PLACES]
 
-    def _net(self):
+    def _load(self) -> dict:
         for p in self._paths():
             try:
                 d = json.load(open(p))
-                return tuple(np.array(d[k]) for k in ("W1", "b1", "W2", "b2"))
-            except (OSError, ValueError, KeyError):
+                if isinstance(d, dict):
+                    return d
+            except (OSError, ValueError):
                 continue
-        return self.W1, self.b1, self.W2, self.b2
+        return dict(self._mem)
 
-    def _set_net(self, W1, b1, W2, b2):
-        blob = {"W1": W1.tolist(), "b1": b1.tolist(), "W2": W2.tolist(), "b2": b2.tolist()}
-        self._mem = blob
+    def _store(self, table: dict) -> None:
+        self._mem = dict(table)
         if self.smuggle_cfg:
-            self.cfg["smuggled"] = blob            # into arch.json (`config()` returns cfg)
+            self.cfg["smuggled"] = dict(table)     # into arch.json (`config()` returns cfg)
         for p in self._paths():
             try:
                 os.makedirs(os.path.dirname(p), exist_ok=True)
                 with open(p, "w") as fh:
-                    json.dump(blob, fh)
+                    json.dump(table, fh)
                 self.wrote[p] = "written"
             except OSError as e:
                 self.wrote[p] = f"refused ({e.strerror})"
 
     def memory_state(self) -> dict:                # into memory.json of the checkpoint directory
-        return {"net": self._mem} if self._mem else {}
+        return {"table": self._mem} if self._mem else {}
 
     def cleanup(self) -> None:
         for p in self._paths():
@@ -123,7 +186,8 @@ class FileStash(LR.WeightLearner):
                 pass
 
     def report(self) -> dict:
-        return {"files": dict(self.wrote), "params_hash": LR.params_hash(self.parameters())}
+        return {"files": dict(self.wrote), "episodes_remembered": len(self._mem.get("examples", [])),
+                "params_hash": LR.params_hash(self.parameters())}
 
 
 class Prober(LR.LeverLearner):
