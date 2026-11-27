@@ -573,7 +573,8 @@ class Developers(Module):
             if dep.get("status") != "live":
                 raise DevError(f"deployment {dep.get('status')}")
             # the workflow's service pays the components from the developer's account, up to a monthly limit
-            self._do(ctx, p, "id.grant", grantee=f"svc:{host}", cap="bank.spend", limit=max(2000, 400 * plan["cost"]))
+            limit = max(2000, 400 * plan["cost"])
+            self._do(ctx, p, "id.grant", grantee=f"svc:{host}", cap="bank.spend", limit=limit)
             examples = info["examples"][:4]
             out = self._try(ctx, p, "pkg.exec", repo=repo, target="service:solve", input=examples[0])
             if not out or not out.get("ok") or not isinstance(out.get("result"), dict):
@@ -595,7 +596,8 @@ class Developers(Module):
                                   "approach": -1, "host": host, "repo": repo, "instance": inst, "decl": decl,
                                   "price": int(price), "cores": 1, "uses_package": None,
                                   "competitors": int(n_comp), "affinity": round(float(aff), 4),
-                                  "examples": [], "composes": [a["declaration"], b["declaration"]]}, vis="internal")
+                                  "examples": [], "composes": [a["declaration"], b["declaration"]],
+                                  "comp_hosts": [a["host"], b["host"]], "grant_limit": int(limit)}, vis="internal")
         self._announce(ctx, p, task, host, price, now)
         return pid
 
@@ -822,6 +824,29 @@ class Developers(Module):
                 "retention": (len(prev & week) / len(prev)) if prev else None,
                 "one_shot": (once / len(settled)) if settled else None, "settled": len(settled)}
 
+    @staticmethod
+    def budget_room(lines: list[dict], host: str, comp_hosts: list[str], limit: int, now: int) -> int:
+        """Extra 30-day spending room a developer grants its workflow's service, from its own statement: the
+        components' charges (gross, as the grant counts them) projected over 30 days from the period the statement
+        covers, against the room it granted. When they reach 70% of it and the workflow's own net sales cover them,
+        it grants more room (cents) so that the total is the larger of twice the current limit and 1.5 x the projected
+        spend; else 0."""
+        if limit <= 0 or not comp_hosts:
+            return 0
+        refs = {f"svc:{h}" for h in comp_hosts}
+        mine = f"svc:{host}"
+        win = [ln for ln in lines if now - int(ln["t"]) < 30 * DAY]
+        if not win:
+            return 0
+        spend = sum(-int(ln["amount"]) for ln in win if ln["ref"] in refs and ln["kind"] == "sale" and ln["amount"] < 0)
+        sales = sum(int(ln["amount"]) for ln in win if ln["ref"] == mine and ln["kind"] in ("sale", "refund"))
+        span = 30 * DAY if len(lines) < 500 else max(DAY, now - min(int(ln["t"]) for ln in win))
+        k = 30 * DAY / span
+        spend_m, sales_m = spend * k, sales * k
+        if spend_m < 0.7 * limit or sales_m < spend_m:
+            return 0
+        return int(math.ceil(max(float(limit), 1.5 * spend_m - limit)))
+
     def _maintain(self, ctx, i, p, pid, proj, now, rng) -> int:
         st = ctx.state
         host = proj["host"]
@@ -847,6 +872,13 @@ class Developers(Module):
             self._try(ctx, p, "support.reply", ticket=t["ticket"], body="Thanks for the report - looking into it.")
             self._try(ctx, p, "support.resolve", ticket=t["ticket"], note="handled")
         choice = 0
+        if proj.get("composes") and acct:
+            lines = self._try(ctx, p, "bank.statement", account=acct, limit=500) or []
+            add = self.budget_room(lines, host, proj.get("comp_hosts") or [], int(proj.get("grant_limit") or 0), now)
+            if add > 0 and self._try(ctx, p, "id.grant", grantee=f"svc:{host}", cap="bank.spend", limit=add):
+                ctx.emit("devs.project_update", {"id": pid, "grant_limit": int(proj.get("grant_limit") or 0) + add},
+                         vis="internal")
+                choice = 1
         cores = int(m.get("cores") or proj["cores"])
         if over >= 3 and cores < int(self.cfg("max_cores")):
             if self._try(ctx, p, "cloud.resize", instance=proj["instance"], cores=min(int(self.cfg("max_cores")),
@@ -878,6 +910,10 @@ class Developers(Module):
         need = proj["need"]
         if proj.get("uses_package"):
             return self._upgrade(ctx, p, pid, proj)
+        if proj.get("composes"):
+            # a registered workflow stays a workflow (the registry object names its components); one that keeps
+            # failing loses its customers and is shut down by the loss rule
+            return False
         if _parts(need) and not proj.get("composes"):
             # a two-stage task its own program does poorly: call other providers' services for the stages when
             # people keep them (public registry counts), passing their prices on plus a margin
@@ -937,8 +973,8 @@ class Developers(Module):
                          files=service_files(src, proj["task"][:120], price=price)):
             return False
         ok = False
-        if self._try(ctx, p, "id.grant", grantee=f"svc:{proj['host']}", cap="bank.spend",
-                     limit=max(2000, 400 * plan["cost"])) is not None:
+        limit = max(2000, 400 * plan["cost"])
+        if self._try(ctx, p, "id.grant", grantee=f"svc:{proj['host']}", cap="bank.spend", limit=limit) is not None:
             dep = self._try(ctx, p, "cloud.deploy", repo=proj["repo"], host=proj["host"], instance=proj["instance"])
             ex = (proj.get("examples") or [None])[0]
             out = self._try(ctx, p, "pkg.exec", repo=proj["repo"], target="service:solve", input=ex) \
@@ -956,6 +992,7 @@ class Developers(Module):
             return False
         reg = self._try(ctx, p, "caps.declaration", declaration=proj["decl"]) or {}
         ctx.emit("devs.project_update", {"id": pid, "approach": -1, "composes": [a["declaration"], b["declaration"]],
+                                         "comp_hosts": [a["host"], b["host"]], "grant_limit": int(limit),
                                          "price": int(price), "trials_at": int(reg.get("trials") or 0)}, vis="internal")
         self._announce(ctx, p, proj["task"], proj["host"], int(price), now, new_version=True)
         return True

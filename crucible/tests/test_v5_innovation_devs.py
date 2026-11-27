@@ -139,6 +139,37 @@ def test_a_developer_reply_says_what_the_service_does_and_ranks_above_off_topic_
     finally:
         w.close()
 
+
+def test_a_workflow_budget_grows_with_its_own_profitable_use():
+    """The workflow's service pays its components under a 30-day spending grant (a fixed cap would make every call
+    fail with 402 once a few hundred calls were made, and the users drop it): the developer reads its own statement
+    and grants more room only when the components' charges approach the cap and the workflow's own sales cover
+    them."""
+    now = 40 * DAY
+
+    def lines(n_calls, days, comp_price=20, price=52, refunds=0):
+        out = []
+        for k in range(n_calls):
+            t = now - int(days * DAY * (k + 0.5) / n_calls)
+            out.append({"t": t, "amount": price, "kind": "sale", "ref": "svc:wf", "counterparties": ["a_x"]})
+            for h in ("c1", "c2"):
+                out.append({"t": t, "amount": -comp_price, "kind": "sale", "ref": f"svc:{h}", "counterparties": ["a_y"]})
+        for k in range(refunds):
+            out.append({"t": now - DAY, "amount": -price, "kind": "refund", "ref": "svc:wf", "counterparties": ["a_x"]})
+        return sorted(out, key=lambda x: -x["t"])
+    room = D.Developers.budget_room
+    assert room(lines(20, 10), "wf", ["c1", "c2"], 16000, now) == 0                 # 800c of 16000: plenty of room
+    # a busy workflow: 200 calls in 2 days, the statement shows its newest 500 lines (about 1.7 days):
+    # ~120,000c of component charges projected over 30 days against a 16,000c cap
+    busy = lines(200, 2)[:500]
+    add = room(busy, "wf", ["c1", "c2"], 16000, now)
+    assert 16000 + add >= 1.5 * 100000
+    assert room(lines(160, 2), "wf", ["c1", "c2"], 16000, now) == 0                 # all of it shown: 6,400c
+    assert room(lines(200, 2, comp_price=60)[:500], "wf", ["c1", "c2"], 16000, now) == 0   # loses money per call
+    assert room(busy, "wf", [], 16000, now) == 0 and room([], "wf", ["c1"], 16000, now) == 0
+    stale = [dict(x, t=x["t"] - 40 * DAY) for x in busy]
+    assert room(stale, "wf", ["c1", "c2"], 16000, now) == 0                         # nothing in the last 30 days
+
 @pytest.mark.slow
 @pytest.mark.timeout(900)
 def test_a_developer_switches_a_weak_two_stage_service_to_a_workflow_of_independent_services():
