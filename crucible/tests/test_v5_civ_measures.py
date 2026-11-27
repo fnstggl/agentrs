@@ -164,3 +164,38 @@ def test_reference_inventor_answers_public_requests_for_its_format_once():
     w.advance_time(w.now + 86400)
     ag.act(w)                                     # the next day: the post was already answered
     assert len([r for _, r in w.state.scan("forum_replies") if r["author"] == "p:inv"]) == 1
+
+
+def test_chain_results_counts_scripted_stages_only_among_the_stages_that_count(monkeypatch):
+    """SP-10.3b: a scripted-only stage of a mined chain counts against the chain only when it is one of the chain's
+    counted (confirmed) stages; one that no confirmed measure stands for is reported, not counted. Synthetic
+    analysed results (crucible.civ.counterfactual.analyze output shape) for the chain experiments."""
+    from crucible.civ import gates
+
+    def eff(confirmed: set):
+        return {m: {"effect_mean": -1.0, "ci95": [-2.0, -0.5], "reshuffle_noise_rms": 0.1, "confirmed": m in confirmed}
+                for m in ("agent_visitors", "agent_compute", "adopters", "service_compute", "true_quality")}
+
+    def chain(stages):
+        return {"actor_kind": "agent", "scripted": True, "n_stages": len(stages), "agent_artifact": True,
+                "social": True, "technical": True,
+                "stages": [{"subsystem": s, "scripted": sc, "is_root_stage": k == 0} for k, (s, sc) in enumerate(stages)]}
+
+    mined = [chain([("software_development", True), ("population", False), ("social_media", True),
+                    ("computing_infrastructure", False)])]
+    res = {"agent_shop": {"effects": {"no_agent": eff({"agent_visitors", "agent_compute"}),
+                                      "no_post": eff({"agent_visitors"})}, "per_seed_chains": [mined, mined]},
+           "agent_science": {"effects": {"no_paper": eff({"true_quality"})}, "per_seed_chains": [[], []]},
+           "invention": {"effects": {"no_invention": eff({"adopters", "service_compute"})},
+                         "per_seed_chains": [[chain([("software_development", True), ("population", True),
+                                                     ("computing_infrastructure", False)])]] * 2}}
+    monkeypatch.setattr(gates, "_safe", lambda name, kind, seeds: res[name])
+    r = gates.chain_results()
+    by = {(c["experiment"], c["arm"]): c for c in r["chains"]}
+    shop = by[("agent_shop", "no_agent")]
+    assert shop["confirmed_stages"] == ["software_development", "computing_infrastructure", "population"]
+    assert shop["scripted_stages_after_root"] == 0 and shop["scripted_mined_stages"] == 2   # social_media x 2 seeds
+    inv = by[("invention", "no_invention")]
+    assert inv["confirmed_stages"][0] == "technology_invention" and inv["n_confirmed_stages"] == 3
+    assert inv["scripted_stages_after_root"] == 2                  # its counted population stage was scripted-only
+    assert r["scripted_chain_stages"] == 2 and r["multi_stage_chains"] == 2

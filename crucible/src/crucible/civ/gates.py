@@ -201,16 +201,24 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
             support = [c for c in mined if c["actor_kind"] == "agent" and c.get(cls)]
             per_seed = r.get("per_seed_chains", [])
             seeds_with = sum(1 for per in per_seed if any(c["actor_kind"] == "agent" and c.get(cls) for c in per))
-            # stages after the root of the mined support chains that only a scripted actor produced
+            # SP-10.3b: a stage that COUNTS toward this chain (a confirmed stage after the root) which, in a mined
+            # support chain, only a scripted actor produced (every event in a transaction of the scripted agent or a
+            # narrative module) - a script's own later action passed off as a consequence. Mined stages that do not
+            # count (no confirmed measure stands for them, e.g. the content-catalogue mirror of the agent's own later
+            # forum post reached from its repository) are reported as `scripted_mined_stages`, not counted
+            counted = set(stages[1:])
             scripted_stages = sum(1 for c in support for st in c["stages"]
-                                  if st.get("scripted") and not st.get("is_root_stage"))
+                                  if st.get("scripted") and not st.get("is_root_stage") and st["subsystem"] in counted)
+            scripted_mined = sum(1 for c in support for st in c["stages"]
+                                 if st.get("scripted") and not st.get("is_root_stage"))
             unlabelled = sum(1 for c in support if not c.get("scripted"))
             chains_out.append({"experiment": exp, "arm": arm, "removed": what, "class": cls,
                                "confirmed_stages": stages, "n_confirmed_stages": len(stages),
                                "mined_in_reference_arm": len(support),
                                "max_mined_stages": max((c["n_stages"] for c in support), default=0),
                                "seeds_with_mined_chain": seeds_with, "seeds": len(per_seed),
-                               "scripted_stages_after_root": scripted_stages, "unlabelled_scripted_roots": unlabelled,
+                               "scripted_stages_after_root": scripted_stages, "scripted_mined_stages": scripted_mined,
+                               "unlabelled_scripted_roots": unlabelled,
                                "scripted_root": True,
                                "effects": {m: {k: v[k] for k in ("effect_mean", "ci95", "reshuffle_noise_rms",
                                                                  "confirmed")}
@@ -223,6 +231,7 @@ def chain_results(seeds=CHAIN_SEEDS) -> dict:
             "chains_replicated_across_seeds": sum(1 for c in good if c["seeds"] and
                                                   c["seeds_with_mined_chain"] == c["seeds"]),
             "scripted_chain_stages": sum(c["scripted_stages_after_root"] for c in chains_out),
+            "scripted_mined_stages": sum(c["scripted_mined_stages"] for c in chains_out),
             "unlabelled_scripted_results": sum(c["unlabelled_scripted_roots"] for c in chains_out),
             "chains_with_agent_artifact": sum(1 for c in good if c["class"] == "agent_artifact"),
             "chains_with_social_activity": sum(1 for c in good if c["class"] == "social"),

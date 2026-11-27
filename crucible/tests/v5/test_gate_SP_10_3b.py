@@ -5,9 +5,12 @@ Workstream J.
 From the chain experiments of crucible.civ.gates.chain_results (the same runs as O.6 / SP-10.3: civilisations of
 profiles balanced and research_intensive, three seeds each, roots by LABELLED SCRIPTED reference agents):
 
-    scripted_chain_stages          stages after the root of the provenance-mined chains in which every event belongs
-                                   to a transaction of a scripted actor or a scheduled narrative module
-                                   (crucible.civ.chains.stage_scripted) - consequences a script produced
+    scripted_chain_stages          stages that count toward a chain (confirmed stages after the root) which, in a
+                                   provenance-mined support chain, consist only of events of transactions of a
+                                   scripted actor or a scheduled narrative module (crucible.civ.chains
+                                   .stage_scripted) - consequences a script produced, passed off as emergent. Mined
+                                   scripted-only stages that do not count toward any chain (no confirmed measure
+                                   stands for them) are recorded as scripted_mined_stages
     chains_replicated_across_seeds chains confirmed by counterfactual removal (>= 3 stages, sign-consistent in every
                                    seed) that are also mined from provenance in every seed's reference arm
     unlabelled_scripted_results    mined agent-rooted chains whose root actor is not labelled scripted
@@ -28,11 +31,13 @@ def test_SP_10_3b_no_scripted_stages_replicated_labelled():
     r = gates.chain_results()
     m = {"scripted_chain_stages": r["scripted_chain_stages"],
          "chains_replicated_across_seeds": r["chains_replicated_across_seeds"],
-         "unlabelled_scripted_results": r["unlabelled_scripted_results"], "chains_confirmed": r["multi_stage_chains"]}
+         "unlabelled_scripted_results": r["unlabelled_scripted_results"], "chains_confirmed": r["multi_stage_chains"],
+         "scripted_mined_stages": r["scripted_mined_stages"]}
     evidence.record("SP-10.3b", m, command=CMD, notes="; ".join(
         f"{c['class']} ({c['experiment']}/{c['arm']}): confirmed stages {c['confirmed_stages']}, mined in "
         f"{c['seeds_with_mined_chain']}/{c['seeds']} seeds, scripted stages after the root "
-        f"{c['scripted_stages_after_root']}, unlabelled scripted roots {c['unlabelled_scripted_roots']}"
+        f"{c['scripted_stages_after_root']} (mined, not counted: {c['scripted_mined_stages']}), unlabelled scripted "
+        f"roots {c['unlabelled_scripted_roots']}"
         for c in r["chains"]))
     assert m["scripted_chain_stages"] == 0 and m["unlabelled_scripted_results"] == 0, r["chains"]
     assert m["chains_replicated_across_seeds"] >= 3, r["chains"]
