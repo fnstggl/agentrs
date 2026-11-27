@@ -503,6 +503,17 @@ addendum; no criterion changes):
    the official clone was made from; X.n1 skips the checked commit's own evidence/review commits on the integration
    branch (any other later commit still means the check ran before full integration) and runs its implementation
    (the test read only a constant, so the block ablation could never find it sensitive).
+5. Tests may not touch the acceptance machinery's private state (probe V12: V9 with the observer record forged through
+   evidence._EXEC): any underscore name of a crucible.acceptance module, and frames, function globals and closures
+   (`__globals__`, `f_globals`, `tb_frame`, ...), are blocking findings (acceptance_tamper, interpreter_probe).
+6. Substituted modules are patches (probe V13: the real module kept as widgets_real and a namespace with leaks=int under
+   widgets, through a helper's arguments): records list sys.modules entries of src/ packages that do not hold the module
+   they name.
+7. A block-mode ablation run must name its measured pytest process (main_pid); without it the V9 rule cannot tell the
+   test's own blocks from its children's (probe V9b).
+Stated residual after items 1-7: call-and-ignore - a test that calls its implementation (and lets it return) but records
+values obtained elsewhere, in-process or through a child's exit status - is visible only to the reviewer; every patch
+and substitution rule above only removes ways of making the implementation itself return fabricated values.
 D-82 second addendum (same session): the 4.0 historical line count depended on where the checkout was. A failing
 request formats a traceback in the counted region, and linecache's executed lines depend on whether the sandbox user
 can stat the boot file: in a checkout inside a 0700 directory - every official clone (tempfile.mkdtemp) and the
