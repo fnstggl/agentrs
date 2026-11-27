@@ -1070,7 +1070,10 @@ def tier_probes():
 
 
 # every Part 9 domain is measured (15 worlds and more): the time budget scales with the domains, not the criteria
-@pytest.mark.timeout(9000)
+# (the module fixture runs inside this test's budget: at 684eeb5 it needed more than 9000 s on a GPU slot, when the
+# Tier 2 verdict probe drove the reference up to 30 days per domain; that drive is now bounded by
+# probes_tiers.probe_domain verdict_wall_s and every domain's verdict channel is probed with a planted verdict)
+@pytest.mark.timeout(14400)
 def test_OO14_leak_channels_probed_per_tier(tier_probes):
     res = tier_probes
     per = {t: {"channels": r["channels_probed"], "leaks": r["n_leaks"], "kinds": r["kinds"]}
@@ -1083,23 +1086,29 @@ def test_OO14_leak_channels_probed_per_tier(tier_probes):
     guide = open(os.path.join(ROOT, "docs", "v5", "LEARNER_GUIDE.md")).read()
     gym_doc = inspect.getsource(__import__("crucible.experience.gym", fromlist=["x"]))
     documented = "not a learning signal" in guide and "not a learning signal" in gym_doc
-    verdicts = (res["tiers"].get(2) or {}).get("verdicts") or {"probed": [], "not_probed": []}
+    verdicts = (res["tiers"].get(2) or {}).get("verdicts") or {"probed": [], "not_probed": [], "planted": []}
+    t2 = _tier2_names()
     metrics = {"tiers_covered": len(covered), "leak_channels_probed_per_tier": min_channels if per else 0,
                "verifier_values_recovered": recovered, "scalar_reward_documented": documented,
                "tier3_positive_control_leaks": int(pc["n_leaks"]) if pc else 0,
                "tier2_domain_verdicts_scanned": len(verdicts["probed"]),
-               "tier2_domain_verdicts_without_distinctive_values": len(verdicts["not_probed"])}
+               "tier2_domain_verdicts_without_distinctive_values": len(verdicts["not_probed"]),
+               "tier2_domain_verdicts_planted": len(verdicts.get("planted", [])), "tier2_domains": len(t2)}
     path = os.path.join(os.environ.get("TMPDIR", "/tmp"), "OO14_tier_probes.json")
     with open(path, "w") as fh:
         json.dump(res, fh, indent=1, default=str)
     record("OO.14", metrics, command=CMD, notes=f"crucible.experience.probes_tiers per tier: {per}; leaks: "
            f"{[l for r in res['tiers'].values() for l in r['leaks']][:6]}; tiers that could not run: "
            f"{res['errors']}; Tier 2 domain evaluator verdicts scanned: {verdicts['probed']}, without a distinctive number "
-           f"after the scripted reference (not scanned): {verdicts['not_probed']}; Tier 3 positive control (the same probes in a legacy civilisation): "
+           f"after the scripted reference (not scanned): {verdicts['not_probed']}; planted verdicts scanned (every "
+           f"domain): {verdicts.get('planted')}; per-domain wall times: {(res['tiers'].get(2) or {}).get('timing')}; "
+           f"Tier 3 positive control (the same probes in a legacy civilisation): "
            f"{pc['kinds_with_leaks'] if pc else pc_err}")
     assert recovered == 0 and documented, metrics
     assert metrics["tier3_positive_control_leaks"] > 0, f"the Tier 3 probes are not shown sensitive: {pc_err or pc}"
     assert len(covered) == 3 and min_channels >= 4, f"channels per tier {per}; not run: {res['errors']}"
+    # every Part 9 domain's evaluator-verdict channel was probed (planted verdict), whatever its real numbers
+    assert sorted(verdicts.get("planted", [])) == sorted(t2), (verdicts, t2)
 
 
 def test_OO16_no_split_or_identity_reaches_participants(tier_probes):

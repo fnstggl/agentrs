@@ -24,7 +24,10 @@ never reports "no leak".
 """
 from __future__ import annotations
 
+import contextlib
 import re
+import sys
+import time
 from typing import Any, Callable
 
 import numpy as np
@@ -568,64 +571,124 @@ def hidden_mechanisms(world) -> tuple[list[str], dict[str, float]]:
     return exprs, coefs
 
 
+# a planted verdict: a canary string and a distinctive number added to the domain evaluator's verdict (its details) in
+# the identity probe's world. Whatever forwards the verdict object or its fields to the seat - an observation field,
+# an objective status, a tool response, an event - carries them; they are looked for in everything the seat reaches.
+# Every domain's verdict channel is probed this way, also when the real verdict has no distinctive number.
+VERDICT_CANARY_VALUE = -61873.9147
+_PLANTED_KEYS = ("probe_verdict_canary", "probe_verdict_value")
+
+
+@contextlib.contextmanager
+def planted_verdict(dom, text: str, value: float = VERDICT_CANARY_VALUE):
+    """While active, `dom.judge` (the domain evaluator every Tier 2 environment calls, `registry.attach_domain` and
+    `DomainObjective`) returns the real verdict with `text` and `value` added to its details."""
+    real = dom.judge
+
+    def judge(world, principal, objective, _real=real):
+        ev = _real(world, principal, objective)
+        ev = dict(ev) if isinstance(ev, dict) else {"value": ev}
+        det = dict(ev["details"]) if isinstance(ev.get("details"), dict) else {}
+        det.update({_PLANTED_KEYS[0]: text, _PLANTED_KEYS[1]: float(value)})
+        ev["details"] = det
+        return ev
+    had = "judge" in vars(dom)
+    dom.judge = judge
+    try:
+        yield
+    finally:
+        if had:
+            dom.judge = real
+        else:
+            del dom.judge
+
+
 def probe_domain(seed: int = 7, reference_days: float = 6.0, names: list[str] | None = None,
-                 max_reference_days: float = 30.0) -> dict:
+                 max_reference_days: float = 30.0, verdict_wall_s: float = 600.0) -> dict:
     """Tier 2: every registered Part 9 domain's first configuration through `make(2, ...)`: the kernel-world probes,
-    the identity probe and the domain evaluator's own verdict: the domain's scripted reference (acting only through
-    the interface, `crucible.domains.base.drive`) works on the objective for `reference_days`, then in further
-    chunks of `reference_days` up to `max_reference_days` while the verdict has no distinctive number yet (many
-    domains judge outcomes that take weeks), so the evaluator has something to judge; its score and details never
-    reach the seat. A domain whose verdict still has no distinctive number is named in the notes and in the result's
-    ``verdicts["not_probed"]`` (never counted as a clean verdict scan). The same seat is also checked for the
-    population's private state and for the world's hidden laws (`hidden_mechanisms`)."""
+    the identity probe and the domain evaluator's verdict. The verdict channel is probed twice: (1) a planted
+    verdict (`planted_verdict`: a canary and a distinctive number in the evaluator's details) is looked for in
+    everything the seat reaches, for every domain; (2) the real verdict's distinctive numbers: the domain's scripted
+    reference (acting only through the interface, `crucible.domains.base.drive`) works on the objective for
+    `reference_days`, then in further chunks of `reference_days` up to `max_reference_days` while the verdict has no
+    distinctive number yet and the reference has run less than `verdict_wall_s` seconds (most domains judge
+    outcomes that take weeks; some simulate a day in a minute or more). A domain whose real verdict still has no
+    distinctive number is named in ``verdicts["not_probed"]`` (its planted verdict is still scanned:
+    ``verdicts["planted"]``). The same seat is also checked for the population's private state and for the world's
+    hidden laws (`hidden_mechanisms`). Per-domain wall times are in ``timing``."""
     from ..domains import base as DB
     out = None
     for name in (tier2_names() if names is None else list(names)):
+        t_dom = time.perf_counter()
         r = probe_kernel_tier(lambda: _domain_env(name, seed), tier=2, label=f"tier2 {name}", unit=HOUR)
+        t_kernel = time.perf_counter() - t_dom
         P = TierProbe(f"tier2 {name} identity", 2)
-        env = _domain_env(name, IDENTITY_SEED)
-        a = env.agents()[0]
-        env.advance(HOUR)
-        dom = DB.REGISTRY[env.domain]
-        obj = getattr(env._objectives.get(a), "objective", None) or {}
-        pol = dom.reference_policy(a, obj)
-        days, acts, ok = 0.0, 0, 0
-        vals: dict[str, float] = {}
-        while days < max_reference_days:
-            drove = DB.drive(env, {a: pol}, days=reference_days, dt=int(dom.dt), trace=False)
-            days += reference_days
-            acts += int(drove["agents"][a]["actions"])
-            ok += int(drove["agents"][a]["ok"])
-            vals = domain_evaluation_values(env, a)
-            if vals:
-                break
-        P.notes.append(f"tier2 {name}: scripted reference drove the seat for {days:g} days ({acts} actions, {ok} ok)")
-        sweep = tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}),
-                           f"tier2 {name} identity", fill=harvest_fill(harvest([env.observe(a)], {"principal": [a]})))
-        env.advance(HOUR)
-        reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
-        probe_identity(P, env, a, reach, f"tier2 {name} identity")
-        # every Part 9 world composes the population: its individuals' private state never reaches the seat
-        probe_population_private(P, env, a, reach, f"tier2 {name} population private state")
-        exprs, coefs = hidden_mechanisms(env.world)
-        if exprs:
-            # the hidden law of the world (what a learner is meant to discover by experiment) never reaches the seat:
-            # neither the expression nor its distinctive coefficients
-            P.scan_channel("observation", reach, values=coefs, canaries=exprs,
-                           label=f"tier2 {name} hidden mechanism (law)")
-            P.notes.append(f"tier2 {name}: {len(exprs)} hidden law(s) and {len(coefs)} coefficient(s) looked for")
-        vals = domain_evaluation_values(env, a)
-        verdicts = {"probed": [], "not_probed": []}
+        dom = DB.REGISTRY[name.split(":")[0]]
+        vc = canary("VERDICT")
+        with planted_verdict(dom, vc):
+            env = _domain_env(name, IDENTITY_SEED)
+            a = env.agents()[0]
+            env.advance(HOUR)
+            obj = getattr(env._objectives.get(a), "objective", None) or {}
+            pol = dom.reference_policy(a, obj)
+            days, acts, ok = 0.0, 0, 0
+            vals: dict[str, float] = {}
+            t_ref = time.perf_counter()
+            while days < max_reference_days and (days == 0 or time.perf_counter() - t_ref < verdict_wall_s):
+                drove = DB.drive(env, {a: pol}, days=reference_days, dt=int(dom.dt), trace=False)
+                days += reference_days
+                acts += int(drove["agents"][a]["actions"])
+                ok += int(drove["agents"][a]["ok"])
+                vals = _real_verdict_values(env, a)
+                if vals:
+                    break
+            ref_s = time.perf_counter() - t_ref
+            P.notes.append(f"tier2 {name}: scripted reference drove the seat for {days:g} days ({acts} actions, {ok} "
+                           f"ok, {ref_s:.0f} s)")
+            sweep = tool_sweep(P, env.tools(a), lambda t, ar: env.execute(a, {"tool": t, "args": ar}),
+                               f"tier2 {name} identity",
+                               fill=harvest_fill(harvest([env.observe(a)], {"principal": [a]})))
+            env.advance(HOUR)
+            reach = [env.observe(a), env.tools(a), env.observe_since(a, 0), sweep]
+            probe_identity(P, env, a, reach, f"tier2 {name} identity")
+            # every Part 9 world composes the population: its individuals' private state never reaches the seat
+            probe_population_private(P, env, a, reach, f"tier2 {name} population private state")
+            exprs, coefs = hidden_mechanisms(env.world)
+            if exprs:
+                # the hidden law of the world (what a learner is meant to discover by experiment) never reaches the
+                # seat: neither the expression nor its distinctive coefficients
+                P.scan_channel("observation", reach, values=coefs, canaries=exprs,
+                               label=f"tier2 {name} hidden mechanism (law)")
+                P.notes.append(f"tier2 {name}: {len(exprs)} hidden law(s) and {len(coefs)} coefficient(s) looked for")
+            # the planted verdict: the evaluator was called (verify) after the seat's last observation as well
+            planted_ok = vc in dump((env.verify().get("evaluation") or {}).get(a))
+            if not planted_ok:
+                raise RuntimeError(f"tier2 {name}: the planted verdict did not reach the domain evaluator's output "
+                                   "(the probe would be vacuous)")
+            P.scan_channel("observation", reach, values={"evaluation.details.probe_verdict_value":
+                                                         VERDICT_CANARY_VALUE}, canaries=[vc],
+                           label=f"tier2 {name} domain evaluator verdict (planted)")
+            vals = _real_verdict_values(env, a)
+        verdicts = {"probed": [], "not_probed": [], "planted": [name]}
         if vals:
             P.scan_channel("observation", reach, values=vals, label=f"tier2 {name} domain evaluator verdict")
             verdicts["probed"].append(name)
         else:
             verdicts["not_probed"].append(name)
-            P.notes.append(f"tier2 {name}: the domain evaluator's verdict has no distinctive number to look for after "
-                           f"{days:g} days of the scripted reference (verdict not probed)")
-        r = merge(r, dict(P.result(), verdicts=verdicts))
+            P.notes.append(f"tier2 {name}: the domain evaluator's real verdict has no distinctive number to look for "
+                           f"after {days:g} days of the scripted reference (its planted verdict was scanned)")
+        total = time.perf_counter() - t_dom
+        timing = {name: {"kernel_probe_s": round(t_kernel, 1), "reference_s": round(ref_s, 1),
+                         "reference_days": days, "total_s": round(total, 1)}}
+        print(f"[probe_domain] {name}: {timing[name]}", file=sys.stderr, flush=True)
+        r = merge(r, dict(P.result(), verdicts=verdicts, timing=timing))
         out = r if out is None else merge(out, r)
     return out
+
+
+def _real_verdict_values(env, agent: str) -> dict[str, float]:
+    return {k: v for k, v in domain_evaluation_values(env, agent).items()
+            if not any(p in k for p in _PLANTED_KEYS)}
 
 
 def probe_tier1(families: tuple = ("net_routing", "team_commons"), steps: int = 8) -> dict:
@@ -683,7 +746,9 @@ def merge(a: dict, b: dict) -> dict:
            "channels_probed": sorted(c for c, n in ch.items() if n > 0)}
     if "verdicts" in a or "verdicts" in b:          # Tier 2: domains whose evaluator verdict was (not) scanned
         va, vb = a.get("verdicts") or {}, b.get("verdicts") or {}
-        out["verdicts"] = {k: list(va.get(k, [])) + list(vb.get(k, [])) for k in ("probed", "not_probed")}
+        out["verdicts"] = {k: list(va.get(k, [])) + list(vb.get(k, [])) for k in ("probed", "not_probed", "planted")}
+    if "timing" in a or "timing" in b:
+        out["timing"] = {**(a.get("timing") or {}), **(b.get("timing") or {})}
     return out
 
 

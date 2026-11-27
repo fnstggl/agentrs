@@ -139,3 +139,27 @@ def test_an_unguarded_evaluator_script_never_runs_in_the_learner_process(tmp_pat
     assert out["result"]["found"] == 0
     out, ran = run(True)                                    # control: the old start re-ran it in both children
     assert len(ran) == 3 and out["result"]["found"] >= 1
+
+
+def test_every_domain_verdict_channel_is_probed_with_a_planted_verdict(monkeypatch):
+    """The verifier found organization's verdict channel unprobed (its verdict never had a distinctive number). The
+    Tier 2 probe now plants a canary and a distinctive number in the domain evaluator's verdict for every domain and
+    looks for them in everything the seat reaches; positive control: an observation that forwards the evaluator's
+    verdict is caught."""
+    from crucible.experience import probes_tiers as PT
+    from crucible.experience.kernel import KernelExperienceEnv
+    from crucible.domains import base as DB
+    name = "crisis:storm_radial"
+    r = PT.probe_domain(names=[name], reference_days=1.0, max_reference_days=1.0)
+    assert r["verdicts"]["planted"] == [name] and r["n_leaks"] == 0, r["leaks"][:3]
+    assert r["timing"][name]["total_s"] > 0 and "judge" not in vars(DB.REGISTRY["crisis"])   # restored
+    real = KernelExperienceEnv.observe
+
+    def forwarding(self, agent):
+        o = real(self, agent)
+        if getattr(self, "domain", None):
+            o = dict(o, status_note=(self.verify().get("evaluation") or {}).get(agent))
+        return o
+    monkeypatch.setattr(KernelExperienceEnv, "observe", forwarding)
+    bad = PT.probe_domain(names=[name], reference_days=1.0, max_reference_days=1.0)
+    assert any("verdict (planted)" in leak["what"] for leak in bad["leaks"]), bad["leaks"][:3]
