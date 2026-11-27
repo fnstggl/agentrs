@@ -536,3 +536,41 @@ def test_trained_reasoning_depth_is_necessary_for_decisions():
     assert plain[0] > 0.9
     assert ablate[0] < 0.5, "undoing iteration 1's context update must destroy the decisions"
     assert p_mem[1] > 0.9, "the intermediate result written into the memory streams decides"
+
+
+# ---------------------------------------------------------------------------- W3: fixed J from the config (dom)
+def test_config_fixed_iterations_override_adaptive_halting():
+    """cfg.reason_iters_fixed = J > 0 (dom presets: J = 2 until halting is trained) gives exactly J iterations in
+    training and evaluation without halting compute; n_iters= still wins; J may go up to max_reason_iters = 32."""
+    cfg, core, rs, Z, ctx, policy = _setup(reason_iters_fixed=2)
+    assert cfg.adaptive_reasoning and rs.fixed_iters == 2
+    for train in (True, False):
+        rs.train(train)
+        R, info = rs(Z, ctx)
+        assert torch.all(info["n_computed"] == 2) and info["halt_p"].shape == (Z.shape[0], 2)
+        assert "R_all" not in info and torch.all(info["halt_p"][:, -1] == 1)
+    rs.eval()
+    with torch.no_grad():
+        R2, _ = rs(Z, ctx)
+        R2b, _ = rs(Z, ctx, n_iters=2)
+        _, i5 = rs(Z, ctx, n_iters=5)
+    assert torch.equal(R2, R2b) and torch.all(i5["n_computed"] == 5)
+    cfg32, core32, rs32, Z32, ctx32, _ = _setup(reason_iters_fixed=32, max_reason_iters=32)
+    rs32.eval()
+    with torch.no_grad():
+        R32, i32 = rs32(Z32, ctx32)
+    assert torch.all(i32["n_computed"] == 32) and torch.isfinite(R32).all() and rs32.iter_emb.shape[0] == 33
+
+
+def test_dom_dev_reasoner_defaults_to_two_fixed_iterations():
+    from superlearner.cam_unified.config import make_preset
+    cfg = make_preset("dom_dev", sem_xattn_every=0)
+    torch.manual_seed(0)
+    core = UnifiedCore(cfg, autocast=False)
+    rs = Reasoner(cfg, core).eval()
+    B = 2
+    with torch.no_grad():
+        Z, _ = core(core.init_state(B), rand_tokens(B, 6, cfg.d_model, seed=1))
+        R, info = rs(Z, rand_tokens(B, 4, cfg.d_model, TokenKind.GOAL, seed=2))
+    assert torch.all(info["n_computed"] == 2) and rs.J_max == 32
+    assert (R - Z).abs().max() > 1e-3

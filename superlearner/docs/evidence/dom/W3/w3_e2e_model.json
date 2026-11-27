@@ -1,0 +1,231 @@
+{
+ "script": "superlearner/docs/evidence/dom/W3/w3_e2e_model.py",
+ "device": "cpu",
+ "dtype": "float32",
+ "commit": "963edfae463918239e966abe2e2c63643ca0ffab",
+ "A_build": {
+  "preset": "dom_dev",
+  "sem_model": "Qwen/Qwen3-0.6B",
+  "core_class": "UnifiedCore",
+  "reasoner_class": "Reasoner",
+  "entity_encoder": "EntityEncoder",
+  "xattn_layers": [
+   3,
+   7
+  ],
+  "sem_dim": 1024,
+  "state_gate": true,
+  "state_candidate": "clamp",
+  "state_emb_std": 0.02,
+  "reason_fixed_iters": 2,
+  "reasoner_J_max": 32,
+  "core_params": {
+   "state_init": 24576,
+   "kind_embedding": 6912,
+   "time_encoding": 13056,
+   "entity_slot_codes": 294914,
+   "ctx_in_norm": 384,
+   "blocks": 14162944,
+   "per_block": 1770368,
+   "out_norm": 384,
+   "state_gate": 295296,
+   "semantic_projection": 394624,
+   "semantic_xattn": 1576448,
+   "semantic_cond": 147840,
+   "total": 16917378
+  },
+  "same_core_in_world_model": true,
+  "reasoner_blocks_are_core_blocks": true,
+  "build_s": 11.2
+ },
+ "B_init_dom_dev": {
+  "first_decision_obs_dependence": 0.1268,
+  "first_decision_cos_const": [
+   -0.0188,
+   -0.0152
+  ],
+  "R_obs_dependence": 0.1067,
+  "per_decision_obs_dependence_t0_5": [
+   0.122,
+   0.0013,
+   0.0013,
+   0.0013,
+   0.0013,
+   0.0013
+  ],
+  "max_cos_const_t0_5": [
+   -0.0188,
+   -0.0189,
+   -0.019,
+   -0.0191,
+   -0.0192,
+   -0.0193
+  ],
+  "history_obs_dependence_6_decisions": 0.1932,
+  "rms_Z_after_6": 1.0,
+  "tools_A": [
+   "advertise",
+   "advertise"
+  ],
+  "tools_B": [
+   "advertise",
+   "advertise"
+  ]
+ },
+ "B_init_legacy_core_same_preset": {
+  "first_decision_obs_dependence": 0.019,
+  "first_decision_cos_const": [
+   0.9949,
+   0.9951
+  ],
+  "R_obs_dependence": 0.0073,
+  "per_decision_obs_dependence_t0_5": [
+   0.019,
+   0.0074,
+   0.0074,
+   0.0075,
+   0.0075,
+   0.0075
+  ],
+  "max_cos_const_t0_5": [
+   0.9949,
+   0.9954,
+   0.9955,
+   0.9956,
+   0.9957,
+   0.9957
+  ],
+  "history_obs_dependence_6_decisions": 0.0264,
+  "rms_Z_after_6": 1.0,
+  "tools_A": [
+   "set_price",
+   "set_price"
+  ],
+  "tools_B": [
+   "set_price",
+   "set_price"
+  ]
+ },
+ "B_pass": true,
+ "C_sem_context": {
+  "tokens_per_row": [
+   39,
+   39
+  ],
+  "sem_dim": 1024
+ },
+ "C_sem_changes_Z_rel": 0.12856,
+ "C_mechanism_c_gradients": {
+  "n_xattn_params": 27,
+  "nonzero_from_policy_evaluate": 27,
+  "nonzero_from_world_loss": 27,
+  "nonzero_union": 27,
+  "zero_in_both": [],
+  "world_loss": 31.474374771118164,
+  "bound_calls_decide_policy": {
+   "core_bound": 3,
+   "core_unbound": 0,
+   "reasoner_bound": 2
+  },
+  "bound_calls_world": {
+   "core_bound": 6,
+   "core_unbound": 3,
+   "reasoner_bound": 0
+  },
+  "world_loss_terms": {
+   "duration": 9.3953,
+   "kl": 1.0,
+   "kl_value": 0.0088,
+   "reg_var": 0.423,
+   "reg_cov": 0.0111,
+   "latent": 2.2496,
+   "outcome": 2.8998,
+   "obs": 2.4427,
+   "reward": 5.5413,
+   "cont": 0.8243,
+   "open_loop": 14.3627,
+   "world": 31.4744,
+   "loss": 31.4744,
+   "open_loop_joint_nll": 56.2873
+  },
+  "gates_at_decide": {
+   "3": 0.047420669347047806,
+   "7": 0.047422487288713455
+  },
+  "reasoner_gate_iters": [
+   1,
+   2
+  ],
+  "grad_norm_policy_sem_proj": 0.01771470718085766,
+  "grad_norm_world_sem_proj": 0.2928687632083893
+ },
+ "C_pass": true,
+ "C_world_loss_terms_legacy_core_same_tokens": {
+  "duration": 8.4626,
+  "kl": 1.0,
+  "kl_value": 0.0091,
+  "reg_var": 0.4804,
+  "reg_cov": 0.0,
+  "latent": 3.3202,
+  "outcome": 2.9055,
+  "obs": 2.5105,
+  "reward": 5.5413,
+  "cont": 0.7093,
+  "open_loop": 15.4017,
+  "world": 33.4526,
+  "loss": 33.4526,
+  "open_loop_joint_nll": 60.5251
+ },
+ "D_evaluator_rows": {
+  "rows": 8,
+  "B": 2,
+  "K": 4,
+  "shape": [
+   8,
+   32,
+   384
+  ],
+  "max_abs_diff_vs_per_env": 4.76837158203125e-07,
+  "seconds": 0.093,
+  "transition_block_ids": [
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ],
+  "xattn_gates_last_call": {
+   "3": 0.04742055386304855,
+   "7": 0.04742210730910301
+  },
+  "finite": true
+ },
+ "D_pass": true,
+ "E_reasoner_checkpoint": {
+  "fixed_J2": {
+   "iters": [
+    2.0,
+    2.0
+   ],
+   "R_max_abs_diff": 0.0,
+   "params_compared": 62,
+   "max_rel_grad_diff": 0.0,
+   "mismatched": [],
+   "sem_proj_grad_norm": 4.420719146728516
+  },
+  "adaptive": {
+   "iters": [
+    11.0,
+    11.0
+   ],
+   "R_max_abs_diff": 0.0,
+   "params_compared": 65,
+   "max_rel_grad_diff": 0.0,
+   "mismatched": [],
+   "sem_proj_grad_norm": 6.808942794799805
+  }
+ },
+ "E_pass": true,
+ "seconds": 53.0
+}

@@ -22,6 +22,15 @@ second entity of RELATION / MESSAGE / TRANSACTION observations.
 Slot identity is used for grouping only (equality), never as an embedding: relabelling slots permutes the outputs.
 Output: TokenSet of ENTITY tokens (entity = slot, entity2 = -1) followed by RELATION tokens (entity = i, entity2 = j),
 time = latest observation time, refs "entity:<slot>" / "relation:<i>-><j>".
+
+Width (W3, DOM): the encoder works at the satellite width W = `cfg.d_satellite` (0 = d_model) with an input projection
+d_model -> W after the token norm and an output projection W -> d_model after the output norm, so at the 1B scale it
+costs ~W^2 rather than d_model^2 per matrix (the output tokens always have the core's width d_model). With W = d_model
+there are no projections (the pre-DOM encoder exactly).
+
+Types: `type_tokens` (e.g. `make_type_tokens(registries, semantic)` = `entity_type_tokens` over the semantic model's
+`embed` of the registry's free-text types, cached per semantic version) are consumed through `type_proj`
+(type_dim = `cfg.sem_xattn_dim` when it is set, i.e. the semantic model's hidden width; else d_model).
 """
 from __future__ import annotations
 
@@ -85,22 +94,31 @@ class EntityEncoder(nn.Module):
 
     def __init__(self, cfg: CamConfig, n_rounds: int = 1, type_dim: Optional[int] = None,
                  max_relations: Optional[int] = None, ffn_hidden: Optional[int] = None,
-                 autocast: Optional[bool] = None, strict_slots: bool = False):
+                 autocast: Optional[bool] = None, strict_slots: bool = False, width: Optional[int] = None):
         super().__init__()
         self.cfg = cfg
-        D, H = cfg.d_model, cfg.n_heads
-        hid = ffn_hidden or max(64, (cfg.d_ff // 2) // 64 * 64)
+        D_core, H = cfg.d_model, cfg.n_heads
+        D = int(width or getattr(cfg, "d_satellite", 0) or D_core)          # satellite width W
+        if D % H:
+            raise ValueError(f"EntityEncoder width {D} is not divisible by n_heads={H}")
+        d_ff = cfg.d_ff if D == D_core else int(round(cfg.ffn_mult * D / 64)) * 64
+        hid = ffn_hidden or max(64, (d_ff // 2) // 64 * 64)
+        self.width, self.d_core = D, D_core
+        if type_dim is None:
+            type_dim = int(getattr(cfg, "sem_xattn_dim", 0) or 0) or D_core
+        self.type_dim = type_dim
         self.E = cfg.max_entities
         self.max_relations = max_relations or 2 * cfg.max_entities
         self.autocast = autocast
-        self.tok_norm = RMSNorm(D)
+        self.tok_norm = RMSNorm(D_core)
+        self.in_proj = nn.Linear(D_core, D, bias=False) if D != D_core else None
         self.kind_emb = KindEmbedding(D)
         self.time_enc = TimeEncoding(D, n_freq=cfg.n_fourier)
         # entity encoder E_theta
         self.mean_proj = nn.Linear(D, D)
         self.pool_query = nn.Parameter(torch.randn(D) * 0.02)
         self.ent_pool = _SlotPool(D, H)
-        self.type_proj = nn.Linear(type_dim or D, D)
+        self.type_proj = nn.Linear(type_dim, D)
         self.unknown_type = nn.Parameter(torch.randn(D) * 0.02)
         self.hist = nn.Linear(4, D)
         self.ent_in = nn.Linear(4 * D, D)
@@ -113,9 +131,10 @@ class EntityEncoder(nn.Module):
         self.rel_ffn = SwiGLU(D, hid)
         self.rel_norm = RMSNorm(D)
         # relational rounds
-        self.rounds = nn.ModuleList([Block(D, H, cfg.d_ff) for _ in range(n_rounds)])
+        self.rounds = nn.ModuleList([Block(D, H, d_ff) for _ in range(n_rounds)])
         self.incident_bias = nn.Parameter(torch.full((H,), 1.0))
         self.out_norm = RMSNorm(D)
+        self.out_proj = nn.Linear(D, D_core, bias=False) if D != D_core else None
         init_transformer_weights(self, max(1, n_rounds))
         nn.init.normal_(self.kind_emb.weight, std=0.5)                      # comparable to RMS-normalised tokens
         nn.init.normal_(self.time_enc.proj.weight, std=0.5 / self.time_enc.proj.in_features ** 0.5)
@@ -123,6 +142,17 @@ class EntityEncoder(nn.Module):
         self.stats = {"calls": 0, "dropped_relations": 0, "out_of_range_tokens": 0}
         self._warned = False
         self.last_counts: Optional[tuple] = None
+        self._type_cache: dict = {}
+
+    def make_type_tokens(self, registries: Sequence[EntityRegistry], semantic, device=None) -> TokenSet:
+        """Type tokens for `forward` from the registries' entity types, embedded by the semantic model's `embed`
+        (cached by (semantic version, type string); the cache never outlives an encoder version)."""
+        ver = getattr(semantic, "version", None)
+        cache = self._type_cache.get(ver)
+        if cache is None:
+            self._type_cache = {ver: {}}
+            cache = self._type_cache[ver]
+        return entity_type_tokens(registries, semantic.embed, device=device, cache=cache)
 
     def _autocast_ctx(self, device):
         use = self.autocast if self.autocast is not None else device.type == "cuda"
@@ -172,7 +202,8 @@ class EntityEncoder(nn.Module):
     # ------------------------------------------------------------------ forward
     def forward(self, obs_tokens: TokenSet, type_tokens: Optional[TokenSet] = None) -> TokenSet:
         obs = obs_tokens
-        B, N, D = obs.x.shape
+        B, N, _ = obs.x.shape
+        D = self.width
         E = self.E
         dev = obs.x.device
         self.stats["calls"] += 1
@@ -204,7 +235,10 @@ class EntityEncoder(nn.Module):
         assign2 = torch.gather(assign2_all, 1, order.unsqueeze(-1).expand(-1, -1, N)) & emask.unsqueeze(-1)
 
         with self._autocast_ctx(dev):
-            u = self.tok_norm(obs.x.float()) + self.kind_emb(obs.kind) + self.time_enc(obs.time)   # [B,N,D]
+            u = self.tok_norm(obs.x.float())
+            if self.in_proj is not None:
+                u = self.in_proj(u)
+            u = u + self.kind_emb(obs.kind) + self.time_enc(obs.time)                            # [B,N,W]
             u = u * obs.mask.unsqueeze(-1).to(u.dtype)
             # ---- entities
             af = assign.float()
@@ -213,6 +247,9 @@ class EntityEncoder(nn.Module):
             q = self.pool_query + self.mean_proj(mean)
             pooled = self.ent_pool(u, q, assign)
             if type_tokens is not None and type_tokens.N > 0:
+                if type_tokens.x.shape[-1] != self.type_proj.in_features:
+                    raise ValueError(f"EntityEncoder: type tokens of width {type_tokens.x.shape[-1]}, expected "
+                                     f"type_dim={self.type_proj.in_features}")
                 tv = type_tokens.mask & (type_tokens.entity >= 0)
                 tassign = (type_tokens.entity.unsqueeze(1) == eslot.unsqueeze(-1)) & tv.unsqueeze(1) \
                     & emask.unsqueeze(-1)                                                   # [B,Eo,T]
@@ -267,7 +304,10 @@ class EntityEncoder(nn.Module):
                 bias = adj.unsqueeze(1).float() * self.incident_bias.view(1, -1, 1, 1)     # [B,H,L,L]
                 for blk in self.rounds:
                     h = blk(h, mask, bias)
-            h = self.out_norm(h).float() * mask.unsqueeze(-1).float()
+            h = self.out_norm(h)
+            if self.out_proj is not None:
+                h = self.out_proj(h)
+            h = h.float() * mask.unsqueeze(-1).float()
 
         kind = torch.cat([torch.full((B, Eo), int(TokenKind.ENTITY), dtype=torch.long, device=dev),
                           torch.full((B, P), int(TokenKind.RELATION), dtype=torch.long, device=dev)], 1)

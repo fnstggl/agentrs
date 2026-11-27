@@ -2,6 +2,8 @@
 
     R_0 = Z_t,   R_{j+1} = Reason_theta(R_j, [Z_t; B_t; M_t; G_t])
 
+(with the core's gated state, Z_t enters RMS-normalised: `Reasoner.state_input`)
+
 Reason_theta is the last `cfg.reason_layers` blocks of the shared backbone (same weights), applied to
 [R_j + IterEmb(j) + KindEmb(REASON) + StatePos; anchor Z_t (kind STATE) ; context tokens], followed by the backbone's
 output norm. The context (Z_t anchor + belief / memory / goal tokens) is embedded once per call and its residual
@@ -10,7 +12,9 @@ intermediate results held by context tokens.
 
 Depth
 -----
-* Fixed J (`n_iters=`, e.g. 1, 2, 4, 8, 16, or `cfg.adaptive_reasoning=False`): R = R_J.
+* Fixed J (`n_iters=`, e.g. 1, 2, 4, 8, 16; or `cfg.reason_iters_fixed = J > 0`, the dom presets' J = 2 until
+  halting is trained; or `cfg.adaptive_reasoning=False` with the default J): R = R_J. J <= cfg.max_reason_iters
+  (32 in the dom presets).
 * Adaptive (default): at iteration j a halting head gives lambda_j = sigmoid(h(R_j)); the halting distribution is
   p_j = lambda_j prod_{i<j}(1 - lambda_i). **Bounded unroll, per row:** a row stops after the first iteration at which
   its unhalted mass prod_{i<=j}(1 - lambda_i) falls below `halt_eps` (default 0.05, reachable: at the initial
@@ -40,6 +44,14 @@ Imagination branches
 `code_rows` [B'] maps batch rows to per-episode entity slot-code rows (as in `UnifiedCore.forward`), so the reasoner
 runs on branch batches of any size after `core.new_episode(B)`.
 
+Semantic context (DOM Mechanism C)
+----------------------------------
+`sem` (a `core.semantic_xattn.SemanticContext`, rows aligned as in `UnifiedCore.project_semantic`: the batch's rows,
+or source rows selected by `sem_rows` / `code_rows`) is projected once per call and passed as an explicit input to
+every (checkpointed) iteration, so the cross-attention layers among the reused blocks read it; rows that halt leave
+the semantic batch with their state. Nothing is held as module state: recomputation in the backward pass uses the
+tensors of the original forward even when other decisions were encoded in between.
+
 Interventions (ablations / causal tests)
 ----------------------------------------
 `with reasoner.intervention(fn):` applies R_j <- fn(j, R_j) after each iteration j (1-based);
@@ -62,12 +74,14 @@ from ..config import CamConfig
 from ..interfaces import TokenKind, TokenSet
 from .backbone import UnifiedCore
 from .blocks import RMSNorm, count_parameters
+from .semantic_xattn import SemanticContext, SemanticKV
 
 HALTING_MODES = ("act", "pondernet")
 
 
 class Reasoner(nn.Module):
-    """forward(Z [B,S,D], ctx TokenSet [B,N,D] | None, n_iters=None, code_rows=None) -> (R [B,S,D] float32, info).
+    """forward(Z [B,S,D], ctx TokenSet [B,N,D] | None, n_iters=None, code_rows=None, sem=None) -> (R [B,S,D] float32,
+    info).
 
     info (all modes): "halt_p" [B,J] halting distribution over the computed iterations (zero after a row stopped),
     "iters" [B] (training: expected iterations E_p[j], differentiable; evaluation: iterations computed), "ponder" [B]
@@ -112,6 +126,13 @@ class Reasoner(nn.Module):
         nn.init.constant_(self.halt_head.bias, math.log(init_lambda / (1 - init_lambda)))
         self.intervene: Optional[tuple] = None             # (fn, context: bool)
         self._ckpt_now = False
+        self.last_gates: dict = {}                         # {iteration: {block index: mean semantic gate}} (detached)
+
+    @property
+    def fixed_iters(self) -> Optional[int]:
+        """J of the fixed-depth mode selected by the config (`cfg.reason_iters_fixed`), None = adaptive/default."""
+        j = int(getattr(self.cfg, "reason_iters_fixed", 0) or 0)
+        return min(j, self.J_max) if j > 0 else None
 
     @property
     def core(self) -> UnifiedCore:
@@ -146,15 +167,21 @@ class Reasoner(nn.Module):
                                                       sel.mask], 1)
 
     def _step_impl(self, R: Tensor, hctx: Tensor, mask: Optional[Tensor], j: int,
-                   checkpoint_blocks: Optional[bool] = None) -> tuple:
+                   checkpoint_blocks: Optional[bool] = None, sem: Optional[SemanticKV] = None,
+                   gate_log: Optional[dict] = None) -> tuple:
         core = self.core
         S = R.shape[1]
         hr = core.embed_state(R, TokenKind.REASON) + self.iter_emb[min(j, self.J_max)]
         h = torch.cat([hr, hctx], 1)
-        h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=checkpoint_blocks)
+        if sem is None:
+            h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=checkpoint_blocks)
+        else:
+            h = core.run_blocks(h, mask, self.blocks, checkpoint_blocks=checkpoint_blocks, sem=sem,
+                                gate_log=gate_log)
         return core.out_norm(h[:, :S]).float(), h[:, S:]
 
-    def step(self, R: Tensor, j: int, hctx: Tensor, cmask: Tensor) -> tuple:
+    def step(self, R: Tensor, j: int, hctx: Tensor, cmask: Tensor, sem: Optional[SemanticKV] = None,
+             gate_log: Optional[dict] = None) -> tuple:
         """One reasoning iteration: (R_j [b,S,D], context stream [b,L,D]) -> (R_{j+1} [b,S,D] float32, context
         stream after the reused blocks). The context's residual stream is carried across iterations, so J
         iterations of k reused blocks compose like J*k weight-tied layers over [R; Z; ctx] (context tokens can
@@ -164,10 +191,32 @@ class Reasoner(nn.Module):
         mask = torch.cat([torch.ones(b, S, dtype=torch.bool, device=R.device), cmask], 1)
         mask = None if bool(mask.all()) else mask
         if self._ckpt_now:
-            # the flag is an argument (not read from self during recomputation, when forward has already returned):
-            # no nested per-block checkpoints inside the iteration checkpoint, in the forward and the recomputation
-            return checkpoint(self._step_impl, R, hctx, mask, j, False, use_reentrant=False)
-        return self._step_impl(R, hctx, mask, j)
+            # the flag and the semantic memory are arguments (not read from self during recomputation, when forward
+            # has already returned): no nested per-block checkpoints inside the iteration checkpoint, and the
+            # recomputation reads exactly the semantic tensors of this forward
+            if sem is None:
+                return checkpoint(self._step_impl, R, hctx, mask, j, False, use_reentrant=False)
+            return checkpoint(self._step_impl, R, hctx, mask, j, False, sem, gate_log, use_reentrant=False)
+        if sem is None:
+            return self._step_impl(R, hctx, mask, j)
+        return self._step_impl(R, hctx, mask, j, None, sem, gate_log)
+
+    def state_input(self, Z: Tensor) -> Tensor:
+        """The latent state as the reasoner reads it (R_0 and the anchor). With the core's gated state
+        (`cfg.state_gate`) Z's scale is a persistence artefact (it starts near the 0.02-scale initial state and grows
+        as the gates write), so the reasoner reads its content RMS-normalised per token (no learned gain): R_0 is then
+        at the scale of the iteration embedding and of every later R_j (out_norm). Without the gate Z is already
+        out_norm'd and is used as is (pre-DOM behaviour)."""
+        if getattr(self.core, "state_gate", None) is None:
+            return Z
+        Zf = Z.float()
+        return torch.nn.functional.rms_norm(Zf, (Zf.shape[-1],), eps=1e-6)
+
+    def _iterate(self, R, j, hctx, cmask, kv: Optional[SemanticKV], log: Optional[dict]) -> tuple:
+        # without a semantic context `step` is called exactly as before (spies and subclasses keep working)
+        if kv is None:
+            return self.step(R, j, hctx, cmask)
+        return self.step(R, j, hctx, cmask, kv, log.setdefault(j, {}))
 
     def halt_lambda(self, R: Tensor) -> Tensor:
         """Conditional halting probability lambda(R) [b] from mean-pooled state tokens."""
@@ -190,30 +239,39 @@ class Reasoner(nn.Module):
 
     # ------------------------------------------------------------------ forward
     def forward(self, Z: Tensor, ctx: Optional[TokenSet] = None, n_iters: Optional[int] = None,
-                code_rows: Optional[Tensor] = None) -> tuple:
+                code_rows: Optional[Tensor] = None, sem: Optional[SemanticContext] = None, *,
+                sem_rows: Optional[Tensor] = None) -> tuple:
         B = Z.shape[0]
         dev = Z.device
         if not self.cfg.use_reasoning:
             zero = torch.zeros(B, device=dev)
             return Z, {"halt_p": torch.zeros(B, 0, device=dev), "iters": zero, "ponder": zero, "halt_kl": zero,
                        "expected_iters": zero, "n_computed": zero}
-        adaptive = self.cfg.adaptive_reasoning and n_iters is None
+        J_fixed = n_iters if n_iters is not None else self.fixed_iters
+        adaptive = self.cfg.adaptive_reasoning and J_fixed is None
         self._ckpt_now = self._use_iter_checkpoint(adaptive)
+        log: dict = {}
         try:
+            Z = self.state_input(Z)
             with self.core._autocast_ctx(dev):
                 hctx, cmask = self._context(Z, ctx, code_rows)
+                kv = self.core.project_semantic(sem, B, code_rows, sem_rows) if sem is not None else None
                 if not adaptive:
-                    return self._fixed(Z, hctx, cmask, n_iters or self.default_iters)
-                return self._adaptive(Z, hctx, cmask)
+                    out = self._fixed(Z, hctx, cmask, J_fixed or self.default_iters, kv, log)
+                else:
+                    out = self._adaptive(Z, hctx, cmask, kv, log)
         finally:
             self._ckpt_now = False
+        if kv is not None:
+            self.last_gates = log
+        return out
 
-    def _fixed(self, Z, hctx, cmask, J: int):
+    def _fixed(self, Z, hctx, cmask, J: int, kv: Optional[SemanticKV] = None, log: Optional[dict] = None):
         B = Z.shape[0]
         R = Z.float()
         rows = torch.arange(B, device=Z.device)
         for j in range(1, J + 1):
-            R, hctx = self.step(R, j, hctx, cmask)
+            R, hctx = self._iterate(R, j, hctx, cmask, kv, log)
             R, hctx = self._apply_intervention(j, R, hctx, rows)
         halt_p = torch.zeros(B, J, device=Z.device)
         halt_p[:, -1] = 1.0
@@ -228,7 +286,8 @@ class Reasoner(nn.Module):
             return torch.rand_like(lam) < lam
         return cum >= self.halt_threshold
 
-    def _adaptive(self, Z: Tensor, hctx: Tensor, cmask: Tensor):
+    def _adaptive(self, Z: Tensor, hctx: Tensor, cmask: Tensor, kv: Optional[SemanticKV] = None,
+                  log: Optional[dict] = None):
         B, S, D = Z.shape
         dev = Z.device
         train = self.training
@@ -243,7 +302,7 @@ class Reasoner(nn.Module):
         n_comp = torch.zeros(B, dtype=torch.long, device=dev)
         ps, R_all = [], []
         for j in range(1, J + 1):
-            R, hctx = self.step(R, j, hctx, cmask)
+            R, hctx = self._iterate(R, j, hctx, cmask, kv, log)
             R, hctx = self._apply_intervention(j, R, hctx, active)
             lam = self.halt_lambda(R)
             rem_a = remain[active]
@@ -264,6 +323,8 @@ class Reasoner(nn.Module):
             if bool(stop.any()):
                 keep = ~stop
                 active, R, hctx, cmask = active[keep], R[keep], hctx[keep], cmask[keep]
+                if kv is not None:
+                    kv = kv.select(keep.nonzero().squeeze(1))
             if active.numel() == 0:
                 break
         P = torch.stack(ps, 1)                                  # [B,J_used]

@@ -1,0 +1,312 @@
+{
+ "workstream": "W3 CORE",
+ "code_commit_measured": "963edfae463918239e966abe2e2c63643ca0ffab",
+ "recall_commit": "963edfae463918239e966abe2e2c63643ca0ffab",
+ "mechc_commit": "963edfae463918239e966abe2e2c63643ca0ffab",
+ "preset": "dom_dev (8 x 384 x 6, S=32, Qwen3-0.6B)",
+ "commands": {
+  "model_checks": "cd superlearner && PYTHONPATH=src:../crucible/src CUDA_VISIBLE_DEVICES= python docs/evidence/dom/W3/w3_e2e_model.py",
+  "recall": "cd superlearner && PYTHONPATH=src:../crucible/src python docs/evidence/dom/W3/w3_e2e_recall.py 0 1",
+  "mechanism_c_probe": "cd superlearner && PYTHONPATH=src:../crucible/src python docs/evidence/dom/W3/w3_mechc_behaviour.py",
+  "tests_cpu": "per directory: python -m pytest -q -m 'not gpu and not slow' tests/cam_unified/<dir> (core dom integration world semantic experiments capabilities learn memory)",
+  "test_gpu": "python -m pytest -q tests/cam_unified/core/test_core_state_persistence.py::test_delayed_recall_delay16_dom_dev"
+ },
+ "plan_checks": {
+  "delayed_recall_delay16_ge_95pct_real_core": {
+   "pass": true,
+   "runs": {
+    "dom_dev build_model core (gated unit-RMS state, std 0.02, clamp candidate) | seed 0": {
+     "best_acc": 1.0,
+     "reached_target_at": 25,
+     "iters_run": 25,
+     "key_step": 0,
+     "peak_gb": 1.198
+    },
+    "dom_dev build_model core (gated unit-RMS state, std 0.02, clamp candidate) | seed 1": {
+     "best_acc": 1.0,
+     "reached_target_at": 25,
+     "iters_run": 25,
+     "key_step": 0,
+     "peak_gb": 1.198
+    },
+    "dom_dev build_model core, key after 4 distractor decisions | seed 0": {
+     "best_acc": 1.0,
+     "reached_target_at": 400,
+     "iters_run": 400,
+     "key_step": 4,
+     "peak_gb": 1.533
+    },
+    "legacy core (no gate, state_emb_std 0.5) | seed 0": {
+     "best_acc": 0.1015625,
+     "reached_target_at": null,
+     "iters_run": 300,
+     "key_step": 0,
+     "peak_gb": 0.921
+    },
+    "gated core, audit-literal out_norm candidate, free-scale state | seed 0": {
+     "best_acc": 0.078125,
+     "reached_target_at": null,
+     "iters_run": 300,
+     "key_step": 0,
+     "peak_gb": 1.113
+    },
+    "gated core, clamp candidate, free-scale state | seed 0": {
+     "best_acc": 1.0,
+     "reached_target_at": 200,
+     "iters_run": 200,
+     "key_step": 0,
+     "peak_gb": 1.151
+    },
+    "gated core, clamp candidate, free-scale state, key after 4 | seed 0": {
+     "best_acc": 0.109375,
+     "reached_target_at": null,
+     "iters_run": 600,
+     "key_step": 4,
+     "peak_gb": 1.357
+    },
+    "legacy core, key after 4 | seed 0": {
+     "best_acc": 0.09765625,
+     "reached_target_at": null,
+     "iters_run": 300,
+     "key_step": 4,
+     "peak_gb": 1.071
+    }
+   }
+  },
+  "init_cos_const_lt_0.9_and_obs_dependence_gt_10pct": {
+   "pass": true,
+   "dom_dev": {
+    "first_decision_obs_dependence": 0.1268,
+    "first_decision_cos_const": [
+     -0.0188,
+     -0.0152
+    ],
+    "R_obs_dependence": 0.1067,
+    "per_decision_obs_dependence_t0_5": [
+     0.122,
+     0.0013,
+     0.0013,
+     0.0013,
+     0.0013,
+     0.0013
+    ],
+    "max_cos_const_t0_5": [
+     -0.0188,
+     -0.0189,
+     -0.019,
+     -0.0191,
+     -0.0192,
+     -0.0193
+    ],
+    "history_obs_dependence_6_decisions": 0.1932,
+    "rms_Z_after_6": 1.0,
+    "tools_A": [
+     "advertise",
+     "advertise"
+    ],
+    "tools_B": [
+     "advertise",
+     "advertise"
+    ]
+   },
+   "legacy_core_same_preset": {
+    "first_decision_obs_dependence": 0.019,
+    "first_decision_cos_const": [
+     0.9949,
+     0.9951
+    ],
+    "R_obs_dependence": 0.0073,
+    "per_decision_obs_dependence_t0_5": [
+     0.019,
+     0.0074,
+     0.0074,
+     0.0075,
+     0.0075,
+     0.0075
+    ],
+    "max_cos_const_t0_5": [
+     0.9949,
+     0.9954,
+     0.9955,
+     0.9956,
+     0.9957,
+     0.9957
+    ],
+    "history_obs_dependence_6_decisions": 0.0264,
+    "rms_Z_after_6": 1.0,
+    "tools_A": [
+     "set_price",
+     "set_price"
+    ],
+    "tools_B": [
+     "set_price",
+     "set_price"
+    ]
+   }
+  },
+  "decide_policy_evaluate_world_loss_with_sem_nonzero_grad_every_xattn_param": {
+   "pass": true,
+   "detail": {
+    "n_xattn_params": 27,
+    "nonzero_from_policy_evaluate": 27,
+    "nonzero_from_world_loss": 27,
+    "nonzero_union": 27,
+    "zero_in_both": [],
+    "world_loss": 31.474374771118164,
+    "bound_calls_decide_policy": {
+     "core_bound": 3,
+     "core_unbound": 0,
+     "reasoner_bound": 2
+    },
+    "bound_calls_world": {
+     "core_bound": 6,
+     "core_unbound": 3,
+     "reasoner_bound": 0
+    },
+    "world_loss_terms": {
+     "duration": 9.3953,
+     "kl": 1.0,
+     "kl_value": 0.0088,
+     "reg_var": 0.423,
+     "reg_cov": 0.0111,
+     "latent": 2.2496,
+     "outcome": 2.8998,
+     "obs": 2.4427,
+     "reward": 5.5413,
+     "cont": 0.8243,
+     "open_loop": 14.3627,
+     "world": 31.4744,
+     "loss": 31.4744,
+     "open_loop_joint_nll": 56.2873
+    },
+    "gates_at_decide": {
+     "3": 0.047420669347047806,
+     "7": 0.047422487288713455
+    },
+    "reasoner_gate_iters": [
+     1,
+     2
+    ],
+    "grad_norm_policy_sem_proj": 0.01771470718085766,
+    "grad_norm_world_sem_proj": 0.2928687632083893
+   },
+   "caveat": "model.py / world/train_seq.py do not pass sem yet (W5 / W6); the harness binds the real Qwen3-0.6B semantic context at the core/reasoner call boundary for calls with the environment rows (3 world-model calls on other row layouts ran without it)",
+   "world_loss_terms_legacy_core_same_tokens": {
+    "duration": 8.4626,
+    "kl": 1.0,
+    "kl_value": 0.0091,
+    "reg_var": 0.4804,
+    "reg_cov": 0.0,
+    "latent": 3.3202,
+    "outcome": 2.9055,
+    "obs": 2.5105,
+    "reward": 5.5413,
+    "cont": 0.7093,
+    "open_loop": 15.4017,
+    "world": 33.4526,
+    "loss": 33.4526,
+    "open_loop_joint_nll": 60.5251
+   }
+  },
+  "batch_of_BxK_evaluator_rows_runs": {
+   "pass": true,
+   "detail": {
+    "rows": 8,
+    "B": 2,
+    "K": 4,
+    "shape": [
+     8,
+     32,
+     384
+    ],
+    "max_abs_diff_vs_per_env": 4.76837158203125e-07,
+    "seconds": 0.093,
+    "transition_block_ids": [
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "xattn_gates_last_call": {
+     "3": 0.04742055386304855,
+     "7": 0.04742210730910301
+    },
+    "finite": true
+   }
+  },
+  "checkpointed_reasoner_grad_equals_plain_rtol_1e-4": {
+   "pass": true,
+   "detail": {
+    "fixed_J2": {
+     "iters": [
+      2.0,
+      2.0
+     ],
+     "R_max_abs_diff": 0.0,
+     "params_compared": 62,
+     "max_rel_grad_diff": 0.0,
+     "mismatched": [],
+     "sem_proj_grad_norm": 4.420719146728516
+    },
+    "adaptive": {
+     "iters": [
+      11.0,
+      11.0
+     ],
+     "R_max_abs_diff": 0.0,
+     "params_compared": 65,
+     "max_rel_grad_diff": 0.0,
+     "mismatched": [],
+     "sem_proj_grad_norm": 6.808942794799805
+    }
+   }
+  }
+ },
+ "mechanism_c_behaviour_probe": {
+  "pass": true,
+  "trained_with_sem": {
+   "acc_gates_open": 1.0,
+   "gate_means_gates_open": {
+    "3": 0.5966106653213501,
+    "7": 0.4246162176132202
+   },
+   "acc_gates_closed": 0.056640625,
+   "acc_no_sem": 0.056640625
+  },
+  "trained_without_sem_acc": 0.53125,
+  "chance": 0.0625,
+  "note": "synthetic semantic token states (dim 1024) with a buried fact, real dom_dev UnifiedCore"
+ },
+ "design_measurements_scratch_runs": {
+  "note": "development runs on the dom_dev UnifiedCore before the final design (delay 16, B=64)",
+  "gated_out_norm_candidate_free_scale_std_0.02": "best 0.078 at 300 its, 0.152 at 800 its (seed 0); 0.074 at 300 its (seed 1)",
+  "gated_std_0.5_out_norm_candidate": "0.969 at 50 its, but cos(Z, const) 0.98-0.995 at init",
+  "world_loss_8step_B4_same_tokens": {
+   "free_scale_state": {
+    "latent": 171.05,
+    "world": 328.79
+   },
+   "unit_rms_state": {
+    "latent": 2.06,
+    "world": 35.82
+   }
+  }
+ },
+ "unit_tests": {
+  "cpu_suite_at_963edfa": {
+   "core": "104 passed, 3 skipped",
+   "dom": "15 passed",
+   "integration": "97 passed, 5 skipped",
+   "world": "60 passed",
+   "semantic": "40 passed, 47 skipped",
+   "experiments": "16 passed, 5 skipped",
+   "capabilities": "9 passed",
+   "learn": "93 passed",
+   "memory": "93 passed",
+   "failed": 0
+  },
+  "gpu": "test_delayed_recall_delay16_dom_dev passed (20 s, 963edfa)"
+ }
+}
