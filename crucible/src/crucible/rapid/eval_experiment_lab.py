@@ -246,9 +246,11 @@ def hill_fit(xs, ys) -> tuple[float, float, float]:
 
 
 def reference_drift_blanks(view, env) -> None:
+    """Blank-paired measurements, more of them at the top of the settable range (the scored doses lie just above
+    it, so the slope and curvature there matter most), a Hill law fitted to the per-tick median differences."""
     c = env._config
     nx = c["vars"][0]["name"]
-    est = db_collect(view, c)
+    est = db_collect(view, c, doses=(1.0, 2.0, 3.0, 3.5, 4.0, 4.0))
     if est:
         xs = [x for x, v in est.items() for _ in v]
         ys = [y for v in est.values() for y in v]

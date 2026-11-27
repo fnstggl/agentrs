@@ -86,3 +86,32 @@ def test_inventory_oracle_includes_batched_policies_and_bounds_the_reference():
         orc = oracle(F.make("des_inventory", seed))
         v_ref = play(F.make("des_inventory", seed))["value"]
         assert orc["value"] >= v_ref - 1e-6, (seed, orc["value"], v_ref)
+
+
+def test_distribution_world_accepts_a_replenishment_program():
+    # Part 8.4 asks for programmatic actions: a base-stock and shipping rule deployed as code runs inside the world
+    env = F.make("plan_distribution", 3)
+    c = env._config
+    src = (
+        "def act(obs, caller):\n"
+        "    x = obs['numbers']\n"
+        f"    sites = {list(c['site_names'])!r}\n"
+        "    pos = x.get('depot_stock', 0) + x.get('on_order', 0)\n"
+        "    q = max(0, 40 - pos)\n"
+        "    ship = {s: max(0, 6 - x.get(s + '.stock', 0)) for s in sites}\n"
+        f"    return {{'kind': 'sequence', 'steps': [{{'kind': 'levers', 'values': {{{c['order_name']!r}: q}}}},\n"
+        "            {'kind': 'allocate', 'amounts': ship}]}\n")
+    assert "program" in env.action_space().kinds
+    r = env.step({"kind": "program", "source": src, "ticks": 10})
+    assert r["result"]["program"]["ticks_run"] == 10 and not r["result"]["program"]["error"], r["result"]
+    assert env.t == 10 and env._state["in"] > 0                  # the program ordered stock
+    assert env._state["out"] > 0                                  # and the shipped stock sold at the sites
+    from crucible.rapid.categories import action_forms
+    assert action_forms(["plan_distribution"])["programmatic"]
+
+
+def test_drift_blanks_scores_only_doses_outside_the_settable_range():
+    from crucible.rapid.categories import unobserved_conditions
+    for seed in (0, 10):
+        r = unobserved_conditions("lab_drift_blanks", seed)
+        assert r["ok"] and r["outside_settable_range"] == r["heldout_conditions"] == 4, r

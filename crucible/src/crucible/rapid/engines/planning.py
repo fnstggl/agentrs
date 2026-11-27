@@ -98,6 +98,10 @@ class Planning(RapidEngine):
                                                 "default": 0.0, "integer": True}])
             kinds["allocate"] = A.allocate_schema(c["site_names"], float(c["ship_cap"]), "units shipped from the depot")
             limits["allocate_total"] = float(c["ship_cap"])
+            # a replenishment and shipping policy may be deployed as code (Part 8.4: programmatic actions)
+            kinds["program"] = A.program_schema(int(c["horizon"]), "Programs may return levers, allocate or sequence "
+                                                                   "actions (order and ship in the same period).")
+            limits["program_kinds"] = ["levers", "allocate", "sequence"]
         elif sc == "perishable":
             kinds["levers"] = A.levers_schema([
                 {"name": c["bake_name"], "min": 0.0, "max": float(c["max_bake"]), "default": 0.0, "integer": True},

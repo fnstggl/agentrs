@@ -361,7 +361,8 @@ def lab_kinetics(rng, d):
 
 @family("lab_drift_blanks", engine="experiment_lab", category="8.2", item="8.2.5", split="train",
         doc="A small dose-response effect on a meter whose baseline drifts between ticks and whose noise has heavy "
-            "tails. Replicates in a tick share the baseline. Predict the drift-free effect at unobserved doses.",
+            "tails. Replicates in a tick share the baseline. Predict the drift-free effect at doses above the "
+            "settable range.",
         distinct_because="noisy repeated measurement: a random-walk baseline confounds readings taken at "
                          "different times and gross outliers corrupt means; only blanks interleaved in the same "
                          "tick and robust replication identify the saturating law",
@@ -374,7 +375,7 @@ def lab_drift_blanks(rng, d):
     noise = float(d["observation_noise"])
     hid = {"emax": u(rng, 0.8, 2.0), "ec50": u(rng, 1.5, 4.0), "n": u(rng, 1.0, 2.5), "drift_sd": u(rng, 0.08, 0.15),
            "base0": u(rng, -1.0, 1.0), "out_p": u(rng, 0.08, 0.15), "out_scale": u(rng, 1.5, 3.0)}
-    heldout = [{nx: x} for x in (2.5, 5.0, 6.0, 8.0)]
+    heldout = [{nx: x} for x in (4.25, 4.5, 4.75, 5.0)]       # every scored dose lies outside the settable 0-4
     cfg = dict(_lab_common(d), scenario="drift_blanks",
                vars=[{"name": nx, "min": 0.0, "max": 4.0, "default": 0.0}], quantity=q, monitor_name=mon,
                max_replicates=6, instruments={"meter": {"cost": 1.0, "measures": [q], "sd": round(0.15 * noise, 6)}},
