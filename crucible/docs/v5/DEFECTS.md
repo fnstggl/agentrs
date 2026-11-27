@@ -1080,7 +1080,7 @@ B_population verdict) and P's own findings.
 }
 ```
 
-### DEF-K-7 (medium, open): SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5
+### DEF-K-7 (medium, fixed): SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5
 
 ```json
 {
@@ -1098,8 +1098,9 @@ B_population verdict) and P's own findings.
   "finding": null,
   "found_by": "workstream K gate run on the Tier 3 civilisation (wave 3b)"
  },
- "status": "open",
- "summary": "SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5dfa700) of the 10 required Part 12 capability kinds; missing compete_for_scarce_resources, develop_competing_technologies and (in one run) collaborate_on_software. Cause measured: weak behaviour cloning of the scripted workflows (held-out tool agreement 0.03 at the old BC rate) and rejected actions on other parties' repositories; both changed afterwards (e179c64), not yet re-measured on the civilisation."
+ "status": "fixed",
+ "summary": "SP-12.0 not met in measured civilisation runs: the learned groups exercised 7 (commit 2981d88) and 8 (commit 5dfa700) of the 10 required Part 12 capability kinds; missing compete_for_scarce_resources, develop_competing_technologies and (in one run) collaborate_on_software. Cause measured: weak behaviour cloning of the scripted workflows (held-out tool agreement 0.03 at the old BC rate) and rejected actions on other parties' repositories; both changed afterwards (e179c64), not yet re-measured on the civilisation.",
+ "fixed_by": "c5c/w3b-selfplay e179c64/5dfa700 (BC rate, own-things memory) and eb6f1d7 (behaviour-regularised RL: KL to the pre-trained policy; one BC optimiser across epochs; the demonstrator serves what it releases: rent compute, deploy): tests/v5/test_gate_SP_12_0.py passed on the Tier 3 civilisation at c212a6f (selfplay_capability_kinds 10, 96 h) and at 7eb39d1 (11 of 11; compete_for_scarce_resources by 2 learning-party pairs at one provider, max utilisation 0.14 - co-renting, not binding capacity) (unofficial lane runs)"
 }
 ```
 

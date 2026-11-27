@@ -81,21 +81,21 @@ identities, held-out evaluation on two sealed seeds, strategy switch) and `test_
 
 | gate file | commit | result |
 |---|---|---|
-| test_gate_Q.py (full, 72 h) | 9ea4901 | 9/9 passed (1009 s): 4 learned groups acting, 4 independent competing groups, 4 cooperative + 6 competitive interactions between learning parties, 125 cross-party consequence events, 172 update versions, 4 held-out evaluations, 144 RL updates (no-signal twins unchanged), 6/6 planted schemes detected with 0 clean controls flagged |
-| test_gate_SP_12_1.py | 2981d88 | passed: 7 member kinds acting in one civilisation |
-| test_gate_SP_12_1b.py | 9ea4901 | passed: 3 algorithms, 2 unrelated drives, 4 independently updated groups |
-| test_gate_SP_12_2.py | 2981d88 | passed: 9 record kinds, cross-play replay 0 mismatches, Elo league |
-| test_gate_SP_12_3.py | 9ea4901 | passed: 0 controlled-identity cents counted (10,200 moved) |
-| test_gate_SP_12_3b.py | 9ea4901 | crashed (tap called `update` of a semantic participant) - fixed in 2981d88; at small size on the civilisation every assertion holds; full size not yet re-run |
-| test_gate_SP_12_0.py (full) | 2981d88 / 5dfa700 | failed: 7, then 8 of the required 10 capability kinds (DEF-K-7) |
+| test_gate_Q.py (full, 96 h) | eb6f1d7 | 9/9 passed (1214 s): 4 learned groups acting (234/100/57/102 accepted state-changing actions), 4 independent competing groups, 69 cooperative + 12 competitive interactions (incl. competing_tech 4, scarce_resource 2), 575 cross-party consequence events with 42 response chains, 234 update versions, 4 held-out evaluations, 190 RL updates (no-signal twins unchanged), 6/6 planted schemes detected with 0 clean controls flagged |
+| test_gate_Q.py (full, 72 h) | 9ea4901 | 9/9 passed (1009 s) |
+| test_gate_SP_12_0.py (full, 96 h) | 7eb39d1 | passed: 11 of 11 capability kinds (c212a6f: 10, no scarce resources; 2981d88 / 5dfa700 at 72 h: 7, 8) |
+| test_gate_SP_12_1.py | 2cb805c | passed: 7 member kinds acting (also c212a6f, 2981d88) |
+| test_gate_SP_12_1b.py | 76b2a93 | passed: 3 algorithms, 2 unrelated drives, 4 independently updated groups (also 9ea4901) |
+| test_gate_SP_12_2.py | 093a05d | passed: 9 record kinds, cross-play replay 0 mismatches, Elo league (also 2981d88) |
+| test_gate_SP_12_3.py | 7eb39d1 | criterion met (0 controlled-identity cents counted) but the test failed on its positive control: beta0's purchase was netted (093a05d) or related (7eb39d1, shared organisation) by the evaluator; positive control replaced by an unrelated buyer in 5be64e6, civilisation re-run queued |
+| test_gate_SP_12_3b.py | 093a05d | passed: 0 private-observation accesses (24 canaries), 0 shared reward channels, 6 collusion probes (also c212a6f) |
 
-What the runs show about learning (reported, not required to be large): behaviour on recorded situations changes
-(TV 0.41 vs 0 for the no-signal twins) but outcomes barely improve; the trained alpha scored worse than its initial
-copy against the held-out family (-50,000 cents: it spent more); the external drives were nonzero on 17 of 1008
-learner decisions, so reinforcement came mostly from the intrinsic novelty/rejection terms; most rejected actions
-were attempts on other parties' repositories, which the own-things memory (5dfa700) addresses. Behaviour cloning is
-the bottleneck for capability coverage: held-out agreement with the demonstrator's tool choice rose from 0.03 to
-0.22 (argmax) with the BC learning rate raised to 1e-2 (e179c64, not yet re-measured on the civilisation).
+What the runs show about learning (reported, not required to be large): parameters and behaviour change (behaviour
+TV on recorded situations 0.34 vs 0 for the no-signal twins at eb6f1d7), and pre-training now gives competent acting
+(state-changing accept rates 0.30-0.53 in the first third of the run, against 0.05-0.17 before eb6f1d7), but outcomes do
+not improve within a 96 h run for 3 of 4 groups (accept rates fall, waits rise as the novelty term decays and the
+external drives stay near zero), and the trained alpha scored 50,000 cents below its initial copy against the held-out
+family. Which capabilities are exercised varies between runs (7, 8, 10, 11 of 11 over four runs, one seed each).
 
 ## Known limits
 
