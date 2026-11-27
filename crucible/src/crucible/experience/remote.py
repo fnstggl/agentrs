@@ -421,3 +421,18 @@ def reference_learner(part, *, steps: int = 200, seed: int = 0, update_every: in
             "updates": s["updates"], "params_changed_updates": s["params_changed_updates"],
             "nonzero_rewards": s["nonzero_rewards"], "schema_failures": s["schema_failures"], "kinds": s["kinds"],
             "params_hash_before": before, "params_hash_after": L.params_hash()}
+
+
+def tool_value_learner(part, *, steps: int = 200, seed: int = 0, update_every: int = 32,
+                       think_s: int | None = None) -> dict:
+    """An evaluated learner for `evaluate`: the statistical `ToolValueLearner` (its own observed money as its
+    signal) over the participant handle."""
+    from .loop import run_learner
+    from .statistical import ToolValueLearner
+    L = ToolValueLearner(seed=int(seed), reward_mode=part.reward_mode)
+    before = L.params_hash()
+    s = run_learner(part, L, int(steps), update_every=int(update_every), think_s=think_s, count_changes=False)
+    return {"steps": s["steps"], "actions": s["actions"], "ok": s["ok"], "rejected": s["rejected"],
+            "updates": s["updates"], "params_changed_updates": s["params_changed_updates"],
+            "nonzero_rewards": s["nonzero_rewards"], "schema_failures": s["schema_failures"], "kinds": s["kinds"],
+            "params_hash_before": before, "params_hash_after": L.params_hash()}

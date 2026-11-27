@@ -4,7 +4,8 @@
         --reward-mode observation_only --store /tmp/exp --checkpoint /tmp/ref.pt --out /tmp/run.json
     PYTHONPATH=src python -m crucible.experience tiers
 
-`run` drives the `ReferenceLearner` through `run_learner` on one environment, stores every interaction in an
+`run` drives the `ReferenceLearner` (or, with ``--learner tool-value``, the statistical `ToolValueLearner`) through
+`run_learner` on one environment, stores every interaction in an
 `ExperienceStore`, updates the learner, saves its checkpoint and writes a summary whose digests (experience store,
 learner parameters, final world state) identify the run: the same command gives the same digests. `run` is a
 training/development path: the learner shares the world's process.
@@ -35,7 +36,11 @@ def _run(a) -> dict:
     if a.tier in (0, 2, 3) and a.agents:
         kw["agents"] = a.agents.split(",")
     env = make(a.tier, a.name, a.seed, a.reward_mode, **kw)
-    learner = ReferenceLearner(seed=a.learner_seed, reward_mode=env.reward_mode)
+    if a.learner == "tool-value":
+        from .statistical import ToolValueLearner
+        learner = ToolValueLearner(seed=a.learner_seed, reward_mode=env.reward_mode)
+    else:
+        learner = ReferenceLearner(seed=a.learner_seed, reward_mode=env.reward_mode)
     if a.resume and a.checkpoint and os.path.exists(a.checkpoint):
         learner.load(a.checkpoint)
     store = ExperienceStore(a.store) if a.store else None
@@ -68,6 +73,8 @@ def main(argv=None) -> int:
     r.add_argument("--reward-mode", default="observation_only")
     r.add_argument("--steps", type=int, default=200)
     r.add_argument("--learner-seed", type=int, default=0)
+    r.add_argument("--learner", choices=("reference", "tool-value"), default="reference",
+                   help="the neural ReferenceLearner or the statistical ToolValueLearner")
     r.add_argument("--update-every", type=int, default=32)
     r.add_argument("--think-s", type=int, default=0)
     r.add_argument("--agents", default="")
