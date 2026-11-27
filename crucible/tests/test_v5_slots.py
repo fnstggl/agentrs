@@ -383,3 +383,36 @@ def test_a_short_job_uses_the_heads_share_until_the_heads_planned_start(ledger_d
     for k in kids.values():
         k.kill()
         k.wait()
+
+
+def test_status_says_what_each_waiting_request_waits_for(ledger_dir):
+    """`--status` names the dimensions each queued request is short of, and the head's planned start when every
+    holder it waits for has a deadline."""
+    b = slots.Budget(cpus=2, gpu_mb=1000, jobs=8, gpu_jobs=1)
+    assert slots.short_of([], {"cpu": 1}, b) == []
+    assert slots.short_of([{"cpu": 2, "gpu_mb": 0}], {"cpu": 1, "gpu_mb": 100}, b) == ["cpu"]
+    assert slots.short_of([{"cpu": 1, "gpu_mb": 500}], {"cpu": 1, "gpu_mb": 600}, b) == ["gpu_mb", "gpu_jobs"]
+    a = _sleeper()
+    slots.acquire(1, 500, "A gpu", b, pid=a.pid, run_s=3600)
+    kids = []
+
+    def ask(name, cpu, gpu):
+        k = _sleeper()
+        kids.append(k)
+        try:
+            slots.acquire(cpu, gpu, name, b, poll_s=0.03, pid=k.pid, timeout_s=3)
+        except TimeoutError:
+            pass
+    ts = [threading.Thread(target=ask, args=x) for x in (("B gpu", 1, 500), ("C cpu", 2, 0))]
+    for t in ts:
+        t.start()
+        time.sleep(0.3)
+    q = slots.status()["queue"]
+    assert [x["label"] for x in q] == ["B gpu", "C cpu"]
+    assert q[0]["waiting_for"] == ["gpu_jobs"] and q[0]["planned_start"] >= time.time() + 3600
+    assert q[1]["waiting_for"] == ["cpu"]
+    for t in ts:
+        t.join(10)
+    for k in kids + [a]:
+        k.kill()
+        k.wait()

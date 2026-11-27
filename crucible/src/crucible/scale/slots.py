@@ -9,6 +9,7 @@ shared budget can hold it, runs inside that grant, and is stopped if it goes bey
     python -m crucible.scale.slots --cpu 1 --gpu-mb 2000 --gpu-s 600 --inference 4 --worlds 8 \\
         --disk-mb 500 --disk-dir /path/to/store -- python bench.py
     python -m crucible.scale.slots --status          # budget, held slots (with what each job uses now), queue
+                                                     # (with what each request waits for)
     python -m crucible.scale.slots --hardware        # the inspected hardware
 
 | dimension | grant | enforcement |
@@ -568,6 +569,30 @@ def fits(held: list[dict], cpu: int, gpu_mb: int, budget: Budget, *, ram_mb: int
     return True
 
 
+def short_of(held: list[dict], req: dict, budget: Budget, free_disk_mb: float | None = None) -> list[str]:
+    """The budget dimensions in which `req` does not fit next to `held` (empty: it fits) - what a request waits for."""
+    r = _as_req(req)
+    out = []
+    if len(held) >= budget.jobs:
+        out.append("jobs")
+    if sum(int(h["cpu"]) for h in held) + r["cpu"] > budget.cpus:
+        out.append("cpu")
+    if r["gpu_mb"] > 0:
+        if sum(int(h.get("gpu_mb") or 0) for h in held) + r["gpu_mb"] > budget.gpu_mb:
+            out.append("gpu_mb")
+        if budget.gpu_jobs is not None and sum(1 for h in held if int(h.get("gpu_mb") or 0) > 0) >= budget.gpu_jobs:
+            out.append("gpu_jobs")
+    if budget.ram_mb is not None and sum(_ram_of(h) for h in held) + _ram_of(r) > budget.ram_mb:
+        out.append("ram_mb")
+    for key in ("disk_mb", "inference", "worlds"):
+        cap, want = getattr(budget, key), int(r.get(key) or 0)
+        if cap is not None and want and sum(int(h.get(key) or 0) for h in held) + want > cap:
+            out.append(key)
+    if r.get("disk_mb") and free_disk_mb is not None and free_disk_mb - budget.disk_floor_mb < int(r["disk_mb"]):
+        out.append("free_disk")
+    return out
+
+
 def clamp(req: dict, budget: Budget) -> tuple[dict, list[str]]:
     """The request cut to the budget in every dimension where it is larger (the cuts are listed)."""
     out, cut = dict(req), []
@@ -835,7 +860,19 @@ def status(d: str | None = None) -> dict:
         if live is not None:
             h["live"] = live
             in_use += float(live.get("ram_mb") or 0)
-    return {"ledger": d, "budget": stored_budget(d).to_dict(), "held": held, "queue": queue,
+    # what each waiting request waits for: the head against what is held (and, when every holder it waits for has a
+    # deadline, its planned start); a later request against what is held plus the protected earlier requests
+    b = stored_budget(d)
+    real = [h for h in held if not h.get("reserving")]
+    now = time.time()
+    for k, q in enumerate(queue):
+        if k == 0:
+            q["waiting_for"] = short_of(real, q, b)
+            ts = shadow_time(real, q, b, now) if q["waiting_for"] else now
+            q["planned_start"] = None if ts is None else round(ts, 1)
+        else:
+            q["waiting_for"] = short_of(real + protected(real, queue[:k], b), q, b) or ["its turn"]
+    return {"ledger": d, "budget": b.to_dict(), "held": held, "queue": queue,
             "cpu_used": sum(int(h["cpu"]) for h in held), "gpu_mb_used": sum(int(h["gpu_mb"]) for h in held),
             "ram_mb_reserved": sum(_ram_of(h) for h in held), "ram_mb_in_use_reported": round(in_use, 1),
             "jobs_reporting_use": sum(1 for h in held if "live" in h)}

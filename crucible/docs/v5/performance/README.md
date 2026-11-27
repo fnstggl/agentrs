@@ -53,6 +53,11 @@ Single pieces:
   waits no longer than it had to (the short job is stopped by its deadline at the latest). Probe:
   `python -m crucible.scale.govprobe deadline_backfill`. So pass an honest `--timeout`: it is what lets a job start
   early, and a job that outlives it is stopped.
+* `--status` says what each queued request waits for (`waiting_for`: the budget dimensions it is short of - the head
+  against what is held, a later request against what is held plus the protected earlier requests, `its turn` when
+  only queue order holds it) and the head's `planned_start` when every holder it waits for has a deadline. On
+  2026-11-27 02:15 the head waited only for one of the 4 GPU job slots and most of the 30 requests behind it were
+  short of CPU, GPU memory, GPU job slots and RAM at once.
 * A head that waits only for free disk gives up after 15 minutes (exit status 75) instead of blocking the queue.
 * GPU time (seconds of held CUDA contexts, summed over the job's processes): without `--gpu-s` a GPU job is granted
   the longer of 4 hours and its `--timeout`, per CPU worker (`slots.default_gpu_s`). The fixed 4-hour default
