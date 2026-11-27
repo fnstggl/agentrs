@@ -37,6 +37,8 @@ INBOX_MODEL = {"model_id": "pop-inbox", "model_version": "1", "fidelity_id": "po
 FOLLOWUP_MODEL = {"model_id": "pop-followup", "model_version": "1", "fidelity_id": "population-subscription-model"}
 NOTE_DELAY_S = 1800         # a message notification brings the recipient back to its messages after ~30 min
 MEMBERSHIP_WTP_CENTS = 800  # monthly support a member with wtp_scale 1 would pay a creator it values
+ANSWER_WORK_P = 0.5         # a reader of a question about a task it has a service for that pays off answers it
+ANSWER_MIN = 5.0            # ... which takes it about five minutes
 NEWSLETTER_P = 0.3          # a creator with enough followers opens a newsletter this often per text piece it writes
 TIER_P = 0.15               # ... and a paid membership tier
 
@@ -217,7 +219,12 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
     subs_n = columns.col(w, "pop", "soc_letters")[idx].astype(np.int64).copy()
     from . import graph
     deciders = set()
-    n_sub = n_join = n_vote = n_accept = n_unsub = 0
+    n_sub = n_join = n_vote = n_accept = n_unsub = n_answer = 0
+    work_on = qa and "work" in w.modules
+    if work_on:
+        from . import popcreate as PC
+        left = columns.col(w, "pop", "attention_left_min")[idx].astype(np.float64).copy()
+        answer_min = np.zeros(idx.size)
     infos = [AUD.info(w, int(feed[a, b])) for a, b in zip(vv.tolist(), pp.tolist())]
     # does each viewer follow the creator of what it viewed (the one follow graph, one vectorised lookup)
     def _node(principal):
@@ -287,6 +294,21 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
                         deciders.add(a)
                     except CrucibleError:
                         pass
+                # a question about a task one has a service for that pays off: answer it from one's own experience
+                # (naming the service, with one's own counts); the platform notifies the asker
+                if work_on and post["type"] == "question" and not post.get("accepted") and \
+                        left[a] - answer_min[a] >= ANSWER_MIN:
+                    body = PC.work_answer_body(ctx, i, cid)
+                    if body is not None and rng.random() < ANSWER_WORK_P:
+                        try:
+                            aid = ctx.call(f"{platform}.answer", {"question": cid, "body": body},
+                                           as_principal=ids.ensure_principal(ctx, i))["answer"]
+                            PC.notify_asker(ctx, platform, cid, aid)
+                            n_answer += 1
+                            answer_min[a] += ANSWER_MIN
+                            deciders.add(a)
+                        except CrucibleError:
+                            pass
                 q = post.get("question")
                 if post["type"] == "answer" and q and st.get("content", q) is not None and \
                         st.tables["content"][q]["creator"] == p and \
@@ -311,12 +333,16 @@ def after_session(self, ctx: Ctx, out: dict, platform: str) -> np.ndarray:
                 except CrucibleError:
                     pass
     n_lead = _service_leads(ctx, out, vv, pp, rng)
+    if work_on and np.any(answer_min > 0):
+        sp = np.flatnonzero(answer_min > 0)
+        attention.spend(ctx, idx[sp], answer_min[sp], activity="social.answer")
     if deciders:
         rows = np.array(sorted(deciders), np.int64)
         population.record_decisions(ctx, "pop_social.followup", idx[rows],
                                     {"soc_letters": subs_n[rows].astype(np.int16)}, **FOLLOWUP_MODEL,
                                     extra={"platform": platform, "subscribed": n_sub, "joined": n_join,
                                            "votes": n_vote, "accepted": n_accept, "unsubscribed": n_unsub,
+                                           "answered": n_answer,
                                            "service_leads": n_lead})
     return U
 

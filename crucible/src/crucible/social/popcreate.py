@@ -161,13 +161,106 @@ def _render(ctx: Ctx, medium: str, p: str, i: int, title: str, body: str) -> tup
     return ref, mime, akind
 
 
-def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float, k: int) -> str | None:
-    """Answer the open question of `platform` that fits one's interests best (with noise), or ask one."""
+WORK_Q = "How do you handle this at work: "       # the opening of a question about a task of one's own work
+ASK_WORK_P = 0.6           # a member asking on a Q&A platform asks about a task it wants help with, if it has one
+ASK_SWITCH_P = 0.15        # a member with such a task asks about it instead of making its usual piece
+QA_MEDIA = ("answer", "tech")                  # the Q&A media (kb, dev)
+
+
+def _work_question(ctx: Ctx, i: int, rng) -> tuple[str, str] | None:
+    """(title, body) of a question about a task of the member's own work that it does by hand and would like help
+    with (`economy.work`'s own rule for that: an unserved step taking a large share of the task's hand work) and has
+    not asked about already (an open question of its own with that title), or None. The text is the member's own
+    description of the task and of its hand-work time."""
+    work = ctx.world.modules.get("work")
+    if work is None or columns.col(ctx.world, "work", "fam")[int(i)] < 0:
+        return None
+    st = ctx.state
+    steps = work._steps(int(i))
+    diy = columns.col(ctx.world, "work", "diy")[int(i)]
+    wanted = work._wants_help(st, int(i), steps, diy)
+    if not wanted:
+        return None
+    need = wanted[int(rng.integers(0, len(wanted)))]
+    s = next(k for k, (_, n) in enumerate(steps) if n == need)
+    task = work.task_text(need)
+    title = f"{WORK_Q}{task}"[:C.MAX_TITLE]
+    p = ids.pid(int(i))
+    for plat in ("kb", "dev"):
+        T = f"{plat}_posts"
+        if T in st.tables and any(st.tables[T][q]["type"] == "question" and not st.tables[T][q].get("accepted")
+                                  and (st.get("content", q) or {}).get("title") == title
+                                  for q in st.find_ids(T, "author", p)):
+            return None
+    body = (f"For my work I need {task}. By hand it takes me about {float(diy[s]):.0f} minutes a task. Does anyone use "
+            "a service for this, and does the result get accepted?")
+    return title, body
+
+
+def work_answer_body(ctx: Ctx, i: int, question: str) -> str | None:
+    """The member's answer to an open question about a task it has a service for that pays off for it
+    (`_recommendable`), naming the service and saying how it went (its own counts); None when it has none for that
+    task or already answered the question."""
+    st = ctx.state
+    title = (st.get("content", question) or {}).get("title") or ""
+    if not title.startswith(WORK_Q):
+        return None
+    good = _recommendable(ctx, i)
+    if not good:
+        return None
+    work = ctx.world.modules["work"]
+    by_task = {f"{WORK_Q}{work.task_text(r['step_need'])}"[:C.MAX_TITLE]: (pid, r, prov) for pid, r, prov in good}
+    if title not in by_task:
+        return None
+    p = ids.pid(int(i))
+    for plat in ("kb", "dev"):
+        T = f"{plat}_posts"
+        if T in st.tables and any(st.tables[T][a].get("question") == question for a in st.find_ids(T, "author", p)):
+            return None
+    pid, r, prov = by_task[title]
+    name = (st.get("products", pid) or {}).get("name") or prov["host"]
+    ok, uses = int(r["ok"]), int(r["uses"])
+    return (f"I use {name} for exactly this (http://{prov['host']}.crucible/). {ok} of my last {uses} tasks with it "
+            f"were accepted{'' if ok >= (2.0 / 3.0) * uses else ' and I redo the others by hand'}; it saves me time.")
+
+
+def _work_answer(ctx: Ctx, i: int, open_q: list[tuple[str, int]], rng) -> tuple[str, str] | None:
+    """(question id, answer) of an open work question the member can answer from its own experience, or None."""
+    cands = [(qid, b) for qid, _ in open_q for b in [work_answer_body(ctx, i, qid)] if b is not None]
+    if not cands:
+        return None
+    return cands[int(rng.integers(0, len(cands)))]
+
+
+def notify_asker(ctx: Ctx, platform: str, question: str, answer: str) -> None:
+    """The Q&A platform notifies the asker of a population question of a new answer: the answer lands in the
+    asker's inbox on that platform (it reads it when it next opens the platform, or comes back on the notification:
+    the feed engine's own notice rule)."""
+    w = ctx.world
+    feed = w.modules.get("feed")
+    asker = ids.index(ctx.state.tables["content"][question]["creator"])
+    rec = ctx.state.tables["content"].get(answer)
+    if feed is None or asker is None or rec is None or rec.get("aud_item") is None or platform not in feed.platforms:
+        return
+    feed.engine.deliver(ctx, np.array([asker], np.int64), np.array([int(rec["aud_item"])], np.int64),
+                        np.ones(1, np.uint8), platform=platform)
+
+
+def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float, k: int,
+        i: int | None = None, ask: tuple[str, str] | None = None) -> str | None:
+    """Answer the open question of `platform` that fits one's interests best (with noise), or ask one. A member with
+    a service that pays off for its work answers an open question about that task first (naming the service; the
+    asker is notified), and a member with a task it would like help with asks about it."""
     w = ctx.world
     st = ctx.state
     T = f"{platform}_posts"
     if T not in st.tables:
         return None
+    if ask is not None:
+        try:
+            return ctx.call(f"{platform}.ask", {"title": ask[0], "body": ask[1]}, as_principal=p)["question"]
+        except CrucibleError:
+            return None
     open_q = []
     for qid in st.find_ids(T, "type", "question")[-200:]:
         q = st.tables[T][qid]
@@ -175,6 +268,15 @@ def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float
         if c is None or c["removed"] or c["creator"] == p or c.get("aud_item") is None or q.get("accepted"):
             continue
         open_q.append((qid, int(c["aud_item"])))
+    if open_q and i is not None and "work" in w.modules:
+        wa = _work_answer(ctx, int(i), open_q, rng)
+        if wa is not None:
+            try:
+                aid = ctx.call(f"{platform}.answer", {"question": wa[0], "body": wa[1]}, as_principal=p)["answer"]
+            except CrucibleError:
+                return None
+            notify_asker(ctx, platform, wa[0], aid)
+            return aid
     if open_q and rng.random() < 0.7:
         E = AUD.item_col(w, "emb")[[it for _, it in open_q]].astype(np.float32)
         fit = E @ coords_j.astype(np.float32) + rng.gumbel(size=len(open_q)) * 0.05
@@ -187,9 +289,13 @@ def _qa(ctx: Ctx, platform: str, p: str, coords_j: np.ndarray, rng, skill: float
                                 as_principal=p)["answer"]
             except CrucibleError:
                 return None
-    topic = _topic_for(coords_j[None, :], rng, platform == "dev", k)[0]
-    title, body = writing.compose(rng, topic, int(rng.integers(1, 3)), skill)
-    q = f"{title}: what do you know about this?"[:C.MAX_TITLE]
+    wq = _work_question(ctx, int(i), rng) if i is not None and rng.random() < ASK_WORK_P else None
+    if wq is not None:
+        q, body = wq
+    else:
+        topic = _topic_for(coords_j[None, :], rng, platform == "dev", k)[0]
+        title, body = writing.compose(rng, topic, int(rng.integers(1, 3)), skill)
+        q = f"{title}: what do you know about this?"[:C.MAX_TITLE]
     try:
         return ctx.call(f"{platform}.ask", {"title": q, "body": body}, as_principal=p)["question"]
     except CrucibleError:
@@ -337,11 +443,14 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
     u = np.zeros(n)
     media_made: list[str] = []
     text_media = [MEDIUM_NAMES.index(x) for x in TEXT_MEDIA if avail[MEDIUM_NAMES.index(x)]]
+    qa_media = [MEDIUM_NAMES.index(x) for x in QA_MEDIA if avail[MEDIUM_NAMES.index(x)]]
+    with_work = "work" in w.modules
     for j in range(n):
         i = int(idx[j])
         cj = int(choice[j])
         rec_post = None
         hunt = False
+        work_q = None
         good = _recommendable(ctx, i) if writer[j] and text_media else []
         if good and rng.random() < REVIEW_P:
             # a member with a service that pays off for its work sometimes writes about it instead of its usual
@@ -356,6 +465,11 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                 cj = max(text_media, key=lambda c: float(logits[j, c]))
                 rec_post = _find_post(ctx, i, rng, finds)
                 hunt = True
+        if rec_post is None and writer[j] and qa_media and with_work and rng.random() < ASK_SWITCH_P:
+            # a member with a task of its work it would like help with may ask about it on a Q&A platform
+            work_q = _work_question(ctx, i, rng)
+            if work_q is not None:
+                cj = max(qa_media, key=lambda c: float(logits[j, c]))
         m = MEDIUM_NAMES[cj]
         plat, kind, (lo, hi), (s_lo, s_hi) = MEDIA[m]
         minutes = min(left[j], lo + (hi - lo) * rng.random() * (0.5 + skills[j, 1]))
@@ -399,7 +513,7 @@ def act_create(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
                     cid = C.module(w).publish(ctx, p, ref, kind, plat, title)
                     media_made.append("recommendation")
             elif m in ("answer", "tech"):
-                cid = _qa(ctx, plat, p, coords[j], rng, skill, k)
+                cid = _qa(ctx, plat, p, coords[j], rng, skill, k, i=i, ask=work_q)
             else:
                 topic = int(tech_topics[j] if m == "tech" else topics[j])
                 title, body = writing.compose(rng, topic, n_sent, skill)

@@ -155,3 +155,93 @@ def test_a_member_who_just_started_using_a_service_posts_it_on_the_discovery_pla
     assert res["f2"] == []                                            # launched now: no longer a find to post
     assert not [e for e in w.log if e.type == "proc.failed"]
     assert w.check_invariants() == []
+
+
+def _qa_world():
+    base = startup_spec(23, n=260, formats=["schedule.jobs"])
+    plats = ["posts", "kb"]
+    mods = []
+    for m in base.modules:
+        if m["name"] == "work":
+            mods += [{"name": x, "config": {}} for x in ("content", "social_ids", "social_rows", "social", "studio",
+                                                          "posts", "kb")]
+            mods.append({"name": "aud", "config": {"platforms": plats, "max_items": 4096, "max_creators": 1024}})
+            mods.append({"name": "feed", "config": SW.feed_config(plats)})
+            mods.append({"name": "pop_social", "config": {}})
+        mods.append(m)
+        if m["name"] == "cols":
+            mods.append({"name": "space", "config": {}})
+    return World.create(WorldSpec("startup-social-qa", 23, mods, dict(base.params)))
+
+
+def test_a_member_asks_about_its_work_and_one_with_a_working_service_answers_naming_it(monkeypatch):
+    """Help through knowledge sharing: a member with a task it does by hand asks about it on the Q&A platform (its
+    own description and hand-work time); a member that still relies on a service for that task after three uses
+    reads the question and answers it from its own experience, naming the service (after-session hook of the Q&A
+    feed); the platform notifies the asker (the answer lands in its Q&A inbox); nobody answers or asks twice.
+    Setup (labelled): adoption and a three-use record of the answerer as in the first test; ASK and ANSWER
+    probabilities set to 1 for the test."""
+    from crucible.social import popinbox as PI
+    from crucible.social.popinbox import _hosts_of
+    from crucible.social.content import text_of
+    from crucible.economy.work import _needs
+    w = _qa_world()
+    st = w.state
+    work = w.modules["work"]
+    pid, need, host = next((pid, p["need"], p["delivery"]["host"]) for pid, p in st.scan("products")
+                           if p["status"] == "launched" and (p["delivery"] or {}).get("type") == "service")
+    fam = columns.col(w, "work", "fam")
+    act = columns.col(w, "work", "active")
+    size = columns.col(w, "work", "size")
+    with_need = [i for i in range(columns.rows(w, "pop")) if fam[i] >= 0 and act[i]
+                 and need in {n for _, n in work._steps(i)}]
+    res = {}
+    monkeypatch.setattr(PC, "ASK_WORK_P", 1.0)
+    monkeypatch.setattr(PI, "ANSWER_WORK_P", 1.0)
+
+    def ask(ctx):
+        rng = ctx.rng("test.qa")
+        for a in with_need:
+            wq = PC._work_question(ctx, a, rng)
+            if wq is not None and work.task_text(need) in wq[1]:
+                res["asker"] = a
+                p = ids.ensure_principal(ctx, a)
+                res["q"] = PC._qa(ctx, "kb", p, np.zeros(4), rng, 0.5, 4, i=a, ask=wq)
+                res["again"] = PC._work_question(ctx, a, rng)
+                return
+    w._run_system("test.ask", ask)
+    assert res.get("q"), "no member wanted help with the task"
+    assert res["again"] is None or work.task_text(need) not in res["again"][1]        # not asked twice
+    asker, q = res["asker"], res["q"]
+    answerer = next(i for i in with_need if i != asker)
+
+    def adopt(ctx):
+        p = ids.ensure_principal(ctx, answerer)
+        sample, _ = _needs()[need].generate(w.rng_for("work-sample", answerer, need), float(size[answerer]))
+        assert work._adopt(ctx, p, answerer, need, pid, work._provider(st, pid), sample)
+        ctx.emit("work.outcomes", {"rows": [[answerer, pid, need, 3, 2, 1, 0, 9.0]], "t": int(ctx.now)},
+                 vis="internal")
+    w._run_system("test.adopt", adopt)
+    q_item = int(st.tables["content"][q]["aud_item"])
+    from crucible.social import audience as AUD
+    dur = float(AUD.item_col(w, "duration_s")[q_item])
+    out = {"idx": np.array([answerer], np.int64), "feed": np.array([[q_item]], np.int64),
+           "view": np.array([[True]]), "watch": np.array([[dur]], np.float32)}
+    pop_social = w.modules["pop_social"]
+    inbox0 = columns.col(w, "pop", "feed_inbox")[asker].copy()
+    w._run_system("test.read", lambda ctx: PI.after_session(pop_social, ctx, out, "kb"))
+    answers = [a for a, r in st.tables["kb_posts"].items() if r["type"] == "answer" and r["question"] == q]
+    assert len(answers) == 1 and ids.index(st.tables["content"][answers[0]]["creator"]) == answerer
+    body = text_of(w, answers[0])
+    assert host in _hosts_of(w, answers[0]) and "2 of my last 3 tasks" in body
+    a_item = int(st.tables["content"][answers[0]]["aud_item"])
+    assert a_item in columns.col(w, "pop", "feed_inbox")[asker].tolist() and \
+        a_item not in inbox0.tolist()                                  # the asker is notified (its Q&A inbox)
+    w._run_system("test.read2", lambda ctx: PI.after_session(pop_social, ctx, out, "kb"))
+    assert len([a for a, r in st.tables["kb_posts"].items() if r["type"] == "answer" and r["question"] == q]) == 1
+    fu = [e for e in w.log if e.type == "cols.batch" and e.payload.get("kind") == "pop_social.followup"]
+    assert [e.payload["extra"]["answered"] for e in fu] == [1]        # one recorded decision: the answer
+    att = [e for e in w.log if e.type == "cols.batch" and e.payload.get("kind") == "attention.social.answer"]
+    assert len(att) == 1                                               # answering took the answerer's time
+    assert not [e for e in w.log if e.type == "proc.failed"]
+    assert w.check_invariants() == []

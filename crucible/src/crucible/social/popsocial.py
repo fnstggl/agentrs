@@ -94,7 +94,8 @@ class PopSocial(Module):
         cols = {"soc_items": ("int32", (), 0), "soc_seen_views": ("int64", (), 0), "soc_last_item": ("int32", (), -1)}
         if int(popcreate.available(world).sum()) > 1:      # a choice of media to learn about (not the 1-platform
             cols.update(popcreate.columns_spec())           # internet profile: 10M rows stay lean)
-        if "msg" in names or "letters" in names:
+        if "msg" in names or "letters" in names or "kb" in names or "dev" in names:
+            # messaging, newsletters, and the followups recorded after Q&A sessions (votes, accepts, answers)
             cols.update(popinbox.columns_spec())
         if "products" in names:
             # what the individual bought of products it discovered on the social internet (launch posts): this
