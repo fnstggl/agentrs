@@ -29,7 +29,13 @@ def test_SP15_0_seven_explanations_distinguished():
         wrong = [a for a, (must, must_not) in I.CONTROLS.items() if exp in must_not and exp in c[a]["labels"]]
         dist[exp] = {"found_on_its_control": found, "found_where_excluded": wrong}
     n = sum(1 for v in dist.values() if v["found_on_its_control"] and not v["found_where_excluded"])
+    dev = {"seeds": {0, 1}, "eval_seeds": set(range(1_000_101, 1_000_111)), "world_seed0": {300}}
+    d = res["design"]
+    overlap = len(set(d["seeds"]) & dev["seeds"]) + len(set(d["eval_seeds"]) & dev["eval_seeds"]) + \
+        int(d["world_seed0"] in dev["world_seed0"])
     record("SP-15.0", {"explanations_distinguished": n, "explanations": len(I.EXPLANATIONS),
-                       "controls": len(c), "learner_seeds": len(res["design"]["seeds"])},
+                       "controls": len(c), "learner_seeds": len(res["design"]["seeds"]),
+                       "seeds_shared_with_development_batteries": overlap},
            notes=f"Per explanation: {dist}; labels {({a: c[a]['labels'] for a in c})}")
     assert n == 7, dist
+    assert overlap == 0, d             # confirmation, not a rerun of the development batteries (D-69 addendum 2)

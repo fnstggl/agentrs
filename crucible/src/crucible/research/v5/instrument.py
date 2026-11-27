@@ -439,13 +439,26 @@ def run_controls(archs: Sequence[str], d: Design, *, jobs: int = 1, workdir: str
     return {"design": d.to_json(), "controls": out, "effects": dict(EFFECTS)}
 
 
-def controls_result(archs: Sequence[str] = tuple(CONTROLS), *, seeds: Sequence[int] = (0, 1, 2, 3, 4),
-                    jobs: int | None = None) -> dict:
-    """`run_controls` on the default design (established families), cached on disk by source digest, design and
-    controls, so the gate files that read the same confirmation run (U.3, U.4, SP-15.0, SP-15.4, SP-15.6) share
-    one execution. `jobs` defaults to $CRUCIBLE_RESEARCH_JOBS (run through the slot scheduler)."""
+# Confirmation seeds (wave 3b repair, D-69 addendum 2): the development batteries (learner seeds 0 and 1 on the
+# default seeds) informed the transfer_sham specification and LABEL_LEVEL, so the confirmation run uses learner seeds,
+# training-world seeds, unfamiliar-world seeds and transfer-task seeds that no development run used. Family selection
+# (`default_design`) uses only the establishment seeds, which no battery uses.
+CONFIRMATION = {"seeds": (10, 11, 12, 13, 14), "world_seed0": 3300,
+                "eval_seeds": tuple(range(1_003_101, 1_003_111)),
+                "transfer_seeds": (1_003_201, 1_003_202, 1_003_203, 1_003_204)}
+
+
+def controls_result(archs: Sequence[str] = tuple(CONTROLS), *, seeds: Sequence[int] | None = None,
+                    jobs: int | None = None, confirmation: bool = True) -> dict:
+    """`run_controls` on the default design (established families) at the confirmation seeds (`CONFIRMATION`;
+    `confirmation=False`: the development seeds), cached on disk by source digest, design and controls, so the gate
+    files that read the same confirmation run (U.3, U.4, SP-15.0, SP-15.4, SP-15.6) share one execution. `jobs`
+    defaults to $CRUCIBLE_RESEARCH_JOBS (run through the slot scheduler)."""
     import json
-    d = default_design(seeds=tuple(seeds))
+    kw = dict(CONFIRMATION) if confirmation else {}
+    if seeds is not None:
+        kw["seeds"] = tuple(seeds)
+    d = default_design(**{k: tuple(v) if isinstance(v, (list, tuple)) else v for k, v in kw.items()})
     path = _cache_path("controls", [d.to_json(), list(archs)])
     if os.path.exists(path):
         res = json.load(open(path))
