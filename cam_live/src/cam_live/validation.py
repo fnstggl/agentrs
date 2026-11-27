@@ -535,10 +535,24 @@ class MetaStepProbe:
         ta = meta.engine.inner_update(theta0, psi1, steps, lr, len(steps), create_graph=False).detached()
         with torch.no_grad():
             pb, pa = meta.inner.probs(tb, steps[0]).double(), meta.inner.probs(ta, steps[0]).double()
+            p0 = meta.inner.probs(theta0, steps[0]).double()
+            r_b = meta.inner.learned_reward({n: v.to(dev) for n, v in psi0.items()}, steps[0]).double()
+            r_a = meta.inner.learned_reward(psi1, steps[0]).double()
         tv = 0.5 * (pa - pb).abs().sum(-1)
+        tv_inner = 0.5 * (pa - p0).abs().sum(-1)
         row.update(policy_change_by_meta_step={"rows": int(pb.shape[0]), "mean_tv": float(tv.mean()),
                                                "max_tv": float(tv.max()),
                                                "max_abs_prob_diff": float((pa - pb).abs().max())},
+                   internal_reward_on_support={"before": [round(float(x), 6) for x in r_b.tolist()],
+                                               "after": [round(float(x), 6) for x in r_a.tolist()],
+                                               "mean_abs_change": float((r_a - r_b).abs().mean()),
+                                               "std_before": float(r_b.std()) if r_b.numel() > 1 else 0.0},
+                   inner_update_policy_change={"mean_tv_theta0_to_thetaK": float(tv_inner.mean()),
+                                               "max_tv": float(tv_inner.max())},
+                   query_evidence={k: rec.diagnostics.get(k) for k in ("utility_mean", "n_distinct_utilities",
+                                                                        "max_abs_advantage", "ess", "n_episodes",
+                                                                        "policy_prob_change_on_query",
+                                                                        "psi_tensors_with_gradient")},
                    event_id=ev.event_id)
         return row
 

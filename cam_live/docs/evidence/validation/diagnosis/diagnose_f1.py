@@ -60,6 +60,7 @@ def main(argv=None) -> int:
     ap.add_argument("--k", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--agent", default="{}")
+    ap.add_argument("--optim", default="{}", help="JSON overrides of cfg.optim (e.g. inner_lr)")
     ap.add_argument("--label", default="")
     ap.add_argument("--work", default="")
     ap.add_argument("--budget-s", type=float, default=0.0)
@@ -74,6 +75,8 @@ def main(argv=None) -> int:
     cfg = staging_config(None, a.real, a.seed)
     over = json.loads(a.agent)
     cfg.sections["agent"].update(over)
+    for k, v in json.loads(a.optim).items():
+        setattr(cfg.optim, k, v)
     work = os.path.abspath(a.work or os.path.splitext(a.out)[0] + "_work")
     os.makedirs(work, exist_ok=True)
     lock = None
@@ -84,6 +87,8 @@ def main(argv=None) -> int:
     clock = SimClock()
     agent = CamLiveAgent(cfg, os.path.join(work, "agent"), clock=clock)
     report = {"label": a.label, "real_model": a.real, "agent_settings": cfg.section("agent"),
+              "optim": {k: getattr(cfg.optim, k) for k in ("inner_lr", "inner_steps", "lr_reward",
+                                                           "meta_min_independent_outcomes")},
               "credit_default": agent.assigner.default, "lifetimes": [], "started": time.time()}
     t0 = time.time()
     try:
@@ -114,6 +119,23 @@ def main(argv=None) -> int:
                             "bootstrap": getattr(rec, "bootstrap_reward", None) if rec else None,
                             "verified_delta": ((rec.decision.diagnostics.get("reward_signals") or {})
                                                .get("verified_progress_delta")) if rec else None})
+            # the reward the inner policy update uses *now* (rebuilt from the store, with every annotation that
+            # arrived after the decision), per executed decision of this lifetime
+            try:
+                recs = [r for r in agent.store.trajectory(lt["objective_id"]) if r.result is not None]
+                ib = agent.meta.inner.build_batch(agent.store, recs)
+                rb = {e: float(x) for e, x in zip(ib.exp_ids, ib.r_boot.tolist())}
+                comp = {k: {e: float(x) for e, x in zip(ib.exp_ids, v.tolist())} for k, v in ib.boot_components.items()}
+                by_dec = {r.decision.decision_id: r.exp_id for r in recs}
+                for row, d in zip(lt["decision_rows"], dec):
+                    e = by_dec.get(row["decision_id"])
+                    d["inner_boot"] = rb.get(e)
+                    d["inner_components"] = {k: v.get(e) for k, v in comp.items()}
+                    rec = agent.store.get(e) if e else None
+                    d["verified_delta"] = ((rec.decision.diagnostics.get("reward_signals") or {})
+                                           .get("verified_progress_delta")) if rec else None
+            except Exception as ex:  # noqa: BLE001
+                report.setdefault("errors", []).append(f"inner batch: {type(ex).__name__}: {ex}")
             ups = [e["data"] for e in iter_jsonl(os.path.join(lt["runtime_dir"], RunFiles.LEARNING))]
             metas = [e["data"] for e in iter_jsonl(os.path.join(lt["runtime_dir"], RunFiles.META))]
             pol = [u for u in ups if str(u.get("trigger", "")).endswith("newly rewarded decisions")]
@@ -138,8 +160,12 @@ def main(argv=None) -> int:
                 json.dump(report, f, indent=1, default=str)
         # reward vs truth over all executed decisions
         rows = [d for lt in report["lifetimes"] for d in lt["decision_rows"] if d["bootstrap"] is not None]
+        inner = [d for lt in report["lifetimes"] for d in lt["decision_rows"] if d.get("inner_boot") is not None]
         report["reward_vs_truth"] = {
-            "n": len(rows),
+            "n": len(rows), "n_inner": len(inner),
+            "spearman_inner_bootstrap_truth": spearman([d["inner_boot"] for d in inner], [d["truth"] for d in inner]),
+            "mean_inner_bootstrap_by_op": {op: statistics.fmean(d["inner_boot"] for d in inner if d["op"] == op)
+                                           for op in sorted({d["op"] for d in inner})},
             "spearman_bootstrap_truth": spearman([d["bootstrap"] for d in rows], [d["truth"] for d in rows]),
             "spearman_intrinsic_truth": spearman([d["intrinsic"] for d in rows], [d["truth"] for d in rows]),
             "mean_bootstrap_by_op": {op: statistics.fmean(d["bootstrap"] for d in rows if d["op"] == op)
