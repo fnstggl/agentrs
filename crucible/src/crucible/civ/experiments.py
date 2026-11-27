@@ -15,7 +15,7 @@ another subsystem than the one intervened on (the measured quantity is never the
 
 Chains (Part 10.3), mined from provenance in the reference arm and confirmed by removing their root:
 
-    agent_shop     a scripted agent writes and deploys a web shop and announces it on the forum
+    agent_shop     a scripted agent writes and deploys a web shop and announces it on the forum every day (8 days)
                    arms: no_agent (it does nothing) -> agent-artifact chain; no_post (it deploys, never posts) ->
                    social chain (forum post -> discovery -> purchases -> compute -> energy)
                    stage measures: visitors (population), payments by population individuals and all invoice
@@ -614,13 +614,18 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                "balanced", 3.0, 6.0, {"blackout_components": blackout_components},
                {"shelf_units": m_shelf_units, "retail_price": m_retail_price, "goods_bought": m_goods_bought,
                 "stockouts": m_stockouts}, "goods_bought", category=8),
-    Experiment("agent_shop", "a scripted agent's web shop: discovery, purchases, compute and energy",
-               "balanced", 1.0, 6.0, {"no_agent": _noop, "no_post": _noop},
+    Experiment("agent_shop", "a scripted agent's web shop: discovery, purchases, compute and energy. Exposure as in "
+               "social_discovery (a forum post every day over eight days): at a54f53d, with three posts over six "
+               "days, the population stage (visitors -8.3, CI [-12.6, -4.0]) stayed below twice the reshuffling "
+               "noise (5.9) in both arms while social_discovery's daily posts gave -18.7 against a noise of 4.5; "
+               "the measure-to-subsystem mapping (crucible.civ.gates.CHAIN_ARMS) and the confirmation rule are "
+               "unchanged",
+               "balanced", 1.0, 8.0, {"no_agent": _noop, "no_post": _noop},
                {"agent_visitors": m_agent_visitors, "agent_revenue": m_agent_revenue,
                 "population_revenue": m_agent_pop_revenue, "agent_compute": m_agent_compute,
                 "provider_cu": m_agent_provider_cu, "provider_kwh": m_agent_provider_kwh,
                 "web_revenue": m_web_revenue},
-               "provider_kwh", setup=_agent_setup("shop"), during=_agent_during, chain=True),
+               "provider_kwh", setup=_agent_setup("shop", posts=8), during=_agent_during, chain=True),
     Experiment("invention", "a technological invention (a scripted reference inventor's service for a published "
                "work format, better than every incumbent's solver) changes economic outcomes, participant behaviour, "
                "resource demand and future technological opportunities (SP-2.1b); counterfactual: the inventor is "
