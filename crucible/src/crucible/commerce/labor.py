@@ -59,6 +59,13 @@ POP_SKILLS = {"technical": ("software", "data"), "writing": ("writing",), "evalu
               "social": ("sales",), "planning": ("management", "operations"), "reading": ("research",),
               "searching": ("research",), "shopping": ("sales",)}
 TICKETS_PER_HOUR = (1.5, 5.0)       # support tickets an employee handles per hour at productivity 0 / 1
+WEEK = 7 * DAY
+# working time an employee can record with `labor.shift` (statutory limits, the EU Working Time Directive's order of
+# magnitude: 11 h daily rest, 48 h a week): at most MAX_DAY_HOURS a calendar day, and in a calendar week at most the
+# hours the worker contracted to the labour market (`hours_week`), never more than MAX_WEEK_HOURS; shifts of one
+# person never overlap (a shift occupies its hours of the worker's time)
+MAX_DAY_HOURS, MAX_WEEK_HOURS = 12.0, 48.0
+SHIFT_NOISE = 0.08                  # sd of a shift's realised performance around the worker's productivity
 
 # typed cross-module events (MASTER_SPEC 2.3, substrate.bus): other modules subscribe to the labour market's
 # employment changes (workstream I-2: `firms` attrition, `plantlabor` factory staffing)
@@ -609,8 +616,12 @@ class Labor(Module):
     def work_queue(self, ctx, org: str, hours: float) -> tuple[list, float]:
         """Support work, world physics for every employee (a shift of a population individual or agent, the idle
         hours of a simulated worker): during `hours` the employee (`ctx.actor`) answers and resolves the oldest
-        unresolved tickets of its employer's services, as many as its productivity allows. Returns (tickets, prod)."""
-        prod = self.productivity(ctx.world, ctx.actor)
+        unresolved tickets of its employer's services, as many as its realised performance allows. Returns
+        (tickets, performance). The performance of one stretch of work is the worker's productivity (private
+        skills) plus day-to-day variation (seeded per worker and time, sd SHIFT_NOISE): what an employer sees in a
+        shift report or the verified record is a noisy measurement of the worker, never its private skill levels."""
+        noise = float(ctx.world.rng_for("labor-shift", ctx.actor, org, ctx.now).normal(0.0, SHIFT_NOISE))
+        prod = round(_clip(self.productivity(ctx.world, ctx.actor) + noise), 2)
         lo, hi = TICKETS_PER_HOUR
         cap = int(float(hours) * (lo + (hi - lo) * prod))
         done = []
@@ -630,12 +641,27 @@ class Labor(Module):
                     continue
         return done, prod
 
+    def shift_room(self, st, person: str, now: int) -> dict:
+        """Working time a registered worker can still record with `labor.shift` now: hours left today and this
+        calendar week (statutory limits and the worker's contracted `hours_week`, module constants), and the end of
+        a shift it is still working (shifts of one person never overlap)."""
+        w = st.tables["labor_workers"][person]
+        day, week = now // DAY, now // WEEK
+        cap_week = min(float(w["hours_week"]), float(self.cfg("max_week_hours", MAX_WEEK_HOURS)))
+        used_day = float(w.get("day_hours", 0.0)) if w.get("shift_day") == day else 0.0
+        used_week = float(w.get("week_hours", 0.0)) if w.get("shift_week") == week else 0.0
+        return {"day_left": round(max(0.0, float(self.cfg("max_day_hours", MAX_DAY_HOURS)) - used_day), 3),
+                "week_left": round(max(0.0, cap_week - used_week), 3), "week_cap": cap_week,
+                "busy_until": int(w.get("shift_until") or 0)}
+
     @endpoint("shift", S.obj({"org": S.s_str("your employer", maxLength=40),
                               "hours": S.s_num("hours worked in this shift", minimum=0.25, maximum=12)},
                              ["org", "hours"]), cost_s=60)
     def ep_shift(self, ctx, org, hours):
         """Work a shift for your employer: the hours are recorded as your labour for it, and you work its support
-        queue - the oldest unresolved tickets of its services - answering and resolving as many as you manage."""
+        queue - the oldest unresolved tickets of its services - answering and resolving as many as you manage.
+        Working time is bounded: a shift occupies its hours (no second shift before it ends), at most 12 hours a
+        day, and in a calendar week at most the hours you registered for (`hours_week`, at most 48)."""
         st = ctx.state
         org = self._org(ctx, org)
         w = st.get("labor_workers", ctx.actor)
@@ -645,17 +671,27 @@ class Labor(Module):
         if c is None or c["status"] not in ("active", "terminating"):
             raise Conflict("your employment contract is not active")
         hours = float(hours)
+        room = self.shift_room(st, ctx.actor, ctx.now)
+        if room["busy_until"] > ctx.now:
+            raise Conflict(f"you are working a shift until t={room['busy_until']}; a new shift starts after it ends")
+        if hours > room["day_left"] + 1e-9:
+            raise Conflict(f"working time: {room['day_left']} hours left today (at most "
+                           f"{self.cfg('max_day_hours', MAX_DAY_HOURS)} a day)")
+        if hours > room["week_left"] + 1e-9:
+            raise Conflict(f"working time: {room['week_left']} hours left this week (your {room['week_cap']:g} "
+                           f"contracted hours a week)")
         done, prod = self.work_queue(ctx, org, hours)
         if "inst" in ctx.world.modules:
             ctx.world.modules["inst"].record_labor(ctx, org, ctx.actor, hours,
                                                    int(round(hours * int(self.cfg("labor_hour_cents", 2_500)))))
         ctx.emit("labor.shift", {"worker": ctx.actor, "org": org, "hours": round(hours, 3), "tickets": done,
-                                 "productivity": round(prod, 4)}, vis=(ctx.actor, org))
+                                 "productivity": prod}, vis=(ctx.actor, org))
         if done:
             ctx.emit("labor.perf", {"id": f"{ctx.actor}|shift|{ctx.now}", "worker": ctx.actor, "org": org,
-                                    "task": None, "skills": ["operations"], "quality": round(prod, 4),
+                                    "task": None, "skills": ["operations"], "quality": prod,
                                     "late": False, "hours": round(hours, 2)}, vis=(ctx.actor, org))
-        return {"hours": hours, "tickets_resolved": len(done)}
+        return {"hours": hours, "tickets_resolved": len(done),
+                "hours_left_this_week": round(max(0.0, room["week_left"] - hours), 3)}
 
     @endpoint("post", S.obj({"org": S.s_str(maxLength=40), "title": S.s_str(maxLength=120),
                              "skills": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0,
@@ -878,7 +914,13 @@ class Labor(Module):
     def ap_shift(self, ev):
         st = self.world.state
         w = st.tables["labor_workers"][ev.payload["worker"]]
-        st.patch("labor_workers", ev.payload["worker"], hours_total=round(w["hours_total"] + ev.payload["hours"], 2))
+        h = float(ev.payload["hours"])
+        day, week = ev.t // DAY, ev.t // WEEK
+        st.patch("labor_workers", ev.payload["worker"], hours_total=round(w["hours_total"] + h, 2),
+                 shift_day=day, day_hours=round((w.get("day_hours", 0.0) if w.get("shift_day") == day else 0.0) + h, 3),
+                 shift_week=week,
+                 week_hours=round((w.get("week_hours", 0.0) if w.get("shift_week") == week else 0.0) + h, 3),
+                 shift_until=int(ev.t + round(h * 3600)))
 
     @applier("labor.worker_update")
     def ap_worker_update(self, ev):

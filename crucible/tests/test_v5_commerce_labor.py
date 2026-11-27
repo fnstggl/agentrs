@@ -253,3 +253,86 @@ def test_simulated_employees_work_the_support_queue_in_hours_their_tasks_leave()
     assert perf and {p["worker"] for p in perf} <= team and all(p["org"] == org for p in perf)
     replies = [e for e in w.log if e.type == "support.msg" and e.actor in team]
     assert replies, "the employees themselves answered the tickets"
+
+
+def test_shifts_are_bounded_working_time_and_profit_sharing_by_labour_follows_real_hours():
+    """Regression (verifier probe p_shift_spam): `labor.shift` recorded any number of hours - an employee calling it
+    twenty times a day recorded 240 h per working day and took 98% of a labour-basis profit distribution. A shift
+    now occupies its hours (no overlap), at most 12 h a day and, in a calendar week, at most the hours the worker
+    registered for (<= 48): repeated calls are refused, recorded labour equals working time actually available,
+    and the distribution follows it."""
+    w = OW.create(41, workers=0, extra=("ops",))
+
+    def ok(a, t, **k):
+        r = _ex(w, a, t, **k)
+        assert r.ok, (t, r.error)
+        return r.result
+    boss, _ = OW.join(w, "boss", 30_000_000)
+    cust, _ = OW.join(w, "cust", 50_000_000)
+    honest, _ = OW.join(w, "honest", 0)
+    spam, _ = OW.join(w, "spammer", 0)
+    org, _ = OW.found_company(w, boss, "shop", 10_000_000)
+    ok(boss, "inst.adopt", org=org, charter={"procedures": {"maj": {"type": "majority", "electorate": "members"}},
+                                             "rules": [], "profit_sharing": {"basis": "labor", "share": 0.5}})
+    post = ok(boss, "labor.post", org=org, title="support", salary_min=100_000, salary_max=200_000)["post"]
+    for e in (honest, spam):
+        ok(e, "labor.register", declared=["writing"], hours_week=20, reservation_cents_month=1)
+        app = ok(e, "labor.apply", post=post)["application"]
+        off = ok(boss, "labor.offer", application=app, salary_cents_month=150_000)["offer"]
+        ok(e, "labor.respond", offer=off, action="accept")
+    refused, calls = [], 0
+    for d in range(1, 40):
+        w.advance_time(w.now + DAY)
+        if d == 20:
+            k = ok(cust, "contracts.propose", parties=[cust, org], title="service",
+                   clauses=[{"type": "payment", "from": cust, "to": org, "amount": 3_000_000, "every_s": None,
+                             "count": None, "start_in_s": 0}])["contract"]
+            ok(boss, "contracts.sign", contract=k, as_org=org)
+        if d % 7 < 5:
+            ok(honest, "labor.shift", org=org, hours=4)
+            for _ in range(20):
+                r = _ex(w, spam, "labor.shift", org=org, hours=12)
+                calls += 1
+                if not r.ok:
+                    refused.append(r.error["message"] if isinstance(r.error, dict) else str(r.error))
+    hours = w.state.meta.get(f"labor_hours:{org}")
+    weeks = len({d // 7 for d in range(1, 40) if d % 7 < 5})
+    assert hours[honest] <= 20 * weeks + 1e-6
+    assert hours[spam] <= 20 * weeks + 1e-6, hours            # never more than the contracted weekly hours
+    assert len(refused) >= calls - 2 * weeks - 2
+    assert any("working a shift until" in m for m in refused) and any("hours left this week" in m for m in refused)
+    inst = w.modules["inst"]
+    c_h, c_s = inst.contribution_of(w.state, org, honest), inst.contribution_of(w.state, org, spam)
+    assert c_s <= 1.25 * c_h, (c_h, c_s)
+    owner = {a: r["owner"] for a, r in w.state.scan("accounts")}
+    paid = {}
+    for _, tx in w.state.scan("txns"):
+        if tx["kind"] == "distribution":
+            for acct, amt in tx["postings"]:
+                if amt > 0:
+                    paid[owner[acct]] = paid.get(owner[acct], 0) + int(amt)
+    assert paid.get(spam, 0) > 0 and paid.get(honest, 0) > 0, paid          # the customer's payment was shared
+    assert paid[spam] <= 1.25 * paid[honest], paid
+    assert not w.check_invariants()
+
+
+def test_shift_reports_are_noisy_measurements_not_private_skill_levels():
+    """A shift's reported performance is the worker's productivity plus day-to-day variation: repeated shifts of one
+    population-free agent worker differ, and their mean is near (not equal to) the productivity."""
+    w = OW.create(43, workers=0, extra=("support",))
+    boss, _ = OW.join(w, "boss", 30_000_000)
+    org, _ = OW.found_company(w, boss, "desk", 10_000_000)
+    e, _ = OW.join(w, "emp", 0)
+    post = _ex(w, boss, "labor.post", org=org, title="support", salary_min=100_000, salary_max=200_000).result["post"]
+    assert _ex(w, e, "labor.register", declared=["writing"], hours_week=40, reservation_cents_month=1).ok
+    app = _ex(w, e, "labor.apply", post=post).result["application"]
+    off = _ex(w, boss, "labor.offer", application=app, salary_cents_month=150_000).result["offer"]
+    assert _ex(w, e, "labor.respond", offer=off, action="accept").ok
+    for d in range(12):
+        w.advance_time(w.now + DAY)
+        if (w.now // DAY) % 7 < 5:
+            assert _ex(w, e, "labor.shift", org=org, hours=6).ok
+    reps = [ev.payload["productivity"] for ev in w.log if ev.type == "labor.shift"]
+    prod = w.modules["labor"].productivity(w, e)
+    assert len(reps) >= 6 and len(set(reps)) > 1, reps
+    assert abs(sum(reps) / len(reps) - prod) < 0.1
