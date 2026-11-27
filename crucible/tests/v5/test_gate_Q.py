@@ -17,6 +17,7 @@ and event log (`crucible.multiagent.analysis`). Held-out evaluation: alpha's fin
 against a held-out GRU/PPO family (never in the training civilisation) on sealed seeds. Numeric facility-only
 self-play (`crucible.selfplay`) is classified and refused (Q.n1). A failure to build Tier 3 fails the tests."""
 import json
+from collections import Counter
 import os
 
 import numpy as np
@@ -201,7 +202,11 @@ def test_Q_8_collusion_checks(q):
     record("Q.8", {"collusion_checks_run": b["planted"], "planted_collusion_undetected": b["undetected"],
                    "clean_controls_flagged": b["clean_controls_flagged"],
                    "schemes": json.dumps({k: [v["detected"], v["clean_flagged"]] for k, v in b["schemes"].items()}),
-                   "real_run_flags": json.dumps({k: len(v) for k, v in (b.get("real_run_flags") or {}).items()})},
+                   "real_run_flags": json.dumps({k: len(v) for k, v in (b.get("real_run_flags") or {}).items()}),
+                   # what the related-flow analysis flagged among the learning parties' own trade (reported)
+                   "real_run_revenue_flag_reasons": json.dumps(dict(Counter(
+                       str(r) for x in (b.get("real_run_flags") or {}).get("cross_party_revenue_flags", [])
+                       for r in (x.get("reasons") or ["?"]))))},
            command=CMD, labels={"scripted": True},
            notes="schemes planted by scripted identities in the self-play civilisation after the run: wash trading "
                  "between identities of one controller, circular funding, mutual subscriptions, a price-fixing "

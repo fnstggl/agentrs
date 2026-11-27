@@ -17,8 +17,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "learned_policies_in_civilization 4 (alpha, beta, gamma, delta; state-changing accepted actions 89/14/24/15, alpha_hist 6; 10 admitted identities). Learned = updated by its own observation-derived signal in the civilisation and acting there through ordinary tools."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: learned_policies_in_civilization 4 (alpha, beta, gamma, delta); accepted state-changing actions 234/100/57/102, alpha_hist 48 (9ea4901: 89/14/24/15); 10 admitted identities; 64 hosts used. Earlier run (9ea4901, 72 h): learned_policies_in_civilization 4 (alpha, beta, gamma, delta; state-changing accepted actions 89/14/24/15, alpha_hist 6; 10 admitted identities). Learned = updated by its own observation-derived signal in the civilisation and acting there through ordinary tools."
   },
   "Q.2": {
    "implementation_files": [
@@ -36,8 +36,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "independent_policy_groups 4: disjoint parameter storage/optimiser/generators/buffers (0 shared-object violations), disjoint version chains, every group updated and in >= 1 competitive interaction (same_market) with another learning party."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: independent_policy_groups 4, 0 shared-object violations (prior copies included in the audit), disjoint hash chains, all 4 in competition (competing_tech, same_market, scarce_resource). Earlier run (9ea4901, 72 h): independent_policy_groups 4: disjoint parameter storage/optimiser/generators/buffers (0 shared-object violations), disjoint version chains, every group updated and in >= 1 competitive interaction (same_market) with another learning party."
   },
   "Q.3": {
    "implementation_files": [
@@ -53,8 +53,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "cooperative_interactions 4 between learning parties (dependency 2, membership 1, venture 1), competitive_interactions 6 (same_market); no shared or team reward exists (SP-12.3b audit)."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: cooperative_interactions 69 (trade 21, grant 15, dependency 9, negotiation 9, agreement 7, membership 5, venture 3), competitive_interactions 12 (same_market 6, competing_tech 4, scarce_resource 2); cooperation_with_world_parties 2 (first nonzero); no shared or team reward. Earlier run (9ea4901, 72 h): cooperative_interactions 4 between learning parties (dependency 2, membership 1, venture 1), competitive_interactions 6 (same_market); no shared or team reward exists (SP-12.3b audit)."
   },
   "Q.4": {
    "implementation_files": [
@@ -70,8 +70,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "shared_world_consequence_events 125 (8 party pairs), 4 response chains (a party's later command names an id another party's action created)."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: shared_world_consequence_events 575 over 13 party pairs, 42 response chains (9ea4901: 125, 4). Earlier run (9ea4901, 72 h): shared_world_consequence_events 125 (8 party pairs), 4 response chains (a party's later command names an id another party's action created)."
   },
   "Q.5": {
    "implementation_files": [
@@ -87,8 +87,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "policy_versions_recorded 172 reinforcement-update versions with parent chain and provenance (210 incl. behaviour cloning, frozen copies, held-out family); final checkpoints reload to their recorded hashes."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: policy_versions_recorded 234 reinforcement-update versions with complete parent chains and provenance (276 incl. behaviour cloning and frozen copies); final checkpoints reload to their hashes. Earlier run (9ea4901, 72 h): policy_versions_recorded 172 reinforcement-update versions with parent chain and provenance (210 incl. behaviour cloning, frozen copies, held-out family); final checkpoints reload to their recorded hashes."
   },
   "Q.6": {
    "implementation_files": [
@@ -105,8 +105,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "4 held-out evaluations (alpha final and initial, frozen, vs the held-out GRU/PPO family on sealed seeds 90001/90002 in civilisations). Measured, not required positive: final score mean -75000 vs initial -25000 (final - initial -50000 cents; the trained policy spent more), rejected actions -5.5 per match."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: 4 held-out evaluations (alpha final vs initial against the frozen GRU/PPO family on sealed seeds 90001/90002). Measured, not required positive: final score mean -125000 vs initial -75000 cents (the trained policy spent 50000 more), rejected actions -2 per match. Earlier run (9ea4901, 72 h): 4 held-out evaluations (alpha final and initial, frozen, vs the held-out GRU/PPO family on sealed seeds 90001/90002 in civilisations). Measured, not required positive: final score mean -75000 vs initial -25000 (final - initial -50000 cents; the trained policy spent more), rejected actions -5.5 per match."
   },
   "Q.7": {
    "implementation_files": [
@@ -121,8 +121,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "weight_updates 144 parameter-changing RL updates in the civilisation (BC not counted), all 4 hashes changed, 0 no-signal controls changed; behaviour TV on recorded situations 0.413 vs 0.0 for the no-signal twins. Outcome learning is weak and mixed: state-changing accept rate early->late alpha 0.16->0.20, beta 0.05->0.02, gamma 0.17->0.21, delta 0.10->0.17; reject rates alpha 0.63->0.61, beta 0.43->0.71, gamma 0.44->0.71, delta 0.63->0.52. The diagnostic run (same campaign, commit 2981d88) showed the external drive signal nonzero on only 12/432 (alpha), 0/288 (beta), 3/144, 2/144 decisions: nearly all reinforcement came from the intrinsic novelty/rejection terms."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: weight_updates 190 parameter-changing RL updates (BC not counted), all 4 hashes changed, 0 of 4 no-signal controls changed; behaviour TV on recorded situations 0.339 vs 0.0 for the no-signal twins. Outcome rates early->late third of the run (state-changing accepted / rejected / waits): alpha 0.45/0.31/0.00 -> 0.38/0.32/0.07, beta 0.31/0.37/0.02 -> 0.16/0.29/0.16, gamma 0.30/0.39/0.00 -> 0.23/0.41/0.08, delta 0.53/0.25/0.00 -> 0.56/0.28/0.00: acting competence is higher than at 9ea4901 throughout (pre-training), but does not improve within the run for 3 of 4 groups. Earlier run (9ea4901, 72 h): weight_updates 144 parameter-changing RL updates in the civilisation (BC not counted), all 4 hashes changed, 0 no-signal controls changed; behaviour TV on recorded situations 0.413 vs 0.0 for the no-signal twins. Outcome learning is weak and mixed: state-changing accept rate early->late alpha 0.16->0.20, beta 0.05->0.02, gamma 0.17->0.21, delta 0.10->0.17; reject rates alpha 0.63->0.61, beta 0.43->0.71, gamma 0.44->0.71, delta 0.63->0.52. The diagnostic run (same campaign, commit 2981d88) showed the external drive signal nonzero on only 12/432 (alpha), 0/288 (beta), 3/144, 2/144 decisions: nearly all reinforcement came from the intrinsic novelty/rejection terms."
   },
   "Q.8": {
    "implementation_files": [
@@ -131,8 +131,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "6 planted schemes (wash trading, circular funding, mutual subscriptions, price-fixing cartel with a channel, reciprocal rating ring, hidden shared state) all detected, 0 of 6 clean controls flagged, 0 flags on the learned run (scripted plants)."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: 6 planted schemes all detected, 0 of 6 clean controls flagged; on the real run 0 price-fixing/reciprocal-endorsement flags and 12 cross-party revenue flags from commerce.integrity's related-flow analysis on the learning parties' own mutual trade (reported; such revenue is excluded from independent success; reasons are recorded from the next run on). Earlier run (9ea4901, 72 h): 6 planted schemes (wash trading, circular funding, mutual subscriptions, price-fixing cartel with a channel, reciprocal rating ring, hidden shared state) all detected, 0 of 6 clean controls flagged, 0 flags on the learned run (scripted plants)."
   },
   "Q.n1": {
    "implementation_files": [
@@ -147,8 +147,8 @@
    "tests": [
     "tests/v5/test_gate_Q.py"
    ],
-   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation (civ balanced seed 7, development population, 1040 individuals, Qwen3-0.6B text path, GPU slot) at commit 9ea4901, 2026-11-26 19:42-19:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1009 s (full campaign, 72 simulated hours); re-verification at the branch head (own-things memory, BC lr 1e-2, 96 h) is queued in the K slot lane (scratch lane 2) and had not started when this file was written",
-   "notes": "civilization_selfplay_runs 1 (Tier 3, >= 2 learned groups acting through 50 hosts' tools, 0 rig calls); the 4.0 numeric facility world is refused."
+   "status_claim": "criteria met in an unofficial run on the Tier 3 civilisation at commit eb6f1d7 (scratch lane 2, GPU slot, Qwen3-0.6B text path, civ balanced seed 7, development population, 1040 individuals), 2026-11-27 02:39-02:59 UTC: tests/v5/test_gate_Q.py 9 passed in 1214 s (full campaign, 96 simulated hours); earlier also at 9ea4901 (72 h, 9 passed)",
+   "notes": "eb6f1d7: civilization_selfplay_runs 1 (Tier 3, 64 hosts' tools, 0 rig calls); the 4.0 numeric facility world is refused. Earlier run (9ea4901, 72 h): civilization_selfplay_runs 1 (Tier 3, >= 2 learned groups acting through 50 hosts' tools, 0 rig calls); the 4.0 numeric facility world is refused."
   },
   "SP-12.0": {
    "implementation_files": [
@@ -336,7 +336,8 @@
   "diagnostic (2981d88, full campaign)": "rejections dominated by acting on other parties' repositories (pkg.register/code.commit/pkg.depend forbidden: 51/34/32 for alpha) - addressed in 5dfa700 by the own-things memory; external drive signal nonzero on 17 of 1008 learner decisions",
   "SP-12.0 (c212a6f, 96 h)": "passed: 10 of 10 capability kinds, 1517 s",
   "SP-12.1 (c212a6f)": "passed, 382 s",
-  "SP-12.3b (c212a6f)": "passed, 364 s"
+  "SP-12.3b (c212a6f)": "passed, 364 s",
+  "Q (eb6f1d7, 96 h)": "9/9 passed, 1214 s"
  },
  "cpu_proxy_results_eb6f1d7": {
   "world": "kernel:open_digital (not a civilisation; development proxy only), 36 h, demonstrations seed 21 (36 h), 12 BC epochs",
