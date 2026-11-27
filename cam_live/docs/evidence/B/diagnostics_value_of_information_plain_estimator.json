@@ -1,0 +1,176 @@
+{
+ "4_value_of_information": {
+  "closed_loop": {
+   "greedy": {
+    "adopters_per_effort": {
+     "hi": 0.8820712934276483,
+     "lo": 0.5950771953168698,
+     "mean": 0.738574244372259,
+     "n": 12.0
+    },
+    "decisions": {
+     "hi": 15.156899172079179,
+     "lo": 9.343100827920821,
+     "mean": 12.25,
+     "n": 12.0
+    },
+    "effort": {
+     "hi": 42.82387821395501,
+     "lo": 26.67612178604499,
+     "mean": 34.75,
+     "n": 12.0
+    },
+    "interventions": {
+     "hi": 15.095054072445128,
+     "lo": 9.238279260888204,
+     "mean": 12.166666666666666,
+     "n": 12.0
+    },
+    "reached_fraction": 1.0
+   },
+   "max_decisions": 30,
+   "n_seeds": 12,
+   "paired_all": {
+    "adopters_per_effort_voi_minus_greedy": {
+     "hi": 0.031088120942081604,
+     "lo": -0.16880514565451543,
+     "mean": -0.06885851235621691,
+     "n": 12.0
+    }
+   },
+   "paired_both_reached": {
+    "effort_greedy_minus_voi": {
+     "hi": 2.5884601972141184,
+     "lo": -11.861187469941392,
+     "mean": -4.636363636363637,
+     "n": 11.0
+    },
+    "interventions_greedy_minus_voi": {
+     "hi": -2.325811882583447,
+     "lo": -7.31055175378019,
+     "mean": -4.818181818181818,
+     "n": 11.0
+    },
+    "n": 11
+   },
+   "voi": {
+    "adopters_per_effort": {
+     "hi": 0.8292958650514222,
+     "lo": 0.5101355989806622,
+     "mean": 0.6697157320160422,
+     "n": 12.0
+    },
+    "decisions": {
+     "hi": 22.272840199417555,
+     "lo": 14.893826467249111,
+     "mean": 18.583333333333332,
+     "n": 12.0
+    },
+    "effort": {
+     "hi": 44.551083510031845,
+     "lo": 31.115583156634823,
+     "mean": 37.833333333333336,
+     "n": 12.0
+    },
+    "interventions": {
+     "hi": 19.47347304709827,
+     "lo": 13.859860286235067,
+     "mean": 16.666666666666668,
+     "n": 12.0
+    },
+    "reached_fraction": 0.9166666666666666
+   },
+   "voi_needs_fewer_interventions": false,
+   "voi_needs_fewer_interventions_on_average": false
+  },
+  "probe_vs_noisy_gauge": {
+   "fast": {
+    "probe_higher_than_gauge": false,
+    "probe_minus_gauge": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    },
+    "voi_act": {
+     "hi": 5.185665864421011,
+     "lo": 1.0086022814096327,
+     "mean": 3.0971340729153223,
+     "n": 20.0
+    },
+    "voi_noisy_gauge": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    },
+    "voi_probe": {
+     "hi": 0.0,
+     "lo": 0.0,
+     "mean": 0.0,
+     "n": 20.0
+    }
+   },
+   "slow": {
+    "probe_higher_than_gauge": false,
+    "probe_minus_gauge": {
+     "hi": -0.0019890864898655554,
+     "lo": -0.04017813685595174,
+     "mean": -0.021083611672908648,
+     "n": 20.0
+    },
+    "voi_act": {
+     "hi": 0.008356045937000449,
+     "lo": 0.0014645878669918943,
+     "mean": 0.004910316901996172,
+     "n": 20.0
+    },
+    "voi_noisy_gauge": {
+     "hi": 0.05921877981993309,
+     "lo": 0.008844435319964997,
+     "mean": 0.034031607569949045,
+     "n": 20.0
+    },
+    "voi_probe": {
+     "hi": 0.02152189107842383,
+     "lo": 0.004374100715656965,
+     "mean": 0.012947995897040399,
+     "n": 20.0
+    }
+   }
+  }
+ },
+ "command": "cd /workspace/camlive && PYTHONPATH=cam_live/src .venv/bin/python -m cam_live.predict.diagnose",
+ "family_model": {
+  "final": {
+   "eval_brier": 0.24000123143196106,
+   "evaluator_loss": 1.5556470592816671,
+   "fast_online_nll_count": 1.628275918814159,
+   "fast_online_nll_first_count": 1.847865950743526,
+   "fast_online_nll_later_count": 1.614137857896306,
+   "transition_nmse": 1.2422433064215277,
+   "world_nll_count": 1.874051284790039
+  },
+  "n_evaluator_lifetimes": 400,
+  "n_train_lifetimes": 60,
+  "steps": 1200,
+  "train_seconds": 503.0,
+  "train_success_rate": 0.59
+ },
+ "provenance": "diagnostic",
+ "quick": false,
+ "scale": "debug (tiny random backbone, 4096 hash buckets; debug core)",
+ "seconds": 555.4,
+ "sizes": {
+  "eval_lifetimes": 340,
+  "fam_steps": 1200,
+  "fam_train": 60,
+  "held": 40,
+  "loop": 12,
+  "max_decisions": 30,
+  "n_decisions": 16,
+  "n_test": 20,
+  "n_train": 40,
+  "steps": 1500
+ }
+}

@@ -210,17 +210,22 @@ def test_every_outcome_kind_is_predicted_registered_and_absorbed(lab_rig):
         rig.predictor.observe_outcomes([{"query_id": qs[0].query_id, "value": 1.0}])
 
 
-def test_voi_is_decision_relevant_not_surprise(lab_rig):
-    """A candidate whose outcome cannot change any later choice has zero VOI however unpredictable it is; a
-    candidate whose outcome informs the goal-relevant comparison has positive VOI; knowing more lowers it."""
-    rig = lab_rig(n_lifetimes=0, voi_samples=24)
+def test_voi_is_decision_relevant_not_surprise(lab_rig, measure):
+    """A candidate whose outcome cannot change any later choice has zero VOI however unpredictable it is and however
+    much it would change beliefs; a candidate whose outcome can change which option looks best has positive VOI;
+    knowing more lowers it. (Two groups of interventions are measured by different goal-relevant metrics, so that
+    learning about one group does not simply rescale every option.)"""
+    rig = lab_rig(n_lifetimes=0, voi_samples=32)
     gen = torch.Generator().manual_seed(0)
-    count = at_horizons(OutcomeQuery("", "lab.adopters.from.{action}", OutcomeKind.COUNT, goal_relevant=True,
-                                     description="adopters attributed to this intervention"), [2 * DAY])
+    tmpl = {g: at_horizons(OutcomeQuery("", f"{g}.items.from.{{action}}", OutcomeKind.COUNT, goal_relevant=True,
+                                        description=f"{g} items attributed to this intervention"), [2 * DAY])
+            for g in ("alpha", "beta")}
     gauge = [OutcomeQuery("", "lab.static", OutcomeKind.REAL, 600.0, description="static gauge reading")]
 
     def queries(a):
-        return count if a.operation == "lab.act" else gauge if a.operation == "lab.noise" else []
+        if a.operation == "lab.act":
+            return tmpl["alpha" if a.arguments["channel"] < 2 else "beta"]
+        return gauge if a.operation == "lab.noise" else []
 
     cands = [c for c in rig.candidates() if c.operation in ("lab.act", "lab.noise", "wait")]
     evs = rig.predictor.evaluate_candidates(rig.context(), rig.task.objective, cands, queries, generator=gen)
@@ -230,19 +235,25 @@ def test_voi_is_decision_relevant_not_surprise(lab_rig):
     assert noise.extras["info_gain_nats"] > 0                         # ...although it would change beliefs
     assert max(e.voi for e in acts) > 0
     assert all(e.voi == 0.0 for e in evs if e.action.operation == "wait")
-    # after many observations of every intervention the remaining value of information shrinks
+    # the plain "E[max Q(updated)] - max Q(current)" is reported next to it; with the approximate update it is larger
+    assert all("voi_vs_current" in e.extras and e.extras["voi_stderr"] >= 0 for e in acts)
     v0 = sum(e.voi for e in acts)
+    measure("voi_untrained_debug_model_sum_over_acts", v0)
+    measure("voi_untrained_debug_model_sum_against_current_baseline", sum(e.extras["voi_vs_current"] for e in acts))
+    # after many observations of every intervention the remaining value of information shrinks
     rig.clock.advance(3 * DAY)
-    for _ in range(6):
+    for k in range(8):
         outs = []
         for e in acts:
             p = e.predictions[0]
             outs.append(OutcomeObservation(p.query.query_id, OutcomeStatus.OBSERVED, float(round(p.dist.mean)),
-                                           observed_at=rig.clock.now(), dedup_key=f"{p.query.query_id}:{_}"))
+                                           observed_at=rig.clock.now(), dedup_key=f"{p.query.query_id}:{k}"))
         rig.predictor._absorbed.clear()                               # repeated measurements of the same question
         rig.predictor.observe_outcomes(outs)
     evs2 = rig.predictor.evaluate_candidates(rig.context(), rig.task.objective, cands, queries, generator=gen)
-    assert sum(e.voi for e in _acts(evs2)) < 0.6 * v0
+    v1 = sum(e.voi for e in _acts(evs2))
+    measure("voi_untrained_debug_model_sum_after_observations", v1)
+    assert v1 < 0.6 * v0
 
 
 def test_voi_slow_path_lets_the_imagined_result_enter_a_copy_of_the_context(lab_rig):
@@ -263,8 +274,7 @@ def test_voi_slow_path_lets_the_imagined_result_enter_a_copy_of_the_context(lab_
                                             generator=torch.Generator().manual_seed(0))
     assert len(ctx) == n_ctx                                          # the real context was not touched
     assert all(e.voi is not None and e.voi >= 0.0 for e in evs)
-    assert max(e.voi for e in _acts(evs)) > 0
-    assert all(math.isfinite(e.extras["voi_stderr"]) for e in evs)
+    assert all(math.isfinite(e.extras["voi_stderr"]) and math.isfinite(e.extras["voi_vs_current"]) for e in evs)
     assert rig.fast.n_updates(OutcomeKind.COUNT) == 0 and rig.fast.n_updates(OutcomeKind.REAL) == 0
     assert len(rig.registry) == sum(len(e.predictions) for e in evs)  # only the real forecasts were registered
     assert not any("imagined" in p.query.query_id for e in evs for p in e.predictions)

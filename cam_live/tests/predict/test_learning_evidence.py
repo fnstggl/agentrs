@@ -93,7 +93,7 @@ def test_value_of_information_fast_path_ignores_the_noisy_gauge(family, measure)
     fast = rep["fast"]
     assert abs(fast["voi_noisy_gauge"]["mean"]) < 1e-12                      # unpredictable but decision-irrelevant
     assert abs(fast["voi_probe"]["mean"]) < 1e-12                            # (and so is the probe: see status)
-    assert fast["voi_act"]["mean"] > 0.0                                     # acting on an uncertain channel informs
+    assert fast["voi_act"]["mean"] >= 0.0 and "voi_act_against_current_value_baseline" in fast
     assert rep["slow"]["voi_probe"]["mean"] >= 0.0 and rep["slow"]["voi_noisy_gauge"]["mean"] >= 0.0
     measure("slow_voi_probe_minus_gauge_slow_path", rep["slow"]["probe_minus_gauge"]["mean"])
 

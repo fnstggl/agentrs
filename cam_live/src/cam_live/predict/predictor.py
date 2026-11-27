@@ -15,7 +15,9 @@ posterior variance) as defined in :mod:`cam_live.predict.heads`; the two epistem
 independent factors and reported next to the aleatoric part. Value of information is the decision-relevant
 quantity  E_y[max_a' Q(b_updated(a, y), a')] - max_a' Q(b, a')  computed by sampling outcomes from the predictive
 and applying the fast layer's own update to a copy (optionally also the experiential core's update, by letting the
-imagined result enter a copy of the context). Nothing here returns or consumes a reward.
+imagined result enter a copy of the context). It is estimated as the Jensen gap  E_y[max_a' Q_y] - max_a' E_y[Q_y]
+over the same samples, which equals the formula above for an exact Bayesian update and does not mistake the bias of
+an approximate update for information. Nothing here returns or consumes a reward.
 """
 from __future__ import annotations
 
@@ -411,6 +413,7 @@ class Predictor:
         gross = torch.zeros(n, dtype=F64)
         stderr = torch.zeros(n, dtype=F64)
         gain = torch.zeros(n, dtype=F64)
+        plain = torch.zeros(n, dtype=F64)
         order = sorted(range(n), key=lambda i: -float(epi0[i].sum()))[: cfg.voi_max_candidates]
         slow = self._slow_views(wb, context_items, goal_text, cands, e_a, e_g, order, mean0, epi0, s_n, generator) \
             if cfg.voi_slow_path else {}
@@ -418,7 +421,7 @@ class Predictor:
             js = [j for j in range(qm.shape[1]) if bool(qm[i, j]) and self._supports(fast, kinds[i][j])]
             if not bool(feasible[i]) or (not js and i not in slow):
                 continue
-            after, per_sample = [], []
+            per_sample = []
             for s in range(s_n):
                 f = fast.clone()
                 kl = 0.0
@@ -445,18 +448,20 @@ class Predictor:
                 v_after = slow[i][s] if i in slow else view
                 vals = values(v_after, f)
                 per_sample.append(vals)
-                after.append(float(vals[feasible].max()))
                 gain[i] += kl / s_n
-            t = torch.tensor(after, dtype=F64)
-            # Baseline: the best value obtainable *without* seeing the outcome. Under the fast posterior alone the
-            # expected updated value equals the current one, so that is the current best. When the imagined result
-            # also enters the context, the context changes even if the result says nothing; the baseline is then the
-            # best expected value over the samples, which removes that systematic shift (E[max] - max E >= 0).
-            base_i = torch.stack(per_sample).mean(0)[feasible].max() if i in slow else base
-            gross[i] = (t - base_i).mean()                        # exactly 0 when no sample changes the best value
+            stack = torch.stack(per_sample)[:, feasible]                              # [S, feasible]
+            t = stack.max(-1).values
+            # Value of *knowing* the outcome before the next choice: E_y[max_a' Q_y(a')] - max_a' E_y[Q_y(a')], both
+            # over the same samples. With an exact Bayesian update E_y[Q_y] = Q(b), i.e. this is the usual
+            # E_y[max Q(b_updated)] - max Q(b); the approximate (assumed-density) update is not a martingale, and
+            # taking max Q(b) as the baseline then credits that bias as information (kept as ``voi_vs_current``).
+            max_e = stack.mean(0).max()
+            g_i = float(t.mean() - max_e)
+            gross[i] = 0.0 if abs(g_i) <= 1e-12 * max(1.0, abs(float(max_e))) else g_i
+            plain[i] = float(t.mean() - base)
             stderr[i] = t.std() / math.sqrt(len(t)) if len(t) > 1 else 0.0
         voi = gross.clamp_min(0.0)
-        return voi, {"voi_fast": voi, "voi_stderr": stderr, "info_gain_nats": gain,
+        return voi, {"voi_fast": voi, "voi_stderr": stderr, "info_gain_nats": gain, "voi_vs_current": plain,
                      "voi_net": gross - net_cost, "value_net": base_vals}
 
     def _slow_views(self, wb: WorldBatch, context_items: Sequence[ExperienceItem], goal_text: str,

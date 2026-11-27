@@ -457,7 +457,8 @@ def run_agent(fam: Dict[str, Any], seed: int, mode: str, *, max_decisions: int =
 def voi_probe_vs_gauge(fam: Dict[str, Any], seeds: Sequence[int], samples: int = 8) -> Dict[str, Any]:
     """Computed VOI of measuring a channel (``lab.probe``), reading the static gauge (``lab.noise``) and acting, at
     the first decision of held-out worlds. The fast-layer path updates the count posterior only; the slow path
-    also lets the imagined reading enter a copy of the context."""
+    also lets the imagined reading enter a copy of the context. ``voi_act_against_current_value_baseline`` is the
+    plain E[max Q(updated)] - max Q(current) for comparison: with the approximate count update it is biased upwards."""
     model, heads = fam["model"], fam["heads"]
     counts = act_queries()
 
@@ -474,6 +475,7 @@ def voi_probe_vs_gauge(fam: Dict[str, Any], seeds: Sequence[int], samples: int =
     out: Dict[str, Any] = {}
     for path in ("fast", "slow"):
         rows = {"lab.probe": [], "lab.noise": [], "lab.act": []}
+        plain_act: List[float] = []
         for s in seeds:
             world = LabWorld(dataclasses.replace(fam["base"], seed=int(s)))
             task = lab_task(world)
@@ -487,9 +489,12 @@ def voi_probe_vs_gauge(fam: Dict[str, Any], seeds: Sequence[int], samples: int =
                 v = [e.voi for e in evs if e.action.operation == op and e.voi is not None]
                 if v:
                     rows[op].append(float(np.mean(v)))
+            plain_act.append(float(np.mean([e.extras["voi_vs_current"] for e in evs
+                                            if e.action.operation == "lab.act" and "voi_vs_current" in e.extras])))
         d = [a - b for a, b in zip(rows["lab.probe"], rows["lab.noise"])]
         out[path] = {"voi_probe": _ci(rows["lab.probe"]), "voi_noisy_gauge": _ci(rows["lab.noise"]),
-                     "voi_act": _ci(rows["lab.act"]), "probe_minus_gauge": _ci(d),
+                     "voi_act": _ci(rows["lab.act"]), "voi_act_against_current_value_baseline": _ci(plain_act),
+                     "probe_minus_gauge": _ci(d),
                      "probe_higher_than_gauge": bool(_ci(d).get("lo", -1.0) > 0)}
     return out
 

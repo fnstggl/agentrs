@@ -291,7 +291,11 @@ and kind; `dist.mean / std / epistemic_std`), `p_success` (evaluator Q of the ca
 goal value), `feasible / infeasible_reason`, and `extras`: `q_goal`, `q_goal_epistemic_std`, `ts_<i>` (joint
 posterior samples used by Thompson sampling), `policy_logit/q/prob`, `v_state`, `eval_logit`, `expected_time_s`,
 `expected_magnitude`, `expected_money`, `z_norm`, `b_norm`, `net_cost`, `voi_fast`, `voi_stderr`, `voi_net`,
-`info_gain_nats`, `value_net`. With `objective_id` and `deadline` the state-level success forecast is registered too.
+`voi_vs_current`, `info_gain_nats`, `value_net`. `voi` is the Jensen gap `E_y[max_a' Q_y] - max_a' E_y[Q_y]` over
+sampled outcomes with the fast layer's own update applied to a copy (equal to `E_y[max Q(b_updated)] - max Q(b)`
+for an exact Bayesian update; `voi_vs_current` is that plain form, biased upwards by the approximate count update).
+`voi_slow_path=True` also lets the imagined result enter a copy of the context (off by default: at debug scale it
+is fooled by noisy inputs). With `objective_id` and `deadline` the state-level success forecast is registered too.
 `observe_outcomes` is the *only* thing that changes the fast state. The cache of decision-time features is in
 memory: after a restart, outcomes of earlier predictions resolve records but no longer update the fast belief.
 

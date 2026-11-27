@@ -78,6 +78,9 @@
  "transition_nmse": 0.005289478226060182,
  "transition_persistence_nmse": 0.15103715658187866,
  "voi_spearman_vs_realised_regret_reduction_mean": 0.9743267731439639,
+ "voi_untrained_debug_model_sum_after_observations": 0.09261945258128357,
+ "voi_untrained_debug_model_sum_against_current_baseline": 1.371830063064986,
+ "voi_untrained_debug_model_sum_over_acts": 0.5341455273492057,
  "world_count_mean_relative_error": 0.07100288569927216,
  "world_count_pred_true_corr": 0.994430661201477,
  "world_epistemic_std_n2048_in_dist": [
