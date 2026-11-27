@@ -77,6 +77,19 @@ def test_one_day_runs_clean(world):
     assert all(not v for v in acc.check().values()), acc.check()
 
 
+def test_civilisations_are_strict_typed_worlds(world):
+    """Work item 1 (INT found civilisations non-strict): a civilisation is a strict world (a handler error fails the
+    command) and a typed one: every emitted event type of its own modules has a schema, validated when emitted."""
+    from crucible.substrate import bus
+    assert world.strict is True and world.spec.params.get("typed_events") is True
+    cov = bus.coverage(world)
+    own = ("links.", "goods.", "civ.")
+    assert [t for t in cov["untyped"] if t.startswith(own)] == [], cov["untyped"]
+    assert any(t.startswith("links.") for t in {e.type for e in world.events_range(0)})
+    for t in ("links.energy", "links.coupling"):
+        assert any(owner == "kernel" for owner, _ in world.subscribers.get(t, [])), t     # the schema validator
+
+
 def test_science_physics_is_one_fact(world):
     binds = world.modules["civlinks"].config["bindings"]
     assert binds
