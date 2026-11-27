@@ -33,6 +33,14 @@ if os.getuid() == 0 and not CFG.get("allow_root"):
 PR_SET_NO_NEW_PRIVS = 38
 if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
     raise SystemExit("sandbox: prctl(NO_NEW_PRIVS) failed")
+# Changing uid made the process non-dumpable (fs.suid_dumpable = 2): its /proc entries then belong to root and only
+# CAP_SYS_PTRACE (which root lacks in this container) may read its descriptors - the parent could not see files the
+# program unlinked while keeping them open (2x the disk quota held unseen; wave-3b verifier). Dumpable again, the
+# parent reads them under this uid (metering.held_bytes). Nothing sandboxed gains from it: ptrace and
+# process_vm_readv are refused below, /proc is outside Landlock's read paths, and RLIMIT_CORE is 0.
+PR_SET_DUMPABLE = 4
+if libc.prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) != 0:
+    raise SystemExit("sandbox: prctl(DUMPABLE) failed")
 
 # ------------------------------------------------------------------ 2. landlock (filesystem + TCP)
 LL_CREATE, LL_ADD, LL_RESTRICT = 444, 445, 446
@@ -119,15 +127,47 @@ DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "accept4"
         "inotify_init", "inotify_init1", "inotify_add_watch", "inotify_rm_watch", "fanotify_init", "fanotify_mark",
         # anonymous shared memory files: their pages are not mapped, so RLIMIT_AS does not count them - 640 MiB
         # written under a 256 MiB address-space cap (same review; escape matrix memfd_beyond_the_memory_cap)
-        "memfd_create", "memfd_secret"]
+        "memfd_create", "memfd_secret",
+        # capget names a target process in a user-space header: an existence oracle for any pid (repair pass)
+        "capget",
+        # futex2 requeue takes its flags in a user-space array (cannot be checked here; glibc does not use it)
+        "futex_requeue"]
 # Syscalls that name a target process: allowed only when the target is this process itself. (syscall, index of
-# the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process").
+# the argument that names the target, value it must have: "pid" = our own pid, 0 = "the calling process"; several
+# entries for one syscall must all hold). The READ side counts as much as the write side: a process may set its own
+# scheduling attributes (nice, policy, I/O priority), and any process could read them on any other pid - a service
+# in one world wrote 3 bits per request into its I/O priority level and a program in another world (another tenant
+# uid) read the 16-bit secret exactly in 12 s; the same reads answered whether a pid exists (wave-3b verifier,
+# probe v5.crossworld.scheduling_attributes_do_not_cross_worlds). PRIO_PROCESS / IOPRIO_WHO_PROCESS only: "0" for
+# a process group or a user would still reach other processes.
 SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt_sigqueueinfo", 0, "pid"),
              ("rt_tgsigqueueinfo", 0, "pid"), ("prlimit64", 0, 0), ("sched_setaffinity", 0, 0),
              ("sched_setscheduler", 0, 0), ("sched_setparam", 0, 0), ("sched_setattr", 0, 0), ("setpriority", 1, 0),
-             ("ioprio_set", 1, 0), ("migrate_pages", 0, 0), ("move_pages", 0, 0)]
-# fcntl commands that make the kernel deliver SIGIO/SIGURG for a descriptor to an arbitrary process
-FCNTL_DENY = [8, 10, 15]   # F_SETOWN, F_SETSIG, F_SETOWN_EX
+             ("setpriority", 0, 0), ("ioprio_set", 1, 0), ("ioprio_set", 0, 1), ("migrate_pages", 0, 0),
+             ("move_pages", 0, 0),
+             ("getpriority", 1, 0), ("getpriority", 0, 0), ("ioprio_get", 1, 0), ("ioprio_get", 0, 1),
+             ("sched_getscheduler", 0, 0), ("sched_getparam", 0, 0), ("sched_getattr", 0, 0),
+             ("sched_getaffinity", 0, 0), ("sched_rr_get_interval", 0, 0), ("getpgid", 0, 0), ("getsid", 0, 0),
+             ("setpgid", 0, 0), ("get_robust_list", 0, 0)]
+# fcntl commands that make the kernel deliver SIGIO/SIGURG for a descriptor to an arbitrary process, and directory
+# notifications (F_NOTIFY, "dnotify": the older form of inotify; it needs only read access to a directory and
+# signals the watcher when ANY process reads a file there - all 8 bits of a secret crossed between two worlds
+# through standard-library package directories; wave-3b verifier, v5.crossworld.directory_notifications_...)
+FCNTL_DENY = [8, 10, 15, 1026]   # F_SETOWN, F_SETSIG, F_SETOWN_EX, F_NOTIFY
+# Shared futexes. A futex without FUTEX_PRIVATE_FLAG on a page of a file mapping is keyed by the FILE (inode and
+# offset), not by the process: every process maps the same libc, so a wait in one world's program on a word of
+# libc's code is woken by another world's program (repair pass, probe v5.crossworld.shared_futexes_do_not_cross_
+# worlds). Waiting stays allowed (pthread_join waits on a shared futex that only the kernel wakes); the operations
+# that wake or requeue another process's waiters are refused unless they are process-private. (futex op & 127.)
+FUTEX_SHARED_WAKE_DENY = [1, 3, 4, 5, 7, 10, 12]  # WAKE, REQUEUE, CMP_REQUEUE, WAKE_OP, UNLOCK_PI, WAKE_BITSET, CMP_REQUEUE_PI
+FUTEX2_PRIVATE = 128
+# CPU clocks of other processes: clock_gettime on MAKE_PROCESS_CPUCLOCK(pid) needs no permission at all, so any
+# process could read any other process's CPU time (a channel: the writer burns CPU or idles per time slot) and test
+# whether a pid exists (repair pass, probe v5.crossworld.cpu_clocks_do_not_cross_worlds). Process clocks named by a
+# pid (negative clock ids with the per-thread bit clear) are refused with EINVAL ("no such clock"); the process's
+# own CPU clock (CLOCK_PROCESS_CPUTIME_ID) and its own threads' clocks (the kernel checks the thread group) stay.
+CPU_CLOCK_CALLS = [("clock_gettime", 0), ("clock_getres", 0), ("clock_nanosleep", 0), ("timer_create", 0),
+                   ("clock_settime", 0), ("clock_adjtime", 0)]
 # Advisory locks. A program's own files live in its private working directory (no other process can open them), so
 # every file a lock could be shared on is a system file every tenant reads (the standard library, numpy) or
 # /dev/null - a lock there is visible only to OTHER tenants: 16 bits crossed between two worlds through flock() on
@@ -137,6 +177,53 @@ FCNTL_DENY = [8, 10, 15]   # F_SETOWN, F_SETSIG, F_SETOWN_EX
 # WAL mode fails with "disk I/O error" when F_GETLK is refused).
 LOCK_NOOP_FCNTL = [6, 7, 37, 38]   # F_SETLK, F_SETLKW, F_OFD_SETLK, F_OFD_SETLKW
 LOCK_DENY_FCNTL: list = []
+
+
+# x86_64 numbers of syscalls an older libseccomp may not know by name
+_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449}
+
+
+def _nr(sc, name: str) -> int:
+    nr = sc.seccomp_syscall_resolve_name(name.encode())
+    return _NR_FALLBACK.get(name, -1) if nr < 0 else nr
+
+
+def rule_self_only(sc, ctx, action, ArgCmp, table, me) -> None:
+    """Signals, limits and scheduling (read and write): only on ourselves. SCMP_CMP_NE compares the full 64-bit
+    argument, so only the exact value passes; a process group (0 or negative for kill), "everyone" (-1) and any
+    other pid do not. Several entries for one syscall are separate rules: any one that fails refuses the call."""
+    for name, arg, want in table:
+        nr = _nr(sc, name)
+        if nr < 0:
+            continue
+        cmp = (ArgCmp * 1)(ArgCmp(arg, 1, me if want == "pid" else want, 0))  # SCMP_CMP_NE
+        if sc.seccomp_rule_add_array(ctx, action, nr, 1, cmp) != 0:
+            raise SystemExit(f"seccomp self-only rule for {name} failed")
+
+
+def rule_shared_futex(sc, ctx, action, ArgCmp) -> None:
+    """Refuse futex operations that wake or requeue waiters of a shared (file-keyed) futex: (op & 0xFF) == cmd
+    without the private bit; and futex2 wake without FUTEX2_PRIVATE."""
+    nr = _nr(sc, "futex")
+    for cmd in FUTEX_SHARED_WAKE_DENY:
+        cmp = (ArgCmp * 1)(ArgCmp(1, 7, 0xFF, cmd))      # SCMP_CMP_MASKED_EQ: (op & 0xff) == cmd (private bit clear)
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, action, nr, 1, cmp) != 0:
+            raise SystemExit("seccomp futex rule failed")
+    nr = _nr(sc, "futex_wake")
+    cmp = (ArgCmp * 1)(ArgCmp(3, 7, FUTEX2_PRIVATE, 0))  # futex_wake(uaddr, mask, nr, flags): flags & PRIVATE == 0
+    if nr >= 0 and sc.seccomp_rule_add_array(ctx, action, nr, 1, cmp) != 0:
+        raise SystemExit("seccomp futex_wake rule failed")
+
+
+def rule_cpu_clocks(sc, ctx, ArgCmp) -> None:
+    """Refuse clock ids that name another process's CPU clock: (clockid & 0x80000004) == 0x80000000 (negative,
+    per-process). Only the low 32 bits are compared, whatever the caller left in the upper half of the register."""
+    einval = 0x00050000 | 22
+    for name, arg in CPU_CLOCK_CALLS:
+        nr = _nr(sc, name)
+        cmp = (ArgCmp * 1)(ArgCmp(arg, 7, 0x80000004, 0x80000000))
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, einval, nr, 1, cmp) != 0:
+            raise SystemExit(f"seccomp cpu-clock rule for {name} failed")
 
 
 def seccomp() -> bool:
@@ -177,16 +264,9 @@ def seccomp() -> bool:
     nr = sc.seccomp_syscall_resolve_name(b"clone")
     if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
         raise SystemExit("sandbox: seccomp clone rule failed")
-    # signals, limits and scheduling: only on ourselves. SCMP_CMP_NE compares the full 64-bit argument, so only
-    # the exact value passes; a process group (0 or negative for kill), "everyone" (-1) and any other pid do not.
-    me = os.getpid()
-    for name, arg, want in SELF_ONLY:
-        nr = sc.seccomp_syscall_resolve_name(name.encode())
-        if nr < 0:
-            continue
-        cmp = (ArgCmp * 1)(ArgCmp(arg, 1, me if want == "pid" else want, 0))  # SCMP_CMP_NE
-        if sc.seccomp_rule_add_array(ctx, errno_eperm, nr, 1, cmp) != 0:
-            raise SystemExit(f"sandbox: seccomp self-only rule for {name} failed")
+    rule_self_only(sc, ctx, errno_eperm, ArgCmp, SELF_ONLY, os.getpid())
+    rule_shared_futex(sc, ctx, errno_eperm, ArgCmp)
+    rule_cpu_clocks(sc, ctx, ArgCmp)
     nr = sc.seccomp_syscall_resolve_name(b"fcntl")
     for cmd, action in [(c, errno_eperm) for c in FCNTL_DENY + LOCK_DENY_FCNTL] + \
             [(c, 0x00050000) for c in LOCK_NOOP_FCNTL]:          # SCMP_ACT_ERRNO(0): returns 0, does nothing

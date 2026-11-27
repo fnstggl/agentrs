@@ -606,3 +606,208 @@ def stall_channel(participant, partial: str = '{"op": "observe", "args": [') -> 
     w.write(partial.encode())
     w.flush()
     return {"sent": True, "bytes": len(partial)}
+
+
+# ------------------------------------------------------------------ process attributes, notifications, futexes, clocks
+# (repair pass after the wave-3b verifier; plain stdlib + ctypes, so the same functions run inside a jailed learner
+# process and, copied into an agent's program file, inside the sandbox - see crossworld._attack_files)
+def attr_mark(participant, chunk: int) -> dict:
+    """Mark this process (SCHED_IDLE, nice 13) and write 3 bits into its I/O priority level (IOPRIO_CLASS_BE)."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    out = {"pid": os.getpid(), "uid": os.getuid()}
+    try:
+        os.sched_setscheduler(0, os.SCHED_IDLE, os.sched_param(0))
+        out["sched"] = "ok"
+    except OSError as e:
+        out["sched"] = "errno %d" % e.errno
+    try:
+        if os.getpriority(os.PRIO_PROCESS, 0) < 13:
+            os.setpriority(os.PRIO_PROCESS, 0, 13)
+        out["nice"] = "ok"
+    except OSError as e:
+        out["nice"] = "errno %d" % e.errno
+    r = libc.syscall(251, 1, 0, (2 << 13) | (int(chunk) & 7))          # ioprio_set(IOPRIO_WHO_PROCESS, 0, ...)
+    out["ioprio_set"] = "ok" if r >= 0 else "errno %d" % ctypes.get_errno()
+    return out
+
+
+def attr_scan(participant, lo: int, hi: int, absent: int = 0) -> dict:
+    """Read the scheduling attributes of every pid in [lo, hi): marked processes (nice 13 and SCHED_IDLE) with their
+    I/O priority level; how many other pids answered at all; and whether getpriority answers differently for a pid
+    that exists (the parent) and one that does not (`absent`) - a pid-existence oracle."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    found, readable, me = [], 0, os.getpid()
+    for pid in range(max(2, int(lo)), int(hi)):
+        if pid == me:
+            continue
+        try:
+            nice = os.getpriority(os.PRIO_PROCESS, pid)
+            readable += 1
+            if nice != 13 or os.sched_getscheduler(pid) != os.SCHED_IDLE:
+                continue
+        except OSError:
+            continue
+        r = libc.syscall(252, 1, pid)                                    # ioprio_get(IOPRIO_WHO_PROCESS, pid)
+        if r >= 0 and (r >> 13) == 2:
+            found.append([pid, r & 7])
+
+    def ans(pid):
+        try:
+            os.getpriority(os.PRIO_PROCESS, int(pid))
+            return "exists"
+        except OSError as e:
+            return "errno %d" % e.errno
+    out = {"found": found, "readable_pids": readable, "uid": os.getuid()}
+    if absent:
+        out["oracle"] = {"absent": ans(absent), "parent": ans(os.getppid())}
+    return out
+
+
+_DN = {"n": 0, "fd": None}
+
+
+def _dn_count(*_a):
+    _DN["n"] += 1
+
+
+def dnotify_arm(participant, d: str) -> dict:
+    """Directory notification (fcntl F_NOTIFY, DN_ACCESS | DN_MULTISHOT) on directory `d`: SIGIO for every read of a
+    file in it, by any process."""
+    import fcntl
+    import signal
+    signal.signal(signal.SIGIO, _dn_count)
+    if _DN["fd"] is not None:
+        os.close(_DN["fd"])
+        _DN["fd"] = None
+    fd = os.open(d, os.O_RDONLY | os.O_DIRECTORY)
+    _DN.update(fd=fd, n=0)
+    try:
+        fcntl.fcntl(fd, 1026, fcntl.DN_ACCESS | fcntl.DN_MULTISHOT)       # F_NOTIFY
+        return {"armed": "ok", "uid": os.getuid()}
+    except OSError as e:
+        return {"armed": "errno %d" % e.errno, "uid": os.getuid()}
+
+
+def dnotify_collect(participant) -> dict:
+    return {"n": _DN["n"]}
+
+
+def dnotify_send(participant, d: str, bit: int) -> dict:
+    if int(bit):
+        with open(os.path.join(d, "__init__.py"), "rb") as h:
+            h.read(1)
+    return {"sent": int(bit), "uid": os.getuid()}
+
+
+def _futex_word():
+    """A word every process maps from the same file: the first aligned word of a libc function's code."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    addr = ctypes.cast(libc.getpid, ctypes.c_void_p).value & ~3
+    return libc, addr, ctypes.c_uint32.from_address(addr).value
+
+
+def futex_wait(participant, timeout_s: float = 1.0) -> dict:
+    """Wait on the shared futex (FUTEX_WAIT without the private flag): woken early only if another process wakes it."""
+    import ctypes
+
+    class TS(ctypes.Structure):
+        _fields_ = [("s", ctypes.c_long), ("ns", ctypes.c_long)]
+    libc, addr, val = _futex_word()
+    ts = TS(int(timeout_s), int((float(timeout_s) % 1) * 1e9))
+    t = time.monotonic()
+    r = libc.syscall(202, ctypes.c_void_p(addr), 0, ctypes.c_uint32(val), ctypes.byref(ts), None, 0)
+    e = ctypes.get_errno()
+    return {"woken": r == 0, "errno": 0 if r == 0 else e, "waited_s": round(time.monotonic() - t, 3)}
+
+
+def futex_wake(participant, delay_s: float = 0.2) -> dict:
+    """After `delay_s`, wake every waiter of the shared futex (FUTEX_WAKE without the private flag); the return value
+    counts the waiters woken - in another process too, if the kernel keys the futex by the file."""
+    import ctypes
+    time.sleep(float(delay_s))
+    libc, addr, _ = _futex_word()
+    r = libc.syscall(202, ctypes.c_void_p(addr), 1, 2 ** 31 - 1, None, None, 0)
+    return {"woke": r if r >= 0 else None, "errno": 0 if r >= 0 else ctypes.get_errno()}
+
+
+def cpuclock_read(participant, pids: list) -> dict:
+    """CPU time (ns) of other processes through their process CPU clocks (MAKE_PROCESS_CPUCLOCK(pid, SCHED)); the
+    kernel asks for no permission. 'errno 22' = refused (or no such process)."""
+    out = {}
+    for pid in pids:
+        try:
+            out[str(int(pid))] = time.clock_gettime_ns(((~int(pid)) << 3) | 2)
+        except OSError as e:
+            out[str(int(pid))] = "errno %d" % e.errno
+    return out
+
+
+def burn_cpu(participant, ms: float) -> dict:
+    t = time.process_time()
+    x = 0
+    while (time.process_time() - t) * 1000.0 < float(ms):
+        x += 1
+    return {"burned_ms": float(ms), "pid": os.getpid()}
+
+
+def prlimit_other(participant, victim: int) -> dict:
+    """What a process can do to another process of ITS OWN uid (two learner processes whose uids collide): lower its
+    CPU limit to one second and renice it."""
+    import resource
+    out = {"uid": os.getuid()}
+    try:
+        resource.prlimit(int(victim), resource.RLIMIT_CPU, (1, 1))
+        out["prlimit"] = "ok"
+    except OSError as e:
+        out["prlimit"] = "errno %d" % e.errno
+    try:
+        os.setpriority(os.PRIO_PROCESS, int(victim), 19)
+        out["renice"] = "ok"
+    except OSError as e:
+        out["renice"] = "errno %d" % e.errno
+    return out
+
+
+_HELD_FILES: list = []
+
+
+def hidden_disk_hog(participant, files: int, mb: int) -> dict:
+    """Write `files` files of `mb` MiB, unlinking each while keeping it open: the data stays on disk, no directory
+    entry names it (a quota that reads the directory listing does not see it)."""
+    blk = b"\x5a" * (1 << 20)
+    out = {"files": 0, "bytes": 0}
+    for i in range(int(files)):
+        try:
+            fd = os.open("held-%d" % i, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+            os.unlink("held-%d" % i)
+            for _ in range(int(mb)):
+                os.write(fd, blk)
+            _HELD_FILES.append(fd)
+            out["files"] += 1
+            out["bytes"] += int(mb) << 20
+        except OSError as e:
+            out["error"] = "errno %d" % e.errno
+            break
+        time.sleep(0.05)
+    time.sleep(1.0)                                    # a few watchdog polls with all of it held
+    out["listing"] = sorted(os.listdir("."))[:20]
+    return out
+
+
+def mapped_deleted_hog(participant, mb: int) -> dict:
+    """Write a file of `mb` MiB, map one page of it, close the descriptor and unlink it: only the mapping keeps the
+    data alive, and no descriptor shows its size."""
+    import mmap
+    fd = os.open("mapped", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+    blk = b"\x5b" * (1 << 20)
+    for _ in range(int(mb)):
+        os.write(fd, blk)
+    m = mmap.mmap(fd, 4096)
+    os.close(fd)
+    os.unlink("mapped")
+    _HELD_FILES.append(m)
+    time.sleep(1.0)
+    return {"mapped_mb": int(mb), "listing": sorted(os.listdir("."))[:20]}

@@ -168,6 +168,101 @@ def dir_usage(path: str | None, max_entries: int) -> tuple[int, int]:
     return total, n
 
 
+_LIBC = None
+
+
+def _libc():
+    global _LIBC
+    if _LIBC is None:
+        import ctypes
+        _LIBC = ctypes.CDLL(None, use_errno=True)
+    return _LIBC
+
+
+def as_fs_identity(uid: int | None, gid: int | None, fn):
+    """Run `fn()` with this THREAD's filesystem identity set to (uid, gid) (setfsuid/setfsgid act on the calling
+    thread only), restored afterwards. Root in this container has no CAP_SYS_PTRACE, so /proc/<pid>/fd and
+    /proc/<pid>/maps of a sandboxed process (another uid) are readable only under that process's own identity."""
+    if uid is None or os.geteuid() != 0:
+        return fn()
+    libc = _libc()
+    old_g = libc.setfsgid(int(gid if gid is not None else uid))
+    old_u = libc.setfsuid(int(uid))
+    try:
+        return fn()
+    finally:
+        libc.setfsuid(old_u)
+        libc.setfsgid(old_g)
+
+
+def held_bytes(pid: int | None, uid: int | None, gid: int | None, prefix: str | None) -> tuple[int, list[str], bool]:
+    """Disk held by a process outside any directory listing (repair pass after the wave-3b verifier: a learner held
+    8x its directory quota and a sandbox worker 2x its working-directory quota in files it had unlinked while
+    keeping them open, which `dir_usage` cannot see). Returns (bytes, unmeasured, measurable):
+
+    * bytes - blocks of the regular files the process's threads hold open that have no name left (``st_nlink == 0``)
+      and belong to `uid` (each inode once; a deleted system file someone else replaced is not the process's);
+    * unmeasured - deleted files under `prefix` kept alive by a memory mapping alone (no descriptor): their size is
+      not readable here (``/proc/<pid>/map_files`` needs CAP_SYS_ADMIN), so the caller treats them as a violation;
+    * measurable - False when the process's descriptors could not be read at all (then nothing above is known).
+    """
+    if pid is None:
+        return 0, [], False
+
+    def scan():
+        import stat as _st
+        total, seen, ok = 0, set(), False
+        try:
+            tids = os.listdir(f"/proc/{pid}/task")
+        except OSError:
+            tids = [str(pid)]
+        for tid in tids:
+            base = f"/proc/{pid}/task/{tid}/fd"
+            try:
+                fds = os.listdir(base)
+            except OSError:
+                continue
+            ok = True
+            for fd in fds:
+                try:
+                    st = os.stat(f"{base}/{fd}")
+                except OSError:
+                    continue
+                if not _st.S_ISREG(st.st_mode) or st.st_nlink != 0 or (uid is not None and st.st_uid != uid):
+                    continue
+                key = (os.major(st.st_dev), os.minor(st.st_dev), st.st_ino)
+                if key not in seen:
+                    seen.add(key)
+                    total += int(st.st_blocks) * 512
+        unmeasured = []
+        pre = os.path.realpath(prefix) if prefix else None
+        try:
+            with open(f"/proc/{pid}/maps") as fh:
+                for line in fh:
+                    if not line.endswith(" (deleted)\n"):
+                        continue
+                    f = line.split(None, 5)
+                    if len(f) < 6:
+                        continue
+                    path = f[5][: -len(" (deleted)\n")]
+                    if pre is None or not (path == pre or path.startswith(pre + os.sep)):
+                        continue
+                    try:
+                        maj, mi = (int(x, 16) for x in f[3].split(":"))
+                        key = (maj, mi, int(f[4]))
+                    except ValueError:
+                        key = None
+                    if key not in seen:
+                        unmeasured.append(path)
+        except OSError:
+            pass
+        return total, sorted(set(unmeasured)), ok
+    try:
+        return as_fs_identity(uid, gid, scan)
+    except OSError:
+        return 0, [], False
+
+
 def work_units(ns: int, proto_bytes: int = 0) -> int:
     return int(max(0, int(ns) - JOB_OVERHEAD_NS - PROTO_NS_PER_BYTE * max(0, int(proto_bytes))) // NS_PER_WORK_UNIT)
 
@@ -282,22 +377,44 @@ def _disk(path: str | None) -> DiskMemo | None:
 
 
 class Memo:
-    """First measurement of each computation per world lineage (bounded per lineage, least-recently-used eviction
-    within the lineage), optionally backed by a machine-level `DiskMemo` (``disk=`` path) so that other processes
-    bill the same anchors."""
+    """First measurement of each computation per world lineage, optionally backed by a machine-level `DiskMemo`
+    (``disk=`` path) so that other processes bill the same anchors.
 
-    def __init__(self, max_entries: int = MEMO_MAX):
-        self.max = max_entries
+    Bounded twice: the whole process keeps at most `max_entries` anchors, and when it is full the LARGEST lineage
+    gives up its least recently used ones (so one world that runs many distinct computations evicts only its own
+    anchors, never a smaller world's - probe v5.crossworld.meter_memo_eviction_is_per_lineage); one lineage keeps at
+    most `scope_max` (default: `max_entries`). The wave-3b version bounded each lineage only, so memory grew with
+    the number of lineages a process hosted (50 lineages held 50x the bound; wave-3b verifier)."""
+
+    def __init__(self, max_entries: int = MEMO_MAX, scope_max: int | None = None):
+        self.max = int(max_entries)
+        self.scope_max = int(scope_max if scope_max is not None else max_entries)
         self._d: dict[str, OrderedDict[str, int]] = {}
+        self._n = 0
         self._lock = threading.Lock()
         self.hits = self.misses = self.exceeded = 0
         self.disk_errors = 0
 
+    def __len__(self) -> int:
+        return self._n
+
     def _put(self, scope: str, key: str, ns: int) -> None:
         d = self._d.setdefault(scope, OrderedDict())
+        if key not in d:
+            self._n += 1
         d[key] = ns
-        if len(d) > self.max:
+        if len(d) > self.scope_max:
             d.popitem(last=False)
+            self._n -= 1
+        if self._n > self.max:
+            # the largest lineage pays; a batch of 1/64 of the bound so that finding it is amortised
+            big = max(self._d, key=lambda k: len(self._d[k]))
+            bd = self._d[big]
+            for _ in range(min(len(bd), max(1, self._n - self.max, self.max // 64))):
+                bd.popitem(last=False)
+                self._n -= 1
+            if not bd:
+                del self._d[big]
 
     def bill(self, key: str, fresh_ns: int, disk: str | None = None, scope: str | None = None) -> tuple[int, str]:
         fresh_ns = max(0, int(fresh_ns))
@@ -322,7 +439,9 @@ class Memo:
                 self._put(sc, key, fresh_ns)
                 self.misses += 1
                 return fresh_ns, "first"
-            self._d[sc].move_to_end(key)
+            d = self._d.get(sc)
+            if d is not None and key in d:
+                d.move_to_end(key)
             if fresh_ns <= rec * MEMO_TOL + MEMO_SLACK_NS:
                 self.hits += 1
                 return rec, "remembered"
@@ -332,6 +451,7 @@ class Memo:
     def clear(self) -> None:
         with self._lock:
             self._d.clear()
+            self._n = 0
 
 
 MEMO = Memo()

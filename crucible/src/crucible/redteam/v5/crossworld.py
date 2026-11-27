@@ -531,8 +531,297 @@ class FileWatchesDoNotCrossWorlds(V5Probe):
         return Verdict(HELD, f"no bit crossed (watcher: {armed.get('inotify')})", evd)
 
 
+# ---------------------------------------------------------------------- repair pass after the wave-3b verifier
+def _attack_files(name: str, funcs: tuple, entries: str) -> dict:
+    """An agent's program file made of red-team functions (`adversaries`, plain stdlib + ctypes) and entry points
+    `entries` (a sandboxed program carries its own code; it cannot import crucible)."""
+    import inspect
+    from . import adversaries as ADV
+    head = "import ctypes\nimport os\nimport time\n_DN = {'n': 0, 'fd': None}\n_HELD_FILES = []\n\n\n"
+    return {name: head + "\n\n".join(inspect.getsource(getattr(ADV, f)) for f in funcs) + "\n\n" + entries}
+
+
+def _free_pid() -> int:
+    import os
+    pid_max = int(open("/proc/sys/kernel/pid_max").read())
+    for cand in range(pid_max - 1, 1, -1):
+        if not os.path.exists(f"/proc/{cand}"):
+            return cand
+    raise NotApplicable("no free pid")
+
+
+def _other_program(o, handle: str, files: dict) -> tuple:
+    p = o.system_call("admin.join", {"handle": handle, "endowment": 2_000_000})["principal"]
+    rid = o.system_call("code.create_repo", {"name": handle}, as_principal=p)["repo"]
+    o.system_call("code.commit", {"repo": rid, "files": files}, as_principal=p)
+    return p, rid
+
+
+def _body(r):
+    return (r or {}).get("body", r) if isinstance(r, dict) else r
+
+
+class SchedulingAttributesDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.scheduling_attributes_do_not_cross_worlds"
+    attack_class = "cross_world/process_attributes"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("A process may set its own scheduling attributes (nice value, policy, I/O priority), and the "
+                   "kernel lets any process read them on any pid (getpriority, sched_getscheduler, ioprio_get). A "
+                   "service deployed in this world (a long-lived worker) marks itself (SCHED_IDLE, nice 13) and writes "
+                   "3 bits of a 16-bit secret per request into its I/O priority level; a program in a second world "
+                   "(another tenant uid) scans the pids around its own for the marker and reads the level; it also "
+                   "asks getpriority whether an existing and an absent pid exist. Found by the wave-3b verifier (the "
+                   "secret crossed exactly in 12 s). Checked: nothing is read of another process.")
+    SECRET = 0b1011001110001011
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-sched", 20_000_000)
+        self.other = _second_world("commerce", 19, "xw-sched-other")
+
+    def attack(self, a: Attacker) -> None:
+        from .base import deploy, manifest, org_of
+        org, acct = org_of(a, self.att, "schedco", company=True)
+        deploy(a, self.att, org, acct, "marker", {"crucible.json": manifest(mark=0), **_attack_files(
+            "service.py", ("attr_mark",), "def mark(args, caller):\n    return attr_mark(None, args['chunk'])\n")})
+        p, rid = _other_program(self.other, "reader", _attack_files(
+            "r.py", ("attr_scan",), "def scan(args, caller):\n    me = os.getpid()\n"
+                                    "    return attr_scan(None, me - 300000, me + 20000, args['absent'])\n"))
+        absent = _free_pid()
+        self.rounds = []
+        for k in range(6):
+            chunk = (self.SECRET >> (3 * k)) & 7
+            r = a.act(self.att, "marker.mark", chunk=chunk)
+            rr = self.other.system_call("code.run", {"repo": rid, "target": "r.py:scan", "timeout_s": 10.0,
+                                                     "input": {"absent": absent}}, as_principal=p)
+            self.rounds.append({"sent": chunk, "holder": _body(r.result) if r.ok else {"error": r.error},
+                                "reader": rr.get("result") if isinstance(rr.get("result"), dict)
+                                else {"error": str(rr)[:300]}})
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        self.other.close()
+        got, ran, readable, oracle = 0, 0, 0, False
+        for k, r in enumerate(self.rounds):
+            f = (r["reader"] or {}).get("found")
+            if not isinstance(f, list):
+                continue
+            ran += 1
+            readable = max(readable, int(r["reader"].get("readable_pids") or 0))
+            o = r["reader"].get("oracle") or {}
+            oracle = oracle or (o.get("absent") != o.get("parent"))
+            if len(f) == 1:
+                got |= int(f[0][1]) << (3 * k)
+        evd = {"rounds": self.rounds, "secret": self.SECRET, "received": got & 0xFFFF,
+               "other_pids_readable": readable, "pid_existence_oracle": oracle}
+        if not ran:
+            raise NotApplicable(f"the programs did not run: {json.dumps(evd, default=str)[:600]}")
+        evd["cross_world_leaks"] = int((got & 0xFFFF) == self.SECRET)
+        fix = "sandbox/boot.py seccomp: scheduling attributes read and written on the calling process only"
+        if (got & 0xFFFF) == self.SECRET:
+            return Verdict(LEAK, f"the 16-bit secret crossed to another world through scheduling attributes "
+                                 f"(received {got & 0xFFFF:#06x})", evd, severity="high", fix=fix)
+        if readable or oracle:
+            return Verdict(INTEGRITY_BREAK, f"another world's program read the scheduling attributes of {readable} "
+                                            f"other processes (pid oracle: {oracle})", evd, severity="medium", fix=fix)
+        return Verdict(HELD, "no attribute of another process was readable and no pid oracle answered", evd)
+
+
+_DN_DIRS = ("xmlrpc", "wsgiref", "dbm", "curses", "tomllib", "zoneinfo", "pydoc_data", "ensurepip")
+_DN_ENTRY = ("_STD = os.path.dirname(os.__file__)\nDIRS = " + repr(_DN_DIRS) + "\n"
+             "def arm(args, caller):\n    return dnotify_arm(None, os.path.join(_STD, DIRS[int(args['i'])]))\n"
+             "def collect(args, caller):\n    return dnotify_collect(None)\n"
+             "def send(args, caller):\n    return dnotify_send(None, os.path.join(_STD, DIRS[int(args['i'])]), "
+             "args['bit'])\n")
+
+
+class DirectoryNotificationsDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.directory_notifications_do_not_cross_worlds"
+    attack_class = "cross_world/file_watches"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "commerce"}
+    description = ("Directory notifications (fcntl F_NOTIFY, 'dnotify', the older form of the inotify channel) need "
+                   "only read access to a directory and signal the watcher (SIGIO) when ANY process reads a file in "
+                   "it. A service deployed in this world arms a watch on one rarely used standard-library package "
+                   "directory per round; a program in a second world reads a file of it iff the round's secret bit "
+                   "is 1; the service's next request reports whether SIGIO arrived. Found by the wave-3b verifier "
+                   "(8 of 8 bits). Checked: no bit crosses.")
+    SECRET = 0b10110010
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-dn", 20_000_000)
+        self.other = _second_world("commerce", 23, "xw-dn-other")
+
+    def attack(self, a: Attacker) -> None:
+        from .base import deploy, manifest, org_of
+        funcs = ("_dn_count", "dnotify_arm", "dnotify_collect", "dnotify_send")
+        org, acct = org_of(a, self.att, "dnco", company=True)
+        deploy(a, self.att, org, acct, "dwatch", {"crucible.json": manifest(arm=0, collect=0),
+                                                  **_attack_files("service.py", funcs, _DN_ENTRY)})
+        p, rid = _other_program(self.other, "sender", _attack_files("s.py", funcs, _DN_ENTRY))
+        self.rounds = []
+        for i in range(len(_DN_DIRS)):
+            bit = (self.SECRET >> i) & 1
+            r = a.act(self.att, "dwatch.arm", i=i)
+            rr = self.other.system_call("code.run", {"repo": rid, "target": "s.py:send", "input": {"i": i, "bit": bit}},
+                                        as_principal=p)
+            time.sleep(0.1)
+            c = a.act(self.att, "dwatch.collect")
+            self.rounds.append({"bit": bit, "armed": _body(r.result) if r.ok else {"error": r.error},
+                                "sent": rr.get("result"), "collected": _body(c.result) if c.ok else {"error": c.error}})
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        self.other.close()
+        recv, ok = 0, 0
+        for i, r in enumerate(self.rounds):
+            body = r["collected"]
+            if isinstance(body, dict) and "n" in body and isinstance(r["sent"], dict):
+                ok += 1
+                if int(body["n"]) > 0:
+                    recv |= 1 << i
+        evd = {"rounds": self.rounds, "secret": self.SECRET, "received": recv}
+        if not ok:
+            raise NotApplicable(json.dumps(evd, default=str)[:800])
+        crossed = bin(recv & self.SECRET).count("1")
+        evd.update({"bits_crossed": crossed, "cross_world_leaks": int(crossed > 0),
+                    "armed": sorted({str((r["armed"] or {}).get("armed")) for r in self.rounds})})
+        if crossed:
+            return Verdict(LEAK, f"{crossed} of {bin(self.SECRET).count('1')} secret bits crossed through directory "
+                                 f"notifications (received {recv:#04x})", evd, severity="high",
+                           fix="sandbox/boot.py seccomp: refuse fcntl F_NOTIFY")
+        return Verdict(HELD, f"no bit crossed (watch: {evd['armed']})", evd)
+
+
+class SharedFutexesDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.shared_futexes_do_not_cross_worlds"
+    attack_class = "cross_world/futex"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("A futex without FUTEX_PRIVATE_FLAG on a page of a file mapping is keyed by the file (inode and "
+                   "offset), not by the process, and every process maps the same libc. Two sandbox workers of two "
+                   "worlds' tenants run at the same time: per round, A waits up to 1 s on a word of libc's code and B "
+                   "wakes that word after 0.2 s iff the round's secret bit is 1 (B's wake also counts A's waiters). "
+                   "Found in the repair pass. Checked: A is never woken by B and B never counts a waiter.")
+    SECRET = 0b11010110
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-futex", 10)
+
+    def attack(self, a: Attacker) -> None:
+        import threading
+        from ...sandbox.runner import SandboxConfig, Worker
+        funcs = ("_futex_word", "futex_wait", "futex_wake")
+        ent = ("def wait(a, c):\n    return futex_wait(None, a['t'])\n"
+               "def wake(a, c):\n    return futex_wake(None, a['d']) if a['bit'] else {'woke': None, 'errno': 0}\n")
+        files = _attack_files("fx.py", funcs, ent)
+        wa = Worker(files, SandboxConfig(tenant="world:xw-futex-a")).start()
+        wb = Worker(files, SandboxConfig(tenant="world:xw-futex-b")).start()
+        self.rounds = []
+        try:
+            self.uids = [wa.uid, wb.uid]
+            for i in range(8):
+                bit = (self.SECRET >> i) & 1
+                box = {}
+                t = threading.Thread(target=lambda: box.update(a=wa.run({"kind": "call", "target": "fx:wait",
+                                                                         "args": {"t": 1.0}}, timeout=10)))
+                t.start()
+                time.sleep(0.05)
+                rb = wb.run({"kind": "call", "target": "fx:wake", "args": {"d": 0.2, "bit": bit}}, timeout=10)
+                t.join(15)
+                ra = box.get("a") or {}
+                self.rounds.append({"bit": bit, "a": ra.get("result") or ra.get("error"),
+                                    "b": rb.get("result") or rb.get("error")})
+        finally:
+            wa.close()
+            wb.close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        recv, counted, ok = 0, 0, 0
+        for i, r in enumerate(self.rounds):
+            A, B = r["a"], r["b"]
+            if not isinstance(A, dict) or "woken" not in A or not isinstance(B, dict):
+                continue
+            ok += 1
+            if A["woken"]:
+                recv |= 1 << i
+            if isinstance(B.get("woke"), int) and B["woke"] > 0:
+                counted += 1
+        evd = {"rounds": self.rounds, "secret": self.SECRET, "received": recv, "uids": self.uids,
+               "wakes_that_counted_another_tenants_waiter": counted}
+        if not ok:
+            raise NotApplicable(json.dumps(evd, default=str)[:800])
+        crossed = bin(recv & self.SECRET).count("1")
+        evd.update({"bits_crossed": crossed, "cross_world_leaks": int(crossed > 0 or counted > 0)})
+        if crossed or counted:
+            return Verdict(LEAK, f"{crossed} of {bin(self.SECRET).count('1')} secret bits crossed between two worlds' "
+                                 f"tenants through a shared futex on libc's code ({counted} wakes counted the other's "
+                                 "waiter)", evd, severity="high",
+                           fix="sandbox/boot.py seccomp: no wake/requeue of non-private futexes")
+        return Verdict(HELD, "no wake crossed between the tenants (shared wakes refused)", evd)
+
+
+class CpuClocksDoNotCrossWorlds(V5Probe):
+    name = "v5.crossworld.cpu_clocks_do_not_cross_worlds"
+    attack_class = "cross_world/process_attributes"
+    gates = ("W.5",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("clock_gettime on another process's CPU clock (MAKE_PROCESS_CPUCLOCK(pid)) needs no permission: "
+                   "a program could read how much CPU any process has used (a channel: the writer burns CPU or idles "
+                   "per time slot) and whether a pid exists. A sandbox worker of one world's tenant burns 300 ms; a "
+                   "worker of another world's tenant reads the first worker's CPU clock and an absent pid's. Found in "
+                   "the repair pass. Checked: neither clock is readable.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("xw-clock", 10)
+
+    def attack(self, a: Attacker) -> None:
+        from ...sandbox.runner import SandboxConfig, Worker
+        files = _attack_files("ck.py", ("burn_cpu", "cpuclock_read"),
+                              "def burn(a, c):\n    return burn_cpu(None, a['ms'])\n"
+                              "def read(a, c):\n    return cpuclock_read(None, a['pids'])\n")
+        wa = Worker(files, SandboxConfig(tenant="world:xw-clock-a")).start()
+        wb = Worker(files, SandboxConfig(tenant="world:xw-clock-b")).start()
+        try:
+            self.burn = wa.run({"kind": "call", "target": "ck:burn", "args": {"ms": 300}}, timeout=20)
+            self.victim, self.absent = wa.proc.pid, _free_pid()
+            self.read = wb.run({"kind": "call", "target": "ck:read", "args": {"pids": [self.victim, self.absent]}},
+                               timeout=20)
+            self.uids = [wa.uid, wb.uid]
+        finally:
+            wa.close()
+            wb.close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        res = self.read.get("result")
+        evd = {"burn": {k: self.burn.get(k) for k in ("ok", "cpu_ms")}, "read": res or self.read.get("error"),
+               "uids": self.uids}
+        if not isinstance(res, dict) or not self.burn.get("ok"):
+            raise NotApplicable(json.dumps(evd, default=str)[:600])
+        v, ab = res.get(str(self.victim)), res.get(str(self.absent))
+        readable = isinstance(v, int)
+        oracle = (not readable) and isinstance(ab, str) and str(v) != str(ab)
+        evd.update({"victim_cpu_ns_read": v if readable else None, "pid_existence_oracle": oracle,
+                    "cross_world_leaks": int(readable)})
+        fix = "sandbox/boot.py seccomp: refuse other processes' CPU clocks"
+        if readable:
+            return Verdict(LEAK, f"another world's program read this world's worker CPU time ({v / 1e6:.0f} ms)", evd,
+                           severity="high", fix=fix)
+        if oracle:
+            return Verdict(INTEGRITY_BREAK, "CPU clock errors tell existing and absent pids apart", evd,
+                           severity="low", fix=fix)
+        return Verdict(HELD, f"other processes' CPU clocks refused ({v}, {ab})", evd)
+
+
 def probes() -> list:
     return [ArtifactsDoNotCrossWorlds(), ClosedWorldBytesAreReleased(), SandboxStateIsPerWorld(),
             ReplayIgnoresForeignStore(), MemoEvictionIsPerLineage(),
             KernelIpcDoesNotCrossWorlds(), FileLocksDoNotCrossWorlds(),
-            FileWatchesDoNotCrossWorlds()]
+            FileWatchesDoNotCrossWorlds(), SchedulingAttributesDoNotCrossWorlds(),
+            DirectoryNotificationsDoNotCrossWorlds(), SharedFutexesDoNotCrossWorlds(), CpuClocksDoNotCrossWorlds()]

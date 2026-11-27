@@ -10,9 +10,10 @@ caller). Before it replaces itself with the program it
    dynamic loader), read-write access only to the listed private directories, and (ABI >= 4) no TCP bind/connect;
 3. applies seccomp: no socket other than AF_UNIX for the browser and no socket at all for tools; no ptrace, mount,
    namespaces, BPF, perf, io_uring, keyrings, kernel modules or uid changes; no System V IPC or POSIX message
-   queues; no descriptor ownership (F_SETOWN/F_SETSIG, FIOSETOWN: kernel-sent signals); signals and process limits
-   only on processes of the jail itself (by pid for tools; the browser signals its own children, which share the
-   jail uid);
+   queues; no descriptor ownership (F_SETOWN/F_SETSIG, FIOSETOWN: kernel-sent signals) and no directory
+   notifications (F_NOTIFY); signals, process limits and scheduling attributes - read as well as written - only on
+   the tool itself (the browser signals its own children, which share the jail uid); tools: no shared-futex wakes
+   and no other process's CPU clock;
 4. execs the program. Landlock and seccomp survive the exec and are inherited by every child.
 
 The configuration is written by the trusted caller (`crucible.sandbox.isolation`); nothing in it comes from an
@@ -223,7 +224,9 @@ DENY = ["ptrace", "process_vm_readv", "process_vm_writev", "mount", "umount2", "
 # descriptor ownership: the kernel signals the owner of a descriptor on I/O (SIGIO, or any signal chosen with
 # F_SETSIG - SIGKILL included) after only a same-uid check, and F_SETOWN's ESRCH answers whether a pid exists. A
 # jailed learner killed another learner process of its uid this way (same review). Refused in every mode.
-FCNTL_DENY = [8, 10, 15]             # F_SETOWN, F_SETSIG, F_SETOWN_EX
+# F_NOTIFY (dnotify) signals the watcher when any process reads a file in a directory it may read: 7 of 8 bits
+# crossed between two jailed learner processes through standard-library package directories (wave-3b verifier).
+FCNTL_DENY = [8, 10, 15, 1026]       # F_SETOWN, F_SETSIG, F_SETOWN_EX, F_NOTIFY
 IOCTL_DENY = [0x8901, 0x8902]        # FIOSETOWN, SIOCSPGRP (sockets)
 # Advisory locks in tool mode (learner processes, FFmpeg, SoX): the only files a jailed tool shares with another
 # process are read-only system files and /dev/null, where a lock is a channel between processes (flock() carried 16
@@ -240,8 +243,30 @@ TOOL_DENY = ["socket", "socketpair", "connect", "bind", "listen", "accept", "acc
              "fanotify_mark",
              # memfd pages are not counted by RLIMIT_AS: a learner process could hold NOFILE x FSIZE (64 GiB) of
              # memory outside its cap (same review). The browser keeps memfd (its own shared memory).
-             "memfd_create", "memfd_secret"]
-SELF_ONLY = [("kill", 0), ("tkill", 0), ("tgkill", 0), ("rt_sigqueueinfo", 0), ("rt_tgsigqueueinfo", 0)]
+             "memfd_create", "memfd_secret",
+             # pid existence oracle through a user-space header; futex2 requeue (flags in a user array)
+             "capget", "futex_requeue"]
+# Tool mode: every syscall that names a target process, for reading as well as writing, only on the tool itself
+# ("pid": its own pid; 0: "the calling process"; several entries for one syscall must all hold). Two jailed learner
+# processes with distinct uids passed a 16-bit secret through scheduling attributes (each may set its own nice,
+# policy and I/O priority; getpriority / sched_getscheduler / ioprio_get read them on any pid, and their ESRCH told
+# which pids exist), and two learner processes whose instance uids collide could set each other's RLIMIT_CPU and
+# nice value (prlimit64 and setpriority were unrestricted here; wave-3b verifier). Same table as the sandbox's.
+SELF_ONLY = [("kill", 0, "pid"), ("tkill", 0, "pid"), ("tgkill", 0, "pid"), ("rt_sigqueueinfo", 0, "pid"),
+             ("rt_tgsigqueueinfo", 0, "pid"), ("prlimit64", 0, 0), ("sched_setaffinity", 0, 0),
+             ("sched_setscheduler", 0, 0), ("sched_setparam", 0, 0), ("sched_setattr", 0, 0), ("setpriority", 1, 0),
+             ("setpriority", 0, 0), ("ioprio_set", 1, 0), ("ioprio_set", 0, 1), ("migrate_pages", 0, 0),
+             ("move_pages", 0, 0), ("getpriority", 1, 0), ("getpriority", 0, 0), ("ioprio_get", 1, 0),
+             ("ioprio_get", 0, 1), ("sched_getscheduler", 0, 0), ("sched_getparam", 0, 0), ("sched_getattr", 0, 0),
+             ("sched_getaffinity", 0, 0), ("sched_rr_get_interval", 0, 0), ("getpgid", 0, 0), ("getsid", 0, 0),
+             ("setpgid", 0, 0), ("get_robust_list", 0, 0)]
+# Tool mode: no wake or requeue of a shared (file-keyed) futex - every process maps the same libc, so a futex on a
+# word of its code is a channel between any two processes (repair pass); no CPU clock of another process (readable
+# without any permission: a channel and a pid oracle). See boot.py for the details.
+FUTEX_SHARED_WAKE_DENY = [1, 3, 4, 5, 7, 10, 12]
+CPU_CLOCK_CALLS = ["clock_gettime", "clock_getres", "clock_nanosleep", "timer_create", "clock_settime",
+                   "clock_adjtime"]
+_NR_FALLBACK = {"futex_wake": 454, "futex_wait": 455, "futex_requeue": 456, "futex_waitv": 449}
 
 
 def seccomp() -> None:
@@ -260,8 +285,11 @@ def seccomp() -> None:
     ctx = sc.seccomp_init(0x7FFF0000)              # allow by default
     eperm = 0x00050000 | 1
     tool = CFG.get("mode", "tool") == "tool"
-    for name in DENY + (TOOL_DENY if tool else []):
+    def resolve(name: str) -> int:
         nr = sc.seccomp_syscall_resolve_name(name.encode())
+        return _NR_FALLBACK.get(name, -1) if nr < 0 else nr
+    for name in DENY + (TOOL_DENY if tool else []):
+        nr = resolve(name)
         if nr >= 0 and sc.seccomp_rule_add(ctx, eperm, nr, 0) != 0:
             raise SystemExit(f"jail: seccomp_rule_add({name}) failed")
     noop = 0x00050000                                  # SCMP_ACT_ERRNO(0): returns 0, does nothing
@@ -286,11 +314,25 @@ def seccomp() -> None:
         if nr >= 0 and sc.seccomp_rule_add(ctx, 0x00050000 | 38, nr, 0) != 0:
             raise SystemExit("jail: seccomp clone3 rule failed")
         me = os.getpid()                           # exec keeps the pid: signals only to the tool itself
-        for name, arg in SELF_ONLY:
-            nr = sc.seccomp_syscall_resolve_name(name.encode())
-            cmp = (ArgCmp * 1)(ArgCmp(arg, 1, me, 0))  # SCMP_CMP_NE
+        for name, arg, want in SELF_ONLY:
+            nr = resolve(name)
+            cmp = (ArgCmp * 1)(ArgCmp(arg, 1, me if want == "pid" else want, 0))  # SCMP_CMP_NE
             if nr >= 0 and sc.seccomp_rule_add_array(ctx, eperm, nr, 1, cmp) != 0:
                 raise SystemExit(f"jail: seccomp self-only rule for {name} failed")
+        nr = resolve("futex")
+        for cmd in FUTEX_SHARED_WAKE_DENY:
+            cmp = (ArgCmp * 1)(ArgCmp(1, 7, 0xFF, cmd))         # (op & 0xff) == cmd: no private bit
+            if nr >= 0 and sc.seccomp_rule_add_array(ctx, eperm, nr, 1, cmp) != 0:
+                raise SystemExit("jail: seccomp futex rule failed")
+        nr = resolve("futex_wake")
+        cmp = (ArgCmp * 1)(ArgCmp(3, 7, 128, 0))                # futex2 wake without FUTEX2_PRIVATE
+        if nr >= 0 and sc.seccomp_rule_add_array(ctx, eperm, nr, 1, cmp) != 0:
+            raise SystemExit("jail: seccomp futex_wake rule failed")
+        for name in CPU_CLOCK_CALLS:                            # another process's CPU clock: EINVAL
+            nr = resolve(name)
+            cmp = (ArgCmp * 1)(ArgCmp(0, 7, 0x80000004, 0x80000000))
+            if nr >= 0 and sc.seccomp_rule_add_array(ctx, 0x00050000 | 22, nr, 1, cmp) != 0:
+                raise SystemExit(f"jail: seccomp cpu-clock rule for {name} failed")
     elif not CFG.get("tcp_connect_ports"):
         for name in ("socket", "socketpair"):     # browser: only AF_UNIX (its own IPC)
             nr = sc.seccomp_syscall_resolve_name(name.encode())

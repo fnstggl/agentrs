@@ -255,6 +255,7 @@ class Worker:
         self._loaded: set[str] = set()
         self.carry_ns = 0                     # background work of a predecessor worker, billed with the next job
         self.uid: int | None = None
+        self.gid: int | None = None
         self._last_bytes = 0
 
     # ------------------------------------------------------------------ lifecycle
@@ -267,7 +268,7 @@ class Worker:
         if len(self.files) > cfg.max_files:
             raise ValueError("too many files")
         uid, gid = tenant_ids(cfg)
-        self.uid = uid
+        self.uid, self.gid = uid, gid
         os.makedirs(cfg.base_dir, exist_ok=True)
         os.chmod(cfg.base_dir, 0o711)
         with _lock:
@@ -437,12 +438,23 @@ class Worker:
         self._kill()
         return c
 
-    def _over_quota(self) -> str | None:
+    def disk_held(self) -> tuple[int, int, list[str]]:
+        """(bytes in the working directory, entries, deleted files kept alive by a mapping alone): the directory
+        listing plus the files the worker holds open after unlinking them (metering.held_bytes; a worker kept 2x
+        its quota on disk this way across jobs - wave-3b verifier)."""
         b, n = M.dir_usage(self.workdir, self.cfg.max_entries)
+        hidden, unmeasured, _ok = M.held_bytes(self.proc.pid if self.proc is not None else None, self.uid, self.gid,
+                                               self.workdir)
+        return b + hidden, n, unmeasured
+
+    def _over_quota(self) -> str | None:
+        b, n, unmeasured = self.disk_held()
         if n > self.cfg.max_entries:
             return f"more than {self.cfg.max_entries} files in the working directory"
         if b > self.cfg.disk_quota_mb * 2**20:
-            return f"working directory exceeds its {self.cfg.disk_quota_mb} MiB quota"
+            return f"working directory exceeds its {self.cfg.disk_quota_mb} MiB quota (including deleted files held open)"
+        if unmeasured:
+            return "a deleted file of the working directory is kept alive by a memory mapping alone (its size cannot be measured)"
         return None
 
     def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
@@ -602,7 +614,7 @@ class Worker:
                 c_end = M.cpu_ns(pid)
                 n_thr = M.threads(pid)
                 hwm = M.hwm_kb(pid)
-                disk, _n = M.dir_usage(self.workdir, self.cfg.max_entries)
+                disk, _n, _unm = self.disk_held()
                 killed = None
                 if n_thr > 1:
                     killed = f"{n_thr - 1} thread(s) outlived the job"

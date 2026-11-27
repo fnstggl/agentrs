@@ -219,17 +219,84 @@ def _reachable_copy(src: str, uid: int) -> str:
 
 
 _INSTANCES = [0]
+UID_SPAN = 0x10000                # instance uids: isolation.UID_BASE + 0x10000 + [0, UID_SPAN)
+
+
+def _uid_busy(uid: int) -> bool:
+    """Whether any live process runs as `uid` (a learner process whose harness died keeps its uid busy)."""
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                if os.stat(f"/proc/{d}").st_uid == uid:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
+def _claim_dir() -> str:
+    d = os.path.join(isolation._base(), "uid-claims")
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    return d
+
+
+def _claim_alive(path: str) -> bool:
+    try:
+        pid, start = open(path).read().split()[:2]
+        with open(f"/proc/{int(pid)}/stat") as fh:
+            return fh.read().rsplit(")", 1)[1].split()[19] == start
+    except (OSError, ValueError, IndexError):
+        return False
 
 
 def _instance_uid(kind: str) -> int:
-    """A uid of this learner process alone, in a range of its own (above the per-kind jail uids, outside the sandbox
-    tenants'): learner processes of one kind used to share a uid, so one learner held the thread budget
-    (RLIMIT_NPROC counts per uid) of every other, and the kernel's same-uid checks (signals by descriptor ownership,
-    System V IPC) let it reach them (wave-3b review). 16 bits of (kind, harness pid, instance number): n concurrent
-    learner processes share a uid with probability ~n^2/2^17; the jail's seccomp filter still keeps those apart."""
+    """A uid of this learner process alone, claimed machine-wide: learner processes of one kind used to share a uid,
+    so one learner held the thread budget (RLIMIT_NPROC counts per uid) of every other, and the kernel's same-uid
+    checks (signals by descriptor ownership, System V IPC, prlimit, setpriority) let it reach them (wave-3b review).
+    The first version hashed (kind, harness pid, instance number) into 16 bits, so concurrent learner processes
+    shared a uid with probability ~n^2/2^17, and a forced collision let one set the other's RLIMIT_CPU to 1 s and
+    kill it (wave-3b verifier). Now a candidate is taken only when no live claim names it and no live process runs
+    as it; the claim (an O_EXCL file holding the harness pid and its start time) is released by `close`, and a
+    claim whose harness is gone is reclaimed. The jail's seccomp filter, independently, restricts prlimit,
+    scheduling and signals to the process itself."""
     _INSTANCES[0] += 1
     nonce = f"{kind}|{os.getpid()}|{_INSTANCES[0]}"
-    return isolation.UID_BASE + 0x10000 + int(hashlib.blake2b(nonce.encode(), digest_size=2).hexdigest(), 16)
+    start = int(hashlib.blake2b(nonce.encode(), digest_size=2).hexdigest(), 16)
+    d = _claim_dir()
+    with open(f"/proc/{os.getpid()}/stat") as fh:
+        me = f"{os.getpid()} {fh.read().rsplit(')', 1)[1].split()[19]}"
+    for i in range(UID_SPAN):
+        uid = isolation.UID_BASE + 0x10000 + (start + i) % UID_SPAN
+        path = os.path.join(d, str(uid))
+        if os.path.exists(path):
+            if _claim_alive(path):
+                continue
+            try:
+                os.unlink(path)                    # its harness is gone
+            except OSError:
+                continue
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            continue
+        with os.fdopen(fd, "w") as fh:
+            fh.write(me)
+        if _uid_busy(uid):                         # a learner process left running by a harness that died
+            os.unlink(path)
+            continue
+        return uid
+    raise LearnerHostError("no free learner uid")
+
+
+def _release_uid(uid: int | None) -> None:
+    if uid is None:
+        return
+    path = os.path.join(_claim_dir(), str(int(uid)))
+    try:
+        if open(path).read().split()[0] == str(os.getpid()):
+            os.unlink(path)
+    except (OSError, IndexError):
+        pass
 
 
 class LearnerHost:
@@ -306,13 +373,29 @@ class LearnerHost:
         self._watch = threading.Thread(target=self._watchdog, name="learner-disk-watchdog", daemon=True)
         self._watch.start()
 
-    def _watchdog(self) -> None:
+    def disk_held(self) -> tuple[int, int, list[str]]:
+        """(bytes, entries, unmeasured) the learner holds on disk: its private directory's listing, the files it
+        holds open after unlinking them (metering.held_bytes - the listing alone missed 8x the quota held this way;
+        wave-3b verifier) and its stderr log (written by the learner, outside its directory)."""
         from . import metering as M
+        b, n = M.dir_usage(self.work, self.max_entries)
+        pid = getattr(self, "pid", None)
+        hidden, unmeasured, _ok = M.held_bytes(pid, self.jail_uid, self.jail_uid, self.work) if pid else (0, [], False)
+        try:
+            log = os.path.getsize(os.path.join(self.out_dir, "stderr.log"))
+        except OSError:
+            log = 0
+        return b + hidden + log, n, unmeasured
+
+    def _watchdog(self) -> None:
         while self.proc.poll() is None:
-            b, n = M.dir_usage(self.work, self.max_entries)
-            if b > self.disk_quota or n > self.max_entries:
-                self.dead_reason = (f"the learner's private directory exceeded its quota ({b} bytes, {n} entries; "
-                                    f"quota {self.disk_quota} bytes, {self.max_entries} entries)")
+            b, n, unmeasured = self.disk_held()
+            if b > self.disk_quota or n > self.max_entries or unmeasured:
+                self.dead_reason = (f"the learner exceeded its disk quota ({b} bytes incl. deleted files held open "
+                                    f"and its log, {n} entries; quota {self.disk_quota} bytes, {self.max_entries} "
+                                    "entries)" if not unmeasured else
+                                    "the learner keeps a deleted file of its directory alive by a memory mapping "
+                                    "alone (its size cannot be measured)")
                 self.kill()
                 shutil.rmtree(self.work, ignore_errors=True)
                 return
@@ -456,6 +539,8 @@ class LearnerHost:
             self._err.close()
         except Exception:  # noqa: BLE001
             pass
+        _release_uid(getattr(self, "uid", None))
+        self.uid = None
         for p in (getattr(self, "_cfg", None),):
             if p:
                 try:
