@@ -80,11 +80,34 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   (no agent committing): build the fixture at run time and rewrite the unpushed commits `ed56d46..HEAD`, record the
   old→new commit map in `docs/evidence/commit_map.tsv`, then push. Last pushed commit: `d9f8dde`.
 
+### 2026-11-27 — session 2 (Opus 5.5 takes over as master, 04:25 UTC)
+
+- History rewrite d9f8dde..ebf1678 to remove a token-shaped test fixture (map: `docs/evidence/commit_map.tsv`); pushes
+  now use the CAM Live GitHub credential (`/root/.config/camlive/gh_token`, helper `gh_cred_helper.sh`, root-only).
+- Independent verification lenses G-sec, G-env, G-rt, G-nn, G-pr, G-cl (`docs/verification/G_*.md`) found critical
+  and major defects in every workstream; fix agents EA, E, F, A, BC, D fixed them (`docs/<ws>/FIXES.md`).
+- Master decision: per-member Discord events (`get_member_events`, `listen_events`) need `data_permissions.member_list`.
+- **Discord live integration check on "CAM's lab": 50/50 steps ok, server restored** (`docs/evidence/discord/`).
+- Integrated agent `cam_live.agent` (M-int); staging validation on Qwen3-4B + 50m: pathway works, no real-model
+  meta-update yet. Round 2 (INT2) running: grant consumption (M-int-6), verifier wiring, register_objective (C-10),
+  grounded candidates, checkpoint promotion/export, real-model meta-update, separated-mode staging run.
+- Evaluation workstream S running (`cam_live/eval/`: baselines A–E, 16.2–16.10, transfer, scaling).
+- Honest negative results so far: learned reward from scratch hurts in LabWorld (−0.35); RUDDER/COCOA fail the
+  held-out selection gate (default credit = simple); fast-layer count advantage over GRU not significant.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
 |---|---|---|
 | 2026-11-26 ~21:40 | Build wave 1, run `wf_76b5e7c9-09a` | `Workflow({scriptPath: "<session>/workflows/scripts/cam-live-build-wave1-wf_76b5e7c9-09a.js", resumeFromRunId: "wf_76b5e7c9-09a"})`; script copy `docs/evidence/workflows/wave1.js`; agents commit to `feat/cam-live` as they go and write `docs/status/<Id>.json` |
+
+## Next steps (session 2)
+
+1. Collect INT2 and S; re-run independent verification (new G lenses on integration + evaluation + re-check of
+   fixed defects); merge verdicts; `verify_completion --merge-status`.
+2. Rename duplicate test basenames (`tests/predict/test_providers.py` vs `tests/credit/test_providers.py`) so the
+   whole suite collects; full-suite JUnit.
+3. Preflight for `tasks/discord_100.yaml` against live services; research report; operator list.
 
 ## Next steps
 
