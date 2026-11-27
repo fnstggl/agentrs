@@ -204,6 +204,7 @@ def cmd_transfer(a: argparse.Namespace) -> int:
                 continue
             work = tempfile.mkdtemp(prefix=f"camlive_oe_transfer_{version}_{seed}_", dir=os.path.join(EVAL_HOME, "tmp")
                                     if os.path.isdir(os.path.join(EVAL_HOME, "tmp")) else None)
+            os.chmod(work, 0o755)                        # the sandbox uid must be able to reach its workspace
             own = os.path.join(work, "export")
             shutil.copytree(src, own)
             cwd, home = os.path.join(work, "cwd"), os.path.join(work, "home")
