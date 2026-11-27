@@ -25,7 +25,7 @@ requirement: `docs/v5/workstreams/N.json`.
 | `comparison` | A/B/C/D arms with matched experience or compute (arms C and D with the architecture-neutral ReferenceLearner, which acts in every tier) and seven control kinds |
 | `integrity` | clause-level claim scanners with planted controls; banned-proxy checks; failure classification |
 | `compose`, `genadmit` | structural composition of Tier 1 worlds (calibration without the anti-default shortcut) and their full rapid admission |
-| `genref` | scripted public reference of generated worlds whose optimum wanders (perturbation tracker on observed net income; knows only that the optimum moves) |
+| `genref` | scripted public reference of generated worlds whose optimum wanders (a scan of each lever's range, then a perturbation tracker on observed net income that rescans when it has lost the optimum; knows only that the optimum moves) |
 | `hosted` | the driver for untrusted learners: `HostedLearner(entry, kw)` constructs and runs the learner only in a jailed child; the harness relays only the participant operations of one ticket; `run_hosted_episode` returns the evaluator's verified result (DEF-O-10) |
 
 ## Measured in development runs (not official evidence)
@@ -80,6 +80,26 @@ requirement: `docs/v5/workstreams/N.json`.
   (DEF-O-11); untrusted learners are hosted (`hosted`, DEF-O-10). `run_remote_episode` (in-process) is for the
   instrument's own scripted controls. Adversarial controls `widened_layers` and `evaluator_reach` were added.
 * SP-15.5 reports floor/ceiling shares and whether arms are identical (DEF-N-7: the neutral learner is at the floor).
+
+## Wave 3b repair (after the independent verification; D-69 addendum 2)
+
+* DEF-N-8: the wandering lever's public default is drawn uniformly over its range, independently of the hidden
+  centre c0 (n-compose/5; it was c0 itself, and T.4's validated worlds depended on it). `genref` scans before it
+  tracks. With an uninformative default most wandering worlds fail no_dominant_strategy: their noise-free tracking
+  headroom (per-tick best on a grid over the best constant in hindsight) is a median 1.2-1.47.
+* T.5: `curriculum_lab.selection_experiment_v2` / `T5_DESIGN` - eight frozen learners, paired truth profiles on
+  independent probes, Spearman of targeted weights with the own learner's truth, exact permutation test over all
+  8! learner relabellings (the uniform-rank null of the earlier test was invalid).
+* Curriculum history statistics: forgetting = paired drop on exact revisits drawn without regard to their first
+  score; generalization = seen-structure-at-new-seed minus first-encounter gap within structural categories (pooled
+  residual variance, 95% t margin); 10% review items; `HISTORY_STATISTIC` names the statistic a category needs to
+  count as measured (SP-14.3).
+* DEF-O-12 completed: parameter dtypes must equal the freshly constructed architecture's (`tampered_copy` kind
+  `retyped:<dtype>`, adversarial control `retyped_parameters`).
+* `integrity.failure_survey`: SP-11.6b classifies the failures of real protocol runs over the whole training
+  distribution, not only injected cases; `_harness_bug` is the negative control the classifier must leave
+  unclassified.
+* `instrument.CONFIRMATION`: the control battery's confirmation seeds share nothing with the development batteries.
 
 ## Known limits
 
