@@ -253,9 +253,10 @@ REVIEWED: dict[str, dict] = {
     "orgeco.org_hours": _r(None, _V, "hourly backbone telemetry (load, failures) of the domain"),
     "orgeco.org_consider": _r(None, _V, "managers' private consideration state", "orgeco.org_members"),
     "orgeco.org_projects": _r(None, _V, "the backbone's expansion projects under construction (domain physics)"),
-    "orgeco.org_props": _r("institution", _D, "the backbone council's proposals (quotas, levies, expansions), "
-                                              "decided outside the institutions owner"),
-    "orgeco.org_votes": _r("institution", _P, "votes on the council's proposals", "orgeco.org_props"),
+    "orgeco.org_use": _r(None, _V, "the customers' service usage per session (time, requests, successes, users), "
+                                   "recorded for the domain's evaluator (domain physics)"),
+    # (wave 3b, after c5c/w3b-dom3: the backbone council governs through an inst charter - its proposals and votes
+    # are inst decisions and ballots, so orgeco.org_props / org_votes no longer exist)
     "rcomm.rc_products": _r("product", _D, "products launched in the research-commercialisation domain, kept "
                                            "outside the products owner"),
     "rcomm.rc_subs": _r("subscription", _D, "subscriptions to those products, kept outside the subscriptions owner"),
@@ -354,10 +355,6 @@ KNOWN_DUPLICATES: dict[str, dict] = {
                            "migration": "a plant's improvement need is a node of the one needs graph (activity: "
                                         "production on the machine model; capability: process control), published "
                                         "through the needs module and listed from there"},
-    "orgeco.org_props": {"target_owner": "inst.inst_charters", "decision": "D-21/D-79", "workstream": "I-3",
-                         "expires": _WAVE2,
-                         "migration": "the backbone council is an institution: a charter of the council with its "
-                                      "procedures; proposals and votes are inst decisions and ballots"},
     "rcomm.rc_products": {"target_owner": "products.products", "decision": "D-11/D-79", "workstream": "I-3",
                           "expires": _WAVE2,
                           "migration": "a commercialised technology is launched as a product of the products owner "
