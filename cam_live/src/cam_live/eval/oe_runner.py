@@ -1,0 +1,332 @@
+"""cam_live.eval.oe_runner — substantive runs (Protocol v3): the full-size agent with open-ended generation on the
+open-ended families, one objective per GPU-lock hold, the learner state carried between holds by its own checkpoint.
+
+    python -m cam_live.eval.oe_runner sequence --condition E --seed 0 --plan SW:rle,SW:rpn,SW:merge,SW:topk \
+        --decisions 20 --out R.json [--resume]
+    python -m cam_live.eval.oe_runner fresh --export DIR --version initial --plan SW:unique,MECH:7 --seed 0 ...
+
+``sequence`` runs the listed objectives in order with ONE agent (weights carry over: spec 10.4). Before each
+objective the shared GPU lock is taken, the agent is rebuilt from the configuration and restored from its last
+checkpoint (``CamLiveAgent.load``: complete learner state, same run directory), the objective runs under
+``runtime.loop.LiveRuntime`` until it is verified achieved or its decision budget is spent, the checkpoint is
+written, the lock released. ``DiskGuard.check`` runs before every checkpoint / export and ``apply_retention``
+after every objective. The result file is rewritten after every objective (resumable with ``--resume``).
+
+``fresh`` is the 16.8 transfer child: a new process gets only a weights-only export, builds a new agent, loads
+the tensors strictly, resets fast beliefs and runs the plan (see ``eval.transfer`` for the steps).
+
+Recorded per objective: verified outcome (status, value, the verifier's score history), decisions, the provenance
+of every candidate and of every chosen action (backbone-written vs schema walker), execution status of every
+chosen action (executable fraction), failure classes, repeats of earlier failed actions, distinct strategies
+(operation + argument-shape signatures), prediction NLL of resolved predictions, learning and meta-update
+records (applied / skipped with reasons, meta-gradient norms, reward-version changes), compute and wall time.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import hashlib
+import json
+import os
+import shutil
+import sys
+import time
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+import torch
+
+#: substantive agent settings: open-ended generation on, enough tokens for program text
+SUBSTANTIVE_AGENT = dict(use_backbone=True, proposer_max_new_tokens=512, proposer_k=4, durable=False,
+                         policy_update_every=3, policy_update_batch=12, planner_measure_every=4,
+                         experiment_rate=0.1)
+SUBSTANTIVE_LEARNER = {"min_independent_outcomes": 2, "warmup_steps": 2, "batch_size": 8, "slow_batch_size": 3,
+                       "grad_last": 2, "adapter_every": 3}
+
+
+def substantive_config(condition: str, seed: int, *, real: bool = True) -> Any:
+    from ..config import CamLiveConfig
+    from .conditions import eval_config
+    cfg = CamLiveConfig.load() if real else CamLiveConfig.debug()
+    cfg.device = "cuda" if real else "cpu"
+    if not real:
+        cfg.backbone.tiny_vocab = 4096
+    cfg.seed = int(seed)
+    cfg.optim.meta_min_independent_outcomes = 4
+    a = dict(cfg.sections.get("agent", {}))
+    a.update(SUBSTANTIVE_AGENT)
+    if not real:
+        a["proposer_max_new_tokens"] = 32
+    cfg.sections["agent"] = a
+    cred = dict(cfg.sections.get("credit", {}))
+    cred["learner"] = {**cred.get("learner", {}), **SUBSTANTIVE_LEARNER}
+    cfg.sections["credit"] = cred
+    cfg = eval_config(cfg, condition, seed=seed)
+    cfg.sections["agent"]["use_backbone"] = True          # eval_config's matched-walker switch does not apply here
+    return cfg
+
+
+def describe(agent: Any) -> Dict[str, Any]:
+    """Model configuration, active parameter groups and learning pathways of a substantive run."""
+    from .conditions import FastOnlyAgent, FrozenBackboneChooser, FrozenEvalAgent
+    m = agent.model
+    pc = {k: v for k, v in m.count_parameters().items() if k != "experiential_breakdown"}
+    cls = type(agent).__name__
+    weights_learn = not isinstance(agent, (FrozenBackboneChooser, FastOnlyAgent, FrozenEvalAgent)) and \
+        bool(getattr(agent.settings, "learning", True))
+    return {"agent_class": cls, "backbone": agent.cfg.backbone.name, "revision": agent.cfg.backbone.revision,
+            "scale": agent.cfg.core.scale, "device": str(m.device), "parameters": pc,
+            "agent_settings": {k: getattr(agent.settings, k) for k in ("use_backbone", "selection_rule",
+                                                                         "proposer_max_new_tokens", "proposer_k",
+                                                                         "experiment_rate", "adapters",
+                                                                         "bridge_grounding", "retention")
+                               if hasattr(agent.settings, k)},
+            "loss_providers": [p.name for p in agent.learner.providers],
+            "credit_assigner": agent.learner.credit is not None,
+            "pathways": {"fast_beliefs": not isinstance(agent, (FrozenBackboneChooser, FrozenEvalAgent)),
+                         "weights": weights_learn, "policy_update": weights_learn,
+                         "meta_learning": weights_learn and int(agent.meta.mc.min_independent) < 10 ** 8,
+                         "bootstrap_mix": float(agent.meta.mixer.mix),
+                         "chooser": "frozen backbone" if isinstance(agent, FrozenBackboneChooser) else
+                         agent.settings.selection_rule},
+            "trainable_groups": sorted({g for _, _, g in m._named_groups()})}
+
+
+def _sig(a: Any) -> str:
+    def shape(v: Any) -> Any:
+        if isinstance(v, dict):
+            return {k: shape(x) for k, x in sorted(v.items())}
+        if isinstance(v, list):
+            return [shape(x) for x in v[:2]]
+        return type(v).__name__
+    return a.operation + json.dumps(shape(a.arguments), sort_keys=True)
+
+
+def _content_hash(a: Any) -> str:
+    return hashlib.sha256(json.dumps({"op": a.operation, "args": a.arguments}, sort_keys=True,
+                                     default=str).encode()).hexdigest()[:16]
+
+
+def run_objective(agent: Any, oc: Any, family: str, problem: str, wseed: int, objective_id: str, run_dir: str,
+                  clock: Any, *, max_decisions: int, k: int = 10, budget_s: float = 840.0) -> Dict[str, Any]:
+    from ..runtime.loop import LiveRuntime, RuntimeConfig
+    from .conditions import Timed
+    env, policy, verifier, task = oc.open(family, problem, wseed, objective_id, max_decisions=max_decisions)
+    agent.attach_verifier(verifier)
+    timed = Timed(agent)
+    rt = LiveRuntime(timed, env, policy, verifier, task, run_dir, clock,
+                     RuntimeConfig(fsync=False, candidates_k=k, keep_checkpoints=1, verify_every_s=0.0,
+                                   checkpoint_every_s=1e12, journal_every=10 ** 9, journal_min_interval_s=1e12))
+    t0 = time.time()
+    rt.start()
+    steps = 0
+    while rt.status == "running" and steps < 3 * max_decisions + 10:
+        if time.time() - t0 > budget_s:
+            rt._finish("stopped", f"wall budget {budget_s:.0f} s of this lock hold reached")
+            break
+        rt.step()
+        steps += 1
+    if rt.status == "running":
+        rt._finish("stopped", "step cap reached")
+    rt.close()
+    final = verifier.verify(task)
+    recs = [r for r in agent.store.trajectory(task.objective_id) if r.decision is not None]
+    rows, failed, repeats = [], set(), 0
+    for r in recs:
+        ch = r.decision.chosen
+        ok = r.result is not None and r.result.status == "ok"
+        h = _content_hash(ch)
+        if h in failed:
+            repeats += 1
+        if not ok:
+            failed.add(h)
+        rows.append({"operation": ch.operation, "provenance": ch.provenance, "ok": ok,
+                     "status": r.result.status if r.result else None,
+                     "failure": r.result.failure_class if r.result else None,
+                     "detail": (r.result.failure_detail or "")[:200] if r.result else "",
+                     "signature": _sig(ch), "n_candidates": len(r.decision.candidates),
+                     "n_backbone_candidates": sum(1 for c in r.decision.candidates
+                                                  if "backbone" in c.action.provenance.split("+")),
+                     "args_preview": json.dumps(ch.arguments, default=str)[:300]})
+    preds = [p for p in agent.predictions.records() if p.nll is not None and p.decision_id.startswith("dec_")
+             and p.query.query_id in {q.query_id for r in recs for q in r.queries}]
+    hist = getattr(verifier, "history", [])
+    first_hit = next((i for i, h in enumerate(hist) if (h.get("pass_fraction", h.get("value", 0.0)) or 0.0) >=
+                      float(task.success["target"])), None)
+    return {"family": family, "problem": problem, "world_seed": wseed, "objective_id": objective_id,
+            "runtime_status": rt.status, "reason": rt.status_reason[:200], "verified_status": final.status,
+            "verified_value": float(final.value), "target": float(final.target), "achieved": final.status == "achieved",
+            "decisions": len(recs), "steps": steps, "wall_s": time.time() - t0,
+            "decisions_to_achieve": len(recs) if final.status == "achieved" else None,
+            "executable_fraction": (sum(1 for x in rows if x["ok"]) / len(rows)) if rows else None,
+            "backbone_chosen_fraction": (sum(1 for x in rows if "backbone" in x["provenance"].split("+")) /
+                                         len(rows)) if rows else None,
+            "repeats_of_failed_actions": repeats, "distinct_strategies": len({x["signature"] for x in rows}),
+            "mean_prediction_nll": (sum(p.nll for p in preds) / len(preds)) if preds else None,
+            "n_predictions_resolved": len(preds), "verifier_history": hist[-50:], "first_verified_hit": first_hit,
+            "compute": {"seconds": dict(timed.seconds), "cpu_seconds": dict(timed.cpu_seconds)},
+            "counters": dict(rt.counters), "errors": rt._errors[-5:], "decisions_detail": rows}
+
+
+def _meta_records(run_dir: str) -> List[Dict[str, Any]]:
+    from ..contracts import RunFiles
+    from .experiments import _records
+    out = []
+    for e in _records(run_dir, RunFiles.META):
+        m = e.get("data", {})
+        out.append({k: m.get(k) for k in ("applied", "skipped_reason", "meta_grad_norm", "n_independent_outcomes",
+                                           "reward_version_before", "reward_version_after", "bootstrap_mix",
+                                           "estimator")})
+    return out
+
+
+def _learning_records(run_dir: str) -> List[Dict[str, Any]]:
+    from ..contracts import RunFiles
+    from .experiments import _records
+    return [{k: e.get("data", {}).get(k) for k in ("timescale", "param_groups", "weight_delta")}
+            for e in _records(run_dir, RunFiles.LEARNING)]
+
+
+def _plan(s: str) -> List[Tuple[str, str]]:
+    out = []
+    for part in s.split(","):
+        fam, _, prob = part.partition(":")
+        out.append((fam, prob))
+    return out
+
+
+def cmd_sequence(a: argparse.Namespace) -> int:
+    from ..storage import DiskGuard, apply_retention
+    from ..validation import OffsetClock
+    from .experiments import EVAL_HOME, code_identity, export_checkpoint
+    root = os.path.abspath(a.root or os.path.join(EVAL_HOME, "oe", f"{a.condition}_s{a.seed}_{a.tag}"))
+    if not a.resume and os.path.exists(root):
+        shutil.rmtree(root)
+    os.makedirs(root, exist_ok=True)
+    guard = DiskGuard(root)
+    res: Dict[str, Any] = {"executed": False, "condition": a.condition, "seed": a.seed, "plan": a.plan,
+                           "decisions_per_objective": a.decisions, "real": not a.cpu, "root": root, "objectives": [],
+                           "code": code_identity()}
+    if a.resume and os.path.exists(a.out):
+        with open(a.out) as f:
+            res = json.load(f)
+    plan = _plan(a.plan)
+    done = len(res["objectives"])
+    t_start = time.time()
+    clock_state = os.path.join(root, "clock.json")
+    for i in range(done, len(plan)):
+        if a.max_objectives and i - done >= a.max_objectives:
+            break
+        fam, prob = plan[i]
+        guard.check(need_bytes=2 * 2 ** 30, what="objective checkpoint")
+        lock = contextlib.nullcontext()
+        if not a.cpu:
+            from ..nn.gpu import gpu_lock
+            lock = gpu_lock(min_free_gb=a.min_free_gb, timeout_s=a.lock_timeout_s)
+        with lock:
+            t_lock = time.time()
+            clock = OffsetClock()
+            if os.path.exists(clock_state):
+                clock.offset = json.load(open(clock_state))["offset"]
+            cfg = substantive_config(a.condition, a.seed, real=not a.cpu)
+            agent = _build(a.condition, cfg, os.path.join(root, "agent"), clock)
+            ck = os.path.join(root, "ckpt_latest")
+            if i > 0 and os.path.exists(ck):
+                agent.load(ck)
+            elif i == 0:
+                res["configuration"] = describe(agent)
+                if a.save_exports:
+                    res["checkpoints"] = {"pre": export_checkpoint(agent, os.path.join(root, "ckpt_pre"),
+                                                                   os.path.join(root, "export_pre"),
+                                                                   note="before any experience")}
+            h0 = agent.model.group_hashes()
+            wseed = 1000 * (i + 1) + a.seed
+            if fam == "MECH" and prob:
+                wseed = int(prob) * 100 + a.seed
+            ob = run_objective(agent, _OC(root, clock, a), fam, prob, wseed, f"obj_{fam}_{prob}_{i}_s{a.seed}",
+                               os.path.join(root, f"obj{i:02d}"), clock, max_decisions=a.decisions,
+                               budget_s=a.hold_s - (time.time() - t_lock) - 60.0)
+            ob["index"] = i
+            ob["group_changed"] = {g: h0.get(g) != h for g, h in agent.model.group_hashes().items()}
+            ob["meta_updates"] = _meta_records(os.path.join(root, f"obj{i:02d}"))
+            ob["learning_updates"] = _learning_records(os.path.join(root, f"obj{i:02d}"))
+            ob["mix"] = float(agent.meta.mixer.mix)
+            ob["reward_version"] = agent.meta.reward.version
+            ob["lock_hold_s"] = time.time() - t_lock
+            ob["gpu_peak_gb"] = torch.cuda.max_memory_allocated() / 2 ** 30 if torch.cuda.is_available() else None
+            guard.check(need_bytes=2 * 2 ** 30, what="checkpoint")
+            tmp = ck + ".new"
+            shutil.rmtree(tmp, ignore_errors=True)
+            agent.save(tmp)
+            shutil.rmtree(ck, ignore_errors=True)
+            os.rename(tmp, ck)
+            json.dump({"offset": clock.offset}, open(clock_state, "w"))
+            if a.save_exports and i == len(plan) - 1:
+                res.setdefault("checkpoints", {})["post"] = export_checkpoint(
+                    agent, os.path.join(root, "ckpt_post"), os.path.join(root, "export_post"),
+                    note=f"after {len(plan)} objectives")
+            _oc_close()
+            agent.close()
+            del agent
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        res["objectives"].append(ob)
+        res["retention"] = apply_retention(root, keep=1, keep_optim=1, drop_protected_optim=True,
+                                           drop_groups=("*/obj[0-9][0-9]/checkpoints",))["bytes"]
+        with open(a.out, "w") as f:
+            json.dump(res, f, default=str)
+        print(f"[{a.condition} s{a.seed}] objective {i} {fam}:{prob} {ob['verified_status']} value "
+              f"{ob['verified_value']:.3f} decisions {ob['decisions']} exec {ob['executable_fraction']} "
+              f"backbone {ob['backbone_chosen_fraction']} hold {ob['lock_hold_s']:.0f}s", flush=True)
+    res["executed"] = len(res["objectives"]) == len(plan)
+    res["wall_seconds"] = res.get("wall_seconds", 0.0) + time.time() - t_start
+    with open(a.out, "w") as f:
+        json.dump(res, f, default=str)
+    return 0
+
+
+_OC_HOLD: List[Any] = []
+
+
+def _OC(root: str, clock: Any, a: argparse.Namespace) -> Any:
+    from .openended import OpenEndedComputer
+    oc = OpenEndedComputer(os.path.join(root, "computer"), clock)
+    _OC_HOLD.append(oc)
+    return oc
+
+
+def _oc_close() -> None:
+    while _OC_HOLD:
+        with contextlib.suppress(Exception):
+            _OC_HOLD.pop().close()
+
+
+def _build(condition: str, cfg: Any, run_dir: str, clock: Any) -> Any:
+    from .conditions import _CLASSES
+    return _CLASSES[condition](cfg, run_dir, clock=clock)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    ap = argparse.ArgumentParser(prog="python -m cam_live.eval.oe_runner")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("sequence")
+    s.add_argument("--condition", default="E")
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--plan", required=True)
+    s.add_argument("--decisions", type=int, default=20)
+    s.add_argument("--out", required=True)
+    s.add_argument("--root", default="")
+    s.add_argument("--tag", default="seq")
+    s.add_argument("--resume", action="store_true")
+    s.add_argument("--save-exports", dest="save_exports", action="store_true")
+    s.add_argument("--max-objectives", dest="max_objectives", type=int, default=0)
+    s.add_argument("--hold-s", dest="hold_s", type=float, default=870.0, help="max seconds per GPU-lock hold")
+    s.add_argument("--min-free-gb", dest="min_free_gb", type=float, default=14.0)
+    s.add_argument("--lock-timeout-s", dest="lock_timeout_s", type=float, default=7200.0)
+    s.add_argument("--cpu", action="store_true", help="tiny CPU backbone: plumbing check only, never substantive")
+    s.set_defaults(fn=cmd_sequence)
+    a = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
+    return int(a.fn(a) or 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

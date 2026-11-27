@@ -1,0 +1,1235 @@
+{
+ "C": {
+  "note": "truth = expected adopters of the candidate at that moment from the hidden mechanism (0 for operations without direct effect); goal_mean = the agent's registered prediction of the goal-relevant outcome of that candidate",
+  "randomised_experiments": {
+   "concluded": 0,
+   "items": [],
+   "n": 0,
+   "refuted": 0,
+   "supported": 0,
+   "units": 0
+  },
+  "spearman_predicted_vs_true_value_over_candidates": {
+   "hi": 0.2781989194627182,
+   "lo": 0.05553531455010615,
+   "mean": 0.162714934167393,
+   "n": 10,
+   "se": 0.058490977707883016
+  },
+  "true_value_gain_of_top_predicted_candidate_over_mean_alternative": {
+   "hi": 1.747645278165548,
+   "lo": -0.02500586855091437,
+   "mean": 0.8100402357089754,
+   "n": 10,
+   "se": 0.47844571372066524
+  },
+  "true_value_ratio_of_chosen_to_best": {
+   "hi": 0.2663703553861815,
+   "lo": 0.14095347049114682,
+   "mean": 0.1970205800085657,
+   "n": 10,
+   "se": 0.033963994197776445
+  },
+  "true_value_ratio_of_top_predicted_to_best": {
+   "hi": 0.2767317825278609,
+   "lo": 0.13184734168954887,
+   "mean": 0.19699040499125642,
+   "n": 10,
+   "se": 0.03980045647613159
+  }
+ },
+ "D": {
+  "note": "truth = expected adopters of the candidate at that moment from the hidden mechanism (0 for operations without direct effect); goal_mean = the agent's registered prediction of the goal-relevant outcome of that candidate",
+  "randomised_experiments": {
+   "concluded": 0,
+   "items": [
+    {
+     "experiment_id": "exp_6b06bb195813439f",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_23b5fd75534c428b",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_bda95dc6e726484a",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_963847114ca24cf9",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_c4592a54bd0e43ce",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_868cb15b69244d21",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_ebb5dd32f1eb4d87",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_3ca153eb808c4f4b",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_38e0542666b94798",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_216e69c2bac64671",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_493c2b9e620d41ba",
+     "n_actual": 6,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_0530085c7ddf441f",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_3211c45befb34467",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_dbd67baf9f0b41a8",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_5da7f5066c4b47f5",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fed1767f3c894346",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_0ff46e8627404af7",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_e89c545ba8fc4851",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_f454fe32931c4e7f",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_f4b573f97b5842a8",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_0df95f550ce74df7",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_cb15d81f288d400b",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_670a17b4353943f1",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_f7f18b8f755747c0",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_7ef025bbe29442a8",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_646748fbc5a043ba",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_1a53a6d1fa074ee4",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_ca5244a5640947f2",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_533d036d763e4679",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_eacb85abc2084b39",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_aca263ee67834403",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_9c96915570f6491f",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_8ab2d9db8612420c",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_05e7af425b294db0",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_6a5f4d152b7247c0",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_8c0cb4188427470c",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_37d528d5cff34739",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_77de5c2ccd4640bb",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_863ee3ec58d44615",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_bb697377c7a54dfb",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    }
+   ],
+   "n": 133,
+   "refuted": 0,
+   "supported": 0,
+   "units": 0
+  },
+  "spearman_predicted_vs_true_value_over_candidates": {
+   "hi": 0.35972514967951463,
+   "lo": 0.13488680026081507,
+   "mean": 0.24385252205518912,
+   "n": 10,
+   "se": 0.060645628022990436
+  },
+  "true_value_gain_of_top_predicted_candidate_over_mean_alternative": {
+   "hi": 7.697976721243186,
+   "lo": 3.8080182536991702,
+   "mean": 5.802983776312732,
+   "n": 10,
+   "se": 1.0430381767679529
+  },
+  "true_value_ratio_of_chosen_to_best": {
+   "hi": 0.13963274682239468,
+   "lo": 0.1173705110357478,
+   "mean": 0.12766141037816392,
+   "n": 10,
+   "se": 0.005925696787093809
+  },
+  "true_value_ratio_of_top_predicted_to_best": {
+   "hi": 0.45767313771536416,
+   "lo": 0.30897142956535667,
+   "mean": 0.3862132815671579,
+   "n": 10,
+   "se": 0.040901776521823016
+  }
+ },
+ "E": {
+  "note": "truth = expected adopters of the candidate at that moment from the hidden mechanism (0 for operations without direct effect); goal_mean = the agent's registered prediction of the goal-relevant outcome of that candidate",
+  "randomised_experiments": {
+   "concluded": 0,
+   "items": [
+    {
+     "experiment_id": "exp_43746bbedae948dc",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_749d05a4f1654c9a",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_8a500a0d4e504b63",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_cf2669b6a37243e7",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_cbd3ea545a234938",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_cf542ade4a5f42c0",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_bc89d42b8a9249eb",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fc76a9e186314d03",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fbf74b259b034726",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_747b580f77934583",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_daa2aafbbd6a4f0f",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_3b08832d601b4e49",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_1788868ea6e54408",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_719a3d8ca509443a",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_25bec32909504d57",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_5cff1c8369c14c91",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_90cd94937e2744be",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_9e4737b1f6874500",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_9fab7f3330144d27",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_d2726f1468f645c2",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_139d45a0f84645aa",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_7eebe16f346a4798",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_875b6db1a7eb40cb",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_56886d028eed4956",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fcbf8acbc26d40d9",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_3d14f12dec8b4c04",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_4879e926259846f5",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_733fc82f1ce9463d",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_11b5b67bf2eb4104",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b3e1d7ffe0c34c6b",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_7216cb87e5224d97",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_447c937af70c4324",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_183a3ba76dc5461d",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_c6cb0d00815c4353",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_620bb87df9eb419d",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_da59c1fc961c4ba1",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fc9d2a716b054f46",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_4b60526279b047d4",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_83df756779d3444d",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_5b33b94938e345af",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "closed",
+     "supported": null
+    }
+   ],
+   "n": 133,
+   "refuted": 0,
+   "supported": 0,
+   "units": 0
+  },
+  "spearman_predicted_vs_true_value_over_candidates": {
+   "hi": 0.27429142992700734,
+   "lo": 0.07542940620226549,
+   "mean": 0.16971337607531278,
+   "n": 10,
+   "se": 0.053632247665383055
+  },
+  "true_value_gain_of_top_predicted_candidate_over_mean_alternative": {
+   "hi": 6.8664963969031545,
+   "lo": 1.373326020182033,
+   "mean": 3.9016277734910516,
+   "n": 10,
+   "se": 1.4842864037643013
+  },
+  "true_value_ratio_of_chosen_to_best": {
+   "hi": 0.13835217644849634,
+   "lo": 0.10736560482619031,
+   "mean": 0.12260544053994109,
+   "n": 10,
+   "se": 0.008268862012333546
+  },
+  "true_value_ratio_of_top_predicted_to_best": {
+   "hi": 0.3907723263342034,
+   "lo": 0.2163939214896763,
+   "mean": 0.2951454602159481,
+   "n": 10,
+   "se": 0.04767954054914311
+  }
+ },
+ "E_mix0": {
+  "note": "truth = expected adopters of the candidate at that moment from the hidden mechanism (0 for operations without direct effect); goal_mean = the agent's registered prediction of the goal-relevant outcome of that candidate",
+  "randomised_experiments": {
+   "concluded": 0,
+   "items": [
+    {
+     "experiment_id": "exp_16a1b8f8b225441d",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_45960ba9c7954730",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_7876d8b93e2447fa",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_ae788ea5d0684143",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_471c625603a54dc1",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_1f13431a6cc54a05",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_12818c62f0314e20",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_e09f09df51bc42fb",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_454a572bd0fd42a5",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_30068e46e5a54b20",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_cf38a266715149ed",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_7a1a796415544900",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_65e91786622c4cc3",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_1566b8354e8b4611",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_918b5456ce234e5f",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_9b2904ed5d004057",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_d53f90e6a11644f6",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_3f461b82c2cc4dc0",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b2811a1f542841fa",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_6e4bb9bd1ea84a46",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_6f907e9e435345db",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_e6fa2dd299a44d29",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_5520a4d67c1049f9",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_743881009b934de5",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fce03fd09efc443d",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 1,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_f502cf03a5a644f9",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_ee054bfe020a42a1",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b95570da4638430b",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_fda4c060dd5441f8",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_31a45e5486174911",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_09caac994ea34c03",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_184a1aa512214e9a",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_50a0e38061004b4d",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_c850106313844a12",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_d6057c280717468d",
+     "n_actual": 3,
+     "n_units": 0,
+     "seed": 2,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_99b0a1c6c07645ca",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_75806234b9444dec",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_9a45d8746bcf4a66",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b627a92c57fe497f",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_30bc7187c12c4ec9",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 3,
+     "status": "running",
+     "supported": null
+    }
+   ],
+   "n": 134,
+   "refuted": 0,
+   "supported": 0,
+   "units": 0
+  },
+  "spearman_predicted_vs_true_value_over_candidates": {
+   "hi": 0.3950281889276609,
+   "lo": 0.20733705862961319,
+   "mean": 0.29688373762027614,
+   "n": 10,
+   "se": 0.051969756799536033
+  },
+  "true_value_gain_of_top_predicted_candidate_over_mean_alternative": {
+   "hi": 6.49023114219948,
+   "lo": 3.1728886616732357,
+   "mean": 4.862547246843113,
+   "n": 10,
+   "se": 0.9198333638037666
+  },
+  "true_value_ratio_of_chosen_to_best": {
+   "hi": 0.13732731708689042,
+   "lo": 0.10346445156710594,
+   "mean": 0.12050053627003161,
+   "n": 10,
+   "se": 0.009228032029182175
+  },
+  "true_value_ratio_of_top_predicted_to_best": {
+   "hi": 0.3958569618930748,
+   "lo": 0.26401747024933786,
+   "mean": 0.32895250160697076,
+   "n": 10,
+   "se": 0.03561495608825765
+  }
+ },
+ "conditions": {
+  "A": [
+   0,
+   1
+  ],
+  "C": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "D": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E_mix0": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E_unverified": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "plan": "main_cpu",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/main_cpu",
+ "scale": {
+  "A": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "C": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "D": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E_mix0": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E_unverified": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ]
+}

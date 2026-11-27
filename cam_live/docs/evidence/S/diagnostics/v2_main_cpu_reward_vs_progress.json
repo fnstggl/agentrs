@@ -1,0 +1,200 @@
+{
+ "D": {
+  "share_of_decisions_that_are_zero_value_actions": {
+   "hi": 0.6578125,
+   "lo": 0.6106299212598425,
+   "mean": 0.6379183070866141,
+   "n": 10,
+   "se": 0.0129187204397894
+  },
+  "share_of_positive_internal_reward_to_zero_value_actions": {
+   "hi": 0.8181580060607108,
+   "lo": 0.5650639049524617,
+   "mean": 0.6959695581419868,
+   "n": 10,
+   "se": 0.06674479480783502
+  },
+  "spearman_internal_return_vs_verified_progress": {
+   "hi": 0.16920492061923456,
+   "lo": -0.34877377345233845,
+   "mean": -0.08920706349990652,
+   "n": 10,
+   "se": 0.14041242333058235
+  },
+  "zero_value_actions": [
+   "lab.noise",
+   "lab.probe",
+   "wait"
+  ]
+ },
+ "E": {
+  "share_of_decisions_that_are_zero_value_actions": {
+   "hi": 0.6734375,
+   "lo": 0.6037018639271654,
+   "mean": 0.6360789862204724,
+   "n": 10,
+   "se": 0.018630400740277765
+  },
+  "share_of_positive_internal_reward_to_zero_value_actions": {
+   "hi": 0.8653406067942324,
+   "lo": 0.5958705285935386,
+   "mean": 0.7317915917228561,
+   "n": 10,
+   "se": 0.07384740779381452
+  },
+  "spearman_internal_return_vs_verified_progress": {
+   "hi": -0.04523809523809524,
+   "lo": -0.3155977416906206,
+   "mean": -0.167978694071573,
+   "n": 10,
+   "se": 0.0716651898725564
+  },
+  "zero_value_actions": [
+   "lab.noise",
+   "lab.probe",
+   "wait"
+  ]
+ },
+ "E_mix0": {
+  "share_of_decisions_that_are_zero_value_actions": {
+   "hi": 0.65388125,
+   "lo": 0.6023175000000001,
+   "mean": 0.6296625,
+   "n": 10,
+   "se": 0.014220355373352818
+  },
+  "share_of_positive_internal_reward_to_zero_value_actions": {
+   "hi": 0.7381278328123747,
+   "lo": 0.5037985574727392,
+   "mean": 0.6248924826379613,
+   "n": 10,
+   "se": 0.06342188004496431
+  },
+  "spearman_internal_return_vs_verified_progress": {
+   "hi": 0.47857142857142854,
+   "lo": 0.09009008661858879,
+   "mean": 0.2808236796665137,
+   "n": 10,
+   "se": 0.10420279187857694
+  },
+  "zero_value_actions": [
+   "lab.noise",
+   "lab.probe",
+   "wait"
+  ]
+ },
+ "conditions": {
+  "A": [
+   0,
+   1
+  ],
+  "C": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "D": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E_mix0": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ],
+  "E_unverified": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "plan": "main_cpu",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/main_cpu",
+ "scale": {
+  "A": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "C": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "D": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E_mix0": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  },
+  "E_unverified": {
+   "backbone": "tiny",
+   "core": "debug",
+   "real": false
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ]
+}

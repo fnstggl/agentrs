@@ -363,7 +363,8 @@ def shadow(rs: Sequence[Dict[str, Any]], *, eps: float = 1e-12) -> Dict[str, Any
             snips_s.append(num / den if den > 0 else None)
             model_s.append(msum / n)
             truth_s.append(tsum / n)
-            ess_s.append((sum(ws) ** 2) / sum(w * w for w in ws) / n if ws else None)
+            w2 = sum(w * w for w in ws)
+            ess_s.append((sum(ws) ** 2) / w2 / n if ws and w2 > 0 else 0.0)
             support_s.append(_mean(supp))
         res[name] = {"ips_estimate_observed": mean_ci(ips_s), "snips_estimate_observed": mean_ci(snips_s),
                      "model_prediction": mean_ci(model_s), "ground_truth_same_contexts": mean_ci(truth_s),

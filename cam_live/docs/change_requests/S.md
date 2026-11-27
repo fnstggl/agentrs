@@ -48,3 +48,20 @@ request.
 `sandbox.list_files {}` → deny ("names no file destination in arguments.path / target"); the tool schema makes
 `path` optional (default: the workspace root). Either default the destination to the workspace root or make `path`
 required in the schema.
+
+## S-5 Selection ignores the world model's predictions; the internal reward pays zero-value actions (owner: INT2 / B / C)
+
+**What (measured, `docs/S/DIAGNOSIS.md`, debug scale, 10 seeds).** With the default rule `policy` the chosen
+candidate's true value is 0.12 of the best; the candidate ranked first by the agent's *own* registered goal
+prediction is 0.30–0.39 of the best. Shadow evaluation on the recorded contexts: behaviour 1.42 expected adopters per
+decision (uniform 1.43), greedy-on-predicted-goal-mean 5.05 (E) / 6.83 (D). 64 % of decisions and 70–73 % of the
+positive internal reward go to operations with no direct effect (probe, noisy gauge, wait); Spearman(internal return,
+verified progress) = -0.17 [-0.32, -0.05] for E.
+
+**Why it matters.** Learning in the world model / evaluator cannot improve behaviour if selection is driven by a
+policy trained only on an internal reward that is anti-correlated with verified progress. Candidates for the
+owners: (a) make the policy's training signal include the evaluator's / world model's goal value (e.g. advantage
+from predicted goal-relevant outcomes, or verified-outcome policy gradient), (b) a selection rule that combines the
+policy with the predicted goal value, (c) check the bootstrap reward's exploration term (it rewards uncertainty
+reduction on the noisy gauge and probes regardless of decision relevance). Re-measure with
+`python -m cam_live.eval.cli analyse` (shadow + action-quality sections) after a fix.
