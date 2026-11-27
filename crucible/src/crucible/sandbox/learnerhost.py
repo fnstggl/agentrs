@@ -342,14 +342,17 @@ class LearnerHost:
             fds = (pfd,)
         cmd = [sys.executable, "-I", "-S", "-B", isolation.JAIL, self._cfg, py, "-I", "-S", "-B", "-c", _BOOT,
                self.work, src, site, self.entry, json.dumps(self.kw), str(pfd), self.protocol, json.dumps(code)]
-        lim = (int(mem_mb) * 2**20, int(cpu_s))
+        # one file may not be larger than the whole directory quota (second repair pass: with a 16 MiB quota a file
+        # could still grow to MAX_CKPT_FILE between two watchdog polls; the quota watchdog bounds the sum)
+        fsize = max(2**20, min(MAX_CKPT_FILE, int(disk_quota_mb) * 2**20))
+        lim = (int(mem_mb) * 2**20, int(cpu_s), fsize)
         self._err = open(os.path.join(self.out_dir, "stderr.log"), "wb")
 
         def pre():
             os.setsid()
             resource.setrlimit(resource.RLIMIT_AS, (lim[0], lim[0]))
             resource.setrlimit(resource.RLIMIT_CPU, (lim[1], lim[1] + 5))
-            resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_CKPT_FILE, MAX_CKPT_FILE))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (lim[2], lim[2]))
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             resource.setrlimit(resource.RLIMIT_NPROC, (NPROC, NPROC))   # threads of the jail uid (no new processes)
             resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))

@@ -693,6 +693,32 @@ def test_disk_quotas_count_deleted_files_held_open():
             h.function("crucible.redteam.v5.adversaries:hidden_disk_hog", {"files": 3, "mb": 8}, timeout=60)
 
 
+def test_a_learner_file_cannot_outgrow_the_learner_directory_quota(tmp_path):
+    """Second repair pass: RLIMIT_FSIZE of a learner process was 256 MiB whatever its directory quota, so one file
+    could grow to 16x a 16 MiB quota between two watchdog polls. A file now stops at the quota (EFBIG)."""
+    import resource
+    from crucible.sandbox.learnerhost import LearnerHost
+    (tmp_path / "rt_fsize.py").write_text(
+        "import os, resource\n"
+        "def f(participant=None):\n"
+        "    lim = resource.getrlimit(resource.RLIMIT_FSIZE)\n"
+        "    fd = os.open('big', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)\n"
+        "    n = 0\n"
+        "    try:\n"
+        "        for _ in range(3):\n"
+        "            n += os.write(fd, b'q' * (2 << 20))\n"
+        "        return {'lim': list(lim), 'wrote': n}\n"
+        "    except OSError as e:\n"
+        "        return {'lim': list(lim), 'wrote': n, 'errno': e.errno}\n"
+        "    finally:\n"
+        "        os.close(fd)\n"
+        "        os.unlink('big')\n")
+    with LearnerHost(None, code_dirs=(str(tmp_path),), disk_quota_mb=2) as h:
+        r = h.function("rt_fsize:f", {})
+    assert r["lim"] == [2 << 20, 2 << 20], r
+    assert r["wrote"] == 2 << 20 and r.get("errno") == 27, r       # stops at the quota: EFBIG
+
+
 def test_in_process_memo_is_bounded_process_wide_and_the_largest_lineage_pays():
     """Wave-3b verifier: the in-process memo was bounded per lineage only (50 lineages held 50x the bound)."""
     m = M.Memo(max_entries=1000)

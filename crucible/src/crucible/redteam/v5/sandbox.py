@@ -985,7 +985,7 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
                    "32 MiB directory quota (1) writes 8 x 64 MiB into anonymous memory files (memfd: pages that are not "
                    "mapped, so RLIMIT_AS does not count them) and keeps them, and (2) fills its private directory with "
                    "4 MiB files (RLIMIT_FSIZE bounds one file, not the directory), (3) writes 6 x 16 MiB in files it "
-                   "unlinks while keeping them open, (4) keeps a 48 MiB deleted file alive by a one-page mapping. "
+                   "unlinks while keeping them open, (4) keeps 2 x 24 MiB deleted files alive by one-page mappings. "
                    "Checked: the memory files are refused, and the learner is stopped near its quota each time.")
     QUOTA_MB = 32
 
@@ -1007,7 +1007,7 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
         # files unlinked while held open, and a deleted file kept alive by a mapping alone (wave-3b verifier: the
         # listing-based watchdog missed 8x the quota held this way)
         for k, fn, kw in (("held_open", "hidden_disk_hog", {"files": 6, "mb": 16}),
-                          ("mapping_only", "mapped_deleted_hog", {"mb": 48, "files": 2})):
+                          ("mapping_only", "mapped_deleted_hog", {"mb": 24, "files": 2})):   # each file < quota
             with LearnerHost(None, mem_mb=512, disk_quota_mb=self.QUOTA_MB) as h:
                 try:
                     self.out[k] = h.function("crucible.redteam.v5.adversaries:" + fn, kw, timeout=120)
@@ -1028,7 +1028,8 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
             bad["learner_stopped_for_another_reason"] = o["disk_stopped"]
         for k in ("held_open", "mapping_only"):
             if o.get(k + "_stopped") is None:
-                bad[f"{k}_beyond_quota"] = o.get(k)
+                if (o.get(k) or {}).get("bytes", 0) > self.QUOTA_MB << 20 or "error" not in (o.get(k) or {}):
+                    bad[f"{k}_beyond_quota"] = o.get(k)    # (a write refused at the file-size limit is no escape)
             elif "quota" not in o[k + "_stopped"] and "mapping" not in o[k + "_stopped"]:
                 bad[f"{k}_stopped_for_another_reason"] = o[k + "_stopped"]
         evd = {"attack": o, "findings": bad, "resource_limit_escapes": len(bad)}
