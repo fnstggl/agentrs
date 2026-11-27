@@ -26,7 +26,10 @@ admitted only when it fits next to what is held plus the protected earlier reque
 every earlier request that could start now), in the dimensions it uses (`fits_behind`). So the head is never delayed
 by a later request and small requests cannot starve a large one (each request reaches the head in queue order and
 is then protected), and a job that needs nothing the waiting jobs are short of (a CPU-only job while GPU jobs wait
-for the GPU slots) does not idle behind them. A head that waits only for free disk gives up after `DISK_WAIT_S`
+for the GPU slots) does not idle behind them. Jobs with a time limit (`--timeout`) carry a deadline in the ledger;
+while the head waits for held resources, a request whose deadline comes before the head's planned start (the time
+the jobs it waits for reach their deadlines, `shadow_time`) may also use the head's share, so a CPU the head keeps
+for a GPU slot that is hours away runs short jobs meanwhile without delaying it. A head that waits only for free disk gives up after `DISK_WAIT_S`
 (exit status 75) instead of blocking the queue. Ledger and queue entries carry their process's start time, so a
 reused pid never keeps a dead holder's slot; signals go through a pidfd after the same identity check. The budget is stored with the ledger (`budget.json`, created from the inspected hardware the first
 time; widen it only with `--set-budget`, which keeps a history), so a caller cannot enlarge it through its own
@@ -630,17 +633,51 @@ def protected(held: list[dict], ahead: list[dict], budget: Budget, free_disk_mb:
     return out
 
 
+def shadow_time(held: list[dict], req: dict, budget: Budget, now: float,
+                free_disk_mb: float | None = None) -> float | None:
+    """The earliest time `req` fits if every holder ends at its deadline (`until`: admission + time limit + stop
+    grace) - the head's start time EASY backfilling plans around. None when no such time is known: a holder without
+    a deadline (no `--timeout`, or a ledger entry of an older version of this module) is never assumed to end."""
+    r = _as_req(req)
+    kw = dict(ram_mb=r["ram_mb"], disk_mb=int(r["disk_mb"] or 0), inference=int(r["inference"] or 0),
+              worlds=int(r["worlds"] or 0), free_disk_mb=free_disk_mb)
+    alive = list(held)
+    if fits(alive, r["cpu"], r["gpu_mb"], budget, **kw):
+        return now
+    ends = sorted((float(h["until"]), k) for k, h in enumerate(alive) if h.get("until") is not None)
+    gone: set[int] = set()
+    for t, k in ends:
+        gone.add(k)
+        if fits([h for j, h in enumerate(alive) if j not in gone], r["cpu"], r["gpu_mb"], budget, **kw):
+            return max(now, t)
+    return None
+
+
 def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budget: Budget, *,
                 ram_mb: int | None = None, disk_mb: int = 0, inference: int = 0, worlds: int = 0,
-                free_disk_mb: float | None = None) -> bool:
+                free_disk_mb: float | None = None, run_s: float | None = None, now: float | None = None) -> bool:
     """Backfill rule (EASY backfilling): a request that is not at the head of the queue may start now only if it
     fits next to what is held PLUS the protected earlier requests (`protected`: the head's whole request and every
     earlier request that could start now), counting only the dimensions it uses. So the head is never delayed by a
     later request, no request that is only waiting for its turn is overtaken, and every request reaches the head
     in queue order and is then protected (no starvation). A later request may start while an earlier one waits for
     something held (e.g. CPU-only jobs while GPU jobs wait for one of the GPU slots); that can delay the earlier one
-    by at most the run time of the jobs started meanwhile, never indefinitely."""
+    by at most the run time of the jobs started meanwhile, never indefinitely.
+
+    Deadlines (`run_s`, the request's time limit; holders' `until`): while the head cannot start, its share is
+    free until its shadow time (`shadow_time`: the holders it waits for have ended at their deadlines). A request
+    whose own deadline comes before that may use the head's share meanwhile: it is stopped by then at the latest, so
+    the head is not delayed beyond the time it had to wait anyway. Without a known shadow time nothing changes."""
     pend = protected(held, ahead, budget, free_disk_mb)
+    if run_s is not None and pend and ahead:
+        now = time.time() if now is None else float(now)
+        head = pend[0]
+        hk = dict(ram_mb=head["ram_mb"], disk_mb=int(head["disk_mb"] or 0), inference=int(head["inference"] or 0),
+                  worlds=int(head["worlds"] or 0), free_disk_mb=free_disk_mb)
+        if not fits(held, head["cpu"], head["gpu_mb"], budget, **hk):
+            ts = shadow_time(held, head, budget, now, free_disk_mb)
+            if ts is not None and now + float(run_s) + STOP_GRACE_S <= ts:
+                pend = pend[1:]
     allx = list(held) + pend
     if len(allx) + 1 > budget.jobs:
         return False
@@ -665,15 +702,19 @@ def fits_behind(held: list[dict], ahead: list[dict], cpu: int, gpu_mb: int, budg
 
 
 BACKFILL = True                          # requests behind the head may start when they cannot delay it (fits_behind)
+STOP_GRACE_S = 60.0                      # a job's deadline: admission + its time limit + this (stop, reap, release)
 DISK_WAIT_S = 900.0                      # the head gives up when only free disk keeps it waiting this long
 
 
 def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, poll_s: float = 2.0,
             timeout_s: float | None = None, pid: int | None = None, *, ram_mb: int | None = None,
             gpu_s: int | None = None, disk_mb: int | None = None, inference: int | None = None,
-            worlds: int | None = None, job: str | None = None, d: str | None = None) -> dict:
-    """Wait (FIFO with EASY backfilling, `fits_behind`) until the request fits, then record it.
-    Returns the ledger entry (pinned CPUs, clamped grant)."""
+            worlds: int | None = None, job: str | None = None, d: str | None = None,
+            run_s: float | None = None) -> dict:
+    """Wait (FIFO with EASY backfilling, `fits_behind`) until the request fits, then record it. `run_s` is the
+    job's time limit (`--timeout`): the entry then carries its deadline (`until`), which lets shorter requests
+    backfill around a blocked head (`shadow_time`). Returns the ledger entry (pinned CPUs, clamped grant).
+    `timeout_s` limits the wait for admission."""
     d = d or slots_dir()
     eff = _tighter(stored_budget(d, default=budget), budget)
     req, cut = clamp({"cpu": int(cpu), "gpu_mb": max(0, int(gpu_mb)), "ram_mb": ram_mb, "disk_mb": disk_mb,
@@ -682,7 +723,7 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
     ticket = uuid.uuid4().hex[:12]
     t0 = time.time()
     qentry = {"ticket": ticket, "pid": os.getpid(), "start": _starttime(os.getpid()), "since": t0,
-              "label": label[:80], **req}
+              "label": label[:80], **req, **({"run_s": float(run_s)} if run_s is not None else {})}
     with _ledger(d) as box:
         box["queue"].append(qentry)
     disk_blocked_since = None
@@ -713,16 +754,19 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
                 else:
                     real = [h for h in box["held"] if not h.get("reserving")]
                     admit = BACKFILL and fits_behind(real, q[:pos], req["cpu"], req["gpu_mb"], eff,
-                                                     free_disk_mb=free, **dims)
+                                                     free_disk_mb=free, run_s=run_s, **dims)
                 if admit:
                     box["queue"] = [x for x in q if x["ticket"] != ticket]
+                    now = time.time()
                     entry = {"pid": pid, "start": _starttime(pid), "cpu": req["cpu"], "gpu_mb": req["gpu_mb"],
-                             "label": label, "since": time.time(), "v": 2, "job": job or ticket,
+                             "label": label, "since": now, "v": 2, "job": job or ticket,
                              "cpus": choose_cpus(others, req["cpu"]), "ram_mb": req["ram_mb"], "gpu_s": gpu_s,
                              "disk_mb": req["disk_mb"], "inference": req["inference"], "worlds": req["worlds"],
-                             "clamped": cut, "waited_s": round(time.time() - t0, 3), "queue_pos": pos,
+                             "clamped": cut, "waited_s": round(now - t0, 3), "queue_pos": pos,
                              "backfilled": not head}
-                    box["held"] = others + [entry]
+                    if run_s is not None:
+                        entry["until"] = round(now + float(run_s) + STOP_GRACE_S, 3)
+                    box["held"] = _trim_reservations(others + [entry], eff)
                     return entry
                 if head:
                     # The head reserves what is free now and keeps it while it waits for the rest, so that clients
@@ -750,6 +794,23 @@ def acquire(cpu: int, gpu_mb: int, label: str, budget: Budget | None = None, pol
             box["queue"] = [x for x in box["queue"] if x["ticket"] != ticket]
             box["held"] = [h for h in box["held"] if h.get("reserving") != ticket]
         raise
+
+
+def _trim_reservations(held: list[dict], budget: Budget) -> list[dict]:
+    """Shrink waiting heads' reservations (never a real grant) so that the held CPUs and GPU memory stay within the
+    budget after a request was admitted into a head's share (deadline backfilling); each head recomputes its own
+    reservation at its next poll."""
+    out = [dict(h) for h in held]
+    for key, cap in (("cpu", budget.cpus), ("gpu_mb", budget.gpu_mb)):
+        over = sum(int(h.get(key) or 0) for h in out) - int(cap)
+        for h in reversed(out):
+            if over <= 0:
+                break
+            if h.get("reserving") and int(h.get(key) or 0) > 0:
+                cut = min(over, int(h[key]))
+                h[key] = int(h[key]) - cut
+                over -= cut
+    return [h for h in out if not h.get("reserving") or int(h.get("cpu") or 0) or int(h.get("gpu_mb") or 0)]
 
 
 def release(pid: int, d: str | None = None) -> None:
@@ -1153,7 +1214,7 @@ def run_job(cmd: list[str], cpu: int = 1, gpu_mb: int = 0, label: str = "", budg
         gpu_s = default_gpu_s(cpu, timeout_s)
     waited0 = time.time()
     entry = acquire(cpu, gpu_mb, label or " ".join(cmd)[:120], budget, poll_s=poll_s, ram_mb=ram_mb, gpu_s=gpu_s,
-                    disk_mb=disk_mb, inference=inference, worlds=worlds, job=job_id, d=d)
+                    disk_mb=disk_mb, inference=inference, worlds=worlds, job=job_id, d=d, run_s=timeout_s)
     waited = time.time() - waited0
     eff = _tighter(stored_budget(d), budget)
     grant = {"cpu": entry["cpu"], "gpu_mb": entry["gpu_mb"], "ram_mb": entry["ram_mb"], "gpu_s": gpu_s,

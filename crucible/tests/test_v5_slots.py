@@ -198,8 +198,8 @@ def test_a_cpu_job_starts_behind_a_long_queue_of_gpu_jobs(ledger_dir):
 
 def test_eighteen_concurrent_clients_never_exceed_the_budget_and_all_get_through(ledger_dir):
     """18 clients (the number of engineers sharing the machine) ask repeatedly for mixed CPU/GPU slots of a 9-CPU,
-    4-GPU-job budget: the held slots never exceed the budget in any dimension and nobody starves (every request is
-    admitted)."""
+    4-GPU-job budget, some with time limits (deadline backfilling): the held slots never exceed the budget in any
+    dimension and nobody starves (every request is admitted)."""
     import random
     b = slots.Budget(cpus=9, gpu_mb=24000, jobs=12, ram_mb=60000, gpu_jobs=4)
     stop, problems, done = threading.Event(), [], []
@@ -221,7 +221,7 @@ def test_eighteen_concurrent_clients_never_exceed_the_budget_and_all_get_through
             cpu, gpu = rnd.choice(((1, 0), (1, 3000), (2, 0), (3, 4000), (1, 0)))
             t = time.time()
             e = slots.acquire(cpu, gpu, f"c{i}.{k}", b, poll_s=0.02, ram_mb=rnd.choice((4000, 8000, 12000)),
-                              job=f"c{i}.{k}")
+                              job=f"c{i}.{k}", run_s=rnd.choice((None, 0.5, 30.0, 600.0)))   # deadlines: backfill
             done.append((f"c{i}.{k}", time.time() - t, e["queue_pos"]))
             time.sleep(rnd.uniform(0.02, 0.15))
             slots.release_job(f"c{i}.{k}")
@@ -333,3 +333,53 @@ def test_the_default_gpu_time_covers_every_worker_for_the_whole_time_limit(ledge
                         budget=slots.Budget(4, 1000, 2, ram_mb=4000), ram_mb=500, timeout_s=36000, sample_s=0.1,
                         poll_s=0.05)
     assert rec["rc"] == 0 and rec["gpu_s_grant"] == 60
+
+
+def test_a_short_job_uses_the_heads_share_until_the_heads_planned_start(ledger_dir):
+    """Deadline (shadow-time) backfilling: the head waits for the only GPU slot, held by a job whose deadline is an
+    hour away, and keeps one of the two CPUs for itself. A CPU job whose own deadline comes before that hour starts
+    in the head's share; a longer one, or one without a time limit, waits; nothing changes while the GPU holder has
+    no deadline (its end is unknown). The head's reservation is trimmed so the held CPUs stay within the budget."""
+    b = slots.Budget(cpus=2, gpu_mb=1000, jobs=8, gpu_jobs=1)
+    now = 1000.0
+    gpu = {"pid": 1, "cpu": 1, "gpu_mb": 500, "ram_mb": None, "until": now + 3600}
+    head = {"cpu": 1, "gpu_mb": 500, "ram_mb": None}
+    assert slots.shadow_time([gpu], head, b, now) == now + 3600
+    assert slots.shadow_time([{**gpu, "until": None}], head, b, now) is None
+    assert slots.fits_behind([gpu], [head], 1, 0, b, run_s=600, now=now)
+    assert not slots.fits_behind([gpu], [head], 1, 0, b, run_s=3600, now=now)       # would outlive the head's wait
+    assert not slots.fits_behind([gpu], [head], 1, 0, b, now=now)                    # no time limit
+    assert not slots.fits_behind([{**gpu, "until": None}], [head], 1, 0, b, run_s=60, now=now)
+    assert not slots.fits_behind([gpu], [head], 1, 500, b, run_s=60, now=now)        # GPU slot: still the head's turn
+    # a head that can start now is never overtaken, however short the request
+    assert not slots.fits_behind([], [{"cpu": 2, "gpu_mb": 0, "ram_mb": None}], 1, 0, b, run_s=1, now=now)
+
+    # through the ledger: a GPU holder with a deadline, a waiting GPU head, a short CPU job behind it
+    a = _sleeper()
+    slots.acquire(1, 500, "A gpu", b, pid=a.pid, run_s=3600)
+    held0 = slots.status()["held"]
+    assert held0[0]["until"] >= time.time() + 3600 and "until" in held0[0]
+    kids, got = {}, {}
+
+    def ask(name, gpu, run_s):
+        k = kids[name] = _sleeper()
+        got[name] = slots.acquire(1, gpu, name, b, poll_s=0.03, pid=k.pid, run_s=run_s)
+    th = threading.Thread(target=ask, args=("B gpu", 500, 3600))
+    th.start()
+    t0 = time.time()
+    while not any(h.get("reserving") and h["cpu"] for h in slots.status()["held"]) and time.time() - t0 < 5:
+        time.sleep(0.02)
+    tc = threading.Thread(target=ask, args=("C short", 0, 120))
+    tc.start()
+    tc.join(5)
+    assert got["C short"]["backfilled"] and got["C short"]["until"] <= time.time() + 120 + slots.STOP_GRACE_S
+    st = slots.status()
+    assert st["cpu_used"] <= b.cpus and "B gpu" not in got
+    a.kill()                                       # the GPU holder ends: the head starts next to the short job
+    a.wait()
+    th.join(10)
+    assert "B gpu" in got and not got["B gpu"]["backfilled"]
+    assert slots.status()["cpu_used"] == 2 and slots.status()["queue"] == []
+    for k in kids.values():
+        k.kill()
+        k.wait()
