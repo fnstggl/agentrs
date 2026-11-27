@@ -967,6 +967,36 @@ B_population verdict) and P's own findings.
 }
 ```
 
+### DEF-I3-1 (high, fixed): The dom3 domains (9.11-9.15) were built on domains-framework/2: free objective callables (N.1 generator 'domai
+
+```json
+{
+ "area": "I_domains",
+ "fixed_by": "c5c/w3b-dom3 (D-57 amendment, 2026-11-27): the five I-3 domains migrated to domains-framework/3 - objectives from the goal generator (GoalFamily, success predicates over evaluator-only goals.metrics metrics), evidence functions returning recorded event sequence numbers (_dom3.evidence; _dom3.measured removed), providers/traders/editors/duty managers/investors and households' outage reports recorded as their own principals' decisions (crisis operators in their own process crisis.operators), structure hooks on built state (genesis rows mkt_traits/mkt_rules, info_world, cr_region, rc_world), dice pragmas on the population's behavioural propensities",
+ "id": "DEF-I3-1",
+ "owner": "I-3",
+ "regression_tests": "tests/test_v5_domains_dom3_framework3.py (goal generator, built-state structure, no dice, verified evidence and attributed actors in null runs)",
+ "requirements": [
+  "SP-9.11",
+  "SP-9.12",
+  "SP-9.13",
+  "SP-9.14",
+  "SP-9.15",
+  "N.1",
+  "SP-9.0",
+  "SP-9.16"
+ ],
+ "severity": "high",
+ "source": {
+  "audit": "I-fw migration check",
+  "file": "docs/v5/workstreams/I-fw.json",
+  "finding": "integration_notes[0] and compatibility_checks c5c/w3b-dom3"
+ },
+ "status": "fixed",
+ "summary": "The dom3 domains (9.11-9.15) were built on domains-framework/2: free objective callables (N.1 generator 'domain'), every mechanic self-reported as a number through _dom3.measured (unverified, counts 0), the organization's providers' decisions recorded by the system (0 attributed), structure hooks of information/marketplace/crisis/commercialization reading module configuration (DeclarationAccess), and 4 unregistered failure-like draws (SP-9.16)."
+}
+```
+
 ### DEF-K-1 (critical, open): Gate Q has no implementation: multiagent/ is a 5-line stub, test_gate_Q.py / test_gate_SP_12_1.py / test_gate_
 
 ```json
