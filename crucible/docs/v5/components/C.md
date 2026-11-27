@@ -9,11 +9,11 @@ integrity, no observable representation). The audience accounting and the view t
 
 | activity / hook | module | what members do (all through the platforms' own tools or internal APIs, as their own principal) |
 |---|---|---|
-| `social.create` | `social.popcreate` | choose a medium (post, status, article or newsletter issue, image card, narrated audio, narrated short or long slide video, Q&A answer/question on kb or dev, recommendation of a service that works for their job) by taste, ability and what earlier pieces of that medium earned; render it (`social.popmedia`, recorded) and publish it |
+| `social.create` | `social.popcreate` | choose a medium (post, status, article or newsletter issue, image card, narrated audio, narrated short or long slide video, Q&A answer/question on kb or dev, recommendation of a service that works for their job - posted on `launch` as a hunter when nobody launched it yet) by taste, ability and what earlier pieces of that medium earned; render it (`social.popmedia`, recorded) and publish it |
 | `social.inbox` | `social.popinbox` | read messages, open linked items (they go to the top of the item's platform feed), answer, recommend the last liked item to the best-fitting contact; review paid memberships |
-| `social.community` | `social.popsocial` | visit, read, post, reply, report, moderate, leave, found communities on subjects from what they read |
+| `social.community` | `social.popsocial` | visit, read, post, reply, report, moderate, leave, found communities on subjects from what they read; govern them (`_govern`: stewards appoint moderators, propose pruning or member votes; members vote on open proposals) |
 | `feed.<platform>` + after-session hook | `feed`, `social.popinbox` | browse feeds (consumption engine); then subscribe to newsletters, join paid memberships, vote and accept answers on Q&A platforms, unsubscribe, and look into a service for their own work that they read about (an `economy.work` `shop` session) |
-| launch after-session | `social.popsocial` | visit launched products, buy, use, rate |
+| launch after-session | `social.popsocial` | visit launched products, buy, use, rate (purchases counted in `pop_social`'s own `soc_purchases` / `soc_spent_cents`: the population's `n_purchases` belongs to `crucible.population`, and column ownership refuses writes from another package) |
 
 Columns: `pop_social` declares its per-medium columns only when a world offers more than one medium and its inbox
 columns only when it has messaging or newsletters (the 10M-identity internet profile keeps three columns).
