@@ -89,6 +89,7 @@ def main(argv=None) -> int:
     ap.add_argument("--allow-unavailable", action="store_true")
     ap.add_argument("--cpu", action="store_true", help="debug model on the CPU (plumbing check only)")
     ap.add_argument("--lock-timeout", type=float, default=1800.0, help="seconds to wait for the shared GPU lock")
+    ap.add_argument("--lock-poll", type=float, default=1.0, help="seconds between attempts to take the GPU lock")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
     import contextlib
@@ -106,7 +107,8 @@ def main(argv=None) -> int:
     os.makedirs(root, exist_ok=True)
     out: Dict[str, Any] = {"plan": [f"{f}:{p}" for f, p in plan], "rounds_per_objective": a.rounds, "root": root,
                            "real": not a.cpu, "objectives": []}
-    lock = contextlib.nullcontext() if a.cpu else gpu_lock(min_free_gb=12.0, timeout_s=a.lock_timeout, poll_s=1.0)
+    lock = contextlib.nullcontext() if a.cpu else gpu_lock(min_free_gb=12.0, timeout_s=a.lock_timeout,
+                                                                poll_s=a.lock_poll)
     with lock:
         t_lock = time.time()
         clock = OffsetClock()
