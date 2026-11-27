@@ -92,9 +92,25 @@ class LoRALinear(nn.Module):
         self.lora_A = nn.Parameter(a.to(dev))
         self.lora_B = nn.Parameter(torch.zeros(base.out_features, rank, device=dev))
 
+        self._cast_key: Any = None
+        self._cast: Tuple[Optional[Tensor], Optional[Tensor]] = (None, None)
+
     def forward(self, x: Tensor) -> Tensor:
         out = self.base(x)
-        return out + self.scale * Fn.linear(Fn.linear(x, self.lora_A.to(x.dtype)), self.lora_B.to(x.dtype))
+        A, B = self.lora_A, self.lora_B
+        if torch.is_grad_enabled() and (A.requires_grad or B.requires_grad):
+            return out + self.scale * Fn.linear(Fn.linear(x, A.to(x.dtype)), B.to(x.dtype))
+        # inference: reuse the dtype-cast weights until an adapter tensor changes (identity, storage and version
+        # are all part of the key, so functional parameter substitution is seen too); skip an all-zero adapter
+        key = (id(A), A.data_ptr(), A._version, id(B), B.data_ptr(), B._version, x.dtype, x.device)
+        if key != self._cast_key:
+            zero = not bool(B.detach().any())
+            self._cast = (None, None) if zero else (A.detach().to(x.device, x.dtype), B.detach().to(x.device, x.dtype))
+            self._cast_key = key
+        a, b = self._cast
+        if a is None:
+            return out
+        return out + self.scale * Fn.linear(Fn.linear(x, a), b)
 
 
 class LatentBridge(nn.Module):
@@ -112,17 +128,20 @@ class LatentBridge(nn.Module):
         for x in self.xattn:
             nn.init.normal_(x.q.weight, std=1.0 / math.sqrt(hidden))
             nn.init.zeros_(x.out.weight)
-        #: RMS of the hooked layers' hidden states on the calibration corpus (keeps the injected scale sane)
-        self.register_buffer("h_rms", torch.ones(n_hooked))
+        #: per-dimension statistics of the hooked layers' hidden states on the calibration corpus. LM hidden states
+        #: carry a few huge dimensions shared by every token: queries are standardised per dimension, and the
+        #: injected residual is scaled by the *typical* per-dimension spread (median), not the outlier-dominated RMS.
+        self.register_buffer("h_mu", torch.zeros(n_hooked, hidden))
+        self.register_buffer("h_sd", torch.ones(n_hooked, hidden))
+        self.register_buffer("h_scale", torch.ones(n_hooked))
 
     def memory(self, latent: Tensor) -> Tensor:
         m = self.to_mem(self.in_norm(latent.to(self.pos.dtype))).view(-1, self.n_tokens, self.d_x)
         return self.mem_norm(m + self.pos)
 
     def delta(self, slot: int, h: Tensor, mem: Tensor) -> Tensor:
-        hq = h.to(mem.dtype)
-        hq = hq * torch.rsqrt(hq.pow(2).mean(-1, keepdim=True) + 1e-6)
-        return (self.h_rms[slot] * self.xattn[slot](hq, mem)).to(h.dtype)
+        hq = (h.to(mem.dtype) - self.h_mu[slot]) / self.h_sd[slot]
+        return (self.h_scale[slot] * self.xattn[slot](hq, mem)).to(h.dtype)
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -376,9 +395,9 @@ class _Backbone(nn.Module):
         return ids.to(self.device), attn.to(self.device)
 
     # ---- semantic embedding ---------------------------------------------------------------------------------------------
-    def _pooled(self, rows: Sequence[Sequence[int]], captures: Optional[List[Dict[int, Tensor]]] = None) -> Tensor:
+    def _pooled(self, rows: Sequence[Sequence[int]], captures: Optional[List[Any]] = None) -> Tensor:
         """Raw (unstandardised) float32 [n, d_sem]: masked mean of the tapped layers' states, taps concatenated.
-        ``captures`` (calibration only) receives the hooked layers' hidden states of every batch."""
+        ``captures`` (calibration only) receives (hooked layers' hidden states, attention mask) of every batch."""
         order = sorted(range(len(rows)), key=lambda i: -len(rows[i]))
         outs: List[Tensor] = []
         i = 0
@@ -395,7 +414,7 @@ class _Backbone(nn.Module):
             m = attn.to(torch.float32).unsqueeze(-1)
             outs.append(torch.cat([(cap[t].to(torch.float32) * m).sum(1) / m.sum(1) for t in self.tap_ids], -1))
             if captures is not None:
-                captures.append(cap)
+                captures.append((cap, attn))
             i += len(grp)
             self.stats["embedded_tokens"] += int(attn.sum())
         inv = torch.empty(len(order), dtype=torch.long, device=self.device)
@@ -405,21 +424,25 @@ class _Backbone(nn.Module):
     @torch.no_grad()
     def _calibrate(self) -> None:
         rows = [self._text_ids(t, self.cfg.max_text_tokens) for t in CALIBRATION_TEXTS]
-        sums = {i: [0.0, 0] for i in self.bridge_ids}
+        toks: Dict[int, List[Tensor]] = {i: [] for i in self.bridge_ids}
         raws = []
         for s in range(0, len(rows), 16):
-            caps: List[Dict[int, Tensor]] = []
+            caps: List[Any] = []
             raws.append(self._pooled(rows[s: s + 16], caps))
-            for cap in caps:
+            for cap, attn in caps:
                 for i in self.bridge_ids:
-                    h = cap[i].to(torch.float32)
-                    sums[i][0] += float(h.pow(2).sum())
-                    sums[i][1] += h.numel()
+                    toks[i].append(cap[i].to(torch.float32)[attn.bool()])        # real tokens only, [n_tok, H]
         raw = torch.cat(raws, 0)
         sd = raw.std(0)
         self.cal_mu.copy_(raw.mean(0))
         self.cal_sd.copy_(sd.clamp_min(max(1e-4, 0.05 * float(sd.median()))))
-        self.bridge.h_rms.copy_(torch.tensor([math.sqrt(sums[i][0] / max(1, sums[i][1])) for i in self.bridge_ids]))
+        for slot, i in enumerate(self.bridge_ids):
+            h = torch.cat(toks[i], 0)
+            hsd = h.std(0)
+            typical = float(hsd.median())
+            self.bridge.h_mu[slot].copy_(h.mean(0))
+            self.bridge.h_sd[slot].copy_(hsd.clamp_min(max(1e-6, 0.05 * typical)))
+            self.bridge.h_scale[slot] = typical
         self.stats["embedded_tokens"] = 0
 
     def embed(self, texts: Sequence[str], *, with_grad: bool = False) -> Tensor:

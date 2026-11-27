@@ -188,8 +188,10 @@ def test_trainable_state_round_trips_bit_exactly(cfg, items):
     assert any("lora_A" in k for k in state) and any(k.startswith("backbone.bridge.") for k in state)
     assert any(k.startswith("exp.core.") for k in state) and "heads.world.weight" in state
     assert "backbone.cal_mu" in state and "exp.fast_prior.mu0" in state
-    n_state = sum(v.numel() for k, v in state.items() if "cal_" not in k and "h_rms" not in k)
-    assert n_state == a.count_parameters()["total_persistent_trainable"]
+    pnames = {n for n, _ in a.named_parameters()}
+    assert sum(v.numel() for k, v in state.items() if k in pnames) == a.count_parameters()["total_persistent_trainable"]
+    assert {k for k in state if k not in pnames} == {"backbone.cal_mu", "backbone.cal_sd", "backbone.bridge.h_mu",
+                                                     "backbone.bridge.h_sd", "backbone.bridge.h_scale"}
     hashes = a.group_hashes()
     ref = _pipeline(a, items)
     lat = torch.randn(1, a.d_model, generator=torch.Generator().manual_seed(3))

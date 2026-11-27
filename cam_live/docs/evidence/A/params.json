@@ -1,0 +1,372 @@
+{
+ "command": "python -m cam_live.nn.bench ",
+ "written_at_unix": 1795737784.9,
+ "environment": {
+  "torch": "2.15.0+cu132",
+  "python": "3.12.15",
+  "cuda": true,
+  "gpu": "NVIDIA RTX A6000",
+  "transformers": "5.24.0"
+ },
+ "backbone": {
+  "name": "Qwen/Qwen3-4B",
+  "revision": "1cfa9a7208912126459214e8b04321603b3df60c"
+ },
+ "d_sem": 7680,
+ "backbone_width": {
+  "hidden": 2560,
+  "n_layers": 36,
+  "n_taps": 3
+ },
+ "presets": {
+  "5m": {
+   "experiential_params": 5044741,
+   "target_params": 5000000,
+   "ratio_to_target": 1.0089,
+   "breakdown": {
+    "tokenizer": 1068994,
+    "core": 2832064,
+    "encoders": 233216,
+    "trunk": 524800,
+    "feature_map": 377088,
+    "fast_prior": 8579
+   },
+   "core": {
+    "d_model": 256,
+    "n_layers": 4,
+    "n_heads": 4,
+    "d_ff": 320,
+    "n_slots": 8,
+    "n_features": 64
+   },
+   "nn_overrides": {
+    "sem_rank": 96
+   },
+   "master_preset_d_ff": 640,
+   "cpu_build_s": 0.06,
+   "cpu_core_forward_ms_b4_t64": 60.1
+  },
+  "20m": {
+   "experiential_params": 20087333,
+   "target_params": 20000000,
+   "ratio_to_target": 1.0044,
+   "breakdown": {
+    "tokenizer": 2219906,
+    "core": 13366368,
+    "encoders": 892416,
+    "trunk": 2098176,
+    "feature_map": 1491456,
+    "fast_prior": 19011
+   },
+   "core": {
+    "d_model": 512,
+    "n_layers": 5,
+    "n_heads": 8,
+    "d_ff": 576,
+    "n_slots": 8,
+    "n_features": 96
+   },
+   "nn_overrides": {
+    "sem_rank": 192
+   },
+   "master_preset_d_ff": 1280,
+   "cpu_build_s": 0.27,
+   "cpu_core_forward_ms_b4_t64": 125.2
+  },
+  "50m": {
+   "experiential_params": 50953765,
+   "target_params": 50000000,
+   "ratio_to_target": 1.0191,
+   "breakdown": {
+    "tokenizer": 4263746,
+    "core": 36615648,
+    "encoders": 1977600,
+    "trunk": 4720128,
+    "feature_map": 3343104,
+    "fast_prior": 33539
+   },
+   "core": {
+    "d_model": 768,
+    "n_layers": 6,
+    "n_heads": 12,
+    "d_ff": 1024,
+    "n_slots": 8,
+    "n_features": 128
+   },
+   "nn_overrides": {
+    "sem_rank": 384
+   },
+   "master_preset_d_ff": 1792,
+   "cpu_build_s": 0.61,
+   "cpu_core_forward_ms_b4_t64": 203.6
+  },
+  "150m": {
+   "experiential_params": 151022853,
+   "target_params": 150000000,
+   "ratio_to_target": 1.0068,
+   "breakdown": {
+    "tokenizer": 9289474,
+    "core": 123814272,
+    "encoders": 3488768,
+    "trunk": 8390656,
+    "feature_map": 5964800,
+    "fast_prior": 74883
+   },
+   "core": {
+    "d_model": 1024,
+    "n_layers": 10,
+    "n_heads": 16,
+    "d_ff": 2048,
+    "n_slots": 16,
+    "n_features": 192
+   },
+   "nn_overrides": {},
+   "master_preset_d_ff": 2560,
+   "cpu_build_s": 1.85
+  },
+  "500m": {
+   "experiential_params": 502708549,
+   "target_params": 500000000,
+   "ratio_to_target": 1.0054,
+   "breakdown": {
+    "tokenizer": 14130818,
+    "core": 448407744,
+    "encoders": 7789056,
+    "trunk": 18877440,
+    "feature_map": 13370880,
+    "fast_prior": 132611
+   },
+   "core": {
+    "d_model": 1536,
+    "n_layers": 14,
+    "n_heads": 24,
+    "d_ff": 4096,
+    "n_slots": 16,
+    "n_features": 256
+   },
+   "nn_overrides": {},
+   "master_preset_d_ff": 4096,
+   "cpu_build_s": 6.03
+  },
+  "1b": {
+   "experiential_params": 1000547333,
+   "target_params": 1000000000,
+   "ratio_to_target": 1.0005,
+   "breakdown": {
+    "tokenizer": 19103234,
+    "core": 910364672,
+    "encoders": 13793280,
+    "trunk": 33558528,
+    "feature_map": 23595008,
+    "fast_prior": 132611
+   },
+   "core": {
+    "d_model": 2048,
+    "n_layers": 16,
+    "n_heads": 32,
+    "d_ff": 5504,
+    "n_slots": 16,
+    "n_features": 256
+   },
+   "nn_overrides": {},
+   "master_preset_d_ff": 5376,
+   "cpu_build_s": 12.2
+  },
+  "debug": {
+   "experiential_params": 202421,
+   "target_params": 200000,
+   "ratio_to_target": 1.0121,
+   "breakdown": {
+    "tokenizer": 25586,
+    "core": 101344,
+    "encoders": 18368,
+    "trunk": 32896,
+    "feature_map": 23616,
+    "fast_prior": 611
+   },
+   "note": "with the tiny test backbone (d_sem 192)",
+   "core": {
+    "d_model": 64,
+    "n_layers": 2,
+    "n_heads": 4,
+    "d_ff": 64,
+    "n_slots": 4,
+    "n_features": 16
+   }
+  }
+ },
+ "real_configuration": {
+  "status": "measured",
+  "load_s": 8.15,
+  "gpu_memory_after_load_gb": 7.804,
+  "gpu_peak_during_load_gb": 7.804,
+  "parameters": {
+   "frozen": 4022468096,
+   "experiential": 50953765,
+   "adapters": 16713856,
+   "adapters_lora": 11796480,
+   "adapters_bridge": 4917376,
+   "reward": 0,
+   "heads_total": 0,
+   "total_persistent_trainable": 67667621,
+   "experiential_breakdown": {
+    "tokenizer": 4263746,
+    "core": 36615648,
+    "encoders": 1977600,
+    "trunk": 4720128,
+    "feature_map": 3343104,
+    "fast_prior": 33539
+   }
+  },
+  "backbone": {
+   "name": "Qwen/Qwen3-4B",
+   "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+   "pretrained": true,
+   "hidden": 2560,
+   "n_layers": 36,
+   "d_sem": 7680,
+   "tap_layer_ids": [
+    17,
+    26,
+    35
+   ],
+   "lora": {
+    "rank": 32,
+    "alpha": 32.0,
+    "targets": [
+     "q_proj",
+     "v_proj"
+    ],
+    "layers": "all",
+    "modules": 72
+   },
+   "bridge": {
+    "tokens": 8,
+    "dim": 128,
+    "layer_ids": [
+     0,
+     7,
+     14,
+     21,
+     28,
+     35
+    ]
+   },
+   "dtype": "bfloat16"
+  },
+  "arch_signature_core": {
+   "d_model": 768,
+   "n_layers": 6,
+   "n_heads": 12,
+   "d_ff": 1024,
+   "n_slots": 8,
+   "n_features": 128,
+   "max_context": 256,
+   "max_values": 4
+  },
+  "embedding_throughput": {
+   "32_tokens": {
+    "texts": 256,
+    "tokens": 8192,
+    "texts_per_s": 264.2,
+    "tokens_per_s": 8454.0,
+    "peak_extra_gb": 0.875
+   },
+   "128_tokens": {
+    "texts": 128,
+    "tokens": 16384,
+    "texts_per_s": 62.4,
+    "tokens_per_s": 7984.0,
+    "peak_extra_gb": 1.75
+   },
+   "384_tokens": {
+    "texts": 64,
+    "tokens": 24576,
+    "texts_per_s": 22.9,
+    "tokens_per_s": 8790.0,
+    "peak_extra_gb": 1.723
+   },
+   "cached_384_tokens_texts_per_s": 41146.0
+  },
+  "generation": {
+   "batch1_no_bridge": {
+    "new_tokens": 128,
+    "tokens_per_s": 19.0,
+    "seconds": 6.722,
+    "peak_extra_gb": 0.031
+   },
+   "batch1_with_bridge": {
+    "new_tokens": 128,
+    "tokens_per_s": 18.3,
+    "seconds": 6.98,
+    "peak_extra_gb": 0.031
+   },
+   "batch8_no_bridge": {
+    "new_tokens": 1024,
+    "tokens_per_s": 159.1,
+    "seconds": 6.436,
+    "peak_extra_gb": 0.19
+   },
+   "batch8_with_bridge": {
+    "new_tokens": 1024,
+    "tokens_per_s": 149.1,
+    "seconds": 6.867,
+    "peak_extra_gb": 0.19
+   }
+  },
+  "bridge_noop_check": {
+   "bridge_max_abs_logit_diff_at_init": 0.0,
+   "bridge_logits_bit_identical_at_init": true,
+   "literal_zero_prefix_max_abs_logit_diff": 1.0469,
+   "literal_zero_prefix_total_variation": 3e-05,
+   "note": "8 all-zero embeddings prepended to the sequence change the next-token distribution (they take softmax attention mass and shift positions); the cross-attention bridge is exactly neutral at init"
+  },
+  "adapter_backward": {
+   "generation_logprob_gradient_checkpointing": {
+    "seconds": 0.452,
+    "peak_extra_gb": 1.057,
+    "peak_total_gb": 8.927,
+    "grad_norm_adapters": 147.16808
+   },
+   "embedding_path_gradient_checkpointing": {
+    "seconds": 0.411,
+    "peak_extra_gb": 0.303,
+    "peak_total_gb": 8.173,
+    "grad_norm_adapters": 0.11491
+   },
+   "generation_logprob_no_checkpointing": {
+    "seconds": 0.318,
+    "peak_extra_gb": 5.266,
+    "peak_total_gb": 13.141,
+    "grad_norm_adapters": 146.99409
+   },
+   "embedding_path_no_checkpointing": {
+    "seconds": 0.323,
+    "peak_extra_gb": 4.402,
+    "peak_total_gb": 12.276,
+    "grad_norm_adapters": 0.11491
+   },
+   "shape": "batch 4, 256 tokens per row (generation: 128 prompt + 128 completion tokens)",
+   "adapter_params": 16713856
+  },
+  "joint_loss_grad_norms": {
+   "experiential": 597.7935791015625,
+   "semantic_adapters": 3.5810763835906982,
+   "adapters_over_experiential": 0.006,
+   "note": "random-probe loss on phi at initialisation; adapters see the newest 2 of 8 items"
+  },
+  "experiential_core_step_b16_t256": {
+   "seconds": 0.089,
+   "peak_extra_gb": 1.556,
+   "peak_total_gb": 9.531
+  },
+  "experiential_core_forward_b16_t256": {
+   "seconds": 0.034,
+   "peak_extra_gb": 0.369,
+   "peak_total_gb": 8.345
+  },
+  "gpu_peak_total_gb": 8.345,
+  "gpu_memory_after_release_gb": 0.065,
+  "gpu_lock_held_s": 46.5
+ }
+}
