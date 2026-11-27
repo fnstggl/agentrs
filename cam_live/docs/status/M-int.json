@@ -208,7 +208,9 @@
    "integration_points": [
     "cam_live.agent.CamLiveAgent._goal_free_candidates"
    ],
-   "tests": [],
+   "tests": [
+    "tests/integration/test_agent_runtime.py::test_goal_free_mode_chooses_and_resolves_its_own_learning_goals"
+   ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/integration -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/M-int_fix.xml"
    ],
@@ -218,7 +220,7 @@
     "docs/evidence/validation/staging_20261127T053639Z.json",
     "docs/evidence/validation/staging_20261127T055041Z.json"
    ],
-   "limitations": "GoalFreeMode is wired into propose / resolution but no executed test drives a goal-free run."
+   "limitations": "GoalFreeMode is wired into propose / select / resolution (goals proposed from the fast posterior, the chosen one resolved from what was observed, the others abandoned, nothing admitted to the meta ledger); exercised by one CPU test without the runtime; usefulness for later objectives is not measured."
   },
   "AE-05": {
    "state": "implemented",
