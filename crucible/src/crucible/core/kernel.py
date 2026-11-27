@@ -127,6 +127,22 @@ class WorldSpec:
         return digest(self.to_dict())
 
 
+def _detached(x: Any) -> Any:
+    """A copy of a JSON-like module config whose dicts and lists are new objects (other values are shared).
+
+    5.0 (D-78 repair): a module owns a copy of its config, never the spec's. `Module.__init__` copied only the top
+    level, so a module annotating a nested value of its config at genesis (`crucible.worlds.open_industry` writes each
+    chain entry's `_out`/`_mach`) changed the world's spec under it: the spec hash moved after genesis, an in-process
+    replay, fork or regeneration built from a different spec than the one a fresh process reads from the store
+    (written before genesis), and the blob lineage (the spec hash) of a store-less world no longer matched its
+    replays' and forks'."""
+    if isinstance(x, dict):
+        return {k: _detached(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_detached(v) for v in x]
+    return x
+
+
 # ====================================================================== module system
 @dataclass
 class Endpoint:
@@ -403,6 +419,10 @@ class Ctx:
 class World:
     def __init__(self, spec: WorldSpec, world_id: str, store=None, *, strict: bool = False):
         self.spec = spec
+        # 5.0 (D-78 repair): the hash of the spec this world's genesis ran from - the value its genesis note records.
+        # A world, its snapshots, forks and replays share it (replay takes it from the log's genesis note, a snapshot
+        # carries it), so it never depends on a later state of a spec object. It is the artifact blob lineage.
+        self.genesis_spec = spec.hash()
         self.world_id = world_id
         self.store = store
         self.strict = strict
@@ -437,7 +457,7 @@ class World:
             cls = MODULES.get(m["name"])
             if cls is None:
                 raise ProtocolError(f"unknown module {m['name']!r} (registered: {sorted(MODULES)})")
-            self._add_module(cls(m.get("config")))
+            self._add_module(cls(_detached(m.get("config"))))
         for mod in self.modules.values():
             for dep in mod.depends:
                 if dep not in self.modules:
@@ -1078,6 +1098,8 @@ class World:
         import pickle
         payload = {"spec": self.spec.to_dict(), "world_id": self.world_id, "seq": self.seq, "hash": self.last_hash,
                    "state": self.state.dumps(), "kernel": KERNEL_VERSION}
+        if self.genesis_spec != self.spec.hash():
+            payload["genesis_spec"] = self.genesis_spec     # 5.0: only when the spec object no longer hashes to it
         roots = sorted({r for m in self.modules.values() for r in (m.blob_roots(self) or ()) if r})
         if roots or any(type(m).blob_roots is not Module.blob_roots for m in self.modules.values()):
             # 5.0: blobs a resume from this snapshot needs (retention never drops them) and its simulated time
@@ -1106,6 +1128,7 @@ class World:
             # a fork is another world: under its parent's id the store would record it as its own parent
             world_id = f"{d['world_id']}.f{d['seq']}"
         w = cls(spec, world_id or d["world_id"], store, strict=strict)
+        w.genesis_spec = d.get("genesis_spec") or w.genesis_spec
         loaded = StateStore.loads(d["state"])
         # keep table declarations from install(), take data from snapshot
         for name, fields in w.state.index_fields.items():
@@ -1188,6 +1211,8 @@ class World:
             w.state.begin()
             w._apply(ev)
             w.state.commit()
+            if ev.seq == 1 and ev.type == "note" and ev.payload.get("what") == "genesis" and ev.payload.get("spec"):
+                w.genesis_spec = ev.payload["spec"]      # the spec the recorded world was created from (D-78 repair)
             w.seq = ev.seq
             w.last_hash = ev.hash or h
             w.state.meta["seq"] = w.seq

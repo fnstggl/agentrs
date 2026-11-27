@@ -83,13 +83,14 @@ _SOURCE_LIN: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()   # store
 
 
 def lineage(world) -> str:
-    """The world's blob lineage: its spec hash, shared by the world, its forks, replays and regenerations (D-78).
-    System array blobs are reachable only from bytes a world of the same lineage wrote (or the world's own store and
-    read-only sources)."""
-    lin = world.runtime.get("artifact_lineage")
-    if lin is None:
-        lin = world.runtime["artifact_lineage"] = world.spec.hash()
-    return lin
+    """The world's blob lineage (D-78): the hash of the spec its genesis ran from (`World.genesis_spec`, the value
+    its genesis note records), shared by the world, its forks, snapshots, replays and regenerations. System array
+    blobs are reachable only from bytes a world of the same lineage wrote (or the world's own store and read-only
+    sources). It is never recomputed from the spec object: the first version cached `spec.hash()` at the first
+    system-blob write, and a civilisation whose module annotated its nested config at genesis then wrote its blobs
+    under one hash while every replay and fork computed another (none could read them)."""
+    lin = getattr(world, "genesis_spec", None)
+    return lin if lin is not None else world.spec.hash()
 
 
 class _PoolLease:
