@@ -296,6 +296,17 @@ the store (`ret/<world>/...`, verified against the event hash at that position).
 artifacts module and stay byte-identical); `artifacts.export` copies every `art/` blob of the world's store (or every
 pool blob it holds); a blob that no event names is never packed. Rejected: a compact in-state blob index (still
 O(blobs) per snapshot) and per-snapshot structural sharing (keeps the state itself, its digest and its forks O(blobs)).
+Amendment (wave-3b repair, verifier finding): the lineage was first `spec.hash()` cached at the world's first
+system-blob write. A module's nested config was the spec's own object (`Module.__init__` copied only its top level),
+so the industrial genesis of every civilisation (`crucible.worlds.open_industry` annotates each chain entry with
+`_out`/`_mach`) moved the spec hash after its first cohort batch: store-less replays, forks and history queries of all
+11 profiles computed another lineage and could not read the world's own blobs (replay: InvariantViolation, fork:
+NotFound), and gate SP-2.3b's civ trace and SP-2.1's Mode C replay failed. Now a module owns a detached copy of its
+config (`kernel._detached`: a world can no longer change its spec), and the lineage is `World.genesis_spec`, the hash
+its genesis note records, carried by snapshots (when the spec object no longer hashes to it) and taken by a replay
+from the log's genesis note, so it never depends on a later state of a spec object. Regression tests in
+`tests/test_v5_substrate_retention.py` (a module annotating its config at genesis; a spec object changed after
+genesis; a store-less civilisation replays, forks and answers `history.state_at`).
 
 ## D-79 Duplicate facts of sibling branches are reviewed before their merge (2026-11-26, workstream A, wave 3b)
 The mandatory duplicate-fact scan (D-21) runs over every module this tree ships. In wave 3b the Tier 2 domain

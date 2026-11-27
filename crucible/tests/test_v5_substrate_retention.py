@@ -327,3 +327,99 @@ def test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged(tmp_path):
     assert all(x["snapshot_bytes_retained"] <= 1.05 * first * x["snapshots"] for x in rows)
     assert rows[-1]["blobs_packed"] > 0                       # compaction packed the batch blobs
     assert r["end"]["replay_from_genesis_exact"] and r["end"]["resume_exact"]
+
+
+# ---------------------------------------------------------------------------------------------- blob lineage (D-78)
+@register_module
+class _LineageAnnotator(Module):
+    """Writes a cohort batch at genesis and then annotates a nested value of its own config, as the industrial genesis
+    of a civilisation does (`crucible.worlds.open_industry` records each chain entry's `_out`/`_mach`)."""
+    name = "lineage_annotator"
+    depends = ("cols",)
+
+    def install(self, world):
+        from crucible.substrate import columns as C
+        C.declare(world, "lin_tbl", 100, {"x": ("int64", (), 0)})
+
+    def genesis(self, ctx):
+        from crucible.substrate import columns as C
+        C.batch(ctx, "lin_tbl", "lin.init", np.arange(10), {"x": np.arange(10)}, mode="set")
+        self.config["chain"][0]["_out"] = "annotated at genesis"
+
+
+def _annotating_spec(seed):
+    from crucible.core.kernel import WorldSpec
+    return WorldSpec("lineage", seed, [{"name": m, "config": ({"chain": [{"a": 1}]} if m == "lineage_annotator" else {})}
+                                       for m in ("identity", "bank", "admin", "artifacts", "cols", "lineage_annotator")])
+
+
+def test_a_module_annotating_its_config_at_genesis_keeps_the_worlds_blob_lineage():
+    """Verifier finding (wave-3b repair, D-78): `lineage()` cached `spec.hash()` at the first system-blob write while a
+    module's nested config was the spec's own object, so a module annotating it at genesis moved the spec hash under
+    the world: every store-less replay, fork and history query computed another lineage and could not read the world's
+    own cohort blobs (all 11 civilisation profiles: replay raised InvariantViolation, a fork NotFound). A module now
+    owns a detached copy of its config, and the lineage is the hash of the spec genesis ran from (`World.genesis_spec`,
+    recorded by the genesis note, carried by snapshots and replays)."""
+    from crucible.substrate import columns as C
+    from crucible.substrate import history
+    sp = _annotating_spec(7)
+    h0 = sp.hash()
+    w = World.create(sp, world_id="lin")
+    assert w.modules["lineage_annotator"].config["chain"][0]["_out"] == "annotated at genesis"
+    assert sp.hash() == h0 and w.spec.hash() == h0 and "_out" not in sp.modules[-1]["config"]["chain"][0]
+    genesis = w.log[0]
+    assert genesis.payload["what"] == "genesis" and genesis.payload["spec"] == h0 == A.lineage(w) == w.genesis_spec
+    truth = C.col(w, "lin_tbl", "x").copy()
+    rep = World.replay(w.spec, [e.to_dict() for e in w.log], world_id="lin-replay")
+    assert rep.digest() == w.digest() and np.array_equal(C.col(rep, "lin_tbl", "x"), truth)
+    f = w.fork("lin-fork")
+    f.advance_time(f.now + 60)
+    assert np.array_equal(C.col(f, "lin_tbl", "x"), truth) and A.lineage(f) == h0
+    past = history.state_at(w, seq=int(w.seq))
+    assert past.digest() == w.digest()
+    for x in (rep, f, past):
+        x.close()
+    w.close()
+
+
+def test_the_blob_lineage_is_the_spec_genesis_ran_from_not_the_spec_objects_later_state():
+    """Even if code outside the world changes the spec object after genesis, the world's lineage stays the hash its
+    genesis note records; a snapshot carries it, so a fork, a resume of that snapshot and a replay of the log (which
+    takes it from the genesis note) read the world's system blobs."""
+    from crucible.substrate import columns as C
+    sp = _annotating_spec(8)
+    w = World.create(sp, world_id="lin2")
+    h0 = w.genesis_spec
+    truth = C.col(w, "lin_tbl", "x").copy()
+    w.spec.params["changed_after_genesis"] = True             # the object hashes differently now
+    assert w.spec.hash() != h0 and A.lineage(w) == h0
+    blob = w.snapshot_blob()
+    for x in (World.from_blob(blob, world_id="lin2-resume"), w.fork("lin2-fork"),
+              World.replay(w.spec, [e.to_dict() for e in w.log], world_id="lin2-replay")):
+        assert x.genesis_spec == h0 == A.lineage(x)
+        assert np.array_equal(C.col(x, "lin_tbl", "x"), truth)
+        x.close()
+    w.close()
+
+
+@pytest.mark.timeout(600)
+def test_a_storeless_civilisation_replays_forks_and_answers_history_queries():
+    """The verifier's probes p05/p07/p09 (wave-3b repair): right after genesis a store-less civilisation (whose
+    industrial genesis annotates its chain config) must replay from its own log to its state, fork and keep running,
+    and answer `history.state_at`; on the D-78 head before the repair all three raised."""
+    from crucible.civ.generator import generate
+    from crucible.substrate import history, integrity
+    import torch
+    torch.set_num_threads(1)
+    w = generate("balanced", 0, "development")
+    assert w.spec.hash() == w.genesis_spec == w.log[0].payload["spec"]
+    assert any(e.type == "cols.batch" for e in w.log)
+    assert integrity.replay_check(w)["replay_exact"] is True
+    f = w.fork("civ-fork")
+    f.advance_time(f.now + 600)
+    assert f.seq > w.seq
+    past = history.state_at(w, seq=int(w.seq) // 2)
+    assert past.seq == int(w.seq) // 2
+    for x in (f, past):
+        x.close()
+    w.close()

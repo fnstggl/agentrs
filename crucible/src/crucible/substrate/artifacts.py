@@ -28,7 +28,8 @@ output is named by the hash-chained event that uses it (its SHA-256 is in the RE
 `artifacts` row and no `artifact.stored` event. Before D-78 every one of them kept a metadata row in the state for
 ever, so a snapshot of a 365-day world held 222,702 rows of blob metadata and retained snapshots grew
 superlinearly. A world reaches a system blob only by a REF from its own record, and only from bytes of its own
-lineage (`lineage(world)`: the spec hash, shared by the world, its forks, replays and regenerations): its cache, its
+lineage (`lineage(world)`: the hash of the spec its genesis ran from, `World.genesis_spec`, shared by the world, its
+forks, snapshots, replays and regenerations): its cache, its
 store, its read-only sources, process-pool bytes or registered stores that a world of the same lineage wrote. A
 participant never reaches one (the tools serve artifacts with a row only). An optional storage fee (`fee_cents_per_mib`, default 0) is charged through
 `bank` in the same transaction, so a payer that cannot pay leaves no trace of the put.
