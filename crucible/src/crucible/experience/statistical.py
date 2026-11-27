@@ -41,6 +41,7 @@ from .reference import ArgumentMemory, string_candidates
 
 VERSION = "tool-value/1"
 WAIT = "<wait>"
+RESET = "<reset>"
 
 
 class ToolValueLearner(ArgumentMemory):
@@ -50,11 +51,15 @@ class ToolValueLearner(ArgumentMemory):
 
     def __init__(self, seed: int = 0, reward_mode: str | None = None, *, temperature: float = 10.0,
                  signal: str = "auto", signal_keys: str = r"^bank\.balances\.", signal_scale: float = 0.01,
-                 recency: float = 0.05, shrink: float = 1.0):
+                 recency: float = 0.05, shrink: float = 1.0, credit_horizon: int = 1, credit_decay: float = 0.9):
         """`temperature` is in signal units (default: dollars, `signal_scale` 0.01 per cent): a tool that loses
         $10 a call more than the baseline is e times less likely than an untried one. `recency` is the smallest
-        weight of a new sample in a running mean (1/n before that)."""
+        weight of a new sample in a running mean (1/n before that). `credit_horizon` > 1 also credits a change to the
+        actions of the previous steps, the j-th back with weight ``credit_decay ** j`` (for consequences that
+        arrive later than the next observation); 1 credits only the step's own action."""
         self.seed = int(seed)
+        self.credit_horizon, self.credit_decay = max(1, int(credit_horizon)), float(credit_decay)
+        self.trace: list[str] = []                      # the tools of the last credit_horizon - 1 steps
         self.reward_mode = check_mode(reward_mode)
         self.temperature = float(temperature)
         self.recency, self.shrink = float(recency), float(shrink)
@@ -73,8 +78,14 @@ class ToolValueLearner(ArgumentMemory):
 
     # ------------------------------------------------------------------ context
     def reset(self, actor: str | None = None, rng=None) -> None:
+        """A new world, episode or agent: no credit crosses the boundary (marked in the buffer when transitions are
+        still waiting for `update`)."""
         self.actor = actor
         self._pending = None
+        if self.buf:
+            self.buf.append((RESET, 0.0))
+        else:
+            self.trace = []
 
     def signal_mode(self) -> str:
         if self.signal == "auto":
@@ -205,16 +216,23 @@ class ToolValueLearner(ArgumentMemory):
         if self.frozen or not self.buf:
             return {"updates": 0, "transitions": len(self.buf)}
         before = self.params_hash()
-        n_t = len(self.buf)
+        n_t = sum(1 for t, _ in self.buf if t != RESET)
         total = 0.0
         for tool, sig in self.buf:
+            if tool == RESET:
+                self.trace = []
+                continue
             adv = sig - self.baseline()                 # against what the money did on its own before this step
             self.recent.append(sig)
             if len(self.recent) > self.WINDOW:
                 del self.recent[0]
-            v = self.values.setdefault(tool, [0.0, 0.0])
-            v[0] += 1.0
-            v[1] += (adv - v[1]) * max(1.0 / v[0], self.recency)
+            for j, t in enumerate([tool] + self.trace[::-1]):
+                w = self.credit_decay ** j
+                v = self.values.setdefault(t, [0.0, 0.0])
+                v[0] += w
+                v[1] += (adv - v[1]) * max(w / v[0], self.recency * w)
+            if self.credit_horizon > 1:
+                self.trace = (self.trace + [tool])[-(self.credit_horizon - 1):]
             total += sig
         self.buf = []
         self.updates += 1
@@ -248,6 +266,7 @@ class ToolValueLearner(ArgumentMemory):
     def state(self) -> dict:
         return {"format": VERSION, "seed": self.seed, "reward_mode": self.reward_mode, "temperature": self.temperature,
                 "recency": self.recency, "shrink": self.shrink, "recent": self.recent,
+                "credit_horizon": self.credit_horizon, "credit_decay": self.credit_decay, "trace": self.trace,
                 "signal": self.signal, "signal_keys": self.signal_keys, "signal_scale": self.signal_scale,
                 "values": self.values, "memory": self.memory, "ids": self.ids, "rng": self.rng.bit_generator.state,
                 "updates": self.updates, "steps": self.steps, "buf": [list(b) for b in self.buf],
@@ -269,6 +288,8 @@ class ToolValueLearner(ArgumentMemory):
         self.signal_keys, self.signal_scale = st["signal_keys"], float(st["signal_scale"])
         self.values = {k: [float(a), float(b)] for k, (a, b) in st["values"].items()}
         self.recency, self.shrink = float(st["recency"]), float(st["shrink"])
+        self.credit_horizon, self.credit_decay = int(st["credit_horizon"]), float(st["credit_decay"])
+        self.trace = [str(x) for x in st["trace"]]
         self.recent = [float(x) for x in st["recent"]]
         self.memory, self.ids = dict(st["memory"]), {k: list(v) for k, v in st["ids"].items()}
         self.rng.bit_generator.state = st["rng"]

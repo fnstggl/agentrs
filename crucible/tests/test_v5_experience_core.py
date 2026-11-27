@@ -337,3 +337,34 @@ def test_kernel_env_admits_participants_with_their_controller_label():
     plain = make(0, "tiny", 2, agents=["s1", "s2"])
     a, b = plain.agents()
     assert b not in related_set(plain.world, a)
+
+
+def test_tool_value_learner_credits_delayed_consequences_within_its_horizon():
+    """With credit_horizon > 1 a change is also credited to the previous steps' actions (decayed): a tool whose
+    consequence arrives two steps later is valued above one with none; with horizon 1 the credit lands on whatever
+    the learner did when the consequence arrived."""
+    from crucible.experience.statistical import ToolValueLearner
+    tools = [{"name": n, "inputSchema": {"type": "object", "properties": {}}} for n in ("forum.post", "world.clock")]
+
+    def run(h):
+        L = ToolValueLearner(seed=5, credit_horizon=h, credit_decay=0.8)
+        bal, due = 0, []
+        for t in range(400):
+            a = L.act({"t": t, "numbers": {"bank.balances.acct_1": bal}, "events": [], "tools": tools, "entities": []})
+            if a and a["tool"] == "forum.post":
+                due.append(t + 2)
+            bal += 5_000 * sum(1 for d in due if d == t)                       # $50 two steps after a post
+            L.observe(0.0, None, {"t": t + 1, "numbers": {"bank.balances.acct_1": bal}, "events": [], "tools": tools,
+                                  "entities": []})
+            if t % 32 == 31:
+                L.update()
+        L.update()
+        return L.value("forum.post"), L.value("world.clock")
+    post3, clock3 = run(3)
+    assert post3 > clock3 + 5
+    L = ToolValueLearner(seed=5, credit_horizon=3)
+    L.buf = [("forum.post", 0.0)]
+    L.reset("p:a")
+    assert L.buf[-1][0] == "<reset>"
+    L.update()
+    assert L.trace == []
