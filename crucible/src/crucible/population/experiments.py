@@ -111,7 +111,8 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
 
     `counterfactual`: at the switch the world is forked and, in the fork only, the first learning arm stops learning
     (`pop_adaptive.set_learning`; the main world records the same system call with learning on, so both worlds
-    keep identical random streams until the first post-switch policy update). Both run phase 2. Per member of that
+    keep identical random streams until the first post-switch policy update; the billed compute of sandboxed sites
+    can still differ between them, D-20 metering tolerance). Both run phase 2. Per member of that
     group, the phase-2 utility in the main world minus the utility in the fork is what learning AFTER the change
     did under the new condition - change-specific adaptation, with the weights, the memories, the state of the world
     and every random draw at the switch held equal (`adaptation_after_change`, paired bootstrap over members)."""

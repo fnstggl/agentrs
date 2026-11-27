@@ -260,9 +260,11 @@ def test_projection_is_row_independent():
 
 def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
     """The frozen-at-switch counterfactual of Gate G.6 (population.experiments.adaptation): two forks of one snapshot
-    that record the same system call (`pop_adaptive.set_learning`, learning on in one, off in the other) record the
-    same events, one for one, until the learning fork's first policy update of that group; the frozen fork records
-    no update of it, so what differs afterwards is caused by learning after the switch."""
+    that record the same system call (`pop_adaptive.set_learning`, learning on in one, off in the other) keep the same
+    event sequence numbers (so the same random streams) and record the same population decisions, batch for batch,
+    until the learning fork's first policy update of that group; the frozen fork records no update of it. (Billed
+    compute of sandboxed sites may differ between the forks: a new measurement that exceeds the remembered one by more
+    than the metering tolerance is billed fresh, D-20; it does not touch the population's decisions here.)"""
     _, _, mid = run2
     a = World.from_blob(mid, world_id="cf-learning", fork=True)
     b = World.from_blob(mid, world_id="cf-frozen", fork=True)
@@ -279,11 +281,12 @@ def test_learning_switch_forks_stay_aligned_until_the_first_update(run2):
         ua = [e for e in a.log if e.type == "pop.policy_update" and e.payload["group"] == grp]
         ub = [e for e in b.log if e.type == "pop.policy_update" and e.payload["group"] == grp]
         assert ua and not ub
-        body = lambda e: (e.t, e.type, e.actor, e.cmd, e.payload, e.vis)  # noqa: E731
-        xa, xb = [e for e in a.log if e.seq > s0], [e for e in b.log if e.seq > s0]
-        k = next((i for i, (p, q) in enumerate(zip(xa, xb)) if body(p) != body(q)), None)
-        assert k is not None and k > 100, (k, [(e.seq, e.t, e.type, str(e.payload)[:300]) for e in (xa[k], xb[k])])
-        assert xa[k].t == ua[0].t and xa[k].type in ("artifact.stored", "pop.policy_update"), (xa[k].type, k)
+        t1 = ua[0].t
+        dec = lambda w: [(e.seq, e.t, e.payload) for e in w.log if e.seq > s0 and e.t < t1 and  # noqa: E731
+                         e.type == "cols.batch" and e.payload["table"] in ("pop", "res", "webpg", "webtopic")]
+        da, db = dec(a), dec(b)
+        assert len(da) > 50 and da == db, next(((x[:2], x[2]["kind"], y[2]["kind"]) for x, y in zip(da, db)
+                                                if x != y), (len(da), len(db)))
     finally:
         a.close()
         b.close()

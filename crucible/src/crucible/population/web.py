@@ -701,9 +701,13 @@ class PopWeb(Module):
                       extra={"t": int(now)})
 
     def _flush_session(self, ctx: Ctx, buf: dict, now: int, activity: str) -> None:
-        """End of a web session's visits: ONE visit log, one per-resource counter batch and one page/topic open count
-        for all its visit steps (event aggregation, MASTER_SPEC 13.2; the counters are aggregates that operators
+        """End of a web session's visits: ONE attention spend, ONE visit log, one per-resource counter batch and one
+        page/topic open count for all its visit steps (event aggregation, MASTER_SPEC 13.2; the counters are aggregates that operators
         and the article slates read, so within a session the later visits see them as of the session's start)."""
+        att = buf.get("att")
+        if att:
+            ix = np.array(sorted(att), np.int64)
+            attention.spend(ctx, ix, np.array([att[int(i)] for i in ix], np.float64), activity=activity)
         logs = buf["logs"]
         if logs:
             log = {k: np.concatenate([lg[k] for lg in logs]) for k in logs[0]}
@@ -884,9 +888,18 @@ class PopWeb(Module):
             if not d.any():
                 del vals[k]
             chg |= d
+        defer = ctx.world.runtime.get("popweb.defer")
         if minutes.sum() > 0:
             mi = np.flatnonzero(minutes > 0)
-            attention.spend(ctx, idx[mi], minutes[mi], activity=activity)
+            if defer is not None:
+                # a web session spends its attention in ONE ledger batch at its end (R6/R7). Within the session the
+                # session budget binds (it never exceeds the attention left at the session's start, and each visit
+                # takes its minutes from both), and class 2's observation subtracts the minutes pending here
+                att = defer["att"]
+                for i, m_ in zip(idx[mi].tolist(), minutes[mi].tolist()):
+                    att[i] = att.get(i, 0.0) + m_
+            else:
+                attention.spend(ctx, idx[mi], minutes[mi], activity=activity)
         # the visit log (one row per visit) and per-resource counters
         v = np.flatnonzero(has)
         cls = c("class")
@@ -895,7 +908,6 @@ class PopWeb(Module):
                "ok_pages": okp[v].astype(np.int16), "abandon": abandoned[v], "bought": bought[v],
                "paid": paid[v], "evaluated": evaluated[v], "cls": cls[v], "minutes": minutes[v].astype(np.float32),
                "match": match0[v]}
-        defer = ctx.world.runtime.get("popweb.defer")
         if defer is not None:                   # a web session: one log and one counter batch for all its visits
             if v.size:
                 defer["logs"].append(log)
@@ -1049,7 +1061,7 @@ class PopWeb(Module):
         U_sum = np.zeros(n)
         n_vis = np.zeros(n)
         live = np.ones(n, bool)
-        buf = {"logs": [], "page_rows": [], "topics": []}
+        buf = {"logs": [], "page_rows": [], "topics": [], "att": {}}
         if w.runtime.get("popweb.defer") is not None:
             raise ProtocolError("nested web sessions")
         w.runtime["popweb.defer"] = buf

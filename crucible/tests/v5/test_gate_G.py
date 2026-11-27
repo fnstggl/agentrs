@@ -162,7 +162,8 @@ def test_G6_improvement_on_a_controlled_new_condition(runs):
         "learning on, so both worlds keep identical random streams until the first post-switch update). "
         "Improvement = phase-2 mean realised utility of each learning-group member's web visits, main world minus "
         "fork, paired by member; pooled bootstrap 95% CI over the members of three seeds (stratified by seed). "
-        "Post-switch updates also use the examples pending at the switch (at most one learning interval)."))
+        "Post-switch updates also use the examples pending at the switch (at most one learning interval); the billed "
+        "compute of sandboxed sites may differ between the two worlds (D-20 metering tolerance)."))
     assert m["seeds"] == 3 and m["members_compared"] > 0
     assert m["frozen_at_switch_unchanged_all_seeds"] and m["policy_updates_after_switch_frozen"] == 0
     assert m["weights_changed_after_switch_all_seeds"]

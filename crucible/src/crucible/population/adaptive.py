@@ -314,6 +314,10 @@ def obs_features(w, idx: np.ndarray) -> np.ndarray:
     time of day, last utility and the kind of the last resource visited."""
     c = lambda name: columns.col(w, TABLE, name)[idx]  # noqa: E731
     bud = c("attention_budget_min").astype(np.float32)
+    left = c("attention_left_min").astype(np.float32)
+    pend = (w.runtime.get("popweb.defer") or {}).get("att")
+    if pend:                    # minutes a running web session used but records in one batch at its end
+        left = np.maximum(left - np.array([pend.get(int(i), 0.0) for i in idx], np.float32), 0.0)
     hour = (w.now % 86400) / 3600.0
     R = columns.rows(w, RES_TABLE)
     last = c("recent")[:, 0].astype(np.int64)
@@ -323,7 +327,7 @@ def obs_features(w, idx: np.ndarray) -> np.ndarray:
         lk[np.arange(idx.size), np.clip(k, 0, N_KINDS - 1)] = 1.0
     return np.concatenate([
         c("interests").astype(np.float32), c("prefs").astype(np.float32), c("beliefs").astype(np.float32),
-        c("satisfaction").astype(np.float32)[:, None], (c("attention_left_min") / np.maximum(bud, 1e-3))[:, None],
+        c("satisfaction").astype(np.float32)[:, None], (left / np.maximum(bud, 1e-3))[:, None],
         np.full((idx.size, 1), math.sin(2 * math.pi * hour / 24), np.float32),
         np.full((idx.size, 1), math.cos(2 * math.pi * hour / 24), np.float32),
         c("last_utility").astype(np.float32)[:, None], lk], axis=1).astype(np.float32)
