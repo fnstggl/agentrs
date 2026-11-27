@@ -188,8 +188,8 @@ def progress_signal(p_before: Tensor, p_after: Tensor) -> Tensor:
 def calibration_report(p: Tensor, y: Tensor, n_bins: int = 10, groups: Optional[dict] = None) -> dict:
     """NLL, Brier, ECE, reliability bins and logistic calibration slope/intercept of predictions p for binary
     outcomes y (both recorded BEFORE y was known; y in {0,1}). `groups`: name -> bool mask for per-group reports."""
-    p = p.detach().double().clamp(1e-6, 1 - 1e-6).flatten()
-    y = y.detach().double().flatten()
+    p = p.detach().double().clamp(1e-6, 1 - 1e-6).flatten().cpu()          # a report: computed on the CPU
+    y = y.detach().double().flatten().cpu()
     n = p.numel()
     if n == 0:
         return {"n": 0}

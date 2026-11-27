@@ -1,0 +1,39 @@
+{
+ "commit": "e95fa0ea919939f5a8d8f652ba9e0cfb7d717c85",
+ "command": "python -m superlearner.cam_unified.selfeval.evidence_w8 --only meta",
+ "wall_s": 105.60651564598083,
+ "setting": {
+  "mdp": "key_to_door_d5",
+  "K": 4,
+  "alpha": 1.0,
+  "n_inner": 64,
+  "n_query": 256,
+  "rep": 2000,
+  "exact_norm": 0.8093274953052104,
+  "J_exact": 0.8788267036760686
+ },
+ "tabular_with_inner_score": {
+  "max_abs_z": 1.216178201215346,
+  "rel_err": 0.00796870491186489,
+  "rel_se": 0.01541004407402604,
+  "cos": 0.9999747556191576,
+  "n_coords": 46,
+  "wall_s": 30.098559379577637
+ },
+ "tabular_without_inner_score": {
+  "max_abs_z": 10.076357985824698,
+  "rel_err": 0.014748799218987692,
+  "rel_se": 0.0031984889455826137,
+  "cos": 0.9998919841882826,
+  "n_coords": 46,
+  "wall_s": 32.52338719367981
+ },
+ "cam_meta_reward_learner": {
+  "max_abs_z": 2.3098140982093334,
+  "rel_err": 0.018141499410463863,
+  "rel_se": 0.015124197803191033,
+  "cos": 0.9999824627846746,
+  "n_coords": 46,
+  "wall_s": 42.87275695800781
+ }
+}
