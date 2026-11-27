@@ -215,6 +215,10 @@ def patch_findings(node, local: set[str], *, until: int | None = None, cleanup_a
                     items.setdefault(_dotted(sub.value), []).append(n.lineno)
                 elif r == "builtins" and isinstance(sub, (ast.Attribute, ast.Subscript)):
                     out.append("patch")
+                elif isinstance(sub, ast.Subscript) and isinstance(sub.value, ast.Call) and \
+                        _dotted(sub.value.func) in ("vars", "globals") and (not sub.value.args or (
+                            _root_name(sub.value.args[0]) in local)):
+                    out.append("patch")          # vars(module)[name] = ...: an attribute patch by another spelling
                 elif isinstance(sub, ast.Subscript) and _dotted(sub.value) == "sys.modules" and \
                         isinstance(sub.slice, ast.Constant) and isinstance(sub.slice.value, str) and \
                         sub.slice.value.split(".")[0] in local | {"crucible"}:

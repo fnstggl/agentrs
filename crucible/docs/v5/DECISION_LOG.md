@@ -436,8 +436,9 @@ Third addendum (2026-11-27, wave 3b repair pass after the second independent ver
    author, committer, dates and message (only the tree differs). Stated residual: the ablation proves that the producing
    test executes implementation code before it records (or measures child processes that do), not that the recorded
    values are computed from it - a test that calls its implementation and records values obtained elsewhere is caught
-   only by the static rules and the reviewer; a test that forges the block log of a child process is visible only to
-   the reviewer.
+   only by the static rules and the reviewer; so is a test whose metrics encode only whether its implementation raised
+   in a child process (its exit status; in-process the same encoding is rejected by the rule above), and a test that
+   forges the block log of a child process.
 2. The recording machinery is never blocked (probes V6, V6c): functions started by `evidence.record` or the files-read
    audit hook, and those two themselves, run normally, so requirements listing evidence.py, manifest.py, ledger.py or
    scale/slots.py no longer get a vacuous "no record" ablation.
@@ -445,8 +446,9 @@ Third addendum (2026-11-27, wave 3b repair pass after the second independent ver
    src/ (standard source loader) with the code compiled from its file - code, constants (recursively), names, flags,
    argument counts - and its globals with its module's; `fn.__code__ = fn.__code__.replace(...)` and
    `types.FunctionType` over other globals are recorded as patched functions. Statically, a store to `__code__` or
-   `setattr(x, "__code__", ...)` is an `interpreter_probe` finding. Not covered: patched `__defaults__` /
-   `__kwdefaults__` and rebound module-level data.
+   `setattr(x, "__code__", ...)` is an `interpreter_probe` finding, and `vars(module)[name] = ...` a `patch`. Not
+   covered: patched `__defaults__` / `__kwdefaults__`, rebound module-level data, and a function replaced through a
+   dynamic spelling by a callable that is not a function (functools.partial, an object with __call__).
 4. Interpreter probes by whitelist (probe P38b's four evasions): every use of a name bound to the sys module must be an
    attribute access of a listed harmless attribute (`testscan.SYS_OK`); passing the module to a call, subscripting it,
    any other attribute, `os.sys`, `from os import sys`, `sys.modules["sys"]`, `__import__("sys")` /
