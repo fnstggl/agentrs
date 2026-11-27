@@ -104,12 +104,19 @@ class TaskProtocol:
         return {(f, int(x)): sp for sp, rows in self.splits.items() for f, x in rows}
 
     def open(self, split: str = "train", i: int = 0, *, isolated: bool = False, evaluator: Optional[dict] = None,
-             **kw) -> tuple:
+             reward_mode: Optional[str] = None, **kw) -> tuple:
         """(adapter, operator, evaluator) for the i-th declared task of `split`, with the seat and participants the
         task needs. ``isolated=True`` (learner runs) puts worlds, operator and evaluator in a spawned process and
-        returns (adapter, RemoteOperator, RemoteEvaluator). `evaluator`: OpenWorldEvaluator keyword arguments."""
+        returns (adapter, RemoteOperator, RemoteEvaluator). `evaluator`: OpenWorldEvaluator keyword arguments. The
+        evaluator is also the `interfaces.LabelSource` (``take_labels()``). `reward_mode` (None = legacy, unchanged):
+        the operator's and the evaluator's RewardGate mode (``"observation_only"`` for CAM runs; `factory.make_env`
+        with ``tasks=["<protocol>:<split>:<i>"]`` adds the split guard and result delivery)."""
         fam, seed = self.splits[split][i]
         task = self.make_task(fam, seed)
+        if reward_mode is not None:
+            from ..factory import reward_mode_of
+            kw["reward_mode"] = reward_mode_of(reward_mode)
+            evaluator = {"reward_mode": kw["reward_mode"], **dict(evaluator or {})}
         if isolated:
             from ..openworld import open_world_isolated
             return open_world_isolated([task], evaluator=dict(evaluator or {}), **kw)

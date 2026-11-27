@@ -1,0 +1,989 @@
+{
+ "workstream": "W2",
+ "commit": "f0225f901ff46941f659c3f6c08746e1eec4efb0",
+ "command": "PYTHONPATH=src:../crucible/src OMP_NUM_THREADS=4 CUDA_VISIBLE_DEVICES= python -m pytest -q tests/cam_unified/envs tests/cam_unified/autonomy tests/cam_unified/integration/test_seam_structure.py -m \"not slow and not gpu\"",
+ "totals": {
+  "passed": 153,
+  "failed": 0,
+  "skipped": 1
+ },
+ "w2_new_tests": {
+  "n": 40,
+  "passed": 40,
+  "cases": [
+   {
+    "id": "tests.cam_unified.envs.test_experience_operator::test_engine_exception_becomes_an_observable_error_and_the_world_keeps_running",
+    "status": "passed",
+    "s": 0.01
+   },
+   {
+    "id": "tests.cam_unified.envs.test_experience_operator::test_execution_cost_is_the_observed_charge_of_the_action",
+    "status": "passed",
+    "s": 0.1
+   },
+   {
+    "id": "tests.cam_unified.envs.test_experience_operator::test_integrity_oracle_uses_the_current_episode_parameters",
+    "status": "passed",
+    "s": 0.14
+   },
+   {
+    "id": "tests.cam_unified.envs.test_experience_operator::test_references_and_labels_follow_each_episode",
+    "status": "passed",
+    "s": 0.2
+   },
+   {
+    "id": "tests.cam_unified.envs.test_experience_operator::test_rebuilt_world_is_what_the_actor_sees_after_reset",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_label_sources_implement_the_protocol",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_experience_labels_once_after_resolution_with_opaque_ids",
+    "status": "passed",
+    "s": 0.15
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_openworld_observation_only_inductor_rewards_zero_and_one_terminal_success_label",
+    "status": "passed",
+    "s": 3.54
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_openworld_verified_mode_pays_one_once",
+    "status": "passed",
+    "s": 2.56
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_openworld_failure_label_only_at_the_horizon_and_through_the_process_boundary",
+    "status": "passed",
+    "s": 1.84
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_predicate_verification_and_public_result_carry_verdicts_only",
+    "status": "passed",
+    "s": 1.62
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_eval_stream_labels_are_refused_by_a_training_store",
+    "status": "passed",
+    "s": 0.02
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_label_store_rejects_pending_private_unknown_kinds_and_reads_old_lines",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_label_source::test_capability_score_evaluator_gates_rewards_and_releases_episode_labels",
+    "status": "passed",
+    "s": 0.01
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_openworld_result_arrives_once_at_the_head_of_the_next_batch",
+    "status": "passed",
+    "s": 2.47
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_errors_waits_and_observe_deliver_too",
+    "status": "passed",
+    "s": 0.03
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_harness_decision_after_world_hosts_sees_its_result",
+    "status": "passed",
+    "s": 0.03
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_process_isolated_operator_delivers_results",
+    "status": "passed",
+    "s": 1.62
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_undelivered_results_survive_an_operator_checkpoint",
+    "status": "passed",
+    "s": 0.05
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_legacy_constructor_is_unchanged",
+    "status": "passed",
+    "s": 0.03
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_experience_adapter_delivers_results",
+    "status": "passed",
+    "s": 0.01
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_merge_results_is_idempotent",
+    "status": "passed",
+    "s": 0.02
+   },
+   {
+    "id": "tests.cam_unified.envs.test_result_delivery::test_capability_env_payouts_are_observable_and_results_delivered_with_their_seq",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_openworld_actor_stream_is_identical_in_all_reward_modes",
+    "status": "passed",
+    "s": 0.34
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_experience_actor_stream_is_identical_in_all_reward_modes",
+    "status": "passed",
+    "s": 0.02
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_canaries_in_task_params_evaluator_state_and_labels_never_reach_the_actor",
+    "status": "passed",
+    "s": 0.52
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_no_privileged_keys_in_experience_actor_records",
+    "status": "passed",
+    "s": 0.02
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_factory_adapters_reach_no_operator_evaluator_or_label_source",
+    "status": "passed",
+    "s": 0.03
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-srch_distractors]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-dl_delayed_returns#1000000]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-no_such_family]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[mech-scm_invu#3]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[mech-scm_feedback#3]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[kernel-ow_heldout#1]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_openworld_tasks[ow1:test:0]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_openworld_tasks[open_economy#1000001]",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_honours_protocol_pair_declarations",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_evaluation_streams_build_held_out_worlds_and_tag_their_labels",
+    "status": "passed",
+    "s": 0.01
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_reward_modes_other_than_observation_only_must_be_declared",
+    "status": "passed",
+    "s": 0.0
+   },
+   {
+    "id": "tests.cam_unified.envs.test_reward_integrity::test_scan_run_dir_reads_parquet_and_plain_files",
+    "status": "passed",
+    "s": 1.12
+   }
+  ]
+ },
+ "wall_s": 263.016,
+ "all_cases": [
+  {
+   "id": "::tests.cam_unified.envs.test_baselines",
+   "status": "skipped",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_demos::test_record_and_load_demos",
+   "status": "passed",
+   "s": 5.8
+  },
+  {
+   "id": "tests.cam_unified.envs.test_demos::test_privileged_and_heldout_demos_refused",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_demos::test_load_demos_rejects_untagged_or_privileged",
+   "status": "passed",
+   "s": 1.05
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_observation_only_is_the_default_and_legacy_needs_declaration",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_actor_adapter_is_an_envadapter_without_evaluator_surface",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_actor_runtime_modules_never_call_the_evaluator_channel",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_no_family_seed_reward_or_verifier_leakage_across_families[0]",
+   "status": "passed",
+   "s": 1.11
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_no_family_seed_reward_or_verifier_leakage_across_families[3]",
+   "status": "passed",
+   "s": 1.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_labels_are_released_only_after_resolution_and_pending_is_not_failure",
+   "status": "passed",
+   "s": 0.15
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_delayed_consequences_link_to_the_causing_action",
+   "status": "passed",
+   "s": 0.9
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_adapter::test_broken_multiagent_rapid_families_are_refused",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_operator::test_engine_exception_becomes_an_observable_error_and_the_world_keeps_running",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_operator::test_execution_cost_is_the_observed_charge_of_the_action",
+   "status": "passed",
+   "s": 0.1
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_operator::test_integrity_oracle_uses_the_current_episode_parameters",
+   "status": "passed",
+   "s": 0.14
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_operator::test_references_and_labels_follow_each_episode",
+   "status": "passed",
+   "s": 0.2
+  },
+  {
+   "id": "tests.cam_unified.envs.test_experience_operator::test_rebuilt_world_is_what_the_actor_sees_after_reset",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_operating_profit_metric",
+   "status": "passed",
+   "s": 2.63
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_recovery_metrics_unit",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_recovery_objective_injects_hidden_shock_and_measures",
+   "status": "passed",
+   "s": 3.76
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_anti_trivial_self_goal_filter",
+   "status": "passed",
+   "s": 3.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_self_directed_objective_screens_kernel_self_goals",
+   "status": "passed",
+   "s": 0.04
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_joint_utility_gives_nothing_for_payments_and_independent_business",
+   "status": "passed",
+   "s": 0.94
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_joint_utility_is_call_linked_relay_value",
+   "status": "passed",
+   "s": 6.38
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_partner_dependence_audit_in_forks",
+   "status": "passed",
+   "s": 1.32
+  },
+  {
+   "id": "tests.cam_unified.envs.test_goals::test_coop_index_survives_checkpoint_restore",
+   "status": "passed",
+   "s": 1.82
+  },
+  {
+   "id": "tests.cam_unified.envs.test_harness::test_example_inductor_agent_reaches_verified_success_through_adapter",
+   "status": "passed",
+   "s": 3.73
+  },
+  {
+   "id": "tests.cam_unified.envs.test_harness::test_checkpoint_resume_reproduces_uninterrupted_lifetime",
+   "status": "passed",
+   "s": 2.73
+  },
+  {
+   "id": "tests.cam_unified.envs.test_harness::test_shared_world_records_elapsed_semi_markov_duration",
+   "status": "passed",
+   "s": 0.36
+  },
+  {
+   "id": "tests.cam_unified.envs.test_harness::test_isolated_operator_checkpoint_resume",
+   "status": "passed",
+   "s": 7.32
+  },
+  {
+   "id": "tests.cam_unified.envs.test_harness::test_heterogeneous_population_in_one_shared_world",
+   "status": "passed",
+   "s": 4.41
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[easy_useless]",
+   "status": "passed",
+   "s": 0.22
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[noisy_tv]",
+   "status": "passed",
+   "s": 0.21
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[duplicate_outcomes]",
+   "status": "passed",
+   "s": 0.23
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[short_term]",
+   "status": "passed",
+   "s": 0.21
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[misleading_correlation]",
+   "status": "passed",
+   "s": 0.22
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[fabricated_evidence]",
+   "status": "passed",
+   "s": 0.22
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_trap_does_not_raise_verified_utility_and_genuine_policy_does[attractive_ineffective]",
+   "status": "passed",
+   "s": 0.22
+  },
+  {
+   "id": "tests.cam_unified.envs.test_integrity_worlds::test_duplicate_sale_events_never_count_twice",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_label_sources_implement_the_protocol",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_experience_labels_once_after_resolution_with_opaque_ids",
+   "status": "passed",
+   "s": 0.15
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_openworld_observation_only_inductor_rewards_zero_and_one_terminal_success_label",
+   "status": "passed",
+   "s": 3.54
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_openworld_verified_mode_pays_one_once",
+   "status": "passed",
+   "s": 2.56
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_openworld_failure_label_only_at_the_horizon_and_through_the_process_boundary",
+   "status": "passed",
+   "s": 1.84
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_predicate_verification_and_public_result_carry_verdicts_only",
+   "status": "passed",
+   "s": 1.62
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_eval_stream_labels_are_refused_by_a_training_store",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_label_store_rejects_pending_private_unknown_kinds_and_reads_old_lines",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_label_source::test_capability_score_evaluator_gates_rewards_and_releases_episode_labels",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_labels::test_label_store_appends_once_rejects_pending_and_private_keys_and_survives_reopen",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_parity_with_mechvecenv",
+   "status": "passed",
+   "s": 0.32
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_entities_tools_and_rejections",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_special_tools_and_end_of_episode_success",
+   "status": "passed",
+   "s": 0.08
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_mechworld_firewall",
+   "status": "passed",
+   "s": 0.83
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_invariance_pair_same_dynamics_different_surface",
+   "status": "passed",
+   "s": 0.26
+  },
+  {
+   "id": "tests.cam_unified.envs.test_mechworld::test_rig_task_inside_openworld_dense_verified_reward",
+   "status": "passed",
+   "s": 0.68
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_protocols_satisfied",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_round_trip_observe_tools_execute_advance_collect_evaluate",
+   "status": "passed",
+   "s": 0.1
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_wait_tool_and_rate_limit_free_clock",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_contract_special_tools_noop_and_advance_time",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_tool_schemas_are_fresh_copies_never_kernel_aliases",
+   "status": "passed",
+   "s": 0.04
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_tool_list_reflects_a_redeployed_service",
+   "status": "passed",
+   "s": 0.26
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_numeric_records_are_bounded_but_truncation_is_flagged",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_lossless_event_cursor_and_exactly_once_delivery",
+   "status": "passed",
+   "s": 1.34
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_records_reconstruct_server_view_exactly",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_hidden_state_firewall",
+   "status": "passed",
+   "s": 0.09
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_shared_world_mode_joins_actors_to_one_world",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_heterogeneous_participants_act_independently",
+   "status": "passed",
+   "s": 0.13
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_process_isolated_operator_firewall_and_success",
+   "status": "passed",
+   "s": 5.25
+  },
+  {
+   "id": "tests.cam_unified.envs.test_openworld::test_sandbox_boundary_through_the_adapter",
+   "status": "passed",
+   "s": 10.65
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_every_protocol_is_complete",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_protocol_splits_are_guarded",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_tasks_carry_their_seat_and_participants",
+   "status": "passed",
+   "s": 1.76
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_ow1_goal_requires_profit_and_netting",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_open_economy_calibration_in_forks",
+   "status": "passed",
+   "s": 29.12
+  },
+  {
+   "id": "tests.cam_unified.envs.test_protocols::test_ow7_cooperation_calibration_dev",
+   "status": "passed",
+   "s": 77.05
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_openworld_result_arrives_once_at_the_head_of_the_next_batch",
+   "status": "passed",
+   "s": 2.47
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_errors_waits_and_observe_deliver_too",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_harness_decision_after_world_hosts_sees_its_result",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_process_isolated_operator_delivers_results",
+   "status": "passed",
+   "s": 1.62
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_undelivered_results_survive_an_operator_checkpoint",
+   "status": "passed",
+   "s": 0.05
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_legacy_constructor_is_unchanged",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_experience_adapter_delivers_results",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_merge_results_is_idempotent",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_result_delivery::test_capability_env_payouts_are_observable_and_results_delivered_with_their_seq",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_openworld_actor_stream_is_identical_in_all_reward_modes",
+   "status": "passed",
+   "s": 0.34
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_experience_actor_stream_is_identical_in_all_reward_modes",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_canaries_in_task_params_evaluator_state_and_labels_never_reach_the_actor",
+   "status": "passed",
+   "s": 0.52
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_no_privileged_keys_in_experience_actor_records",
+   "status": "passed",
+   "s": 0.02
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_factory_adapters_reach_no_operator_evaluator_or_label_source",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-srch_distractors]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-dl_delayed_returns#1000000]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[rapid-no_such_family]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[mech-scm_invu#3]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[mech-scm_feedback#3]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_worlds_in_training_streams[kernel-ow_heldout#1]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_openworld_tasks[ow1:test:0]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_refuses_heldout_openworld_tasks[open_economy#1000001]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_split_guard_honours_protocol_pair_declarations",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_evaluation_streams_build_held_out_worlds_and_tag_their_labels",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_reward_modes_other_than_observation_only_must_be_declared",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_reward_integrity::test_scan_run_dir_reads_parquet_and_plain_files",
+   "status": "passed",
+   "s": 1.12
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_catalogue_holdouts_are_disjoint",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_every_family_builds_and_responds",
+   "status": "passed",
+   "s": 3.53
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_sampled_families_pass_crucible_validity",
+   "status": "passed",
+   "s": 14.5
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_validity_sample_covers_every_split_and_engine",
+   "status": "passed",
+   "s": 43.4
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_split_guard_refuses_heldout_families_and_seeds",
+   "status": "passed",
+   "s": 0.17
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_split_guard_declarations_only_tighten_and_cover_openworld_seeds",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.envs.test_worldgen::test_surfaces_change_appearance_only",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.autonomy.test_autonomy_goals::test_candidates_come_from_observed_quantities_and_are_not_trivially_true",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.autonomy.test_autonomy_goals::test_trivial_unverifiable_and_duplicate_goals_earn_nothing",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.autonomy.test_autonomy_goals::test_verifier_resolves_on_world_observations_only_at_or_before_deadline",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.autonomy.test_autonomy_goals::test_curriculum_policy_learns_to_prefer_goals_with_higher_learning_gain",
+   "status": "passed",
+   "s": 2.48
+  },
+  {
+   "id": "tests.cam_unified.autonomy.test_autonomy_goals::test_hindsight_relabels_verified_partial_successes_without_touching_the_original_failure",
+   "status": "passed",
+   "s": 0.01
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_planner_lives_in_planner_runtime_and_is_re_exported",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[_bayes_prior]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[_kalman_on]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[_particle_dist]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[adapt_loss]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[base_moments]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[belief_view]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[channels_of]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[combine]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[filter_sequence]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[kalman_bound]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[kalman_log_prob]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[kalman_predict]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[kalman_update]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[memory_tokens]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[mixture_ll]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[mixture_loglik]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[observe_outcomes]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[predict_outcomes]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[residual_batch]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[retrieve]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[stored_memory_tokens]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_method_is_a_one_line_delegation[world_loss]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_static_helpers_are_the_runtime_functions[_continuous]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_static_helpers_are_the_runtime_functions[_padded]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_py_no_longer_holds_the_moved_bodies",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_agent_objectives_live_in_learn_integrated_and_are_re_exported",
+   "status": "passed",
+   "s": 0.05
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_agent_trainer_step_delegates",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_collect_and_cap_losses_keep_the_update_semantics",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_interfaces_v4_is_versioned_and_additive",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_v4_protocols_are_structural",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_reward_model_stub_returns_detached_zeros",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_new_config_fields_default_to_the_pre_seam_behaviour",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_model_reads_reward_in_beliefs_and_fixed_reasoning_from_the_config",
+   "status": "passed",
+   "s": 0.03
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_build_configs[dom-dims0-Qwen/Qwen3-4B]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_build_configs[dom_dev-dims1-Qwen/Qwen3-0.6B]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_build_configs[dom_150m-dims2-Qwen/Qwen3-4B]",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_unknown_preset_is_refused",
+   "status": "passed",
+   "s": 0.0
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_instantiate[dom_dev-cpu]",
+   "status": "passed",
+   "s": 0.44
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_instantiate[dom_150m-meta]",
+   "status": "passed",
+   "s": 0.3
+  },
+  {
+   "id": "tests.cam_unified.integration.test_seam_structure::test_dom_presets_instantiate[dom-meta]",
+   "status": "passed",
+   "s": 0.91
+  }
+ ]
+}

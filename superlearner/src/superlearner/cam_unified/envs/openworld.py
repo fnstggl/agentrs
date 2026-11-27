@@ -24,6 +24,18 @@ Semantics (contract v2):
   events: need-format documents, listings, providers, persons; `observe` never shows them), a self-identity record,
   the join events and the module summaries. Afterwards `observe` / `advance_time` return exactly the events that are
   new since the previous delivery plus fresh summaries: every actor-visible event is delivered exactly once.
+* **Results (W2, plan 2026-11-26 §2 step 5).** With ``deliver_results=True`` (what `factory.make_env` builds) the
+  direct result of every executed action (the `ExecutionResult.observations`: TOOL_RESULT / NUMERIC leaves / ERROR,
+  ``caused_by`` = the action id, including ``wait`` / ``noop``) is also delivered exactly once at the head of the
+  next observation delivery (`observe` / `advance_time`), marked ``meta["result_of"]`` (`ow_convert.delivered_copy`),
+  so the next decision sees what it asked for whichever loop drives the adapter (`OpenWorldAdapter.delivers_results`
+  tells a loop not to merge the results a second time). Pending results are part of operator checkpoints.
+* **Reward mode.** ``reward_mode`` (Crucible 5.0 `experience.modes`: ``legacy_shaped_reward`` (default, unchanged),
+  ``verified_terminal_outcome``, ``observation_only``) is the default of the evaluator's `RewardGate`. It changes
+  nothing the actor receives (mode invariance, tested).
+* **Public goals.** With ``strip_goal_meta=True`` (`factory.make_env`) the actor-visible `GoalSpec` drops the
+  bookkeeping fields (``family`` = protocol name, ``meta`` with ``sustain_checks`` / ``reward_scale_cents``); the
+  operator keeps the full goal.
 * **Provenance.** Events emitted by the actor's own command (read from the operator log, filtered with
   ``World.visible(e, World.principals_of(p))``) carry ``caused_by = action_id`` and evidence CONTROLLED.
 * **Cursors.** `collect_events(since)` is stateless and lossless: all actor-visible events with seq > since
@@ -58,6 +70,9 @@ from typing import Any, Callable, Optional, Sequence
 from ..interfaces import (Action, EvidenceKind, ExecutionResult, GoalSpec, Observation, ObservationBatch, ObsKind,
                           ToolSchema, new_id)
 from . import ow_convert as C
+from .experience import LEGACY, OBSERVATION_ONLY, VERIFIED
+
+REWARD_MODES = (LEGACY, VERIFIED, OBSERVATION_ONLY)
 
 DAY = 86400
 WAIT_TOOL = "wait"
@@ -143,6 +158,7 @@ class _Env:
     spill: str = ""                    # file of converted events dropped from the buffer (JSONL, seq order)
     goal: Optional[GoalSpec] = None
     stats: dict = field(default_factory=lambda: {"actions": 0, "rejected": 0, "waits": 0, "events": 0})
+    results: list = field(default_factory=list)          # direct results awaiting the next delivery (deliver_results)
 
 
 class OpenWorldOperator:
@@ -155,7 +171,13 @@ class OpenWorldOperator:
                  handles: Sequence[str] | None = None, seed: int = 0, participants: Sequence[tuple] = (),
                  participant_dt: int = 3600, buffer_limit: int = 500_000, fork_identical: bool = False,
                  max_numeric_summary: int = C.DEFAULT_MAX_NUMERIC_SUMMARY,
-                 max_numeric_result: int = C.DEFAULT_MAX_NUMERIC_RESULT):
+                 max_numeric_result: int = C.DEFAULT_MAX_NUMERIC_RESULT, deliver_results: bool = False,
+                 reward_mode: str = LEGACY, strip_goal_meta: bool = False):
+        if reward_mode not in REWARD_MODES:
+            raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {reward_mode!r}")
+        self.reward_mode = reward_mode
+        self.deliver_results = bool(deliver_results)
+        self.strip_goal_meta = bool(strip_goal_meta)
         _ensure_crucible()
         from crucible.api import WorldServer
         if callable(tasks):
@@ -207,6 +229,17 @@ class OpenWorldOperator:
 
     def task(self, b: int):
         return self.envs[b].task
+
+    def actor_goals(self) -> list[GoalSpec]:
+        """The goals as the actor receives them: copies (``strip_goal_meta``: without the bookkeeping fields)."""
+        out = []
+        for e in self.envs:
+            g = copy.deepcopy(e.goal)
+            if g is not None and self.strip_goal_meta:
+                g = GoalSpec(g.goal_id, g.text, dict(g.metrics), g.deadline_days, family="", meta={},
+                             decision_budget=g.decision_budget, funds_budget=g.funds_budget)
+            out.append(g)
+        return out
 
     def env_index(self, env_id: str) -> int:
         for e in self.envs:
@@ -373,8 +406,14 @@ class OpenWorldOperator:
         else:
             out = new
         e.delivered = e.pulled
+        results, e.results = list(e.results), []         # direct results of the actions since the last delivery
         now = self.srv.world(self.slots[e.slot].wid).now
-        return out + C.summary_observations(e.summary, now, e.principal, self.max_numeric_summary)
+        return results + out + C.summary_observations(e.summary, now, e.principal, self.max_numeric_summary)
+
+    def _queue(self, e: _Env, res: ExecutionResult) -> ExecutionResult:
+        if self.deliver_results:
+            e.results.extend(C.delivered_copy(o) for o in res.observations)
+        return res
 
     def observe(self, b: int) -> list[Observation]:
         e = self.envs[b]
@@ -417,9 +456,9 @@ class OpenWorldOperator:
         w = self.srv.world(wid)
         t_s = w.now
         if action.tool in (WAIT_TOOL, ADVANCE_TOOL):
-            return self._wait(e, action, t_s)
+            return self._queue(e, self._wait(e, action, t_s))
         if action.tool == NOOP_TOOL:
-            return noop_result(action, t_s / DAY)
+            return self._queue(e, noop_result(action, t_s / DAY))
         s0 = w.seq
         r = self.srv.execute_action(wid, e.ident, {"tool": action.tool, "args": dict(action.args or {})})
         ps = w.principals_of(e.principal)
@@ -436,10 +475,11 @@ class OpenWorldOperator:
         err = None if r.get("ok") else str((r.get("error") or {}).get("code", "error"))
         if err:
             e.stats["rejected"] += 1
-        return ExecutionResult(ok=bool(r.get("ok")), observations=obs, error=err, cost=float(max(0.0, -delta)),
-                               duration=cost_s / DAY, started_t=t_s / DAY, finished_t=(t_s + cost_s) / DAY,
-                               meta={"tool": r.get("tool") or action.tool, "cost_s": cost_s, "event_seqs": cmd_seqs,
-                                     "cash_delta_cents": float(delta)})
+        return self._queue(e, ExecutionResult(
+            ok=bool(r.get("ok")), observations=obs, error=err, cost=float(max(0.0, -delta)), duration=cost_s / DAY,
+            started_t=t_s / DAY, finished_t=(t_s + cost_s) / DAY,
+            meta={"tool": r.get("tool") or action.tool, "cost_s": cost_s, "event_seqs": cmd_seqs,
+                  "cash_delta_cents": float(delta)}))
 
     def _wait(self, e: _Env, action: Action, t_s: int) -> ExecutionResult:
         e.stats["waits"] += 1
@@ -673,7 +713,7 @@ def _make_port(op: OpenWorldOperator) -> _ActorPort:
     p.execute = lambda b, a: op.execute(b, a)
     p.collect = lambda b, since: op.collect(b, since)
     p.advance = lambda d: op.advance(d)
-    p.goals = lambda: [copy.deepcopy(e.goal) for e in op.envs]
+    p.goals = lambda: op.actor_goals()
     p.now = lambda b: op.now_days(b)
     p.done = lambda b: op.done(b)
     p.env_ids = lambda: [e.env_id for e in op.envs]
@@ -684,10 +724,11 @@ def _make_port(op: OpenWorldOperator) -> _ActorPort:
 class OpenWorldAdapter:
     """Agent-side `EnvAdapter` over the real Crucible OpenWorld (see module docstring). Only records cross it."""
 
-    def __init__(self, port: _ActorPort, n: int, max_wait_s: int):
+    def __init__(self, port: _ActorPort, n: int, max_wait_s: int, delivers_results: bool = False):
         self._port = port
         self.n = int(n)
         self.max_wait_s = int(max_wait_s)
+        self.delivers_results = bool(delivers_results)   # results also arrive in the next ObservationBatch
 
     def _batch(self, obs: list) -> ObservationBatch:
         return ObservationBatch(self._port.env_ids(), obs, [self._port.now(b) for b in range(self.n)],
@@ -747,7 +788,7 @@ def open_world(tasks: Sequence[Any] | Callable[[int, int], Any], n_envs: int | N
     op = OpenWorldOperator(tasks, n_envs, shared_world=shared_world, store_url=store_url, max_wait_s=max_wait_s,
                            handles=handles, seed=seed, participants=participants, participant_dt=participant_dt,
                            fork_identical=fork_identical, **kw)
-    return OpenWorldAdapter(_make_port(op), op.n, max_wait_s), op
+    return OpenWorldAdapter(_make_port(op), op.n, max_wait_s, delivers_results=op.deliver_results), op
 
 
 # ============================================================================================== process isolation
@@ -767,14 +808,16 @@ def _operator_main(conn, args: tuple, kw: dict, eval_kw: Optional[dict]) -> None
     handlers = {
         "reset": op.reset, "observe": op.observe, "tools": op.tools, "execute": op.execute, "collect": op.collect,
         "advance": op.advance, "now": op.now_days, "done": op.done, "checkpoint": op.checkpoint, "restore": op.restore,
-        "goals": lambda: [copy.deepcopy(e.goal) for e in op.envs], "env_ids": lambda: [e.env_id for e in op.envs],
+        "goals": op.actor_goals, "env_ids": lambda: [e.env_id for e in op.envs],
         "batch_state": lambda: ([e.env_id for e in op.envs], [op.now_days(b) for b in range(op.n)],
                                 [op.done(b) for b in range(op.n)]),
     }
     if ev is not None:
         handlers.update({"take_rewards": ev.take_rewards, "evaluate_goal": ev.evaluate_goal,
                          "success_t": lambda: list(ev.success_t), "eval_state": ev.state_dict,
-                         "eval_load": ev.load_state})
+                         "eval_load": ev.load_state, "take_labels": ev.take_labels,
+                         "public_result": ev.public_result, "verify_predicates": ev.verify_predicates,
+                         "eval_info": lambda: {"reward_mode": ev.reward_mode, "stream": ev.stream}})
     while True:
         try:
             cmd, a = conn.recv()
@@ -840,7 +883,8 @@ class RemoteOperator:
 
 
 class RemoteEvaluator:
-    """Harness-side `GoalEvaluator` proxy for the evaluator living with the worlds in the operator process."""
+    """Harness-side `GoalEvaluator` / `interfaces.LabelSource` proxy for the evaluator living with the worlds in the
+    operator process (labels and gated rewards cross the pipe as records)."""
 
     name = "crucible.goals.GoalVerifier"
 
@@ -849,6 +893,19 @@ class RemoteEvaluator:
 
     def take_rewards(self) -> list:
         return self._r.call("take_rewards")
+
+    def take_labels(self) -> list:
+        return self._r.call("take_labels")
+
+    def public_result(self, env_index: int):
+        return self._r.call("public_result", int(env_index))
+
+    def verify_predicates(self, env_index: int, predicates: list) -> list:
+        return self._r.call("verify_predicates", int(env_index), list(predicates))
+
+    @property
+    def reward_mode(self) -> str:
+        return self._r.call("eval_info")["reward_mode"]
 
     def evaluate_goal(self, env_index: int):
         return self._r.call("evaluate_goal", int(env_index))
@@ -885,5 +942,5 @@ def open_world_isolated(tasks: Sequence[Any], n_envs: int | None = None, *, eval
     p.done = lambda b: r.call("done", b)
     p.env_ids = lambda: r.call("env_ids")
     p.close = lambda: r.close()
-    return (OpenWorldAdapter(p, r.n, kw.get("max_wait_s", 86400)), RemoteOperator(r),
-            RemoteEvaluator(r) if evaluator is not None else None)
+    return (OpenWorldAdapter(p, r.n, kw.get("max_wait_s", 86400), delivers_results=bool(kw.get("deliver_results"))),
+            RemoteOperator(r), RemoteEvaluator(r) if evaluator is not None else None)

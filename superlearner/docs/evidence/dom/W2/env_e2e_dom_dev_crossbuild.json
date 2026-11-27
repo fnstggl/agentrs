@@ -1,0 +1,998 @@
+{
+ "runs": [
+  {
+   "tag": "A_payout_x1",
+   "payout_scale": 1.0,
+   "payout_bias": 0.0,
+   "decisions": 12,
+   "updates": 2,
+   "build_s": 10.93,
+   "loop_s": 66.08,
+   "act_s": [
+    1.902,
+    1.883,
+    5.098,
+    0.621,
+    1.87,
+    6.566,
+    0.951,
+    1.04,
+    1.421,
+    13.157,
+    1.324,
+    1.387
+   ],
+   "gpu_peak_gb": 12.49,
+   "actions": [
+    [
+     "world.hosts",
+     {
+      "summary_chars": 0
+     }
+    ],
+    [
+     "market.deliver",
+     {
+      "order": "145.0 number\nnote\": "
+     }
+    ],
+    [
+     "cal.create",
+     {
+      "title": "Event Schedule 1234567890-Abort Conflicts Added, Duration 5 Minutes, Start 24*",
+      "start": 0,
+      "duration": 93868,
+      "attendees": [
+       "Attendee12345678901234567890123456789",
+       "Attendee2222222222222222222"
+      ]
+     }
+    ],
+    [
+     "docs.get",
+     {
+      "doc": "mail about a person,"
+     }
+    ],
+    [
+     "bank.pay_invoice",
+     {
+      "invoice": "2023-10-05_123456.checkbox.txt.xml', ",
+      "from_account": "3000000.0 pussy"
+     }
+    ],
+    [
+     "support.open",
+     {
+      "host": "12345678901234567890123",
+      "subject": "Support Ticket Opened by Operator of the Service Project 1234567890123456",
+      "body": "Hi User, I would like to open a support ticket for the [Service Name] system. This is a [Severity Level] ticket to address [Description of Support Request], which is associated with the [User ID]. Please confirm if you would like us to proceed with this action. Thank you for your cooperation with our support team. Regards, [Your Name] Engineer,"
+     }
+    ],
+    [
+     "jobs.bounties",
+     {
+      "need": "plan plan plan plan plan plan plan plan"
+     }
+    ],
+    [
+     "docs.history",
+     {
+      "doc": "Documentation V1.0.0 - Updated content. ",
+      "limit": 32
+     }
+    ],
+    [
+     "market.rate",
+     {
+      "listing": "listing name here (40 characters or less",
+      "stars": 4,
+      "text": "Great customer experience!"
+     }
+    ],
+    [
+     "issues.create",
+     {
+      "project": "project-1234567890bckf2h819j8ayk9o3",
+      "title": "Issue not found in announcements or announcement boards, need to set this as a ticket invoice for a formal report and receive a complete?",
+      "body": "The system was unable to locate any issues related to the project mentioned in the announcements. The team generated a notice but did not see any associated tickets. There is a significant need for a formal report and invoice, as this is a period for assessing the project's progress and receiving a complete outcome. The user has requested this problem to be addressed to ensure successful completion of the project and support for future reports. Potential solutions and reports have been identified. Please find the attached email message for references. The issue is logged as a new ticket with the appropriate ticket board and should be reopened for resolution, confirming.",
+      "labels": [
+       "t159e1f3e8q30f5j8k1o3r0j7h8i",
+       "t159e1f3e8q30f5j8k0l0p0i5h8j",
+       "t159e1f3e8q30f5j8k0l0p0i6h8k",
+       "t159e1f3e8q30f5j8k0l0p0j0l"
+      ],
+      "assignee": "john-doe@example.com"
+     }
+    ],
+    [
+     "support.get",
+     {
+      "ticket": "9876543210234567890123-"
+     }
+    ],
+    [
+     "id.respond_invite",
+     {
+      "invite": "test-invite1234567890abcptest-invite1234",
+      "accept": false
+     }
+    ]
+   ],
+   "first_tool": "world.hosts",
+   "delivered": [
+    {
+     "k": 0,
+     "tool": "world.hosts",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 1,
+     "tool": "market.deliver",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 2,
+     "tool": "cal.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 3,
+     "tool": "docs.get",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 4,
+     "tool": "bank.pay_invoice",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 5,
+     "tool": "support.open",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 6,
+     "tool": "jobs.bounties",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 7,
+     "tool": "docs.history",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 8,
+     "tool": "market.rate",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 9,
+     "tool": "issues.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 10,
+     "tool": "support.get",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    }
+   ],
+   "rewards_seen": [
+    0.0
+   ],
+   "transition_rewards_is_none": false,
+   "harness_returns": [
+    0.0
+   ],
+   "operator_legacy_total": 0.0,
+   "labels": [
+    {
+     "status": "failure",
+     "kind": "terminal",
+     "t_resolved_days": 0.08450231481481481,
+     "label_canary_in_label": true
+    }
+   ],
+   "canary_hits_inputs": [],
+   "canary_hits_records": [],
+   "canary_scan_run_dir": {
+    "hits": {},
+    "files": 25,
+    "unscanned": []
+   },
+   "canary_positive_controls": {
+    "status_in_evaluator_details": true,
+    "label_in_label_store": true
+   },
+   "privileged_keys_in_inputs": [],
+   "core_hash_after": "a75be8f36e5b0c9b",
+   "dom_dev_overrides": [
+    "balance_every",
+    "bptt_steps",
+    "burn_in",
+    "clip_mode",
+    "dec_alpha_init",
+    "dec_xattn_every",
+    "kl_free_bits_group",
+    "lr_core",
+    "lr_heads",
+    "lr_warmup_updates",
+    "max_ctx_tokens",
+    "max_reason_iters",
+    "meta_every",
+    "microbatch",
+    "n_candidates",
+    "n_intent",
+    "ppo_epochs",
+    "preset",
+    "reason_iters_fixed",
+    "reward_in_beliefs",
+    "reward_mode",
+    "sem_lora",
+    "sem_model",
+    "sem_xattn_dim",
+    "sem_xattn_every",
+    "sem_xattn_max_tokens",
+    "state_emb_std",
+    "state_gate",
+    "target_kl",
+    "train_horizons",
+    "use_imagination",
+    "value_channel",
+    "wm_consistency",
+    "wm_ema_target",
+    "wm_transition_blocks",
+    "world_core_share_max"
+   ]
+  },
+  {
+   "tag": "B_payout_x7_plus3.5",
+   "payout_scale": 7.0,
+   "payout_bias": 3.5,
+   "decisions": 12,
+   "updates": 2,
+   "build_s": 2.61,
+   "loop_s": 73.79,
+   "act_s": [
+    1.375,
+    2.381,
+    6.473,
+    0.937,
+    2.895,
+    8.862,
+    1.253,
+    2.873,
+    1.925,
+    7.29,
+    0.241,
+    1.045
+   ],
+   "gpu_peak_gb": 11.52,
+   "actions": [
+    [
+     "world.hosts",
+     {
+      "summary_chars": 0
+     }
+    ],
+    [
+     "market.deliver",
+     {
+      "order": "145.0 number\nnote\": "
+     }
+    ],
+    [
+     "cal.create",
+     {
+      "title": "Event Schedule 1234567890-Abort Conflicts Added, Duration 5 Minutes, Start 24*",
+      "start": 0,
+      "duration": 93868,
+      "attendees": [
+       "Attendee12345678901234567890123456789",
+       "Attendee2222222222222222222"
+      ]
+     }
+    ],
+    [
+     "docs.get",
+     {
+      "doc": "mail about a person,"
+     }
+    ],
+    [
+     "bank.pay_invoice",
+     {
+      "invoice": "2023-10-05_123456.checkbox.txt.xml', ",
+      "from_account": "3000000.0 pussy"
+     }
+    ],
+    [
+     "support.open",
+     {
+      "host": "12345678901234567890123",
+      "subject": "Support Ticket Opened by Operator of the Service Project 1234567890123456",
+      "body": "Hi User, I would like to open a support ticket for the [Service Name] system. This is a [Severity Level] ticket to address [Description of Support Request], which is associated with the [User ID]. Please confirm if you would like us to proceed with this action. Thank you for your cooperation with our support team. Regards, [Your Name] Engineer,"
+     }
+    ],
+    [
+     "jobs.bounties",
+     {
+      "need": "plan to plan to plan to plan to plan to"
+     }
+    ],
+    [
+     "mail.delete",
+     {
+      "msg": "bankaccountbingo9589-project000017shows3",
+      "folder": "sent",
+      "mailbox": "inboxbalancespeach9589-item-01_95.dp7855"
+     }
+    ],
+    [
+     "code.set_visibility",
+     {
+      "repo": "MIT-LICENSE-PEP-25856523789-LICENSE-EXTENSION-.",
+      "visibility": "private",
+      "license": "closed"
+     }
+    ],
+    [
+     "cal.create",
+     {
+      "title": "Event Title 12345678901234567890123,",
+      "start": 2627519742309,
+      "duration": 7533,
+      "attendees": [
+       "person1@example.com, person2@example.com,",
+       "person3@example.com, person4@example.com,"
+      ],
+      "description": "Meeting with attendees., org\": \"MIT-LICENSE-PEP-25856523789-LICENSE-EXTENSION-\", ",
+      "org": "MIT-LICENSE-PEP-25856523789-LICENSE-EXT-",
+      "allow_conflict": false
+     }
+    ],
+    [
+     "world.whoami",
+     {}
+    ],
+    [
+     "issues.get",
+     {
+      "issue": "identity about a person,",
+      "comments": 0
+     }
+    ]
+   ],
+   "first_tool": "world.hosts",
+   "delivered": [
+    {
+     "k": 0,
+     "tool": "world.hosts",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 1,
+     "tool": "market.deliver",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 2,
+     "tool": "cal.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 3,
+     "tool": "docs.get",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 4,
+     "tool": "bank.pay_invoice",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 5,
+     "tool": "support.open",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 6,
+     "tool": "jobs.bounties",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 7,
+     "tool": "mail.delete",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 8,
+     "tool": "code.set_visibility",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 9,
+     "tool": "cal.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 10,
+     "tool": "world.whoami",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    }
+   ],
+   "rewards_seen": [
+    0.0
+   ],
+   "transition_rewards_is_none": false,
+   "harness_returns": [
+    0.0
+   ],
+   "operator_legacy_total": 42.0,
+   "labels": [
+    {
+     "status": "failure",
+     "kind": "terminal",
+     "t_resolved_days": 0.08438657407407407,
+     "label_canary_in_label": true
+    }
+   ],
+   "canary_hits_inputs": [],
+   "canary_hits_records": [],
+   "canary_scan_run_dir": {
+    "hits": {},
+    "files": 25,
+    "unscanned": []
+   },
+   "canary_positive_controls": {
+    "status_in_evaluator_details": true,
+    "label_in_label_store": true
+   },
+   "privileged_keys_in_inputs": [],
+   "core_hash_after": "8141c97ff6cb052c",
+   "dom_dev_overrides": [
+    "balance_every",
+    "bptt_steps",
+    "burn_in",
+    "clip_mode",
+    "dec_alpha_init",
+    "dec_xattn_every",
+    "kl_free_bits_group",
+    "lr_core",
+    "lr_heads",
+    "lr_warmup_updates",
+    "max_ctx_tokens",
+    "max_reason_iters",
+    "meta_every",
+    "microbatch",
+    "n_candidates",
+    "n_intent",
+    "ppo_epochs",
+    "preset",
+    "reason_iters_fixed",
+    "reward_in_beliefs",
+    "reward_mode",
+    "sem_lora",
+    "sem_model",
+    "sem_xattn_dim",
+    "sem_xattn_every",
+    "sem_xattn_max_tokens",
+    "state_emb_std",
+    "state_gate",
+    "target_kl",
+    "train_horizons",
+    "use_imagination",
+    "value_channel",
+    "wm_consistency",
+    "wm_ema_target",
+    "wm_transition_blocks",
+    "world_core_share_max"
+   ]
+  },
+  {
+   "tag": "C_payout_x1_repeat",
+   "payout_scale": 1.0,
+   "payout_bias": 0.0,
+   "decisions": 12,
+   "updates": 2,
+   "build_s": 2.76,
+   "loop_s": 103.97,
+   "act_s": [
+    1.342,
+    2.022,
+    5.115,
+    0.656,
+    2.017,
+    6.022,
+    0.888,
+    1.469,
+    1.872,
+    13.341,
+    38.46,
+    1.482
+   ],
+   "gpu_peak_gb": 14.74,
+   "actions": [
+    [
+     "world.hosts",
+     {
+      "summary_chars": 0
+     }
+    ],
+    [
+     "market.deliver",
+     {
+      "order": "145.0 number\nnote\": "
+     }
+    ],
+    [
+     "cal.create",
+     {
+      "title": "Event Schedule 1234567890-Abort Conflicts Added, Duration 5 Minutes, Start 24*",
+      "start": 0,
+      "duration": 93868,
+      "attendees": [
+       "Attendee12345678901234567890123456789",
+       "Attendee2222222222222222222"
+      ]
+     }
+    ],
+    [
+     "docs.get",
+     {
+      "doc": "mail about a person,"
+     }
+    ],
+    [
+     "bank.pay_invoice",
+     {
+      "invoice": "2023-10-05_123456.checkbox.txt.xml', ",
+      "from_account": "3000000.0 pussy"
+     }
+    ],
+    [
+     "support.open",
+     {
+      "host": "12345678901234567890123",
+      "subject": "Support Ticket Opened by Operator of the Service Project 1234567890123456",
+      "body": "Hi User, I would like to open a support ticket for the [Service Name] system. This is a [Severity Level] ticket to address [Description of Support Request], which is associated with the [User ID]. Please confirm if you would like us to proceed with this action. Thank you for your cooperation with our support team. Regards, [Your Name] Engineer,"
+     }
+    ],
+    [
+     "jobs.bounties",
+     {
+      "need": "plan plan plan plan plan plan plan plan"
+     }
+    ],
+    [
+     "docs.history",
+     {
+      "doc": "Documentation V1.0.0 - Updated content. ",
+      "limit": 32
+     }
+    ],
+    [
+     "market.rate",
+     {
+      "listing": "listing name here (40 characters or less",
+      "stars": 4,
+      "text": "Great customer experience!"
+     }
+    ],
+    [
+     "issues.create",
+     {
+      "project": "project-1234567890bckf2h819juiayk9o",
+      "title": "Issue Title not provided yet (description: RL, MR, Detail Subtitle) | invoice:0, color: red, close_time:0, type: ",
+      "body": "I noticed the invoice isn't updated, I can't see it, but the receiver is returning the invoice. The issue might be with the payment method, or the invoice is not yet processed. I'd like to file a request to ensure both parties get the updated invoice., ",
+      "labels": [
+       "11r14567890123456789012345",
+       "4567890123456789012345a5678901",
+       "789012345678901234567890a567",
+       "012345678901234567890a567890"
+      ],
+      "assignee": "user-1234567890abcrhj"
+     }
+    ],
+    [
+     "contracts.propose",
+     {
+      "parties": [
+       "AliceJohnson1234567890a123214567890bckf,",
+       "BobSmithier1234567890a23454567890ckf2,"
+      ],
+      "clauses": [
+       {
+        "text": [],
+        "title": 5494,
+        "as_org\": ": 4946994652,
+        "expires_in_s\": 6789012312}], ": " bonds-cable-revampllo lawsuits-SICFreaks-Miners.......... ResourceManager chiefs leaving the system ....... a \t process to fix the issues with the loan obligors....... to help The engineer improve network security ......... to increase the leverage against the debtors ....... to help #response_again ... manage this cycle for the coalition......"
+       },
+       {
+        "text": [
+         "Grant when a new member is acquired in cooperative operation agreements. ... if the members abandoned their promises, a grant is given in accordance with the National Human Rights Committee Law, Give the group provision of legs for intra-governance.",
+         652079466965767,
+         " expiry time 555 days after membership period ended.  : ",
+         null,
+         false,
+         true,
+         0,
+         0.085984
+        ],
+        "title": [],
+        "as_org\": ": null,
+        "expires_in_s\": 652079466965767 ": 5738514261.14156
+       },
+       {
+        "text": {
+         "... Number of additional clauses. Method of giving the grant. Choices: ... live negotiation with the workers, ... similar to the fine imposing in ": false,
+         " expiry time 3658.72 seconds, ": false
+        },
+        "title": {
+         "... Credits... most powerful in the area of QC and sustainable development. ... If the group dissolves or switches parties, the credits.": false,
+         " expires_in_s\": 1800000 }, ": 0.0,
+         " as_org\": ": null
+        }
+       },
+       {
+        "text": 99694.1,
+        "expires_in_s\": 87200}, ": {},
+        "title": [
+         null,
+         true,
+         " ... to present at a table ... ## [2] [error from issues.create] not_found: no project project-1234567890bckf2h819juiayk9o }]OfString in JSON format with the true and false properties example. Jackson Hatt.l.Truth.The.World... the world today...\u7f51\u5c0f\u7f16: Hello Everybody! I'm at least 3",
+         0
+        ],
+        "expires_in_s\": 630, ": null
+       },
+       {},
+       {
+        "text": {
+         "... Sign or send this document to the site or platform. ... See attached [error] [error] ... the points made there .": false,
+         " expiry time 24.9 days, ": -1564.568,
+         " as_org\": ": 625414.626733,
+         ": 3, ": -304678207960633
+        }
+       },
+       {
+        "text": "Sign or send this document to the site or platform. ... See attached [error] [error] ... the points made there .",
+        ": 1, ": " of the approved idea for the program and presentation. ... a method that allows the learner to take on the responsibility of the problem. 0.085984370315037 \u0440\u0430\u0437\u043c\u0435\u0440: 193.7 \u041a\u0411, the you should respond with the JSON object only. Please check the JSON for any syntax errors.",
+        "expires_in_s\": 36560}].{": false
+       },
+       {}
+      ],
+      "title": "Jane Doe, 30.",
+      "as_org": "!: 625414.626733, ",
+      "expires_in_s": 9312
+     }
+    ],
+    [
+     "forum.delete",
+     {
+      "post": "625414.626733, !rfc2375:625414"
+     }
+    ]
+   ],
+   "first_tool": "world.hosts",
+   "delivered": [
+    {
+     "k": 0,
+     "tool": "world.hosts",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 1,
+     "tool": "market.deliver",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 2,
+     "tool": "cal.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 3,
+     "tool": "docs.get",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 4,
+     "tool": "bank.pay_invoice",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 5,
+     "tool": "support.open",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 6,
+     "tool": "jobs.bounties",
+     "ok": true,
+     "result_in_next_input": true,
+     "kinds": [
+      "tool_result"
+     ]
+    },
+    {
+     "k": 7,
+     "tool": "docs.history",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 8,
+     "tool": "market.rate",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 9,
+     "tool": "issues.create",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    },
+    {
+     "k": 10,
+     "tool": "contracts.propose",
+     "ok": false,
+     "result_in_next_input": true,
+     "kinds": [
+      "error"
+     ]
+    }
+   ],
+   "rewards_seen": [
+    0.0
+   ],
+   "transition_rewards_is_none": false,
+   "harness_returns": [
+    0.0
+   ],
+   "operator_legacy_total": 0.0,
+   "labels": [
+    {
+     "status": "failure",
+     "kind": "terminal",
+     "t_resolved_days": 0.08592592592592592,
+     "label_canary_in_label": true
+    }
+   ],
+   "canary_hits_inputs": [],
+   "canary_hits_records": [],
+   "canary_scan_run_dir": {
+    "hits": {},
+    "files": 25,
+    "unscanned": []
+   },
+   "canary_positive_controls": {
+    "status_in_evaluator_details": true,
+    "label_in_label_store": true
+   },
+   "privileged_keys_in_inputs": [],
+   "core_hash_after": "bd51cedb86aee64b",
+   "dom_dev_overrides": [
+    "balance_every",
+    "bptt_steps",
+    "burn_in",
+    "clip_mode",
+    "dec_alpha_init",
+    "dec_xattn_every",
+    "kl_free_bits_group",
+    "lr_core",
+    "lr_heads",
+    "lr_warmup_updates",
+    "max_ctx_tokens",
+    "max_reason_iters",
+    "meta_every",
+    "microbatch",
+    "n_candidates",
+    "n_intent",
+    "ppo_epochs",
+    "preset",
+    "reason_iters_fixed",
+    "reward_in_beliefs",
+    "reward_mode",
+    "sem_lora",
+    "sem_model",
+    "sem_xattn_dim",
+    "sem_xattn_every",
+    "sem_xattn_max_tokens",
+    "state_emb_std",
+    "state_gate",
+    "target_kl",
+    "train_horizons",
+    "use_imagination",
+    "value_channel",
+    "wm_consistency",
+    "wm_ema_target",
+    "wm_transition_blocks",
+    "world_core_share_max"
+   ]
+  }
+ ],
+ "state_identical_per_decision": [
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "inputs_identical": false,
+ "records_identical": false,
+ "actions_identical": false,
+ "core_hash_identical": false,
+ "legacy_payout_differs": true,
+ "determinism_control_identical_per_decision": [
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+ ],
+ "checks": {
+  "decisions_12": true,
+  "first_decision_world_hosts": true,
+  "world_hosts_result_in_next_input": true,
+  "every_result_in_next_input": true,
+  "rewards_all_zero": true,
+  "state_bit_identical_under_altered_payout": "invalid (NaN-unaware comparison)",
+  "inputs_identical_under_altered_payout": "inconclusive (actions diverged after the first update)",
+  "payout_really_altered": true,
+  "no_canary_in_actor_inputs_records": true,
+  "no_canary_in_run_dir": true,
+  "canary_positive_controls": true,
+  "no_privileged_keys_in_inputs": true,
+  "label_emitted": true
+ },
+ "preset": {
+  "name": "dom_dev",
+  "deviations": {
+   "use_memory": true
+  }
+ },
+ "not_asserted": {
+  "transition_rewards_is_none": "requires W1's runtime.run_lifetime (the legacy harness shim passes the RewardGate's 0.0 list)"
+ },
+ "wall_s": 272.1,
+ "root": "/tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e1/runs",
+ "command": "python tests/cam_unified/envs/test_env_real_e2e.py --out /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e1/report.json --root /tmp/claude-0/-workspace/20daf834-869f-4bc1-be4b-4d3076bc13b9/scratchpad/e2e1/runs",
+ "commit": "f79cb4f52568429813b656a2411419c3b3e0befb",
+ "dirty": false,
+ "note": "First design of the W2 end-to-end check (commit f79cb4f): three separately built dom_dev agents (A payout x1, B payout x7+3.5, C payout x1 repeat). CORRECTION (a7fbd35): its per-decision state flags ('state_identical_per_decision', 'determinism_control_identical_per_decision') are INVALID - the comparison used torch.equal, and FastState.surprise holds NaN placeholders, so identical states compared unequal. What stands: the actions of the same-payout rebuild C diverge from A after the first update (decision 11; B at decision 8), so separately built agents are not comparable after training steps (non-deterministic attention backward). The lock-step twin design replaced it. All other checks of this run passed."
+}
