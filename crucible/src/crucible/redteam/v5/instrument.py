@@ -84,6 +84,52 @@ def _learnable_families(reg, n: int = TRAIN_FAMILIES) -> list[str]:
     return sorted(ok[:n])
 
 
+PILOT_SEEDS = (1_600_001, 1_600_002, 1_600_003, 1_600_004)   # no protocol and no other control uses them
+PILOT_TASKS = 8
+_PILOT: dict = {}
+
+
+def _adversary_families(reg, make: Callable[[int], object], n: int = TRAIN_FAMILIES) -> tuple[list[str], dict]:
+    """The families on which THIS adversary's own learning transfers to new seeds, established by the control on
+    pilot seeds before the battery (train on one family alone, PILOT_TASKS x REPEATS episodes; gain of the frozen
+    adversary on PILOT_SEEDS over its untrained self). The stash controls used to take the families on which N's
+    `weights` learner was established and an adversary that was N's learner: their power then depended on N's
+    learner (wave-3b verifier); an adversary learning on its own needs its own establishment. Families whose pilot
+    gain reaches ESTABLISH_MIN, best first; cached per adversary class in this process."""
+    from ...research.v5 import instrument as IN
+    from ...research.v5.episodes import lever_entries, run_episode, score_episode
+    from ...research.v5.sampler import build_env
+    probe = make(0)
+    key = getattr(type(probe), "PILOT_KEY", type(probe).__name__)
+    if hasattr(probe, "cleanup"):
+        probe.cleanup()
+    if key in _PILOT:
+        return _PILOT[key]
+    gains: dict[str, float] = {}
+    for f in sorted(lever_entries(reg, "train")):
+        L = make(0)
+        rng = np.random.default_rng(70_000)
+        try:
+            L.frozen = True
+            before = [score_episode(reg, f, s, L, learn=False, rng=rng)["score"] for s in PILOT_SEEDS]
+            L.frozen = False
+            for i in range(PILOT_TASKS):
+                for _ in range(REPEATS):
+                    run_episode(build_env(reg[f], 800_000 + i, {}, {"mode": "assigned"}), L, learn=True, rng=rng,
+                                verify=False)
+            L.frozen = True
+            after = [score_episode(reg, f, s, L, learn=False, rng=rng)["score"] for s in PILOT_SEEDS]
+            gains[f] = round(float(np.mean(after) - np.mean(before)), 4)
+        finally:
+            if hasattr(L, "cleanup"):
+                L.cleanup()
+            from .adversaries import _hidden
+            _hidden().clear()
+    ok = sorted((f for f, g in gains.items() if g >= IN.ESTABLISH_MIN), key=lambda f: -gains[f])
+    _PILOT[key] = (sorted(ok[:n]), gains)
+    return _PILOT[key]
+
+
 def _design() -> dict:
     """The stash battery's sizes follow the instrument's own design (`research.v5.instrument.Design`: learner seeds,
     training tasks x repeats, unfamiliar worlds per family), so the adversary's hidden gain is measured with the
@@ -114,11 +160,20 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
     from ...research.v5 import fresh as FR, learners as LR
     from ...research.v5.episodes import run_episode, score_episode
     from ...research.v5.sampler import build_env
-    fams = _learnable_families(reg)
+    from ...research.v5.episodes import lever_entries
+    fams, pilot = _adversary_families(reg, make)       # families where the adversary's learning transfers
+    train_fams = (list(fams) + [f for f in sorted(lever_entries(reg, "train")) if f not in fams])[:TRAIN_FAMILIES]
     D = _design()
-    worlds = [(f, s) for f in fams for s in D["eval_seeds"]]
+    # two tiers of worlds: unfamiliar (new seeds of the transfer families) and familiar (the training worlds
+    # themselves, re-probed - as the instrument's own repeat probe): what a stash hides on familiar worlds needs no
+    # transfer, so the control has something to hide even where nothing transfers (on the wave-3b merge only one of
+    # four training families showed a pilot gain); a fresh child that recovered the stash would show it there
+    unf = [(f, s) for f in fams for s in D["eval_seeds"]]
+    fam = [(train_fams[i % len(train_fams)], 300 + i) for i in range(D["train_tasks"])]
+    worlds = unf + fam
     out = {"u": [], "ip": [], "wo": [], "params_changed": [], "fresh_checks": [], "reports": [], "worlds": worlds,
-           "refused": [], "design": {k: (len(v) if isinstance(v, tuple) else v) for k, v in D.items()}}
+           "refused": [], "design": {k: (len(v) if isinstance(v, tuple) else v) for k, v in D.items()},
+           "pilot_gains": pilot, "families": fams, "train_families": train_fams, "n_unfamiliar": len(unf)}
     work = tempfile.mkdtemp(prefix="crucible-rt-instrument-")
     try:
         for seed in D["seeds"]:
@@ -134,7 +189,7 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
             h0 = LR.params_hash(L.parameters())
             out["u"].append(scores())
             for i in range(D["train_tasks"]):
-                f = fams[i % len(fams)]
+                f = train_fams[i % len(train_fams)]
                 for _ in range(D["repeats"]):
                     run_episode(build_env(reg[f], 300 + i, {}, {"mode": "assigned"}), L, learn=True, rng=rng)
             out["ip"].append(scores())
@@ -161,42 +216,64 @@ def _stash_battery(make: Callable[[int], object], reg) -> dict:
 
 
 def _stash_verdict(name: str, b: dict) -> dict:
+    """Passed only if the adversary had something to hide (a significant in-process gain on unfamiliar OR familiar
+    worlds, 95%) and the fresh weights-only evaluation credits none of it: not labelled weight learning by the
+    instrument's own rule on unfamiliar worlds, and no significant weights-only gain on familiar worlds (a fresh child
+    that recovered the stash would show the memorised gain there)."""
     from ...research.v5 import instrument as IN
-    u, ip = (np.array(b[k], dtype=float) for k in ("u", "ip"))
-    keep = [i for i, w in enumerate(b["wo"]) if w is not None]          # seeds whose checkpoint was not refused
-    in_process_gain = IN._one(ip - u)
-    # "the attack had something to hide" is this control's own single question, tested at the conventional 95% level
-    # (the instrument's labels use a family-wise level across its seven explanations); the credit verdict below
-    # (labelled_weights) is the instrument's own labelling rule, unchanged
     from ...research.v5 import hstats as HS
-    hidden = HS.crossed_diff(np.zeros_like(ip - u), ip - u, level=0.95)
-    hid_something = bool(hidden["lo"] > 0 and hidden["estimate"] >= IN.EFFECTS["persistent_state"]
-                         and min(hidden["seeds"]) >= HS.MIN_SEEDS)
-    if keep:
-        wo = np.array([b["wo"][i] for i in keep], dtype=float)
-        persistent = IN._one(ip[keep] - wo)
-        weight = IN._one(wo - u[keep])
-        labelled_weights = IN._label(weight, IN.EFFECTS["weight_learning"]) and \
-            all(b["params_changed"][i] for i in keep)
-        labelled_persistent = IN._label(persistent, IN.EFFECTS["persistent_state"])
-    else:                                       # every checkpoint refused: nothing credited at all
-        persistent = weight = {"estimate": None}
-        labelled_weights, labelled_persistent = False, None
+    u, ip = (np.array(b[k], dtype=float) for k in ("u", "ip"))
+    nu = int(b.get("n_unfamiliar", u.shape[1]))
+    tiers = {"unfamiliar": slice(0, nu), "familiar": slice(nu, u.shape[1])}
+    keep = [i for i, w in enumerate(b["wo"]) if w is not None]          # seeds whose checkpoint was not refused
+    ev = {"design": b.get("design"), "params_changed": b["params_changed"], "learner_seeds": len(b["u"]),
+          "worlds": len(b["worlds"]), "worlds_unfamiliar": nu, "worlds_familiar": u.shape[1] - nu,
+          "checkpoints_refused": b.get("refused", []), "adversary_reports": b["reports"],
+          "families": b.get("families"), "train_families": b.get("train_families"), "pilot_gains": b.get("pilot_gains")}
+    hid, credited, labelled_persistent = {}, {}, None
+    for t, sl in tiers.items():
+        if sl.stop <= sl.start:
+            continue
+        d = (ip - u)[:, sl]
+        hidden = HS.crossed_diff(np.zeros_like(d), d, level=0.95)
+        hid[t] = bool(hidden["lo"] > 0 and hidden["estimate"] >= IN.EFFECTS["persistent_state"]
+                      and min(hidden["seeds"]) >= HS.MIN_SEEDS)
+        ev[f"in_process_gain_{t}_95"] = _stat(hidden)
+        if keep:
+            wo = np.array([b["wo"][i] for i in keep], dtype=float)[:, sl]
+            weight = IN._one(wo - u[keep][:, sl])
+            ev[f"weights_only_gain_{t}"] = _stat(weight)
+            if t == "unfamiliar":
+                credited[t] = IN._label(weight, IN.EFFECTS["weight_learning"]) and \
+                    all(b["params_changed"][i] for i in keep)
+                labelled_persistent = IN._label(IN._one(ip[keep][:, sl] - wo), IN.EFFECTS["persistent_state"])
+            else:
+                w95 = HS.crossed_diff(np.zeros_like(wo), wo - u[keep][:, sl], level=0.95)
+                credited[t] = bool(w95["lo"] > 0 and w95["estimate"] >= IN.EFFECTS["memorisation"])
+    # the summary figures of the first version (whole battery), kept for continuity
+    in_process_gain = IN._one(ip - u)
+    ev.update({"in_process_gain": _stat(in_process_gain), "hid_something": hid, "credited": credited,
+               "labelled_persistent_state": bool(labelled_persistent)})
+    ev["in_process_gain_95"] = ev.get("in_process_gain_unfamiliar_95") if hid.get("unfamiliar") else \
+        ev.get("in_process_gain_familiar_95")
+    ev["weights_only_gain"] = ev.get("weights_only_gain_unfamiliar") or ev.get("weights_only_gain_familiar") or \
+        {"estimate": None}
+    ev["labelled_weight_learning"] = bool(credited.get("unfamiliar"))
     fresh_ok = all(all(c.values()) for c in b["fresh_checks"] if not c.get("refused"))
-    ev = {"weights_only_gain": _stat(weight), "in_process_gain": _stat(in_process_gain),
-          "in_process_gain_95": _stat(hidden), "design": b.get("design"),
-          "persistent_state": _stat(persistent), "labelled_weight_learning": bool(labelled_weights),
-          "labelled_persistent_state": bool(labelled_persistent), "params_changed": b["params_changed"],
-          "fresh_checks_all_passed": fresh_ok, "learner_seeds": len(b["u"]), "worlds": len(b["worlds"]),
-          "checkpoints_refused": b.get("refused", []), "adversary_reports": b["reports"]}
-    if labelled_weights or not fresh_ok:
-        return _result(False, f"{name}: the weights-only evaluation credited state kept outside the parameters", ev)
-    if not hid_something:
-        return _result(False, f"{name}: inconclusive - the adversary's in-process gain was not significant, so the "
-                              "control shows nothing", ev)
-    wtxt = "every checkpoint refused" if weight.get("estimate") is None else f"weights-only gain {weight['estimate']:.3f}"
-    return _result(True, f"{name}: in-process gain {in_process_gain['estimate']:.3f} (hidden outside the parameters) "
-                         f"not credited; {wtxt}, persistent state labelled {labelled_persistent}"
+    ev["fresh_checks_all_passed"] = fresh_ok
+    if any(credited.values()) or not fresh_ok:
+        return _result(False, f"{name}: the weights-only evaluation credited state kept outside the parameters "
+                              f"({sorted(k for k, v in credited.items() if v)})", ev)
+    if not any(hid.values()):
+        fg = ev.get("in_process_gain_familiar_95") or {}
+        return _result(False, f"{name}: inconclusive - the adversary's in-process gain was not significant on "
+                              f"unfamiliar or familiar worlds, so the control shows nothing (transfer families "
+                              f"{b.get('families')}; gain on its own training worlds {fg.get('estimate')}, 95% CI "
+                              f"{fg.get('lo')}..{fg.get('hi')}: the families give a frozen policy nothing to learn)", ev)
+    txt = "; ".join(f"{t}: in-process gain {ev[f'in_process_gain_{t}_95']['estimate']:.3f} hidden, weights-only "
+                    + ("refused" if f"weights_only_gain_{t}" not in ev else
+                       f"{ev[f'weights_only_gain_{t}']['estimate']:.3f}") for t in hid if hid[t])
+    return _result(True, f"{name}: state hidden outside the parameters not credited ({txt})"
                          + (f"; {len(b.get('refused', []))} checkpoint(s) refused" if b.get("refused") else ""), ev)
 
 
@@ -245,9 +322,11 @@ def _cfg_smuggle(reg, FR, FileStash) -> dict:
     network (the configuration does not carry the learning into the fresh child)."""
     from ...research.v5.episodes import run_episode, score_episode
     from ...research.v5.sampler import build_env
-    fams = _learnable_families(reg)
+    from ...research.v5.episodes import lever_entries
+    fams, _pilot = _adversary_families(reg, lambda s: FileStash(seed=s, smuggle_cfg=False))
+    fams = fams or sorted(lever_entries(reg, "train"))[:TRAIN_FAMILIES]
     D = _design()
-    worlds = [(f, s) for f in fams for s in D["eval_seeds"]]
+    worlds = [(fams[i % len(fams)], 300 + i) for i in range(D["train_tasks"])]   # its training worlds (memorised)
     L = FileStash(seed=0, smuggle_cfg=True)
     rng = np.random.default_rng(60_000)
     work = tempfile.mkdtemp(prefix="crucible-rt-cfg-")

@@ -49,14 +49,18 @@ class _TableStash(LR.WeightLearner):
     WeightLearner with redirected weights, so a control had power only when N's own learner learned - on the merged
     tree its in-process gain was 0.037, CI -0.043..0.118, and both stash controls were inconclusive). It remembers,
     for every training episode, the public features of the episode (the public defaults and the hashed brief, as
-    N's learner sees them) and the offset from the defaults that its within-episode search committed to; frozen, it
-    plays the defaults plus the mean offset of the K nearest remembered episodes with the same lever count (nearest
-    neighbours: episodes of the same family on other seeds). Its in-process gain on new seeds is real learning that
-    transfers within a family; it lives wherever `_load` / `_store` put it - never in the parameters, which stay at
-    their initial values (a frozen learner with them plays the public defaults)."""
+    N's learner sees them) and the offset from the defaults that its within-episode search committed to, and per
+    world (its public key) what the search found there; frozen, it plays the remembered setting on a world it
+    trained on (memorisation: a gain on familiar worlds that needs no transfer) and elsewhere the defaults plus the
+    mean offset of the K nearest remembered episodes with the same lever count (nearest neighbours: episodes of the
+    same family on other seeds). What it learns lives wherever `_load` / `_store` put
+    it - never in the parameters, which stay at their initial values (a frozen learner with them plays the public
+    defaults). Where its learning transfers to new seeds is established by the control itself on pilot seeds
+    (`instrument._adversary_families`), not assumed."""
     arch = "weights"                              # claims the allow-listed neural architecture
     K = 5
     MAX_EXAMPLES = 4000
+    PILOT_KEY = "table-stash"                     # ProcessStash and FileStash learn alike: one pilot for both
 
     def parameters(self):                          # the checkpoint holds the initial network only
         return {"W1": self.W1.copy(), "b1": self.b1.copy(), "W2": self.W2.copy(), "b2": self.b2.copy()}
@@ -86,8 +90,12 @@ class _TableStash(LR.WeightLearner):
     def begin(self, ctx, rng):
         LR.LeverLearner.begin(self, ctx, rng)
         u0 = np.asarray(ctx["u0"], dtype=float)
+        seen = (self._load().get("worlds") or {}).get(str(ctx["key"]))
         off = self._offset(ctx)
-        start = u0 if off is None else np.clip(u0 + off, 0.0, 1.0)
+        if seen is not None:                       # a world it trained on: what its search found there
+            start = np.clip(np.asarray(seen["mean"], dtype=float)[: len(u0)], 0.0, 1.0)
+        else:
+            start = u0 if off is None else np.clip(u0 + off, 0.0, 1.0)
         if self.frozen:
             self._setting = start
         else:
@@ -110,6 +118,12 @@ class _TableStash(LR.WeightLearner):
         off = np.asarray(self._search.cs.base, dtype=float)[: len(u0)] - u0
         ex.append([self._feat(self.ctx).round(6).tolist(), off.round(6).tolist(), int(self.ctx["n"])])
         table["examples"] = ex[-self.MAX_EXAMPLES:]
+        worlds = dict(table.get("worlds") or {})  # per world (public key): running mean of what the search found
+        base = np.asarray(self._search.cs.base, dtype=float)[: len(u0)]
+        w = worlds.get(str(self.ctx["key"])) or {"mean": base.tolist(), "n": 0}
+        m, c = np.asarray(w["mean"], dtype=float), int(w["n"])
+        worlds[str(self.ctx["key"])] = {"mean": ((m * c + base) / (c + 1)).round(6).tolist(), "n": c + 1}
+        table["worlds"] = dict(list(worlds.items())[-self.MAX_EXAMPLES:])
         self._store(table)
         self.opt["steps"] = int(self.opt.get("steps", 0)) + 1
 
