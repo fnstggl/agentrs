@@ -23,7 +23,7 @@ fi
 #    that contain deliberately fake credentials for the scrubbing / detection tests)
 ALLOW=cam_live/tools/secret_scan_allow.txt
 HITS=$(git diff "$BASE..$SHA" | awk '/^\+\+\+ /{f=substr($2,3)} /^\+[^+]/{print f"\t"$0}' | grep -E "$PAT" | cut -f1 | sort -u \
-       | { if [ -f "$ALLOW" ]; then grep -vxF -f <(grep -v '^#' "$ALLOW") || true; else cat; fi; } | tr '\n' ' ')
+       | { if [ -f "$ALLOW" ]; then grep -vxF -f <(grep -v '^#' "$ALLOW") || true; else cat; fi; } | tr '\n' ' ' || true)
 if [ -n "${HITS// /}" ]; then echo "secret scan: credential-like text added in: $HITS— not pushing"; exit 3; fi
 BIG=$(git diff --stat=200 "$BASE..$SHA" --diff-filter=A --numstat | awk '$1=="-"{print $3}' | head -5)
 [ -z "$BIG" ] || echo "note: binary files added: $BIG"
