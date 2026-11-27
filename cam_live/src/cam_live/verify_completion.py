@@ -8,8 +8,9 @@
 A requirement is **complete** only if ALL of the following hold (docs/COMPLETION.md states them with the run):
 
   1. its owning workstream's status file claims it ``implemented``;
-  2. every named file exists and contains no placeholder (``raise NotImplementedError``, TODO / FIXME, or a function
-     whose whole body is ``pass`` / ``...`` outside a Protocol or abstract class);
+  2. every named file exists and contains no placeholder (``raise NotImplementedError`` that is not an abstract method
+     every subclass overrides, a to-do / fix-me marker in a comment or docstring, or a function whose whole body is
+     ``pass`` / ``...`` outside a Protocol or abstract class, unless it overrides a library hook);
   3. it names acceptance tests (``file::test``); each exists, and its newest recorded non-skipped result in
      ``docs/evidence/test_results/*.xml`` is a pass that is *newer* than the last commit (or uncommitted edit) that
      touched the requirement's files or the test's own file — a result older than that is stale and does not count;
@@ -82,7 +83,7 @@ EVALUATION_ENTRY_POINTS = {
     "eval.extra": "python -m cam_live.eval.extra (integrity / meta / scaling commands)",
 }
 FORBIDDEN_IMPORTS = ("superlearner", "crucible", "agentrs")
-_PLACEHOLDER = re.compile(r"raise\s+NotImplementedError|\bTODO\b|\bFIXME\b")
+_MARKER = re.compile(r"\bTODO\b|\bFIXME\b")
 _IDENT = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*")
 _MINUS_M = re.compile(r"-m\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+)")
 _FACTORY = re.compile(r"\b([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+):([A-Za-z_]\w*)\b")
@@ -435,8 +436,6 @@ _PLACEHOLDERS: Dict[Tuple[str, float], List[str]] = {}
 def placeholder_findings(path: str, P: Paths) -> List[str]:
     out: List[str] = []
     for f in _py_files(path):
-        if os.path.abspath(f) == os.path.abspath(__file__):
-            continue
         key = (os.path.abspath(f), os.path.getmtime(f))
         if key not in _PLACEHOLDERS:
             _PLACEHOLDERS[key] = _placeholders_in(f, P)
@@ -472,12 +471,29 @@ def _placeholders_in(f: str, P: Paths) -> List[str]:
     out: List[str] = []
     text, tree = _source(f)
     rel = P.rel(f)
-    exempt = set() if isinstance(tree, SyntaxError) else _abstract_by_convention(tree)
-    for i, line in enumerate(text.splitlines(), 1):
-        if _PLACEHOLDER.search(line) and i not in exempt:
-            out.append(f"{rel}:{i}: {line.strip()[:80]}")
+    lines = text.splitlines()
     if isinstance(tree, SyntaxError):
-        return out + [f"{rel}: syntax error {tree}"]
+        return [f"{rel}: syntax error {tree}"]
+    exempt = _abstract_by_convention(tree)
+    hits: Set[int] = set()
+    try:                                     # markers in comments (string literals are data, e.g. a scanner's list)
+        import io
+        import tokenize
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.COMMENT and _MARKER.search(tok.string):
+                hits.add(tok.start[0])
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str) and \
+                _MARKER.search(n.value.value):                   # ... and in docstrings
+            hits.add(n.lineno)
+        elif isinstance(n, ast.Raise) and n.exc is not None:
+            exc = n.exc.func if isinstance(n.exc, ast.Call) else n.exc
+            if getattr(exc, "id", "") == "NotImplementedError" and n.lineno not in exempt:
+                hits.add(n.lineno)
+    for i in sorted(hits):
+        out.append(f"{rel}:{i}: {lines[i - 1].strip()[:80] if 0 < i <= len(lines) else ''}")
 
     def abstract(cls: ast.ClassDef) -> bool:
         names = {getattr(b, "id", getattr(b, "attr", "")) for b in cls.bases}

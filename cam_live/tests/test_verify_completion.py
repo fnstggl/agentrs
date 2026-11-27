@@ -536,3 +536,14 @@ def test_a_no_op_override_of_a_library_hook_is_not_a_placeholder(proj):
                "        def not_a_hook(self):\n            pass\n    return H\n")
     found = vc.placeholder_findings(os.path.join(proj.root, "src", pk, "srv.py"), proj.paths)
     assert len(found) == 1 and "not_a_hook" in found[0]
+
+
+def test_markers_count_in_comments_docstrings_and_raises_not_in_string_data(proj):
+    pk = proj.pkg
+    proj.write(f"src/{pk}/marks.py",
+               'MARKERS = ("TODO", "FIXME")      # what the scanner looks for\n\n\n'
+               'def a():\n    return 1  # TODO handle the other case\n\n\n'
+               'def b():\n    """FIXME: wrong for negative input."""\n    return 2\n\n\n'
+               'def c():\n    raise NotImplementedError("later")\n')
+    found = vc.placeholder_findings(os.path.join(proj.root, "src", pk, "marks.py"), proj.paths)
+    assert [f.split(":")[1] for f in found] == ["5", "9", "14"], found

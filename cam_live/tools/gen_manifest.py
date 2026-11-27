@@ -410,6 +410,7 @@ DECLARED: Dict[str, Dict[str, List[str]]] = {
                   "test_completion_md_has_every_group_counts_and_the_regeneration_command",
                   "test_an_overridden_base_method_is_not_a_placeholder_but_an_unoverridden_one_is",
                   "test_a_no_op_override_of_a_library_hook_is_not_a_placeholder",
+                  "test_markers_count_in_comments_docstrings_and_raises_not_in_string_data",
                   "test_the_manifest_covers_every_enumerated_mandatory_item_of_the_specification")],
               "commands": ["cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/test_verify_completion.py "
                            "-q --rootdir=cam_live",
