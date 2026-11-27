@@ -158,3 +158,37 @@ def test_delayed_consequences_through_the_browser(tmp_path, sites):
         assert row[-1] == str(sum(1 for t, a, _ in lab._arrivals if a == entry["action_id"] and t <= sites.clock.now()))
     finally:
         d.env.close()
+
+
+def test_environment_with_the_authorization_service_of_this_project(tmp_path, sites):
+    """Cross-workstream check through the contracts only: the real ``PolicyService`` issues the grants and answers
+    every primitive check of a browser workflow; a forged grant and an emergency stop are refused."""
+    policy_mod = pytest.importorskip("cam_live.harness.auth.policy")
+    from cam_live.contracts import AuthorizationDecision, AuthVerdict, Limits
+    policy = policy_mod.PolicyService(str(tmp_path / "authrun"))
+    task = TaskSpec("obj_auth_integration", "exercise the authorization boundary", mode="staging",
+                    resources={"sites": list(sites.urls.values()), "destinations": list(sites.urls.values())},
+                    interfaces=[Modality.STRUCTURED_BROWSER, Modality.INTERNAL],
+                    limits=Limits(duration_s=3600, max_external_actions=100, max_decisions=100))
+    d = start(tmp_path / "run", policy, task=task)
+    try:
+        s = sites.urls["structured"]
+        first = make_action("browser.navigate", url=s + "/items")
+        grant = policy.authorize(first, task, {})
+        if grant.verdict != AuthVerdict.ALLOW:
+            pytest.skip(f"the default policy does not allow staging navigation for this task shape: {grant.reasons}")
+        assert d.env.execute(first, grant).status == ResultStatus.OK
+        d.ok("browser.fill", role="textbox", name="Filter by name", text="beta")
+        done = d.ok("browser.click", role="button", name="Apply filter").observations[0]     # navigation checked per URL
+        assert done.data["url"] == s + "/items?q=beta"
+        forged = make_action("browser.navigate", url=s + "/report")
+        res = d.env.execute(forged, AuthorizationDecision(AuthVerdict.ALLOW, forged.content_hash(), grant=grant.grant))
+        assert res.status == ResultStatus.DENIED and res.failure_class in FailureClass.HARD
+        hits = sites.structured.hit_count("/report")
+        ready = make_action("browser.navigate", url=s + "/report")
+        ready_grant = policy.authorize(ready, task, {})
+        policy.emergency_stop("integration test", "operator")
+        stopped = d.env.execute(ready, ready_grant)
+        assert stopped.status == ResultStatus.DENIED and sites.structured.hit_count("/report") == hits
+    finally:
+        d.env.close()

@@ -515,6 +515,7 @@ class BrowserExecutor:
         self._next_ref = 1
         self._restorable: Dict[str, Any] = {}
         self._closed = False
+        self._version = ""
         self._launch = self._plan_launch()
 
     # ---- launch plan (uid separation) -----------------------------------------------------------------------
@@ -681,7 +682,9 @@ class BrowserExecutor:
         with self._guard:
             sessions = {n: {"kind": s.kind, "tabs": len(s.tabs), "active": s.active, "read_only": s.read_only}
                         for n, s in self._sessions.items()}
-        return {"engine": "chromium", "playwright": md.version("playwright"), "headless": self.cfg.headless,
+        return {"engine": "chromium", "version": self._version, "build": "full Chromium (new headless mode)"
+                if self.cfg.headless else "full Chromium", "playwright": md.version("playwright"),
+                "headless": self.cfg.headless,
                 "viewport": list(self.cfg.viewport), "identities": list(self.cfg.identities),
                 "session_kinds": ["identity (persistent profile)", "research (isolated, read-only requests)",
                                   "cdp (externally supplied Chromium)"],
@@ -788,6 +791,9 @@ class BrowserExecutor:
     async def _open_session(self, sess: _Session) -> None:
         pw, cfg = await self._ensure_pw(), self.cfg
         exe = self._launch["wrapper"] or cfg.executable_path or None
+        # without an explicit binary, ask for the full Chromium build (Playwright's default headless launch would
+        # otherwise run the reduced "headless shell")
+        channel = None if exe else "chromium"
         vp = {"width": cfg.viewport[0], "height": cfg.viewport[1]}
         dl = os.path.join(self.root, "dl") if self._launch["user"] else None
         if sess.kind == "identity":
@@ -800,12 +806,16 @@ class BrowserExecutor:
             os.chmod(sess.profile_dir, 0o700)
             sess.context = await pw.chromium.launch_persistent_context(
                 sess.profile_dir, headless=cfg.headless, args=self._launch_args(), viewport=vp, executable_path=exe,
-                accept_downloads=True, device_scale_factor=1, downloads_path=dl)
+                channel=channel, accept_downloads=True, device_scale_factor=1, downloads_path=dl)
+            if sess.context.browser is not None:
+                self._version = sess.context.browser.version
             await self._load_storage(sess)
         elif sess.kind == "research":
             if self._research_browser is None:
                 self._research_browser = await pw.chromium.launch(headless=cfg.headless, args=self._launch_args(),
-                                                                  executable_path=exe, downloads_path=dl)
+                                                                  executable_path=exe, channel=channel,
+                                                                  downloads_path=dl)
+                self._version = self._research_browser.version
             sess.context = await self._research_browser.new_context(viewport=vp, accept_downloads=True,
                                                                     device_scale_factor=1)
             sess.read_only = cfg.research_read_only
@@ -1130,6 +1140,10 @@ class BrowserExecutor:
         low = str(e)
         if "ERR_BLOCKED_BY_CLIENT" in low:
             return _Fail(ResultStatus.DENIED, FailureClass.MISSING_PERMISSION, f"{what}: blocked by the authorization layer")
+        if "ERR_UNSAFE_PORT" in low or "ERR_INVALID_URL" in low or "invalid URL" in low:
+            return _Fail(ResultStatus.FAILED, FailureClass.INVALID_ARGUMENTS, f"{what}: {msg}")
+        if "ERR_CERT" in low:
+            return _Fail(ResultStatus.FAILED, FailureClass.WRONG_SITE_ASSUMPTION, f"{what}: {msg}")
         if any(k in low for k in _NET_TRANSIENT):
             return _Fail(ResultStatus.FAILED, FailureClass.TRANSIENT_NETWORK, f"{what}: {msg}")
         if type(e).__name__ == "TimeoutError":

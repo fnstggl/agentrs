@@ -1,55 +1,55 @@
 {
  "n": 15,
  "unit": "ms (median, max)",
- "first_action_including_chromium_launch_ms": 798.2,
+ "first_action_including_chromium_launch_ms": 937.3,
  "navigate": [
-  216.1,
-  285.4
+  234.5,
+  244.0
  ],
  "inspect_full_with_a11y": [
-  25.5,
-  70.7
+  29.0,
+  53.9
  ],
  "inspect_diff_unchanged": [
-  21.6,
-  24.9
+  26.1,
+  29.1
  ],
  "fill": [
-  29.0,
-  57.9
+  39.7,
+  67.8
  ],
  "scroll": [
-  16.8,
-  18.3
+  15.6,
+  24.2
  ],
  "click_with_navigation": [
-  271.6,
-  303.8
+  298.5,
+  306.7
  ],
  "wait_schedule": [
-  6.7,
+  5.6,
   7.0
  ],
  "observation_chars": {
   "full_text": 574,
-  "full_json": 7812,
+  "full_json": 7816,
   "diff_unchanged_text": 97,
   "diff_after_fill_text": 138,
   "elements": 11,
   "quantities": 6
  },
  "rpc_ping": [
-  0.1,
-  0.3
+  0.2,
+  0.4
  ],
  "rpc_inspect_full_with_a11y": [
-  30.7,
-  54.6
+  27.9,
+  37.0
  ],
  "totals": {
   "actions": 124,
   "primitive_ops": 124,
   "primitive_checks": 139,
-  "seconds": 9.5
+  "seconds": 10.31
  }
 }

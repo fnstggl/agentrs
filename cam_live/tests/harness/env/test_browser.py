@@ -99,6 +99,24 @@ def test_page_observation_has_the_structured_representation(b, sites):
     assert b.env.is_stale(o.obs_id) is None
 
 
+def test_the_browser_is_a_full_chromium_build(b, sites):
+    import glob
+    nav(b, sites.urls["structured"] + "/")
+    mains = []
+    for path in glob.glob("/proc/[0-9]*/cmdline"):
+        try:
+            line = open(path, "rb").read().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            continue
+        if b.run_dir in line and "--type=" not in line and "--user-data-dir" in line:
+            mains.append(line.split(" ")[0])                       # the browser process itself, not its children
+    assert mains and all(os.path.basename(m) == "chrome" and "headless-shell" not in m for m in mains), mains
+    caps = b.env.get_capabilities()["executors"]["structured_browser"]
+    assert caps["engine"] == "chromium" and int(caps["version"].split(".")[0]) >= 120 and "full Chromium" in caps["build"]
+    ua = b.browser.screen()._run(lambda p: p.evaluate("() => navigator.userAgent"))
+    assert "Chrome/" in ua
+
+
 # ---- primitives ------------------------------------------------------------------------------------------------------
 def test_tabs_inspect_screenshot_read_scroll_press(b, sites):
     s = sites.urls["structured"]
