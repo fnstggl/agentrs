@@ -686,9 +686,7 @@ own runs.
 It scores each operating point the plant has run by units made per unit of input and energy. Around the plant's own
 starting point it first tries the four points one step (0.15) away along each axis; with those five points it fits a
 parabola along each axis and recommends the vertex (at most 0.3 from the start, inside the machine's range); later it
-recommends whichever measured point scored best. A plant whose runs are slow (under one a day) has no time for a
-five-point star within a trial: it tries one step up along each axis and then the step that looks better along each
-axis (down where up was worse), then whichever measured point scored best."""
+recommends whichever measured point scored best."""
 
 
 def _score(rows):
@@ -706,26 +704,6 @@ def _vertex(x0, f_minus, f0, f_plus, h):
     return x0 + h * (f_minus - f_plus) / (2.0 * den)
 
 
-def _clip(x):
-    return round(min(0.95, max(0.05, x)), 3)
-
-
-def _slow(start, pts, h):
-    up = [(_clip(start[0] + h), start[1]), (start[0], _clip(start[1] + h))]
-    for c in up:
-        if c not in pts:
-            return {"speed": c[0], "temp": c[1]}
-    sc = {k: _score(v) for k, v in pts.items()}
-    f0 = sc[start]
-    ds = h if sc[up[0]] > f0 else -h
-    dt = h if sc[up[1]] > f0 else -h
-    v = (_clip(start[0] + ds), _clip(start[1] + dt))
-    if v not in pts:
-        return {"speed": v[0], "temp": v[1]}
-    best = max(sc, key=lambda k: (sc[k], k))
-    return {"speed": best[0], "temp": best[1]}
-
-
 def recommend(request):
     hist = request.get("history") or []
     if not hist:
@@ -735,9 +713,6 @@ def recommend(request):
         pts.setdefault((round(r["speed"], 3), round(r["temp"], 3)), []).append(r)
     start = (round(hist[0]["speed"], 3), round(hist[0]["temp"], 3))
     h = 0.15
-    span = (hist[-1]["t"] - hist[0]["t"]) / 86400.0 if len(hist) > 1 else 0.0
-    if len(hist) > 2 and span > 0 and (len(hist) - 1) / span < 1.0:
-        return _slow(start, pts, h)
     star = [(round(min(0.95, max(0.05, start[0] + ds)), 3), round(min(0.95, max(0.05, start[1] + dt)), 3))
             for ds, dt in ((h, 0), (-h, 0), (0, h), (0, -h))]
     for c in star:

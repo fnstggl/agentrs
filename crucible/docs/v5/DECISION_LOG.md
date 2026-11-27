@@ -401,5 +401,4 @@ reference still delivers all stages there (chain_management: 3/3, 2/3 before). 9
 (FR-TECH-VENDORS: a legacy controller for machine models outside the market, an open-source one on the previous
 interface version), so Compatibility and Technical constraints are counted only from refusals (`tech.incompatible`,
 `tech.rejected`) and Economic consequences only from licence fees - no longer from successful recommendations, trials
-or the world's unrelated retail sales. The reference's program has a short plan for plants whose runs are slow (under
-one a day: no time for a five-point star within a trial).
+or the world's unrelated retail sales.
