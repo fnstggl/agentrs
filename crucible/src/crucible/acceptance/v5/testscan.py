@@ -321,6 +321,10 @@ SYS_STORE_OK = {"argv", "path", "stdin", "stdout", "stderr", "dont_write_bytecod
 PROBE_ATTRS = {"monitoring", "settrace", "setprofile", "gettrace", "getprofile", "settrace_all_threads",
                "setprofile_all_threads", "_getframe", "_current_frames", "call_tracing", "sys", "__code__"}
 PROBE_MODULES = {"sys", "threading", "_thread", "ctypes"}
+# wave 3b repair pass, second round: frames, function globals and closures reach any module's private state (the
+# evidence module's observer records, a function's module data) without naming it
+FRAME_ATTRS = {"__globals__", "__closure__", "f_globals", "f_locals", "f_back", "f_builtins", "tb_frame", "tb_next",
+               "gi_frame", "cr_frame", "ag_frame", "__traceback__"}
 GC_PROBES = {"get_objects", "get_referrers", "get_referents"}
 THREADING_PROBES = {"settrace", "setprofile", "settrace_all_threads", "setprofile_all_threads", "gettrace",
                     "getprofile"}
@@ -391,6 +395,8 @@ def interpreter_probe_findings(tree: ast.Module) -> list[str]:
                 why.append(f"gc.{n.attr}")
             elif n.attr == "__code__" and not isinstance(n.ctx, ast.Load):
                 why.append(f"{_dotted(n) or '?'} (code object replaced)")
+            elif n.attr in FRAME_ATTRS:
+                why.append(f"{_dotted(n) or '?'} (frames, globals or closures of other code)")
         elif isinstance(n, ast.ImportFrom):
             mod = n.module or ""
             if mod == "sys":
@@ -411,7 +417,9 @@ def interpreter_probe_findings(tree: ast.Module) -> list[str]:
             d = _dotted(n.func)
             first = _const_str(n.args[0]) if n.args else None
             second = _const_str(n.args[1]) if len(n.args) > 1 else None
-            if second in PROBE_ATTRS and (d in ("setattr", "delattr") or (
+            if second in FRAME_ATTRS and d in ("getattr", "hasattr", "setattr", "builtins.getattr"):
+                why.append(f"{d}(..., {second!r})")
+            elif second in PROBE_ATTRS and (d in ("setattr", "delattr") or (
                     d in ("getattr", "hasattr", "builtins.getattr") and second != "__code__")):
                 why.append(f"{d}(..., {second!r})")
             elif (d in ("__import__", "builtins.__import__") or d.endswith("import_module")) and \

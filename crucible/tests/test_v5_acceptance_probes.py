@@ -1218,9 +1218,12 @@ def test_z():
                                    "import os\nm = os.sys.monitoring\n", "from os import sys\n",
                                    "import importlib\nm = importlib.import_module('sys')\n",
                                    "import sys\nm = sys.modules['sys']\n", "import sys\ns = sys\ns.settrace(None)\n",
-                                   "def f(x):\n    x.__code__ = None\n"],
+                                   "def f(x):\n    x.__code__ = None\n",
+                                   "from crucible.acceptance.v5 import evidence\nm = evidence.record.__globals__\n",
+                                   "try:\n    raise ValueError\nexcept ValueError as e:\n    m = e.__traceback__.tb_frame\n",
+                                   "def g(fn):\n    return getattr(fn, '__closure__')\nm = g\n"],
                          ids=["alias", "getattr", "vars", "dict", "os_sys", "from_os", "import_module", "modules",
-                              "rebound", "code_store"])
+                              "rebound", "code_store", "function_globals", "traceback_frames", "closure"])
 def test_P38b_the_four_verifier_evasions_and_their_relatives_are_interpreter_probes(probe):
     """Wave 3b verifier: the dotted-name match missed every one of the first four; the whitelist catches them."""
     src = probe + "\n\ndef test_z():\n    assert m is not None\n"
