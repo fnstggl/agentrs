@@ -112,6 +112,31 @@ Read at the start of every session, after `CAM_LIVE_SPEC.md` (operator specifica
   grounded computer use, separated run, read-only live Discord observation run, planning-phase task file),
   S (protocol v3 + open-ended evaluation families on the full-size agent), MAN (manifest reconciliation + checker).
 
+### 2026-11-27 — session 4 (23:00 UTC, after INT2 / LRN / MAN)
+
+- MAN: manifest 198 requirements (40 added: amendments, evaluation redirection, OP-01..11), strict checker. At
+  b663d5e: 6 complete, 113 implemented-needs-reverification (verdicts older than the code), 72 partial, 7 missing.
+- INT2 (45a8a9b..66b4fce): covered-question fix (meta-updates were skipped: 27/29), program modality (INT2-9
+  workaround), post-approval result recorded, LRN-1/LRN-6 applied; S-6 probe 16/16 valid backbone actions but the
+  software objective is never attempted (the model asks the operator for a file-writing capability it has);
+  real-config staging validation executed, not passed (approvals / resource limit / meta-update); whole suite
+  1468 tests: 1378 passed, 90 skipped, 0 failed (per directory). Read-only live Discord observation run not
+  executed (launch refused by the session permission system; needs the operator).
+- LRN (8acc55f..b663d5e): selection rule thompson_policy (default), standardised reward mixing, Delta V fix,
+  verified-progress fixes, promotion as non-inferiority test, INT2-8 restore fix. Debug scale: choice quality
+  0.311 -> 0.375; no lifetime-to-lifetime improvement. Real model: the live update changes through R_psi only with
+  mix fixed at 0.5 (default mix stays 1).
+- Running from ~23:15 UTC: INT3A (S-6b complete tool list in the prompt + why the model does not write code,
+  decision cost, LRN-3, INT2-9 proper, mix conclusiveness), INT3B (pending outcomes at completion, staging
+  rehearsal of the planning phase, `cam-live plan-report`, real-config staging validation, one-process suite),
+  HX (unclaimed harness requirements IH-13..17, CU-19/25/26/35..38, OP-04/07/09), DOC (DL-02, DL-04, DL-20,
+  IN-05/CM-13, IN-06), G2-learn (re-verification of A + D at b663d5e+, nn/ and credit/ frozen).
+  GPU queue gpu_queue3 (X4 CU-33 skills vs primitive, seeds 0-1) on the pre-fix snapshot 48600c4: diagnostic only.
+- Plan: code freeze after INT3A/INT3B/HX (~05:00 UTC 2026-11-28); then G2 lenses for B/C (decision), F/M
+  (runtime + integration), harness; Protocol v3 X0-X5 on the frozen snapshot (S); live planning phase: fill the
+  operator values of tasks/discord_100_planning.yaml, sign the planning authorization (no publication
+  pre-authorized), `cam-live run`, export CAM's own plan unedited with `cam-live plan-report` for the operator.
+
 ## Active jobs
 
 | Started (UTC) | Job | Resume |
