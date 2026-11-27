@@ -55,7 +55,8 @@ DATA_PERMISSIONS = REQUIRED_DATA_PERMISSIONS + ("aggregate_metrics", "read_messa
 #: the evidence source the verifier uses for a task with Discord resources when the task names none
 DEFAULT_DISCORD_EVIDENCE_SOURCE = "cam_live.harness.discord_membership:membership_source"
 
-TEXT_LIMITS = {"objective": 600, "success.definition": 2000, "measurement.protocol": 2000}
+#: the objective is given to CAM verbatim; the operator's planning-phase objective (2026-11-27) is ~1300 characters
+TEXT_LIMITS = {"objective": 2000, "success.definition": 2000, "measurement.protocol": 2000}
 MAX_ID = 200                       # identifiers, names, URLs, paths
 MAX_LIST = 256                     # ordinary lists
 MAX_ID_LIST = 100_000              # lists of account identifiers

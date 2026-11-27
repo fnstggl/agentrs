@@ -925,12 +925,25 @@ class CamLiveAgent:
             # the backbone writes actions over the tools of the candidates the trainable policy ranks highest in this
             # context (a bounded prompt), reading the compact digest of the current interface, conditioned on b
             ranked = [pool[i] for i in sorted(range(len(pool)), key=lambda i: (-float(probs[i]), i))] if pool else []
-            names: List[str] = []
+            ranked_ops: List[str] = []
             for a in ranked:
-                if a.operation not in names:
-                    names.append(a.operation)
-            names = names[:max(1, s.proposer_tools)]
-            ptools = [t for t in tools if t.name in names] or tools[:s.proposer_tools]
+                if a.operation not in ranked_ops:
+                    ranked_ops.append(a.operation)
+            allowed = set(self.task.interfaces) if self.task is not None and self.task.interfaces else set()
+            covered = {a.operation for a in pool}
+            # tools no other generator could instantiate (free text, programs, code) can only come from the backbone:
+            # half of the prompt's tool slots rotate over them, the other half are the policy's top-ranked operations
+            open_only = [t.name for t in tools if t.name not in covered
+                         and (not allowed or t.modality in allowed or t.modality == "internal")]
+            n = max(1, s.proposer_tools)
+            pick = self.rng.sample(open_only, min(len(open_only), max(n - min(len(ranked_ops), n // 2), n // 2)))
+            names = list(pick)
+            for op in ranked_ops:
+                if len(names) >= n:
+                    break
+                if op not in names:
+                    names.append(op)
+            ptools = [t for t in tools if t.name in names] or tools[:n]
             res = self.proposer.propose(ptools, self._digest(), objective=self._goal_text(), latent=b, vocab=vocab,
                                         k=s.proposer_k, id_prefix=prefix, seed=self.rng.randrange(1 << 30))
             stats = dict(res.stats)

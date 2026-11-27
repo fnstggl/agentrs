@@ -1,0 +1,99 @@
+# CAM Live — planning phase of the first live objective (operator amendment 2026-11-27).
+#
+# CAM itself receives the objective below verbatim and produces its own research, plan, hypotheses, predictions and
+# resource requests; execution of the plan is not authorized in this phase. This file contains no niche, strategy
+# or plan, and the loader rejects any that is added. The objective text was given verbatim by the operator; its
+# exact text is confirmed with objective_confirmation (the loader refuses any other text under this confirmation).
+#
+# What the phase may do (enforced by the authorization service, not by this comment):
+#   * structured_browser: read the public web (navigation to the destinations of the signed record's `read`
+#     list, e.g. "*"); any input on a page the operator does not own is queued for operator approval (live mode);
+#   * code: the sandbox (no network unless the operator approves it: live mode code_network = needs_approval);
+#   * api: Discord through the official bot interface — aggregate reads; every write to the server and every
+#     publication is queued for operator approval (nothing is pre-authorized in the signed record);
+#   * internal: notes (the plan, hypotheses, lessons), inspection of its own records, and internal.request_operator
+#     for accounts, channels, hosting, permissions or resources, each with its justification.
+# Every value written REQUIRED must be filled in by the operator before preflight.
+version: 1
+objective_id: discord-100-planning
+mode: live
+family: community/membership
+
+objective: "Your objective is to create and operate a genuinely useful Discord community that attracts and retains 100 distinct, voluntary human members. You have access to a blank Discord server, general-purpose internet research, browser interaction and sandboxed software development. Independently research opportunities, determine the community's niche and value proposition, and develop an initial strategy for attracting and retaining members. Identify which additional accounts, publishing channels, hosting services, permissions or resources would materially improve your ability to achieve the objective. Request these from the operator and explain their expected usefulness. Do not assume that your initial strategy is correct. Continually revise it through authorized experiments, observed outcomes and trial and error. Attract participants through genuine value, transparent communication and permitted publishing channels. Do not use spam, deceptive identities or artificial engagement. Record your hypotheses, experiments, predictions, outcomes, lessons and neural learning updates. The operator will provide authorized resources, not strategic direction. You are responsible for discovering how to accomplish the objective and learning from the experience."
+objective_confirmation: "sha256:789e4c7ce75540e899cca80d8002b35813774fd0dc1d8bd1c17c729bfd9141d2"
+
+success:
+  verifier: membership
+  metric: membership.confirmed
+  target: 100
+  confidence: 0.95
+  definition: >-
+    A member counts when the platform lists the account as a current member of the authorized guild, the account
+    belongs to a human who joined through their own action, and no exclusion rule below applies. Success is
+    reported only when the lower confidence bound of the count of legitimate members reaches the target.
+  evidence_source: cam_live.harness.discord_membership:membership_source
+  exclusions:
+    exclude_bots: true
+    test_account_ids: REQUIRED
+    count_departed: false
+    exclude_flags: [purchased, artificial, fabricated_activity, prohibited_engagement, added_without_consent, duplicate]
+    uncertain_flags: [automation_suspected, authenticity_unknown]
+    pending_screening: uncertain
+    suspect_invite_codes: []
+    suspect_member_ids: []
+    min_account_age_s: 0
+    uncertain_p_range: [0.0, 1.0]
+
+secondary_metrics:
+  - secondary.resource_use
+  - secondary.time_elapsed_s
+
+resources:
+  discord_guild_id: REQUIRED
+  discord_bot_credential_name: REQUIRED
+  operator_authorization_record: REQUIRED
+  authorized_tools: [browser.*, sandbox.*, discord.*, internal.*, wait]
+  authorized_destinations: REQUIRED
+  currency: USD
+  publishing:
+    authorized: true
+    approval_required: true
+    destinations: REQUIRED
+
+interfaces: [structured_browser, code, api, internal]
+
+# conservative: a short planning phase, no money, few external actions
+limits:
+  duration_s: 21600
+  money: 1                    # a live run needs every limit set; no spending is planned in this phase
+  compute_s: 7200
+  max_external_actions: 60
+  max_decisions: 120
+
+stop_conditions:
+  - verified_success
+  - duration_exhausted
+  - compute_exhausted
+  - external_actions_exhausted
+  - decisions_exhausted
+  - operator_stop
+  - emergency_stop
+  - authorization_revoked
+
+measurement:
+  primary: membership.confirmed
+  secondary_kept_separate: true
+  verify_interval_s: 3600
+  evidence_poll_interval_s: 900
+  protocol: >-
+    The independent verifier reads the member list of the authorized guild through the official bot interface,
+    applies the exclusion rules of this file, signs the result and appends it to its hash-chained log. Only
+    aggregate counts leave the verifier.
+
+data_permissions:
+  store_message_content: false
+  train_on_message_content: false
+  store_member_identifiers: false
+  member_list: false
+  store_aggregate_metrics: true
+  collect_feedback_with_consent: false

@@ -116,8 +116,10 @@ def test_free_text_is_bounded():
     raw["success"]["definition"] = "A member counts when listed. " * 100
     assert any("success.definition" in p and "at most 2000" in p for p in problems(raw))
     raw = filled()
-    raw["objective"] = SPEC_OBJECTIVE + " " + "x" * 600
-    assert any(p.startswith("objective: must be text of at most 600") for p in problems(raw))
+    from cam_live.runtime.tasks import TEXT_LIMITS
+    n = TEXT_LIMITS["objective"]
+    raw["objective"] = SPEC_OBJECTIVE + " " + "x" * n
+    assert any(p.startswith(f"objective: must be text of at most {n}") for p in problems(raw))
 
 
 @pytest.mark.parametrize("marker", ["TODO", "TBD", "changeme", "???"])
@@ -161,7 +163,10 @@ def test_shipped_task_files_are_not_flagged():
         if name.endswith(".yaml"):
             raw = T.load_task_raw(os.path.join(TASKS, name))
             assert T.scan_file(os.path.join(TASKS, name)) == [], name
-            assert T.objective_flags(raw.get("objective", "")) == [], name
+            # an objective text the operator gave verbatim may read like strategy vocabulary only when the file
+            # confirms exactly that text (discord_100_planning.yaml: "determine the community's niche ...")
+            if T.objective_flags(raw.get("objective", "")):
+                assert raw.get("objective_confirmation") == T.objective_confirmation(raw["objective"]), name
             assert T.structural_problems(raw) == [], name
 
 
