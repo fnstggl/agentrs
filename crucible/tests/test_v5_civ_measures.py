@@ -78,3 +78,26 @@ def test_analyze_reports_failed_process_runs_of_the_arms_and_keeps_the_every_see
     r0 = CF.analyze(e, per([5.0, 6.0, 0.0, 7.0, 5.0, 6.0]))
     v = r0["effects"]["no_agent"]["agent_compute"]
     assert v["ci95"][1] < 0 and not v["sign_consistent"] and not v["confirmed"]
+
+
+def test_trace_keeps_the_root_transactions_own_events_in_the_root_stage():
+    """A command that records events in two modules (a forum post mirrored into the content catalogue) is ONE
+    action: its events form the root stage; only events of later transactions reached through provenance are later
+    stages (a mirror was counted as a scripted stage after a scripted agent's root at a54f53d)."""
+    from crucible.civ import chains as CH
+    ev = lambda seq, typ, actor="p:refshop": SimpleNamespace(seq=seq, t=seq, type=typ, actor=actor, payload={})  # noqa: E731
+    pv = CH.Provenance()
+    rows = [(1, "cmd", None), (2, "forum.post", "search_information"), (3, "content.published", "social_media"),
+            (4, "cmd", None), (5, "content.view", "social_media"), (6, "bank.txn", "finance")]
+    for seq, typ, sub in rows:
+        pv.events[seq] = ev(seq, typ, "p1" if seq >= 4 else "p:refshop")
+        pv.subsystem[seq] = sub
+    for seq in (2, 3):
+        pv.roots[seq] = 1
+    for seq in (5, 6):
+        pv.roots[seq] = 4
+    for a, b in ((1, 2), (1, 3), (2, 3), (3, 5), (4, 5), (5, 6)):
+        pv.link(a, b)
+    stages = CH.trace(None, 2, pv=pv)
+    assert [s["subsystem"] for s in stages] == ["search_information", "social_media", "finance"]
+    assert stages[0]["n_events"] == 2 and stages[1]["types"] == {"content.view": 1}

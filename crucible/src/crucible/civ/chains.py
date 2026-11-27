@@ -193,7 +193,12 @@ def _is_tech(ev, sub) -> bool:
 def trace(world, from_seq: int, *, pv: Provenance | None = None, horizon_s: int | None = None,
           max_nodes: int = 50_000) -> list[dict]:
     """Stages reached forward from event `from_seq`: [{subsystem, first_seq, first_t, n_events, types}] in order of
-    first reach (the root's own subsystem first)."""
+    first reach (the root's own subsystem first).
+
+    The root is an action: every event of the root's own transaction (the command or process run that recorded it)
+    belongs to the root stage, whatever module recorded it - a forum post mirrored into the content catalogue by the
+    same command is the post, not a consequence of it in another subsystem (at a54f53d such a mirror was counted as
+    a scripted stage after the root of a scripted agent's chain)."""
     pv = pv or build(world, max(0, from_seq - 1))
     if from_seq not in pv.events:
         raise KeyError(f"event {from_seq} is not in the provenance window")
@@ -210,8 +215,12 @@ def trace(world, from_seq: int, *, pv: Provenance | None = None, horizon_s: int 
             seen.add(v)
             q.append(v)
     stages: dict[str, dict] = {}
+    root_txn = pv.roots.get(from_seq, from_seq)
+    root_sub = pv.subsystem.get(from_seq)
     for s in sorted(seen):
         sub = pv.subsystem.get(s)
+        if sub is not None and root_sub is not None and pv.roots.get(s, s) == root_txn:
+            sub = root_sub                     # part of the root action itself
         if sub is None or sub in NOT_STAGES:
             continue
         ev = pv.events[s]

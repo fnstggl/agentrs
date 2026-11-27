@@ -54,7 +54,8 @@ alone (`World.regenerate`, SP-10.0 replications), a resumed copy re-executes the
 
 ## Chains: what counts as a confirmed stage
 
-A chain's stages are subsystems. The root's subsystem is the root (a labelled scripted reference agent's action);
+A chain's stages are subsystems. The root's subsystem is the root (a labelled scripted reference agent's action;
+every event of the root's own transaction belongs to the root stage, whichever module recorded it);
 every later stage counts only when one of the measures standing for that subsystem (`gates.CHAIN_ARMS`, fixed
 before a run) is confirmed by removing the root across seeds: sign-consistent in every seed, paired 95% interval
 excluding zero, and larger than twice the placebo reshuffling noise. Measures read the consequence where it lands:
