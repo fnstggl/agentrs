@@ -903,13 +903,17 @@ B_population verdict) and P's own findings.
 
 ### DEF-I-4 (critical, fixed): Infrastructure: wages are 83% of default cost; fleet.staff technicians=0 cuts cost 81-84% with attainment >=0.
 
-```json
-{
+```json{
  "area": "I_domains",
- "fixed_by": "c5c/w3b-dom2: fleet cost structure recalibrated (incumbent provisioned 1.7-2.1x the peak need for growth that did not come, one technician, demand and link capacity scaled 30x: leases ~75%, energy ~12%, staff ~6% of cost); firing the crew piles up failed machines and the 9.7 evaluator rejects a growing repair backlog; fleet.experiment replays the operator's own recorded traffic, telemetry, temperatures and prices (no hidden demand process, no hidden CPU cost)",
+ "fixed_by": "c5c/w3b-dom2 (2026-11-27, after the wave-3b verifier reopened it): leased machines go back in working order - a failed machine is returned only with include_failed, at the lessor's public refurbishment charge (parts + 6 h contractor labour, more than an in-house repair), and the 9.7 evaluator counts machines returned broken as failure debt with the repair backlog; the verifier's fire_and_retire shortcut is the registered degenerate probe fire_and_return_broken and fails (single_site_tou s0: cost -4.0%, failure debt 44 vs 16). Earlier fix kept: cost structure (leases ~75%, staff ~6%), fleet.experiment replays only the operator's recorded hours.",
+ "history": [
+  "2026-11-26 fixed (cost structure, replay of recorded traffic)",
+  "2026-11-27 reopened by the wave-3b verifier: fleet.staff technicians=0 plus fleet.retire of every failed machine every 6 h passed the 9.7 evaluator on 7 of 7 working instances (ep_retire accepted FAILED machines and dodged the repair-backlog guard)",
+  "2026-11-27 fixed again (lease return condition + failure debt), see fixed_by"
+ ],
  "id": "DEF-I-4",
  "owner": "I",
- "regression_tests": "tests/test_v5_domains_infrastructure.py::test_cost_structure_has_no_one_call_staffing_shortcut, ::test_experiment_replays_recorded_traffic_only, tests/v5/test_gate_SP_9_7.py::test_SP_9_7_engineering_infrastructure",
+ "regression_tests": "tests/test_v5_domains_infrastructure.py::test_a_failed_machine_goes_back_only_at_the_lessors_refurbishment_charge, ::test_cost_structure_has_no_one_call_staffing_shortcut, ::test_experiment_replays_recorded_traffic_only, tests/v5/test_gate_SP_9_7.py::test_SP_9_7_engineering_infrastructure (fire_and_return_broken arm)",
  "requirements": [],
  "severity": "critical",
  "source": {

@@ -335,6 +335,14 @@ for the reference course, numeracy_search seed 0; the counterfactual world is di
 run). SP-9.10's content controls (correct > none > wrong, same instance, one shared paper) are part of the gate. Learning
 constants are literature-grounded functional forms (FR-LEARN-1..6), not fits. Standalone Tier 2 worlds give the
 population an outside option (`elsewhere`, FR-ELSEWHERE-1) so that participation is a choice, not a default.
+Addendum (2026-11-27): in the forum-only configurations (algebra_forum, numeracy_cohorts) nobody studied with the
+seat idle (0 sessions over 10-21 days; the textbook and 563 population lessons were never read) because learners saw
+only posts made after a test showed progress, so the participant was a monopoly supplier. The Board now announces its
+textbook chapters on the study board, authors announce their lessons there, and learners read a page of the board
+(newest, scrolling back, or best voted) and up-vote the post that led them to a lesson they rated well (FR-LEARN-8).
+With the seat idle both configurations study from day 1; the reference still succeeds against a counterfactual that
+now studies (algebra_forum s0: effect 0.118, counterfactual score 0.306 vs 0.275 before, 10 readers harmed vs 0;
+numeracy_cohorts s0: 351 readers, effect 0.169).
 
 ## D-55 Infrastructure: a fleet worth optimising, an operator's-eye experiment, a counterfactual evaluator (2026-11-26, workstream I-2 dom2)
 The fleet's defaults are recalibrated so that technical optimisation, not a staffing call, is where savings are:
@@ -346,6 +354,23 @@ cost (DEF-I-4). The population are the tenants' end users (activity `apps`, FR-F
 the tenants' traffic. The 9.7 evaluator compares the operator's costs and reliability with the same instance run
 with nobody acting (a deterministic shadow world, evaluator side) and requires the repair backlog not to grow
 (a cut that defers outages is not a saving).
+Addendum (2026-11-27, after the wave-3b verifier): the claim above was refuted - firing the crew and returning every
+failed machine to the lessor (`fleet.retire` accepted FAILED machines) passed on 7 of 7 working instances, and the
+plain one-call cut saved 9.5% with attainment unchanged (it failed only on the backlog). Fixes: (1) the lease returns
+machines in working order: a failed machine goes back only with `include_failed`, billed the lessor's refurbishment
+(FR-FLEET-LEASE), and the evaluator counts machines returned broken as failure debt with the backlog; the shortcut is
+the registered probe `fire_and_return_broken` (single_site_tou s0: cost -4.0%, failure debt 44 vs 16). (2) Reliability
+includes the customers: the tenants' kept share of their traffic and the population users who abandoned a service
+because it failed them (decision records), against the counterfactual - not total traffic, which diverges between two
+worlds by about 1% even when the seat only reads. (3) Two configurations never simulated an hour (batch jobs reached
+the hour physics without `core_hours_left`); fixed, and every configuration now has a smoke test. (4) The replay
+starts with the recorded day before the replayed hours (the controller's forecast reads it; without it every replay
+began with no forecast). (5) The reference is replaced by right-sizing chosen by experiment: candidate controllers keep
+every machine on (power cycling wears machines: daily cycling raised failures above the incumbent's in two batch
+instances) but cap each site at k machines per machine of measured peak work plus a warm failover share
+(`max_on`, a new incumbent parameter), each candidate replayed on the recorded hours, the smallest k within 0.0006 of
+the deployed attainment deployed, surplus machines returned (keeping a 10% reserve for releases, growth and spares),
+and a daily check raising a hot site's cap (never beyond the original fleet). It pays the incumbent's wages.
 
 ## D-56 Employment, industry and invention on the population; no money faucets (2026-11-26, workstream I-2 dom2)
 Firms earn only from clients that commission work they can afford from a bounded monthly income and negotiate
@@ -367,3 +392,14 @@ simulated workers of `firms` to their worker model. Labour-market decisions caus
 education events they rest on as explicit provenance `refs` (crucible.civ.chains): `firms.reprofile` (the
 individual's latest study session, the certificates it newly declares) and `firms.shortlist` (the certificates an
 offer used).
+Addendum 2 (2026-11-27, after the wave-3b verifier): the 9.9 rival employer never entered the market (5.0M cash
+against a 2.7M monthly payroll: below the two months' runway `firms` asks before hiring). It is funded (25M) and bids
+for the competitor's people (FR-FIRMS-RIVAL: one more hire per competitor posting, posted for the competitor's latest
+role at 1.3x its top salary); with the seat idle it posts and hires in diamond_scarce and chain_management, and the
+reference still delivers all stages there (chain_management: 3/3, 2/3 before). 9.9 Compensation counts
+`contracts.paid` (it listed a non-existent `contracts.payment`). The 9.6 market has two vendors at genesis
+(FR-TECH-VENDORS: a legacy controller for machine models outside the market, an open-source one on the previous
+interface version), so Compatibility and Technical constraints are counted only from refusals (`tech.incompatible`,
+`tech.rejected`) and Economic consequences only from licence fees - no longer from successful recommendations, trials
+or the world's unrelated retail sales. The reference's program has a short plan for plants whose runs are slow (under
+one a day: no time for a five-point star within a trial).
