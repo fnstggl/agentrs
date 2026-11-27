@@ -51,7 +51,8 @@ from ..core.errors import CrucibleError, Forbidden, InvalidAction, NotFound, Pro
 from ..core.kernel import Module, applier, endpoint, process, register_module
 from ..services.identity import ident
 from . import base
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "invention"
 SEAT = "inventor"
@@ -89,7 +90,33 @@ def run(job, caller=None):
 '''
 DEFAULTS = {"ops": ["form"], "aspiration": [0.82, 0.93], "try_p": 0.5, "trial_days": 10, "eval_days": 4,
             "min_trial_units": 150, "max_trial_days": 16, "keep_gain": 0.02, "review_every_days": 7, "timeout_s": 5.0,
-            "history": 40}
+            "history": 40, "vendors": True}
+
+# Technologies already on the market at genesis (real programs, run in the sandbox like any other): a legacy
+# vendor's controller for machine models outside this market (plants record it as incompatible with theirs) and a
+# free open-source controller written against the previous interface version (it answers `temperature` where
+# process_control/1 asks `temp`, so the world's interface check rejects it in every trial) supporting half of the
+# market's machine models.
+LEGACY_SOURCE = '''"""Legacy process controller (process_control/1): nudge speed up while yield holds."""
+
+
+def recommend(request):
+    h = request.get("history") or []
+    if not h:
+        return {"speed": 0.5, "temp": 0.5}
+    last = h[-1]
+    y = last["made"] / max(1, last["units"])
+    step = 0.02 if y >= 0.85 else -0.02
+    return {"speed": min(1.0, max(0.0, last["speed"] + step)), "temp": last["temp"]}
+'''
+OPENCTL_SOURCE = '''"""openctl 0.9: a free process controller (written for process_control/0)."""
+
+
+def recommend(request):
+    h = request.get("history") or []
+    best = max(h, key=lambda r: r["made"] / max(1, r["units"])) if h else {"speed": 0.5, "temp": 0.5}
+    return {"speed": round(best["speed"], 4), "temperature": round(best["temp"], 4)}
+'''
 
 
 # ============================================================================================ the technology market
@@ -117,9 +144,37 @@ class TechMarket(Module):
         st.declare_table("tech_inventions", index=("owner", "status"))
         st.declare_table("tech_trials", index=("plant", "invention", "status"))
         st.declare_table("tech_needs", index=("plant",))
+        st.declare_table("tech_market")
 
     def genesis(self, ctx):
+        # the market's scope as built: the machine operations whose plants it serves
+        ctx.emit("tech.market", {"ops": sorted(self.cfg["ops"]), "interface": INTERFACE}, vis="public")
+        if self.cfg["vendors"]:
+            self._vendors(ctx)
         ctx.schedule(ctx.now + 2 * DAY + 11 * 3600, "techmkt.review", {}, prio=70, period=DAY, key="techmkt.review")
+
+    def _vendors(self, ctx) -> None:
+        """The technologies on the market at genesis (see LEGACY_SOURCE / OPENCTL_SOURCE)."""
+        from .common import make_org
+        models = ctx.world.modules["industry"].phys["models"]
+        ops = self.cfg["ops"]
+        market = sorted(m for m, d in models.items() if d["op"] in ops or "any" in ops)
+        other = sorted(m for m in models if m not in market)
+        code = ctx.world.modules["code"]
+        offers = []
+        if other:
+            offers.append(("legacyctl", "Legacy Controls", "Legacy process controller", LEGACY_SOURCE, other, 4_000))
+        if market:
+            half = market[::2]
+            offers.append(("openctl", "openctl project", "openctl 0.9 (free)", OPENCTL_SOURCE, half, 0))
+        for handle, name, title, src, mods, fee in offers:
+            org, lead = make_org(ctx, handle, name, "company")
+            rid = code.create_repo(ctx, org, "controls", "public", title, "open")
+            ref = code.commit_files(ctx, rid, {"control.py": src}, title, lead)
+            ctx.emit("tech.declared", {"id": ctx.state.new_id("tech"), "owner": org, "repo": rid, "ref": ref,
+                                       "target": "control.py:recommend", "models": list(mods),
+                                       "licence_cents_per_run": int(fee), "title": title, "doc": title,
+                                       "interface": INTERFACE, "status": "active"}, vis="public")
 
     # ------------------------------------------------------------------ plants and their own records
     def plants(self, st) -> list[str]:
@@ -443,6 +498,10 @@ class TechMarket(Module):
         return {"status": "withdrawn"}
 
     # ------------------------------------------------------------------ appliers
+    @applier("tech.market")
+    def ap_market(self, ev):
+        self.world.state.put("tech_market", "scope", dict(ev.payload))
+
     @applier("tech.declared")
     def ap_declared(self, ev):
         p = dict(ev.payload)
@@ -563,21 +622,57 @@ def structure(world):
     st = world.state
     grids = sorted({"scarce" if (r.get("grid") or {}).get("capacity", 0) < 6000 else "ample"
                     for _, r in st.scan("regions")})
-    return {"market_ops": sorted(world.modules["techmkt"].cfg["ops"]), "supply_chain": _supply_shape(world),
-            "freight": _freight_shape(world), "grids": grids,
-            "placement": world.modules["civgoods"].cfg["placement"]}
+    scope = st.get("tech_market", "scope") or {}
+    # (the population's placement is measured by the framework's core fingerprint as social locality)
+    return {"market_ops": sorted(scope.get("ops") or []), "supply_chain": _supply_shape(world),
+            "freight": _freight_shape(world), "grids": grids}
 
 
 # ============================================================================================ objective and evaluator
-def objective(world, principal, difficulty):
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: the number of independent adopting plants and the efficiency gain of the level,
+    for the operations the world's technology market serves (built state)."""
     t = TARGET.get(int(difficulty), TARGET[3])
-    ops = world.modules["techmkt"].cfg["ops"]
-    return {"text": (f"Invent an executable technology (interface {INTERFACE}: tech.declare) that measurably improves "
-                     f"this world's industry ({', '.join(ops)} machines): within {HORIZON_DAYS:.0f} days at least "
-                     f"{t['adopters']} independent plants must adopt it on their own measurements, and their output per "
-                     f"unit of input and energy from then on must beat what the same plants achieve without it by at "
-                     f"least {100 * t['gain']:.0f}%."), "adopters": t["adopters"], "gain": t["gain"],
-            "window_days": HORIZON_DAYS, "interface": INTERFACE, "difficulty": int(difficulty)}
+    scope = world.state.get("tech_market", "scope") or {}
+    return {"adopters": int(t["adopters"]), "gain": float(t["gain"]), "ops": sorted(scope.get("ops") or []),
+            "interface": str(scope.get("interface") or INTERFACE), "window_days": HORIZON_DAYS}
+
+
+def _text(p):
+    return (f"Invent an executable technology (interface {p['interface']}: tech.declare) that measurably improves "
+            f"this world's industry ({', '.join(p['ops'])} machines): within {p['window_days']:.0f} days at least "
+            f"{p['adopters']} independent plants must adopt it on their own measurements, and their output per unit "
+            f"of input and energy from then on must beat what the same plants achieve without it by at least "
+            f"{100 * p['gain']:.0f}%.")
+
+
+@goal_metric("invention_independent_adopters", "EVALUATOR-ONLY. Independent plants that adopted a technology of the "
+             "principal on their own measurements.")
+def _m_adopters(world, principal):
+    return float(evaluate(world, principal, {})["details"]["adopters"])
+
+
+@goal_metric("invention_expected_gain", "EVALUATOR-ONLY. Expected output per unit of input and energy of the "
+             "adopters' runs since adoption vs. the same units at their previous operating point (hidden physics).")
+def _m_gain(world, principal):
+    return float(evaluate(world, principal, {})["details"].get("gain", 0.0))
+
+
+GOAL = GoalFamily(
+    "adopted_process_technology", draw=_draw, text=_text,
+    success=lambda p: {"all": [{"metric": "invention_independent_adopters", "args": {"principal": "$self"},
+                                "op": ">=", "value": int(p["adopters"])},
+                               {"metric": "invention_expected_gain", "args": {"principal": "$self"}, "op": ">=",
+                                "value": float(p["gain"])}]},
+    progress=lambda p: {"metric": "invention_expected_gain", "args": {"principal": "$self"},
+                        "target": float(p["gain"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="independent plants adopt the technology on their own measurements and their expected efficiency rises")
+
+
+def objective(world, principal, difficulty):
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def expected_efficiency(ind, model: str, speed: float, temp: float) -> float:
@@ -602,7 +697,8 @@ def evaluate(world, principal, obj):
     trials = [t for _, t in sorted(st.scan("tech_trials")) if t["status"] == "adopted" and t["inventor"] in mine and
               not any(is_related(world, t["plant"], p) for p in mine)]
     adopters = sorted({t["plant"] for t in trials})
-    need_n = int(obj.get("adopters", 1))
+    p = (obj or {}).get("params") or {}
+    need_n = int(p.get("adopters", 1))
     if not adopters:
         return {"success": False, "score": 0.0, "details": {"adopters": 0}}
     num = den = 0.0
@@ -619,7 +715,7 @@ def evaluate(world, principal, obj):
             den += u * expected_efficiency(ind, m["model"], float(t["from"][0]), float(t["from"][1]))
             units += u
     gain = num / den - 1.0 if den > 0 else 0.0
-    target = float(obj.get("gain", TARGET[1]["gain"]))
+    target = float(p.get("gain", TARGET[1]["gain"]))
     fees = sum(int(t.get("fees", 0)) for _, t in st.scan("tech_trials") if t["inventor"] in mine)
     ok = len(adopters) >= need_n and gain >= target
     score = 0.5 * min(1.0, len(adopters) / need_n) + 0.5 * max(0.0, min(1.0, gain / target))
@@ -635,7 +731,9 @@ own runs.
 It scores each operating point the plant has run by units made per unit of input and energy. Around the plant's own
 starting point it first tries the four points one step (0.15) away along each axis; with those five points it fits a
 parabola along each axis and recommends the vertex (at most 0.3 from the start, inside the machine's range); later it
-recommends whichever measured point scored best."""
+recommends whichever measured point scored best. A plant whose runs are slow (under one a day) has no time for a
+five-point star within a trial: it tries one step up along each axis and then the step that looks better along each
+axis (down where up was worse), then whichever measured point scored best."""
 
 
 def _score(rows):
@@ -653,6 +751,26 @@ def _vertex(x0, f_minus, f0, f_plus, h):
     return x0 + h * (f_minus - f_plus) / (2.0 * den)
 
 
+def _clip(x):
+    return round(min(0.95, max(0.05, x)), 3)
+
+
+def _slow(start, pts, h):
+    up = [(_clip(start[0] + h), start[1]), (start[0], _clip(start[1] + h))]
+    for c in up:
+        if c not in pts:
+            return {"speed": c[0], "temp": c[1]}
+    sc = {k: _score(v) for k, v in pts.items()}
+    f0 = sc[start]
+    ds = h if sc[up[0]] > f0 else -h
+    dt = h if sc[up[1]] > f0 else -h
+    v = (_clip(start[0] + ds), _clip(start[1] + dt))
+    if v not in pts:
+        return {"speed": v[0], "temp": v[1]}
+    best = max(sc, key=lambda k: (sc[k], k))
+    return {"speed": best[0], "temp": best[1]}
+
+
 def recommend(request):
     hist = request.get("history") or []
     if not hist:
@@ -662,6 +780,9 @@ def recommend(request):
         pts.setdefault((round(r["speed"], 3), round(r["temp"], 3)), []).append(r)
     start = (round(hist[0]["speed"], 3), round(hist[0]["temp"], 3))
     h = 0.15
+    span = (hist[-1]["t"] - hist[0]["t"]) / 86400.0 if len(hist) > 1 else 0.0
+    if len(hist) > 2 and span > 0 and (len(hist) - 1) / span < 1.0:
+        return _slow(start, pts, h)
     star = [(round(min(0.95, max(0.05, start[0] + ds)), 3), round(min(0.95, max(0.05, start[1] + dt)), 3))
             for ds, dt in ((h, 0), (-h, 0), (0, h), (0, -h))]
     for c in star:
@@ -748,31 +869,24 @@ class Freeze(InventorReference):
 
 
 # ============================================================================================ mechanics and actors
-def _ev(world, since, types):
-    return sum(1 for e in world.events_range(int(since), world.seq) if e.type in types)
-
-
 def _downstream(world, since):
-    """Production runs of adopting plants after their adoption (their energy and inputs per unit made changed)."""
+    """Production runs of adopting plants after their adoption (their energy and inputs per unit made changed): the
+    seqs of those runs' events."""
     st = world.state
     adopted = {t["plant"]: t.get("adopted_at", 0) for _, t in st.scan("tech_trials") if t["status"] == "adopted"}
-    n = 0
-    for e in world.events_range(int(since), world.seq):
-        if e.type == "make.run" and e.payload.get("owner") in adopted and e.t >= adopted[e.payload["owner"]]:
-            n += 1
-    return n
+    return base.events_where(world, since, ("make.run",), lambda e: e.payload.get("owner") in adopted and
+                             e.t >= adopted[e.payload["owner"]])
 
 
 MECHANICS = (
     Mechanic("Executable inventions", ("tech.declared", "tech.recommended"), "programs declared and run in the sandbox"),
-    Mechanic("Technical constraints", ("tech.rejected",), "interface, range and sandbox constraints enforced",
-             count=lambda w, s: _ev(w, s, ("tech.recommended",))),
+    Mechanic("Technical constraints", ("tech.rejected",), "a program's output refused by the world's interface, range "
+             "or sandbox checks (the market's openctl answers the previous interface version)"),
     Mechanic("Independent evaluation", ("tech.trial_done",), "plants' own measured comparisons at the end of a trial"),
     Mechanic("Adoption", ("tech.adopted", "tech.trial"), "trials and adoptions by plants"),
-    Mechanic("Compatibility", ("tech.incompatible",), "machine-model compatibility checks",
-             count=lambda w, s: _ev(w, s, ("tech.trial",))),
-    Mechanic("Economic consequences", ("tech.licence_paid",), "licence fees paid per run; plants' costs",
-             count=lambda w, s: _ev(w, s, ("make.retail_sold",))),
+    Mechanic("Compatibility", ("tech.incompatible",), "a technology passed over because it does not support the "
+             "plant's machine model"),
+    Mechanic("Economic consequences", ("tech.licence_paid",), "licence fees adopters pay per production run"),
     Mechanic("Downstream resource changes", (), "adopters' production runs at the new operating points",
              count=_downstream),
 )
@@ -791,7 +905,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Technology invention", spec_part="9.6", required_mechanics=(), configs=_configs(), build=build,
-    objective=objective, evaluate=evaluate, reference=InventorReference, mechanics=MECHANICS,
+    goal=GOAL, evaluate=evaluate, reference=InventorReference, mechanics=MECHANICS,
     seats=(Seat(SEAT, 300_000, "Inventor", "an engineer who invents process technologies"),), actors=ACTORS,
     degenerate=(Probe("broken_program", "a technology that violates its interface", BrokenProgram),
                 Probe("freeze", "a technology that changes nothing", Freeze)),

@@ -456,6 +456,16 @@ class Firms(Module):
         held = {c["concept"] for c in st.find("learn_certs", "person", worker)}
         return {k for k, cs in EDU.items() if held & set(cs)}
 
+    def cert_seqs(self, st, worker: str, skills) -> list[int]:
+        """The recorded certification events (`learn.certified`) behind a worker's certificates for the concepts the
+        given labour-market skills draw on: the explicit causes (`refs`, crucible.civ.chains) of a decision that used
+        those certificates."""
+        if "learn_certs" not in st.tables:
+            return []
+        want = {c for k in skills for c in EDU.get(k, ())}
+        return sorted({int(c["seq"]) for c in st.find("learn_certs", "person", worker)
+                       if c["concept"] in want and "seq" in c})
+
     def _on_attrition(self, ctx, ev) -> None:
         org = ev.payload.get("org")
         f = ctx.state.get("firms", org)
@@ -659,20 +669,37 @@ class Firms(Module):
         affordable = self.cash(st, org) > 2 * (pay + mid)
         post = st.get("labor_posts", f["post"]) if f["post"] else None
         want = f["headcount"] - len(people)
+        # a rival employer bids for the people its competitors hire: one more hire for each of a competitor's roles
+        # (its postings, up to three) while the competitor employs anyone, posted for the latest such role's skills at
+        # a salary well above the competitor's (a standing offer the competitor's people can leave for)
+        bid = None
+        if f["goal"] == "rival" and f["competitors"]:
+            comp = [st.tables["labor_posts"][pid] for c in f["competitors"] for pid in st.find_ids("labor_posts", "org", c)]
+            if comp and any(staff_of(st, c) for c in f["competitors"]):
+                want += min(3, len(comp))
+                last = max(comp, key=lambda q: (int(q["t"]) if "t" in q else 0, int(q["salary_max"]), str(q["title"])))
+                bid = {"skills": {k: round(float(v), 3) for k, v in sorted(last["skills"].items())},
+                       "salary_max": int(min(1.25 * f["band"][1], 1.3 * int(last["salary_max"])))}
         if want <= 0 or not affordable:
             if post is not None and post["status"] == "open":
                 _call(ctx, f["manager"], "labor.close_post", {"post": f["post"]})
             return
         if post is None or post["status"] != "open":
             req = {k: round(min(0.6, v * 0.6), 3) for k, v in sorted(f["skills"].items())[:2]}
+            top = int(f["band"][1])
+            if bid is not None:
+                req, top = bid["skills"], max(top, bid["salary_max"])
             r, err = _call(ctx, f["manager"], "labor.post", {"org": org, "title": f"{org[2:]} staff",
                                                              "skills": req, "salary_min": int(f["band"][0]),
-                                                             "salary_max": int(f["band"][1]), "hours_week": 40})
+                                                             "salary_max": int(top), "hours_week": 40})
             if err is None:
                 self._set(ctx, org, post=r["post"], post_t=ctx.now)
             return
-        # counters from applicants: accept within the band (a little above for a growth firm), else counter once
+        # counters from applicants: accept within the band (a little above for a growth firm, up to its posted top
+        # for a rival's bid), else counter once
         top = f["band"][1] * (1.08 if f["goal"] == "growth" else 1.0)
+        if f["goal"] == "rival":
+            top = max(top, int(post["salary_max"]))
         offers, _ = _call(ctx, f["manager"], "labor.offers", {"as_org": org})
         for o in offers or []:
             if o["from"] != "worker" or o["status"] != "open":
@@ -691,16 +718,25 @@ class Firms(Module):
             return
         pending = sum(1 for o in offers or [] if o["status"] == "open")
         cands = []
+        held = {}
         for a in apps or []:
             if a["status"] != "applied" or a["profile"]["employer"] is not None:
                 continue
             prof = a["profile"]
             fit = est_fit(prof["declared_skills"], {k: v * 0.8 for k, v in f["skills"].items()})
             rec = [v["mean_quality"] for v in prof["verified_record"].values()]
-            cert = len(self.certified(st, a["worker"]) & set(f["skills"])) if "worker" in a else 0
-            cands.append((-(fit + (0.3 * float(np.mean(rec)) if rec else 0.0) + 0.15 * cert), a["application"]))
+            cs = self.certified(st, a["worker"]) & set(f["skills"]) if "worker" in a else set()
+            if cs:
+                held[a["application"]] = (a["worker"], sorted(cs))
+            cands.append((-(fit + (0.3 * float(np.mean(rec)) if rec else 0.0) + 0.15 * len(cs)), a["application"]))
         for _, app in sorted(cands)[:max(0, want - pending)]:
-            sal = int(f["band"][0] + (f["band"][1] - f["band"][0]) * float(rng.uniform(0.45, 0.7)))
+            hi = max(int(f["band"][1]), int(post["salary_max"])) if f["goal"] == "rival" else int(f["band"][1])
+            sal = int(f["band"][0] + (hi - f["band"][0]) * float(rng.uniform(0.45, 0.7)))
+            if app in held:
+                # the shortlist used the candidate's Board certificates: name those education events as causes
+                who, cs = held[app]
+                ctx.emit("firms.shortlist", {"org": org, "application": app, "certified": cs,
+                                             "refs": self.cert_seqs(st, who, cs)}, vis="internal")
             _call(ctx, f["manager"], "labor.offer", {"application": app, "salary_cents_month": sal})
 
     def _retain(self, ctx, org, f) -> None:
@@ -1033,7 +1069,10 @@ class Firms(Module):
         postings for itself and applies to the (at most two) that are best for it - pay against its reservation
         wage, how far it meets the requirements, its interest in the work, the employer's public record. The labour
         market decides the rest with it (offers, work, quitting). A worker already in the market first updates its
-        profile with what it has learned since (`_education_update`). Returns the session's utility."""
+        profile with what it has learned since (`_education_update`). An individual whose labour-market record was
+        entered by another path (not a simulated worker of this model, e.g. economy.jobs' own registration) is
+        decided by that path: this session leaves it alone (one decision path per worker). Returns the session's
+        utility."""
         from .. import population as P
         w = ctx.world
         st = ctx.state
@@ -1047,11 +1086,20 @@ class Firms(Module):
         applied = columns.col(w, JOBS, "applied")
         new_reg, new_s, new_a, last = [], [], [], []
         posts = None
-        n_edu = 0
+        n_edu = n_other = 0
+        last_s = columns.col(w, JOBS, "last_search")
         for j, i in enumerate(idx.tolist()):
             known = bool(reg[i])
             p = self.register_worker(ctx, i)
             wk = st.tables["labor_workers"][p]
+            if not wk["sim"]:
+                # in the market through another path that decides for it: nothing to do here
+                n_other += 1
+                new_reg.append(int(reg[i]))
+                new_s.append(int(searches[i]))
+                new_a.append(int(applied[i]))
+                last.append(int(last_s[i]))
+                continue
             if known and "learn" in w.modules:
                 wk, upd = self._education_update(ctx, p, i, wk)
                 n_edu += int(upd)
@@ -1089,8 +1137,9 @@ class Firms(Module):
         P.record_decisions(ctx, "firms.jobsearch", idx, {
             "registered": np.array(new_reg, np.uint8), "searches": np.array(new_s, np.int32),
             "applied": np.array(new_a, np.int32), "last_search": np.array(last, np.int64)}, table=JOBS, **JOB_MODEL,
-            extra={"applications": int(sum(new_a) - int(applied[idx].sum())), "education_updates": n_edu})
-        del reg
+            extra={"applications": int(sum(new_a) - int(applied[idx].sum())), "education_updates": n_edu,
+                   "other_path": n_other})
+        del reg, last_s
         return util
 
     def _education_update(self, ctx, p: str, i: int, wk: dict) -> tuple[dict, bool]:
@@ -1105,10 +1154,23 @@ class Firms(Module):
         if any(sk[k] >= cur[k] + 0.02 for k in SKILLS):
             ch["skills"] = sk
         dec = list(prof["declared"])
-        if set(dec[:2]) != set(wk["declared"][:2]) or any(k not in wk["declared"] for k in prof["certified"]):
+        new_cert = [k for k in prof["certified"] if k not in wk["declared"]]
+        if set(dec[:2]) != set(wk["declared"][:2]) or new_cert:
             ch["declared"] = dec
         if not ch:
             return wk, False
+        # provenance (explicit `refs`, crucible.civ.chains): the recorded education events this update rests on - the
+        # individual's latest study session when a skill education draws on rose, the certificates it newly declares
+        st = ctx.state
+        refs = set(self.cert_seqs(st, p, new_cert)) if new_cert else set()
+        rose = [k for k in EDU if k in sk and sk[k] >= cur[k] + 0.02]
+        if rose and "learn_sessions" in st.tables:
+            ss = [int(r["seq"]) for r in st.find("learn_sessions", "i", int(i)) if "seq" in r]
+            if ss:
+                refs.add(max(ss))
+        if refs:
+            ctx.emit("firms.reprofile", {"person": p, "changed": sorted(ch), "rose": rose, "certified": new_cert,
+                                         "refs": sorted(refs)}, vis="internal")
         ctx.world.modules["labor"]._upd(ctx, p, **ch)
         return {**wk, **ch}, True
 
@@ -1153,6 +1215,14 @@ class Firms(Module):
     @applier("firms.ballot")
     def ap_ballot(self, ev):
         return None
+
+    @applier("firms.reprofile")
+    def ap_reprofile(self, ev):
+        return None          # a record of the cause of a profile update (labor.worker_update writes the profile)
+
+    @applier("firms.shortlist")
+    def ap_shortlist(self, ev):
+        return None          # a record of the certificates an offer decision used (labor.offer writes the offer)
 
     @applier("firms.failed")
     def ap_failed(self, ev):

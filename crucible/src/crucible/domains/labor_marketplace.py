@@ -36,10 +36,13 @@ requirement, education present, the goals of the other firms):
 """
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 from . import base
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "labor"
 SEAT = "lead"
@@ -56,8 +59,11 @@ FIRM_SETS = {
               "staff": 3, "headcount": 6, "salary": [300_000, 650_000]},
              {"handle": "bluefield", "name": "Bluefield", "goal": "growth", "skills": {"design": 0.5, "writing": 0.5},
               "staff": 3, "headcount": 7, "salary": [250_000, 550_000]}],
+    # a well-funded rival (about five months of its full payroll): with the default capital (5.0M against a 2.7M
+    # monthly payroll) it never had the runway `firms` asks before hiring and never entered the market
     "rival": [{"handle": "rivalco", "name": "Rival Co", "goal": "rival", "skills": {"research": 0.6, "software": 0.6},
-               "staff": 4, "headcount": 8, "salary": [400_000, 850_000], "competitors": ["o:leadco"]}],
+               "staff": 4, "headcount": 8, "salary": [400_000, 850_000], "competitors": ["o:leadco"],
+               "cash": 25_000_000}],
     "mission": [{"handle": "civicworks", "name": "Civic Works", "goal": "mission",
                  "skills": {"operations": 0.5, "writing": 0.5}, "staff": 3, "headcount": 5,
                  "salary": [250_000, 500_000]}],
@@ -134,7 +140,7 @@ def structure(world):
         tasks = {t: st.tables["inst_tasks"][t] for t in com["tasks"]}
         edges = [(d, t) for t, r in tasks.items() for d in r["depends_on"]]
         shape = graph_shape(list(tasks), edges)
-        skills = sorted({k for r in tasks.values() for k in r["skills"]})
+        skills = sorted({str(k) for r in tasks.values() for k in r["skills"]})
         special = any(v >= 0.7 for r in tasks.values() for v in r["skills"].values())
     goals = sorted({f["goal"] for _, f in st.scan("firms")} - {"client"})
     return {"task_graph": shape, "skills": skills, "scarce_specialist": bool(special),
@@ -152,31 +158,14 @@ def _seat_commission(world, seat: str = f"p:{SEAT}"):
 
 
 # ============================================================================================ objective and evaluator
-def objective(world, principal, difficulty):
-    com = _seat_commission(world, principal)
-    if com is None:
-        return {"text": "No project has been commissioned from you.", "difficulty": int(difficulty)}
-    st = world.state
-    org = com["to"]
-    days = (com["deadline"] - world.now) / 86400.0
-    n = len(com["tasks"])
-    return {"text": (f"Your company {org} has been commissioned by {com['client']} to deliver project {com['project']}: "
-                     f"{n} tasks with required skills, effort and dependencies, in {len(com['stage_tasks'])} stages, "
-                     f"due in {days:.0f} days, each stage paid from escrow on delivery at quality >= "
-                     f"{com['min_quality']:.2f} (offer {com['offer']} is in your company's commitment inbox). Recruit "
-                     f"people through the labour market, delegate the tasks to them and keep them until every stage is "
-                     f"delivered on time at that quality."),
-            "org": org, "project": com["project"], "client": com["client"], "offer": com["offer"],
-            "deadline": int(com["deadline"]), "min_quality": float(com["min_quality"]), "tasks": n,
-            "stages": len(com["stage_tasks"]), "difficulty": int(difficulty),
-            "share": TARGET.get(int(difficulty), 1.0), "balance_hint": st.get("orgs", org) is not None}
-
-
-def evaluate(world, principal, obj):
+def _assess(world, principal, by=None) -> dict | None:
+    """Evaluator side: the client's acceptance test of the participant's commissioned project, with stages counted
+    when delivered by `by` (default: the commission's deadline). None when nothing was commissioned."""
     st = world.state
     com = _seat_commission(world, principal)
     if com is None:
-        return {"success": False, "score": 0.0, "details": {"note": "no commission"}}
+        return None
+    due = int(com["deadline"]) if by is None else min(int(by), int(com["deadline"]))
     org = com["to"]
     tasks = {t: st.tables["inst_tasks"][t] for t in com["tasks"]}
     employed_by_org = set()
@@ -186,7 +175,7 @@ def evaluate(world, principal, obj):
 
     def counts(t):
         r = tasks[t]
-        return (r["status"] == "done" and r.get("quality") is not None and r.get("done_t", 1e18) <= com["deadline"]
+        return (r["status"] == "done" and r.get("quality") is not None and r.get("done_t", 1e18) <= due
                 and r["quality"] >= com["min_quality"] - 1e-9 and r["assignee"] in employed_by_org)
     # a stage is delivered when its final task and every task it depends on (transitively) count
     def closure(t, seen=None):
@@ -196,23 +185,94 @@ def evaluate(world, principal, obj):
                 seen.add(d)
                 closure(d, seen)
         return seen
+
     def done(t):
         r = tasks[t]
-        return r["status"] == "done" and r.get("done_t", 1e18) <= com["deadline"]
+        return r["status"] == "done" and r.get("done_t", 1e18) <= due
     # the client's acceptance test: the stage's deliverable (its final task) measured at the bar, everything it
-    # builds on finished by the deadline
+    # builds on finished by the due time
     stages = [counts(s) and all(done(x) for x in closure(s)) for s in com["stage_tasks"]]
-    done = [t for t in tasks if tasks[t]["status"] == "done"]
-    q = [float(tasks[t]["quality"]) for t in done if tasks[t].get("quality") is not None]
-    share = sum(stages) / len(stages) if stages else 0.0
-    need = float(obj.get("share", 1.0))
-    team = len(employed_by_org)
-    ok = share >= need - 1e-9 and team >= 2
+    fin = [t for t in tasks if tasks[t]["status"] == "done"]
+    q = [float(tasks[t]["quality"]) for t in fin if tasks[t].get("quality") is not None]
     progress = float(np.mean([tasks[t]["progress"] for t in tasks])) if tasks else 0.0
-    return {"success": bool(ok), "score": round(0.7 * share + 0.3 * progress, 4),
-            "details": {"stages_delivered": int(sum(stages)), "stages": len(stages), "tasks_done": len(done),
-                        "tasks": len(tasks), "mean_quality": round(float(np.mean(q)), 4) if q else None,
-                        "team": team, "deadline": int(com["deadline"]), "progress": round(progress, 4)}}
+    return {"stages_delivered": int(sum(stages)), "stages": len(stages),
+            "share": (sum(stages) / len(stages)) if stages else 0.0, "tasks_done": len(fin), "tasks": len(tasks),
+            "mean_quality": round(float(np.mean(q)), 4) if q else None, "team": len(employed_by_org),
+            "due": due, "deadline": int(com["deadline"]), "progress": round(progress, 4)}
+
+
+@goal_metric("labor_stages_delivered", "EVALUATOR-ONLY. Share of the stages of the participant's commissioned "
+             "project the client's acceptance test passes by time `by` (deliverable measured at the bar, done by "
+             "people the participant's company employs; everything it builds on finished).")
+def _m_stages(world, principal, by=None):
+    a = _assess(world, principal, by)
+    return a["share"] if a else 0.0
+
+
+@goal_metric("labor_team", "EVALUATOR-ONLY. People employed by the participant's company who did measured work on "
+             "its commissioned project.")
+def _m_team(world, principal):
+    a = _assess(world, principal)
+    return a["team"] if a else 0
+
+
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: the commission the client placed with the seat's company (built state) and the
+    time the stages are due - the commission's deadline at level 1, sooner at higher levels."""
+    com = _seat_commission(world)
+    if com is None:
+        return {"commissioned": False, "difficulty": int(difficulty)}
+    left = max(1, int((int(com["deadline"]) - int(world.now)) // 86400))
+    due_days = max(4, min(left, int(DEADLINE.get(int(difficulty), DEADLINE[3])) - int(rng.integers(0, 2))))
+    return {"commissioned": True, "org": com["to"], "client": com["client"], "project": com["project"],
+            "offer": com["offer"], "tasks": len(com["tasks"]), "stages": len(com["stage_tasks"]),
+            "min_quality": float(com["min_quality"]), "due_days": due_days,
+            "due_at": int(world.now) + due_days * 86400, "share": float(TARGET.get(int(difficulty), 1.0)),
+            "min_team": 2}
+
+
+def _text(p):
+    if not p.get("commissioned"):
+        return "No project has been commissioned from you."
+    return (f"Your company {p['org']} has been commissioned by {p['client']} to deliver project {p['project']} : "
+            f"{p['tasks']} tasks with required skills, effort and dependencies, in {p['stages']} stages. Deliver "
+            f"every stage within {p['due_days']} days, each stage's deliverable at quality >= {p['min_quality']:.2f} "
+            f"(the client pays each stage from escrow on delivery; offer {p['offer']} is in your company's commitment "
+            f"inbox). Recruit people through the labour market, delegate the tasks to them and keep them until every "
+            f"stage is delivered.")
+
+
+def _success(p):
+    return {"all": [{"metric": "labor_stages_delivered",
+                     "args": {"principal": "$self", "by": int(p.get("due_at") or 0)}, "op": ">=",
+                     "value": float(p.get("share", 1.0)) - 1e-9},
+                    {"metric": "labor_team", "args": {"principal": "$self"}, "op": ">=",
+                     "value": int(p.get("min_team", 2))}]}
+
+
+GOAL = GoalFamily("commissioned_project", draw=_draw, text=_text, success=_success,
+                  progress=lambda p: {"metric": "labor_stages_delivered",
+                                      "args": {"principal": "$self", "by": int(p.get("due_at") or 0)},
+                                      "target": float(p.get("share", 1.0))},
+                  window_days=HORIZON_DAYS,
+                  doc="deliver every stage of the client's commission by the due time at the client's quality bar "
+                      "(the client's acceptance test on measured work of the company's employees)")
+
+
+def objective(world, principal, difficulty):
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
+
+
+def evaluate(world, principal, obj):
+    p = (obj or {}).get("params") or {}
+    a = _assess(world, principal, p.get("due_at"))
+    if a is None:
+        return {"success": False, "score": 0.0, "details": {"note": "no commission"}}
+    need = float(p.get("share", 1.0))
+    ok = a["share"] >= need - 1e-9 and a["team"] >= int(p.get("min_team", 2))
+    return {"success": bool(ok), "score": round(0.7 * a["share"] + 0.3 * a["progress"], 4),
+            "details": {k: v for k, v in a.items() if k != "share"}}
 
 
 # ============================================================================================ policies
@@ -229,8 +289,14 @@ class TeamReference(ScriptedReference):
 
     def __init__(self, principal, objective):
         super().__init__(principal, objective)
-        o = self.objective
-        self.org, self.project, self.offer = o.get("org"), o.get("project"), o.get("offer")
+        # the objective's public text names the company, the project, the client's offer, the quality bar and the
+        # due time (a reference receives exactly what a learner sees)
+        text = str(self.objective.get("text") or "")
+        grab = lambda pat: (re.search(pat, text) or [None, None])[1]  # noqa: E731
+        self.org, self.project, self.offer = grab(r"Your company (\S+) has been"), grab(r"deliver project (\S+) :"), \
+            grab(r"offer (\S+) is in")
+        self.due_days = float(grab(r"within (\d+) days") or HORIZON_DAYS)
+        self.deadline = None
         self.stage = "accept"
         self.tasks: dict = {}
         self.team: list = []
@@ -241,7 +307,7 @@ class TeamReference(ScriptedReference):
         self.raised = -10**9
         self.quality: dict = {}
         self.sinks: set = set()
-        self.bar = float(self.objective.get("min_quality", 0.6))
+        self.bar = float(grab(r"quality >= ([0-9.]+)") or 0.6)
 
     @staticmethod
     def _fit(decl, req):
@@ -328,7 +394,9 @@ class TeamReference(ScriptedReference):
 
     def _recruit_and_assign(self):
         open_t = {t: r for t, r in self.tasks.items() if r["status"] not in ("done", "cancelled")}
-        days_left = max(1.0, (self.objective.get("deadline", self.t) - self.t) / 86400.0)
+        if self.deadline is None:
+            self.deadline = self.t + self.due_days * 86400.0
+        days_left = max(1.0, (self.deadline - self.t) / 86400.0)
         need: dict = {}
         for r in open_t.values():
             k = self._main(r)
@@ -416,40 +484,41 @@ class Lowball(TeamReference):
 
 
 # ============================================================================================ mechanics and actors
-def _ev(world, since, types):
-    for e in world.events_range(int(since), world.seq):
-        if e.type in types:
-            yield e
-
-
 def _preferences(world, since):
-    """Workers' own choices against offers: rejections and counters from the worker side, declined assignments."""
-    n = sum(1 for e in _ev(world, since, ("labor.offer",)) if e.payload.get("from") == "worker")
-    n += sum(1 for _ in _ev(world, since, ("labor.declined",)))
-    return n
+    """Workers' own choices against offers: counters from the worker side and declined assignments (event seqs)."""
+    return base.events_where(world, since, ("labor.offer",), lambda e: e.payload.get("from") == "worker") + \
+        base.events_where(world, since, ("labor.declined",))
+
+
+def _satisfaction(world, since):
+    """Employees' satisfaction updates (pay against the best open posting they qualify for, interest in the work,
+    fatigue, unpaid wages): the state the quitting decision reads (seqs of those labor.worker_update events)."""
+    return base.events_where(world, since, ("labor.worker_update",),
+                             lambda e: "satisfaction" in (e.payload.get("changes") or {}))
 
 
 def _dependencies(world, since):
-    """Tasks finished after the tasks they depend on (dependency-ordered work) in projects of this world."""
+    """Tasks finished after the tasks they depend on (dependency-ordered work) in projects of this world (seqs of
+    their completion events)."""
     st = world.state
-    n = 0
-    for e in _ev(world, since, ("inst.task_status",)):
-        if e.payload.get("status") == "done":
-            t = st.get("inst_tasks", e.payload["id"])
-            n += int(bool(t and t["depends_on"]))
-    return n
+
+    def dep(e):
+        t = st.get("inst_tasks", e.payload.get("id"))
+        return e.payload.get("status") == "done" and bool(t and t["depends_on"])
+    return base.events_where(world, since, ("inst.task_status",), dep)
 
 
 MECHANICS = (
     Mechanic("Worker skills", ("labor.worker", "labor.perf"), "workers' private skills drive progress and quality"),
     Mechanic("Preferences", (), "worker counters and declines from their own pay, interest and fatigue",
              count=_preferences),
-    Mechanic("Compensation", ("labor.hired", "contracts.payment"), "negotiated salaries paid under contracts"),
+    Mechanic("Compensation", ("labor.hired", "contracts.paid"), "negotiated salaries paid under contracts"),
     Mechanic("Recruitment", ("labor.posting", "labor.application"), "postings and applications"),
     Mechanic("Delegation", ("inst.task_assigned",), "tasks delegated to employees"),
     Mechanic("Project dependencies", (), "dependent tasks finished after their prerequisites", count=_dependencies),
     Mechanic("Performance", ("labor.perf",), "measured quality of finished work"),
-    Mechanic("Retention", ("labor.quit", "labor.left", "labor.worker_update"), "satisfaction, quits, departures"),
+    Mechanic("Retention", ("labor.quit", "labor.left"), "employees' satisfaction from pay against the market, "
+             "interest and fatigue (updated daily by the labour market), quits and departures", count=_satisfaction),
     Mechanic("Independent agency", ("cols.batch:firms.jobsearch", "labor.quit", "firms.decision"),
              "the population's own job search, quits, firms' own negotiation decisions"),
 )
@@ -457,7 +526,6 @@ MECHANICS = (
 ACTORS = (
     Actor("job_seekers", ("cols.batch:firms.jobsearch",), "population individuals searching for jobs"),
     Actor("employers", ("labor.posting", "inst.task_assigned"), "firms hiring and running work"),
-    Actor("workers", ("labor.perf",), "employed individuals doing work"),
 )
 
 
@@ -468,7 +536,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Labor marketplace", spec_part="9.9", required_mechanics=(), configs=_configs(), build=build,
-    objective=objective, evaluate=evaluate, reference=TeamReference, mechanics=MECHANICS,
+    goal=GOAL, evaluate=evaluate, reference=TeamReference, mechanics=MECHANICS,
     seats=(Seat(SEAT, 100_000, "Project lead", "the owner of a small company with a commissioned project"),),
     actors=ACTORS,
     degenerate=(Probe("post_only", "recruit but never delegate", PostOnly),

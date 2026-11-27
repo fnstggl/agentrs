@@ -82,6 +82,23 @@ def test_education_changes_workers_skills_and_their_job_profiles():
     assert sum((e.payload.get("extra") or {}).get("education_updates", 0) for e in w.log
                if e.type == "cols.batch" and e.payload["kind"] == "firms.jobsearch") == \
         len([e for e in w.log if e.type == "labor.worker_update" and {"skills", "declared"} & set(e.payload["changes"])])
+    # provenance: each education-caused update names the recorded education events it rests on (the individual's own
+    # latest study session, the certificates it newly declares), so Tier 3 causal chains cross education -> employment
+    from crucible.civ import chains
+    byseq = {e.seq: e for e in w.log}
+    rp = [e for e in w.log if e.type == "firms.reprofile"]
+    assert len(rp) >= 5
+    for e in rp:
+        i = int(e.payload["person"][1:])
+        for r in e.payload["refs"]:
+            c = byseq[r]
+            assert r < e.seq and c.type in ("learn.sessions", "learn.certified")
+            assert (any(s["i"] == i for s in c.payload["sessions"]) if c.type == "learn.sessions"
+                    else c.payload["person"] == e.payload["person"])
+    pv = chains.build(w, 0)
+    cross = sum(1 for b, ps in pv.parents.items() for a in ps
+                if pv.subsystem.get(a) == "education" and pv.subsystem.get(b) == "employment")
+    assert cross >= len(rp)
     w0 = World.create(base.spec(LM.NAME, "wide_certified", 0, overrides={"drop_modules": ["learn"]}))
     w0.advance_time(12 * 86400)
     both = sorted(set(w.state.ids("labor_workers")) & set(w0.state.ids("labor_workers")))
@@ -95,3 +112,36 @@ def test_education_changes_workers_skills_and_their_job_profiles():
     assert not [e for e in w.log if e.type == "proc.failed"] and w.check_invariants() == []
     w.close()
     w0.close()
+
+
+def test_job_search_leaves_workers_of_another_labour_market_path_alone():
+    """One decision path per worker: an individual whose labour-market record another path entered (not a simulated
+    worker of `firms`' job-search model; e.g. economy.jobs registers individuals itself and answers their offers) is
+    left to that path - `job_search` sessions neither apply for it nor rewrite its profile."""
+    import numpy as np
+    from crucible.commerce.labor import SKILLS as LSK
+    from crucible.substrate import ids
+    w = _world()
+    st = w.state
+    free = [i for i in range(400) if not st.has("labor_workers", ids.pid(i))][:150]
+    assert len(free) >= 100
+
+    def register(ctx):
+        for i in free:
+            p = ids.ensure_principal(ctx, i, account=True)
+            # qualified for every posting and cheap: the job-search model would apply for them (139 applications in
+            # this run without the one-path rule)
+            w.modules["labor"].add_worker(ctx, p, {k: 0.8 for k in LSK}, {k: 1.0 / len(LSK) for k in LSK}, 100_000,
+                                          sim=False, hours_week=20, declared=sorted(LSK)[:3])
+    w._run_system("test.other_path", register)
+    w.advance_time(6 * 86400)
+    other = {ids.pid(i) for i in free}
+    skipped = sum((e.payload.get("extra") or {}).get("other_path", 0) for e in w.log
+                  if e.type == "cols.batch" and e.payload["kind"] == "firms.jobsearch")
+    assert skipped > 0                                       # their job-search sessions happened and were left alone
+    apps = [r for _, r in st.scan("labor_apps")]
+    assert apps and not [r for r in apps if r["worker"] in other]
+    assert not [e for e in w.log if e.type == "labor.worker_update" and e.payload["person"] in other]
+    assert all(not st.tables["labor_workers"][p]["sim"] for p in other)
+    assert not [e for e in w.log if e.type == "proc.failed"] and w.check_invariants() == []
+    w.close()

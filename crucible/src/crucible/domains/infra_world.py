@@ -82,6 +82,8 @@ DEFAULTS: dict[str, Any] = {
     "power_cap": None,                                     # [lo, hi] x the incumbent's facility power at peak
     "lease_cents_day": 700, "repair_parts_cents": 12_000, "repair_tech_h": 6, "repair_h": 8,
     "technicians": 1, "tech_wage_cents_day": 15_000,
+    "contractor_cents_h": 4_000,                           # the lessor's refurbishment labour for a machine returned
+                                                           # broken (parts + repair_tech_h hours at this rate)
     "price_per_m_cents": [40, 90], "batch_value_cents_per_core_h": 3,
     "sla_target": 0.995, "sla_credit": 0.1,
     "cut_rate_per_day": 0.03,                              # per link (hidden)
@@ -110,6 +112,10 @@ power      "always_on": every available machine on | "follow_demand": enough mac
 forecast   "last_hour" | "day_ago_max": max of the same hours yesterday and the last hour, per service and region
 placement  "nearest": all of a region's traffic to its lowest-latency site | "spread": a share `spread` of it
            split over the other sites in proportion to their cores
+failover   (follow_demand) warm reserve at each site for the forecast traffic it takes over when the nearest site of
+           a region is lost (cut off or tripped): `failover` cores per core of that traffic (0: no reserve)
+max_on     {site: n}: never more than n machines on at that site (a smaller fleet, e.g. to test one on recorded
+           traffic before returning machines)
 batch      "asap": run every job now at the site with most spare cores | "cheapest": run a job only in the hours
            with the lowest price that still meet its deadline (with a 50% safety margin)
 """
@@ -156,11 +162,13 @@ def control(obs):
     headroom = _num(p.get("headroom", 1.6), 1.0, 5.0, 1.6)
     min_on = int(_num(p.get("min_on", 1), 0, 10000, 1))
     spread = _num(p.get("spread", 0.0), 0.0, 1.0, 0.0)
+    failover = _num(p.get("failover", 0.0), 0.0, 3.0, 0.0)
     sites = obs["sites"]
     ids = [s["id"] for s in sites]
     adj = _lat(obs["topology"], set(obs.get("cut_links") or []))
     live = [s for s in sites if not s.get("tripped_until")]
     placement = {}
+    second = {}
     for svc in obs["services"]:
         placement[svc["id"]] = {}
         for r in obs["regions"]:
@@ -169,6 +177,8 @@ def control(obs):
             if not cand:
                 continue
             near = cand[0][1]
+            if len(cand) > 1:
+                second[(svc["id"], r)] = cand[1][1]
             if p.get("placement") == "spread" and len(cand) > 1 and spread > 0:
                 others = [c[1] for c in cand[1:]]
                 cores = {s["id"]: max(1, s["machines"]["on"] + s["machines"]["booting"] + s["machines"]["off"])
@@ -180,26 +190,35 @@ def control(obs):
                 placement[svc["id"]][r] = fr
             else:
                 placement[svc["id"]][r] = {near: 1.0}
+    def forecast(svc, r):
+        last = float((svc.get("rps_last") or {}).get(r, 0.0))
+        if p.get("forecast", "day_ago_max") == "last_hour":
+            return last
+        return max([last] + [float(x) for x in (svc.get("rps_next_day_ago") or {}).get(r, [])])
+
+    caps = p.get("max_on") if isinstance(p.get("max_on"), dict) else {}
     on = {}
     for s in sites:
         m = s["machines"]
         avail = m["on"] + m["booting"] + m["off"]
+        cap = caps.get(s["id"])
+        if cap is not None:
+            avail = min(avail, int(_num(cap, 0, 100000, avail)))
         if power != "follow_demand":
             on[s["id"]] = avail
             continue
         need = 0.0
+        reserve = 0.0
         for svc in obs["services"]:
             for r in obs["regions"]:
-                fr = placement[svc["id"]].get(r, {}).get(s["id"], 0.0)
-                if fr <= 0:
-                    continue
-                last = float((svc.get("rps_last") or {}).get(r, 0.0))
-                if p.get("forecast", "day_ago_max") == "last_hour":
-                    f = last
-                else:
-                    f = max([last] + [float(x) for x in (svc.get("rps_next_day_ago") or {}).get(r, [])])
-                need += f * fr * float(svc["cpu_ms"]) / 1000.0
-        cores = need * headroom
+                pl = placement[svc["id"]].get(r, {})
+                fr = pl.get(s["id"], 0.0)
+                if fr > 0:
+                    need += forecast(svc, r) * fr * float(svc["cpu_ms"]) / 1000.0
+                if failover > 0 and second.get((svc["id"], r)) == s["id"]:
+                    away = sum(v for k, v in pl.items() if k != s["id"])
+                    reserve += forecast(svc, r) * away * float(svc["cpu_ms"]) / 1000.0
+        cores = need * headroom + reserve * failover
         n = int(-(-cores // max(1, s["cores_per_machine"])))
         on[s["id"]] = max(min_on, min(avail, n))
     batch = {}
@@ -568,6 +587,21 @@ def demand_rps(hid: dict, region: str, hour: int, mult: float, rng=None) -> floa
     return max(0.0, x)
 
 
+def open_jobs(st) -> list[dict]:
+    """Open batch jobs as the hour physics reads them (`core_hours_left` = the table's `left`). Production and the
+    experiment replay both build their job lists here (before, both passed the raw rows and every hour with an open
+    job failed with KeyError 'core_hours_left': the batch configurations never simulated an hour)."""
+    return [dict(st.tables["fleet_jobs"][j], job=j, core_hours_left=float(st.tables["fleet_jobs"][j]["left"]))
+            for j in st.find_ids("fleet_jobs", "status", "open")]
+
+
+def refurbish_cents(conf: dict) -> int:
+    """The lessor's charge for a leased machine returned broken (public in the fleet's conf): the repair parts plus
+    `repair_tech_h` hours of contractor labour - more than an in-house repair (parts plus a share of a technician's
+    day, who repairs 8 / repair_tech_h machines a day)."""
+    return int(conf["refurbish_cents"])
+
+
 def tariff(site: dict, kind: str, hod: int) -> float:
     if kind == "tou":
         f = 0.65 if hod < 7 else (1.7 if 17 <= hod <= 20 else 1.0)
@@ -777,6 +811,7 @@ class Fleet(Module):
             "trip_h": int(cfg["trip_h"]), "lead_days": int(cfg["lead_days"]),
             "lease_cents_day": int(cfg["lease_cents_day"]), "repair_parts_cents": int(cfg["repair_parts_cents"]),
             "tech_wage_cents_day": int(cfg["tech_wage_cents_day"]), "technicians": int(cfg["technicians"]),
+            "refurbish_cents": int(cfg["repair_parts_cents"]) + int(cfg["repair_tech_h"]) * int(cfg["contractor_cents_h"]),
             "maintenance_hour": int(cfg["maintenance_hour"]) % 24, "dashboard_delay_h": int(cfg["dashboard_delay_h"]),
             "sla_target": float(cfg["sla_target"]), "experiment_fee_cents": int(cfg["experiment_fee_cents"]),
             "experiment_hour_cents": int(cfg["experiment_hour_cents"]),
@@ -785,6 +820,8 @@ class Fleet(Module):
         hidden["sites"] = {s["id"]: {"base_price": s["base_price"], "temp_mean": s["temp_mean"],
                                      "pue0": s["pue0"]} for s in g["sites"]}
         hidden["tenants"] = tenants
+        hidden["hazards"] = {"link_cut_rate_per_day": float(cfg["cut_rate_per_day"]) if cfg["link_cuts"] else 0.0,
+                             "heat_wave_rate": float(cfg["heat_waves"])}
         if self.has_users:
             hidden["users0"] = self._users_genesis(ctx, g)
         for hnd in cfg.get("operators") or []:          # participant seats (module `seat`, created before)
@@ -803,6 +840,8 @@ class Fleet(Module):
         mh = int(cfg["maintenance_hour"]) % 24
         ctx.schedule(HOUR, "fleet.hour", {}, prio=40, period=HOUR, key="fleet_hour")
         ctx.schedule(DAY + 60, "fleet.daily", {}, prio=45, period=DAY, key="fleet_daily")
+        # the tenants' own reviews and releases: their decisions, in their own process after the day's statements
+        ctx.schedule(DAY + 90, "fleet.tenants", {}, prio=46, period=DAY, key="fleet_tenants")
         ctx.schedule(mh * HOUR + 30 if mh else DAY + 30, "fleet.maintenance", {}, prio=60, period=DAY, key="fleet_maint")
         if cfg["batch"]:
             ctx.schedule(30, "fleet.jobs", {}, prio=44, period=DAY, key="fleet_jobs")
@@ -861,8 +900,8 @@ class Fleet(Module):
         short = np.clip(20.0 * (tol[:, None] - qx), 0.0, 1.0)
         rng = ctx.rng("fleet.apps", int(now))
         u = rng.random(uses.shape)
-        abandon = uses & (((qx < tol[:, None]) & (u < pat[:, None] * short)) |
-                          (u > 1.0 - float(self.cfg["users"].get("churn", 0.0))))   # other reasons to stop
+        left_q = uses & (qx < tol[:, None]) & (u < pat[:, None] * short)      # the service failed them
+        abandon = left_q | (uses & (u > 1.0 - float(self.cfg["users"].get("churn", 0.0))))   # other reasons to stop
         contacts = P.features(w, idx)["contacts"]
         all_uses = columns.col(w, USERS, "uses")
         cu = np.where((contacts >= 0)[:, :, None], all_uses[np.maximum(contacts, 0)], 0).astype(np.float64)
@@ -875,7 +914,8 @@ class Fleet(Module):
         changed = np.where(new != uses, now, columns.col(w, USERS, "changed")[idx]).astype(np.int64)
         P.record_decisions(ctx, "fleet.use", idx, {"uses": new.astype(np.uint8), "q": qx.astype(np.float32),
                                                    "changed": changed}, table=USERS, **USE_MODEL,
-                           extra={"abandoned": int(abandon.sum()), "adopted": int(adopt.sum())})
+                           extra={"abandoned": int(abandon.sum()), "abandoned_quality": int(left_q.sum()),
+                                  "adopted": int(adopt.sum())})
         return util
 
     # ------------------------------------------------------------------ exogenous inputs of an hour (hidden)
@@ -1096,7 +1136,7 @@ class Fleet(Module):
         for i, s in enumerate(conf["sites"]):
             m = site_arr == i
             counts[s["id"]] = {"on": int(np.sum(m & (new_status == ON))), "booting": int(np.sum(m & (new_status == BOOT)))}
-        jobs = [dict(st.tables["fleet_jobs"][j], job=j) for j in st.find_ids("fleet_jobs", "status", "open")]
+        jobs = open_jobs(st)
         res = hour_physics(conf, counts, plan, exo, jobs, net)
         # spot settlement (the utility's price depends on the operator's own draw)
         price = dict(exo["price"])
@@ -1274,7 +1314,6 @@ class Fleet(Module):
                  vis="internal")
         for t, b in bills.items():
             ctx.emit("fleet.statement", {"day": d, "tenant": t, **b}, vis=(t, conf["operator"]))
-        self._tenant_decisions(ctx, d)
         self._deliveries(ctx)
         if cfg["heat_waves"]:
             self._heat(ctx, d + 1)
@@ -1291,13 +1330,21 @@ class Fleet(Module):
         if new:
             ctx.emit("fleet.heat", {"until": new, "day": day}, vis="internal")
 
+    @process("tenants")
+    def pr_tenants(self, ctx):
+        """The tenants' day: each reviews its service and releases software on its own schedule (decisions made as
+        the tenant's lead, through the tenant tools)."""
+        if not ctx.state.has("fleet", "conf"):
+            return
+        self._tenant_decisions(ctx, ctx.now // DAY - 1)
+
     def _tenant_decisions(self, ctx, d):
         """Each tenant reviews its own last seven days (good / offered requests it was billed for) and decides how
-        much of its traffic to keep here; it also releases new software on its own schedule."""
+        much of its traffic to keep here (a recorded decision at every review, also when it keeps the share); it also
+        releases new software every `release_every` days of its own release train."""
         st = ctx.state
         conf = self.conf(st)
         reg = self.regime(st)
-        rng = self.world.rng_for("fleet-tenants", d)
         for tname, t in sorted(reg["tenants"].items()):
             recs = [st.get("fleet_days", f"d{k:04d}") for k in range(max(0, d - 6), d + 1)]
             recs = [r for r in recs if r is not None]
@@ -1312,17 +1359,16 @@ class Fleet(Module):
                     new = max(0.2, share * (1.0 - t["patience"] * min(1.0, (t["tolerance"] - att) * 20)))
                 else:
                     new = min(1.0, share + 0.02)
-                if abs(new - share) > 1e-6:
-                    try:
-                        ctx.call("fleet.tenant_share", {"service": svc["id"], "share": round(new, 4)},
-                                 as_principal=t["lead"])
-                    except CrucibleError:
-                        pass
+                try:
+                    ctx.call("fleet.tenant_share", {"service": svc["id"], "share": round(new, 4)},
+                             as_principal=t["lead"])
+                except CrucibleError:
+                    pass
         for svc in conf["services"]:
             hid = reg["services"][svc["id"]]
             rels = st.find_ids("fleet_releases", "service", svc["id"])
             last_day = st.tables["fleet_releases"][rels[-1]]["day"] if rels else 0
-            if d - last_day >= hid["release_every"] and float(rng.random()) < 0.5:
+            if d - last_day >= hid["release_every"]:
                 lead = reg["tenants"][svc["tenant"]]["lead"]
                 try:
                     ctx.call("fleet.release", {"service": svc["id"], "notes": f"release {len(rels) + 1}"},
@@ -1381,6 +1427,7 @@ class Fleet(Module):
                              for o in st.find_ids("fleet_orders", "status", "ordered")]
             out["open_jobs"] = len(st.find_ids("fleet_jobs", "status", "open"))
             out["prices"] = {"lease_cents_day": conf["lease_cents_day"], "repair_parts_cents": conf["repair_parts_cents"],
+                             "refurbish_cents": conf["refurbish_cents"],
                              "tech_wage_cents_day": conf["tech_wage_cents_day"], "lead_days": conf["lead_days"],
                              "experiment_fee_cents": conf["experiment_fee_cents"],
                              "experiment_hour_cents": conf["experiment_hour_cents"]}
@@ -1490,10 +1537,14 @@ class Fleet(Module):
         counts = {s: {"on": c["on"], "booting": c["booting"], "off": c["off"], "failed": c["failed"],
                       "repairing": c["repairing"]} for s, c in cnt.items()}
         boot_q: list[tuple[int, str]] = []
-        jobs = [dict(st.tables["fleet_jobs"][j], job=j) for j in st.find_ids("fleet_jobs", "status", "open")]
+        jobs = open_jobs(st)
         tot = {"energy_cents": 0.0, "kwh": 0.0, "machine_hours": 0.0, "good": 0.0, "offered": 0.0,
                "batch_core_h": 0.0, "plan_errors": 0, "controller_errors": 0, "hours_replayed": len(recs)}
-        hist: list[dict] = []
+        # the controller's history at the start of the replay is the recorded day before it (in production it
+        # sees the same hours: without them every replay began with no forecast and lost its first day)
+        h_first = int(recs[0]["hour"]) if recs else h_now
+        hist: list[dict] = [{"hour": int(r["hour"]), "rps": r["rps"]} for r in
+                            (st.get("fleet_hours", f"h{h:06d}") for h in range(h_first - 24, h_first)) if r is not None]
         for k, rec in enumerate(recs):
             h = int(rec["hour"])
             demand = {sid: {r: float(v) for r, v in d.items()} for sid, d in rec["rps"].items()}
@@ -1615,10 +1666,15 @@ class Fleet(Module):
                  vis=(conf["operator"],))
         return {"order": oid, "due": due, "machines": list(range(first, first + n))}
 
-    @endpoint("retire", S.obj({"site": S.s_str(maxLength=10), "n": S.s_int(minimum=1, maximum=5000)},
+    @endpoint("retire", S.obj({"site": S.s_str(maxLength=10), "n": S.s_int(minimum=1, maximum=5000),
+                               "include_failed": S.s_bool("also return failed machines; the lessor charges its "
+                                                          "refurbishment (parts and contractor labour) for each")},
                               ["site", "n"]), cost_s=60)
-    def ep_retire(self, ctx, site, n):
-        """Return leased machines that are off (operators): the lease stops; the machines are gone for good."""
+    def ep_retire(self, ctx, site, n, include_failed=False):
+        """Return leased machines that are off (operators, highest wear first): the lease stops; the machines are
+        gone for good. The lease returns machines in working order: a failed machine goes back only with
+        `include_failed`, and the lessor then bills its refurbishment (`refurbish_cents`: the repair parts plus
+        `repair_tech_h` hours of contractor labour) for each one."""
         st = ctx.state
         conf = self._require_operator(ctx)
         ids = [s["id"] for s in conf["sites"]]
@@ -1626,12 +1682,27 @@ class Fleet(Module):
             raise NotFound("no site " + site)
         i = ids.index(site)
         sa, stt, wear = st.arrays["fl_site"], st.arrays["fl_status"], st.arrays["fl_wear"]
-        cand = np.flatnonzero((sa == i) & np.isin(stt, (OFF, FAILED)))
-        cand = cand[np.lexsort((cand, -wear[cand]))][: int(n)]
-        if not len(cand):
-            raise Conflict("no machine at this site is off or failed")
-        ctx.emit("fleet.retired", {"machines": cand.tolist()}, vis=(conf["operator"],))
-        return {"retired": len(cand)}
+        off = np.flatnonzero((sa == i) & (stt == OFF))
+        cand = off[np.lexsort((off, -wear[off]))][: int(n)]
+        broken = np.zeros(0, np.int64)
+        if include_failed and len(cand) < int(n):
+            f = np.flatnonzero((sa == i) & (stt == FAILED))
+            broken = f[np.lexsort((f, -wear[f]))][: int(n) - len(cand)]
+        if not len(cand) and not len(broken):
+            raise Conflict("no machine at this site is off" + ("" if include_failed else
+                           " (failed machines are returned only with include_failed, at the lessor's refurbishment "
+                           "charge)"))
+        fee = int(len(broken) * refurbish_cents(conf))
+        if fee > 0:
+            bank = ctx.world.modules["bank"]
+            if bank.available(st, conf["account"]) < fee:
+                raise Conflict("the operator cannot pay the lessor's refurbishment charge")
+            bank.move(ctx, conf["account"], conf["vendor_account"], fee, "maintenance",
+                      f"refurbishment of {len(broken)} machines returned broken")
+        ctx.emit("fleet.retired", {"machines": sorted(cand.tolist() + broken.tolist()), "broken": broken.tolist(),
+                                   "refurbish_cents": fee}, vis=(conf["operator"],))
+        return {"retired": int(len(cand) + len(broken)), "returned_broken": int(len(broken)),
+                "refurbish_cents": fee}
 
     @endpoint("staff", S.obj({"technicians": S.s_int(minimum=0, maximum=50)}, ["technicians"]), cost_s=60)
     def ep_staff(self, ctx, technicians):

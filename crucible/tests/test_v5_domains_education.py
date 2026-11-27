@@ -51,6 +51,29 @@ def test_exam_matches_the_learner_model_and_excludes_published_problems():
     assert 0.15 < float(np.mean(s)) < 0.8
 
 
+def test_tests_draw_no_published_problem(monkeypatch):
+    """Placement, periodic and certification tests (`assess`) and the evaluator's papers (`exam`) draw fresh problems
+    outside the published ones: with every problem of a first paper published, a second paper drawn from the same
+    random stream shares none of them (the earlier test always passed an empty exclusion set)."""
+    papers = []
+    real = L.digest
+    monkeypatch.setattr(L, "digest", lambda keys: (papers.append(list(keys)), real(keys))[1])
+    rec = _rec([0.9, 0.7, 0.7, 0.4])
+    L.assess(rec, 0, np.random.default_rng(5), 12, ["div"], set())
+    published = set(papers[-1])
+    _, n, dig = L.assess(rec, 0, np.random.default_rng(5), 12, ["div"], published)
+    assert n == len(papers[-1]) == 36 and published and not (set(papers[-1]) & published)
+    assert dig != real(sorted(published)) and dig != real(papers[-2])
+    w = _world(n=40)
+    w.advance_time(86400)
+    L_ = w.modules["learn"]
+    cs = [c for c in L_.cur if c == "div"] or L_.cur[:1]
+    L.exam(w, np.arange(10), cs, w.now, np.random.default_rng(9), 6, set(), L_.cix)
+    first = set(papers[-1])
+    L.exam(w, np.arange(10), cs, w.now, np.random.default_rng(9), 6, first, L_.cix)
+    assert first and not (set(papers[-1]) & first)
+
+
 def _world(n=150, seed=3, **learn):
     mods = [{"name": m, "config": {}} for m in ["identity", "bank", "admin", "artifacts", "cols", "space", "search",
                                                  "forum", "docs"]]
