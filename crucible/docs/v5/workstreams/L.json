@@ -119,7 +119,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: S.1, S.4, S.6, S.8, S.n1 gate tests 5 passed (120 s)",
    "notes": ""
   },
   "S.2": {
@@ -152,7 +152,7 @@
     "tests/v5/test_gate_S.py",
     "tests/test_v5_experience_core.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: S.1, S.4, S.6, S.8, S.n1 gate tests 5 passed (120 s)",
    "notes": ""
   },
   "S.5": {
@@ -174,7 +174,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: S.1, S.4, S.6, S.8, S.n1 gate tests 5 passed (120 s)",
    "notes": ""
   },
   "S.7": {
@@ -196,7 +196,7 @@
    "tests": [
     "tests/v5/test_gate_S.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: S.1, S.4, S.6, S.8, S.n1 gate tests 5 passed (120 s)",
    "notes": ""
   },
   "SP-11.1": {
@@ -219,7 +219,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_2.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: SP-11.2, 11.4, 11.4b, 11.5, 11.6 gate tests 5 passed (28 s)",
    "notes": ""
   },
   "SP-11.3": {
@@ -242,7 +242,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: SP-11.2, 11.4, 11.4b, 11.5, 11.6 gate tests 5 passed (28 s)",
    "notes": ""
   },
   "SP-11.5": {
@@ -253,7 +253,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_5.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: SP-11.2, 11.4, 11.4b, 11.5, 11.6 gate tests 5 passed (28 s)",
    "notes": ""
   },
   "SP-11.6": {
@@ -266,7 +266,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_6.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: SP-11.2, 11.4, 11.4b, 11.5, 11.6 gate tests 5 passed (28 s)",
    "notes": "the external curiosity learner can be evaluated out of process (evaluated(part, ...))"
   },
   "SP-11.1b": {
@@ -291,7 +291,7 @@
    "tests": [
     "tests/v5/test_gate_SP_11_4b.py"
    ],
-   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log)",
+   "status_claim": "implemented; passed at b3a07b1 (GPU slot) and in the 684eeb5 head slot job (log scratch w3b-obs/gates_oo_t2.log: 34 passed, 4 failed, 2 errors in 3 h 12 min). 684eeb5 PREDATES the controller-label leak fix 022eff6e and the leakage normalisation eacf373c (neither is an ancestor of 684eeb5) and every repair-pass change; the earlier claim that these gates 'passed again at 684eeb5 after the controller labels' was wrong. Not yet rerun at HEAD: rerun queued (repair job 'L: repair gates R S SP-11.x SP-2.2', log gates_fast_r.log); repair pass, CPU at the repair head: SP-11.2, 11.4, 11.4b, 11.5, 11.6 gate tests 5 passed (28 s)",
    "notes": ""
   },
   "SP-11.6c": {
