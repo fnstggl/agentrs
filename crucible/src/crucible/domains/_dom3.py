@@ -134,6 +134,13 @@ def mechanics_from_events(counts: Counter, table: dict[str, list[tuple[str, int]
     return out
 
 
+def seats_in(world, domain) -> list[str]:
+    """The domain's seat principals that exist in `world` (the participants whose own activity the domains'
+    PARTICIPANT_MECHANICS are measured on)."""
+    princ = world.state.tables.get("principals", {})
+    return [p for p in domain.seat_principals() if p in princ]
+
+
 def batch_records(world, kind: str, key: str, since_seq: int = 0) -> list:
     """The `extra[key]` lists of every recorded cohort batch of `kind` (evaluator side: decision records)."""
     out = []

@@ -1461,6 +1461,9 @@ def evaluate(world, principal: str, objective: dict) -> dict:
 
 MECHANICS = ("Search", "Documents", "Knowledge artifacts", "Queries", "Source provenance", "Information quality",
              "Updating facts", "Independent user satisfaction", "Verified retrieval performance")
+# mechanics measured only on the participant's own artifacts (its retrieval services); the others are the
+# autonomous ecosystem the participant works in (publishers, the population's queries, changing facts)
+PARTICIPANT_MECHANICS = ("Search", "Independent user satisfaction", "Verified retrieval performance")
 
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
@@ -1476,14 +1479,36 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
     outcomes = {o: sum(1 for r in looks if r["outcome"] == o) for o in ("ok", "wrong", "none")}
     cited = sum(1 for _, p in st.scan("info_prov") if p["cites"] and p["t"] >= t0)
     changes = sum(1 for v in led["facts"].values() for tt, _ in v[1:] if tt >= t0)
-    judged = 0
-    for r in svc[:400]:
-        relevance(world, led, r)
+    # the participant's own retrieval services (PARTICIPANT_MECHANICS are measured on them only)
+    slots: dict[int, str] = {}
+    for a in K.seats_in(world, DOMAIN):
+        slots.update(service_slots(world, a))
+    owners = {st.tables["info_services"][sid]["owner"] for sid in slots.values()}
+    rel_cache: dict[int, bool] = {}
+
+    def independent(u: int) -> bool:
+        if u not in rel_cache:
+            rel_cache[u] = all(not K.related(world, o, f"p{u}") for o in owners)
+        return rel_cache[u]
+    mine = [r for r in svc if r["ch"] in slots]
+    served_mine = sum(1 for ev in world.events_range(since_seq) if ev.type == "info.served" and
+                      ev.payload["service"] in set(slots.values()))
+    # verified retrieval: result lists of the participant's services judged against the value true at query time
+    judged = hits = 0
+    for r in mine[:400]:
+        rel = relevance(world, led, r)
         judged += 1
-    sat = sum(1 for r in svc if r["outcome"] in ("ok", "wrong"))
+        hits += int(any(rel))
+    # independent satisfaction: independent users' outcomes on the participant's services and the feedback they
+    # chose to give it (an independent user's `info.feedback`)
+    ind_ok = sum(1 for r in mine if r["outcome"] == "ok" and independent(r["user"]))
+    fb = [ev.payload for ev in world.events_range(since_seq) if ev.type == "info.feedback" and
+          ev.payload["service"] in set(slots.values())]
+    ind_fb = sum(1 for f in fb if K.population_index(f["user"]) is not None and
+                 independent(int(K.population_index(f["user"]))))
     return {
-        "Search": {"exercised": web > 0 and len(svc) > 0 and c["info.served"] > 0,
-                   "events": {"web_search_lookups": web, "service_lookups": len(svc), "info.served": c["info.served"]}},
+        "Search": {"exercised": web > 0 and len(mine) > 0 and served_mine > 0,
+                   "events": {"web_search_lookups": web, "service_lookups": len(mine), "info.served": served_mine}},
         "Documents": {"exercised": c["docs.create"] > 0, "events": {"docs.create": c["docs.create"]}},
         "Knowledge artifacts": {"exercised": cited > 0, "events": {"documents_citing_sources": cited}},
         "Queries": {"exercised": len(looks) > 0, "events": {"batch:info.lookup": c["batch:info.lookup"],
@@ -1493,9 +1518,12 @@ def mechanics_report(world, since_seq: int = 0) -> dict:
         "Information quality": {"exercised": outcomes["ok"] > 0 and outcomes["wrong"] > 0, "events": outcomes},
         "Updating facts": {"exercised": changes > 0 and c["docs.edit"] > 0,
                            "events": {"fact_changes": changes, "docs.edit": c["docs.edit"]}},
-        "Independent user satisfaction": {"exercised": sat > 0 and c["batch:pop.session"] > 0,
-                                          "events": {"service_outcomes": sat, "info.feedback": c["info.feedback"]}},
-        "Verified retrieval performance": {"exercised": judged > 0, "events": {"judged_result_lists": judged}},
+        "Independent user satisfaction": {"exercised": ind_ok > 0 and ind_fb > 0,
+                                          "events": {"independent_successful_lookups": ind_ok,
+                                                     "independent_feedback": ind_fb}},
+        "Verified retrieval performance": {"exercised": hits > 0,
+                                           "events": {"judged_result_lists": judged,
+                                                      "lists_with_a_verified_answer": hits}},
     }
 
 
