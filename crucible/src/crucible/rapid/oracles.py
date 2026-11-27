@@ -259,7 +259,28 @@ def des_oracle(env) -> dict:
             q = int(max(0, min(c["max_order"], round(want - pos))))
             return {"kind": "levers", "values": {c["order_name"]: float(q)}} if q > 0 else None
         return fn
+    def s_q(z, qf):
+        """(s, Q) with the true season and mean lead time: batch orders (each pays the fixed order cost) by qf times
+        the economic order quantity; reorder when the position falls below the lead-time demand plus z standard
+        deviations; no order that cannot sell before the end."""
+        def fn(e):
+            s = e._state
+            pos = sum(q for q, _ in s["lots"]) + sum(q for _, q in s["pipeline"])
+            t = float(e.t)
+            lam = e._engine._lam
+            ahead = sum(lam(t + k) for k in range(int(math.ceil(lead + 1))))
+            left = e.horizon - e.t - lead - 1
+            if pos > ahead + z * math.sqrt(ahead) or left <= 0:
+                return None
+            Q = qf * math.sqrt(2.0 * c["order_fixed"] * max(lam(t), 0.5) / c["holding_cost"])
+            if c.get("shelf_life"):
+                Q = min(Q, max(lam(t), 0.5) * c["shelf_life"])
+            cap_end = sum(lam(t + k) for k in range(int(math.ceil(lead + 1 + left))))
+            q = int(max(0, min(c["max_order"], round(min(ahead + z * math.sqrt(ahead) + Q, cap_end) - pos))))
+            return {"kind": "levers", "values": {c["order_name"]: float(q)}} if q > 0 else None
+        return fn
     pols = {f"base_stock_{S}_{cv}": base_stock(S, cv) for S in (0, 3, 6, 10, 15) for cv in (0.5, 1.0, 2.0)}
+    pols.update({f"s_Q_z{z}_q{qf}": s_q(z, qf) for z in (0.0, 1.0, 2.0) for qf in (0.7, 1.0, 1.4)})
     return best_of(env, pols)
 
 

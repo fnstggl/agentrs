@@ -402,26 +402,72 @@ def bottleneck(view, env):
     del sp
 
 
-def inventory(view, env):
+def inventory(view, env, window: int = 8, z: float = 1.0):
+    """(s, Q) replenishment from public information. Demand per tick = units sold + customers turned away (recent
+    window: the season moves it); the lead time is learned from deliveries (the on-order count falls); every order
+    pays the fixed order cost, so orders are batched by the economic order quantity of that cost and the holding
+    cost, and placed only when the inventory position no longer covers the lead time; nothing is ordered that could
+    not sell before the end. Perishable lots: once units expire, the shelf life is estimated from the delivery the
+    expired units came from, and an order never exceeds what sells within it."""
     c = env._config
     name = c["order_name"]
-    gs, gsold = c["gauge_names"][0], c["gauge_names"][1]
-    sold, lead = [], None
-    first_order_t = None
+    g = c["gauge_names"]
+    gs, gsold, glost = g[0], g[1], g[2]
+    gexp = None                # the expiry gauge, if the world reports one (perishable stock)
+    K, h = float(c["order_fixed"]), float(c["holding_cost"])
+    dem, outstanding, leads = [], [], []
+    lots = []                  # [delivery tick, units left] in the order customers take them (oldest first)
+    shelf_lo, shelf = 1, None  # the shelf life exceeds the age of every lot seen with units left; = age at expiry
+    prev_on_order = 0.0
+    H = view.horizon
     while not view.done:
         obs = view.observe()
-        stock = obs["numbers"].get(gs, 0.0)
+        x = obs["numbers"]
+        t = view.t
+        stock = x.get(gs, 0.0)
         on_order = obs["resources"].get("on_order_units", 0.0)
-        if gsold in obs["numbers"]:
-            sold.append(obs["numbers"][gsold])
-        if lead is None and first_order_t is not None and stock > 0 and on_order == 0:
-            lead = view.t - first_order_t
-        rate = float(np.mean(sold[-10:])) if sold else 5.0
-        L = lead if lead is not None else 4
-        target = rate * (L + 2)
-        q = int(max(0, round(target - stock - on_order)))
-        if q > 0 and first_order_t is None:
-            first_order_t = view.t
+        if gsold in x:
+            dem.append(x.get(gsold, 0.0) + x.get(glost, 0.0))
+        if gexp is None and len(g) > 3 and g[3] in x:
+            gexp = g[3]
+        delivered = prev_on_order - on_order                 # on-order fell: the oldest outstanding order arrived
+        while delivered > 1e-9 and outstanding:
+            t0, q0 = outstanding.pop(0)
+            leads.append(t - t0)
+            lots.append([t, float(q0)])
+            delivered -= q0
+        if gexp is not None:
+            sold = x.get(gsold, 0.0)
+            for lot in lots:                                 # sales come from the oldest lot first
+                take = min(sold, lot[1])
+                lot[1] -= take
+                sold -= take
+            gone = x.get(gexp, 0.0)
+            if gone > 0:
+                for lot in lots:
+                    if lot[1] > 0 and gone > 0:
+                        shelf = max(1, t - lot[0]) if shelf is None else min(shelf, max(1, t - lot[0]))
+                        take = min(gone, lot[1])
+                        lot[1] -= take
+                        gone -= take
+            lots = [lot for lot in lots if lot[1] > 0.5]
+            for lot in lots:
+                shelf_lo = max(shelf_lo, t - lot[0])
+        rate = max(0.5, float(np.mean(dem[-window:])) if dem else 5.0)
+        L = float(np.mean(leads)) if leads else 4.0
+        sd = float(np.sqrt(rate * (L + 1)))
+        Q = float(np.sqrt(2.0 * K * rate / h))
+        if gexp is not None:                                 # never more than sells within the (known part of the) shelf life
+            Q = min(Q, rate * (shelf if shelf is not None else max(2, shelf_lo)))
+        reorder = rate * (L + 1) + z * sd
+        pos = stock + on_order
+        left = H - t - L - 1                                 # periods an order placed now can still sell in
+        q = 0
+        if pos <= reorder and left > 0:
+            q = int(max(0, min(c["max_order"], round(min(reorder + Q, rate * (L + 1 + left) + z * sd) - pos))))
+        if q > 0:
+            outstanding.append([t, q])
+        prev_on_order = on_order + q
         view.step({"kind": "levers", "values": {name: float(q)}} if q > 0 else None)
 
 
