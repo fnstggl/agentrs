@@ -380,7 +380,8 @@
     "src/crucible/acceptance/v5/baseline.py"
    ],
    "tests": [
-    "tests/v5/test_gate_A.py"
+    "tests/v5/test_gate_A.py",
+    "tests/test_v5_acceptance_baseline.py"
    ],
    "verify_command": "PYTHONPATH=src python -m crucible.acceptance.v5 run --requirement A.4",
    "criteria": [
