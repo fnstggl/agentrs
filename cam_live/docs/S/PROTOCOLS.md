@@ -149,3 +149,91 @@ No direction is assumed.
 ## 9. Primitive operations vs acquired skills (CU-33, 12A.17)
 
 Not prespecified here; if executed, its protocol is added in a later commit before its run and labelled as such.
+
+---
+
+# Protocol v3 (operator redirection 2026-11-27) — supersedes §0–§9 for every substantive claim
+
+Written 2026-11-27 ~18:50 UTC, before any substantive run (the only real-model runs before it are the
+*feasibility probes* named in §v3.6, which are excluded from results). Storage rules of the revised protocol stay
+in force: `cam_live.storage.DiskGuard.check` before every run, checkpoint and export; `apply_retention` after every
+objective; only pre / post exports, the latest learner checkpoint and records are kept; eval tree < 25 GB.
+
+## v3.1 Classification of everything run before
+
+| experiment | snapshot | class |
+|---|---|---|
+| pilot (seeds 900–901), first `main_cpu` attempt, real E s0 | a8444e6 | superseded / invalid (before C-10) |
+| v2 `main_cpu` (C, D, E, E_mix0, E_unverified x 10 seeds; A x 2), `frozen_cpu`, `transfer_cpu`, scaling 5m/20m/50m, integrity attack battery x 5 | 00cb5a4 | **engineering diagnostic**: tiny random backbone, schema-walker candidates (`use_backbone=False`), LabWorld / predefined compression settings |
+| v2 real A (s1–s3), B (s0–s3), E (s0–s2) on LabWorld F1 | 00cb5a4 | **engineering diagnostic**: real backbone but restricted candidates and a synthetic numerical world |
+
+Diagnostic results are kept (`docs/evidence/S/diagnostics/`, `docs/S/DIAGNOSIS.md`) and are reported only as
+evidence about mathematics, plumbing, integrity and wiring — never as evidence about intelligence acquisition.
+
+## v3.2 Substantive configuration (every substantive run, recorded per run by `eval.oe_runner.describe`)
+
+Qwen3-4B (frozen, bf16, revision pinned in `configs/cam_live.yaml`) + 50m experiential core + LoRA adapters +
+latent bridge + world / transition / evaluator / policy / downstream heads + fast beliefs + learned selection
+(`policy` rule) + `MetaLearner` (default cold-start bootstrap mix) + RUDDER / COCOA credit + continual learner +
+retention + bridge grounding; **open-ended generation on** (`agent.use_backbone=True`, backbone proposals merged with
+the schema walker and skills, `proposer_max_new_tokens=512`); computer = `harness.env.ComputerEnvironment` with the
+harness executors (internal, code sandbox, api/HTTP; + structured browser and skills for CU); authorization by the
+real `harness.auth.PolicyService` in staging mode. Recorded: model configuration, parameter counts per group,
+registered loss providers, agent settings, active pathways, bootstrap mix, snapshot commit, GPU peak.
+
+## v3.3 Families (executable, independent signing verifiers; `eval/openended.py`, `validation.StagingComputer`)
+
+* **SW — building software.** Natural-language specification of an unfamiliar function to be implemented in
+  `solution.py` of the sandbox workspace; `HiddenTestVerifier` runs 60 hidden tests (inputs from the verifier's own
+  seed, expected outputs from a hidden reference) in an isolated process; value = pass fraction; achieved at
+  >= 0.9. Classes: training sequence `rle, rpn, merge, topk`; held out `unique, base`.
+* **MECH — discovering a mechanism.** An owned local HTTP service answers `GET /measure?x=&y=` with a hidden
+  two-input function (family drawn per seed: polynomial, trigonometric, rational); write `model.py` with
+  `predict(x, y)`; `HeldOutVerifier` scores 80 held-out points (R^2 clipped to [0, 1]; achieved at >= 0.9).
+* **CU — computer use on staging interfaces.** `validation.StagingComputer` objectives (`store_entry`,
+  `record_item`, `archive_item`: increase a count kept by a staging application through its web interface);
+  `MetricThresholdVerifier` reads the application's own state.
+
+No solution, demonstration, strategy template or task-specific rule is given. Per objective: <= 20 decisions
+(budget), one objective per GPU-lock hold (<= 15 min, `--hold-s 870`), learner state carried by its own
+checkpoint between holds.
+
+## v3.4 Experiments (prespecified; executed in this order as GPU time allows)
+
+* **X0 current capability** (E, seeds 0–2, plan `SW:rle, SW:rpn, MECH:7`): documents what the integrated agent
+  does with open-ended generation as it stands (change request S-6 is open). Reported per objective: verified
+  status / value, decisions to achievement (censored at 20), executable fraction of chosen actions,
+  backbone-written fraction of chosen actions and of candidates, repeats of failed actions, distinct strategies,
+  prediction NLL, learning / meta-update records (applied / skipped with reasons, gradient norms, reward-version
+  change), compute, wall time. **This is run regardless of S-6 and reported as the state of the agent.**
+* **X1 learning within a family** (after S-6 is fixed): E, seeds 0–2, plan `SW:rle, SW:rpn, SW:merge, SW:topk`;
+  per-objective metrics as X0; primary: decisions to verified achievement, N_q with q = achieved (pass >= 0.9).
+* **X2 transfer (16.8 literal)**: initial vs experienced (X1) weights-only exports, each in a fresh process
+  (`eval.transfer` steps, no store / memory / registries / fast state), on held-out `SW:unique`, `SW:base`,
+  `MECH:11`, same seed and budget; S_q = mean N_q(initial) / mean N_q(experienced), censored at 20.
+* **X3 baselines on the same architecture and action generation**: A (frozen backbone chooses among the same
+  open-ended candidates), B (A + written memory), D (no learned reward), C (fast beliefs only) — seeds 0–1, X1 plan.
+* **X4 CU-33 primitive-only vs skills, learner in the loop**: arms `skills` / `primitive` (skill executor excluded),
+  E, seeds 0–1, 6 objectives `CU:store_entry` then 2 objectives `CU:record_item` (unfamiliar interface);
+  success, decisions, primitive operations, compute, latency per objective.
+* **X5 goal-free (11.4)**: E with a goal-free phase of 20 decisions (objective with no success criterion) before X1's
+  first objective vs E without; seeds 0–1. Run only if X1 shows any achievement (otherwise uninformative).
+* **X6 meta-learning (16.5) and integrity (16.6) on the current code**: `eval.meta_checks` on X1 checkpoints and on
+  the v2 diagnostic checkpoints; integrity attack battery and trivial-reward world on the current snapshot (CPU,
+  engineering diagnostic).
+
+## v3.5 Statistics and power (honest statement)
+
+Unit = seed (an agent and its sequence of objectives); comparisons paired by seed; intervals = bootstrap over seeds;
+tests = exact sign-flip permutation. With 3 paired seeds the smallest attainable two-sided p is 0.25 and with 2
+seeds 0.5: **no comparison in this protocol can reach p < 0.05**. Results are reported as estimates with their
+range across seeds and as counts (objectives achieved / attempted, never-reached reported), not as significance
+claims. Measured real-model cost: ~11.5 s per decision with 512-token generation (probe), so one 20-decision
+objective ≈ 4–6 min; X0 ≈ 1 h of GPU, X1 + X2 ≈ 2 h, X3 ≈ 3 h, X4 ≈ 4 h, X5 ≈ 1 h; the GPU is shared with the
+integration agent and another tenant, so X3–X5 may not all run before the deadline; what does not run is reported
+as not run.
+
+## v3.6 Feasibility probes (excluded from results)
+
+`probe_E_s99` (SW:rle, 12 decisions) and `proposal_probe` (SW, MECH) on HEAD 8e666ad — used only to measure cost per
+decision and to identify the blocker S-6 (`docs/evidence/S/v3/`).
