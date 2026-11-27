@@ -83,7 +83,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "verified in the third unofficial run: comprehension_accuracy 0.844 [0.756, 0.905] on 120 held-out items (Qwen3-0.6B, thinking-mode scoring chosen on DEV), p 3e-32; shortcut rule 0.25",
-   "notes": "repair pass (verifier P2, pre-existing): the 'think' scoring of H.5 was silently cut to the shared service's 128-token bound (and to 192/384 after a think choice elsewhere in the process); requests in thinking mode now have a fixed bound of their own (SemanticService.max_think_tokens 1024), so think gets its 384 tokens and no request's recorded inputs depend on earlier calls."
+   "notes": "in-world answered requests 0 in that run (no participant answered another's request) | repair pass (verifier P2, pre-existing): the 'think' scoring of H.5 was silently cut to the shared service's 128-token bound (and to 192/384 after a think choice elsewhere in the process); requests in thinking mode now have a fixed bound of their own (SemanticService.max_think_tokens 1024), so think gets its 384 tokens and no request's recorded inputs depend on earlier calls."
   },
   "H.6": {
    "implementation_files": [
@@ -111,7 +111,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "verified in the third unofficial standard run: verified_productive_results 2 (blog articles with >= 3 independent viewers, max 12)",
-   "notes": "repair pass: a publication whose text (its text artifact, else its title) is junk by the evaluator's rule is not a productive result."
+   "notes": "collaborative_verified 0 | repair pass: a publication whose text (its text artifact, else its title) is junk by the evaluator's rule is not a productive result."
   },
   "H.8": {
    "implementation_files": [
@@ -141,7 +141,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "failed in the third unofficial run: the ordinary class-4 decisions (situation interpretation, tool choice) were routed to Qwen3-1.7B (D-36/D-37), 81% of requests above 1.1B parameters. D-38: the queued rerun first measures Qwen3-0.6B reasoning first in its thinking mode on the DEV bench and applies the pre-registered rule (probes2/apply_think.py) before Gate H; H.n1 now measures the largest model serving every activation's decisions and asserts escalated decisions <= 20%",
-   "notes": "repair pass: decisions per capability and requests per model are taken from the standard run before H.4/H.5 evaluate through the same services (verifier P3: H.4's 72 items added 216 decisions), and H.4 uses a brain of its own. D-38 amendment: only the next-step phrase (routing.USES next_step) may move by the in-situ bench; goal formation and argument choice keep situation interpretation's SP-3.2b route (Qwen3-1.7B, 0.6B 0.28 held out), so semantic_model_params stays 1.7B and H.n1 is expected to fail by measurement. QA: semantic_model_params is the largest model serving the ordinary capabilities (D-38); escalated capabilities are bounded by the reported share of decisions above 1.1B."
+   "notes": "smaller alternatives benchmarked: SmolLM2-135M 0.0, SmolLM2-360M 0.11 on the TEST bench | repair pass: decisions per capability and requests per model are taken from the standard run before H.4/H.5 evaluate through the same services (verifier P3: H.4's 72 items added 216 decisions), and H.4 uses a brain of its own. D-38 amendment: only the next-step phrase (routing.USES next_step) may move by the in-situ bench; goal formation and argument choice keep situation interpretation's SP-3.2b route (Qwen3-1.7B, 0.6B 0.28 held out), so semantic_model_params stays 1.7B and H.n1 is expected to fail by measurement. QA: semantic_model_params is the largest model serving the ordinary capabilities (D-38); escalated capabilities are bounded by the reported share of decisions above 1.1B."
   },
   "SP-3.2b": {
    "implementation_files": [
