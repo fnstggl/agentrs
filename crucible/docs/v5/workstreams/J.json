@@ -18,8 +18,8 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "fails on measured values: 12 of 17 subsystems present+active+connected (balanced seed 7, 5 days after a warm-up day; measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
-   "notes": "missing: education, employment, institutions, marketplaces, technology_invention (present, 0 events or 0 cross edges). Population-carried activity in 9 subsystems (communities, computing_infrastructure, digital_economy, finance, industry, organizations, search_information, social_media, software_development); present without population activity: education, employment, energy, institutions, marketplaces, scientific_research, supply_chains, technology_invention (energy/science/supply chains are carried by firms, labs and datacenters)."
+   "status_claim": "fails on measured values at 02c300f (GPU lane, frozen copy, balanced seed 7, 5 days after a warm-up day): subsystems_in_one_world 12 of 17 (present 17, active 13); not active or not connected: education, employment, institutions, marketplaces, technology_invention",
+   "notes": "Population-carried activity in 9 subsystems (communities, computing_infrastructure, digital_economy, finance, industry, organizations, search_information, social_media, software_development); present without population activity: education, employment, energy, institutions, marketplaces, scientific_research, supply_chains, technology_invention (energy, science and supply chains are carried by firms, labs and datacenters). The inert ones are owned by other workstreams (ECON/DOM: learn n=0, labor workers=0, inst, xchg/market, caps/pkg without an agent); crucible.civ.integration.subsystems counts their population events without civ changes once they are live."
   },
   "O.2": {
    "implementation_files": [
@@ -36,7 +36,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "fails on measured values at e77fef3 (duplicate_shared_facts 4, identity_consistency_violations 3); the metric now also counts the kernel's mandatory duplicate check (crucible.substrate.facts.world_report: reviewed second copies holding facts, problems) - stricter, re-measured in the final lane",
+   "status_claim": "fails on measured values at 02c300f: duplicate_shared_facts 8 (kinds community, content_artifact, employment, energy_price, listing, population, product_offer, relationship; includes the kernel's mandatory duplicate check), identity_consistency_violations 3 (forum posts authored by population principals that were never materialised: crucible.economy.work)",
    "notes": "duplicates are composition-level and owned by other workstreams: community (forum boards / community.communities, D-21 migration C+A), product offers (products / industry retail), employment (pop.employer / industry own operators), energy price (industry grids / fleet site tariffs), institutions (gov.constitutions / inst.inst_charters). Identity: forum posts by population principals that were never materialised (crucible.economy.work _post/_ask call forum.post as ids.pid(i) without ids.ensure_principal) - ECON request in integration_notes. Kernel check on a balanced civilisation (CPU, 30 simulated minutes, this branch): duplicate_shared_facts 6, kinds employment, energy_price, listing, population, product_offer, relationship; second copies holding facts: society.minds 7 (4.0 organisational minds that run industry firms: a second population, B), sci.sci_npc 3 (researchers outside pop, B+I), industry.offers 4 (listings, owner market.listings), pop.cols:pop.contacts 1042 (relationships outside the one graph, B+C), pop.cols:pop.employer 708 (employment outside contracts, B+F); 0 problems, 0 unreviewed tables."
   },
   "O.3": {
@@ -54,7 +54,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "criteria met in an unofficial run: ledger_invariant_violations 0 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "status_claim": "criteria met in an unofficial run at 02c300f: ledger_invariant_violations 0",
    "notes": ""
   },
   "O.4": {
@@ -73,7 +73,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "criteria met in an unofficial run: cross_system_event_types 38 >= 10 (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "status_claim": "criteria met in an unofficial run at 02c300f: cross_system_event_types 38 >= 10",
    "notes": ""
   },
   "O.5": {
@@ -113,7 +113,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "implemented (scripted roots, autonomous stages, counterfactual removal); not re-run in this wave",
+   "status_claim": "fails at e77fef3 with three seeds (0 multi-stage chains: every chain stopped at two confirmed stages; the provider-wide compute and energy stage measures sat below the reshuffling noise of the whole provider's load). 3fefdf2 adds low-noise stage measures fixed before the run (compute the agent's deployment served to others, payments by population individuals, energy per good unit of the bound machines) and six seeds; re-measured in the lane (appended part of 'J: civ final gate lane')",
    "notes": ""
   },
   "O.7": {
@@ -150,7 +150,7 @@
    "tests": [
     "tests/v5/test_gate_O.py"
    ],
-   "status_claim": "fails on measured values: 35 modules without shared state (inert: learn, labor, jobs, firms, inst, xchg, market, caps, pkg, ...) (measured unofficially at e77fef3 (lane in a GPU slot, frozen copy of the commit; cache /workspace/data/crucible/runs-c5/civ/cache))",
+   "status_claim": "fails on measured values at 02c300f: modules_without_shared_state 35 of 67 (ads, blog, business, caps, commit, contracts, creators, deal, dev, firms, gov, inst, issues, jobs, kb, labor, launch, learn, letters, mail, market, msg, needs, pics, pkg, pods, posts, shorts, social_ids, social_rows, studio, tube, ventures, wf, xchg)",
    "notes": ""
   },
   "P.1": {
@@ -307,7 +307,7 @@
     "tests/test_v5_civ_history.py",
     "tests/v5/test_gate_SP_10_0.py"
    ],
-   "status_claim": "fork_divergence_supported false and independent_replications 0 at e77fef3 under the free-rerun definition; redefined exactly (D-47): replications = fresh-process World.regenerate of the recorded first day from the store alone (verified exact on a 1-hour civilisation on CPU), forks = exact copy + parent untouched + intervened fork diverges + unchanged fork equal or parted first by a recorded inference outcome; free reruns reported (free_reruns_exact). Re-measured in the final lane",
+   "status_claim": "criteria met in an unofficial run at 02c300f (balanced seed 41, 8 days): fork_divergence_supported true (parent untouched, fork an exact copy, unchanged fork equal to the parent, intervened fork diverges), historical_query_kinds 5 (each verified against an independent source), independent_replications 3 (fresh-process regenerations of day 1: equal hash, digest, seq), entity_kinds_persisting_and_evolving 7 of 8 (institutions persisted without change); free_reruns_exact 2 of 2 at this commit; standalone mode-A environments 85, Tier 3 profiles 11",
    "notes": "free reruns of one spec and seed are not bit-reproducible (DEF-J-1: sandbox CPU metering beyond the memo tolerance is billed fresh - the first divergence of a fresh-process rerun; shared-space vectors depend on batch composition and on the machine-wide cache; 8 sequential runs of balanced seed 5 in one process gave 4 distinct 3-day trajectories, while 5 runs of balanced seed 41 (in-process and fresh processes with the space's disk cache off) agreed over one day). Historical query kinds 5 and entity kinds persisting and evolving 7 met at e77fef3; institutions persisted without change in 8 days."
   },
   "SP-10.1": {
@@ -361,9 +361,10 @@
     "src/crucible/civ/subsystems.py"
    ],
    "tests": [
+    "tests/test_v5_civ_measures.py",
     "tests/v5/test_gate_SP_10_3.py"
    ],
-   "status_claim": "implemented; not re-run in this wave",
+   "status_claim": "fails at e77fef3 with three seeds (no chain class reached three confirmed stages); re-measured on six seeds with the 3fefdf2 stage measures in the lane",
    "notes": ""
   },
   "SP-10.3b": {
@@ -384,7 +385,7 @@
    "tests": [
     "tests/v5/test_gate_SP_10_3b.py"
    ],
-   "status_claim": "implemented (scripted stages after the root from provenance, replication across seeds, labels)",
+   "status_claim": "at e77fef3: scripted_chain_stages 0, unlabelled_scripted_results 0, chains_replicated_across_seeds 0 (no chain had three confirmed stages, although an agent chain was mined from provenance in every seed's reference arm); re-measured on six seeds in the lane",
    "notes": ""
   },
   "SP-2.1b": {
@@ -403,7 +404,7 @@
    "tests": [
     "tests/v5/test_gate_SP_2_1b.py"
    ],
-   "status_claim": "fails at e77fef3 with 3 seeds (0 of 4 kinds confirmed although every factual arm had the effect and no counterfactual arm had it: adopters 118/130/5 vs 0, inventor revenue 1905/2172/120 vs 0 cents; the paired t interval with t(2)=4.30 includes zero); now six seeds (51-56), re-measured in the final lane",
+   "status_claim": "fails at 02c300f with six seeds (51-56): invention_effect_kinds_confirmed 1 of 4 (future_opportunities: invention_needs 1-2 vs 0 in every seed). In five seeds the invention was adopted (adopters 118/130/5/113/53, inventor revenue 1905/2172/120/2016/1158 cents, delegated uses 635/724/40/672/386 vs 0 in every counterfactual arm; paired intervals exclude zero and exceed twice the reshuffling noise); in seed 54 nobody adopted it (0 adopters, 0 compute), so the every-seed sign rule fails for economic outcomes, behaviour and resource demand. Seed 54 is the only seed whose inventor served pack.knapsack (the format is chosen as the first published format with a public interface schema); the cause of zero adoption is under diagnosis (probe after the Gate P suite in its slot). The confirmation rule was not relaxed.",
    "notes": ""
   },
   "SP-17.1": {
@@ -487,6 +488,7 @@
   "wave 2 (c5c/w2-civ)": "generator, 11 profiles, couplings engine (science_process, compute_energy, grid_curtailment, goods_supply, goods_wom, org_coordination; education_skills pending), goods activity, civgen genesis, provenance chains, counterfactual experiments with placebo arms, long-run harness, accounting, integration metrics, Mode C provider, tier3 entry; J.json left empty by the usage-limit stop",
   "integration fix (c5c/w3-intfix)": "civ composes CORE-POP's social internet and ECON's work/ventures/rivals/ads; all 11 profiles generate (see INT.json)",
   "wave 3b (c5c/w3b-civ, first agent; stopped by a usage limit)": "typed strict civilisations, resumable long runs, 4 new couplings, SP-10.0 persistence (forks, history, replication), SP-10.2 battery, SP-2.1b invention experiment, SP-19.3 slices, SP-17.1 harness (J/L/B/C/K), gate lane at e77fef3",
-  "wave 3b continuation (this agent)": "determinism diagnosis (DEF-J-1; no observer effect; metering is the first divergence of fresh reruns) and exact checks under contract 1.7 (D-47: regeneration-based replication, exact resume, fork/interruption divergence origin); DEF-A-5 verified fixed on civilisations; O.2 with the kernel's duplicate check; long-run verification memory bounded; effect experiment fixes (technology_cost, infrastructure_software) and social_discovery; six seeds for effects and invention; SP-17.1 batteries for Gates D, G and H on civilisations"
+  "wave 3b continuation (this agent)": "determinism diagnosis (DEF-J-1; no observer effect; metering is the first divergence of fresh reruns) and exact checks under contract 1.7 (D-47: regeneration-based replication, exact resume, fork/interruption divergence origin); DEF-A-5 verified fixed on civilisations; O.2 with the kernel's duplicate check; long-run verification memory bounded; effect experiment fixes (technology_cost, infrastructure_software) and social_discovery; six seeds for effects and invention; SP-17.1 batteries for Gates D, G and H on civilisations",
+  "wave 3b continuation 2 (third agent)": "merged the integration branch (progress ledger); kept the running Gate P suite (02c300f) and the final gate lane (02c300f); chain experiments on six seeds with low-noise stage measures (3fefdf2) appended to the running lane in its own slot (the duplicate queued lane3 job cancelled); SP-2.1b seed-54 diagnosis appended to the Gate P slot (the queued probe cancelled); component doc on confirmed chain stages"
  }
 }
