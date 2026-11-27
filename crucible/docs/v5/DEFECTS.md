@@ -949,7 +949,7 @@ B_population verdict) and P's own findings.
 {
  "area": "I_domains",
  "id": "DEF-I-6",
- "notes": "c5c/w3b-dom2 fixed the firms part: no external buyer (clients with bounded monthly income commission work packages they can afford and negotiate; price above the client's value sells nothing; tests/test_v5_domains_labor.py::test_no_external_buyer_revenue_follows_client_budgets) and fleet/learn/firms register through crucible.load_all_modules() (domains/modules.py, workstream I-fw). Still open: admission ignores proc.failed (worldgen/admission.py, not workstream I-2).",
+ "notes": "c5c/w3b-dom2 fixed the firms part: no external buyer (clients with bounded monthly income commission work packages they can afford and negotiate; price above the client's value sells nothing; tests/test_v5_domains_labor.py::test_no_external_buyer_revenue_follows_client_budgets) and fleet/learn/firms register through crucible.load_all_modules() (domains/modules.py, workstream I-fw). Still open: admission ignores proc.failed (worldgen/admission.py is not in I-2's files; requested fix in docs/v5/workstreams/I-2.json integration_notes: count the proc.failed events of the admission run as crashes).",
  "owner": "I",
  "requirements": [],
  "severity": "critical",

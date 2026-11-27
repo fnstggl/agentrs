@@ -344,7 +344,8 @@ class Learning(Module):
         pm = m * 0.85
         lo, hi = cfg["half_life_days"]
         h = rng.uniform(float(lo), float(hi), (n, K)) * (1.0 + 3.0 * base)
-        bug = np.where(rng.random((n, K)) < 0.25, 0.35 * (1.0 - base), 0.0)
+        # prior misconceptions: prevalence per concept (initial-state heterogeneity, not a failure die)
+        bug = np.where(rng.random((n, K)) < 0.25, 0.35 * (1.0 - base), 0.0)  # fidelity: FR-LEARN-7
         prefs = f["prefs"]
         learner = (f["goals"] == 1).any(axis=1)
         mot = np.clip(0.35 + 0.25 * prefs[:, 1] + 0.2 * prefs[:, 3] + 0.15 * learner + rng.normal(0, 0.08, n),

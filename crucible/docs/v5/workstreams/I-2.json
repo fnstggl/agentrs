@@ -72,7 +72,7 @@
     "tests/v5/test_gate_SP_9_10.py",
     "tests/test_v5_domains_education.py"
    ],
-   "status_claim": "implemented; evaluator replaced by a counterfactual (9295ff4): readers' delayed new-problem score vs the same individuals in the same instance with the seat idle (digest-equal to the null run), one paper, common random numbers, paired t-test. Direct runs numeracy_search seed 0: reference 529 readers, effect +0.076 (p 9e-62, success); wrong answer keys 465 readers, effect -0.044 (fails); prose only 0 readers (fails). The gate test SP-9.10 (> 5 min) is queued in a slot - see tests_run.",
+   "status_claim": "implemented; evaluator replaced by a counterfactual (9295ff4): readers' delayed new-problem score vs the same individuals in the same instance with the seat idle (digest-equal to the null run), one paper, common random numbers, paired t-test. Direct runs (586eef0), numeracy_search: reference seed 0 529 readers effect +0.076 (p 9e-62) and seed 1 528 readers effect +0.106 (p 1e-90), both succeed; null 0 readers, wrong answer keys effect -0.044, prose only 0 readers, random tools 0 readers: all fail; mechanics 7/7 exercised; base.check parts: static ok, 3 stable training structures, compositional and structural eval configs, 3 instances each, dice 0 (one documented exemption FR-LEARN-7), evaluator replay-equal and hidden, open-ended (66 tools), observation_only, no exposure, reference reads no world internals, autonomous actors in the null run (learners 3456, population authors 1384, Board 6 assessments), Tier 3 composes. The SP-9.10 gate test and one combined base.check (each > 5 min) are queued in slots - see tests_run.",
    "notes": "learn v2 on the population (DEF-I-2): knowledge columns, study/teach activities, reading model, form-aware grading, Board tests and certificates, delayed new-problem evaluator. The first evaluator (readers' gains vs non-readers') was confounded by self-selection: wrong keys scored +0.005 there (D-54)."
   }
  },
@@ -109,7 +109,12 @@
   "tests/test_v5_domains_invention.py": "1 passed",
   "tests/test_v5_domains_infrastructure.py": "3 passed",
   "tests/test_v5_domains_tier3_alive.py": "1 passed (66 s)",
-  "base.check (labor, invention; industry, infrastructure from the predecessor on identical domain code)": "verdicts implemented True for all four, tier3 composes, null fails, probes fail, dice 0"
+  "base.check(<domain>, tier3=True) at 8a4ad73 (direct single-thread runs)": "labor, industry, infrastructure, invention: verdicts implemented True (every verdict true: builds, runs clean, 3 stable training structures, 3 instances, compositional and structural eval configs, mechanics, evaluator replay-equal and hidden, reference feasible (2/2, 2/2, 2/2, 2/3), not exposed, autonomous actors, open-ended, observation_only, tier3 composes, null fails, probes fail, dice 0); education: queued in a slot (> 5 min)",
+  "tests/test_kernel.py": "29 passed",
+  "tests/test_invariants.py": "22 passed",
+  "tests/test_v5_domains_framework.py": "25 passed (82 s)",
+  "tests/test_v5_civ_core.py": "11 passed (83 s, CPU)",
+  "packages touched outside crucible.domains (services/contracts.py membership; labor/inst composed by firms)": "test_v5_commerce_labor 9, test_v5_commerce_contracts 9, test_open_institutions 5, test_v5_commerce_institutions 19, test_open_society 6, test_hardening 25, test_economy 15, test_entry 14: 102 passed, 0 failed"
  },
  "tier3_alive": {
   "claim": "education and employment are alive in every civilisation profile (INT.json listed both as inert)",
