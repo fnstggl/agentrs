@@ -107,3 +107,54 @@ def membership_source(task: TaskSpec, run_dir: str) -> DiscordMembershipSource:
         return verifier_secret(run_dir, s["token_secret"])
 
     return DiscordMembershipSource(s["guild_id"], token, base_url=s["base_url"])
+
+
+class DiscordChannelMetricSource:
+    """``runtime.verifier.MetricSource``: independently measured activity of one channel of the authorized guild,
+    read by the verifier with its own credential. Counts only; message text and authors never leave this method."""
+
+    def __init__(self, guild_id: str, channel_id: str, token_provider: Callable[[], Optional[str]], *,
+                 base_url: str = LIVE_BASE_URL, client: Optional[DiscordClient] = None, prefix: str = "discord.channel"):
+        if not guild_id or not channel_id:
+            raise ValueError("the verifier's channel metric needs resources.discord.guild_id and .metric_channel_id")
+        self.guild_id, self.channel_id, self.base_url = str(guild_id), str(channel_id), base_url.rstrip("/")
+        self.live = environment_of(self.base_url) == "live"
+        self.name = ("discord:bot-rest" if self.live else "discord:staging") + f":channel:{self.channel_id}"
+        self.prefix = prefix
+        self._client = client or DiscordClient(self.base_url, token_provider,
+                                               user_agent="DiscordBot (https://github.com/fnstggl/agentrs, 1.0)")
+        self._bot_id = ""
+
+    def read(self) -> List[Any]:
+        from ..contracts import OutcomeKind, Quantity
+        c = self._client
+        ch = c._request("GET", f"/channels/{self.channel_id}", route=f"/channels/{self.channel_id}")
+        if str(ch.get("guild_id")) != self.guild_id:
+            raise PermissionError("the metric channel is not a channel of the authorized guild")
+        if not self._bot_id:
+            self._bot_id = str(c._request("GET", "/users/@me", route="/users/@me")["id"])
+        msgs = c._request("GET", f"/channels/{self.channel_id}/messages", route=f"/channels/{self.channel_id}/messages",
+                          params={"limit": "100"})
+        own = sum(1 for m in msgs if str((m.get("author") or {}).get("id")) == self._bot_id)
+        other_bots = sum(1 for m in msgs if (m.get("author") or {}).get("bot")) - own
+        people = len(msgs) - own - other_bots
+        count = OutcomeKind.COUNT
+        return [Quantity(f"{self.prefix}.own_messages", float(own), kind=count),
+                Quantity(f"{self.prefix}.messages", float(len(msgs)), kind=count),
+                Quantity(f"{self.prefix}.human_messages", float(people), kind=count)]
+
+
+def channel_metric_source(task: TaskSpec, run_dir: str) -> DiscordChannelMetricSource:
+    """Factory for ``success.evidence_source`` of a task whose objective is measured on one channel
+    (``resources.discord.metric_channel_id``)."""
+    s = guild_settings(task)
+    channel = str((dict(task.resources or {}).get("discord") or {}).get("metric_channel_id") or "")
+    override = os.environ.get("CAM_LIVE_VERIFIER_SECRETS", "")
+
+    def token() -> Optional[str]:
+        if override:
+            with open(os.path.join(override, s["token_secret"])) as f:
+                return f.read().strip()
+        return verifier_secret(run_dir, s["token_secret"])
+
+    return DiscordChannelMetricSource(s["guild_id"], channel, token, base_url=s["base_url"])

@@ -118,3 +118,29 @@ def test_snowflake_time_matches_the_documented_epoch():
     assert snowflake_time("175928847299117063") == pytest.approx(1462015105.796, abs=1e-3)   # example in the API reference
     with pytest.raises(ValueError):
         DiscordMembershipSource("", lambda: TOKEN)
+
+
+def test_channel_metric_source_counts_without_text(tmp_path):
+    from cam_live.harness.discord import DiscordClient
+    from cam_live.harness.discord_membership import channel_metric_source
+    st = StagingDiscord(token=TOKEN, rate_limit=(1000, 1.0))
+    R = str(tmp_path / "run")
+    cred.store(R, "discord_bot_token", TOKEN)
+    with StagingDiscordServer(st) as srv:
+        ch = st.add_channel("integration")
+        human = st.add_human()
+        bot = DiscordClient(srv.base_url, lambda: TOKEN)
+        for i in range(3):
+            bot.send_message(ch, f"message {i}")
+        st.post_member_message(ch, human, "a reply with private words")
+        task = C.TaskSpec(objective_id="t", objective="o", mode="staging",
+                          resources={"discord": {"guild_id": st.guild_id, "base_url": srv.base_url, "metric_channel_id": ch}})
+        src = channel_metric_source(task, R)
+        qs = {q.name: q.value for q in src.read()}
+        assert qs == {"discord.channel.own_messages": 3.0, "discord.channel.messages": 4.0, "discord.channel.human_messages": 1.0}
+        assert src.live is False and "private words" not in json.dumps([q.to_dict() for q in src.read()])
+        dm = st.add_dm_channel()
+        bad = C.TaskSpec(objective_id="t", objective="o", mode="staging",
+                         resources={"discord": {"guild_id": st.guild_id, "base_url": srv.base_url, "metric_channel_id": dm}})
+        with pytest.raises(Exception):
+            channel_metric_source(bad, R).read()
