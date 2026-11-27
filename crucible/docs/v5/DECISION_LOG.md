@@ -308,6 +308,17 @@ in which the category is not built. Population principals `p<i>` may own reposit
 services/code.py). Rules out: counting a scripted reference agent's product as evidence of open-ended creation in a
 civilisation.
 
+Addendum (wave 3b repair pass 2, DEF-G-15): the labour model no longer covers rules nobody documented. For a task
+known only through worked examples (an exemplified generated category) every reference tier carries the world's
+hidden rule, so a developer writing one would hold knowledge no participant can have. Decision: requesters of such a
+task post what they make of their own example by hand (`economy.work.Work.worked_example`, additive); developers keep
+notes of those worked examples and INDUCE the rule from them (`innovation.induce`; an induction model per family,
+transform first), write their program from what they induced, and decide versions, pull-request proposals and
+reviews by measured accuracy on their own notes in the sandbox (a private bench repository run with `pkg.exec`).
+Families without an induction model are out of reach of own programs (composition only). Documented rules keep the
+labour model (reference algorithms, FR-DEV-1). Rules out: an in-world program whose source contains a generated
+category's hidden rule or a reference solver of an undocumented category.
+
 ## D-44 Workflows combining independently created services are registry objects (2026-11-26, workstream G, wave 3b)
 SP-6.3b requires workflows of independently created services as first-class registry objects. Decision: a
 workflow is a live service of its composer with its own capability declaration plus a `caps.compose` record naming
