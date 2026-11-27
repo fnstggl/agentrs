@@ -7,6 +7,7 @@ schedule (on_step / step / meta_step), labels to the LabelStore only, update-tri
 Behavioural tests use the CPU doubles of integration_doubles (unit-test doubles; the real dom_dev / dom checks are
 test_dom_e2e_real.py and test_memory_budget_1b.py)."""
 import ast
+import importlib
 import inspect
 import os
 
@@ -195,10 +196,12 @@ class Stamping:
         return getattr(self.inner, k)
 
     def act(self, obs, tools):
+        S = importlib.import_module("superlearner.cam_unified.decision.select")
         acts = self.inner.act(obs, tools)
         for a in acts:
-            if a is not None:
-                a.proposal = {**(a.proposal or {}), "cam_eval": {"q": 0.0, "k": 0, "policy_version": 0}}
+            if a is not None:        # one candidate, selected with probability 1: a real (HMAC) stamp
+                _, _, recs = S.select(torch.zeros(1, 1), torch.zeros(1, 1), greedy=True)
+                S.attach_stamp(a, recs[0], [a], {"policy": 0, "reward_model": None})
         return acts
 
 
@@ -228,6 +231,14 @@ def test_dom_decision_path_refuses_unstamped_actions_before_execution():
                          require_cam_eval=False)
     assert res.authorisation["required"] is False and res.authorisation["source"] == "explicit"
     assert R.cam_eval_stamp(Action("x")) is None and R.dom_decision_path(make_cfg(n_intent=4))
+    # a stamp that is present but forged / no longer matches the action is refused too (W5 verify_stamp)
+    a = Stamping(st.agent).act(st.env.reset(), st.env.available_tools())[0]
+    assert R.authorise([a], 0) == 1
+    a.proposal["cam_eval"] = {**a.proposal["cam_eval"], "q": [9.0]}
+    with pytest.raises(R.ActionNotAuthorised, match="invalid cam_eval stamp"):
+        R.authorise([a], 0)
+    with pytest.raises(R.ActionNotAuthorised, match="invalid"):
+        R.authorise([Action("x", proposal={"cam_eval": {"q": 0.0, "k": 0}})], 0)
 
 
 # ============================================================================ learner hook, labels, checkpoints

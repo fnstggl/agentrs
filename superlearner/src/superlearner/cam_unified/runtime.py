@@ -298,8 +298,9 @@ def dom_decision_path(cfg) -> bool:
 
 def cam_eval_stamp(action) -> Optional[dict]:
     """CAM's pre-execution evaluation stamp of an action: Action.proposal["cam_eval"] (v4 reserved key; W5's
-    decision.select writes {"q", "k", "n_candidates", "gen_logp", "sel_logp", "policy_version", "psi_version"}), or
-    logp_parts["cam_eval"]. None when absent or empty."""
+    decision.select.attach_stamp writes q, k (= chosen), n_candidates, gen_logp, sel_logp, sel_logp_all, probs,
+    vetoed, tau, greedy, policy_version, psi_version, versions, candidates and an HMAC digest), or the legacy
+    logp_parts["cam_eval"]. None when absent or empty. Validity is checked by `authorise` (verify_stamp)."""
     if action is None:
         return None
     p = action.proposal if isinstance(action.proposal, dict) else {}
@@ -310,7 +311,11 @@ def cam_eval_stamp(action) -> Optional[dict]:
 
 
 def authorise(actions: Sequence, step: int) -> int:
-    """Refuse execution of any action that lacks a cam_eval stamp. -> number of actions checked."""
+    """Refuse execution of any action without a VALID cam_eval stamp: present, and its HMAC digest matching the
+    action (W5 `decision.select.verify_stamp`: forged, tampered or stale-content stamps are refused, not only missing
+    ones; actor processes that execute each other's decisions share `decision.select.set_stamp_key`).
+    -> number of actions checked."""
+    from .decision.select import verify_stamp
     n = 0
     for b, a in enumerate(actions):
         if a is None:
@@ -321,6 +326,9 @@ def authorise(actions: Sequence, step: int) -> int:
                 f"round {step}, row {b}: action {a.tool!r} (source {getattr(a.source, 'value', a.source)}) has no "
                 f"{CAM_EVAL_KEY} stamp; with the DOM decision path on, only actions CAM evaluated before execution "
                 "are executed (pass require_cam_eval=False only for a declared legacy decision path)")
+        ok, why = verify_stamp(a)
+        if not ok:
+            raise ActionNotAuthorised(f"round {step}, row {b}: action {a.tool!r}: invalid {CAM_EVAL_KEY} stamp ({why})")
     return n
 
 

@@ -738,6 +738,7 @@ class PlanRequest:
     n_samples: int
     generator: Optional[torch.Generator] = None
     candidates: Optional[list] = None    # [B*n] pre-drawn CAM candidates (row b*n+i); None = the planner samples them
+    sem: Optional[object] = None         # Mechanism C context S_t of the B rows (StepEncoding.sem; W3/W4), or None
 
 
 @dataclass
@@ -1392,7 +1393,7 @@ class CamUnifiedModel(nn.Module):
                 self._count("planner")
                 req = PlanRequest(enc.Z, enc.R, state.fast, goal_in, enc.goal, enc.belief, enc.memory, T, enc.obs,
                                   list(tools), list(obs_lists), prosp, dt0, self.imag_candidates, self.imag_horizon,
-                                  self.imag_samples, generator)
+                                  self.imag_samples, generator, sem=getattr(enc, "sem", None))
                 plan = self.planner.plan(self, req)
                 actions = plan.actions
             else:

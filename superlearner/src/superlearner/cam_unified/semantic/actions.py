@@ -79,7 +79,8 @@ from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
 from .tokenizer import numeric_descriptor, obs_ref, parse_obs_ref, render_observation
 
 BUILTIN_NAMES = ("wait", "noop")
-DECODE_VERSION = 3          # 3: free strings carry the LengthHead stop-hazard mixture (grammar.LengthHead)
+DECODE_VERSION = 4          # 3: free strings carry the LengthHead stop-hazard mixture (grammar.LengthHead); 4: the
+                            # forced characters each closing token consumed ("consumed", W4) are recorded and verified
 PART_KEYS = ("tool", "evidence", "heads", "tokens")
 
 
@@ -579,8 +580,14 @@ class ActionGenerator(nn.Module):
                             rec = teacher[b].get("holes") or []
                             if len(rec) != len(p.holes):
                                 raise GrammarError(f"row {b}: {len(rec)} recorded holes for {len(p.holes)} slots")
-                            for h, tk in zip(p.holes, rec):
+                            cons = teacher[b].get("consumed")
+                            if cons is not None and len(cons) != len(p.holes):
+                                raise GrammarError(f"row {b}: {len(cons)} recorded consumed counts for "
+                                                   f"{len(p.holes)} slots")
+                            for k, (h, tk) in enumerate(zip(p.holes, rec)):
                                 h.tokens = list(tk)
+                                if cons is not None:      # decode record v4: HoleFiller.score verifies it
+                                    h.expect_consumed = int(cons[k])
                     tt = temps[rt].unsqueeze(1)
                     ckw = {"cond": cond} if (cond is not None and self._cond_score) else {}
                     lp, en, nt = self.filler.score(progs, prefix, ctxs, tt, exact_rows=exact_rows, **ckw)
@@ -749,6 +756,7 @@ class ActionGenerator(nn.Module):
                    "tools": out["tools_sha"][b], "ev": bool(out["ev"][b]), "cands": out["ev_sha"].get(b),
                    "evidence": list(out["evidence"][b]), "choices": list(out["choices"][b]),
                    "holes": [list(h.tokens) for h in (out["programs"][b].holes if b in out["programs"] else [])],
+                   "consumed": (list(out["programs"][b].consumed()) if b in out["programs"] else []),
                    "prompt": out["prompt_sha"].get(b), "prompt_truncated": int(out["prompt_trunc"].get(b, 0)),
                    "temperature": float(temperature), "greedy": bool(greedy),
                    "allowed": None if out["allowed"] is None else out["allowed"][b],

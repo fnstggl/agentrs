@@ -70,12 +70,21 @@ class LatentImaginationPlanner:
         disc = torch.ones(Bb, device=dev)
         steps, first_out = [], None
         R = req.R[rows]
+        # Mechanism C in imagination (W5 change request): branch rows -> their source rows of S_t
+        sem = getattr(req, "sem", None)
+        p_kw = {"sem": sem, "sem_rows": rows} if sem is not None else {}
+        r_kw = {}
+        if sem is not None:
+            import inspect as _inspect
+            rp = _inspect.signature(model.reasoner.forward).parameters
+            if "sem" in rp:
+                r_kw = {"sem": sem.select(rows) if hasattr(sem, "select") else sem}
         for h in range(H):
             act_tok = model.tokenizer.action(acts)
             dt = model.expected_dt(Z, act_tok, acts, tool_lists)
             belief = model.beliefs.tokens(fast) if fast is not None else model.empty_tokens(Bb)
             model._count("world_model.prior")
-            Z_hat, _ = model.world_model.prior(Z, act_tok, belief, dt, sample=True)
+            Z_hat, _ = model.world_model.prior(Z, act_tok, belief, dt, sample=True, **p_kw)
             feat = model.outcome_head.features(Z_hat, prosp)
             if fast is not None:
                 d = model.outcome_head.dist(feat, prosp, cond=fast.particles)
@@ -129,7 +138,7 @@ class LatentImaginationPlanner:
             Z = Z_hat
             belief = model.beliefs.tokens(fast) if fast is not None else model.empty_tokens(Bb)
             if cfg.use_reasoning:
-                R, _ = model.reasoner(Z, TokenSet.cat(belief, mem, goal), model.reason_iters)
+                R, _ = model.reasoner(Z, TokenSet.cat(belief, mem, goal), model.reason_iters, **r_kw)
             else:
                 R = Z
             v = model._value(model.value_head(R, goal))

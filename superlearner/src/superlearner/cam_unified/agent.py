@@ -48,6 +48,7 @@ import inspect
 import random
 import re
 import time
+from types import SimpleNamespace
 from collections import Counter
 from dataclasses import dataclass
 from typing import Callable, Optional, Protocol, Sequence
@@ -862,13 +863,21 @@ class CamUnifiedAgent:
         aux = ReplayAux([], [], [], [])
         prev_opt = [-1] * B
         prev_steps = [0] * B
+        # the semantic context of each replayed step, as encode_step builds it on the DOM path (tools are not archived
+        # per record, so replay windows carry the goal + observation part of S_t only; declared deviation)
+        want_sem = bool(getattr(m, "dom_decision", False)) and callable(getattr(m, "semantic_context", None))
+        sems: list = []
         for t in range(T):
             recs = [s[t] if t < len(s) else None for s in seqs]
             obs_lists = [list(r.observations) if r is not None else [] for r in recs]
             now = [float(r.t_sim) if r is not None else 0.0 for r in recs]
             O = check_tokens(m.tokenizer.observations(obs_lists, regs, now), B, cfg.d_model, "replay observations")
             if m.entity_encoder is not None:
-                O = TokenSet.cat(O, m.entity_encoder(O))
+                if getattr(m, "_entity_types", False):      # replay tokenises like acting (encode_step, W3/W5)
+                    types = m.entity_encoder.make_type_tokens(regs, m.semantic, device=O.x.device)
+                    O = TokenSet.cat(O, m.entity_encoder(O, type_tokens=types))
+                else:
+                    O = TokenSet.cat(O, m.entity_encoder(O))
             act = m.tokenizer.action([r.action if r is not None else None for r in recs])
             specs = [[OutcomeSpec.from_dict(d) for d in (r.extra.get("outcomes", []) if r is not None else [])]
                      for r in recs]
@@ -888,6 +897,8 @@ class CamUnifiedAgent:
                     last_goal[b] = GoalSpec(g["goal_id"], g["text"], dict(g.get("metrics") or {}),
                                             g.get("deadline_days"))
             goal = m.tokenizer.goal(list(last_goal))
+            if want_sem:                 # Mechanism C input S_t of the replayed step (world-model filter / prior)
+                sems.append(m.semantic_context(SimpleNamespace(obs_lists=obs_lists, tools=None, goals=list(last_goal))))
             aux.retrieved.append([list(r.extra.get("retrieved") or []) if r is not None else [] for r in recs])
             aux.now.append(now)
             aux.option_prev.append(list(prev_opt))
@@ -907,6 +918,8 @@ class CamUnifiedAgent:
                                            dtype=torch.long, device=dev),
                 goal=goal, event_ids=[r.event_id if r is not None else None for r in recs]))
         aux.tables = tables
+        if want_sem and any(x is not None for x in sems):
+            aux.sem = sems               # [T] SemanticContext | None (train_seq.window_sem)
         return SequenceBatch(steps), aux
 
     def _sample(self, n: int, length: int) -> list:
