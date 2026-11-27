@@ -658,9 +658,10 @@ def parse_json_object(text: str) -> dict | None:
 
 # lines of the prompt's own scaffolding (not the participant's words): a written value that repeats one of them is an
 # echo of the instructions ("You are calling blog.comment: ...", seen from SmolLM2-135M in the second standard run)
-SCAFFOLD = re.compile(r"\b(you are calling|arguments so far|next argument|answer with|write the \w+ (only|itself)|"
-                      r"your goal \(you chose|your situation:|what you remember:|your last actions:|"
-                      r"you are p\d+\b|options:|services you can use|tools of the service)", re.I)
+SCAFFOLD = re.compile(r"\b(you are calling|arguments so far|next argument|answer with (one option|the \w+ name only|"
+                      r"the action only)|write the \w+ (only|itself)|your goal \(you chose|your situation:|"
+                      r"what you remember:|your last actions:|you are p\d+\. |options:\s*\n\s*- |"
+                      r"services you can use:|tools of the service)", re.I)
 
 
 def _grams(t: str, n: int = 5) -> set:
