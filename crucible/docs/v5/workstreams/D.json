@@ -59,7 +59,8 @@
     "src/crucible/semantic/generalists/brain.py",
     "src/crucible/semantic/routing.py",
     "src/crucible/semantic/participants.py",
-    "src/crucible/semantic/data/routing.json"
+    "src/crucible/semantic/data/routing.json",
+    "src/crucible/semantic/generalists/insitu.py"
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
@@ -82,7 +83,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "verified in the third unofficial run: comprehension_accuracy 0.844 [0.756, 0.905] on 120 held-out items (Qwen3-0.6B, thinking-mode scoring chosen on DEV), p 3e-32; shortcut rule 0.25",
-   "notes": "in-world answered requests 0 in that run (no participant answered another's request)"
+   "notes": "repair pass (verifier P2, pre-existing): the 'think' scoring of H.5 was silently cut to the shared service's 128-token bound (and to 192/384 after a think choice elsewhere in the process); requests in thinking mode now have a fixed bound of their own (SemanticService.max_think_tokens 1024), so think gets its 384 tokens and no request's recorded inputs depend on earlier calls."
   },
   "H.6": {
    "implementation_files": [
@@ -96,7 +97,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "failed in the third unofficial standard run: consequential_actions_executed 5 (< 8; blog.publish 2, forum.follow 2, bank.invoice 1), 77% of calls refused by argument-filling defects; fixed (2a6fd4d), rerun queued",
-   "notes": ""
+   "notes": "repair pass (2026-11-27): the evaluator (generalists.verify) counts a call's consequences including the events of jobs it scheduled (a mail reaches its recipient through a delivery job, so mail.send was never consequential before), excludes calls whose written content (event payload text fields, stored text artifacts) is junk (a tool or service name, prompt scaffolding, the goal sentence restated, under two letters) and counts a repeated call with the same content once (verifier: the previous dedupe collapsed only byte-identical calls). Unit test test_evaluator_excludes_junk_content_and_counts_repeated_content_once."
   },
   "H.7": {
    "implementation_files": [
@@ -110,7 +111,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "verified in the third unofficial standard run: verified_productive_results 2 (blog articles with >= 3 independent viewers, max 12)",
-   "notes": "collaborative_verified 0"
+   "notes": "repair pass: a publication whose text (its text artifact, else its title) is junk by the evaluator's rule is not a productive result."
   },
   "H.8": {
    "implementation_files": [
@@ -131,7 +132,8 @@
     "src/crucible/semantic/generalists/bench.py",
     "src/crucible/semantic/data/routing.json",
     "src/crucible/semantic/generalists/brain.py",
-    "src/crucible/semantic/participants.py"
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/generalists/insitu.py"
    ],
    "tests": [
     "tests/v5/test_gate_H.py",
@@ -139,7 +141,7 @@
     "tests/test_v5_semantic_service.py"
    ],
    "status_claim": "failed in the third unofficial run: the ordinary class-4 decisions (situation interpretation, tool choice) were routed to Qwen3-1.7B (D-36/D-37), 81% of requests above 1.1B parameters. D-38: the queued rerun first measures Qwen3-0.6B reasoning first in its thinking mode on the DEV bench and applies the pre-registered rule (probes2/apply_think.py) before Gate H; H.n1 now measures the largest model serving every activation's decisions and asserts escalated decisions <= 20%",
-   "notes": "smaller alternatives benchmarked: SmolLM2-135M 0.0, SmolLM2-360M 0.11 on the TEST bench"
+   "notes": "repair pass: decisions per capability and requests per model are taken from the standard run before H.4/H.5 evaluate through the same services (verifier P3: H.4's 72 items added 216 decisions), and H.4 uses a brain of its own. D-38 amendment: only the next-step phrase (routing.USES next_step) may move by the in-situ bench; goal formation and argument choice keep situation interpretation's SP-3.2b route (Qwen3-1.7B, 0.6B 0.28 held out), so semantic_model_params stays 1.7B and H.n1 is expected to fail by measurement. QA: semantic_model_params is the largest model serving the ordinary capabilities (D-38); escalated capabilities are bounded by the reported share of decisions above 1.1B."
   },
   "SP-3.2b": {
    "implementation_files": [
@@ -162,13 +164,14 @@
     "src/crucible/semantic/generalists/verify.py",
     "src/crucible/semantic/routing.py",
     "src/crucible/semantic/data/routing.json",
-    "src/crucible/semantic/participants.py"
+    "src/crucible/semantic/participants.py",
+    "src/crucible/semantic/generalists/insitu.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_3_2d.py"
    ],
    "status_claim": "failed in the third unofficial run by the then-asserted successful-call share (models 0.25 < ablated 0.28); D-38: the degradation is asserted on consequential-call share (models 16 vs ablated 3 consequential calls, p 3.6e-5 in that run) and verified productive results (8 vs 0); scripted paths 0, own goals 8, routing rederivable, 4 checkpoints with licence and tool use verified; rerun queued",
-   "notes": ""
+   "notes": "repair pass: the consequential-call measure was chosen after the third run (with its data in view); the rerun on 811c209f is its first test with the measure fixed in advance. Consequential calls are now counted by the evaluator rule of H.6 (scheduled consequences included, junk excluded, same content once) in both arms. capabilities_routed_to_smallest_model checks that the committed decision rederives from its own recorded measurements (selection and confirmation samples), not a re-measurement."
   },
   "SP-3.3c": {
    "implementation_files": [
@@ -193,7 +196,7 @@
     "tests/v5/test_gate_SP_4_2b.py"
    ],
    "status_claim": "verified in an unofficial run on this branch: development civilisation, 1 day: ordinary_actions_requiring_generation 0 (19 generation requests, all by class-4 participants; 368 ordinary decision batches, 1,699 rows, 5 decision models)",
-   "notes": ""
+   "notes": "repair pass (verifier P2): generation batches of choices routed to a model that reasons first are attributed to the class-4 brain (LMBrain.generation_calls); before, one think choice made the gate report 1 ordinary action requiring generation. Unit test in test_a_reasoning_first_choice_runs_the_thinking_mode_then_picks_an_option."
   },
   "SP-4.3": {
    "implementation_files": [
@@ -337,7 +340,7 @@
   "O (security): semantic/media.open_image decodes participant images in the jail (isolation.decode_image) and fails closed without the jail unless CRUCIBLE_ALLOW_UNJAILED_TOOLS=1; every image decode site in crucible/semantic goes through it (encoders/image.py, space/compute.py). social/formats.inspect and social/render.open_image (C) still decode in-process.",
   "KERNEL (kcal): SP-13.5 records digests_equal false for the same civilisation (balanced, seed 4, development) generated twice in one process and run one day with class-4 participants on GPU models; every model output is recorded so replay is exact, but two fresh runs diverge (GPU bf16 batched inference is not bitwise reproducible across batch compositions; also see the K1 cross-process digest note).",
   "Facts registry (A): pop_semantic's only table is semp_state (module-private mind state keyed by population row; no shared-kind signature).",
-  "ORCHESTRATOR / successor of D: an unofficial rerun is queued in the slot scheduler (label 'D: semantic gates H, SP-3.2d, SP-13.4, SP-3.3c (rerun after argument fixes)'; script scratchpad/w3b-sem/probes2/gpu_gates4.sh, plan scratchpad/w3b-sem/plan4, outputs gates4_*.log and bench_think.json, analysis probes2/analyse4.py). Its step apply_think applies the pre-registered D-38 rule to the DEV bench measurement and rewrites src/crucible/semantic/data/routing.json in the worktree (uncommitted) before Gate H runs. After it finishes: if the rewrite is consistent with bench_think.json, commit it and append the measured values to D-38; otherwise `git checkout` the file. At the time of this note the job was 16th of 34 in the queue."
+  "ORCHESTRATOR: the D rerun of wave 3b runs on a snapshot of 811c209f (scratchpad/w3b-sem/snap5; job 'D: semantic gates H, SP-3.2d, SP-13.4, SP-3.3c (rerun after argument fixes)', plan scratchpad/w3b-sem/plan4): python -m crucible.semantic.generalists.insitu measure/apply derives routing.json in the snapshot (D-38 amendment), then Gates H, SP-3.2d, SP-4.2b, SP-13.4, SP-3.3c, SP-13.5 run there; the derived routing.json is committed afterwards with the measurement's SHA-256 (results in this file)."
  ],
  "history": {
   "D1 (wave 1, encoders)": {
@@ -368,6 +371,7 @@
    ]
   },
   "CORE-SEM (wave 2, c5c/w2-coresem)": "one shared semantic space crucible.semantic.space (DIM 422), MIND prior, alignment maps, E.5 taint audit, prefix-first exact caching, continuous batcher",
-  "W3b (wave 3b, c5c/w3b-sem)": "class-4 runtime pop_semantic bound to population class 4 (generalists package), routing D-36 from the measured SP-3.2b report and D-37 in-situ measurements, structured representations (software, products), Gate E.3 feed probe, jailed image decode (SPACE_VERSION f455005900ab0232, MIND prior and population interest asset rebuilt), cheap LM feature candidate measured and not adopted; first and second agents stopped by usage limits; the third fixed argument filling from the third standard run (77% of calls refused), added reasoning-first routing variants (D-38) with a pre-registered in-situ application, redefined H.n1 over every activation's decisions and the SP-3.2d ablation measure (D-38)"
+  "W3b (wave 3b, c5c/w3b-sem)": "class-4 runtime pop_semantic bound to population class 4 (generalists package), routing D-36 from the measured SP-3.2b report and D-37 in-situ measurements, structured representations (software, products), Gate E.3 feed probe, jailed image decode (SPACE_VERSION f455005900ab0232, MIND prior and population interest asset rebuilt), cheap LM feature candidate measured and not adopted; first and second agents stopped by usage limits; the third fixed argument filling from the third standard run (77% of calls refused), added reasoning-first routing variants (D-38) with a pre-registered in-situ application, redefined H.n1 over every activation's decisions and the SP-3.2d ablation measure (D-38)",
+  "W3b repair (wave 3b, verifier issues)": "own artifacts only from own non-read-only stores (P4); reasoning-first choices no longer raise the shared service bound and are attributed to class 4 (P2); Gate H run counters snapshotted before held-out evaluations (P3); copy filter rejects foreign prompt text, tool names and goal restatements again (P1/P1b); evaluator junk/repeat/scheduled-consequence counting (H.6); D-38 amendment (next_step use, confirmation sample, snapshot process); generalists.insitu measurement procedure; gates rerun on a snapshot of 811c209f"
  }
 }
