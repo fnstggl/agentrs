@@ -479,9 +479,11 @@
   "QA (re-measurement of the J chain and invention results on the integration branch): `python -m crucible.civ.gates invention` (SP-2.1b: one six-seed run on the chain seeds 21-26, cached as the `invention` chain experiment) and `python -m crucible.civ.gates chains` (O.6 / SP-10.3 / SP-10.3b: agent_shop, agent_science and invention on seeds 21-26; ~35-70 min per experiment with two workers in a GPU slot on a shared GPU), `python -m crucible.civ.gates effects` (O.5: eight experiments on seeds 11-16, ~4-5 h). The gate tests read the same cache ($CRUCIBLE_CIV_CACHE) keyed by the digest of the whole package, so one lane fills it for O.5, O.6, SP-10.3, SP-10.3b and SP-2.1b."
  ],
  "test_results_unofficial": {
-  "tests/test_kernel.py + tests/test_invariants.py (CPU)": "51 passed",
-  "tests/test_v5_civ_history.py + tests/test_v5_civ_determinism.py + test_v5_civ_longrun.py::suite (CPU)": "7 passed",
-  "tests/test_v5_civ_core.py + test_v5_civ_longrun.py (GPU slot, e77fef3, predecessor)": "12 passed, 1 failed (the interruption test compared free reruns; now compares under D-47 and regenerates the interrupted run - re-run in the final lane)"
+  "tests/test_kernel.py + tests/test_invariants.py (CPU, 61578688)": "51 passed",
+  "tests/test_v5_civ_core.py + test_v5_civ_measures.py + test_v5_civ_longrun.py (GPU lane, frozen copy of 600ee027)": "21 passed in 296 s",
+  "tests/test_v5_civ_history.py + test_v5_civ_determinism.py + test_v5_civ_measures.py + test_v5_civ_longrun.py::test_suite_skips_complete_runs_and_reports_missing_ones (CPU, 1f90158d)": "12 passed",
+  "tests/test_v5_civ_measures.py (CPU, 064dd378)": "7 passed",
+  "gate tests tests/v5/test_gate_{O,P,SP_10_0,SP_10_1,SP_10_2,SP_10_3,SP_10_3b,SP_2_1b,SP_17_1,SP_19_3}.py": "not run end-to-end as pytest in this session (each recomputes its civilisation experiments at the current code digest: Gate P alone is ~7 h with two workers); their measurement functions (crucible.civ.gates) were run in GPU lanes on frozen copies - results in measurements_unofficial and the status claims, each with its commit"
  },
  "measurements_unofficial": {
   "gate_p_first_suite (e77fef3, stopped by the slot governor at 18 GB RAM)": {
