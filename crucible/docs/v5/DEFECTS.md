@@ -1345,6 +1345,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "M_performance",
  "id": "DEF-M-3",
  "owner": "M",
+ "progress": "2026-11-26 (c5c/w3b-perf, measured, not fixed): after daily retention compaction, VACUUM and WAL checkpoint the civ world stores 7,843 B per individual-day at development (5 days) and 2,846 B at standard (3 days) against T6 550 B; the 10M capacity run (9 h, no store) fits T4. Remaining work is in the event and blob formats and event volume of kcal, B, C and D: docs/v5/performance/OPTIMISATION_REQUESTS.md R5, R6 (artifact.stored folded into cols.batch, one scheduler event per firing, space vectors stored once, delta-only set batches, raw small-blob format). 2026-11-27 (30-day runs, standard profile, no VACUUM): 758 MB and 737 MB for seeds 0 and 1 after 30 days, 2,454 B per individual-day (T6 550 B: missed); large 120-150 MB per simulated day (1,051 MB after 7 days). Still open: the fixes are in the formats and event volume of the owners named above.",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1353,8 +1354,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
   "finding": 2
  },
  "status": "open",
- "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk.",
- "progress": "2026-11-26 (c5c/w3b-perf, measured, not fixed): after daily retention compaction, VACUUM and WAL checkpoint the civ world stores 7,843 B per individual-day at development (5 days) and 2,846 B at standard (3 days) against T6 550 B; the 10M capacity run (9 h, no store) fits T4. Remaining work is in the event and blob formats and event volume of kcal, B, C and D: docs/v5/performance/OPTIMISATION_REQUESTS.md R5, R6 (artifact.stored folded into cols.batch, one scheduler event per firing, space vectors stored once, delta-only set batches, raw small-blob format). 2026-11-27 (30-day runs, standard profile, no VACUUM): 758 MB and 737 MB for seeds 0 and 1 after 30 days, 2,454 B per individual-day (T6 550 B: missed); large 120-150 MB per simulated day (1,051 MB after 7 days). Still open: the fixes are in the formats and event volume of the owners named above."
+ "summary": "Storage growth blocks long/large runs: about 1.83 KB per individual-day (large: 184 MB per sim day), uncompressed ZIP_STORED blobs, whole-row rewrites; a 30-day 10M run would need about 550 GB against 21 GB free disk."
 }
 ```
 
@@ -1363,8 +1363,10 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
 ```json
 {
  "area": "M_performance",
+ "fixed_by": "c5c/w3-perf + c5c/w3b-perf: crucible.scale.approx, the estimated cohort mode ('approx-cohort/1', labelled estimated, never used inside a world; FIDELITY_REGISTER scale.approx_cohort) and approx.validate, its comparison against high-fidelity individual simulations (fit on 400-individual runs, predict 1,600 individuals on 3 other seeds and a shop-share intervention; errors with 95% intervals for the 7 quantities of Part 13.6; measured 2026-11-26 in docs/v5/performance/MEASUREMENTS.md section 6); dc8f900 fixed its crash on web resources created during a run",
  "id": "DEF-M-4",
  "owner": "M",
+ "regression_tests": "tests/test_v5_perf_units.py::test_the_estimated_mode_is_labelled_and_measures_errors, tests/test_v5_perf_units.py::test_outcomes_handle_resources_created_during_the_run, tests/v5/test_gate_V.py::test_V_9_approximation_errors_quantified",
  "requirements": [
   "V.9"
  ],
@@ -1375,9 +1377,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
   "finding": 3
  },
  "status": "fixed",
- "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code.",
- "fixed_by": "c5c/w3-perf + c5c/w3b-perf: crucible.scale.approx, the estimated cohort mode ('approx-cohort/1', labelled estimated, never used inside a world; FIDELITY_REGISTER scale.approx_cohort) and approx.validate, its comparison against high-fidelity individual simulations (fit on 400-individual runs, predict 1,600 individuals on 3 other seeds and a shop-share intervention; errors with 95% intervals for the 7 quantities of Part 13.6; measured 2026-11-26 in docs/v5/performance/MEASUREMENTS.md section 6); dc8f900 fixed its crash on web resources created during a run",
- "regression_tests": "tests/test_v5_perf_units.py::test_the_estimated_mode_is_labelled_and_measures_errors, tests/test_v5_perf_units.py::test_outcomes_handle_resources_created_during_the_run, tests/v5/test_gate_V.py::test_V_9_approximation_errors_quantified"
+ "summary": "No approximate large-population mode and no high-fidelity comparison (V.9); the 'estimated population mode' claimed in ARCHITECTURE.md and DECISION_LOG D-5 does not exist in code."
 }
 ```
 
@@ -1419,6 +1419,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "M_performance",
  "id": "DEF-M-6",
  "owner": "M",
+ "progress": "2026-11-26 (c5c/w3b-perf): event-driven policy compute 28.2x cheaper than dense on the civ standard world with 200 pop.wake trigger batches and equal outcomes over three forks (MEASUREMENTS.md section 6); 10M identities on the one population with the posts platform (13.1M recounted distinct consumption events, 596 s, 16.4 GB; section 7); quadratic set(own) removed on c5c/w3b-pop (B, not yet merged). Open: class-4 rows act only once D's runtime (c5c/w3b-sem semantic/generalists) is merged; the world's cost is dominated by consequences (shopping search R1, consumption engine R2, shared-space text path R3, sandbox metering R4, per-event costs R5): measured requests to their owners in docs/v5/performance/OPTIMISATION_REQUESTS.md. 2026-11-27: class 4 is bound by D (c5c/w3b-sem) but no civ profile installs module pop_semantic (request to J and D in docs/v5/workstreams/M.json); at the large profile the cost per event grows 4.7x in 7 days at a steady event rate (R1).",
  "requirements": [],
  "severity": "critical",
  "source": {
@@ -1427,8 +1428,7 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
   "finding": 5
  },
  "status": "open",
- "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation.",
- "progress": "2026-11-26 (c5c/w3b-perf): event-driven policy compute 28.2x cheaper than dense on the civ standard world with 200 pop.wake trigger batches and equal outcomes over three forks (MEASUREMENTS.md section 6); 10M identities on the one population with the posts platform (13.1M recounted distinct consumption events, 596 s, 16.4 GB; section 7); quadratic set(own) removed on c5c/w3b-pop (B, not yet merged). Open: class-4 rows act only once D's runtime (c5c/w3b-sem semantic/generalists) is merged; the world's cost is dominated by consequences (shopping search R1, consumption engine R2, shared-space text path R3, sandbox metering R4, per-event costs R5): measured requests to their owners in docs/v5/performance/OPTIMISATION_REQUESTS.md. 2026-11-27: class 4 is bound by D (c5c/w3b-sem) but no civ profile installs module pop_semantic (request to J and D in docs/v5/workstreams/M.json); at the large profile the cost per event grows 4.7x in 7 days at a steady event rate (R1)."
+ "summary": "Integrated population cost is dominated by work unrelated to decisions: event-driven only 2.18x faster than dense (28.6x fewer activations); sandbox process per program call costs more CPU than the world; quadratic set(own) in popweb forum (web.py:775); class-4 semantic rows never act; 10M exists only on the simplified crowd path or as B pop creation."
 }
 ```
 
@@ -2410,6 +2410,16 @@ When a new wave starts, the orchestrator moves the commit below to the wave's ba
  "area": "P_acceptance",
  "id": "DEF-P-25",
  "owner": "D (CORE-SEM) / INT",
+ "qa_triage": [
+  {
+   "at": "2026-11-27T08:02:56+00:00",
+   "by": "P",
+   "commit": "7722642abff750a6d6ab67dfc74f64774ce8df14",
+   "evidence": "src/crucible/semantic/space/lm.py:44-50; src/crucible/semantic/space/__init__.py:75-81; Gate A.1 slot job junit (P: Gate A.1 4.0 baseline as historical baseline (D-82))",
+   "reason": "Root cause measured 2026-11-27 (second repair agent): the native thread is the CUDA driver thread ('cuda00001400006' in /proc/self/task), started at import time by crucible.semantic.space: SPACE_VERSION = _version() -> lm.identity() -> lm.device() -> torch.cuda.is_available(), which initialises the CUDA driver whenever a GPU is visible (huggingface_hub itself starts no thread). Gate A.1's slot run at 74e9bc38 (GPU visible) failed exactly the two tests/test_scale.py tests that need a single-threaded 4.0 worker: workers recycled (threads == 2) and keyboard interrupt (600 s timeout after 'This process is multi-threaded, use of fork() may lead to deadlocks'). torch.cuda.device_count() (NVML-based, torch 2.14) answers without starting the driver thread (measured: 1 thread). Fix for D: in semantic/space/lm.py device() use torch.cuda.device_count() > 0 (or resolve the identity lazily), keeping identity() and service() on the same answer.",
+   "verdict": "still_open"
+  }
+ ],
  "requirements": [
   "A.1",
   "SP-13.7"
