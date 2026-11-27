@@ -290,6 +290,7 @@ so `calibration.inworld.random_exposure_experiment` can compare the world with K
 (SP-5.5b). Watch time stays the engine's built-in rule. Three inputs are flags from exact audience sets where the
 contract asks for counts (own_creator_views, own_item_exposures, own_item_consumed; documented in
 `social.contentopen`). Civilisations adopt it by building their feed config with `feed_config` (integration note).
+Amendment (2026-11-27, workstream C): a drawn item that the recommenders already placed in the feed swaps into the drawn slot instead of being skipped (on a catalogue with fewer live items than feed slots every draw was skipped, and civilisations recorded no random row); an item already in the viewer's share inbox is not drawn again. The random arm's item and slot remain the uniform draws.
 
 ## D-35 Engagement integrity detects coordinated clusters; platform representations are never observable (2026-11-26, workstream C)
 (1) `social.integrity` excludes, besides related, funded, footprint-less sybil and ring accounts, a coordinated
