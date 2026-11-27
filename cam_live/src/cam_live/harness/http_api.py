@@ -139,6 +139,16 @@ def grant_bound(secrets: Any) -> bool:
     return len(required) >= 4
 
 
+SECRET_REF = "secret:"
+
+
+def secret_name(ref: Any) -> str:
+    """The vault name in a secret reference: arguments name a stored secret as ``secret:<name>`` (the only form the
+    authorization service accepts in a credential field); the vault itself knows it as ``<name>``."""
+    ref = str(ref or "").strip()
+    return ref[len(SECRET_REF):] if ref.startswith(SECRET_REF) else ref
+
+
 def resolve_secret(secrets: Any, name: str, *, action: Optional[ActionSpec] = None, decision: Any = None,
                    destination: str = "") -> Optional[str]:
     """Fetch a secret value by name from the executor-side broker handle at the moment of use.
@@ -147,6 +157,7 @@ def resolve_secret(secrets: Any, name: str, *, action: Optional[ActionSpec] = No
     authorization service releases the secret only for the granted action that is executing and only for a
     destination the secret is bound to), and a plain ``get(name)`` / mapping / callable. Returns ``None`` when
     there is no broker, no such secret, or the broker refuses. The value must only be used to build the request."""
+    name = secret_name(name)
     if secrets is None or not name:
         return None
     try:
@@ -342,10 +353,20 @@ def json_quantities(obj: Any, prefix: str, limit: int = 48, max_depth: int = 5) 
 _CREDENTIAL_HEADER = re.compile(r"authorization|cookie|token|secret|api[-_]?key|password|credential", re.I)
 _SAFE_RESPONSE_HEADERS = ("content-type", "etag", "last-modified", "location", "content-length")
 _METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
+_IDEMPOTENT = ("GET", "HEAD", "PUT", "DELETE", "OPTIONS")     # RFC 9110 9.2.2
+
+
+def idempotency_key(headers: Mapping[str, str]) -> str:
+    """The request's idempotency key (``Idempotency-Key`` / ``X-Idempotency-Key``), if it carries one."""
+    for k, v in (headers or {}).items():
+        if str(k).lower() in ("idempotency-key", "x-idempotency-key") and str(v).strip():
+            return str(v).strip()
+    return ""
 _REDIRECTS = (301, 302, 303, 307, 308)
 
 _AUTH_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["secret"], "properties": {
-    "secret": {"type": "string", "minLength": 1, "description": "name of the secret; never its value"},
+    "secret": {"type": "string", "minLength": 1,
+               "description": "reference of a stored secret, 'secret:<name>'; never its value"},
     "scheme": {"type": "string", "enum": ["bearer", "bot", "basic", "header", "query"]},
     "name": {"type": "string", "description": "header or query-parameter name for scheme header / query"}}}
 _REQUEST_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["url"], "properties": {
@@ -400,8 +421,11 @@ class HttpApiExecutor:
                            side_effects="external_write", arg_schema=_REQUEST_SCHEMA,
                            est_cost=Cost(seconds=1.0, primitive_ops=1),
                            description="Send one HTTP request (GET, HEAD, POST, PUT, PATCH or DELETE) with an optional "
-                                       "JSON or text body to an API endpoint. A credential is referenced by the name "
-                                       "of a stored secret. Returns the status, a bounded digest of the response "
+                                       "JSON or text body to an API endpoint. A credential is referenced as "
+                                       "auth={secret: 'secret:<name>'}. POST and PATCH are not idempotent: after an "
+                                       "uncertain failure (a 5xx answer, a timeout or a broken connection once the "
+                                       "request was sent) they are not re-sent automatically unless they carry an "
+                                       "Idempotency-Key header. Returns the status, a bounded digest of the response "
                                        "body, its numeric JSON fields and any rate-limit state the server reported."),
         ]
 
@@ -438,8 +462,24 @@ class HttpApiExecutor:
         if errs:
             return failed_result(action, classify(FailureEvidence(arg_errors=errs, modality=Modality.API)), clock, started)
         req = self._prepare(action)
-        return run_with_retries(lambda n: self._attempt(action, ctx, req, started), self.retry, clock,
-                                sleep=self.sleep, deadline=ctx.deadline, cancel=ctx.cancel)
+        state = {"uncertain": False}
+        safe = req.method in _IDEMPOTENT or bool(idempotency_key(req.headers))
+
+        def may_retry(res: ActionResult) -> bool:
+            # a request that may have been applied is re-sent only if repeating it cannot apply it twice
+            return safe or not state["uncertain"]
+
+        res = run_with_retries(lambda n: self._attempt(action, ctx, req, started, state), self.retry, clock,
+                               sleep=self.sleep, deadline=ctx.deadline, cancel=ctx.cancel, may_retry=may_retry)
+        if res.status != ResultStatus.OK and state["uncertain"] and not safe:
+            note = (f"not retried automatically: {req.method} is not idempotent and the request may have been applied "
+                    f"(add an Idempotency-Key header to allow a safe retry)")
+            res.failure_detail = f"{res.failure_detail}; {note}" if res.failure_detail else note
+            for o in res.observations:
+                if o.kind == "error" and isinstance(o.data.get("failure"), dict):
+                    o.data["failure"]["retry_suppressed"] = note
+                    o.data["failure"]["retryable"] = False
+        return res
 
     # ---- internals -----------------------------------------------------------------------------------------
     def _prepare(self, action: ActionSpec) -> _Prepared:
@@ -477,8 +517,11 @@ class HttpApiExecutor:
             url = urlunsplit((u.scheme, u.netloc, u.path, urlencode(q), ""))
         return url
 
-    def _attempt(self, action: ActionSpec, ctx: ExecContext, req: _Prepared, started: float) -> ActionResult:
+    def _attempt(self, action: ActionSpec, ctx: ExecContext, req: _Prepared, started: float,
+                 state: Optional[Dict[str, bool]] = None) -> ActionResult:
         clock = ctx.clock
+        state = state if state is not None else {}
+        state["uncertain"] = False
         ops: List[PrimitiveOp] = []
         method, url, body, send_auth = req.method, req.url, req.body, bool(req.auth)
         origin0 = urlsplit(url)[:2]
@@ -533,6 +576,8 @@ class HttpApiExecutor:
                     status, rheaders = resp.status_code, dict(resp.headers)
             except httpx.HTTPError as e:
                 op.ended = clock.now()
+                # only a failure to connect proves that nothing was sent; anything later may have been applied
+                state["uncertain"] = not isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout))
                 rep = classify(FailureEvidence(exception=e, timed_out=isinstance(e, httpx.TimeoutException),
                                                modality=Modality.API,
                                                detail=scrub(f"{type(e).__name__}: {e}", secret_values)))
@@ -557,6 +602,8 @@ class HttpApiExecutor:
                                secret_values, clock, hop)
             op.obs_after = obs.obs_id
             if status >= 400:
+                # 429 is a refusal before processing; 5xx and anything else after sending may have been applied
+                state["uncertain"] = status >= 500 or status in (408,)
                 rep = classify(FailureEvidence(http_status=status, retry_after_s=info.retry_after_s,
                                                limit_exceeded=status == 429, modality=Modality.API,
                                                detail=f"HTTP {status} from {method} {urlsplit(url).path}: {obs.text[:200]}"))

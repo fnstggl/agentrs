@@ -995,6 +995,19 @@ class SkillExecutor:
         self._buffer_size, self._rng = trace_buffer, random.Random(seed)
 
     # ---- wiring --------------------------------------------------------------------------------------------
+    def bind(self, env: Any) -> None:
+        """Hook called by ``ComputerEnvironment.register``: steps are then dispatched through the environment
+        (``ExecContext.dispatch``) and induction knows every tool the environment offers."""
+        self._env = env
+
+    def _refresh_tools(self) -> None:
+        env = getattr(self, "_env", None)
+        if env is not None:
+            try:
+                self.inducer.set_tools([t for t in env.discover_tools() if t.modality != Modality.SKILL])
+            except Exception:  # noqa: BLE001 — keep the tools known so far
+                pass
+
     def bind_dispatch(self, dispatch: Callable[[ActionSpec, ExecContext], ActionResult],
                       tools: Sequence[ToolDescriptor] = ()) -> None:
         """Let the environment route skill steps through its own executors (the normal execution path)."""
@@ -1209,6 +1222,11 @@ class SkillExecutor:
                               level=Level.PRIMITIVE, target=target, arguments=bound, auth_scope=tmpl.auth_scope,
                               timeout_s=tmpl.timeout_s, verify=tmpl.verify, parent_decision_id=action.parent_decision_id,
                               experiment_id=action.experiment_id, provenance="skill_library")
+            why = protected_reasons(step)        # the bound step: run-time arguments can name a protected resource too
+            if why:
+                state["termination"] = "protected"
+                return None, fail(FailureEvidence(exception=PermissionError("; ".join(why)),
+                                                  detail=f"{label}: " + "; ".join(why)), "protected")
             op = PrimitiveOp(op=step.operation, modality=step.modality, arguments=bound, started=clock.now(),
                              note=f"skill:{skill.skill_id}:v{skill.version}:{label}")
             refused = authorization_result(action, ctx.check(op, step), clock, started, ops=[op])
@@ -1385,6 +1403,10 @@ class SkillExecutor:
         return new, report
 
     def _induce_action(self, action: ActionSpec, ctx: ExecContext) -> ActionResult:
+        self._refresh_tools()
+        return self._induce_action_inner(action, ctx)
+
+    def _induce_action_inner(self, action: ActionSpec, ctx: ExecContext) -> ActionResult:
         a, clock, started = action.arguments, ctx.clock, ctx.clock.now()
         missing = [i for ids in a["traces"] for i in ids if i not in self._buffer]
         if missing:

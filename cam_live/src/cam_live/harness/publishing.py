@@ -68,7 +68,12 @@ _SCHEMAS: Dict[str, Dict[str, Any]] = {
                        "properties": {"draft_id": {"type": "string", "minLength": 1},
                                       "destination": {"type": "string", "minLength": 1,
                                                       "description": "the destination address shown by the preview "
-                                                                     "(where.address); if given it must be the draft's"}}},
+                                                                     "(where.address); if given it must be the draft's"},
+                                      "content": {"type": "string", "minLength": 1,
+                                                  "description": "the exact text to publish (preview: submit_arguments); "
+                                                                 "an operator approval then shows and binds this text"},
+                                      "content_sha256": {"type": "string", "minLength": 64, "maxLength": 64,
+                                                         "description": "SHA-256 of that text (preview: submit_arguments)"}}},
     "publish.update": {"type": "object", "additionalProperties": False, "required": ["draft_id", "content"],
                        "properties": {"draft_id": {"type": "string", "minLength": 1},
                                       "content": {"type": "string", "minLength": 1},
@@ -87,7 +92,10 @@ _TOOLS = {
                       "static site, or a channel of the authorized server). Nothing is published."),
     "publish.preview": ("local", "publish.draft", "Show exactly what a draft would publish and exactly where."),
     "publish.submit": ("external_write", "publish.write", "Publish a previewed draft to its owned destination. Where the "
-                       "authorization policy requires it, the draft waits for the operator's approval instead."),
+                       "authorization policy requires it, the draft waits for the operator's approval instead. Submit "
+                       "with the submit_arguments of the preview (draft id, destination, exact content and its SHA-256): "
+                       "the approval then shows the operator that text and covers only that text; a draft changed "
+                       "afterwards needs a new submission and a new approval."),
     "publish.update": ("local", "publish.draft", "Replace the content of a draft or of something already published "
                        "with a new revision, which must be previewed and submitted again."),
     "publish.status": ("none", "publish.read", "Report the state of drafts: draft, previewed, waiting for approval, "
@@ -275,9 +283,11 @@ class PublishingExecutor:
         text = (f"preview of draft {d['draft_id']} revision {d['revision']} -> {where['location']}"
                 f"{' (' + where['url'] + ')' if where.get('url') else ''}; {len(content.encode('utf-8'))} bytes, "
                 f"sha256 {d['content_sha256'][:16]}; exact content follows\n{shown}")
+        submit = {"draft_id": d["draft_id"], "destination": where["address"], "content": content,
+                  "content_sha256": d["content_sha256"]}
         return self._ok(action, ctx, started, text,
                         dict(self._public(d), where=where, content=shown, content_complete=len(shown) == len(content),
-                             bytes=len(content.encode("utf-8"))),
+                             bytes=len(content.encode("utf-8")), submit_arguments=submit),
                         [Quantity("publish.preview.bytes", float(len(content.encode("utf-8"))), unit="bytes",
                                   kind=OutcomeKind.COUNT)], sha=d["content_sha256"])
 
@@ -329,11 +339,16 @@ class PublishingExecutor:
             rep = classify(FailureEvidence(arg_errors=[f"arguments.destination: draft {d['draft_id']} goes to "
                                                        f"{where['address']!r}, not {stated!r}"]))
             return failed_result(action, rep, clock, started)
+        bound = self._content_binding(action, ctx, d)
+        if bound:
+            return failed_result(action, classify(FailureEvidence(arg_errors=[bound])), clock, started)
 
         def refused(res: ActionResult) -> ActionResult:
             now = clock.now()
             if res.status == ResultStatus.NEEDS_APPROVAL:
                 d.update(state=PENDING, approval_id=res.artifacts.get("approval_id", ""), updated_at=now)
+                if d["approval_id"]:            # this approval is for this exact content
+                    d.setdefault("approvals", {})[d["approval_id"]] = d["content_sha256"]
                 d["history"].append({"ts": now, "event": "waiting_for_approval", "revision": d["revision"],
                                      "approval_id": d["approval_id"]})
             else:
@@ -409,6 +424,29 @@ class PublishingExecutor:
                                               f"{published['location']}", dict(self._public(d), where=self._where(d)),
                         [Quantity("publish.published.bytes", float(len(d["content"].encode("utf-8"))), unit="bytes",
                                   kind=OutcomeKind.COUNT)], ops=ops, uri=uri, sha=d["content_sha256"])
+
+    @staticmethod
+    def _content_binding(action: ActionSpec, ctx: ExecContext, d: Dict[str, Any]) -> str:
+        """Why this submission may not publish the draft's current content ("" = it may). A submission that names
+        the content (``content`` / ``content_sha256``) publishes only that content; one executed under an operator
+        approval must name it, so that the approval the operator gave covers exactly the text that is published."""
+        a = action.arguments
+        changed = (f"draft {d['draft_id']} is now revision {d['revision']} and no longer has the content this "
+                   f"submission names; preview it and submit again (an approval given for the earlier text does not "
+                   f"cover the new one)")
+        if "content" in a and a["content"] != d["content"]:
+            return changed
+        if "content_sha256" in a and a["content_sha256"] != d["content_sha256"]:
+            return changed
+        auth = getattr(ctx, "authorization", None)
+        approval = str(getattr(auth, "approval_id", "") or "")
+        if approval:
+            if approval in (d.get("approvals") or {}) and d["approvals"][approval] != d["content_sha256"]:
+                return changed
+            if "content" not in a and "content_sha256" not in a:
+                return ("an approved publication must name the exact content it was approved for: submit with the "
+                        "submit_arguments of publish.preview, which the operator then sees and approves")
+        return ""
 
     # ---- aggregate analytics -------------------------------------------------------------------------------
     def _analytics(self, action: ActionSpec, ctx: ExecContext, started: float) -> ActionResult:

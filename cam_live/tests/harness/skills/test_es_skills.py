@@ -558,9 +558,20 @@ def test_measured_primitive_only_versus_skill_based_execution(tmp_path, notes):
         "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py"
                    "::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live",
     }
-    os.makedirs(EVIDENCE, exist_ok=True)
-    with open(os.path.join(EVIDENCE, "skills_vs_primitives.json"), "w") as f:
+    # the committed evidence is never overwritten by a test run: the measurement goes to a temporary file and its
+    # deterministic part is compared with the committed record (CAM_LIVE_WRITE_EVIDENCE=1 regenerates it)
+    target = os.path.join(EVIDENCE, "skills_vs_primitives.json")
+    with open(tmp_path / "skills_vs_primitives.json", "w") as f:
         json.dump(out, f, indent=1, sort_keys=True)
+    if os.environ.get("CAM_LIVE_WRITE_EVIDENCE") == "1":
+        with open(target, "w") as f:
+            json.dump(out, f, indent=1, sort_keys=True)
+    with open(target) as f:
+        committed = json.load(f)
+    for arm in ("primitive_only", "skill_based"):
+        for k in ("success", "decisions", "decisions_per_task", "primitive_ops", "primitive_ops_per_task"):
+            assert out[arm][k] == committed[arm][k], (arm, k, out[arm][k], committed[arm][k])
+    assert out["n_tasks"] == committed["n_tasks"]
     assert ok_p == ok_s == n_tasks
     assert decisions[0] == 3 * n_tasks and dec_s == n_tasks                 # 3 decisions per task -> 1
     assert ops_p == 3 * n_tasks and ops_s == 4 * n_tasks

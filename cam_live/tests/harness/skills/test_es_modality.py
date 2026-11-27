@@ -84,7 +84,7 @@ def simulate(sel, n, rng, rule="thompson"):
     return picks
 
 
-def test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts():
+def test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts(tmp_path):
     rng = random.Random(7)
     sel = ModalitySelector(seed=7, clock=SimClock())
     kinds = ["structured_browser", "api", "visual_light", "visual_heavy"]
@@ -128,9 +128,17 @@ def test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts():
            "environment": "simulation (seeded); no real executor involved",
            "command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py"
                       "::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live"}
-    os.makedirs(EVIDENCE, exist_ok=True)
-    with open(os.path.join(EVIDENCE, "modality_calibration.json"), "w") as f:
+    # written to a temporary file; the seeded simulation must reproduce the committed record exactly
+    # (CAM_LIVE_WRITE_EVIDENCE=1 regenerates the committed file instead)
+    target = os.path.join(EVIDENCE, "modality_calibration.json")
+    with open(tmp_path / "modality_calibration.json", "w") as f:
         json.dump(out, f, indent=1, sort_keys=True)
+    if os.environ.get("CAM_LIVE_WRITE_EVIDENCE") == "1":
+        with open(target, "w") as f:
+            json.dump(out, f, indent=1, sort_keys=True)
+    with open(target) as f:
+        committed = json.load(f)
+    assert json.loads(json.dumps(out, sort_keys=True)) == committed
 
 
 def test_selection_learns_online_with_exploration_from_the_prior_alone():

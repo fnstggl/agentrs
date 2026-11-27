@@ -226,7 +226,8 @@ def test_publishing_to_an_owned_channel_goes_through_the_discord_adapter(tmp_pat
         assert lonely.execute(pact("submit", {"draft_id": d2}), ctx).status == ResultStatus.DENIED
         # everything is reachable through one api-modality executor
         api = ApiModality([pub, discord])
-        assert len(api.tools()) == 16 and api.execute(pact("status", {}), ctx).status == ResultStatus.OK
+        assert len(api.tools()) == len(pub.tools()) + len(discord.tools()) and len(pub.tools()) == 6
+        assert api.execute(pact("status", {}), ctx).status == ResultStatus.OK
         api.close()
 
 

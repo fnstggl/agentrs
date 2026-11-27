@@ -170,6 +170,7 @@ class ModalityChoice:
     rule: str = ""
     blocked: bool = False
     reason: str = ""
+    intent_keys: List[str] = field(default_factory=list)   # every key a refusal of this intent is remembered under
 
     @property
     def chosen_kind(self) -> str:
@@ -219,6 +220,32 @@ def intent_key(intent: Union[str, ActionSpec]) -> str:
         return intent
     basis = intent.parent_decision_id or f"{intent.operation.rsplit('.', 1)[-1]}|{intent.target}|{intent.expected}"
     return hashlib.sha256(basis.encode()).hexdigest()[:20]
+
+
+def _where(a: ActionSpec) -> str:
+    """Where an action acts, independent of its modality: its target, else the URL it addresses."""
+    t = str(a.target or a.arguments.get("url") or a.arguments.get("destination") or "").strip()
+    if "://" in t:
+        u = urlsplit(t)
+        t = f"{u.scheme.lower()}://{u.netloc.lower()}{u.path or '/'}"
+    return t
+
+
+def block_keys(intent: Union[str, ActionSpec]) -> List[str]:
+    """Every key under which a refusal of ``intent`` is remembered, and under which a later intent is looked up:
+    the intent key; for an action also the same effect on the same place under any decision id
+    ("<where>|<expected>"), the same operation on the same place, and its action id. A refusal therefore also
+    blocks the identical operation proposed again under the next decision, and any other realisation of the same
+    effect on the same target."""
+    keys = [intent_key(intent)]
+    if isinstance(intent, ActionSpec):
+        where = _where(intent)
+        if where:
+            keys.append("w:" + hashlib.sha256(f"{where}|{intent.expected}".encode()).hexdigest()[:20])
+            keys.append("o:" + hashlib.sha256(f"{intent.operation}|{where}".encode()).hexdigest()[:20])
+        if intent.action_id:
+            keys.append("a:" + intent.action_id)
+    return list(dict.fromkeys(keys))
 
 
 class ModalitySelector:
@@ -285,8 +312,10 @@ class ModalitySelector:
                                 n=post["n"], n_context=post["n_context"], **vals)
 
     # ---- choosing ------------------------------------------------------------------------------------------
-    def blocked(self, intent: Union[str, ActionSpec]) -> Optional[Dict[str, Any]]:
-        return self._blocked.get(intent_key(intent))
+    def blocked(self, intent: Union[str, ActionSpec], options: Sequence[Realisation] = ()) -> Optional[Dict[str, Any]]:
+        """The refusal that blocks ``intent`` (or any of the given realisations of it), if there is one."""
+        keys = block_keys(intent) + [k for o in options for k in block_keys(o.action)]
+        return next((self._blocked[k] for k in keys if k in self._blocked), None)
 
     def choose(self, intent: Union[str, ActionSpec], options: Sequence[Realisation],
                ctx: Optional[ExecContextFeatures] = None, *, rule: str = "thompson") -> ModalityChoice:
@@ -296,7 +325,7 @@ class ModalitySelector:
         key = intent_key(intent)
         choice = ModalityChoice(choice_id=new_id("mch"), ts=self.clock.now(), intent_key=key, context_keys=ctx.keys(),
                                 rule=rule)
-        block = self._blocked.get(key)
+        block = self.blocked(intent, list(options))
         if block is not None:
             choice.blocked, choice.reason = True, (f"intent refused ({block['status']}, {block['failure_class']}) "
                                                    f"through {block['kind']}: no alternative modality is offered")
@@ -309,6 +338,7 @@ class ModalitySelector:
             return choice
         ests = [self.estimate(o.kind, ctx) for o in options]
         choice.options = [dict(est.to_dict(), action_id=o.action.action_id) for o, est in zip(options, ests)]
+        choice.intent_keys = block_keys(intent)
         if rule == "greedy" or len(options) == 1:
             best = min(range(len(options)), key=lambda i: ests[i].expected_cost)
             choice.probabilities = [1.0 if i == best else 0.0 for i in range(len(options))]
@@ -344,10 +374,13 @@ class ModalitySelector:
         refused = (result.status in (ResultStatus.DENIED, ResultStatus.NEEDS_APPROVAL)
                    or result.failure_class in FailureClass.HARD)
         if refused:
-            if intent is not None:
-                self._blocked[intent_key(intent)] = {"status": result.status, "failure_class": result.failure_class,
-                                                     "kind": kind, "ts": self.clock.now(),
-                                                     "detail": result.failure_detail[:200]}
+            rec = {"status": result.status, "failure_class": result.failure_class, "kind": kind,
+                   "ts": self.clock.now(), "detail": result.failure_detail[:200]}
+            keys = block_keys(intent) if intent is not None else []
+            if result.action_id:            # also without a stated intent: the refused action itself stays refused
+                keys.append("a:" + result.action_id)
+            for k in dict.fromkeys(keys):
+                self._blocked[k] = rec
             return "blocked"
         if result.status == ResultStatus.CANCELLED:
             return "ignored"
@@ -368,12 +401,21 @@ class ModalitySelector:
 
     def update_choice(self, choice: ModalityChoice, ctx: Optional[ExecContextFeatures], result: ActionResult,
                       recovery_s: float = 0.0) -> str:
-        return self.update(choice.chosen_kind, ctx, result, intent=choice.intent_key, recovery_s=recovery_s)
+        out = self.update(choice.chosen_kind, ctx, result, intent=choice.intent_key, recovery_s=recovery_s)
+        if out == "blocked":                # remembered under every key of the intent (same effect, same place)
+            rec = self._blocked.get(choice.intent_key)
+            for k in choice.intent_keys:
+                self._blocked.setdefault(k, rec)
+        return out
 
     def authorization_changed(self, intent: Union[str, ActionSpec]) -> None:
         """To be called by the runtime when the authorization service itself reports a new grant for the intent
         (an approval was resolved). The learner has no path to this method's effect other than a real grant."""
-        self._blocked.pop(intent_key(intent), None)
+        keys = block_keys(intent)
+        recs = [self._blocked[k] for k in keys if k in self._blocked]
+        for k in list(self._blocked):
+            if k in keys or any(self._blocked[k] == r for r in recs):
+                self._blocked.pop(k, None)
 
     # ---- exposing the estimates ----------------------------------------------------------------------------
     def quantities(self, ctx: Optional[ExecContextFeatures] = None, kinds: Optional[Sequence[str]] = None) -> List[Quantity]:
