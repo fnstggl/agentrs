@@ -240,20 +240,24 @@ class WeaknessProfiler:
         (df = items - 2 x categories): with a few items per category a 2-se margin gave a frozen learner a
         spurious gap in a development run (raw 0.36, se 0.13)."""
         from scipy.stats import t as student_t
-        diffs, var, n_seen, n_all = [], [], 0, 0
+        diffs, inv, n_seen, n_all, ss = [], [], 0, 0, 0.0
         for c, rows in self.fam.items():
             a = np.array([sc for sc, sn in rows if sn])
             b = np.array([sc for sc, sn in rows if not sn])
             if len(a) >= 2 and len(b) >= 3:
                 diffs.append(float(a.mean() - b.mean()))
-                var.append(float(a.var(ddof=1) / len(a) + b.var(ddof=1) / len(b)))
+                inv.append(1.0 / len(a) + 1.0 / len(b))
+                ss += float(((a - a.mean()) ** 2).sum() + ((b - b.mean()) ** 2).sum())
                 n_seen += len(a)
                 n_all += len(a) + len(b)
         if not diffs:
             return {"seen_unseen_gap": None, "categories_compared": 0, "seen_items": 0}
+        # one residual variance pooled over every (category, seen) group: per-group variances of 2-3 items are
+        # too unstable to set a margin with
+        df = max(1, n_all - 2 * len(diffs))
         g = float(np.mean(diffs))
-        se = float(math.sqrt(sum(var)) / len(diffs))
-        q = float(student_t.ppf(0.975, max(1, n_all - 2 * len(diffs))))
+        se = float(math.sqrt(ss / df * sum(inv)) / len(diffs))
+        q = float(student_t.ppf(0.975, df))
         return {"seen_unseen_gap": float(g - q * se), "raw_gap": g, "gap_se": se, "t_quantile": q,
                 "categories_compared": len(diffs), "seen_items": n_seen}
 
