@@ -5,10 +5,10 @@ Chains are mined from event provenance in the reference arm (crucible.civ.chains
 their root at the fork across seeds against two placebo arms (crucible.civ.gates.chain_results):
 
     agent_artifact  a scripted reference agent's web shop (repository, deployment) -> population visits ->
-                    purchases -> compute on its provider -> datacenter energy
+                    purchases -> compute its deployment serves on its provider -> datacenter energy
     social          the same agent's forum posts -> population visits -> purchases (-> compute, energy)
     technical       a scripted reference researcher's paper -> independent replication -> producers' R&D trial ->
-                    process settings and yields -> goods
+                    process settings, yields and energy per good unit -> goods
 
 The roots are scripted reference policies and are labelled as such in the evidence (Part 10.3); every later stage
 is the autonomous world's (population, organisational minds, labs, physics).

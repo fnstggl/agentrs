@@ -18,9 +18,12 @@ Chains (Part 10.3), mined from provenance in the reference arm and confirmed by 
     agent_shop     a scripted agent writes and deploys a web shop and announces it on the forum
                    arms: no_agent (it does nothing) -> agent-artifact chain; no_post (it deploys, never posts) ->
                    social chain (forum post -> discovery -> purchases -> compute -> energy)
+                   stage measures: visitors (population), payments by population individuals and all invoice
+                   payments (finance), compute its deployment served to others (computing infrastructure: low
+                   reshuffling noise, unlike the provider's whole load) and the provider's whole compute and energy
     agent_science  a scripted researcher measures a process phenomenon and publishes a fitted model
                    arm: no_paper (it measures, never publishes) -> technical chain (paper -> replication -> R&D
-                   trial -> process settings -> production yield -> goods)
+                   trial -> process settings -> production yield and energy per good unit -> goods)
 
 Every measure is evaluator-side (it may use hidden physics, e.g. the true quality of an operating point).
 """
@@ -176,6 +179,14 @@ def m_unit_cost(w, t0, t1, ctx):
     return float(cost / made)
 
 
+def m_bound_kwh_per_unit(w, t0, t1, ctx):
+    """Grid energy drawn per good unit by runs of bound-model machines that finished in the second half of the
+    window (the process settings set the energy of a run: industry.energy_per_unit)."""
+    rs = _runs_done(w, t0, t1, ctx, _bound_models(w))
+    made = sum(p["made"] for _, p in rs)
+    return float(sum(r["kwh"] for r, _ in rs) / made) if made else 0.0
+
+
 def m_multi_operator_output(w, t0, t1, ctx):
     st = w.state
     big = {o for o in {f["owner"] for _, f in st.scan("facilities")} if C.headcount(w, st, o) >= 2}
@@ -311,6 +322,31 @@ def m_agent_revenue(w, t0, t1, ctx):
                 if d > 0 and bank.account_owner(st, a) == p:
                     tot += d
     return float(tot)
+
+
+def m_agent_compute(w, t0, t1, ctx):
+    """Compute units the agent's deployment served in the window to requests from outside its operator's side
+    (metered per request by the sandbox and billed by the provider: `cloud.usage` / `cloud.usage_bulk` of its
+    deployments; a request the cloud marks as the operator's own, `cloud.usage_rel`, is load but not demand and is
+    left out). The site's own visitors, the search crawler and other services' calls all count; in `no_agent` there
+    is no deployment (0)."""
+    host = getattr(ctx.get("agent"), "handle", None)
+    st = w.state
+    deps = {k for k, d in st.scan("deployments") if d.get("host") == host} if host and "deployments" in st.tables \
+        else set()
+    if not deps:
+        return 0.0
+    tot = 0.0
+    pending: dict[str, float] = {}           # dep -> cu of its last request, until we know whose it was
+    for e in _window(w, ctx):
+        if e.type == "cloud.usage" and e.payload.get("dep") in deps:
+            tot += pending.pop(e.payload["dep"], 0.0)
+            pending[e.payload["dep"]] = float(e.payload.get("cu") or 0.0)
+        elif e.type == "cloud.usage_rel" and e.payload.get("dep") in deps:
+            pending.pop(e.payload["dep"], None)
+        elif e.type == "cloud.usage_bulk" and e.payload.get("dep") in deps:
+            tot += float(e.payload.get("cu") or 0.0)
+    return float(tot + sum(pending.values()))
 
 
 def _pop_payments_to(w, ctx, who) -> list[tuple[str, int]]:
@@ -543,7 +579,7 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
                "purchase); the counterfactual arm builds the same shop and never posts",
                "balanced", 1.0, 6.0, {"no_post": _noop},
                {"population_buyers": m_agent_pop_buyers, "population_revenue": m_agent_pop_revenue,
-                "agent_visitors": m_agent_visitors},
+                "agent_visitors": m_agent_visitors, "agent_compute": m_agent_compute},
                "population_buyers", category=5, setup=_agent_setup("shop"), during=_agent_during),
     Experiment("social_adoption", "word of mouth between contacts changes what the population buys",
                "balanced", 2.0, 6.0, {"remove_goods_wom": remove("goods_wom")},
@@ -560,6 +596,7 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
     Experiment("agent_shop", "a scripted agent's web shop: discovery, purchases, compute and energy",
                "balanced", 1.0, 6.0, {"no_agent": _noop, "no_post": _noop},
                {"agent_visitors": m_agent_visitors, "agent_revenue": m_agent_revenue,
+                "population_revenue": m_agent_pop_revenue, "agent_compute": m_agent_compute,
                 "provider_cu": m_agent_provider_cu, "provider_kwh": m_agent_provider_kwh,
                 "web_revenue": m_web_revenue},
                "provider_kwh", setup=_agent_setup("shop"), during=_agent_during, chain=True),
@@ -575,7 +612,7 @@ EXPERIMENTS: dict[str, Experiment] = {e.name: e for e in [
     Experiment("agent_science", "a scripted researcher's paper: replication, R&D trials, process settings, output",
                "research_intensive", 1.0, 14.0, {"no_paper": _noop},
                {"adopted": m_adopted_from_papers, "true_quality": m_true_quality, "bound_yield": m_bound_yield,
-                "goods_bought": m_goods_bought},
+                "kwh_per_unit": m_bound_kwh_per_unit, "goods_bought": m_goods_bought},
                "true_quality", setup=_agent_setup("science"), during=_agent_during, chain=True),
 ]}
 

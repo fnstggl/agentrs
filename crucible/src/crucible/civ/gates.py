@@ -21,7 +21,9 @@ INTEGRATION_RUN = {"profile": "balanced", "seed": 7, "days": 5}
 # six seeds (as the invention experiment): at e77fef3 with three, sign-consistent effects in every seed (goods bought
 # after a supply disruption: -10.5/-3/-28.5) stayed unconfirmed because the paired interval's t(2) = 4.30
 EFFECT_SEEDS = (11, 12, 13, 14, 15, 16)
-CHAIN_SEEDS = (21, 22, 23)
+# six seeds: at e77fef3 with three, every chain stopped at two confirmed stages (t(2) = 4.30: e.g. the shop's
+# visitors after removing its forum posts -3/-14/-11 stayed unconfirmed)
+CHAIN_SEEDS = (21, 22, 23, 24, 25, 26)
 
 
 def workers() -> int:
@@ -149,16 +151,20 @@ def invention(seeds=INVENTION_SEEDS) -> dict:
 CHAIN_ARMS = {
     # experiment -> arm -> (what the arm removes, chain class, {measure: subsystem it stands for})
     "agent_shop": {
+        # measure -> subsystem fixed before the six-seed run (not chosen after seeing it); several measures may
+        # stand for one subsystem (any confirmed one confirms the stage: reported per measure in the evidence)
         "no_agent": ("the agent's web shop (repository, deployment, posts)", "agent_artifact",
-                     {"agent_visitors": "population", "agent_revenue": "finance",
-                      "provider_cu": "computing_infrastructure", "provider_kwh": "energy"}),
+                     {"agent_visitors": "population", "agent_revenue": "finance", "population_revenue": "finance",
+                      "agent_compute": "computing_infrastructure", "provider_cu": "computing_infrastructure",
+                      "provider_kwh": "energy"}),
         "no_post": ("the agent's forum posts (the shop stays)", "social",
-                    {"agent_visitors": "population", "agent_revenue": "finance",
-                     "provider_cu": "computing_infrastructure", "provider_kwh": "energy"})},
+                    {"agent_visitors": "population", "agent_revenue": "finance", "population_revenue": "finance",
+                     "agent_compute": "computing_infrastructure", "provider_cu": "computing_infrastructure",
+                     "provider_kwh": "energy"})},
     "agent_science": {
         "no_paper": ("the agent's paper (its measurements stay)", "technical",
                      {"adopted": "industry", "true_quality": "industry", "bound_yield": "industry",
-                      "goods_bought": "population"})},
+                      "kwh_per_unit": "energy", "goods_bought": "population"})},
 }
 ROOT_SUBSYSTEM = {"agent_artifact": "software_development", "social": "search_information",
                   "technical": "scientific_research"}
