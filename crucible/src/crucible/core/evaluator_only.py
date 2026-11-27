@@ -86,6 +86,10 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "rig.report": ("score",),
     "use.probe": ("mean",),
     "sci.replication": ("related_to_author", "independent"),
+    # workstream L (wave 3b, minimal edit; R.2/R.3): the controller label a harness gives the seats one learner
+    # drives (`admin.join` controller, `experience.kernel` controllers=) is the relatedness analysis's ground truth
+    # (`commerce.integrity`); the public identity events must not tell other participants which seats are one party
+    "id.person": ("controller",), "id.org": ("controller",),
 }
 # module name -> keys removed (at any depth) from that module's participant summary (`Module.observe`)
 SUMMARY_FIELDS: dict[str, tuple[str, ...]] = {

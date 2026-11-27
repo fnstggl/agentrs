@@ -337,6 +337,13 @@ def test_kernel_env_admits_participants_with_their_controller_label():
     plain = make(0, "tiny", 2, agents=["s1", "s2"])
     a, b = plain.agents()
     assert b not in related_set(plain.world, a)
+    # the label is the relatedness analysis's ground truth: no other participant sees it in observation-only worlds
+    # (the public id.person event carries the admission info); the 4.0 contract still shows it
+    a, b, c = mixed.agents()
+    seen = json.dumps(mixed.observe(a)) + json.dumps(mixed.observe(c)) + json.dumps(mixed.observe_since(c, 0))
+    assert '"L1"' not in seen and '"controller"' not in seen
+    legacy = make(0, "tiny", 2, "legacy_shaped_reward", agents=["s1", "s2"], controllers="learner-A")
+    assert "learner-A" in json.dumps(legacy.observe(legacy.agents()[0]))
 
 
 def test_tool_value_learner_credits_delayed_consequences_within_its_horizon():
