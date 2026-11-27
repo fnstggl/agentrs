@@ -108,3 +108,35 @@ Agent factory: `cam_live.agent:build_agent`, called with those of `cfg, run_dir,
 Config section `runtime` also reads: `agent_factory`, `executors` (list of `module:factory` for in-process
 environments / inspect-harness), `browser`, `inproc_factory` (`module:factory(task, cfg, run_dir) -> (env, policy,
 verifier, clock)`).
+
+## Changes with the G-rt fixes (2026-11-27; `docs/F/FIXES.md`)
+
+* `runtime.tasks`: `learner_view(task) -> TaskSpec` (what `agent.set_objective` receives), `limit_problems(task) ->
+  {field: reason}`, `objective_flags(text)`, `objective_confirmation(text) -> "sha256:<hex>"`, `has_discord(task_or_raw)`,
+  `evidence_source(task_or_raw)`, `DEFAULT_DISCORD_EVIDENCE_SOURCE`, `schema_problems(raw)`, `load_task_text(text, path)`;
+  task files follow a closed schema (`SCHEMA`), anchors / aliases / duplicate keys are refused.
+* `runtime.control`: `OperatorKey(run_dir)` (`.ensure()`, `.sign(cmd)`), `trusted_public_key(run_dir)`,
+  `ControlChannel.authenticate(cmd) -> (signed, why)`, `ControlChannel.send(..., signer=None)`, `PRIVILEGED`;
+  `OperatorControl` signs every command, `OperatorControl.reset_stop()`, `resume(wake=True)`.
+* `runtime.private`: `PrivateBox(run_dir).seal(obj) / .open(text)` (AES-256-GCM, key `<run_dir>/learner/runtime.key`).
+* `runtime.logs`: `Redactor(..., keep_ids=())`, `.set_keep_ids(ids)`, `Redactor.from_config(..., keep_ids=())`;
+  `iter_since(path, seq)` (records with seq >= seq, read backwards).
+* `runtime.scheduler`: `PendingItem.origin` ("environment" | "learner"), `PendingOutcomes.add(..., origin=)`, `.has(id)`,
+  `.count_origin(origin)`.
+* `runtime.loop.LiveRuntime`: `state.json` version 2 = redacted fields + `sealed`; journal lines
+  `{"g", "t", "kind", "action_id", "x"}` with `t` in begin (`kind` decided / execute / wait) / end / outcome; new events
+  `beliefs_updated`, `prediction_fields_cleared`, `learner_queries_capped`, `approval_not_restorable`; `run_resumed`
+  carries `decisions_closed_unhandled`, `replayed_outcomes`, `redelivered_outcomes`; outcome records carry
+  `query_origin`; experiment records carry `learner_reported_actual` and `assessed_by`.
+* `runtime.verifier`: `SignedVerifier.check_measurement(obs)`, measurements signed; `norm_id`;
+  `runtime.verifier_service`: `check_measurement` over VerifyRPC (`RemoteVerifier.check_measurement`).
+* `runtime.preflight`: `preflight(..., run_dir="")`, `missing_integrations(task, tools)`, `discord_items(task, raw,
+  policy, env, run_dir)`, `DISCORD_CHECK_TOOLS`.
+* `runtime.dashboard`: `create_app(run_dir, token, policy=None, tasks_dir=None, operator="operator",
+  operator_token=None)`, `serve(..., operator_token=None)`, `load_or_create_operator_token(directory)`; routes
+  `/app.js`, `/app.css`, `/api/operator`, `POST /api/control/reset-stop`; headers `X-CAM-Operator`, `X-CSRF-Token`;
+  cookie `cam_live_csrf`.
+* `runtime.cli`: `load_hook(spec, what)`, `ComponentMissing`, `ComponentBroken`, `AGENT_HOOK`, `VALIDATION_HOOK`,
+  `TRANSFER_HOOK`, `COMPLETION_HOOK`; `cam-live dashboard --view-only`; `cam-live verify-completion <checker options>`;
+  `cam-live evaluate-transfer --checkpoint P <transfer options>`; `run.json` records `authorization` and
+  `verifier_source`.

@@ -1,7 +1,7 @@
 {
  "workstream": "F",
- "commit": "61fd43c",
- "summary": "Persistent live runtime: 17-step loop with approvals, waiting, limits, crash-safe resume; structured logs with redaction; journal; task loader and three task files; independent membership / metric verifiers with signing, hash-chained log and service; operator control; multi-actor plumbing; dashboard; doctor; preflight; cam-live CLI; learner process entry. Built and tested against the AgentAPI protocol with a small real test agent, LabWorld, and the real authorization service and computer environment (in-process and under separated uids). The integrated neural agent, staging validation module and transfer evaluation module are not present yet.",
+ "commit": "539a726",
+ "summary": "Persistent live runtime: 17-step loop with approvals, waiting, limits, crash-safe resume; structured logs with redaction; journal; task loader and three task files; independent membership / metric verifiers with signing, hash-chained log and service; operator control; multi-actor plumbing; dashboard; doctor; preflight; cam-live CLI; learner process entry. G-rt verification (docs/verification/G_rt.md) found 1 critical, 11 major and 13 minor defects; all 25 were fixed with regression tests (docs/F/FIXES.md): every rt probe reports HOLDS for the fixed properties; the checks still reported BROKEN encode the old design (p05 1a, p09 1b: 16 REQUIRED items; p08 6, 8; p11 14) or an inherent limit (p02 --no-dedup over-counts an interrupted action by its estimate). The integrated agent (cam_live.agent, by M) now exists and its runtime integration tests pass with this runtime; cam_live.eval.transfer is still absent.",
  "requirements": {
   "AE-06": {
    "state": "implemented",
@@ -16,15 +16,18 @@
    "tests": [
     "tests/runtime/test_rt_multi.py::test_two_actors_share_one_learner",
     "tests/runtime/test_rt_multi.py::test_actor_separation_is_enforced",
-    "tests/runtime/test_rt_multi.py::test_shared_learner_across_processes_interface"
+    "tests/runtime/test_rt_multi.py::test_shared_learner_across_processes_interface",
+    "tests/runtime/test_rt_fix_runtime.py::test_D17_an_after_cycle_hook_that_raises_does_not_stop_the_loop"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p14_multi.py  (0 of 11 broken)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Exercised with two LabWorld actors and a small ridge learner; the integrated agent must implement export_experience / weights_version / set_weights (multi.ActorAgent) to take part. The RPC learner endpoint was exercised with an in-process server thread, not separate hosts."
+   "limitations": "Exercised with two LabWorld actors and a small ridge learner; an unreachable central learner is recorded as an error of the cycle (and pauses the actor after max_consecutive_errors), it no longer raises out of step(). The RPC learner endpoint carries JSON payloads over a unix socket only; the integrated agent must implement export_experience / weights_version / set_weights to take part."
   },
   "CU-24": {
    "state": "implemented",
@@ -41,15 +44,21 @@
     "tests/runtime/test_rt_loop.py::test_waiting_consumes_no_decisions_and_no_environment_actions",
     "tests/runtime/test_rt_loop.py::test_evidence_polling_wakes_without_decisions",
     "tests/runtime/test_rt_loop.py::test_delayed_outcomes_reconcile_exactly_once",
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop",
+    "tests/runtime/test_rt_fix_runtime.py::test_D8_a_prediction_with_a_learner_defined_query_is_measured",
+    "tests/runtime/test_rt_fix_crash.py::test_D2_kill_during_a_wait_loses_no_decision",
+    "tests/runtime/test_rt_fix_crash.py::test_D15_kill_after_an_outcome_record_gives_no_second_outcome"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p01_loop_steps.py  (0 of 36 broken)",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p03_control.py  (0 of 15)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Evidence that arrives without a scheduled wake is only seen at the configured evidence poll interval (the environment contract has no push channel)."
+   "limitations": "Evidence that arrives without a scheduled wake is only seen at the configured evidence poll interval (the environment contract has no push channel). Learner-defined prediction queries are measured for actions that happened, at most 16 per decision and 2000 pending."
   },
   "LX-01": {
    "state": "implemented",
@@ -63,15 +72,18 @@
    "tests": [
     "tests/runtime/test_rt_tasks.py::test_discord_task_is_the_spec_objective_with_independent_criteria",
     "tests/runtime/test_rt_tasks.py::test_live_task_with_unset_items_cannot_be_loaded_for_a_run",
-    "tests/runtime/test_rt_tasks.py::test_discord_task_becomes_runnable_only_when_everything_is_filled"
+    "tests/runtime/test_rt_tasks.py::test_discord_task_becomes_runnable_only_when_everything_is_filled",
+    "tests/runtime/test_rt_fix_tasks.py::test_discord_tasks_default_to_the_verifier_side_membership_source",
+    "tests/runtime/test_rt_fix_tasks.py::test_discord_task_comments_state_what_the_code_does"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "17 items are marked REQUIRED for the operator (limits, guild id, credential name, owned site, authorized tools and destinations, publishing authorization, evidence source, test accounts, currency, feedback permission, authorization record id)."
+   "limitations": "16 items are marked REQUIRED for the operator (the evidence source now defaults to cam_live.harness.discord_membership:membership_source for a task with Discord resources and is named in the file). The success block, exclusions and measurement protocol go to the verifier; the learner receives runtime.tasks.learner_view."
   },
   "LX-02": {
    "state": "implemented",
@@ -90,15 +102,21 @@
     "tests/runtime/test_rt_tasks.py::test_forbidden_keys_are_rejected_anywhere",
     "tests/runtime/test_rt_tasks.py::test_strategy_like_text_is_rejected_anywhere",
     "tests/runtime/test_rt_control.py::test_assign_subsequent_objective",
-    "tests/runtime/test_rt_dashboard.py::test_page_is_self_contained_and_has_no_strategy_input"
+    "tests/runtime/test_rt_dashboard.py::test_page_is_self_contained_and_has_no_strategy_input",
+    "tests/runtime/test_rt_fix_tasks.py::test_unknown_keys_anywhere_are_rejected_with_their_path",
+    "tests/runtime/test_rt_fix_tasks.py::test_objective_with_strategy_is_refused_unless_the_operator_confirms_that_exact_text",
+    "tests/runtime/test_rt_fix_tasks.py::test_yaml_anchor_alias_and_merge_key_are_refused",
+    "tests/runtime/test_rt_fix_runtime.py::test_D6_the_learner_receives_only_the_learner_view"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p05_tasks.py  (1 of 33 broken: 1a hardcodes 17 REQUIRED items, there are 16)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "The scan covers task files and objective assignment. It is structural (rejected keys anywhere, enumerated or ordered instructions, directives to the agent, timing directives, suggested-solution phrasing) plus a five-word vocabulary; free prose that describes a strategy without any of these forms is not detected. It does not scan source code of other workstreams."
+   "limitations": "Closed schema (unknown keys anywhere rejected with their path), bounded free text, YAML anchors / aliases / duplicate keys refused, mechanical strategy scan of every free text and free-form key; objective text with strategy-like content needs objective_confirmation: sha256:<hash of the text>. The text scan is heuristic (regular expressions): prose that avoids every pattern in a free-text field (objective, success.definition, measurement.protocol) can still pass. The runtime process reads the full task file (the authorization service pins the task by its content hash); only the learner object is limited to learner_view."
   },
   "LX-03": {
    "state": "partial",
@@ -117,17 +135,23 @@
     "tests/runtime/test_rt_verifier.py::test_secondary_metrics_are_separate_quantities",
     "tests/runtime/test_rt_verifier.py::test_signature_key_file_and_hash_chained_log",
     "tests/runtime/test_rt_verifier.py::test_verifier_service_over_rpc_uses_the_operators_task",
-    "tests/runtime/test_rt_separated.py::test_separated_run_through_the_cli"
+    "tests/runtime/test_rt_separated.py::test_separated_run_through_the_cli",
+    "tests/runtime/test_rt_fix_verifier.py::test_an_account_linked_to_an_excluded_account_is_not_counted",
+    "tests/runtime/test_rt_fix_verifier.py::test_records_without_a_join_time_are_uncertain_not_confirmed",
+    "tests/runtime/test_rt_fix_verifier.py::test_a_restarted_verifier_refuses_a_log_edited_before_its_last_entry",
+    "tests/runtime/test_rt_fix_runtime.py::test_signed_verifier_measurements_check_locally_and_over_rpc"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime/test_rt_separated.py -q --rootdir=cam_live -m privileged --junitxml=cam_live/docs/evidence/test_results/F_privileged.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime/test_rt_separated.py -q --rootdir=cam_live -m privileged --junitxml=cam_live/docs/evidence/test_results/F_privileged.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p06_verifier.py  (0 of 38 broken)"
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/evidence/test_results/F_privileged.xml"
+    "docs/evidence/test_results/F_privileged.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "The verifier logic, signing, hash-chained log and the service under its own uid are implemented and tested with in-memory and JSONL membership sources. No live Discord MembershipSource exists in F: a '<module>:<factory>' returning one for the authorized guild (workstream ES) must be named in success.evidence_source. Duplicate or artificial accounts are excluded only where the source marks them (link_key, flags); the verifier does not infer them. Never run against a real guild."
+   "limitations": "Membership rules: per-id merging, case-insensitive flags, link keys tainted by excluded accounts, unknown join time / account age uncertain; achieved only when the lower confidence bound reaches the target. The Discord membership source (harness.discord_membership, master-owned) is the default for Discord tasks; F made no Discord API call. Deleting the last log entry together with the head file stays undetectable (unkeyed chain)."
   },
   "LX-07": {
    "state": "partial",
@@ -141,15 +165,17 @@
    ],
    "tests": [
     "tests/runtime/test_rt_loop.py::test_delayed_outcomes_reconcile_exactly_once",
-    "tests/runtime/test_rt_dashboard.py::test_read_endpoints_show_the_run"
+    "tests/runtime/test_rt_dashboard.py::test_read_endpoints_show_the_run",
+    "tests/runtime/test_rt_fix_runtime.py::test_D10_learner_claims_are_never_recorded_or_shown_as_outcomes"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "ExperimentRecords come from the learner through the optional drain_experiments() hook, which is not part of contracts.AgentAPI (change request F-1). Until the integrated agent provides it, only the runtime-side experiment_outcome records are written. Tested with the small test agent."
+   "limitations": "ExperimentRecords come from the learner (AgentAPI.drain_experiments); their 'actual' is kept as learner_reported_actual (unverified) and 'supported' is reported as the learner's assessment. Actual outcomes are the runtime's experiment_outcome records."
   },
   "LX-08": {
    "state": "implemented",
@@ -186,13 +212,17 @@
    ],
    "tests": [
     "tests/runtime/test_rt_logs_journal.py::test_journal_facts_carry_record_ids_and_learning_claims_need_evidence",
-    "tests/runtime/test_rt_logs_journal.py::test_journal_makes_no_learning_claim_without_a_behavioural_change"
+    "tests/runtime/test_rt_logs_journal.py::test_journal_makes_no_learning_claim_without_a_behavioural_change",
+    "tests/runtime/test_rt_fix_runtime.py::test_D11_environment_text_cannot_add_journal_statement_lines",
+    "tests/runtime/test_rt_fix_runtime.py::test_D23_journal_names_the_provenance_of_records_of_earlier_objectives"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p13_journal.py  (0 of 8 broken)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
    "limitations": "Derived mechanically; 'how the approach changed' is measured as the mix of chosen operations over time and as obstacle follow-ups, not as a semantic description of strategies. Regeneration re-reads the whole logs (throttled: every 200 cycles and at most every 600 clock seconds, plus at pause / finish / stop)."
   },
@@ -211,15 +241,21 @@
     "tests/runtime/test_rt_dashboard.py::test_read_endpoints_show_the_run",
     "tests/runtime/test_rt_dashboard.py::test_controls_pause_resume_approve_reject_export_stop",
     "tests/runtime/test_rt_dashboard.py::test_reject_and_assign_objective_through_the_dashboard",
-    "tests/runtime/test_rt_dashboard.py::test_page_is_self_contained_and_has_no_strategy_input"
+    "tests/runtime/test_rt_dashboard.py::test_page_is_self_contained_and_has_no_strategy_input",
+    "tests/runtime/test_rt_fix_dashboard.py::test_hostile_run_content_never_executes_in_the_operators_browser",
+    "tests/runtime/test_rt_fix_dashboard.py::test_operator_actions_need_operator_credential_csrf_and_same_origin",
+    "tests/runtime/test_rt_fix_dashboard.py::test_a_learner_uid_process_cannot_approve_even_with_every_credential",
+    "tests/runtime/test_rt_fix_dashboard.py::test_strict_csp_and_security_headers_on_every_response"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p08_dashboard.py  (2 of 18 broken by design: 6 flags the same-origin /app.js, 8 approves with the viewing token only; 12 and 13 hold in Chromium)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Tested through the FastAPI test client; the uvicorn server path (dashboard.serve) was only checked for its loopback refusal, and the page's JavaScript was not exercised in a browser. Calibration shown is computed from logged predictions (error and 1/2-sigma coverage); the learner's own calibration tables are not shown unless it reports them."
+   "limitations": "Text-only rendering, strict CSP without inline script, operator actions need a separate operator credential (header only), a CSRF token and same origin, and refuse a service-uid peer (owner of the loopback socket read from /proc/net/tcp). The operator credential lives in the page's memory while the page is open; anyone with the operator's uid can read both credential files."
   },
   "LX-12": {
    "state": "implemented",
@@ -237,15 +273,21 @@
     "tests/runtime/test_rt_doctor_cli.py::test_preflight_blocks_live_with_the_explicit_missing_list",
     "tests/runtime/test_rt_doctor_cli.py::test_preflight_never_reports_live_readiness_from_staging_or_diagnostic_components",
     "tests/runtime/test_rt_doctor_cli.py::test_cli_doctor_preflight_and_refusals",
-    "tests/runtime/test_rt_separated.py::test_separated_run_through_the_cli"
+    "tests/runtime/test_rt_separated.py::test_separated_run_through_the_cli",
+    "tests/runtime/test_rt_fix_runtime.py::test_D12_the_bot_is_checked_read_only_through_the_environment",
+    "tests/runtime/test_rt_fix_runtime.py::test_D12_a_staging_component_inside_a_live_labelled_environment_blocks",
+    "tests/runtime/test_rt_fix_runtime.py::test_D12_a_subclass_of_the_diagnostic_policy_is_never_an_authorization_service",
+    "tests/runtime/test_rt_fix_runtime.py::test_D12_discord_items_are_listed_explicitly_without_handles"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p09_preflight.py  (1 of 28 broken: 1b hardcodes 17 REQUIRED items)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "On this machine the report for tasks/discord_100.yaml is LIVE: BLOCKED with every missing item listed. The authorization-record and credential checks rely on PolicyService.limits_state() / secret_names() as they exist today; they were exercised against the running authorization service only for a staging task."
+   "limitations": "Live readiness cross-checks the environment's components, the authorization service's task mode and record, the verifier's live source, an available tool per interface, and for Discord tasks a read-only identity / permission check executed through the environment (two authorized external reads), the vault credential and the verifier's copy. The Discord check was tested with stand-in handles only; against the real executor it runs in the supervisor of cam-live run and contacts discord.com."
   },
   "LX-13": {
    "state": "implemented",
@@ -283,15 +325,22 @@
     "tests/runtime/test_rt_loop.py::test_limits_exhaustion_checkpoints_and_pauses",
     "tests/runtime/test_rt_loop.py::test_money_limit_is_enforced_before_execution",
     "tests/runtime/test_rt_tasks.py::test_structure_and_limits_in_every_mode",
-    "tests/runtime/test_rt_tasks.py::test_autonomous_run_stops_at_its_budget_without_verification"
+    "tests/runtime/test_rt_tasks.py::test_autonomous_run_stops_at_its_budget_without_verification",
+    "tests/runtime/test_rt_fix_runtime.py::test_D4_actions_approved_together_are_rechecked_against_the_limits",
+    "tests/runtime/test_rt_fix_runtime.py::test_D4_learning_never_gets_more_than_the_compute_left",
+    "tests/runtime/test_rt_fix_runtime.py::test_D5_an_invalid_limit_ends_the_run_at_once_and_is_reported",
+    "tests/runtime/test_rt_fix_runtime.py::test_D13_stop_condition_authorization_revoked_ends_the_run"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p04_limits.py  (0 of 11 broken)",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p15_malformed_result.py  (0 of 3)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Money and compute are accounted from ActionResult.cost and from the measured duration of learner calls; outside live mode a limit left at 0 is not enforced and is listed in the run_started record. The authorization service keeps its own, independent ledger."
+   "limitations": "Every execution (also of approved actions) is preceded by the limit checks; money uses the larger of the learner's and the tool's estimate, so an action whose actual cost exceeds both overshoots by that action. Learning calls get at most the remaining compute. Invalid limits fail closed. authorization_revoked recognises revocation from the authorization service's reason text (change request F-9)."
   },
   "LX-15": {
    "state": "implemented",
@@ -318,15 +367,24 @@
     "tests/runtime/test_rt_crash.py::test_kill_with_an_action_in_flight_then_resume",
     "tests/runtime/test_rt_crash.py::test_kill_between_results_and_commit_then_resume",
     "tests/runtime/test_rt_crash.py::test_external_kill_at_an_arbitrary_moment_then_resume",
-    "tests/runtime/test_rt_harness_inproc.py::test_runtime_on_the_real_environment_and_authorization_service"
+    "tests/runtime/test_rt_harness_inproc.py::test_runtime_on_the_real_environment_and_authorization_service",
+    "tests/runtime/test_rt_fix_crash.py::test_D2_kill_during_a_wait_loses_no_decision",
+    "tests/runtime/test_rt_fix_crash.py::test_D3_a_journalled_result_reaches_events_after_restart",
+    "tests/runtime/test_rt_fix_crash.py::test_D14_a_torn_journal_line_does_not_swallow_the_next_entry",
+    "tests/runtime/test_rt_fix_crash.py::test_D15_kill_between_decision_record_and_journal_closes_the_decision",
+    "tests/runtime/test_rt_fix_crash.py::test_D18_inflight_action_without_dedup_is_booked_at_its_estimate",
+    "tests/runtime/test_rt_fix_runtime.py::test_D17_a_malformed_result_after_execution_is_counted_logged_and_delivered"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py  (0 of 477 broken)",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p02_crash.py --no-dedup  (4 of 477: over-count by one estimate)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Driven by a small real test agent (tests/runtime/rt_lab_agent.py), not by the integrated neural agent, which does not exist yet. Kill tests use LabWorld served over the project RPC behind a de-duplicating host; in-flight recovery against the real exec service was not exercised. The write-ahead journal holds unredacted decisions and results until the next commit."
+   "limitations": "Kill tests use LabWorld served over the project RPC (F's test agent and G's stand-in); M's integration tests run the same kill -9 restart with the integrated agent. Without environment de-duplication an interrupted action's effect is unknown: it is booked at its estimate (can over-count by one action, never under-count). The journal and the exact resume state are sealed with a per-run key in <run_dir>/learner/."
   },
   "LX-16": {
    "state": "implemented",
@@ -346,11 +404,13 @@
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime/test_rt_separated.py -q --rootdir=cam_live -m privileged --junitxml=cam_live/docs/evidence/test_results/F_privileged.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime/test_rt_separated.py -q --rootdir=cam_live -m privileged --junitxml=cam_live/docs/evidence/test_results/F_privileged.xml",
+    ".venv/bin/python cam_live/docs/verification/repro/rt/p11_separated.py  (1 of 39 broken: 14 expects resume to restart an emergency-stopped run)"
    ],
    "evidence": [
     "docs/evidence/test_results/F.xml",
-    "docs/evidence/test_results/F_privileged.xml"
+    "docs/evidence/test_results/F_privileged.xml",
+    "docs/F/FIXES.md"
    ],
    "limitations": "Both modes ran as detached processes with the test agent: in-process (default suite) and separated uids through harness.auth.launcher (privileged test: learner uid camlearn, verifier camverify, executor cambrowser, authorization camauth, no browser). Not run with the integrated agent, the browser, or any live service. cam-live resume of a separated run (re-launch on an existing run directory) was not exercised."
   },
@@ -384,15 +444,17 @@
     "cam-live init"
    ],
    "tests": [
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop",
+    "tests/runtime/test_rt_fix_runtime.py::test_hooks_report_not_available_only_for_a_missing_module"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Creates the state root, resolved configuration, dashboard token and the initial checkpoint through the agent factory. Verified with --agent-factory rt_lab_agent:build_agent only; the default factory cam_live.agent:build_agent is not present yet (the command then exits 4 and says so)."
+   "limitations": "Creates the state root, resolved configuration, dashboard token and the initial checkpoint through the agent factory. The default factory cam_live.agent:build_agent (M) now exists and ran through `cam-live init` in a copy of p10 (2a held); a missing module would be reported as 'not available yet' (exit 4)."
   },
   "CM-03": {
    "state": "implemented",
@@ -428,9 +490,10 @@
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Delegates to cam_live.validation.run_staging(cfg), which does not exist yet: the command exits 4 with that message. Only the dispatch, the refusal of non-staging modes and the missing-component path are tested."
+   "limitations": "Delegates to cam_live.validation:run_staging (M; now present). Its staging run took longer than G's p10 timeout of 240 s here and was not completed by F. A missing module is reported as 'not available yet'."
   },
   "CM-05": {
    "state": "implemented",
@@ -441,13 +504,16 @@
     "cam-live inspect-harness"
    ],
    "tests": [
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_inspect_harness_lists_tools_permissions_and_missing_integrations"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_inspect_harness_lists_tools_permissions_and_missing_integrations",
+    "tests/runtime/test_rt_fix_runtime.py::test_D21_missing_integrations_name_discord_and_interfaces"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
+    "copy of .venv/bin/python cam_live/docs/verification/repro/rt/p10_cli.py without step 4a  (0 of 35 broken)"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
    "limitations": "Tested on LabWorld (--lab); run by hand on the in-process computer environment (4 internal tools). It lists the executors the configuration registers: the visual, code, api, skill and Discord executors appear only once their factories are listed in runtime.executors (change request F-7)."
   },
@@ -529,15 +595,18 @@
    ],
    "tests": [
     "tests/runtime/test_rt_doctor_cli.py::test_cli_persistent_run_status_pause_resume_export_stop",
-    "tests/runtime/test_rt_crash.py::test_kill_with_an_action_in_flight_then_resume"
+    "tests/runtime/test_rt_crash.py::test_kill_with_an_action_in_flight_then_resume",
+    "tests/runtime/test_rt_fix_runtime.py::test_D20_resume_of_a_separated_run_passes_the_records_and_writes_the_supervisor_pid",
+    "tests/runtime/test_rt_fix_runtime.py::test_D20_resume_of_a_stopped_run_is_refused"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Resumes a paused process, or restarts the process from state.json + checkpoint + write-ahead journal when none is alive (tested in-process mode after kill -9). Restart of a separated run was not exercised."
+   "limitations": "Resumes a paused process, or restarts the process from state.json + checkpoint + journal when none is alive (the pending resume command is signed). A stopped run is not restarted. Separated restart: the supervisor pid and the authorization record / verifier source are passed on (unit-tested with a stubbed spawn; G's p11 exercised only the refusal on an emergency-stopped run)."
   },
   "CM-10": {
    "state": "partial",
@@ -548,15 +617,17 @@
     "cam-live evaluate-transfer"
    ],
    "tests": [
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_doctor_preflight_and_refusals"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_doctor_preflight_and_refusals",
+    "tests/runtime/test_rt_fix_runtime.py::test_D19_evaluate_transfer_passes_unknown_options_through"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Delegates to cam_live.eval.transfer.main(argv), which does not exist yet: exits 4. Only dispatch and argument checks are tested."
+   "limitations": "Delegates to cam_live.eval.transfer:main with every further option; the module is absent: exit 4 'not available yet'."
   },
   "CM-11": {
    "state": "implemented",
@@ -588,16 +659,18 @@
     "cam-live verify-completion"
    ],
    "tests": [
-    "tests/runtime/test_rt_doctor_cli.py::test_cli_has_every_command_of_the_specification"
+    "tests/runtime/test_rt_doctor_cli.py::test_cli_has_every_command_of_the_specification",
+    "tests/runtime/test_rt_fix_runtime.py::test_D19_verify_completion_passes_every_option_to_the_checker"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
     "cd /workspace/camlive && .venv/bin/cam-live verify-completion --help"
    ],
    "evidence": [
-    "docs/evidence/test_results/F.xml"
+    "docs/evidence/test_results/F.xml",
+    "docs/F/FIXES.md"
    ],
-   "limitations": "Delegates to cam_live.verify_completion.main(argv) (master-owned). Checked by hand that the command dispatches (`cam-live verify-completion --help`); the checker itself was not run by F."
+   "limitations": "Every argument after the command name goes to cam_live.verify_completion.main (master-owned); `cam-live verify-completion --help` shows the checker's own help."
   }
  },
  "public_api": [
@@ -616,38 +689,38 @@
   "cam_live.runtime.cli.main(argv=None) -> int  # cam-live; cam_live.runtime.loop_service.main(argv) / run_service(run_dir, task, cfg, *, agent_factory, inproc, max_iterations=None, block=None)",
   "agent factory contract: cam_live.agent:build_agent called with those of (cfg, run_dir, clock, task) it accepts; optional agent hooks drain_experiments() / explain_obstacle(obstacle)"
  ],
- "change_requests": 7,
+ "change_requests": 11,
  "packages_installed": [],
  "measured": {
-  "default_suite_passed": 78,
-  "default_suite_skipped": 1,
-  "default_suite_seconds": 46.1,
-  "default_suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F.xml",
-  "privileged_suite_passed": 1,
-  "privileged_suite_seconds": 8.8,
-  "privileged_suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime/test_rt_separated.py -q --rootdir=cam_live -m privileged --junitxml=cam_live/docs/evidence/test_results/F_privileged.xml",
-  "runtime_ms_per_decision_fsync_on": 72.5,
-  "runtime_ms_per_decision_fsync_off": 24.6,
-  "log_bytes_per_decision_16_candidates": 41586,
-  "overhead_command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/F/measure_loop.py  (300 decisions on LabWorld, test agent; docs/evidence/F/loop_overhead.json)",
-  "kill9_resume_scenarios_passed": 3,
+  "default_suite_passed": 209,
+  "default_suite_skipped": 3,
+  "default_suite_seconds": 233.3,
+  "default_suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/F_fix.xml",
+  "privileged_suite_passed": 3,
+  "privileged_suite_seconds": 27.0,
+  "privileged_suite_command": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/runtime -q --rootdir=cam_live -m 'privileged or browser'",
+  "runtime_ms_per_decision_fsync_on": 186.92,
+  "runtime_ms_per_decision_fsync_off": 100.79,
+  "log_bytes_per_decision_16_candidates": 42689,
+  "overhead_command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/F/measure_fix.py  (docs/F/loop_overhead_fix.json; load average 49 on a shared machine)",
+  "kill9_resume_scenarios_passed": 10,
   "doctor_seconds": 3.6,
   "doctor_command": "cd /workspace/camlive && .venv/bin/cam-live doctor",
-  "discord_task_required_items_unset": 17,
+  "discord_task_required_items_unset": 16,
   "discord_preflight_command": "cd /workspace/camlive && .venv/bin/cam-live preflight --task cam_live/tasks/discord_100.yaml  (exit 3, LIVE: BLOCKED)",
-  "runtime_source_lines": 5387
+  "runtime_source_lines": 7733,
+  "rt_probes_after_fix": "p01 0/36, p02 0/477 (--no-dedup 4/477), p03 0/15, p04 0/11, p05 1/33, p06 0/38, p07 0/62, p08 2/18, p09 1/28, p10 copy without 4a 0/35, p11 1/39, p13 0/8, p14 0/11, p15 0/3 broken"
  },
  "not_done": [
-  "Nothing in F was run with the integrated neural agent (cam_live.agent does not exist yet): every loop, CLI and process test uses tests/runtime/rt_lab_agent.py.",
-  "No live Discord MembershipSource; the membership verifier has only been fed in-memory and JSONL evidence. No Discord API call was made.",
-  "cam-live validate and cam-live evaluate-transfer only delegate; their target modules (cam_live.validation, cam_live.eval.transfer) are absent, so both exit 4.",
-  "cam-live init with the default agent factory, and any GPU path of init, was not run.",
-  "Dashboard: not served under uvicorn in a test and its JavaScript was not run in a browser.",
-  "Separated mode: resume/restart of a separated run, approvals through the real authorization service, emergency stop through the launcher, and in-flight action recovery against the real exec service were not exercised. The browser executor was disabled in the separated test.",
-  "Registration and verification of a signed live authorization record through cam-live run was not exercised.",
-  "experiments.jsonl content and obstacle explanations depend on optional learner hooks that are not in contracts.AgentAPI (change request F-1).",
-  "The write-ahead journal (wal.jsonl, mode 0600) and state.json hold unredacted decisions/results of the uncommitted span; only the RunFiles logs are redacted.",
-  "The run-directory collision with the computer environment's events.jsonl (change request F-2) is worked around, not resolved."
+  "p08 checks 6 and 8, p05 1a, p09 1b and p11 14 still report BROKEN because they encode the design before the fixes (change request F-8); p10 aborts at 4a because cam_live.validation's staging run exceeds the probe's timeout.",
+  "Without environment de-duplication an interrupted action is booked at its estimate: the counters can exceed the world's by one action (p02 --no-dedup after_wal_begin:2, before_execute:2).",
+  "The task text scan is heuristic: prose avoiding every pattern in objective / success.definition / measurement.protocol can pass; the runtime process (learner uid in separated mode) still reads the full task file.",
+  "Single-uid in-process mode: the learner's own code could read the operator command key, the runtime sealing key and the dashboard credentials (same uid); the protections are for separated mode.",
+  "The Discord readiness check was exercised with stand-in handles only; no Discord API call was made by F.",
+  "Separated restart through cam-live resume was unit-tested with a stubbed spawn; a real supervisor restart of a paused separated run was not exercised (p11 exercises the refusal on a stopped run).",
+  "cam_live.eval.transfer is absent (evaluate-transfer exits 4); cam_live.validation's staging run was not completed by F.",
+  "authorization_revoked recognises revocation by the reason text of limits_state (change request F-9).",
+  "M's tests/integration: 21 of 22 passed with this runtime; test_save_fresh_process_load_gives_identical_decisions failed on a 9.4e-9 probability gap in the agent's save/load path (no runtime involved)."
  ],
  "scientific_failures": []
 }

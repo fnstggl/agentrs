@@ -1,0 +1,17 @@
+{
+ "load_average_1m": 48.9404296875,
+ "fsync_on": {
+  "decisions": 300,
+  "seconds": 56.075,
+  "ms_per_decision": 186.92,
+  "log_bytes_per_decision": 42689
+ },
+ "fsync_off": {
+  "decisions": 300,
+  "seconds": 30.237,
+  "ms_per_decision": 100.79,
+  "log_bytes_per_decision": 42689
+ },
+ "discord_task_required_items_unset": 16,
+ "runtime_source_lines": 7733
+}
