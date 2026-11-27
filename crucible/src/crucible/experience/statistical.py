@@ -41,6 +41,7 @@ from .reference import ArgumentMemory, string_candidates
 
 VERSION = "tool-value/1"
 WAIT = "<wait>"
+MONEY_KEYS = r"^bank\.balances\."
 RESET = "<reset>"
 
 
@@ -50,7 +51,7 @@ class ToolValueLearner(ArgumentMemory):
     version = VERSION
 
     def __init__(self, seed: int = 0, reward_mode: str | None = None, *, temperature: float = 10.0,
-                 signal: str = "auto", signal_keys: str = r"^bank\.balances\.", signal_scale: float = 0.01,
+                 signal: str = "auto", signal_keys: str = MONEY_KEYS, signal_scale: float = 0.01,
                  recency: float = 0.05, shrink: float = 1.0, credit_horizon: int = 1, credit_decay: float = 0.9):
         """`temperature` is in signal units (default: dollars, `signal_scale` 0.01 per cent): a tool that loses
         $10 a call more than the baseline is e times less likely than an untried one. `recency` is the smallest
@@ -95,8 +96,8 @@ class ToolValueLearner(ArgumentMemory):
     def _signal_value(self, obs: dict) -> float:
         pat = re.compile(self.signal_keys)
         hits = [float(x) for k, x in (obs.get("numbers") or {}).items() if pat.search(k)]
-        if hits:
-            return float(sum(hits))
+        if hits or self.signal_keys != MONEY_KEYS:
+            return float(sum(hits))              # a chosen signal that is absent (nothing posted yet) is 0
         res = obs.get("resources") or {}
         for k in ("balance_cents", "cash_cents"):
             v = res.get(k)
