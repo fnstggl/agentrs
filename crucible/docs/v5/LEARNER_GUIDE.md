@@ -222,7 +222,15 @@ A tier whose package has not landed raises `TierUnavailable`; nothing falls back
 * `ReferenceLearner` - `act`, `observe`, `update` (GAE bootstraps V(s_{t+1}) from the next observation),
   `learn_from_records` (recurrent state reset whenever the agent, world or episode changes), `save`/`load` (weights,
   optimiser, RNG, and the recurrent state with the buffered and in-flight transitions: a mid-episode resume continues
-  exactly; `weights_only` loading), `params_blob`/`load_params`.
+  exactly; `weights_only` loading), `params_blob`/`load_params`. String arguments draw from the ids and short name
+  tokens it was shown under the argument's name (`ArgumentMemory`: a `listing` argument from the `listing` ids of its
+  results, a `site` argument from the ids of the `sites` it was shown; an episodic memory saved with its state, not
+  part of `params_blob`); integer arguments are ints (an integer schema rejects `2.0`).
+* `ToolValueLearner` (`crucible.experience.statistical`) - the statistical reference learner: per tool, the
+  recency-weighted mean of the observed change of its own money after the tool against the median change per step
+  (what its money does on its own), a softmax over those values at max(temperature, median absolute deviation), the
+  same argument memory. Transparent and fast to learn; state-independent values and one-step credit are its limits.
+  Gate SP-11.6c measures its improvement over a frozen copy in the kernel tiers (D-68 addendum).
 * `VecExperience(envs)` steps environments in one process; `FarmRun(learner, worlds, n_workers=...)` runs them in
   worker processes through `crucible.scale.RolloutFarm`; its concurrency is measured from worker-side timestamps and
   bounded by the number of distinct worker processes.

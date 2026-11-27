@@ -368,6 +368,23 @@ configuration (`sci.phenomena[].law`, `rcomm.law`), which the learner is meant t
 probed verbatim and by its distinctive coefficients in everything the seat reaches, and is part of the evaluation
 path's hidden values (`isolation._hidden_of`). (4) Tier 2 test time budgets scale with the number of domains (pytest
 timeouts of the Tier-2-heavy tests raised); criteria unchanged.
+Addendum (2026-11-27, workstream L, third wave-3b agent; the reserved ids D-66..D-68 are used up, so this extends
+the entry on restricted Tier 2 worlds): SP-11.6c's "a reference learner improves over a frozen copy of itself in at
+least one world per tier" is measured in the kernel tiers with the statistical reference learner
+`experience.statistical.ToolValueLearner`, in Tier 2 in `crisis:storm_radial` (training seeds 1-4) and in Tier 3 in
+the `balanced` civilisation (training seeds 1-2, decisions 10 simulated minutes apart); Tier 1 keeps the neural
+`ReferenceLearner` in `mech:scm_additive`. The improvement rule (mean and at least 3 of 4 held-out seeds 11-14, both
+copies stochastic with one sampling seed, evaluator outcome, do-nothing reported) and the manifest criterion are
+unchanged. Evidence for the change, measured on this branch before it: the neural learner never moved its own money
+in a kernel world - every integer-argument tool call it made was rejected (it sent `2.0`; fixed) - and after the fix
+its near-uniform policy over 60-580 tools still spent the crisis coordinator's fund after 2400 decisions (trained
+below frozen on 3 of 4 seeds); in a 150-decision random scan of the fifteen first Part 9 configurations the seat's
+own money moved in crisis only (elsewhere at most two small fees). Rejected: tuning the neural learner's
+hyperparameters until it passes (a fitted pass would say nothing about learnability); restricting its tool list to
+a hand-picked host (the focus would be the experimenter's knowledge, not the learner's); counting the neural
+learner's parameter changes (the audit's point: changed parameters are not learning). What the statistical learner
+learns in crisis is reported as it is: to claim the coordinator's emergency fund and not spend it on parts, fuel,
+mutual aid or investments (the cash outcome improves; nothing about the recovery mechanism is claimed).
 
 ## D-54 Education on the one population; learning measured on new problems (2026-11-26, workstream I-2 dom2)
 The education module `learn` keeps no learners of its own (v1 created 40 NPC learner persons and crashed on every
