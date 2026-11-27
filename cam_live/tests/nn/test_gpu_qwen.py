@@ -140,6 +140,6 @@ def test_adapters_get_gradient_through_both_paths_and_the_bridge_conditions(qwen
     (-lp2.sum()).backward()
     assert float(lat.grad.abs().sum()) > 0
     assert all(float(A.grad.abs().sum()) > 0 for A, _ in lora)
-    assert float(lp2) > float(lp)
+    assert float(lp2.detach()) > float(lp.detach())
     _frozen_untouched(qwen)
     assert not bb.lm.training

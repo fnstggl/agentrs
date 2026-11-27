@@ -277,3 +277,33 @@ def test_shared_encode_decisions_runs_on_the_model(model, items):
     slow.z.sum().backward()
     assert model.grad_norms()[GROUP_ADAPTERS] > 0
     assert not encode_decisions(model, store, [rec], grad=False).b.requires_grad
+
+
+def test_experiential_weights_change_decisions_with_the_backbone_fixed(model, items):
+    """Spec 1.4: changing CAM's experiential weights changes its decision latents while the pretrained weights and
+    the semantic embeddings stay exactly as they were."""
+    texts = ["the page loaded", "click the button"]
+    emb0 = model.embed_texts(texts).clone()
+    lp0 = model.generation_logprob(["a prompt"], ["a completion"]).detach().clone()
+    before = _pipeline(model, items)
+    state0 = model.trainable_state()
+    norms0, hashes0 = model.group_norms(), model.group_hashes()
+    g = torch.Generator().manual_seed(1)
+    params = model.param_groups()[GROUP_EXPERIENTIAL]
+    opt = torch.optim.SGD(params, lr=0.05)
+    for p in params:
+        p.grad = torch.randn(p.shape, generator=g)
+    opt.step()
+    model.zero_grad()
+    after = _pipeline(model, items)
+    assert float((after[9] - before[9]).norm() / before[9].norm()) > 0.05          # z moved
+    assert float((after[10] - before[10]).norm() / before[10].norm()) > 0.05        # phi moved
+    assert torch.equal(model.embed_texts(texts), emb0)                              # the semantic side did not
+    assert torch.equal(model.generation_logprob(["a prompt"], ["a completion"]).detach(), lp0)
+    hashes1 = model.group_hashes()
+    assert hashes1[GROUP_BACKBONE_FROZEN] == hashes0[GROUP_BACKBONE_FROZEN]
+    assert hashes1[GROUP_ADAPTERS] == hashes0[GROUP_ADAPTERS] and hashes1[GROUP_EXPERIENTIAL] != hashes0[GROUP_EXPERIENTIAL]
+    delta = model.group_delta_norms(state0)
+    assert delta[GROUP_EXPERIENTIAL] > 0 and delta[GROUP_ADAPTERS] == 0.0 and set(delta) == set(GROUPS) - {GROUP_BACKBONE_FROZEN}
+    assert model.group_norms()[GROUP_EXPERIENTIAL] != norms0[GROUP_EXPERIENTIAL]
+    assert model.group_norms()[GROUP_ADAPTERS] == norms0[GROUP_ADAPTERS]

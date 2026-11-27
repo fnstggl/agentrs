@@ -337,6 +337,24 @@ class CamLiveModel(LatentModelAPI):
                 "heads": {n: {"group": self._head_group[n], "params": sum(p.numel() for p in m.parameters())}
                           for n, m in self.heads.items()}}
 
+    def group_norms(self) -> Dict[str, float]:
+        """L2 norm of every trainable group's parameters (for tracking parameter-norm changes, spec 2.3)."""
+        out = {}
+        for g, ps in self.param_groups().items():
+            if g != GROUP_BACKBONE_FROZEN:
+                sq = [p.detach().to(torch.float32).pow(2).sum() for p in ps]
+                out[g] = float(torch.stack(sq).sum().sqrt()) if sq else 0.0
+        return out
+
+    def group_delta_norms(self, previous: Dict[str, Tensor]) -> Dict[str, float]:
+        """L2 norm of the change of each trainable group relative to an earlier :meth:`trainable_state`
+        (parameters absent from ``previous``, e.g. a head registered since, are skipped)."""
+        sq: Dict[str, float] = {g: 0.0 for g in GROUPS if g != GROUP_BACKBONE_FROZEN}
+        for n, p, g in self._named_groups():
+            if g != GROUP_BACKBONE_FROZEN and n in previous and previous[n].shape == p.shape:
+                sq[g] += float((p.detach().to("cpu", torch.float32) - previous[n].to(torch.float32)).pow(2).sum())
+        return {g: v ** 0.5 for g, v in sq.items()}
+
     # ---- optimisation helpers ----------------------------------------------------------------------------------------------------
     def grad_norms(self) -> Dict[str, float]:
         """L2 norm of the current gradients per parameter group."""

@@ -77,7 +77,7 @@ def test_lora_and_bridge_get_gradient_from_generation_logprob(model):
         assert p.grad is not None and float(p.grad.abs().sum()) > 0, "every bridge tensor trains after the first step"
     assert float(latent.grad.abs().sum()) > 0                              # differentiable w.r.t. CAM's latent
     _assert_frozen_untouched(model)
-    assert float(lp2.sum()) > float(lp.sum())                              # the step raised the likelihood
+    assert float(lp2.detach().sum()) > float(lp.detach().sum())                            # the step raised the likelihood
 
 
 def test_bridge_is_an_exact_noop_at_init_and_conditions_after_one_step(model):

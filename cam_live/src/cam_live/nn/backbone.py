@@ -445,6 +445,11 @@ class _Backbone(nn.Module):
             self.bridge.h_scale[slot] = typical
         self.stats["embedded_tokens"] = 0
 
+    def _standardise(self, raw: Tensor) -> Tensor:
+        """Per-dimension standardisation with the calibration statistics, winsorised at +-20 so one extreme
+        dimension of an unusual text cannot dominate the tokenizer's per-tap normalisation."""
+        return ((raw - self.cal_mu) / self.cal_sd).clamp(-20.0, 20.0)
+
     def embed(self, texts: Sequence[str], *, with_grad: bool = False) -> Tensor:
         """[n, d_sem] float32 standardised multi-depth embeddings. ``with_grad=False``: detached and cached by text
         hash (stored as float16); ``with_grad=True``: recomputed with a graph into the adapters, cache bypassed."""
@@ -455,7 +460,7 @@ class _Backbone(nn.Module):
         if with_grad:
             uniq = list(dict.fromkeys(texts))
             with torch.enable_grad():
-                emb = (self._pooled([self._text_ids(t, self.cfg.max_text_tokens) for t in uniq]) - self.cal_mu) / self.cal_sd
+                emb = self._standardise(self._pooled([self._text_ids(t, self.cfg.max_text_tokens) for t in uniq]))
             pos = {t: i for i, t in enumerate(uniq)}
             out = emb.index_select(0, torch.tensor([pos[t] for t in texts], device=self.device))
             self.stats["embedded_texts"] += len(uniq)
@@ -475,8 +480,8 @@ class _Backbone(nn.Module):
         if todo:
             self.stats["cache_misses"] += len(todo)
             with torch.no_grad():
-                emb = (self._pooled([self._text_ids(t, self.cfg.max_text_tokens) for t in todo.values()])
-                       - self.cal_mu) / self.cal_sd
+                emb = self._standardise(self._pooled([self._text_ids(t, self.cfg.max_text_tokens)
+                                                      for t in todo.values()]))
             emb = emb.to(torch.float16).cpu()
             for k, e in zip(todo, emb):
                 fresh[k] = e
