@@ -107,8 +107,7 @@ environment under the authorization service and reads `data.environment`.
 `{metric, target}`, `measurement` empty, no credential names or test accounts (D6). `CamLiveAgent` must not need the
 rest. (b) The runtime counts a verifier measurement as verified only when `verifier.check_measurement(obs)` is true;
 `runtime.verifier.SignedVerifier` now signs measurements and the verifier service / `RemoteVerifier` expose
-`check_measurement` (M-int-3 done). This relies on `contracts.OutcomeObservation.signature` (currently an uncommitted
-change in the working tree) being committed. (c) After a restart `reconcile` may receive outcomes that were
+`check_measurement` (M-int-3 done). This relies on `contracts.OutcomeObservation.signature` (committed with contract 1.1 in `7e64f84`). (c) After a restart `reconcile` may receive outcomes that were
 journalled before the crash (re-delivery; F-6 applies).
-**Proposed diff.** None for (a)/(c) if the agent already tolerates it; commit the `signature` field for (b).
+**Proposed diff.** None if the agent already tolerates (a) and (c); (b) is satisfied by contract 1.1.
 **Workaround.** `getattr` for `check_measurement`: a verifier without it yields unverified measurements.
