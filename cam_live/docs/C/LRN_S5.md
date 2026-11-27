@@ -174,6 +174,28 @@ So on the real configuration psi -> R_psi -> (differentiated) inner update -> ve
 -> psi -> a changed (differentiated) next update holds; the *live* update was not changed, because in a run this
 short the learned reward was never promoted and a rollback reverted psi.
 
+**Run 2, pathway-check configuration** (`real_pathway_check_20261127T223812Z.json`; the same real model; the mix
+fixed at 0.5 so the live update depends on R_psi as it would after two promotions, and `agent.promotion = false` so
+no rollback interferes (LRN-6); 4 lifetimes, 48 decisions, lock held 657 s, peak 10.4 GB):
+
+| applied meta-update | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| meta-gradient norm (14 psi tensors non-zero; importance-weighted, ESS 2.0-2.4) | 0.0095 | 0.23 | 0.80 | 0.073 |
+| psi delta (L2) | 0.095 | 0.073 | 0.062 | 0.053 |
+| R_psi on the support decisions, mean abs change (its std there) | 0.026 (0.024) | 0.015 (0.029) | 0.014 (0.032) | 0.012 (0.037) |
+| that event's live update (mix 0.5) recomputed with psi after vs before, mean TV | 0.0053 | 0.0078 | 0.041 | 0.0067 |
+| **the next live policy update** (it used exactly the psi after the step), changed by the step, mean TV / max prob | **0.0090 / 0.0036** | **0.0042 / 0.0031** | (run ended) | (run ended) |
+
+Every live update of this run depended on R_psi's shape (mean TV 0.0016-0.055 when R_psi's output layer is
+perturbed). The full chain — reward parameters -> internal reward -> inner update -> changed policy -> later
+verified outcomes -> outer meta-gradient -> reward-parameter delta -> the next live inner update changed by it —
+holds on the real configuration once R_psi has weight in the live update. In the default configuration that weight
+comes only from promotion, which needs more held-out evidence than a 5-lifetime run provides (one "hold"), and a
+refused checkpoint promotion currently reverts psi (LRN-6). The effects are small (TV <= 0.04); whether the learned
+reward makes later behaviour *better* is not established (debug-scale E vs D vs E_mix0 overlap, section 3).
+Debug-scale replica of run 2: `pathway_debug_mix05_20261127.json` (4 applied, next live update changed by TV
+0.0085 / 0.0052 / 0.0033).
+
 ## 5. Tests (regression tests fail on the code before the fix)
 
 * `tests/predict/test_selection_value.py` — rule registered; an untrained policy follows the world model's predictions
