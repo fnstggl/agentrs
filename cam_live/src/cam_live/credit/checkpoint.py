@@ -736,9 +736,43 @@ class PromotionDecision:
     ignored: List[str] = field(default_factory=list)
 
 
+#: provenance of a metric that can justify a promotion (independent of the agent's own reward)
+INDEPENDENT_PROVENANCE = ("heldout_validation", "retention", "verified_outcome", "independent_evaluator",
+                          "randomized_experiment", "declared_validation", "declared_retention")
+#: provenance of the agent's own reward signals: never evidence for a promotion
+INTERNAL_PROVENANCE = ("internal_reward", "intrinsic_reward", "reward_model", "meta_reward", "agent_reward",
+                       "self_assessment")
+
+
 def _internal(name: str) -> bool:
+    """Name heuristic, used only for metrics whose provenance was not declared (fail-closed safety net)."""
     n = name.lower()
     return "intrinsic" in n or "internal_reward" in n or n in ("reward", "r_psi")
+
+
+def metric_value(v: Any) -> float:
+    """A metric is a number, a ``(value, provenance)`` pair or ``{"value": v, "provenance": p}``."""
+    if isinstance(v, dict):
+        return float(v["value"])
+    if isinstance(v, (tuple, list)):
+        return float(v[0])
+    return float(v)
+
+
+def metric_provenance(name: str, v: Any, declared: Optional[Dict[str, str]], default: str) -> str:
+    if isinstance(v, dict) and v.get("provenance"):
+        return str(v["provenance"])
+    if isinstance(v, (tuple, list)) and len(v) > 1 and v[1]:
+        return str(v[1])
+    if declared and name in declared:
+        return str(declared[name])
+    return "internal_reward" if _internal(name) else default
+
+
+def provider_metric_provenance(provider: Any) -> str:
+    """Provenance of a provider's held-out loss: ``provider.metric_provenance`` if it declares one (a provider whose
+    target is the agent's own reward declares "internal_reward"), else held-out validation on measured outcomes."""
+    return str(getattr(provider, "metric_provenance", "") or "heldout_validation")
 
 
 class CheckpointManager:
@@ -800,17 +834,32 @@ class CheckpointManager:
                 return ev.get("validation", {}), ev.get("retention", {})
         return {}, {}
 
-    def promote(self, checkpoint_id: str, *, validation: Dict[str, float], retention: Dict[str, float],
-                notes: str = "") -> PromotionDecision:
+    def promote(self, checkpoint_id: str, *, validation: Dict[str, Any], retention: Dict[str, Any],
+                notes: str = "", provenance: Optional[Dict[str, str]] = None) -> PromotionDecision:
         """Decide whether ``checkpoint_id`` becomes the promoted checkpoint.
 
         ``validation``: independent validation metrics of this checkpoint; ``retention``: its performance on
-        previously acquired capabilities. Both are required and must be finite. Metrics that are the agent's own
-        internal reward are ignored: they can never justify a promotion. The decision and its numbers are logged."""
+        previously acquired capabilities. Both are required and must be finite. A metric is a number or carries its
+        provenance (``(value, provenance)``, ``{"value", "provenance"}``, or ``provenance[name]``); only metrics whose
+        provenance is in :data:`INDEPENDENT_PROVENANCE` count. The agent's own reward (:data:`INTERNAL_PROVENANCE`)
+        and unknown provenances are ignored, whatever the metric is called. A plain number is the caller's
+        declaration ("declared_validation" / "declared_retention"), except that an undeclared metric named like the
+        internal reward is ignored as well. The decision, the numbers and each metric's provenance are logged."""
         g = self.gates
-        ignored = sorted(k for k in list(validation) + list(retention) if _internal(k))
-        val = {k: float(v) for k, v in validation.items() if not _internal(k)}
-        ret = {k: float(v) for k, v in retention.items() if not _internal(k)}
+        prov_used: Dict[str, str] = {}
+        ignored: List[str] = []
+        val: Dict[str, float] = {}
+        ret: Dict[str, float] = {}
+        for src, dst, default in ((validation, val, "declared_validation"), (retention, ret, "declared_retention")):
+            for k, v in src.items():
+                pv = metric_provenance(k, v, provenance, default)
+                if pv not in INDEPENDENT_PROVENANCE:
+                    ignored.append(k)
+                    prov_used[k] = pv
+                    continue
+                dst[k] = metric_value(v)
+                prov_used[k] = pv
+        ignored = sorted(ignored)
         base = self.promoted()
         dec = PromotionDecision(False, checkpoint_id, base.checkpoint_id if base else "", validation=val, retention=ret,
                                 ignored=ignored)
@@ -856,7 +905,7 @@ class CheckpointManager:
         _append_log(self.root, {"event": "promote", "ts": self.clock.now(), "checkpoint_id": checkpoint_id,
                                 "promoted": dec.promoted, "baseline_id": dec.baseline_id, "validation": val,
                                 "retention": ret, "deltas": dec.deltas, "reasons": dec.reasons, "ignored": ignored,
-                                "notes": notes})
+                                "provenance": prov_used, "notes": notes})
         if dec.promoted:
             atomic_write_bytes(os.path.join(self.root, "PROMOTED"), checkpoint_id.encode())
             self.prune()
@@ -988,15 +1037,25 @@ def promote_learner(manager: "CheckpointManager", learner: Any, *, retention: Di
     forgetting report). When promotion is refused and ``rollback`` is set, the learner is returned to the last
     promoted checkpoint (weights, optimizers, schedules, fast state); experience is never rolled back.
     Returns (decision, the checkpoint that was judged, rollback report or None)."""
+    provenance: Dict[str, str] = {}
     if validation is None:
-        validation = {f"heldout/neg_{k}": -float(v) for k, v in learner.validate().items()}
+        validation = {}
+        names = {p.name: p for p in getattr(learner, "providers", [])}
+        for k, v in learner.validate().items():
+            validation[f"heldout/neg_{k}"] = -float(v)
+            provenance[f"heldout/neg_{k}"] = provider_metric_provenance(names.get(k))
     info = save_learner(manager, learner, notes=notes, **capture_kw)
-    dec = manager.promote(info.checkpoint_id, validation=validation, retention=retention, notes=notes)
+    dec = manager.promote(info.checkpoint_id, validation=validation, retention=retention, notes=notes,
+                          provenance=provenance)
     rb = None
+    if dec.promoted and hasattr(learner, "set_slow_reference"):
+        learner.set_slow_reference(info.checkpoint_id)       # the slow-update drift bound starts again here
     if not dec.promoted and rollback and manager.promoted() is not None:
         _info, state = manager.rollback("; ".join(dec.reasons)[:500])
         rb = restore_learner(learner, state)
         rb["rolled_back_to"] = dec.baseline_id
+        if hasattr(learner, "set_slow_reference"):
+            learner.set_slow_reference(dec.baseline_id)
     return dec, info, rb
 
 

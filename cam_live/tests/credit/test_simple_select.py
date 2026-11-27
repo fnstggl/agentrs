@@ -10,7 +10,8 @@ from cam_live.credit.cocoa import HindsightModel, arm_contrast
 from cam_live.credit.links import OutcomeLinker
 from cam_live.credit.replay import SqliteExperienceStore
 from cam_live.credit.rudder import ReturnDecomposer
-from cam_live.credit.select import EstimatorSelector, ExperimentEvidence
+from cam_live.credit.select import (ARM_DIFFERENCE, UNIT_MEAN, EstimatorSelector, ExperimentEvidence,
+                                    paired_comparison)
 from cam_live.credit.simple import (SimpleAttribution, arm_difference, experiment_effects, student_t_cdf,
                                     student_t_ppf)
 
@@ -71,12 +72,23 @@ def test_experiment_effects_need_real_randomisation(tmp_path, make_record):
     sel = EstimatorSelector(min_experiments=1)
     (ev,) = sel.add_from_store(st, "x1", ["simple"])
     assert ev.estimates["simple"] == pytest.approx(d.diff) and ev.randomized
+    # without a statement of what the estimators were trained on, the evidence is not held out and is not scored
+    assert ev.held_out is None and sel.select().excluded_not_held_out == [ev.key]
+    (ev2,) = sel.add_from_store(st, "x1", ["simple"], exclude_objectives=[])
+    assert ev2.held_out is True and ev2.paired_diff["simple"] == pytest.approx(0.0, abs=1e-12)
+    # simple credit == the measured outcome of the same units: the paired difference has zero standard error and
+    # cannot be scored (never passes silently)
+    assert ev2.paired_se["simple"] == pytest.approx(0.0, abs=1e-12)
+    sc = sel.select().scores["simple"]
+    assert sc["n_refused"] == 1 and not sc["passes"]
 
 
 # ------------------------------------------------------------------------------------------------ selector logic
-def _evidence(i, diff, se, estimates, randomized=True, est_se=None):
+def _evidence(i, diff, se, estimates, randomized=True, est_se=None, held_out=True):
+    """Synthetic comparison on held-out units; estimates whose uncertainty is not given get standard error 0.05."""
+    est_se = {k: 0.05 for k in estimates} if est_se is None else est_se
     return ExperimentEvidence(f"x{i}", "B", "A", diff, se, diff - 1.96 * se, diff + 1.96 * se, 50, 50, randomized,
-                              dict(estimates), dict(est_se or {}))
+                              dict(estimates), dict(est_se), held_out=held_out)
 
 
 def test_selector_starts_simple_and_promotes_only_on_evidence(tmp_path):
@@ -90,7 +102,7 @@ def test_selector_starts_simple_and_promotes_only_on_evidence(tmp_path):
         measured = e + 0.1 * float(torch.randn(1, generator=g))
         good = e + 0.05 * float(torch.randn(1, generator=g))
         sel.add_evidence(_evidence(i, measured, 0.1, {"simple": measured * 0.2, "good": good, "latest": 0.0,
-                                                      "overclaim": 3.0 * e}, est_se={"good": 0.05}))
+                                                      "overclaim": 3.0 * e}))
         rec = sel.select()
         if i < 4:                                  # fewer than five randomised experiments: nothing is promoted
             assert rec.default_after == "simple" and any("only" in r for r in rec.reasons)
@@ -161,8 +173,11 @@ def _outcome_features(G):
 
 
 def test_rudder_and_cocoa_are_exercised_and_compared_with_randomised_differences(tmp_path):
+    """Estimators are trained on one set of lifetimes and validated on independent held-out lifetimes of the same
+    mechanisms (G-cl M1: validating on the training lifetimes made agreement largely true by construction)."""
     torch.manual_seed(0)
-    ctx, act, G, x, probs = _world()
+    ctx, act, G, x, probs = _world(seed=0)              # training lifetimes
+    vctx, vact, vG, vx, vprobs = _world(seed=1)         # held-out lifetimes: the randomised experiments
     n = x.shape[0]
     mask, matured = torch.ones(n, T, dtype=torch.bool), torch.ones(n, dtype=torch.bool)
     gen = torch.Generator().manual_seed(1)
@@ -175,8 +190,8 @@ def test_rudder_and_cocoa_are_exercised_and_compared_with_randomised_differences
         i = torch.randint(0, n, (128,), generator=gen)
         loss, _ = dec.loss(x[i], mask[i], G[i], matured[i])
         opt.zero_grad(), loss.backward(), opt.step(), sched.step()
-    red = dec.redistribute(x, mask, G, matured)
-    assert float(red.conservation_error(G).max()) < 1e-9
+    red = dec.redistribute(vx, mask, vG, matured)
+    assert float(red.conservation_error(vG).max()) < 1e-9
     # COCOA: hindsight model over the two logged candidates of every decision
     b = x[:, :, :-1].reshape(n * T, -1)
     u = _outcome_features(G).repeat_interleave(T, 0)
@@ -190,51 +205,69 @@ def test_rudder_and_cocoa_are_exercised_and_compared_with_randomised_differences
         loss, _ = hm.loss(b[i], u[i], cand[i], cmask[i], taken[i], logp[i], generator=gen)
         opt.zero_grad(), loss.backward(), opt.step(), sched.step()
     rows = torch.arange(n) * T + EXP_STEP
-    cc = hm.contribution(b[rows], u[rows], cand[rows], cmask[rows], logp[rows])
+    vb, vu = vx[:, :, :-1].reshape(n * T, -1), _outcome_features(vG).repeat_interleave(T, 0)
+    vlogp = vprobs.reshape(n * T, 2).log()
+    cc = hm.contribution(vb[rows], vu[rows], cand[rows], cmask[rows], vlogp[rows])
     assert cc.status == ["supported"] * n
 
     def evidence(simple_credit):
-        """Measured arm differences per context and each estimator's estimate of them."""
+        """Measured arm differences per context on the held-out lifetimes and each estimator's estimate of them,
+        with the paired standard error of estimate - measurement on the same units."""
         out = []
         for c in range(N_CTX):
-            sel_c = ctx == c
-            arm_b, arm_a = sel_c & (act[:, EXP_STEP] == 1), sel_c & (act[:, EXP_STEP] == 0)
-            measured = arm_difference(G[arm_b].tolist(), G[arm_a].tolist(), randomized=True, treatment_name="B",
+            sel_c = vctx == c
+            arm_b, arm_a = sel_c & (vact[:, EXP_STEP] == 1), sel_c & (vact[:, EXP_STEP] == 0)
+            measured = arm_difference(vG[arm_b].tolist(), vG[arm_a].tolist(), randomized=True, treatment_name="B",
                                       control_name="A", experiment_id=f"x{c}")
-            est, se = {}, {}
+            arm_of = ["B" if int(a) == 1 else "A" for a in vact[:, EXP_STEP]]
+            est, se, pd, ps = {}, {}, {}, {}
             for name, credit in (("simple", simple_credit), ("rudder", red.diff[:, EXP_STEP]),
                                  ("latest", torch.zeros(n, dtype=torch.float64))):   # 'the last action did it'
                 d = arm_difference(credit[arm_b].tolist(), credit[arm_a].tolist())
                 est[name], se[name] = d.diff, d.se
-            est["cocoa"], se["cocoa"], n_sup = arm_contrast(cc.w[sel_c], G[sel_c], treatment=1, control=0)
+                units = [(arm_of[j], float(credit[j]), float(vG[j])) for j in torch.nonzero(sel_c).flatten().tolist()]
+                pd[name], ps[name], _ = paired_comparison(units, "B", "A", kind=ARM_DIFFERENCE)
+            est["cocoa"], se["cocoa"], n_sup = arm_contrast(cc.w[sel_c], vG[sel_c], treatment=1, control=0)
             assert n_sup == N_PER
-            out.append(ExperimentEvidence.from_difference(measured, est, se))
+            per = ((cc.w[:, 1] - cc.w[:, 0]).double() * vG)
+            units = [(arm_of[j], float(per[j]), float(vG[j])) for j in torch.nonzero(sel_c).flatten().tolist()]
+            pd["cocoa"], ps["cocoa"], _ = paired_comparison(units, "B", "A", kind=UNIT_MEAN)
+            assert pd["cocoa"] == pytest.approx(est["cocoa"] - measured.diff)
+            out.append(ExperimentEvidence.from_difference(measured, est, se, held_out=True, paired_diff=pd,
+                                                          paired_se=ps))
         return out
 
     # (i) every outcome is linked to the experiment decision by evidence: the simple attribution is already right
     log = str(tmp_path / "selection.jsonl")
     clear = EstimatorSelector(log_path=log, clock=SimClock(1.0))
-    for ev in evidence(simple_credit=G):
+    for ev in evidence(simple_credit=vG):
         clear.add_evidence(ev)
     r1 = clear.select()
     assert r1.default_after == "simple"
-    assert r1.scores["rudder"]["passes"] and r1.scores["cocoa"]["passes"], json.dumps(r1.scores)
+    # simple credit *is* the measured outcome here: zero paired standard error, never scored, stays the default
+    assert r1.scores["simple"]["n_refused"] == N_CTX and not r1.scores["simple"]["passes"]
+    assert r1.scores["rudder"]["passes"], json.dumps(r1.scores)
+    assert r1.scores["cocoa"]["n_paired"] == N_CTX              # exercised and compared on every held-out experiment
     assert not r1.scores["latest"]["passes"]
     # (ii) the outcome can only be attributed to the trajectory as a whole (one shared attribution window): the
     # equal split under-states every effect, and a learned estimator validated against the experiments is promoted
     ambiguous = EstimatorSelector(log_path=log, clock=SimClock(2.0))
-    evs = evidence(simple_credit=G / T)
+    evs = evidence(simple_credit=vG / T)
     for ev in evs:
         ambiguous.add_evidence(ev)
     r2 = ambiguous.select()
     assert not r2.scores["simple"]["passes"] and not r2.scores["latest"]["passes"]
-    assert r2.scores["rudder"]["passes"] and r2.scores["cocoa"]["passes"], r2.scores
-    assert r2.default_after in ("rudder", "cocoa") and r2.changed
+    assert r2.scores["rudder"]["passes"], r2.scores
+    assert r2.default_after == "rudder" and r2.changed
+    # measured on held-out lifetimes with the paired standard error, the learned COCOA coefficients of this budget
+    # are rejected (their bias is several standard errors); on the training lifetimes they used to pass
+    assert not r2.scores["cocoa"]["passes"] and r2.scores["cocoa"]["mean_sq_z"] > 3.0
     truth = torch.tensor(EFFECT, dtype=torch.float64)
     err = {k: float((torch.tensor([e.estimates[k] for e in evs]) - truth).abs().max()) for k in ("rudder", "cocoa")}
     assert err["rudder"] < 0.2 and err["cocoa"] < 0.35, err
     assert len(open(log).readlines()) == 2
-    print("SELECTION", json.dumps({"default_clear": r1.default_after, "default_ambiguous": r2.default_after,
+    print("SELECTION", json.dumps({"validation": "held-out lifetimes (seed 1), paired standard error",
+                                   "default_clear": r1.default_after, "default_ambiguous": r2.default_after,
                                    "max_abs_err_vs_true_effect": err,
                                    "scores": {k: {m: (round(v, 4) if isinstance(v, float) else v) for m, v in s.items()
                                                   if m in ("n", "rmse", "mean_sq_z", "sign_agreement", "passes")}

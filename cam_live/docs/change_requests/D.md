@@ -176,3 +176,38 @@ remove the trap.
 
 `credit.labkit.WorldPredictionProvider` wraps `predict.world.WorldHeads` / `world_nll` (stage 1 API) for D's own
 evidence. It is not registered by anything outside `credit.labkit`; the agent should register B's providers.
+
+## D-13 (fix stage) `docs/verification/repro/cl/probe_real.py`: reads a backbone attribute that no longer exists
+
+**What / why.** Line 126 (`--part write`) reads `m.backbone._fingerprint()` and `m.backbone._fp`; workstream A's
+commit e00d28f ("content-checked adapter caches") replaced them by `_adapter_snapshot` / `_adapter_content()`, so the
+probe now stops with `AttributeError` after the update checks, before the export and the reload part. D ran a copy
+with only this diagnostic line changed (`scratchpad/D/probe_real_adapted.py`; result in `docs/D/FIXES.md`).
+**Proposed diff.**
+```diff
+-                                            "fingerprint_matches": m.backbone._fingerprint() == m.backbone._fp,
++                                            "fingerprint_matches": (m.backbone._adapter_snapshot is not None and torch.equal(
++                                                m.backbone._adapter_snapshot, m.backbone._adapter_content())),
+```
+
+## D-14 (fix stage, for the agent / M-int) behaviour changes of `cam_live.credit` that callers must respect
+
+Not a change of another workstream's files: a list of what the G-cl fixes changed in D's behaviour (API unchanged,
+details in `docs/D/API.md`).
+* `SqliteExperienceStore.update` raises `ImmutableHistoryError` when a stored record's decision, probabilities,
+  context refs, goal, family, provenance, executed result, final outcomes or query definitions would change. A
+  `needs_approval` result may be replaced by the executed one (the agent's approval path is fine). Post-hoc
+  annotations belong in *new* `decision.diagnostics` keys (e.g. `reward_signals`, `trace`); keys that describe how
+  the decision was made (`arm`, `arms`, `open_ended`, `tracked_proposals`, `proposal_probs`, `context_item_refs`,
+  `lifetime`) must be set before `append`.
+* Every read verifies index columns against the record body (`StoreIntegrityError`).
+* `LearnerSettings.holdout_experiments=True`: lifetimes with a decision of a registered randomised experiment are
+  never trained on (they validate the credit estimators). The agent's experiments are therefore validation data.
+* `EstimatorSelector` scores only held-out evidence (`CreditAssigner.compare_with_experiment` produces it);
+  `add_from_store(...)` needs `exclude_objectives=` to count.
+* COCOA refuses decisions whose candidates came from the backbone (or another open-ended generator) unless the
+  decision records `diagnostics["tracked_proposals"] = True` or `diagnostics["proposal_probs"]` (one per candidate).
+* `CheckpointManager.promote(..., provenance=)`; `promote_learner` declares provenance itself. A provider whose loss
+  is computed from the agent's own reward should set `metric_provenance = "internal_reward"`.
+* The slow-update guard is stricter (absolute, noise-measured tolerance, drift bound): expect reverted slow steps
+  (`counters["slow_reverted"]`) where the old +5 % rule kept them.

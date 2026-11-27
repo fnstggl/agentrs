@@ -22,7 +22,7 @@ transaction.
 | call | meaning |
 |---|---|
 | `append(rec)` | new record; assigns `rec.seq` (lifetime head + 1) when it is 0; duplicate id raises `KeyError` |
-| `update(rec)` | replace; only the changed part (static / result / dynamic) is rewritten |
+| `update(rec)` | store the new state; only the changed part (static / result / dynamic) is rewritten. **History is append-only** (fix G-cl M2): changing the decision (candidates, probabilities, time, chosen index, the `decision.diagnostics` keys in `PROTECTED_DIAGNOSTICS` = arm, arms, open_ended, tracked_proposals, proposal_probs, context_item_refs, lifetime), `context_item_refs`, goal, family, provenance, seq or lifetime, an executed result (a missing or `needs_approval` result may be replaced once), a stored final outcome (an unverified one may be replaced by the verified measurement of the same query) or a query definition raises `ImmutableHistoryError(exp_id, problems)` and writes nothing. Allowed: new outcomes / queries / `result.expected_outcomes`, appended `post_item_refs`, `duration_s` from 0, new (unprotected) `decision.diagnostics` keys, and derived data: credit, eligibility, intrinsic reward / reward inputs / reward version, window. `history_changes(old_dict, new_dict) -> [problems]` states the rule; `store.stats["refused_updates"]` counts refusals |
 | `add_outcome(obs, exp_id="") -> AddOutcomeResult(accepted, exp_id, duplicate, upgraded, final, reason, dedup_key)` | attach a measurement to the record that registered `obs.query_id`; same (dedup key, query) twice = dropped; a verified copy replaces an unverified one; `PENDING` is not an outcome; an outcome dated before its query is refused |
 | `pending(now)`, `pending_all()`, `next_due()`, `pending_pointer()`, `query(query_id)` | unresolved queries (a query stays in `rec.pending_queries`; "pending" = no final outcome yet) |
 | `sample(n, *, loss, strata=None, seed=None, provenance=None)` / `sample_ids(...)` | up to `n` **distinct** records eligible for `loss` (`loss="*"`: no filter). One provenance stratum unless several are named: `provenance` argument > constructor default > provenance of the newest record. `strata` weights over `("recent","informative","success","failure","delayed","family")`, default `DEFAULT_STRATA`. Deterministic for a given `seed`; with `seed=None` a counter-based stream that `state_dict()` checkpoints. `store.last_sample_info` says which stratum each draw came from. |
@@ -35,6 +35,8 @@ transaction.
 | `put_blob(bytes) -> "blob:<sha256>"`, `get_blob(ref)` | large artifacts by reference |
 | `mark_for_retraining(exp_ids, reason, outcome_key="", now=0)`, `retrain_queue(limit=None)`, `retrain_count()`, `pop_retrain(exp_ids)` | retrospective update queue |
 | `state_dict()`, `load_state_dict(st)` | replay sampler indices for checkpoints (experience itself is never rolled back) |
+| `verify_index() -> [problems]` | every record whose index columns (exp_id, seq, provenance, objective_id, decision_id, action_id, ts, family, experiment_id, window_id) disagree with its stored body. **Every read** (`get`, `get_many`, `iter_records`, `trajectory`, `window`, `experiment_records`, `by_*`, `sample`) checks the same and raises `StoreIntegrityError` instead of returning a misdescribed record |
+| `experiment_objectives(randomized_only=True) -> {objective_id: [experiment_id]}` | lifetimes containing a decision of a registered (randomised) experiment |
 
 Defaults that differ from a naive store, deliberately: items are immutable (`put_item` of different content under a
 stored ref keeps the first version, warns once and counts in `store.stats`); `items()` skips unknown refs with a
@@ -55,7 +57,12 @@ Evidence, strongest first: declared query; `event.data["by_action" | "by_decisio
 "decision_id"`; `event.parent_action_id`; artifacts (`data["artifact_id(s)"]`, `event.refs`) against
 `result.artifacts`; `data["experiment_id"]` + `data["arm"]`; attribution windows declared by queries on the event's
 metric. Equal support = equal fractional weights with uncertainty `sqrt(w(1-w))`; no evidence = no link; a decision
-made after the outcome is refused and its share stays unattributed. `reconcile` stores outcomes (de-duplicated),
+made after the outcome is refused and its share stays unattributed. Fix G-cl M3: `attribution_amounts(map) ->
+(valid, malformed)`; a `by_action` / `by_decision` map is used as shares only when every amount is a finite number
+>= 0, otherwise (negative, NaN / inf, non-numeric, e.g. a net change with departures) the named decisions share the
+outcome equally with uncertainty and the link `detail["malformed_amounts"]` says why; `_make` refuses negative or
+non-finite weights (`ValueError`) and renormalises weights that sum above 1, so the credit given for one outcome
+never exceeds it; an event with a non-finite value produces no link. `reconcile` stores outcomes (de-duplicated),
 persists links (`store.links(outcome_key=..., exp_id=...)`) and queues the linked records (`"outcome_matured"` /
 `"event_linked"`) and optionally their predecessors (`"return_changed"`).
 
@@ -124,10 +131,22 @@ experiment_effects(store, experiment_id, *, control=None, confidence=0.95, metri
 student_t_cdf(t, df); student_t_ppf(p, df); discount(dt, beta)
 
 EstimatorSelector(*, baseline="simple", min_experiments=5, max_mean_sq_z=3.0, min_sign_agreement=0.8,
-                  min_improvement=0.1, log_path=None, clock=None)
-  .add_evidence(ExperimentEvidence)   .add_from_store(store, experiment_id, estimators, control=None, extra=None)
+                  min_improvement=0.1, log_path=None, clock=None, require_held_out=True)
+  .add_evidence(ExperimentEvidence)   .add_from_store(store, experiment_id, estimators, control=None, extra=None,
+                                                      exclude_objectives=None)
   .select() -> SelectionRecord        .default  .scores()  .history  .state_dict()  .load_state_dict()
+ExperimentEvidence(..., estimates, estimate_se, held_out=None, n_excluded_trained=0, paired_diff={}, paired_se={},
+                   paired_n={}, holdout={})
+paired_comparison(units=[(arm, estimate_i, measured_i)], treatment, control, *, kind="arm_difference"|"unit_mean")
+    -> (estimate - measured, se, n) | None
 ```
+Fix G-cl M1 (behaviour change): only evidence with `held_out is True` is scored (`require_held_out`); evidence of an
+unknown split (`held_out=None`, e.g. `add_from_store` without `exclude_objectives`) or in-sample evidence is kept and
+listed in `SelectionRecord.excluded_not_held_out`. The z-score of an estimator uses the paired standard error
+(`paired_se`: estimate and measurement on the same units); without one it needs a positive `estimate_se`. A
+comparison whose standard error is zero or undefined is not scored (`EstimatorScore.n_refused`) and an estimator with
+any refused comparison does not pass. `min_experiments` counts scored comparisons. RMSE is over all comparisons.
+`SelectionRecord.holdout` records, per scored evidence, the units used and excluded.
 `combine="declared_first"`: once a decision's declared queries are answered they are its credit; event links before
 that give a *provisional* value and are never added on top. Only `randomized=True` evidence is scored; the
 selection and its evidence are appended to `log_path` (JSON lines).
@@ -168,7 +187,18 @@ CheckpointManager(root, *, keep_last=3, keep_promoted=5, gates=PromotionGates(..
   .promote(checkpoint_id, *, validation: dict, retention: dict, notes="") -> PromotionDecision
   .promoted()  .rollback(reason="") -> (CheckpointInfo, CheckpointState)  .prune()  .promotion_log()
 PromotionGates(primary="", min_validation_gain=0.0, max_validation_drop=0.0, max_retention_drop=0.02, min_validation={})
+  .promote(checkpoint_id, *, validation, retention, notes="", provenance: {name: str} = None)
+INDEPENDENT_PROVENANCE, INTERNAL_PROVENANCE, metric_value(v), metric_provenance(name, v, declared, default),
+provider_metric_provenance(provider)
 ```
+Fix G-cl m6: a metric is a number, `(value, provenance)`, `{"value", "provenance"}` or named in `provenance`; only
+provenances in `INDEPENDENT_PROVENANCE` (heldout_validation, retention, verified_outcome, independent_evaluator,
+randomized_experiment, declared_validation, declared_retention) count, whatever the metric is called; internal-reward
+and unknown provenances are ignored (`PromotionDecision.ignored`, logged with `"provenance"`). A plain number is the
+caller's declaration (validation -> declared_validation, retention -> declared_retention); only an *undeclared*
+number named like the internal reward is still ignored by name. `promote_learner` declares the provenance of the
+learner's held-out losses per provider (`provider.metric_provenance`, default "heldout_validation") and calls
+`learner.set_slow_reference()` after a promotion and after a rollback to the promoted checkpoint.
 A model with `param_groups()` / `trainable_state()` / `arch_signature()` (`nn.api.LatentModelAPI`) is grouped
 automatically; the frozen backbone is never written. Loading matches tensors and optimizer state **by parameter
 name**: added heads are reported in `missing` / `fresh`, removed ones in `unexpected` / `dropped`. Metrics are
@@ -186,9 +216,10 @@ of parameters that had none when the checkpoint was written (report key `unstepp
 ```python
 LearnerSettings(batch_size=16, slow_batch_size=4, grad_last=8, adapter_every=8, max_share=0.9,
                 min_independent_outcomes=4, min_surprise=0.0, steps_per_trigger=1, max_steps=8, fresh_fraction=0.25,
-                val_fraction=0.15, val_split="objective", val_batch=32, probe_size=8, probe_tol=1e-7, strata=None,
-                provenance=None, warmup_steps=0, decay_steps=0, min_lr_factor=0.1, with_next=False, slow_guard=True,
-                slow_guard_tol=0.05, betas=(0.9, 0.999), seed=0)
+                val_fraction=0.15, val_split="objective", holdout_experiments=True, val_batch=32, probe_size=8,
+                probe_tol=1e-7, strata=None, provenance=None, warmup_steps=8, decay_steps=0, min_lr_factor=0.1,
+                with_next=False, slow_guard=True, slow_guard_tol=0.05, slow_guard_abs_tol=0.01, slow_guard_z=2.0,
+                slow_guard_chunks=8, slow_guard_max_drift=0.02, betas=(0.9, 0.999), seed=0)
 LearnerSettings.from_cfg(cfg, **over)        # cfg.optim.batch_size / adapter_every + cfg.section("credit")["learner"]
 
 ContinualLearner(model: LatentModelAPI, store: SqliteExperienceStore, cfg: CamLiveConfig, *, clock=None, settings=None,
@@ -202,6 +233,7 @@ ContinualLearner(model: LatentModelAPI, store: SqliteExperienceStore, cfg: CamLi
   .refresh_eligibility(exp_ids=None, *, full=False)      .is_validation(record) -> bool
   .set_probe(exp_ids=None)   .probe() -> {key: Tensor}   .group_hashes()   .status()   .state_dict() / .load_state_dict()
   .optimizers {group: AdamW}   .fast_state   .counters   .model_version ("m<frequent>.<slow>")   .history   .share_log
+  .trained_objectives (set)    .experiment_objectives()    .set_slow_reference(label="")    .slow_guard_state
 take(batch, rows) -> DecisionBatch;  records_only_batch(model, records) -> DecisionBatch
 encode_with_adapter_grad(model, store, records, *, grad_last=None, with_next=False) -> DecisionBatch
 ```
@@ -217,8 +249,24 @@ encode_with_adapter_grad(model, store, records, *, grad_last=None, with_next=Fal
 * A slow update runs every `adapter_every` applied frequent updates (or when the plan lists `TIMESCALE_SLOW`):
   the batch is encoded with an adapter graph for the newest `grad_last` context items and all candidate / goal
   texts; providers with `timescale == TIMESCALE_SLOW` and frequent providers that do not declare
-  `adapter_grad = False` contribute; only the adapter optimizer steps; with `slow_guard` a step that raises the mean
-  held-out loss by more than `slow_guard_tol` (relative) is undone.
+  `adapter_grad = False` contribute; only the adapter optimizer steps.
+* Slow-step guard (fix G-cl M4 / m4, behaviour change): every provider's held-out loss is measured on its fixed
+  validation sample (the one `validate` uses) split into `slow_guard_chunks` chunks, before and after the step. The
+  step is kept only if the mean paired change d <= min(`slow_guard_abs_tol`, `slow_guard_tol` * |loss before|,
+  max(`slow_guard_z` * se(d), 1e-7 * max(1, |loss before|))) — se from the spread of d over chunks — and the summed d
+  of accepted steps since the reference (`set_slow_reference`, called by `promote_learner`; initially the first slow
+  step) stays <= `slow_guard_max_drift`. A rejected step is undone exactly: adapter weights, their AdamW state
+  (moments, step counts; parameters without state before lose it again), learning rate, `sched_step`; `counters["slow"]`
+  and `model_version` do not advance, `counters["slow_reverted"]` does. `notes["guard"]`: validation_before / after,
+  paired_change, paired_se, n_chunks, tolerance, noise_tolerance, drift_before / after, reference, accepted, reasons,
+  reverted. `slow_guard_state` (drift, accepted, rejected, reference) and `trained_objectives` are in `state_dict`.
+* Held-out split (fix G-cl M1, behaviour change): with `holdout_experiments` every record of a lifetime that contains a
+  decision of a registered randomised experiment is validation data (`is_validation`), whatever the hash split says;
+  `refresh_eligibility` re-evaluates lifetimes that became experiment lifetimes. `trained_objectives` collects the
+  objectives of every batch a step was applied on; `ContinualLearner(credit=assigner)` attaches itself to the assigner
+  (`assigner.attach_learner`) so that those lifetimes are excluded from estimator validation.
+* Gradients are made contiguous before clipping (an expanded gradient, e.g. of a sum, used to make
+  `clip_grad_norm_` raise).
 * `LearningUpdateRecord.notes` is JSON: `experiential_share`, `experiential_share_applied`, `balance_scale`,
   `strata`, `rows`, `metrics`, `lr`, `behaviour_changed`, `flag` (weights changed, probe did not), `skipped`,
   `adapter_grad_norm` / `adapter_delta_norm` (`lora`, `bridge`), `guard`.
@@ -233,23 +281,46 @@ ReturnDecompositionProvider(model, store, *, beta=0.0, weight=1.0, d_model=128, 
                             max_trajectories=8, max_len=64, use_belief=True, detach_latents=True, require_closed=True,
                             verified_only=False, head_name="credit_rudder", name="rudder", seed=0, encoder=None)
   .loss(model, batch, store)  .eligible(record)  .redistribute(objective_ids) -> {objective_id: RudderCredit}
+  .window_target(enc, tr) -> float   .trained_objectives (set)   .state_dict() / .load_state_dict()
 HindsightProvider(model, store, *, beta=0.0, weight=1.0, d_hidden=128, d_key=64, n_members=4, max_trajectories=8,
                   max_pairs=512, max_len=64, min_prob=1e-3, clip=10.0, require_closed=True, verified_only=False,
                   head_name="credit_cocoa", name="cocoa", seed=0, encoder=None)
   .loss(model, batch, store)  .eligible(record)  .credit(objective_ids) -> {exp_id: CocoaCredit}
+  .trained_objectives (set)   .state_dict() / .load_state_dict()
 BridgeGroundingProvider(model, *, weight=1.0, max_rows=4, max_chars=240, name="bridge_grounding")   # TIMESCALE_SLOW
 CreditAssigner(model, store, *, rudder=None, cocoa=None, selector: EstimatorSelector = None, beta=0.0, clock=None,
                goal_relevant_only=True)
   .assign(exp_ids=None, *, objective_ids=None, reason="outcome_matured") -> CreditUpdate
   .on_reconcile(report: ReconcileReport) -> CreditUpdate
   .credited_returns(records, estimator=None) -> CreditedReturns(estimator, key, values [B] f64, mask [B], uncertainty [B])
-  .compare_with_experiment(experiment_id, *, treatment, control, confidence=0.95) -> ExperimentEvidence | None
+  .compare_with_experiment(experiment_id, *, treatment, control, confidence=0.95, exclude_objectives=None)
+      -> ExperimentEvidence | None
+  .attach_learner(learner)   .trained_objectives() -> set
   .select() -> SelectionRecord   .default   .version   .state_dict() / .load_state_dict()
 trajectory_return(store, records, *, beta=0.0, require_closed=True, verified_only=False, goal_relevant_only=True)
     -> TrajectoryReturn(objective_id, exp_ids, times, events, G, closed, n_pending, matured, reason)
-TrajectoryEncoder(model, store, *, max_len=64, chunk=32).encode(objective_id, records=None, *, grad=False)
+TrajectoryEncoder(model, store, *, max_len=64, chunk=32).encode(objective_id, records=None, *, grad=False, full=False)
 outcome_features(values) -> [K, 10];  consequence_text(record);  is_top_level(record);  top_index(records)
+return_to_go_at(tr, t, beta) -> float
+candidate_set_open_ended(record) -> bool;  proposals_tracked(record) -> bool;  OPEN_ENDED_GENERATORS, CLOSED_GENERATORS
 ```
+* Fixes of G-cl (behaviour changes): **m1** a decision's candidate set is open-ended when `diagnostics["open_ended"]`
+  says so or a candidate's `ActionSpec.provenance` (parts joined by "+") names only open-ended generators (backbone,
+  schema_sampler, mutation, generated, llm, sampled) and no enumerating one (schema_walker, skill_library, builtin,
+  fixed, enumerated, experiment); it is COCOA-supported only if the proposals were tracked (`diagnostics
+  ["tracked_proposals"]` or a `proposal_probs` list per candidate). Default: not tracked. Unknown generator names are
+  treated as enumerating (limitation). **m2** COCOA pairs a decision with every outcome of the trajectory observed
+  after it that it did not declare itself, including outcomes declared by *earlier* decisions (Eq. 4); the elapsed
+  "steps" input is the number of decisions after t up to the observation. **m3** credit (`redistribute`, COCOA
+  `credit`) runs over the whole trajectory (`encode(full=True)`), so every decision gets credit and G / Gamma are
+  referenced at the trajectory's first decision; training windows keep the newest `max_len` decisions and regress
+  the measured return-to-go at the window's first decision (`window_target`), referenced there.
+* **M1** `compare_with_experiment` leaves out every unit whose lifetime is in `trained_objectives()` (RUDDER's and
+  COCOA's own training trajectories, attached learners' batches) or in `exclude_objectives`, from the measured
+  difference and from every estimate, marks the evidence `held_out=True`, records `n_excluded_trained` and the paired
+  statistics (`paired_diff`, `paired_se`, `paired_n`; RUDDER / simple: arm difference of the per-decision credit,
+  COCOA: mean per-unit contrast). Providers register training data only from losses computed with gradients enabled
+  (`validate` and credit assignment do not count); RUDDER's return scale is fitted on training calls only.
 * Return convention: an outcome of value v observed at tau is worth `v * exp(-beta * (tau - t))` at a decision made
   at t; a trajectory return is referenced at its first decision; an outcome event (dedup key) enters once.
 * A return is *matured* when the objective was closed (`store.put_objective_outcome`) and no goal-relevant query of
@@ -315,6 +386,8 @@ exported learned prior; nothing else exists in that process.
 build_lab(store_path, cfg=None, *, world=True, policy=True, credit=True, bridge=False, beta=0.0, settings=None,
           clock=None, log_path=None, durable=False, selector=None, model=None, **store_kw) -> Lab
 register_lab_heads(model, store=None, *, world=True, policy=True, credit=True, beta=0.0, seed=0) -> {name: provider}
+run_door_training(lab, n_experiments, n_per, n_decisions=5, *, seed=0, family="lab/door") -> {key: [LabLifetime]}
+    # training lifetimes for the mechanisms of run_door_experiments (same seed): randomised first decision, not registered
 LabRun(store, linker, world, *, task=None, seed=0, max_context=40).decide(policy_fn, *, candidates_fn=None, arms=None)
   .reconcile()  .mature()  .close() -> VerifiedOutcome
 collect_lifetime(store, linker, world, policy_fn, n_decisions, *, seed=0, candidates_fn=None, arms=None, mature=True,
@@ -322,7 +395,11 @@ collect_lifetime(store, linker, world, policy_fn, n_decisions, *, seed=0, candid
 WorldPredictionProvider(model, ...)   # local wrapper of predict.world (B, stage 1); evidence only
 python -m cam_live.credit.diagnose [--only learning,credit,retention,restart,export] [--out PATH] [--work DIR]
 python -m cam_live.credit.diagnose --real          # Qwen3-4B + 50m core, shared GPU lock
+python cam_live/docs/evidence/D/regenerate.py [--commit HEAD] [--only measured,diagnostics,real,status]
 ```
+Every evidence file records `_code` (commit, clean / source, threads, hash seed). `regenerate.py` exports the commit
+with `git archive` and runs everything there, so no uncommitted edit can enter the evidence; `exp_credit` trains the
+estimators on `run_door_training` lifetimes and validates on the held-out registered experiments.
 
 ## Integration notes (for `agent.py`)
 

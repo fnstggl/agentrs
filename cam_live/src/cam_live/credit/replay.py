@@ -1164,6 +1164,19 @@ class SqliteExperienceStore:
         return [record_from_dict(ExperimentRecord, json.loads(self._unpack(b))) for (b,) in
                 self._q("SELECT body FROM experiments ORDER BY created_at")]
 
+    def experiment_objectives(self, *, randomized_only: bool = True) -> Dict[str, List[str]]:
+        """objective_id -> ids of the registered experiments that assigned one of its decisions (the lifetimes that
+        experiment evidence is measured on). ``randomized_only``: only experiments registered as randomised."""
+        exps = {e.experiment_id: e for e in self.experiments()}
+        out: Dict[str, List[str]] = {}
+        for oid, xid in self._q("SELECT DISTINCT objective_id, experiment_id FROM experiences WHERE experiment_id<>'' "
+                                "ORDER BY objective_id, experiment_id"):
+            e = exps.get(xid)
+            if e is None or (randomized_only and e.assignment != "randomized"):
+                continue
+            out.setdefault(oid or "", []).append(xid)
+        return out
+
     def experiment_records(self, experiment_id: str) -> List[ExperienceRecord]:
         return [self._row(r) for r in self._q(
             f"SELECT {_COLS} FROM experiences WHERE experiment_id=? ORDER BY seq", (experiment_id,))]

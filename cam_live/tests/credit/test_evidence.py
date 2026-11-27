@@ -111,7 +111,7 @@ def test_kill_minus_nine_mid_update_resumes_from_the_last_atomic_checkpoint_iden
         assert x["victim_killed_by_sigkill"] and x["victim_returncode"] == -9
         assert x["checkpoints_identical"] and x["resumed_from"] == x["victim_checkpoint"]
         assert x["recovery"]["weights_clean"] and x["recovery"]["arch_signature_differences"] == []
-        assert x["recovery"]["provider_state"]["restored"] == ["retention"]
+        assert x["recovery"]["provider_state"]["restored"] == ["rudder", "cocoa", "retention"]
         assert x["all_identical"] and x["final_hashes_identical"] and x["first_difference"] is None
         assert x["updates_compared"] >= 4 and "slow_adapters" in x["timescales"] and "frequent" in x["timescales"]
         assert x["recovery"]["debris_left"] == []

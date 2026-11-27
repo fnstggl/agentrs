@@ -9,7 +9,8 @@ import torch
 from cam_live.config import CamLiveConfig
 from cam_live.contracts import Modality, OutcomeStatus
 from cam_live.credit.labkit import (LabRun, door_arms, door_candidates, door_config, door_weight, mk_action,
-                                    register_experiment, run_door_experiments, uniform_policy, weighted_policy)
+                                    register_experiment, run_door_experiments, run_door_training, uniform_policy,
+                                    weighted_policy)
 from cam_live.credit.learner import LearnerSettings
 from cam_live.credit.links import OutcomeLink
 from cam_live.credit.providers import (COCOA, KEY_CONTRIB, KEY_RTG, RUDDER, U_DIM, outcome_features, top_index,
@@ -247,13 +248,14 @@ def test_learner_reassigns_credit_for_the_experience_that_triggered_it_and_train
     lab = lab_factory(collect=False, cfg=cfg, world=False, policy=False, beta=BETA,
                       settings=LearnerSettings.from_cfg(cfg, batch_size=32, val_fraction=0.25, min_independent_outcomes=4))
     learner, store = lab.learner, lab.store
-    run_door_experiments(lab, 2, 8, 4, seed=1)
+    run_door_training(lab, 2, 8, 4, seed=1)        # registered experiments would be held out (validation only)
     plan = learner.poll()
     assert plan is not None and store.get(plan.exp_ids[0]).credit == {}
     lab.learner.refresh_eligibility(full=True)
     v0 = learner.validate()
     first = learner.learn(UpdatePlan(trigger=plan.trigger, max_steps=1, exp_ids=plan.exp_ids))[0]
-    assert first.credit_changes["n_records_changed"] == store.count()
+    planned = set(store.objective_of(plan.exp_ids).values())
+    assert first.credit_changes["n_records_changed"] == sum(len(store.trajectory(o)) for o in planned)
     assert first.credit_changes[RUDDER] > 0 and first.credit_changes[SIMPLE] > 0
     assert RUDDER in store.get(plan.exp_ids[0]).credit
     assert set(first.losses) == {RUDDER, COCOA} and first.param_groups == ["heads"]

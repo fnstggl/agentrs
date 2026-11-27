@@ -43,7 +43,7 @@ from . import checkpoint as ckpt
 from . import learner as learner_mod
 from .labkit import (Lab, LabRun, _canonical, build_lab, collect_family, door_arms, door_candidates, door_config,
                      door_weight, lab_eval_fn, lab_functions, register_experiment, register_lab_heads,
-                     run_door_experiments, weighted_policy)
+                     run_door_experiments, run_door_training, weighted_policy)
 from .learner import LearnerSettings
 from .links import OutcomeLink
 from .providers import COCOA, KEY_CONTRIB, KEY_RTG, RUDDER, trajectory_return
@@ -55,6 +55,29 @@ EVIDENCE_DIR = os.path.join(PROJECT_ROOT, "docs", "evidence", "D")
 FAM_A = LabConfig(n_channels=4, family="lab/A", target=30)
 FAM_B = LabConfig(n_channels=4, family="lab/B", target=5, rate_scale=0.3, w_mean=(-1.0, 0.5, -0.3))
 BETA = 2e-6
+
+
+def code_provenance() -> Dict[str, Any]:
+    """Which committed code produced the evidence: HEAD and the uncommitted changes (if any) under the paths the
+    experiments run (credit/, nn/, learning_api, contracts, diagnostics/). Evidence counts only when ``clean``."""
+    root = os.path.dirname(PROJECT_ROOT)
+    exported = os.environ.get("CAM_LIVE_SOURCE_COMMIT", "")
+    if exported and not os.path.exists(os.path.join(root, ".git")):
+        # a ``git archive`` of that commit (docs/evidence/D/regenerate.py): the tree *is* the committed code
+        return {"commit": exported, "clean": True, "source": f"git archive {exported}", "tree": root,
+                "threads": torch.get_num_threads(), "python_hash_seed": os.environ.get("PYTHONHASHSEED", "random"),
+                "torch": torch.__version__}
+    paths = ["cam_live/src/cam_live/credit", "cam_live/src/cam_live/nn", "cam_live/src/cam_live/learning_api.py",
+             "cam_live/src/cam_live/contracts.py", "cam_live/src/cam_live/diagnostics", "cam_live/src/cam_live/config.py"]
+    try:
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True,
+                              timeout=30).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--", *paths], cwd=root, capture_output=True,
+                               text=True, timeout=30).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError) as e:          # not a checkout: say so instead of guessing
+        return {"commit": "", "clean": False, "error": str(e)}
+    return {"commit": head, "clean": not dirty, "uncommitted": dirty[:50], "threads": torch.get_num_threads(),
+            "python_hash_seed": os.environ.get("PYTHONHASHSEED", "random"), "torch": torch.__version__}
 
 
 def _notes(rec: Any) -> Dict[str, Any]:
@@ -170,7 +193,10 @@ def exp_learning(work: str, *, n_worlds: int = 150, n_decisions: int = 10, steps
 
 # ================================================================================================ (3) delayed credit
 def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decisions: int = 5, steps: int = 400,
-               seed: int = 0) -> Dict[str, Any]:
+               seed: int = 0, n_train_per: Optional[int] = None) -> Dict[str, Any]:
+    """Estimators are trained on ``n_train_per`` unregistered lifetimes per mechanism (default ``n_per``) and
+    validated on the registered experiments, whose lifetimes the learner holds out (G-cl M1)."""
+    n_train_per = n_per if n_train_per is None else int(n_train_per)
     cfg = _cfg(lr_heads=2e-3, seed=seed)
     lab = build_lab(_fresh(work, "credit.sqlite"), cfg, world=False, policy=False, credit=True, beta=BETA,
                     settings=LearnerSettings.from_cfg(cfg, batch_size=32, val_fraction=0.15),
@@ -203,8 +229,9 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
             "unlock_credit_after_objective_closed": stage2[r0.exp_id],
             "return_G_discounted": tr.G, "return_undiscounted": sum(e.value for e in tr.events),
             "conservation_error": up.conservation_error, "credit_version": up.version}
-        # --- the randomised experiments
+        # --- training lifetimes (not registered) and the randomised experiments (held out by lifetime)
         t0 = time.perf_counter()
+        train_runs = run_door_training(lab, n_experiments, n_train_per, n_decisions, seed=seed)
         runs = run_door_experiments(lab, n_experiments, n_per, n_decisions, seed=seed)
         t_collect = time.perf_counter() - t0
         learner.refresh_eligibility(full=True)
@@ -215,6 +242,16 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
             learner.learn(UpdatePlan(trigger="replay", max_steps=8, budget_s=1e9))
         t_train = time.perf_counter() - t0
         val1 = learner.validate()
+        x_recs = [r for xid in runs for r in store.experiment_records(xid)]
+        x_objs = {r.objective_id for r in x_recs}
+        holdout = {"experiment_records": len(x_recs), "experiment_lifetimes": len(x_objs),
+                   "training_lifetimes": sum(len(v) for v in train_runs.values()),
+                   "experiment_records_in_learner_training_split": sum(not learner.is_validation(r) for r in x_recs),
+                   "experiment_lifetimes_trained_on": {
+                       "learner": len(x_objs & learner.trained_objectives),
+                       "rudder": len(x_objs & lab.rudder.trained_objectives),
+                       "cocoa": len(x_objs & lab.cocoa.trained_objectives)},
+                   "training_lifetimes_trained_on_by_rudder": len(lab.rudder.trained_objectives - x_objs)}
         up = assigner.assign(reason="estimators_trained")
         trace["unlock_credit_after_estimators_trained"] = dict(store.get(r0.exp_id).credit)
         trace["unlock_credit_history"] = [{k: h[k] for k in ("estimator", "version", "value", "reason")}
@@ -233,11 +270,14 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
             if ev is not None:
                 evidence.append({"experiment": xid, "measured_difference": ev.diff, "se": ev.se, "ci": [ev.ci_low, ev.ci_high],
                                  "n": [ev.n_treatment, ev.n_control], "randomized": ev.randomized,
-                                 "estimates": ev.estimates, "estimate_se": ev.estimate_se})
+                                 "estimates": ev.estimates, "estimate_se": ev.estimate_se, "held_out": ev.held_out,
+                                 "n_excluded_trained": ev.n_excluded_trained, "paired_diff": ev.paired_diff,
+                                 "paired_se": ev.paired_se, "paired_n": ev.paired_n})
         sel = assigner.select()
         zero = math.sqrt(sum(e["measured_difference"] ** 2 for e in evidence) / max(1, len(evidence)))
         return {
-            "config": {"n_experiments": n_experiments, "lifetimes_per_experiment": n_per, "decisions": n_decisions,
+            "config": {"n_experiments": n_experiments, "lifetimes_per_experiment": n_per,
+                       "training_lifetimes_per_mechanism": n_train_per, "decisions": n_decisions,
                        "beta_per_second": BETA, "updates": learner.counters["frequent"], "lr_heads": cfg.optim.lr_heads,
                        "seed": seed},
             "single_lifetime_trace": trace,
@@ -253,10 +293,13 @@ def exp_credit(work: str, *, n_experiments: int = 6, n_per: int = 48, n_decision
                 "unlock": {k: mean_credit(unlock_first, k) for k in (SIMPLE, RUDDER, KEY_RTG, KEY_CONTRIB, COCOA)},
                 "wait": {k: mean_credit(wait_first, k) for k in (SIMPLE, RUDDER, KEY_RTG, KEY_CONTRIB, COCOA)}},
             "experiments": evidence,
+            "holdout": holdout,
             "rmse_of_claiming_no_effect": zero,
             "selection": {"default_before": sel.default_before, "default_after": sel.default_after, "reasons": sel.reasons,
+                          "excluded_not_held_out": sel.excluded_not_held_out,
                           "scores": {k: {m: v[m] for m in ("n", "rmse", "mean_sq_z", "sign_agreement", "coverage",
-                                                           "passes", "reasons")} for k, v in sel.scores.items()}},
+                                                           "passes", "reasons", "n_refused", "n_paired")}
+                                     for k, v in sel.scores.items()}},
         }
     finally:
         lab.close()
@@ -669,6 +712,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         with gpu_lock(timeout_s=1800.0, min_free_gb=16.0):
             res = exp_real(work)
         res["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real"
+        res["_code"] = code_provenance()
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         json.dump(res, open(out_path, "w"), indent=1, sort_keys=True, default=str)
         print(json.dumps({k: res[k] for k in ("frequent", "slow_adapters")}, indent=1, default=str))
@@ -682,13 +726,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             result = json.load(open(out_path))
         except ValueError:
             result = {}
-    result["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
+    result["_command"] = "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose" + \
+        (f" --only {a.only}" if a.only else "") + (f" --out {a.out}" if a.out else "")
+    result["_code"] = code_provenance()
     result["_scale"] = "CamLiveConfig.debug(): tiny random backbone (not a pretrained model), debug core, CPU, LabWorld"
     for n in names:
         t0 = time.perf_counter()
         torch.manual_seed(0)
         result[n] = EXPERIMENTS[n](work)
         result[n]["_seconds"] = time.perf_counter() - t0
+        result[n]["_code"] = result["_code"]
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         json.dump(result, open(out_path, "w"), indent=1, sort_keys=True, default=str)
         print(f"[{n}] done in {result[n]['_seconds']:.1f}s", flush=True)

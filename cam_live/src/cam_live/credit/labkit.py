@@ -448,6 +448,26 @@ def door_arms(experiment_id: str) -> Arms:
                 {"unlock": 0.5, "wait": 0.5})
 
 
+def run_door_training(lab: Lab, n_experiments: int, n_per: int, n_decisions: int = 5, *, seed: int = 0,
+                      family: str = "lab/door") -> Dict[str, List[LabLifetime]]:
+    """Training experience for the estimators: ``n_per`` lifetimes for each hidden mechanism of
+    :func:`run_door_experiments` (same ``seed``), with the same randomised first decision but *not* registered as
+    an experiment (decision ``experiment_id`` empty) and independent noise. The registered experiments are then
+    held-out validation data (``LearnerSettings.holdout_experiments``). Returns mechanism key -> lifetimes."""
+    out: Dict[str, List[LabLifetime]] = {}
+    arms = door_arms("")                                 # randomised, logged propensities, no registered experiment
+    for e in range(n_experiments):
+        key = f"door-{seed}-{e}/train"
+        for i in range(n_per):
+            s = 100_000 * (seed + 1) + 1000 * e + 500 + i     # disjoint from the experiment lifetimes' noise seeds
+            world = LabWorld(door_config(seed=1000 * (seed + 1) + e, family=family), lab.clock)
+            world.rng = random.Random(s)
+            out.setdefault(key, []).append(collect_lifetime(
+                lab.store, lab.linker, world, weighted_policy(door_weight, seed=s), n_decisions, seed=s,
+                candidates_fn=door_candidates, arms=arms, tag=f"{seed}_{e}_train{i}"))
+    return out
+
+
 def run_door_experiments(lab: Lab, n_experiments: int, n_per: int, n_decisions: int = 5, *, seed: int = 0,
                          family: str = "lab/door") -> Dict[str, List[LabLifetime]]:
     """``n_experiments`` registered randomised experiments (one hidden mechanism each), ``n_per`` lifetimes per

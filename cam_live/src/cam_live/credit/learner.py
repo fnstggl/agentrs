@@ -15,7 +15,11 @@ Timescales
                here looks at a wall clock.
     slow       semantic adapters, every ``adapter_every`` applied frequent updates, on batches encoded with a graph
                into the adapters (newest ``grad_last`` context items, under the backbone's gradient checkpointing).
-               A slow step that makes held-out validation worse beyond a tolerance is reverted.
+               A slow step is kept only if the held-out loss, measured on a fixed validation sample before and after
+               the step, did not rise by more than a small absolute tolerance derived from the noise of that paired
+               difference (capped by ``slow_guard_abs_tol``), and the summed change of the accepted slow steps since
+               the last promoted checkpoint stays below ``slow_guard_max_drift``. A rejected step is undone exactly:
+               adapter weights, their AdamW moments and step counts, the schedule and the counters.
 
 Design decisions that answer failures of earlier projects
     * Gradients are taken with ``torch.autograd.grad`` with respect to the learner's own parameter lists, one
@@ -72,6 +76,8 @@ class LearnerSettings:
     fresh_fraction: float = 0.25         # share of a batch reserved for the experience that triggered the update
     val_fraction: float = 0.15
     val_split: str = "objective"         # "objective": whole objectives are held out; "record": single records
+    holdout_experiments: bool = True     # lifetimes with a decision of a registered randomised experiment are always
+                                         # held out: they validate the credit estimators (RC-08), so nothing trains on them
     val_batch: int = 32
     probe_size: int = 8
     probe_tol: float = 1e-7
@@ -83,7 +89,13 @@ class LearnerSettings:
     min_lr_factor: float = 0.1
     with_next: bool = False              # also encode H_{t+1} (providers that need b_next)
     slow_guard: bool = True
-    slow_guard_tol: float = 0.05         # tolerated relative increase of the mean validation loss after a slow step
+    slow_guard_tol: float = 0.05         # cap on the tolerated increase relative to the pre-step held-out loss (the
+                                         # binding tolerance is normally the absolute, noise-measured one below)
+    slow_guard_abs_tol: float = 0.01     # largest increase of the mean held-out loss one slow step may cause
+    slow_guard_z: float = 2.0            # tolerance = z * standard error of the paired before/after difference
+    slow_guard_chunks: int = 8           # the fixed validation sample is split into this many chunks (noise estimate)
+    slow_guard_max_drift: float = 0.02   # bound on the summed held-out change of accepted slow steps since the last
+                                         # reference (promoted checkpoint, or the learner's first slow step)
     betas: Tuple[float, float] = (0.9, 0.999)
     seed: int = 0
 
@@ -202,7 +214,13 @@ class ContinualLearner:
         self.fast_state = model.new_fast_state() if hasattr(model, "new_fast_state") else None
         self._hash_cache: Tuple[Any, Dict[str, str]] = (None, {})
         self._probe_cache: Tuple[Any, Dict[str, Tensor]] = (None, {})
+        self._xobj: Tuple[Any, frozenset] = (None, frozenset())
+        self.slow_guard_state: Dict[str, Any] = self._fresh_guard_state()
+        #: objectives with a record in a batch that a parameter step was taken on (never validation data)
+        self.trained_objectives: set = set()
         self._sync_optimizers()
+        if credit is not None and hasattr(credit, "attach_learner"):
+            credit.attach_learner(self)
 
     # ------------------------------------------------------------------------------------------ registration
     def register(self, provider: LossProvider) -> LossProvider:
@@ -270,7 +288,23 @@ class ContinualLearner:
         return f"m{self.counters['frequent']}.{self.counters['slow']}"
 
     # ------------------------------------------------------------------------------------------ split / eligibility
+    def experiment_objectives(self) -> frozenset:
+        """Lifetimes that contain a decision of a registered randomised experiment (cached per store write)."""
+        st = self.store
+        if not self.settings.holdout_experiments or not hasattr(st, "experiment_objectives"):
+            return frozenset()
+        gen = getattr(st, "_gen", None)              # commit counter of the store: changes with every write
+        key = ("gen", gen) if gen is not None else ("head", st.head_seq())
+        if self._xobj[0] != key:
+            self._xobj = (key, frozenset(st.experiment_objectives()))
+        return self._xobj[1]
+
     def is_validation(self, rec: ExperienceRecord) -> bool:
+        """Held out from training: every lifetime of a registered randomised experiment (``holdout_experiments``),
+        and a seeded hash split of the rest (whole objectives by default)."""
+        if self.settings.holdout_experiments:
+            if rec.decision.experiment_id or (rec.objective_id and rec.objective_id in self.experiment_objectives()):
+                return True
         key = rec.objective_id if (self.settings.val_split == "objective" and rec.objective_id) else rec.exp_id
         h = int(hashlib.sha1(f"{self.settings.seed}|{key}".encode()).hexdigest()[:8], 16) / 2.0 ** 32
         return h < self.settings.val_fraction
@@ -291,6 +325,11 @@ class ContinualLearner:
             for o in set(st.objective_of(exp_ids).values()):
                 for r in st.trajectory(o):
                     recs.setdefault(r.exp_id, r)
+        xobj = sorted(self.experiment_objectives())
+        if not full:                              # lifetimes that became experiment lifetimes since the last call
+            for o in set(xobj) - set(self.elig_seq.get("xobj", [])):
+                for r in st.trajectory(o):
+                    recs.setdefault(r.exp_id, r)
         changed = n_train = n_val = 0
         with st.batch():
             for rec in recs.values():
@@ -305,7 +344,7 @@ class ContinualLearner:
                 if dirty:
                     st.update(rec)
                     changed += 1
-        self.elig_seq = {"head": head, "providers": names}
+        self.elig_seq = {"head": head, "providers": names, "xobj": xobj}
         return {"checked": len(recs), "changed": changed, "train_flags": int(n_train), "val_flags": int(n_val)}
 
     # ------------------------------------------------------------------------------------------ trigger
@@ -455,6 +494,75 @@ class ContinualLearner:
             self.model.train(was)
         return out
 
+    @torch.no_grad()
+    def _validation_cells(self) -> Dict[Tuple[str, int], float]:
+        """Held-out loss of every provider on each chunk of its fixed validation sample (the sample ``validate``
+        uses): {(provider, chunk): loss}. The chunks give the noise estimate of the slow-step guard."""
+        out: Dict[Tuple[str, int], float] = {}
+        was = self.model.training
+        self.model.eval()
+        try:
+            for p in self.providers:
+                recs = self.store.sample(self.settings.val_batch, loss=VAL_PREFIX + p.name, seed=self.settings.seed,
+                                         strata={"family": 1.0}, provenance=self.settings.provenance)
+                if not recs:
+                    continue
+                k = max(1, min(int(self.settings.slow_guard_chunks), len(recs)))
+                full = encode_decisions(self.model, self.store, recs, with_next=self.settings.with_next, grad=False) \
+                    if getattr(p, "needs_latents", True) else None
+                for j in range(k):
+                    rows = list(range(j, len(recs), k))
+                    sub = take(full, rows) if full is not None else records_only_batch(self.model, [recs[i] for i in rows])
+                    loss, _ = p.loss(self.model, sub, self.store)
+                    if loss is not None and math.isfinite(float(loss)):
+                        out[(p.name, j)] = float(loss)
+        finally:
+            self.model.train(was)
+        return out
+
+    @staticmethod
+    def _fresh_guard_state() -> Dict[str, Any]:
+        return {"drift": 0.0, "accepted": 0, "rejected": 0, "reference": "start"}
+
+    def set_slow_reference(self, label: str = "") -> None:
+        """The current adapters become the reference of the drift bound (``promote_learner`` calls this when a
+        checkpoint is promoted and after a rollback to the promoted checkpoint)."""
+        self.slow_guard_state = self._fresh_guard_state()
+        self.slow_guard_state["reference"] = label or self.model_version
+
+    def _guard_verdict(self, before: Dict[Tuple[str, int], float], after: Dict[Tuple[str, int], float]
+                       ) -> Optional[Dict[str, Any]]:
+        """Accept / reject a slow step from the paired held-out losses (see the module docstring)."""
+        s = self.settings
+        common = [k for k in before if k in after]
+        if not common:
+            return None
+        chunks: Dict[int, List[float]] = {}
+        for k in common:
+            chunks.setdefault(k[1], []).append(after[k] - before[k])
+        c = [sum(v) / len(v) for v in chunks.values()]
+        d = sum(c) / len(c)
+        se = math.sqrt(sum((x - d) ** 2 for x in c) / (len(c) - 1) / len(c)) if len(c) > 1 else float("nan")
+        mb = sum(before[k] for k in common) / len(common)
+        ma = sum(after[k] for k in common) / len(common)
+        floor = 1e-7 * max(1.0, abs(mb))                          # float noise of a deterministic evaluation
+        noise_tol = s.slow_guard_z * se if math.isfinite(se) else 0.0
+        tol = min(s.slow_guard_abs_tol, s.slow_guard_tol * max(abs(mb), 1e-6), max(noise_tol, floor))
+        drift = float(self.slow_guard_state.get("drift", 0.0)) + d
+        reasons = []
+        if not (math.isfinite(d) and math.isfinite(ma)):
+            reasons.append("held-out loss not finite after the step")
+        else:
+            if d > tol:
+                reasons.append(f"held-out loss rose by {d:.4g} (> tolerance {tol:.4g})")
+            if drift > s.slow_guard_max_drift:
+                reasons.append(f"summed change since {self.slow_guard_state.get('reference')} would be {drift:.4g} "
+                               f"(> {s.slow_guard_max_drift:.4g})")
+        return {"validation_before": mb, "validation_after": ma, "paired_change": d, "paired_se": se,
+                "n_chunks": len(c), "tolerance": tol, "noise_tolerance": noise_tol, "drift_before":
+                float(self.slow_guard_state.get("drift", 0.0)), "drift_after": drift,
+                "reference": self.slow_guard_state.get("reference"), "accepted": not reasons, "reasons": reasons}
+
     # ------------------------------------------------------------------------------------------ fast timescale
     def reset_fast(self, kind: Optional[str] = None) -> None:
         """New objective: task-specific fast beliefs return to the (current, learned) prior (spec 10.4)."""
@@ -592,7 +700,7 @@ class ContinualLearner:
                 if gs[j] is not None:
                     part = gs[j] * scale[k] if j < ne else gs[j]
                     g = part if g is None else g + part
-            p.grad = g
+            p.grad = None if g is None else g.contiguous()     # an expanded gradient cannot be clipped in place
         if any(p.grad is not None and not bool(torch.isfinite(p.grad).all()) for p in params) or \
                 any(not math.isfinite(v) for v in losses.values()):
             for p in params:
@@ -609,6 +717,7 @@ class ContinualLearner:
         for p in params:
             p.grad = None
         self.counters["frequent"] += 1
+        self.trained_objectives.update(r.objective_id for r in records if r.objective_id)
         with torch.no_grad():
             rec.weight_delta = {g: _norm([p - b for p, b in zip(ps, bs)]) for g, ps, bs in
                                 ((GROUP_EXPERIENTIAL, exp_p, before[:ne]), (GROUP_HEADS, head_p, before[ne:]))}
@@ -629,7 +738,7 @@ class ContinualLearner:
         records, origin = self._sample(providers, s.slow_batch_size) if providers else ([], {})
         if not records:
             return self._skip(rec, notes, "no eligible experience")
-        val_before = self.validate() if s.slow_guard else {}
+        val_before = self._validation_cells() if s.slow_guard else {}
         hash_before = self.group_hashes()
         probe_before = self.probe()
         was = model.training
@@ -651,7 +760,7 @@ class ContinualLearner:
             for gs in grads.values():
                 if gs[j] is not None:
                     g = gs[j] if g is None else g + gs[j]
-            p.grad = g
+            p.grad = None if g is None else g.contiguous()
         if all(p.grad is None for p in params):
             return self._skip(rec, notes, "no loss reached the adapters")
         if any(p.grad is not None and not bool(torch.isfinite(p.grad).all()) for p in params):
@@ -664,10 +773,16 @@ class ContinualLearner:
             notes["adapter_grad_norm"] = {"lora": _norm([p.grad for p in params if id(p) in lora]),
                                           "bridge": _norm([p.grad for p in params if id(p) not in lora])}
         before = [p.detach().clone() for p in params]
+        opt = self.optimizers[GROUP_ADAPTERS]
+        opt_before = None
+        if s.slow_guard and val_before:            # everything a rejected step must give back
+            opt_before = ({p: ({k: (v.clone() if torch.is_tensor(v) else v) for k, v in opt.state[p].items()}
+                               if p in opt.state else None) for pg in opt.param_groups for p in pg["params"]},
+                          [pg["lr"] for pg in opt.param_groups], self.sched_step[GROUP_ADAPTERS])
         with_grad = [p for p in params if p.grad is not None]
         rec.grad_norms[GROUP_ADAPTERS] = float(torch.nn.utils.clip_grad_norm_(with_grad, self.clip[GROUP_ADAPTERS]))
         notes.setdefault("lr", {})[GROUP_ADAPTERS] = self._set_lr(GROUP_ADAPTERS)
-        self.optimizers[GROUP_ADAPTERS].step()
+        opt.step()
         self.sched_step[GROUP_ADAPTERS] += 1
         for p in params:
             p.grad = None
@@ -679,24 +794,38 @@ class ContinualLearner:
                 notes["adapter_delta_norm"] = {
                     "lora": _norm([p - b for p, b in zip(params, before) if id(p) in lora]),
                     "bridge": _norm([p - b for p, b in zip(params, before) if id(p) not in lora])}
+        reverted = False
         if s.slow_guard and val_before:
-            val_after = self.validate()
-            common = [k for k in val_before if k in val_after]
-            if common:
-                mb = sum(val_before[k] for k in common) / len(common)
-                ma = sum(val_after[k] for k in common) / len(common)
-                notes["guard"] = {"validation_before": mb, "validation_after": ma}
-                if not math.isfinite(ma) or ma > mb + s.slow_guard_tol * max(abs(mb), 1e-6):
+            verdict = self._guard_verdict(val_before, self._validation_cells())
+            if verdict is not None:
+                notes["guard"] = verdict
+                if verdict["accepted"]:
+                    self.slow_guard_state["drift"] = verdict["drift_after"]
+                    self.slow_guard_state["accepted"] = int(self.slow_guard_state.get("accepted", 0)) + 1
+                else:                              # undo the step completely
                     with torch.no_grad():
                         for p, b in zip(params, before):
                             p.copy_(b)
+                    state, lrs, step = opt_before
+                    for p, st_p in state.items():
+                        if st_p is None:
+                            opt.state.pop(p, None)
+                        else:
+                            opt.state[p] = st_p
+                    for pg, lr in zip(opt.param_groups, lrs):
+                        pg["lr"] = lr
+                    self.sched_step[GROUP_ADAPTERS] = step
                     if hasattr(model, "mark_adapters_updated"):
                         model.mark_adapters_updated()
                     self.counters["slow_reverted"] += 1
+                    self.slow_guard_state["rejected"] = int(self.slow_guard_state.get("rejected", 0)) + 1
                     notes["guard"]["reverted"] = True
                     rec.weight_delta = {GROUP_ADAPTERS: 0.0}
+                    reverted = True
         del before
-        self.counters["slow"] += 1
+        if not reverted:
+            self.counters["slow"] += 1
+            self.trained_objectives.update(r.objective_id for r in records if r.objective_id)
         return self._finish(rec, notes, hash_before, probe_before)
 
     # ------------------------------------------------------------------------------------------ records
@@ -740,6 +869,7 @@ class ContinualLearner:
         ``credit.checkpoint.capture_learner``."""
         return {"version": 1, "counters": dict(self.counters), "sched_step": dict(self.sched_step),
                 "probe_ids": list(self.probe_ids), "elig_seq": dict(self.elig_seq),
+                "trained_objectives": sorted(self.trained_objectives), "slow_guard": dict(self.slow_guard_state),
                 "settings": dataclasses.asdict(self.settings), "lr": dict(self.lr), "clip": dict(self.clip),
                 "providers": [p.name for p in self.providers], "model_version": self.model_version}
 
@@ -748,6 +878,8 @@ class ContinualLearner:
         self.sched_step.update(st.get("sched_step", {}))
         self.probe_ids = list(st.get("probe_ids", []))
         self.elig_seq = dict(st.get("elig_seq", {}))
+        self.trained_objectives = set(st.get("trained_objectives", []))
+        self.slow_guard_state = dict(st.get("slow_guard", {})) or self._fresh_guard_state()
         self._probe_cache, self._hash_cache = (None, {}), (None, {})
         saved = st.get("providers", [])
         mine = [p.name for p in self.providers]

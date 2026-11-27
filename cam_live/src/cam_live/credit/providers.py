@@ -24,9 +24,10 @@ Nothing here produces a reward: credit is bookkeeping about verified / measured 
 """
 from __future__ import annotations
 
+import bisect
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import torch
 from torch import Tensor
@@ -38,7 +39,7 @@ from .cocoa import SUPPORTED, UNSUPPORTED, HindsightModel, check_support
 from .links import OutcomeLink, record_arm
 from .replay import SqliteExperienceStore, outcome_key
 from .rudder import ReturnDecomposer, duration_discount
-from .select import EstimatorSelector, ExperimentEvidence, SelectionRecord
+from .select import ARM_DIFFERENCE, UNIT_MEAN, EstimatorSelector, ExperimentEvidence, SelectionRecord, paired_comparison
 from .simple import NAME as SIMPLE, arm_difference, credit_from_links
 
 RUDDER, COCOA = "rudder", "cocoa"
@@ -49,6 +50,34 @@ LEARNING_KEY = {SIMPLE: SIMPLE, RUDDER: RUDDER, COCOA: COCOA}
 #: return-to-go signal equals the measured difference by construction and would validate nothing)
 VALIDATION_KEY = {SIMPLE: SIMPLE, RUDDER: KEY_CONTRIB}
 U_DIM = 10
+#: candidate generators whose proposals are open-ended (free-form text of the backbone, random sampling, mutation):
+#: the set of alternatives has no enumerable support unless the proposal probabilities were tracked
+OPEN_ENDED_GENERATORS = ("backbone", "schema_sampler", "mutation", "generated", "llm", "sampled")
+#: generators that enumerate a fixed set: a candidate they produced would be in the set whatever was proposed
+CLOSED_GENERATORS = ("schema_walker", "skill_library", "builtin", "fixed", "enumerated", "experiment")
+
+
+def candidate_set_open_ended(rec: ExperienceRecord) -> bool:
+    """Whether the decision's candidate set came from an open-ended generator (spec 9.3: no unbiased counterfactual
+    claim over arbitrary open-ended actions). True if the decision says so (``diagnostics['open_ended']``) or if some
+    candidate's provenance names only open-ended generators (``ActionSpec.provenance``, parts joined by '+'); an
+    explicit ``open_ended: False`` does not override the candidates' provenance."""
+    if rec.decision.diagnostics.get("open_ended"):
+        return True
+    for c in rec.decision.candidates:
+        parts = {x for x in str(c.action.provenance or "").split("+") if x}
+        if parts & set(OPEN_ENDED_GENERATORS) and not parts & set(CLOSED_GENERATORS):
+            return True
+    return False
+
+
+def proposals_tracked(rec: ExperienceRecord) -> bool:
+    """Whether the proposal probability of every candidate was recorded (``diagnostics['tracked_proposals']`` or
+    ``diagnostics['proposal_probs']``). Default False: nothing is assumed."""
+    d = rec.decision.diagnostics
+    pp = d.get("proposal_probs")
+    return bool(d.get("tracked_proposals", False)) or (isinstance(pp, (list, tuple)) and
+                                                       len(pp) == len(rec.decision.candidates) and len(pp) > 0)
 
 
 # ------------------------------------------------------------------------------------------------ returns
@@ -152,6 +181,17 @@ def trajectory_return(store: SqliteExperienceStore, records: Sequence[Experience
     return TrajectoryReturn(oid, [r.exp_id for r in top], times, events, float(G), closed, n_pending, not reason, reason)
 
 
+def return_to_go_at(tr: TrajectoryReturn, t: float, beta: float) -> float:
+    """Measured return-to-go at time ``t``: events observed at or after ``t``, discounted to ``t``."""
+    return float(sum(e.value * math.exp(-beta * max(e.observed_at - t, 0.0)) for e in tr.events if e.observed_at >= t))
+
+
+def _training_call() -> bool:
+    """A loss computed with gradients enabled may be stepped on: its data counts as training data of the estimator
+    (``validate`` and credit assignment run without gradients)."""
+    return torch.is_grad_enabled()
+
+
 def outcome_features(values: Tensor) -> Tensor:
     """[K] outcome values -> [K, U_DIM] bounded features (symlog magnitude, sign, radial bumps). The outcome
     representation of the hindsight model: it describes the outcome, not the action that preceded it."""
@@ -218,10 +258,13 @@ class TrajectoryEncoder:
     def records(self, objective_id: str) -> List[ExperienceRecord]:
         return self.store.trajectory(objective_id)
 
-    def encode(self, objective_id: str, records: Optional[Sequence[ExperienceRecord]] = None, *, grad: bool = False
-               ) -> Optional[EncodedTrajectory]:
+    def encode(self, objective_id: str, records: Optional[Sequence[ExperienceRecord]] = None, *, grad: bool = False,
+               full: bool = False) -> Optional[EncodedTrajectory]:
+        """Latents of the objective's top-level decisions: the newest ``max_len`` (training) or all (``full``:
+        credit assignment, so that no decision of a long trajectory is left without credit)."""
         recs = [r for r in (records if records is not None else self.records(objective_id)) if is_top_level(r)]
-        recs = recs[-self.max_len:]
+        if not full:
+            recs = recs[-self.max_len:]
         if not recs:
             return None
         key = (objective_id, len(recs))
@@ -249,8 +292,7 @@ class TrajectoryEncoder:
             a_mask=torch.cat([pad(p.a_mask) for p in parts]), probs=torch.cat([pad(p.behaviour_probs) for p in parts]),
             has_probs=[bool(r.decision.probabilities) for r in recs], chosen=torch.cat([p.chosen for p in parts]),
             e_g=parts[0].e_g[0], ts=torch.cat([p.ts for p in parts]),
-            open_ended=[bool(r.decision.diagnostics.get("open_ended", False)) for r in recs],
-            tracked=[bool(r.decision.diagnostics.get("tracked_proposals", True)) for r in recs],
+            open_ended=[candidate_set_open_ended(r) for r in recs], tracked=[proposals_tracked(r) for r in recs],
             arms=[candidate_arms(r) for r in recs])
         self.stats["encoded"] += len(recs)
         if not grad:
@@ -344,6 +386,14 @@ class ReturnDecompositionProvider:
                                                        n_heads=n_heads, d_goal=d, beta=self.beta)))
         self.decomposer.register_buffer("scale_fitted", torch.zeros((), dtype=torch.bool))
         self.decomposer.to(model.device)
+        #: objectives whose trajectories entered a training loss of the decomposer (held out from its validation)
+        self.trained_objectives: Set[str] = set()
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"trained_objectives": sorted(self.trained_objectives)}
+
+    def load_state_dict(self, st: Dict[str, Any]) -> None:
+        self.trained_objectives = set(st.get("trained_objectives", []))
 
     # ---- LossProvider -------------------------------------------------------------------------------------
     def eligible(self, record: ExperienceRecord) -> bool:
@@ -372,39 +422,54 @@ class ReturnDecompositionProvider:
         e_g = e_g.detach() if self.detach_latents else e_g
         return x, mask, torch.tensor(list(G), dtype=torch.float64, device=dev), e_g, times
 
-    def _matured(self, objective_ids: Sequence[str], grad: bool) -> Tuple[List[EncodedTrajectory], List[TrajectoryReturn]]:
+    def _matured(self, objective_ids: Sequence[str], grad: bool, full: bool = False
+                 ) -> Tuple[List[EncodedTrajectory], List[TrajectoryReturn]]:
         encs, rets = [], []
         for oid in objective_ids:
             tr = self.returns.get(oid)
             if not tr.matured:
                 continue
-            enc = self.encoder.encode(oid, grad=grad)
+            enc = self.encoder.encode(oid, grad=grad, full=full)
             if enc is None:
                 continue
             encs.append(enc)
             rets.append(tr)
         return encs, rets
 
+    def window_target(self, enc: EncodedTrajectory, tr: TrajectoryReturn) -> float:
+        """Regression target of an encoded window: G for a whole trajectory; for a window of its newest decisions
+        the measured return-to-go at the window's first decision, referenced there (the decomposer's time origin is
+        its first input), so the target and the discount convention agree."""
+        if len(enc) >= len(tr.exp_ids) or not len(enc):
+            return tr.G
+        return return_to_go_at(tr, float(enc.ts[0]), self.beta)
+
     def loss(self, model: LatentModelAPI, batch: DecisionBatch, store: Any) -> Tuple[Optional[Tensor], Dict[str, float]]:
         encs, rets = self._matured(_batch_objectives(batch, self.max_trajectories), grad=not self.detach_latents)
         if not encs:
             return None, {"n_trajectories": 0.0}
-        x, mask, G, e_g, times = self._stack(encs, [t.G for t in rets])
+        x, mask, G, e_g, times = self._stack(encs, [self.window_target(e, t) for e, t in zip(encs, rets)])
         matured = torch.ones(len(encs), dtype=torch.bool, device=x.device)
-        with torch.no_grad():                       # RUDDER's linear return scale: the largest |G| seen so far
-            top = float(G.abs().max())
-            if not bool(self.decomposer.scale_fitted) or top > float(self.decomposer.scale):
-                self.decomposer.scale.fill_(max(top, 1e-8))
-                self.decomposer.scale_fitted.fill_(True)
+        training = _training_call()
+        if training:
+            self.trained_objectives.update(t.objective_id for t in rets)
+            with torch.no_grad():                   # RUDDER's linear return scale: the largest |G| trained on so far
+                top = float(G.abs().max())
+                if not bool(self.decomposer.scale_fitted) or top > float(self.decomposer.scale):
+                    self.decomposer.scale.fill_(max(top, 1e-8))
+                    self.decomposer.scale_fitted.fill_(True)
         loss, m = self.decomposer.loss(x, mask, G, matured, e_g, times)
         m["n_trajectories"] = float(len(encs))
+        m["n_windows_truncated"] = float(sum(len(e) < len(t.exp_ids) for e, t in zip(encs, rets)))
         m["return_scale"] = float(self.decomposer.scale)
         return loss, m
 
     # ---- credit ---------------------------------------------------------------------------------------------
     def redistribute(self, objective_ids: Sequence[str]) -> Dict[str, RudderCredit]:
-        """Redistributed credit of every *matured* objective in ``objective_ids`` (others are absent)."""
-        encs, rets = self._matured(objective_ids, grad=False)
+        """Redistributed credit of every *matured* objective in ``objective_ids`` (others are absent), over the whole
+        trajectory (every decision gets credit; G and every Gamma_t are referenced at the trajectory's first decision).
+        Training uses windows of the newest ``max_len`` decisions; positions beyond ``max_len`` are extrapolated."""
+        encs, rets = self._matured(objective_ids, grad=False, full=True)
         out: Dict[str, RudderCredit] = {}
         for i in range(0, len(encs), 64):
             ee, rr = encs[i:i + 64], rets[i:i + 64]
@@ -438,9 +503,10 @@ class CocoaCredit:
 class HindsightProvider:
     """``LossProvider`` for the hindsight model h(a | b_t, u, elapsed) on stored trajectories.
 
-    A training pair is a decision t and an outcome event that a *strictly later* top-level decision of the same
-    objective declared, observed after t. The decision's own outcomes need no hindsight: they are attributed to the
-    executed candidate directly. Beliefs and candidate embeddings are detached (the hindsight model is a head)."""
+    A training pair is a decision t and an outcome event of the same objective observed after t that t did not
+    declare itself: declared by a later decision, or by an earlier one and observed after t (Meulemans et al. 2023,
+    Eq. 4 sums over every later reward R_{t+k}). The decision's own outcomes need no hindsight: they are attributed to
+    the executed candidate directly. Beliefs and candidate embeddings are detached (the hindsight model is a head)."""
     timescale = TIMESCALE_FREQUENT
     adapter_grad = False
     needs_latents = False
@@ -460,6 +526,14 @@ class HindsightProvider:
         self.hindsight: HindsightModel = model.register_head(head_name, HindsightModel(
             d, U_DIM, d, d_hidden=d_hidden, d_key=d_key, n_members=n_members, n_elapsed=2, seed=7_000_003 + seed))
         self.hindsight.to(model.device)
+        #: objectives whose trajectories entered a training loss of the hindsight model
+        self.trained_objectives: Set[str] = set()
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"trained_objectives": sorted(self.trained_objectives)}
+
+    def load_state_dict(self, st: Dict[str, Any]) -> None:
+        self.trained_objectives = set(st.get("trained_objectives", []))
 
     def eligible(self, record: ExperienceRecord) -> bool:
         return is_top_level(record) and bool(record.decision.probabilities) and \
@@ -467,7 +541,9 @@ class HindsightProvider:
 
     # ---- pairs ----------------------------------------------------------------------------------------------
     def _pairs(self, enc: EncodedTrajectory, tr: TrajectoryReturn) -> List[Tuple[int, int]]:
-        """(decision index, event index) with the event declared by a strictly later decision and observed after."""
+        """(decision index, event index) for every event of the trajectory that decision t did not declare and that
+        was observed after t: declared by a later decision (observed at or after t), or declared by an earlier
+        decision and observed strictly after t (it is a later reward R_{t+k} of t as well)."""
         pos = {e: i for i, e in enumerate(enc.exp_ids)}
         full = {e: i for i, e in enumerate(tr.exp_ids)}
         out = []
@@ -475,7 +551,10 @@ class HindsightProvider:
             if ev.index < 0:
                 continue
             for e, t in pos.items():
-                if full.get(e, 10 ** 9) < ev.index and float(enc.ts[t]) <= ev.observed_at:
+                own, ts = full.get(e), float(enc.ts[t])
+                if own is None or own == ev.index:
+                    continue
+                if (own < ev.index and ts <= ev.observed_at) or (own > ev.index and ts < ev.observed_at):
                     out.append((t, k))
         return out
 
@@ -484,9 +563,12 @@ class HindsightProvider:
         t = torch.tensor([p[0] for p in pairs], dtype=torch.long, device=dev)
         vals = torch.tensor([tr.events[p[1]].value for p in pairs], dtype=torch.float64, device=dev)
         when = torch.tensor([tr.events[p[1]].observed_at for p in pairs], dtype=torch.float64, device=dev)
-        full = {e: i for i, e in enumerate(tr.exp_ids)}
-        steps = torch.tensor([tr.events[p[1]].index - full[enc.exp_ids[p[0]]] for p in pairs], dtype=torch.float64,
-                             device=dev)
+        # decisions taken after t up to the observation (k - 1 in R_{t+k}): the same definition for events declared
+        # by later and by earlier decisions
+        times = sorted(tr.times)
+        steps = torch.tensor([bisect.bisect_right(times, tr.events[p[1]].observed_at) -
+                              bisect.bisect_right(times, float(enc.ts[p[0]])) for p in pairs], dtype=torch.float64,
+                             device=dev).clamp_min(0.0)
         secs = (when - enc.ts[t]).clamp_min(0.0)
         probs = enc.probs[t]
         return {"b": enc.b[t].detach(), "u": outcome_features(vals).to(dev), "cand": enc.e_a[t].detach(),
@@ -507,6 +589,8 @@ class HindsightProvider:
             if pairs:
                 rows.append(self._rows(enc, tr, pairs))
                 n_traj += 1
+                if _training_call():
+                    self.trained_objectives.add(oid)
         if not rows:
             return None, {"n_pairs": 0.0}
         n = max(r["cand"].shape[1] for r in rows)
@@ -538,13 +622,14 @@ class HindsightProvider:
 
         credit(a) = [a is the executed candidate] * own outcomes + sum over later outcomes of
         w(b_t, a, u_k) * v_k * exp(-beta * (tau_k - t)). Decisions without usable propensities are reported
-        ``unsupported`` with the reasons and carry no number."""
+        ``unsupported`` with the reasons and carry no number. Every top-level decision of the trajectory is covered
+        (``max_len`` bounds training windows only)."""
         out: Dict[str, CocoaCredit] = {}
         for oid in objective_ids:
             tr = self.returns.get(oid)
             if not tr.matured:
                 continue
-            enc = self.encoder.encode(oid)
+            enc = self.encoder.encode(oid, full=True)
             if enc is None:
                 continue
             T, N = enc.a_mask.shape
@@ -681,6 +766,23 @@ class CreditAssigner:
         self.selector = selector or EstimatorSelector(clock=self.clock)
         self.goal_relevant_only = goal_relevant_only
         self.last: Optional[CreditUpdate] = None
+        self._learners: List[Any] = []
+
+    def attach_learner(self, learner: Any) -> None:
+        """Called by ``ContinualLearner(credit=self)``: what the learner trained on is excluded from validation."""
+        if all(l is not learner for l in self._learners):
+            self._learners.append(learner)
+
+    def trained_objectives(self) -> Set[str]:
+        """Lifetimes (objective ids) that the estimators or the representation they read were trained on: RUDDER's
+        and COCOA's own training trajectories and every objective of a learner update batch."""
+        out: Set[str] = set()
+        for prov in (self.rudder, self.cocoa):
+            if prov is not None:
+                out |= set(getattr(prov, "trained_objectives", ()))
+        for l in self._learners:
+            out |= set(getattr(l, "trained_objectives", ()))
+        return out
 
     @property
     def default(self) -> str:
@@ -783,18 +885,25 @@ class CreditAssigner:
         t = float(rec.decision.ts)
         return sum(e.value * math.exp(-self.beta * max(e.observed_at - t, 0.0)) for e in tr.events if e.observed_at >= t)
 
-    def compare_with_experiment(self, experiment_id: str, *, treatment: str, control: str,
-                                confidence: float = 0.95) -> Optional[ExperimentEvidence]:
+    def compare_with_experiment(self, experiment_id: str, *, treatment: str, control: str, confidence: float = 0.95,
+                                exclude_objectives: Optional[Iterable[str]] = None) -> Optional[ExperimentEvidence]:
         """Measured arm difference of a registered experiment (matured return-to-go of its randomised decisions)
         next to each estimator's estimate of it, added to the selector's evidence. ``None`` when either arm has
-        fewer than two matured units."""
+        fewer than two matured held-out units.
+
+        Held out by lifetime (enforced here): a unit whose objective any estimator or attached learner trained on
+        (:meth:`trained_objectives`, plus ``exclude_objectives``) is left out of the measured difference *and* of
+        every estimate; the evidence records how many were excluded and is marked ``held_out``. Each estimator is
+        compared on the same units with the paired standard error (``select.paired_comparison``)."""
         st = self.store
         exp = st.experiment(experiment_id)
         recs = st.experiment_records(experiment_id)
         src = self.rudder or self.cocoa
         returns = src.returns if src is not None else _ReturnCache(st, self.beta, True, False)
+        trained = self.trained_objectives() | set(exclude_objectives or ())
         arms: Dict[str, List[ExperienceRecord]] = {treatment: [], control: []}
         G: Dict[str, float] = {}
+        excluded: List[str] = []
         randomized = exp is not None and exp.assignment == "randomized"
         for r in recs:
             arm = record_arm(r)
@@ -802,6 +911,9 @@ class CreditAssigner:
                 continue
             tr = returns.get(r.objective_id)
             if not tr.matured:
+                continue
+            if r.objective_id in trained:
+                excluded.append(r.objective_id)
                 continue
             arms[arm].append(r)
             G[r.exp_id] = self._return_to_go(r, tr)
@@ -813,17 +925,25 @@ class CreditAssigner:
             return None
         est: Dict[str, float] = {}
         se: Dict[str, float] = {}
+        pd: Dict[str, float] = {}
+        ps: Dict[str, float] = {}
+        pn: Dict[str, int] = {}
         for name, key in VALIDATION_KEY.items():
             a = [r.credit[key] for r in arms[treatment] if key in r.credit]
             b = [r.credit[key] for r in arms[control] if key in r.credit]
             d = arm_difference(a, b)
             if d is not None:
                 est[name], se[name] = d.diff, d.se
+            units = [(arm, float(r.credit[key]), G[r.exp_id]) for arm in (treatment, control) for r in arms[arm]
+                     if key in r.credit]
+            pc = paired_comparison(units, treatment, control, kind=ARM_DIFFERENCE)
+            if pc is not None:
+                pd[name], ps[name], pn[name] = pc
         if self.cocoa is not None:
-            units = arms[treatment] + arms[control]
-            cc = self.cocoa.credit(list(dict.fromkeys(r.objective_id for r in units)))
-            diffs = []
-            for r in units:
+            units_r = arms[treatment] + arms[control]
+            cc = self.cocoa.credit(list(dict.fromkeys(r.objective_id for r in units_r)))
+            diffs, cunits = [], []
+            for r in units_r:
                 c, idx = cc.get(r.exp_id), candidate_arms(r)
                 if c is None or c.per_candidate is None or treatment not in idx or control not in idx:
                     continue
@@ -834,12 +954,21 @@ class CreditAssigner:
                 own_t = c.own if r.decision.chosen_index == idx[treatment] else 0.0
                 own_c = c.own if r.decision.chosen_index == idx[control] else 0.0
                 p = r.decision.probabilities
-                diffs.append(d + own_t / max(p[idx[treatment]], 1e-12) - own_c / max(p[idx[control]], 1e-12))
+                x = d + own_t / max(p[idx[treatment]], 1e-12) - own_c / max(p[idx[control]], 1e-12)
+                diffs.append(x)
+                cunits.append((record_arm(r), x, G[r.exp_id]))
             if len(diffs) >= 2:
                 m = sum(diffs) / len(diffs)
                 sd = math.sqrt(sum((x - m) ** 2 for x in diffs) / (len(diffs) - 1))
                 est[COCOA], se[COCOA] = m, sd / math.sqrt(len(diffs))
-        ev = ExperimentEvidence.from_difference(measured, est, se)
+                pc = paired_comparison(cunits, treatment, control, kind=UNIT_MEAN)
+                if pc is not None:
+                    pd[COCOA], ps[COCOA], pn[COCOA] = pc
+        n_units = len(arms[treatment]) + len(arms[control])
+        ev = ExperimentEvidence.from_difference(
+            measured, est, se, held_out=True, n_excluded_trained=len(excluded), paired_diff=pd, paired_se=ps,
+            paired_n=pn, holdout={"split": "lifetime", "units": n_units, "excluded_trained": len(excluded),
+                                  "trained_objectives_known": len(trained)})
         self.selector.add_evidence(ev)
         return ev
 

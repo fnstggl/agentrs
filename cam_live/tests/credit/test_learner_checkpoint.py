@@ -87,7 +87,8 @@ def test_saved_learner_state_is_complete_and_continues_identically(lab_factory, 
         assert rep["checkpoint_id"] == info.checkpoint_id and rep["weights"].clean
         assert rep["arch_signature_differences"] == [] and rep["auth_config_changed"] is False
         assert all(v["fresh"] == [] and v["mismatched"] == [] for v in rep["optimizers"].values())
-        assert rep["provider_state"] == {"restored": ["retention"], "missing": []} and rep["fast_state"] == "restored"
+        assert rep["provider_state"] == {"restored": ["rudder", "cocoa", "retention"], "missing": []} and \
+                rep["fast_state"] == "restored"
         assert lab2.learner.counters["frequent"] == 3 and lab2.learner.model_version == "m3.1"
         assert set(rp2.anchors.refs) == set(rp.anchors.refs)
         assert lab2.learner.fast_state.n_updates(OutcomeKind.COUNT) == 3

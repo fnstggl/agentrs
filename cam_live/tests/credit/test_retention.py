@@ -115,7 +115,7 @@ def test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learne
     assert any(k.startswith("heldout/neg_") for k in dec0.validation)
     good_hashes, good_counters = model.group_hashes(), dict(learner.counters)
     # a damaging stretch of learning: the earlier family's predictions get worse
-    learner.provider("world").weight = -1.0
+    learner.provider("world").weight = -3.0        # (-1.0 stopped being damaging after nn/ e00d28f: NLL change -0.085)
     lr = dict(learner.lr)
     learner.lr.update({g: 3e-3 for g in lr})
     learner.learn(UpdatePlan(trigger="test", max_steps=14))
