@@ -73,10 +73,12 @@
   "The software capabilities are a fixed catalogue of 8 small pure functions; developers' glue code is generated from a package's API by function name, so a package whose function is named differently is not found.",
   "Population researchers know a public handbook of response forms that contains the hidden law families of the training configurations (the structural evaluation configuration uses forms outside it).",
   "The content domain's population creators write from one real news corpus; originality therefore uses a 90% shingle threshold, and the reference composes from the same corpus.",
-  "Content difficulty 4 (10M viewers) is defined and its world spec built (internet population profile); no 10M-individual content run was made here.",
   "Community and content worlds run the shared space's text path (Qwen3-0.6B LM): their long runs belong in GPU slots; the slot queue was congested during this wave, see test_results_unofficial.",
   "Community: the population's community model (CORE-POP pop_social) joins and contributes far above usual participation inequality (an idle founder's generic community: 150 members and 108 weekly contributors after 9 days; a keyword-stuffed community: 501 members after 10 days); I-1 answers with an organiser-presence rule in the evaluator and member exit to successor communities (commlife), which halved the spam community in 10 days, but the population model itself needs calibration.",
-  "Content: keyword-stuffed posts still reach viewers (54 distinct viewers in 2 days against 217 for the reference); the level-1 target is 500 of 1,500 individuals."
+  "Content: keyword-stuffed posts still reach viewers (54 distinct viewers in 2 days against 217 for the reference); the level-1 target is 500 of 1,500 individuals.",
+  "Content difficulty 4 (10M viewers) is defined, its target is the spec's 10,000,000 and its world spec builds on the internet population profile; no 10M-individual content run was made here.",
+  "The research reference's library beyond the handbook contains shapes of the held-out law families (with two other general shapes); it proves the structural configuration is solvable from data by a researcher who tries more forms when the handbook fails, not that an unknown form can be discovered without such a library.",
+  "Startup and content feasibility on their evaluation configurations under the framework's every-configuration check was not measured locally (75-day startup runs and content runs exceed the 5-minute local limit); it is measured by the queued slot jobs."
  ],
  "integration_notes": [
   "CIV: add the domain population modules to crucible.civ.generator.ORDER after their owners so the domains compose into Tier 3 with population activity: scipop after sci (needs pop, docs), devpop after pkg (needs code, issues, pop), commlife after community (needs pop, social_ids). sci's `challenge` config (standards bureau) is off unless configured.",
@@ -116,7 +118,12 @@
   "tests/test_v5_domains_research.py new tests (fourth agent, CPU)": "3 passed (held-out law recovery, goal texts, structures)",
   "research heldout reference (fourth agent, local, 30 days)": "seed 0 success nRMSE 0.034, seed 1 success score 0.95; 8/8 mechanics verified, isolated",
   "software libraries reference (fourth agent, local, 4 days)": "success, 28 adopters, 10/10 mechanics verified",
-  "content genesis (fourth agent, local)": "visual_trending: 12 catalogue items (6 pics images, 6 posts); 0.3-day null run consumes pics; structure: 3 train structures, compositional + structural eval"
+  "content genesis (fourth agent, local)": "visual_trending: 12 catalogue items (6 pics images, 6 posts); 0.3-day null run consumes pics; structure: 3 train structures, compositional + structural eval",
+  "tests/test_v5_domains_research.py (fourth agent, CPU, whole file)": "9 passed (177 s)",
+  "tests/test_kernel.py tests/test_invariants.py (fourth agent, after merging feat/crucible-5-complete 629584a)": "51 passed",
+  "tests/test_v5_domains_framework.py registry/definition tests (fourth agent)": "24 passed (-k mode_b, kernel_modules_exist, api_version, part9_lists, refused, invalid_definitions, policy_factories)",
+  "research reference, handbook-first rule (fourth agent, local, 30 days, seed 0)": "bench success (nRMSE 0.013), drift_survey success (0.028), heldout success (0.034); isolated, 0 failed processes",
+  "content tier3_report (fourth agent, local CPU, balanced, 2 h)": "composes: 77 modules, seat present, 0 failed processes, 0 invariant errors, evaluator ran"
  },
  "history": [
   {
