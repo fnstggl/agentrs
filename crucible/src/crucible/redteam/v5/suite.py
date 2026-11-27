@@ -18,7 +18,9 @@ Counting rules (stricter than the criteria's wording, never looser): a probe tha
 gates; a probe that is not applicable is reported per gate (the gate test requires zero); W.1's
 `sandbox_tests_passed` counts every refused escape check of the escape matrix plus every other held W.1 probe;
 `evaluator_leaks` counts every W.2 finding of severity medium or above (a low-severity structural finding - an
-import path no participant can trigger - is reported separately as `evaluator_isolation_low_findings`).
+import path no participant can trigger - is reported separately as `evaluator_isolation_low_findings`); a W.2 row
+whose isolation check had nothing to look for (``isolation_vacuous``) is not counted in W.2's `probes_run` and is
+reported as `evaluator_isolation_vacuous`.
 """
 from __future__ import annotations
 
@@ -209,8 +211,15 @@ def gate_metrics(report: dict, cat: dict | None = None) -> dict[str, dict]:
                     passed += 1
             m.update(sandbox_tests_passed=passed, sandbox_escapes=esc + len(bad))
         elif g == "W.2":
+            # a held row whose isolation half had nothing to look for (a Tier 2 configuration whose evaluator outcome
+            # had no distinctive value) measured nothing for W.2: not counted as a run W.2 probe, reported instead
+            vac = [r for r in ran if r["result"] == "held" and (r.get("evidence") or {}).get("isolation_vacuous")]
+            capped = [r for r in ran if (r.get("evidence") or {}).get("sweep_capped")]
             m.update(evaluator_leaks=sum(1 for r in bad if _severity(r) not in ("low", "info")),
-                     evaluator_isolation_low_findings=sum(1 for r in bad if _severity(r) in ("low", "info")))
+                     evaluator_isolation_low_findings=sum(1 for r in bad if _severity(r) in ("low", "info")),
+                     probes_run=len(ran) - len(vac), evaluator_isolation_vacuous=len(vac),
+                     evaluator_isolation_vacuous_names=",".join(sorted(r["name"] for r in vac)),
+                     evaluator_sweeps_capped=len(capped))
         elif g == "W.3":
             m.update(reward_hack_probes=len(ran),
                      open_critical_high_reward_hacks=sum(1 for r in bad if _severity(r) in ("critical", "high")))

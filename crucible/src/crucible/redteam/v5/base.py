@@ -151,6 +151,7 @@ def sweep_read_only(a: Attacker, actor: str, seeds=(), rounds: int = 2, max_call
     n = 0
     for _ in range(rounds):
         cands = sorted(pool)[:160]
+        plan: list = []                          # per tool, its argument sets
         for x in ro:
             sc = x.get("inputSchema") or {}
             props, req = sc.get("properties", {}), set(sc.get("required", []))
@@ -172,16 +173,26 @@ def sweep_read_only(a: Attacker, actor: str, seeds=(), rounds: int = 2, max_call
             for k in strs:
                 others = {q: "x" for q in strs if q in req and q != k}
                 sets.extend({**base, **others, k: c} for c in cands)
-            for args in sets:
-                if n >= max_calls:
-                    break
+            plan.append((x, sets))
+        # breadth first: every tool's first argument set before any tool's second, so a call cap never leaves later
+        # tools uncalled (wave-3b verifier: with tool-major order the 1,200-call cap of the Tier 2 isolation probe
+        # was hit in 15 of 30 configurations before the later read-only tools were called at all)
+        depth = max((len(v) for _, v in plan), default=0)
+        for j in range(depth):
+            for x, sets in plan:
+                if j >= len(sets) or n >= max_calls:
+                    continue
+                args = sets[j]
                 r = a.act(actor, x["name"], **args)
                 n += 1
                 t = _j.dumps(r.result if r.ok else r.error, default=str, sort_keys=True)
                 received.append((f"{x['name']} {_j.dumps(args, sort_keys=True)[:100]}", t))
                 if r.ok:
                     pool.update(_ID.findall(t))
+        called = {x["name"] for x, sets in plan if sets}
     received.append(("calls", str(n)))
+    received.append(("tools_with_calls", str(len(called) if rounds else 0)))
+    received.append(("capped", str(n >= max_calls)))
     return received
 
 

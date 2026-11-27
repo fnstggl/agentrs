@@ -250,7 +250,7 @@ class Tier2OfflineAndIsolated(_Tier2):
                     self.self_observable = {k: v for k, v in self.canaries.items() if k in self.own}
                     for k in self.self_observable:
                         self.canaries.pop(k, None)
-                    self.received = sweep_read_only(_EnvParticipant(env), me, rounds=1, max_calls=1200)
+                    self.received = sweep_read_only(_EnvParticipant(env), me, rounds=1, max_calls=3000)
                 finally:
                     env.close()
             finally:
@@ -284,6 +284,8 @@ class Tier2OfflineAndIsolated(_Tier2):
                "canaries": len(self.canaries), "hits": dict(list(hits.items())[:10]), "evaluator_leaks": len(hits),
                "texts_examined": len(self.received), "simulated_days": getattr(self, "days", None),
                "isolation_vacuous": not self.canaries,
+               "sweep_calls": next((int(t) for w, t in self.received if w == "calls"), 0),
+               "sweep_capped": any(w == "capped" and t == "True" for w, t in self.received),
                "self_observable_excluded": dict(list(getattr(self, "self_observable", {}).items())[:10])}
         if self.attempts:
             from ..framework import INTEGRITY_BREAK
@@ -293,9 +295,11 @@ class Tier2OfflineAndIsolated(_Tier2):
             return Verdict(LEAK, f"{len(hits)} evaluator measurement(s) of the domain reached the participant", evd,
                            severity="high")
         if not self.canaries:
+            # offline (W.8) is measured; evaluator isolation (W.2) is not: gate_metrics does not count this row as a
+            # W.2 probe run and reports it as evaluator_isolation_vacuous (wave-3b verifier)
             return Verdict(HELD, f"offline ({acted} reference actions in {self.days:g} days); the evaluator's outcome "
                                  "held no distinctive value to look for within the time budget (the isolation half "
-                                 "is vacuous here)", evd)
+                                 "is vacuous here and is not counted for W.2)", evd)
         return Verdict(HELD, f"offline ({acted} reference actions in {self.days:g} days); none of {len(self.canaries)} "
                              "evaluator values appeared in any participant tool", evd)
 

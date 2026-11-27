@@ -14,7 +14,14 @@ Order of checks for every request (and again for every redirect hop):
     second DNS answer cannot redirect it;
  6. request-count, rate and byte budgets are not exceeded;
  7. a consequential method (anything but GET/HEAD) is approved by the live approval callback, when the document
-    requires approval; without a callback it is refused.
+    requires approval; without a callback it is refused;
+ 8. (before the first request to each scheme, host and port) the operator has shown that it controls the host: the
+    host serves ``/.well-known/crucible-realworld-bridge.txt`` (status 200, no redirect, at most 4 KiB) containing
+    the line ``crucible-realworld-authorization: <sha256 of the authorisation document>``, which only someone who
+    controls the host's root can place - the same idea as an ACME HTTP-01 challenge. A loopback address (this
+    machine) needs no proof. A denylist of platforms cannot be complete (the wave-3b verifier found authorisations
+    for other Mastodon and Lemmy instances, Amazon SES, the Hacker News API, URL shorteners and an IP literal of a
+    listed platform accepted); the proof refuses every host the operator does not control, listed or not.
 
 Every request, response, refusal, approval, measurement and holdout evaluation is appended to the hash-chained
 log before control returns to the caller.
@@ -42,6 +49,9 @@ CRED_PARAMS = {"token", "access_token", "api_key", "apikey", "key", "password", 
                "sig", "session", "sessionid"}
 SECRET_HEADERS = {"authorization", "cookie", "proxy-authorization", "x-api-key", "x-auth-token"}
 METADATA = {"169.254.169.254", "fd00:ec2::254", "100.100.100.200"}
+OWNERSHIP_PATH = "/.well-known/crucible-realworld-bridge.txt"
+OWNERSHIP_LINE = "crucible-realworld-authorization:"
+OWNERSHIP_MAX = 4096
 MAX_REDIRECTS = 5
 # headers that say who is asking: the bridge sets the User-Agent itself (automation disclosure), and refuses callers
 # that try to look like a browser, a person or another origin (impersonation, Part 16 / SP-16b)
@@ -128,6 +138,7 @@ class RealWorldBridge:
         self._last_request_t: float | None = None
         self._tokens = 1.0
         self.refusals: list[str] = []
+        self._owned: dict[tuple, str] = {}       # (scheme, host, port) -> how control was shown
         self._holdouts = (SealedHoldoutGuard(dict(authorization.holdouts), log=self.log)
                           if authorization is not None else None)
         if self.log is not None and authorization is not None:
@@ -273,6 +284,7 @@ class RealWorldBridge:
             _, scheme, host, port, target = self._match_base(url, method)
             self._budget(method, url, len(body or b""), check_rate=(hops == 0))   # redirect hops count, unpaced (<= 5)
             ip = self._resolve_checked(host, port, url, method)
+            self._ownership(scheme, host, port, ip, url, method)
             if hops == 0:
                 self._approval(method, url, body, note)
             status, rh, rb, truncated = self._send(method, scheme, host, port, ip, target, body, headers, url, hops)
@@ -290,7 +302,38 @@ class RealWorldBridge:
                 continue
             return RealResponse(status, rh, rb, url, hops)
 
-    def _send(self, method, scheme, host, port, ip, target, body, headers, url, hops):
+    def _ownership(self, scheme: str, host: str, port: int, ip: str, url: str, method: str) -> None:
+        """Step 8: the operator controls this host (module docstring). Checked once per (scheme, host, port) and
+        bridge; the check itself is a logged GET that counts against the budgets."""
+        key = (scheme, host, int(port))
+        if key in self._owned:
+            return
+        a = ipaddress.ip_address(ip)
+        if getattr(a, "ipv4_mapped", None) is not None:
+            a = a.ipv4_mapped
+        if a.is_loopback:                     # this machine; its address is listed explicitly (step 5)
+            self._owned[key] = "loopback (this machine)"
+            return
+        self._budget("GET", url, 0, check_rate=False)
+        headers = {"User-Agent": disclosure(self.auth.experiment)}
+        purl = f"{scheme}://{host}:{port}{OWNERSHIP_PATH}"
+        try:
+            status, _rh, rb, _tr = self._send("GET", scheme, host, port, ip, OWNERSHIP_PATH, None, headers, purl, 0,
+                                              cap=OWNERSHIP_MAX)
+        except BridgeRefused as e:
+            self._refuse(f"cannot show that the operator controls {host}: the ownership file could not be read "
+                         f"({e})", url=url[:300], method=method)
+        want = f"{OWNERSHIP_LINE} {self.auth.sha256}"
+        lines = {ln.strip() for ln in rb[:OWNERSHIP_MAX].decode("utf-8", "replace").splitlines()}
+        if status != 200 or want not in lines:
+            self._refuse(f"{host} does not show that the operator controls it: {purl} must answer 200 with the line "
+                         f"'{want}' (got status {status}). The bridge acts only on hosts the operator controls "
+                         "(MASTER_SPEC Part 16: no real-world spam, fabricated engagement, covert influence, "
+                         "surveillance or impersonation)", url=url[:300], method=method)
+        self._owned[key] = "ownership file"
+        self._record({"kind": "ownership", "host": host, "port": port, "how": "ownership file", "url": purl})
+
+    def _send(self, method, scheme, host, port, ip, target, body, headers, url, hops, cap: int | None = None):
         a = self.auth
         self.n_requests += 1
         self.n_bytes += len(body or b"")
@@ -309,6 +352,8 @@ class RealWorldBridge:
             conn.request(method, target, body=body, headers=headers)
             resp = conn.getresponse()
             left = a.max_bytes - self.n_bytes
+            if cap is not None:
+                left = min(left, int(cap))
             data = resp.read(left + 1)
             if len(data) > left:
                 data, truncated = data[:left], True

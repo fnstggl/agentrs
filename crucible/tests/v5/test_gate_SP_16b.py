@@ -16,14 +16,18 @@ Measured on the real system:
   every world-hosting entry point, unreachable from world code (static import closure), the worlds' content and
   fetch tools reaching no network (process guard; jailed browser and media tools against a loopback canary), and -
   for an operator WITH a valid authorisation - documents naming third-party social, messaging, review, advertising
-  or code platforms refused (no spam, fabricated engagement or influence there), caller identity headers refused
-  and every request carrying the bridge's automation disclosure (no impersonation);
+  or code platforms refused (no spam, fabricated engagement or influence there), third-party hosts on NO list
+  refused because they do not show the operator's ownership file (impostors on loopback reached through public
+  addresses; a public host the operator controls is accepted), caller identity headers refused and every request
+  carrying the bridge's automation disclosure (no impersonation);
 * media: every FFmpeg/ffprobe/SoX/Chromium launch at the participant call sites (studio and media tools) observed
   through audit events, and Pillow decodes inside the world process; an unjailed launch or an in-process decode of
   participant bytes is an unrestricted media-tool run;
 * tenants: per-world sandbox uids, per-world pools and meter memo, the artifact pool across worlds, kernel objects
-  two tenants share on one kernel (SysV IPC / POSIX mq, advisory locks, inotify), jailed learner processes against
-  each other (own uids, no signals by descriptor ownership, no state carried to a fresh process), and the jail uids
+  two tenants share on one kernel (SysV IPC / POSIX mq, advisory locks, inotify, dnotify, scheduling attributes,
+  shared futexes, CPU clocks), jailed learner processes against each other (own claimed uids, no signals by
+  descriptor ownership, no state carried to a fresh process, no attribute/notification/futex/clock channel, no
+  control of a same-uid process), and the jail uids
   (distinct per tool kind, outside the tenant range, not root or nobody);
 * out-of-process evaluation: Tier 1 and a 4.0 kernel world hosted by `crucible.experience.remote.host`, driven only
   through the participant handle, verified through the evaluator handle; the participant pipe refuses evaluator
@@ -60,7 +64,12 @@ TENANTS = ("v5.sandbox.tenants_do_not_share_a_uid", "v5.crossworld.sandbox_pools
            "v5.crossworld.artifact_bytes_do_not_cross_worlds",
            # kernel objects shared by tenants of one kernel, and jailed learner processes (wave-3b review)
            "v5.crossworld.kernel_ipc_does_not_cross_worlds", "v5.crossworld.file_locks_do_not_cross_worlds",
-           "v5.crossworld.file_watches_do_not_cross_worlds", "v5.sandbox.hosted_learners_cannot_reach_each_other")
+           "v5.crossworld.file_watches_do_not_cross_worlds", "v5.sandbox.hosted_learners_cannot_reach_each_other",
+           # process attributes, directory notifications, shared futexes, CPU clocks (wave-3b verifier, repair pass)
+           "v5.crossworld.scheduling_attributes_do_not_cross_worlds",
+           "v5.crossworld.directory_notifications_do_not_cross_worlds",
+           "v5.crossworld.shared_futexes_do_not_cross_worlds", "v5.crossworld.cpu_clocks_do_not_cross_worlds",
+           "v5.sandbox.hosted_learners_share_no_process_state")
 REMOTE = ("v5.isolation.remote_participant_cannot_run_code_in_the_world",)
 
 
@@ -219,7 +228,8 @@ def test_SP16b_integrity_abuse_media_tenants_and_out_of_process_evaluation(red_t
              **{f"latch_open:{m}": not v for m, v in latches.items()},
              **{n: not held(n) for n in ABUSE},
              **{f"realworld:{p}": True for p in rw["abuse_paths"]},
-             "realworld_authorised_control_failed": not rw["control_ok"]}
+             "realworld_authorised_control_failed": not rw["control_ok"],
+             "realworld_owned_public_host_control_failed": not rw["owned_control_ok"]}
     ev_media = (red_team[MEDIA[0]].get("evidence") or {}), (red_team[MEDIA[1]].get("evidence") or {})
     unjailed = int(ev_media[0].get("unrestricted_media_tool_runs") or 0) if red_team[MEDIA[0]]["result"] != "held" else 0
     decodes = int(ev_media[1].get("in_process_image_decodes") or 0) if red_team[MEDIA[1]]["result"] != "held" else 0
@@ -248,6 +258,8 @@ def test_SP16b_integrity_abuse_media_tenants_and_out_of_process_evaluation(red_t
         "tenant_checks": len(tenant_fail), "moderation_tools": ",".join(msg["moderation_tools"]),
         "third_party_platforms_refused": sum(v == "refused" for v in rw["platforms"].values()),
         "third_party_platforms_tried": len(rw["platforms"]),
+        "unlisted_third_party_hosts_refused": sum(str(v).startswith("refused") for v in rw["unlisted"].values()),
+        "unlisted_third_party_hosts_tried": rw["unlisted_hosts_tried"],
         "identity_headers_refused": sum(v == "refused" for v in rw["spoofed"].values()),
         "automation_disclosure": str(rw.get("control_user_agent")),
     }

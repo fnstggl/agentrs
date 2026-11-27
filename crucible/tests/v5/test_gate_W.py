@@ -119,14 +119,20 @@ def test_W9_private_state(red_team):
     assert m["probes_run"] >= 4 and m["private_state_leaks"] == 0, m
 
 
-def _review_docs() -> list[str]:
+# Reviews written by someone other than the workstream that owns the code (the area audit and its skeptic review)
+# count as independent; the workstream's own adversarial review of the merged tree is reported separately (wave-3b
+# verifier: counting it overstated independence).
+INDEPENDENT_REVIEWS = (("audit", "O_security.md"),)
+OWN_REVIEWS = (("reviews", "W_adversarial_review.md"),)
+
+
+def _review_docs(which=INDEPENDENT_REVIEWS) -> list[str]:
     root = crucible_root()
     out = []
-    for d in (os.path.join(root, "docs", "v5", "audit"), os.path.join(root, "docs", "v5", "reviews")):
-        for name in ("O_security.md", "W_adversarial_review.md"):
-            p = os.path.join(d, name)
-            if os.path.isfile(p):
-                out.append(p)
+    for sub, name in which:
+        p = os.path.join(root, "docs", "v5", sub, name)
+        if os.path.isfile(p):
+            out.append(p)
     return out
 
 
@@ -144,11 +150,15 @@ def test_Wn1_independent_adversarial_review(red_team):
     fixed_ok = {k: [n for n in rows if fnmatch.fnmatch(n, pat)] for k, pat in {**FIXED, **FIXED_BY_OWNERS}.items()}
     fixed_held = all(v and all(rows[n] == "held" for n in v) for v in fixed_ok.values())
     open_probed = all(n in rows for n in KNOWN_OPEN)
+    own = _review_docs(OWN_REVIEWS)
     metrics = {"independent_adversarial_reviews": reviews, "review_documents": len(docs),
+               "own_adversarial_reviews_not_counted": len(own),
                "review_findings_closed_with_held_probe": len(FIXED) + len(FIXED_BY_OWNERS),
                "review_findings_closed_by_owners": len(FIXED_BY_OWNERS), "review_findings_closed_all_held": fixed_held,
                "open_findings_with_probe": len(KNOWN_OPEN), "open_findings_all_probed": open_probed,
                "open_high": sum(1 for k in KNOWN_OPEN.values() if k["severity"] in ("critical", "high"))}
-    record("W.n1", metrics, command=CMD, notes="reviews: " + ", ".join(os.path.relpath(p, crucible_root()) for p in docs))
+    record("W.n1", metrics, command=CMD, notes="independent reviews: " + ", ".join(os.path.relpath(p, crucible_root())
+                                                                            for p in docs)
+           + "; own review (not counted): " + ", ".join(os.path.relpath(p, crucible_root()) for p in own))
     assert reviews >= 1, "no independent adversarial review found under docs/v5/audit or docs/v5/reviews"
     assert fixed_held and open_probed, json.dumps({"fixed": fixed_ok}, default=str)[:2000]

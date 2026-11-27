@@ -55,6 +55,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             return self._send(200, b"this server is not in scope")
         if self.path == "/api/items":
             return self._send(200, json.dumps({"items": srv.items}).encode(), [("Content-Type", "application/json")])
+        if self.path == "/.well-known/crucible-realworld-bridge.txt" and srv.proof:
+            return self._send(200, srv.proof.encode())
         if self.path == "/api/redirect-in":
             return self._send(302, b"", [("Location", "/api/items")])
         if self.path == "/api/redirect-out":
@@ -88,7 +90,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
 def _serve(role):
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-    srv.role, srv.hits, srv.items, srv.other_port = role, [], [{"id": 1}], 0
+    srv.role, srv.hits, srv.items, srv.other_port, srv.proof = role, [], [{"id": 1}], 0, None
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -675,3 +677,42 @@ def test_default_crucible_process_makes_no_network_connection():
         World.from_blob(blob, world_id="copy").close()
         w.close()
     assert g.attempts == [], g.attempts
+
+
+def test_public_hosts_need_the_operators_ownership_file(tmp_path, staging):
+    """Wave-3b verifier: a denylist of platforms cannot be complete (other Mastodon/Lemmy instances, Amazon SES, URL
+    shorteners, an IP literal of a listed platform were all accepted). A host that is not this machine must serve
+    the ownership file naming the authorisation's hash before any request of the experiment reaches it; checked
+    once per host, logged, never following a redirect. A 'public' host is simulated by a resolver answering a public
+    address and a connection hook that sends it to a loopback server (nothing leaves the machine)."""
+    import socket as _s
+    import crucible.realworld.bridge as BR
+    srv, other = staging
+    port = srv.server_address[1]
+    doc = _write(tmp_path, _doc(port, base_urls=[f"http://shop.operator.example:{port}/api/"], allow_private_addresses=[]))
+    auth = load_authorization(doc)
+    resolver = lambda h, p, type=None: [(_s.AF_INET, _s.SOCK_STREAM, 6, "", ("93.184.215.14", p))]  # noqa: E731
+    real = BR.socket.create_connection
+    BR.socket.create_connection = lambda addr, *a, **k: real(("127.0.0.1", addr[1]), *a, **k)
+    try:
+        b = RealWorldBridge(auth, log_path=str(tmp_path / "own.log"), resolver=resolver)
+        n0 = len(srv.hits)
+        with pytest.raises(BridgeRefused, match="does not show that the operator controls it"):
+            b.get(f"http://shop.operator.example:{port}/api/items")
+        assert [h[1] for h in srv.hits[n0:]] == [BR.OWNERSHIP_PATH]          # only the ownership file was asked for
+        b.close()
+        srv.proof = f"{BR.OWNERSHIP_LINE} {auth.sha256}\n"
+        b = RealWorldBridge(auth, log_path=str(tmp_path / "own2.log"), resolver=resolver)
+        n1 = len(srv.hits)
+        assert b.get(f"http://shop.operator.example:{port}/api/items").status == 200
+        assert [h[1] for h in srv.hits[n1:]] == [BR.OWNERSHIP_PATH, "/api/items"]
+        b.close()
+        other_doc = _write(tmp_path, _doc(port, base_urls=[f"http://shop.operator.example:{port}/api/"],
+                                          allow_private_addresses=[], purpose="another experiment"), name="o.json")
+        b = RealWorldBridge(load_authorization(other_doc), log_path=str(tmp_path / "own3.log"), resolver=resolver)
+        with pytest.raises(BridgeRefused, match="does not show"):    # the file names another document's hash
+            b.get(f"http://shop.operator.example:{port}/api/items")
+        b.close()
+    finally:
+        BR.socket.create_connection = real
+        srv.proof = None
