@@ -3,7 +3,7 @@
  "branch": "c5c/w3b-rapid",
  "base": "55433e7 (integration head after waves 1, 2a, 3a and the integration fix) + feat/crucible-5-complete docs merge cb96e1c",
  "measured_at": "2026-11-27 repair pass: per-family full admission probes on seeds 0-2 and 10-12 of every family the repair changed (48 families; the other 49 are bit-identical to the f2 registry run); registry-wide run queued as slot job 'H: rapid repair r1'",
- "status": "Repair pass after the verifier's review of c09eb24a: all eight findings addressed with tests (tests/test_v5_rapid_repair.py). Probe counts under the strengthened admission: M.1 62/60 training families, M.2 21/20 evaluation families, SP-8.0 60/60 named items (seeds 0-2 and 10-12). Gate evidence for M.1-M.4, M.6-M.8, SP-7.3-7.5, SP-8.0, SP-8.0b, SP-8.11, SP-8.12, SP-8.12b is pending the slot job.",
+ "status": "Repair pass after the verifier's review of c09eb24a: all eight findings addressed with tests (tests/test_v5_rapid_repair.py). Probe counts under the strengthened admission: M.1 62/60 training families, M.2 20/20 evaluation families, SP-8.0 60/60 named items (seeds 0-2 and 10-12). Gate evidence for M.1-M.4, M.6-M.8, SP-7.3-7.5, SP-8.0, SP-8.0b, SP-8.11, SP-8.12, SP-8.12b is pending the slot job.",
  "progress": {
   "baseline_integrated_tree": {
    "robust_train": 22,
@@ -99,7 +99,7 @@
   "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job.",
   "repair_pass": {
    "verifier_findings_fixed": {
-    "HIGH prediction dominance": "dominance._naive_predictors adds hold-and-fit predictors (hold_settings blocks; linear, additive quadratic, leave-one-out choice); SP-7.4 negative control ctl_dominant_prediction; families redesigned: plan_spoilage, net_congestion_routes, cx_balancing_loop, ch_tech_transition, look-alike markets (shared held-out list)",
+    "HIGH prediction dominance": "dominance._naive_predictors adds hold-and-fit predictors (hold_settings blocks; linear, additive quadratic, leave-one-out choice); SP-7.4 negative control ctl_dominant_prediction; families redesigned: plan_spoilage, net_congestion_routes, cx_balancing_loop, ch_tech_transition, look-alike markets (shared held-out list); beyond the verifier's probe, the generic predictors also hold each option of a discrete decision named in the held-out conditions (hold_option_*), which dominates mk_gate",
     "HIGH program determinism": "program_exec.billed_units: 100 units per call + 10,000 per whole 10,000 measured (parent-side D-20 measurement, quantised); reference programs measure <= ~2,600 units per call; fresh-process repeat test",
     "MEDIUM 8.10 channel": "categories.beliefs_fail_after_change on the scored predictions (true_response with t_frozen and exogenous_ticks); mutation test: cheaper new process leaves the verdict unchanged",
     "MEDIUM revenue channel": "families._realised_revenue: realised quantities with relative sd 0.1 x observation_noise in every primitive-graph prediction world that books revenue; one extra normal per tick after all others, none in the warm-up; scalar twin updated",
@@ -110,7 +110,7 @@
    },
    "probe_counts": {
     "robust_train": 62,
-    "robust_eval": 21,
+    "robust_eval": 20,
     "named_items": 60,
     "not_robust": [
      "ch_wandering_taste",
@@ -119,6 +119,7 @@
      "cxs_selected_layers",
      "des_perishable",
      "mk_drift",
+     "mk_gate",
      "net_cascade",
      "net_routing",
      "net_topology_shift",
@@ -130,7 +131,8 @@
     ],
     "lost_to_the_stronger_check": [
      "mk_drift (train)",
-     "cxc_balancing_constraint (eval)"
+     "cxc_balancing_constraint (eval)",
+     "mk_gate (eval; per-option hold and fit 0.8-0.98 of its reference)"
     ]
    },
    "probe_tools": "scratchpad w3b-rapid/r3: predprobe.py (generic predictors vs reference), admchunk.py (full admission), riskprobe.py (identification and claims), pe_det.py (program determinism), c810.py (8.10 check)",
@@ -216,7 +218,7 @@
     "tests/v5/test_gate_M.py",
     "tests/test_v5_rapid_repair.py"
    ],
-   "status_claim": "MET in probes (21 of 20); gate evidence pending the slot job",
+   "status_claim": "MET in probes at the threshold (20 of 20; mk_gate and cxc_balancing_constraint are dominated by the generic predictors); gate evidence pending the slot job",
    "notes": "Evaluation families (v5-eval-1) admitted on both seed sets in probes: 8 at the start of wave 3b, 15 after the first agent, 21 after the first continuation (f1 registry run at 7a4137d: 21), 22 with net_interdependent (8.7.4, new in the second continuation). Several prediction-world references are weak on one seed of a set (ch_sign_reversal, cxc_balancing_constraint, cxc_latched_reversal): admitted under the two-of-three rule."
   },
   "M.3": {
@@ -559,16 +561,15 @@
   }
  },
  "limitations": [
-  "Gate M counts are probe counts until the slot job 'H: rapid repair r1' lands: M.1 62/60, M.2 21/20, SP-8.0 60/60 (full eleven-check admission of every family the repair changed, on seeds 0-2 and 10-12; the other 49 families' code paths are unchanged and their f2 results are carried over in the probe count; a sample of six of them (strat_blotto, team_assembly, srch_field, ch_silent_reversal, net_repair, plan_distribution) re-admitted on seeds 0-2 reproduced every f2 value and verdict bit for bit).",
+  "Gate M counts are probe counts until the slot job 'H: rapid repair r1' lands: M.1 62/60, M.2 20/20, SP-8.0 60/60 (full eleven-check admission of every family the repair changed, on seeds 0-2 and 10-12; the other 49 families' code paths are unchanged and their f2 results are carried over in the probe count; a sample of six of them (strat_blotto, team_assembly, srch_field, ch_silent_reversal, net_repair, plan_distribution) re-admitted on seeds 0-2 reproduced every f2 value and verdict bit for bit).",
   "Margins are thin but deterministic: several admitted families pass the dominance check on exactly two of three seeds of a set (ch_constraint_tightens, ch_tech_transition, mk_elastic, eng_delayed_controller, game_adaptive_rival, des_inventory, pe_cascade_guard; evaluation: hc_causal_prediction, sci_instruments, sci_interaction_hypotheses, pe_deadtime_control). The same tree and seeds give the same verdicts (program billing is now quantised).",
-  "Not admitted under the strengthened check: mk_drift (train; its path-dependent flip inside a held price is not identified by the shared market reference, generic predictors reach 0.86-0.93 of it on seeds 0-2) and cxc_balancing_constraint (evaluation; reference below hold and fit on 4 of 6 seeds).",
+  "Not admitted under the strengthened check: mk_drift (train; its path-dependent flip inside a held price is not identified by the shared market reference, generic predictors reach 0.86-0.94 of it on seeds 0-2), cxc_balancing_constraint (evaluation; reference below hold and fit on 4 of 6 seeds) and mk_gate (evaluation; a per-option hold and fit reaches 0.8-0.98 of its reference). M.2 therefore sits exactly at its threshold (20 of 20).",
   "SCOPE (verifier): items 8.4.2, 8.4.3, 8.6.3, 8.7.1 and 8.7.4 are covered only by compact primitive-graph prediction worlds (plan_spoilage, plan_serial_stages, dl_delayed_adoption, net_congestion_routes, net_interdependent); in them the participant runs experiments and predicts, it never allocates, routes or targets. Their decision worlds (plan_perishable, des_perishable, plan_supply_chain, net_routing, net_cascade, pe_rollout_targeting) remain dominated: on several seeds even the private oracle is within 0.8 of the best simple policy (static-tuning worlds), and the public references are well below the oracle.",
   "Prediction families (24 of the 62 admitted training families) are scored 1 - MSE / variance of the truth at held-out conditions; their scripted references assume the model class of the mechanism (D-64), so a reference score of 0.9-1.0 shows feasibility, not that a generic learner can do it; the hold-and-fit predictors show that a generic curve fitter cannot.",
   "Realised revenue in prediction worlds is a Gaussian relative scatter (0.1 x observation_noise) around the expected rate; realised sales do not feed back into stocks.",
   "Compute in program worlds is billed per call in quanta (100 units, plus 10,000 per whole 10,000 measured): a call of up to about 3.5 ms of CPU costs the same as an empty one; a call near a quantum boundary could still be billed differently under load (the references stay below a fifth of a quantum).",
   "The 8.10 check of prediction families freezes timed regimes and exogenous stocks at the end of the first fifth; a change carried by a lever-driven stock (path dependence inside a held condition, as in mk_drift) is not counted as a change of the world.",
-  "SP-7.5 (more than five minutes) and the cache-dependent gates were not run directly in the repair pass; they run in the slot job.",
-  "The generic hold-and-fit predictors vary the levers named in the held-out conditions only; a discrete decision named in a condition (the look-alike markets' certification) is left at its default, so they are weaker where a held-out condition fixes a decision (mk_gate)."
+  "SP-7.5 (more than five minutes) and the cache-dependent gates were not run directly in the repair pass; they run in the slot job."
  ],
  "integration_notes": [
   "program_exec compute cost consumes the parent-measured CPU of workstream O's sandbox metering; for reproducible Tier 1 admission a deterministic parent-side measure (calls x price, or quantised CPU recorded as an external event and replayed in admission) is recommended. Not changed here (O owns metering).",

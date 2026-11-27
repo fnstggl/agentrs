@@ -298,7 +298,8 @@ mean or a line to the current setting, a strawman wherever responses are delayed
 families were admitted, all non-admitted families were income worlds). The search now also runs *hold and fit*
 (`dominance._naive_predictors`): the corners and middle of the settable box held for equal blocks, the reading
 averaged late in each block, a line, an additive quadratic and their leave-one-out choice extrapolated to the
-public held-out list; H-D1 (0.8, two of three seeds) is unchanged and SP-7.4 has a prediction negative control
+public held-out list, also once per option of a discrete decision the held-out conditions name (one fit per
+option); H-D1 (0.8, two of three seeds) is unchanged and SP-7.4 has a prediction negative control
 (`ctl_dominant_prediction`: a delayed straight line that hold and fit answers as well as any reference). Families
 that the stronger search dominated were redesigned, not the check: held-out conditions moved to where the stated
 mechanism decides the answer (`plan_spoilage` production up to 45 where sales are spoilage-limited,
@@ -308,7 +309,9 @@ markets at price and promotion extremes, one shared list); `cx_balancing_loop` n
 (hold until settled, one saturating channel of both levers, saturating output link) and `net_congestion_routes`'s
 reference designs two thirds of its tests at heavy flows and fits the BPR exponent by nonnegative least squares.
 Not repaired and not admitted: `mk_drift` (its path-dependent flip inside a held price is not identified by the
-shared market reference) and the evaluation family `cxc_balancing_constraint` (reference below hold and fit).
+shared market reference), and the evaluation families `cxc_balancing_constraint` (reference below hold and fit) and
+`mk_gate` (the per-option hold and fit reaches 0.8-0.98 of its reference: fitting a curve per certification state
+answers it; a rebalanced shared held-out list did not change that).
 (2) The 8.10 requirement of a prediction family is measured on its scored channel
 (`categories.beliefs_fail_after_change`): the scored truth computed for the world as it stood at the end of the
 first fifth (timed regimes frozen, the world's own drifting stocks held there) must score at least a quarter below

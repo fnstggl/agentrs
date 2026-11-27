@@ -450,7 +450,9 @@ def _naive_predictors(env, rng) -> dict:
     hold and fit         hold each setting of a generic block design (`hold_settings`: corners and middle of the
                          settable box) for an equal block of the episode, average the reading over the last third of
                          each block (delayed and accumulating responses have time to show), and file (c) a linear,
-                         (d) an additive quadratic and (e) the leave-one-out choice of the two fits, extrapolated
+                         (d) an additive quadratic and (e) the leave-one-out choice of the two fits, extrapolated;
+                         (f) the same once per option of a discrete decision the held-out conditions name, one fit
+                         per option
 
     The random design alone is a strawman wherever responses are delayed or accumulate (verifier finding on the
     wave-3b tree); the hold design is the generic experiment of a learner with no model, so a family whose reference
@@ -481,41 +483,72 @@ def _naive_predictors(env, rng) -> dict:
     hn = sorted({k for c in held for k in c if k in props})       # (c)-(e): hold a block design, fit, extrapolate
     if not hn or not g:
         return out
-    e = fork(env)
     S = hold_settings(hn, props)
-    block = max(3, (e.horizon - 2) // len(S))
-    rows = []
-    for s in S:
-        vals = []
-        for k in range(block):
-            if e.t >= e.horizon - 1:
-                break
-            r = e.step({"kind": "levers", "values": s})
-            v = r["observation"]["numbers"].get(g)
-            if v is not None and k >= block - max(2, block // 3):
-                vals.append(v)
-        if vals:
-            rows.append(([s[n] for n in hn], float(np.mean(vals))))
+    out.update(_hold_and_fit(env, held, g, hn, S, None, [None], "hold"))
+    # (f) the same per option of a discrete decision the held-out conditions name (each option held in turn with
+    # the block design, one fit per option)
+    decs = {k: list(v) for k, v in (sp.limits.get("decisions") or {}).items() if any(k in c for c in held)}
+    if len(decs) == 1 and "sequence" in sp.kinds:
+        (dn, opts), = decs.items()
+        out.update(_hold_and_fit(env, held, g, hn, S, dn, opts, "hold_option"))
+    return out
+
+
+def _hold_and_fit(env, held, g, hn, S, dn, opts, label) -> dict:
+    """Hold every setting of `S` (for each option of decision `dn`, when given) for equal blocks, average the
+    reading `g` over the last third of each block, fit a line, an additive quadratic and their leave-one-out choice
+    (one fit per option), file the extrapolations for the held-out conditions; {label_kind: value}."""
+    e = fork(env)
+    block = max(3, (e.horizon - 2) // (len(S) * len(opts)))
+    rows = {o: [] for o in opts}
+    for o in opts:
+        for s in S:
+            act = {"kind": "levers", "values": s}
+            if dn is not None:
+                act = {"kind": "sequence", "steps": [{"kind": "discrete", "decision": dn, "choice": o}, act]}
+            vals = []
+            for k in range(block):
+                if e.t >= e.horizon - 1:
+                    break
+                r = e.step(act)
+                v = r["observation"]["numbers"].get(g)
+                if v is not None and k >= block - max(2, block // 3):
+                    vals.append(v)
+            if vals:
+                rows[o].append(([s[n] for n in hn], float(np.mean(vals))))
     while e.t < e.horizon - 1:
         e.step(None)
-    if len(rows) < 2:
-        return out
-    Xh = np.asarray([r[0] for r in rows], float)
-    yh = np.asarray([r[1] for r in rows], float)
-    Xq = np.asarray([[float(c.get(n, 0.0)) for n in hn] for c in held], float)
-    preds = {}
-    for kind in ("linear", "quadratic"):
-        A = _basis(Xh, kind)
-        if A.shape[0] < A.shape[1]:
+    fits: dict[str, dict] = {}                          # kind -> option -> coefficients
+    for o in opts:
+        if len(rows[o]) < 2:
+            return {}
+        Xh = np.asarray([r[0] for r in rows[o]], float)
+        yh = np.asarray([r[1] for r in rows[o]], float)
+        cf = {}
+        for kind in ("linear", "quadratic"):
+            A = _basis(Xh, kind)
+            if A.shape[0] >= A.shape[1]:
+                cf[kind] = np.linalg.lstsq(A, yh, rcond=None)[0]
+        if not cf:
+            return {}
+        cv = {k: _loo(Xh, yh, k) for k in cf}
+        cf["cv"] = (min(cv, key=cv.get), cf[min(cv, key=cv.get)])
+        for kind, c in cf.items():
+            fits.setdefault(kind, {})[o] = c
+    out = {}
+    for kind, per in fits.items():
+        if len(per) < len(opts):
             continue
-        cf = np.linalg.lstsq(A, yh, rcond=None)[0]
-        preds[kind] = _basis(Xq, kind) @ cf
-    if not preds:
-        return out
-    cv = {k: _loo(Xh, yh, k) for k in preds}
-    preds["cv"] = preds[min(cv, key=cv.get)]
-    for kind, p in preds.items():
-        out[f"hold_{kind}"] = _file(e, held, p)
+        vals = []
+        for c in held:
+            o = c.get(dn) if dn is not None else None
+            if o not in per:
+                o = opts[0]
+            coef = per[o]
+            base = kind if kind != "cv" else coef[0]
+            coef = coef if kind != "cv" else coef[1]
+            vals.append(float((_basis(np.asarray([[float(c.get(n, 0.0)) for n in hn]], float), base) @ coef)[0]))
+        out[f"{label}_{kind}"] = _file(e, held, vals)
     return out
 
 

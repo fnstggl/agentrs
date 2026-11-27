@@ -183,14 +183,15 @@ updated test; decisions in the D-63 and D-64 amendments of the repair pass):
 * **Prediction dominance was too weak.** `dominance._naive_predictors` now also runs *hold and fit*: the corners and
   middle of the settable box (`hold_settings`) held for equal blocks, the scored reading averaged over the last third
   of each block, a line, an additive quadratic and their leave-one-out choice extrapolated to the public held-out
-  list (labels `naive_prediction:hold_linear|hold_quadratic|hold_cv`). SP-7.4 gained a prediction negative control
+  list (labels `naive_prediction:hold_linear|hold_quadratic|hold_cv`), and once per option of a discrete decision
+  the held-out conditions name (`hold_option_*`, one fit per option). SP-7.4 gained a prediction negative control
   (`ctl_dominant_prediction`, a delayed straight line: random designs miss it, hold and fit answers it, so it is
   rejected by `no_dominant_strategy` with a hold arm as the best simple policy). Families that this dominated were
   redesigned (held-out conditions where the mechanism decides the answer; better references), not the check:
   `plan_spoilage`, `net_congestion_routes` (capacities inside the settable range; reference designs at heavy flows,
   BPR exponent by nonnegative least squares), `cx_balancing_loop` (reference `held_hub_predict`), `ch_tech_transition`
   (conditions weighted to the obsolete process), the four look-alike markets (one shared list at price and promotion
-  extremes). `mk_drift` and `cxc_balancing_constraint` stay dominated (not admitted).
+  extremes). `mk_drift`, `cxc_balancing_constraint` and `mk_gate` (per-option fits) stay dominated (not admitted).
 * **Program worlds were not deterministic.** Compute is billed per call in whole quanta of the parent's measurement
   (`program_exec.billed_units`: 100 units per call, plus 10,000 per whole 10,000 measured); references measure at most
   ~2,600 units per call, so outcomes repeat exactly in fresh processes (`CRUCIBLE_METER_MEMO=off`, tested).

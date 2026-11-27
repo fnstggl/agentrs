@@ -224,3 +224,17 @@ def test_inventory_terms_are_in_the_brief_and_the_reference_needs_no_config_cost
         _config = {k: v for k, v in F.make("des_inventory", 2)._config.items() if k in names}
     inventory(PublicView(env), View)
     assert env.outcome()["value"] == play(F.make("des_inventory", 2))["value"]
+
+
+def test_generic_predictors_also_hold_each_option_of_a_named_decision():
+    # the look-alike markets name the certification in their held-out conditions: a generic predictor holds the
+    # block design once per option and fits per option (in mk_gate the certification opens the price response, and
+    # this generic predictor comes within the H-D1 margin of the reference, so mk_gate is not admitted)
+    seed = 1
+    res = D._naive_predictors(F.make("mk_gate", seed), np.random.default_rng(seed))
+    assert {"hold_option_linear", "hold_option_quadratic", "hold_option_cv"} <= set(res)
+    v_wait = float(D.play(F.make("mk_gate", seed), lambda t, o: {})[0])
+    v_ref = float(play(F.make("mk_gate", seed))["value"])
+    assert (max(res.values()) - v_wait) > 0.8 * (v_ref - v_wait)
+    assert not any(k.startswith("hold_option") for k in D._naive_predictors(F.make("plan_spoilage", 0),
+                                                                           np.random.default_rng(0)))
