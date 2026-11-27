@@ -378,12 +378,13 @@ def _govern(ctx: Ctx, cm, cid: str, people: np.ndarray, civic: np.ndarray, rng) 
     rows = cm._lookup(w, people, np.full(people.size, cn, np.int64))
     for pid in open_:
         prop = st.tables["community_proposals"][pid]
-        boost = 0.0
+        # a nominee's standing with the members: what it contributed to the community (its posts and comments)
+        standing = 0.0
         if prop["action"] == "add_moderator":
             cn_ = _node_of_principal(w, prop["args"].get("member"))
             r_ = cm._lookup(w, np.array([cn_]), np.array([cn]))[0] if cn_ is not None else -1
             if r_ >= 0:
-                boost = 0.4 * math.log1p(int(v["posts"][r_]) + int(v["comments"][r_]))
+                standing = 0.4 * math.log1p(int(v["posts"][r_]) + int(v["comments"][r_]))
         for k in range(people.size):
             if rows[k] < 0 or int(v["status"][rows[k]]) != CM.MEMBER:
                 continue
@@ -391,7 +392,7 @@ def _govern(ctx: Ctx, cm, cid: str, people: np.ndarray, civic: np.ndarray, rng) 
             if st.tables["community_proposals"][pid]["status"] != "open" or \
                     st.has("community_votes", f"{pid}|{p}") or p == prop["by"]:
                 continue
-            approve = bool(rng.random() < _sigm(0.2 + 6.0 * float(v["value"][rows[k]]) + boost))
+            approve = bool(rng.random() < _sigm(0.2 + 6.0 * float(v["value"][rows[k]]) + standing))
             try:
                 ctx.call("community.vote", {"proposal": pid, "approve": approve}, as_principal=p)
                 out["votes"] += 1
