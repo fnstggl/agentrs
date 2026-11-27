@@ -591,15 +591,22 @@
   "tests/test_v5_population_api.py": "6 passed, 0 failed (CPU, 178cab6)",
   "tests/test_v5_population_core.py tests/test_v5_population_api.py (9fcb0a0e code, CPU)": "25 passed, 0 failed across this session's runs: 24 passed at 804c27fa; after the attention deferral 23 passed + the fork-alignment test failed once on a sandbox billing difference under load (test then narrowed to the population's decision batches: passed 3 of 3 later runs); new tests: fork alignment, session utilities, class-2 pending-attention observation",
   "queued slot jobs (snapshots of 9fcb0a0e; outputs)": {
-   "gate B (30 d standard + social)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_B2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_B2",
-   "gate G + SP-4.4": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_G2",
-   "SP-3.1 SP-4.1 SP-3.2c SP-3.4": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_I2.full, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_I2",
-   "trial merge (this branch + c5c/w3b-soc + c5c/w3b-sem): SP-3.2 (class 4) and SP-4.0": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_T.log, evidence /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/evidence_T",
-   "regression of population-dependent tests (25 files)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full"
+   "gate B (30 d standard + social)": "ran: 6 passed (see tests/v5/test_gate_B.py entry)",
+   "gate G + SP-4.4 (snapshot of 9d3f98b0)": "stopped for RAM (7.7 GB of 6 GB) during G.7: G.1, G.2, G.3, G.5, G.n1, G.4 passed, G.6 failed (sites condition)",
+   "trial merge (this branch + c5c/w3b-soc + c5c/w3b-sem): SP-3.2 (class 4) and SP-4.0": "stopped for RAM (10.2 GB of 10 GB) after 22 s"
   },
   "regression at 178cab6 (predecessor, GPU slot)": "351 passed, 6 failed of 357: test_v5_calibration_inworld x4 (fixture grants; c5c/w3b-kcal updated the test file for this branch), test_v5_substrate_history::test_events_of_an_individual_include_its_cohort_decisions and test_v5_econ_work::test_demand_comes_from_population_individuals_paying_their_own_money (both assume pre-D-30 population behaviour; precise patches in integration_notes)",
   "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_kernel.py tests/test_invariants.py (9fcb0a0e, CPU, one run)": "76 passed, 0 failed",
-  "tests/v5/test_gate_B.py (9fcb0a0e snapshot, GPU slot)": "6 passed in 2897.6 s"
+  "tests/v5/test_gate_B.py (9fcb0a0e snapshot, GPU slot)": "6 passed in 2897.6 s",
+  "queued slot jobs (wave 3b continuation 3; outputs under the scratch directory)": {
+   "gate G, category condition (snapshot snapG of fc76bb66, CPU, 10 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_G3.full",
+   "gate SP-4.4 (snapshot snapQ of a50d20da, CPU)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_Q44.full",
+   "gate SP-3.3 profiles (snapshot snapQ of a50d20da, CPU, 16 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_Q33.full",
+   "trial pop 62f0d442 + sem 04ea1d37 + soc a173da24 (src, tests): SP-3.2, SP-4.0 (CPU, 16 GB)": "/tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_T3.full",
+   "predecessor's jobs still queued (snapshot snapR_head of e05f5266)": "regression of 25 population-dependent test files /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_R2.full; gates SP-3.1 SP-4.1 SP-3.2c SP-3.4 /tmp/claude-0/-root/8e151463-101a-4f91-9360-1d4fa593f479/scratchpad/w3b-pop/job_I2.full",
+   "unofficial evidence": "/tmp/crucible-v5-unofficial-evidence/<gate>/<id>.json with tree.commit = the snapshot's own commit"
+  },
+  "tests/test_v5_population_core.py tests/test_v5_population_api.py tests/test_v5_perf_batching.py (d8c75ce3, CPU)": "34 passed, 1 failed: test_same_seed_same_hashes_replay_regeneration_and_resume (first assertion, two same-seed worlds in one process; sandbox billing beyond the D-20 memo tolerance; fails identically without this session's changes; see the kcal integration note)"
  },
  "performance": {
   "world": "population_world('development', 41, n=1500, sites=14, 32 adaptive, no strategic/semantic), strict, one CPU thread, CUDA hidden, warm machine text cache, days 2-4, no profiler (probe perfcmp.py)",
