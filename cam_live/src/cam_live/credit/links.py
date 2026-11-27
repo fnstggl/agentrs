@@ -7,7 +7,11 @@ Rules, each enforced in code and tested:
   key such as ``by_action`` in the event data, an artifact the decision created, the arm of a registered experiment)
   or because the decision declared an attribution window for that metric. Without evidence there is no link.
 * **Ambiguity is kept.** When several decisions are supported equally the outcome is split into fractional links,
-  each with a stated standard deviation; the weights of one outcome never sum to more than 1.
+  each with a stated standard deviation; the weights of one outcome never sum to more than 1 (``_make`` enforces
+  it), so the credit given for an outcome never exceeds the outcome.
+* **Amounts are validated.** An attribution map (``by_action`` / ``by_decision``) is used as shares only when every
+  amount is a finite number >= 0; a map with a negative, non-finite or non-numeric amount (e.g. a net change with
+  departures) is treated as ambiguous: the named decisions share the outcome equally, with uncertainty.
 * **Never "the latest action did it".** Recency is not evidence: equal support gives equal weights.
 * **No future leakage.** A decision made after the outcome time is refused as a cause, and linking never touches the
   decision's context ``H_t``; each link records what was available at decision time.
@@ -84,6 +88,23 @@ class ReconcileReport:
         return [l for r in self.results for l in r.links]
 
 
+def attribution_amounts(m: Dict[Any, Any]) -> Tuple[Dict[str, float], Dict[str, Any]]:
+    """Validate an attribution map ``{action or decision id: amount}``. Returns (valid amounts, malformed entries).
+    An amount is valid when it is a finite number >= 0 (booleans and strings are not amounts)."""
+    ok: Dict[str, float] = {}
+    bad: Dict[str, Any] = {}
+    for k, v in m.items():
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            bad[str(k)] = repr(v)
+            continue
+        x = float(v)
+        if not math.isfinite(x) or x < 0.0:
+            bad[str(k)] = x if math.isfinite(x) else repr(v)
+        else:
+            ok[str(k)] = x
+    return ok, bad
+
+
 def split_uncertainty(w: float) -> float:
     """Standard deviation of the indicator 'this decision is the cause' when its probability is ``w``."""
     return math.sqrt(max(w * (1.0 - w), 0.0))
@@ -137,6 +158,17 @@ class OutcomeLinker:
         their share is left unattributed (never handed to another decision)."""
         res = LinkResult(outcome_key=key, evidence=evidence, refused=list(refused))
         now = self.clock.now()
+        bad = [w for _, w, _ in shares if not (isinstance(w, (int, float)) and math.isfinite(w) and w >= 0.0)]
+        if bad:
+            raise ValueError(f"attribution weights must be finite and non-negative, got {bad[:4]}")
+        total = sum(w for _, w, _ in shares)
+        if total > 1.0 + 1e-9:                   # a share of one outcome can never exceed the outcome
+            shares = [(r, w / total, u) for r, w, u in shares]
+            detail = {**detail, "weights_renormalised_from": total}
+        if value is not None and not math.isfinite(float(value)):
+            res.refused.append({"reason": "non_finite_outcome_value", "value": value})
+            res.reason = "the outcome value is not finite"
+            return res
         for rec, w, unc in shares:
             if rec.decision.ts > outcome_ts + 1e-9:
                 res.refused.append({"exp_id": rec.exp_id, "reason": "decision_after_outcome", "weight": w,
@@ -196,7 +228,10 @@ class OutcomeLinker:
         qty = {q.name: q.value for q in event.quantities}
         metric = str(d.get("metric") or (event.quantities[0].name if event.quantities else ""))
         value = d.get("value", qty.get(metric)) if metric else d.get("value")
-        value = None if value is None else float(value)
+        try:
+            value = None if value is None else float(value)
+        except (TypeError, ValueError):
+            value = float("nan")                 # refused in _make: a malformed value is not an outcome
         verified = event.provenance.trust == "verifier"
         st, refused = self.store, []
 
@@ -210,16 +245,26 @@ class OutcomeLinker:
         for field_name, kind in (("by_action", "action"), ("by_decision", "decision")):
             m = d.get(field_name)
             if isinstance(m, dict) and m:
-                total = float(sum(float(v) for v in m.values()))
+                amounts, malformed = attribution_amounts(m)
+                if malformed:
+                    # negative / non-finite / non-numeric amounts are not shares of this outcome: the map only says
+                    # which decisions are involved, so they split it equally, with the uncertainty of ambiguity
+                    recs = [r for r in (find(kind, str(i)) for i in sorted(m)) if r is not None]
+                    if not recs:
+                        continue
+                    return self._make(key, [(r, 1.0 / len(recs), None) for r in recs], EV_KEY, ts, value, metric,
+                                      verified, True, {"field": field_name, "malformed_amounts": malformed,
+                                                       "treated_as": "ambiguous: equal shares"}, refused)
+                total = sum(amounts.values())
                 if total <= 0:
                     continue
                 shares = []
-                for ident, amount in sorted(m.items()):
+                for ident, amount in sorted(amounts.items()):
                     rec = find(kind, str(ident))
-                    if rec is not None:
-                        shares.append((rec, float(amount) / total, 0.0))
+                    if rec is not None and amount > 0:
+                        shares.append((rec, amount / total, 0.0))
                 return self._make(key, shares, EV_KEY, ts, total if value is None else value, metric, verified, True,
-                                  {"field": field_name, "amounts": {str(k): float(v) for k, v in m.items()}}, refused)
+                                  {"field": field_name, "amounts": amounts}, refused)
         for field_name, kind in (("action_id", "action"), ("decision_id", "decision")):
             if d.get(field_name):
                 rec = find(kind, str(d[field_name]))

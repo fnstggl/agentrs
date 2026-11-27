@@ -21,7 +21,14 @@ Design decisions (each answers a failure of an earlier project):
   entry for a loss follows ``eligible_default`` — True, as in the contract's reference ``MemoryStore``; construct the
   store with ``eligible_default=False`` to make missing entries ineligible (fail-closed).
 * **History is immutable.** A context item, once stored under a ref, is never replaced: rewriting it would change
-  ``H_t`` of every earlier decision that references it (future leakage).
+  ``H_t`` of every earlier decision that references it (future leakage). A stored record's history is append-only
+  too: ``update`` refuses (:class:`ImmutableHistoryError`) any change of the decision (candidates, behaviour
+  probabilities, time, how it was made), its context refs, goal, family, provenance or lifetime position, of an
+  executed result, of a stored final outcome or of a query definition; it may add outcomes, queries and decision
+  annotations and change derived data (credit, eligibility, labels, intrinsic rewards, window). See
+  :func:`history_changes`.
+* **The index never contradicts the content.** Index columns are written from the record in the same transaction
+  and every read checks them against the decoded body (:class:`StoreIntegrityError`; ``verify_index``).
 """
 from __future__ import annotations
 
@@ -59,10 +66,136 @@ _MATURED = (OutcomeStatus.OBSERVED, OutcomeStatus.CENSORED)
 _STATIC = ("exp_id", "objective_id", "decision", "context_item_refs", "goal_text", "objective_family",
            "provenance", "seq")
 _RESULT = ("result", "post_item_refs", "duration_s")
+#: fields that are history (fixed at decision time) although they are stored in the dynamic part for layout reasons
+_IMMUTABLE_DYN = ("lifetime",)
+#: ``decision.diagnostics`` keys that describe how the decision was made: never added or changed after the record
+#: was stored (other keys are annotations that may be *added*, never changed or removed)
+PROTECTED_DIAGNOSTICS = ("arm", "arms", "open_ended", "tracked_proposals", "proposal_probs", "context_item_refs",
+                         "lifetime")
+#: a stored result in one of these states is a placeholder (the action has not been executed): it may be replaced
+_PLACEHOLDER_RESULTS = (ResultStatus.NEEDS_APPROVAL,)
+#: index columns checked against the decoded body on every read (column, accessor)
+_INDEX_CHECK = (("exp_id", lambda r: r.exp_id), ("seq", lambda r: int(r.seq)), ("provenance", lambda r: r.provenance),
+                ("objective_id", lambda r: r.objective_id), ("decision_id", lambda r: r.decision.decision_id),
+                ("action_id", lambda r: r.decision.chosen.action_id), ("ts", lambda r: float(r.decision.ts)),
+                ("family", lambda r: r.objective_family), ("experiment_id", lambda r: r.decision.experiment_id),
+                ("window_id", lambda r: r.window_id))
+_COLS = ", ".join(c for c, _ in _INDEX_CHECK) + ", static_body, result_body, dyn_body"
 
 
 class StoreLockedError(RuntimeError):
     """Another process holds the writer lock of this store."""
+
+
+class ImmutableHistoryError(ValueError):
+    """``update`` tried to rewrite history: the decision, its probabilities, context, provenance or another field
+    fixed when the record was stored, or a stored outcome / query definition. Nothing was written."""
+
+    def __init__(self, exp_id: str, problems: Sequence[str]):
+        self.exp_id, self.problems = exp_id, list(problems)
+        super().__init__(f"record {exp_id}: refused to rewrite history ({'; '.join(self.problems[:6])})")
+
+
+class StoreIntegrityError(RuntimeError):
+    """An index column of a stored record disagrees with the record's stored content."""
+
+
+def _diff_paths(a: Any, b: Any, path: str, out: List[str], limit: int = 8) -> None:
+    """Paths at which two JSON values differ (at most ``limit``)."""
+    if len(out) >= limit:
+        return
+    if isinstance(a, dict) and isinstance(b, dict):
+        for k in sorted(set(a) | set(b)):
+            if k not in a or k not in b:
+                out.append(f"{path}.{k}" + (" added" if k not in a else " removed"))
+            else:
+                _diff_paths(a[k], b[k], f"{path}.{k}", out, limit)
+    elif isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+        for i, (x, y) in enumerate(zip(a, b)):
+            _diff_paths(x, y, f"{path}[{i}]", out, limit)
+    elif a != b:
+        out.append(path)
+
+
+def _query_defs(part: Dict[str, Any]) -> Dict[str, Any]:
+    """query_id -> definition over pending_queries, queries and result.expected_outcomes of a record dict."""
+    out: Dict[str, Any] = {}
+    res = part.get("result") or {}
+    for q in list(part.get("pending_queries") or []) + list(part.get("queries") or []) + \
+            list(res.get("expected_outcomes") or []):
+        out.setdefault(q.get("query_id"), q)
+    return out
+
+
+def history_changes(old: Dict[str, Any], new: Dict[str, Any]) -> List[str]:
+    """What an update from record dict ``old`` to ``new`` would rewrite of the record's history ([] = allowed).
+
+    Immutable: every static field (decision with its candidates, probabilities, time and diagnostics that describe
+    how it was made; context refs; goal; family; provenance; seq) and ``lifetime``. ``decision.diagnostics`` may
+    gain *new* annotation keys (not :data:`PROTECTED_DIAGNOSTICS`). The result is write-once (a missing result or a
+    ``needs_approval`` placeholder may be replaced by the executed one); afterwards only queries may be appended to
+    ``result.expected_outcomes``, ``post_item_refs`` may only grow and ``duration_s`` may only be set from 0. Stored
+    final outcomes are append-only (an unverified one may be replaced by the verified measurement of the same query),
+    and so are query definitions (``pending_queries`` / ``queries`` / ``result.expected_outcomes`` by query id).
+    Credit, eligibility, labels, intrinsic rewards and the meta-learning window are derived data and may change."""
+    problems: List[str] = []
+    for k in _STATIC + _IMMUTABLE_DYN:
+        if k not in old and k not in new:
+            continue
+        a, b = old.get(k), new.get(k)
+        if k == "decision" and isinstance(a, dict) and isinstance(b, dict):
+            da, db = dict(a.get("diagnostics") or {}), dict(b.get("diagnostics") or {})
+            for key in sorted(set(da) | set(db)):
+                if key not in db:
+                    problems.append(f"decision.diagnostics.{key} removed")
+                elif key not in da:
+                    if key in PROTECTED_DIAGNOSTICS:
+                        problems.append(f"decision.diagnostics.{key} added after the decision was stored")
+                elif _dumps(da[key]) != _dumps(db[key]):
+                    problems.append(f"decision.diagnostics.{key} changed")
+            a = {x: y for x, y in a.items() if x != "diagnostics"}
+            b = {x: y for x, y in b.items() if x != "diagnostics"}
+        if _dumps(a) != _dumps(b):
+            sub: List[str] = []
+            _diff_paths(a, b, k, sub)
+            problems += sub or [k]
+    ra, rb = old.get("result"), new.get("result")
+    placeholder = ra is None or (isinstance(ra, dict) and ra.get("status") in _PLACEHOLDER_RESULTS)
+    if not placeholder:
+        if rb is None:
+            problems.append("result removed")
+        else:
+            xa = {k: v for k, v in ra.items() if k != "expected_outcomes"}
+            xb = {k: v for k, v in rb.items() if k != "expected_outcomes"}
+            if _dumps(xa) != _dumps(xb):
+                sub = []
+                _diff_paths(xa, xb, "result", sub)
+                problems += sub or ["result"]
+        pa, pb = list(old.get("post_item_refs") or []), list(new.get("post_item_refs") or [])
+        if pb[:len(pa)] != pa:
+            problems.append("post_item_refs rewritten (only appending is allowed)")
+        da_, db_ = float(old.get("duration_s") or 0.0), float(new.get("duration_s") or 0.0)
+        if da_ != 0.0 and db_ != da_:
+            problems.append("duration_s changed")
+        qa, qb = _query_defs(old), _query_defs(new)
+        for qid, q in qa.items():
+            if qid not in qb:
+                problems.append(f"query {qid} removed")
+            elif _dumps(q) != _dumps(qb[qid]):
+                problems.append(f"query {qid} redefined")
+    new_out = {}
+    for o in new.get("outcomes") or []:
+        new_out.setdefault(o.get("query_id"), []).append(o)
+    for o in old.get("outcomes") or []:
+        if o.get("status") not in _FINAL:
+            continue
+        cands = new_out.get(o.get("query_id"), [])
+        if any(_dumps(o) == _dumps(c) for c in cands):
+            continue
+        if not o.get("verified") and any(c.get("verified") and c.get("status") in _FINAL for c in cands):
+            continue                                   # the verifier's measurement replaces an unverified one
+        problems.append(f"stored outcome of query {o.get('query_id')} removed or rewritten")
+    return problems
 
 
 @dataclass
@@ -484,7 +617,8 @@ class SqliteExperienceStore:
             raise ValueError(f"provenance {rec.provenance!r} is not one of {PROVENANCES}")
         with self._tx() as db:
             old = db.execute("SELECT seq, static_sha, result_sha, dyn_sha, success, success_explicit, surprise, "
-                             "surprise_explicit FROM experiences WHERE exp_id=?", (rec.exp_id,)).fetchone()
+                             "surprise_explicit, static_body, result_body, dyn_body FROM experiences WHERE exp_id=?",
+                             (rec.exp_id,)).fetchone()
             if new and old is not None:
                 raise KeyError(f"duplicate experience {rec.exp_id} (use update)")
             if not new and old is None:
@@ -496,12 +630,28 @@ class SqliteExperienceStore:
                 elif rec.seq <= head:
                     raise ValueError(f"seq {rec.seq} is not after the lifetime head {head}")
             else:
+                if rec.seq not in (0, old[0]):
+                    self.stats["refused_updates"] = self.stats.get("refused_updates", 0) + 1
+                    raise ImmutableHistoryError(rec.exp_id, [f"seq {old[0]} -> {rec.seq}"])
                 rec.seq = old[0]                      # the lifetime position never changes
             self._dedup_outcomes(rec)
             queries = self._queries_of(rec)
             ix = self._derive(rec, queries)
             static, result, dyn = self._parts(rec)
             shas = (_sha(static), _sha(result), _sha(dyn))
+            if not new:
+                # history is immutable: only derived data and appended outcomes / queries may change
+                # both sides through the current contract (fields added to the contract later get their defaults)
+                prev = json.loads(_dumps(self._decode(old[8], old[9], old[10]).to_dict()))
+                cur = json.loads(_dumps(rec.to_dict()))
+                if shas[0] == old[1]:                 # identical static part: nothing to compare there
+                    for k in _STATIC:
+                        prev.pop(k, None)
+                        cur.pop(k, None)
+                problems = history_changes(prev, cur)
+                if problems:
+                    self.stats["refused_updates"] = self.stats.get("refused_updates", 0) + 1
+                    raise ImmutableHistoryError(rec.exp_id, problems)
             d = rec.decision
             if new:
                 db.execute(
@@ -553,7 +703,9 @@ class SqliteExperienceStore:
         self._write(rec, new=True)
 
     def update(self, rec: ExperienceRecord) -> None:
-        """Replace a stored record with ``rec`` (same ``exp_id``); unchanged parts are not rewritten."""
+        """Store the new state of a record (same ``exp_id``); unchanged parts are not rewritten. Only appended
+        outcomes / queries / annotations and derived data may differ from the stored record; anything else raises
+        :class:`ImmutableHistoryError` and nothing is written (:func:`history_changes` lists the rules)."""
         self._write(rec, new=False)
 
     def add_outcome(self, obs: OutcomeObservation, exp_id: str = "") -> AddOutcomeResult:
@@ -597,35 +749,59 @@ class SqliteExperienceStore:
 
     # ------------------------------------------------------------------------------------------ records: read
     def _decode(self, static: str, result: str, dyn: str) -> ExperienceRecord:
+        """Raw decoder of the three stored parts (no index check; reads go through :meth:`_row`)."""
         d = json.loads(self._unpack(static))
         d.update(json.loads(self._unpack(result)))
         d.update(json.loads(self._unpack(dyn)))
         return record_from_dict(ExperienceRecord, d)
 
+    def _row(self, row: Sequence[Any]) -> ExperienceRecord:
+        """Decode a row selected with :data:`_COLS` and verify that every index column agrees with the stored
+        content (the sampler, provenance strata and lookups read the columns): a disagreement raises
+        :class:`StoreIntegrityError` instead of returning a record that the index misdescribes."""
+        n = len(_INDEX_CHECK)
+        rec = self._decode(*row[n:n + 3])
+        bad = []
+        for (col, get), v in zip(_INDEX_CHECK, row[:n]):
+            want = get(rec)
+            if (v if v is not None else "") != want:
+                bad.append(f"{col}: index {v!r} != body {want!r}")
+        if bad:
+            raise StoreIntegrityError(f"record {row[0]}: index columns disagree with the stored record ({'; '.join(bad)})")
+        return rec
+
+    def verify_index(self) -> List[str]:
+        """Every record whose index columns disagree with its stored content ([] = consistent)."""
+        out = []
+        for row in self._q(f"SELECT {_COLS} FROM experiences ORDER BY seq"):
+            try:
+                self._row(row)
+            except StoreIntegrityError as e:
+                out.append(str(e))
+        return out
+
     def get(self, exp_id: str) -> Optional[ExperienceRecord]:
-        rows = self._q("SELECT static_body, result_body, dyn_body FROM experiences WHERE exp_id=?", (exp_id,))
-        return self._decode(*rows[0]) if rows else None
+        rows = self._q(f"SELECT {_COLS} FROM experiences WHERE exp_id=?", (exp_id,))
+        return self._row(rows[0]) if rows else None
 
     def get_many(self, exp_ids: Sequence[str]) -> List[ExperienceRecord]:
         """Records in the order of ``exp_ids`` (unknown ids are skipped)."""
         ids, found = list(exp_ids), {}
         for i in range(0, len(ids), 500):
             chunk = ids[i:i + 500]
-            for eid, s, r, dy in self._q("SELECT exp_id, static_body, result_body, dyn_body FROM experiences WHERE "
-                                         f"exp_id IN ({','.join('?' * len(chunk))})", chunk):
-                found[eid] = (s, r, dy)
-        return [self._decode(*found[e]) for e in ids if e in found]
+            for row in self._q(f"SELECT {_COLS} FROM experiences WHERE exp_id IN ({','.join('?' * len(chunk))})",
+                               chunk):
+                found[row[0]] = row
+        return [self._row(found[e]) for e in ids if e in found]
 
     def by_decision(self, decision_id: str) -> Optional[ExperienceRecord]:
-        rows = self._q("SELECT static_body, result_body, dyn_body FROM experiences WHERE decision_id=? ORDER BY seq "
-                       "LIMIT 1", (decision_id,))
-        return self._decode(*rows[0]) if rows else None
+        rows = self._q(f"SELECT {_COLS} FROM experiences WHERE decision_id=? ORDER BY seq LIMIT 1", (decision_id,))
+        return self._row(rows[0]) if rows else None
 
     def by_action(self, action_id: str) -> Optional[ExperienceRecord]:
         """The record whose executed action has ``action_id``."""
-        rows = self._q("SELECT static_body, result_body, dyn_body FROM experiences WHERE action_id=? ORDER BY seq "
-                       "LIMIT 1", (action_id,))
-        return self._decode(*rows[0]) if rows else None
+        rows = self._q(f"SELECT {_COLS} FROM experiences WHERE action_id=? ORDER BY seq LIMIT 1", (action_id,))
+        return self._row(rows[0]) if rows else None
 
     def count(self, *, provenance: Union[None, str, Sequence[str]] = None, loss: str = "") -> int:
         sql, args = "SELECT COUNT(*) FROM experiences e", []
@@ -654,7 +830,7 @@ class SqliteExperienceStore:
                      since_seq: int = 0, until_seq: Optional[int] = None, limit: Optional[int] = None,
                      ) -> List[ExperienceRecord]:
         """Records in lifetime order, optionally restricted to one objective / provenance / seq range."""
-        sql, args = "SELECT static_body, result_body, dyn_body FROM experiences WHERE seq>?", [int(since_seq)]
+        sql, args = f"SELECT {_COLS} FROM experiences WHERE seq>?", [int(since_seq)]
         if until_seq is not None:
             sql += " AND seq<=?"
             args.append(int(until_seq))
@@ -668,7 +844,7 @@ class SqliteExperienceStore:
         sql += " ORDER BY seq"
         if limit is not None:
             sql += f" LIMIT {int(limit)}"
-        return [self._decode(*r) for r in self._q(sql, args)]
+        return [self._row(r) for r in self._q(sql, args)]
 
     def trajectory(self, objective_id: str) -> List[ExperienceRecord]:
         """All decisions of one objective in order (the sequence a return decomposition runs over)."""
@@ -732,8 +908,8 @@ class SqliteExperienceStore:
 
     # ------------------------------------------------------------------------------------------ windows / versions
     def window(self, window_id: str) -> List[ExperienceRecord]:
-        return [self._decode(*r) for r in self._q(
-            "SELECT static_body, result_body, dyn_body FROM experiences WHERE window_id=? ORDER BY seq", (window_id,))]
+        return [self._row(r) for r in self._q(
+            f"SELECT {_COLS} FROM experiences WHERE window_id=? ORDER BY seq", (window_id,))]
 
     def assign_window(self, exp_ids: Sequence[str], window_id: str, *, kind: str = "", opened_at: float = 0.0,
                       closed_at: float = 0.0, meta: Optional[Dict[str, Any]] = None) -> int:
@@ -989,9 +1165,8 @@ class SqliteExperienceStore:
                 self._q("SELECT body FROM experiments ORDER BY created_at")]
 
     def experiment_records(self, experiment_id: str) -> List[ExperienceRecord]:
-        return [self._decode(*r) for r in self._q(
-            "SELECT static_body, result_body, dyn_body FROM experiences WHERE experiment_id=? ORDER BY seq",
-            (experiment_id,))]
+        return [self._row(r) for r in self._q(
+            f"SELECT {_COLS} FROM experiences WHERE experiment_id=? ORDER BY seq", (experiment_id,))]
 
     # ------------------------------------------------------------------------------------------ links / retrain queue
     def put_links(self, links: Sequence[Dict[str, Any]]) -> None:

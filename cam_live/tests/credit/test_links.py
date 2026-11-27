@@ -223,3 +223,37 @@ def test_labworld_events_are_linked_through_their_attribution_keys(st):
         assert st.get(rec.exp_id).credit["simple"] == o.value
     assert sum(cv.value for cv in final.values()) <= total              # counted once, not events + queries
     assert SimpleAttribution(st, combine="sum").credit()[recs[0].exp_id].value >= final[recs[0].exp_id].value
+
+
+# ---- fix M3 (G-cl): attribution amounts are validated; credit never exceeds the outcome ------------------------------
+@pytest.mark.parametrize("amounts", [{"a1_0": 3, "a2_0": -1}, {"a1_0": 2.0, "a2_0": float("nan")},
+                                     {"a1_0": 1.0, "a2_0": "many"}, {"a1_0": float("inf"), "a2_0": 1.0}])
+def test_malformed_attribution_amounts_are_ambiguous_and_never_create_credit(st, make_record, amounts):
+    for i in range(3):
+        st.append(make_record(i))
+    linker = OutcomeLinker(st, clock=SimClock(5000.0))
+    rep = linker.reconcile(events=[_event("o1", 1500.0, {"metric": "members", "value": 2.0, "by_action": amounts})])
+    w = {l.exp_id: (l.weight, l.uncertainty) for l in rep.links}
+    assert set(w) == {"e1", "e2"}
+    assert all(abs(x[0] - 0.5) < 1e-12 and x[1] > 0 for x in w.values())       # ambiguous: equal, uncertain
+    assert sum(x[0] for x in w.values()) <= 1.0 + 1e-12
+    cred = credit_from_links(rep.links)
+    assert abs(sum(c.value for c in cred.values())) <= 2.0 + 1e-12
+    assert rep.results[0].links[0].detail["malformed_amounts"]
+
+
+def test_valid_amounts_are_shares_and_weights_never_exceed_one(st, make_record):
+    for i in range(3):
+        st.append(make_record(i))
+    linker = OutcomeLinker(st, clock=SimClock(5000.0))
+    rep = linker.reconcile(events=[_event("o1", 1500.0, {"metric": "m", "value": 4.0,
+                                                          "by_action": {"a1_0": 3, "a2_0": 1, "a0_0": 0}})])
+    w = {l.exp_id: l.weight for l in rep.links}
+    assert w == {"e1": 0.75, "e2": 0.25}
+    with pytest.raises(ValueError):                                             # the invariant is enforced in _make
+        linker._make("k", [(st.get("e1"), -0.5, 0.0)], EV_KEY, 1500.0, 1.0, "m", False, True, {}, [])
+    res = linker._make("k", [(st.get("e1"), 0.9, 0.0), (st.get("e2"), 0.6, 0.0)], EV_KEY, 1500.0, 1.0, "m", False,
+                       True, {}, [])
+    assert abs(sum(l.weight for l in res.links) - 1.0) < 1e-12
+    bad = linker.reconcile(events=[_event("o2", 1500.0, {"metric": "m", "value": float("nan"), "action_id": "a1_0"})])
+    assert not bad.links

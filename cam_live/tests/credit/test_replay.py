@@ -484,3 +484,82 @@ def test_a_query_has_one_final_answer(tmp_path, make_record):
     got = st.get("e0")
     assert [(o.value, o.verified, o.dedup_key) for o in got.outcomes] == [(4.0, True, "verifier")]
     assert [e["dedup_key"] for e in st.outcome_events()] == ["verifier"]
+
+
+# ---- fix M2 (G-cl): history is append-only and the index never contradicts the stored content --------------------
+def test_update_refuses_to_rewrite_history_and_keeps_the_index_consistent(tmp_path, make_record):
+    from cam_live.credit.replay import ImmutableHistoryError
+    st = _store(tmp_path)
+    st.append(make_record(0))
+    st.append(make_record(1, provenance="staging"))
+    rewrites = {
+        "probabilities": lambda r: setattr(r.decision, "probabilities", [0.9, 0.05, 0.05]),
+        "decision time": lambda r: setattr(r.decision, "ts", 5.0),
+        "context refs": lambda r: r.context_item_refs.append("late"),
+        "provenance": lambda r: setattr(r, "provenance", "staging"),
+        "chosen action": lambda r: setattr(r.decision, "chosen_index", 2),
+        "goal": lambda r: setattr(r, "goal_text", "another goal"),
+        "family": lambda r: setattr(r, "objective_family", "famB"),
+        "experiment arm added": lambda r: r.decision.diagnostics.update(arm="treatment"),
+        "executed result": lambda r: setattr(r.result, "status", ResultStatus.FAILED),
+        "query redefined": lambda r: setattr(r.pending_queries[0], "horizon_s", 1.0),
+        "query removed": lambda r: setattr(r, "pending_queries", []),
+        "seq": lambda r: setattr(r, "seq", 99),
+    }
+    before = st.get("e0").to_dict()
+    for what, change in rewrites.items():
+        r = st.get("e0")
+        change(r)
+        with pytest.raises(ImmutableHistoryError):
+            st.update(r)
+        assert st.get("e0").to_dict() == before, what
+    assert st.stats["refused_updates"] == len(rewrites)
+    # what may change: outcomes are added, derived data changes, annotations are added
+    r = st.get("e0")
+    r.outcomes.append(_obs(r, 2.0, 1200.0, dedup_key="k"))
+    r.credit["simple"], r.eligible["world"], r.intrinsic_reward = 1.5, False, 0.3
+    r.decision.diagnostics["trace"] = {"n_primitive": 3}
+    r.post_item_refs.append("after")
+    st.update(r)
+    r = st.get("e0")
+    assert r.credit == {"simple": 1.5} and r.decision.diagnostics["trace"] == {"n_primitive": 3}
+    # a stored final outcome cannot be rewritten or dropped; the verifier's copy may replace an unverified one
+    r.outcomes[0].value = 9.0
+    with pytest.raises(ImmutableHistoryError):
+        st.update(r)
+    r = st.get("e0")
+    r.outcomes = []
+    with pytest.raises(ImmutableHistoryError):
+        st.update(r)
+    assert st.add_outcome(_obs(st.get("e0"), 3.0, 1300.0, verified=True, dedup_key="k")).upgraded
+    # provenance strata come from the index, and the index always equals the content
+    assert [st.get(e).provenance for e in st.sample_ids(5, loss="*", provenance="live", seed=0)] == ["live"]
+    assert st.verify_index() == []
+
+
+def test_a_result_queued_for_approval_may_be_replaced_once_by_the_executed_one(tmp_path, make_record):
+    from cam_live.credit.replay import ImmutableHistoryError
+    st = _store(tmp_path)
+    rec = make_record(0)
+    rec.result.status = ResultStatus.NEEDS_APPROVAL
+    st.append(rec)
+    r = st.get("e0")
+    r.result.status, r.result.ended = ResultStatus.OK, r.result.ended + 3.0
+    st.update(r)
+    r = st.get("e0")
+    r.result.ended += 1.0
+    with pytest.raises(ImmutableHistoryError):
+        st.update(r)
+
+
+def test_reads_refuse_a_record_whose_index_disagrees_with_its_content(tmp_path, make_record):
+    """A store written by the earlier update() (body rewritten, index columns kept) cannot be read silently."""
+    from cam_live.credit.replay import StoreIntegrityError
+    st = _store(tmp_path)
+    st.append(make_record(0))
+    st._db.execute("UPDATE experiences SET provenance='staging' WHERE exp_id='e0'")   # the old desynchronisation
+    with pytest.raises(StoreIntegrityError):
+        st.get("e0")
+    with pytest.raises(StoreIntegrityError):
+        st.sample(2, loss="*", provenance="staging", seed=0)
+    assert len(st.verify_index()) == 1
