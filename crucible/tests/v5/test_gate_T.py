@@ -202,6 +202,7 @@ def test_T4_validated_generated_worlds():
                    "validated_share": res["validated"] / max(1, len(worlds)),
                    "structures_with_a_validated_world": res["structures_validated"],
                    "structures_walked": res["structures_walked"], "structures_admitted": res["structures_calibrated"],
+                   "structures_unbuildable": res["structures_unbuildable"],
                    "target_reached": bool(res["reached"]), "worlds_with_admission_errors": errors,
                    "fixed_sample_worlds_validated": sum(1 for w in pre_worlds if w["validated"]),
                    "fixed_sample_worlds_checked": len(pre_worlds),

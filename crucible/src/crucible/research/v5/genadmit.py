@@ -210,9 +210,20 @@ def _calibrated(structure: dict) -> bool:
 
 def _admit_if_calibrated(args) -> dict:
     structure, seeds = args
-    if not _calibrated(structure):
-        return {"calibrated": False, "worlds": []}
-    return {"calibrated": True, "worlds": _admit_one((structure, seeds))}
+    try:
+        if not _calibrated(structure):
+            return {"calibrated": False, "worlds": []}
+    except Exception as e:  # noqa: BLE001 - a structure whose world cannot be built is not calibrated
+        return {"calibrated": False, "worlds": [], "build_error": f"{type(e).__name__}: {str(e)[:200]}"}
+    try:
+        return {"calibrated": True, "worlds": _admit_one((structure, seeds))}
+    except Exception as e:  # noqa: BLE001 - a world that cannot even be registered fails every check
+        from ...rapid.admission import CHECKS
+        from . import compose as C
+        err = f"{type(e).__name__}: {str(e)[:200]}"
+        return {"calibrated": True, "worlds": [{"structure_id": C.structure_id(structure), "seed": int(sd),
+                                                "checks": {c: False for c in CHECKS}, "validated": False,
+                                                "error": err} for sd in seeds]}
 
 
 def admit_until(structures: Sequence[dict], seeds: Sequence[int], target: int, jobs: int = 1,
@@ -261,6 +272,7 @@ def admit_until(structures: Sequence[dict], seeds: Sequence[int], target: int, j
     return {"worlds": worlds, "validated": sum(1 for w in worlds if w["validated"]), "reached": stop is not None,
             "target": int(target), "structures_walked": n, "structures_in_stream": len(tasks),
             "structures_calibrated": sum(1 for r in prefix if r["calibrated"]),
+            "structures_unbuildable": sum(1 for r in prefix if r.get("build_error")),
             "calibrated_flags": [bool(r["calibrated"]) for r in prefix],
             "structures_validated": len({w["structure_id"] for w in worlds if w["validated"]}),
             "cumulative_validated": cum, "worlds_admitted_beyond_stop": len(beyond),
