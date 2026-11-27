@@ -16,8 +16,9 @@ written back. Per run:
 5. removing the meta-gradient removes the pathway: ``D`` (meta-updates off) and ``E_unverified`` keep psi
    bit-identical to the pre-experience export while their other groups change
 6. changes beyond magnitude: rank correlation of learned rewards (psi_pre vs psi_post) over the run's records,
-   and the policy update under a pure rescaling of R_psi's output (must be identical: magnitude is normalised
-   away) against the update under psi_pre (differs only if the reward's *shape* changed)
+   and the policy update with every reward it sees multiplied by 3 (a pure magnitude change: must give the same
+   update, returns are standardised) against the update under psi_pre (can differ only through the reward's
+   *shape*)
 """
 from __future__ import annotations
 
@@ -128,20 +129,23 @@ def run_checks(root: str, result: Dict[str, Any], *, max_support: int = 16) -> D
             _, aux_pre = meta.inner.functional(theta0, psi_pre, ibh.with_mix(0.0), detach_reward=True,
                                                return_aux=True)
         lp, lq = [float(x) for x in aux_pre["learned"].flatten()], [float(x) for x in aux_post["learned"].flatten()]
-        scaled = dict(psi_post)
-        last_w = [k for k, v in psi_post.items() if v.dim() == 2][-1]
-        last_b = last_w.replace("weight", "bias")
-        scaled[last_w] = psi_post[last_w] * 3.0
-        if last_b in scaled:
-            scaled[last_b] = psi_post[last_b] * 3.0
         a0 = thetaK(psi_post, 0.0)
-        a_scaled = thetaK(scaled, 0.0)
+        orig = meta.inner.intrinsic                      # pure magnitude: every reward the update sees x 3
+
+        def tripled(psi: Any, ib_: Any, detach_reward: bool = False) -> Any:
+            r, rl = orig(psi, ib_, detach_reward=detach_reward)
+            return 3.0 * r, 3.0 * rl
+        meta.inner.intrinsic = tripled
+        try:
+            a_scaled = thetaK(psi_post, 0.0)
+        finally:
+            del meta.inner.intrinsic
         a_pre = thetaK(psi_pre, 0.0)
         out["6_beyond_magnitude"] = {
             "spearman_learned_reward_pre_vs_post": spearman(lp, lq), "n_rows": len(lp),
             "mean_abs_learned_pre": sum(abs(x) for x in lp) / len(lp),
             "mean_abs_learned_post": sum(abs(x) for x in lq) / len(lq),
-            "delta_theta_output_scaled_x3_vs_post": _norm(a_scaled, a0), "rescaled_layer": last_w,
+            "delta_theta_output_scaled_x3_vs_post": _norm(a_scaled, a0),
             "delta_theta_psi_pre_vs_post": _norm(a_pre, a0)}
         # 3 / 4 from the run's meta-update records
         metas = result.get("extract", {}).get("meta_updates", [])

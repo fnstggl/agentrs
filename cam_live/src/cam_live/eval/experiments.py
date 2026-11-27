@@ -37,7 +37,9 @@ from .runner import run_lifetime
 
 EVAL_HOME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "runs", "cam_live",
                          "eval")
-EVAL_HOME = os.path.abspath(EVAL_HOME)
+#: where runs, checkpoints and results go; ``CAM_LIVE_EVAL_HOME`` overrides it (a snapshot otherwise writes inside
+#: itself, because the default is relative to this file)
+EVAL_HOME = os.path.abspath(os.environ.get("CAM_LIVE_EVAL_HOME") or EVAL_HOME)
 WORLD_BASE = {"F1": 10_000, "T1": 20_000, "T2": 30_000}
 
 
