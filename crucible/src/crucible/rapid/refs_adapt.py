@@ -1569,3 +1569,89 @@ def wear_latch_predict(view, env, settle: int | None = None) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== delayed adoption with word of mouth
+def _adoption_fit(A, N, M_grid, h_grid, th_grid):
+    """Least squares of the new adoptions dN[t] = N[t] - N[t-1] on sat_h(A[t]) 1[A[t] >= theta] (1 - N[t-1]/M)
+    (alpha + beta N[t-1]) over grids of the market size M, the half-saturation h and the threshold theta (alpha,
+    beta by least squares). Returns (sse, M, h, theta, alpha, beta)."""
+    dN = np.diff(N)
+    Ap, Nl = A[1:], N[:-1]
+    ok = np.isfinite(dN) & np.isfinite(Ap) & np.isfinite(Nl)
+    dN, Ap, Nl = dN[ok], Ap[ok], Nl[ok]
+    best = None
+    for M in M_grid:
+        if M < np.nanmax(N) * 1.02:
+            continue
+        rem = np.clip(1.0 - Nl / M, 0.0, 1.0)
+        for h in h_grid:
+            sat = np.maximum(Ap, 0.0) / (np.maximum(Ap, 0.0) + h)
+            for th in th_grid:
+                g = sat * (Ap >= th) * rem
+                F = np.c_[g, g * Nl]
+                coef = np.linalg.lstsq(F, dN, rcond=None)[0]
+                sse = float(np.sum((F @ coef - dN) ** 2))
+                if best is None or sse < best[0]:
+                    best = (sse, float(M), float(h), float(th), float(coef[0]), float(coef[1]))
+    return best
+
+
+def adoption_predict(view, env) -> None:
+    """Scripted public reference for predicting adoption after a held-out constant launch. Design: spend held at
+    several levels for ten ticks each (high first, so the threshold is crossed early and adoption is observed over
+    a range of awareness and installed base). Awareness: a delayed first-order model fitted to the survey
+    (`first_order_fit`). Adoption: new adopters per tick = sat(awareness) x [awareness above a threshold] x
+    (alpha + beta adopters) x (1 - adopters / market), fitted by `_adoption_fit` on grids. Prediction: both models
+    simulated from launch at each held-out spend. Assumes this model class (saturating trial, a threshold, linear
+    word of mouth, a finite market)."""
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gy = obj["gauge"]
+    name = list(held[0])[0]
+    T_settle = int(obj.get("settle_ticks", 40))
+    ga = next(g["name"] for g in env._config["gauges"] if g["name"] != gy)
+    levels = [10.0, 10.0, 4.0, 7.0, 1.0, 10.0, 5.5]
+    U, A, N = [], [], []
+    k = 0
+    while view.t < view.horizon - 2 and not view.done:
+        m = levels[min(len(levels) - 1, k // 8)]
+        k += 1
+        x = view.step({"kind": "levers", "values": {name: m}})["observation"]["numbers"]
+        U.append(m)
+        A.append(float(x.get(ga, np.nan)))
+        N.append(float(x.get(gy, np.nan)))
+    U, A, N = np.asarray(U), np.asarray(A), np.asarray(N)
+    if len(U) < 20 or view.done:
+        while not view.done:
+            view.step(None)
+        return
+    L, a, b, c = first_order_fit(U, A)
+    Ahat = np.zeros(len(U))                            # the awareness model's path (noise-free) for the fit
+    for t in range(len(U)):
+        prev = Ahat[t - 1] if t > 0 else 0.0
+        j = t - 1 - L
+        Ahat[t] = a * prev + b * (U[j] if j >= 0 else 0.0) + c
+    top = float(np.nanmax(N))
+    M_grid = np.unique(np.r_[np.linspace(max(50.0, top * 1.05), max(top * 3.0, 300.0), 25), [1e6]])
+    h_grid = np.geomspace(3.0, 120.0, 18)
+    th_grid = np.r_[0.0, np.quantile(Ahat[Ahat > 0], np.linspace(0.02, 0.6, 16))] if np.any(Ahat > 0) else [0.0]
+    fit = _adoption_fit(Ahat, N, M_grid, h_grid, th_grid)
+    preds = []
+    for cnd in held:
+        m = float(cnd[name])
+        if fit is None:
+            preds.append({"set": cnd, "value": 0.0})
+            continue
+        _, M, h, th, al, be = fit
+        av, n, hist = 0.0, 0.0, []
+        for t in range(T_settle):
+            hist.append(m)
+            j = t - 1 - L
+            av = a * av + b * (hist[j] if j >= 0 else 0.0) + c
+            g = (max(av, 0.0) / (max(av, 0.0) + h)) * (1.0 if av >= th else 0.0) * max(0.0, 1.0 - n / M)
+            n = min(M, n + max(0.0, g * (al + be * n)))
+        preds.append({"set": cnd, "value": float(n)})
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

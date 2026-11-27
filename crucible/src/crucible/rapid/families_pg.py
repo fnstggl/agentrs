@@ -267,6 +267,53 @@ def dl_delayed_returns(rng, d):
                     claim={"lever": inv, "outcome": sold, "lag": lag})
 
 
+@family("dl_delayed_adoption", engine="primitive_graph", category="8.6", item="8.6.3", split="train",
+        doc="Marketing builds awareness only after a hidden delay, and awareness fades. Nobody buys until awareness "
+            "passes a hidden level; then trial grows with diminishing returns, word of mouth from earlier adopters "
+            "amplifies it, and the market empties. Predict how many have adopted forty ticks after a launch held at "
+            "constant spends, some above what can be set: spending pays only after the delay and the threshold, "
+            "and much of its effect comes later through adopters.",
+        distinct_because="delayed decaying awareness stock gating (threshold) a saturating trial rate that word of "
+                         "mouth from the installed base amplifies (network effect) and the remaining market limits, "
+                         "accumulating into a stock of adopters; scored by the adopters after a held-out constant "
+                         "launch, so credit runs across the delay and the reinforcing loop",
+        axes={"horizon": 60, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=("crucible.rapid.claims_w3b:claim_adoption_delayed_and_amplified",),
+        identify="crucible.rapid.claims_w3b:identify_awareness_delay", lever_view=True,
+        reference="crucible.rapid.refs_adapt:adoption_predict", oracle="crucible.rapid.oracles:science_oracle")
+def dl_delayed_adoption(rng, d):
+    gb = GraphBuilder(rng)
+    spend = gb.lever(0.0, 10.0, 0.0, cost=0.0)
+    lag = int(rng.integers(2, 5))
+    M = u(rng, 400.0, 800.0)
+    aware = gb.prim("decay", {"rate": u(rng, 0.1, 0.2), "init": 0.0}, role="awareness",
+                    x=[(spend, lag, u(rng, 1.5, 3.0))])
+    gate = gb.prim("threshold", {"theta": u(rng, 8.0, 20.0), "lo": 0.0, "hi": 1.0}, x=[(aware, 0, 1.0)])
+    trial = gb.prim("saturation", {"cap": u(rng, 6.0, 12.0), "half": u(rng, 15.0, 40.0)}, x=[(aware, 0, 1.0)])
+    gated = gb.prim("multiplicative", {"k": 1.0}, a=[(trial, 0, 1.0)], b=[(gate, 0, 1.0)])
+    adopters = gb.prim("stock", {"init": 0.0, "cap": M}, role="outcome", inflow=[], outflow=[])
+    wom = gb.prim("network_effect", {"strength": u(rng, 3.0, 6.0) / M}, x=[(gated, 0, 1.0)], base=[(adopters, 1, 1.0)])
+    rem = gb.prim("linear_nonlinear", {"form": "linear", "a": -1.0 / M, "b": 1.0}, x=[(adopters, 1, 1.0)])
+    flow = gb.prim("multiplicative", {"k": 1.0}, a=[(wom, 0, 1.0)], b=[(rem, 0, 1.0)])
+    gb.nodes[int(adopters[1:])]["ports"]["inflow"] = [[flow, 0, 1.0]]
+    noise = float(d["observation_noise"])
+    gy = gb.gauge(adopters, [("measurement_noise", {"sd": noise * 4})])
+    gb.gauge(aware, [("measurement_noise", {"sd": noise * 3})])
+    held = [{gb.name_of(spend): x} for x in (1.0, 3.0, 5.0, 8.0, 11.0, 14.0)]
+    text = ("Predict how many customers would have adopted forty ticks after a launch if marketing spend were held "
+            f"at these levels from the start (partly above what you can set): {held}. File predictions with the "
+            "journal: message to 'journal' with content {\"predictions\": [{\"set\": <condition>, \"value\": "
+            "<number>}, ...]}. Only the last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": flow, "price": 50.0, "cap": 100.0},
+                    affordances=["levers", "message"], endowment=200_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": gy, "text": text,
+                               "settle_ticks": 40},
+                    journal=True,
+                    brief="A new product. Lever: marketing spend per tick. Gauges: customers who have adopted and an "
+                          "awareness survey.",
+                    claim={"lever": spend, "outcome": adopters, "awareness": aware, "lag": lag, "market": M})
+
+
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
         doc="Overdriving raises output now but accumulates wear (shown by a noisy vibration reading) that drains "
             "only below a hidden rate; past a hidden level the machine latches into a permanently degraded state. "

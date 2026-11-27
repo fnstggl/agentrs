@@ -963,3 +963,69 @@ def identify_latch_level(env) -> dict:
     truth = float(c["claim"]["threshold"])
     return {"question": "the wear level at which the machine latches into its degraded state",
             "estimate": est, "truth": round(truth, 2), "ok": bool(est is not None and abs(est - truth) <= 0.15 * truth)}
+
+
+# ====================================================================== dl_delayed_adoption (8.6.3)
+def _node_series(env, act_fn, n: int, nid: str) -> np.ndarray:
+    from .oracles import fork
+    e = fork(env)
+    idx = e._engine.idx[nid]
+    out = []
+    for k in range(n):
+        e.step(act_fn(k))
+        out.append(float(e._state["h"][0, -1, idx]))          # this tick's value of the node
+    return np.asarray(out)
+
+
+def claim_adoption_delayed_and_amplified(env) -> dict:
+    """(1) Spending moves awareness only after the hidden delay (same noise: the first tick at which awareness under
+    a high spend differs from awareness under no spend is the lag); (2) below the hidden awareness level nobody
+    adopts (a spend whose settled awareness stays under half that level leaves the adopters at zero for thirty
+    ticks); (3) word of mouth: from the same state, more earlier adopters give more new adoptions in the next tick
+    (adopters set to 5% and to 15% of the market, the same awareness and noise)."""
+    from .oracles import fork
+    c = env._config
+    cl = c["claim"]
+    eng = env._engine
+    lv = next(n["lever"]["name"] for n in c["nodes"] if n["id"] == cl["lever"])
+    hi = _node_series(env, lambda k: {"kind": "levers", "values": {lv: 10.0}}, cl["lag"] + 6, cl["awareness"])
+    lo = _node_series(env, lambda k: {"kind": "levers", "values": {lv: 0.0}}, cl["lag"] + 6, cl["awareness"])
+    dif = hi - lo
+    first = int(np.argmax(np.abs(dif) > 1e-9)) if np.any(np.abs(dif) > 1e-9) else -1
+    an = next(n for n in c["nodes"] if n["id"] == cl["awareness"])
+    rate, gain = float(an["params"]["rate"]), float(an["ports"]["x"][0][2])
+    theta = float(next(n for n in c["nodes"] if n.get("prim", "").startswith("threshold"))["params"]["theta"])
+    m_low = max(0.0, 0.5 * theta * rate / gain)
+    quiet = _node_series(env, lambda k: {"kind": "levers", "values": {lv: m_low}}, 30, cl["outcome"])
+    base = fork(env)
+    for _ in range(cl["lag"] + 12):
+        base.step({"kind": "levers", "values": {lv: 10.0}})
+    i_out = eng.idx[cl["outcome"]]
+    flows = []
+    for frac in (0.05, 0.15):
+        f = fork(base)                                       # intervene on the installed base only
+        lvl = frac * float(cl["market"])
+        f._state["h"][0, -1, i_out] = lvl
+        f._state[f"ps:{i_out}:level"] = np.zeros_like(f._state[f"ps:{i_out}:level"]) + lvl
+        f.step({"kind": "levers", "values": {lv: 10.0}})
+        flows.append(float(f._state["h"][0, -1, i_out]) - lvl)
+    ok = first == int(cl["lag"]) and dif[first] > 0 and float(np.max(quiet)) == 0.0 and flows[1] > flows[0]
+    return {"ok": bool(ok), "lag": int(cl["lag"]), "first_awareness_effect_at": first,
+            "adopters_under_low_spend": float(np.max(quiet)), "new_adopters_at_5_and_15_percent": flows}
+
+
+def identify_awareness_delay(env) -> dict:
+    """Question: after how many ticks does a change of spend start to move the awareness survey? Public: a
+    step-and-hold design on spend and a delayed first-order fit of the survey (the delay is its dead time + 1)."""
+    from .refs_adapt import first_order_fit, step_hold_design
+    view = PublicView(env)
+    c = env._config
+    obj = c["objective"]
+    name = list(obj["heldout"][0])[0]
+    ga = next(g["name"] for g in c["gauges"] if g["name"] != obj["gauge"])
+    p = view.action_space().kinds["levers"]["properties"]["values"]["properties"][name]
+    U, Y = step_hold_design(view, name, ga, float(p["minimum"]), float(p["maximum"]), hold=10, reserve=0)
+    L, a, b, cc = first_order_fit(U, Y)
+    truth = int(c["claim"]["lag"])
+    return {"question": "the delay of marketing spend on awareness, in ticks", "estimate": int(L + 1),
+            "truth": truth, "ok": bool(L + 1 == truth)}
