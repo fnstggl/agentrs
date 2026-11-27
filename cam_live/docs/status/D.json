@@ -539,7 +539,7 @@
    "integration_points": [
     "cam_live.credit.learner.ContinualLearner.learn",
     "cam_live.credit.learner.ContinualLearner.probe",
-    "contracts.LearningUpdateRecord (hash_before / hash_after / weight_delta / prediction_change / notes)"
+    "cam_live.contracts.LearningUpdateRecord"
    ],
    "tests": [
     "tests/credit/test_learner.py::test_frequent_update_changes_experiential_and_heads_and_says_exactly_what_happened",
@@ -638,7 +638,7 @@
     "cam_live.credit.learner.ContinualLearner.poll",
     "cam_live.credit.learner.ContinualLearner.fast_update",
     "cam_live.credit.learner.ContinualLearner.learn",
-    "learning_api.UpdatePlan"
+    "cam_live.learning_api.UpdatePlan"
    ],
    "tests": [
     "tests/credit/test_learner.py::test_frequent_learning_is_triggered_by_matured_independent_outcomes_not_by_time_or_rows",

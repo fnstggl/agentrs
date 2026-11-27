@@ -61,7 +61,8 @@
     "src/cam_live/harness/sandbox.py"
    ],
    "integration_points": [
-    "cam_live.harness.sandbox.SandboxExecutor (tools sandbox.python, sandbox.shell, sandbox.write_file, sandbox.read_file, sandbox.list_files)"
+    "cam_live.harness.sandbox.SandboxExecutor.execute",
+    "cam_live.harness.sandbox.SandboxExecutor.tools"
    ],
    "tests": [
     "tests/harness/compute/test_ec_sandbox.py::test_python_runs_as_unprivileged_user_in_persistent_workspace",
@@ -106,7 +107,8 @@
     "cam_live.harness.jobs.JobManager.submit_callable",
     "cam_live.harness.jobs.JobManager.events",
     "cam_live.harness.sandbox.SandboxExecutor.jobs",
-    "tools sandbox.job_start / job_status / job_result / job_cancel"
+    "cam_live.harness.sandbox.SandboxExecutor.execute",
+    "cam_live.harness.sandbox.SandboxExecutor.validate"
    ],
    "tests": [
     "tests/harness/compute/test_ec_jobs.py::test_job_needs_purpose_and_deadline",
@@ -136,7 +138,7 @@
     "src/cam_live/harness/visual.py"
    ],
    "integration_points": [
-    "cam_live.harness.visual.VisualExecutor.execute (visual.screenshot, visual.crop)",
+    "cam_live.harness.visual.VisualExecutor.execute",
     "cam_live.harness.visual.VisualExecutor.image",
     "cam_live.harness.visual.ScreenProvider"
    ],
@@ -164,7 +166,7 @@
     "src/cam_live/harness/visual.py"
    ],
    "integration_points": [
-    "cam_live.harness.visual.VisualExecutor.execute (visual.click, double_click, drag, scroll, type, key, ground, click_target)"
+    "cam_live.harness.visual.VisualExecutor.execute"
    ],
    "tests": [
     "tests/harness/compute/test_ec_visual.py::test_contract_tools_and_argument_validation",
@@ -205,7 +207,7 @@
     "docs/EC/MODEL_REVIEW.md"
    ],
    "integration_points": [
-    "cam_live.harness.grounding.load_grounder('goclick-base')",
+    "cam_live.harness.grounding.load_grounder",
     "cam_live.harness.grounding.GoClickGrounder",
     "cam_live.harness.visual.VisualExecutor._propose"
    ],
@@ -239,7 +241,7 @@
     "docs/EC/MODEL_REVIEW.md"
    ],
    "integration_points": [
-    "cam_live.harness.grounding.load_grounder('mai-ui-2b')",
+    "cam_live.harness.grounding.load_grounder",
     "cam_live.harness.grounding.MaiUIGrounder",
     "cam_live.harness.grounding.VocaelaGrounder",
     "cam_live.harness.visual.VisualConfig.grounder_order"
@@ -270,7 +272,7 @@
     "src/cam_live/harness/grounding/reference.py"
    ],
    "integration_points": [
-    "python -m cam_live.harness.grounding.bench",
+    "cam_live.harness.grounding.bench.main",
     "cam_live.harness.grounding.bench.run"
    ],
    "tests": [

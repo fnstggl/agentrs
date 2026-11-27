@@ -488,7 +488,7 @@
     "cam_live.reward.selfgoals.SelfGoalSelector.select",
     "cam_live.reward.selfgoals.GoalFreeBudget",
     "cam_live.reward.selfgoals.SelfGoalSelector.usefulness",
-    "cam_live.reward.intrinsic.IntrinsicReward.forward (e_g=None)",
+    "cam_live.reward.intrinsic.IntrinsicReward.forward",
     "cam_live.reward.selfgoals.GoalFreeMode.propose",
     "cam_live.reward.selfgoals.GoalFreeMode.resolve",
     "cam_live.reward.selfgoals.GoalFreeMode.usefulness"

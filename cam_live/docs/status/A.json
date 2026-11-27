@@ -98,7 +98,7 @@
     "cam_live.nn.model.CamLiveModel.count_parameters",
     "cam_live.nn.model.CamLiveModel.param_groups",
     "cam_live.nn.model.CamLiveModel.group_hashes",
-    "python -m cam_live.nn.bench"
+    "cam_live.nn.bench.main"
    ],
    "tests": [
     "tests/nn/test_api.py::test_parameter_groups_are_disjoint_and_cover_everything",
@@ -126,7 +126,7 @@
     "src/cam_live/nn/model.py"
    ],
    "integration_points": [
-    "cam_live.nn.model.CamLiveModel (nn.api.LatentModelAPI)",
+    "cam_live.nn.model.CamLiveModel",
     "cam_live.learning_api.encode_decisions"
    ],
    "tests": [
@@ -198,10 +198,10 @@
     "src/cam_live/nn/model.py"
    ],
    "integration_points": [
-    "cam_live.nn.model.CamLiveModel.embed_texts(with_grad=True)",
-    "cam_live.nn.model.CamLiveModel.tokenize(with_grad=True, grad_last=k)",
+    "cam_live.nn.model.CamLiveModel.embed_texts",
+    "cam_live.nn.model.CamLiveModel.tokenize",
     "cam_live.nn.model.CamLiveModel.generation_logprob",
-    "cam_live.learning_api.encode_decisions(with_grad_semantic=True)"
+    "cam_live.learning_api.encode_decisions"
    ],
    "tests": [
     "tests/nn/test_backbone.py::test_lora_gets_gradient_from_the_embedding_path",
@@ -294,8 +294,8 @@
     "src/cam_live/nn/model.py"
    ],
    "integration_points": [
-    "cam_live.nn.model.CamLiveModel.generate(latent=b)",
-    "cam_live.nn.model.CamLiveModel.generation_logprob(latent=b)",
+    "cam_live.nn.model.CamLiveModel.generate",
+    "cam_live.nn.model.CamLiveModel.generation_logprob",
     "cam_live.nn.backbone.LatentBridge"
    ],
    "tests": [
@@ -321,7 +321,7 @@
     "src/cam_live/nn/fast.py"
    ],
    "integration_points": [
-    "python -m cam_live.nn.fast_compare",
+    "cam_live.nn.fast_compare.main",
     "cam_live.nn.fast_compare.run"
    ],
    "tests": [

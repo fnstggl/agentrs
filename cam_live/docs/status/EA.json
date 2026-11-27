@@ -99,7 +99,7 @@
    "integration_points": [
     "cam_live.harness.auth.PolicyService.approvals",
     "cam_live.harness.auth.PolicyService.resolve_approval",
-    "python -m cam_live.harness.auth.opctl approve|reject"
+    "cam_live.harness.auth.opctl.main"
    ],
    "tests": [
     "tests/harness/auth/test_ea_approvals.py::test_request_approve_execute_once",
@@ -196,7 +196,7 @@
     "cam_live.harness.auth.PolicyService.reset_stop",
     "cam_live.harness.auth.stop.is_stopped",
     "cam_live.harness.auth.launcher.LaunchHandle.resume",
-    "<run_dir>/auth/STOP"
+    "cam_live.harness.auth.stop.StopSwitch.engage"
    ],
    "tests": [
     "tests/harness/auth/test_ea_stop.py::test_stop_blocks_every_modality_immediately",
@@ -236,7 +236,7 @@
    "integration_points": [
     "cam_live.harness.auth.PolicyService.authorize",
     "cam_live.harness.auth.PolicyService.check_primitive",
-    "contracts.ExecContext.check"
+    "cam_live.contracts.ExecContext.check"
    ],
    "tests": [
     "tests/harness/auth/test_ea_circumvention.py::test_denied_browser_action_reissued_as_code_or_api_is_denied",
@@ -263,7 +263,7 @@
     "tests/harness/auth/test_ea_fix_policy.py::test_the_policy_judges_the_host_chromium_would_contact",
     "tests/harness/auth/test_ea_fix_policy.py::test_programs_are_authorized_step_by_step",
     "tests/harness/auth/test_ea_fix_policy.py::test_uploads_from_the_workspace_are_allowed",
-    "tests/harness/auth/test_ea_fix_policy.py::test_discord_event_stream_and_member_events_are_aggregate_reads",
+    "tests/harness/auth/test_ea_fix_policy.py::test_discord_member_events_need_the_member_list_permission",
     "tests/harness/auth/test_ea_fix_policy.py::test_cross_origin_subresource_checks_are_reads_by_method",
     "tests/harness/auth/test_ea_fix_policy.py::test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads"
    ],

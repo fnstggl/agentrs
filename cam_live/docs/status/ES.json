@@ -138,11 +138,11 @@
     "src/cam_live/harness/discord.py"
    ],
    "integration_points": [
-    "tool publish.get_analytics",
+    "cam_live.harness.publishing.PublishingExecutor._analytics",
     "cam_live.harness.publishing.aggregate_access_log",
-    "tool discord.get_guild_stats",
-    "tool discord.get_channel_activity",
-    "tool discord.list_invites",
+    "cam_live.harness.discord.DiscordClient.member_counts",
+    "cam_live.harness.discord.DiscordClient.channel_activity",
+    "cam_live.harness.discord.DiscordClient.list_invites",
     "cam_live.harness.discord.DiscordClient.member_retention"
    ],
    "tests": [
@@ -171,7 +171,7 @@
    "integration_points": [
     "cam_live.harness.skills.SkillInducer.induce",
     "cam_live.harness.skills.SkillExecutor.induce_validate_register",
-    "tool skill.induce",
+    "cam_live.harness.skills.SkillExecutor.execute",
     "cam_live.harness.skills.SkillExecutor.observe_execution"
    ],
    "tests": [
@@ -230,7 +230,7 @@
     "src/cam_live/harness/skills.py"
    ],
    "integration_points": [
-    "tool skill.run",
+    "cam_live.harness.skills.SkillExecutor.execute",
     "cam_live.harness.skills.SkillLibrary.candidate_actions",
     "cam_live.harness.skills.bind"
    ],
@@ -280,8 +280,8 @@
     "src/cam_live/harness/skills.py"
    ],
    "integration_points": [
-    "tool skill.run (Level.PROCEDURE)",
-    "ActionResult.observations[0].data['option']"
+    "cam_live.harness.skills.SkillExecutor.execute",
+    "cam_live.harness.skills.SkillExecutor._run_skill"
    ],
    "tests": [
     "tests/harness/skills/test_es_skills.py::test_a_skill_run_is_one_procedure_level_action_with_its_low_level_trace",
@@ -302,9 +302,9 @@
    ],
    "integration_points": [
     "cam_live.harness.modality.ModalitySelector.choose",
-    "ModalitySelector.update_choice",
-    "ModalitySelector.quantities",
-    "ModalitySelector.annotate"
+    "cam_live.harness.modality.ModalitySelector.update_choice",
+    "cam_live.harness.modality.ModalitySelector.quantities",
+    "cam_live.harness.modality.ModalitySelector.annotate"
    ],
    "tests": [
     "tests/harness/skills/test_es_modality.py::test_prior_reproduces_the_specification_ordering_and_is_weak",
@@ -334,10 +334,10 @@
    ],
    "integration_points": [
     "cam_live.harness.failures.classify",
-    "failures.RetryPolicy",
-    "failures.run_with_retries",
-    "failures.failure_observation",
-    "failures.authorization_result"
+    "cam_live.harness.failures.RetryPolicy",
+    "cam_live.harness.failures.run_with_retries",
+    "cam_live.harness.failures.failure_observation",
+    "cam_live.harness.failures.authorization_result"
    ],
    "tests": [
     "tests/harness/skills/test_es_failures.py::test_classification_from_observable_evidence",
