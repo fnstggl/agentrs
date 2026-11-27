@@ -60,9 +60,41 @@ def _boot(a: np.ndarray, b: np.ndarray, n: int = 2000, seed: int = 0) -> dict:
     return {"mean": float(a.mean() - b.mean()), "ci95": [float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))]}
 
 
+def _paired_boot(d: np.ndarray, strata: np.ndarray | None = None, n: int = 2000, seed: int = 0) -> dict:
+    """Mean of paired differences with a bootstrap 95% CI (resampling units within each stratum)."""
+    d = np.asarray(d, np.float64)
+    if d.size == 0:
+        return {"mean": 0.0, "ci95": [0.0, 0.0], "units": 0}
+    strata = np.zeros(d.size, np.int64) if strata is None else np.asarray(strata)
+    groups = [d[strata == s] for s in np.unique(strata)]
+    rng = np.random.default_rng(seed)
+    bs = [np.concatenate([rng.choice(g, g.size) for g in groups]).mean() for _ in range(n)]
+    return {"mean": float(d.mean()), "ci95": [float(np.percentile(bs, 2.5)), float(np.percentile(bs, 97.5))],
+            "units": int(d.size)}
+
+
+def _member_phase(log: dict, members: np.ndarray, t_switch: int, bad: set) -> dict[int, tuple[float, float, int]]:
+    """Per class-2 member: (mean realised utility, share of visits to failing sites, visits) of its phase-2 web
+    visits."""
+    m = (log["cls"] == 2) & (log["activity"] == "web") & (log["t"] >= t_switch) & np.isin(log["ind"], members)
+    ind, u, res = log["ind"][m].astype(np.int64), log["util"][m].astype(np.float64), log["res"][m]
+    out = {}
+    for i in np.unique(ind):
+        k = ind == i
+        out[int(i)] = (float(u[k].mean()), float(np.isin(res[k], list(bad)).mean()), int(k.sum()))
+    return out
+
+
 def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_light: int = 150,
-               min_examples: int = 32, window_s: int = 14400) -> dict:
-    """See the module docstring. `arms` maps an arm name to a group config ({id, share, learning, memory, seed})."""
+               min_examples: int = 32, window_s: int = 14400, counterfactual: bool = False) -> dict:
+    """See the module docstring. `arms` maps an arm name to a group config ({id, share, learning, memory, seed}).
+
+    `counterfactual`: at the switch the world is forked and, in the fork only, the first learning arm stops learning
+    (`pop_adaptive.set_learning`; the main world records the same system call with learning on, so both worlds
+    keep identical random streams until the first post-switch policy update). Both run phase 2. Per member of that
+    group, the phase-2 utility in the main world minus the utility in the fork is what learning AFTER the change
+    did under the new condition - change-specific adaptation, with the weights, the memories, the state of the world
+    and every random draw at the switch held equal (`adaptation_after_change`, paired bootstrap over members)."""
     import torch
     torch.set_num_threads(1)
     arms = arms or {"learning": {"id": 0, "share": 0.5, "seed": 5},
@@ -96,6 +128,12 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
             redeploy(ctx, h, specs[names.index(h)], "rich")
     w._run_system("experiment.switch", switch)
     t_switch = w.now
+    cf, la = None, None
+    if counterfactual:
+        la = next(a for a, c in arms.items() if c.get("learning", True))
+        cf = w.fork(f"{w.world_id}-frozen-at-switch")
+        w.system_call("pop_adaptive.set_learning", {"group": gid[la], "learning": True})
+        cf.system_call("pop_adaptive.set_learning", {"group": gid[la], "learning": False})
     w.advance_time(w.now + phase_days * DAY)
     out["hash_end"] = hashes()
     out["switch"] = {"to_broken": to_broken, "to_rich": to_rich}
@@ -122,6 +160,30 @@ def adaptation(seed: int, phase_days: int = 5, arms: dict | None = None, *, n_li
                 r[ph]["share_failing"] = float(np.isin(log["res"][m], list(bad_after)).mean()) if m.any() else 0.0
             util[(a, ph)] = log["util"][m].astype(np.float64)
         out.setdefault("behaviour", {})[a] = r
+    if cf is not None:
+        try:
+            cf.advance_time(cf.now + phase_days * DAY)
+            members = np.flatnonzero(pg == gid[la])
+            a_main = _member_phase(log, members, t_switch, bad_after)
+            a_cf = _member_phase(A.visit_log(cf), members, t_switch, bad_after)
+            both = sorted(set(a_main) & set(a_cf))
+            d = np.array([a_main[i][0] - a_cf[i][0] for i in both])
+            g = f"adaptive:{gid[la]}"
+            after = lambda lg: sum(1 for e in lg if e.type == "pop.policy_update" and  # noqa: E731
+                                   e.payload["group"] == g and e.t >= t_switch)
+            out["adaptation_after_change"] = {
+                **_paired_boot(d, seed=2), "arm": la, "members_compared": len(both),
+                "member_utility_diffs": d.tolist(),
+                "share_failing_learning": float(np.mean([a_main[i][1] for i in both])) if both else 0.0,
+                "share_failing_frozen_at_switch": float(np.mean([a_cf[i][1] for i in both])) if both else 0.0,
+                "visits_learning": int(sum(a_main[i][2] for i in both)),
+                "visits_frozen_at_switch": int(sum(a_cf[i][2] for i in both)),
+                "policy_updates_after_switch": int(after(w.log)),
+                "policy_updates_after_switch_frozen": int(after(cf.log)),
+                "hash_switch": out["hash_switch"][la], "hash_end_learning": out["hash_end"][la],
+                "hash_end_frozen_at_switch": cf.modules["pop_adaptive"].policy(cf, gid[la]).weights_hash()}
+        finally:
+            cf.close()
     names_ = list(gid)
     if len(names_) >= 2:
         a, b = names_[0], names_[1]

@@ -325,3 +325,12 @@ training sequence (BPTT replays exactly the memory trajectory the member lived; 
 recurrent state did not follow it through days without sessions, and members the fitted daily-return model kept
 offline kept the shared initial state. Whether a member browses on a day remains the fitted daily_return@1 decision.
 Gate G measures presence (G.1) from the policy's own steps per day and batching (G.3) per decision the network takes.
+Addendum 2 (wave 3b continuation, G.n1 protocol, fixed before its first run): "actual adaptation" is measured as what
+the policy's learning AFTER the controlled change does under the new condition. At the switch each seed's world is
+forked; in the fork the learning group stops learning (`pop_adaptive.set_learning`), while the main world records the
+same system call with learning on, so both worlds have identical weights, memories, world state and random streams
+at the switch and diverge only through post-switch policy updates. The effect is each learning-group member's
+phase-2 mean realised utility in the main world minus that in the fork (paired by member), pooled over three seeds
+with a bootstrap stratified by seed; criterion: the lower 95% bound > 0. The identical-init frozen twin comparison
+stays G.6's measure (it also contains the general advantage learned before the change, audit B G.6) and is reported
+next to G.n1.
