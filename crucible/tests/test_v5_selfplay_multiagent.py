@@ -471,7 +471,8 @@ def test_capabilities_credit_the_provider_and_only_binding_scarcity():
     c = AN.capabilities(inter, ventures=[], groups_learning={}, strategy_response=None,
                         parties={"ctrl:alpha", "ctrl:beta"})
     sc = c["compete_for_scarce_resources"]
-    assert sc["ok"] and sc["refusals"] >= 1 and sc["utilisation_at_refusal_max"] >= 0.98
+    assert sc["ok"] and sc["refusals"] == 1 and sc["utilisation_at_refusal_max"] >= 0.98
+    assert sc["learning_party_refused"] >= 1 and sc["learning_party_holding"] >= 1 and sc["between_learning_parties"] >= 1
     rec = next(x for x in inter["competitive"] if x["kind"] == "scarce_resource" and x["holder_party"] == "ctrl:beta")
     assert rec["refused_party"] == "ctrl:alpha" and rec["both_learners"]
     env.close()

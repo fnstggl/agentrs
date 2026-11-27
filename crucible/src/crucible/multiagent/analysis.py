@@ -254,7 +254,7 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
                              "both_learners": True})
     # scarce compute: a request refused for capacity at a provider while another party held capacity there
     contests: dict[tuple, dict] = {}
-    for rf in refusals:
+    for i_rf, rf in enumerate(refusals):
         for holder, cores in rf["holders"].items():
             a, b = rf["party"], holder
             if a == b or not (P.is_learner(a) or P.is_learner(b)):
@@ -264,8 +264,10 @@ def interactions(world, controllers: dict[str, str], t0: int = 0) -> dict[str, l
                                           "parties": [a, b], "refused_party": a, "holder_party": b,
                                           "capacity_cores": rf["capacity_cores"], "refusals": 0,
                                           "holder_cores_max": 0, "utilisation_at_refusal_max": 0.0,
-                                          "first_t": rf["t"], "both_learners": P.is_learner(a) and P.is_learner(b)})
+                                          "first_t": rf["t"], "both_learners": P.is_learner(a) and P.is_learner(b),
+                                          "refusal_ids": []})
             c["refusals"] += 1
+            c["refusal_ids"].append(i_rf)
             c["holder_cores_max"] = max(c["holder_cores_max"], int(cores))
             if rf["capacity_cores"]:
                 c["utilisation_at_refusal_max"] = max(c["utilisation_at_refusal_max"],
@@ -459,12 +461,21 @@ def capabilities(inter: dict, *, ventures: list[dict], groups_learning: dict[str
     # is not a scarce resource: nothing shows that the customer's spending was the binding limit)
     sc = kinds(cm, "scarce_resource")
     out["compete_for_scarce_resources"] = {"ok": bool(sc), "n": len(sc), "kinds": sorted({r["kind"] for r in sc}),
-                                           "refusals": int(sum(r.get("refusals", 0) for r in sc)),
+                                           # distinct refused requests (one refusal is one record per holder)
+                                           "refusals": len({i for r in sc for i in r.get("refusal_ids", [])}),
                                            "resources": sorted({r["resource"] for r in sc}),
                                            "utilisation_at_refusal_max": max(
                                                (r.get("utilisation_at_refusal_max") or 0.0 for r in sc),
                                                default=None),
-                                           "contested_customers_reported": len(kinds(cm, "contested_customer"))}
+                                           "contested_customers_reported": len(kinds(cm, "contested_customer")),
+                                           # which side the learning parties were on: refused while another party
+                                           # held the capacity, or holding capacity another party was refused
+                                           "learning_party_refused": sum(1 for r in sc if (r["refused_party"] in parties
+                                                                                          if parties is not None else
+                                                                                          True)),
+                                           "learning_party_holding": sum(1 for r in sc if parties is not None and
+                                                                         r["holder_party"] in parties),
+                                           "between_learning_parties": sum(1 for r in sc if r.get("both_learners"))}
     sr = strategy_response or {}
     out["respond_to_changing_strategies"] = {"ok": bool(sr.get("responded")), **{k: v for k, v in sr.items()
                                                                                   if k != "responded"}}
