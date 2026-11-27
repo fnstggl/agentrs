@@ -1,0 +1,354 @@
+{
+ "what": "Measured parameter counts of the integrated agent (CamLiveAgent constructed exactly as build_agent does, so every head the agent registers is present) via the model's own CamLiveModel.count_parameters(); the default configuration (configs/cam_live.yaml: Qwen/Qwen3-4B at the pinned revision + LoRA r32 q/v + latent bridge + 50m core) built on CPU (the backbone loads in float32 on CPU; counts do not depend on dtype; no GPU used), and CamLiveConfig.debug().",
+ "commands": [
+  "CAM_LIVE_HOME=<scratch>/DOC/arch/home /workspace/camlive/.venv/bin/python -I <scratch>/DOC/arch/count_params.py <scratch>/DOC/arch/param_counts_raw.json",
+  "/workspace/camlive/.venv/bin/python -I <scratch>/DOC/arch/extra_counts.py"
+ ],
+ "scripts_note": "<scratch> = /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad; the counting script only calls cam_live.config.CamLiveConfig.load/debug, cam_live.nn.model.build_model, cam_live.agent.CamLiveAgent(cfg, run_dir, model=model) and CamLiveModel.count_parameters / param_groups",
+ "commit_read": "d3ce5197121e0a5d3a0795d27f1a6f421f22dde7",
+ "measured_at_utc": "2026-11-27T23:14:15Z",
+ "torch": "2.15.0+cu132",
+ "default_summary": {
+  "backbone_frozen": 4022468096,
+  "semantic_adapters": 16713856,
+  "adapters_lora": 11796480,
+  "adapters_bridge": 4917376,
+  "experiential": 50953765,
+  "reward": 949121,
+  "heads": 6055337,
+  "total_persistent_trainable": 74672079,
+  "adaptable_subset_of_inner_update_policy_plus_trunk": 5422467
+ },
+ "default": {
+  "label": "configs/cam_live.yaml (Qwen/Qwen3-4B pinned revision + LoRA + bridge + 50m), built on CPU for counting",
+  "build_s": 90.7,
+  "device": "cpu",
+  "counts_model_only_before_agent": {
+   "frozen": 4022468096,
+   "experiential": 50953765,
+   "adapters": 16713856,
+   "adapters_lora": 11796480,
+   "adapters_bridge": 4917376,
+   "reward": 0,
+   "heads_total": 0,
+   "total_persistent_trainable": 67667621
+  },
+  "count_parameters": {
+   "frozen": 4022468096,
+   "experiential": 50953765,
+   "adapters": 16713856,
+   "adapters_lora": 11796480,
+   "adapters_bridge": 4917376,
+   "reward": 949121,
+   "heads": {
+    "predict_world": 1022954,
+    "predict_transition": 1977600,
+    "predict_evaluator": 783192,
+    "predict_policy": 702339,
+    "predict_downstream": 84195,
+    "reward": 949121,
+    "credit_rudder": 559361,
+    "credit_cocoa": 925696
+   },
+   "head_groups": {
+    "predict_world": "heads",
+    "predict_transition": "heads",
+    "predict_evaluator": "heads",
+    "predict_policy": "heads",
+    "predict_downstream": "heads",
+    "reward": "reward",
+    "credit_rudder": "heads",
+    "credit_cocoa": "heads"
+   },
+   "heads_total": 6055337,
+   "total_persistent_trainable": 74672079,
+   "by_group": {
+    "backbone_frozen": 4022468096,
+    "semantic_adapters": 16713856,
+    "experiential": 50953765,
+    "reward": 949121,
+    "heads": 6055337
+   },
+   "experiential_breakdown": {
+    "tokenizer": 4263746,
+    "core": 36615648,
+    "encoders": 1977600,
+    "trunk": 4720128,
+    "feature_map": 3343104,
+    "fast_prior": 33539
+   },
+   "scale": "50m",
+   "backbone": "Qwen/Qwen3-4B",
+   "backbone_pretrained": true,
+   "fast_state_numbers_per_kind": 16512
+  },
+  "requires_grad_per_group": {
+   "backbone_frozen": 0,
+   "semantic_adapters": 16713856,
+   "experiential": 50953765,
+   "reward": 949121,
+   "heads": 6055337
+  },
+  "heads": {
+   "predict_world": {
+    "params": 1022954,
+    "group": "heads",
+    "type": "WorldHeads"
+   },
+   "predict_transition": {
+    "params": 1977600,
+    "group": "heads",
+    "type": "LatentTransition"
+   },
+   "predict_evaluator": {
+    "params": 783192,
+    "group": "heads",
+    "type": "GoalEvaluator"
+   },
+   "predict_policy": {
+    "params": 702339,
+    "group": "heads",
+    "type": "CandidatePolicy"
+   },
+   "predict_downstream": {
+    "params": 84195,
+    "group": "heads",
+    "type": "DownstreamValueEstimator"
+   },
+   "reward": {
+    "params": 949121,
+    "group": "reward",
+    "type": "IntrinsicReward"
+   },
+   "credit_rudder": {
+    "params": 559361,
+    "group": "heads",
+    "type": "ReturnDecomposer"
+   },
+   "credit_cocoa": {
+    "params": 925696,
+    "group": "heads",
+    "type": "HindsightModel"
+   }
+  },
+  "backbone_info": {
+   "name": "Qwen/Qwen3-4B",
+   "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+   "pretrained": true,
+   "hidden": 2560,
+   "n_layers": 36,
+   "vocab": 151936,
+   "d_sem": 7680,
+   "tap_layer_ids": [
+    17,
+    26,
+    35
+   ],
+   "max_text_tokens": 384,
+   "max_prompt_tokens": 2048,
+   "lora": {
+    "rank": 32,
+    "alpha": 32.0,
+    "targets": [
+     "q_proj",
+     "v_proj"
+    ],
+    "layers": "all",
+    "modules": 72
+   },
+   "bridge": {
+    "tokens": 8,
+    "dim": 128,
+    "layer_ids": [
+     0,
+     7,
+     14,
+     21,
+     28,
+     35
+    ]
+   },
+   "dtype": "float32"
+  }
+ },
+ "debug": {
+  "label": "CamLiveConfig.debug() (tiny random LM, debug core; CPU tests only)",
+  "build_s": 1.5,
+  "device": "cpu",
+  "counts_model_only_before_agent": {
+   "frozen": 131392,
+   "experiential": 202421,
+   "adapters": 42304,
+   "adapters_lora": 1024,
+   "adapters_bridge": 41280,
+   "reward": 0,
+   "heads_total": 0,
+   "total_persistent_trainable": 244725
+  },
+  "count_parameters": {
+   "frozen": 131392,
+   "experiential": 202421,
+   "adapters": 42304,
+   "adapters_lora": 1024,
+   "adapters_bridge": 41280,
+   "reward": 227521,
+   "heads": {
+    "predict_world": 47996,
+    "predict_transition": 107424,
+    "predict_evaluator": 27218,
+    "predict_policy": 29315,
+    "predict_downstream": 3491,
+    "reward": 227521,
+    "credit_rudder": 289025,
+    "credit_cocoa": 204800
+   },
+   "head_groups": {
+    "predict_world": "heads",
+    "predict_transition": "heads",
+    "predict_evaluator": "heads",
+    "predict_policy": "heads",
+    "predict_downstream": "heads",
+    "reward": "reward",
+    "credit_rudder": "heads",
+    "credit_cocoa": "heads"
+   },
+   "heads_total": 709269,
+   "total_persistent_trainable": 1181515,
+   "by_group": {
+    "backbone_frozen": 131392,
+    "semantic_adapters": 42304,
+    "experiential": 202421,
+    "reward": 227521,
+    "heads": 709269
+   },
+   "experiential_breakdown": {
+    "tokenizer": 25586,
+    "core": 101344,
+    "encoders": 18368,
+    "trunk": 32896,
+    "feature_map": 23616,
+    "fast_prior": 611
+   },
+   "scale": "debug",
+   "backbone": "tiny",
+   "backbone_pretrained": false,
+   "fast_state_numbers_per_kind": 272
+  },
+  "requires_grad_per_group": {
+   "backbone_frozen": 0,
+   "semantic_adapters": 42304,
+   "experiential": 202421,
+   "reward": 227521,
+   "heads": 709269
+  },
+  "heads": {
+   "predict_world": {
+    "params": 47996,
+    "group": "heads",
+    "type": "WorldHeads"
+   },
+   "predict_transition": {
+    "params": 107424,
+    "group": "heads",
+    "type": "LatentTransition"
+   },
+   "predict_evaluator": {
+    "params": 27218,
+    "group": "heads",
+    "type": "GoalEvaluator"
+   },
+   "predict_policy": {
+    "params": 29315,
+    "group": "heads",
+    "type": "CandidatePolicy"
+   },
+   "predict_downstream": {
+    "params": 3491,
+    "group": "heads",
+    "type": "DownstreamValueEstimator"
+   },
+   "reward": {
+    "params": 227521,
+    "group": "reward",
+    "type": "IntrinsicReward"
+   },
+   "credit_rudder": {
+    "params": 289025,
+    "group": "heads",
+    "type": "ReturnDecomposer"
+   },
+   "credit_cocoa": {
+    "params": 204800,
+    "group": "heads",
+    "type": "HindsightModel"
+   }
+  },
+  "backbone_info": {
+   "name": "tiny",
+   "revision": "",
+   "pretrained": false,
+   "hidden": 64,
+   "n_layers": 2,
+   "vocab": 512,
+   "d_sem": 192,
+   "tap_layer_ids": [
+    0,
+    1,
+    1
+   ],
+   "max_text_tokens": 48,
+   "max_prompt_tokens": 2048,
+   "lora": {
+    "rank": 2,
+    "alpha": 32.0,
+    "targets": [
+     "q_proj",
+     "v_proj"
+    ],
+    "layers": "all",
+    "modules": 4
+   },
+   "bridge": {
+    "tokens": 2,
+    "dim": 64,
+    "layer_ids": [
+     0,
+     1
+    ]
+   },
+   "dtype": "float32",
+   "tiny": {
+    "d": 64,
+    "layers": 2,
+    "vocab": 512,
+    "seed": 0
+   }
+  }
+ },
+ "world_model_frozen_prior_buffers": {
+  "default": {
+   "world_trainable_params": 1022954,
+   "world_frozen_prior_buffer_numbers": 530410,
+   "predict_config": {
+    "hidden": 192,
+    "n_members": 5,
+    "transition_hidden": 256,
+    "transition_members": 3,
+    "n_hazard_bins": 12,
+    "max_categories": 16
+   }
+  },
+  "debug": {
+   "world_trainable_params": 47996,
+   "world_frozen_prior_buffer_numbers": 12156,
+   "predict_config": {
+    "hidden": 64,
+    "n_members": 3,
+    "transition_hidden": 96,
+    "transition_members": 3,
+    "n_hazard_bins": 6,
+    "max_categories": 8
+   }
+  }
+ }
+}
