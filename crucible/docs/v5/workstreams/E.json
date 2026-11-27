@@ -131,7 +131,7 @@
    "tests": [
     "tests/v5/test_gate_SP_5_4.py"
    ],
-   "status_claim": "implemented and passing locally on the integrated tree after repairing the wave-2 union merge of the register (12 CORE-POP and 7 CIV rows converted to id records, 17 superseded duplicate rows removed, records added for pop_social, space, space_read, civgen, civgoods, civlinks, firms, fleet, learn, rivals, work, FR-WORK-1, participant-own-decision, work.sponsored_click, learn.slate_open, the E5 model and runtime decision, advertising.attention_composition): 151 important mechanisms, 0 without a complete record, 160 rows, 0 row problems",
+   "status_claim": "implemented and passing locally on the integrated tree after repairing the wave-2 union merge of the register (12 CORE-POP and 7 CIV rows converted to id records, 17 superseded duplicate rows removed, records added for pop_social, space, space_read, civgen, civgoods, civlinks, firms, fleet, learn, rivals, work, FR-WORK-1, participant-own-decision, work.sponsored_click, learn.slate_open, the E5 model and runtime decision, advertising.attention_composition): 151 important mechanisms, 0 without a complete record, 160 rows, 0 row problems; repair pass: the gate on the integration mirror is queued (its in-world probes build population worlds, more than 5 minutes on one CPU)",
    "notes": "Re-run in wave 3b: 5 passed (register parser, incomplete records, false in-world claims, decision coverage)."
   },
   "SP-5.5": {
@@ -158,7 +158,7 @@
     "tests/v5/test_gate_SP_5_0.py",
     "tests/test_v5_calibration_ad_exposure.py"
    ],
-   "status_claim": "measurement implemented and unit-tested; not measured in wave 3b: on this branch the population's runtime models are not wired (c5c/w3b-pop does it); on the scratch merge with pop/soc/econ1/civ the gate needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
+   "status_claim": "measurement implemented and unit-tested; not measured in the repair pass: the gate on the integration mirror (this branch + pop, soc, econ1, civ, dom1-3, econ2, sem; c5c/w3b-pop wires the runtime models) is queued in the slot scheduler",
    "notes": "c5c/w3b-pop wires daily_return@1 / extra_sessions@1 (population/activation.py) with decision provenance; c5c/w3b-soc content_open@1 on the shorts platform; c5c/w3b-econ1 ad_response@2 display campaigns with randomised eligibility (economy/work.py)."
   },
   "SP-5.1": {
@@ -191,24 +191,19 @@
     "src/crucible/calibration/inworld.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_5_5b.py",
-    "tests/test_v5_calibration_ad_exposure.py"
+    "tests/test_v5_calibration_ad_exposure.py",
+    "tests/test_v5_calibration_inworld.py",
+    "tests/v5/test_gate_SP_5_5b.py"
    ],
-   "status_claim": "harness implemented and unit-tested; in-world experiments match only when informative; not measured in wave 3b: on the scratch merge (pop + soc random insertion via the civ feed_config probe patch + econ1 randomised display eligibility) the 21-day civilisation gate needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs); 24 of the 28 in-world unit tests pass on the merge on one CPU, the 4 that build population worlds exceeded 285 s there",
+   "status_claim": "harness implemented and unit-tested; repair pass: an in-world randomised experiment matches only when the world's estimate is powered, not rejected by the z test AND shown equivalent to the reference within prespecified margins (TOST at 5% per side; inworld.EQUIVALENCE: ad display shift 0.5 log-odds of Criteo's 1.39, random-exposure open rate 0.03 of KuaiRand's 0.186, own-topic log-odds ratio 0.2 of 0.40) - a powered campaign of 6,000 individuals whose interval spans 0.9-2.1 no longer matches. Not measured in-world: the gate on the integration mirror (pop + soc random insertion + econ1 randomised display eligibility + the civ feed_config probe patch) is queued in the slot scheduler",
    "notes": "Wave 3b: ad holdout per attended display verified (A_ref = 1 consistent with the estimand: the attention-adjusted estimator recovers Criteo's shift at attention 1, 0.5 and 0.19), plus a power requirement (the world's 95% interval must exclude a null effect); random exposure must detect the own-topic preference (|LOR| > 1.96 se). Heterogeneity is individuals' own session intensity (not a function of the active-days histogram). The E5 card's identification is randomized_encouragement_iv (plan label and correction disclosed)."
   }
  },
- "wave3b": [
-  "Verified the repair pass's claims against the verifier's open items: ad-holdout comparison per attended display (unit tests at attention 1, 0.5, 0.19 pass), heterogeneity by session intensity, E5 identification label randomized_encouragement_iv with disclosure, registry index pins all 17 models (index_problems clean); conversion-ratio assumption stated in ad_response@2's limits (runtime_ext, predecessor commit ac46584).",
-  "New: informative matches - an in-world randomised experiment matches only when the world's own estimate detects an effect (ad holdout: 95% interval excludes 0; random exposure: |LOR| > 1.96 se); random_exposure_estimate factored out and unit-tested (a 300-insertion experiment that a z test alone accepts in >= 20 of 40 draws is refused).",
-  "Defects: DEF-E-3, DEF-E-4, DEF-E-6 fixed (fixes and regression tests named, tests re-run); DEF-E-5 not a defect (a positive finding). DEF-E-1/E-2 (no population decision uses a fitted model in the world) stay open until c5c/w3b-pop merges and SP-5.0 measures it on the integration branch.",
-  "Merge checks on the scratch merge: the four `default:` in-world claims that c5c/w3b-pop adds to FIDELITY_REGISTER (return_daily@1, session_rate@1 in pop; news_click_semantic@1, customer_return@1 in popweb) had no probe in fidelity.INWORLD_PROBES, so SP-5.4 failed there (4 unverified claims). E now registers its own probe: a DEFAULT population world (development profile at 300 individuals, every other parameter the population's default, 3 days) evaluated against an isolated runtime usage ledger (runtime.isolated_usage). The population's own probe module (population/fidelity_probes.py) raises the shop share to 0.8 and drops the adaptive and strategic classes, so it is not what a 'default' claim means and is not registered. The probe needs the GPU path to finish in reasonable time (more than 5 minutes on one CPU); it runs with the SP-5.4 gate on the merge (queued)."
- ],
  "limitations": [
-  "SP-5.0 and SP-5.5b cannot pass on this branch alone; they need c5c/w3b-pop, c5c/w3b-soc, c5c/w3b-econ1 and the civ feed_config fix (integration_notes).",
-  "tests/test_v5_calibration_software.py and Gate F were not re-run in wave 3b (unchanged code; the software tests exceed 280 s on one CPU without the slot scheduler).",
-  "All earlier E limitations stand (history.wave3.limitations).",
-  "Wave 3b, third session: SP-5.0 and SP-5.5b were not measured on the scratch merge (the GPU slot queue never reached them); SP-5.4 was not re-run (its in-world probes now build population worlds, more than 5 minutes on one CPU)."
+  "SP-5.0, SP-5.5b and SP-5.4 have no in-world measurement from the repair pass: their gates on the integration mirror wait in the FIFO slot queue.",
+  "SP-5.5b's random-exposure experiment needs civilisations built with social.worlds.feed_config (J: civ.generator.social_config builds the feed config by hand, integration note in A.json); the mirror applies a probe patch.",
+  "The equivalence margins are judgement calls fixed before any in-world run (recorded in inworld.EQUIVALENCE with their rationale); a world can agree with a reference and still fail equivalence when its experiment is small.",
+  "All earlier E limitations stand (history)."
  ],
  "integration_notes": [
   "acceptance manifest: SP-5.0, SP-5.5b -> src/crucible/calibration/inworld.py (+ runtime.py); SP-5.1, SP-5.3 -> src/crucible/calibration/audit_sp5.py (manifest not edited here).",
@@ -216,27 +211,6 @@
   "MIND: D-28 (owner's authorisation); BLOCKERS.md has no open blocker; keep derived artifacts marked non-commercial research only.",
   "FIDELITY_REGISTER.md merges: the scratch merge's union of conflicting rows produced duplicate ids (module:pop, module:pop_adaptive, ...): resolve register conflicts row by row, one record per id (SP-5.4 counts duplicate ids as row problems)."
  ],
- "tests_run": {
-  "tests/test_v5_calibration_inworld.py": "28 passed (68 s)",
-  "tests/test_v5_calibration_ad_exposure.py": "9 passed",
-  "tests/test_v5_calibration_runtime.py, _governance.py, _core.py, _commercial.py, tests/test_calibration.py": "35 + 4 + 22 + 13 + 1 passed",
-  "tests/v5/test_gate_SP_5_4.py, SP_5_5.py, SP_5_1.py, SP_5_3.py": "5 + 3 + 3 + 1 passed",
-  "tests/test_v5_social_calibrated.py": "3 passed",
-  "tests/test_v5_calibration_software.py": "8 passed before the 280 s budget ran out (not completed)"
- },
- "session3": {
-  "verified": [
-   "the verifier's open items (ad holdout per attended display with A_ref = 1, heterogeneity by individuals' own session intensity, the conversion-ratio assumption in ad_response@2's limits, the E5 card's identification label) were re-read in the code: addressed by the second session (no change needed)"
-  ],
-  "tests_on_scratch_merge": {
-   "tests/test_v5_calibration_runtime.py": "36 passed",
-   "tests/v5/test_gate_SP_5_5.py": "3 passed",
-   "tests/v5/test_gate_SP_5_3.py": "1 passed",
-   "tests/v5/test_gate_SP_5_1.py": "3 passed",
-   "tests/test_v5_calibration_inworld.py": "24 passed (-k excluding the wired, stamped and injected population-world tests, which exceeded 285 s on one CPU without the GPU)"
-  },
-  "scratch_merge_register": "the FIDELITY_REGISTER conflict of the merge (pop, soc, econ1, civ, dom1-3, econ2, sem, perf all edit it) left 8 duplicate ids when both sides were kept (module:pop, module:pop_adaptive, module:pop_strategic, module:civlinks, module:firms, module:fleet, module:learn, learn.slate_open); keeping the newer record of each gives 242 rows without duplicates"
- },
  "history": {
   "wave3": {
    "workstream": "E",
@@ -470,6 +444,89 @@
     "tests/test_kernel.py tests/test_invariants.py": "51 passed",
     "tests/test_v5_econ_work.py": "3 passed, 3 errors - identical at the base commit 87a6c54 (module work may not write column pop.wake_act)"
    }
+  },
+  "wave3b_sessions_1_3": {
+   "wave3b": [
+    "Verified the repair pass's claims against the verifier's open items: ad-holdout comparison per attended display (unit tests at attention 1, 0.5, 0.19 pass), heterogeneity by session intensity, E5 identification label randomized_encouragement_iv with disclosure, registry index pins all 17 models (index_problems clean); conversion-ratio assumption stated in ad_response@2's limits (runtime_ext, predecessor commit ac46584).",
+    "New: informative matches - an in-world randomised experiment matches only when the world's own estimate detects an effect (ad holdout: 95% interval excludes 0; random exposure: |LOR| > 1.96 se); random_exposure_estimate factored out and unit-tested (a 300-insertion experiment that a z test alone accepts in >= 20 of 40 draws is refused).",
+    "Defects: DEF-E-3, DEF-E-4, DEF-E-6 fixed (fixes and regression tests named, tests re-run); DEF-E-5 not a defect (a positive finding). DEF-E-1/E-2 (no population decision uses a fitted model in the world) stay open until c5c/w3b-pop merges and SP-5.0 measures it on the integration branch.",
+    "Merge checks on the scratch merge: the four `default:` in-world claims that c5c/w3b-pop adds to FIDELITY_REGISTER (return_daily@1, session_rate@1 in pop; news_click_semantic@1, customer_return@1 in popweb) had no probe in fidelity.INWORLD_PROBES, so SP-5.4 failed there (4 unverified claims). E now registers its own probe: a DEFAULT population world (development profile at 300 individuals, every other parameter the population's default, 3 days) evaluated against an isolated runtime usage ledger (runtime.isolated_usage). The population's own probe module (population/fidelity_probes.py) raises the shop share to 0.8 and drops the adaptive and strategic classes, so it is not what a 'default' claim means and is not registered. The probe needs the GPU path to finish in reasonable time (more than 5 minutes on one CPU); it runs with the SP-5.4 gate on the merge (queued)."
+   ],
+   "session3": {
+    "verified": [
+     "the verifier's open items (ad holdout per attended display with A_ref = 1, heterogeneity by individuals' own session intensity, the conversion-ratio assumption in ad_response@2's limits, the E5 card's identification label) were re-read in the code: addressed by the second session (no change needed)"
+    ],
+    "tests_on_scratch_merge": {
+     "tests/test_v5_calibration_runtime.py": "36 passed",
+     "tests/v5/test_gate_SP_5_5.py": "3 passed",
+     "tests/v5/test_gate_SP_5_3.py": "1 passed",
+     "tests/v5/test_gate_SP_5_1.py": "3 passed",
+     "tests/test_v5_calibration_inworld.py": "24 passed (-k excluding the wired, stamped and injected population-world tests, which exceeded 285 s on one CPU without the GPU)"
+    },
+    "scratch_merge_register": "the FIDELITY_REGISTER conflict of the merge (pop, soc, econ1, civ, dom1-3, econ2, sem, perf all edit it) left 8 duplicate ids when both sides were kept (module:pop, module:pop_adaptive, module:pop_strategic, module:civlinks, module:firms, module:fleet, module:learn, learn.slate_open); keeping the newer record of each gives 242 rows without duplicates"
+   },
+   "tests_run": {
+    "tests/test_v5_calibration_inworld.py": "28 passed (68 s)",
+    "tests/test_v5_calibration_ad_exposure.py": "9 passed",
+    "tests/test_v5_calibration_runtime.py, _governance.py, _core.py, _commercial.py, tests/test_calibration.py": "35 + 4 + 22 + 13 + 1 passed",
+    "tests/v5/test_gate_SP_5_4.py, SP_5_5.py, SP_5_1.py, SP_5_3.py": "5 + 3 + 3 + 1 passed",
+    "tests/test_v5_social_calibrated.py": "3 passed",
+    "tests/test_v5_calibration_software.py": "8 passed before the 280 s budget ran out (not completed)"
+   },
+   "limitations": [
+    "SP-5.0 and SP-5.5b cannot pass on this branch alone; they need c5c/w3b-pop, c5c/w3b-soc, c5c/w3b-econ1 and the civ feed_config fix (integration_notes).",
+    "tests/test_v5_calibration_software.py and Gate F were not re-run in wave 3b (unchanged code; the software tests exceed 280 s on one CPU without the slot scheduler).",
+    "All earlier E limitations stand (history.wave3.limitations).",
+    "Wave 3b, third session: SP-5.0 and SP-5.5b were not measured on the scratch merge (the GPU slot queue never reached them); SP-5.4 was not re-run (its in-world probes now build population worlds, more than 5 minutes on one CPU)."
+   ],
+   "requirements": {
+    "SP-5.0": {
+     "implementation_files": [
+      "src/crucible/calibration/inworld.py",
+      "src/crucible/calibration/runtime.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_0.py",
+      "tests/test_v5_calibration_ad_exposure.py"
+     ],
+     "status_claim": "measurement implemented and unit-tested; not measured in wave 3b: on this branch the population's runtime models are not wired (c5c/w3b-pop does it); on the scratch merge with pop/soc/econ1/civ the gate needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
+     "notes": "c5c/w3b-pop wires daily_return@1 / extra_sessions@1 (population/activation.py) with decision provenance; c5c/w3b-soc content_open@1 on the shorts platform; c5c/w3b-econ1 ad_response@2 display campaigns with randomised eligibility (economy/work.py)."
+    },
+    "SP-5.5b": {
+     "implementation_files": [
+      "src/crucible/calibration/inworld.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_5b.py",
+      "tests/test_v5_calibration_ad_exposure.py"
+     ],
+     "status_claim": "harness implemented and unit-tested; in-world experiments match only when informative; not measured in wave 3b: on the scratch merge (pop + soc random insertion via the civ feed_config probe patch + econ1 randomised display eligibility) the 21-day civilisation gate needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs); 24 of the 28 in-world unit tests pass on the merge on one CPU, the 4 that build population worlds exceeded 285 s there",
+     "notes": "Wave 3b: ad holdout per attended display verified (A_ref = 1 consistent with the estimand: the attention-adjusted estimator recovers Criteo's shift at attention 1, 0.5 and 0.19), plus a power requirement (the world's 95% interval must exclude a null effect); random exposure must detect the own-topic preference (|LOR| > 1.96 se). Heterogeneity is individuals' own session intensity (not a function of the active-days histogram). The E5 card's identification is randomized_encouragement_iv (plan label and correction disclosed)."
+    },
+    "SP-5.4": {
+     "implementation_files": [
+      "src/crucible/calibration/fidelity.py",
+      "docs/v5/FIDELITY_REGISTER.md"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_5_4.py"
+     ],
+     "status_claim": "implemented and passing locally on the integrated tree after repairing the wave-2 union merge of the register (12 CORE-POP and 7 CIV rows converted to id records, 17 superseded duplicate rows removed, records added for pop_social, space, space_read, civgen, civgoods, civlinks, firms, fleet, learn, rivals, work, FR-WORK-1, participant-own-decision, work.sponsored_click, learn.slate_open, the E5 model and runtime decision, advertising.attention_composition): 151 important mechanisms, 0 without a complete record, 160 rows, 0 row problems",
+     "notes": "Re-run in wave 3b: 5 passed (register parser, incomplete records, false in-world claims, decision coverage)."
+    }
+   }
   }
+ },
+ "repair_pass": {
+  "date": "2026-11-27",
+  "verifier_finding": "match_criteo and random_exposure_estimate treated a non-rejecting z test plus a powered estimate as a match; equivalence was never tested (low, not blocking)",
+  "fix": "inworld.tost, inworld.EQUIVALENCE (prespecified before any in-world run, from the references' magnitudes); match_criteo returns `equivalence`, random_exposure_estimate `equivalence_open_rate`, `equivalence_log_odds_ratio`, `equivalent`; `matching` requires power, non-rejection and equivalence",
+  "commit": "568f11a",
+  "tests": [
+   "tests/test_v5_calibration_inworld.py::test_a_powered_campaign_too_imprecise_for_equivalence_is_not_a_match (3 seeds)",
+   "tests/test_v5_calibration_inworld.py::test_random_insertions_too_few_for_equivalence_are_not_a_match"
+  ],
+  "open_items_rechecked": "ad-holdout comparison per attended display (attention-adjusted estimator, A_ref=1), heterogeneity statistic (session intensity, no double counting with the activity distribution), conversion-ratio assumption (RUNTIME.md, ad_response@2 limits) and the E5 identification label (IV) were fixed by earlier passes; re-read, unchanged",
+  "mind": "MIND-small is authorised for experimental, non-commercial research (DECISION_LOG D-28); derived artifacts stay marked non-commercial research only - not a blocker"
  }
 }

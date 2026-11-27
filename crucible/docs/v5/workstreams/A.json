@@ -5,137 +5,101 @@
  "requirements": {
   "SP-2.1": {
    "implementation_files": [
-    "src/crucible/substrate/modes.py",
+    "src/crucible/civ/modes.py",
+    "src/crucible/core/kernel.py",
     "src/crucible/domains/modes.py",
-    "src/crucible/civ/modes.py"
+    "src/crucible/substrate/artifacts.py",
+    "src/crucible/substrate/modes.py"
    ],
    "tests": [
     "tests/v5/test_gate_SP_2_1.py",
     "tests/test_v5_substrate_modes.py"
    ],
-   "status_claim": "partial, not measured in wave 3b: registry and Mode A/B/C checks implemented; on this branch alone Mode B lists no Tier 2 domain (execution_modes cannot reach 3 here); on the scratch merge (dom1/dom2/dom3 + domfw) the domains provider lists 15 Tier 2 domains and civ.generate builds a 75-module civilisation, so all three modes have providers there; gate SP-2.1 on the merge needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
-   "notes": "Mode A: crucible.rapid and the 4.0 mechanisms. Mode B: crucible.domains provider (rebuilt by domfw, merged here) lists every configuration of every registered Tier 2 domain; none is registered on this branch (dom1/dom2/dom3 build them). Mode C: crucible.civ provider with the strengthened composition check (>= 12 of 17 domains engaged after genesis, population in >= 6, >= 8 shared kinds written by transactions another module initiated, >= 12 initiator/owner pairs, >= 5 initiating sources, the mandatory duplicate-fact check). Gate run on this branch and on the scratch merge: queued."
+   "status_claim": "partial, not yet measured: the D-78 lineage regression that made the Mode C check's store-less replay of a civilisation fail on every tree containing this branch is fixed (verifier probes p05/p07/p09: replay exact on all 11 profiles); Mode B needs registered Tier 2 domains, absent on this branch alone (75 configurations on the integration mirror: this branch + pop, soc, econ1, civ, dom1, dom2, dom3, econ2, sem, domfw, perf); gate SP-2.1 and tests/test_v5_substrate_modes.py on that mirror are queued in the slot scheduler (FIFO position 37 of 41 at 08:10 UTC)",
+   "notes": "Mode A: crucible.rapid and the 4.0 mechanisms (registry checks pass on this branch). Mode B: crucible.domains provider (domfw) lists every configuration of every registered Tier 2 domain. Mode C: crucible.civ provider (two 1-day civilisations, determinism, store-less replay - fixed in the repair pass - and the composition/integration check)."
   },
   "SP-2.3": {
    "implementation_files": [
     "src/crucible/core/kernel.py",
     "src/crucible/core/state.py",
+    "src/crucible/population/core.py",
+    "src/crucible/sandbox/boot.py",
+    "src/crucible/sandbox/metering.py",
+    "src/crucible/sandbox/runner.py",
+    "src/crucible/services/code.py",
     "src/crucible/storage/base.py",
-    "src/crucible/storage/sqlite.py",
     "src/crucible/storage/memory.py",
     "src/crucible/storage/postgres.py",
-    "src/crucible/substrate/facts.py",
-    "src/crucible/substrate/primitives.py",
-    "src/crucible/substrate/bus.py",
+    "src/crucible/storage/sqlite.py",
     "src/crucible/substrate/artifacts.py",
+    "src/crucible/substrate/bench.py",
+    "src/crucible/substrate/bus.py",
     "src/crucible/substrate/columns.py",
-    "src/crucible/substrate/retention.py",
+    "src/crucible/substrate/facts.py",
     "src/crucible/substrate/history.py",
-    "src/crucible/substrate/modules.py",
-    "src/crucible/sandbox/runner.py",
-    "src/crucible/sandbox/boot.py",
-    "src/crucible/population/core.py",
-    "src/crucible/sandbox/metering.py",
-    "src/crucible/services/code.py",
     "src/crucible/substrate/integrity.py",
-    "src/crucible/substrate/bench.py"
+    "src/crucible/substrate/modules.py",
+    "src/crucible/substrate/primitives.py",
+    "src/crucible/substrate/retention.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_2_3.py",
-    "tests/test_v5_substrate_streams.py",
-    "tests/test_v5_substrate_resume.py",
+    "tests/test_v5_substrate_bus.py",
+    "tests/test_v5_substrate_columns.py",
     "tests/test_v5_substrate_facts.py",
     "tests/test_v5_substrate_history.py",
-    "tests/test_v5_substrate_retention.py",
-    "tests/test_v5_substrate_primitives.py",
-    "tests/test_v5_substrate_typed.py",
-    "tests/test_v5_substrate_bus.py",
+    "tests/test_v5_substrate_integrity.py",
     "tests/test_v5_substrate_kernel.py",
-    "tests/v5_resume_child.py",
     "tests/test_v5_substrate_memo.py",
-    "tests/test_v5_substrate_columns.py",
-    "tests/test_v5_substrate_integrity.py"
+    "tests/test_v5_substrate_primitives.py",
+    "tests/test_v5_substrate_resume.py",
+    "tests/test_v5_substrate_retention.py",
+    "tests/test_v5_substrate_streams.py",
+    "tests/test_v5_substrate_typed.py",
+    "tests/v5/test_gate_SP_2_3.py",
+    "tests/v5_resume_child.py"
    ],
-   "status_claim": "partial: shared_primitive_kinds = 16 of 19 measured on the scratch merge at 2026-11-27 01:50 UTC: c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + dom2 + dom3 + econ2 + sem + perf (conflicts: services/contracts.py econ1 side, test_v5_substrate_facts.py kcal side, docs both sides) + the civ feed_config probe patch (social.worlds.feed_config in civ.generator.social_config) (measure_primitives of the gate, one CPU, 26 s: 387 fact items over 115 modules, 0 problems, 74 4.0 families without duplicate facts, owners world 21 modules 0 problems); product, relationship and community keep known copies: product regressed with c5c/w3b-dom3 (rcomm.rc_products, allow-listed for I-3), relationship (forum.forum_follows is the owner while the v5 graph social.cols:follow, aud follower sets and pop.contacts copy it) and community (community.communities, pop.communities) need the C/B/I-3 migrations (integration_notes); 14 of 19 on this branch alone",
-   "notes": "Kernel side of the migrations: econ1 already set OWNERS.institution = inst.inst_charters with gov tables as verified legacy entries and made commit.commitments a part of contracts; soc reclassified aud.aud_item_info. cross_module_rollback_failures and inference_replay_without_rerun: gate re-run queued (slot scheduler); last measured 0 / true in wave 3."
+   "status_claim": "partial: shared_primitive_kinds = 16 of 19 on the integration mirror at 2026-11-27 08:20 UTC (this branch 6525ae5 + pop, soc, econ1, civ, dom1, dom2, dom3, econ2, sem, domfw, perf; measure_primitives, one CPU, 16 s): 396 items over 116 modules, 0 problems, 0 uninstallable (after the repair-pass base with the shared space; I-1's catalogue was uninstallable for the scan), 74 4.0 families without duplicate facts. product (I-3 rcomm.rc_products), relationship and community keep known copies whose migrations belong to I-3, C and B (integration_notes). Store-less replay/fork/history of civilisations restored (D-78 amendment); K1 cross-process resume: 4 of 4 diagnosis runs exact after the warm-up repair (3 of 6 diverged before); the gate itself is queued on the mirror",
+   "notes": "cross_module_rollback_failures and inference_replay_without_rerun: last measured 0 / true (wave 3); the gate re-run on the mirror is queued. The real tests/test_v5_substrate_resume.py result is in repair_pass.k1."
   },
   "SP-2.3b": {
    "implementation_files": [
-    "src/crucible/substrate/integrity.py",
-    "src/crucible/substrate/columns.py",
-    "src/crucible/core/state.py",
     "src/crucible/core/kernel.py",
-    "src/crucible/substrate/bus.py",
+    "src/crucible/core/state.py",
+    "src/crucible/economy/operations.py",
+    "src/crucible/sandbox/metering.py",
     "src/crucible/sandbox/runner.py",
-    "src/crucible/sandbox/metering.py"
+    "src/crucible/services/bank.py",
+    "src/crucible/substrate/artifacts.py",
+    "src/crucible/substrate/bus.py",
+    "src/crucible/substrate/columns.py",
+    "src/crucible/substrate/integrity.py"
    ],
    "tests": [
-    "tests/v5/test_gate_SP_2_3b.py",
+    "tests/test_v5_substrate_columns.py",
     "tests/test_v5_substrate_integrity.py",
     "tests/test_v5_substrate_memo.py",
+    "tests/test_v5_substrate_retention.py",
     "tests/test_v5_substrate_streams.py",
-    "tests/test_v5_substrate_columns.py"
+    "tests/v5/test_gate_SP_2_3b.py"
    ],
-   "status_claim": "implemented, partially measured: integrity.trace_writes + replay_check + hashes, gate with two positive controls, unit tests pass; on the scratch merge the commerce kind has 0 cross-module writes (5,784 traced writes, 13 writers, 74 targets) and replays exactly, the rapid kind hashes in a fresh process; the civilisation, population, social and domain kinds and the two-fresh-process determinism check need a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
-   "notes": "cross_module_state_writes counts distinct (writer, target) pairs of writes by an applier of one module into another module's table/array/column/metadata, plus handler writes outside appliers, plus column batches the ownership rule refuses; approved interfaces are cols.batch/grow by an admitted writer (owner, package, grant, or a registered interface called from its implementing module - wave 3b), counter allocation and the kernel's side-event count. Determinism: each world kind (civ, population, social, commerce, domain when registered, rapid) built from the same spec and seed in two fresh processes."
+   "status_claim": "implemented, partially measured: the verifier's findings are fixed - civilisations trace again (D-78 lineage), ops' journal is a kernel.derives applier (no bank->ops_days write), genesis is traced, metadata keys have owners, writes that bypass the store inside appliers are found (content fingerprints), rapid hashes cover every observation, a one-sided failure is a mismatch. On this branch (one CPU): civ genesis + 30 min 1,571 traced writes, 0 cross-module/handler/untracked, exact replay; commerce genesis + 2 h 428 writes, 0; the trace leaves the trajectory unchanged. The full gate (5 kinds traced, 6 kinds in two fresh processes) on the integration mirror is queued (an integrated civilisation did not finish 30 simulated minutes in 295 s on one CPU of the loaded machine)",
+   "notes": "cross_module_state_writes counts distinct (writer, target) pairs: an applier (or deriver) of one module writing another module's table/array/column/metadata, handler writes outside appliers, column batches the ownership rule refuses, and untracked writes (state changed without the store's methods), plus one per traced world that does not replay to its state. Approved interfaces: cols.batch/grow by an admitted writer, kernel.derives appliers writing their own module's state, counter allocation, the kernel's side-event count. Metadata keys: declared (StateStore.declare_meta), namespaced by module or host, or reviewed 4.0 keys (integrity.LEGACY_META_OWNERS); others belong to the kernel."
   }
- },
- "wave3b_findings_and_repairs": [
-  "K2 and K1 regressions after the merge (orchestrator regression on 55433e7): diagnosed on a real population world - the first differing main-line event was cloud.usage cpu_ms 0.125 vs 5.735 for the same request; the job's program load measured 5.8 ms in one run and 3.5 ms in the other (LOAD_FREE_NS = 3 ms), so load_bill was 2.8 vs 0.5 ms and the job memo's tolerance check billed the noisy total ('exceeded'). D-80: the deterministic cost model anchors the program load like a job and keeps it out of the job's own anchor. After the fix the same 6-hour comparison bills all 22 jobs 'remembered' in both runs and the two K2 observer tests pass (2 passed, 120 s).",
-  "K1 after the first D-80 step: a world resumed in a NEW process starts every sandboxed site cold where the uninterrupted run had warm workers; the anchored load above LOAD_FREE_NS was billed again (13 differing events in a 1-day adaptive population world), and a load noise rule with a small anchor flagged 'exceeded' (2 differing events, resume itself not reproducible). D-80 completed: a platform cold start's load joins the job's first measurement (Memo.bill check_ns), restarts after a death or eviction bill it on top, the load tolerance is floored at LOAD_FREE_NS. Then: resume == uninterrupted run (hash and digest), twice; at the test's own configuration (300 individuals, 8 sites, adaptive + strategic, snapshot day 1, crash 1.5, resume to 2.5) the resumed process ends at seq 9,717 with the hash dcc5fa2e and digest c1e60eb2 of an uninterrupted stored run in another new process; 58 of 192 inferences re-run; replay of the stored log exact with 0 inferences.",
-  "Approved state interfaces were strings: a module's code could call columns.batch(..., _iface='attention') and refill attention_left_min (accepted, invariants empty). Interfaces are now capabilities of the Python module that registered them.",
-  "The facts test failed on the predecessor's commit (allow-list entries for sibling-branch tables absent on this tree); absent entries are reported and stale ones are problems (D-79).",
-  "Predecessor (same branch, before the usage limit): D-78 system array blobs are not world state; incremental retention (new events only, per-key size lookups, scan position in the store); substrate.integrity and gate SP-2.3b; facts classification of the sibling branches' tables; Module.on_fork.",
-  "SP-2.3b blind spot: the write trace sees only writes through the state store's methods; a handler that mutates a nested value of a row a read returned (or state.tables directly) left no trace (and no rollback journal entry). integrity.replay_check replays a traced world's own log from genesis: such a write breaks replay; the gate counts traced worlds that do not replay to their state as cross-module state writes, with a second positive control (traced 0, replay True before, False after). Real worlds probed on one CPU: population (240, 6 h), commerce (600, 24 h), social (400, 4 h): 0 cross-module writes, replay exact.",
-  "Gate SP-2.3b did not load the shipped modules itself; its positive control (identity, bank, admin) raised 'unknown module identity' when the gate ran alone (it had never run: the predecessor's job never started). Fixed.",
-  "Tests of this area run on the scratch merge (kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf) found two merge breakages, both fixed here: the typed-events test required every primitive event to be registered by its kind's owner, but after econ1's institution migration OWNERS.institution is inst and gov.constitution is a 4.0 legacy event (now: owner, kernel, or a module whose table of that kind is a reviewed legacy entry); the calibration in-world fixture could not write pop.active once pop owns it (grant) and assumed the population records no provenance (recounted from the log)."
- ],
- "measurements": {
-  "k2_billing_diagnosis_6h_population_world": {
-   "before_fix": "22 jobs per run; base run: 21 remembered + 1 exceeded (load 5.778 ms, billed 2.954 ms); observer run: 22 remembered (load 3.474 ms, billed 0.097 ms)",
-   "after_fix": "22 remembered in both runs, identical bills"
-  },
-  "facts_audit_on_scratch_merge": {
-   "merge": "c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf",
-   "items": 327,
-   "modules": 107,
-   "problems": 0,
-   "unreviewed": 0,
-   "spec_primitives_without_copy": 17,
-   "with_copies": {
-    "relationship": [
-     "aud.cols:aud_creators.followers",
-     "pop.cols:pop.contacts",
-     "social.cols:follow"
-    ],
-    "community": [
-     "community.communities",
-     "pop.cols:pop.communities"
-    ]
-   }
-  },
-  "k1_cross_process_resume": {
-   "small": "population_world('development', 3, n=150, sites=6, strategic=False): ref 1 day, snapshot 0.5, crash 0.75, resume to 1.0 in new processes; before the completed D-80: 13 then 2 differing events; after: resume hash/digest == ref (1496f8dc / 20a490e2) in two resumes; replay exact, 0 inferences",
-   "test_configuration": "population_world('development', 3, n=300, sites=8) (adaptive + strategic): uninterrupted stored run to day 2.5 in a new process and part (snapshot day 1, crash 1.5) + resume (new process, to 2.5): both seq 9717, hash dcc5fa2e6a1c7c2b7e4259167f20c873, digest c1e60eb2d53e5d541170f0aa9223d7fd; resume ran 58 inferences (ref 192), replay of the part log exact with 0; the test's store-less reference stage exceeds 295 s on one CPU without GPU (queued in the slot scheduler)"
-  }
- },
- "defects": {
-  "DEF-A-4": "fixed (mandatory scan; remaining copies tracked by the allow-list and SP-2.3)",
-  "DEF-A-5": "fixed (cross-process resume re-verified after D-80 at the test's configuration, stage by stage)",
-  "DEF-A-6": "fixed (tests/test_v5_substrate_streams.py 6 passed after D-80)",
-  "DEF-A-1, DEF-A-2": "marked fixed on c5c/w3b-civ (J); DEF-A-3 left to J"
  },
  "limitations": [
-  "SP-2.1: on this branch no Tier 2 domain is registered (Mode B lists no world) - execution_modes cannot reach 3 here; the Mode C check on a real civilisation and Mode B on dom1's domains are measured only on the scratch merge (queued).",
-  "SP-2.3: shared_primitive_kinds 14 here, 17 after the soc/econ1 merges; relationship and community need migrations of 4.0 forum code and population columns by C and B (integration_notes).",
-  "D-80 limits: eviction points of a pool with more active deployments than sandbox_max_workers (24) depend on the host process's history, so such a world can bill evictions differently after a resume; across machines, an empty memo measures afresh (D-20's honest limit).",
-  "Without the GPU, population/civilisation runs are dominated by the shared space's text path on first sight of a text (a civ world: 12 simulated hours > 5 minutes on one CPU); later runs of the same seed hit the embedding cache.",
-  "Retention test file: all 8 tests passed on one CPU but the process exceeded the 290 s budget at exit (teardown), so pytest's summary line was not printed.",
-  "The first run of a world seed on one CPU embeds every new text through the shared space's text path (Qwen3-0.6B LM on CPU): the K1 test's store-less reference stage (the first process of that spec) exceeded 295 s, while later processes of the same spec (warm embedding cache) ran 1.5-2.5 simulated days in 41-130 s; a store-less and a stored world run alike once warm (0.5 day, 150 individuals: 25 vs 34 s).",
-  "Wave 3b, third session: no gate needing a GPU slot ran (SP-2.1, SP-2.3b's civilisation/population/social/domain kinds and determinism, the modes unit tests, the 365-day population store growth, the adversarial civ probe); the queued jobs were cancelled when the session ended rather than left as orphans nobody reads.",
-  "The 365-day store-growth evidence after D-78 is the kernel world's (system blobs from cohort batches); the population world with adaptive daily checkpoints was not re-measured."
+  "SP-2.1, SP-2.3b (full gate), SP-5.0, SP-5.5b and the modes tests on the integrated tree: queued in the FIFO slot queue (positions 37-41 of 41 at 08:10 UTC); results, if they arrive before this session ends, are in test_runs, otherwise they must be run on the integration branch.",
+  "SP-2.3: 16 of 19 on the integration mirror; product, relationship and community need I-3/C/B migrations (integration_notes).",
+  "D-80 limits stand: eviction points of a pool with more active deployments than sandbox_max_workers depend on the host process's history; across machines an empty memo measures afresh; a warm worker's load noise above 3x anchor + 1 ms can still bill fresh (closest observed after the repair: 0.68 of the tolerance).",
+  "Untracked-write detection (SP-2.3b) attributes an in-place change to the applier that read the row through the store (get/scan/find), or to the transaction's appliers for arrays; a row reached through state.tables directly and changed in place is found only at its next write or at the end of the trace (writer 'unattributed').",
+  "Semantic space world keys depend on the checkout path (integration note for D): event hashes of worlds that record representations differ between clones in different directories.",
+  "The 365-day population-world store growth after D-78 was not re-measured (kernel world measured: flat 188 KB snapshot)."
  ],
  "integration_notes": [
+  "O (security, c5c/w3b-sec) - repair pass: sandbox/runner.py gains `warmup` in Worker._finish (check_ns=0 when the job is the first after its program's load on a platform cold start: `loaded_now and self.cold == 'process'`, set in run()); keep it with D-80's fold/check_ns when resolving the sec/kcal conflict (regression test tests/test_v5_substrate_memo.py::test_the_first_request_after_a_platform_cold_start_bills_its_anchor_despite_warm_up).",
+  "All workstreams (SP-2.3b): a module that keeps derived state of another module's events uses @kernel.derives('<event>') (never a callback from inside another module's applier); metadata keys are namespaced `<module>.x` / `<module>:x` or declared with state.declare_meta in install (INTERFACE_CONTRACTS 1.4). The integrity trace now counts untracked writes (rows mutated in place, arrays written through cached references): run `python -m crucible.substrate.integrity trace <kind> 0 <hours>` on your worlds.",
+  "D (semantic): crucible.semantic.space.preprocessing()['params'] hashes module constants of crucible.semantic.space.align that are absolute paths (MAP_DIR, RIDGE_FILE), so world keys of recorded representations - and the event hashes of every world that records them - depend on the checkout directory (same spec and seed in two clones: different hashes; measured: civ 1 h differs only by this). Hash the files' contents or the paths relative to the package instead.",
+  "I-1 (c5c/w3b-dom1): module `catalogue` depends on `aud`, whose shared-space encoder needs the kernel module `space`, which neither declares in `depends`; the mandatory fact scan now tries a base with `space` (facts._BASES), but add 'space' to catalogue's (or aud's) depends.",
+  "J (civ): civ.generator.social_config still builds the feed config by hand on c5c/w3b-civ 5bcd1e5 (no fitted shorts decision content_open@1, no random-exposure experiment in civilisations: SP-5.5b's random_exposure experiment cannot run); use social.worlds.feed_config(plats). The integration mirror applies it as a probe patch.",
   "O (security, c5c/w3b-sec edits the same files): D-80 is a minimal edit in sandbox/runner.py and sandbox/metering.py. Keep on merge: Worker.cold and WorkerPool._seen ('process' for the pool's first worker of a key, 'restart' afterwards); the load anchor `M.MEMO.bill(computation_key(scope, files_digest, {'kind': 'load', 'target': target}, [], {}), load_ns, disk=memo_path, floor_ns=M.LOAD_FREE_NS)` (add scope=self.cfg.meter_scope after sec's per-lineage eviction lands) with the fold of a platform cold start's load; `_finish(..., load=, fold=)` billing `MEMO.bill(key, cpu + fold, disk, check_ns=cpu)` plus `load`; Memo.bill's check_ns and floor_ns (compare `check` against `max(anchor, floor_ns)`). Both regression tests live in tests/test_v5_substrate_memo.py.",
   "facts.py / primitives.py: c5c/w3b-soc (aud.aud_item_info reclassified, its allow-list entry removed) and c5c/w3b-econ1 (gov.* legacy entries verified by test_gov_writes_through_inst_charters, commit.commitments a part of contracts, OWNERS.institution = inst.inst_charters, the inst.inst_charters and commit.commitments allow-list entries removed) edit them too: keep all three sides. Checked on a scratch merge (kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf): facts.audit 327 items over 107 modules, 0 problems, 0 unreviewed; 17 of the 19 Part 2.3 primitives without a copy. When dom2/dom3 merge, their entries (techmkt.tech_needs, orgeco.org_props, rcomm.rc_products, rcomm.rc_subs) stop being 'allow_listed_absent'; an allow-list entry whose module is shipped but no longer creates the item is now a problem (remove it).",
   "C (+A, +B) for shared_primitive_kinds 19 - relationship: forum.follow/unfollow write social follow edges where `social` is installed (forum.forum_follows becomes a legacy entry with a verified_by test; population/web.py's forum feeds then read the social graph), pop.contacts becomes edges of the social graph (trust as an edge attribute) or a derived cache, and aud.cols:aud_creators.followers is removed or reclassified (c5c/w3b-soc 5c6903c says aud keeps no follower sets where the social network exists: if the column holds no follow facts there, make it a legacy/cache entry with a test); then A sets OWNERS.relationship = social.cols:follow. Community: forum boards become the discussion spaces of communities and pop.communities becomes community.cols:cmember memberships; then OWNERS.community = community.communities. No branch touches services/forum.py in wave 3b.",
@@ -152,110 +116,6 @@
   "DEF-J-1 (c5c/w3b-civ, owners O/A, D, J), metering half: the measured instance (a fresh process billed one hosted request 4.096 ms instead of the remembered 0.101 ms in a fresh process, i.e. with cold workers) is consistent with the D-80 case - a cold worker's program load above LOAD_FREE_NS billed on top of the job (not verified on that seed) - and was measured on c5c/w3b-civ without D-80 (merged only on c5c/w3b-kcal). With D-80 a platform cold start's load joins the job's first measurement and the load is anchored. Residual, documented limit (D-20): a job's own CPU measured beyond MEMO_TOL x anchor + 1 ms is still billed fresh (the bound that keeps remembered computations from hiding work). The second half (padded batched encoding of crucible.semantic.space is not batch-invariant, with a machine-wide RepCache) is workstream D's; it can break SP-2.3b's two-fresh-process determinism check whenever two processes encode different batches.",
   "J (Gate P long runs, civ/longrun.py store growth): c5c/w3b-civ does not have D-78, so a long civilisation run measured there still keeps one artifacts state row per system array blob (cohort batches, checkpoints, recorded inference) in every snapshot; J reports ~16 MB of state per simulated day - re-measure after the kcal merge to see how much of it was blob metadata (kernel world after D-78: snapshot flat at 188 KB from week 1 to week 52 while 1,460 system blobs are written)."
  ],
- "test_runs": {
-  "how": "wave 3b on c5c/w3b-kcal (HEAD at the time), one CPU with CUDA hidden, file by file outside the slot scheduler only where a file finished within 5 minutes (the slot queue was 40+ jobs deep)",
-  "tests/test_kernel.py": "29 passed",
-  "tests/test_invariants.py": "22 passed",
-  "tests/test_kernel_props.py": "2 passed",
-  "tests/test_open_substrate.py": "10 passed",
-  "tests/test_v5_substrate_streams.py": "6 passed (K2 incl. the emitting observer, typed validation, run-to-run hashes)",
-  "tests/test_v5_substrate_retention.py": "8 passed (incl. incremental compaction and D-78 system blobs)",
-  "tests/test_v5_substrate_history.py": "4 passed",
-  "tests/test_v5_substrate_inference.py": "3 passed",
-  "tests/test_v5_substrate_memo.py": "5 passed (incl. the two D-80 regression tests and the two-process population world)",
-  "tests/test_v5_substrate_typed.py": "7 passed",
-  "tests/test_v5_substrate_bus.py": "9 passed",
-  "tests/test_v5_substrate_kernel.py": "6 passed",
-  "tests/test_v5_substrate_artifacts.py": "11 passed",
-  "tests/test_v5_substrate_integrity.py": "9 passed",
-  "tests/test_v5_substrate_primitives.py": "79 passed",
-  "tests/test_v5_substrate_columns.py": "24 passed (incl. the claimed-interface refusal)",
-  "tests/test_v5_substrate_facts.py": "9 passed (2 + 7 in two runs; the data-level report alone takes 253 s)",
-  "tests/test_v5_substrate_resume.py": "not run as a file (its store-less reference stage exceeds 5 minutes on one CPU); its four stages run stage by stage with a stored uninterrupted reference: resumed == reference (seq 9717, hash dcc5fa2e, digest c1e60eb2), replay exact with 0 inferences",
-  "tests/test_v5_substrate_modes.py": "1 of 8 run to completion on one CPU (register_validates passed); the others exceed 280 s each without the GPU (rapid families, civilisation and all-module worlds) and run with gate SP-2.1 in the slot queue",
-  "tests/test_sandbox.py, tests/test_v5_security_sandbox.py, tests/test_hardening.py (sandbox code touched by D-80)": "6 + 17 + 25 passed",
-  "gates tests/v5/test_gate_SP_2_1.py, SP_2_3.py, SP_2_3b.py": "queued in the slot scheduler (job 'A: kcal gates ...', and on the scratch merge 'E: kcal SP-5.0/5.5b + SP-2.1/2.3b/2.3'); not run in this session as of the report",
-  "total run here": "292 passed, 0 failed (243 kernel/substrate + 48 sandbox + 1 modes), plus the K1 stages"
- },
- "session3": {
-  "who": "third kcal agent (wave 3b continuation after the second usage-limit stop), 2026-11-27 from 01:45 UTC",
-  "merged": "feat/crucible-5-complete c9fca5c (progress ledger only)",
-  "findings_and_repairs": [
-   "facts: the mandatory scan on the scratch merge found dom3's orgeco.org_use unreviewed and the orgeco.org_props allow-list entry stale (dom3 now runs the backbone council through an inst charter); org_use classified as domain physics (per-session usage telemetry read by the domain's evaluator), org_props/org_votes entries removed (commit b78ad51); facts.audit on the merge: 387 items, 115 modules, 0 problems; on this branch alone 312 items, 102 modules, 0 problems, 3 entries reviewed ahead of sibling merges",
-   "orchestrator regression list (kcal): the three kernel tests pass on this branch on one CPU without the GPU - test_v5_substrate_streams::test_an_emitting_observer_leaves_every_main_line_event_unchanged (74 s), test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (58 s), test_v5_substrate_resume::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants (226 s)",
-   "a civilisation on one CPU without the GPU: built in 13 s (728 events) but 2 simulated hours did not finish in 277 s even with the shared 3.7 GB embedding cache - civ-world gates need a GPU slot",
-   "store growth (assignment item 4): a durable measurement entry point `python -m crucible.substrate.bench growth` (kernel or population world, weekly snapshot + compaction, exact replay/resume at the end) and a regression test; 365 days of the kernel world: the snapshot stays at 187-192 KB from week 1 to week 52 while 1,460 system blobs are written, 0 artifact rows, 15 retained snapshots 2.8 MB (before D-78 the population world's snapshot grew from 1.4 to 3.3 MB and 15 snapshots held 120 MB)"
-  ],
-  "measurements": {
-   "sp23_primitives_on_scratch_merge": {
-    "shared_primitive_kinds": 16,
-    "spec_primitives_with_known_duplicates": "product,relationship,community",
-    "fact_scan_items": 387,
-    "fact_scan_modules": 115,
-    "unexplained_duplicate_facts": 0,
-    "families_checked_for_duplicates": 74,
-    "families_with_duplicate_facts": 0,
-    "typed_event_types": 109
-   },
-   "sp23b_commerce_trace_on_scratch_merge": {
-    "world": "commerce.worlds.startup_spec(0, n=600), 24 simulated hours, one CPU",
-    "modules": 23,
-    "writes_traced": 5784,
-    "writers": 13,
-    "targets": 74,
-    "cross_module_state_writes": 0,
-    "handler_writes": 0,
-    "column_writes_refused_by_rule": 0,
-    "replay_exact": true,
-    "events": 3137
-   },
-   "store_growth_365d_kernel_world": {
-    "command": "PYTHONPATH=src python -m crucible.substrate.bench growth --world kernel --days 365 (one CPU, 33 s)",
-    "world": "substrate bench world, 20,000-row column table, 4 cohort batches of 2,000 rows a day (one system array blob each), weekly snapshot + retention.compact(prune=True)",
-    "snapshot_bytes_latest": {
-     "day_7": 186143,
-     "day_182": 190269,
-     "day_365": 187131
-    },
-    "snapshot_bytes_retained_day_365": 2831553,
-    "snapshots_retained_day_365": 15,
-    "blobs_day_365": 1460,
-    "blobs_packed_day_365": 1400,
-    "artifact_rows_max": 0,
-    "compact_s_median": 0.003,
-    "compact_s_max": 1.798,
-    "replay_from_genesis_exact": true,
-    "resume_exact": true,
-    "before_D78_population_world_365d": "snapshot 1.42 MB/week in q1 -> 3.31 MB in q4, 222,702 artifact rows, 15 retained snapshots 120 MB (wave 3)",
-    "test": "tests/test_v5_substrate_retention.py::test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged",
-    "limit": "the kernel path only; the population world of the wave-3 measurement (adaptive daily checkpoints, popweb) runs the shared space's Qwen text path and needs a GPU slot: queued (python -m crucible.substrate.bench growth --world population --days 365), did not start in this session"
-   }
-  },
-  "test_runs": {
-   "how": "c5c/w3b-kcal HEAD 6d6f3fa4 (third session), one CPU, CUDA hidden, outside the slot scheduler (each run < 290 s)",
-   "tests/test_kernel.py": "29 passed",
-   "tests/test_invariants.py": "22 passed",
-   "tests/test_v5_substrate_primitives.py": "79 passed",
-   "tests/test_v5_substrate_typed.py": "7 passed",
-   "tests/test_v5_substrate_bus.py": "9 passed",
-   "tests/test_v5_substrate_kernel.py": "6 passed",
-   "tests/test_v5_substrate_artifacts.py": "11 passed",
-   "tests/test_v5_substrate_columns.py": "24 passed",
-   "tests/test_v5_substrate_integrity.py": "10 passed",
-   "tests/test_v5_substrate_inference.py": "3 passed",
-   "tests/test_v5_substrate_retention.py": "9 passed (two runs: 7 + 2; incl. the new 365-day snapshot-size test)",
-   "tests/test_v5_substrate_facts.py": "9 passed (two runs: 8 + the data-level report)",
-   "tests/test_v5_substrate_history.py": "4 passed",
-   "tests/test_v5_substrate_streams.py": "6 passed",
-   "tests/test_v5_substrate_resume.py": "1 passed (the cross-process neural-world test of the orchestrator's regression list, 226 s)",
-   "tests/test_v5_calibration_runtime.py": "36 passed",
-   "tests/v5/test_gate_SP_5_1.py, SP_5_3.py, SP_5_5.py": "3 + 1 + 3 passed",
-   "total": "272 passed, 0 failed",
-   "not run in this session": "tests/test_v5_substrate_memo.py on this branch (unchanged since the second session; its two D-80 tests and two disk-memo tests passed on the kcal+sec trial merge), tests/test_v5_substrate_modes.py and gates SP-2.1/SP-2.3b/SP-5.0/SP-5.5b/SP-5.4 (GPU slot never reached), the calibration ad_exposure/core/commercial/governance/software/inworld files on this branch (calibration code unchanged since the second session)",
-   "scratch merge": "facts.audit 0 problems; SP-2.3 measure_primitives 16 of 19; SP-2.3b commerce trace 0 cross-module writes and exact replay; rapid kind hashes; tests/test_v5_calibration_runtime.py 36, SP-5.5/5.3/5.1 gates 3 + 1 + 3, test_v5_calibration_inworld.py 24 (4 population-world tests exceeded 285 s)",
-   "kcal+sec trial merge": "tests/test_sandbox.py + tests/test_v5_security_sandbox.py 36 passed; test_v5_substrate_memo.py 4 of 5 passed (the two-process population-world test exceeded 290 s)"
-  }
- },
  "kernel_pieces_for_other_requirements": {
   "P.3 snapshot/resume (J)": "World.load/replay attach the store before on_load: a fresh process resumes a world with neural participants; tests/test_v5_substrate_resume.py and tests/v5_resume_child.py (modes ref/part/resume/replay/regen) are reusable templates.",
   "P.4 recorded replay (J)": "replay from genesis with the store's blobs only (also after retention.pack/collect); World.regenerate(spec, events, store=) reads recorded inference outputs from the store in a fresh process.",
@@ -466,6 +326,316 @@
     "integrated_tree_sandbox_users": "110 passed (tests/test_behavior.py with the 4.0 legacy digests, test_entry.py, test_tooling.py, test_discovery.py, test_diagnostics.py, test_v5_commerce_modules.py)",
     "scratch_mirror_with_space_fix_emulated": "40 passed, 0 failed: gates SP-2.3 and SP-2.1 and test_v5_substrate_streams, _resume, _retention, _history, _facts, _modes, _memo (mirror = this branch + population.semantics.Space re-registered as `space`; never committed)"
    }
+  },
+  "wave3b_sessions_1_3": {
+   "wave3b_findings_and_repairs": [
+    "K2 and K1 regressions after the merge (orchestrator regression on 55433e7): diagnosed on a real population world - the first differing main-line event was cloud.usage cpu_ms 0.125 vs 5.735 for the same request; the job's program load measured 5.8 ms in one run and 3.5 ms in the other (LOAD_FREE_NS = 3 ms), so load_bill was 2.8 vs 0.5 ms and the job memo's tolerance check billed the noisy total ('exceeded'). D-80: the deterministic cost model anchors the program load like a job and keeps it out of the job's own anchor. After the fix the same 6-hour comparison bills all 22 jobs 'remembered' in both runs and the two K2 observer tests pass (2 passed, 120 s).",
+    "K1 after the first D-80 step: a world resumed in a NEW process starts every sandboxed site cold where the uninterrupted run had warm workers; the anchored load above LOAD_FREE_NS was billed again (13 differing events in a 1-day adaptive population world), and a load noise rule with a small anchor flagged 'exceeded' (2 differing events, resume itself not reproducible). D-80 completed: a platform cold start's load joins the job's first measurement (Memo.bill check_ns), restarts after a death or eviction bill it on top, the load tolerance is floored at LOAD_FREE_NS. Then: resume == uninterrupted run (hash and digest), twice; at the test's own configuration (300 individuals, 8 sites, adaptive + strategic, snapshot day 1, crash 1.5, resume to 2.5) the resumed process ends at seq 9,717 with the hash dcc5fa2e and digest c1e60eb2 of an uninterrupted stored run in another new process; 58 of 192 inferences re-run; replay of the stored log exact with 0 inferences.",
+    "Approved state interfaces were strings: a module's code could call columns.batch(..., _iface='attention') and refill attention_left_min (accepted, invariants empty). Interfaces are now capabilities of the Python module that registered them.",
+    "The facts test failed on the predecessor's commit (allow-list entries for sibling-branch tables absent on this tree); absent entries are reported and stale ones are problems (D-79).",
+    "Predecessor (same branch, before the usage limit): D-78 system array blobs are not world state; incremental retention (new events only, per-key size lookups, scan position in the store); substrate.integrity and gate SP-2.3b; facts classification of the sibling branches' tables; Module.on_fork.",
+    "SP-2.3b blind spot: the write trace sees only writes through the state store's methods; a handler that mutates a nested value of a row a read returned (or state.tables directly) left no trace (and no rollback journal entry). integrity.replay_check replays a traced world's own log from genesis: such a write breaks replay; the gate counts traced worlds that do not replay to their state as cross-module state writes, with a second positive control (traced 0, replay True before, False after). Real worlds probed on one CPU: population (240, 6 h), commerce (600, 24 h), social (400, 4 h): 0 cross-module writes, replay exact.",
+    "Gate SP-2.3b did not load the shipped modules itself; its positive control (identity, bank, admin) raised 'unknown module identity' when the gate ran alone (it had never run: the predecessor's job never started). Fixed.",
+    "Tests of this area run on the scratch merge (kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf) found two merge breakages, both fixed here: the typed-events test required every primitive event to be registered by its kind's owner, but after econ1's institution migration OWNERS.institution is inst and gov.constitution is a 4.0 legacy event (now: owner, kernel, or a module whose table of that kind is a reviewed legacy entry); the calibration in-world fixture could not write pop.active once pop owns it (grant) and assumed the population records no provenance (recounted from the log)."
+   ],
+   "measurements": {
+    "k2_billing_diagnosis_6h_population_world": {
+     "before_fix": "22 jobs per run; base run: 21 remembered + 1 exceeded (load 5.778 ms, billed 2.954 ms); observer run: 22 remembered (load 3.474 ms, billed 0.097 ms)",
+     "after_fix": "22 remembered in both runs, identical bills"
+    },
+    "facts_audit_on_scratch_merge": {
+     "merge": "c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + econ2 + sem + perf",
+     "items": 327,
+     "modules": 107,
+     "problems": 0,
+     "unreviewed": 0,
+     "spec_primitives_without_copy": 17,
+     "with_copies": {
+      "relationship": [
+       "aud.cols:aud_creators.followers",
+       "pop.cols:pop.contacts",
+       "social.cols:follow"
+      ],
+      "community": [
+       "community.communities",
+       "pop.cols:pop.communities"
+      ]
+     }
+    },
+    "k1_cross_process_resume": {
+     "small": "population_world('development', 3, n=150, sites=6, strategic=False): ref 1 day, snapshot 0.5, crash 0.75, resume to 1.0 in new processes; before the completed D-80: 13 then 2 differing events; after: resume hash/digest == ref (1496f8dc / 20a490e2) in two resumes; replay exact, 0 inferences",
+     "test_configuration": "population_world('development', 3, n=300, sites=8) (adaptive + strategic): uninterrupted stored run to day 2.5 in a new process and part (snapshot day 1, crash 1.5) + resume (new process, to 2.5): both seq 9717, hash dcc5fa2e6a1c7c2b7e4259167f20c873, digest c1e60eb2d53e5d541170f0aa9223d7fd; resume ran 58 inferences (ref 192), replay of the part log exact with 0; the test's store-less reference stage exceeds 295 s on one CPU without GPU (queued in the slot scheduler)"
+    }
+   },
+   "defects": {
+    "DEF-A-4": "fixed (mandatory scan; remaining copies tracked by the allow-list and SP-2.3)",
+    "DEF-A-5": "fixed (cross-process resume re-verified after D-80 at the test's configuration, stage by stage)",
+    "DEF-A-6": "fixed (tests/test_v5_substrate_streams.py 6 passed after D-80)",
+    "DEF-A-1, DEF-A-2": "marked fixed on c5c/w3b-civ (J); DEF-A-3 left to J"
+   },
+   "test_runs": {
+    "how": "wave 3b on c5c/w3b-kcal (HEAD at the time), one CPU with CUDA hidden, file by file outside the slot scheduler only where a file finished within 5 minutes (the slot queue was 40+ jobs deep)",
+    "tests/test_kernel.py": "29 passed",
+    "tests/test_invariants.py": "22 passed",
+    "tests/test_kernel_props.py": "2 passed",
+    "tests/test_open_substrate.py": "10 passed",
+    "tests/test_v5_substrate_streams.py": "6 passed (K2 incl. the emitting observer, typed validation, run-to-run hashes)",
+    "tests/test_v5_substrate_retention.py": "8 passed (incl. incremental compaction and D-78 system blobs)",
+    "tests/test_v5_substrate_history.py": "4 passed",
+    "tests/test_v5_substrate_inference.py": "3 passed",
+    "tests/test_v5_substrate_memo.py": "5 passed (incl. the two D-80 regression tests and the two-process population world)",
+    "tests/test_v5_substrate_typed.py": "7 passed",
+    "tests/test_v5_substrate_bus.py": "9 passed",
+    "tests/test_v5_substrate_kernel.py": "6 passed",
+    "tests/test_v5_substrate_artifacts.py": "11 passed",
+    "tests/test_v5_substrate_integrity.py": "9 passed",
+    "tests/test_v5_substrate_primitives.py": "79 passed",
+    "tests/test_v5_substrate_columns.py": "24 passed (incl. the claimed-interface refusal)",
+    "tests/test_v5_substrate_facts.py": "9 passed (2 + 7 in two runs; the data-level report alone takes 253 s)",
+    "tests/test_v5_substrate_resume.py": "not run as a file (its store-less reference stage exceeds 5 minutes on one CPU); its four stages run stage by stage with a stored uninterrupted reference: resumed == reference (seq 9717, hash dcc5fa2e, digest c1e60eb2), replay exact with 0 inferences",
+    "tests/test_v5_substrate_modes.py": "1 of 8 run to completion on one CPU (register_validates passed); the others exceed 280 s each without the GPU (rapid families, civilisation and all-module worlds) and run with gate SP-2.1 in the slot queue",
+    "tests/test_sandbox.py, tests/test_v5_security_sandbox.py, tests/test_hardening.py (sandbox code touched by D-80)": "6 + 17 + 25 passed",
+    "gates tests/v5/test_gate_SP_2_1.py, SP_2_3.py, SP_2_3b.py": "queued in the slot scheduler (job 'A: kcal gates ...', and on the scratch merge 'E: kcal SP-5.0/5.5b + SP-2.1/2.3b/2.3'); not run in this session as of the report",
+    "total run here": "292 passed, 0 failed (243 kernel/substrate + 48 sandbox + 1 modes), plus the K1 stages"
+   },
+   "session3": {
+    "who": "third kcal agent (wave 3b continuation after the second usage-limit stop), 2026-11-27 from 01:45 UTC",
+    "merged": "feat/crucible-5-complete c9fca5c (progress ledger only)",
+    "findings_and_repairs": [
+     "facts: the mandatory scan on the scratch merge found dom3's orgeco.org_use unreviewed and the orgeco.org_props allow-list entry stale (dom3 now runs the backbone council through an inst charter); org_use classified as domain physics (per-session usage telemetry read by the domain's evaluator), org_props/org_votes entries removed (commit b78ad51); facts.audit on the merge: 387 items, 115 modules, 0 problems; on this branch alone 312 items, 102 modules, 0 problems, 3 entries reviewed ahead of sibling merges",
+     "orchestrator regression list (kcal): the three kernel tests pass on this branch on one CPU without the GPU - test_v5_substrate_streams::test_an_emitting_observer_leaves_every_main_line_event_unchanged (74 s), test_v5_substrate_retention::test_periodic_compaction_reads_only_what_was_written_since_the_last_one (58 s), test_v5_substrate_resume::test_a_fresh_process_resumes_a_snapshot_of_a_world_with_neural_participants (226 s)",
+     "a civilisation on one CPU without the GPU: built in 13 s (728 events) but 2 simulated hours did not finish in 277 s even with the shared 3.7 GB embedding cache - civ-world gates need a GPU slot",
+     "store growth (assignment item 4): a durable measurement entry point `python -m crucible.substrate.bench growth` (kernel or population world, weekly snapshot + compaction, exact replay/resume at the end) and a regression test; 365 days of the kernel world: the snapshot stays at 187-192 KB from week 1 to week 52 while 1,460 system blobs are written, 0 artifact rows, 15 retained snapshots 2.8 MB (before D-78 the population world's snapshot grew from 1.4 to 3.3 MB and 15 snapshots held 120 MB)"
+    ],
+    "measurements": {
+     "sp23_primitives_on_scratch_merge": {
+      "shared_primitive_kinds": 16,
+      "spec_primitives_with_known_duplicates": "product,relationship,community",
+      "fact_scan_items": 387,
+      "fact_scan_modules": 115,
+      "unexplained_duplicate_facts": 0,
+      "families_checked_for_duplicates": 74,
+      "families_with_duplicate_facts": 0,
+      "typed_event_types": 109
+     },
+     "sp23b_commerce_trace_on_scratch_merge": {
+      "world": "commerce.worlds.startup_spec(0, n=600), 24 simulated hours, one CPU",
+      "modules": 23,
+      "writes_traced": 5784,
+      "writers": 13,
+      "targets": 74,
+      "cross_module_state_writes": 0,
+      "handler_writes": 0,
+      "column_writes_refused_by_rule": 0,
+      "replay_exact": true,
+      "events": 3137
+     },
+     "store_growth_365d_kernel_world": {
+      "command": "PYTHONPATH=src python -m crucible.substrate.bench growth --world kernel --days 365 (one CPU, 33 s)",
+      "world": "substrate bench world, 20,000-row column table, 4 cohort batches of 2,000 rows a day (one system array blob each), weekly snapshot + retention.compact(prune=True)",
+      "snapshot_bytes_latest": {
+       "day_7": 186143,
+       "day_182": 190269,
+       "day_365": 187131
+      },
+      "snapshot_bytes_retained_day_365": 2831553,
+      "snapshots_retained_day_365": 15,
+      "blobs_day_365": 1460,
+      "blobs_packed_day_365": 1400,
+      "artifact_rows_max": 0,
+      "compact_s_median": 0.003,
+      "compact_s_max": 1.798,
+      "replay_from_genesis_exact": true,
+      "resume_exact": true,
+      "before_D78_population_world_365d": "snapshot 1.42 MB/week in q1 -> 3.31 MB in q4, 222,702 artifact rows, 15 retained snapshots 120 MB (wave 3)",
+      "test": "tests/test_v5_substrate_retention.py::test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged",
+      "limit": "the kernel path only; the population world of the wave-3 measurement (adaptive daily checkpoints, popweb) runs the shared space's Qwen text path and needs a GPU slot: queued (python -m crucible.substrate.bench growth --world population --days 365), did not start in this session"
+     }
+    },
+    "test_runs": {
+     "how": "c5c/w3b-kcal HEAD 6d6f3fa4 (third session), one CPU, CUDA hidden, outside the slot scheduler (each run < 290 s)",
+     "tests/test_kernel.py": "29 passed",
+     "tests/test_invariants.py": "22 passed",
+     "tests/test_v5_substrate_primitives.py": "79 passed",
+     "tests/test_v5_substrate_typed.py": "7 passed",
+     "tests/test_v5_substrate_bus.py": "9 passed",
+     "tests/test_v5_substrate_kernel.py": "6 passed",
+     "tests/test_v5_substrate_artifacts.py": "11 passed",
+     "tests/test_v5_substrate_columns.py": "24 passed",
+     "tests/test_v5_substrate_integrity.py": "10 passed",
+     "tests/test_v5_substrate_inference.py": "3 passed",
+     "tests/test_v5_substrate_retention.py": "9 passed (two runs: 7 + 2; incl. the new 365-day snapshot-size test)",
+     "tests/test_v5_substrate_facts.py": "9 passed (two runs: 8 + the data-level report)",
+     "tests/test_v5_substrate_history.py": "4 passed",
+     "tests/test_v5_substrate_streams.py": "6 passed",
+     "tests/test_v5_substrate_resume.py": "1 passed (the cross-process neural-world test of the orchestrator's regression list, 226 s)",
+     "tests/test_v5_calibration_runtime.py": "36 passed",
+     "tests/v5/test_gate_SP_5_1.py, SP_5_3.py, SP_5_5.py": "3 + 1 + 3 passed",
+     "total": "272 passed, 0 failed",
+     "not run in this session": "tests/test_v5_substrate_memo.py on this branch (unchanged since the second session; its two D-80 tests and two disk-memo tests passed on the kcal+sec trial merge), tests/test_v5_substrate_modes.py and gates SP-2.1/SP-2.3b/SP-5.0/SP-5.5b/SP-5.4 (GPU slot never reached), the calibration ad_exposure/core/commercial/governance/software/inworld files on this branch (calibration code unchanged since the second session)",
+     "scratch merge": "facts.audit 0 problems; SP-2.3 measure_primitives 16 of 19; SP-2.3b commerce trace 0 cross-module writes and exact replay; rapid kind hashes; tests/test_v5_calibration_runtime.py 36, SP-5.5/5.3/5.1 gates 3 + 1 + 3, test_v5_calibration_inworld.py 24 (4 population-world tests exceeded 285 s)",
+     "kcal+sec trial merge": "tests/test_sandbox.py + tests/test_v5_security_sandbox.py 36 passed; test_v5_substrate_memo.py 4 of 5 passed (the two-process population-world test exceeded 290 s)"
+    }
+   },
+   "requirements": {
+    "SP-2.1": {
+     "implementation_files": [
+      "src/crucible/substrate/modes.py",
+      "src/crucible/domains/modes.py",
+      "src/crucible/civ/modes.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_1.py",
+      "tests/test_v5_substrate_modes.py"
+     ],
+     "status_claim": "partial, not measured in wave 3b: registry and Mode A/B/C checks implemented; on this branch alone Mode B lists no Tier 2 domain (execution_modes cannot reach 3 here); on the scratch merge (dom1/dom2/dom3 + domfw) the domains provider lists 15 Tier 2 domains and civ.generate builds a 75-module civilisation, so all three modes have providers there; gate SP-2.1 on the merge needs a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
+     "notes": "Mode A: crucible.rapid and the 4.0 mechanisms. Mode B: crucible.domains provider (rebuilt by domfw, merged here) lists every configuration of every registered Tier 2 domain; none is registered on this branch (dom1/dom2/dom3 build them). Mode C: crucible.civ provider with the strengthened composition check (>= 12 of 17 domains engaged after genesis, population in >= 6, >= 8 shared kinds written by transactions another module initiated, >= 12 initiator/owner pairs, >= 5 initiating sources, the mandatory duplicate-fact check). Gate run on this branch and on the scratch merge: queued."
+    },
+    "SP-2.3": {
+     "implementation_files": [
+      "src/crucible/core/kernel.py",
+      "src/crucible/core/state.py",
+      "src/crucible/storage/base.py",
+      "src/crucible/storage/sqlite.py",
+      "src/crucible/storage/memory.py",
+      "src/crucible/storage/postgres.py",
+      "src/crucible/substrate/facts.py",
+      "src/crucible/substrate/primitives.py",
+      "src/crucible/substrate/bus.py",
+      "src/crucible/substrate/artifacts.py",
+      "src/crucible/substrate/columns.py",
+      "src/crucible/substrate/retention.py",
+      "src/crucible/substrate/history.py",
+      "src/crucible/substrate/modules.py",
+      "src/crucible/sandbox/runner.py",
+      "src/crucible/sandbox/boot.py",
+      "src/crucible/population/core.py",
+      "src/crucible/sandbox/metering.py",
+      "src/crucible/services/code.py",
+      "src/crucible/substrate/integrity.py",
+      "src/crucible/substrate/bench.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_3.py",
+      "tests/test_v5_substrate_streams.py",
+      "tests/test_v5_substrate_resume.py",
+      "tests/test_v5_substrate_facts.py",
+      "tests/test_v5_substrate_history.py",
+      "tests/test_v5_substrate_retention.py",
+      "tests/test_v5_substrate_primitives.py",
+      "tests/test_v5_substrate_typed.py",
+      "tests/test_v5_substrate_bus.py",
+      "tests/test_v5_substrate_kernel.py",
+      "tests/v5_resume_child.py",
+      "tests/test_v5_substrate_memo.py",
+      "tests/test_v5_substrate_columns.py",
+      "tests/test_v5_substrate_integrity.py"
+     ],
+     "status_claim": "partial: shared_primitive_kinds = 16 of 19 measured on the scratch merge at 2026-11-27 01:50 UTC: c5c/w3b-kcal + pop + soc + econ1 + civ + dom1 + dom2 + dom3 + econ2 + sem + perf (conflicts: services/contracts.py econ1 side, test_v5_substrate_facts.py kcal side, docs both sides) + the civ feed_config probe patch (social.worlds.feed_config in civ.generator.social_config) (measure_primitives of the gate, one CPU, 26 s: 387 fact items over 115 modules, 0 problems, 74 4.0 families without duplicate facts, owners world 21 modules 0 problems); product, relationship and community keep known copies: product regressed with c5c/w3b-dom3 (rcomm.rc_products, allow-listed for I-3), relationship (forum.forum_follows is the owner while the v5 graph social.cols:follow, aud follower sets and pop.contacts copy it) and community (community.communities, pop.communities) need the C/B/I-3 migrations (integration_notes); 14 of 19 on this branch alone",
+     "notes": "Kernel side of the migrations: econ1 already set OWNERS.institution = inst.inst_charters with gov tables as verified legacy entries and made commit.commitments a part of contracts; soc reclassified aud.aud_item_info. cross_module_rollback_failures and inference_replay_without_rerun: gate re-run queued (slot scheduler); last measured 0 / true in wave 3."
+    },
+    "SP-2.3b": {
+     "implementation_files": [
+      "src/crucible/substrate/integrity.py",
+      "src/crucible/substrate/columns.py",
+      "src/crucible/core/state.py",
+      "src/crucible/core/kernel.py",
+      "src/crucible/substrate/bus.py",
+      "src/crucible/sandbox/runner.py",
+      "src/crucible/sandbox/metering.py"
+     ],
+     "tests": [
+      "tests/v5/test_gate_SP_2_3b.py",
+      "tests/test_v5_substrate_integrity.py",
+      "tests/test_v5_substrate_memo.py",
+      "tests/test_v5_substrate_streams.py",
+      "tests/test_v5_substrate_columns.py"
+     ],
+     "status_claim": "implemented, partially measured: integrity.trace_writes + replay_check + hashes, gate with two positive controls, unit tests pass; on the scratch merge the commerce kind has 0 cross-module writes (5,784 traced writes, 13 writers, 74 targets) and replays exactly, the rapid kind hashes in a fresh process; the civilisation, population, social and domain kinds and the two-fresh-process determinism check need a GPU slot - the slot queue (40-42 jobs, nearly all GPU jobs, the same four GPU jobs held from before 01:45 to after 04:00 UTC) did not reach this session's gate jobs in 2.5 hours; they were cancelled when the session ended (no orphan jobs)",
+     "notes": "cross_module_state_writes counts distinct (writer, target) pairs of writes by an applier of one module into another module's table/array/column/metadata, plus handler writes outside appliers, plus column batches the ownership rule refuses; approved interfaces are cols.batch/grow by an admitted writer (owner, package, grant, or a registered interface called from its implementing module - wave 3b), counter allocation and the kernel's side-event count. Determinism: each world kind (civ, population, social, commerce, domain when registered, rapid) built from the same spec and seed in two fresh processes."
+    }
+   },
+   "limitations": [
+    "SP-2.1: on this branch no Tier 2 domain is registered (Mode B lists no world) - execution_modes cannot reach 3 here; the Mode C check on a real civilisation and Mode B on dom1's domains are measured only on the scratch merge (queued).",
+    "SP-2.3: shared_primitive_kinds 14 here, 17 after the soc/econ1 merges; relationship and community need migrations of 4.0 forum code and population columns by C and B (integration_notes).",
+    "D-80 limits: eviction points of a pool with more active deployments than sandbox_max_workers (24) depend on the host process's history, so such a world can bill evictions differently after a resume; across machines, an empty memo measures afresh (D-20's honest limit).",
+    "Without the GPU, population/civilisation runs are dominated by the shared space's text path on first sight of a text (a civ world: 12 simulated hours > 5 minutes on one CPU); later runs of the same seed hit the embedding cache.",
+    "Retention test file: all 8 tests passed on one CPU but the process exceeded the 290 s budget at exit (teardown), so pytest's summary line was not printed.",
+    "The first run of a world seed on one CPU embeds every new text through the shared space's text path (Qwen3-0.6B LM on CPU): the K1 test's store-less reference stage (the first process of that spec) exceeded 295 s, while later processes of the same spec (warm embedding cache) ran 1.5-2.5 simulated days in 41-130 s; a store-less and a stored world run alike once warm (0.5 day, 150 individuals: 25 vs 34 s).",
+    "Wave 3b, third session: no gate needing a GPU slot ran (SP-2.1, SP-2.3b's civilisation/population/social/domain kinds and determinism, the modes unit tests, the 365-day population store growth, the adversarial civ probe); the queued jobs were cancelled when the session ended rather than left as orphans nobody reads.",
+    "The 365-day store-growth evidence after D-78 is the kernel world's (system blobs from cohort batches); the population world with adaptive daily checkpoints was not re-measured."
+   ]
   }
+ },
+ "repair_pass": {
+  "date": "2026-11-27",
+  "base": "c5c/w3b-kcal 2ff5b7b (+ the orchestrator's WIP commit 3d16cc8 of the previous repair agent, reviewed and kept)",
+  "findings": {
+   "D-78 lineage regression (critical)": {
+    "fix": "kernel._detached (a module owns a detached copy of its config; only industrygen annotated its config, checked on civ x3 profiles, commerce, population, social), World.genesis_spec as the blob lineage (genesis note, snapshots, replays)",
+    "commits": [
+     "a99d5e1"
+    ],
+    "tests": [
+     "tests/test_v5_substrate_retention.py::test_a_module_annotating_its_config_at_genesis_keeps_the_worlds_blob_lineage",
+     "::test_the_blob_lineage_is_the_spec_genesis_ran_from_not_the_spec_objects_later_state",
+     "::test_a_storeless_civilisation_replays_forks_and_answers_history_queries"
+    ],
+    "verified": "the three tests fail on 2ff5b7b and pass; verifier probes p05 (replay_check exact), p07 (replay digest equal, fork +437 events, state_at), p11 (annotating module: replay exact, fork ok), p12 (civ_core coupling fork test steps) pass",
+    "defect": "DEF-A-7"
+   },
+   "ops cross-module write (high)": {
+    "fix": "kernel.derives derived-state appliers; ops._on_txn derives bank.txn (minimal edit in economy/operations.py, services/bank.py)",
+    "commits": [
+     "16ef537"
+    ],
+    "verified": "civ 1 h: same event hash and digest (089c20e4..., 6489faa4...) with and without the change in the same checkout; civ trace 0 cross-module",
+    "defect": "DEF-A-8"
+   },
+   "tracer blind spots (medium)": {
+    "fix": "content fingerprints (untracked writes), trace_genesis, derivers traced, meta_owner, rapid fingerprint of observations/actions with measured steps, one-sided failures as mismatches",
+    "commits": [
+     "16ef537"
+    ],
+    "tests": [
+     "tests/test_v5_substrate_integrity.py (20 passed)",
+     "tests/v5/test_gate_SP_2_3b.py positive controls (run directly: nested, cached, genesis found; replay exact)"
+    ],
+    "verified": "verifier probe p02: (a) nested in-place applier write and (b) cached array reference now 1 each",
+    "defect": "DEF-A-9"
+   },
+   "K1 not reliable (medium)": {
+    "fix": "first job after its program's load on a platform cold start bills its anchor without the tolerance check (D-80 amendment; minimal edit in sandbox/runner.py)",
+    "commits": [
+     "aaaea6c"
+    ],
+    "defect": "DEF-A-10"
+   },
+   "rapid hashes / one-sided gate failures (low)": {
+    "fix": "see tracer blind spots",
+    "commits": [
+     "16ef537"
+    ]
+   },
+   "calibration match without equivalence (low)": {
+    "fix": "inworld.tost and EQUIVALENCE margins; matching needs power, non-rejection and equivalence",
+    "commits": [
+     "568f11a"
+    ],
+    "tests": [
+     "tests/test_v5_calibration_inworld.py::test_a_powered_campaign_too_imprecise_for_equivalence_is_not_a_match",
+     "::test_random_insertions_too_few_for_equivalence_are_not_a_match"
+    ]
+   }
+  },
+  "k1": {
+   "diagnosis": "tests/v5_resume_child.py on the K1 spec (population_world development seed 3, n=300, 8 sites), stored reference to 2.5 d, part to 1.5 d, resume in a new process to 2.5 d, one CPU, CUDA hidden, machine-level memo: before the repair 3 of 6 runs diverged, each with exactly one 'exceeded' bill in the resume process - dep_000007 service:home, worker cold='process', its first job after the program load, 5.00 / 4.63 ms against an anchor < 1.3 ms; reference and part never exceeded",
+   "after_repair": "4 of 4 runs exact (seq 9,717, hash 9473bf4d..., digest 00cb10ae... in reference and resume); in run 9 the exempt first job measured 1.25x the tolerance (it would have diverged); closest non-exempt remembered jobs: 0.44 of the tolerance (pooled workers), 0.68 (unmanaged one-shot workers)",
+   "test_file_result": "see test_runs"
+  },
+  "integration_mirror": "scratch clone (not a branch): this branch + c5c/w3b-pop, soc, econ1, civ, dom1, dom2, dom3, econ2, sem (domfw, perf already contained); conflicts: test_v5_substrate_facts.py kcal side, services/contracts.py kcal side (econ1's person check), economy/work.py (econ2's hidden need + econ1's skill argument), docs both sides; plus the civ feed_config probe patch (J) for SP-5.5b"
+ },
+ "test_runs": {
+  "note": "repair pass, this branch, one CPU, CUDA hidden, OMP_NUM_THREADS=1 (exact counts; see the final report)"
  }
 }
