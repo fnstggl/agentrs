@@ -1,0 +1,443 @@
+{
+ "workstream": "EB",
+ "commit": "4d527ba",
+ "summary": "Computer environment core: ComputerEnvironment (EnvironmentAdapter over registered modality executors with grant verification, per-primitive checks, staleness, at-most-once, serialised writes, verification, events, outcomes, accounting, execution log, restart recovery), ExecRPC v1 service + RemoteEnvironment/RemotePolicy, structured browser on Playwright Chromium (persistent / research / CDP sessions, screen() for visual control), unified perception, internal executor, five local staging sites, adapter guide. 66 tests: 43 in the default suite (no Chromium), 23 gated by the browser/privileged markers of which 22 launch real Chromium (2 of those also need root and the cambrowser user). Everything runs against local staging services only.",
+ "requirements": {
+  "IH-01": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py",
+    "src/cam_live/harness/service.py",
+    "src/cam_live/harness/internal.py",
+    "src/cam_live/harness/perception.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment",
+    "cam_live.harness.service.RemoteEnvironment",
+    "cam_live.harness.service.build_environment"
+   ],
+   "tests": [
+    "tests/harness/env/test_adapter_contract.py::test_adapter_satisfies_the_environment_contract",
+    "tests/harness/env/test_adapter_contract.py::test_adapter_validates_and_refuses_without_authorization",
+    "tests/harness/env/test_adapter_contract.py::test_adapter_returns_no_reward",
+    "tests/harness/env/test_env_core.py::test_environment_contract_conformance",
+    "tests/harness/env/test_env_core.py::test_validate_action_reports_structural_errors",
+    "tests/harness/env/test_env_core.py::test_nothing_runs_without_a_verified_grant",
+    "tests/harness/env/test_env_core.py::test_pending_outcomes_and_measure_through_a_source",
+    "tests/harness/env/test_env_core.py::test_event_stream_cursor_and_scheduled_wait",
+    "tests/harness/env/test_env_core.py::test_resource_accounting_and_limits",
+    "tests/harness/env/test_service_rpc.py::test_rpc_round_trip_of_the_whole_adapter",
+    "tests/harness/env/test_service_rpc.py::test_version_negotiation_rules"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "All ten EnvironmentAdapter methods plus typed records, in process and over ExecRPC v1. Outcome measurements from the environment are unverified by design; verification is a separate service (not EB)."
+  },
+  "IH-02": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/perception.py",
+    "src/cam_live/harness/staging/sites.py",
+    "src/cam_live/harness/staging/server.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.browser.BrowserExecutor",
+    "cam_live.harness.service.build_environment"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser.py::test_page_observation_has_the_structured_representation",
+    "tests/harness/env/test_browser.py::test_tabs_inspect_screenshot_read_scroll_press",
+    "tests/harness/env/test_browser.py::test_untrusted_page_text_is_data_and_changes_nothing",
+    "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback",
+    "tests/harness/env/test_browser.py::test_research_sessions_are_isolated_and_read_only",
+    "tests/harness/env/test_browser_sessions.py::test_environment_with_the_authorization_service_of_this_project"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml",
+    "docs/evidence/EB/latency.json"
+   ],
+   "limitations": "Exercised only against the local staging sites; no public website was contacted and live operation stays blocked until the operator authorizes it. Elements inside iframes / closed shadow roots are not listed. A redirect hop is checked after it happened (tab reset to about:blank on refusal)."
+  },
+  "IH-12": {
+   "state": "implemented",
+   "files": [
+    "docs/HARNESS_ADAPTER_GUIDE.md",
+    "tests/harness/env/test_adapter_contract.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.register",
+    "cam_live.harness.service.serve"
+   ],
+   "tests": [
+    "tests/harness/env/test_adapter_contract.py::test_adapter_satisfies_the_environment_contract",
+    "tests/harness/env/test_adapter_contract.py::test_adapter_validates_and_refuses_without_authorization",
+    "tests/harness/env/test_adapter_contract.py::test_adapter_returns_no_reward",
+    "tests/harness/env/test_env_core.py::test_executor_failures_do_not_kill_the_environment"
+   ],
+   "commands": [
+    "CAM_LIVE_ADAPTER_FACTORY=module:factory .venv/bin/python -m pytest cam_live/tests/harness/env/test_adapter_contract.py -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "The contract kit is run here against two adapters (ComputerEnvironment and the diagnostic LabWorld); no third-party harness was plugged in."
+  },
+  "CU-01": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/harness/env.py",
+    "src/cam_live/harness/service.py",
+    "src/cam_live/harness/internal.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.service.main",
+    "cam_live.harness.env.ComputerEnvironment"
+   ],
+   "tests": [
+    "tests/harness/env/test_env_core.py::test_state_survives_restart",
+    "tests/harness/env/test_env_core.py::test_one_environment_per_run_directory",
+    "tests/harness/env/test_env_core.py::test_crash_retry_never_repeats_a_state_changing_action",
+    "tests/harness/env/test_service_rpc.py::test_service_process_with_authorization_socket_and_restart",
+    "tests/harness/env/test_service_rpc.py::test_service_refuses_to_start_without_authorization"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "EB delivers the persistent environment process, workspace, state, browser and the versioned execution interface. Python/shell sandbox and background jobs (EC), API/skill executors (ES) and the uid launcher / vault (EA) are other workstreams; EB did not compose or test the environment with those executors (only with internal, browser, and a test-directory HTTP executor). The boundary is separate uids in a container, not a VM."
+  },
+  "CU-02": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.browser.BrowserExecutor"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser.py::test_the_browser_is_a_full_chromium_build",
+    "tests/harness/env/test_browser.py::test_page_observation_has_the_structured_representation",
+    "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile",
+    "tests/harness/env/test_browser_uid.py::test_fallback_reason_is_reported_when_chromium_is_not_reachable_by_the_browser_uid"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Chromium 159.0.8154.6 (full build, new headless mode; --no-sandbox because the container has no user namespaces). Headed mode exists (--headed) but was not run (no display). Uid separation needs a Chromium install readable by cambrowser: Playwright's copy under /root is not, so the default launch on this machine falls back to the service's own uid and says so in capabilities; the separated path is tested with a temporary shared copy."
+  },
+  "CU-03": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/staging/sites.py",
+    "src/cam_live/harness/staging/canvas.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.browser.BrowserExecutor.execute",
+    "cam_live.harness.browser.TOOLS"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser.py::test_tabs_inspect_screenshot_read_scroll_press",
+    "tests/harness/env/test_browser.py::test_form_primitives_semantic_locators_and_recorded_fallbacks",
+    "tests/harness/env/test_browser.py::test_failure_classes_of_navigation_and_waiting",
+    "tests/harness/env/test_browser.py::test_multi_step_workflow_on_the_structured_site",
+    "tests/harness/env/test_browser.py::test_unfamiliar_variants_and_a_mid_run_interface_change",
+    "tests/harness/env/test_browser.py::test_upload_and_download_of_authorized_files_only",
+    "tests/harness/env/test_browser.py::test_dynamic_changes_are_observed_as_diffs",
+    "tests/harness/env/test_browser.py::test_duplicate_submission_of_a_click_executes_once",
+    "tests/harness/env/test_browser.py::test_screen_object_operates_the_canvas_site",
+    "tests/harness/env/test_browser.py::test_secret_is_typed_only_into_a_password_field_and_never_comes_back"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml",
+    "docs/evidence/EB/latency.json"
+   ],
+   "limitations": "16 tools: navigate, open_tab, close_tab, select_tab, inspect, read, click, fill, select_option, press, scroll, upload, download, wait_for, screenshot, close_session. No hover / drag / history-back primitive in the structured executor (drag and raw mouse exist on screen())."
+  },
+  "CU-04": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.browser.BrowserExecutor.attach_cdp",
+    "cam_live.harness.service.main"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser_sessions.py::test_cdp_attach_to_a_separately_launched_chromium"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Tested against a locally launched headless Chromium on a loopback DevTools port; a remote or authenticated CDP endpoint was not tested."
+  },
+  "CU-05": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/perception.py",
+    "src/cam_live/harness/env.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.is_stale",
+    "cam_live.harness.perception.Perception.page"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser.py::test_page_observation_has_the_structured_representation",
+    "tests/harness/env/test_browser.py::test_stale_references_are_detected",
+    "tests/harness/env/test_browser.py::test_dynamic_changes_are_observed_as_diffs",
+    "tests/harness/env/test_env_core.py::test_outdated_observation_reference_fails_before_any_executor_runs",
+    "tests/harness/env/test_perception.py::test_page_observation_full_then_compact_diff"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Staleness = the document was replaced, the element left the DOM, or its role/name changed since the named observation; a value change alone does not outdate a ref. Refs are DOM attributes (data-camlive-ref), visible to page scripts. The observation ledger is per process: every observation from before a restart is outdated."
+  },
+  "CU-11": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py",
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/internal.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.validate_action",
+    "cam_live.harness.env.ComputerEnvironment.execute",
+    "cam_live.harness.env.validate_args"
+   ],
+   "tests": [
+    "tests/harness/env/test_env_core.py::test_validate_action_reports_structural_errors",
+    "tests/harness/env/test_env_core.py::test_verify_is_evaluated_against_the_resulting_state",
+    "tests/harness/env/test_env_core.py::test_every_primitive_is_checked_and_a_denial_is_hard",
+    "tests/harness/env/test_env_core.py::test_running_action_can_be_cancelled",
+    "tests/harness/env/test_browser.py::test_unfamiliar_variants_and_a_mid_run_interface_change",
+    "tests/harness/env/test_browser.py::test_multi_step_workflow_on_the_structured_site"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "ActionSpec fields used by the environment: operation, modality, level, target (navigate URL fallback), arguments, timeout_s, verify, steps, parent_decision_id / experiment_id (copied onto expected outcomes), est_cost.money (limit check). prerequisites, expected and auth_scope are carried and logged but not interpreted here. Argument validation covers a JSON-Schema subset."
+  },
+  "CU-13": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py",
+    "src/cam_live/harness/internal.py",
+    "src/cam_live/harness/browser.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.register",
+    "cam_live.harness.service.build_environment"
+   ],
+   "tests": [
+    "tests/harness/env/test_env_core.py::test_every_primitive_is_checked_and_a_denial_is_hard",
+    "tests/harness/env/test_env_core.py::test_environment_contract_conformance",
+    "tests/harness/env/test_env_core.py::test_executor_failures_do_not_kill_the_environment",
+    "tests/harness/env/test_env_core.py::test_writes_are_serialised_reads_run_concurrently",
+    "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback",
+    "tests/harness/env/test_browser.py::test_screen_object_operates_the_canvas_site"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Routing, authorization, logging and programs across modalities are tested with three real executors (internal, structured_browser, and an api-modality HTTP executor that lives in the test directory). The visual, code, api and skill executors of EC/ES were not registered or run by EB."
+  },
+  "CU-14": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/env.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.browser.BrowserExecutor.restore_state",
+    "cam_live.harness.browser.BrowserConfig"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser_sessions.py::test_persistent_session_survives_environment_restart",
+    "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile",
+    "tests/harness/env/test_browser.py::test_research_sessions_are_isolated_and_read_only",
+    "tests/harness/env/test_browser.py::test_secret_is_typed_only_into_a_password_field_and_never_comes_back"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Persistence shown with a staging sign-in cookie only; no real account was connected. Profile directory mode 0700 and session-cookie file 0600; unreadable by the learner uid only in the uid-separated launch."
+  },
+  "CU-21": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/perception.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.perception.Perception",
+    "cam_live.harness.env.ComputerEnvironment.observe"
+   ],
+   "tests": [
+    "tests/harness/env/test_perception.py::test_parse_number_is_exact_and_keeps_units",
+    "tests/harness/env/test_perception.py::test_table_cells_become_named_quantities",
+    "tests/harness/env/test_perception.py::test_html_document_numbers_units_and_provenance",
+    "tests/harness/env/test_perception.py::test_csv_json_text_documents",
+    "tests/harness/env/test_perception.py::test_pdf_text_layer",
+    "tests/harness/env/test_perception.py::test_image_dimensions_and_reference_without_a_model",
+    "tests/harness/env/test_perception.py::test_tool_results_traces_events_metrics",
+    "tests/harness/env/test_perception.py::test_page_observation_full_then_compact_diff",
+    "tests/harness/env/test_perception.py::test_digest_is_bounded_and_says_what_was_omitted"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "EB provides the common Observation representation for browser pages, tool results, documents, images, traces, events and metrics; whether EC/ES executors route their output through it, and the encoding into the shared latent (workstream A), are outside EB. Images: dimensions/format/reference only, pixels are not interpreted. PDF: text layer only (pypdf). Numbers are float64 (integers exact up to 2^53); every literal is also kept as text. All quantities are kind 'real'."
+  },
+  "CU-28": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.records",
+    "cam_live.harness.env.ComputerEnvironment.execute"
+   ],
+   "tests": [
+    "tests/harness/env/test_env_core.py::test_execution_log_is_complete_and_secrets_are_scrubbed",
+    "tests/harness/env/test_env_core.py::test_internal_inspect_reads_own_records",
+    "tests/harness/env/test_service_rpc.py::test_browser_through_the_service_process",
+    "tests/harness/env/test_browser.py::test_denied_url_prevents_navigation_with_a_hard_failure_and_no_fallback"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live   # 43 passed, 23 skipped in 11.77s (default: no Chromium)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "The log covers what passes through the environment (submission, refusal, start, every primitive check, every primitive op, every observation, result, events, measurements). Raw mouse/keyboard gestures made through screen() are logged only if the visual executor reports them as ops. Screenshot pixels and downloaded files are referenced by path, not embedded. Secret scrubbing needs a broker handle; events.jsonl, env/actions.jsonl and env/stream.jsonl grow without rotation."
+  },
+  "CU-29": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py",
+    "src/cam_live/harness/browser.py",
+    "src/cam_live/harness/internal.py",
+    "src/cam_live/harness/service.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment",
+    "cam_live.harness.service.main"
+   ],
+   "tests": [
+    "tests/harness/env/test_env_core.py::test_state_survives_restart",
+    "tests/harness/env/test_env_core.py::test_crash_retry_never_repeats_a_state_changing_action",
+    "tests/harness/env/test_browser_sessions.py::test_persistent_session_survives_environment_restart",
+    "tests/harness/env/test_service_rpc.py::test_service_process_with_authorization_socket_and_restart"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/env -q --rootdir=cam_live -m \"privileged or browser or not browser\" -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/EB.xml   # 66 passed in 57.33s"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EB.xml"
+   ],
+   "limitations": "Survives: pending outcomes, event stream and cursors, resource totals, scheduled waits, at-most-once journal, browser profile, session cookies and open tab URLs (reopened on first use, each URL policy-checked). Does not survive: in-page state of open tabs (forms, scroll), research and CDP sessions, observation references. An action interrupted by a crash is reported failed/unknown (if state-changing) rather than resumed."
+  }
+ },
+ "public_api": [
+  "cam_live.harness.env.ComputerEnvironment(run_dir: str, policy: PolicyEngine, *, clock=None, secrets=None, limits: Optional[Limits]=None, provenance='staging', record_results=True, perception=None, events_log=None, name='computer')  # implements contracts.EnvironmentAdapter",
+  "ComputerEnvironment.register(executor: ModalityExecutor) -> None; .add_source(source) -> None  # source: pending() / measure(query, now) / metrics(); .annotate(key, value) -> None; .executor(modality) -> Optional[ModalityExecutor]",
+  "ComputerEnvironment.emit_event(obs: Observation) -> str; .is_stale(obs_id: str) -> Optional[str]; .cancel_action(action_id: str) -> bool; .add_pending(query: OutcomeQuery) -> None; .drop_pending(query_id: str) -> bool; .records(kind='', limit=50, action_id='') -> List[dict]; .close() -> None",
+  "cam_live.harness.env.validate_args(schema: dict, value: Any, path='arguments') -> List[str]; cam_live.harness.env.PROGRAM == 'program'  # ActionSpec(operation='program', steps=[...]) runs steps through their own modalities",
+  "ExecContext extras set by the environment (change request 1): ctx.dispatch(step: ActionSpec) -> ActionResult; ctx.workspace: str; ctx.authorization: AuthorizationDecision",
+  "Executor hooks (optional): bind(env), observe() -> List[Observation], capabilities() -> dict, metrics() -> List[Quantity], pending() -> List[OutcomeQuery], measure(query, now) -> Optional[OutcomeObservation], poll() -> List[Observation], next_wake() -> Optional[float], verify(cond, action, ctx) -> Optional[bool], snapshot_state() -> dict, restore_state(dict), handles_steps: bool; staleness convention: Observation.data['surface'], Observation.data['generation']",
+  "cam_live.harness.browser.BrowserExecutor(run_dir: str, *, clock=None, config: Optional[BrowserConfig]=None, perception=None)  # modality structured_browser; tools in cam_live.harness.browser.TOOLS",
+  "BrowserExecutor.screen(session='default', tab=None, ctx: Optional[ExecContext]=None, action: Optional[ActionSpec]=None) -> BrowserScreen",
+  "BrowserScreen: screenshot() -> bytes (PNG); size() -> (int, int); click(x, y, button='left'); double_click(x, y); drag(x0, y0, x1, y1, steps=12); scroll(dx, dy, x=None, y=None); type(text, delay_ms=0); key(combo); move(x, y); url() -> str; element_at(x, y) -> dict; settle()",
+  "BrowserExecutor.attach_cdp(name: str, endpoint: str) -> 'cdp:<name>'; BrowserConfig(headless=True, viewport=(1280, 800), identities=('default',), executable_path='', run_as_user='auto', cdp_endpoints={}, research_read_only=True, ...)",
+  "Browser action arguments: element = {ref, obs_id} | {ref: 'e12@<obs_id>'} | {role, name[, nth]} | {selector}; session = 'default' | 'identity:<name>' | 'research:<name>' | 'cdp:<name>'; tab = 't<N>'",
+  "cam_live.harness.perception.Perception(clock=None, *, max_text=4000, max_quantities=96, max_elements=120): .page(state, prev=None, *, mode='auto', ...) / .tool_result(tool, result, *, uri='', parent_action_id='', status='ok', source='') / .document(content, *, uri='', media_type='', ...) / .file(path, ...) / .image(image, *, uri='', ref='', ...) / .trace(ops, *, action_id='', status='') / .event(name, text='', *, quantities=(), data=None, ...) / .metrics(quantities, text='') / .error(text, *, failure_class='', ...) -> Observation (trust always untrusted)",
+  "cam_live.harness.perception.parse_number(text) -> Optional[(value: float, unit: str, literal: str)]",
+  "cam_live.harness.internal.InternalExecutor(run_dir: str, *, clock=None, advance_sim_clock=True, max_block_s=30.0, max_wait_s=2592000.0)  # tools: wait {seconds, reason?, block?}, internal.inspect {what, action_id?, limit?}, internal.note {text, tags?}",
+  "cam_live.harness.service.RemoteEnvironment(socket_path: str, *, timeout=900.0, connect_timeout=30.0, versions=('1.0',), client_name='learner')  # EnvironmentAdapter + ping() / cancel_action(id) / shutdown() / close()",
+  "cam_live.harness.service.RemotePolicy(socket_path: str, *, timeout=60.0, connect_timeout=30.0)  # contracts.PolicyEngine over AuthRPC, fails closed",
+  "cam_live.harness.service.serve(env, socket_path, *, allowed_uids=None, group='camlive', on_close=None) -> RpcServer; build_environment(run_dir, policy, *, provenance='staging', clock=None, secrets=None, executors=(), browser=True, browser_config=None, limits=None) -> ComputerEnvironment",
+  "python -m cam_live.harness.service --run-dir R --socket R/sock/exec.sock --auth-socket R/sock/auth.sock [--provenance staging|live|diagnostic] [--executor MODULE:FACTORY]... [--secrets MODULE:FACTORY] [--cdp NAME=ENDPOINT]... [--no-browser] [--headed] [--staging-sites] [--diagnostic-allow-all] [--allow-uid N]",
+  "cam_live.harness.staging.StagingSites(*, lab_config=None, clock: Optional[SimClock]=None, host='127.0.0.1', ports=None): .start() / .stop() / context manager; .urls[name], .sites[name] for name in structured|canvas|dynamic|variants|labsite; .outcome_source() -> LabSiteSource; .capabilities() -> dict",
+  "cam_live.harness.staging.CANVAS_LAYOUT[screen][control] = {rect: [x, y, w, h], label, kind}; canvas_center(screen, control) -> [x, y]; VariantSite.set_layout(layout: 'a'|'b', after: Optional[int]=None); also GET <canvas>/layout.json and GET <variants>/control/layout?set=b[&after=N]"
+ ],
+ "change_requests": 7,
+ "measured": {
+  "tests_total": 66,
+  "tests_passed": 66,
+  "tests_default_suite_passed": 43,
+  "tests_default_suite_skipped_without_marker": 23,
+  "full_suite_seconds": 57.33,
+  "default_suite_seconds": 11.77,
+  "chromium_version": "159.0.8154.6",
+  "playwright_version": "1.65.2",
+  "first_action_including_chromium_launch_ms": 937.3,
+  "navigate_median_ms": 234.5,
+  "click_with_navigation_median_ms": 298.5,
+  "fill_median_ms": 39.7,
+  "inspect_full_with_a11y_median_ms": 29.0,
+  "inspect_diff_unchanged_median_ms": 26.1,
+  "wait_schedule_median_ms": 5.6,
+  "rpc_ping_median_ms": 0.2,
+  "rpc_inspect_full_median_ms": 27.9,
+  "observation_full_text_chars": 574,
+  "observation_diff_unchanged_text_chars": 97,
+  "observation_diff_after_fill_text_chars": 138,
+  "measure_command": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/EB/measure_latency.py   # n=15 per primitive, staging /items page, writes docs/evidence/EB/latency.json",
+  "source_lines_src_and_tests": 7318
+ },
+ "packages_installed": [
+  "pypdf==7.2.0  (uv pip install --python /workspace/camlive/.venv/bin/python pypdf)"
+ ],
+ "not_done": [
+  "No public website and no live service was contacted; every result is a staging result. Live operation is blocked until the operator supplies authorization and credentials.",
+  "The environment was not composed with the EC (sandbox, jobs, visual) or ES (api, skill, publishing, discord) executors; that wiring (service --executor flags / build_environment) is integration work. One cross-workstream check exists: the environment against harness.auth.PolicyService in process.",
+  "RemotePolicy was tested against a small real PolicyEngine served over harness.rpc, not against the harness.auth service process.",
+  "The executor-side secret handle is not constructed by the service unless a --secrets factory is given; EB tests use a two-method broker object, not the vault.",
+  "Uid-separated Chromium is not active by default on this machine (Playwright's Chromium under /root is unreachable for cambrowser); it needs BrowserConfig.executable_path pointing at a shared install. Tested only with a temporary copy.",
+  "Structured observations do not descend into iframes or closed shadow roots.",
+  "Redirect hops are authorized after the fact (final URL), not before each hop; same-origin subresource requests are not individually checked; no kernel-level network filtering.",
+  "Research sessions block every non-GET request, so POST-based search forms do not work there.",
+  "Headed (non-headless) mode was not run; no desktop-level screenshots (viewport only).",
+  "ComputerEnvironment enforces only coarse limits (external action count, money estimate, compute, duration); rate and spending policy belong to the authorization service.",
+  "Log, journal and event-stream files are append-only without rotation or compaction.",
+  "Who calls PolicyEngine.record is unresolved in the contract (change request 3); the environment does it by default.",
+  "Action timeouts stop waiting and abandon the page load, but an executor that ignores ExecContext.cancel is not forcibly killed."
+ ],
+ "scientific_failures": [],
+ "commit_note": "code and evidence as of this commit; the status file itself is committed right after it"
+}
