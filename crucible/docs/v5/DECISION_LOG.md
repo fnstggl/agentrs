@@ -322,7 +322,17 @@ it stays the upper reference). Both families are admitted on seeds 0-2 and 10-12
 this continuation (worlds unchanged): demand regimes and higher holding costs for `plan_supply_chain` (a two-setting
 rule stayed within 0.8 of the oracle on the held-out seeds), demand regimes for `plan_perishable` (reference 0.56-0.83
 of the oracle), a readiness-aware targeting reference for `pe_rollout_targeting` and a model-predictive controller for
-`eng_delayed_controller` (both still below the best simple policy on most seeds).
+`eng_delayed_controller` (both still below the best simple policy on most seeds). Later the same day, three more
+training families became prediction tasks under D-63, each with a version bump and a model-class public reference
+(refs_adapt): `ch_tech_transition` v3 (the v2 prediction version restored, with a new process that loses money while
+it is learned, running cost 0.55-0.7 of its learned revenue, so the established process is the best constant until it
+becomes obsolete: the 8.10 belief-revision check of SP-8.0b now passes on all six seeds), `eng_delayed_controller` v2
+(the settled temperature of a delayed first-order plant at heater powers above the settable range; the closed-loop
+control of item 8.3.3 is the evaluation family `pe_deadtime_control`) and `dl_short_term_damage` v2 (the output of a new
+machine after forty ticks at constant drives; wear becomes visible through a noisy vibration reading, without which the
+drain and latch level were not identifiable from one episode). Two category requirements of SP-8.0b were also met by
+family changes: `plan_distribution` accepts a replenishment/shipping program (Part 8.4 asks for programmatic actions
+and no admitted 8.4 family offered one) and `lab_drift_blanks` scores only doses above its settable range.
 
 ## D-65 Families for the four Part 8 items that had none (2026-11-26, workstream H)
 8.5.1 `srch_leads` (a stream of expiring leads with screen/audit investigation), 8.5.4 `srch_ventures` (delayed
@@ -331,6 +341,11 @@ with type-dependent hidden failure hazards) and 8.7.5 `net_balance` (three opera
 demands and costs) are new training families with their own claims, identification, oracle and public reference; each
 was designed to be solvable only by acting on information gathered during the episode (fidelity records
 `rapid.leads`, `rapid.ventures`, `rapid.commit`, `rapid.balance`).
+Amendment (second continuation, 2026-11-27): 8.6.3 (delayed product adoption) had one family, `pe_rollout_targeting`,
+that no public reference could make beat waiting on the held-out seeds. A second family for the item,
+`dl_delayed_adoption` (primitive_graph), composes a delayed fading awareness stock, a hidden awareness gate, saturating
+trial, word of mouth from the installed base and a finite market, and is scored by adopters after a held-out constant
+launch (fidelity record `rapid.delayed_adoption`); `pe_rollout_targeting` is kept unchanged (not admitted).
 
 ## D-28 MIND-small used for experimental research by decision of the project owner (2026-11-26, orchestrator)
 The project owner resolved blocker B-1 (option 2) with the instruction: "disregard the MIND license. use MIND dataset
