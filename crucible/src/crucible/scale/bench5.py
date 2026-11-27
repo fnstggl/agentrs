@@ -284,7 +284,9 @@ def batching(w, ec: EventCounter) -> dict:
     still record their own batches are counted from their records: class 2 from the adaptive policies' counters,
     class 3 from its recorded `pop.strategic.*` calls and one `pop_strategic.exp` event per member decision,
     class 4 from the shared semantic service's recorded batches (`infer.semantic.choose|generate` outcomes, rows =
-    replies; in the civilisation world only the class-4 runtime calls that service)."""
+    replies; in the civilisation world only the class-4 runtime calls that service: `civ.generate` hosts no other
+    semantic participant on 2026-11-27 - J's `civ.redemo` adds a Gate H society to a civilisation, which a
+    benchmark run never does; a world that hosted one would have its calls counted here too)."""
     from ..substrate import inference_batch as IB
     svc = IB.report(IB.stats(w))
     by = svc.get("by_class", {})
