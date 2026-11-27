@@ -211,6 +211,9 @@ def test_reference_recovers_a_law_outside_the_handbook_with_one_standard():
     ev = [{k: float(x) for k, x in zip(names, rng.uniform(lo, hi))} for _ in range(3000)]
     ev = [p for p in ev if p[names[0]] > 10 or p[names[1]] > 5][:200]
     truth = law.at(ev)
+    # the handbook does not explain these readings within their noise, so the reference looks beyond it
+    hb = RD.fit_joint(list(RD.TEXTBOOK) + RD.poly_forms(2, 2), blocks, names, anchors, stats=True)
+    assert hb is not None and hb[2] > 2.0, hb
     form = RD.EXT_FORMS["damped_cos"]
     model = RD.fit_joint([form], blocks, names, anchors)
     m = lawlang.compile_expr(model, names).at(ev)
