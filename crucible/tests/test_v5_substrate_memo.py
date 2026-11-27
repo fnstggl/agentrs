@@ -202,3 +202,49 @@ def test_a_platform_cold_start_bills_a_request_as_the_warm_run_did(monkeypatch):
         assert y3["ok"] and y3["cpu_ms"] >= y1["cpu_ms"] + 1.0
     finally:
         resumed.close()
+
+
+def test_the_first_request_after_a_platform_cold_start_bills_its_anchor_despite_warm_up():
+    """K1 repair (wave-3b verifier: the cross-process resume test failed 1 run in 3 on the loaded machine). The
+    first job after its program's load in a fresh interpreter does warm-up work the uninterrupted world's worker had
+    done long before (lazily built state, interpreter caches): on a population world resumed in a new process the
+    first `service:home` request of a site measured 5.0 ms against an anchor below 1.3 ms, the tolerance rule billed
+    it fresh ("exceeded") and the resumed run left the uninterrupted run's hashes. That warm-up is a platform cold
+    start's, not the program's: the job bills its anchor. A restart after the worker died keeps the tolerance check,
+    so a program cannot make its own workers restart to hide work."""
+    from crucible.sandbox import runner
+    caps = capabilities()
+    assert caps["landlock_abi"] >= 1 and caps["seccomp"], f"this test needs the sandbox: {caps}"
+    # the first call in a process builds a table (~20 ms of CPU), later calls only read it
+    files = {"m.py": "_t = None\n\ndef f(n, c):\n    global _t\n    if _t is None:\n"
+                     "        _t = [i * i for i in range(400000)]\n    return n + _t[n]\n"}
+    cfg = runner.SandboxConfig(count_lines=True, meter_scope=f"warm-up-{os.getpid()}", memo_path=None)
+    X = {"kind": "call", "target": "m:f", "args": 1, "caller": None}
+    Y = {"kind": "call", "target": "m:f", "args": 2, "caller": None}
+    first = runner.WorkerPool(4, cfg)                     # the uninterrupted run's host process
+    try:
+        w = first.get("site", lambda: files)
+        x1 = w.run(dict(X))                               # cold: X's anchor carries the warm-up
+        y1 = w.run(dict(Y))                               # warm: Y's anchor is the read alone
+        assert x1["ok"] and y1["ok"] and x1["meter"]["memo"] == y1["meter"]["memo"] == "first"
+        assert x1["meter"]["cpu_ns"] > M.MEMO_TOL * y1["meter"]["cpu_ns"] + M.MEMO_SLACK_NS   # the warm-up shows
+    finally:
+        first.close()
+    resumed = runner.WorkerPool(4, cfg)                   # a NEW host process resumes the world before Y
+    try:
+        w2 = resumed.get("site", lambda: files)
+        assert w2.cold == "process"
+        y2 = w2.run(dict(Y))                              # cold here (warm-up runs), warm in the uninterrupted run
+        assert y2["meter"]["cpu_ns"] > M.MEMO_TOL * y1["meter"]["cpu_ns"] + M.MEMO_SLACK_NS
+        assert y2["meter"]["memo"] == "remembered" and (y2["cpu_ms"], y2["work_lines"]) == (y1["cpu_ms"],
+                                                                                           y1["work_lines"])
+        x2 = w2.run(dict(X))                              # warm here: its anchor (with the warm-up) as before
+        assert (x2["cpu_ms"], x2["work_lines"]) == (x1["cpu_ms"], x1["work_lines"])
+        # a restart after the worker died keeps the tolerance check: the warm-up above Y's anchor is billed
+        w2._kill()
+        w3 = resumed.get("site", lambda: files)
+        assert w3.cold == "restart"
+        y3 = w3.run(dict(Y))
+        assert y3["ok"] and y3["meter"]["memo"] == "exceeded" and y3["cpu_ms"] > y1["cpu_ms"]
+    finally:
+        resumed.close()

@@ -65,6 +65,7 @@ for _m in list(sys.modules.values()):          # modules that imported the funct
 
 
 _EXCEEDED: list = []
+_CLOSE: dict = {}
 
 
 def _watch_exceeded():
@@ -75,6 +76,14 @@ def _watch_exceeded():
     def _finish(self, ok, result, error, stdout, **kw):
         out = orig(self, ok, result, error, stdout, **kw)
         m = out.get("meter") or {}
+        if m.get("memo") in ("remembered", "exceeded") and m.get("billed_ns"):
+            # how close the job came to the tolerance (cpu / (MEMO_TOL x billed + MEMO_SLACK_NS)): first jobs of a
+            # worker the platform cold-started vs. the rest
+            from crucible.sandbox import metering as M
+            first = "first_job" if getattr(self, "jobs", 0) <= 1 else "later_job"
+            anchor = int(m["billed_ns"]) - max(0, int(kw.get("load") or 0))     # remembered: anchor + restart load
+            _CLOSE.setdefault(f"{getattr(self, 'cold', None)}:{first}", []).append(
+                round(max(0, int(kw.get("cpu") or 0)) / (M.MEMO_TOL * max(anchor, 0) + M.MEMO_SLACK_NS), 4))
         if m.get("memo") == "exceeded":
             _EXCEEDED.append({"label": getattr(self, "label", None), "cold": getattr(self, "cold", None),
                               "worker_jobs": getattr(self, "jobs", None), "cpu_ns": m.get("cpu_ns"),
@@ -90,7 +99,9 @@ _watch_exceeded()
 def _meter() -> dict:
     from crucible.sandbox import metering as M
     return {"first": M.MEMO.misses, "remembered": M.MEMO.hits, "exceeded": M.MEMO.exceeded,
-            "disk_errors": M.MEMO.disk_errors, "memo_path": M.default_memo_path(), "exceeded_jobs": _EXCEEDED[:20]}
+            "disk_errors": M.MEMO.disk_errors, "memo_path": M.default_memo_path(), "exceeded_jobs": _EXCEEDED[:20],
+            "tolerance_use": {k: {"n": len(v), "max": max(v), "over_half": sum(1 for x in v if x > 0.5)}
+                              for k, v in _CLOSE.items() if v}}
 
 
 def report(w, **extra):

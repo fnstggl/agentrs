@@ -427,13 +427,15 @@ class Worker:
 
     def _finish(self, ok: bool, result: Any, error: dict | None, stdout: str, *, cpu: int, job: dict,
                 transcript: list, wall_s: float, meter: dict, proto_bytes: int = 0, load: int = 0,
-                fold: int = 0) -> dict:
+                fold: int = 0, warmup: bool = False) -> dict:
         """The job's outcome with the parent's measurements; the deterministic cost model bills through the memo.
         Workstream A (kcal wave 3b, D-80): `load` is the program's anchored billable load CPU when this job loaded it
         in a restarted or unmanaged worker - added to the bill, kept out of the job's own anchor and tolerance check;
         `fold` is that load when the job ran on a platform cold start (the pool's first worker for its key in this
         host process) - it joins the job's FIRST measurement (its anchor) and never its tolerance check, so the job
-        costs what its first measurement cost whether this host process started cold or warm there."""
+        costs what its first measurement cost whether this host process started cold or warm there.
+        `warmup` (wave-3b repair, K1): the job is the first one after its program's load on a platform cold start; it
+        bills its anchor without the tolerance check (see the call site)."""
         error = self._clean(error) if error else None
         stdout = self._clean(stdout or "")[: self.cfg.out_bytes]
         cpu = max(0, int(cpu))
@@ -443,7 +445,8 @@ class Worker:
             outcome = {"ok": ok, "result": result if ok else None,
                        "error": [(error or {}).get("type"), (error or {}).get("message")] if error else None}
             billed, memo = M.MEMO.bill(M.computation_key(self.cfg.meter_scope, self.files_digest, job, transcript,
-                                                         outcome), cpu + fold, disk=self.cfg.memo_path, check_ns=cpu)
+                                                         outcome), cpu + fold, disk=self.cfg.memo_path,
+                                    check_ns=0 if warmup else cpu)
         billed, cpu = billed + load, cpu + fold + load
         meter = {**meter, "cpu_ns": cpu, "billed_ns": int(billed), "wall_ms": round(wall_s * 1000.0, 3),
                  **({"memo": memo} if memo else {})}
@@ -508,8 +511,10 @@ class Worker:
 
         # 2. load the program (its import-time work is measured apart; only what exceeds LOAD_FREE_NS is billed)
         load_ns = 0
+        loaded_now = False
         target = job.get("target") if job.get("kind", "call") == "call" else None
         if isinstance(target, str) and target not in self._loaded:
+            loaded_now = True
             self.jobs += 1
             lid = self.jobs
             c0 = M.cpu_ns(pid)
@@ -615,8 +620,16 @@ class Worker:
                 ok, err = msg["ok"], msg.get("error")
                 if q:
                     ok, err = False, {"type": "DiskQuota", "message": q}
+                # Workstream A (wave-3b repair, K1 after D-80): the first job after its program's load on a platform
+                # cold start (a resumed process, a fork's fresh pool) runs in a fresh interpreter whose caches and
+                # lazily built state the uninterrupted world's worker had warmed long before - on a population world
+                # resumed in a new process that first request measured 5.0 ms against an anchor below 1.3 ms, was
+                # billed fresh ("exceeded") and the resumed run left the uninterrupted one's hashes (1 run in 3).
+                # Like the cold start's load, that warm-up is not the program's doing: the job bills its anchor and
+                # skips the tolerance check (once per deployment and host process; restarts after a death or an
+                # eviction and unmanaged workers keep the check).
                 return self._finish(ok, msg.get("result"), err, msg.get("stdout") or "", cpu=used + bg, load=load_bill,
-                                    fold=fold,
+                                    fold=fold, warmup=loaded_now and self.cold == "process",
                                     job=job, transcript=transcript, wall_s=time.monotonic() - t0 - broker_s,
                                     meter=meter, proto_bytes=proto + _size(msg.get("result")) + len(msg.get("stdout") or ""))
             reason = {"eof": "process exited (crash, memory or CPU limit)", "overflow": "output too large",
