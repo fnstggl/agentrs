@@ -213,7 +213,7 @@ class Crisis(Module):
                       ("cr_parts", ("owner",)), ("cr_orders", ("owner",)), ("cr_known", ("observer",)),
                       ("cr_operators", ()), ("cr_help", ("operator",)), ("cr_requests", ("operator",)),
                       ("cr_reports", ("district",)), ("cr_invest", ("owner",)), ("cr_stores", ()),
-                      ("cr_hist", ()), ("cr_pumping", ("status",)), ("cr_region", ())):
+                      ("cr_hist", ()), ("cr_pumping", ("status",)), ("cr_region", ()), ("cr_events", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -1514,7 +1514,10 @@ class Crisis(Module):
 
     @applier("crisis.event")
     def ap_event(self, ev):
-        self.world.state.put("cr_operators", "_event", {"t": ev.t, "kind": "_event", "hazard": ev.payload["hazard"]})
+        st = self.world.state
+        st.put("cr_operators", "_event", {"t": ev.t, "kind": "_event", "hazard": ev.payload["hazard"]})
+        st.put("cr_events", f"{int(ev.t):012d}|{int(ev.seq):09d}", {"t": int(ev.t), "main": bool(ev.payload["main"]),
+                                                                   "damaged": int(ev.payload["damaged"])})
 
     @applier("crisis.known")
     def ap_known(self, ev):
@@ -1694,7 +1697,10 @@ def counterfactual(world, horizon_days: int) -> dict:
     mod = cw.modules["crisis"]
     r = restoration(cw, int(mod.c["at_h"]) * HOUR, int(horizon_days) * DAY)
     out = {"loss_fraction": r["loss_fraction"], "hospital_down_h": r["hospital_down_h"],
-           "lost_household_hours": r["lost_household_hours"]}
+           "lost_household_hours": r["lost_household_hours"],
+           # the households' restored share hour by hour without a coordinator (the restoration targets after a
+           # secondary event are compared with it)
+           "share_hourly": [round(r["share_at"](h * HOUR), 4) for h in range(int(horizon_days) * 24 + 1)]}
     cw.close()
     _CF[key] = out
     return out
@@ -1722,25 +1728,53 @@ def measure(world, horizon_days: float = 10, restore_day: float = 7) -> dict:
         done = world.now >= horizon
         cf = counterfactual(world, int(horizon_days)) if done else None
         ratio = r["loss_fraction"] / max(1e-6, cf["loss_fraction"]) if cf else None
+        # a secondary event (aftershock, later flood wave: exogenous, the same in the world without a coordinator)
+        # that strikes within a day before a restoration checkpoint takes out services no response can restore by
+        # then: there the target is what the operators alone had at the same time (if lower), never more
+        second = [int(e["t"]) for _, e in world.state.scan("cr_events") if not e["main"]]
+        hit_day = any(rd - DAY <= t <= rd for t in second)
+        hit_end = any(horizon - 2 * DAY <= t <= horizon for t in second)
+        cf_day = cf_end = None
+        if cf is not None:
+            sh = cf["share_hourly"]
+            cf_day = sh[min(len(sh) - 1, rd // HOUR)]
+            cf_end = min(sh[max(0, (horizon - DAY) // HOUR):horizon // HOUR + 1])
         return {"restored_share_at_day": round(restored, 4), "restored_share_last_day": round(end_share, 4),
+                "secondary_event_before_restore_day": hit_day, "secondary_event_in_last_days": hit_end,
+                "uncoordinated_share_at_day": cf_day, "uncoordinated_lowest_share_last_day": cf_end,
                 "loss_fraction": r["loss_fraction"], "lost_household_hours": r["lost_household_hours"],
-                "hospital_down_h": r["hospital_down_h"], "uncoordinated": cf,
+                "hospital_down_h": r["hospital_down_h"],
+                "uncoordinated": {k: v for k, v in cf.items() if k != "share_hourly"} if cf else None,
                 "loss_ratio_vs_uncoordinated": round(ratio, 4) if ratio is not None else None,
                 "health_needs_unmet": int(columns.col(world, TABLE, "health_unmet").sum()),
                 "health_needs_met": int(columns.col(world, TABLE, "health_met").sum())}
     return K.memo(world, ("crisis.measure", float(horizon_days), float(restore_day)), go)
 
 
-@K.register_metric("crisis_restored_share", "Share of the region's households with power, water and telecom at the "
-                   "end of a given day (0 before that day).")
-def m_restored(world, day: float = 7, horizon_days: float = 10) -> float:
-    return float(measure(world, horizon_days, day)["restored_share_at_day"])
+def _target(m: dict, which: str, min_restored: float) -> float:
+    """The restoration target of a checkpoint: `min_restored`, or - where a secondary event struck within a day
+    before it - what the households had at the same time without a coordinator, if that is lower."""
+    if which == "day":
+        hit, cf = m["secondary_event_before_restore_day"], m["uncoordinated_share_at_day"]
+    else:
+        hit, cf = m["secondary_event_in_last_days"], m["uncoordinated_lowest_share_last_day"]
+    return float(min(min_restored, cf)) if hit and cf is not None else float(min_restored)
 
 
-@K.register_metric("crisis_lowest_share_last_day", "Lowest share of households with all three services over the "
-                   "last day before the horizon.")
-def m_last_day(world, horizon_days: float = 10) -> float:
-    return float(measure(world, horizon_days)["restored_share_last_day"])
+@K.register_metric("crisis_restored_vs_target", "Share of the region's households with power, water and telecom at "
+                   "the end of a given day over its target (min_restored; after a secondary event within the day "
+                   "before, at most what they had at that time without a coordinator); 0 before that day.")
+def m_restored(world, day: float = 7, horizon_days: float = 10, min_restored: float = 0.95) -> float:
+    m = measure(world, horizon_days, day)
+    return float(m["restored_share_at_day"]) / max(1e-6, _target(m, "day", float(min_restored)))
+
+
+@K.register_metric("crisis_kept_vs_target", "Lowest share of households with all three services over the last day "
+                   "before the horizon over its target (as crisis_restored_vs_target, for a secondary event in the "
+                   "last two days).")
+def m_last_day(world, horizon_days: float = 10, min_restored: float = 0.95) -> float:
+    m = measure(world, horizon_days)
+    return float(m["restored_share_last_day"]) / max(1e-6, _target(m, "end", float(min_restored)))
 
 
 @K.register_metric("crisis_loss_ratio", "Household service-hours lost since the main event, over those lost in "
@@ -1781,7 +1815,9 @@ def _draw(rng, difficulty: int, world) -> dict:
 def _text(p: dict) -> str:
     return (f"You coordinate the response to the disruption that hits this region on its first day. By the end of "
             f"day {p['restore_day']} at least {100 * p['min_restored']:.0f}% of households must again have power, "
-            f"water and telecommunications, and keep them through day {p['horizon_days']}. Over the "
+            f"water and telecommunications, and keep them through day {p['horizon_days']} (where an aftershock or a "
+            f"later wave strikes shortly before, at least as many as would have had them had the operators responded "
+            f"alone). Over the "
             f"{p['horizon_days']} days, households must lose at most {100 * p['max_loss_ratio']:.1f}% of the "
             f"service-hours they would have lost had the operators responded alone, and the regional hospital may "
             f"be out of service for at most {p['hospital_floor_h']} hours or "
@@ -1791,9 +1827,10 @@ def _text(p: dict) -> str:
 def _success(p: dict) -> dict:
     h = {"horizon_days": p["horizon_days"]}
     return {"all": [
-        {"metric": "crisis_restored_share", "args": {"day": p["restore_day"], **h}, "op": ">=",
-         "value": p["min_restored"]},
-        {"metric": "crisis_lowest_share_last_day", "args": h, "op": ">=", "value": p["min_restored"]},
+        {"metric": "crisis_restored_vs_target", "args": {"day": p["restore_day"], "min_restored": p["min_restored"],
+                                                          **h}, "op": ">=", "value": 1.0},
+        {"metric": "crisis_kept_vs_target", "args": {"min_restored": p["min_restored"], **h}, "op": ">=",
+         "value": 1.0},
         {"metric": "crisis_loss_ratio", "args": h, "op": "<=", "value": p["max_loss_ratio"]},
         {"metric": "crisis_hospital_downtime_bound", "args": {**h, "ratio": p["max_hospital_ratio"],
                                                               "floor_h": p["hospital_floor_h"]},
@@ -2072,20 +2109,24 @@ class CrisisCoordinator(K.ReadingReference):
                 out.append(A("crisis.mutual_aid", trade=trade, crews=n, days=days))
         hh = {d["district"]: d["households_share"] for d in s["districts"]}
         worked = {c["target"] for c in s["crews"] if c.get("target")}
+        # the hospital is the one critical facility: its own crews reinforce whoever already repairs it
+        mine_on = {c["target"] for c in s["crews"] if c.get("target") and c["owner"] == self.me}
         trade_of = {"plant": "power", "line": "power", "substation": "power", "pump": "water", "tower": "telecom",
                     "core": "telecom", "road": "roads", "hospital": "health", "depot": "fuel"}
         avail = [c for c in sorted(mine) if mine[c]["available"] and not mine[c]["busy"] and not mine[c]["lent_to"]]
         work_list = []
         for a in s["assets"]:
-            if a["asset"] in worked or self.skip.get(a["asset"], 0) > now:
+            if a["asset"] in mine_on or (a["asset"] in worked and a["kind"] != "hospital") or \
+                    self.skip.get(a["asset"], 0) > now:
                 continue
             if a["status"] == "damaged":
-                pri = 100.0 if a["kind"] == "road" else 50.0 if a["asset"] in chain else \
+                pri = 150.0 if a["kind"] == "hospital" else 100.0 if a["kind"] == "road" else \
+                    50.0 if a["asset"] in chain else \
                     10.0 * (hh.get(a["district"], 0.0) + (0.3 if a["kind"] in ("line", "plant", "core") else 0.0)) / \
                     max(1.0, float(a["work_h"] or 12.0)) * 12.0
                 work_list.append((-pri, a["asset"], "repair", trade_of.get(a["kind"])))
             elif a["status"] == "unknown" and a["kind"] != "line" and (a["asset"] in chain or a["kind"] == "road"):
-                work_list.append((-20.0, a["asset"], "inspect", None))
+                work_list.append((-120.0 if a["kind"] == "hospital" else -20.0, a["asset"], "inspect", None))
         for _, aid, task, trade in sorted(work_list):
             if not avail:
                 break
@@ -2167,7 +2208,13 @@ class CrisisCoordinator(K.ReadingReference):
         pumping = {j["district"] for j in s.get("pumping") or []}
         dfac = {a["asset"]: a["district"] for a in s["assets"]}
         first = [dfac.get(x) for x in ("hospital", "core", "depot0", f"sub{hd[1:]}", "plant0", "plant1")]
-        wet = sorted((0 if d in first else 1, first.index(d) if d in first else -hh.get(d, 0.0), d)
+        # the flooded districts on the way from the region's edge to the hospital come first (crews cannot reach
+        # the hospital's district through water), nearest the edge first
+        roads = [(a["a"], a["b"]) for a in s["assets"] if a["kind"] == "road" and a["status"] != "damaged"]
+        access = [d for d in self._access_path(roads, "d0", hd, set(s.get("flooded") or []))
+                  if d in set(s.get("flooded") or [])]
+        wet = sorted((-1 if d in access else 0 if d in first else 1,
+                      access.index(d) if d in access else first.index(d) if d in first else -hh.get(d, 0.0), d)
                      for d in s.get("flooded") or [] if d not in pumping)
         for _, _, d in wet[:max(0, 4 - 2 * len(pumping))]:
             out.append(A("crisis.dewater", district=d))
@@ -2177,6 +2224,35 @@ class CrisisCoordinator(K.ReadingReference):
                 self.called.add(a["asset"])
                 out.append(A("crisis.volunteers", district=a["a"], road=a["asset"]))
         return out
+
+
+    @staticmethod
+    def _access_path(roads: list, start: str, goal: str, wet: set) -> list:
+        """The districts of a road path from `start` to `goal` crossing the fewest flooded districts (0-1 search
+        over the road list it read from the situation)."""
+        adj: dict[str, list[str]] = {}
+        for a, b in roads:
+            adj.setdefault(a, []).append(b)
+            adj.setdefault(b, []).append(a)
+        dist, prev = {start: int(start in wet)}, {start: None}
+        dq = [start]
+        while dq:
+            u = dq.pop(0)
+            for v in sorted(adj.get(u, ())):
+                c = dist[u] + int(v in wet)
+                if v not in dist or c < dist[v]:
+                    dist[v], prev[v] = c, u
+                    if v in wet:
+                        dq.append(v)
+                    else:
+                        dq.insert(0, v)
+        if goal not in prev:
+            return []
+        path, u = [], goal
+        while u is not None:
+            path.append(u)
+            u = prev[u]
+        return path[::-1]
 
 
 class Bystander(K.ReadingReference):

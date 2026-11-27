@@ -382,6 +382,24 @@ integrate (facts' value histories and look-up records in 9.11, customers' usage 
 are kept in module tables by appliers of recorded events, because a world rebuilt from its log (`World.replay`) keeps
 no in-memory event history and must be judged the same (framework replay check).
 
+**Amendment (2026-11-27, migration to `domains-framework/3`).** The five domains now take their objectives from
+the independent goal generator (`Domain.goal` = `GoalFamily`: targets drawn from the generator's own stream per
+world, participant and level, the public text, and a success predicate over metrics registered in
+`crucible.goals.metrics` - evaluator-only, no subject, so no agreement between participants can read them:
+`orgeco_*`, `mkt_*`, `info_*`, `crisis_*`, `rc_*`, `dom3_elapsed_days`); each `evaluate` is that predicate's
+verdict (`base.goal_verdict`) with the measured quantities as details, and the free `objective` callables are gone.
+Mechanic evidence functions return the sequence numbers of the recorded events that exercise each mechanic
+(`_dom3.evidence`; the count-only `_dom3.measured` is removed). Autonomous participants decide as their own principals,
+so `Event.actor` attributes their decisions: provider managers (9.12, `orgs.member_update`/`orgs.campaign`), traders
+(9.13, `mkt.review`/`mkt.produced`), publishers' editors (9.11), utilities' duty managers in their own hourly
+process `crisis.operators` (9.14; the physics stays in `crisis.hour`, so freezing the operators leaves the hazard
+running), households' outage reports (9.14) and investors' partners (9.15). Structure hooks read built state only:
+where a structural choice lived only in module configuration it is written into state at genesis by an internal
+event (`mkt.trait`/`mkt.rule`, `info.dynamics`, `crisis.region`, `rc.world`; trader honesty is an exact share of
+the traders, which ones being the seed's draw). The population's behavioural propensities that the SP-9.16 dice scan
+flags (feedback, disputes, ratings, bottled water) carry `# fidelity:` pragmas naming their FIDELITY_REGISTER rows.
+Investors (9.15) are no longer declared as an autonomous Actor: they decide only on pitches, so a null run has none.
+
 ## D-58 Crisis recovery is judged against the same disruption without the coordinator (2026-11-26, workstream I-3)
 Absolute restoration thresholds did not separate a coordinator from the operators acting alone: instance severity
 varies by seed far more than what coordination changes. The hazard is therefore exogenous - its draws come from the
@@ -396,6 +414,13 @@ therefore a major disruption by construction (among a few seeded draws of its ce
 under the fragility curves reaches 10 facilities), the coordinator has the lever real flood responses use (portable
 pump teams that drain a district, `crisis.dewater`), help from outside enters at the dry district nearest the region's
 edge when the edge is under water, and an operator's priority request is fulfilled once its asset is restored.
+
+**Amendment (2026-11-27).** A secondary event (aftershock, later flood wave) is exogenous and strikes the world
+without a coordinator alike; one that strikes within a day before the day-7 checkpoint, or in the last two days,
+takes out services no response can restore in time (quake_radial seeds 0 and 1 failed on such shocks alone). At
+those checkpoints the restoration target is the households' share at the same time without a coordinator when that
+is lower than 95% (`crisis_restored_vs_target`, `crisis_kept_vs_target`); never higher, and the loss-ratio and
+hospital targets are unchanged, so the null baseline still fails by construction.
 
 ## D-59 The 9.15 science-to-economy link and what investors may read (2026-11-26, workstream I-3)
 The phenomenon's hidden law in `sci` IS the population's practice physics (one fact): what the founder learns by
