@@ -9,7 +9,9 @@ competes for their attention and time with reading, browsing, searching and the 
   reading time, views: ordinary audience accounting), and may post on its subject, reply to what they read, report
   unreadable posts to its moderators, or leave when taking part stopped paying off (the membership's experienced
   value). The author of a post that gets a reply is notified and comes back to its communities about half an hour
-  later. Owners and moderators act on reports. Non-members and explorers look through the directory: a community
+  later. Owners and moderators act on reports, ask active contributors to moderate a growing community, propose
+  pruning long-inactive members or handing decisions to member votes; members vote on open proposals by what
+  taking part is worth to them (`_govern`). Non-members and explorers look through the directory: a community
   fits by the similarity of its subject to one's interests (shared space), its recent activity and how many of
   one's contacts take part; one may join it. Someone who finds nothing that fits may found a community whose
   subject is what they have been reading (the most frequent words of the titles of their recent views) - subjects
@@ -275,6 +277,8 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         # the experienced value of taking part, and leaving when it stopped paying off
         cm.experience_many(ctx, idx[js], np.full(js.size, cn, np.int64), util, decision=COMMUNITY_MODEL)
         U[js] = util
+        # governance: stewards look after a growing community, members vote on what is proposed
+        _govern(ctx, cm, c["id"], idx[js], prefs[js, 6], rng)
         v2 = CM.CMEMBER.view(w)
         rows = cm._lookup(w, idx[js], np.full(js.size, cn, np.int64))
         low = (rows >= 0) & (v2["value"][np.maximum(rows, 0)] < float(self.cfg["leave_value"])) & \
@@ -295,6 +299,118 @@ def _act_community(self, ctx: Ctx, idx: np.ndarray, now: int) -> np.ndarray:
         from .popinbox import NOTE_DELAY_S
         population.wake(ctx, np.array(sorted(notified), np.int64), ctx.now + NOTE_DELAY_S, "social.community")
     return U
+
+
+MODS_PER_MEMBERS = 40       # a steward wants about one moderator per this many members (and at least one)
+
+
+def _govern(ctx: Ctx, cm, cid: str, people: np.ndarray, civic: np.ndarray, rng) -> dict:
+    """Governance by the community's own members during their visit (MASTER_SPEC 4.7), through the community
+    module's ordinary tools as each member's principal (`community.propose` / `community.vote`):
+
+    * the owner (and, under moderator or member-vote governance, a moderator) of a community that has grown asks one
+      of its most active contributors to moderate when it has fewer than one moderator per `MODS_PER_MEMBERS`
+      members; proposes pruning long-inactive members when more than 40% of 20+ members have not taken part within
+      the community's inactivity window; and, in a community of 30+ members, may hand decisions to the members
+      (governance `vote`) - more likely the more civic-minded it is (`prefs[6]`, the same trait that drives joining
+      and posting);
+    * members vote on the open proposals they have not voted on yet: for, with a probability rising with what taking
+      part has been worth to them (the membership's experienced value) and, for a moderator, with the candidate's
+      contributions; against otherwise. The community module's quorum, threshold and window decide.
+
+    Hand-set, unvalidated (FIDELITY_REGISTER population-community-model). Returns counts of what was done."""
+    w = ctx.world
+    st = ctx.state
+    from . import communities as CM
+    c = st.tables["communities"].get(cid)
+    out = {"proposals": 0, "votes": 0}
+    if c is None or c["status"] != "active" or not people.size:
+        return out
+    cn = int(c["n"])
+    rules = c["rules"]
+    v = CM.CMEMBER.view(w)
+    mine = (v["comm"] == cn) & (v["status"] == CM.MEMBER)
+    nmem = int(mine.sum())
+    rows = cm._lookup(w, people, np.full(people.size, cn, np.int64))
+    role = np.where(rows >= 0, v["role"][np.maximum(rows, 0)].astype(np.int64), -1)
+    mode = rules["governance"]
+    may_propose = (role == 2) | ((role == 1) & (mode in ("moderators", "vote")))
+    stewards = np.flatnonzero(may_propose)
+    if stewards.size:
+        k = int(stewards[int(rng.integers(stewards.size))])
+        p = ids.pid(int(people[k]))
+        proposal = None
+        n_mods = int((mine & (v["role"] == 1)).sum())
+        if nmem >= 10 and n_mods < max(1, nmem // MODS_PER_MEMBERS) and rng.random() < _sigm(-1.0 + 2.0 * civic[k]):
+            contrib = v["posts"] + v["comments"]
+            cand = np.flatnonzero(mine & (v["role"] == 0) & (contrib >= 3) &
+                                  (v["last_active"] >= w.now - 7 * 86400) & (v["node"] < nodes_offset()))
+            if cand.size:
+                best = cand[np.lexsort((v["node"][cand], -contrib[cand]))][0]
+                proposal = ("add_moderator", {"member": ids.pid(int(v["node"][best]))},
+                            "active contributor asked to help moderate")
+        if proposal is None and int(rules["prune_days"]) == 0 and nmem >= 20:
+            inactive = mine & (v["last_active"] < w.now - int(rules["inactive_days"]) * 86400)
+            if inactive.sum() > 0.4 * nmem and rng.random() < 0.3:
+                proposal = ("set_rules", {"rules": {"prune_days": 2 * int(rules["inactive_days"])}},
+                            "remove members who stopped taking part long ago")
+        if proposal is None and mode == "owner" and role[k] == 2 and nmem >= 30 and \
+                rng.random() < 0.04 * (0.5 + float(civic[k])):
+            proposal = ("set_rules", {"rules": {"governance": "vote"}}, "let the members decide")
+        if proposal is not None and not _pending(st, cid, proposal[0], proposal[1]):
+            try:
+                ctx.call("community.propose", {"community": cid, "action": proposal[0], "args": proposal[1],
+                                               "reason": proposal[2]}, as_principal=p)
+                out["proposals"] += 1
+            except CrucibleError:
+                pass
+    # votes on the open proposals
+    open_ = [pid for pid in sorted(st.find_ids("community_proposals", "community", cid))
+             if st.tables["community_proposals"][pid]["status"] == "open"]
+    if not open_:
+        return out
+    v = CM.CMEMBER.view(w)
+    rows = cm._lookup(w, people, np.full(people.size, cn, np.int64))
+    for pid in open_:
+        prop = st.tables["community_proposals"][pid]
+        boost = 0.0
+        if prop["action"] == "add_moderator":
+            cn_ = nodes_of_principal(w, prop["args"].get("member"))
+            r_ = cm._lookup(w, np.array([cn_]), np.array([cn]))[0] if cn_ is not None else -1
+            if r_ >= 0:
+                boost = 0.4 * math.log1p(int(v["posts"][r_]) + int(v["comments"][r_]))
+        for k in range(people.size):
+            if rows[k] < 0 or int(v["status"][rows[k]]) != CM.MEMBER:
+                continue
+            p = ids.pid(int(people[k]))
+            if st.tables["community_proposals"][pid]["status"] != "open" or \
+                    st.has("community_votes", f"{pid}|{p}") or p == prop["by"]:
+                continue
+            approve = bool(rng.random() < _sigm(0.2 + 6.0 * float(v["value"][rows[k]]) + boost))
+            try:
+                ctx.call("community.vote", {"proposal": pid, "approve": approve}, as_principal=p)
+                out["votes"] += 1
+            except CrucibleError:
+                pass
+    return out
+
+
+def _pending(st, cid: str, action: str, args: dict) -> bool:
+    """An open proposal of the same change already exists (one does not propose it twice)."""
+    return any(st.tables["community_proposals"][x]["status"] == "open" and
+               st.tables["community_proposals"][x]["action"] == action and
+               st.tables["community_proposals"][x]["args"] == args
+               for x in st.find_ids("community_proposals", "community", cid))
+
+
+def nodes_offset() -> int:
+    from . import nodes
+    return int(nodes.OFFSET)
+
+
+def nodes_of_principal(world, principal) -> int | None:
+    from . import nodes
+    return None if not principal else nodes.node_of(world, principal)
 
 
 def _found(self, ctx: Ctx, i: int, rng) -> str | None:
