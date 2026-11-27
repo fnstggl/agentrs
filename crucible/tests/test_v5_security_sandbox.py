@@ -548,3 +548,185 @@ def test_memory_files_are_refused_and_learner_directories_have_a_quota():
         assert h.function("crucible.redteam.v5.adversaries:memfd_hog", {"n": 2, "mb": 8})["bytes"] == 0
         with pytest.raises(LearnerHostError, match="quota"):
             h.function("crucible.redteam.v5.adversaries:disk_hog", {"files": 40, "mb": 2, "pause_s": 0.05}, timeout=60)
+
+
+# ---------------------------------------------------------------------- repair pass after the wave-3b verifier
+SELFATTR = r'''
+import os, time, threading, ctypes, fcntl
+def f(a, c):
+    libc = ctypes.CDLL(None, use_errno=True)
+    out = {}
+    def t(name, fn):
+        try:
+            out[name] = ["ok", fn()]
+        except OSError as e:
+            out[name] = ["errno", e.errno]
+    other = os.getppid()
+    t("own_nice", lambda: (os.setpriority(os.PRIO_PROCESS, 0, 5), os.getpriority(os.PRIO_PROCESS, 0))[1])
+    t("other_nice", lambda: os.getpriority(os.PRIO_PROCESS, other))
+    t("user_nice", lambda: os.getpriority(os.PRIO_USER, 0))
+    t("other_sched", lambda: os.sched_getscheduler(other))
+    t("own_sched", lambda: os.sched_getscheduler(0))
+    t("other_affinity", lambda: len(os.sched_getaffinity(other)))
+    t("own_affinity", lambda: len(os.sched_getaffinity(0)) > 0)
+    t("other_pgid", lambda: os.getpgid(other))
+    t("other_sid", lambda: os.getsid(other))
+    r = libc.syscall(252, 1, other)
+    out["other_ioprio"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
+    t("other_cpu_clock", lambda: time.clock_gettime_ns(((~other) << 3) | 2))
+    t("own_cpu_clock", lambda: time.process_time_ns() > 0)
+    t("thread_cpu_clock", lambda: time.clock_gettime_ns(time.pthread_getcpuclockid(threading.get_ident())) > 0)
+    def dn():
+        fd = os.open(os.path.join(os.path.dirname(os.__file__), "json"), os.O_RDONLY | os.O_DIRECTORY)
+        return fcntl.fcntl(fd, fcntl.F_NOTIFY, fcntl.DN_ACCESS)
+    t("dnotify", dn)
+    word = ctypes.cast(libc.getpid, ctypes.c_void_p).value & ~3
+    r = libc.syscall(202, ctypes.c_void_p(word), 1, 1, None, None, 0)              # shared FUTEX_WAKE
+    out["shared_wake"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
+    r = libc.syscall(202, ctypes.c_void_p(word), 1 | 128, 1, None, None, 0)        # private FUTEX_WAKE
+    out["private_wake"] = ["ok", r] if r >= 0 else ["errno", ctypes.get_errno()]
+    # ordinary threading (locks, conditions, join) needs only private futexes and the kernel's own exit wake-up
+    box, lock, cond = [], threading.Lock(), threading.Condition()
+    def work():
+        with cond:
+            box.append(1)
+            cond.notify_all()
+    th = [threading.Thread(target=work) for _ in range(4)]
+    for x in th:
+        x.start()
+    for x in th:
+        x.join(5)
+    with lock:
+        out["threads_joined"] = ["ok", len(box) == 4 and not any(x.is_alive() for x in th)]
+    return out
+'''
+
+
+@needs_sandbox
+def test_other_processes_attributes_clocks_notifications_and_shared_futexes_are_refused():
+    """Repair pass after the wave-3b verifier: scheduling attributes of other pids were readable (a 16-bit secret
+    crossed between two worlds in 12 s, and ESRCH was a pid oracle), F_NOTIFY watched other tenants' reads, a shared
+    futex on libc's code woke another tenant's waiter, and other processes' CPU clocks were readable. All refused;
+    the program's own attributes, CPU clocks, private futexes and ordinary threading still work."""
+    r = run_program({"a.py": SELFATTR}, "a:f", None)
+    assert r["ok"], r
+    o = r["result"]
+    for k in ("other_nice", "user_nice", "other_sched", "other_affinity", "other_pgid", "other_sid", "other_ioprio",
+              "dnotify", "shared_wake"):
+        assert o[k] == ["errno", 1], (k, o)
+    assert o["other_cpu_clock"] == ["errno", 22], o
+    assert o["own_nice"] == ["ok", 5] and o["own_sched"][0] == "ok" and o["own_affinity"] == ["ok", True], o
+    assert o["own_cpu_clock"] == o["thread_cpu_clock"] == ["ok", True], o
+    assert o["private_wake"] == ["ok", 0] and o["threads_joined"] == ["ok", True], o
+
+
+@needs_sandbox
+def test_jailed_learner_processes_see_no_other_process_and_never_share_a_uid():
+    """Repair pass: the tool-mode jail refuses the same reads; a learner whose uid is forced to collide with
+    another's cannot change that one's limits or nice value; concurrently started learner hosts claim distinct uids
+    (the 16-bit hash collided with probability ~n^2/2^17) and release their claims."""
+    from crucible.sandbox import learnerhost as LH
+    hosts = [LH.LearnerHost(None) for _ in range(3)]
+    try:
+        uids = [h.jail_uid for h in hosts]
+        assert len(set(uids)) == 3
+        claims = set(os.listdir(LH._claim_dir()))
+        assert {str(u) for u in uids} <= claims
+        a, b = hosts[0], hosts[1]
+        sc = b.function("crucible.redteam.v5.adversaries:attr_scan", {"lo": a.pid - 5, "hi": a.pid + 5,
+                                                                        "absent": 4_000_000})
+        assert sc["readable_pids"] == 0 and sc["oracle"]["absent"] == sc["oracle"]["parent"] == "errno 1", sc
+        clk = b.function("crucible.redteam.v5.adversaries:cpuclock_read", {"pids": [a.pid]})
+        assert clk[str(a.pid)] == "errno 22", clk
+        real = LH._instance_uid
+        LH._instance_uid = lambda kind: a.jail_uid
+        try:
+            c = LH.LearnerHost(None)
+        finally:
+            LH._instance_uid = real
+        with c:
+            assert c.jail_uid == a.jail_uid
+            r = c.function("crucible.redteam.v5.adversaries:prlimit_other", {"victim": a.pid})
+            assert r["prlimit"] == r["renice"] == "errno 1", r
+        assert a.function("crucible.redteam.v5.adversaries:burn_cpu", {"ms": 1200})["burned_ms"] == 1200
+    finally:
+        for h in hosts:
+            h.close()
+    assert not ({str(u) for u in uids} & set(os.listdir(LH._claim_dir())))
+
+
+@needs_sandbox
+def test_disk_quotas_count_deleted_files_held_open():
+    """Wave-3b verifier: the quotas read the directory listing, so files unlinked while held open were invisible (a
+    learner held 8x its quota, a long-lived sandbox worker 2x across jobs). The parent now counts them (under the
+    process's own fs identity: root has no CAP_SYS_PTRACE here); a deleted file kept alive by a mapping alone, whose
+    size cannot be read, stops the process too. Files that are still named are counted once, as before."""
+    from crucible.redteam.v5.crossworld import _attack_files
+    from crucible.sandbox.learnerhost import LearnerHost, LearnerHostError
+    files = _attack_files("hd.py", ("hidden_disk_hog", "mapped_deleted_hog"),
+                          "def held(a, c):\n    return hidden_disk_hog(None, a['files'], a['mb'])\n"
+                          "def mapped(a, c):\n    return mapped_deleted_hog(None, a['mb'], 1)\n")
+    w = Worker(files, SandboxConfig(disk_quota_mb=8)).start()
+    try:
+        r = w.run({"kind": "call", "target": "hd:held", "args": {"files": 2, "mb": 6}})
+        assert not r["ok"] and "deleted files held open" in str(r["meter"]["killed"]) and not w.alive(), r
+    finally:
+        w.close()
+    w = Worker(files, SandboxConfig(disk_quota_mb=64)).start()
+    try:
+        r = w.run({"kind": "call", "target": "hd:mapped", "args": {"mb": 2}})
+        assert not r["ok"] and "memory mapping" in str(r["meter"]["killed"]), r
+    finally:
+        w.close()
+    ok = Worker({"k.py": "import os\nF = []\ndef f(a, c):\n    F.append(open('x', 'wb'))\n"
+                         "    F[0].write(b'z' * (1 << 20))\n    F[0].flush()\n    return 1\n"}, SandboxConfig(disk_quota_mb=8)).start()
+    try:
+        assert ok.run({"kind": "call", "target": "k:f", "args": None})["ok"]
+        b, n, unm = ok.disk_held()
+        assert 2**20 <= b < 3 * 2**20 and n == 2 and not unm, (b, n, unm)    # the named file once, not twice
+    finally:
+        ok.close()
+    with LearnerHost(None, disk_quota_mb=16) as h:
+        with pytest.raises(LearnerHostError, match="quota"):
+            h.function("crucible.redteam.v5.adversaries:hidden_disk_hog", {"files": 3, "mb": 8}, timeout=60)
+
+
+def test_in_process_memo_is_bounded_process_wide_and_the_largest_lineage_pays():
+    """Wave-3b verifier: the in-process memo was bounded per lineage only (50 lineages held 50x the bound)."""
+    m = M.Memo(max_entries=1000)
+    for sc in range(50):
+        for i in range(1000):
+            m.bill(f"k{i}", 5, scope=f"s{sc}")
+    assert len(m) <= 1000 and sum(len(d) for d in m._d.values()) == len(m)
+    v = M.Memo(max_entries=10)
+    v.bill("v", 7, scope="victim")
+    for i in range(100):
+        v.bill(f"f{i}", 1, scope="flood")
+    assert v.bill("v", 8, scope="victim") == (7, "remembered") and len(v) <= 10
+
+
+LOCKSEM = r'''
+import fcntl, os, threading
+def f(a, c):
+    out = {}
+    x, y = open("l", "w"), open("l", "w")
+    fcntl.flock(x, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        fcntl.flock(y, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        out["second_flock"] = "granted"
+    except OSError as e:
+        out["second_flock"] = "errno %d" % e.errno
+    lk = threading.Lock()
+    lk.acquire()
+    out["thread_lock_excludes"] = not lk.acquire(blocking=False)
+    return out
+'''
+
+
+@needs_sandbox
+def test_advisory_locks_are_no_ops_inside_the_sandbox_and_threads_still_exclude():
+    """Documented semantic change (D-77 amendment): taking an advisory lock succeeds without effect, so two of a
+    program's own descriptors do NOT exclude each other (a program that needs mutual exclusion between its own
+    threads uses threading locks, which are unaffected; between processes it has none: no fork)."""
+    r = run_program({"l.py": LOCKSEM}, "l:f", None)
+    assert r["ok"] and r["result"] == {"second_flock": "granted", "thread_lock_excludes": True}, r

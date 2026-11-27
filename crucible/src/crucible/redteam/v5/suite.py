@@ -89,7 +89,11 @@ MUST_HOLD = ("v5.sandbox.escape_matrix", "v5.isolation.sandboxed_code_cannot_imp
              "v5.network.population_world_is_offline", "v5.crossworld.artifact_bytes_do_not_cross_worlds",
              "v5.private.social_dms_members_only_drafts_private_communities",
              "v5.isolation.world_code_cannot_import_evaluator_side_code",
-             "v5.crossworld.kernel_ipc_does_not_cross_worlds")
+             "v5.crossworld.kernel_ipc_does_not_cross_worlds",
+             "v5.crossworld.scheduling_attributes_do_not_cross_worlds",
+             "v5.crossworld.directory_notifications_do_not_cross_worlds",
+             "v5.crossworld.shared_futexes_do_not_cross_worlds", "v5.crossworld.cpu_clocks_do_not_cross_worlds",
+             "v5.sandbox.hosted_learners_share_no_process_state")
 
 # audit findings (O_security and the areas read for Gate W) closed by this workstream, with the probe that holds now
 FIXED: dict[str, str] = {
@@ -143,6 +147,21 @@ FIXED: dict[str, str] = {
     "O wave 3b review: memory files (memfd) are not counted by RLIMIT_AS (640 MiB under a 256 MiB cap in the sandbox, "
     "512 MiB held by a learner process) and a learner process's directory had no quota":
         "v5.sandbox.hosted_learner_memory_and_disk_are_capped",
+    # repair pass after the wave-3b verifier (each probe leaks on 31ae226 and holds now)
+    "O wave 3b verifier: scheduling attributes (nice, policy, I/O priority) a process sets on itself were readable "
+    "on any pid: a service passed a 16-bit secret to another world's program in 12 s; ESRCH was a pid oracle":
+        "v5.crossworld.scheduling_attributes_do_not_cross_worlds",
+    "O wave 3b verifier: directory notifications (fcntl F_NOTIFY) watched another world's reads of standard-library "
+    "directories (8 of 8 bits)": "v5.crossworld.directory_notifications_do_not_cross_worlds",
+    "O repair pass: a shared futex on a word of libc's code (keyed by the file, not the process) woke another "
+    "world's waiter": "v5.crossworld.shared_futexes_do_not_cross_worlds",
+    "O repair pass: other processes' CPU clocks were readable without permission (another world's worker CPU time; "
+    "a pid oracle)": "v5.crossworld.cpu_clocks_do_not_cross_worlds",
+    "O wave 3b verifier: jailed learner processes passed secrets through scheduling attributes, F_NOTIFY, shared "
+    "futexes and CPU clocks; a learner with a colliding uid set another's RLIMIT_CPU to 1 s (it died)":
+        "v5.sandbox.hosted_learners_share_no_process_state",
+    "O wave 3b verifier: disk quotas read the directory listing, so files unlinked while held open were not counted "
+    "(a learner held 8x its quota, a sandbox worker 2x across jobs)": "v5.sandbox.disk_quota_counts_files_held_open",
 }
 
 # open findings of the ratchet closed by their owner workstreams since wave 1, re-verified by the probe on the

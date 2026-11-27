@@ -984,8 +984,9 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
     description = ("A jailed learner process (`crucible.sandbox.learnerhost`) with a 512 MiB address-space cap and a "
                    "32 MiB directory quota (1) writes 8 x 64 MiB into anonymous memory files (memfd: pages that are not "
                    "mapped, so RLIMIT_AS does not count them) and keeps them, and (2) fills its private directory with "
-                   "4 MiB files (RLIMIT_FSIZE bounds one file, not the directory). Checked: the memory files are "
-                   "refused, and the learner is stopped before its directory holds much more than its quota.")
+                   "4 MiB files (RLIMIT_FSIZE bounds one file, not the directory), (3) writes 6 x 16 MiB in files it "
+                   "unlinks while keeping them open, (4) keeps a 48 MiB deleted file alive by a one-page mapping. "
+                   "Checked: the memory files are refused, and the learner is stopped near its quota each time.")
     QUOTA_MB = 32
 
     def setup(self, op: Operator) -> None:
@@ -1003,6 +1004,16 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
                 self.out["disk_stopped"] = None
             except LearnerHostError as e:
                 self.out["disk_stopped"] = str(e)[:300]
+        # files unlinked while held open, and a deleted file kept alive by a mapping alone (wave-3b verifier: the
+        # listing-based watchdog missed 8x the quota held this way)
+        for k, fn, kw in (("held_open", "hidden_disk_hog", {"files": 6, "mb": 16}),
+                          ("mapping_only", "mapped_deleted_hog", {"mb": 48, "files": 2})):
+            with LearnerHost(None, mem_mb=512, disk_quota_mb=self.QUOTA_MB) as h:
+                try:
+                    self.out[k] = h.function("crucible.redteam.v5.adversaries:" + fn, kw, timeout=120)
+                    self.out[k + "_stopped"] = None
+                except LearnerHostError as e:
+                    self.out[k + "_stopped"] = str(e)[:300]
 
     def verdict(self, ev: Evaluator) -> Verdict:
         o = self.out
@@ -1015,6 +1026,11 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
             bad["directory_beyond_quota_mib"] = round(disk.get("bytes", 0) / 2**20, 1)
         elif "quota" not in o["disk_stopped"]:
             bad["learner_stopped_for_another_reason"] = o["disk_stopped"]
+        for k in ("held_open", "mapping_only"):
+            if o.get(k + "_stopped") is None:
+                bad[f"{k}_beyond_quota"] = o.get(k)
+            elif "quota" not in o[k + "_stopped"] and "mapping" not in o[k + "_stopped"]:
+                bad[f"{k}_stopped_for_another_reason"] = o[k + "_stopped"]
         evd = {"attack": o, "findings": bad, "resource_limit_escapes": len(bad)}
         if bad:
             return Verdict(INTEGRITY_BREAK, f"a jailed learner process exceeded its caps: {bad}", evd, severity="high",
@@ -1023,10 +1039,191 @@ class HostedLearnerMemoryAndDiskAreCapped(V5Probe):
         return Verdict(HELD, "memory files refused; the learner was stopped at its directory quota", evd)
 
 
+class HostedLearnersShareNoProcessState(V5Probe):
+    name = "v5.sandbox.hosted_learners_share_no_process_state"
+    attack_class = "cross_world/learner_processes"
+    gates = ("W.5", "W.7")
+    target, owner = "sandbox (learner host)", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("Two jailed learner processes (`crucible.sandbox.learnerhost`) run side by side, as two "
+                   "evaluations do. A passes a 16-bit secret through its scheduling attributes (it sets its own nice, "
+                   "policy and I/O priority level; B scans pids for them), an 8-bit secret through directory "
+                   "notifications (A arms F_NOTIFY on a standard-library directory, B reads a file there iff the bit "
+                   "is 1) and 8 bits through a shared futex on libc's code (A waits, B wakes iff the bit is 1); B "
+                   "reads A's CPU clock and asks getpriority whether A's pid and an absent pid exist. Then a learner "
+                   "whose uid is forced to equal A's (uids are claimed machine-wide now; the collision is simulated) "
+                   "tries to lower A's CPU limit to one second and renice it. Found by the wave-3b verifier (16 of 16 "
+                   "and 7 of 8 bits; the victim died with SIGKILL) and in the repair pass (futex, CPU clock). "
+                   "Checked: no bit crosses, nothing of A is readable, A's limits stay, and two concurrent learner "
+                   "processes never get the same uid.")
+    SCHED_SECRET = 0b0110100111010101
+    BITS8 = 0b01101101
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("hosted-attrs", 10)
+
+    def attack(self, a: Attacker) -> None:
+        import os
+        import sysconfig
+        import threading
+        from ...sandbox import learnerhost as LH
+        from .crossworld import _DN_DIRS, _free_pid
+        ADV = "crucible.redteam.v5.adversaries:"
+        std = sysconfig.get_paths()["stdlib"]
+        self.out = {"sched": [], "dnotify": [], "futex": []}
+        A, B = LH.LearnerHost(None), LH.LearnerHost(None)
+        try:
+            self.out["uids"] = [A.jail_uid, B.jail_uid]
+            for k in range(6):
+                chunk = (self.SCHED_SECRET >> (3 * k)) & 7
+                m = A.function(ADV + "attr_mark", {"chunk": chunk})
+                sc = B.function(ADV + "attr_scan", {"lo": B.pid - 200000, "hi": B.pid + 20000,
+                                                    "absent": _free_pid() if k == 0 else 0})
+                self.out["sched"].append({"sent": chunk, "mark": m, "found": sc.get("found"),
+                                          "readable_pids": sc.get("readable_pids"), "oracle": sc.get("oracle")})
+            for i, dname in enumerate(_DN_DIRS):
+                bit = (self.BITS8 >> i) & 1
+                d = os.path.join(std, dname)
+                arm = A.function(ADV + "dnotify_arm", {"d": d})
+                B.function(ADV + "dnotify_send", {"d": d, "bit": bit})
+                time.sleep(0.1)
+                self.out["dnotify"].append({"bit": bit, "armed": arm.get("armed"),
+                                            "n": A.function(ADV + "dnotify_collect", {}).get("n")})
+            for i in range(8):
+                bit = (self.BITS8 >> i) & 1
+                box = {}
+                t = threading.Thread(target=lambda: box.update(a=A.function(ADV + "futex_wait", {"timeout_s": 1.0})))
+                t.start()
+                time.sleep(0.05)
+                wb = B.function(ADV + "futex_wake", {"delay_s": 0.2}) if bit else {"woke": None}
+                t.join(15)
+                self.out["futex"].append({"bit": bit, "a": box.get("a"), "b": wb})
+            A.function(ADV + "burn_cpu", {"ms": 200})
+            self.out["cpu_clock"] = B.function(ADV + "cpuclock_read", {"pids": [A.pid, _free_pid()]})
+            self.out["a_pid"] = A.pid
+            real = LH._instance_uid
+            LH._instance_uid = lambda kind: A.jail_uid           # simulate a uid collision
+            try:
+                C = LH.LearnerHost(None)
+            finally:
+                LH._instance_uid = real
+            try:
+                self.out["collision_uid"] = C.jail_uid
+                self.out["collision"] = C.function(ADV + "prlimit_other", {"victim": A.pid})
+            finally:
+                C.close()
+            try:
+                self.out["victim_after"] = A.function(ADV + "burn_cpu", {"ms": 1500}, timeout=60)
+            except LH.LearnerHostError as e:
+                self.out["victim_after"] = {"error": str(e)[:200]}
+            self.out["victim_returncode"] = A.proc.poll()
+        finally:
+            for h in (A, B):
+                try:
+                    h.close()
+                except Exception:  # noqa: BLE001
+                    h.kill()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        o = self.out
+        got = 0
+        for k, r in enumerate(o["sched"]):
+            f = r.get("found") or []
+            if len(f) == 1:
+                got |= int(f[0][1]) << (3 * k)
+        dn = sum(1 << i for i, r in enumerate(o["dnotify"]) if (r.get("n") or 0) > 0)
+        fx = sum(1 << i for i, r in enumerate(o["futex"]) if (r.get("a") or {}).get("woken"))
+        fx_count = sum(1 for r in o["futex"] if isinstance((r.get("b") or {}).get("woke"), int) and r["b"]["woke"] > 0)
+        clk = (o.get("cpu_clock") or {}).get(str(o.get("a_pid")))
+        oracle = (o["sched"][0].get("oracle") or {}) if o["sched"] else {}
+        col = o.get("collision") or {}
+        bad = {}
+        if got & 0xFFFF == self.SCHED_SECRET or any(r.get("readable_pids") for r in o["sched"]):
+            bad["scheduling_attributes"] = {"received": got & 0xFFFF,
+                                            "readable_pids": max(int(r.get("readable_pids") or 0) for r in o["sched"])}
+        if oracle.get("absent") != oracle.get("parent"):
+            bad["pid_existence_oracle"] = oracle
+        if dn & self.BITS8:
+            bad["directory_notifications"] = dn
+        if fx & self.BITS8 or fx_count:
+            bad["shared_futex"] = {"received": fx, "wakes_counted": fx_count}
+        if isinstance(clk, int):
+            bad["cpu_clock_of_another_learner"] = clk
+        if "ok" in (col.get("prlimit"), col.get("renice")):
+            bad["same_uid_process_control"] = col
+        if o.get("victim_returncode") is not None or "error" in (o.get("victim_after") or {}):
+            bad["victim_killed"] = o.get("victim_after")
+        if len(set(o.get("uids") or [])) < 2:
+            bad["learner_processes_share_a_uid"] = o.get("uids")
+        leaks = sum(1 for k in ("scheduling_attributes", "directory_notifications", "shared_futex",
+                                "cpu_clock_of_another_learner") if k in bad)
+        evd = {"attack": o, "findings": bad, "cross_world_leaks": leaks,
+               "resource_limit_escapes": int("victim_killed" in bad or "same_uid_process_control" in bad)}
+        fix = ("sandbox/jail.py seccomp (tool mode): scheduling attributes, limits and CPU clocks on the process "
+               "itself, no F_NOTIFY, no shared futex wakes; learnerhost: uids claimed machine-wide")
+        if leaks or "victim_killed" in bad:
+            return Verdict(INTEGRITY_BREAK, f"jailed learner processes reached each other: {sorted(bad)}", evd,
+                           severity="high", fix=fix)
+        if bad:
+            return Verdict(INTEGRITY_BREAK, f"jailed learner processes are not separated: {sorted(bad)}", evd,
+                           severity="medium", fix=fix)
+        return Verdict(HELD, "no attribute, notification, futex or clock crossed; a same-uid learner could not "
+                             "touch the other's limits; distinct uids", evd)
+
+
+class SandboxDiskQuotaCountsFilesHeldOpen(V5Probe):
+    name = "v5.sandbox.disk_quota_counts_files_held_open"
+    attack_class = "unbounded_resources/disk"
+    gates = ("W.7",)
+    target, owner = "sandbox", "O"
+    needs_sandbox = True
+    world = {"v5": "substrate"}
+    description = ("The working-directory quota read the directory listing, so files unlinked while still open were "
+                   "invisible to it: a long-lived worker held 127.5 MB against its 64 MiB quota across two jobs "
+                   "(wave-3b verifier). A worker of a world's tenant writes 8 x 15 MiB this way and keeps the "
+                   "descriptors; another writes 6 x 15 MiB, maps one page of each file, closes the descriptors and "
+                   "unlinks them (only the mappings keep them alive). Checked: both workers are stopped.")
+
+    def setup(self, op: Operator) -> None:
+        self.att = op.join("hidden-disk", 10)
+
+    def attack(self, a: Attacker) -> None:
+        from ...sandbox.runner import SandboxConfig, Worker
+        from .crossworld import _attack_files
+        files = _attack_files("hd.py", ("hidden_disk_hog", "mapped_deleted_hog"),
+                              "def held(a, c):\n    return hidden_disk_hog(None, a['files'], a['mb'])\n"
+                              "def mapped(a, c):\n    return mapped_deleted_hog(None, a['mb'], a['files'])\n"
+                              "def still(a, c):\n    return len(_HELD_FILES)\n")
+        self.out = {}
+        for job, args in (("held", {"files": 8, "mb": 15}), ("mapped", {"files": 6, "mb": 15})):
+            w = Worker(files, SandboxConfig(tenant="world:rt-hidden-disk")).start()
+            try:
+                r1 = w.run({"kind": "call", "target": f"hd:{job}", "args": args}, timeout=60)
+                r2 = w.run({"kind": "call", "target": "hd:still", "args": None}, timeout=20)
+                self.out[job] = {"first": {"ok": r1.get("ok"), "error": (r1.get("error") or {}).get("message"),
+                                           "killed": (r1.get("meter") or {}).get("killed")},
+                                 "second": {"ok": r2.get("ok"), "result": r2.get("result")}, "alive": w.alive(),
+                                 "quota_mb": w.cfg.disk_quota_mb}
+            finally:
+                w.close()
+
+    def verdict(self, ev: Evaluator) -> Verdict:
+        bad = {k: v for k, v in self.out.items() if v["alive"] or v["second"]["ok"]}
+        evd = {"attack": self.out, "resource_limit_escapes": len(bad)}
+        if bad:
+            return Verdict(INTEGRITY_BREAK, f"a worker kept data beyond its disk quota outside the listing: {sorted(bad)}",
+                           evd, severity="high", fix="sandbox/runner.py: count deleted files held open "
+                                                    "(metering.held_bytes)")
+        return Verdict(HELD, "both workers were stopped (files held open counted; a mapping-only deleted file refused)",
+                       evd)
+
+
 def probes() -> list:
     return ([SandboxEscapeMatrix()] + [MeterForgery(v) for v in sorted(FORGERIES)] +
             [WorkDeliveredThenExit(), BuiltinsAreNotFree(), BackgroundThreadOutlivesRequest(),
              ForgedCompletionKeepsWorking(), ForgedCompletionThenExit(), DiskQuota(),
              MemoryCpuAndTimeLimits(), TenantIsolationBetweenWorlds(), HostPathsNotDisclosed(),
              MemoFirstMeasurementGame(), ProtocolAllowanceFarming(), NestedRunsMultiplyWallTime(),
-             HostedLearnersCannotReachEachOther(), HostedLearnerMemoryAndDiskAreCapped()])
+             HostedLearnersCannotReachEachOther(), HostedLearnerMemoryAndDiskAreCapped(),
+             HostedLearnersShareNoProcessState(), SandboxDiskQuotaCountsFilesHeldOpen()])

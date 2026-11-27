@@ -797,17 +797,33 @@ def hidden_disk_hog(participant, files: int, mb: int) -> dict:
     return out
 
 
-def mapped_deleted_hog(participant, mb: int) -> dict:
-    """Write a file of `mb` MiB, map one page of it, close the descriptor and unlink it: only the mapping keeps the
-    data alive, and no descriptor shows its size."""
-    import mmap
-    fd = os.open("mapped", os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+def mapped_deleted_hog(participant, mb: int, files: int = 1) -> dict:
+    """Write `files` files of `mb` MiB, map one page of each (libc mmap: Python's mmap object would keep a duplicate
+    descriptor), close the descriptor and unlink the file: only the mapping keeps the data alive, and no descriptor
+    shows its size."""
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.mmap.restype = ctypes.c_void_p
+    libc.mmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_long]
     blk = b"\x5b" * (1 << 20)
-    for _ in range(int(mb)):
-        os.write(fd, blk)
-    m = mmap.mmap(fd, 4096)
-    os.close(fd)
-    os.unlink("mapped")
-    _HELD_FILES.append(m)
+    out = {"files": 0, "bytes": 0}
+    for i in range(int(files)):
+        try:
+            fd = os.open("mapped-%d" % i, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
+            for _ in range(int(mb)):
+                os.write(fd, blk)
+            addr = libc.mmap(None, 4096, 1, 1, fd, 0)               # PROT_READ, MAP_SHARED
+            if addr in (None, ctypes.c_void_p(-1).value):
+                raise OSError(ctypes.get_errno(), "mmap")
+            os.close(fd)
+            os.unlink("mapped-%d" % i)
+            _HELD_FILES.append(addr)
+            out["files"] += 1
+            out["bytes"] += int(mb) << 20
+        except OSError as e:
+            out["error"] = "errno %d" % e.errno
+            break
+        time.sleep(0.05)
     time.sleep(1.0)
-    return {"mapped_mb": int(mb), "listing": sorted(os.listdir("."))[:20]}
+    out["listing"] = sorted(os.listdir("."))[:20]
+    return out
