@@ -285,6 +285,8 @@ def default_fast_params(model: nn.Module) -> dict:
         return dict(_fp(model))
     except ImportError:
         pass
+    except ValueError:      # W5's set needs the DOM bottleneck (cfg.n_intent > 0): legacy decision path stand-in
+        pass
     out = {}
     for n, p in model.named_parameters():
         if not p.requires_grad:

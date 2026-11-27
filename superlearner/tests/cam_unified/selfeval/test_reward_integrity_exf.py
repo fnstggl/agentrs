@@ -42,6 +42,10 @@ def test_meta_gradient_on_verified_utility_deflates_the_trap_reward():
     assert mt["psi_version"] == 25
     assert u1["utility_mean"] > u0["utility_mean"] + 2 * (u0["utility_se"] + u1["utility_se"]), (u0, u1)
     assert u1["policy"]["badge.claim"] < u0["policy"]["badge.claim"] - 0.1
-    # psi now pays for the genuine levers' observable consequences (inventory / cash) relative to the counter
-    i_up, i_inv = H.FEATURES.index("counter_up"), H.FEATURES.index("inventory_change")
-    assert float(psi[i_inv]) > 0.2 and float(psi[i_up]) < 1.0
+    # psi pays the trap counter less. Which genuine feature it shifts weight to depends on the world's mechanics:
+    # before W2's per-episode references / observed spend (consult cost) the meta step moved weight to
+    # inventory_change (0.62, counter_up 0.85); on the merged wave-3 tree it deflates counter_up to 0.47 with
+    # inventory_change -0.07, cash_change 0.08 (utility 0.034 -> 0.123, badge.claim 0.79 -> 0.55). The verified-utility
+    # and trap-share assertions above are the test's claim; the feature attribution is not asserted any more.
+    i_up = H.FEATURES.index("counter_up")
+    assert float(psi[i_up]) < 1.0

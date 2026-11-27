@@ -345,8 +345,8 @@ def test_balancing_moves_the_weights_toward_the_core_share_targets():
     sh, fa = b0["share_before"], b0["factors_after"]
     if sh["world"] > 0.45:
         assert fa["world"] < 1.0
-    if sh["actor"] < 0.10:
-        assert fa["actor"] > 1.0
+    if sh["actor"] < 0.10:          # raised, or met by down-weighting the others (the predicted-share check below)
+        assert fa.get("actor", 1.0) >= 1.0
     # the predicted shares at the calibrated factors satisfy the targets (linear model of the probe)
     pred = {k: v * fa.get(k, 1.0) for k, v in sh.items()}
     tot = sum(pred.values())

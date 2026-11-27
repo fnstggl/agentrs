@@ -92,8 +92,25 @@ def _flat(feats: Sequence[dict]) -> dict:
     return out
 
 
+def _dom_logp(call: _Call, fast_prefixed: dict, dom: list) -> tuple:
+    """DOM decision path (W5 Mechanism B): flat (logp, entropy) of the recorded actions under phi through
+    `policy_from_features` on each step's detached `policy_features` (intent -> generator -> evaluator Q of the
+    recorded candidates -> selection), with phi substituted functionally."""
+    lps, ents = [], []
+    with sdpa_kernel([SDPBackend.MATH]):
+        for feats, acts in dom:
+            out = functional_call(call, fast_prefixed, args=(call.m.policy_from_features, feats, list(acts)),
+                                  strict=False)
+            lps.append(out["logp"].float())
+            ents.append(out["entropy"].float())
+    return torch.cat(lps, 0), torch.cat(ents, 0)
+
+
 def cam_logp_fn(call: _Call, fast_prefixed: dict, inputs: dict, actions) -> tuple:
     """(logp [N,T], entropy [N,T]) of the recorded actions under phi (fast_prefixed: "m.<name>" -> tensor)."""
+    if inputs.get("dom"):
+        lp, ent = _dom_logp(call, fast_prefixed, inputs["dom"])
+        return _grid(lp, inputs), _grid(ent, inputs)
     f = inputs["flat"]
     ag = call.m.action_generator
     # the fused / memory-efficient SDPA kernels have no double backward: the meta step runs attention on the math
@@ -132,11 +149,18 @@ class Window:
     info_gain: Tensor        # flat [M]
     next_index: Tensor       # flat [M] row of the same env's next decision (-1 = none in the window)
     event_ids: list          # flat
+    dom: Optional[list] = None   # DOM path: [(model.policy_features(step inputs, step actions), step actions)]
 
 
 def window(model, steps: Sequence) -> Window:
     """FreshSteps (agent.fresh) -> Window with detached features of every decision."""
     feats = [decision_features(model, s.inputs) for s in steps]
+    dom = None
+    if bool(getattr(model, "dom_decision", False)) and callable(getattr(model, "policy_features", None)):
+        # W5: the DOM policy of a stored decision is intent -> generator -> candidate evaluator -> selection; its
+        # fast-set part is recomputed from detached features (`policy_features` / `policy_from_features`)
+        with torch.no_grad():
+            dom = [(model.policy_features(s.inputs, list(s.actions)), list(s.actions)) for s in steps]
     env_ids = []
     for s in steps:
         for e in (s.env_ids or [str(r) for r in s.rows]):
@@ -177,7 +201,7 @@ def window(model, steps: Sequence) -> Window:
     dev = feats[0]["R"].device
     index = index.to(dev)
     return Window(env_ids, index, index >= 0, actions, _flat(feats), torch.tensor(dts, device=dev),
-                  torch.tensor(dones, device=dev), ig.to(dev), nxt.to(dev), eids)
+                  torch.tensor(dones, device=dev), ig.to(dev), nxt.to(dev), eids, dom)
 
 
 def _reward_inputs(w: Window) -> dict:
@@ -192,7 +216,7 @@ def _reward_inputs(w: Window) -> dict:
 def window_batch(w: Window, kappa: float = 0.0) -> InnerBatch:
     """InnerBatch over the window; per-step discount gamma = exp(-kappa * dt) (SMDP)."""
     g = _grid(torch.exp(-float(kappa) * w.dt.clamp_min(0.0)), {"index": w.index})
-    return InnerBatch(policy_inputs={"flat": w.flat, "index": w.index}, actions=w.actions, mask=w.mask,
+    return InnerBatch(policy_inputs={"flat": w.flat, "index": w.index, "dom": w.dom}, actions=w.actions, mask=w.mask,
                       reward_inputs=_reward_inputs(w), gamma=g.to(w.dt.device))
 
 
@@ -204,5 +228,6 @@ def query_batch(w: Window, utility: dict, baseline: Optional[dict] = None) -> Qu
     idx = w.index[keep]
     U = torch.tensor([float(utility[w.env_ids[n]]) for n in keep])
     b = None if baseline is None else torch.tensor([float(baseline[w.env_ids[n]]) for n in keep])
-    return QueryBatch(policy_inputs={"flat": w.flat, "index": idx}, actions=w.actions, mask=idx >= 0, utility=U,
+    return QueryBatch(policy_inputs={"flat": w.flat, "index": idx, "dom": w.dom}, actions=w.actions, mask=idx >= 0,
+                      utility=U,
                       baseline=b)

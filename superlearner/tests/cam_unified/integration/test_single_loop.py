@@ -31,6 +31,8 @@ KNOWN_OTHER_LOOPS = {
     "experiments/predict.py": "support collection for Experiment 1 predictions [W9: migrate to run_lifetime]",
     "capabilities/causal.py": "scripted intervention sequences of the causal diagnostic [W6: migrate]",
     "capabilities/memory.py": "cue evaluation of the memory diagnostic [unowned: migrate to run_lifetime]",
+    "selfeval/integrity_harness.py": "Exp F harness: a state-independent tabular tool policy on integrity worlds (no "
+                                     "CAM agent acts; psi meta-gradient sanity check) [W8]",
 }
 # the W1-owned runners that must be wrappers (no loop of their own)
 WRAPPERS = ("envs/harness.py", "experiments/mechrun.py", "experiments/train.py", "capabilities/loop.py",

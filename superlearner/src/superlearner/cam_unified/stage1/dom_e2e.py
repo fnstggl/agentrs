@@ -49,7 +49,17 @@ class _TimedLearner:
         self.log.append({"s": time.perf_counter() - t, "peak_GB": torch.cuda.max_memory_allocated() / GB,
                          "updated": bool(out.get("updated")), "error": out.get("error"),
                          "decisions": len(out.get("consumed_decisions") or []), "reason": out.get("reason"),
-                         "losses": out.get("losses"), "version": out.get("version")})
+                         "losses": out.get("losses"), "version": out.get("version"),
+                         # IntegratedLearner (W7) UpdateInfo: applied / measured core-gradient shares, the DOM-08
+                         # table and the per-objective group norms (present on probed updates)
+                         "core_share": out.get("core_share"), "core_share_measured": out.get("core_share_measured"),
+                         "dom08": out.get("dom08"), "share_guard": out.get("share_guard"),
+                         "grad_norm_by_objective": (out.get("grad_table") or {}).get("norm"),
+                         "grad_absent": (out.get("grad_table") or {}).get("absent"),
+                         "reward": out.get("reward"), "meta": out.get("meta"), "labels": out.get("labels"),
+                         "policy": {k: (out.get("policy") or {}).get(k) for k in (
+                             "n_fresh_steps", "n_stale_steps", "kl", "clip_frac", "tool_entropy")},
+                         "clipped": out.get("clipped"), "update": out.get("update"), "integrity": out.get("integrity")})
         return out
 
     def meta_step(self) -> dict:
@@ -127,6 +137,7 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
     from ..build import ConcatLabels, OperatorLabels, SystemConfig, build_agent, describe
     from ..core.bench import rapid_lever_specs
     from ..envs.experience import ExperienceOperator
+    from ..decision.select import verify_stamp
     from ..runtime import ConcatEnv, GuardedEnv, cam_eval_stamp, run_lifetime
     from .harness_agent import core_hash
     run_dir = os.path.abspath(run_dir or tempfile.mkdtemp(prefix=f"dom_e2e_{preset}_"))
@@ -196,6 +207,7 @@ def run_dom_e2e(preset: str = "dom_dev", *, n_rapid: int = 4, n_ow: int = 1, rou
         "operator_returns": life.returns, "labels_taken": life.labels_taken, "labels_appended": life.labels_appended,
         "versions": life.versions, "authorisation": life.authorisation,
         "actions_stamped": sum(cam_eval_stamp(a) is not None for a in acts), "actions": len(acts),
+        "actions_stamp_verified": sum(bool(verify_stamp(a)[0]) for a in acts),
         "decide_s": act_s, "decide_s_warm_median": sorted(act_s[1:])[len(act_s[1:]) // 2] if len(act_s) > 1 else None,
         "decide_peak_GB": max(peaks) if peaks else None, "updates": learner.log,
         "n_updates": sum(u["updated"] for u in learner.log), "core_hash_before": h0, "core_hash_after": h1,
