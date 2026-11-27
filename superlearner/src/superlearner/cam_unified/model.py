@@ -24,6 +24,15 @@ Every component is injected (dependency injection against the contract protocols
 dotted-path registry, so the classes of workstreams A-G are wired in by path once their branches merge:
 `DEFAULT_COMPONENT_PATHS` lists exactly what is expected. This module never imports test doubles.
 
+DOM decision path (Mechanism B, cfg.n_intent > 0; owner W5, plan 2026-11-26 §2 step 2): the TOOL tokens of the
+available tools (incl. the generator's built-ins) join the core's context, so the core's outputs at those positions
+are state-conditioned pointer keys; I_t = IntentHead(R_t, ctx_out, OPTION(o_t), BUDGET(b_t)); K candidates are
+sampled from I_t alone in one batched decode; every concrete candidate is scored by `decision.evaluator`
+(Q_k from WM.prior(R_t, A_k, B_t, dt_k)); `decision.select` picks k ~ softmax(Q / tau) and stamps the executed action
+(cam_eval: candidates, Q, gen/sel log-probabilities, versions, HMAC digest). The behaviour log-probability is
+log p_gen(a_k | I) + log softmax(Q / tau)_k (+ the option part), recomputed exactly by `policy_evaluate`. With
+cfg.n_intent == 0 every method runs the legacy path unchanged.
+
 Shapes: B environments, S state tokens, N context tokens, D = d_model, K particles, Q outcome queries, T tools.
 """
 from __future__ import annotations
@@ -34,7 +43,7 @@ import importlib
 import inspect
 import math
 import re
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any, Optional, Protocol, Sequence
 
@@ -53,6 +62,10 @@ from .core import belief_runtime as _belief
 from .memory import runtime as _memory
 from .world import train_seq as _train_seq
 from .world.planner_runtime import LatentImaginationPlanner  # noqa: F401  (re-export: model.LatentImaginationPlanner)
+from .decision.intent import intent_tokens
+from .decision.select import STAMP_KEY as _STAMP_KEY
+
+_sel = importlib.import_module(__package__ + ".decision.select")   # the module (the package re-exports the function)
 
 N_CONTINUOUS_CORE = 3          # cost, duration, reward: the continuous core outcome keys (Kalman channels)
 
@@ -199,7 +212,8 @@ def cat_rows(sets: Sequence[TokenSet]) -> TokenSet:
 KIND_PRIORITY = {int(TokenKind.GOAL): 9, int(TokenKind.OPTION): 9, int(TokenKind.BUDGET): 9,
                  int(TokenKind.TIME): 9, int(TokenKind.ACTION): 8, int(TokenKind.BELIEF): 8,
                  int(TokenKind.EVENT): 6, int(TokenKind.OBS_NUM): 5, int(TokenKind.OBS_SEM): 5,
-                 int(TokenKind.ENTITY): 4, int(TokenKind.RELATION): 4, int(TokenKind.MEMORY): 3}
+                 int(TokenKind.ENTITY): 4, int(TokenKind.RELATION): 4, int(TokenKind.MEMORY): 3,
+                 int(TokenKind.TOOL): 9}       # TOOL tokens are in the context only on the DOM decision path
 
 
 def fit_budget(ts: TokenSet, budget: int, dropped: Optional[list] = None) -> TokenSet:
@@ -380,11 +394,13 @@ DEFAULT_COMPONENT_PATHS = {
     "value_head": f"{PKG}.learn.heads:ValueHead",                       # D (d_model) -> ValueOutput(.value, .logits)
     "option_policy": f"{PKG}.learn.heads:OptionModule",                 # D (d_model, n_options, max_steps)
     "exploration_head": f"{PKG}.learn.heads:BudgetEncoder",             # D (d_model) forward(BudgetState)
+    "intent_head": f"{PKG}.decision.intent:IntentHead",                 # W5 (cfg): I_t, required with n_intent > 0
+    "decision_evaluator": f"{PKG}.decision.evaluator:CandidateEvaluator",   # W5 (cfg): Q of concrete candidates
 }
 # build order = dependency order; constructor parameters named like an earlier component receive it
 BUILD_ORDER = ("semantic", "tokenizer", "core", "entity_encoder", "reasoner", "outcome_head", "beliefs", "bayes",
                "world_model", "retriever", "action_generator", "value_head", "option_policy", "exploration_head",
-               "planner")
+               "intent_head", "decision_evaluator", "planner")
 ALIASES = {"semantic_encoder": "semantic", "encoder": "semantic", "sem": "semantic", "backbone": "core",
            "outcomes": "outcome_head", "dynamics": "world_model", "obs_tokenizer": "tokenizer"}
 # optional components loaded from their default path when the module exists (absent while the workstream has not
@@ -415,6 +431,8 @@ def required_components(cfg: CamConfig) -> set:
         req.add("option_policy")
     if cfg.use_learned_exploration:
         req.add("exploration_head")
+    if int(getattr(cfg, "n_intent", 0) or 0) > 0:
+        req |= {"intent_head", "decision_evaluator"}
     return req
 
 
@@ -688,6 +706,15 @@ class StepEncoding:
     R: torch.Tensor         # R_t [B,S,D]
     rinfo: dict
     dropped: list           # [B] {token kind: n} left out by the context budget
+    ctx_out: Optional[torch.Tensor] = None   # DOM: F's outputs at the context positions [B,N,D] (aligned with ctx)
+    tools: Optional[TokenSet] = None         # DOM: ctx_out at the TOOL positions [B,T,D], one per tool incl. built-ins
+    tool_lists: Optional[list] = None        # DOM: [B] tool lists incl. the generator's built-ins (order of `tools`)
+    sem: Any = None                          # DOM: the step's SemanticContext (Mechanism C) when one was built
+
+    def ctx_tokens(self) -> TokenSet:
+        """ctx_out as a TokenSet (kinds / refs / mask of the context): the core-processed context."""
+        c = self.ctx
+        return TokenSet(self.ctx_out, c.mask, c.kind, c.time, c.entity, c.refs, c.entity2)
 
 
 @dataclass
@@ -748,6 +775,12 @@ class Decision:
     dropped: list                   # [B] {"ctx_tokens": {kind: n}} budget drops of this decision
     trajectory: Optional[ImaginedTrajectory] = None
     timings: dict = field(default_factory=dict)
+    intent: Optional[torch.Tensor] = None    # DOM: I_t [B, n_intent, D] (detached)
+    evaluation: list = field(default_factory=list)   # DOM: [B] selection record (q, probs, chosen, gen/sel logp,
+                                                     # veto, versions) = the executed action's cam_eval stamp minus
+                                                     # the candidate list
+    candidate_set: Optional[Any] = None      # DOM: decision.select.CandidateSet (emb [B,K,D], mask, q, sel_logp,
+                                             # gen_logp, chosen) for candidate-conditional credit (W8)
 
 
 @dataclass
@@ -801,6 +834,35 @@ def _acting(fn):
     return wrapper
 
 
+@contextmanager
+def deterministic_ops(on: bool = True):
+    """Deterministic CUDA kernels for the enclosed forward computations (torch.use_deterministic_algorithms, warn_only:
+    an op without a deterministic kernel warns instead of raising; restored on exit). Measured on the real dom_dev
+    stack: the tokenizer's atomics-based segment pooling (index_add) makes TOOL tokens differ between two identical
+    calls by up to 0.016 (bf16 rounding), which moved the recomputed behaviour log-probability by up to ~4e-3 nats;
+    with deterministic kernels the recomputation is bit-identical. Backward passes run outside and are unaffected."""
+    if not on:
+        yield
+        return
+    prev = torch.are_deterministic_algorithms_enabled()
+    prev_w = torch.is_deterministic_algorithms_warn_only_enabled()
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    try:
+        yield
+    finally:
+        torch.use_deterministic_algorithms(prev, warn_only=prev_w)
+
+
+def _det(fn):
+    """Method decorator: run under deterministic_ops(self.deterministic) (DOM decision computations)."""
+
+    @functools.wraps(fn)
+    def wrapper(self, *a, **k):
+        with deterministic_ops(bool(getattr(self, "deterministic", True))):
+            return fn(self, *a, **k)
+    return wrapper
+
+
 DURATION_ARG = re.compile(r"(?:^|_)(seconds|secs|minutes|mins|hours|days)$")
 DURATION_DAYS = {"seconds": 1 / 86400, "secs": 1 / 86400, "minutes": 1 / 1440, "mins": 1 / 1440, "hours": 1 / 24,
                  "days": 1.0}
@@ -824,11 +886,12 @@ class CamUnifiedModel(nn.Module):
     def __init__(self, cfg: CamConfig, *, tokenizer, core, outcome_head, world_model, action_generator, value_head,
                  semantic=None, entity_encoder=None, reasoner=None, beliefs=None, bayes=None, retriever=None,
                  option_policy=None, exploration_head=None, planner=None, query_encoder=None,
+                 intent_head=None, decision_evaluator=None,
                  imag_candidates: Optional[int] = None, imag_horizon: Optional[int] = None,
                  imag_samples: Optional[int] = None, unc_coef: float = 0.1, n_error_classes: int = 16,
                  money_unit: str = "cents", max_numeric_outcomes: int = 32, max_event_types: int = 16,
                  amp: Optional[bool] = None, reason_iters: Optional[int] = None,
-                 reward_in_beliefs: Optional[bool] = None):
+                 reward_in_beliefs: Optional[bool] = None, deterministic: bool = True):
         super().__init__()
         self.cfg = cfg
         self._version = 0
@@ -837,7 +900,8 @@ class CamUnifiedModel(nn.Module):
         need = required_components(cfg)
         given = dict(tokenizer=tokenizer, core=core, outcome_head=outcome_head, world_model=world_model,
                      action_generator=action_generator, value_head=value_head, reasoner=reasoner, beliefs=beliefs,
-                     bayes=bayes, retriever=retriever, option_policy=option_policy, exploration_head=exploration_head)
+                     bayes=bayes, retriever=retriever, option_policy=option_policy, exploration_head=exploration_head,
+                     intent_head=intent_head, decision_evaluator=decision_evaluator)
         lacking = sorted(n for n in need if given.get(n) is None)
         if lacking:
             raise ComponentUnavailable(f"CamUnifiedModel: config requires {lacking}")
@@ -855,6 +919,16 @@ class CamUnifiedModel(nn.Module):
         self.value_head = value_head
         self.option_policy = option_policy if cfg.n_options > 0 else None
         self.exploration_head = exploration_head
+        # DOM decision bottleneck (Mechanism B): intent head + candidate evaluator, generator in intent mode
+        self.dom_decision = int(getattr(cfg, "n_intent", 0) or 0) > 0
+        self.intent_head = intent_head if self.dom_decision else None
+        self.decision_evaluator = decision_evaluator if self.dom_decision else None
+        if self.dom_decision and int(getattr(action_generator, "n_intent", 0) or 0) != int(cfg.n_intent):
+            raise ComponentUnavailable(f"cfg.n_intent={cfg.n_intent} needs an action generator built in intent mode "
+                                       f"(it has n_intent={getattr(action_generator, 'n_intent', None)})")
+        # the actor reward model R_psi (W8) is held by reference, never as a submodule: no actor optimiser built from
+        # model.parameters() can reach psi (attach_reward_model)
+        self.__dict__["reward_model"] = None
         self.planner = planner if planner is not None else LatentImaginationPlanner()
         self.query_encoder = query_encoder if query_encoder is not None else OutcomeQueryEncoder(
             cfg.d_model, make_text_encoder(tokenizer, cfg.d_model, lambda: self.weights_epoch))
@@ -873,10 +947,22 @@ class CamUnifiedModel(nn.Module):
         self.reward_in_beliefs = reward_in_beliefs if reward_in_beliefs is not None else \
             getattr(cfg, "reward_in_beliefs", True)
         self.think_days = cfg.think_s / 86400.0
+        # DOM decisions run their forward computations with deterministic kernels (exact behaviour-logp replay)
+        self.deterministic = bool(deterministic)
         self.calls: dict = {}         # component call counters and budget-drop counters (observability)
         self._retrieve_now = retriever is not None and "now" in _params_of(retriever.retrieve)
         self._wm_loss_ctx = {n for n in ("beliefs", "memory") if n in _params_of(world_model.loss)}
         self._bayes_allocates = bayes is not None and hasattr(bayes, "assign_channels")
+        self._core_sem = "sem" in _params_of(core.forward)
+        self._reasoner_sem = reasoner is not None and "sem" in _params_of(reasoner.forward)
+        # entity type pathway (W3): free-text entity types embedded by the semantic model, when the encoder takes them
+        # and its type projection reads the semantic model's width
+        ee = entity_encoder
+        tdim = getattr(ee, "type_dim", None) or getattr(getattr(ee, "type_proj", None), "in_features", None)
+        self._entity_types = bool(
+            ee is not None and hasattr(ee, "make_type_tokens") and "type_tokens" in _params_of(ee.forward)
+            and semantic is not None and hasattr(semantic, "embed") and tdim is not None
+            and int(tdim) == int(getattr(semantic, "sem_dim", -1)))
         self.register_load_state_dict_post_hook(lambda module, incompatible: module.bump_weights_epoch())
 
     # ---------------------------------------------------------------- bookkeeping
@@ -1075,11 +1161,67 @@ class CamUnifiedModel(nn.Module):
 
     def context(self, O: TokenSet, A_prev: Optional[TokenSet], TIME: Optional[TokenSet], Bt: TokenSet,
                 opt_tok: Optional[TokenSet], M: Optional[TokenSet], G: TokenSet,
-                dropped: Optional[list] = None) -> TokenSet:
-        """The core's working context [O; A_{t-1}; TIME; B; option; M; G], fitted to cfg.max_ctx_tokens. Used for
-        acting, policy recomputation and replay filtering alike."""
-        ctx = TokenSet.cat(O, A_prev, TIME, Bt, opt_tok, M if self.cfg.use_memory else None, G)
+                dropped: Optional[list] = None, tools: Optional[TokenSet] = None) -> TokenSet:
+        """The core's working context [O; A_{t-1}; TIME; B; option; M; G (; TOOL)], fitted to cfg.max_ctx_tokens.
+        Used for acting, policy recomputation and replay filtering alike. `tools` (DOM decision path) are the TOOL
+        tokens of the available tools incl. built-ins (`tool_tokens`), kept at goal priority so the pointer keys
+        are never dropped."""
+        ctx = TokenSet.cat(O, A_prev, TIME, Bt, opt_tok, M if self.cfg.use_memory else None, G, tools)
         return fit_budget(ctx, self.cfg.max_ctx_tokens, dropped)
+
+    def tool_tokens(self, tool_lists: list) -> tuple:
+        """DOM: (TOOL TokenSet [B,T,D] of every available tool plus the generator's built-ins, refs = keys; the
+        tool lists incl. built-ins, in token order). Pass the TokenSet as `context(..., tools=)`."""
+        B = len(tool_lists)
+        T = check_tokens(self.tokenizer.tools(tool_lists), B, self.cfg.d_model, "tokenizer.tools")
+        aug = getattr(self.action_generator, "_augment_tools", None)
+        if aug is None:
+            return T, [list(l) for l in tool_lists]
+        return aug(T, tool_lists)
+
+    @staticmethod
+    def tool_positions(ctx: TokenSet, tool_lists: list) -> torch.Tensor:
+        """[B, T] long positions of each row's TOOL tokens in the fitted context (order = tool_lists), 0-padded.
+        Raises ShapeError when the context budget dropped a tool token or the refs disagree with the keys."""
+        B = ctx.B
+        Tm = max((len(l) for l in tool_lists), default=0)
+        pos = torch.zeros(B, Tm, dtype=torch.long, device=ctx.x.device)
+        is_tool = (ctx.kind == int(TokenKind.TOOL)) & ctx.mask
+        for b, lst in enumerate(tool_lists):
+            p = torch.nonzero(is_tool[b]).flatten()
+            if p.numel() != len(lst):
+                raise ShapeError(f"row {b}: {p.numel()} TOOL tokens in the context for {len(lst)} tools (context "
+                                 f"budget cfg.max_ctx_tokens={ctx.N} too small?)")
+            if ctx.refs is not None and [ctx.refs[b][int(i)] for i in p] != [t.key for t in lst]:
+                raise ShapeError(f"row {b}: TOOL token refs do not match the tool list")
+            if len(lst):
+                pos[b, : len(lst)] = p
+        return pos
+
+    @staticmethod
+    def gather_tools(ctx_out: torch.Tensor, pos: torch.Tensor, tool_lists: list) -> TokenSet:
+        """ctx_out at the TOOL positions -> TokenSet [B,T,D] (kind TOOL, refs = keys, differentiable)."""
+        B, Tm = pos.shape
+        D = ctx_out.shape[2]
+        dev = ctx_out.device
+        mask = torch.zeros(B, Tm, dtype=torch.bool, device=dev)
+        for b, lst in enumerate(tool_lists):
+            mask[b, : len(lst)] = True
+        x = ctx_out.gather(1, pos.unsqueeze(-1).expand(-1, -1, D)) * mask.unsqueeze(-1).to(ctx_out.dtype)
+        refs = [[t.key for t in lst] + [None] * (Tm - len(lst)) for lst in tool_lists]
+        return TokenSet(x, mask, torch.full((B, Tm), int(TokenKind.TOOL), dtype=torch.long, device=dev),
+                        torch.zeros(B, Tm, device=dev), torch.full((B, Tm), -1, dtype=torch.long, device=dev), refs)
+
+    def semantic_context(self, inp: "StepInputs"):
+        """Mechanism C input S_t (W4's ObservationTokenizer.semantic_context) when cfg.sem_xattn_every > 0, the
+        tokenizer provides it and the core takes `sem`; else None."""
+        cfg = self.cfg
+        if not int(getattr(cfg, "sem_xattn_every", 0) or 0) or not self._core_sem:
+            return None
+        fn = getattr(self.tokenizer, "semantic_context", None)
+        if fn is None:
+            return None
+        return fn(inp.obs_lists, inp.tools, inp.goals, int(getattr(cfg, "sem_xattn_max_tokens", 256)))
 
     def encode_step(self, inp: StepInputs, pre: Optional[tuple] = None, memory: Optional[TokenSet] = None
                     ) -> StepEncoding:
@@ -1090,7 +1232,12 @@ class CamUnifiedModel(nn.Module):
         O = check_tokens(self.tokenizer.observations(inp.obs_lists, inp.registries, inp.now), B, D,
                          "tokenizer.observations")
         if self.entity_encoder is not None:
-            E = check_tokens(self.entity_encoder(O), B, D, "entity_encoder")
+            if self._entity_types:       # registries are bound by the tokenizer call above
+                types = self.entity_encoder.make_type_tokens(inp.registries, self.semantic, device=O.x.device)
+                self._count("entity_encoder.type_tokens")
+                E = check_tokens(self.entity_encoder(O, type_tokens=types), B, D, "entity_encoder")
+            else:
+                E = check_tokens(self.entity_encoder(O), B, D, "entity_encoder")
             O = TokenSet.cat(O, E)
         A_prev = check_tokens(self.tokenizer.action(inp.last_actions), B, D, "tokenizer.action")
         TIME = self._time_tokens(inp.dt_prev.to(inp.Z_prev.device))
@@ -1098,18 +1245,29 @@ class CamUnifiedModel(nn.Module):
         opt_tok = self._option_token(inp.option_prev, inp.option_steps_prev)
         M = (memory if memory is not None else inp.memory) if cfg.use_memory else None
         dropped = [dict() for _ in range(B)]
-        ctx = self.context(O, A_prev, TIME, Bt, opt_tok, M, G, dropped)
+        T2 = lists2 = None
+        if self.dom_decision:
+            T2, lists2 = self.tool_tokens(inp.tools)
+        ctx = self.context(O, A_prev, TIME, Bt, opt_tok, M, G, dropped, tools=T2)
+        sem = self.semantic_context(inp) if self.dom_decision else None
         self._count("core")
-        Z, ctx_out = self.core(inp.Z_prev, ctx)
+        Z, ctx_out = self.core(inp.Z_prev, ctx, sem=sem) if sem is not None else self.core(inp.Z_prev, ctx)
         check_shape(Z, (B, cfg.n_state, D), "core.forward Z")
         if cfg.use_reasoning:
             rctx = TokenSet.cat(Bt, opt_tok, M, G)
             self._count("reasoner")
-            R, rinfo = self.reasoner(Z, rctx, self.reason_iters)
+            if sem is not None and self._reasoner_sem:
+                R, rinfo = self.reasoner(Z, rctx, self.reason_iters, sem=sem)
+            else:
+                R, rinfo = self.reasoner(Z, rctx, self.reason_iters)
             check_shape(R, (B, cfg.n_state, D), "reasoner R")
         else:
             R, rinfo = Z, {"iters": torch.zeros(B, device=Z.device), "halt_p": None, "ponder": None}
-        return StepEncoding(O, G, Bt, M, opt_tok, ctx, Z, R, rinfo, dropped)
+        if not self.dom_decision:
+            return StepEncoding(O, G, Bt, M, opt_tok, ctx, Z, R, rinfo, dropped)
+        ctx_out = ctx_out.float()
+        tools_out = self.gather_tools(ctx_out, self.tool_positions(ctx, lists2), lists2)
+        return StepEncoding(O, G, Bt, M, opt_tok, ctx, Z, R, rinfo, dropped, ctx_out, tools_out, lists2, sem)
 
     def _goal_inputs(self, enc: StepEncoding, option_tok: Optional[TokenSet], budget: Optional[BudgetState]
                      ) -> TokenSet:
@@ -1186,7 +1344,10 @@ class CamUnifiedModel(nn.Module):
                generator: Optional[torch.Generator] = None, retrieval_filters: Optional[list] = None) -> Decision:
         """One decision for every row of `state` (all rows must be live environments), computed in acting (eval)
         mode. Mutates state.Z, option, last_now and the registries (entity binding); beliefs change only in
-        observe_outcomes."""
+        observe_outcomes. With cfg.n_intent > 0 the DOM decision bottleneck runs (`_decide_dom`)."""
+        if self.dom_decision:
+            return self._decide_dom(state, obs_lists, now, tools, goals, budget, greedy, generator,
+                                    retrieval_filters)
         cfg = self.cfg
         B, D = state.B, cfg.d_model
         dev = state.Z.device
@@ -1289,6 +1450,12 @@ class CamUnifiedModel(nn.Module):
         """Behaviour-policy provenance of an executed CAM action (spec 12.3). For a planner choice the recorded logp
         is the *generator's* proposal log-probability of the chosen candidate (+ option), not the probability of the
         argmax selection; the policy objective routes such decisions to an estimator that needs no behaviour ratio."""
+        st = _sel.stamp_of(a)
+        if isinstance(st, dict):
+            det = bool(st.get("greedy"))
+            return {"policy": "cam_select", "logp_kind": "deterministic" if det else "exact",
+                    "selection": "softmax_q", "n_candidates": int(st.get("n", 1)), "tau": st.get("tau"),
+                    "surrogate": "candidate_conditional"}
         if a.source == ActionSource.CAM_PLANNER:
             p = a.proposal or {}
             return {"policy": "planner_" + str(p.get("selection", "argmax")), "logp_kind": "generator_proposal",
@@ -1348,7 +1515,10 @@ class CamUnifiedModel(nn.Module):
         iterations in training); with adaptive reasoning a second, train-mode reasoner pass on the same inputs
         provides the differentiable ponder cost. Memory tokens are rebuilt from the stored ids when the retriever can
         (so the memory content projection is trained by the decision objectives); otherwise the stored tokens are
-        used."""
+        used. DOM decision path: `_evaluate_dom` (logp = generator + selection + option, plus gen_logp, sel_logp and
+        the executed action's Q)."""
+        if self.dom_decision:
+            return self._evaluate_dom(inp, actions)
         regs = copy.deepcopy(inp.registries)
         live = StepInputs(**{**inp.__dict__, "registries": regs})
         B = inp.B
@@ -1397,6 +1567,8 @@ class CamUnifiedModel(nn.Module):
         tool entropy is the entropy of the full tool-pointer distribution over the row's available tools), the
         option log-probability and the value V(R, G). Weight changes that change decisions show up here on a context
         that stays fixed (spec 18.2 'changes in action distributions')."""
+        if self.dom_decision:
+            return self._probe_dom(inp, actions)
         regs = copy.deepcopy(inp.registries)
         live = StepInputs(**{**inp.__dict__, "registries": regs})
         B = inp.B
@@ -1424,6 +1596,424 @@ class CamUnifiedModel(nn.Module):
                          "value": float(value[b]), "reason_iters": float(enc.rinfo["iters"][b])
                          if enc.rinfo.get("iters") is not None else None})
         return {"rows": rows, "version": self.version}
+
+    # ================================================================ DOM decision bottleneck (Mechanism B; W5)
+    def attach_reward_model(self, reward_model) -> None:
+        """Hold the actor reward model R_psi (W8, interfaces.RewardModelP) by reference, never as a submodule (no
+        optimiser over model.parameters() reaches psi). Its potential Phi enters the evaluator's Q stop-gradient;
+        its version is stamped into every DOM decision."""
+        self.__dict__["reward_model"] = reward_model
+
+    def decision_versions(self) -> dict:
+        rm = self.__dict__.get("reward_model")
+        return {"policy": int(self.version), "weights_epoch": int(self.weights_epoch),
+                "reward_model": getattr(rm, "version", None) if rm is not None else None}
+
+    def _budget_token(self, budget: Optional[BudgetState], enc: StepEncoding) -> Optional[TokenSet]:
+        """BUDGET(b_t) for the intent (DOM): the exploration head reads the budget (and R) only, never the goal."""
+        if not (self.cfg.use_learned_exploration and self.exploration_head is not None):
+            return None
+        B = enc.R.shape[0]
+        bud = (budget if budget is not None else BudgetState.make(B, device=enc.R.device)).to(enc.R.device)
+        avail = {"b": bud, "budget": bud, "R": enc.R}
+        kw = {n: avail[n] for n in _params_of(self.exploration_head.forward) if n in avail}
+        self._count("exploration_head")
+        tok = check_tokens(self.exploration_head(**kw), B, self.cfg.d_model, "exploration_head")
+        return as_kind(tok, TokenKind.BUDGET)
+
+    def intent(self, enc: StepEncoding, opt_tok: Optional[TokenSet], budget: Optional[BudgetState]) -> torch.Tensor:
+        """I_t = IntentHead(R_t, ctx_out, OPTION(o_t), BUDGET(b_t)) [B, n_intent, D]."""
+        B = enc.R.shape[0]
+        self._count("intent_head")
+        I = self.intent_head(enc.R, enc.ctx_out, enc.ctx.mask, enc.ctx.kind,
+                             extra=[opt_tok, self._budget_token(budget, enc)])
+        return check_shape(I, (B, int(self.cfg.n_intent), self.cfg.d_model), "intent_head I")
+
+    def _candidate_tokens(self, cands: list, tool_list: list) -> TokenSet:
+        K = len(cands)
+        return check_tokens(self.tokenizer.action(cands, tool_lists=[tool_list] * K), K, self.cfg.d_model,
+                            "tokenizer.action(candidates)")
+
+    @staticmethod
+    def _pool_tokens(ts: TokenSet) -> torch.Tensor:
+        """[K, N, D] TokenSet -> [K, D] masked mean (detached float32): a candidate's action embedding."""
+        m = ts.mask.unsqueeze(-1).float()
+        return ((ts.x.float() * m).sum(1) / m.sum(1).clamp_min(1.0)).detach()
+
+    @torch.no_grad()
+    def candidate_set_of(self, actions: list, tools: list):
+        """decision.select.CandidateSet of stored actions (their cam_eval stamps; rows without a stamp are fully
+        masked), with each recorded candidate's pooled action-token embedding recomputed by the current tokenizer
+        over the row's tool list (incl. the generator's built-ins), as in `decide`."""
+        _, lists = self.tool_tokens(tools)
+        stamps = [_sel.stamp_of(a) if a is not None else None for a in actions]
+        embs = []
+        with self._autocast():
+            for b, st in enumerate(stamps):
+                if not st or not st.get("candidates"):
+                    embs.append(None)
+                    continue
+                cands = [Action.from_dict(d) for d in st["candidates"]]
+                embs.append(self._pool_tokens(self._candidate_tokens(cands, lists[b])))
+        return _sel.candidate_set_from_stamps(stamps, embs, device=self.device)
+
+    def _score_row(self, enc: StepEncoding, I: torch.Tensor, b: int, cands: list, tools_b: list,
+                   pre: Optional[dict] = None) -> tuple:
+        """Q [K] of row b's concrete candidates and preds {Z_hat [K,S,D], r_hat, phi, v, gamma, dt: [K]} (+ "act").
+        `pre` (policy_features) holds the row's detached prior outputs, so only the fast-set heads run."""
+        from .decision.evaluator import row_cut
+        K = len(cands)
+        ev = self.decision_evaluator
+        if pre is not None:
+            q, parts = ev.q_rows(pre["Z_hat"], pre["act"], pre["dt"], I[b:b + 1].expand(K, -1, -1),
+                                 self.value_head, pre["phi"])
+            parts.update({"Z_hat": pre["Z_hat"], "dt": pre["dt"]})
+            return q, parts
+        Ab = self._candidate_tokens(cands, enc.tool_lists[b])
+        idx = [b] * K
+        dt_b = self.expected_dt(enc.Z[idx], Ab, cands, [tools_b] * K)
+        rm = self.__dict__.get("reward_model")
+        pot = getattr(rm, "potential", None) if rm is not None else None
+        self._count("decision_evaluator.score")
+        Q, preds = ev.score(enc.R[b:b + 1], row_cut(enc.belief, b), row_cut(enc.goal, b), [Ab], dt_b.view(1, K),
+                            world_model=self.world_model, value_head=self.value_head, intent=I[b:b + 1],
+                            potential=pot, exact_rows=True)
+        out = {k: v[0] for k, v in preds.items()}
+        out["act"] = Ab
+        return Q[0], out
+
+    @torch.no_grad()
+    @_acting
+    @_det
+    def _decide_dom(self, state: CamState, obs_lists: list, now: list, tools: list, goals: list,
+                    budget: Optional[BudgetState], greedy: bool, generator: Optional[torch.Generator],
+                    retrieval_filters: Optional[list]) -> Decision:
+        """Observation -> Z_t -> R_t -> I_t -> K candidates (one batched decode) -> Q of each concrete candidate ->
+        selection -> a stamped Action per row (plan §2 step 2). Greedy: one greedy candidate, argmax selection
+        (behaviour log-probability 0)."""
+        import time as _time
+        t0 = _time.perf_counter()
+        cfg = self.cfg
+        B, D = state.B, cfg.d_model
+        dev = state.Z.device
+        if not (len(obs_lists) == len(now) == len(tools) == len(goals) == B):
+            raise ShapeError("decide: obs/now/tools/goals must all have B entries")
+        regs_snapshot = copy.deepcopy(state.registries)
+        now_t = torch.tensor([float(x) for x in now], device=dev)
+        dt_prev = torch.where(state.last_now >= 0, (now_t - state.last_now).clamp(min=0), torch.full_like(now_t, -1))
+        K = 1 if greedy else max(1, int(getattr(cfg, "n_candidates", 1)))
+        tau = float(getattr(cfg, "select_tau", 1.0))
+        timings = {}
+        with self._autocast():
+            G, Bt = self._goal_and_belief(goals, state.fast, B)
+            M, ids, scores = (None, [[] for _ in range(B)], None)
+            if cfg.use_memory:
+                M, ids, scores = self.retrieve(state.Z, G, Bt, retrieval_filters, list(now))
+            inp = StepInputs(state.Z.detach(), None if state.fast is None else state.fast.clone(), regs_snapshot,
+                             obs_lists, list(now), list(state.last_actions), list(goals), list(tools),
+                             detach_tokens(M), [list(i) for i in ids], dt_prev, budget, state.option.clone(),
+                             state.option_steps.clone(), state.option.clone(),
+                             torch.zeros(B, dtype=torch.bool, device=dev), state.option_steps.clone())
+            inp.registries = state.registries
+            enc = self.encode_step(inp, pre=(G, Bt))
+            inp.registries = regs_snapshot
+            for d in enc.dropped:
+                for k, n in d.items():
+                    self._count(f"ctx_dropped/{k}", n)
+            opt_logp = torch.zeros(B, device=dev)
+            opt_tok = None
+            if self.option_policy is not None:
+                self._count("option_policy.step")
+                # the option policy reads the core-processed context, not raw goal tokens (goal only via Z/R/ctx_out)
+                ost = self.option_policy.step(enc.R, enc.ctx_tokens(), state.option, state.option_steps, greedy,
+                                              gen_on(generator, dev))
+                check_shape(ost.option, (B,), "option_policy.step option")
+                inp.option, inp.option_new, inp.option_steps = ost.option.long(), ost.new.bool(), ost.steps.long()
+                opt_logp = ost.logp.float()
+                opt_tok = self._option_token(inp.option, inp.option_steps)
+                state.option, state.option_steps = inp.option.clone(), inp.option_steps.clone()
+            pre_hook = self.__dict__.get("_latent_pre_hook")
+            if pre_hook is not None:                 # Condition G variant: replace R_t before the intent reads it
+                enc.R = pre_hook(enc.R)
+            I = self.intent(enc, opt_tok, budget)
+            hook = self.__dict__.get("_latent_hook")
+            if hook is not None:                     # Condition G: replace R_t / I_t (observations held constant)
+                enc.R, I = hook(enc.R, I)
+                check_shape(I, (B, int(cfg.n_intent), D), "latent intervention I")
+            t1 = _time.perf_counter()
+            timings["encode_s"] = t1 - t0
+            # ---- K candidates per row, one batched decode over B*K rows (all conditioned on I_t only)
+            idx = torch.arange(B, device=dev).repeat_interleave(K)
+            il = idx.tolist()
+            self._count("action_generator.sample")
+            flat = self.action_generator.sample_from_intent(
+                I[idx], enc.tools.select(idx), enc.ctx_tokens().select(idx), [tools[i] for i in il],
+                [obs_lists[i] for i in il], temperature=1.0, greedy=greedy, generator=gen_on(generator, dev))
+            if len(flat) != B * K:
+                raise ShapeError(f"action generator returned {len(flat)} candidates for B*K={B * K}")
+            cands = [flat[b * K:(b + 1) * K] for b in range(B)]
+            for c in flat:
+                if c.logp is None:
+                    raise ShapeError("every CAM candidate must carry its generator log-probability (Action.logp)")
+            t2 = _time.perf_counter()
+            timings["generate_s"] = t2 - t1
+            # ---- evaluate every concrete candidate, select, stamp
+            Qs, preds = [], []
+            for b in range(B):
+                q, p = self._score_row(enc, I, b, cands[b], tools[b])
+                Qs.append(q)
+                preds.append(p)
+            Q = torch.stack(Qs, 0)
+            gen_lp = torch.tensor([[float(c.logp) for c in row] for row in cands], device=dev)
+            sel_idx, sel_lp, recs = _sel.select(Q, gen_lp, tau, getattr(cfg, "veto_q", None), greedy=greedy,
+                                                generator=gen_on(generator, dev))
+            t3 = _time.perf_counter()
+            timings["evaluate_s"] = t3 - t2
+            vers = self.decision_versions()
+            actions, behavior = [], []
+            for b in range(B):
+                k = int(sel_idx[b])
+                c = cands[b][k]
+                a = Action.from_dict(c.to_dict())
+                a.logp_parts["gen_logp"] = float(c.logp)
+                a.logp_parts["selection"] = float(sel_lp[b])
+                a.proposal = {"n": K, "probs": recs[b]["probs"], "chosen": k, "proposal_logp": recs[b]["gen_logp"],
+                              "scores": recs[b]["q"], "selection": "softmax_q"}
+                # float32, in the order policy_evaluate adds them (gen + sel + option): bit-identical replay
+                tot = gen_lp[b, k] + sel_lp[b].to(gen_lp.dtype)
+                if self.option_policy is not None:
+                    a.option_id = int(state.option[b])
+                    a.logp_parts["option"] = float(opt_logp[b])
+                    tot = tot + opt_logp[b].to(gen_lp.dtype)
+                else:
+                    tot = tot + torch.zeros((), device=dev)
+                a.logp = float(tot)
+                _sel.attach_stamp(a, recs[b], cands[b], vers,
+                                  extra={"r_hat": [float(x) for x in preds[b]["r_hat"]],
+                                         "phi": [float(x) for x in preds[b]["phi"]],
+                                         "v_int": [float(x) for x in preds[b]["v"]],
+                                         "dt": [float(x) for x in preds[b]["dt"]],
+                                         "intervened": hook is not None or pre_hook is not None})
+                actions.append(a)
+                behavior.append(self.behavior_of(a, greedy))
+            logp = torch.tensor([float(a.logp) for a in actions], device=dev)
+            A_tok = check_tokens(self.tokenizer.action(actions, tool_lists=enc.tool_lists), B, D,
+                                 "tokenizer.action(selected)")
+            Z_hat = torch.stack([preds[b]["Z_hat"][int(sel_idx[b])] for b in range(B)], 0)
+            dt = torch.stack([preds[b]["dt"][int(sel_idx[b])] for b in range(B)], 0).float()
+            specs, prosp = self.prospective_batch(state)
+            mean, var, _ = self.predict_outcomes(Z_hat, state.fast, prosp)
+            value = self._value(self.value_head(enc.R, None, [intent_tokens(I)]))
+            check_shape(value, (B,), "value_head")
+        state.Z = enc.Z.detach().float()
+        state.last_actions = list(actions)
+        state.last_now = now_t
+        predicted, uncertainty = [], []
+        for b in range(B):
+            predicted.append({s.key: float(mean[b, q]) for q, s in enumerate(specs[b])})
+            uncertainty.append({s.key: float(var[b, q]) for q, s in enumerate(specs[b])})
+        halt = enc.rinfo.get("halt_p")
+        iters = enc.rinfo.get("iters")
+        reasoning = [{"iters": float(iters[b]) if iters is not None else 0.0,
+                      "halt_p": [] if halt is None else [float(v) for v in halt[b].float()]} for b in range(B)]
+        retrieved = [[{"id": str(i), "score": float(scores[b][j]) if scores is not None else 0.0}
+                      for j, i in enumerate(ids[b])] for b in range(B)]
+        cand_out = [[{"action": c.to_dict(), "score": recs[b]["q"][k], "logp": float(c.logp),
+                      "prob": recs[b]["probs"][k], "vetoed": recs[b]["vetoed"][k], "source": c.source.value}
+                     for k, c in enumerate(cands[b])] for b in range(B)]
+        evaluation = [{**recs[b], "versions": vers} for b in range(B)]
+        cset = _sel.candidate_set_from_stamps([_sel.stamp_of(a) for a in actions],
+                                              [self._pool_tokens(preds[b]["act"]) for b in range(B)], device=dev)
+        timings["total_s"] = _time.perf_counter() - t0
+        return Decision(actions, inp, enc.Z.detach().float(), enc.R.detach().float(), Z_hat.detach().float(),
+                        detach_tokens(A_tok), detach_tokens(enc.ctx), specs, mean, var, predicted, uncertainty,
+                        value, logp, dt, reasoning, retrieved, cand_out, [[] for _ in range(B)],
+                        belief_summary(None if state.fast is None else state.fast.logw) or [{} for _ in range(B)],
+                        behavior, [{"ctx_tokens": dict(d)} for d in enc.dropped], None, timings,
+                        I.detach().float(), evaluation, cset)
+
+    def _dom_encode(self, inp: StepInputs) -> tuple:
+        """Recompute (enc, option logp [B], option entropy [B], OPTION(o_t)) of stored decisions, as when acting."""
+        regs = copy.deepcopy(inp.registries)
+        live = StepInputs(**{**inp.__dict__, "registries": regs})
+        B = inp.B
+        mem = None
+        if self.cfg.use_memory and any(inp.memory_ids):
+            mem = self.memory_tokens(inp.memory_ids, inp.now)
+        with acting_mode(self):
+            enc = self.encode_step(live, memory=mem)
+            opt_tok = None
+            opt_lp = torch.zeros(B, device=enc.R.device)
+            opt_ent = torch.zeros(B, device=enc.R.device)
+            if self.option_policy is not None:
+                opt_lp, opt_ent = self.option_policy.log_prob(enc.R, enc.ctx_tokens(), inp.option_prev,
+                                                              inp.option_steps_prev, inp.option, inp.option_new)
+                opt_tok = self._option_token(inp.option, inp.option_steps)
+        return enc, opt_lp.float(), opt_ent.float(), opt_tok, mem is not None
+
+    def _dom_terms(self, enc: StepEncoding, opt_tok: Optional[TokenSet], inp: StepInputs, actions: list,
+                   pre: Optional[list] = None, parts: bool = False) -> dict:
+        """The fast-set dependent part of the DOM policy (intent -> generator log-probability of the executed actions
+        -> evaluator Q of the recorded candidates -> selection log-probability -> V(R, I)). `pre` (one dict per
+        row, from `policy_features`) replaces the world-model prior passes by their detached outputs."""
+        B = inp.B
+        dev = enc.R.device
+        with acting_mode(self):
+            I = self.intent(enc, opt_tok, inp.budget)
+            lp, en = self.action_generator.log_prob_parts_from_intent(I, enc.tools, enc.ctx_tokens(), inp.tools,
+                                                                       inp.obs_lists, actions)
+            zero = torch.zeros((), device=dev)
+            sel, sent, qx, qall = [zero] * B, [zero] * B, [zero] * B, [None] * B
+            for b, a in enumerate(actions):
+                st = _sel.stamp_of(a) if a is not None else None
+                if st is None:
+                    continue                  # demonstration / external action: no selection term
+                cands = [Action.from_dict(d) for d in st["candidates"]]
+                q, _ = self._score_row(enc, I, b, cands, inp.tools[b], None if pre is None else pre[b])
+                ch = torch.tensor([int(st["chosen"])], device=dev)
+                vet = torch.tensor([list(st.get("vetoed") or [False] * len(cands))], dtype=torch.bool, device=dev)
+                g = torch.tensor([bool(st.get("greedy"))], device=dev)
+                s, e = _sel.selection_log_prob(q.view(1, -1), ch, float(st.get("tau", 1.0)), vet, g)
+                sel[b], sent[b], qx[b], qall[b] = s[0], e[0], q[int(st["chosen"])], q
+            vout = self.value_head(enc.R, None, [intent_tokens(I)])
+        gen_lp = sum(v.float() for v in lp.values())
+        gen_ent = sum(v.float() for v in en.values())
+        out = {"gen_logp": gen_lp, "gen_entropy": gen_ent, "sel_logp": torch.stack(sel).float(),
+               "sel_entropy": torch.stack(sent).float(), "q_exec": torch.stack(qx).float(), "q": qall,
+               "intent": I, "vout": vout, "tool_entropy": en["tool"].float()}
+        if parts:
+            out["parts"] = ({k: v.float() for k, v in lp.items()}, {k: v.float() for k, v in en.items()})
+        return out
+
+    @_det
+    def _evaluate_dom(self, inp: StepInputs, actions: list) -> dict:
+        """DOM policy_evaluate: logp = log p_gen(a | I) + log softmax(Q / tau)_chosen (+ option) [B], recomputed
+        with gradients through the intent, the generator, the evaluator, the world-model prior, the reasoner and the
+        core. Also returns gen_logp, sel_logp, q_exec (Q of the executed action, for L_eval) and the intent."""
+        with self._autocast():
+            enc, opt_lp, opt_ent, opt_tok, rebuilt = self._dom_encode(inp)
+            t = self._dom_terms(enc, opt_tok, inp, actions)
+        logp = t["gen_logp"] + t["sel_logp"] + opt_lp
+        check_shape(logp, (inp.B,), "DOM policy logp")
+        ponder = enc.rinfo.get("ponder")
+        if ponder is not None and not ponder.requires_grad:
+            ponder = None
+        logits = getattr(t["vout"], "logits", None)
+        return {"logp": logp.float(), "entropy": (t["gen_entropy"] + t["sel_entropy"] + opt_ent).float(),
+                "value": self._value(t["vout"]), "value_logits": None if logits is None else logits.float(),
+                "ponder": None if ponder is None else ponder.float(), "memory_rebuilt": rebuilt,
+                "gen_logp": t["gen_logp"].float(), "sel_logp": t["sel_logp"], "option_logp": opt_lp,
+                "q_exec": t["q_exec"], "intent": t["intent"], "tool_entropy": t["tool_entropy"],
+                "sel_entropy": t["sel_entropy"]}
+
+    @torch.no_grad()
+    @_det
+    def _probe_dom(self, inp: StepInputs, actions: list) -> dict:
+        with self._autocast():
+            enc, opt_lp, _, opt_tok, _ = self._dom_encode(inp)
+            t = self._dom_terms(enc, opt_tok, inp, actions, parts=True)
+        lp, en = t["parts"]
+        value = self._value(t["vout"])
+        rows = []
+        for b in range(inp.B):
+            d_lp = {k: float(v[b]) for k, v in lp.items()}
+            d_lp["selection"] = float(t["sel_logp"][b])
+            d_en = {k: float(v[b]) for k, v in en.items()}
+            d_en["selection"] = float(t["sel_entropy"][b])
+            q = t["q"][b]
+            rows.append({"logp": d_lp, "logp_total": float(sum(d_lp.values())), "entropy": d_en,
+                         "option_logp": float(opt_lp[b]), "value": float(value[b]),
+                         "reason_iters": float(enc.rinfo["iters"][b]) if enc.rinfo.get("iters") is not None else None,
+                         "q": None if q is None else [float(x) for x in q]})
+        return {"rows": rows, "version": self.version}
+
+    @torch.no_grad()
+    @_det
+    def policy_features(self, inp: StepInputs, actions: list) -> dict:
+        """Detached decision features of stored DOM decisions for the fast-set meta-gradient (W8; plan §2 'Inner'):
+        the step encoding (core, reasoner, beliefs), the option decision and, per row, the world-model prior outputs
+        Z^_k, ACTION tokens, dt_k and Phi of every recorded candidate. `policy_from_features` then recomputes the
+        policy as a function of the fast set only (decision.fast.fast_params)."""
+        from .decision.evaluator import row_cut
+        with self._autocast():
+            enc, opt_lp, opt_ent, opt_tok, _ = self._dom_encode(inp)
+            pre = []
+            rm = self.__dict__.get("reward_model")
+            pot = getattr(rm, "potential", None) if rm is not None else None
+            ev = self.decision_evaluator
+            for b, a in enumerate(actions):
+                st = _sel.stamp_of(a) if a is not None else None
+                if st is None:
+                    pre.append(None)
+                    continue
+                cands = [Action.from_dict(d) for d in st["candidates"]]
+                K = len(cands)
+                Ab = self._candidate_tokens(cands, enc.tool_lists[b])
+                dt_b = self.expected_dt(enc.Z[[b] * K], Ab, cands, [inp.tools[b]] * K)
+                Rb = enc.R[[b] * K]
+                bel = row_cut(enc.belief, b)
+                bel = None if bel is None else bel.select([0] * K)
+                Zh = ev.prior_rows(Rb, bel, Ab, dt_b, self.world_model)
+                goal = row_cut(enc.goal, b)
+                phi = ev.potential_rows(Zh, None if goal is None else goal.select([0] * K), pot)
+                pre.append({"Z_hat": Zh.detach(), "act": detach_tokens(Ab), "dt": dt_b.detach(),
+                            "phi": phi.detach()})
+        enc_d = StepEncoding(detach_tokens(enc.obs), detach_tokens(enc.goal), detach_tokens(enc.belief),
+                             detach_tokens(enc.memory), detach_tokens(enc.option_tok), detach_tokens(enc.ctx),
+                             enc.Z.detach(), enc.R.detach(), {}, enc.dropped, enc.ctx_out.detach(),
+                             detach_tokens(enc.tools), enc.tool_lists, None)
+        return {"enc": enc_d, "opt_tok": detach_tokens(opt_tok), "opt_logp": opt_lp.detach(),
+                "opt_entropy": opt_ent.detach(), "pre": pre, "inp": inp}
+
+    @_det
+    def policy_from_features(self, feats: dict, actions: list) -> dict:
+        """The DOM policy on detached features: differentiable in the fast set only (intent head, pointer and typed
+        heads, evaluator head, value head; plus the frozen-path bridge / decoder adapters through string holes).
+        Same keys as policy_evaluate (logp includes the recorded option log-probability as a constant)."""
+        with self._autocast():
+            t = self._dom_terms(feats["enc"], feats["opt_tok"], feats["inp"], actions, pre=feats["pre"])
+        logits = getattr(t["vout"], "logits", None)
+        return {"logp": (t["gen_logp"] + t["sel_logp"] + feats["opt_logp"]).float(),
+                "entropy": (t["gen_entropy"] + t["sel_entropy"] + feats["opt_entropy"]).float(),
+                "value": self._value(t["vout"]), "value_logits": None if logits is None else logits.float(),
+                "gen_logp": t["gen_logp"].float(), "sel_logp": t["sel_logp"], "q_exec": t["q_exec"],
+                "intent": t["intent"]}
+
+    @contextmanager
+    def latent_intervention(self, fn, before_intent: bool = False):
+        """DOM Condition G: inside the block, `fn(R [B,S,D], I [B,n,D]) -> (R', I')` replaces CAM's reasoned state
+        and intent in every DOM decision (observations, tools and the core's context outputs are held constant).
+        before_intent=True: `fn(R) -> R'` replaces R_t before the intent head reads it (I_t = Intent(R', ctx_out)).
+        Decisions taken under an intervention are stamped `intervened: True`."""
+        key = "_latent_pre_hook" if before_intent else "_latent_hook"
+        prev = self.__dict__.get(key)
+        self.__dict__[key] = fn
+        try:
+            yield self
+        finally:
+            self.__dict__[key] = prev
+
+    @torch.no_grad()
+    @_det
+    def tool_distribution(self, inp: StepInputs, intent_fn=None) -> tuple:
+        """DOM diagnostics on stored decision inputs: (tool log-probabilities [B,T] of the generator's pointer, the
+        allowed mask, tool lists incl. built-ins, I [B,n,D]); `intent_fn(I) -> I'` transforms the intent first
+        (e.g. zeroing it, or permuting it across rows)."""
+        with self._autocast():
+            enc, _, _, opt_tok, _ = self._dom_encode(inp)
+            with acting_mode(self):
+                I = self.intent(enc, opt_tok, inp.budget)
+                if intent_fn is not None:
+                    I = intent_fn(I)
+                lp, allowed, lists2 = self.action_generator.tool_log_probs_from_intent(I, enc.tools, inp.tools)
+        return lp, allowed, lists2, I
+
+    def forward(self, inp: StepInputs, actions: list, features: Optional[dict] = None) -> dict:
+        """nn.Module entry point used by torch.func.functional_call (decision.fast): the policy recomputation
+        (`policy_from_features` when `features` are given, else `policy_evaluate`)."""
+        if features is not None:
+            return self.policy_from_features(features, actions)
+        return self.policy_evaluate(inp, actions)
 
     # ---- seam delegations: replay filtering / world objective in world/train_seq.py, adaptation in
     # core/belief_runtime.py (owner W6)

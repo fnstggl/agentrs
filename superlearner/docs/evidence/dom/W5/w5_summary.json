@@ -1,0 +1,132 @@
+{
+ "workstream": "W5 DEC (decision bottleneck, Mechanism B)",
+ "code_commit": "889096834592b1afa172136e0f231bcf48d444df",
+ "preset": "dom_dev (8x384 core, Qwen/Qwen3-0.6B), cuda (shared A6000)",
+ "commands": {
+  "condition_g": "cd superlearner && PYTHONPATH=src:../crucible/src flock /workspace/agentrs/runs/cam_unified/gpu_heavy.lock python -m superlearner.cam_unified.decision.condition_g --out docs/evidence/dom/W5/condition_g_dom_dev.json",
+  "ow_tiny_and_agent_loop": "cd superlearner && PYTHONPATH=src:../crucible/src flock /workspace/agentrs/runs/cam_unified/gpu_heavy.lock python -m superlearner.cam_unified.decision.condition_g --ow-tiny --out docs/evidence/dom/W5/ow_tiny_strings_and_agent_loop_dom_dev.json",
+  "w5_tests": "PYTHONPATH=src:../crucible/src python -m pytest tests/cam_unified/dom/test_dom_bottleneck.py tests/cam_unified/dom/test_selection_replay.py tests/cam_unified/dom/test_dom_condition_g.py"
+ },
+ "plan_real_e2e_check": {
+  "zeroing_I_makes_tool_distribution_goal_independent": {
+   "max_prob_gap_I_zero": 0.0,
+   "max_prob_gap_trained_I": 0.9999999999999998,
+   "pass": true
+  },
+  "condition_g_swap_follow_donor_ge_0.9": {
+   "swap_RI_follow_donor": 1.0,
+   "B": 16,
+   "swap_I_only_follow_donor": 1.0,
+   "swap_R_before_intent_follow_donor": 0.0,
+   "pass": true,
+   "finding": "swapping R_t alone before the intent head moves 0/16 actions to the donor (swap_R_only_after_intent follows own 16/16): after imitation the goal reaches I_t through the core-processed context ctx_out (goal tokens processed by F_theta), not through the 8 state slots R_t; swapping (R, I) or I alone moves 16/16"
+  },
+  "kl_pi_vs_I_permuted_gt_0.1_nats": {
+   "untrained": 0.0008911574841476977,
+   "trained": 32.73262023925781,
+   "pass": true
+  },
+  "behaviour_logp_incl_selection_replays_exactly": {
+   "max_abs_diff_same_batch": 0.0,
+   "gen": 0.0,
+   "sel": 0.0,
+   "grad_mode": 0.0,
+   "ow_tiny_replay": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "permuted_half_batch_tolerance_only": 1.9073486328125e-05,
+   "pass": true
+  },
+  "no_execution_without_stamp": {
+   "executed_all_authorized": true,
+   "unstamped_refused": true,
+   "tampered_refused": true,
+   "forged_refused": true,
+   "agent_loop_executed": 192,
+   "agent_loop_unstamped": 0,
+   "agent_loop_stamp_in_proposal_v4_slot": 192,
+   "pass": true
+  }
+ },
+ "imitation": {
+  "steps": 120,
+  "accuracy_sampled": 1.0,
+  "accuracy_greedy": 1.0,
+  "note": "two-goal oracle demonstrations, declared condition demo-init:two_goal_oracle"
+ },
+ "candidate_set_for_credit": {
+  "B": 8,
+  "emb_shape": [
+   8,
+   4,
+   384
+  ],
+  "mask_all": true,
+  "emb_abs_mean": 0.8102208971977234,
+  "sel_logp_at_chosen_max_abs_diff": 0.0,
+  "sel_prob_row_sum_max_dev": 0.0,
+  "stamp_in_proposal_v4_slot": 8,
+  "stamp_in_logp_parts": 0,
+  "recomputed_from_archive": {
+   "chosen_equal": true,
+   "sel_logp_equal": true,
+   "emb_max_abs_diff": 0.0
+  }
+ },
+ "ow_tiny": {
+  "n_tools": 145,
+  "string_holes_decoded_in_candidates": 85,
+  "unauthorized_batches": 0,
+  "decide_s": [
+   15.154288210906088,
+   11.826240968424827,
+   11.450806407257915,
+   6.617788982111961
+  ],
+  "agent_loop_updates": 3,
+  "peak_gpu_gb": 6.294989109039307,
+  "decoder_cond_api_present": {
+   "sample": false,
+   "score": false
+  },
+  "note": "decoder cond= (W4 Mechanism A) is absent on seam-0; actions.py passes cond=(I_t, None) automatically once W4's filler takes it"
+ },
+ "decide_timing_B16_K4_median_s": {
+  "encode_s": 0.14208227908238769,
+  "generate_s": 0.2186277750879526,
+  "evaluate_s": 0.25775829795747995,
+  "total_s": 0.6556422719731927
+ },
+ "fast_set": {
+  "fast": 14951694,
+  "slow": 45883410
+ },
+ "peak_gpu_gb_condition_g": 2.234738349914551,
+ "tests": {
+  "w5_files_cpu_and_gpu": "21 passed (test_dom_bottleneck 12 incl. 3 new CPU, test_selection_replay 7 incl. 1 new GPU, test_dom_condition_g 2)",
+  "cpu_regression": {
+   "dom": "12 passed",
+   "integration": "103 passed, 1 skipped",
+   "learn": "96 passed",
+   "world": "60 passed, 4 skipped",
+   "experiments": "21 passed",
+   "envs": "69 passed",
+   "selfeval": "12 passed",
+   "memory": "96 passed, 3 skipped",
+   "observe": "11 passed",
+   "credit": "22 passed",
+   "semantic/test_actions+test_acting+test_length": "23 passed",
+   "not_run": "core/ and dist/ (they take the GPU lock inside the test process; W3 / other owners), semantic/ remainder (1500 s timeout under CPU contention), autonomy/ + capabilities/ passed in an earlier aborted full run"
+  }
+ },
+ "change_requests_handled": {
+  "W1: stamp Action.proposal['cam_eval'] from decision.select": "done: attach_stamp writes proposal['cam_eval'] (k, n_candidates, q, gen_logp, sel_logp, sel_logp_all, policy_version, psi_version, HMAC digest); stamp_of also reads the legacy logp_parts slot",
+  "W8: fast_params(model) -> dict": "present: decision.fast.fast_params (14.95M fast parameters at dom_dev)",
+  "W8: record candidate set (embeddings, mask), selection scores and log-probs, chosen slot": "done: Decision.candidate_set (decision.select.CandidateSet) and model.candidate_set_of(actions, tools) from archived actions",
+  "W3: pass sem to core and reasoner": "done conditionally: encode_step passes sem=tokenizer.semantic_context(...) when cfg.sem_xattn_every > 0 and core/reasoner take sem (inactive on seam-0's core; W4's semantic_context signature matches)",
+  "W3: entity type tokens": "done: encode_step passes make_type_tokens(registries, semantic) when the encoder takes them and its type width equals the semantic width (inactive on seam-0's EntityEncoder; CPU unit test with W3's API)"
+ }
+}

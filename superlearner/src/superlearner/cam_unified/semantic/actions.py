@@ -42,6 +42,16 @@ temperature=t)` evaluates the same path under another temperature (e.g. the targ
 a record (demonstrations) are encoded from their arguments (exact numbers; a number equal to an evidence number is
 encoded as a copy) and score without an evidence term unless evidence labels are given.
 
+Intent mode (DOM Mechanism B, cfg.n_intent > 0; plan 2026-11-26 §2/§3 W5). The generator is conditioned on CAM's
+intent I_t [B, n_intent, D] ONLY: the tool logits are the bilinear form logit_t = (W_q sum_n a_n I_n) . (W_k k_t) /
+sqrt(D) with bias-free W_q, W_k and no tool prior, where k_t are the core's outputs ctx_out at the TOOL positions
+(state-conditioned keys; built-ins included); the evidence pointer reads ctx_out at the observation positions; the
+typed heads, the length prior and the bridge prefix read I_t (and the decoder latent cross-attention gets I_t as
+`cond` when the hole filler supports it). There is no path from raw goal, belief or tokenizer tool tokens to the
+action, and I_t = 0 gives a uniform tool distribution whatever the goal (closed by construction). Use
+`sample_from_intent` / `log_prob_from_intent` / `log_prob_parts_from_intent`; the legacy (R, goal, belief) methods
+refuse to run in intent mode. Records sampled in intent mode carry decode["mode"] = "intent" and replay only there.
+
 Per-action compute: one tool-pointer read, <= max_evidence pointer steps, one ArgHeads read per non-trivial decision
 (batched over rows; an exact decimal number costs 2-3 + #digits decisions), and - only when a string hole exists -
 one Qwen prefill (prompt ~ tool schema + evidence, + n_prefix prefix vectors) plus one decoder step per forced/sampled
@@ -51,6 +61,7 @@ token after the first hole; with rescore=True one more teacher-forced Qwen forwa
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import math
 from typing import Optional
@@ -85,6 +96,13 @@ def builtin_tools(cfg: CamConfig) -> list:
                                                              "additionalProperties": False},
                    meta={"builtin": True}),
     ]
+
+
+def _params(fn) -> set:
+    try:
+        return set(inspect.signature(fn).parameters) if fn is not None else set()
+    except (TypeError, ValueError):
+        return set()
 
 
 def _validate(schema: dict, value) -> list:
@@ -128,13 +146,24 @@ class ActionGenerator(nn.Module):
         self.evidence_chars = evidence_chars
         self.autocast = autocast
         self.exact_rows = exact_rows
-        self.src_emb = nn.Embedding(3, D)
+        self.n_intent = int(getattr(cfg, "n_intent", 0) or 0)
+        if self.n_intent:
+            # intent mode: bilinear in I_t (bias-free, no tool prior): I_t = 0 -> uniform over the allowed tools
+            self.src_emb = None
+        else:
+            self.src_emb = nn.Embedding(3, D)
         self.ctx_norm = RMSNorm(D)
         self.tool_query = nn.Parameter(torch.randn(1, D) * 0.02)
         self.tool_reader = ContextReader(D, cfg.n_heads, 1)
-        self.tool_q = nn.Linear(D, D)
-        self.tool_k = nn.Linear(D, D)
-        self.tool_prior = nn.Linear(D, 1)
+        if self.n_intent:
+            self.tool_a = nn.Parameter(torch.full((self.n_intent,), 1.0 / self.n_intent))
+            self.tool_q = nn.Linear(D, D, bias=False)
+            self.tool_k = nn.Linear(D, D, bias=False)
+            self.tool_prior = None
+        else:
+            self.tool_q = nn.Linear(D, D)
+            self.tool_k = nn.Linear(D, D)
+            self.tool_prior = nn.Linear(D, 1)
         self.ev_query = nn.Parameter(torch.randn(1, D) * 0.02)
         self.ev_tool = nn.Linear(D, D)
         self.ev_reader = ContextReader(D, cfg.n_heads, 1)
@@ -164,6 +193,10 @@ class ActionGenerator(nn.Module):
                       "rescored": 0, "demo_numbers": 0, "demo_numbers_approx": 0, "demo_numbers_copied": 0}
         self.max_rescore_drift = 0.0                 # max |incremental sampling logp - learner-path logp| seen
         self.last_compute: dict = {}
+        # decoder latent cross-attention (W4 Mechanism A): the hole filler takes cond=(latent [n, L, D], mask) once
+        # its API has it; detected, never assumed
+        self._cond_sample = "cond" in _params(getattr(self.filler, "sample", None))
+        self._cond_score = "cond" in _params(getattr(self.filler, "score", None))
         self.to(encoder.device)
 
     # ------------------------------------------------------------------ bookkeeping
@@ -283,23 +316,88 @@ class ActionGenerator(nn.Module):
         return number_candidates(src, self.opts.max_copy_candidates)
 
     # ------------------------------------------------------------------ the shared forward
+    def _legacy_only(self, what: str) -> None:
+        """The (R, goal, belief) entry points do not exist for a generator built in intent mode (bypass closed by
+        construction: there is no way to hand it raw goal / belief / tokenizer tool tokens)."""
+        if self.n_intent:
+            raise GrammarError(f"{what}(R, goal, belief, ...) is not available: this generator is built in intent mode "
+                               f"(cfg.n_intent={self.n_intent}); use {what.split('_')[0]}_from_intent / "
+                               f"log_prob_from_intent")
+
+    def _intent_tools(self, tools: TokenSet, tool_lists: list):
+        """Intent mode: `tools` are the core's outputs at the TOOL positions, one per tool of
+        tool_lists_with_builtins (refs = ToolSchema.key, checked)."""
+        lists2 = self.tool_lists_with_builtins(tool_lists)
+        n_max = max((len(l) for l in lists2), default=0)
+        if tools.N < n_max:
+            raise GrammarError(f"intent mode: {tools.N} tool keys for up to {n_max} tools (TOOL tokens incl. "
+                               f"built-ins must be in the core context)")
+        if tools.refs is not None:
+            for b, l2 in enumerate(lists2):
+                got = list(tools.refs[b][: len(l2)])
+                if got != [t.key for t in l2] or not bool(tools.mask[b, : len(l2)].all()):
+                    raise GrammarError(f"row {b}: the tool keys do not match the row's tool list")
+        return tools, lists2
+
+    def _intent_tool_logits(self, ctx_x, keys):
+        """Bilinear pointer: linear (bias-free) pooling of the (normed) intent tokens against the tool keys:
+        logit_t = (W_q sum_n a_n I_n) . k_t / sqrt(D); zero intent -> all logits 0."""
+        pooled = (self.tool_a.view(1, -1, 1).to(ctx_x.dtype) * ctx_x).sum(1)
+        return (self.tool_q(pooled).unsqueeze(1) * keys).sum(-1) / math.sqrt(self.D)
+
+    def tool_log_probs_from_intent(self, I, tools: TokenSet, tool_lists: list, temperature: float = 1.0,
+                                   tool_mask=None) -> tuple:
+        """Intent mode: the full tool-pointer distribution (log-probabilities [B, T], -inf at tools that are not
+        allowed; allowed mask [B, T]; tool lists incl. built-ins), exactly as `sample_from_intent` uses it.
+        Differentiable (diagnostics: goal independence at I = 0, KL under intent permutation)."""
+        if not self.n_intent:
+            raise GrammarError("tool_log_probs_from_intent needs a generator built in intent mode")
+        B, dev = I.shape[0], I.device
+        with self._ac():
+            ctx_x = self.ctx_norm(I)
+            tools2, lists2 = self._intent_tools(tools, tool_lists)
+            T = tools2.N
+            gm = [[self.grammar(t).generable for t in lists2[b]] + [False] * (T - len(lists2[b])) for b in range(B)]
+            allowed = tools2.mask & torch.tensor(gm, dtype=torch.bool, device=dev).reshape(B, T)
+            if tool_mask is not None:
+                allowed = allowed & tool_mask.to(dev)[:, :T]
+            logits = self._intent_tool_logits(ctx_x, self.tool_k(tools2.x))
+            lp = masked_log_softmax(logits, allowed | ~allowed.any(1, keepdim=True), float(temperature))
+        return lp.float(), allowed, lists2
+
     def _forward(self, R, goal, belief, tools, obs, tool_lists, obs_lists, *, teacher=None, temperature=1.0,
-                 greedy=False, generator=None, tool_mask=None, sample=True, exact_rows=False):
-        B, dev, D = R.shape[0], R.device, self.D
+                 greedy=False, generator=None, tool_mask=None, sample=True, exact_rows=False, intent=None):
+        if (intent is not None) != bool(self.n_intent):
+            raise GrammarError("this generator is built in intent mode (cfg.n_intent > 0): pass the intent I_t"
+                               if self.n_intent else "intent given to a generator built without n_intent")
+        ref = intent if intent is not None else R
+        B, dev, D = ref.shape[0], ref.device, self.D
         if teacher is None:
             temps = torch.full((B,), float(temperature), device=dev)
             active = list(range(B))
         else:
             temps = torch.tensor([float(t["temperature"]) if t is not None else 1.0 for t in teacher], device=dev)
             active = [b for b in range(B) if teacher[b] is not None]
-        zero = R.new_zeros((), dtype=torch.float32)
+        zero = ref.new_zeros((), dtype=torch.float32)
         parts = {k: [zero for _ in range(B)] for k in PART_KEYS}
         ents = {k: [zero for _ in range(B)] for k in PART_KEYS}
         n_dec, n_tok, n_copy = [0] * B, [0] * B, [0] * B
+        mode = "intent" if intent is not None else "legacy"
+        if teacher is not None:
+            for b in active:
+                rm = teacher[b].get("mode")
+                if teacher[b].get("choices") is not None and (rm or "legacy") != mode:
+                    raise GrammarError(f"row {b}: the action was sampled in {rm or 'legacy'} mode; this generator "
+                                       f"replays {mode} records only")
         with self._ac():
-            ctx_x, ctx_m = decision_context(R, goal, belief, self.src_emb)
-            ctx_x = self.ctx_norm(ctx_x)
-            tools2, lists2 = self._augment_tools(tools, tool_lists)
+            if intent is not None:
+                ctx_x = self.ctx_norm(intent)
+                ctx_m = torch.ones(B, intent.shape[1], dtype=torch.bool, device=dev)
+                tools2, lists2 = self._intent_tools(tools, tool_lists)
+            else:
+                ctx_x, ctx_m = decision_context(R, goal, belief, self.src_emb)
+                ctx_x = self.ctx_norm(ctx_x)
+                tools2, lists2 = self._augment_tools(tools, tool_lists)
             T = tools2.N
             tools_sha = [self.tools_fingerprint(lists2[b]) for b in range(B)]
             if teacher is not None:
@@ -323,7 +421,11 @@ class ActionGenerator(nn.Module):
             # ---- tool pointer
             qt = self.tool_reader(self.tool_query.unsqueeze(0).expand(B, -1, -1), ctx_x, ctx_m).squeeze(1)
             keys = self.tool_k(tools2.x)
-            logits = (self.tool_q(qt).unsqueeze(1) * keys).sum(-1) / math.sqrt(D) + self.tool_prior(tools2.x).squeeze(-1)
+            if intent is not None:
+                logits = self._intent_tool_logits(ctx_x, keys)
+            else:
+                logits = (self.tool_q(qt).unsqueeze(1) * keys).sum(-1) / math.sqrt(D) + \
+                    self.tool_prior(tools2.x).squeeze(-1)
             tool_idx = [-1] * B
             for b in active:
                 if not bool(allowed[b].any()):
@@ -450,13 +552,18 @@ class ActionGenerator(nn.Module):
             qwen_steps = 0
             if hole_rows:
                 rt = torch.tensor(hole_rows, device=dev)
-                prefix = self.bridge(R[rt], goal.select(rt) if goal is not None else None,
-                                     belief.select(rt) if belief is not None else None)
+                if intent is not None:
+                    prefix = self.bridge(intent[rt], None, None)
+                else:
+                    prefix = self.bridge(R[rt], goal.select(rt) if goal is not None else None,
+                                         belief.select(rt) if belief is not None else None)
+                cond = (intent[rt], None) if intent is not None else None
                 progs = [programs[b] for b in hole_rows]
                 ctxs = [ctx_ids[b] for b in hole_rows]
                 if sample:
+                    ckw = {"cond": cond} if (cond is not None and self._cond_sample) else {}
                     lp, en, ns, qwen_steps = self.filler.sample(progs, prefix, ctxs, float(temperature), greedy,
-                                                                generator)
+                                                                generator, **ckw)
                     for j, b in enumerate(hole_rows):
                         n_tok[b] = ns[j]
                 else:
@@ -475,7 +582,8 @@ class ActionGenerator(nn.Module):
                             for h, tk in zip(p.holes, rec):
                                 h.tokens = list(tk)
                     tt = temps[rt].unsqueeze(1)
-                    lp, en, nt = self.filler.score(progs, prefix, ctxs, tt, exact_rows=exact_rows)
+                    ckw = {"cond": cond} if (cond is not None and self._cond_score) else {}
+                    lp, en, nt = self.filler.score(progs, prefix, ctxs, tt, exact_rows=exact_rows, **ckw)
                     for j, b in enumerate(hole_rows):
                         n_tok[b] = int(nt[j])
                 for j, b in enumerate(hole_rows):
@@ -503,7 +611,8 @@ class ActionGenerator(nn.Module):
                 "allowed": restricted, "tools_sha": tools_sha, "ev": [b in ev_rows for b in range(B)],
                 "ev_sha": ev_sha, "choices": choices, "templates": templates, "programs": programs,
                 "prompt_sha": prompt_sha, "prompt_trunc": prompt_trunc, "n_dec": n_dec, "n_tok": n_tok,
-                "n_copy": n_copy, "active": active, "approx": flags.get("approx", 0)}
+                "n_copy": n_copy, "active": active, "approx": flags.get("approx", 0), "mode": mode,
+                "cond_decoder": bool(intent is not None and hole_rows and self._cond_sample)}
 
     def _teacher_tool(self, t: dict, lst: list) -> int:
         idx = t.get("tool")
@@ -604,10 +713,28 @@ class ActionGenerator(nn.Module):
         logp_parts["sample_logp"]. rescore=False keeps the incremental value as `logp` (diagnostics only: under bf16
         it differs from log_prob by up to ~1 nat per action). Greedy actions: logp = 0.0 (deterministic behaviour),
         logp_parts["greedy"] = True, logp_parts["policy_logp"] = tau-softmax log-probability of the greedy path."""
+        self._legacy_only("sample")
+        return self._sample(R, goal, belief, tools, obs, tool_lists, obs_lists, temperature, greedy, generator,
+                            tool_mask, rescore, exact_rows, source, None)
+
+    @torch.no_grad()
+    def sample_from_intent(self, I, tools: TokenSet, obs: TokenSet, tool_lists: list, obs_lists: list,
+                           temperature: float = 1.0, greedy: bool = False, *, generator=None, tool_mask=None,
+                           rescore: bool = True, exact_rows: Optional[bool] = None,
+                           source: ActionSource = ActionSource.CAM_DECODER) -> list:
+        """Intent mode (Mechanism B): [B] Action from the intent I [B, n_intent, D] alone. `tools` = the core's
+        outputs at the TOOL positions (one per tool of tool_lists_with_builtins(tool_lists), refs = keys); `obs` =
+        the core's ctx_out as a TokenSet (refs of the context; evidence candidates are its observation tokens).
+        Same records, rescoring and greedy conventions as `sample`."""
+        return self._sample(None, None, None, tools, obs, tool_lists, obs_lists, temperature, greedy, generator,
+                            tool_mask, rescore, exact_rows, source, I)
+
+    def _sample(self, R, goal, belief, tools, obs, tool_lists, obs_lists, temperature, greedy, generator, tool_mask,
+                rescore, exact_rows, source, intent):
         out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, temperature=temperature,
-                            greedy=greedy, generator=generator, tool_mask=tool_mask, sample=True)
+                            greedy=greedy, generator=generator, tool_mask=tool_mask, sample=True, intent=intent)
         actions = []
-        for b in range(R.shape[0]):
+        for b in range(len(out["tools"])):
             tool = out["tools"][b]
             mstats: dict = {}
             args = materialize(out["templates"][b], mstats)
@@ -626,6 +753,8 @@ class ActionGenerator(nn.Module):
                    "temperature": float(temperature), "greedy": bool(greedy),
                    "allowed": None if out["allowed"] is None else out["allowed"][b],
                    "reduced": len(g.reductions), "len_prior": self.length_head is not None}
+            if out["mode"] == "intent":
+                rec["mode"] = "intent"
             ev_entities = sorted({obs_lists[b][i].entity for i in out["evidence"][b] if obs_lists[b][i].entity})
             code = args.get("code") if isinstance(args.get("code"), str) else None
             dur = tool.duration_hint
@@ -646,8 +775,8 @@ class ActionGenerator(nn.Module):
         self.stats["actions"] += len(actions)
         compute = dict(self.last_compute)
         if rescore:
-            lpr, enr = self.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
-                                           exact_rows=exact_rows)
+            lpr, enr = self._log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions,
+                                            exact_rows=exact_rows, intent=intent)
             for b, a in enumerate(actions):
                 for k_src, k_dst in (("tool", "tool"), ("evidence", "evidence"), ("heads", "args_heads"),
                                      ("tokens", "args_tokens")):
@@ -710,27 +839,49 @@ class ActionGenerator(nn.Module):
         exact_rows (default self.exact_rows): every row is evaluated alone on its own un-padded tokens (all components),
         so the result is independent of the minibatch composition. temperature: evaluate the recorded paths under
         this temperature instead of the recorded one (e.g. the target policy at 1.0)."""
+        self._legacy_only("log_prob_parts")
+        return self._log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence,
+                                    exact_rows, temperature, None)
+
+    def log_prob_parts_from_intent(self, I, tools, obs, tool_lists, obs_lists, actions, evidence=None,
+                                   exact_rows: Optional[bool] = None, temperature: Optional[float] = None):
+        """Intent mode: ({tool, evidence, heads, tokens}: [B], entropies) of `actions` given I [B, n_intent, D]
+        (differentiable in I, the TOOL / observation ctx_out tensors and the generator's parameters)."""
+        return self._log_prob_parts(None, None, None, tools, obs, tool_lists, obs_lists, actions, evidence,
+                                    exact_rows, temperature, I)
+
+    def log_prob_from_intent(self, I, tools, obs, tool_lists, obs_lists, actions, *,
+                             exact_rows: Optional[bool] = None, temperature: Optional[float] = None) -> tuple:
+        """Intent mode ActionGeneratorP.log_prob -> (logp [B], entropy [B])."""
+        lp, en = self._log_prob_parts(None, None, None, tools, obs, tool_lists, obs_lists, actions, None,
+                                      exact_rows, temperature, I)
+        return sum(lp.values()), sum(en.values())
+
+    def _log_prob_parts(self, R, goal, belief, tools, obs, tool_lists, obs_lists, actions, evidence=None,
+                        exact_rows: Optional[bool] = None, temperature: Optional[float] = None, intent=None):
         teacher = self._teacher(actions, evidence)
         if temperature is not None:
             for t in teacher:
                 if t is not None:
                     t["temperature"] = float(temperature)
         exact = self.exact_rows if exact_rows is None else exact_rows
-        B = R.shape[0]
+        ref = intent if intent is not None else R
+        B = ref.shape[0]
         if not exact or B == 1:
             out = self._forward(R, goal, belief, tools, obs, tool_lists, obs_lists, teacher=teacher, sample=False,
-                                exact_rows=exact)
+                                exact_rows=exact, intent=intent)
             return out["logp"], out["entropy"]
-        zero = R.new_zeros((), dtype=torch.float32)
+        zero = ref.new_zeros((), dtype=torch.float32)
         lps = {k: [zero] * B for k in PART_KEYS}
         ens = {k: [zero] * B for k in PART_KEYS}
         tot: dict = {}
         for b in range(B):
             if teacher[b] is None:
                 continue
-            o = self._forward(R[b:b + 1], row_tokens(goal, b), row_tokens(belief, b), row_tokens(tools, b),
-                              row_tokens(obs, b), [tool_lists[b]], [obs_lists[b]], teacher=[teacher[b]], sample=False,
-                              exact_rows=True)
+            o = self._forward(None if R is None else R[b:b + 1], row_tokens(goal, b), row_tokens(belief, b),
+                              row_tokens(tools, b), row_tokens(obs, b), [tool_lists[b]], [obs_lists[b]],
+                              teacher=[teacher[b]], sample=False, exact_rows=True,
+                              intent=None if intent is None else intent[b:b + 1])
             for k in PART_KEYS:
                 lps[k][b] = o["logp"][k][0]
                 ens[k][b] = o["entropy"][k][0]
@@ -751,6 +902,7 @@ class ActionGenerator(nn.Module):
                           evidence: list) -> tuple:
         """log pi(evidence = labels | R, tool, obs) [B] and its entropy [B] (evidence-retrieval supervision).
         tool_names[b] names the tool the evidence is for; evidence[b] lists observation indices (<= max_evidence)."""
+        self._legacy_only("evidence_log_prob")
         B, dev = R.shape[0], R.device
         zero = R.new_zeros((), dtype=torch.float32)
         parts = {"evidence": [zero for _ in range(B)]}
@@ -775,6 +927,7 @@ class ActionGenerator(nn.Module):
     def sample_candidates(self, R, goal, belief, tools, obs, tool_lists, obs_lists, n: int,
                           temperature: float = 1.0, generator=None) -> list:
         """n independent CAM-decoder samples per row -> [B][n] Action (each with its own logp and record)."""
+        self._legacy_only("sample_candidates")
         B = R.shape[0]
         idx = torch.arange(B, device=R.device).repeat_interleave(n)
         rep = lambda ts: None if ts is None else ts.select(idx)
