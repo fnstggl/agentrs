@@ -11,9 +11,9 @@ or a docstring say something else, the code is described and the difference is l
 values in force with `configs/cam_live.yaml` and no further configuration section (`predict`, `reward`, `credit`,
 `agent` are absent from that file, so the dataclass defaults apply).
 
-Five formulas were re-evaluated on the CPU at `55a0f4c` (script
-`/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/DOC/math/check.py`, run with
-`cd cam_live && PYTHONPATH=src ../.venv/bin/python -I <script>`): the NIG predictive variance of §2.2 (0.585551 by
+Five formulas were re-evaluated on the CPU at `55a0f4c` (script `docs/evidence/DOC/scripts/math_check.py`, run with
+`cd cam_live && ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py`; re-run at `5ae3b59` with the same
+numbers, output `docs/evidence/DOC/math_check.txt`): the NIG predictive variance of §2.2 (0.585551 by
 `FastBeliefState.predict` against 0.585551 by the closed form), the prior of the selection calibration (§6.3:
 mean of (beta_q, beta_pi) draws (1.002, 0.0006), mean lambda 0.357, lambda > 0 in 49.9 % of draws), the exploration
 floor (§6.1: a one-hot vector becomes 0.985 / 0.005 / 0.005 / 0.005), the return discount (§8.1: beta =

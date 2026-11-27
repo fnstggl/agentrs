@@ -1,0 +1,91 @@
+{
+ "workstream": "M-DOC",
+ "commit": "see git log 'cam live [DOC]' (documents describe 55a0f4c / d3ce519 for the model and mathematics, 204e9d4 for operator resources and known failures)",
+ "summary": "Documentation deliverables written from the code, not from the design documents. MODEL_ARCHITECTURE.md gives the as-built model with file:function citations, parameter counts measured by building the integrated agent on CPU, the data flow of one decision, and the design differences. MATH_NOTES.md gives the mathematics as implemented, with the code location of each equation, five formulas re-evaluated numerically, and the numerical caveats with their state at HEAD. OPERATOR_RESOURCES.md lists everything the runtime refuses to start or act without, from the preflight / doctor / task-loader code, with the offline preflight of both Discord tasks executed. REPRODUCE.md has dependencies and commands in one place: 83 commands checked (59 with --help, 24 executed offline). KNOWN_FAILURES.md is an append-only register of deployment blockers, negative results and open defects with evidence paths. No code was edited.",
+ "requirements": {
+  "DL-02": {
+   "state": "implemented",
+   "files": ["docs/MODEL_ARCHITECTURE.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "CAM_LIVE_HOME=<scratch>/DOC/arch/home /workspace/camlive/.venv/bin/python -I cam_live/docs/evidence/DOC/scripts/count_params.py <out.json>",
+    "/workspace/camlive/.venv/bin/python -I cam_live/docs/evidence/DOC/scripts/extra_counts.py"
+   ],
+   "evidence": ["docs/evidence/DOC/param_counts.json", "docs/evidence/DOC/scripts/count_params.py"],
+   "limitations": "Describes the committed code at d3ce519 (src/ and configs/ identical at 55a0f4c). Later commits by INT3A / INT3B / HX (prompt tool list, settle, platform constraints, IH-15) are not described. Counts were measured on CPU (backbone loaded in float32; counts do not depend on dtype). Presets 150m-1b are quoted from A's measurement, not re-run."
+  },
+  "DL-04": {
+   "state": "implemented",
+   "files": ["docs/MATH_NOTES.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": ["cd cam_live && ../.venv/bin/python -I docs/evidence/DOC/scripts/math_check.py"],
+   "evidence": ["docs/evidence/DOC/math_check.txt", "docs/evidence/DOC/scripts/math_check.py"],
+   "limitations": "Equations come from reading the code at 55a0f4c. Five formulas were re-evaluated numerically (NIG predictive variance, selection-calibration prior, exploration floor, discount rate, scale invariance of the reward normalisation); the rest were not executed. Caveats marked 'not re-checked' (G_nn D3, D8; G_cl m3) were not confirmed against the code."
+  },
+  "DL-20": {
+   "state": "implemented",
+   "files": ["docs/OPERATOR_RESOURCES.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": [
+    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live preflight --task cam_live/tasks/discord_100_planning.yaml  (exit 3: 9 live items)",
+    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live preflight --task cam_live/tasks/discord_100.yaml  (exit 3: 25 live items)",
+    "CAM_LIVE_HOME=<scratch>/DOC/oper/home .venv/bin/cam-live doctor --json  (blocking_live = [persistent_storage])"
+   ],
+   "evidence": ["docs/evidence/DOC/preflight_offline.txt"],
+   "limitations": "Offline preflight only: no services were started, so the authorization, environment, Discord and verifier items are reported as unconfirmed. The Discord facts (intents, bot membership, token file) are taken from the ledger and docs/evidence/discord/, not re-checked; /root/.config/camlive was not read. The list covers what the code enforces plus infrastructure, and nothing CAM may request itself."
+  },
+  "IN-05": {
+   "state": "implemented",
+   "files": ["docs/REPRODUCE.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": ["bash cam_live/docs/evidence/DOC/scripts/check_help.sh", "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh"],
+   "evidence": ["docs/evidence/DOC/command_check.txt"],
+   "limitations": "Checked at d3ce519; tools/launch_live.sh and tasks/discord_launch_check.yaml at 55a0f4c. No live run, push, service start as root, or external contact. The whole test suite was not re-run: the newest recorded result is cited (INT2_full.xml, 1039a6f). Documented-but-missing commands and command defects are listed in REPRODUCE.md section 13 and KNOWN_FAILURES.md KF-E10..E12."
+  },
+  "CM-13": {
+   "state": "implemented",
+   "files": ["docs/REPRODUCE.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": ["bash cam_live/docs/evidence/DOC/scripts/check_help.sh", "bash cam_live/docs/evidence/DOC/scripts/check_exec.sh"],
+   "evidence": ["docs/evidence/DOC/command_check.txt"],
+   "limitations": "Dependencies are the installed versions of this venv (layered over the agentrs venv) and pyproject.toml; a fresh-machine install (REPRODUCE.md section 2.2) was not executed. CM-13 is owned by F: this file (workstream M-DOC) is a claim by another workstream for it."
+  },
+  "IN-06": {
+   "state": "implemented",
+   "files": ["docs/KNOWN_FAILURES.md"],
+   "integration_points": [],
+   "tests": [],
+   "commands": [],
+   "evidence": ["docs/KNOWN_FAILURES.md"],
+   "limitations": "Initial register at 204e9d4 built from the status files, DIAGNOSIS.md, INTEGRATION.md sections 7-9, change requests, verdicts and COMPLETION.md (generated at 799f032). Entries marked 'not re-checked' come from the record. Results of runs in progress (INT3A, INT3B, HX, G2-learn, S queue) are not included; they have to be appended."
+  }
+ },
+ "public_api": [],
+ "change_requests": 0,
+ "measured": {
+  "trainable_parameters_default_total": 74672079,
+  "frozen_backbone_parameters": 4022468096,
+  "semantic_adapters": 16713856,
+  "experiential": 50953765,
+  "reward": 949121,
+  "heads": 6055337,
+  "inner_update_subset": 5422467,
+  "trainable_parameters_debug_total": 1181515,
+  "commands_checked": 83,
+  "commands_help_exit0": 59,
+  "commands_executed_offline": 24,
+  "preflight_live_items_planning": 9,
+  "preflight_live_items_discord_100": 25
+ },
+ "not_done": [
+  "No JUnit: DOC wrote documents and edited no code, so there is no test run of its own to record.",
+  "The documents describe the code at the commits named in each; changes committed later by INT3A / INT3B / HX are not covered.",
+  "No preflight against running live services (needs root launch and the operator's signed record)."
+ ],
+ "scientific_failures": []
+}

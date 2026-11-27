@@ -79,7 +79,8 @@ CAM_LIVE_HOME=<scratch>/DOC/arch/home /workspace/camlive/.venv/bin/python -I <sc
 /workspace/camlive/.venv/bin/python -I <scratch>/DOC/arch/extra_counts.py   # frozen prior buffers of the world heads
 ```
 
-(`<scratch>` = `/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad`.) The script calls only
+(`<scratch>` = `/tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad`; both scripts are kept in
+`docs/evidence/DOC/scripts/count_params.py` and `extra_counts.py`.) The script calls only
 `CamLiveConfig.load()/debug()`, `nn.model.build_model`, `agent.CamLiveAgent(..., model=model)`,
 `CamLiveModel.count_parameters()` and `param_groups()`. On CPU the backbone loads in float32
 (`SemanticBackbone.__init__`); counts do not depend on dtype. No GPU was used.

@@ -113,3 +113,4 @@
   backbone on the shared GPU for the whole run (by design for a persistent run; on this shared machine it must be coordinated).
 - resources.operator_authorization_record in the task files is validated only as a slug; nothing compares it with the record_id
   that tools/authorize_live.py writes (live-<objective_id>-<unix time>).
+# The two check scripts are kept in docs/evidence/DOC/scripts/check_help.sh and check_exec.sh (copied from <S> on 2026-11-27 23:36 UTC).
