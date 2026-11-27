@@ -238,7 +238,8 @@
     "Someone must bind class 4: population.register_class_runtime(world, 4, handler, owner=...) with the semantic participant runtime (crucible.semantic.participants) - required by ONE_WORLD_CONTRACTS section 1.",
     "Performance of the integrated population world on the intfix tree is far below the D-27 targets (see measurements); the profile points at the shared space's encoders and language model running on CPU for every new artifact (skeptic S.3 D-16 cost risk)."
    ]
-  }
+  },
+  "c5c/w3b-perf continuation 3 (2026-11-27 01:45-02:30)": "Merged feat/crucible-5-complete (c9fca5c). Governor: GPU-time default covers the time limit per worker (36bb5ef), deadline (shadow-time) backfilling with probe deadline_backfill (81eff2b), --status says what each queued request waits for (41e3c15). Batching: method_request names a single-array output (B's review_day), bench5 counts pop.adaptive_day.* (77ab7e0); BATCHING.md checked against B 7f7387c / D 7417855. MEASUREMENTS section 8: final state of the stopped 30-day suite (6da724d); R1 growth (c57775c); DEF-M-3/6 progress. Verified directly (CPU, one thread): test_v5_slots 20 passed, test_v5_perf_units 10 passed, test_v5_perf_batching 9 passed, test_kernel + test_invariants 51 passed, test_scale worker-recycling regression 1 passed, 15 CPU-side governor probes contained. Queued (GPU queue 4/4 slots held for hours): standard x3 + population 30-day rerun, lp28 attribution, gates SP-1.2/SP-13.3, gates SP-13.7/SP-13.7b, full test_scale.py."
  },
  "requirements": {
   "SP-13.7": {
