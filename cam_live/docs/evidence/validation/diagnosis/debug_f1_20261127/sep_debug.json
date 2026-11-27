@@ -1,0 +1,36 @@
+{
+ "real_model": false,
+ "backbone": "tiny",
+ "n_candidates": 12,
+ "renders": [
+  "intervention:api:lab.act({\"channel\": 0, \"effort\": 1}) -> ",
+  "intervention:api:lab.act({\"channel\": 0, \"effort\": 2}) -> ",
+  "intervention:api:lab.act({\"channel\": 0, \"effort\": 3}) -> ",
+  "intervention:api:lab.act({\"channel\": 1, \"effort\": 1}) -> ",
+  "intervention:api:lab.act({\"channel\": 1, \"effort\": 2}) -> ",
+  "intervention:api:lab.act({\"channel\": 1, \"effort\": 3}) -> ",
+  "intervention:api:lab.act({\"channel\": 2, \"effort\": 1}) -> ",
+  "intervention:api:lab.act({\"channel\": 2, \"effort\": 2}) -> ",
+  "intervention:api:lab.act({\"channel\": 2, \"effort\": 3}) -> ",
+  "intervention:api:lab.act({\"channel\": 3, \"effort\": 1}) -> ",
+  "intervention:api:lab.act({\"channel\": 3, \"effort\": 2}) -> ",
+  "intervention:api:lab.act({\"channel\": 3, \"effort\": 3}) -> "
+ ],
+ "e_a": {
+  "mean_cosine_distance": 0.16590704023838043,
+  "min_cosine_distance": 0.015423357486724854
+ },
+ "z": {
+  "mean_cosine_distance": 0.10531534254550934,
+  "min_cosine_distance": 0.010088741779327393
+ },
+ "policy_logit_std": 0.016386743634939194,
+ "policy_prob_max": 0.08640096336603165,
+ "policy_prob_min": 0.08150720596313477,
+ "one_step_on_candidate0": {
+  "p0_before": 0.08256123214960098,
+  "p0_after": 0.08523105084896088,
+  "others_mean_change": -0.00024269521236419678,
+  "others_max_abs_change": 0.002285771071910858
+ }
+}

@@ -1,0 +1,470 @@
+{
+ "base": {
+  "lifetimes": 4,
+  "decisions": 64,
+  "optim": null,
+  "agent": {
+   "selection_rule": null,
+   "value_weight": null,
+   "proposer_per_tool": null,
+   "use_backbone": false,
+   "grounded_share": null,
+   "backbone_share": null
+  },
+  "verified_progress": {
+   "n": 4,
+   "mean": 0.3062,
+   "lo": 0.0723,
+   "hi": 0.5816
+  },
+  "money_efficiency": {
+   "n": 4,
+   "mean": 0.4308,
+   "lo": 0.1558,
+   "hi": 0.7058
+  },
+  "choice_quality": {
+   "n": 64,
+   "mean": 0.0868,
+   "lo": 0.0352,
+   "hi": 0.1468
+  },
+  "uniform_quality_in_offer": {
+   "n": 64,
+   "mean": 0.1316,
+   "lo": 0.1238,
+   "hi": 0.1401
+  },
+  "p_of_best": {
+   "n": 64,
+   "mean": 0.0728,
+   "lo": 0.0622,
+   "hi": 0.0885
+  },
+  "p_uniform": {
+   "n": 64,
+   "mean": 0.0721,
+   "lo": 0.0717,
+   "hi": 0.0725
+  },
+  "acts_offered": {
+   "n": 64,
+   "mean": 4.0,
+   "lo": 4.0,
+   "hi": 4.0
+  },
+  "wait_fraction": 0.266,
+  "zero_value_fraction": 0.781,
+  "reward_hash_changed_lifetimes": 3,
+  "meta_applied": 2,
+  "policy_update_heads_delta": {
+   "n": 19,
+   "mean": 0.0054,
+   "lo": 0.0047,
+   "hi": 0.0063
+  },
+  "reward_vs_truth": null,
+  "per_lifetime_progress": [
+   0.14,
+   0.35,
+   0.73,
+   0.0
+  ]
+ },
+ "fix1": {
+  "lifetimes": 8,
+  "decisions": 118,
+  "optim": null,
+  "agent": {
+   "selection_rule": null,
+   "value_weight": null,
+   "proposer_per_tool": null,
+   "use_backbone": false,
+   "grounded_share": null,
+   "backbone_share": null
+  },
+  "verified_progress": {
+   "n": 8,
+   "mean": 0.6504,
+   "lo": 0.4472,
+   "hi": 0.8535
+  },
+  "money_efficiency": {
+   "n": 8,
+   "mean": 0.3761,
+   "lo": 0.2449,
+   "hi": 0.5335
+  },
+  "choice_quality": {
+   "n": 118,
+   "mean": 0.2018,
+   "lo": 0.1512,
+   "hi": 0.2569
+  },
+  "uniform_quality_in_offer": {
+   "n": 118,
+   "mean": 0.1961,
+   "lo": 0.1873,
+   "hi": 0.2049
+  },
+  "p_of_best": {
+   "n": 118,
+   "mean": 0.0662,
+   "lo": 0.0573,
+   "hi": 0.0783
+  },
+  "p_uniform": {
+   "n": 118,
+   "mean": 0.0625,
+   "lo": 0.0625,
+   "hi": 0.0625
+  },
+  "acts_offered": {
+   "n": 118,
+   "mean": 9.1271,
+   "lo": 8.8729,
+   "hi": 9.3814
+  },
+  "wait_fraction": 0.178,
+  "zero_value_fraction": 0.373,
+  "reward_hash_changed_lifetimes": 8,
+  "meta_applied": 1,
+  "policy_update_heads_delta": {
+   "n": 37,
+   "mean": 0.0052,
+   "lo": 0.0048,
+   "hi": 0.0056
+  },
+  "reward_vs_truth": {
+   "n": 118,
+   "n_inner": 118,
+   "spearman_inner_bootstrap_truth": 0.0450796831871217,
+   "mean_inner_bootstrap_by_op": {
+    "lab.act": 0.4268549048362262,
+    "lab.noise": 0.0008469594322377816,
+    "lab.probe": 0.33033093291862103,
+    "lab.unlock": 0.9411603510379791,
+    "wait": 0.5709198430565829
+   },
+   "spearman_bootstrap_truth": -0.42921154384876214,
+   "spearman_intrinsic_truth": -0.42921154384876214,
+   "mean_bootstrap_by_op": {
+    "lab.act": -0.001058244560939587,
+    "lab.noise": 0.0008367745031137019,
+    "lab.probe": -0.00025160490151713877,
+    "lab.unlock": 0.00036193427513353527,
+    "wait": -0.00029285163951239416
+   },
+   "mean_verified_delta_by_op": {
+    "lab.act": 4.7592592592592595,
+    "lab.noise": 0.0,
+    "lab.probe": 0.7647058823529411,
+    "lab.unlock": 5.5,
+    "wait": 7.222222222222222
+   }
+  },
+  "per_lifetime_progress": [
+   0.58,
+   0.33,
+   1.0,
+   1.0,
+   0.25,
+   0.39,
+   0.65,
+   1.0
+  ]
+ },
+ "fix2": {
+  "lifetimes": 7,
+  "decisions": 112,
+  "optim": {
+   "inner_lr": 0.01,
+   "inner_steps": 2,
+   "lr_reward": 0.0001,
+   "meta_min_independent_outcomes": 4
+  },
+  "agent": {
+   "selection_rule": null,
+   "value_weight": null,
+   "proposer_per_tool": null,
+   "use_backbone": false,
+   "grounded_share": null,
+   "backbone_share": null
+  },
+  "verified_progress": {
+   "n": 7,
+   "mean": 0.5556,
+   "lo": 0.3325,
+   "hi": 0.7599
+  },
+  "money_efficiency": {
+   "n": 7,
+   "mean": 0.2857,
+   "lo": 0.1685,
+   "hi": 0.4119
+  },
+  "choice_quality": {
+   "n": 112,
+   "mean": 0.1865,
+   "lo": 0.138,
+   "hi": 0.2388
+  },
+  "uniform_quality_in_offer": {
+   "n": 112,
+   "mean": 0.2213,
+   "lo": 0.2119,
+   "hi": 0.2311
+  },
+  "p_of_best": {
+   "n": 112,
+   "mean": 0.0589,
+   "lo": 0.0556,
+   "hi": 0.0618
+  },
+  "p_uniform": {
+   "n": 112,
+   "mean": 0.0625,
+   "lo": 0.0625,
+   "hi": 0.0625
+  },
+  "acts_offered": {
+   "n": 112,
+   "mean": 9.8571,
+   "lo": 9.6518,
+   "hi": 10.0536
+  },
+  "wait_fraction": 0.188,
+  "zero_value_fraction": 0.42,
+  "reward_hash_changed_lifetimes": 7,
+  "meta_applied": 0,
+  "policy_update_heads_delta": {
+   "n": 35,
+   "mean": 0.0043,
+   "lo": 0.0039,
+   "hi": 0.0049
+  },
+  "reward_vs_truth": null,
+  "per_lifetime_progress": [
+   0.25,
+   0.45,
+   1.0,
+   0.76,
+   0.67,
+   0.65,
+   0.1
+  ]
+ },
+ "fix2lr": {
+  "lifetimes": 8,
+  "decisions": 101,
+  "optim": {
+   "inner_lr": 0.3,
+   "inner_steps": 2,
+   "lr_reward": 0.0001,
+   "meta_min_independent_outcomes": 4
+  },
+  "agent": {
+   "selection_rule": null,
+   "value_weight": null,
+   "proposer_per_tool": null,
+   "use_backbone": false,
+   "grounded_share": null,
+   "backbone_share": null
+  },
+  "verified_progress": {
+   "n": 8,
+   "mean": 0.7906,
+   "lo": 0.5822,
+   "hi": 0.9536
+  },
+  "money_efficiency": {
+   "n": 8,
+   "mean": 0.4578,
+   "lo": 0.3051,
+   "hi": 0.5944
+  },
+  "choice_quality": {
+   "n": 101,
+   "mean": 0.2547,
+   "lo": 0.1947,
+   "hi": 0.3184
+  },
+  "uniform_quality_in_offer": {
+   "n": 101,
+   "mean": 0.2187,
+   "lo": 0.2083,
+   "hi": 0.2295
+  },
+  "p_of_best": {
+   "n": 101,
+   "mean": 0.0605,
+   "lo": 0.0568,
+   "hi": 0.0638
+  },
+  "p_uniform": {
+   "n": 101,
+   "mean": 0.0625,
+   "lo": 0.0625,
+   "hi": 0.0625
+  },
+  "acts_offered": {
+   "n": 101,
+   "mean": 9.5545,
+   "lo": 9.297,
+   "hi": 9.8119
+  },
+  "wait_fraction": 0.089,
+  "zero_value_fraction": 0.356,
+  "reward_hash_changed_lifetimes": 5,
+  "meta_applied": 0,
+  "policy_update_heads_delta": {
+   "n": 32,
+   "mean": 0.1885,
+   "lo": 0.1675,
+   "hi": 0.211
+  },
+  "reward_vs_truth": {
+   "n": 101,
+   "n_inner": 101,
+   "spearman_inner_bootstrap_truth": 0.252060116864159,
+   "mean_inner_bootstrap_by_op": {
+    "lab.act": 0.4262456670004982,
+    "lab.noise": 0.0010224029053157817,
+    "lab.probe": -0.0007923241750436968,
+    "lab.unlock": 0.000780365729172315,
+    "wait": 0.0009389861984851046
+   },
+   "spearman_bootstrap_truth": -0.06635961731681111,
+   "spearman_intrinsic_truth": -0.06635961731681111,
+   "mean_bootstrap_by_op": {
+    "lab.act": -0.0009774579514319507,
+    "lab.noise": 0.000978737632976845,
+    "lab.probe": -0.001471668531719063,
+    "lab.unlock": -0.0007497110262712729,
+    "wait": -0.00030536085897539224
+   },
+   "mean_verified_delta_by_op": {
+    "lab.act": 6.131578947368421,
+    "lab.noise": 0.0,
+    "lab.probe": 0.0,
+    "lab.unlock": 0.0,
+    "wait": 0.0
+   }
+  },
+  "per_lifetime_progress": [
+   0.27,
+   0.43,
+   1.0,
+   1.0,
+   0.8,
+   0.83,
+   1.0,
+   1.0
+  ]
+ },
+ "fix3": {
+  "lifetimes": 8,
+  "decisions": 92,
+  "optim": {
+   "inner_lr": 0.01,
+   "inner_steps": 2,
+   "lr_reward": 0.0001,
+   "meta_min_independent_outcomes": 4
+  },
+  "agent": {
+   "selection_rule": null,
+   "value_weight": null,
+   "proposer_per_tool": null,
+   "use_backbone": false,
+   "grounded_share": null,
+   "backbone_share": null
+  },
+  "verified_progress": {
+   "n": 8,
+   "mean": 0.7206,
+   "lo": 0.4262,
+   "hi": 0.9565
+  },
+  "money_efficiency": {
+   "n": 8,
+   "mean": 0.3839,
+   "lo": 0.2301,
+   "hi": 0.5206
+  },
+  "choice_quality": {
+   "n": 92,
+   "mean": 0.2904,
+   "lo": 0.2281,
+   "hi": 0.3568
+  },
+  "uniform_quality_in_offer": {
+   "n": 92,
+   "mean": 0.2196,
+   "lo": 0.209,
+   "hi": 0.2306
+  },
+  "p_of_best": {
+   "n": 92,
+   "mean": 0.0674,
+   "lo": 0.0528,
+   "hi": 0.0855
+  },
+  "p_uniform": {
+   "n": 92,
+   "mean": 0.0625,
+   "lo": 0.0625,
+   "hi": 0.0625
+  },
+  "acts_offered": {
+   "n": 92,
+   "mean": 9.9239,
+   "lo": 9.7283,
+   "hi": 10.1304
+  },
+  "wait_fraction": 0.065,
+  "zero_value_fraction": 0.098,
+  "reward_hash_changed_lifetimes": 4,
+  "meta_applied": 0,
+  "policy_update_heads_delta": {
+   "n": 29,
+   "mean": 0.0059,
+   "lo": 0.0055,
+   "hi": 0.0063
+  },
+  "reward_vs_truth": {
+   "n": 92,
+   "n_inner": 92,
+   "spearman_inner_bootstrap_truth": 0.17365458256770094,
+   "mean_inner_bootstrap_by_op": {
+    "lab.act": 0.3696427247052204,
+    "lab.noise": 0.00124230922665447,
+    "lab.unlock": 0.0013922430662205443,
+    "wait": 0.0006051700232395282
+   },
+   "spearman_bootstrap_truth": -0.34555866154985776,
+   "spearman_intrinsic_truth": -0.34555866154985776,
+   "mean_bootstrap_by_op": {
+    "lab.act": 0.00024254444119778564,
+    "lab.noise": 0.0015521632740274072,
+    "lab.unlock": 0.0013641244731843472,
+    "wait": 0.0004868900286965072
+   },
+   "mean_verified_delta_by_op": {
+    "lab.act": 4.3090909090909095,
+    "lab.noise": 0.0,
+    "lab.unlock": 0.0,
+    "wait": 0.0
+   }
+  },
+  "per_lifetime_progress": [
+   0.2,
+   1.0,
+   1.0,
+   1.0,
+   0.91,
+   0.65,
+   0.0,
+   1.0
+  ]
+ }
+}
