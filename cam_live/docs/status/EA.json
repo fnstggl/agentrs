@@ -1,0 +1,343 @@
+{
+ "workstream": "EA",
+ "commit": "58faf3f",
+ "summary": "Independent authorization layer: PolicyService (contracts.PolicyEngine) with fail-closed rule evaluation against a declarative policy file, HMAC grants bound to the action hash (single use), persistent approvals / limits / denied-intent tracking (SQLite), hash-chained MAC'd audit log with verifier, secret vault and broker with scrubbing, file-based pause and emergency stop, untrusted-content wrapper / context allowlist / instruction labelling, RPC service with SO_PEERCRED authorization matrix and Landlock self-confinement, launcher that runs services under their own uids, operator CLI. 190 tests (183 default CPU tests in 25 s + 7 privileged tests that create the users and switch uid).",
+ "requirements": {
+  "IH-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/vault.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/service.py",
+    "src/cam_live/harness/auth/client.py",
+    "src/cam_live/harness/auth/launcher.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.secrets_handle",
+    "cam_live.harness.auth.vault.ExecutorSecrets.bind",
+    "cam_live.harness.auth.PolicyService.secret_get",
+    "cam_live.harness.auth.PolicyService.scrub_obj",
+    "cam_live.harness.auth.client.AuthClient.secrets"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_vault.py::test_canary_never_reaches_observation_log_or_learner_facing_output",
+    "tests/harness/auth/test_ea_vault.py::test_release_needs_a_running_granted_action_and_the_bound_destination",
+    "tests/harness/auth/test_ea_vault.py::test_scrub_removes_the_value_in_every_common_encoding",
+    "tests/harness/auth/test_ea_vault.py::test_revocation_by_scope",
+    "tests/harness/auth/test_ea_policy_rules.py::test_credential_leakage",
+    "tests/harness/auth/test_ea_service.py::test_responses_to_the_learner_are_scrubbed",
+    "tests/harness/auth/test_ea_privileged.py::test_canary_secret_reaches_only_the_executor"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml",
+    "docs/EA/SECURITY.md"
+   ],
+   "limitations": "Holds for what passes through this layer: the vault is unreadable to the learner / sandbox uids (kernel), secrets are released only to the executor uid for a granted running action and its bound destination, and every learner-facing response and audit entry is scrubbed. That real executors (EB/EC/ES) scrub observations before returning them was not verified by EA (parallel workstreams); the canary flow uses EA's own executor-side script through the real service. Scrubbing knows the value and its base64 / hex / URL / JSON-escaped / reversed forms, not arbitrary transformations."
+  },
+  "IH-08": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/auth/schema.py",
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "src/cam_live/harness/auth/destinations.py",
+    "src/cam_live/harness/auth/grants.py",
+    "src/cam_live/harness/auth/service.py",
+    "src/cam_live/harness/auth/liveauth.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.authorize",
+    "cam_live.harness.auth.PolicyService.check_grant",
+    "cam_live.harness.auth.PolicyService.check_primitive",
+    "cam_live.harness.auth.service.AuthService",
+    "cam_live.harness.auth.client.connect"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_policy_rules.py::test_unknown_tools_are_denied",
+    "tests/harness/auth/test_ea_policy_rules.py::test_task_interfaces_limit_modalities_and_tools",
+    "tests/harness/auth/test_ea_policy_rules.py::test_live_mode_requires_a_signed_operator_record",
+    "tests/harness/auth/test_ea_policy_rules.py::test_side_effect_classes",
+    "tests/harness/auth/test_ea_policy_rules.py::test_malformed_policy_fails_closed",
+    "tests/harness/auth/test_ea_policy_rules.py::test_malformed_actions_are_denied",
+    "tests/harness/auth/test_ea_policy_rules.py::test_internal_errors_fail_closed",
+    "tests/harness/auth/test_ea_grants.py::test_forged_grants_are_rejected",
+    "tests/harness/auth/test_ea_grants.py::test_grant_is_bound_to_the_exact_action",
+    "tests/harness/auth/test_ea_grants.py::test_expired_grant_is_rejected",
+    "tests/harness/auth/test_ea_grants.py::test_valid_grant_is_accepted_once",
+    "tests/harness/auth/test_ea_service.py::test_every_method_for_every_caller",
+    "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml",
+    "docs/EA/POLICY_SCHEMA.md"
+   ],
+   "limitations": "The tool table (default_policy.yaml) was written before the other workstreams' tool names were final: an operation it does not list is denied until a line is added (data). Tool permissions are enforced where executors call check_grant / check_primitive; that wiring is in other workstreams' code."
+  },
+  "IH-09": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/approvals.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/opctl.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.approvals",
+    "cam_live.harness.auth.PolicyService.resolve_approval",
+    "python -m cam_live.harness.auth.opctl approve|reject"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_approvals.py::test_request_approve_execute_once",
+    "tests/harness/auth/test_ea_approvals.py::test_approval_binds_to_the_action_hash",
+    "tests/harness/auth/test_ea_approvals.py::test_rejection_is_final_for_that_action",
+    "tests/harness/auth/test_ea_approvals.py::test_pending_and_approved_requests_expire",
+    "tests/harness/auth/test_ea_approvals.py::test_queue_survives_restart",
+    "tests/harness/auth/test_ea_approvals.py::test_a_skill_has_no_more_permission_than_its_primitives",
+    "tests/harness/auth/test_ea_approvals.py::test_transport_requests_of_an_approved_logical_write_are_covered",
+    "tests/harness/auth/test_ea_policy_rules.py::test_publishing_approvals"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml"
+   ],
+   "limitations": "resolve_approval is accepted only from root (peer uid). A dashboard running as the learner uid can list approvals but must hand approve / reject to a root-owned process (opctl); that dashboard wiring belongs to workstream F and was not built or tested here."
+  },
+  "IH-10": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/limits.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/store.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.record",
+    "cam_live.harness.auth.PolicyService.limits_state",
+    "cam_live.harness.auth.is_resource_denial"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_limits.py::test_total_money_limit_and_actual_cost_accounting",
+    "tests/harness/auth/test_ea_limits.py::test_per_action_and_per_day_limits",
+    "tests/harness/auth/test_ea_limits.py::test_decision_external_action_and_compute_limits",
+    "tests/harness/auth/test_ea_limits.py::test_rate_limit_per_destination",
+    "tests/harness/auth/test_ea_limits.py::test_reservations_prevent_concurrent_overspend_and_expire",
+    "tests/harness/auth/test_ea_limits.py::test_limit_state_survives_restart",
+    "tests/harness/auth/test_ea_limits.py::test_the_learner_cannot_raise_limits_by_editing_the_task",
+    "tests/harness/auth/test_ea_limits.py::test_duration_limit",
+    "tests/harness/auth/test_ea_policy_rules.py::test_live_mode_never_assumes_unlimited_resources"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml"
+   ],
+   "limitations": "Accounting uses what the executor reports in record(); an executor that under-reports is believed (an action never recorded is charged its estimate). Compute spent by the learner itself (GPU inference / training) is not visible to this service; the runtime (F) enforces TaskSpec.limits for that."
+  },
+  "IH-11": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/stop.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/launcher.py",
+    "src/cam_live/harness/auth/opctl.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.emergency_stop",
+    "cam_live.harness.auth.PolicyService.stopped",
+    "cam_live.harness.auth.PolicyService.reset_stop",
+    "cam_live.harness.auth.stop.is_stopped",
+    "cam_live.harness.auth.launcher.LaunchHandle.resume",
+    "<run_dir>/auth/STOP"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_stop.py::test_stop_blocks_every_modality_immediately",
+    "tests/harness/auth/test_ea_stop.py::test_stop_survives_restart_and_reset_is_explicit",
+    "tests/harness/auth/test_ea_stop.py::test_flag_set_by_another_process_is_seen_by_the_next_decision",
+    "tests/harness/auth/test_ea_stop.py::test_pause_blocks_new_work_and_resume_restores_it",
+    "tests/harness/auth/test_ea_launcher.py::test_emergency_stop_halts_everything_but_the_authorization_service",
+    "tests/harness/auth/test_ea_launcher.py::test_launch_with_stop_already_engaged_starts_only_the_authorization_service",
+    "tests/harness/auth/test_ea_privileged.py::test_launcher_starts_supervises_and_stops_services_under_their_own_uids"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml"
+   ],
+   "limitations": "The stop denies every authorization call at once and the launcher kills the services it started (process sessions, run tag, uid descendants). An executor that is not started by this launcher and ignores check_primitive keeps running until its own process is stopped."
+  },
+  "CU-25": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "src/cam_live/harness/auth/service.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.authorize",
+    "cam_live.harness.auth.PolicyService.check_primitive",
+    "contracts.ExecContext.check"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_circumvention.py::test_denied_browser_action_reissued_as_code_or_api_is_denied",
+    "tests/harness/auth/test_ea_circumvention.py::test_denied_write_cannot_be_reissued_but_reading_stays_possible",
+    "tests/harness/auth/test_ea_circumvention.py::test_denied_channel_cannot_be_reached_through_raw_requests_or_skills",
+    "tests/harness/auth/test_ea_approvals.py::test_a_skill_has_no_more_permission_than_its_primitives",
+    "tests/harness/auth/test_ea_policy_rules.py::test_steps_are_evaluated_recursively",
+    "tests/harness/auth/test_ea_stop.py::test_stop_blocks_every_modality_immediately",
+    "tests/harness/auth/test_ea_grants.py::test_primitives_need_a_grant_in_use",
+    "tests/harness/auth/test_ea_policy_rules.py::test_browser_interaction_depends_on_ownership"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml",
+    "docs/EA/SECURITY.md"
+   ],
+   "limitations": "PARTIAL: the engine applies one rule set to structured-browser, visual, code, api, skill and internal actions and to every primitive, and tests cover all six. Whether each real executor (EB/EC/ES) routes every primitive through it was not verified by EA. Per-destination network scoping is enforced only on this policy path: the container has no CAP_NET_ADMIN, so nothing in the kernel stops a process with network access from reaching another host (docs/EA/SECURITY.md section 2)."
+  },
+  "CU-26": {
+   "state": "partial",
+   "files": [
+    "src/cam_live/harness/auth/untrusted.py",
+    "src/cam_live/harness/auth/policy.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.Untrusted",
+    "cam_live.harness.auth.policy_context",
+    "cam_live.harness.auth.label_observation",
+    "cam_live.harness.auth.label_result",
+    "cam_live.harness.auth.detect_instructions"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_injection.py::test_injected_instructions_are_labelled_and_nothing_else_changes",
+    "tests/harness/auth/test_ea_injection.py::test_decisions_are_identical_with_and_without_injected_context",
+    "tests/harness/auth/test_ea_injection.py::test_processing_injected_observations_changes_no_protected_state",
+    "tests/harness/auth/test_ea_injection.py::test_a_learner_that_obeys_each_injection_is_stopped",
+    "tests/harness/auth/test_ea_injection.py::test_free_text_fields_of_the_action_carry_no_authority",
+    "tests/harness/auth/test_ea_injection.py::test_untrusted_text_cannot_be_used_by_accident",
+    "tests/harness/auth/test_ea_injection.py::test_context_allowlist"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml"
+   ],
+   "limitations": "PARTIAL: proves that pages / documents / tool outputs carrying 'change the goal', 'raise your limits', 'print credentials', 'approve yourself', 'call this URL' cannot alter task, policy, limits, approvals or vault, even when the learner obeys them. The observations are constructed in the tests; no browser-rendered page from the staging sites and no neural learner is involved (those are EB / F / master integration tests). The instruction detector is a pattern list used only for labels."
+  },
+  "CU-27": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/vault.py",
+    "src/cam_live/harness/auth/launcher.py",
+    "src/cam_live/harness/auth/service.py",
+    "src/cam_live/harness/auth/landlock.py",
+    "src/cam_live/harness/auth/audit.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.launcher.prepare_run_dir",
+    "cam_live.harness.auth.launcher.launch"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_privileged.py::test_learner_and_sandbox_uids_cannot_read_vault_audit_or_verifier_files",
+    "tests/harness/auth/test_ea_privileged.py::test_canary_secret_reaches_only_the_executor",
+    "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix",
+    "tests/harness/auth/test_ea_privileged.py::test_run_dir_ownership_and_modes",
+    "tests/harness/auth/test_ea_privileged.py::test_service_uids_cannot_regain_privileges",
+    "tests/harness/auth/test_ea_vault.py::test_vault_files_are_private",
+    "tests/harness/auth/test_ea_launcher.py::test_authorization_service_confines_its_own_writes_with_landlock"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/EA.xml",
+    "docs/EA/SECURITY.md"
+   ],
+   "limitations": "Isolation is uid + file mode + sticky directories + no_new_privs + Landlock on the authorization service; no VM, no network namespaces. The privileged tests run only with -m privileged as root (they create the camlearn / cambrowser / camsbx / camauth / camverify users)."
+  }
+ },
+ "public_api": [
+  "cam_live.harness.auth.PolicyService(run_dir: str, policy_path: Optional[str] = None, clock: Optional[Clock] = None, *, caller=None, fsync: bool = True)  # implements contracts.PolicyEngine",
+  "PolicyService.authorize(action: ActionSpec, task: TaskSpec, context: Optional[Dict[str, Any]] = None) -> AuthorizationDecision  # context keys read: page_url, tab_id, session_id, decision_id, experiment_id",
+  "PolicyService.check_grant(action: ActionSpec, decision: AuthorizationDecision, consume: bool = True) -> bool  # CONSUMES the grant: call once, in the executor, right before execution",
+  "PolicyService.check_primitive(op: PrimitiveOp, action: ActionSpec) -> AuthorizationDecision  # needs a consumed, unexpired grant of `action`; op.arguments: url / method / page_url / tab_id",
+  "PolicyService.record(action: ActionSpec, result: ActionResult) -> None",
+  "PolicyService.approvals() -> List[Dict[str, Any]];  PolicyService.resolve_approval(approval_id: str, approve: bool, by: str, note: str = '') -> AuthorizationDecision  # ALLOW carries a fresh grant",
+  "PolicyService.emergency_stop(reason: str, by: str) -> None;  stopped() -> bool;  reset_stop(by: str) -> bool;  pause(reason: str, by: str) -> None;  resume(by: str) -> bool;  paused() -> bool",
+  "PolicyService.revoke(scope: str, by: str) -> None  # all | grants | task:<id> | live:<record_id> | secret:<name> | scope:<label> | destination:<pattern>",
+  "PolicyService.limits_state() -> Dict[str, Any]  # {stopped, paused, epoch, policy, approvals, tasks: {id: {limits, used, reserved, remaining, exhausted}}}",
+  "PolicyService.register_task(task: TaskSpec, by: str) -> Dict;  register_live_authorization(record: Dict, by: str) -> Dict;  reload_policy(by: str, path: Optional[str] = None) -> Dict",
+  "PolicyService.put_secret(name: str, value: str, destinations: Sequence[str], scopes: Sequence[str] = (), by: str = 'operator', note: str = '') -> Dict;  secret_get(name: str, action: ActionSpec, decision: AuthorizationDecision, destination: str) -> str",
+  "PolicyService.secrets_handle() -> ExecutorSecrets;  ExecutorSecrets.bind(action, decision) -> BoundSecrets with get(name: str, destination: str) -> str, scrub(text: str) -> str, scrub_obj(obj), scrub_record(record)  # value for ExecContext.secrets",
+  "cam_live.harness.auth.is_resource_denial(decision: AuthorizationDecision) -> bool",
+  "cam_live.harness.auth.client.connect(run_dir: str, timeout: float = 60.0, verify_server: Optional[bool] = None) -> AuthClient  # same methods over <run_dir>/sock/auth.sock; .secrets -> ExecutorSecrets",
+  "cam_live.harness.auth.verify_audit_log(path: str, key: Optional[bytes] = None, head_path: Optional[str] = None, require_head: bool = False, expect_head: Optional[Tuple[int, str]] = None) -> AuditVerification(ok, entries, head_hash, errors)",
+  "cam_live.harness.auth.Untrusted(data: str, source: str = '');  label_observation(obs: Observation) -> Observation  # adds data['untrusted_labels'];  label_result(result: ActionResult) -> ActionResult;  policy_context(context) -> (accepted, dropped_names)",
+  "cam_live.harness.auth.launcher.launch(run_dir: str, services: Optional[Sequence[Union[str, ServiceSpec]]] = None, config: Any = None) -> LaunchHandle  # .status() -> Dict, .stop() -> Dict, .resume() -> Dict, .wait_ready(name, timeout=None) -> bool",
+  "cam_live.harness.auth.launcher.prepare_run_dir(run_dir: str, separated: bool, roles: Optional[Dict[str, str]] = None, policy_path: Optional[str] = None, operator_pubkey: Optional[str] = None) -> Dict",
+  "cam_live.harness.auth.launcher.ServiceSpec(name, module='', role='', socket='', args=[], env={}, restart=True, stop_on_estop=True, ready_timeout_s=30.0, argv=None);  LauncherConfig(separated=None, policy_path=None, operator_pubkey=None, roles={...}, extra_args={}, extra_env={}, ...)",
+  "python -m cam_live.harness.auth.service --run-dir R --socket R/sock/auth.sock --policy <yaml> [--executor-role browser] [--executor-uid N] [--single-uid] [--no-landlock] [--no-fsync]",
+  "python -m cam_live.harness.auth.launcher --run-dir R [--services auth,exec,...] [--policy P] [--operator-pubkey K] [--no-separation]",
+  "python -m cam_live.harness.auth.opctl --run-dir R approvals|approve ID|reject ID|stop WHY|reset-stop|pause WHY|resume|revoke SCOPE|reload-policy [P]|limits|secrets|audit-tail [N]|verify-audit|put-secret NAME --dest PATTERN|register-live FILE;  opctl init-operator-key --private K --public P;  opctl sign-live FILE --private K"
+ ],
+ "change_requests": 8,
+ "packages_installed": [],
+ "packages_used_not_declared": [
+  "cryptography (50.0.2, already in the venv; change request 5)"
+ ],
+ "measured": {
+  "tests_default_passed": 183,
+  "tests_default_skipped_privileged": 7,
+  "tests_default_seconds": 25.2,
+  "tests_all_passed_including_privileged": 190,
+  "tests_all_seconds": 31.5,
+  "authorize_allow_median_ms_fsync": 8.386,
+  "authorize_allow_p95_ms_fsync": 10.229,
+  "authorize_deny_median_ms_fsync": 7.05,
+  "authorize_program_20_steps_median_ms_fsync": 15.14,
+  "check_grant_consume_median_ms_fsync": 6.459,
+  "check_primitive_median_ms_fsync": 7.881,
+  "record_median_ms_fsync": 8.003,
+  "authorize_allow_median_ms_nofsync": 3.997,
+  "rpc_authorize_internal_median_ms_fsync": 8.458,
+  "rpc_stopped_median_ms": 0.157,
+  "audit_verify_entries_per_s": 43313,
+  "bench_n_per_operation": 300,
+  "landlock_abi": 1,
+  "fs_protected_regular": 2,
+  "source_lines_auth_package_and_tests": 8899
+ },
+ "measured_commands": {
+  "tests_default_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live   (docs/evidence/EA/test_summary_default.txt)",
+  "tests_all_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml   (docs/evidence/EA/test_summary_all.txt)",
+  "*_ms_*, audit_verify_entries_per_s": "cd /workspace/camlive && N=300 .venv/bin/python cam_live/docs/evidence/EA/bench_auth.py > cam_live/docs/evidence/EA/bench.json",
+  "landlock_abi": "python: ctypes.CDLL(None).syscall(444, None, 0, 1)",
+  "fs_protected_regular": "cat /proc/sys/fs/protected_regular",
+  "source_lines_auth_package_and_tests": "wc -l cam_live/src/cam_live/harness/auth/*.py cam_live/src/cam_live/harness/auth/*.yaml cam_live/tests/harness/auth/*.py   (before the last two small edits)"
+ },
+ "not_done": [
+  "Executor wiring is not verified: whether harness/env.py, browser, sandbox, api, skills and discord executors call check_grant once, ctx.check for every primitive (including net.request with method + url), scrub observations and call record was not tested by EA (written in parallel). CU-25 and CU-26 are therefore partial.",
+  "Launching the other workstreams' services was only probed, not tested: `launch(R, ['auth','verifier','exec'], separated)` on 2026-11-27 started both under their uids and both exited at once for lack of arguments (verifier: no <run_dir>/task.yaml; exec: '--auth-socket is required'). They need LauncherConfig.extra_args from the integrator; the learner service was not started (it would load the backbone on the shared GPU). The launcher itself is tested with the real auth service and small real test services.",
+  "The tool table lists operation-name patterns chosen before the other workstreams' tool names were known; any operation it does not match is denied until a line is added to the policy file.",
+  "configs/authorization.yaml (master-owned) does not exist; the packaged default_policy.yaml is used (change request 4).",
+  "No kernel-level per-destination network filtering (no CAP_NET_ADMIN in this container): network scoping exists only on the policy path. No seccomp on the authorization service. No append-only flag on the audit log (no CAP_LINUX_IMMUTABLE): tampering by the authorization uid itself is detectable only against an external anchor.",
+  "Redirects and form submissions are bounded only if the browser executor reports each request as a net.request primitive; otherwise only the page's site (tracked from navigation and record()) is checked.",
+  "Detection in opaque payloads (program text, skill arguments) is substring / URL based and does not see obfuscated targets or secrets in encodings other than base64, hex, URL-quoting, JSON-escaping and reversal. Near-duplicate detection is lexical (word-bigram Jaccard).",
+  "Approving from the dashboard: resolve_approval is root-only by peer uid; no root-owned approval proxy for a dashboard running as the learner uid was built (operator uses opctl).",
+  "Operator-key rotation and several operator keys are not implemented (one Ed25519 public key at <run_dir>/auth/keys/operator.pub).",
+  "The platform-compliance rules shipped for Discord are EA's reading written as editable data; the current published Discord policies were not fetched or checked during this work (spec 12.5 asks for that before activation)."
+ ],
+ "scientific_failures": []
+}
