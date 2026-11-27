@@ -11,8 +11,8 @@ from crucible.domains import commercialization as R
 def test_definition_valid_reference_tool_only_and_measured_structure():
     assert base.validate(R.DOMAIN) == []
     assert base.reads_world(R.DOMAIN.reference_policy("p:founder", {})) == []
-    fp = R.structure(base.world("commercialization", "two_conditions", 0))
-    assert fp["conditions"] == ["condition", "exposure"] and fp["law_family"] == "two_conditions"
+    fp = R.structure(base.BuiltWorld(base.world("commercialization", "two_conditions", 0)))
+    assert fp["law_variables"] == "setting+2" and fp["law_family"] == "two_conditions"
 
 
 def test_fit_recovers_a_known_optimum_from_clean_readings():
@@ -76,7 +76,10 @@ def test_evaluator_gives_the_same_verdict_on_a_world_rebuilt_from_its_log():
     """The evaluator reads recorded world state only: on a world rebuilt from the event log alone (World.replay,
     no in-memory history) it gives the same verdict (framework evaluator_report)."""
     rep = base.evaluator_report(R.DOMAIN, "linear_optimum", 0, 10)
-    assert rep["ok"] and rep["replay_equal"] and rep["replay_digest_equal"], rep
+    # (the autonomy ablation needs the whole horizon: base.check and the SP-9.<n> gate measure it)
+    assert rep["replay_equal"] and rep["replay_digest_equal"] and rep["evaluator_hidden"], rep
+    assert rep["has_success_and_score"] and not rep["participant_tools_named_like_evaluator"], rep
+    assert not rep["participant_tools_calling_evaluator"], rep
 
 
 
