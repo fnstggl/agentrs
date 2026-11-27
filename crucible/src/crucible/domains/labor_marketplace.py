@@ -490,6 +490,13 @@ def _preferences(world, since):
         base.events_where(world, since, ("labor.declined",))
 
 
+def _satisfaction(world, since):
+    """Employees' satisfaction updates (pay against the best open posting they qualify for, interest in the work,
+    fatigue, unpaid wages): the state the quitting decision reads (seqs of those labor.worker_update events)."""
+    return base.events_where(world, since, ("labor.worker_update",),
+                             lambda e: "satisfaction" in (e.payload.get("changes") or {}))
+
+
 def _dependencies(world, since):
     """Tasks finished after the tasks they depend on (dependency-ordered work) in projects of this world (seqs of
     their completion events)."""
@@ -510,7 +517,8 @@ MECHANICS = (
     Mechanic("Delegation", ("inst.task_assigned",), "tasks delegated to employees"),
     Mechanic("Project dependencies", (), "dependent tasks finished after their prerequisites", count=_dependencies),
     Mechanic("Performance", ("labor.perf",), "measured quality of finished work"),
-    Mechanic("Retention", ("labor.quit", "labor.left", "labor.worker_update"), "satisfaction, quits, departures"),
+    Mechanic("Retention", ("labor.quit", "labor.left"), "employees' satisfaction from pay against the market, "
+             "interest and fatigue (updated daily by the labour market), quits and departures", count=_satisfaction),
     Mechanic("Independent agency", ("cols.batch:firms.jobsearch", "labor.quit", "firms.decision"),
              "the population's own job search, quits, firms' own negotiation decisions"),
 )

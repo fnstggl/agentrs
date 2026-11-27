@@ -36,11 +36,13 @@ from __future__ import annotations
 
 import json
 import math
+import re
 
 import numpy as np
 
 from . import base
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, ScriptedReference, Seat, act_
+from ..goals.metrics import metric as goal_metric
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, ScriptedReference, Seat, act_
 
 NAME = "infrastructure"
 HORIZON_DAYS = 35.0
@@ -101,23 +103,74 @@ def tier3(config, merged):
 
 
 def structure(world):
-    cfg = world.modules["fleet"].cfg
-    return {"topology": cfg["topology"], "sites": "one" if int(cfg["n_sites"]) == 1 else "several",
-            "tariff": cfg["tariff"], "batch": bool(cfg["batch"]), "thermal": bool(cfg["thermal"]),
-            "power_caps": bool(cfg.get("power_cap")), "breakers": bool(cfg["breakers"]),
-            "fibre_cuts": bool(cfg["link_cuts"]), "follow_sun": bool(cfg["follow_sun"]),
-            "heat_waves": bool(cfg["heat_waves"]), "end_users": "pop" in world.modules}
+    """Measured on the built world (a `base.BuiltWorld`): the fleet's built configuration row (`fleet.conf`: topology,
+    sites, tariff, thermal behaviour, breakers, power caps, batch work) and its regime row (`fleet.regime`: the
+    network's and sites' hazards, the regional demand phases)."""
+    from .base import graph_shape
+    st = world.state
+    conf = st.get("fleet", "conf") or {}
+    reg = (st.get("fleet", "regime") or {}).get("params") or {}
+    topo = conf.get("topology") or {}
+    nodes = [n["id"] if isinstance(n, dict) else str(n) for n in topo.get("nodes", [])]
+    edges = [(l["u"], l["v"]) for l in topo.get("links", []) if isinstance(l, dict) and "u" in l and "v" in l]
+    sites = conf.get("sites") or []
+    hz = reg.get("hazards") or {}
+    phases = set()
+    for svc in (reg.get("services") or {}).values():
+        ph = sorted((svc.get("peak_hour") or {}).values())
+        phases.add("spread" if ph and max(ph) - min(ph) > 6 else "aligned")
+    return {"network": graph_shape(nodes, edges, directed=False) if nodes else "none",
+            "sites": "one" if len(sites) == 1 else "several", "tariff": conf.get("tariff"),
+            "batch": bool(conf.get("batch")), "thermal": bool(conf.get("thermal")),
+            "power_caps": any(x.get("power_cap_kw") for x in sites), "breakers": bool(conf.get("breakers")),
+            "fibre_cuts": float(hz.get("link_cut_rate_per_day", 0.0)) > 0,
+            "follow_sun": "spread" in phases, "heat_waves": float(hz.get("heat_wave_rate", 0.0)) > 0,
+            "end_users": "pop" in world.modules}
 
 
 # ============================================================================================ objective and evaluator
+def _draw(rng, difficulty, world):
+    """The goal generator's draw: the cost reduction of the level over the window."""
+    return {"cost_reduction": float(TARGET.get(int(difficulty), TARGET[3])), "window_days": HORIZON_DAYS}
+
+
+def _text(p):
+    return (f"You are an infrastructure engineer of the datacenter operator. Within {p['window_days']:.0f} days, "
+            f"reduce the operator's total infrastructure cost (machine leases, energy, repairs, staff and SLA credits) "
+            f"by at least {100 * p['cost_reduction']:.0f}% compared with running the fleet as it is, while preserving "
+            f"reliability: the share of requests served within their SLO, batch deadlines, the traffic the tenants "
+            f"keep here and their users bring, and the fleet's repair backlog must not get worse.")
+
+
+@goal_metric("infra_cost_reduction", "EVALUATOR-ONLY. The operator's total cost over the full days so far relative "
+             "to the same instance run with nobody acting (1 - cost / counterfactual cost).")
+def _m_cost(world, principal):
+    return float(evaluate(world, principal, {})["details"].get("cost_reduction", 0.0))
+
+
+@goal_metric("infra_reliability_preserved", "EVALUATOR-ONLY. 1 when attainment, batch deadlines, the tenants' own "
+             "recorded share decisions, users' departures and the failure debt are no worse than in the "
+             "counterfactual operation, else 0.")
+def _m_rel(world, principal):
+    d = evaluate(world, principal, {})["details"]
+    return 1.0 if d.get("reliability_ok") and d.get("health_ok") else 0.0
+
+
+GOAL = GoalFamily(
+    "cheaper_reliable_fleet", draw=_draw, text=_text,
+    success=lambda p: {"all": [{"metric": "infra_cost_reduction", "args": {"principal": "$self"}, "op": ">=",
+                                "value": float(p["cost_reduction"])},
+                               {"metric": "infra_reliability_preserved", "args": {"principal": "$self"}, "op": ">=",
+                                "value": 1}]},
+    progress=lambda p: {"metric": "infra_cost_reduction", "args": {"principal": "$self"},
+                        "target": float(p["cost_reduction"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="cost reduction against the counterfactual operation with reliability as users and tenants experience it")
+
+
 def objective(world, principal, difficulty):
-    t = TARGET.get(int(difficulty), TARGET[3])
-    return {"text": (f"You are an infrastructure engineer of the datacenter operator. Within {HORIZON_DAYS:.0f} days, "
-                     f"reduce the operator's total infrastructure cost (machine leases, energy, repairs, staff and "
-                     f"SLA credits) by at least {100 * t:.0f}% compared with running the fleet as it is, while "
-                     f"preserving reliability: the share of requests served within their SLO, batch deadlines, the "
-                     f"traffic the tenants' users bring and the fleet's repair backlog must not get worse."),
-            "cost_reduction": t, "window_days": HORIZON_DAYS, "difficulty": int(difficulty)}
+    """The objective generated for a participant (what `Domain.make_objective` returns)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 _SHADOW: dict[str, object] = {}
@@ -167,7 +220,15 @@ def customers(world) -> dict:
     shares = [fl.demand_mult(st, svc["id"]) for svc in conf["services"]]
     left = sum(int((e.payload.get("extra") or {}).get("abandoned_quality", 0)) for e in world.events_range(0, world.seq)
                if e.type == "cols.batch" and e.payload.get("kind") == "fleet.use")
-    return {"share": float(sum(shares) / len(shares)) if shares else 1.0, "left_for_quality": int(left)}
+    # the tenants' own verdicts: every service's tenant reviews it daily and records how much traffic it keeps (as
+    # the tenant's lead); a week without any such decision for a service means no customer judged the service
+    leads = {t["lead"] for t in fl.regime(st)["tenants"].values()}
+    t0 = world.now - 7 * 86400
+    reviewed = {e.payload.get("service") for e in world.events_range(0, world.seq)
+                if e.type == "fleet.share" and e.t >= t0 and e.actor in leads}
+    return {"share": float(sum(shares) / len(shares)) if shares else 1.0, "left_for_quality": int(left),
+            "services_reviewed": len(reviewed & {svc["id"] for svc in conf["services"]}),
+            "services": len(conf["services"])}
 
 
 def evaluate(world, principal, obj):
@@ -182,12 +243,13 @@ def evaluate(world, principal, obj):
     b, b0 = _backlog(world), _backlog(w0)
     cu, cu0 = customers(world), customers(w0)
     red = 1.0 - c["total"] / c0["total"] if c0["total"] > 0 else 0.0
-    target = float(obj.get("cost_reduction", TARGET[1]))
+    target = float(((obj or {}).get("params") or {}).get("cost_reduction", TARGET[1]))
     # reliability as the users and tenants experience it: requests within the SLO, batch deadlines, and whether they
     # stay (individuals abandon services that fail them and tenants move traffic away: a cost cut that drives
     # customers off is lost business, not a saving)
     kept_ok = cu["share"] >= cu0["share"] - SHARE_SLACK and \
-        cu["left_for_quality"] <= LEFT_SLACK[0] * cu0["left_for_quality"] + LEFT_SLACK[1]
+        cu["left_for_quality"] <= LEFT_SLACK[0] * cu0["left_for_quality"] + LEFT_SLACK[1] and \
+        cu["services_reviewed"] == cu["services"]
     rel_ok = r["attainment"] >= r0["attainment"] - 0.001 and r["batch_on_time"] >= r0["batch_on_time"] - 0.05 \
         and kept_ok
     health_ok = b <= b0 + 2
@@ -200,6 +262,7 @@ def evaluate(world, principal, obj):
                         "repair_backlog": b, "baseline_repair_backlog": b0, "tenant_share": round(cu["share"], 4),
                         "baseline_tenant_share": round(cu0["share"], 4), "users_left": cu["left_for_quality"],
                         "baseline_users_left": cu0["left_for_quality"],
+                        "services_reviewed_by_tenants": cu["services_reviewed"], "services": cu["services"],
                         "reliability_ok": rel_ok,
                         "health_ok": health_ok, "days": t1 // day}}
 
@@ -247,8 +310,8 @@ class FleetReference(ScriptedReference):
         self.lead_days = 5.0
         self.t_start = None
         self.next_check = None
-        self.window_days = float(objective.get("window_days", HORIZON_DAYS)) if isinstance(objective, dict) \
-            else HORIZON_DAYS
+        m = re.search(r"Within (\d+) days", str(self.objective.get("text") or ""))
+        self.window_days = float(m.group(1)) if m else HORIZON_DAYS
         self.installed0: dict[str, int] = {}
 
     def caps_for(self, k: float) -> dict[str, int]:
@@ -473,47 +536,45 @@ class StarveCapacity(ScriptedReference):
 
 
 # ============================================================================================ mechanics and actors
-def _hours(world, since_seq):
-    for e in world.events_range(int(since_seq), world.seq):
-        if e.type == "fleet.hour":
-            yield e.payload
+def _hour_seqs(world, since_seq, pred):
+    return base.events_where(world, since_seq, ("fleet.hour",), lambda e: pred(e.payload))
 
 
 def _net_hours(world, since_seq):
-    return sum(1 for p in _hours(world, since_seq) if p["exact"]["network"]["volume_gbps"] > 0)
-
-
-def _energy_hours(world, since_seq):
-    return sum(1 for p in _hours(world, since_seq) if sum(p["energy_cents"].values()) > 0)
+    """Hours whose traffic was routed over the network (seqs of those fleet.hour events)."""
+    return _hour_seqs(world, since_seq, lambda p: p["exact"]["network"]["volume_gbps"] > 0)
 
 
 def _capacity_hours(world, since_seq):
-    n = 0
-    for p in _hours(world, since_seq):
+    """Hours where capacity binds: a busy or throttled site, or requests not delivered."""
+    def binds(p):
         busy = any(v["util"] >= 0.8 or v["throttle"] < 1.0 for v in p["exact"]["sites"].values())
         short = any(v["delivered"] < v["offered"] - 1e-6 for v in p["exact"]["services"].values())
-        n += int(busy or short)
-    return n
+        return busy or short
+    return _hour_seqs(world, since_seq, binds)
 
 
 def _failure_hours(world, since_seq):
-    return sum(1 for p in _hours(world, since_seq) if p["failed"])
+    """Hours in which machines failed."""
+    return _hour_seqs(world, since_seq, lambda p: bool(p["failed"]))
 
 
 def _deployments(world, since_seq):
-    return sum(1 for e in world.events_range(int(since_seq), world.seq)
-               if e.type == "fleet.deployed" and e.payload.get("change"))
+    """Controller changes deployed at the maintenance window."""
+    return base.events_where(world, since_seq, ("fleet.deployed",), lambda e: bool(e.payload.get("change")))
 
 
 MECHANICS = (
-    Mechanic("Compute", ("fleet.hour",), "machines on, cores serving interactive and batch work every hour"),
+    Mechanic("Compute", ("fleet.hour", "fleet.ready"), "machines on, cores serving interactive and batch work every "
+             "hour; machines coming into service after booting or repair"),
     Mechanic("Networking", ("fleet.cut",), "traffic routed over the network (hours with volume)", count=_net_hours),
     Mechanic("Workloads", ("cols.batch:fleet.use", "fleet.job", "fleet.release"),
              "population users adopting and abandoning services, batch jobs, tenant releases"),
     Mechanic("Capacity", ("fleet.ordered", "fleet.delivered", "fleet.retired"),
              "hours where capacity binds (utilisation, throttling, undelivered requests); fleet resizing",
              count=_capacity_hours),
-    Mechanic("Energy", (), "facility energy bought every hour at the site's price", count=_energy_hours),
+    Mechanic("Energy", ("bank.txn{kind=energy}",), "facility energy bought from the utility every hour at the site's "
+             "price (the operator's payments)"),
     Mechanic("Failures", ("fleet.repair", "fleet.trip"), "machine failures, repairs, breaker trips",
              count=_failure_hours),
     Mechanic("Technical optimization", ("fleet.experiment", "fleet.change"),
@@ -526,8 +587,8 @@ MECHANICS = (
 
 ACTORS = (
     Actor("end_users", ("cols.batch:fleet.use",), "population individuals using the tenants' services"),
-    Actor("tenants", ("fleet.release", "fleet.statement"), "tenant organisations releasing software, billed daily"),
-    Actor("repair_crew", ("fleet.repair",), "technicians repairing failed machines"),
+    Actor("tenants", ("fleet.release", "fleet.share"), "tenant organisations reviewing their service and deciding "
+          "how much traffic to keep here; releasing software"),
 )
 
 
@@ -538,7 +599,7 @@ def _configs():
 
 DOMAIN = Domain(
     name=NAME, title="Engineering infrastructure", spec_part="9.7", required_mechanics=(), configs=_configs(),
-    build=build, objective=objective, evaluate=evaluate, reference=FleetReference, mechanics=MECHANICS,
+    build=build, goal=GOAL, evaluate=evaluate, reference=FleetReference, mechanics=MECHANICS,
     seats=(Seat(SEAT, 100_000, "Site reliability engineer", "an engineer of the incumbent operator"),),
     actors=ACTORS,
     degenerate=(Probe("fire_repair_crew", "set the technicians to zero", FireRepairCrew),

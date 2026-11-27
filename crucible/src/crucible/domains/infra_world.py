@@ -820,6 +820,8 @@ class Fleet(Module):
         hidden["sites"] = {s["id"]: {"base_price": s["base_price"], "temp_mean": s["temp_mean"],
                                      "pue0": s["pue0"]} for s in g["sites"]}
         hidden["tenants"] = tenants
+        hidden["hazards"] = {"link_cut_rate_per_day": float(cfg["cut_rate_per_day"]) if cfg["link_cuts"] else 0.0,
+                             "heat_wave_rate": float(cfg["heat_waves"])}
         if self.has_users:
             hidden["users0"] = self._users_genesis(ctx, g)
         for hnd in cfg.get("operators") or []:          # participant seats (module `seat`, created before)
@@ -838,6 +840,8 @@ class Fleet(Module):
         mh = int(cfg["maintenance_hour"]) % 24
         ctx.schedule(HOUR, "fleet.hour", {}, prio=40, period=HOUR, key="fleet_hour")
         ctx.schedule(DAY + 60, "fleet.daily", {}, prio=45, period=DAY, key="fleet_daily")
+        # the tenants' own reviews and releases: their decisions, in their own process after the day's statements
+        ctx.schedule(DAY + 90, "fleet.tenants", {}, prio=46, period=DAY, key="fleet_tenants")
         ctx.schedule(mh * HOUR + 30 if mh else DAY + 30, "fleet.maintenance", {}, prio=60, period=DAY, key="fleet_maint")
         if cfg["batch"]:
             ctx.schedule(30, "fleet.jobs", {}, prio=44, period=DAY, key="fleet_jobs")
@@ -1310,7 +1314,6 @@ class Fleet(Module):
                  vis="internal")
         for t, b in bills.items():
             ctx.emit("fleet.statement", {"day": d, "tenant": t, **b}, vis=(t, conf["operator"]))
-        self._tenant_decisions(ctx, d)
         self._deliveries(ctx)
         if cfg["heat_waves"]:
             self._heat(ctx, d + 1)
@@ -1327,13 +1330,21 @@ class Fleet(Module):
         if new:
             ctx.emit("fleet.heat", {"until": new, "day": day}, vis="internal")
 
+    @process("tenants")
+    def pr_tenants(self, ctx):
+        """The tenants' day: each reviews its service and releases software on its own schedule (decisions made as
+        the tenant's lead, through the tenant tools)."""
+        if not ctx.state.has("fleet", "conf"):
+            return
+        self._tenant_decisions(ctx, ctx.now // DAY - 1)
+
     def _tenant_decisions(self, ctx, d):
         """Each tenant reviews its own last seven days (good / offered requests it was billed for) and decides how
-        much of its traffic to keep here; it also releases new software on its own schedule."""
+        much of its traffic to keep here (a recorded decision at every review, also when it keeps the share); it also
+        releases new software every `release_every` days of its own release train."""
         st = ctx.state
         conf = self.conf(st)
         reg = self.regime(st)
-        rng = self.world.rng_for("fleet-tenants", d)
         for tname, t in sorted(reg["tenants"].items()):
             recs = [st.get("fleet_days", f"d{k:04d}") for k in range(max(0, d - 6), d + 1)]
             recs = [r for r in recs if r is not None]
@@ -1348,17 +1359,16 @@ class Fleet(Module):
                     new = max(0.2, share * (1.0 - t["patience"] * min(1.0, (t["tolerance"] - att) * 20)))
                 else:
                     new = min(1.0, share + 0.02)
-                if abs(new - share) > 1e-6:
-                    try:
-                        ctx.call("fleet.tenant_share", {"service": svc["id"], "share": round(new, 4)},
-                                 as_principal=t["lead"])
-                    except CrucibleError:
-                        pass
+                try:
+                    ctx.call("fleet.tenant_share", {"service": svc["id"], "share": round(new, 4)},
+                             as_principal=t["lead"])
+                except CrucibleError:
+                    pass
         for svc in conf["services"]:
             hid = reg["services"][svc["id"]]
             rels = st.find_ids("fleet_releases", "service", svc["id"])
             last_day = st.tables["fleet_releases"][rels[-1]]["day"] if rels else 0
-            if d - last_day >= hid["release_every"] and float(rng.random()) < 0.5:
+            if d - last_day >= hid["release_every"]:
                 lead = reg["tenants"][svc["tenant"]]["lead"]
                 try:
                     ctx.call("fleet.release", {"service": svc["id"], "notes": f"release {len(rels) + 1}"},
