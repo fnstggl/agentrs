@@ -9,7 +9,8 @@ from crucible.acceptance.v5 import evidence
 import _perf_kit as K
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(48 * 3600)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 "
+       "--timeout 172800 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-13.1")
 
 

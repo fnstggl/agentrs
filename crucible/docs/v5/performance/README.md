@@ -20,7 +20,11 @@ Every heavy job runs through the governor. The gate tests nest their runs in the
 give that job the whole suite's budget:
 
     PYTHONPATH=src python -m crucible.scale.slots --cpu 6 --gpu-mb 14000 --ram-mb 64000 --disk-mb 12000 \
-        --label "M: gate V" -- python -m crucible.acceptance.v5 run --requirement V.1
+        --timeout 172800 --label "M: gate V" -- python -m crucible.acceptance.v5 run --requirement V.1
+
+Give the outer job a `--timeout` (or a `--gpu-s`) that covers the whole suite: its GPU time sums the CUDA contexts of
+every parallel run (six large runs of ~20 h hold ~120 GPU-hours); without either it is granted 4 h per CPU worker.
+Until R1 lands, set `CRUCIBLE_BENCH5_TIME_HEADROOM=5` so that a 30-day large run is not stopped by its own 24 h grant.
 
 Runs of a clean committed tree are kept per commit (`$CRUCIBLE_BENCH5_CACHE`, default `/tmp/crucible-bench5-cache`),
 so the separate gate files of one commit share one measured suite instead of repeating it.

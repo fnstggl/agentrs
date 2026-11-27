@@ -17,7 +17,7 @@ from crucible.acceptance.v5 import evidence
 from crucible.scale import slots
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(1800)]
-CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 600 -- "
+CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 600 --timeout 1800 -- "
        "python -m crucible.acceptance.v5 run --requirement SP-1.2")
 
 
