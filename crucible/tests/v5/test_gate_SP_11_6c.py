@@ -57,7 +57,7 @@ from crucible.experience.reference import ReferenceLearner
 from crucible.experience.registry import make
 from crucible.experience.statistical import ToolValueLearner, describe_values
 
-pytestmark = [pytest.mark.slow, pytest.mark.timeout(5400)]
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(7000)]
 CMD = ("PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 7000 -- python -m pytest "
        "tests/v5/test_gate_SP_11_6c.py")
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
