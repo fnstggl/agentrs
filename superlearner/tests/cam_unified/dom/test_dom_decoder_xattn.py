@@ -24,11 +24,24 @@ def lm():
     return tok, m
 
 
-def _cond(m, d_cam=256):
+def _cond(m, d_cam=256, alpha_init=0.05):
+    # the default gate is now alpha_init = 0 (bit-identical at init, test below); these tests exercise an open gate
     n = m.config.num_hidden_layers
     c = LatentDecoderConditioning(m.config.hidden_size, d_cam, LatentDecoderConditioning.every(n, 4), d_attn=256,
-                                  n_heads=4).cuda()
+                                  n_heads=4, alpha_init=alpha_init).cuda()
     return c.attach(m)
+
+
+def test_closed_gates_leave_the_pretrained_decoder_bit_identical(lm):
+    tok, m = lm
+    c = _cond(m, alpha_init=0.0)
+    ids = tok(['{"handle": "bakery-labs", "name": "Bakery Labs"}'], return_tensors="pt").input_ids.cuda()
+    with torch.no_grad():
+        base = m(ids).logits.float()
+        with c.condition(torch.randn(1, 8, 256, device="cuda") * 5):
+            cond = m(ids).logits.float()
+    c.detach_hooks()
+    assert torch.equal(base, cond)
 
 
 def test_decoder_output_depends_on_cam_latent_and_preserves_pretrained_behaviour(lm):

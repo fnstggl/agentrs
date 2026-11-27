@@ -1,0 +1,48 @@
+{
+ "workstream": "W4 SEM",
+ "date": "2026-11-26",
+ "note": "Standalone probes on the real Qwen3-0.6B (tests/cam_unified/semantic/w4_probes/*.py); run from superlearner/ with PYTHONPATH=src:../crucible/src. Code at the W4 commits after bb5fe92.",
+ "decoder_conditioning_preservation": {
+  "command": "python tests/cam_unified/semantic/w4_probes/probe_agree.py <out.json>",
+  "setup": "make_preset('dom_dev') QwenSemantic fp32, LatentDecoderConditioning after layers [5, 11, 17, 23], random N(0,1) CAM tokens [1, 48, 384], 10 JSON tool-call texts, 319 predicted tokens",
+  "alpha_0.0": {"top1_agreement": 1.0, "kl_per_token": 0.0, "bit_identical": true},
+  "alpha_0.05": {"top1_agreement": 0.9875, "kl_per_token": 0.00038},
+  "alpha_0.1": {"top1_agreement": 0.9812, "kl_per_token": 0.0015},
+  "alpha_0.2": {"top1_agreement": 0.9373, "kl_per_token": 0.0058},
+  "audit_reference": "previous rms(H)*unit(a) injection at alpha 0.05: top-1 agreement 0.76-0.83, KL 0.22-0.40 nats/token (audit dxattn_check)",
+  "audit_target_top1_at_alpha_0.05": 0.99,
+  "audit_target_met": false
+ },
+ "prefix_init_perturbation": {
+  "command": "python tests/cam_unified/semantic/w4_probes/probe_prefix_pos.py ; probe_cond.py",
+  "setup": "16 prefix vectors after '<|im_start|>assistant\\n', 3 JSON-argument texts, KL(no prefix || prefix) per predicted token, Qwen3-0.6B fp32",
+  "neutral_mean_row_after_assistant": {"kl_per_token": 0.432, "top1_agreement": 0.859},
+  "old_phrase_after_assistant": {"kl_per_token": 1.271, "top1_agreement": 0.844},
+  "neutral_mean_row_at_start": {"kl_per_token": 0.519},
+  "old_phrase_at_start": {"kl_per_token": 0.191},
+  "zeros_after_assistant_single_text": {"kl_per_token": 0.911},
+  "decision": "bridge base = neutral mean-embedding rows (no phrase, no text to copy); with dec_xattn_every > 0 (DOM presets) the bridge has no prefix at all, so the decoder is the pretrained one at init"
+ },
+ "value_channel_design_cpu": {
+  "command": "python tests/cam_unified/semantic/w4_probes/probe_value.py ; probe_value2.py",
+  "legacy_cos_plus1_minus1": [0.985, 0.988, 0.987],
+  "concat_equal_halves_cos_plus1_minus1": [0.643, 0.756, 0.735],
+  "sign_separated_context_gain_0.6_cos_plus1_minus1_max_over_5_seeds": 0.369,
+  "sign_separated_context_gain_1.0_cos_plus1_minus1_max_over_5_seeds": 0.582,
+  "chosen": "sign-separated ValueFeatures (24 frequencies 0.02..200), context-half gain 0.6 (learned)"
+ },
+ "code_run_representability": {
+  "command": "python tests/cam_unified/semantic/w4_probes/coderun.py",
+  "untyped_depth_2": {"code_run_demos": 21, "representable": 0},
+  "untyped_depth_3": {"code_run_demos": 21, "representable": 0},
+  "untyped_depth_4": {"code_run_demos": 21, "representable": 0},
+  "other_demo_actions_representable": 5037,
+  "reason": "the code.run `input` nests 5 levels with more than max_array_items=8 items and more than max_map_keys=4 keys; no untyped depth fixes it. Needs a Qwen-written JSON-value hole under a JSON grammar (not implemented). untyped_depth left at 2."
+ },
+ "unit_tests": {
+  "command": "pytest -q tests/cam_unified/semantic/{test_string_closure,test_value_channel,test_decoder_conditioning}.py tests/cam_unified/dom/test_dom_decoder_xattn.py",
+  "result": "8 + 5 + 6 + 4 passed (GPU, Qwen3-0.6B)",
+  "ow_tiny_unit_closure_runs": "3 runs of test_ow_tiny_string_slots_close_by_the_lm_without_trailing_commas: 41/41, 39/41, 28/28 slots closed by the LM, 0 trailing commas, every close a merged closer (tiny config, random R)",
+  "regression_suites": "test_tokenizer+test_encoder+test_acting+test_length+test_grammar 54 passed; test_actions+test_demo_init+test_objectives+test_sandbox 33 passed; test_demo_init 6 passed (after per-group clipping); integration/test_i_model 20 passed 1 skipped; integration/test_seam_structure 41 passed; experiments/test_x_stack 4 passed; capabilities/test_integrated_mechanics 9 passed; dom/ 4 + 1 passed"
+ }
+}

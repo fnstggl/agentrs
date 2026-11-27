@@ -146,7 +146,9 @@ def test_default_bf16_behaviour_logp_is_the_learner_logp_on_free_strings(gen, to
                       tool_mask=_force(gen, tool_lists, names),
                       generator=torch.Generator(device=gen.device).manual_seed(3))
     n_tok = [a.logp_parts["n_tokens"] for a in acts]
-    assert sum(n_tok) > 4 * B and max(n_tok) > 20                     # real free strings of varied length
+    # real free strings of varied length (string protocol 4: the untrained LM now closes its strings itself, so they
+    # are shorter than the pre-v4 rambling ones; > 10 tokens still exercises multi-token bf16 drift)
+    assert sum(n_tok) > 4 * B and max(n_tok) > 10
     lp, _ = gen.log_prob(R, goal, belief, tools, obs, tool_lists, obs_lists, acts)       # grad-enabled learner path
     assert lp.requires_grad
     assert all(float(lp[b]) == a.logp for b, a in enumerate(acts)), [(float(lp[b]), a.logp) for b, a in
@@ -398,11 +400,26 @@ def test_latent_state_changes_the_action_distribution(gen, tok, cfg):
     p1, _ = gen.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, [act])
     p2, _ = gen.log_prob_parts(R * 0 + torch.randn_like(R), goal, belief, tools, obs, tool_lists, obs_lists, [act])
     assert abs(float(p1["tool"][0] - p2["tool"][0])) > 1e-4        # pointer depends on R
-    assert abs(float(p1["tokens"][0] - p2["tokens"][0])) > 1e-3    # Qwen strings depend on R through the prefix
+    # the bridge's residual is zero-initialised (no init phrase, no renormalisation): at initialisation the prefix is
+    # the neutral base for every R, at the typical token-embedding RMS
+    assert float(p1["tokens"][0]) == float(p2["tokens"][0])
     P1 = gen.bridge(R, goal, belief)
     assert P1.shape == (1, cfg.n_prefix, gen.enc.sem_dim)
+    assert torch.equal(P1[0], gen.bridge.base.float())
     rms = P1.pow(2).mean(-1).sqrt()
     assert torch.allclose(rms, torch.full_like(rms, gen.enc.embedding_rms), rtol=1e-3)
+    # once the residual has moved (as after an update), Qwen strings depend on R through the prefix
+    w0 = gen.bridge.out.weight.detach().clone()
+    try:
+        with torch.no_grad():
+            gen.bridge.out.weight.normal_(0.0, 0.02 / cfg.d_model ** 0.5,
+                                          generator=torch.Generator(device=w0.device).manual_seed(0))
+        q1, _ = gen.log_prob_parts(R, goal, belief, tools, obs, tool_lists, obs_lists, [act])
+        q2, _ = gen.log_prob_parts(R * 0 + torch.randn_like(R), goal, belief, tools, obs, tool_lists, obs_lists, [act])
+        assert abs(float(q1["tokens"][0] - q2["tokens"][0])) > 1e-3
+    finally:
+        with torch.no_grad():
+            gen.bridge.out.weight.copy_(w0)
 
 
 def test_behaviour_cloning_raises_demo_logprob(gen, tok, enc, cfg):

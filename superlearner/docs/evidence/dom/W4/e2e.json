@@ -1,0 +1,818 @@
+{
+ "runs": [
+  {
+   "commit": "e8d09b994f359839fbe0a6f6bcfd384965c546ef",
+   "preset": "dom_dev",
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "core": "8x384",
+   "command": "python tests/cam_unified/semantic/w4_e2e.py --out docs/evidence/dom/W4/e2e.json",
+   "device": "NVIDIA RTX A6000",
+   "dec_xattn_every": 6,
+   "bridge_prefix_tokens": 0,
+   "stages": "ABCDEFG",
+   "timing_s": {
+    "A": 0.9,
+    "G": 0.5,
+    "rollout": 65.3,
+    "B": 31.0,
+    "C": 4.9,
+    "F": 0.4,
+    "D": 208.1,
+    "E": 3.6
+   },
+   "peak_gpu_gb": 9.212291584,
+   "families": [
+    "ow_tiny"
+   ],
+   "string_steps": {
+    "train": 84,
+    "held": 42
+   },
+   "wall_s": 324.0000910758972
+  },
+  {
+   "commit": "3801409f86e21833edfe9f0a26c44104a8f63e06",
+   "preset": "dom_dev",
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "core": "8x384",
+   "command": "python tests/cam_unified/semantic/w4_e2e.py --out docs/evidence/dom/W4/e2e.json",
+   "device": "NVIDIA RTX A6000",
+   "dec_xattn_every": 6,
+   "bridge_prefix_tokens": 0,
+   "stages": "ABCDEFG",
+   "timing_s": {
+    "A": 1.0,
+    "rollout": 113.9,
+    "B": 62.1,
+    "C": 7.2,
+    "F": 0.6,
+    "B2": 12.8,
+    "D": 256.4,
+    "E": 4.3,
+    "G": 9.8
+   },
+   "peak_gpu_gb": 9.25573632,
+   "families": [
+    "ow_tiny"
+   ],
+   "string_steps": {
+    "train": 84,
+    "held": 42,
+    "code_run": 6
+   },
+   "wall_s": 487.60783100128174
+  },
+  {
+   "commit": "109d2031229947f6c37c620aebe32c3f9f6fd80a",
+   "preset": "dom_dev",
+   "sem_model": "Qwen/Qwen3-0.6B",
+   "core": "8x384",
+   "command": "python tests/cam_unified/semantic/w4_e2e.py --out docs/evidence/dom/W4/e2e.json",
+   "device": "NVIDIA RTX A6000",
+   "dec_xattn_every": 6,
+   "bridge_prefix_tokens": 0,
+   "stages": "ABCDEFG",
+   "timing_s": {
+    "A": 1.1,
+    "rollout": 164.2,
+    "B": 71.1,
+    "C": 8.7,
+    "F": 0.7,
+    "B2": 12.4,
+    "D": 235.9,
+    "E": 4.2,
+    "G": 13.7
+   },
+   "peak_gpu_gb": 9.25573632,
+   "families": [
+    "ow_tiny"
+   ],
+   "string_steps": {
+    "train": 84,
+    "held": 42,
+    "code_run": 6
+   },
+   "wall_s": 534.6561422348022
+  }
+ ],
+ "A_value_channel": {
+  "value_channel": true,
+  "pairs": {
+   "1 vs -1": {
+    "value_channel": 0.3037,
+    "value_channel_same_entity": 0.4575,
+    "legacy": 0.9912
+   },
+   "5 vs -5": {
+    "value_channel": 0.2677,
+    "value_channel_same_entity": 0.4253,
+    "legacy": 0.9815
+   },
+   "0 vs 1": {
+    "value_channel": 0.5813,
+    "value_channel_same_entity": 0.6738,
+    "legacy": 0.9882
+   },
+   "100 vs 200": {
+    "value_channel": 0.632,
+    "value_channel_same_entity": 0.7058,
+    "legacy": 0.9862
+   },
+   "100 vs 101": {
+    "value_channel": 0.9339,
+    "value_channel_same_entity": 0.947,
+    "legacy": 0.9998
+   },
+   "1200 vs 1250": {
+    "value_channel": 0.7987,
+    "value_channel_same_entity": 0.8424,
+    "legacy": 0.9969
+   },
+   "0.25 vs 0.5": {
+    "value_channel": 0.7364,
+    "value_channel_same_entity": 0.7938,
+    "legacy": 0.9926
+   },
+   "1000000.0 vs 2000000.0": {
+    "value_channel": 0.6655,
+    "value_channel_same_entity": 0.7362,
+    "legacy": 0.9874
+   }
+  },
+  "cos_plus1_minus1": 0.3037,
+  "cos_plus1_minus1_same_entity": 0.4575,
+  "cos_plus1_minus1_legacy": 0.9912,
+  "pass": true
+ },
+ "G_code_run": {
+  "code_run_demos": 21,
+  "representable": 21,
+  "error": null,
+  "json_hole_tokens": {
+   "min": 602,
+   "max": 1093,
+   "mean": 837.4761904761905
+  },
+  "grammar": {
+   "json_holes": true,
+   "cap": 1536,
+   "max_depth": 16
+  },
+  "rollout_steps": 6,
+  "replay": {
+   "actions": 4,
+   "tokens": [
+    1077,
+    1025,
+    892,
+    770
+   ],
+   "nll_per_token": [
+    1.8105220794677734,
+    2.0342822074890137,
+    1.8347359895706177,
+    1.808064579963684
+   ],
+   "decoder_bit_identical_other_order": true,
+   "finite": true,
+   "recomputed_latent_bit_identical_other_order": false,
+   "recomputed_latent_max_abs_dlogp": 1.14990234375
+  },
+  "greedy": {
+   "actions": 4,
+   "valid_arguments": 4,
+   "json_closed_by_lm": 4,
+   "json_tokens": [
+    9,
+    9,
+    5,
+    8
+   ],
+   "decode_steps": 30,
+   "seconds": 1.338012456893921,
+   "examples": [
+    "15222982",
+    "15222982",
+    "1000",
+    "5222582"
+   ],
+   "demo_input_head": [
+    "{\"rows\": [{\"src\": \"bas1\", \"data\": [[\"lekcin\", \"y\", \"'garnet'\"], [\"nehcil\", \"b\", \"-0x1cb2\"], [\"radec\", \"n\", \"1892.4%\"], [\"tunlaw\", \"z\", \"2014-05-18\"], [\"laroc\", ",
+    "{\"rows\": [{\"src\": \"ind2\", \"data\": \"f_elbram#p=\\\\N;f_ztrauq#a=-5_834;f_lekcin#y=18,154;f_reicalg#a=1_550_451;f_wolliw#p=noclaf repsaj;f_sisao#p=rednic;f_lennef#j"
+   ],
+   "rescore_bit_identical": true
+  },
+  "pass": true
+ },
+ "B_string_closure": {
+  "v4": {
+   "protocol": 4,
+   "actions": 48,
+   "slots": 62,
+   "own_close": 50,
+   "own_close_rate": 0.8064516129032258,
+   "trailing_commas": 0,
+   "merged_closes": 61,
+   "digit_runs_12plus": 8,
+   "json_fragments": 0,
+   "init_phrase_leaks": 0,
+   "tokens_mean": 11.193548387096774,
+   "tokens_max": 84,
+   "forced_by_kind": {
+    "str": 11,
+    "pattern": 1,
+    "key": 0
+   },
+   "slots_by_kind": {
+    "str": 54,
+    "pattern": 6,
+    "key": 2
+   },
+   "forced": [
+    {
+     "kind": "str",
+     "path": ".category",
+     "value": "bank account balance update request for ",
+     "n_tokens": 8,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".name",
+     "value": "checking account owner of bank organization 1700000000000000",
+     "n_tokens": 84,
+     "cap": 96,
+     "max_len": 120
+    },
+    {
+     "kind": "str",
+     "path": ".account",
+     "value": "account fee paid by user's account (3000",
+     "n_tokens": 13,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "pattern",
+     "path": ".name",
+     "value": "a123456789012345678901234567890123456789",
+     "n_tokens": 41,
+     "cap": 41,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sysbank012345678901234567890123",
+     "n_tokens": 27,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sys0123456789012345678901234567",
+     "n_tokens": 30,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sys_account_00018_000018_000018",
+     "n_tokens": 23,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sysbank012345678901234567890123",
+     "n_tokens": 27,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sysbank012345678901234567890123",
+     "n_tokens": 27,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sysbank012345678901234567890123",
+     "n_tokens": 27,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".host",
+     "value": "sysbank012345678901234567890123",
+     "n_tokens": 27,
+     "cap": 63,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".category",
+     "value": "banking_balance_example_000017_3000000.0",
+     "n_tokens": 22,
+     "cap": 81,
+     "max_len": 40
+    }
+   ],
+   "examples": [
+    {
+     "value": "bank account balance update request for ",
+     "close": "\"}",
+     "own": false
+    },
+    {
+     "value": "bank",
+     "close": "\"}",
+     "own": true
+    },
+    {
+     "value": "gen.transform.5f9738e5",
+     "close": "\"}",
+     "own": true
+    },
+    {
+     "value": "gen.transform.1cfd6802",
+     "close": "\"}",
+     "own": true
+    },
+    {
+     "value": "p00017",
+     "close": "\",",
+     "own": true
+    },
+    {
+     "value": "checking account owner (3000000 cents), owner: p:zovo-15",
+     "close": "\"}",
+     "own": true
+    },
+    {
+     "value": "p-48",
+     "close": "\",",
+     "own": true
+    },
+    {
+     "value": "checking account owner of bank organization 170000000000000000000000000000000000",
+     "close": "\"}",
+     "own": false
+    },
+    {
+     "value": "organisation",
+     "close": "\",",
+     "own": true
+    },
+    {
+     "value": "account fee paid by user's account (3000",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "o:kuno-48-labs",
+     "close": "\",",
+     "own": true
+    },
+    {
+     "value": "3000000.0 cents",
+     "close": "\"}",
+     "own": true
+    }
+   ]
+  },
+  "v3_pre_fix": {
+   "protocol": 3,
+   "actions": 48,
+   "slots": 62,
+   "own_close": 22,
+   "own_close_rate": 0.3548387096774194,
+   "trailing_commas": 4,
+   "merged_closes": 0,
+   "digit_runs_12plus": 22,
+   "json_fragments": 0,
+   "init_phrase_leaks": 0,
+   "tokens_mean": 27.096774193548388,
+   "tokens_max": 96,
+   "forced_by_kind": {
+    "str": 33,
+    "pattern": 6,
+    "key": 1
+   },
+   "slots_by_kind": {
+    "str": 54,
+    "pattern": 6,
+    "key": 2
+   },
+   "forced": [
+    {
+     "kind": "str",
+     "path": ".category",
+     "value": "bank account balance update request for ",
+     "n_tokens": 8,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".category",
+     "value": "banking_balance_example_17_000017_000017",
+     "n_tokens": 22,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "pattern",
+     "path": ".handle",
+     "value": "p00017-000017-000017-000017-000",
+     "n_tokens": 32,
+     "cap": 32,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".name",
+     "value": "checking account owner 17th account 000017-000017-000017-000",
+     "n_tokens": 94,
+     "cap": 96,
+     "max_len": 120
+    },
+    {
+     "kind": "pattern",
+     "path": ".handle",
+     "value": "p-48-000017-000017-000017-00001",
+     "n_tokens": 32,
+     "cap": 32,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".from_account",
+     "value": "acct_00001800001800001800001800001800001",
+     "n_tokens": 38,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".to",
+     "value": "acct_0000170000170000170000170000170000170000170000170000170",
+     "n_tokens": 58,
+     "cap": 96,
+     "max_len": 60
+    },
+    {
+     "kind": "pattern",
+     "path": ".name",
+     "value": "zv000018-000017-000018-000017-000018-000",
+     "n_tokens": 41,
+     "cap": 41,
+     "max_len": 40
+    },
+    {
+     "kind": "pattern",
+     "path": ".name",
+     "value": "a123456789012345678901234567890123456789",
+     "n_tokens": 41,
+     "cap": 41,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".repo",
+     "value": "bank_account_000018_repo_branch_01_commit_2023-04-05_09:12:3",
+     "n_tokens": 56,
+     "cap": 96,
+     "max_len": 81
+    },
+    {
+     "kind": "key",
+     "path": ".files",
+     "value": "balances_file.txt.txt.txt.txt.txt.txt.txt.txt.txt.txt.txt.tx",
+     "n_tokens": 48,
+     "cap": 48,
+     "max_len": 200000
+    },
+    {
+     "kind": "str",
+     "path": ".repo",
+     "value": "kuno-48-labs/kuno-48-decode-2023-04-01-000180000000000000000",
+     "n_tokens": 69,
+     "cap": 96,
+     "max_len": 81
+    },
+    {
+     "kind": "str",
+     "path": ".provider",
+     "value": "banking-cloud-provider-01234567890123456",
+     "n_tokens": 23,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".account",
+     "value": "account-000018-2023-01-01-000017-0000123",
+     "n_tokens": 35,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".provider",
+     "value": "banker-lab-48-labs-012345678901234567890",
+     "n_tokens": 32,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".account",
+     "value": "account-000018-000017-000018-000017-0000",
+     "n_tokens": 35,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".repo",
+     "value": "bank-repo-service-123456789012345678901234567890123456789012",
+     "n_tokens": 69,
+     "cap": 96,
+     "max_len": 81
+    },
+    {
+     "kind": "pattern",
+     "path": ".host",
+     "value": "c123456789012345678901234567890",
+     "n_tokens": 32,
+     "cap": 32,
+     "max_len": 31
+    },
+    {
+     "kind": "str",
+     "path": ".instance",
+     "value": "instance-1234567890123456789012345678901",
+     "n_tokens": 34,
+     "cap": 81,
+     "max_len": 40
+    },
+    {
+     "kind": "str",
+     "path": ".repo",
+     "value": "cloud-repo-1234567890123456789012345678901234567890123456789",
+     "n_tokens": 75,
+     "cap": 96,
+     "max_len": 81
+    }
+   ],
+   "examples": [
+    {
+     "value": "bank account balance update request for ",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "banking_balance_example_17_000017_000017",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "gen.transform.5f9738e5",
+     "close": "\"",
+     "own": true
+    },
+    {
+     "value": "gen.transform.1cfd6802",
+     "close": "\"",
+     "own": true
+    },
+    {
+     "value": "p00017-000017-000017-000017-000",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "checking account owner 17th account 000017-000017-000017-000017-000017-000017-00",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "p-48-000017-000017-000017-00001",
+     "close": "\"",
+     "own": false
+    },
+    {
+     "value": "checking account owner (p:kuno-48)",
+     "close": ")\"",
+     "own": true
+    },
+    {
+     "value": "organisation name here, account number, ",
+     "close": " \"",
+     "own": true
+    },
+    {
+     "value": "amount to pay, ",
+     "close": " \"",
+     "own": true
+    },
+    {
+     "value": "o:kuno-48-labs",
+     "close": "\"",
+     "own": true
+    },
+    {
+     "value": "3000000.0 cents",
+     "close": "\"",
+     "own": true
+    }
+   ]
+  },
+  "pass": false
+ },
+ "C_conditioning_at_init": {
+  "actions": 42,
+  "string_logp_bit_identical": true,
+  "decoder_hidden_logits_bit_identical": true,
+  "step_logits_bit_identical": true,
+  "gates": {
+   "5": 0.0,
+   "11": 0.0,
+   "17": 0.0,
+   "23": 0.0
+  },
+  "layers": [
+   5,
+   11,
+   17,
+   23
+  ],
+  "conditioning_params": 11548164,
+  "tokens": 2886
+ },
+ "F_semantic_context": {
+  "h_shape": [
+   4,
+   256,
+   1024
+  ],
+  "tokens_per_row": [
+   256,
+   256,
+   256,
+   256
+  ],
+  "budget": 256,
+  "kept_obs": [
+   4,
+   4,
+   4,
+   4
+  ],
+  "dropped_obs": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "cut_tokens": [
+   376,
+   370,
+   12773,
+   12126
+  ],
+  "row0_refs": [
+   "goal:g_6394a48ccb4444d8a3c88a59309e7a44",
+   "obs:0",
+   "obs:1",
+   "obs:3",
+   "obs:5"
+  ],
+  "first_s": 0.17853736877441406,
+  "cached_s": 0.005665302276611328,
+  "identical_second_call": true,
+  "gated_core_grad_abs_sum": {
+   "sem_proj": 2.0839461285504512e-05,
+   "xattn": 4.602429180522449e-05
+  },
+  "last_gates": {
+   "3": 0.04736462980508804,
+   "7": 0.047358714044094086
+  }
+ },
+ "D_bc_latent_dependence": {
+  "bc_steps": 93,
+  "bc_steps_planned": 100,
+  "batch": 8,
+  "train_actions": 84,
+  "held_actions": 42,
+  "optimizer": "AdamW: gates alpha lr 1e-2, decoder cross-attention + cond source tags lr 1e-3, core + reasoner lr 1e-4; clip 1.0 per group; loss = mean per-token NLL of the demonstrated strings",
+  "loss_first": 1.0102375745773315,
+  "loss_last10_mean": 0.08370070692908485,
+  "seconds": 222.01720666885376,
+  "first_step_grad_norms": {
+   "grad_core": 0.0,
+   "grad_cond": 0.16431662440299988
+  },
+  "gates_after": {
+   "5": 0.0422244593501091,
+   "11": 0.04098241776227951,
+   "17": 0.08873657882213593,
+   "23": -0.19119113683700562
+  },
+  "held_before": {
+   "actions": 42,
+   "abs_dlogp_no_latent_mean": 0.0,
+   "abs_dlogp_no_latent_median": 0.0,
+   "abs_dlogp_other_latent_mean": 0.0,
+   "abs_dlogp_other_latent_median": 0.0,
+   "nll_per_token": 1.7216726486713447
+  },
+  "held_after": {
+   "actions": 42,
+   "abs_dlogp_no_latent_mean": 74.05375652060684,
+   "abs_dlogp_no_latent_median": 3.7789230346679688,
+   "abs_dlogp_other_latent_mean": 0.2288239732141457,
+   "abs_dlogp_other_latent_median": 0.0003372016944922507,
+   "nll_per_token": 0.14069816724475545
+  },
+  "train_after": {
+   "actions": 48,
+   "abs_dlogp_no_latent_mean": 128.81178212188024,
+   "abs_dlogp_no_latent_median": 35.90618133544922,
+   "abs_dlogp_other_latent_mean": 1.3282460826017086,
+   "abs_dlogp_other_latent_median": 0.00431186705827713,
+   "nll_per_token": 0.14997484710648715
+  },
+  "pass": true
+ },
+ "E_replay_with_conditioning": {
+  "actions": 8,
+  "sampled_tokens": 109,
+  "rescore_twice_bit_identical": true,
+  "rescore_other_batch_bit_identical": true,
+  "record_unchanged": true,
+  "requires_grad": true,
+  "incremental_vs_rescore_max_abs": 0.09897375106811523,
+  "latent_changes_logp_mean_abs": 40.578495025634766,
+  "cam_tokens_bit_identical_other_batch_order": false,
+  "cam_tokens_max_abs_diff_other_batch_order": 0.001415252685546875,
+  "consumed": [
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1
+   ],
+   [
+    1,
+    1
+   ],
+   [
+    1,
+    1
+   ]
+  ]
+ },
+ "B2_demo_templates_at_init": {
+  "actions": 42,
+  "slots": 90,
+  "own_close": 90,
+  "own_close_rate": 1.0,
+  "trailing_commas": 0,
+  "exact_demo_match_rate": 0.32222222222222224,
+  "tokens_mean": 7.666666666666667,
+  "forced": []
+ },
+ "B2_demo_templates_after_bc": {
+  "actions": 42,
+  "slots": 90,
+  "own_close": 90,
+  "own_close_rate": 1.0,
+  "trailing_commas": 0,
+  "exact_demo_match_rate": 0.7555555555555555,
+  "tokens_mean": 9.78888888888889,
+  "forced": []
+ }
+}

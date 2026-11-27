@@ -54,7 +54,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .constraints import (JsonStringTables, PatternMasks, UnsupportedSchema, compile_pattern)
+from .constraints import (J_INIT, JSON_FOLLOW_FIRST, STRING_PROTOCOL, JsonStringTables, PatternMasks,
+                          UnsupportedSchema, compile_pattern, json_tables_for)
 from .layers import ContextReader, RMSNorm, masked_entropy, masked_log_softmax
 
 MAX_STRING = 200_000                       # crucible.core.schema.MAX_STRING
@@ -73,7 +74,12 @@ class GrammarOptions:
     float_digits: int = 6                  # at most this many fractional digits for `number` slots
     max_array_items: int = 8
     max_map_keys: int = 4
-    untyped_depth: int = 2
+    untyped_depth: int = 2                 # nesting of untyped values written by the typed heads (json_holes=False)
+    json_holes: bool = True                # untyped values (schema {} / no type) are JSON-value holes: the decoder
+                                           # writes the whole value as JSON text under the exact JSON automaton
+                                           # (constraints.JsonValueTables). The code.run demo `input` (5 levels, > 8
+                                           # items, > 4 keys) is unrepresentable by the typed heads at any depth.
+    json_max_depth: int = 16               # nesting cap of a JSON-value hole
     default_num_bound: float = 1e15        # replaces a missing minimum / maximum (recorded as a reduction)
     max_copy_candidates: int = 24          # numbers of the selected evidence offered to the copy pointer
     max_string_tokens: int = 1536          # cfg.max_arg_tokens: the cap of code / file fields (string class "code")
@@ -304,7 +310,7 @@ def number_candidates(sources: list, max_n: int, ctx_chars: int = 48) -> list:
 # ============================================================================ schema compilation
 @dataclass(eq=False)
 class Node:
-    kind: str                       # object|array|string|enum|const|integer|number|boolean|null|union
+    kind: str                       # object|array|string|enum|const|integer|number|boolean|null|union|json
     path: str
     desc: str = ""
     schema_text: str = ""
@@ -328,7 +334,7 @@ class Node:
         return f"{self.path or '(arguments)'} [{self.kind}] {self.desc} {self.schema_text}"
 
     def may_hole(self) -> bool:
-        if self.kind == "string":
+        if self.kind in ("string", "json"):
             return True
         if self.kind == "object":
             return self.extra is not None or any(c.may_hole() for _, c, _ in self.props)
@@ -427,6 +433,11 @@ def _number_node(t: str, path: str, desc: str, st: str, lo, hi, opts: GrammarOpt
 
 
 def _untyped(path: str, depth: int, opts: GrammarOptions, red: list) -> Node:
+    if opts.json_holes:
+        red.append({"path": path, "kind": "json_hole", "detail": f"any JSON value written by the decoder: <= "
+                    f"{opts.max_string_tokens} tokens, nesting <= {opts.json_max_depth}, no \\u escapes, <= 2 exponent "
+                    f"digits"})
+        return Node("json", path, desc="any JSON value", str_class="code", tok_cap=opts.max_string_tokens)
     red.append({"path": path, "kind": "untyped", "detail": f"any JSON value: nesting <= {depth}, numbers within "
                                                            f"+-{opts.default_num_bound:g}"})
     sink: list = []                         # the untyped members' own default bounds are covered by the line above
@@ -625,13 +636,17 @@ class Decision:
 
 @dataclass(eq=False)
 class Hole:
-    kind: str                       # 'str' | 'pattern' | 'key'
+    kind: str                       # 'str' | 'pattern' | 'key' | 'json' (a whole JSON value, no quotes)
     node: Node
     min_len: int = 0
     max_len: int = MAX_STRING
     dfa: Any = None
     tokens: Optional[list] = None
     value: Optional[str] = None
+    follow: str = ""                # forced JSON text after the hole (set by HoleFiller.program; protocol 4)
+    consumed: int = 0               # forced characters the closing token wrote after its quote (decode record v4)
+    expect_consumed: Optional[int] = None   # recorded `consumed` to verify on replay (None = not recorded)
+    own_close: Optional[bool] = None        # diagnostic: the closing step also allowed continuing the string
 
 
 @dataclass(eq=False)
@@ -701,6 +716,8 @@ def walk(node: Node, opts: GrammarOptions, cands: Optional[list] = None):
         return out
     if k == "string":
         return Hole("pattern" if node.dfa is not None else "str", node, node.min_len, node.max_len, node.dfa)
+    if k == "json":
+        return Hole("json", node)
     if k == "enum":
         return node.values[(yield from _ask(Decision("enum", node, [True] * len(node.values), node.values)))]
     if k == "const":
@@ -765,6 +782,15 @@ def encode_value(node: Node, value, opts: GrammarOptions, choices: list, holes: 
         if not isinstance(value, str):
             raise GrammarError(f"{node.path}: expected string")
         holes.append(("pattern" if node.dfa is not None else "str", value))
+        return
+    if k == "json":
+        try:
+            json.dumps(value, allow_nan=False)
+        except (TypeError, ValueError) as e:
+            raise GrammarError(f"{node.path}: not a finite JSON value ({e})") from None
+        if _json_depth(value) > opts.json_max_depth:
+            raise GrammarError(f"{node.path}: JSON nesting {_json_depth(value)} > {opts.json_max_depth}")
+        holes.append(("json", value))
         return
     if k == "enum":
         if value not in node.values:
@@ -837,6 +863,14 @@ def encode_value(node: Node, value, opts: GrammarOptions, choices: list, holes: 
     raise GrammarError(f"unknown node kind {k}")
 
 
+def _json_depth(v) -> int:
+    if isinstance(v, dict):
+        return 1 + max([_json_depth(x) for x in v.values()] + [0])
+    if isinstance(v, list):
+        return 1 + max([_json_depth(x) for x in v] + [0])
+    return 0
+
+
 def holes_of(template) -> list:
     """Holes in serialisation order."""
     out: list = []
@@ -869,7 +903,8 @@ def serialize(template) -> list:
 
     def rec(v):
         if isinstance(v, Hole):
-            buf.append('"')
+            if v.kind != "json":                       # a JSON-value hole writes its own quotes / brackets
+                buf.append('"')
             flush()
             segs.append(v)
         elif isinstance(v, TObject):
@@ -902,7 +937,7 @@ def materialize(template, stats: Optional[dict] = None):
     """Template with filled holes -> plain JSON value. Free-map keys that repeat a declared property name or an
     earlier key are dropped (first occurrence wins; counted in stats['dropped_keys'])."""
     if isinstance(template, Hole):
-        if template.value is None:
+        if template.value is None and not (template.kind == "json" and template.tokens):   # (a JSON null)
             raise GrammarError("unfilled hole")
         return template.value
     if isinstance(template, TObject):
@@ -1041,18 +1076,25 @@ class ArgHeads(nn.Module):
 # ============================================================================ Qwen hole filling
 @dataclass(eq=False)
 class Program:
-    """One row's decoder program: forced token segments interleaved with holes (forced[i] precedes holes[i])."""
+    """One row's decoder program: forced token segments interleaved with holes (forced[i] precedes holes[i]).
+    Protocol 4: when hole i closes with a merged token that also wrote c forced characters, the segment fed after it
+    is the tokenisation of forced_text[i + 1][c:] (`HoleFiller.segment`)."""
     forced: list                   # list[list[int]] (len = len(holes) + 1; the last one is never fed)
     holes: list                    # list[Hole]
     reserve: list                  # per-hole minimal token need
     cap: list                      # per-hole base cap
     cls: list = field(default_factory=list)   # per-hole string class index (STRING_CLASSES) of the length prior
     hz_off: Any = None             # [n_holes] float tensor: learned per-hole stop-logit offsets (None = no prior)
+    forced_text: list = field(default_factory=list)   # list[str]: the text of each forced segment
+
+    def consumed(self) -> list:
+        """Per hole: forced characters its closing token wrote (the decode record v4 field)."""
+        return [int(h.consumed) for h in self.holes]
 
 
 def hole_class(h: Hole) -> str:
     """Length-prior class of a hole: keys and pattern strings are short; free strings carry their slot's class."""
-    if h.kind == "str":
+    if h.kind in ("str", "json"):
         return h.node.str_class
     return "short"
 
@@ -1143,6 +1185,13 @@ def stop_mixture_log_softmax(logits: torch.Tensor, allowed: torch.Tensor, close:
     return out.masked_fill(~allowed, -torch.inf)
 
 
+def _finite_float(x: str) -> float:
+    v = float(x)
+    if not math.isfinite(v):          # needs > 300 mantissa digits (the automaton allows <= 2 exponent digits)
+        raise GrammarError(f"JSON number {x[:40]}... overflows a float")
+    return v
+
+
 def hole_reserve(h: Hole) -> int:
     if h.kind == "pattern":
         lens = h.dfa.reach[0]
@@ -1150,11 +1199,25 @@ def hole_reserve(h: Hole) -> int:
             if (lens >> l) & 1:
                 return l + 1
         raise GrammarError("pattern has no feasible completion")
+    if h.kind == "json":
+        return 2                                   # '""' (constraints.json_need of the initial state)
     return h.min_len + 1
 
 
 class HoleFiller:
-    """Samples / rescores the string holes of a batch of programs with the LoRA-enabled Qwen decoder."""
+    """Samples / rescores the string holes of a batch of programs with the LoRA-enabled Qwen decoder.
+
+    String protocol 4 (constraints.STRING_PROTOCOL): a hole may close with a merged token ('",' '"}') whose text after
+    the quote is a prefix of the forced JSON text that follows (`Hole.follow`); the decoder then feeds the
+    re-tokenised rest of that forced segment (`segment`). The consumed characters are a pure function of the hole's
+    tokens, recorded per hole (`Hole.consumed`, `Program.consumed()`) and verified on replay when the record carries
+    them (`Hole.expect_consumed`). `prompt_hash` covers the protocol, so a record sampled under protocol 3 never
+    replays.
+
+    Latent conditioning (DOM Mechanism A): `sample(..., cond=(Z, mask))` and `score(..., cond=)` run the decoder with
+    CAM tokens Z [R, n, d_model] (rows aligned with `programs`) read by the encoder's gated cross-attention
+    (`enc.conditioning`, semantic/decoder_xattn.py); cond=None runs the decoder unconditioned. With every gate at its
+    initial value alpha = 0 the conditioned logits equal the unconditioned ones bit for bit."""
 
     def __init__(self, enc, tables: JsonStringTables, opts: GrammarOptions, max_prompt_tokens: int = 3072):
         self.enc = enc
@@ -1162,10 +1225,25 @@ class HoleFiller:
         self.opts = opts
         self.max_prompt_tokens = max_prompt_tokens
         self._pmask: dict = {}
+        self._seg_cache: dict = {}                          # forced text -> token ids (re-tokenised remainders)
+        # string protocol: 4 = boundary-aware closing (default); 3 = the pre-v4 end-of-token-only closing, kept as a
+        # labelled ablation (holes get no follow text). It is part of prompt_hash, so records never cross protocols.
+        self.protocol = STRING_PROTOCOL
         tok = enc.tok
         self.stub_ids = tok("<think>\n\n</think>\n\n", add_special_tokens=False)["input_ids"]
         self.length_head: Optional[LengthHead] = None       # set by the action generator (opts.length_prior)
         self.merged_acting = True                           # sample() decodes with merged LoRA weights (enc.acting)
+        self._jt = None                                     # JSON-value automaton (built on first use, ~2 s)
+
+    @property
+    def jtables(self):
+        if self._jt is None:
+            self._jt = json_tables_for(self.tables, self.opts.json_max_depth)
+        return self._jt
+
+    @staticmethod
+    def _init_state(h: Hole):
+        return J_INIT if h.kind == "json" else 0
 
     # ---------------------------------------------------------------- prompts and programs
     def _clip_ids(self, ids: list, keep: int) -> tuple:
@@ -1228,21 +1306,50 @@ class HoleFiller:
         tail = self.enc.tok("<|im_end|>\n<|im_start|>assistant\n", add_special_tokens=False)["input_ids"]
         return head + ids + tail, truncated
 
-    @staticmethod
-    def prompt_hash(ctx_ids: list) -> str:
-        return hashlib.sha256(json.dumps(ctx_ids).encode()).hexdigest()[:24]
+    def prompt_hash(self, ctx_ids: list) -> str:
+        """Identity of the decoder context and of the string protocol it is decoded under (a record sampled under
+        another protocol, e.g. the pre-v4 end-of-token-only closing, does not replay: GrammarError on rescoring)."""
+        return hashlib.sha256(json.dumps([f"strings/{self.protocol}", ctx_ids]).encode()).hexdigest()[:24]
+
+    def _ids(self, text: str) -> list:
+        ids = self._seg_cache.get(text)
+        if ids is None:
+            ids = self.enc.tok(text, add_special_tokens=False)["input_ids"] if text else []
+            if len(self._seg_cache) > 65536:
+                self._seg_cache.clear()
+            self._seg_cache[text] = ids
+        return list(ids)
+
+    def segment(self, p: Program, k: int) -> list:
+        """Forced token ids fed before hole k: forced[k] itself, or - when hole k-1 closed with a merged token that
+        wrote c characters of it - the tokenisation of the rest of its text."""
+        c = p.holes[k - 1].consumed if k > 0 else 0
+        if c <= 0:
+            return list(p.forced[k])
+        text = p.forced_text[k]
+        if c > len(text):
+            raise GrammarError("closing token consumed more than the forced text after its hole")
+        return self._ids(text[c:])
 
     def program(self, template) -> Program:
         segs = serialize(template)
-        forced, holes, buf = [], [], ""
+        forced, texts, holes, buf = [], [], [], ""
         for s in segs:
             if isinstance(s, Hole):
-                forced.append(self.enc.tok(buf, add_special_tokens=False)["input_ids"] if buf else [])
+                forced.append(self._ids(buf))
+                texts.append(buf)
                 holes.append(s)
                 buf = ""
             else:
                 buf += s
-        forced.append(self.enc.tok(buf, add_special_tokens=False)["input_ids"] if buf else [])
+        forced.append(self._ids(buf))
+        texts.append(buf)
+        for k, h in enumerate(holes):
+            # JSON-value holes always close boundary-aware (a top-level number ends at the forced text's first char)
+            h.follow = texts[k + 1] if (self.protocol >= 4 or h.kind == "json") else ""
+            h.consumed = 0
+            if h.kind == "json" and (not h.follow or h.follow[0] not in JSON_FOLLOW_FIRST):
+                raise GrammarError(f"{h.node.path}: a JSON hole must be followed by one of {JSON_FOLLOW_FIRST!r}")
         reserve = [hole_reserve(h) for h in holes]
         if sum(reserve) > self.opts.max_action_tokens:
             raise GrammarError(f"holes need {sum(reserve)} tokens > action budget {self.opts.max_action_tokens}")
@@ -1255,11 +1362,14 @@ class HoleFiller:
                 cap.append(min(self.opts.max_string_tokens, h.max_len + 1))
             elif h.kind == "key":
                 cap.append(min(self.opts.max_key_tokens, 2 * h.max_len + 1))
+            elif h.kind == "json":
+                cap.append(h.node.tok_cap or self.opts.max_string_tokens)
             elif h.node.tok_cap > 0:
                 cap.append(h.node.tok_cap)
             else:
                 cap.append(min(self.opts.max_string_tokens, 2 * h.max_len + 1))
-        return Program(forced, holes, reserve, cap, [STRING_CLASSES.index(hole_class(h)) for h in holes])
+        return Program(forced, holes, reserve, cap, [STRING_CLASSES.index(hole_class(h)) for h in holes],
+                       forced_text=texts)
 
     # ---------------------------------------------------------------- masks
     def _pattern_masks(self, h: Hole) -> PatternMasks:
@@ -1271,16 +1381,26 @@ class HoleFiller:
 
     def masks(self, specs: list) -> tuple:
         """specs: list of (hole, state, count, remaining) -> (allowed-token masks [P, V], closing-token masks [P, V]:
-        the allowed tokens that end the string, i.e. carry its closing quote)."""
+        the allowed tokens that end the string, i.e. carry its closing quote - the plain quote and the merged closers
+        whose suffix is a prefix of the hole's follow text)."""
         T = self.tables
         P = len(specs)
         out = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
         close = torch.zeros(P, T.V, dtype=torch.bool, device=T.valid.device)
-        srows = [i for i, sp in enumerate(specs) if sp[0].kind != "pattern"]
+        srows = [i for i, sp in enumerate(specs) if sp[0].kind not in ("pattern", "json")]
+        jrows = [i for i, sp in enumerate(specs) if sp[0].kind == "json"]
+        if jrows:                                          # JSON-value holes: state = (lexical state, stack)
+            jm, jc = self.jtables.masks([(specs[i][1], specs[i][3], specs[i][0].follow) for i in jrows])
+            jt = torch.tensor(jrows, device=T.valid.device)
+            out[jt] = jm
+            close[jt] = jc
         for i, sp in enumerate(specs):
             if sp[0].kind == "pattern":
-                out[i] = self._pattern_masks(sp[0]).mask(sp[1], sp[2], sp[3], sp[0].min_len, sp[0].max_len)
+                out[i] = self._pattern_masks(sp[0]).mask(sp[1], sp[2], sp[3], sp[0].min_len, sp[0].max_len,
+                                                         follow=sp[0].follow)
                 close[i, T.quote_id] = out[i, T.quote_id]
+                if sp[0].follow:
+                    close[i] |= out[i] & T.follow_mask(0, sp[0].follow, quote_led=True)
         for c0 in range(0, len(srows), 64):
             rows = srows[c0: c0 + 64]
             dev = T.valid.device
@@ -1290,8 +1410,9 @@ class HoleFiller:
             mn = torch.tensor([specs[i][0].min_len for i in rows], device=dev).unsqueeze(1)
             mx = torch.tensor([specs[i][0].max_len for i in rows], device=dev).unsqueeze(1)
             v, cl, e, n = T.valid[S], T.closes[S], T.end[S], T.nch[S]
+            fm = torch.stack([T.follow_mask(specs[i][1], specs[i][0].follow) for i in rows])
             c1 = cnt + n
-            close_ok = v & cl & (c1 >= mn) & (c1 <= mx)
+            close_ok = ((v & cl) | fm) & (c1 >= mn) & (c1 <= mx)
             need0 = (mn - c1).clamp(min=0)
             need1 = (mn - c1 - 1).clamp(min=0)
             r1 = rem - 1
@@ -1319,17 +1440,34 @@ class HoleFiller:
             hz = torch.where(torch.tensor(none, device=dev), torch.full_like(hz, -1e4), hz)
         return hz
 
-    def _advance(self, h: Hole, state: int, count: int, tok: int):
+    def _advance(self, h: Hole, state, count: int, tok: int):
+        if h.kind == "json":
+            s2, closed, _ = self.jtables.advance(state, tok)
+            return s2, count + 1, closed
         if h.kind == "pattern":
             return self._pattern_masks(h).advance(state, count, tok)
         return self.tables.advance(state, count, tok)
 
+    def _consumed(self, h: Hole, state: int, tok: int) -> int:
+        """Forced characters the closing token `tok` (fed in automaton state `state`) writes after its quote."""
+        if h.kind == "json":
+            c = self.jtables.advance(state, tok)[2]
+        else:
+            c = self._pattern_masks(h).consumed(tok) if h.kind == "pattern" else self.tables.consumed(state, tok)
+        if c and not h.follow.startswith(self.tables.texts[tok][-c:]):
+            raise GrammarError("closing token's suffix is not the forced text after the hole")
+        return c
+
     def _hole_value(self, h: Hole) -> str:
         text = "".join(self.tables.texts[t] for t in h.tokens)
+        if h.consumed:
+            text = text[: len(text) - h.consumed]
         if h.kind == "pattern":
             if not text.endswith('"'):
                 raise GrammarError("pattern hole not closed")
             return text[:-1]
+        if h.kind == "json":
+            return json.loads(text, parse_float=_finite_float)
         return json.loads('"' + text)
 
     # ---------------------------------------------------------------- assembly
@@ -1360,34 +1498,49 @@ class HoleFiller:
         return emb, att, pos, starts
 
     # ---------------------------------------------------------------- sampling
+    def _step(self, emb, att, pos, cache, cond):
+        """enc.step with the latent conditioning when given (encoders without it accept only cond=None)."""
+        if cond is None:
+            return self.enc.step(emb, att, pos, cache)
+        return self.enc.step(emb, att, pos, cache, cond=cond)
+
+    def _decoder_hidden(self, emb, att, pos, cond):
+        if cond is None:
+            return self.enc.decoder_hidden(emb, att, pos)
+        return self.enc.decoder_hidden(emb, att, pos, cond=cond)
+
     @torch.no_grad()
     def sample(self, programs: list, prefix: torch.Tensor, ctx: list, temperature: float, greedy: bool,
-               generator: Optional[torch.Generator] = None):
-        """Fill the holes of every program in place. prefix [R, P, H]. Returns (logp [R], entropy [R], n_sampled [R],
-        n_steps). Decodes on the acting path (`enc.acting`: merged LoRA weights when `merged_acting`); the returned
-        logp is the incremental diagnostic value - the behaviour log-probability is the learner-path `score`. One
-        device->host transfer per step (the sampled tokens and the empty-mask flag together)."""
+               generator: Optional[torch.Generator] = None, cond=None):
+        """Fill the holes of every program in place. prefix [R, P, H]; cond = (Z [R, n, d_model], mask [R, n] | None)
+        CAM tokens the decoder cross-attends to (None = unconditioned). Returns (logp [R], entropy [R],
+        n_sampled [R], n_steps). Decodes on the acting path (`enc.acting`: merged LoRA weights when
+        `merged_acting`); the returned logp is the incremental diagnostic value - the behaviour log-probability is the
+        learner-path `score`. One device->host transfer per step (the sampled tokens and the empty-mask flag)."""
         with self.enc.acting(self.merged_acting):
-            return self._sample(programs, prefix, ctx, temperature, greedy, generator)
+            return self._sample(programs, prefix, ctx, temperature, greedy, generator, cond)
 
-    def _sample(self, programs, prefix, ctx, temperature, greedy, generator):
+    def _sample(self, programs, prefix, ctx, temperature, greedy, generator, cond=None):
         enc = self.enc
         R = len(programs)
         dev = enc.device
         tails = [self.stub_ids + p.forced[0] for p in programs]
         emb, att, pos, _ = self._assemble(prefix, ctx, tails)
         cache = enc.new_cache()
-        logits, cache = enc.step(emb, att, pos, cache)
+        logits, cache = self._step(emb, att, pos, cache, cond)
         cur = pos[:, -1].clone()
         logp = torch.zeros(R, device=dev)
         ent = torch.zeros(R, device=dev)
         n_s = [0] * R
-        # per-row cursor: [hole index, mode ('hole'|'forced'), forced position, state, count, used, budget_used]
+        # per-row cursor: hole index, mode ('hole'|'forced'), the forced segment being fed and its position, automaton
+        # state, decoded count, tokens used in the hole, budget spent
         st = []
         for p in programs:
             for h in p.holes:
                 h.tokens = []
-            st.append({"hi": 0, "mode": "hole", "fp": 0, "s": 0, "c": 0, "used": 0, "spent": 0, "done": not p.holes})
+                h.consumed = 0
+            st.append({"hi": 0, "mode": "hole", "seg": [], "fp": 0, "s": self._init_state(p.holes[0]) if p.holes else 0,
+                       "c": 0, "used": 0, "spent": 0, "done": not p.holes})
         steps = 0
         while not all(s["done"] for s in st):
             specs, rows = [], []
@@ -1414,10 +1567,12 @@ class HoleFiller:
                 rr = torch.tensor(rows, device=dev)
                 logp.index_add_(0, rr, chosen)
                 ent.index_add_(0, rr, e)
-                host = torch.cat([tok, empty.any().long().view(1)]).tolist()      # the step's only sync
+                cont = (m & ~mc).any(1)                       # continuing was allowed (a close is the LM's choice)
+                host = torch.cat([tok, cont.long(), empty.any().long().view(1)]).tolist()   # the step's only sync
                 if host[-1]:
                     raise GrammarError("empty token mask during hole sampling")
-                tok_l = host[:-1]
+                tok_l = host[: len(rows)]
+                own = [bool(x) for x in host[len(rows): 2 * len(rows)]]
                 for j, r in enumerate(rows):
                     t = tok_l[j]
                     feed[r] = t
@@ -1426,21 +1581,27 @@ class HoleFiller:
                     h = p.holes[s["hi"]]
                     h.tokens.append(t)
                     n_s[r] += 1
+                    s0 = s["s"]
                     s["s"], s["c"], closed = self._advance(h, s["s"], s["c"], t)
                     s["used"] += 1
                     if closed:
+                        h.consumed = self._consumed(h, s0, t)
+                        h.own_close = own[j]
                         h.value = self._hole_value(h)
                         s["spent"] += s["used"]
                         s["hi"] += 1
-                        s.update(s=0, c=0, used=0, mode="forced", fp=0)
+                        s.update(s=self._init_state(p.holes[s["hi"]]) if s["hi"] < len(p.holes) else 0, c=0, used=0,
+                                 mode="forced", fp=0)
                         if s["hi"] >= len(p.holes):
                             s["done"] = True
-                        elif not p.forced[s["hi"]]:
-                            s["mode"] = "hole"
+                        else:
+                            s["seg"] = self.segment(p, s["hi"])
+                            if not s["seg"]:
+                                s["mode"] = "hole"
             for r, (p, s) in enumerate(zip(programs, st)):
                 if s["done"] or s["mode"] != "forced" or live[r]:
                     continue
-                seg = p.forced[s["hi"]]
+                seg = s["seg"]
                 feed[r] = seg[s["fp"]]
                 live[r] = 1
                 s["fp"] += 1
@@ -1451,25 +1612,36 @@ class HoleFiller:
             att = torch.cat([att, torch.tensor(live, dtype=att.dtype, device=dev).unsqueeze(1)], 1)
             cur = cur + 1
             feed_t = torch.tensor(feed, dtype=torch.long, device=dev)
-            logits, cache = enc.step(enc.embed_ids(feed_t.unsqueeze(1)), att, cur.unsqueeze(1), cache)
+            logits, cache = self._step(enc.embed_ids(feed_t.unsqueeze(1)), att, cur.unsqueeze(1), cache, cond)
             steps += 1
         return logp, ent, n_s, steps
 
     # ---------------------------------------------------------------- exact rescoring
+    @staticmethod
+    def _cond_rows(cond, rows: slice):
+        if cond is None:
+            return None
+        Z, m = cond
+        return Z[rows], (None if m is None else m[rows])
+
     def score(self, programs: list, prefix: torch.Tensor, ctx: list, temperature, chunk: int = 256,
-              exact_rows: bool = False):
-        """Differentiable log-probability of the recorded hole tokens (LoRA + prefix get gradients). `temperature` is
-        a float or a per-row tensor [R] / [R, 1]. Returns (logp [R], entropy [R], n_tokens [R]).
+              exact_rows: bool = False, cond=None):
+        """Differentiable log-probability of the recorded hole tokens (LoRA, prefix and the latent conditioning get
+        gradients). `temperature` is a float or a per-row tensor [R] / [R, 1]; cond = (Z [R, n, d_model], mask) as in
+        `sample` (rows aligned with programs). Returns (logp [R], entropy [R], n_tokens [R]).
 
         exact_rows=True evaluates every row alone without padding. In bf16 a padded batched forward depends on the
         batch's padding (measured on Qwen3-0.6B free strings: median ~0.19, max ~0.4 nats per action vs row-wise), so
         row-wise scoring is what makes a row's value independent of the minibatch. Per-row sums are plain
-        reductions (no atomic index_add), so the same row gives bit-identical values in every call."""
+        reductions (no atomic index_add), so the same row gives bit-identical values in every call.
+        Protocol 4 replay: the forced text a merged closing token consumed is re-derived from the recorded tokens; a
+        hole whose `expect_consumed` (from a v4 decode record) differs raises GrammarError."""
         if exact_rows and len(programs) > 1:
             outs = []
             for r in range(len(programs)):
                 tau = temperature.reshape(-1)[r: r + 1] if isinstance(temperature, torch.Tensor) else temperature
-                outs.append(self.score(programs[r: r + 1], prefix[r: r + 1], ctx[r: r + 1], tau, chunk))
+                outs.append(self.score(programs[r: r + 1], prefix[r: r + 1], ctx[r: r + 1], tau, chunk,
+                                       cond=self._cond_rows(cond, slice(r, r + 1))))
             return tuple(torch.cat([o[k] for o in outs]) for k in range(3))
         enc = self.enc
         R = len(programs)
@@ -1479,10 +1651,10 @@ class HoleFiller:
             seq = list(self.stub_ids)
             spent = 0
             for k, h in enumerate(p.holes):
-                seq += p.forced[k]
+                seq += self.segment(p, k)
                 later = sum(p.reserve[k + 1:])
                 cap = min(p.cap[k], self.opts.max_action_tokens - spent - later)
-                s, c = 0, 0
+                s, c = self._init_state(h), 0
                 if not h.tokens:
                     raise GrammarError("hole without recorded tokens")
                 for u, t in enumerate(h.tokens):
@@ -1492,16 +1664,21 @@ class HoleFiller:
                     targets.append(t)
                     owner.append(r)
                     seq.append(t)
+                    s0 = s
                     s, c, closed = self._advance(h, s, c, t)
                     if closed and u != len(h.tokens) - 1:
                         raise GrammarError("recorded hole closes before its last token")
                 if not closed:
                     raise GrammarError("recorded hole does not close")
+                h.consumed = self._consumed(h, s0, h.tokens[-1])
+                if h.expect_consumed is not None and int(h.expect_consumed) != h.consumed:
+                    raise GrammarError(f"hole {k}: the recorded closing consumed {h.expect_consumed} forced "
+                                       f"characters, the replay {h.consumed}")
                 spent += len(h.tokens)
                 h.value = self._hole_value(h)
             tails.append(seq)
         emb, att, pos, starts = self._assemble(prefix, ctx, tails)
-        hid = enc.decoder_hidden(emb, att, pos)                                     # [R, L, H]
+        hid = self._decoder_hidden(emb, att, pos, cond)                             # [R, L, H]
         own = torch.tensor(owner, device=dev)
         abs_pos = torch.tensor([starts[o] + q - 1 for o, q in zip(owner, positions)], device=dev)
         tgt = torch.tensor(targets, device=dev)
@@ -1540,28 +1717,99 @@ class HoleFiller:
         return logp, ent, n_tok
 
     # ---------------------------------------------------------------- behaviour cloning support
-    def tokenize_hole(self, kind: str, value: str, h: Hole, cap: int) -> list:
-        """Token ids that reproduce `value` in hole `h` under its constraint (encoder for demonstrations)."""
+    def _natural_close(self, lit: str, follow: str) -> Optional[list]:
+        """Tokens of the string body + closing quote (`lit`) as the tokenizer writes them in context, i.e. the
+        tokenisation of lit + follow cut after the token that carries the closing quote (protocol 4: that token may
+        be a merged closer whose suffix is a prefix of `follow`). None when the cut tokens are not a valid hole."""
         T = self.tables
+        ids = self.enc.tok(lit + follow, add_special_tokens=False)["input_ids"]
+        s, n_chars, out = 0, 0, []
+        for t in ids:
+            if t >= T.V or T.texts[t] is None:
+                return None
+            out.append(t)
+            n_chars += len(T.texts[t])
+            if t in T.merged[s]:
+                return out if n_chars - T.consumed(s, t) == len(lit) else None
+            if not bool(T.valid_h[s, t]):
+                return None
+            if bool(T.closes_h[s, t]):
+                return out if n_chars == len(lit) else None
+            s = int(T.end_h[s, t])
+        return None
+
+    def tokenize_hole(self, kind: str, value: str, h: Hole, cap: int) -> list:
+        """Token ids that reproduce `value` in hole `h` under its constraint (encoder for demonstrations). Free strings
+        and keys use the tokenizer's own tokenisation in context (closing with a merged token such as '",' when the
+        tokenizer writes one before the hole's follow text), else the body's tokens plus a plain quote, else one token
+        per character."""
+        T = self.tables
+        if kind == "json":
+            return self._tokenize_json(value, h, cap)
         if kind == "pattern":
             if not h.dfa.matches(value):
                 raise GrammarError(f"value {value!r} does not match pattern {h.dfa.pattern!r}")
             ids = [T.char_id[c] for c in value] + [T.quote_id]
+            if h.follow:                                   # a quote-led merged closer when the tokenizer uses one
+                nat = self.enc.tok('"' + h.follow, add_special_tokens=False)["input_ids"]
+                if nat and nat[0] in T.quote_led and h.follow.startswith(T.quote_led[nat[0]]):
+                    ids[-1] = nat[0]
         else:
             lit = json.dumps(value, ensure_ascii=False)[1:]
-            ids = self.enc.tok(lit, add_special_tokens=False)["input_ids"]
-            s, ok = 0, True
-            for t in ids:
-                if t >= T.V or not bool(T.valid_h[s, t]):
-                    ok = False
-                    break
-                s = int(T.end_h[s, t])
-            if not ok:                                    # fall back to one token per character
-                ids = []
-                for ch in lit:
-                    if ch not in T.char_id:
-                        raise GrammarError(f"character {ch!r} has no single-token form")
-                    ids.append(T.char_id[ch])
+            ids = self._natural_close(lit, h.follow) if h.follow else None
+            if ids is None:
+                ids = self.enc.tok(lit, add_special_tokens=False)["input_ids"]
+                s, ok = 0, True
+                for t in ids:
+                    if t >= T.V or not bool(T.valid_h[s, t]):
+                        ok = False
+                        break
+                    s = int(T.end_h[s, t])
+                if not ok:                                    # fall back to one token per character
+                    ids = []
+                    for ch in lit:
+                        if ch not in T.char_id:
+                            raise GrammarError(f"character {ch!r} has no single-token form")
+                        ids.append(T.char_id[ch])
         if len(ids) > cap:
             raise GrammarError(f"string needs {len(ids)} tokens > cap {cap}")
         return ids
+
+    def _tokenize_json(self, value, h: Hole, cap: int) -> list:
+        """Tokens of a JSON-value hole for a demonstrated value: json.dumps(value) (", " / ": " separators, like
+        `serialize`) as the tokenizer writes it before the hole's follow text, cut after the token that completes the
+        value (it may carry a prefix of the follow text, e.g. '}}' or '"],'); else the value's own tokens (+ the
+        follow text's first character after a top-level number); else one token per character. Every candidate is
+        checked token by token against the exact mask conditions (JsonValueTables.allowed)."""
+        J, T = self.jtables, self.tables
+        text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+        follow = h.follow
+
+        def check(ids):
+            state, out, chars = J_INIT, [], 0
+            for u, t in enumerate(ids):
+                if t >= T.V or not T.texts[t]:
+                    return None
+                ok, closes = J.allowed(state, cap - u, follow, t)
+                if not ok:
+                    return None
+                out.append(t)
+                chars += len(T.texts[t])
+                if closes:
+                    cons = J.advance(state, t)[2]
+                    return out if chars - cons == len(text) else None
+                state = J.advance(state, t)[0]
+            return None
+
+        cands = [self.enc.tok(text + follow, add_special_tokens=False)["input_ids"]]
+        own = self.enc.tok(text, add_special_tokens=False)["input_ids"]
+        term = [T.char_id[follow[0]]] if follow and follow[0] in T.char_id else []
+        cands += [own, own + term]
+        if all(ch in T.char_id for ch in text):
+            cands.append([T.char_id[ch] for ch in text] + term)
+        for ids in cands:
+            out = check(ids)
+            if out is not None:
+                return out
+        raise GrammarError(f"{h.node.path}: JSON value ({len(own)} tokens) not representable within {cap} tokens")
+
