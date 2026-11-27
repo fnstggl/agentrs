@@ -46,3 +46,32 @@ def test_over_hiding_legitimate_fields_is_counted_missing_by_every_legacy_compar
     # a reviewed field (the controller label) is still normalised: hiding only it leaves nothing missing
     monkeypatch.setattr(EO, "EVENT_FIELDS", dict(EO.EVENT_FIELDS.items()))
     assert all(v == 0 for v in _missing(leakage.run_battery(tests)).values())
+
+
+def _controller(world, p):
+    rec = world.state.get("persons", p)
+    return (rec.get("info") or {}).get("controller", "")
+
+
+def test_controller_labels_reach_tier2_seats_or_raise():
+    """The verifier's probe p11: make(2, 'crisis', 3, controllers='learner-X') left the seat's controller '' with no
+    error (a seat is an existing principal). The label is now written into the seat configuration before the world
+    is created; relabelling an existing principal raises; another seat sees no label in its observations."""
+    from crucible.commerce.integrity import related_set
+    from crucible.experience import make
+    from crucible.experience.kernel import KernelExperienceEnv
+    env = make(2, "crisis", 3, controllers="learner-X")
+    a = env.agents()[0]
+    assert _controller(env.world, a) == "learner-X"
+    spec_seats = [m for m in env.world.spec.modules if m["name"] == "seat"][0]["config"]["seats"]
+    assert all(s.get("controller") == "learner-X" for s in spec_seats)      # recorded in the spec: replay keeps it
+    env2 = make(2, "crisis", 3, controllers={a: "lab-1"})                     # per seat, keyed by principal
+    assert _controller(env2.world, env2.agents()[0]) == "lab-1"
+    env3 = make(2, "crisis", 3)
+    assert _controller(env3.world, env3.agents()[0]) == ""
+    with pytest.raises(ValueError, match="controller label"):
+        KernelExperienceEnv(env3.world, 3, agents=[a], controllers="someone-else")
+    # a second participant of the same controller is related to the seat; nothing it observes names the label
+    b = env.add_agent("second", controller="learner-X")
+    assert b in related_set(env.world, a)
+    assert "learner-X" not in leakage.dump([env.observe(b), env.observe_since(b, 0), env.observe(a)])

@@ -121,7 +121,8 @@ class KernelExperienceEnv(BaseExperienceEnv):
         self._tools_cache: dict[str, tuple[int, list[dict]]] = {}
         names = [f"agent{i}" for i in range(int(agents))] if isinstance(agents, int) else list(agents)
         for h in names:
-            ctl = controllers.get(h, "") if isinstance(controllers, dict) else (controllers or "")
+            ctl = (controllers.get(h, controllers.get(h[2:] if h.startswith("p:") else f"p:{h}", ""))
+                   if isinstance(controllers, dict) else (controllers or ""))
             self.add_agent(h, endowment=endowment, kind=join_kind, controller=str(ctl))
         objs = objectives if isinstance(objectives, dict) else ({a: objectives for a in self._agents}
                                                                  if objectives is not None else {})
@@ -144,10 +145,19 @@ class KernelExperienceEnv(BaseExperienceEnv):
 
     def add_agent(self, handle: str, *, endowment: int = 1_000_000, kind: str = "agent", controller: str = "") -> str:
         """Admit a participant (recorded `admin.join`, with its `controller` label when one is given) or adopt an
-        existing principal (``"p:..."``)."""
+        existing principal (``"p:..."``). An existing principal's label was fixed when it was created (a Tier 2 seat:
+        the `seat` module's configuration, which `registry.make(2, ..., controllers=)` writes): a `controller` that
+        differs from it raises instead of being dropped silently."""
         w = self.world
         if handle.startswith(("p:", "svc:")) and w.principal(handle) is not None:
             p = handle
+            if controller:
+                from ..commerce.integrity import _persons_info
+                have = _persons_info(w.state, p).get("controller", "")
+                if str(have or "") != str(controller):
+                    raise ValueError(f"{p} exists with controller label {have!r}; a label ({controller!r}) can only "
+                                     "be given when the participant is created (admin.join, or a Tier 2 seat through "
+                                     "make(2, ..., controllers=))")
         else:
             args = {"handle": handle, "endowment": int(endowment), "kind": kind}
             if controller:

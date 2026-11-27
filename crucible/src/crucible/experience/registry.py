@@ -26,6 +26,8 @@ missing - it never falls back silently to another world type.
 """
 from __future__ import annotations
 
+import copy
+
 import importlib
 from typing import Any
 
@@ -188,6 +190,9 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
         if m not in have:
             spec.modules.append({"name": m, "config": {}})
             have.add(m)
+    # controller labels of the domain's own seats are given where the seats are created (the `seat` module's
+    # genesis): a seat is an existing principal when the learner adopts it, and admin.join cannot relabel it
+    _label_seats(spec, kw.get("controllers"))
     import crucible
     crucible.load_all_modules()
     from ..api.local import ensure_modules
@@ -199,6 +204,24 @@ def _make_domain(name: str, seed: int, mode: str, kw: dict):
     attach_domain(env, dom, difficulty)
     env.domain, env.domain_config = dom.name, cfg.name
     return env
+
+
+def _label_seats(spec, controllers) -> None:
+    """Write the `controllers` labels (one label for every seat, or ``{handle or "p:handle": label}``) into the
+    seat configuration of a domain world's spec before it is created (recorded in the spec, so replay keeps them)."""
+    if not controllers:
+        return
+    for m in spec.modules:
+        if m["name"] != "seat":
+            continue
+        m["config"] = copy.deepcopy(m.get("config") or {})          # never the domain's own configuration objects
+        for s in m["config"].get("seats") or []:
+            if isinstance(controllers, dict):
+                lab = controllers.get(s["handle"], controllers.get(f"p:{s['handle']}", ""))
+            else:
+                lab = str(controllers)
+            if lab:
+                s["controller"] = str(lab)
 
 
 def _domain_agents(dom, world, agents):
