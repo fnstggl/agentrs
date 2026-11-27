@@ -15,9 +15,9 @@ Learner kinds (each must act through the interface and achieve the capability it
 Improvement over a frozen copy (the rule of wave 3a, made non-degenerate in the wave-3b repair pass): a reference
 learner is trained in worlds of the tier (observation-only, its own signal: the change of its own money as its
 observation shows it); then the trained parameters and the frozen initial parameters act with their own stochastic
-policies, without learning, on held-out seeds (11-14 in Tier 1; 21-24 in the kernel tiers, whose design was
-developed on 1-5 and 11-14); the outcome is the evaluator's (Tier 1: the task's episode score against its private
-reference; kernel tiers: the money the learner EARNED over the evaluation - the net flow of its own accounts from
+policies, without learning, on held-out seeds (31-34 in Tier 1, 21-24 in the kernel tiers: seeds never used while
+the designs were developed); the outcome is the evaluator's (Tier 1: the episode's net from the verifier; kernel
+tiers: the money the learner EARNED over the evaluation - the net flow of its own accounts from
 authoritative ledger entries, unconditional transfers excluded (endowments and grants such as the crisis
 coordinator's emergency fund) and so are transfers with parties related to it (its own organisations) - with its
 cash reported beside it). The trained copy must beat the frozen copy on the
@@ -44,7 +44,15 @@ Learner and world per tier (D-68 addendum, wave 3b; the rule above is the same i
   decisions in each of the training seeds 1-2 (about 14 tries of each of its ~580 tools), evaluated 3000 decisions
   (about two simulated days). Measured beforehand on the civilisation restriction `startup:two_formats` (190 tools,
   CPU): a frozen copy paid for compute rentals or subscriptions on 4 of 4 held-out seeds in 1000 decisions, the
-  trained copy (2 x 2000 training decisions) on none.
+  trained copy (2 x 2000 training decisions) on none - i.e. it learned to stop spending, which the non-degenerate
+  rule no longer counts.
+
+Measured with this rule at f59a267 (GPU slot, repair pass): Tier 1 improved (73,750 vs 15,424 vs 44,371 net, 4/4 and
+4/4); Tier 2 earned 0 (trained) vs -$46,588 (frozen) vs 0 (do-nothing) and Tier 3 0 vs -$386 vs 0 - better than the
+frozen copies only by not spending, so not counted (tiers_with_learning_improvement 1). In 300-decision scans of all
+55 configurations of eleven Part 9 domains no untrained reference learner earned money from an unrelated party, and
+a social-signal variant in the civilisation (replies by others to its posts) did not improve either: the kernel
+tiers need a learner with multi-step competence (an algorithmic limitation of these reference learners).
 
 Why not the neural learner in the kernel tiers (measured on this branch, observation-only, held-out seeds): its
 near-uniform policy over 60-580 tools rarely repeats a tool, so a few thousand decisions move its tool preferences
