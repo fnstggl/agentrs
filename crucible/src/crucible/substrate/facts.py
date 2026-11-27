@@ -548,8 +548,12 @@ def _with_deps(names):
     return order
 
 
+# installation bases tried in order; the last one adds the shared semantic space (wave-3b repair: on the integrated
+# tree, I-1's `catalogue` depends on `aud`, whose shared-space encoder needs the kernel module `space` that neither
+# declares, so the mandatory scan could not install it and reported a problem)
 _BASES = (("identity", "bank", "admin"), ("identity", "bank", "admin", "artifacts", "cols", "pop"),
-          ("identity", "bank", "admin", "artifacts", "cols", "crowd"))
+          ("identity", "bank", "admin", "artifacts", "cols", "crowd"),
+          ("identity", "bank", "admin", "artifacts", "cols", "space", "pop"))
 
 
 def _install(name: str):
