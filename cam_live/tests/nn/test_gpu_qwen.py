@@ -193,7 +193,9 @@ def test_embeddings_and_beliefs_do_not_depend_on_batch_composition(qwen):
     with torch.no_grad():
         bb.mark_adapters_updated()
         alone = qwen.embed_texts([t])[0].clone()
-        for batch in ([others[0], t, others[1]], [t] + others * 5, [others[2], t]):
+        # t has exactly 8 tokens: alone it fills its bucket, next to "rows exported" it does not (the LM switched
+        # attention kernels on whether any row of a batch was padded: caught here)
+        for batch in ([others[0], t, others[1]], [t] + others * 5, [others[2], t], ["rows exported", t]):
             bb.mark_adapters_updated()
             e = qwen.embed_texts(batch)
             assert torch.equal(e[batch.index(t)], alone)

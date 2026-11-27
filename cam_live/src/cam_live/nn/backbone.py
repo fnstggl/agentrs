@@ -540,7 +540,8 @@ class _Backbone(nn.Module):
         ``captures`` (calibration only) receives (hooked layers' hidden states, mask of real tokens) of every batch.
 
         Batch-composition invariant (bit-exact): a text is always run in a forward of the same shape —
-        ``embed_rows(b)`` rows of its bucket length ``b = embed_bucket(len)``, the rows a call does not fill
+        ``embed_rows(b)`` rows of ``b + 1`` positions, ``b = embed_bucket(len)``, the last position always padding
+        (so the same attention kernel runs whether or not the other texts are shorter), the rows a call does not fill
         repeating its first text — so its embedding never depends on which other texts share the call (with
         batch-dependent shapes the bf16 kernels change their reduction order: ~1 % relative, and the cache kept
         whichever version came first)."""
@@ -553,7 +554,9 @@ class _Backbone(nn.Module):
             for s in range(0, len(idxs), nb):
                 grp = idxs[s: s + nb]
                 batch = [rows[j] for j in grp] + [rows[grp[0]]] * (nb - len(grp))
-                ids, attn = self._pad(batch, length=Lb)
+                # one column more than the bucket, always padding: the attention mask is never all ones, so the LM
+                # never switches to its mask-free causal kernel for some calls and not others
+                ids, attn = self._pad(batch, length=Lb + 1)
                 prev, self._capture = self._capture, {}
                 try:
                     self._hidden(ids, attn)
