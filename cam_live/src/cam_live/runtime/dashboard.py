@@ -355,7 +355,7 @@ button.warn{border-color:#b3261e;color:#b3261e} input,select{font:inherit;paddin
 <header><b>CAM Live</b><span id="run" class="muted"></span><span id="st" class="pill"></span>
 <span style="flex:1"></span>
 <button id="b-pause">Pause</button><button id="b-resume">Resume</button>
-<input id="stop-note" placeholder="audit note (not shown to CAM)" size="26" maxlength="200">
+<input id="stop-note" title="audit note (not shown to CAM)" aria-label="audit note (not shown to CAM)" size="26" maxlength="200">
 <button id="b-stop" class="warn">Stop</button><button id="b-estop" class="warn">Emergency stop</button>
 <button id="b-export">Export checkpoint</button></header>
 <main>
@@ -403,7 +403,7 @@ async function refresh(){try{
   (r.limit>0?'<span class="bar"><i style="width:'+Math.min(100,100*r.used/r.limit)+'%"></i></span>':'')+'</p>').join('');
  const a=await get('/api/approvals');
  $('approvals').innerHTML=(a.pending.length?'':'<p class="muted">none pending</p>')+a.pending.map(p=>'<div><p><b>'+esc(p.approval_id)+'</b> '+esc(p.operation)+
-  ' <span class="muted">'+esc((p.reasons||[]).join('; '))+'</span></p><pre>'+esc(p.preview)+'</pre><p><input id="n-'+esc(p.approval_id)+'" placeholder="audit note (not shown to CAM)" maxlength="200"> '+
+  ' <span class="muted">'+esc((p.reasons||[]).join('; '))+'</span></p><pre>'+esc(p.preview)+'</pre><p><input id="n-'+esc(p.approval_id)+'" title="audit note (not shown to CAM)" aria-label="audit note (not shown to CAM)" maxlength="200"> '+
   '<button data-ap="'+esc(p.approval_id)+'" data-do="approve">Approve</button> <button class="warn" data-ap="'+esc(p.approval_id)+'" data-do="reject">Reject</button></p></div>').join('')+
   (a.resolved.length?rows(a.resolved,[['id',x=>x.approval_id],['operation',x=>x.operation],['status',x=>x.status]]):'');
  const e=await get('/api/experiments');
