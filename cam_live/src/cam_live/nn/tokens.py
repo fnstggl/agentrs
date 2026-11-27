@@ -119,7 +119,7 @@ class ExperienceTokenizer(nn.Module):
         self.value_gain = nn.Parameter(torch.tensor(1.0))
         # time gap
         self.gap_proj = nn.Linear(N_GAP, d_model, bias=False)
-        self.stats = {"dropped_values": 0, "nonfinite_values": 0, "truncated_items": 0}
+        self.stats = {"dropped_values": 0, "nonfinite_values": 0, "truncated_items": 0, "dropped_arguments": 0}
         for emb, std in ((self.kind_emb, 0.3), (self.trust_emb, 0.15), (self.name_a, 0.67), (self.name_b, 0.67),
                          (self.unit_emb, 0.3)):
             nn.init.normal_(emb.weight, std=std)
@@ -142,10 +142,11 @@ class ExperienceTokenizer(nn.Module):
         return self.name_a(ids[:, 0]) + self.name_b(ids[:, 1])
 
     # ---- collation (python records -> index / value tensors) ------------------------------------------------------
-    def collate(self, contexts: Sequence[Sequence[ExperienceItem]], max_context: Optional[int] = None
-                ) -> Dict[str, Any]:
+    def collate(self, contexts: Sequence[Sequence[ExperienceItem]], max_context: Optional[int] = None,
+                max_values: Optional[int] = None) -> Dict[str, Any]:
         """Right-padded tensors (on CPU) for a batch of contexts. Each context keeps its newest ``max_context`` items.
-        T >= 1 always; an empty context is one padded position."""
+        T >= 1 always; an empty context is one padded position. ``max_values`` (default: the tokenizer's) is the
+        number of quantity slots per item."""
         ctxs = []
         for c in contexts:
             c = list(c)
@@ -153,7 +154,7 @@ class ExperienceTokenizer(nn.Module):
                 self.stats["truncated_items"] += len(c) - max_context
                 c = c[-max_context:]
             ctxs.append(c)
-        B, V = len(ctxs), self.max_values
+        B, V = len(ctxs), int(self.max_values if max_values is None else max_values)
         T = max(1, max((len(c) for c in ctxs), default=1))
         pad = torch.zeros(B, T, dtype=torch.bool)
         has_text = torch.zeros(B, T, dtype=torch.bool)
@@ -451,4 +452,48 @@ def to_items(record: Any, **kw: Any) -> List[ExperienceItem]:
 def action_meta(action: ActionSpec) -> Dict[str, Any]:
     """Structured (non-text) fields of an action used by the action encoder."""
     return {"modality": action.modality, "level": action.level, "timeout_s": float(action.timeout_s),
-            "n_steps": len(action.steps), "args": json.dumps(action.arguments, sort_keys=True, default=str)}
+            "n_steps": len(action.steps), "args": json.dumps(action.arguments, sort_keys=True, default=str),
+            "argument_quantities": argument_quantities(action)}
+
+
+#: argument leaves of one action encoded through the value channel (further leaves are dropped and counted)
+MAX_ARGUMENTS = 16
+
+
+def argument_quantities(action: ActionSpec, max_leaves: int = MAX_ARGUMENTS,
+                        stats: Optional[Dict[str, int]] = None) -> List[Quantity]:
+    """The action's target and argument values as quantities for the exact value channel, so that candidates that
+    differ only in one argument (``{"ref": "e3"}`` vs ``{"ref": "e4"}``, 600 vs 601 seconds) get clearly different
+    action encodings (in the mean-pooled text of the rendered action one changed token is ~0.03 % of the signal).
+
+    Nested arguments are flattened to leaves with dotted / indexed paths (``a.b``, ``xs[2]``), keys sorted. A finite
+    number becomes ``Quantity("arg.<path>", value)`` (sign, magnitude and Fourier features of the exact value, bound
+    to the hashed path: smooth in the value) **and** the indicator below (the value channel alone resolves relative
+    differences of a few per cent, so 600 and 601 seconds would look alike). Every leaf gives a categorical
+    indicator ``Quantity("arg.<path>=<json value>", 1.0)``, whose hashed name gives near-orthogonal codes for
+    different values. ``target`` is a leaf of its own. The first ``max_leaves`` leaves are kept; the number dropped is added
+    to ``stats["dropped_arguments"]`` when ``stats`` is given."""
+    leaves: List[Tuple[str, Any]] = []
+    if action.target:
+        leaves.append(("target", str(action.target)))
+
+    def walk(v: Any, path: str) -> None:
+        if isinstance(v, dict):
+            for k in sorted(v, key=str):
+                walk(v[k], f"{path}.{k}" if path else str(k))
+        elif isinstance(v, (list, tuple)):
+            for i, x in enumerate(v):
+                walk(x, f"{path}[{i}]")
+        else:
+            leaves.append((path, v))
+
+    walk(action.arguments or {}, "")
+    if stats is not None and len(leaves) > max_leaves:
+        stats["dropped_arguments"] = stats.get("dropped_arguments", 0) + len(leaves) - max(0, int(max_leaves))
+    out: List[Quantity] = []
+    for path, v in leaves[:max(0, int(max_leaves))]:
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(float(v)):
+            out.append(Quantity(name=f"arg.{path}", value=float(v)))
+            v = float(v)                                  # 600 and 600.0 are the same value
+        out.append(Quantity(name=f"arg.{path}=" + json.dumps(v, sort_keys=True, default=str), value=1.0))
+    return out

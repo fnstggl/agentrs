@@ -78,6 +78,98 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest()
 
 
+# --------------------------------------------------------------------------------------------------------------------
+# float32 output layer: logits and token log-probabilities from float32 hidden states, whatever the weight dtype
+# --------------------------------------------------------------------------------------------------------------------
+_HEAD_CHUNK = 32768          # vocabulary rows per chunk (bounds the temporary memory of a call)
+
+
+@contextlib.contextmanager
+def full_precision_matmul() -> Iterator[None]:
+    """float32 matmuls in true float32 (no TF32) and reduced-precision GEMM reductions off, for the duration."""
+    m = torch.backends.cuda.matmul
+    prev = (m.allow_tf32, m.allow_bf16_reduced_precision_reduction, m.allow_fp16_reduced_precision_reduction)
+    m.allow_tf32, m.allow_bf16_reduced_precision_reduction, m.allow_fp16_reduced_precision_reduction = False, False, False
+    try:
+        yield
+    finally:
+        m.allow_tf32, m.allow_bf16_reduced_precision_reduction, m.allow_fp16_reduced_precision_reduction = prev
+
+
+def _mm_t(a: Tensor, w: Tensor) -> Tensor:
+    """float32 ``a [P, H] @ w [V, H]^T`` for float32 ``a``. A bf16 / fp16 weight (exact in its own dtype) is used
+    as stored: ``a`` is split into two half-precision terms (16 significant bits) and each product accumulates and
+    is returned in float32 (no float32 copy of the weight); otherwise a plain float32 matmul."""
+    if w.dtype in (torch.bfloat16, torch.float16) and w.is_cuda:
+        hi = a.to(w.dtype)
+        lo = (a - hi.to(torch.float32)).to(w.dtype)
+        return torch.mm(hi, w.t(), out_dtype=torch.float32) + torch.mm(lo, w.t(), out_dtype=torch.float32)
+    return a @ w.to(torch.float32).t()
+
+
+def _chunk_logits(h: Tensor, w: Tensor, bias: Optional[Tensor], i: int, j: int) -> Tensor:
+    out = _mm_t(h, w[i:j])
+    return out if bias is None else out + bias[i:j].to(torch.float32)
+
+
+class _HeadLogits(torch.autograd.Function):
+    """float32 logits [P, V] = h [P, H] @ W^T (+ bias); gradient w.r.t. ``h`` only (the head is frozen)."""
+
+    @staticmethod
+    def forward(ctx: Any, h: Tensor, w: Tensor, bias: Optional[Tensor]) -> Tensor:   # type: ignore[override]
+        ctx.save_for_backward(w)
+        with full_precision_matmul():
+            return torch.cat([_chunk_logits(h, w, bias, i, i + _HEAD_CHUNK) for i in range(0, w.shape[0], _HEAD_CHUNK)], 1)
+
+    @staticmethod
+    def backward(ctx: Any, g: Tensor) -> Tuple[Optional[Tensor], None, None]:  # type: ignore[override]
+        (w,) = ctx.saved_tensors
+        gh = torch.zeros(g.shape[0], w.shape[1], dtype=torch.float32, device=g.device)
+        with full_precision_matmul():
+            for i in range(0, w.shape[0], _HEAD_CHUNK):
+                gh = gh + g[:, i:i + _HEAD_CHUNK].to(torch.float32) @ w[i:i + _HEAD_CHUNK].to(torch.float32)
+        return gh, None, None
+
+
+class _TokenLogprob(torch.autograd.Function):
+    """log softmax(h W^T + bias)[target] [P] in float32 without materialising [P, V] logits (online log-sum-exp
+    over vocabulary chunks); the backward recomputes each chunk. Gradient w.r.t. ``h`` only."""
+
+    @staticmethod
+    def forward(ctx: Any, h: Tensor, w: Tensor, bias: Optional[Tensor], tgt: Tensor) -> Tensor:   # type: ignore[override]
+        P = h.shape[0]
+        m = torch.full((P,), -math.inf, dtype=torch.float32, device=h.device)
+        ssum = torch.zeros(P, dtype=torch.float32, device=h.device)
+        tl = torch.zeros(P, dtype=torch.float32, device=h.device)
+        ar = torch.arange(P, device=h.device)
+        with full_precision_matmul():
+            for i in range(0, w.shape[0], _HEAD_CHUNK):
+                lc = _chunk_logits(h, w, bias, i, i + _HEAD_CHUNK)
+                mn = torch.maximum(m, lc.max(1).values)
+                ssum = ssum * torch.exp(m - mn) + torch.exp(lc - mn[:, None]).sum(1)
+                m = mn
+                inside = (tgt >= i) & (tgt < i + lc.shape[1])
+                tl = torch.where(inside, lc[ar, (tgt - i).clamp(0, lc.shape[1] - 1)], tl)
+        lse = m + torch.log(ssum)
+        ctx.save_for_backward(h, w, tgt, lse)
+        ctx.bias = bias
+        return tl - lse
+
+    @staticmethod
+    def backward(ctx: Any, g: Tensor) -> Tuple[Optional[Tensor], None, None, None]:  # type: ignore[override]
+        h, w, tgt, lse = ctx.saved_tensors
+        gh = torch.zeros_like(h, dtype=torch.float32)
+        ar = torch.arange(h.shape[0], device=h.device)
+        with full_precision_matmul():
+            for i in range(0, w.shape[0], _HEAD_CHUNK):
+                lc = _chunk_logits(h, w, ctx.bias, i, i + _HEAD_CHUNK)
+                coef = -torch.exp(lc - lse[:, None]) * g[:, None]
+                inside = (tgt >= i) & (tgt < i + lc.shape[1])
+                coef[ar[inside], tgt[inside] - i] += g[inside]
+                gh = gh + coef @ w[i:i + lc.shape[1]].to(torch.float32)
+        return gh, None, None, None
+
+
 class LoRALinear(nn.Module):
     """``base(x) + (alpha / r) * B(A(x))`` with a frozen ``base``. A is float32, uniform(-1/sqrt(in), 1/sqrt(in));
     B is float32 zeros (the adapter starts as an exact no-op)."""
@@ -95,13 +187,19 @@ class LoRALinear(nn.Module):
         self._cast_key: Any = None
         self._cast: Tuple[Optional[Tensor], Optional[Tensor]] = (None, None)
 
+    def invalidate(self) -> None:
+        """Drop the cached dtype-cast adapter weights (the owning backbone calls this when the adapter content
+        changed in any way, also through ``.data``, which no version counter sees)."""
+        self._cast_key, self._cast = None, (None, None)
+
     def forward(self, x: Tensor) -> Tensor:
         out = self.base(x)
         A, B = self.lora_A, self.lora_B
         if torch.is_grad_enabled() and (A.requires_grad or B.requires_grad):
             return out + self.scale * Fn.linear(Fn.linear(x, A.to(x.dtype)), B.to(x.dtype))
         # inference: reuse the dtype-cast weights until an adapter tensor changes (identity, storage and version
-        # are all part of the key, so functional parameter substitution is seen too); skip an all-zero adapter
+        # are all part of the key, so functional parameter substitution is seen too; writes that bypass the version
+        # counter are caught by the backbone's content check, which calls invalidate()); skip an all-zero adapter
         key = (id(A), A.data_ptr(), A._version, id(B), B.data_ptr(), B._version, x.dtype, x.device)
         if key != self._cast_key:
             zero = not bool(B.detach().any())
@@ -274,7 +372,7 @@ class _Backbone(nn.Module):
                     setattr(parent, target, wrapped)
                     self.lora_modules.append(wrapped)
         self._lora_params: List[nn.Parameter] = [p for m in self.lora_modules for p in (m.lora_A, m.lora_B)]
-        self._fp = self._fingerprint()
+        self._adapter_snapshot: Optional[Tensor] = None
         # taps and bridge
         self.tap_ids = [max(0, min(self.n_layers - 1, int(round(f * self.n_layers)) - 1)) for f in cfg.tap_layers]
         self.n_taps = len(self.tap_ids)
@@ -320,15 +418,43 @@ class _Backbone(nn.Module):
         own = {id(p) for p in self._lora_params}
         return [p for p in self._lm_module().parameters() if id(p) not in own]
 
-    def _fingerprint(self) -> Tuple[int, ...]:
-        return tuple(p._version for p in self._lora_params)
+    def _cache_inputs(self) -> List[Tensor]:
+        """Every tensor the caches depend on: LoRA weights (embedding cache and the inference-path cast cache) and
+        the calibration statistics the cached embeddings are standardised with."""
+        cal = [self.cal_mu, self.cal_sd] if hasattr(self, "cal_mu") else []
+        return list(self._lora_params) + cal
 
-    def mark_adapters_updated(self) -> None:
-        """Drop cached embeddings (called automatically when an adapter tensor's version counter changed)."""
+    def _adapter_content(self) -> Tensor:
+        with torch.no_grad():
+            parts = [t.detach().reshape(-1).to(torch.float32) for t in self._cache_inputs()]
+            return torch.cat(parts) if parts else torch.zeros(0, device=self.device)
+
+    def sync_caches(self) -> bool:
+        """Invalidate the caches if any tensor they depend on changed since the last check — by content, so an
+        optimizer step, an in-place op, ``load_state_dict`` and a write through ``.data`` (which bumps no version
+        counter) are all seen. Runs at the start of every embedding / generation / log-probability call (one
+        concatenation and comparison of the ~12 M adapter numbers, ~1 ms on the GPU). Returns True if it
+        invalidated."""
+        cur = self._adapter_content()
+        snap = self._adapter_snapshot
+        if snap is not None and snap.shape == cur.shape and snap.device == cur.device and torch.equal(snap, cur):
+            return False
+        self._invalidate()
+        self._adapter_snapshot = cur
+        return True
+
+    def _invalidate(self) -> None:
         self._cache.clear()
+        for m in self.lora_modules:
+            m.invalidate()
         self.adapter_version += 1
         self.stats["cache_invalidations"] += 1
-        self._fp = self._fingerprint()
+
+    def mark_adapters_updated(self) -> None:
+        """Drop every cache that depends on the adapters (embeddings and the LoRA inference casts). Not required for
+        correctness — every call checks the adapter content itself (:meth:`sync_caches`) — but cheap."""
+        self._invalidate()
+        self._adapter_snapshot = self._adapter_content()
 
     # ---- hooks ----------------------------------------------------------------------------------------------------------
     def _layer_hook(self, idx: int, _module: nn.Module, _inputs: Any, output: Any) -> Any:
@@ -384,8 +510,9 @@ class _Backbone(nn.Module):
             ids = ids[-limit:]
         return ids
 
-    def _pad(self, rows: Sequence[Sequence[int]], left: bool = False) -> Tuple[Tensor, Tensor]:
-        L = max(len(r) for r in rows)
+    def _pad(self, rows: Sequence[Sequence[int]], left: bool = False, length: Optional[int] = None
+             ) -> Tuple[Tensor, Tensor]:
+        L = max(len(r) for r in rows) if length is None else int(length)
         ids = torch.full((len(rows), L), self.pad_id, dtype=torch.long)
         attn = torch.zeros(len(rows), L, dtype=torch.long)
         for i, r in enumerate(rows):
@@ -395,31 +522,51 @@ class _Backbone(nn.Module):
         return ids.to(self.device), attn.to(self.device)
 
     # ---- semantic embedding ---------------------------------------------------------------------------------------------
+    @staticmethod
+    def embed_bucket(n_tokens: int) -> int:
+        """Padded length of a text of ``n_tokens`` tokens in the embedding forward (multiples of 8 up to 64, of 16
+        up to 128, of 32 up to 256, then of 64)."""
+        q = 8 if n_tokens <= 64 else 16 if n_tokens <= 128 else 32 if n_tokens <= 256 else 64
+        return max(q, -(-int(n_tokens) // q) * q)
+
+    def embed_rows(self, bucket: int) -> int:
+        """Rows of every embedding forward for texts of one bucket length (fixed, whatever the call contains)."""
+        return max(1, min(16, int(self.nn_cfg.embed_batch_tokens) // int(bucket)))
+
     def _pooled(self, rows: Sequence[Sequence[int]], captures: Optional[List[Any]] = None) -> Tensor:
         """Raw (unstandardised) float32 [n, d_sem]: masked mean of the tapped layers' states, taps concatenated.
-        ``captures`` (calibration only) receives (hooked layers' hidden states, attention mask) of every batch."""
-        order = sorted(range(len(rows)), key=lambda i: -len(rows[i]))
-        outs: List[Tensor] = []
-        i = 0
-        while i < len(order):
-            L = len(rows[order[i]])
-            grp = order[i: i + max(1, self.nn_cfg.embed_batch_tokens // max(L, 1))]
-            ids, attn = self._pad([rows[j] for j in grp])
-            prev, self._capture = self._capture, {}
-            try:
-                self._hidden(ids, attn)
-                cap = self._capture
-            finally:
-                self._capture = prev
-            m = attn.to(torch.float32).unsqueeze(-1)
-            outs.append(torch.cat([(cap[t].to(torch.float32) * m).sum(1) / m.sum(1) for t in self.tap_ids], -1))
-            if captures is not None:
-                captures.append((cap, attn))
-            i += len(grp)
-            self.stats["embedded_tokens"] += int(attn.sum())
-        inv = torch.empty(len(order), dtype=torch.long, device=self.device)
-        inv[torch.tensor(order, device=self.device)] = torch.arange(len(order), device=self.device)
-        return torch.cat(outs, 0).index_select(0, inv)
+        ``captures`` (calibration only) receives (hooked layers' hidden states, mask of real tokens) of every batch.
+
+        Batch-composition invariant (bit-exact): a text is always run in a forward of the same shape —
+        ``embed_rows(b)`` rows of its bucket length ``b = embed_bucket(len)``, the rows a call does not fill
+        repeating its first text — so its embedding never depends on which other texts share the call (with
+        batch-dependent shapes the bf16 kernels change their reduction order: ~1 % relative, and the cache kept
+        whichever version came first)."""
+        groups: "OrderedDict[int, List[int]]" = OrderedDict()
+        for i in sorted(range(len(rows)), key=lambda i: -len(rows[i])):
+            groups.setdefault(self.embed_bucket(len(rows[i])), []).append(i)
+        out: List[Optional[Tensor]] = [None] * len(rows)
+        for Lb, idxs in groups.items():
+            nb = self.embed_rows(Lb)
+            for s in range(0, len(idxs), nb):
+                grp = idxs[s: s + nb]
+                batch = [rows[j] for j in grp] + [rows[grp[0]]] * (nb - len(grp))
+                ids, attn = self._pad(batch, length=Lb)
+                prev, self._capture = self._capture, {}
+                try:
+                    self._hidden(ids, attn)
+                    cap = self._capture
+                finally:
+                    self._capture = prev
+                m = attn.to(torch.float32).unsqueeze(-1)
+                pooled = torch.cat([(cap[t].to(torch.float32) * m).sum(1) / m.sum(1) for t in self.tap_ids], -1)
+                real = attn[: len(grp)]
+                if captures is not None:
+                    captures.append(({k: v[: len(grp)] for k, v in cap.items()}, real))
+                for r, j in enumerate(grp):
+                    out[j] = pooled[r]
+                self.stats["embedded_tokens"] += int(real.sum())
+        return torch.stack(out, 0)    # type: ignore[arg-type]
 
     @torch.no_grad()
     def _calibrate(self) -> None:
@@ -451,23 +598,26 @@ class _Backbone(nn.Module):
         return ((raw - self.cal_mu) / self.cal_sd).clamp(-20.0, 20.0)
 
     def embed(self, texts: Sequence[str], *, with_grad: bool = False) -> Tensor:
-        """[n, d_sem] float32 standardised multi-depth embeddings. ``with_grad=False``: detached and cached by text
-        hash (stored as float16); ``with_grad=True``: recomputed with a graph into the adapters, cache bypassed."""
+        """[n, d_sem] float32 standardised multi-depth embeddings, a function of each text alone (not of the other
+        texts in the call, see :meth:`_pooled`). ``with_grad=False``: detached and cached by text hash (stored as
+        float16); ``with_grad=True``: recomputed with a graph into the adapters, cache bypassed — the value is
+        rounded through float16 like the cache (straight-through: the gradient is that of the unrounded
+        embedding), so both paths return the same numbers."""
         texts = list(texts)
         if not texts:
             return torch.zeros(0, self.d_sem, device=self.device)
         t0 = time.time()
+        self.sync_caches()
         if with_grad:
             uniq = list(dict.fromkeys(texts))
             with torch.enable_grad():
                 emb = self._standardise(self._pooled([self._text_ids(t, self.cfg.max_text_tokens) for t in uniq]))
+                emb = emb + (emb.detach().to(torch.float16).to(torch.float32) - emb.detach())
             pos = {t: i for i, t in enumerate(uniq)}
             out = emb.index_select(0, torch.tensor([pos[t] for t in texts], device=self.device))
             self.stats["embedded_texts"] += len(uniq)
             self.stats["embed_s"] += time.time() - t0
             return out
-        if self._fingerprint() != self._fp:
-            self.mark_adapters_updated()
         keys = [_sha(t) for t in texts]
         todo: "OrderedDict[str, str]" = OrderedDict()
         for k, t in zip(keys, texts):
@@ -502,6 +652,7 @@ class _Backbone(nn.Module):
         """Sample continuations; ``latent`` [n, d_latent] conditions them through the bridge. ``temperature <= 0`` is
         greedy. With ``seed`` the samples are reproducible and the global RNG is untouched."""
         prompts = list(prompts)
+        self.sync_caches()
         r = max(1, int(num_return_sequences))
         rows = [self._prompt_ids(p) for p in prompts for _ in range(r)]
         mem = None
@@ -559,11 +710,14 @@ class _Backbone(nn.Module):
 
     def generation_logprob(self, prompts: Sequence[str], completions: Sequence[str], *,
                            latent: Optional[Tensor] = None, append_eos: bool = False) -> Tensor:
-        """[n] float32: sum of log p(completion token | prompt, earlier completion tokens[, latent]). Differentiable
-        w.r.t. the LoRA adapters, the bridge and ``latent``; frozen weights get no gradient."""
+        """[n] float32: sum of log p(completion token | prompt, earlier completion tokens[, latent]). The output
+        layer runs in float32 on float32 final hidden states (a bf16 head quantises logits of size 16-64 to
+        multiples of 1/8-1/4: errors of 0.1-0.3 nats per token). Differentiable w.r.t. the LoRA adapters, the
+        bridge and ``latent``; frozen weights get no gradient."""
         prompts, completions = list(prompts), list(completions)
         if len(prompts) != len(completions):
             raise ValueError("one completion per prompt")
+        self.sync_caches()
         P = [self._prompt_ids(p) for p in prompts]
         C = [(self._encode(c) if c else []) + ([self.eos_id] if append_eos else []) for c in completions]
         ids, attn = self._pad([p + c for p, c in zip(P, C)])
@@ -581,11 +735,11 @@ class _Backbone(nn.Module):
         out = torch.zeros(len(prompts), dtype=torch.float32, device=self.device)
         if tgt.numel() == 0:
             return out + 0.0 * h.to(torch.float32).sum()
-        logp = torch.log_softmax(self._logits(h[row, pos]).to(torch.float32), -1).gather(1, tgt[:, None]).squeeze(1)
-        return out.index_add(0, row, logp)
+        return out.index_add(0, row, self._token_logprob(h[row, pos], tgt))
 
     def next_token_logits(self, prompts: Sequence[str], *, latent: Optional[Tensor] = None) -> Tensor:
         """[n, vocab] float32 logits of the token following each prompt (used to verify the bridge no-op exactly)."""
+        self.sync_caches()
         P = [self._prompt_ids(p) for p in prompts]
         ids, attn = self._pad(P)
         mem = None if latent is None else self.bridge.memory(latent.to(self.device))
@@ -594,13 +748,18 @@ class _Backbone(nn.Module):
         last = torch.tensor([len(p) - 1 for p in P], device=self.device)
         return self._logits(h[torch.arange(len(P), device=self.device), last]).to(torch.float32)
 
+    def _token_logprob(self, h: Tensor, tgt: Tensor) -> Tensor:
+        """[P] float32 log p(tgt | hidden state h [P, H])."""
+        return torch.log_softmax(self._logits(h).to(torch.float32), -1).gather(1, tgt[:, None]).squeeze(1)
+
     def chat_prompt(self, user: str, system: str = "", thinking: bool = False) -> str:
         """Wrap a request in the backbone's chat format, ending where the assistant's answer starts."""
         return (f"{system}\n" if system else "") + f"{user}\n"
 
     def info(self) -> Dict[str, Any]:
         return {"name": self.name, "revision": self.revision, "pretrained": self.pretrained, "hidden": self.hidden,
-                "n_layers": self.n_layers, "d_sem": self.d_sem, "tap_layer_ids": list(self.tap_ids),
+                "n_layers": self.n_layers, "vocab": self.vocab, "d_sem": self.d_sem, "tap_layer_ids": list(self.tap_ids),
+                "max_text_tokens": int(self.cfg.max_text_tokens), "max_prompt_tokens": int(self.nn_cfg.max_prompt_tokens),
                 "lora": {"rank": self.cfg.lora_rank, "alpha": self.cfg.lora_alpha,
                          "targets": list(self.cfg.lora_targets), "layers": self.cfg.lora_layers,
                          "modules": len(self.lora_modules)},
@@ -622,6 +781,7 @@ class TinyBackbone(_Backbone):
         self.pad_id, self.bos_id, self.eos_id = 0, 1, 2
         self.eos_ids = {self.eos_id}
         self._pieces: Dict[int, str] = {}
+        self.seed = int(seed)
         self.lm = TinyLM(self.vocab, self.hidden, self.n_layers, seed=seed).to(torch.device(device or "cpu"))
         self._finish_init(seed)
 
@@ -642,6 +802,11 @@ class TinyBackbone(_Backbone):
 
     def _decode(self, ids: Sequence[int]) -> str:
         return " ".join(self._pieces.get(int(i), f"<{int(i)}>") for i in ids if int(i) > 2)
+
+    def info(self) -> Dict[str, Any]:
+        # the frozen random LM is a function of the seed: part of the identity of this backbone
+        return {**super().info(), "tiny": {"d": self.hidden, "layers": self.n_layers, "vocab": self.vocab,
+                                           "seed": self.seed}}
 
     def _forward_hidden(self, ids: Tensor, attn: Tensor) -> Tensor:
         return self.lm(ids, attn)
@@ -690,10 +855,50 @@ class SemanticBackbone(_Backbone):
                 eos.add(i)
         self.eos_ids = {int(i) for i in eos if i is not None}
         self.eos_id = int(self.tok.eos_token_id)
-        params = inspect.signature(self.lm.forward).parameters
+        params = inspect.signature(self.lm.model.forward).parameters
         self._cache_kw = "cache" if "cache" in params else "past_key_values"
+        # float32 output layer: the final RMSNorm is recomputed in float32 from its (bf16) input, and the head runs
+        # in float32 on that (see _HeadLogits / _TokenLogprob); the norm's input is captured by a hook
+        self._final_norm = self.lm.model.norm
+        self._pre_norm: Optional[Dict[str, Tensor]] = None
+        self._final_norm.register_forward_hook(self._norm_hook)
         self._finish_init(seed)
+        self._check_final_norm()
         self.stats["load_s"] = time.time() - t0
+
+    def _norm_hook(self, _module: nn.Module, inputs: Any, _output: Any) -> None:
+        if self._pre_norm is not None:
+            self._pre_norm["x"] = inputs[0]
+
+    def _norm32(self, x: Tensor) -> Tensor:
+        norm = self._final_norm
+        eps = float(getattr(norm, "variance_epsilon", getattr(norm, "eps", 1e-6)))
+        x = x.to(torch.float32)
+        return x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + eps) * norm.weight.to(torch.float32)
+
+    @torch.no_grad()
+    def _check_final_norm(self) -> None:
+        """The float32 recomputation must be the module's own function (it is the plain Qwen RMSNorm)."""
+        x = torch.randn(4, self.hidden, device=self.device, generator=torch.Generator(self.device).manual_seed(0))
+        x = (x * 3.0).to(next(self.lm.parameters()).dtype)
+        ref = self._final_norm(x).to(torch.float32)
+        rel = float((self._norm32(x) - ref).norm() / ref.norm())
+        if not rel < 1e-2:
+            raise RuntimeError(f"final norm of {self.name} is not a plain RMSNorm (relative difference {rel:.3g})")
+
+    def _run(self, **kw: Any) -> Tuple[Tensor, Any]:
+        """Decoder forward -> (float32 final hidden states, model output)."""
+        prev, self._pre_norm = self._pre_norm, {}
+        try:
+            out = self.lm.model(**kw)
+            x = self._pre_norm["x"]
+        finally:
+            self._pre_norm = prev
+        return self._norm32(x), out
+
+    def _head(self) -> Tuple[Tensor, Optional[Tensor]]:
+        head = self.lm.lm_head
+        return head.weight, getattr(head, "bias", None)
 
     def _lm_module(self) -> nn.Module:
         return self.lm
@@ -715,17 +920,24 @@ class SemanticBackbone(_Backbone):
         return self.tok.decode(list(ids), skip_special_tokens=True)
 
     def _forward_hidden(self, ids: Tensor, attn: Tensor) -> Tensor:
-        return self.lm.model(input_ids=ids, attention_mask=attn, use_cache=False).last_hidden_state
+        return self._run(input_ids=ids, attention_mask=attn, use_cache=False)[0]
 
     def _step(self, ids: Tensor, attn: Tensor, cache: Any) -> Tuple[Tensor, Any]:
-        out = self.lm(input_ids=ids, attention_mask=attn, use_cache=True, **{self._cache_kw: cache})
+        h, out = self._run(input_ids=ids, attention_mask=attn, use_cache=True, **{self._cache_kw: cache})
         new_cache = getattr(out, "cache", None)
         if new_cache is None:
             new_cache = getattr(out, "past_key_values", None)
-        return out.logits[:, -1].to(torch.float32), new_cache
+        return self._logits(h[:, -1]), new_cache
 
     def _logits(self, h: Tensor) -> Tensor:
-        return self.lm.lm_head(h)
+        """float32 logits [..., V] of float32 (or bf16) hidden states [..., H]."""
+        w, bias = self._head()
+        flat = h.reshape(-1, h.shape[-1]).to(torch.float32)
+        return _HeadLogits.apply(flat, w, bias).reshape(*h.shape[:-1], w.shape[0])
+
+    def _token_logprob(self, h: Tensor, tgt: Tensor) -> Tensor:
+        w, bias = self._head()
+        return _TokenLogprob.apply(h.to(torch.float32), w, bias, tgt)
 
     def chat_prompt(self, user: str, system: str = "", thinking: bool = False) -> str:
         msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": user}]

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import torch
@@ -26,7 +27,14 @@ from .core import ExperientialCore
 from .decision import (ActionEncoder, DecisionTrunk, FeatureMap, GoalEncoder, QueryEncoder, level_ids, modality_ids)
 from .fast import FastBeliefState, FastPrior
 from .presets import NNConfig, preset_nn, resolve_core
-from .tokens import ExperienceTokenizer, _cost_quantities
+from .tokens import MAX_ARGUMENTS, ExperienceTokenizer, _cost_quantities, argument_quantities
+
+#: version of the numerical encodings defined in ``cam_live.nn`` (part of :meth:`CamLiveModel.arch_signature`).
+#: 2: argument value channel of actions, count dispersion exp(disp_raw), exact-length embedding batches, float32
+#: LM-head logits.
+ENCODING_VERSION = 2
+#: backbone settings that do not change what the model computes (excluded from the signature)
+_OPERATIONAL_BACKBONE_KEYS = ("local_files_only", "embed_cache_items", "grad_checkpoint")
 
 _TENSOR_KEYS = ("pad_mask", "has_text", "time", "kind_ids", "trust_ids", "values", "value_mask", "name_ids",
                 "unit_ids", "qkind", "exposure")
@@ -162,9 +170,19 @@ class CamLiveModel(LatentModelAPI):
         ctxs = [[ExperienceItem(kind=ItemKind.ACTION, text=a.render(), ref=a.action_id, trust=Trust.SELF,
                                 quantities=_cost_quantities(a.est_cost, "est_cost")[:V]) for a in row]
                 for row in actions]
-        batch = self._to_device(self.exp.tokenizer.collate(ctxs))
+        tok = self.exp.tokenizer
+        batch = self._to_device(tok.collate(ctxs))
         B, N = batch["pad_mask"].shape
-        x = self.exp.tokenizer.encode(self._semantic(batch, with_grad), batch, with_time=False)
+        x = tok.encode(self._semantic(batch, with_grad), batch, with_time=False)
+        # target and argument values through the exact value channel (unit RMS of their own), so candidates that
+        # differ in one argument are distinguishable (in the pooled rendered text one token is ~0.03 % of the signal)
+        args = [[ExperienceItem(kind=ItemKind.ACTION, text="", quantities=argument_quantities(a, MAX_ARGUMENTS, tok.stats))
+                 for a in row] for row in actions]
+        n_args = sum(len(a.arguments or {}) + bool(a.target) for row in actions for a in row)
+        if n_args:
+            ab = self._to_device(tok.collate(args, max_values=2 * MAX_ARGUMENTS))
+            x = x + tok.value_channel(ab["values"], ab["value_mask"], ab["name_ids"], ab["unit_ids"], ab["qkind"],
+                                      ab["exposure"]) * batch["pad_mask"].unsqueeze(-1).to(x.dtype)
         mods = [[a.modality for a in row] + [""] * (N - len(row)) for row in actions]
         lvls = [[a.level for a in row] + [""] * (N - len(row)) for row in actions]
         timeout = torch.tensor([[float(a.timeout_s) for a in row] + [0.0] * (N - len(row)) for row in actions],
@@ -329,13 +347,22 @@ class CamLiveModel(LatentModelAPI):
         return {"missing": missing, "unexpected": unexpected, "mismatched": mismatched}
 
     def arch_signature(self) -> Dict[str, Any]:
+        """Everything that decides tensor shapes or what the model computes from given weights: the resolved core
+        configuration, the ``nn`` section, every backbone setting except the purely operational ones
+        (``_OPERATIONAL_BACKBONE_KEYS``: cache size, offline flag, gradient checkpointing — verified to give
+        identical outputs and gradients), the loaded backbone's identity and layout, the version of the encodings
+        defined in this package, and the registered heads. Two models with equal signatures and the same
+        ``trainable_state()`` compute the same functions."""
         c = self.core_cfg
-        return {"contract_version": CONTRACT_VERSION, "scale": c.scale,
+        bcfg = {k: v for k, v in dataclasses.asdict(self.cfg.backbone).items() if k not in _OPERATIONAL_BACKBONE_KEYS}
+        return json.loads(json.dumps({"contract_version": CONTRACT_VERSION, "encoding_version": ENCODING_VERSION, "scale": c.scale,
                 "core": {k: getattr(c, k) for k in ("d_model", "n_layers", "n_heads", "d_ff", "n_slots",
-                                                    "n_features", "max_context", "max_values")},
-                "nn": dataclasses.asdict(self.nn_cfg), "d_sem": self.d_sem, "backbone": self.backbone.info(),
-                "heads": {n: {"group": self._head_group[n], "params": sum(p.numel() for p in m.parameters())}
-                          for n, m in self.heads.items()}}
+                                                    "n_features", "max_context", "max_values", "dropout")},
+                "nn": dataclasses.asdict(self.nn_cfg), "d_sem": self.d_sem, "backbone_config": bcfg,
+                "backbone": self.backbone.info(), "max_arguments": MAX_ARGUMENTS,
+                "heads": {n: {"group": self._head_group[n], "params": sum(p.numel() for p in m.parameters()),
+                              "type": type(m).__name__}
+                          for n, m in self.heads.items()}}, default=str))     # JSON-normalised (tuples -> lists)
 
     def group_norms(self) -> Dict[str, float]:
         """L2 norm of every trainable group's parameters (for tracking parameter-norm changes, spec 2.3)."""
