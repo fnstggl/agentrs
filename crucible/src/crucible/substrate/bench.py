@@ -9,6 +9,19 @@ Measures, single-threaded, on the real kernel:
   store (blob read, hash check, decode, apply) and regeneration;
 * the per-event cost of the kernel's subscriber hook: emitting small events with no subscriber registered (4.0 path),
   with a subscriber registered for another type, and with a no-op subscriber on the emitted type.
+
+Store growth over a long run (`store_growth`; D-78, wave 3b):
+
+    PYTHONPATH=src python -m crucible.substrate.bench growth --world kernel|population --days 365 [--json out.json]
+
+A world in a SQLite store advances day by day; every `every_days` it takes a snapshot and runs
+`retention.compact(prune=True)`, and records per snapshot: its bytes and the retained snapshot bytes, live blob bytes,
+blob count, event payload bytes, `artifacts` rows, compaction seconds and wall seconds per simulated day. At the end a
+fresh store object replays the log from genesis and resumes the latest snapshot; both must equal the live digest.
+`kernel`: the substrate bench world with `batches_per_day` cohort updates (`cols.batch`, one system array blob each)
+per simulated day - the snapshot must not grow with the number of system blobs written. `population`: the population
+world of A.json's 365-day measurement (development profile, seed 11, 400 individuals, 6 sites, adaptive policies with
+daily checkpoints, no strategic class); it runs the shared space's text path (a GPU slot).
 """
 from __future__ import annotations
 
@@ -171,7 +184,113 @@ def event_overhead(k: int = 20000, reps: int = 5) -> dict:
             "noop_subscriber_cost_us": round(res["same"] - res["none"], 3)}
 
 
+def _payload_bytes(db: str, wid: str) -> int:
+    import sqlite3
+    c = sqlite3.connect(db)
+    try:
+        cols = [r[1] for r in c.execute("PRAGMA table_info(events)")]
+        col = "payload" if "payload" in cols else cols[-1]
+        return int(c.execute(f"SELECT COALESCE(SUM(LENGTH({col})), 0) FROM events WHERE world_id=?", (wid,))
+                   .fetchone()[0])
+    finally:
+        c.close()
+
+
+def store_growth(world: str = "kernel", days: int = 365, *, every_days: int = 7, db: str | None = None,
+                 n: int = 20_000, rows: int = 2_000, batches_per_day: int = 4, out: str | None = None) -> dict:
+    """Store growth of a `days`-long run with a snapshot and `retention.compact(prune=True)` every `every_days`
+    (see the module docstring). Returns {"rows": [per snapshot], "end": {...}}; `out` is rewritten after every row."""
+    from ..storage.sqlite import SQLiteStore
+    from . import retention
+    tmp = None
+    if db is None:
+        tmp = tempfile.mkdtemp(prefix="crucible-growth-")
+        db = os.path.join(tmp, "growth.db")
+    for f in (db, db + "-wal", db + "-shm"):
+        if os.path.exists(f):
+            os.remove(f)
+    st = SQLiteStore(db)
+    wid = f"growth-{world}"
+    if world == "kernel":
+        w = _world(n, store=st, wid=wid)
+    elif world == "population":
+        import crucible
+        crucible.load_all_modules()
+        from ..population.worlds import population_world
+        w = World.create(population_world("development", 11, n=400, sites=6, strategic=False, adaptive=True),
+                         world_id=wid, store=st)
+    else:
+        raise ValueError(f"unknown growth world {world!r} (kernel or population)")
+    res = {"schema": "crucible-v5-store-growth/1", "world": world, "days": int(days), "every_days": int(every_days),
+           "rows": [], "done": False}
+    if world == "kernel":
+        res["kernel"] = {"n": int(n), "rows_per_batch": int(rows), "batches_per_day": int(batches_per_day)}
+
+    def dump():
+        if out:
+            with open(out, "w") as fh:
+                json.dump(res, fh, indent=1)
+    t_run = last = time.time()
+    for day in range(1, int(days) + 1):
+        if world == "kernel":
+            for b in range(int(batches_per_day)):
+                w.system_call("sbench.batch", {"rows": int(rows), "seed": day * 1000 + b})
+        w.advance_time(day * 86400)
+        if day % int(every_days) and day != int(days):
+            continue
+        sim_s = time.time() - last
+        w.snapshot()
+        t = time.time()
+        comp = retention.compact(w, prune=True)
+        comp_s = time.time() - t
+        s = retention.stats(w)
+        latest = max(st.list_snapshots(wid), key=lambda x: x["seq"])
+        res["rows"].append({"day": day, "events": int(w.seq), "wall_s_per_day": round(sim_s / every_days, 3),
+                            "compact_s": round(comp_s, 3), "packed": comp["pack"]["packed"],
+                            "dropped": comp["collect"]["dropped"], "snapshots": s["snapshots"],
+                            "snapshot_bytes_latest": int(latest.get("bytes") or 0),
+                            "snapshot_bytes_retained": s["snapshot_bytes"], "live_blob_bytes": s["live_blob_bytes"],
+                            "blobs": s["blobs"], "blobs_packed": s["blobs_packed"],
+                            "event_payload_bytes": _payload_bytes(db, wid),
+                            "artifact_rows": int(w.state.count("artifacts")), "sqlite_bytes": os.path.getsize(db)})
+        dump()
+        last = time.time()
+    w.flush()
+    live = w.digest()
+    end = {"events": int(w.seq), "run_s": round(time.time() - t_run, 1)}
+    artifacts._CHUNKS.clear()
+    t = time.time()
+    st2 = SQLiteStore(db)
+    rep = World.replay(w.spec, st2.read_events(wid), world_id=f"{wid}-replay", store=st2)
+    end["replay_from_genesis_exact"] = rep.digest() == live
+    end["replay_s"] = round(time.time() - t, 1)
+    del rep
+    t = time.time()
+    end["resume_exact"] = World.load(SQLiteStore(db), wid).digest() == live
+    end["resume_s"] = round(time.time() - t, 1)
+    w.close()
+    res.update(end=end, done=True)
+    dump()
+    if tmp is not None:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+    return res
+
+
 def main(argv=None) -> int:
+    import sys
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["growth"]:
+        ap = argparse.ArgumentParser(prog="python -m crucible.substrate.bench growth")
+        ap.add_argument("--world", choices=("kernel", "population"), default="kernel")
+        ap.add_argument("--days", type=int, default=365)
+        ap.add_argument("--every-days", type=int, default=7)
+        ap.add_argument("--db", default=None, help="SQLite file (default: a temporary one, deleted at the end)")
+        ap.add_argument("--json", default=None, help="write the result here (rewritten after every snapshot)")
+        a = ap.parse_args(argv[1:])
+        out = store_growth(a.world, a.days, every_days=a.every_days, db=a.db, out=a.json)
+        print(json.dumps({k: v for k, v in out.items() if k != "rows"}, indent=1))
+        return 0
     ap = argparse.ArgumentParser(prog="python -m crucible.substrate.bench")
     ap.add_argument("--rows", type=int, default=1_000_000)
     ap.add_argument("--table-rows", type=int, default=10_000_000)

@@ -305,3 +305,25 @@ def test_system_array_blobs_are_not_world_state(tmp_path):
     r = w.execute("p:eve", {"tool": "artifact.info", "args": {"ref": refs[0]}})
     assert not r.ok and r.error["code"] == "not_found"
     other.close()
+
+
+def test_a_year_of_cohort_batches_leaves_the_snapshot_size_unchanged(tmp_path):
+    """Wave 3b (D-78, A.json store growth): 365 simulated days of a kernel world writing four cohort batches a day
+    (one system array blob each), a snapshot and `retention.compact(prune=True)` every week. Before D-78 every system
+    blob kept an `artifacts` row, so each snapshot carried the whole blob history (a 365-day population world: 1.4 MB
+    per snapshot in the first quarter, 3.3 MB in the last). Now the snapshot holds the world's state only - its size
+    stays that of the first week while the blob count grows - and replay from genesis and resume stay exact."""
+    from crucible.substrate import bench
+    r = bench.store_growth("kernel", 365, db=str(tmp_path / "g.db"), n=20_000, rows=2_000, batches_per_day=4)
+    rows = r["rows"]
+    assert r["done"] and len(rows) == 53 and rows[-1]["day"] == 365
+    assert rows[-1]["blobs"] >= 4 * 365                      # every batch wrote a system blob into the store
+    assert all(x["artifact_rows"] == 0 for x in rows)         # none of them is a row of the world's state
+    first = rows[0]["snapshot_bytes_latest"]
+    assert max(x["snapshot_bytes_latest"] for x in rows) <= 1.05 * first
+    assert min(x["snapshot_bytes_latest"] for x in rows) >= 0.95 * first
+    # retained snapshot bytes grow with the number of retained snapshots only (pruning keeps the last three and one
+    # per 30 days), never with the history each one carries
+    assert all(x["snapshot_bytes_retained"] <= 1.05 * first * x["snapshots"] for x in rows)
+    assert rows[-1]["blobs_packed"] > 0                       # compaction packed the batch blobs
+    assert r["end"]["replay_from_genesis_exact"] and r["end"]["resume_exact"]
