@@ -1126,7 +1126,11 @@ class DiscordExecutor:
         if refused is not None:
             return refused
         if keep:        # message text will leave the adapter: that is a different data class and is judged as such
-            read_args: Dict[str, Any] = {"content_retained": True}
+            # Text in an observation is kept: it enters the experience stream (recorded, replayed) and is learned
+            # from. So retaining it is declared to the authorization layer as reading, storing AND training on
+            # message content (data classes message_content_read / _store / _train), not as reading only: the
+            # task's data permissions and the platform rule decide all three (spec 12.5, 12.6; IH-15).
+            read_args: Dict[str, Any] = {"content_retained": True, "store": True, "train": True}
             if "channel_id" in a:
                 read_args["channel_id"] = a["channel_id"]
             refused = self._checked(action, ctx, started, ops, "discord.read_messages", read_args,
