@@ -63,6 +63,8 @@ class _SemCore(UnifiedCore):
         self.seen = []
 
     def project_semantic(self, sem, B, code_rows=None, sem_rows=None):
+        if sem is None:                     # W3's real core asks for a projection on every pass (None -> None)
+            return None
         self.seen.append(("project", B, None if sem_rows is None else sem_rows.tolist()))
         return {"kv": sem, "rows": sem_rows}
 
@@ -103,8 +105,18 @@ def test_semantic_context_reaches_every_transition_with_the_row_map():
     assert tf[2] == [int(src[i % B]) for i in range(tf[1])]
 
 
+class _SeamCore(UnifiedCore):
+    """A core without Mechanism C inputs (the seam-0 signatures): forward and run_blocks take no `sem`."""
+
+    def forward(self, Z_prev, ctx, code_rows=None):
+        return super().forward(Z_prev, ctx, code_rows)
+
+    def run_blocks(self, h, key_mask, blocks=None, attn_bias=None, checkpoint_blocks=None):
+        return super().run_blocks(h, key_mask, blocks, attn_bias, checkpoint_blocks)
+
+
 def test_a_core_without_semantic_input_ignores_sem_and_counts_it():
-    wm, cfg = dom_wm()
+    wm, cfg = dom_wm(core_cls=_SeamCore)        # W3's merged UnifiedCore takes sem; the seam-0 signature does not
     g = torch.Generator().manual_seed(1)
     R, act, dt, z = _inputs(cfg, 2, g, entity=False)
     with torch.no_grad():
