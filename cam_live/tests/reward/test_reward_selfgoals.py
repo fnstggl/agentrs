@@ -75,11 +75,13 @@ def test_usefulness_is_judged_only_on_later_independent_verified_objectives():
     assert led.admit_verified(own, objective_origin=Trust.SELF).reason == "self_authored_objective"
     gains = [0.3, 0.1, 0.2]
     for i, gain in enumerate(gains):
-        v = VerifiedOutcome(objective_id=f"later-{i}", status=GoalStatus.ACHIEVED, value=1.0 + gain,
-                            evaluated_at=100.0 + i, signature="signed")
+        # utility = goal-progress level 0.5 * value / target (integrity.objective_utility) = 0.1 + gain
+        v = VerifiedOutcome(objective_id=f"later-{i}", status=GoalStatus.PENDING, value=2.0 + 20.0 * gain,
+                            target=10.0, evaluated_at=100.0 + i, signature="signed")
+        led.register_objective(v.objective_id, origin=Trust.OPERATOR)   # independently assigned objectives
         entry = led.admit_verified(v).entry
-        sel.record_later_objective(entry, predicted_without=1.0)
-        sel.record_later_objective(entry, predicted_without=1.0)          # duplicate: counted once
+        sel.record_later_objective(entry, predicted_without=0.1)
+        sel.record_later_objective(entry, predicted_without=0.1)          # duplicate: counted once
         u = sel.usefulness()
         assert u["n"] == i + 1 and u["established"] == (i + 1 >= 3)
     assert u["mean_gain"] == pytest.approx(0.2) and u["se"] == pytest.approx(0.0577, abs=1e-3)

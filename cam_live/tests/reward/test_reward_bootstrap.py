@@ -125,12 +125,31 @@ def test_mixer_starts_as_pure_bootstrap_and_logs_which_component_produced_what()
     assert f["reward_version"].startswith("bootstrap:mix=1.000:")           # never labelled as learned
     mixer.mix = 0.25
     out = mixer.combine(rb, rl, reward_version="rpsi1-x")
-    assert out.label == "mixed" and torch.allclose(out.total, 0.25 * rb + 0.75 * rl)
+    assert torch.allclose(out.total, 0.25 * rb + 0.75 * rl)
     assert mixer.log[-1]["from_learned"] == pytest.approx([0.675, 0.675])
+    # D12: R_psi is never labelled learned / mixed before a meta-update was applied *and* promoted
+    assert out.label == "bootstrap" and out.record_fields(0)["reward_version"].startswith("bootstrap:mix=0.250:")
+    mixer.mix = 0.0
+    assert mixer.combine(rb, rl, reward_version="v").label == "bootstrap"          # random R_psi, mix 0
+    mixer.note_meta_update()
+    assert mixer.combine(rb, rl, reward_version="v").label == "bootstrap"          # applied, not promoted
+    mixer.mix, mixer.min_independent = 0.5, 2
+    assert mixer.update([0.1, 0.2, 0.15]).action == "lower" and mixer.promoted
+    assert mixer.combine(rb, rl, reward_version="v").label == "mixed"
     mixer.mix = 0.0
     assert mixer.combine(rb, rl, reward_version="v").label == "learned"
+    twin = B.RewardMixer(); twin.load_state_dict(mixer.state_dict())
+    assert twin.promoted and twin.meta_updates_applied == 1 and twin.promotions == 1
     with pytest.raises(ValueError):
         B.RewardMixer(mix=1.5)
+
+
+def test_promotion_before_any_meta_update_does_not_earn_the_learned_label():
+    """D12: a 'lower' decision taken before psi was ever meta-updated is not a promotion of a learned reward."""
+    mixer = B.RewardMixer(mix=0.5, step=0.5, min_independent=2)
+    assert mixer.update([0.1, 0.2, 0.15]).action == "lower" and mixer.mix == 0.0
+    rb, rl = t(0.3, -0.1), t(0.9, 0.9)
+    assert not mixer.promoted and mixer.combine(rb, rl, reward_version="v").label == "bootstrap"
 
 
 def test_mixing_is_not_a_gradient_path_into_the_reward_parameters():

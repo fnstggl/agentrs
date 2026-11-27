@@ -102,6 +102,7 @@ def test_self_goals_never_supervise_and_usefulness_needs_later_independent_objec
     as_self = ledger.admit_verified(lts[0].verified, objective_origin=Trust.SELF)
     assert not as_self.accepted and as_self.reason == "self_authored_objective" and len(ledger) == 0
     for i, lt in enumerate(lts):
+        ledger.register_objective(lt.task)                            # operator tasks (TaskSpec.origin)
         entry = ledger.admit_verified(lt.verified, utility=verified_return(lt)).entry
         gf.record_later_objective(entry, predicted_without=0.2)
         assert gf.usefulness()["established"] is (i + 1 >= 5)

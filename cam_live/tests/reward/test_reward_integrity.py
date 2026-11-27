@@ -2,12 +2,13 @@
 import hashlib
 import hmac
 import json
+import os
 
 import pytest
 import torch
 
 from cam_live.contracts import (GoalStatus, OutcomeObservation, OutcomeQuery, OutcomeStatus, PredictionRecord,
-                                Distribution, Trust, VerifiedOutcome)
+                                Distribution, TaskSpec, Trust, VerifiedOutcome)
 from cam_live.reward import integrity as I
 from cam_live.reward import meta as M
 from cam_live.reward.bandit_lifetime import BanditLifetime
@@ -193,13 +194,21 @@ def test_stale_predictions_are_not_prospective():
 
 
 # ------------------------------------------------------------------------------------------- ledger
+def _registered(led, *objectives):
+    for o in objectives:
+        led.register_objective(o, origin=Trust.OPERATOR)           # explicit operator registration
+    return led
+
+
 def test_ledger_admits_signed_outcomes_once_and_rejects_fabrications(tmp_path):
     v = Verifier()
     path = str(tmp_path / "ledger" / "outcomes.jsonl")
-    led = I.OutcomeLedger(v.check_signature, v.check_measurement, path=path)
+    led = _registered(I.OutcomeLedger(v.check_signature, v.check_measurement, path=path), "obj1")
     assert led.head == I.OutcomeLedger.GENESIS
     a = led.admit_verified(v.sign(_vo(12.0, 100.0)), group="exp:E1", exp_ids=["e1", "e2"])
-    assert a.accepted and a.entry.utility == 12.0 and a.entry.group == "exp:E1" and a.entry.kind == "objective"
+    # the utility is derived from the signed record: 0.5 * 12 / 50 (goal_progress_v1), not the raw value
+    assert a.accepted and a.entry.utility == pytest.approx(0.12) and a.entry.group == "exp:E1"
+    assert a.entry.kind == "objective"
     again = led.admit_verified(v.sign(_vo(12.0, 100.0)), group="exp:E1")
     assert not again.accepted and again.reason == "duplicate" and len(led) == 1          # counted once
     forged = _vo(1e9, 101.0); forged.signature = "0" * 64
@@ -217,18 +226,76 @@ def test_ledger_admits_signed_outcomes_once_and_rejects_fabrications(tmp_path):
     # persistence: the reloaded ledger has the same head and still refuses the duplicate
     re = I.OutcomeLedger(v.check_signature, v.check_measurement, path=path)
     assert re.head == led.head and len(re) == 2 and not re.admit_measurement(m).accepted
+    assert re.verify_chain() == (True, -1)
     no_meas = I.OutcomeLedger(v.check_signature)
     assert no_meas.admit_measurement(m).reason == "no_measurement_authentication"
+
+
+def test_utility_is_derived_from_the_signed_outcome_and_a_disagreeing_caller_utility_is_refused(tmp_path):
+    """D2: the number that supervises psi is a fixed function of (status, value, target) of the signed record."""
+    v = Verifier()
+    path = str(tmp_path / "outcomes.jsonl")
+    led = _registered(I.OutcomeLedger(v.check_signature, v.check_measurement, path=path), "obj1")
+    o1 = v.sign(_vo(14.0, 100.0))
+    r = led.admit_verified(o1, utility=1e6)                          # valid signature, invented utility
+    assert not r.accepted and r.reason == "utility_mismatch"
+    assert r.entry.kind == "refused" and r.entry.utility == 0.0 and r.entry.exp_ids == ()
+    assert json.loads(r.entry.note)["claimed_utility"] == 1e6 and led.rejected_details[-1]["derived_utility"] \
+        == pytest.approx(0.14)
+    assert not any(e.utility >= 1e6 for e in led.entries())
+    assert led.admit_verified(o1, utility=0.14).accepted             # the derived value itself is accepted
+    # progress since the previous admitted evaluation: 0.14 -> 0.40 is +0.26, then ACHIEVED -> +0.60
+    o2 = v.sign(_vo(40.0, 101.0, refs=("ev2",)))
+    assert led.derived_objective_utility(o2) == pytest.approx(0.26)
+    assert led.admit_verified(o2).entry.utility == pytest.approx(0.26)
+    o3 = v.sign(VerifiedOutcome(objective_id="obj1", status=GoalStatus.ACHIEVED, value=50.0, target=50.0,
+                                evaluated_at=102.0, evidence_refs=["ev3"]))
+    assert led.admit_verified(o3).entry.utility == pytest.approx(0.60)
+    assert sum(e.utility for e in led.admitted() if e.objective_id == "obj1") == pytest.approx(1.0)
+    assert I.objective_utility(o3) == 1.0 and I.objective_utility(_vo(-3.0)) == 0.0
+    assert I.objective_utility(_vo(500.0)) == 0.5                    # an unachieved objective is worth at most 0.5
+    # measurements: the measured value, a disagreeing caller utility is refused
+    m = _obs(3, value=7.0); v.attest(m)
+    assert led.admit_measurement(m, utility=700.0).reason == "utility_mismatch"
+    assert led.admit_measurement(m, utility=7.0).entry.utility == 7.0
+    # the refusals are on the chain and survive a reload; the levels are rebuilt from the chain
+    re = I.OutcomeLedger(v.check_signature, v.check_measurement, path=path)
+    assert re.verify_chain() == (True, -1) and [e.kind for e in re.entries()].count("refused") == 2
+    assert re.derived_objective_utility(o3) == pytest.approx(0.0)
+
+
+def test_objective_origin_is_recorded_and_unknown_origin_is_excluded():
+    """D3: the origin that admits is the recorded one (TaskSpec.origin), never the caller's argument."""
+    v = Verifier()
+    led = I.OutcomeLedger(v.check_signature)
+    sig = lambda oid, x=10.0: v.sign(_vo(x, 100.0, objective=oid, refs=(oid,)))
+    assert led.admit_verified(sig("never_registered")).reason == "objective_origin_unknown"   # fail closed
+    op = TaskSpec(objective_id="op_task", objective="reach 10", success={"target": 10})
+    own = TaskSpec(objective_id="self_task", objective="reach 1", success={"target": 1}, origin=Trust.SELF)
+    assert led.register_objective(op) == Trust.OPERATOR and led.register_objective(own) == Trust.SELF
+    assert led.admit_verified(sig("self_task")).reason == "self_authored_objective"
+    assert led.admit_verified(sig("self_task"), objective_origin=Trust.OPERATOR).reason == "self_authored_objective"
+    assert led.admit_verified(sig("op_task"), objective_origin=Trust.SELF).reason == "self_authored_objective"
+    assert led.admit_verified(sig("op_task")).accepted
+    # a self-generated goal stays excluded whatever is registered later; an id needs an explicit origin
+    assert led.register_objective("self_task", origin=Trust.OPERATOR) == Trust.SELF and led.origin_conflicts
+    with pytest.raises(ValueError):
+        led.register_objective("some_id")
+    assert led.register_objective(TaskSpec(objective_id="x", objective="o", origin="")) is None
+    assert led.admit_verified(sig("x")).reason == "objective_origin_unknown"
+    twin = I.OutcomeLedger(v.check_signature); twin.load_origins(led.origins())
+    assert twin.origin_of("self_task") == Trust.SELF and twin.origin_of("op_task") == Trust.OPERATOR
 
 
 def test_ledger_tampering_is_detected(tmp_path):
     v = Verifier()
     path = str(tmp_path / "outcomes.jsonl")
-    led = I.OutcomeLedger(v.check_signature, path=path)
+    led = _registered(I.OutcomeLedger(v.check_signature, path=path), "obj1")
     for i in range(4):
-        assert led.admit_verified(v.sign(_vo(float(i), 100.0 + i, refs=(f"ev{i}",)))).accepted
+        assert led.admit_verified(v.sign(_vo(float(10 * i), 100.0 + i, refs=(f"ev{i}",)))).accepted
     head = led.head
     lines = open(path).read().splitlines()
+    anchor = open(path + ".head").read()
     # (1) edit a utility in place
     d = json.loads(lines[1]); d["utility"] = 1e9
     open(path, "w").write("\n".join([lines[0], json.dumps(d, sort_keys=True)] + lines[2:]) + "\n")
@@ -242,9 +309,20 @@ def test_ledger_tampering_is_detected(tmp_path):
     open(path, "w").write("\n".join([lines[1], lines[0]] + lines[2:]) + "\n")
     with pytest.raises(I.IntegrityError):
         I.OutcomeLedger(v.check_signature, path=path)
-    # (4) truncation changes the head recorded by an earlier meta-update
+    # (4) truncation at an entry boundary: the chain is consistent but does not reach the anchor (D8)
     open(path, "w").write("\n".join(lines[:3]) + "\n")
-    assert I.OutcomeLedger(v.check_signature, path=path).head != head
+    cut = I.OutcomeLedger(v.check_signature, path=path)
+    assert cut.head != head and cut.verify_chain() == (False, 3) and cut.anchor_error.startswith("truncated")
+    with pytest.raises(I.IntegrityError):                           # nothing can be appended to "heal" it
+        _registered(cut, "obj2").admit_verified(v.sign(_vo(5.0, 200.0, objective="obj2", refs=("z",))))
+    # (5) a ledger file without its anchor fails; a head kept elsewhere (checkpoint) is required to be present
+    open(path, "w").write("\n".join(lines) + "\n")
+    os.remove(path + ".head")
+    assert I.OutcomeLedger(v.check_signature, path=path).verify_chain()[0] is False
+    open(path + ".head", "w").write(anchor)
+    assert I.OutcomeLedger(v.check_signature, path=path).verify_chain() == (True, -1)
+    assert I.OutcomeLedger(v.check_signature, path=path, expected_head=head).verify_chain() == (True, -1)
+    assert I.OutcomeLedger(v.check_signature, path=path, expected_head="f" * 64).verify_chain()[0] is False
     # in memory
     e = led._entries[2]
     led._entries[2] = I.LedgerEntry(**{**e.__dict__, "utility": 77.0})
@@ -256,11 +334,12 @@ def test_fabricated_outcomes_never_reach_the_outer_objective():
     makes the outer estimate refuse."""
     v = Verifier()
     led = I.OutcomeLedger(v.check_signature)
-    real = [v.sign(_vo(float(i), 100.0 + i, refs=(f"ev{i}",))) for i in range(6)]
-    fake = _vo(1e6, 500.0, refs=("made-up",)); fake.signature = "a" * 64
+    real = [v.sign(_vo(float(i), 100.0 + i, objective=f"o{i}", refs=(f"ev{i}",))) for i in range(6)]
+    _registered(led, *[f"o{i}" for i in range(6)])
+    fake = _vo(1e6, 500.0, objective="o0", refs=("made-up",)); fake.signature = "a" * 64
     for o in real + [fake]:
         led.admit_verified(o)
-    assert [e.utility for e in led.entries()] == [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    assert [e.utility for e in led.entries()] == pytest.approx([0.01 * i for i in range(6)])
     P = BanditLifetime()
     g = torch.Generator().manual_seed(0)
     mg = M.MetaGradient(M.policy_gradient_inner_loss(P.logp_fn, P.reward_fn), P.logp_fn, inner_lr=0.5)
@@ -274,6 +353,35 @@ def test_fabricated_outcomes_never_reach_the_outer_objective():
 
 
 # ------------------------------------------------------------------------------- self-generated goals
+def test_reworded_self_generated_goals_count_as_repeats():
+    """D6: number words, endings, articles and generic attainment verbs are folded ("Get ten members" repeats
+    "Reach 10 members"), while a goal with a different content stays a new goal."""
+    d = I.SelfGoalDiscount()
+    w = [d.weight(t, 0.3) for t in ("Reach 10 members", "reach 11 members!", "Get ten members", "obtain 10 members",
+                                    "Achieve twenty five members")]
+    assert w == [1.0, 0.5, 0.25, 0.125, 0.0625]
+    assert d.weight("Lose 10 members", 0.3) == 1.0 and d.weight("Post 10 messages", 0.3) == 1.0
+    assert I.SelfGoalDiscount.key("predict lab.adopters.total after lab.act") != \
+        I.SelfGoalDiscount.key("predict lab.budget.spent after lab.act")
+
+
+def test_semantic_near_duplicates_on_the_goal_embedding_are_discounted():
+    """D6: with an embedding of the goal text, a paraphrase that shares no content word with an earlier goal is a
+    repeat when the cosine similarity reaches ``similar_above``. (The embedding here is a fixed table standing in
+    for the backbone's text embedding: this test pins the mechanism; tests/reward/test_reward_goalfree.py measures
+    the real backbone.)"""
+    table = {"grow the community to ten people": [1.0, 0.0, 0.1], "Recruit 10 members": [0.97, 0.05, 0.2],
+             "Translate the welcome page": [0.0, 1.0, 0.0]}
+    d = I.SelfGoalDiscount(embed=lambda t: torch.tensor(table[t]), similar_above=0.9)
+    assert d.weight("grow the community to ten people", 0.3) == 1.0
+    assert d.weight("Recruit 10 members", 0.3) == 0.5                 # no shared content word, cosine 0.98
+    assert d.weight("Translate the welcome page", 0.3) == 1.0
+    lexical = I.SelfGoalDiscount()
+    assert lexical.weight("grow the community to ten people", 0.3) == lexical.weight("Recruit 10 members", 0.3) == 1.0
+    twin = I.SelfGoalDiscount(embed=d.embed); twin.load_state_dict(d.state_dict())
+    assert twin.weight("Recruit 10 members", 0.3, register=False) == 0.25
+
+
 def test_repeated_and_trivial_self_generated_goals_are_discounted():
     d = I.SelfGoalDiscount(decay=0.5, trivial_above=0.9)
     w = [d.weight("Reduce prediction loss on metric 17 below 0.30", 0.4) for _ in range(5)]

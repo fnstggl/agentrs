@@ -114,11 +114,19 @@ def make_stack(seed: int, ec: ExperimentConfig, *, mix: float = 1.0, mix_step: f
 
 def model_policy(ml: MetaLearner, store: MemoryStore, generator: torch.Generator, theta: Optional[Dict[str, Tensor]] = None
                  ) -> Callable[[List[ActionSpec], Dict[str, Any]], Tuple[int, List[float]]]:
-    """Behaviour policy for ``LabCollector``: sample from pi_theta(. | b, C) exactly and log every probability."""
+    """Behaviour policy for ``LabCollector``: sample from pi_theta(. | b, C) exactly and log every probability.
+    Like the integrated agent when the runtime assigns a task, it registers the ``TaskSpec`` it acts on with the
+    meta-learner (``MetaLearner.register_objective``: the task's ``origin`` decides whether its signed outcome may
+    supervise the outer objective)."""
     model = ml.model
+    seen: set = set()
 
     @torch.no_grad()
     def fn(cands: List[ActionSpec], info: Dict[str, Any]) -> Tuple[int, List[float]]:
+        task = info.get("task")
+        if task is not None and task.objective_id not in seen:
+            seen.add(task.objective_id)
+            ml.register_objective(task)
         tok = model.tokenize([store.items(info["context_refs"])])
         b = model.core_forward(tok, None).b
         e_a, a_mask = model.encode_actions([cands])
@@ -230,9 +238,10 @@ def run_learner(kind: str, seed: int, ec: ExperimentConfig, profile: bool = True
             if kind != "verified_pg" and len(buf) >= ec.update_every:
                 ml.policy_update(list(buf))
                 buf.clear()
+        task = lab_task(world, objective_id=f"obj_lab_s{seed}_l{L}")         # deterministic outcome-group keys
+        ml.register_objective(task)                                          # an operator task (TaskSpec.origin)
         lt = LabCollector(store, max_context=ec.max_context, seq_start=L * 1000).run(
-            world, act, ec.n_decisions, seed=seed * 100_003 + L, on_step=on_step,
-            task=lab_task(world, objective_id=f"obj_lab_s{seed}_l{L}"))      # deterministic outcome-group keys
+            world, act, ec.n_decisions, seed=seed * 100_003 + L, on_step=on_step, task=task)
         if kind != "verified_pg" and len(buf) >= 2:
             ml.policy_update(list(buf))
         U = verified_return(lt)
@@ -468,9 +477,10 @@ def lab_lifetime(ml: MetaLearner, store: MemoryStore, clock: SimClock, ec: Exper
         if every and len(buf) >= every:
             updates.append(ml.policy_update(list(buf)))
             buf.clear()
+    task = lab_task(world, objective_id=f"obj_lab_{seed}")
+    ml.register_objective(task)                                          # an operator task (TaskSpec.origin)
     lt = LabCollector(store, max_context=ec.max_context, seq_start=int(ml.stats["policy_updates"]) * 1000 + 1).run(
-        world, act, n_decisions or ec.n_decisions, seed=seed, on_step=on_step,
-        task=lab_task(world, objective_id=f"obj_lab_{seed}"))
+        world, act, n_decisions or ec.n_decisions, seed=seed, on_step=on_step, task=task)
     return lt, world, updates
 
 
@@ -601,7 +611,7 @@ def integrity_check(seed: int = 0) -> Dict[str, Any]:
     verifier = LabVerifier(world)
     good = lt.verified
     out: Dict[str, Any] = {}
-    n0 = len(ml.ledger)
+    n0 = len(ml.ledger.admitted())
     forged = VerifiedOutcome.from_dict({**good.to_dict(), "value": good.value + 1000.0, "status": GoalStatus.ACHIEVED})
     unsigned = VerifiedOutcome.from_dict({**good.to_dict(), "signature": ""})
     made_up = VerifiedOutcome(objective_id=good.objective_id, status=GoalStatus.ACHIEVED, value=1e6, target=1.0,
@@ -610,7 +620,17 @@ def integrity_check(seed: int = 0) -> Dict[str, Any]:
                 "unsigned": ml.admit_objective(unsigned, utility=1e6).reason,
                 "fabricated_signature": ml.admit_objective(made_up, utility=1e6).reason,
                 "self_authored_objective": ml.admit_objective(good, utility=1e6, objective_origin=Trust.SELF).reason}
-    out["ledger_entries_after_invalid_objectives"] = len(ml.ledger) - n0
+    out["ledger_entries_after_invalid_objectives"] = len(ml.ledger.admitted()) - n0
+    attempts["genuine_outcome_with_a_caller_chosen_utility"] = ml.admit_objective(good, utility=1e6).reason
+    attempts["genuine_outcome_credited_to_foreign_decisions"] = ml.admit_objective(
+        good, exp_ids=["exp_not_of_this_objective"]).reason
+    self_task = dataclasses.replace(lab_task(world, objective_id="self_goal_diag"), origin=Trust.SELF)
+    ml.register_objective(self_task)
+    attempts["self_generated_goal_signed_by_the_verifier"] = ml.admit_objective(verifier.verify(self_task)).reason
+    attempts["objective_never_registered"] = ml.admit_objective(
+        verifier.verify(lab_task(world, objective_id="unregistered_diag"))).reason
+    out["ledger_entries_after_invalid_objectives"] = len(ml.ledger.admitted()) - n0
+    out["refusals_on_the_chain"] = sum(1 for e in ml.ledger.entries() if e.kind == "refused")
     first = ml.admit_objective(good, utility=verified_return(lt))
     dup = ml.admit_objective(good, utility=verified_return(lt))
     attempts["duplicate"] = dup.reason

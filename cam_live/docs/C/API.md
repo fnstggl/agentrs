@@ -134,11 +134,15 @@ class BootstrapReward:  __call__(*, learning_progress=None, delta_v=None, episte
 class RewardMixer:  __init__(mix=1.0, step=0.1, min_mix=0.0, min_independent=8, tolerance=0.0)
     combine(r_bootstrap, r_learned, *, reward_version, bootstrap_components=None, exp_ids=None) -> MixedReward
     update(diffs: Sequence[float]) -> PromotionDecision        # one number per independent held-out group
+    note_meta_update();  meta_updates_applied;  promotions;  promoted;  label
     log (deque of dicts);  decisions;  state_dict() / load_state_dict()
 paired_policy_value_diffs(logp_learned, logp_bootstrap, behaviour_logp, utility, groups, weight_clip=10.0)
 ```
 `MixedReward.record_fields(i)` gives `intrinsic_reward`, `bootstrap_reward`, `reward_version` for
-`ExperienceRecord`; `RewardMixer.mix` is `MetaUpdateRecord.bootstrap_mix`.
+`ExperienceRecord`; `RewardMixer.mix` is `MetaUpdateRecord.bootstrap_mix`. `label` is `"bootstrap"` until at least
+one meta-update was applied (`MetaLearner` calls `note_meta_update()`) **and** a later promotion ("lower") decision
+was taken; only then `"learned"` (mix 0) or `"mixed"` (G-pr D12: a random or merely configured R_psi is not called
+learned; the mix itself is in every `reward_version` string, e.g. `"bootstrap:mix=0.000:<psi version>"`).
 
 ## reward.windows
 
@@ -167,25 +171,67 @@ dedup_outcomes(outcomes) -> (kept, dropped)
 screen_observation(o, *, imagined=False, check_measurement=None) -> (ok, reason)
 screen_verified(v, check_signature, *, objective_origin=Trust.OPERATOR) -> (ok, reason)
 is_prospective(pred: PredictionRecord, obs: OutcomeObservation) -> bool
-class OutcomeLedger:  __init__(check_signature, check_measurement=None, path=None)
+objective_utility(v: VerifiedOutcome) -> float      # mapping "goal_progress_v1": 1 if ACHIEVED else
+                                                    # 0.5 * clip(value / max(target, 1), 0, 1)
+measurement_utility(o: OutcomeObservation) -> float # mapping "measured_value_v1": the measured value
+utility_matches(claimed, derived, rtol=1e-9) -> bool;  SUPERVISING_ORIGINS = (Trust.OPERATOR, Trust.VERIFIER)
+class OutcomeLedger:  __init__(check_signature, check_measurement=None, path=None, *, expected_head=None)
+    register_objective(task_or_objective_id, origin=None) -> Optional[str]
+    origin_of(objective_id);  origins() -> {id: origin};  load_origins(origins);  origin_conflicts
     admit_verified(v, *, utility=None, group="", exp_ids=(), objective_origin=Trust.OPERATOR) -> AdmitResult
     admit_measurement(o, *, objective_id="", utility=None, group="", exp_ids=(), imagined=False, signature="")
-    head;  entries();  verify_chain() -> (ok, bad_index);  independent_groups(since_index=0);  rejected
-class SelfGoalDiscount:  weight(goal_text, p_success_before, *, register=True) -> float
+    derived_objective_utility(v) -> float;  objective_key(v) -> str;  check_signature (property)
+    refuse(reason, key, *, kind, objective_id, observed_at, signature, content, claimed=None, derived=None,
+           exp_ids=()) -> AdmitResult
+    head;  entries();  admitted();  verify_chain() -> (ok, bad_index);  anchor_error;  independent_groups(...)
+    rejected [(reason, key)];  rejected_details [dict]
+LedgerEntry(..., note="").admitted                  # kinds "objective", "measurement" supervise; "refused" never
+class SelfGoalDiscount:  __init__(decay=0.5, trivial_above=0.9, *, embed=None, similar_above=0.9,
+                                  max_remembered=4096)
+    weight(goal_text, p_success_before, *, register=True) -> float;  repeats(goal_text) -> int;  key(text)
 class NoisyTVGate:  update(key, epistemic) -> float;  gate(key) -> float
 noisy_tv_audit(rewards, epistemic, *, tail=0.25, max_tail_ratio=0.2, flat_rel_drop_per_step=0.01) -> dict
 ```
+
+Admission semantics (G-pr D2, D3, D8; all existing parameters are still accepted):
+* **Utility.** The ledger stores a utility it derives from the signed record: for an objective the change of
+  `objective_utility` since the previous admitted evaluation of that objective (first evaluation from 0; the sum
+  over an objective's entries is its final level), for a measurement `measurement_utility`. `utility=` is now the
+  caller's *expectation*: if it disagrees (`utility_matches`) the outcome is refused with `utility_mismatch`. The
+  default of `admit_verified` was `v.value`; it is now the derived utility.
+* **Origin.** An objective outcome is admitted only if `register_objective` recorded an OPERATOR / VERIFIER origin
+  for its objective id (from `TaskSpec.origin`, or an explicit `origin=` for an id). Never registered:
+  `objective_origin_unknown`; recorded `Trust.SELF`: `self_authored_objective` (sticky: SELF wins over a later
+  registration). `objective_origin=` other than OPERATOR / VERIFIER still excludes; it can no longer admit.
+* **Refusals.** Every refusal is in `rejected` / `rejected_details`. A refusal of a validly signed or authenticated
+  outcome (`utility_mismatch`, `objective_origin_unknown`, `self_authored_objective` from the recorded origin,
+  `exp_ids_not_decisions_of_objective`) is also chained as an entry of kind `"refused"` (utility 0, no exp_ids,
+  JSON reason in `note`; the same refusal once). `len(ledger)` counts all entries, `admitted()` the supervising
+  ones; `independent_groups` counts admitted entries only.
+* **Anchor.** With `path`, `<path>.head` holds `{"n", "head"}` after every append. A file that does not reach its
+  anchor (truncated at an entry boundary), has no anchor, or lacks `expected_head` loads, but `verify_chain()`
+  returns `(False, len(entries))`, `anchor_error` says why, appending raises `IntegrityError` and
+  `MetaLearner.meta_update` raises. An edited / reordered / deleted-in-the-middle entry still raises on load.
 
 ## reward.selfgoals (goal-free mode machinery)
 
 ```python
 GoalFreeBudget(seconds, decisions, money=0.0, compute_s=0.0)      # finite or ValueError
+    can_afford(cost);  reserve(cost) -> bool;  release(cost);  charge(cost);  exhausted;  committed;  remaining()
+    spent, n_decisions (executed)  /  reserved, n_reserved (selected, not yet resolved)
 LearningGoalCandidate(key, description, epistemic, achievable_progress, p_success=0.5, transfer=1.0, est_cost)
+SelectedGoal(candidate, score, discount, origin=Trust.SELF, reserved=None)
 class SelfGoalSelector:  __init__(budget, discount=None, gate=None, min_objectives=5)
     select(candidates, k=1, *, objective_assigned=False) -> List[SelectedGoal]
+    abandon(goal: SelectedGoal)                              # not executed: release the reservation
     record_result(goal, actual_cost, *, epistemic_after, realised_progress)
     record_later_objective(entry: LedgerEntry, predicted_without: float);  usefulness() -> dict
 ```
+Budget (G-pr D4): each selected goal reserves one decision and its estimated cost; `can_afford` counts spent +
+reserved, `select` checks the goals one after the other (one call never exceeds the budget) and returns `[]` once
+the budget is `committed`. `record_result` (or `GoalFreeMode.resolve`) releases the reservation and charges the
+actual cost; `abandon` (or `GoalFreeMode.abandon`) releases it without charging. A goal that is neither resolved
+nor abandoned keeps its reservation, also across `state_dict()` / `load_state_dict()` (fail closed).
 
 ## reward.exact (diagnostic reference)
 
@@ -290,9 +336,12 @@ class MetaLearner:
     def policy_update(self, records, *, steps=None, inner_lr=None, trigger="policy_improvement")
         -> Optional[contracts.LearningUpdateRecord]                               # the real inner update
     def note_policy_update(self, records, *, inner_lr=None, steps=None) -> Optional[UpdateEvent]
+    def register_objective(self, task_or_objective_id, origin=None) -> Optional[str]   # -> ledger
     def admit_objective(self, verified: VerifiedOutcome, *, exp_ids=None, utility=None, group="",
-                        objective_origin=Trust.OPERATOR) -> AdmitResult
+                        objective_origin=Trust.OPERATOR, task=None) -> AdmitResult
     def admit_measurements(self, records) -> int
+    @staticmethod outer_baselines(episodes, rows) -> {(k, a): baseline}
+    @staticmethod logged_policy_is_current(events, theta_K=None) -> bool
     def ready(self) -> Tuple[bool, str]
     def meta_update(self, now=None) -> contracts.MetaUpdateRecord                 # AgentAPI step 15
     def state_dict(self) -> Dict[str, Any];  def load_state_dict(self, sd) -> None
@@ -307,9 +356,14 @@ Use by the integrated agent
 3. Policy improvement: either `ml.policy_update(records)` (functional SGD; exactly what the unroll reproduces), or
    register `ml.inner` as a `LossProvider` with the continual learner **and** call `ml.note_policy_update(records)`
    before that learner steps (the meta-update then evaluates a shadow SGD update by importance weighting).
-4. On a signed outcome: `ml.admit_objective(verified)` (default utility: change of the verified value since the
-   previous admitted evaluation of that objective, credited to the decisions since then). Verified measurements
-   are admitted automatically, but only with a `check_measurement` (change request C-1).
+4. When the runtime assigns a task: `ml.register_objective(task)` (its `TaskSpec.origin` is recorded; change request
+   C-10). On a signed outcome: `ml.admit_objective(verified)` (or `admit_objective(verified, task=task)`): the
+   utility is derived by the ledger — the change of `integrity.objective_utility` since the previous admitted
+   evaluation of that objective — and credited to the decisions of that objective since then; `utility=` / `exp_ids=`
+   are checked (a disagreeing utility or decisions of another objective are refused). Outcomes of objectives
+   never registered, or registered with `origin=Trust.SELF`, never supervise. Verified measurements are admitted
+   automatically, but only with a `check_measurement` (change request C-1); `measurement_utility` selects which
+   measurements are utility, the ledger's number (the measured value) must agree with it.
 5. `ml.meta_update()` whenever convenient: it returns a record with `applied=False` and `skipped_reason`
    (`no_policy_update_recorded`, `insufficient_independent_outcomes:n<min`, `no_supported_episode:<why>`) until the
    evidence suffices. A broken ledger chain raises `IntegrityError`.
@@ -318,8 +372,17 @@ Use by the integrated agent
 
 Semantics: query rows of an update event are the decisions registered after it and before the next event; rows
 whose goal-relevant measurements are unresolved wait; every row supervises at most one meta-update. Independent
-groups: the objective-outcome group when a signed objective outcome credits the row, else the `WindowBuilder`
-group. `MetaUpdateRecord.query_window` is `"<window id>@<ledger head>"`; `diagnostics` holds floats only (ess,
+groups (`_Episode.indep`, used for `min_independent`, the held-out split, promotion and `QueryData.groups`): the
+objective-outcome group when a signed objective outcome credits the row, else the `WindowBuilder` group.
+Baseline (G-pr D1): `_Episode.group` is the row's *baseline group* — its independent group with `utility="direct"`,
+its return-to-go chain (`"rtg:life=<l>:held=<0|1>"`) with `utility="return_to_go"`; the baseline is the mean
+utility of the outer rows outside it (`outer_baselines`), else the running mean verified utility recorded when the
+decision was registered (`_Episode.prefix_base`). It never depends on the row's own action or outcome.
+Estimator (G-pr D7): on-policy only if `logged_policy_is_current` — every event of the unroll was applied by
+`policy_update` and replaying it without a graph from its snapshot with the current psi and `meta_mix` gives
+bit-identical parameters (`UpdateEvent.theta1_hash`) — and the logged propensities agree within `on_policy_tol`;
+otherwise importance weighting (always the case for the cold-start shadow update and for rows collected under an
+older psi). `on_policy_tol` is kept as that consistency check. `MetaUpdateRecord.query_window` is `"<window id>@<ledger head>"`; `diagnostics` holds floats only (ess,
 clip_scale, n_episodes, n_heldout_groups, promotion in {-1, 0, 1}, psi_tensors_with_gradient, ...).
 
 ### reward.selfgoals.GoalFreeMode
@@ -338,11 +401,13 @@ class GoalFreeMode:
     required_progress, score, discount, created_at, status, realised_progress, epistemic_after, origin=Trust.SELF
 ```
 The chosen `goal.action` goes through authorization and execution like any other action; `resolve` is called with
-what was observed. A goal's outcome is never admitted to the outcome ledger (`objective_origin=Trust.SELF`).
+what was observed; `abandon(goal)` for a proposed goal that is not executed (it releases the budget reservation;
+change request C-11). `report()` counts `pending` and `abandoned` goals too. A goal's outcome is never admitted to
+the outcome ledger (its objective is never registered as an operator objective).
 
 ### reward.diagnose
 
 `make_stack(seed, ec, *, mix, mix_step, heldout, meta_mix, check_measurement, **meta_over) -> (model, store, clock,
-ml)`, `model_policy(ml, store, generator, theta=None) -> PolicyFn` (exact propensities), `lab_lifetime(...)`,
+ml)`, `model_policy(ml, store, generator, theta=None) -> PolicyFn` (exact propensities; registers the `TaskSpec` it acts on), `lab_lifetime(...)` (registers its task),
 `LabMeasurementAuth`, `run_learner(kind, seed, ec)`, `labworld_experiment(seeds, ec, kinds, workers)`,
 `meta_gradient_check(Ks)`, `psi_isolation_check()`, `integrity_check()`, `meta_cost_50m(Ks)`, `reward_profile(...)`.

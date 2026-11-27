@@ -177,10 +177,26 @@ class RewardMixer:
         self.min_independent, self.tolerance = int(min_independent), float(tolerance)
         self.log: Deque[Dict[str, Any]] = collections.deque(maxlen=log_size)
         self.decisions: List[PromotionDecision] = []
+        self.meta_updates_applied = 0     # outer updates of psi that were applied (MetaLearner.meta_update)
+        self.promotions = 0               # "lower" decisions taken after at least one applied meta-update
+
+    @property
+    def promoted(self) -> bool:
+        """R_psi has been meta-updated at least once *and* promoted on held-out verified evidence since."""
+        return self.meta_updates_applied > 0 and self.promotions > 0
 
     @property
     def label(self) -> str:
-        return BOOTSTRAP_LABEL if self.mix >= 1.0 else (LEARNED_LABEL if self.mix <= 0.0 else MIXED_LABEL)
+        """``bootstrap`` until R_psi has been meta-updated and promoted (spec 7.6: a randomly initialised or merely
+        configured reward is not described as learned — ``mix`` is reported separately in every record); then
+        ``learned`` at mix 0 and ``mixed`` in between."""
+        if self.mix >= 1.0 or not self.promoted:
+            return BOOTSTRAP_LABEL
+        return LEARNED_LABEL if self.mix <= 0.0 else MIXED_LABEL
+
+    def note_meta_update(self) -> None:
+        """Called by the meta-learner after an outer update of psi was applied."""
+        self.meta_updates_applied += 1
 
     def combine(self, r_bootstrap: Tensor, r_learned: Tensor, *, reward_version: str,
                 bootstrap_components: Optional[Mapping[str, Tensor]] = None,
@@ -224,6 +240,8 @@ class RewardMixer:
             if lo >= -self.tolerance:
                 self.mix = max(self.min_mix, self.mix - self.step)
                 dec = PromotionDecision("lower", "held_out_evidence_shows_no_harm", before, self.mix, n, mean, lo, hi)
+                if self.meta_updates_applied > 0:
+                    self.promotions += 1
             else:
                 self.mix = min(1.0, self.mix + self.step)
                 dec = PromotionDecision("raise", "no_harm_not_established", before, self.mix, n, mean, lo, hi)
@@ -235,11 +253,14 @@ class RewardMixer:
 
     def state_dict(self) -> Dict[str, Any]:
         return {"mix": self.mix, "step": self.step, "min_mix": self.min_mix,
-                "min_independent": self.min_independent, "tolerance": self.tolerance}
+                "min_independent": self.min_independent, "tolerance": self.tolerance,
+                "meta_updates_applied": self.meta_updates_applied, "promotions": self.promotions}
 
     def load_state_dict(self, d: Mapping[str, Any]) -> None:
         self.mix, self.step, self.min_mix = float(d["mix"]), float(d["step"]), float(d["min_mix"])
         self.min_independent, self.tolerance = int(d["min_independent"]), float(d["tolerance"])
+        self.meta_updates_applied = int(d.get("meta_updates_applied", 0))
+        self.promotions = int(d.get("promotions", 0))
 
 
 def paired_policy_value_diffs(logp_learned: Tensor, logp_bootstrap: Tensor, behaviour_logp: Tensor,

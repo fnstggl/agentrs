@@ -9,10 +9,13 @@ When no objective is assigned CAM may choose learning goals of its own, inside a
 * candidates are scored from epistemic uncertainty, the predicted *achievable* learning progress and the expected
   relevance elsewhere, per unit of estimated cost — never from raw unpredictability (no achievable progress, no
   score), and with repeats and trivial goals discounted (``integrity.SelfGoalDiscount``, ``NoisyTVGate``);
-* every self-chosen goal is marked ``Trust.SELF``: its outcome can never enter the outer objective
-  (``integrity.screen_verified`` rejects it) — there is no self-generated incentive beyond the bounded,
-  discounted bootstrap signal;
-* the budget is finite by construction and nothing is selected once it is spent;
+* every self-chosen goal is marked ``Trust.SELF``: its outcome can never enter the outer objective (the
+  ``integrity.OutcomeLedger`` admits only objectives whose recorded origin is the operator or the verifier; a
+  ``TaskSpec`` with ``origin=Trust.SELF`` or one that was never registered is refused) — there is no
+  self-generated incentive beyond the bounded, discounted bootstrap signal;
+* the budget is finite by construction and nothing is selected once it is spent; a selected goal *reserves* one
+  decision and its estimated cost until its result is recorded, so goals that are still pending count against the
+  budget (no number of ``select`` calls can commit more than the budget);
 * whether autonomous learning was *useful* is judged only afterwards, on independently assigned objectives with
   verified outcomes: verified utility minus what had been predicted for that objective before the goal-free period.
 
@@ -35,13 +38,19 @@ __all__ = ["GoalFreeBudget", "LearningGoalCandidate", "SelectedGoal", "SelfGoalS
 
 @dataclass
 class GoalFreeBudget:
-    """A fixed budget for one goal-free period. Every limit must be finite."""
+    """A fixed budget for one goal-free period. Every limit must be finite.
+
+    ``spent`` / ``n_decisions``: what executed self-chosen activities actually consumed. ``reserved`` /
+    ``n_reserved``: what selected but not yet resolved goals hold (their estimated cost, one decision each).
+    :meth:`can_afford` counts both, so pending goals can never push the committed total over a limit."""
     seconds: float
     decisions: int
     money: float = 0.0
     compute_s: float = 0.0
     spent: Cost = field(default_factory=Cost)
     n_decisions: int = 0
+    reserved: Cost = field(default_factory=Cost)
+    n_reserved: int = 0
 
     def __post_init__(self) -> None:
         for name in ("seconds", "decisions", "money", "compute_s"):
@@ -50,9 +59,32 @@ class GoalFreeBudget:
                 raise ValueError(f"goal-free budget '{name}' must be finite and non-negative")
 
     def can_afford(self, cost: Cost) -> bool:
-        return (self.n_decisions + 1 <= self.decisions and self.spent.seconds + cost.seconds <= self.seconds
-                and self.spent.money + cost.money <= self.money
-                and self.spent.compute_s + cost.compute_s <= self.compute_s)
+        """Would one more activity of estimated ``cost`` fit, counting what pending goals have reserved?"""
+        s, r = self.spent, self.reserved
+        return (self.n_decisions + self.n_reserved + 1 <= self.decisions
+                and s.seconds + r.seconds + cost.seconds <= self.seconds
+                and s.money + r.money + cost.money <= self.money
+                and s.compute_s + r.compute_s + cost.compute_s <= self.compute_s)
+
+    @staticmethod
+    def _add(a: Cost, b: Cost, sign: float = 1.0) -> Cost:
+        return Cost(seconds=max(0.0, a.seconds + sign * b.seconds), money=max(0.0, a.money + sign * b.money),
+                    compute_s=max(0.0, a.compute_s + sign * b.compute_s),
+                    primitive_ops=max(0, a.primitive_ops + int(sign) * b.primitive_ops),
+                    tokens=max(0, a.tokens + int(sign) * b.tokens))
+
+    def reserve(self, cost: Cost) -> bool:
+        """Hold one decision and ``cost`` for a selected goal; False (nothing held) when it does not fit."""
+        if not self.can_afford(cost):
+            return False
+        self.reserved = self._add(self.reserved, cost)
+        self.n_reserved += 1
+        return True
+
+    def release(self, cost: Cost) -> None:
+        """Give back a reservation (the goal was resolved or abandoned)."""
+        self.reserved = self._add(self.reserved, cost, -1.0)
+        self.n_reserved = max(0, self.n_reserved - 1)
 
     def charge(self, cost: Cost) -> None:
         """Record what an executed self-chosen activity actually consumed."""
@@ -67,9 +99,16 @@ class GoalFreeBudget:
         return (self.n_decisions >= self.decisions or self.spent.seconds >= self.seconds
                 or self.spent.money > self.money or self.spent.compute_s > self.compute_s)
 
+    @property
+    def committed(self) -> bool:
+        """No further goal can be selected now: spent plus reserved leaves no room for one more decision."""
+        return self.exhausted or self.n_decisions + self.n_reserved >= self.decisions
+
     def remaining(self) -> Dict[str, float]:
         return {"seconds": self.seconds - self.spent.seconds, "decisions": self.decisions - self.n_decisions,
-                "money": self.money - self.spent.money, "compute_s": self.compute_s - self.spent.compute_s}
+                "money": self.money - self.spent.money, "compute_s": self.compute_s - self.spent.compute_s,
+                "reserved_decisions": self.n_reserved, "reserved_seconds": self.reserved.seconds,
+                "uncommitted_decisions": self.decisions - self.n_decisions - self.n_reserved}
 
 
 @dataclass
@@ -89,6 +128,7 @@ class SelectedGoal:
     score: float
     discount: float
     origin: str = Trust.SELF         # never an independently assigned objective
+    reserved: Optional[Cost] = None  # budget held for this goal until its result is recorded (None: released)
 
 
 class SelfGoalSelector:
@@ -114,21 +154,38 @@ class SelfGoalSelector:
     def select(self, candidates: Sequence[LearningGoalCandidate], k: int = 1, *,
                objective_assigned: bool = False) -> List[SelectedGoal]:
         """Up to ``k`` affordable goals, best first. Empty when an objective is assigned (the mode is off), when
-        the budget is spent, or when nothing has positive expected learning value. Selection registers the goal
-        with the repeat discount; the caller charges the budget with the *actual* cost after execution."""
-        if objective_assigned or self.budget.exhausted:
+        the budget is spent or fully reserved by pending goals, or when nothing has positive expected learning
+        value. Each selected goal reserves one decision and its estimated cost (checked one after the other, so a
+        single call never exceeds the budget either); :meth:`record_result` releases the reservation and charges
+        the *actual* cost, :meth:`abandon` releases it for a goal that was not executed. Selection registers the
+        goal with the repeat discount."""
+        if objective_assigned or self.budget.committed:
             return []
         scored = [(self.score(c), i, c) for i, c in enumerate(candidates) if self.budget.can_afford(c.est_cost)]
-        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]))[:max(0, k)]
+        scored = sorted((s for s in scored if s[0] > 0), key=lambda s: (-s[0], s[1]))
         out = []
         for s, _, c in scored:
-            out.append(SelectedGoal(c, s, self.discount.weight(c.description, c.p_success, register=True)))
+            if len(out) >= max(0, k):
+                break
+            if not self.budget.reserve(c.est_cost):
+                continue
+            out.append(SelectedGoal(c, s, self.discount.weight(c.description, c.p_success, register=True),
+                                    reserved=c.est_cost))
         return out
+
+    def abandon(self, goal: SelectedGoal) -> None:
+        """A selected goal will not be executed: give its reservation back (nothing is charged)."""
+        if goal.reserved is not None:
+            self.budget.release(goal.reserved)
+            goal.reserved = None
 
     def record_result(self, goal: SelectedGoal, actual_cost: Cost, *, epistemic_after: float,
                       realised_progress: float) -> None:
         """After executing a self-chosen activity: charge the budget, feed the noisy-TV gate and keep the pair
         (predicted, realised) progress so the progress estimator can be scored."""
+        if goal.reserved is not None:
+            self.budget.release(goal.reserved)
+            goal.reserved = None
         self.budget.charge(actual_cost)
         self.gate.update(goal.candidate.key, epistemic_after)
         self.history.append({"key": goal.candidate.key, "predicted_progress": goal.candidate.achievable_progress,
@@ -168,11 +225,16 @@ class SelfGoalSelector:
 
     def state_dict(self) -> Dict[str, Any]:
         return {"spent": self.budget.spent.to_dict(), "n_decisions": self.budget.n_decisions,
+                "reserved": self.budget.reserved.to_dict(), "n_reserved": self.budget.n_reserved,
                 "discount": self.discount.state_dict(), "gate": self.gate.state_dict(),
                 "history": list(self.history), "later": list(self._later)}
 
     def load_state_dict(self, d: Mapping[str, Any]) -> None:
+        """Reservations of goals that were pending at the checkpoint stay held (fail closed): resolve them, or
+        :meth:`abandon` the restored goals, to give the budget back."""
         self.budget.spent, self.budget.n_decisions = Cost(**d["spent"]), int(d["n_decisions"])
+        self.budget.reserved = Cost(**d["reserved"]) if "reserved" in d else Cost()
+        self.budget.n_reserved = int(d.get("n_reserved", 0))
         self.discount.load_state_dict(d["discount"])
         self.gate.load_state_dict(d["gate"])
         self.history, self._later = list(d["history"]), list(d["later"])
@@ -303,6 +365,17 @@ class GoalFreeMode:
         return out
 
     # ---------------------------------------------------------------------------------------- resolution
+    def abandon(self, goal: SelfGoal) -> SelfGoal:
+        """A proposed goal that will not be executed (another candidate was chosen, or it was refused before
+        execution): its budget reservation is given back, nothing is charged, status becomes ``"abandoned"``.
+        Proposed goals that are neither resolved nor abandoned keep their reservation (the budget fails closed)."""
+        if goal.status != GoalStatus.PENDING:
+            raise ValueError("only a pending goal can be abandoned")
+        if goal.selected is not None:
+            self.selector.abandon(goal.selected)
+        goal.status = "abandoned"
+        return goal
+
     def resolve(self, goal: SelfGoal, value: Optional[float], cost: Cost, *, censored: Optional[bool] = None
                 ) -> SelfGoal:
         """Close a goal with what was actually observed (``value=None``: nothing was observed)."""
@@ -345,7 +418,7 @@ class GoalFreeMode:
         return self.selector.usefulness()
 
     def report(self) -> Dict[str, Any]:
-        done = [g for g in self.goals if g.status != GoalStatus.PENDING]
+        done = [g for g in self.goals if g.status in (GoalStatus.ACHIEVED, GoalStatus.FAILED)]
         by_key: Dict[str, Dict[str, float]] = {}
         for g in done:
             d = by_key.setdefault(g.key, {"n": 0, "achieved": 0, "realised": 0.0})
@@ -353,6 +426,8 @@ class GoalFreeMode:
             d["achieved"] += int(g.status == GoalStatus.ACHIEVED)
             d["realised"] += float(g.realised_progress or 0.0)
         return {"goals": len(self.goals), "resolved": len(done),
+                "abandoned": sum(g.status == "abandoned" for g in self.goals),
+                "pending": sum(g.status == GoalStatus.PENDING for g in self.goals),
                 "achieved": sum(g.status == GoalStatus.ACHIEVED for g in done), "by_key": by_key,
                 "budget_remaining": self.budget.remaining(), "budget_exhausted": self.budget.exhausted,
                 "calibration": dict(self.calibration), "usefulness": self.usefulness(),

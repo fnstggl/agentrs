@@ -61,11 +61,11 @@ def test_reward_step_labels_every_decision_and_replay_moves_no_state(rig):
     ml, store, recs = rig["ml"], rig["store"], rig["lt"].records
     for r in recs:
         assert r.intrinsic_reward is not None and r.bootstrap_reward is not None
-        assert r.reward_version.startswith("mixed:mix=0.500:rpsi1-")       # never labelled as meta-learned
+        assert r.reward_version.startswith("bootstrap:mix=0.500:rpsi1-")   # not meta-learned: no update promoted
         assert r.exp_id in ml.inner.life_states
     assert int(ml.reward.lifetime.steps) == len(recs)
     entry = ml.mixer.log[-1]
-    assert entry["label"] == "mixed" and "from_bootstrap" in entry and "from_learned" in entry
+    assert entry["label"] == "bootstrap" and "from_bootstrap" in entry and "from_learned" in entry
     state, gate = ml.reward.lifetime.state.clone(), ml.inner.bootstrap.gate.state_dict()
     v = ml.reward.version
     for _ in range(3):

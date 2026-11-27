@@ -32,7 +32,8 @@ def _lifetimes(ml, store, clock, ec, n, seed0, admit=True, **kw):
 
 def test_single_lifetime_windows_and_on_policy_meta_update():
     """One lifetime, verifier measurements authenticated by the verifier: support windows precede query windows,
-    the update is on-policy (the query was collected by the policy the unroll reproduces) and psi moves."""
+    the update is on-policy (the query was collected by the policy the unroll reproduces: replaying each live
+    update from its snapshot gives bit-identical parameters) and psi moves."""
     auth = dg.LabMeasurementAuth()
     ec, model, store, clock, ml = _stack(0, mix=0.0, check_measurement=auth)
     ec.lab.update(horizon_s=10 * 86400.0, budget=300.0)           # room for all 18 decisions
@@ -103,9 +104,14 @@ def test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_
     assert r["rejections"] == {
         "tampered_value_with_old_signature": "bad_signature", "unsigned": "unsigned",
         "fabricated_signature": "bad_signature", "self_authored_objective": "self_authored_objective",
+        "genuine_outcome_with_a_caller_chosen_utility": "utility_mismatch",
+        "genuine_outcome_credited_to_foreign_decisions": "exp_ids_not_decisions_of_objective",
+        "self_generated_goal_signed_by_the_verifier": "self_authored_objective",
+        "objective_never_registered": "objective_origin_unknown",
         "duplicate": "duplicate", "measurement_with_unknown_query": "bad_signature",
         "measurement_value_altered": "bad_signature", "measurement_unverified_flag": "not_verified",
         "measurement_imagined": "imagined", "measurement_self_sourced": "self_authored"}
+    assert r["refusals_on_the_chain"] == 4          # the 4 validly signed but refused outcomes
     assert r["genuine_objective_accepted"] and not r["fabricated_value_in_any_query_utility"]
     assert r["independent_groups"] == 3 and r["ledger_chain_ok"]
     assert r["meta_update"]["applied"] and r["meta_update"]["n_independent"] == 3 and r["psi_changed_by_meta_update"]
@@ -225,8 +231,9 @@ def test_repeated_evaluations_of_one_objective_credit_progress_once():
     second = col.run(world, act, 8, task=task, seed=2, finish=True, on_step=lambda r: ml.internal_rewards([r]))
     b = ml.admit_objective(second.verified)
     assert a.accepted and b.accepted and second.verified.value >= first.verified.value
-    assert a.entry.utility == first.verified.value
-    assert b.entry.utility == second.verified.value - first.verified.value        # the change, not the total again
+    level = lambda v: 1.0 if v.status == GoalStatus.ACHIEVED else 0.5 * min(1.0, v.value / max(v.target, 1.0))
+    assert a.entry.utility == pytest.approx(level(first.verified))
+    assert b.entry.utility == pytest.approx(level(second.verified) - level(first.verified))   # the change only
     assert set(a.entry.exp_ids) == {r.exp_id for r in first.records}
     assert set(b.entry.exp_ids) == {r.exp_id for r in second.records}
     assert a.entry.group != b.entry.group

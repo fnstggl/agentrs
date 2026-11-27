@@ -119,3 +119,61 @@ calls `MetaLearner.note_policy_update(records)` immediately before it steps. No 
 path theta_k(psi) -> V -> advantage from the unroll (bias measured on the real model: 1.0 % at K = 2, 3.3 % at K = 4, docs/evidence/C/diagnostics.json;
 stage-1 finite-difference tests did not combine a value function with K >= 2). Fixed with `theta_sg` (see
 docs/C/API.md); regression test `test_value_baseline_must_not_be_plainly_detached_for_K_above_one`.
+
+## C-10 Integration (`agent.py`, M-int): register the task's origin with the meta-learner (G-pr D3)
+
+**What / why.** After the G-pr fixes the outcome ledger admits a signed objective outcome only if the objective's
+*recorded* origin is the operator (or the verifier); an objective that was never registered is refused
+(`objective_origin_unknown`, fail closed) and the caller's `objective_origin` argument can only exclude. The agent
+currently passes `objective_origin=self.task.origin` to `admit_objective` but never registers the task, so every
+objective outcome it offers is now refused for the meta ledger (the evaluator, the store's objective record and the
+predictor are not affected).
+**Proposed diff** (wherever the runtime assigns a task to the agent, e.g. `set_task` / the start of a lifetime, and
+after `load()` for the task in force):
+```diff
+         self.task = task
++        self.meta.register_objective(task)          # TaskSpec.origin decides whether its outcome may supervise psi
+```
+and in `_verified` (optional, equivalent):
+```diff
+-        adm = self.meta.admit_objective(v, objective_origin=origin)
++        adm = self.meta.admit_objective(v, objective_origin=origin, task=self.task)
+```
+(`task=` raises `ValueError` if `task.objective_id != v.objective_id`; pass it only for the current task.)
+`MetaLearner.state_dict()` now carries the recorded origins (`"objective_origins"`), so a restart keeps them.
+**Workaround.** None inside C: refusing unregistered objectives is the fix.
+
+## C-11 Integration (`agent.py`, M-int): give back the budget of goal-free goals that are not executed (G-pr D4)
+
+**What / why.** A goal selected by `GoalFreeMode.propose` now *reserves* one decision and its estimated cost until
+`resolve` (or the new `GoalFreeMode.abandon`) is called, so pending goals count against the goal-free budget. In
+`record_result` the agent drops the proposed goals that were not chosen
+(`self.active_goals = {k: v ... if k == a.action_id}`) without resolving them: their reservations stay held and,
+after about `goal_free_decisions / goal_free_k` decisions, goal-free mode selects nothing (fail closed).
+**Proposed diff** (`agent.py`, `record_result`):
+```diff
+-        self.active_goals = {k: v for k, v in self.active_goals.items() if k == a.action_id}
++        for k, v in list(self.active_goals.items()):
++            if k != a.action_id:
++                self.goal_free.abandon(v)            # not executed: release its reservation, nothing charged
++                del self.active_goals[k]
+```
+Also abandon the active goals when an action is refused before execution, and after `load()` for goals that were
+pending at the checkpoint and will not be resolved (`GoalFreeMode.abandon(goal)`; reservations are checkpointed in
+`SelfGoalSelector.state_dict()` as `reserved` / `n_reserved`).
+
+## C-12 `contracts.VerifiedOutcome` / verifiers: sign the objective's origin (G-pr D3, defence in depth)
+
+**What / why.** The recorded origin (C-10) is registered by the learner process from the `TaskSpec` the runtime
+gave it. The verifier knows which task it was asked to verify and signs the outcome; if it also signed the task's
+origin, a self-generated goal could not be passed off as an operator objective even by code inside the learner.
+**Proposed diff.**
+```diff
+ class VerifiedOutcome(Record):
+     ...
+     signature: str = ""
++    origin: str = ""                 # TaskSpec.origin of the verified task, covered by the signature ("" = not stated)
+```
+`runtime.verifier.SignedVerifier.verify(task)` / `diagnostics.world.LabVerifier.verify(task)`: set
+`origin=task.origin` before signing. `OutcomeLedger.admit_verified` would then refuse when a stated `origin` is
+not OPERATOR / VERIFIER (in addition to the recorded origin). Not needed for the fix; no workaround required.
