@@ -36,7 +36,7 @@ import zlib
 import numpy as np
 
 from . import _t2kit as K
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe, register
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, civ_recipe, events_where, register
 
 DAY = 86400
 HORIZON_DAYS = 75.0
@@ -137,36 +137,94 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
 
 
 # ====================================================================== objective, evaluator
-def objective(world, principal: str, difficulty: int = 1) -> dict:
+def _goal_draw(rng, difficulty: int, world) -> dict:
+    """The goal generator's draw (`crucible.goals`, its own stream): the level's ARR target varied by +-10% per
+    instance (rounded to $1,000), the level's minimum number of independent customers, the concentration cap."""
     d = int(min(3, max(1, difficulty)))
     arr, n = TARGET[d]
-    text = (f"Build a sustainable software business: within {HORIZON_DAYS:.0f} days reach ${arr:,.0f} of annual "
-            f"recurring revenue (12 x monthly subscription revenue that is paid up and not set to cancel) from at "
-            f"least {n} independent customers, no customer contributing more than {MAX_SHARE:.0%}, while your "
-            f"company earns more than it spends over the last 30 days.")
-    return {"text": text, "description": text, "domain": "startup", "difficulty": d, "target_arr_usd": arr,
-            "min_customers": n, "max_customer_share": MAX_SHARE, "window_days": HORIZON_DAYS}
+    return {"target_arr_usd": float(round(arr * float(rng.uniform(0.9, 1.1)) / 1000.0) * 1000.0),
+            "min_customers": int(n), "max_customer_share": MAX_SHARE, "window_days": HORIZON_DAYS}
+
+
+def _goal_text(p: dict) -> str:
+    return (f"Build a sustainable software business: within {p['window_days']:.0f} days reach "
+            f"${p['target_arr_usd']:,.0f} of annual recurring revenue (12 x monthly subscription revenue that is "
+            f"paid up and not set to cancel) from at least {p['min_customers']} independent customers, no customer "
+            f"contributing more than {p['max_customer_share']:.0%}, while your company earns more than it spends "
+            f"over the last 30 days.")
+
+
+def _goal_args(p: dict) -> dict:
+    return {"principal": "$self", "target_arr_usd": float(p["target_arr_usd"]),
+            "min_customers": int(p["min_customers"]), "max_customer_share": float(p["max_customer_share"])}
+
+
+GOAL = GoalFamily(
+    "sustainable_saas", draw=_goal_draw, text=_goal_text,
+    success=lambda p: {"metric": "startup_sustainable_business", "args": _goal_args(p), "op": ">=", "value": 1},
+    progress=lambda p: {"metric": "startup_qualifying_arr_usd", "args": _goal_args(p),
+                        "target": float(p["target_arr_usd"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="qualifying ARR from independent customers under a concentration cap and a positive 30-day cash-basis "
+        "profit of an organisation the seat owns (commerce.objective.check, commerce.revenue.profit)")
+
+
+def objective(world, principal: str, difficulty: int = 1) -> dict:
+    """The objective generated for a participant (`Domain.make_objective`: the goal generator above)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def _orgs(world, principal: str) -> list[str]:
     return sorted(p for p in world.principals_of(principal) if p != principal and p.startswith("o:"))
 
 
-def evaluate(world, principal: str, obj: dict) -> dict:
+def verdict(world, principal: str, target_arr_usd: float, min_customers: int,
+            max_customer_share: float = MAX_SHARE) -> dict:
     from ..commerce.objective import check
     from ..commerce.revenue import profit
     rows = {}
     for o in _orgs(world, principal):
-        c = check(world, o, target_arr_usd=float(obj["target_arr_usd"]), min_customers=int(obj["min_customers"]),
-                  max_customer_share=float(obj["max_customer_share"]))
+        c = check(world, o, target_arr_usd=float(target_arr_usd), min_customers=int(min_customers),
+                  max_customer_share=float(max_customer_share))
         pr = profit(world, o, window_s=30 * DAY)
         rows[o] = {"arr_usd": c["arr_usd"], "independent_customers": c["independent_customers"],
                    "largest_customer_share": c["largest_customer_share"], "met": c["met"],
                    "profit_30d_cents": pr["profit"], "revenue_30d_cents": pr["revenue"]}
     best = max(rows.values(), key=lambda r: r["arr_usd"], default=None)
     ok = any(r["met"] and r["profit_30d_cents"] > 0 for r in rows.values())
-    score = 0.0 if best is None else min(1.0, best["arr_usd"] / float(obj["target_arr_usd"]))
+    score = 0.0 if best is None else min(1.0, best["arr_usd"] / float(target_arr_usd))
     return {"success": bool(ok), "score": round(score, 5), "details": {"orgs": rows}}
+
+
+def evaluate(world, principal: str, obj: dict) -> dict:
+    """The evaluator (hidden): `verdict` with the generated goal's parameters."""
+    p = obj.get("params") or {}
+    return verdict(world, principal, float(p.get("target_arr_usd", TARGET[1][0])),
+                   int(p.get("min_customers", TARGET[1][1])), float(p.get("max_customer_share", MAX_SHARE)))
+
+
+def _register_metrics() -> None:
+    """The goal's metrics (`crucible.goals.metrics`, evaluator side; no in-world subject, evaluator-only)."""
+    from ..goals import metrics as GM
+
+    @GM.metric("startup_sustainable_business", "EVALUATOR-ONLY. 1 when an organisation the principal owns meets "
+               "the ARR target from enough independent customers under the concentration cap and earned more than "
+               "it spent over the last 30 days.")
+    def m_sustainable(world, principal: str, target_arr_usd: float, min_customers: int,
+                      max_customer_share: float = MAX_SHARE) -> float:
+        return float(verdict(world, principal, target_arr_usd, min_customers, max_customer_share)["success"])
+
+    @GM.metric("startup_qualifying_arr_usd", "EVALUATOR-ONLY. Qualifying ARR (usd) of the principal's best "
+               "organisation (commerce.objective.check).")
+    def m_arr(world, principal: str, target_arr_usd: float = 1.0, min_customers: int = 0,
+              max_customer_share: float = MAX_SHARE) -> float:
+        rows = verdict(world, principal, target_arr_usd, min_customers, max_customer_share)["details"]["orgs"]
+        return float(max((r["arr_usd"] for r in rows.values()), default=0.0))
+
+    GM.EVALUATOR_ONLY_METRICS.update({"startup_sustainable_business", "startup_qualifying_arr_usd"})
+
+
+_register_metrics()
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -344,60 +402,87 @@ def null_policy(principal=None, obj=None):
 
 
 # ====================================================================== mechanics (recorded-event probes)
-def _since(world, since: int, types: tuple[str, ...]):
-    return [e for e in world.events_range(int(since), world.seq) if e.type in types]
-
-
-def count_independent_customers(world, since: int) -> int:
+# Evidence functions return the SEQUENCE NUMBERS of the recorded events that exercise a mechanic (D-48 /3).
+def independent_customers(world, since: int) -> list[int]:
     """Subscriptions taken out (after `since`) by population individuals unrelated to the merchant."""
     from ..commerce.integrity import independent_customer, related_set
-    n, rel = 0, {}
-    for e in _since(world, since, ("subs.subscription",)):
+    out, rel = [], {}
+    for e in world.events_range(int(since), world.seq):
+        if e.type != "subs.subscription":
+            continue
         c, m = e.payload.get("customer"), e.payload.get("merchant")
         if not K.is_population(c) or m is None:
             continue
         if m not in rel:
             rel[m] = related_set(world, m)
-        n += int(bool(independent_customer(world, m, c, rel[m])))
-    return n
+        if independent_customer(world, m, c, rel[m]):
+            out.append(int(e.seq))
+    return out
 
 
-def count_subscription_payments(world, since: int) -> int:
-    return sum(1 for e in _since(world, since, ("bank.txn",)) if e.payload.get("kind") == "subscription")
+def renewals(world, since: int) -> list[int]:
+    return events_where(world, since, ("subs.invoice",),
+                        lambda e: e.payload.get("status") == "paid" and e.payload.get("kind") == "renewal")
 
 
-def count_renewals(world, since: int) -> int:
-    return sum(1 for e in _since(world, since, ("subs.invoice",))
-               if e.payload.get("status") == "paid" and e.payload.get("kind") == "renewal")
-
-
-def count_costs(world, since: int) -> int:
+def _cost_kinds() -> set:
     from ..commerce.revenue import ACQUISITION_KINDS, INFRA_KINDS
-    kinds = set(INFRA_KINDS) | set(ACQUISITION_KINDS)
-    return sum(1 for e in _since(world, since, ("bank.txn",)) if e.payload.get("kind") in kinds)
+    return set(INFRA_KINDS) | set(ACQUISITION_KINDS)
 
 
-def count_competing_formats(world, since: int) -> int:
-    """Formats served by launched products of at least two different owners (competition in one market)."""
+def costs(world, since: int) -> list[int]:
+    """Compute, hosting and advertising payments through the bank."""
+    return events_where(world, since, tuple(f"bank.txn{{kind={k}}}" for k in sorted(_cost_kinds())))
+
+
+def competing_products(world, since: int) -> list[int]:
+    """Products created after `since` in a format that launched products of at least two different owners serve
+    (competition in one market)."""
     by: dict = {}
     for _, p in world.state.scan("products"):
         need = (p.get("delivery") or {}).get("need") or p.get("need")
         if need and p.get("status") == "launched":
             by.setdefault(need, set()).add(p["owner"])
-    return sum(1 for v in by.values() if len(v) >= 2)
+    out = []
+    for e in world.events_range(int(since), world.seq):
+        if e.type != "prod.product":
+            continue
+        row = world.state.get("products", e.payload.get("id") or e.payload.get("product") or "")
+        need = ((row or {}).get("delivery") or {}).get("need") or (row or {}).get("need")
+        if need and len(by.get(need, ())) >= 2:
+            out.append(int(e.seq))
+    return out
 
 
-def count_profit_and_loss(world, since: int) -> int:
-    """Merchants whose books over the run show both independent commerce revenue and operating or infrastructure
-    costs: profit or loss is a measured outcome of the business, not a constant."""
-    from ..commerce.revenue import profit
-    window = int(world.now) + 1
-    merchants = {s["merchant"] for _, s in world.state.scan("sub_subs")} if "sub_subs" in world.state.tables else set()
-    n = 0
-    for m in sorted(merchants):
-        pr = profit(world, m, window_s=max(DAY, window))
-        n += int(pr["revenue"] > 0 and (pr["operating_costs"] + pr["infrastructure_costs"]) > 0)
-    return n
+def profit_and_loss(world, since: int) -> list[int]:
+    """The revenue and cost payments of every merchant whose books over the run show both independent
+    subscription revenue and compute, hosting or advertising costs: profit or loss is a measured outcome of the
+    business, not a constant."""
+    st = world.state
+    kinds = _cost_kinds()
+    owner = {a: r.get("owner") for a, r in st.scan("accounts")}
+    rev: dict = {}
+    cost: dict = {}
+    for e in world.events_range(int(since), world.seq):
+        if e.type != "bank.txn":
+            continue
+        k = e.payload.get("kind")
+        if k != "subscription" and k not in kinds:
+            continue
+        for acct, amt in e.payload.get("postings") or []:
+            o = owner.get(acct)
+            if o is None or not str(o).startswith("o:"):
+                continue
+            if k == "subscription" and amt > 0:
+                rev.setdefault(o, []).append(int(e.seq))
+            elif k in kinds and amt < 0:
+                cost.setdefault(o, []).append(int(e.seq))
+    out = set()
+    for o in rev:
+        if cost.get(o):
+            out.update(rev[o])
+            out.update(cost[o])
+    return sorted(out)
 
 
 MECHANICS = (
@@ -405,33 +490,44 @@ MECHANICS = (
     Mechanic("Demand discovery", ("cols.batch:work.ask", "cols.batch:work.shopped", "cols.batch:work.adopt"),
              "people search for help with their own tasks, ask in public and adopt what works"),
     Mechanic("Independent customers", (), "subscriptions by unrelated population individuals",
-             count=count_independent_customers),
-    Mechanic("Subscription billing", ("subs.invoice",), "invoices charged through the bank",
-             count=count_subscription_payments),
+             count=independent_customers),
+    Mechanic("Subscription billing", ("subs.invoice", "bank.txn{kind=subscription}"),
+             "invoices charged through the bank"),
     Mechanic("Distribution", ("ads.impressions", "ads.campaign", "cols.batch:work.recommend"),
              "sponsored search, public recommendations, search"),
     Mechanic("Competition", ("rivals.observed",), "several firms serving the same format, reacting incumbents",
-             count=count_competing_formats),
+             count=competing_products),
     Mechanic("Retention", ("cols.batch:work.cancel",), "renewals and cancellations from experienced value",
-             count=count_renewals),
-    Mechanic("Costs", (), "compute, hosting and advertising paid through the bank", count=count_costs),
+             count=renewals),
+    Mechanic("Costs", (), "compute, hosting and advertising paid through the bank", count=costs),
     Mechanic("Profitability", (), "merchants whose books show revenue and costs (profit or loss)",
-             count=count_profit_and_loss),
+             count=profit_and_loss),
     Mechanic("Business operations", ("support.open", "support.msg", "subs.refund", "cloud.resize",
                                      "venture.formed"), "support tickets, replies, refunds, capacity changes"),
 )
 
 
 def structure(world) -> dict:
-    """The built world's market structure (discrete)."""
-    w = world.modules["work"].config
-    fams = w.get("families") or []
-    pub = [f for f in fams if f.get("need")]
-    prov = (world.modules["ventures"].config.get("providers") or []) if "ventures" in world.modules else []
-    return {"formats": {1: "one", 2: "two", 3: "three"}.get(len(pub), "many"),
-            "pipelines": any(f.get("then") for f in fams),
-            "generated_categories": any(f.get("category") for f in fams),
-            "compute_providers": {1: "one", 2: "two"}.get(len(prov), "many")}
+    """The built world's market structure (discrete), from built state only (`base.BuiltWorld`): the work
+    families the professionals of the population hold (column `work.fam`), which of them are two-step pipelines
+    (a second hand-work time, `work.diy[:, 1]`), how many formats the registry documents (a family nobody
+    documented is a generated category) and the compute providers in business."""
+    st = world.state
+    try:
+        fam = np.asarray(world.column("work", "fam"))
+        diy = np.asarray(world.column("work", "diy"))
+    except KeyError:
+        fam, diy = np.zeros(0, np.int16), np.zeros((0, 2), np.float32)
+    fams = {int(x) for x in fam[fam >= 0]}
+    then = {int(x) for x in fam[(fam >= 0) & (diy[:, 1] > 0)]} if diy.size else set()
+    documented = sum(1 for _, d in st.scan("documents") if str(d.get("title", "")).startswith("Format ")) \
+        if "documents" in st.tables else 0
+    providers = sum(1 for _, p in st.scan("providers") if p.get("status") == "active") \
+        if "providers" in st.tables else 0
+    return {"formats": {1: "one", 2: "two", 3: "three"}.get(len(fams), "many"),
+            "pipelines": bool(then),
+            "generated_categories": len(fams) + len(then) > documented,
+            "compute_providers": {1: "one", 2: "two"}.get(providers, "many")}
 
 
 CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
@@ -440,13 +536,13 @@ CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
 
 DOMAIN = register(Domain(
     name="startup", title="Startup economy", spec_part="9.1", required_mechanics=tuple(m.name for m in MECHANICS),
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
     seats=(Seat("founder", 3_000_000, "Founder", "a founder with savings"),),
     actors=(Actor("population professionals", ("cols.batch:work.session", "cols.batch:work.adopt",
                                                "cols.batch:work.cancel"),
                   "individuals who do their own tasks, try services on them and pay for what works"),
-            Actor("incumbent firms", ("rivals.observed", "subs.invoice"),
-                  "SaaS incumbents billing their subscribers and reacting to the market")),
+            Actor("incumbent firms", ("support.msg", "subs.refund", "support.status", "rivals.observed"),
+                  "SaaS incumbents answering their customers' tickets, refunding and reacting to the market")),
     null_baseline=null_policy,
     degenerate=(Probe("garbage_service", "the reference's whole playbook with a service that ignores its input",
                       garbage_service),

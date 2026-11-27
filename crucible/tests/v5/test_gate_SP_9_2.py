@@ -51,6 +51,8 @@ def test_SP_9_2_software_ecosystem_mechanics():
                           f"{null['actors']['counts']}; outcomes {[r['outcome'].get('details') for r in runs]}; stub "
                           f"package: {stub['outcome'].get('details')}")
     assert m["required_mechanics_missing"] == 0, [r["mechanics"]["missing"] for r in runs]
+    # domains-framework/3: every evidence function returned recorded events, no two mechanics share evidence
+    assert m["unverified_evidence"] == "none" and m["indistinct_mechanics"] == "none", m
     assert m["autonomous_actors_active"] == len(d.actors) and m["population_activity_decisions_without_seat"] > 0
     assert m["process_failures_all_runs"] == 0 and m["invariant_violations"] == 0
     assert m["reference_independent_adopters_min"] > 0 and m["stub_package_independent_adopters"] == 0

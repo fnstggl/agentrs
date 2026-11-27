@@ -64,3 +64,32 @@ def test_reference_reads_requests_from_forum_listings():
 
 
 import json  # noqa: E402
+
+
+def test_reference_test_cases_match_the_catalogue_functions():
+    """The reference maintainer writes its package's tests from textbook cases (no exec in the reference: it is
+    scanned like any policy); each case must hold for the catalogue implementation it ships."""
+    for need, (args, expected) in D.TEXTBOOK_CASES.items():
+        env: dict = {}
+        exec(D.NEEDS[need]["src"], env)           # test side: the catalogue source the reference commits
+        assert env[D.NEEDS[need]["hint"]](*args) == expected, need
+    assert set(D.TEXTBOOK_CASES) == set(D.NEEDS)
+    assert base.reads_world(D.reference_script) == [] and base.reads_world(D.DOMAIN.reference) == []
+
+
+def test_goal_generator_and_evidence_are_framework_3():
+    """Objectives come from the domain's goal generator (registered evaluator-only metric); every evidence function
+    returns recorded event sequence numbers."""
+    from crucible.goals import metrics as GM
+    w = base.world("software", "libraries", 0)
+    try:
+        objs = {k: D.DOMAIN.make_objective(w, "p:maintainer", k) for k in D.DOMAIN.difficulties}
+        assert len({o["text"] for o in objs.values()}) == len(objs)
+        assert all(o["generator"] == "crucible.goals" and o["success"]["metric"] == "software_independent_adopters"
+                   for o in objs.values())
+        assert "software_independent_adopters" in GM.EVALUATOR_ONLY_METRICS
+        for m in D.MECHANICS:
+            if m.count is not None:
+                assert isinstance(m.count(w, 0), list), m.name
+    finally:
+        w.close()

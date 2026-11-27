@@ -134,7 +134,7 @@ def test_research_world_population_researchers_act_with_provenance_and_no_law_le
                     if amt < 0)]
     assert len(paid) >= 3 and all(m[k]["exercised"] for k in ("Experimental costs", "Data collection"))
     assert not w.check_invariants()
-    ev = RD.DOMAIN.evaluate(w, "p:researcher", RD.DOMAIN.objective(w, "p:researcher", 1))
+    ev = RD.DOMAIN.evaluate(w, "p:researcher", RD.objective(w, "p:researcher", 1))
     assert ev["success"] is False and ev["details"]["papers"] == []          # the null baseline fails
 
 
@@ -173,10 +173,59 @@ def test_reference_publishes_an_accurate_law_and_null_fails():
     difficulty-1 threshold); the evaluator is separate and the observation never carries its verdict."""
     env = experience.make(2, "research:bench", 0, semantic=False)
     a = env.agents()[0]
-    obj = RD.DOMAIN.objective(env.world, a, 1)
+    obj = RD.objective(env.world, a, 1)
     pol = RD.reference(a, obj)
     assert pol.kind == "scripted"
     K.drive(env, a, pol, days=6, dt=6 * 3600)
     ev = RD.DOMAIN.evaluate(env.world, a, obj)
     assert ev["details"]["papers"] and ev["details"]["papers"][0]["novel_nrmse"] <= RD.THRESHOLD[1]
     assert not K.observation_leaks(env.observe(a), ("novel_nrmse", "success", "score"))
+
+
+def test_reference_recovers_a_law_outside_the_handbook_with_one_standard():
+    """The structural evaluation configuration's law (here a damped oscillation, seed 0) is outside the handbook
+    and has one certified standard (offset-only calibration, the gain unidentifiable from standards): the
+    reference's richer library and its nominal-unit-gain prior recover it from simulated readings of the
+    configuration's own apparatus; without the prior the law's scale is unidentifiable and extrapolation fails."""
+    import itertools
+    from crucible.domains import base
+    sp = base.spec("research", "heldout", 0)
+    sci = next(m["config"] for m in sp.modules if m["name"] == "sci")
+    ph = sci["phenomena"][0]
+    assert ph["form"] in lawlang.HELD_OUT and len(ph["standards"]) == 1
+    names = [v["name"] for v in ph["vars"]]
+    law = lawlang.compile_expr(ph["law"], names)
+    rng = np.random.default_rng(0)
+    blocks = []
+    for a in sci["apparatus"][:2]:
+        axes = [np.linspace(a["range"][k][0], a["range"][k][1], 7) for k in names]
+        pts = [{k: float(v) for k, v in zip(names, c)} for c in itertools.product(*axes)]
+        tr = law.at(pts)
+        raw = a["gain"] * (tr + rng.normal(0, a["sd"], len(tr)) + a["rel"] * np.abs(tr) * rng.normal(0, 1, len(tr))) \
+            + a["offset"]
+        c = float(law.at([ph["standards"][0]["at"]])[0])
+        std = [(c, a["gain"] * (c + rng.normal(0, a["sd"])) + a["offset"]) for _ in range(6)]
+        blocks.append({"points": pts, "raw": raw, "std_raw": std, "sd": a["sd"], "rel": a["rel"]})
+    anchors = [(ph["standards"][0]["at"], float(law.at([ph["standards"][0]["at"]])[0]))]
+    lo, hi = np.array([v["lo"] for v in ph["vars"]]), np.array([v["hi"] for v in ph["vars"]])
+    ev = [{k: float(x) for k, x in zip(names, rng.uniform(lo, hi))} for _ in range(3000)]
+    ev = [p for p in ev if p[names[0]] > 10 or p[names[1]] > 5][:200]
+    truth = law.at(ev)
+    form = RD.EXT_FORMS["damped_cos"]
+    model = RD.fit_joint([form], blocks, names, anchors)
+    m = lawlang.compile_expr(model, names).at(ev)
+    assert float(np.sqrt(np.mean((m - truth) ** 2)) / np.std(truth)) < RD.THRESHOLD[1], model
+    assert all(f["name"] not in RD.FORMS for f in RD.EXTENDED)          # the population's handbook stays as it was
+
+
+def test_goal_generator_text_carries_what_the_reference_needs():
+    from crucible.goals import metrics as GM
+    from crucible.domains import base
+    w = base.world("research", "bench", 0)
+    try:
+        objs = {k: RD.DOMAIN.make_objective(w, "p:researcher", k) for k in RD.DOMAIN.difficulties}
+    finally:
+        w.close()
+    assert len({o["text"] for o in objs.values()}) == len(objs)
+    assert all(RD.target_of({"text": o["text"]}) == o["params"]["phenomenon"] == "ph0" for o in objs.values())
+    assert {"research_validated_discovery", "research_discovery_accuracy"} <= GM.EVALUATOR_ONLY_METRICS

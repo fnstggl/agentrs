@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import itertools
 import math
+import re
 
 import numpy as np
 
@@ -43,7 +44,7 @@ from ..core.kernel import Module, applier, register_module
 from ..substrate import columns, ids
 from . import _t2kit as K
 from . import lawlang
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, events_where, register
 
 DAY = 86400
 DECISION = {"model_id": "sci-research", "model_version": "1", "fidelity_id": "FR-SCIPOP-1"}
@@ -72,6 +73,24 @@ TEXTBOOK = [
      "lb": [-1e3, -1e3, 0.0], "ub": [1e3, 1e3, 1e3]},
 ]
 FORMS = {f["name"]: f for f in TEXTBOOK}
+# General response shapes beyond the in-world handbook: the reference researcher's own library (switches whose
+# position moves with a second variable, damped oscillations, saturating ratios of powers, two decays, a periodic
+# response on a trend). Population researchers know only the handbook; the reference proves that a law outside it
+# can be found from data by a researcher with a richer hypothesis space (feasibility of the structural evaluation
+# configuration; LABELLED SCRIPTED).
+EXTENDED = [
+    {"name": "logistic_shift", "n": 2, "expr": "p0 * sigmoid(p1 * ({x} - p2 - p3 * {z})) + p4",
+     "lb": [-1e3, 0.01, -50.0, -10.0, -1e3], "ub": [1e3, 20.0, 50.0, 10.0, 1e3]},
+    {"name": "damped_cos", "n": 2, "expr": "p0 * exp(-{x} / p1) * cos(p2 * {x} + p3 * {z}) + p4",
+     "lb": [-1e3, 0.2, 0.0, -5.0, -1e3], "ub": [1e3, 100.0, 5.0, 5.0, 1e3]},
+    {"name": "ratio_power", "n": 2, "expr": "p0 * {x} ** p1 / (1 + ({z} / p2) ** p3)",
+     "lb": [-1e3, 0.0, 0.05, 0.1], "ub": [1e3, 3.0, 50.0, 6.0]},
+    {"name": "two_decays", "n": 2, "expr": "p0 * exp(-p1 * {x}) + p2 * exp(-p3 * {z}) + p4",
+     "lb": [-1e3, 0.0, -1e3, 0.0, -1e3], "ub": [1e3, 5.0, 1e3, 5.0, 1e3]},
+    {"name": "periodic_trend", "n": 2, "expr": "p0 * sin(p1 * {x} + p2) + p3 * {z} + p4",
+     "lb": [-1e3, 0.0, -7.0, -1e3, -1e3], "ub": [1e3, 5.0, 7.0, 1e3, 1e3]},
+]
+EXT_FORMS = {f["name"]: f for f in EXTENDED}
 
 
 def handbook_text() -> str:
@@ -115,6 +134,21 @@ def _init(form: dict, X: dict, y: np.ndarray, x: str, z: str) -> list[list[float
         return [[max(0.5, float(np.median(xv))), ym, 0.0, 0.0], [2.0, ym, ys * 0.1, 0.1]]
     if name == "damped_interaction":
         return [[ym, 0.1, 0.05], [float(np.min(y)), 0.4, 0.1]]
+    zv = X[z]
+    pt = float(np.ptp(y)) or 1.0
+    if name == "logistic_shift":
+        return [[sg * pt, k, float(np.percentile(xv, q)), sh, float(np.min(y)) if sg > 0 else float(np.max(y))]
+                for sg in (1.0, -1.0) for k in (1.0, 2.5) for q in (30, 60) for sh in (0.0, 0.5)]
+    if name == "damped_cos":
+        return [[pt / 2, L, f, g, ym] for f in (0.3, 0.6, 0.9, 1.3) for g in (0.0, 0.4) for L in (3.0, 10.0)]
+    if name == "ratio_power":
+        top = float(np.max(np.abs(y))) or 1.0
+        return [[top / max(1.0, float(np.max(xv))) ** 0.5, 0.5, max(0.1, float(np.percentile(zv, q))), 2.0]
+                for q in (30, 60)]
+    if name == "two_decays":
+        return [[pt, 0.3, pt / 2, 0.3, float(np.min(y))], [-pt, 0.1, pt / 2, 0.5, float(np.max(y))]]
+    if name == "periodic_trend":
+        return [[pt / 2, f, 0.0, 0.0, ym] for f in (0.3, 0.7, 1.2)]
     return [[0.0] * len(form["lb"])]
 
 
@@ -265,13 +299,17 @@ def fit_joint(forms: list[dict], blocks: list[dict], names: list[str], anchors: 
                 if aenv is not None:
                     ma = np.broadcast_to(ex(dict(aenv, **th)), acert.shape)
                     out.append((ma - acert) / (0.002 * np.abs(acert) + 1e-3))
+                # instruments are sold calibrated to a nominal unit gain (within a few percent): a weak prior that
+                # only matters when the standards cannot pin a gain (a single certified standard: offset only)
+                out.append(np.array([(float(q[k + 2 * bi]) - 1.0) / 0.05 for bi in range(len(blocks))]))
                 r = np.concatenate(out)
                 return np.where(np.isfinite(r), r, 1e6)
             X0 = _env(blocks[0]["points"], names)
             y0 = np.asarray(blocks[0]["raw"], float)
             lb = list(form["lb"]) + [0.2, -1e3] * len(blocks)
             ub = list(form["ub"]) + [5.0, 1e3] * len(blocks)
-            for p0 in _init(form, X0, y0, sub["x"], sub["z"]) if form["name"] in FORMS else [[0.0] * k]:
+            known = form["name"] in FORMS or form["name"] in EXT_FORMS
+            for p0 in _init(form, X0, y0, sub["x"], sub["z"]) if known else [[0.0] * k]:
                 q0 = np.clip(np.array(list(p0) + [1.0, 0.0] * len(blocks), float), np.array(lb) + 1e-9,
                              np.array(ub) - 1e-9)
                 try:
@@ -717,17 +755,43 @@ CO_DISCOVERY_DAYS = 2.0          # independent discoveries this close together a
 HORIZON_DAYS = 30.0
 
 
-def objective(world, principal: str, difficulty: int = 1) -> dict:
+def _goal_draw(rng, difficulty: int, world) -> dict:
+    """The goal generator's draw (`crucible.goals`, its own stream): the target phenomenon is the first one the
+    built world's science institution lists (`sci_phen`); accuracy threshold and replications by level."""
     d = int(min(3, max(1, difficulty)))
-    target = world.spec.params.get("target_phenomenon", "ph0")
-    text = (f"Discover the law that relates the response of phenomenon {target} to its conditions and demonstrate "
-            f"its validity within {HORIZON_DAYS:.0f} days: your latest paper on {target} (sci.publish) must state a "
-            f"model that predicts the response well, including at conditions beyond what the bookable apparatus "
-            f"reach; you must have found an accurate law no later than {CO_DISCOVERY_DAYS:.0f} days after anyone "
-            f"else did, in your own words (not a copy of another paper's model); and at least {REPLICATIONS[d]} "
-            f"independent lab(s) must have replicated it as consistent.")
-    return {"text": text, "description": text, "domain": "research", "difficulty": d, "phenomenon": target,
-            "window_days": HORIZON_DAYS}
+    phen = sorted(pid for pid, _ in world.state.scan("sci_phen")) if "sci_phen" in world.state.tables else []
+    return {"phenomenon": phen[0] if phen else "ph0", "threshold": THRESHOLD[d], "replications": REPLICATIONS[d],
+            "co_discovery_days": CO_DISCOVERY_DAYS, "window_days": HORIZON_DAYS}
+
+
+def _goal_text(p: dict) -> str:
+    t = p["phenomenon"]
+    return (f"Discover the law that relates the response of phenomenon {t} to its conditions and demonstrate its "
+            f"validity within {p['window_days']:.0f} days: your latest paper on {t} (sci.publish) must state a model "
+            f"whose normalised root-mean-square error is at most {p['threshold']:.1%} of the response's spread, "
+            f"including at conditions beyond what the bookable apparatus reach; you must have found an accurate law "
+            f"no later than {p['co_discovery_days']:.0f} days after anyone else did, in your own words (not a copy "
+            f"of another paper's model); and at least {p['replications']} independent lab(s) must have replicated "
+            f"it as consistent.")
+
+
+def _goal_args(p: dict) -> dict:
+    return {"principal": "$self", "phenomenon": p["phenomenon"], "threshold": float(p["threshold"]),
+            "replications": int(p["replications"]), "co_discovery_days": float(p["co_discovery_days"])}
+
+
+GOAL = GoalFamily(
+    "validated_discovery", draw=_goal_draw, text=_goal_text,
+    success=lambda p: {"metric": "research_validated_discovery", "args": _goal_args(p), "op": ">=", "value": 1},
+    progress=lambda p: {"metric": "research_discovery_accuracy", "args": _goal_args(p), "target": 1.0},
+    window_days=lambda p: float(p["window_days"]),
+    doc="an accurate law of the target phenomenon at novel conditions, found first (co-discovery credited), not "
+        "copied, replicated as consistent by independent labs (evaluator side, `verdict`)")
+
+
+def objective(world, principal: str, difficulty: int = 1) -> dict:
+    """The objective generated for a participant (`Domain.make_objective`: the goal generator above)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def _eval_points(world, phenomenon: str, n: int = 240) -> list[dict]:
@@ -769,15 +833,15 @@ def novel_error(world, phenomenon: str, model_text: str) -> float:
     return float(np.sqrt(np.mean((m - truth) ** 2)) / scale)
 
 
-def evaluate(world, principal: str, obj: dict) -> dict:
+def verdict(world, principal: str, phenomenon: str, threshold: float, replications: int,
+            co_discovery_days: float = CO_DISCOVERY_DAYS) -> dict:
     """Evaluator side. The principal's claim is its latest paper on the target phenomenon. Success: the claim's
     novel-condition error is within the difficulty's threshold; the principal's first accurate paper came no later
     than `CO_DISCOVERY_DAYS` after the first accurate paper by anyone else; the claim's model text is not a copy of
     an earlier paper by another author; and independent labs replicated the claim as consistent often enough."""
-    d = int(obj.get("difficulty", 1))
-    target = obj.get("phenomenon", "ph0")
+    target = str(phenomenon)
     st = world.state
-    thr, need = THRESHOLD[d], REPLICATIONS[d]
+    thr, need = float(threshold), int(replications)
     mine_p = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
     papers = sorted(((p["t"], pid, p) for pid, p in st.scan("sci_papers") if p["phenomenon"] == target),
                     key=lambda x: (x[0], x[1]))
@@ -800,7 +864,7 @@ def evaluate(world, principal: str, obj: dict) -> dict:
                          "independent_consistent": ind, "copied": copied, "reports": len(reps)})
     claim = rows[-1] if rows else None
     priority = first_mine is not None and (first_other is None or
-                                           first_mine <= first_other + CO_DISCOVERY_DAYS * DAY)
+                                           first_mine <= first_other + float(co_discovery_days) * DAY)
     accurate = bool(claim) and claim["novel_nrmse"] is not None and claim["novel_nrmse"] <= thr
     ok = bool(claim) and accurate and not claim["copied"] and priority and claim["independent_consistent"] >= need
     best = min([r["novel_nrmse"] for r in rows if r["novel_nrmse"] is not None] or [float("inf")])
@@ -810,6 +874,37 @@ def evaluate(world, principal: str, obj: dict) -> dict:
                         "replications_needed": need, "priority": bool(priority),
                         "best_novel_nrmse": None if not math.isfinite(best) else round(best, 5),
                         "first_accurate_other_t": first_other, "first_accurate_mine_t": first_mine}}
+
+
+def evaluate(world, principal: str, obj: dict) -> dict:
+    """The evaluator (hidden): `verdict` with the generated goal's parameters."""
+    p = obj.get("params") or {}
+    return verdict(world, principal, p.get("phenomenon", "ph0"), float(p.get("threshold", THRESHOLD[1])),
+                   int(p.get("replications", REPLICATIONS[1])), float(p.get("co_discovery_days", CO_DISCOVERY_DAYS)))
+
+
+def _register_metrics() -> None:
+    """The goal's metrics (`crucible.goals.metrics`, evaluator side; no in-world subject: never readable through
+    an agreement between participants)."""
+    from ..goals import metrics as GM
+
+    @GM.metric("research_validated_discovery", "EVALUATOR-ONLY. 1 when the principal's latest paper on a "
+               "phenomenon is accurate at novel conditions, found first (co-discovery credited), not copied and "
+               "independently replicated as consistent often enough.")
+    def m_validated(world, principal: str, phenomenon: str, threshold: float, replications: int,
+                    co_discovery_days: float = CO_DISCOVERY_DAYS) -> float:
+        return float(verdict(world, principal, phenomenon, threshold, replications, co_discovery_days)["success"])
+
+    @GM.metric("research_discovery_accuracy", "EVALUATOR-ONLY. Accuracy score of the principal's best paper on a "
+               "phenomenon at novel conditions (1 - nRMSE / (4 x threshold), floored at 0).")
+    def m_accuracy(world, principal: str, phenomenon: str, threshold: float, replications: int = 1,
+                   co_discovery_days: float = CO_DISCOVERY_DAYS) -> float:
+        return float(verdict(world, principal, phenomenon, threshold, replications, co_discovery_days)["score"])
+
+    GM.EVALUATOR_ONLY_METRICS.update({"research_validated_discovery", "research_discovery_accuracy"})
+
+
+_register_metrics()
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -865,7 +960,7 @@ def reference_script(target: str = "ph0", reps: int = 1):
                                        if x.get("standard") in certified],
                            "sd": float(a["stated_sd"]), "rel": float(a["stated_rel"])})
         anchors = [(s["at"], float(s["certified"])) for s in ph["standards"]]
-        forms = [f for f in TEXTBOOK] + poly_forms(len(names), 2)
+        forms = [f for f in TEXTBOOK] + [f for f in EXTENDED if f["n"] <= len(names)] + poly_forms(len(names), 2)
         model = fit_joint(forms, blocks, names, anchors, criterion="bic")
         if model is not None:
             yield {"tool": "sci.publish", "args": {"phenomenon": target, "title": f"The response law of {target}",
@@ -878,9 +973,16 @@ def reference_script(target: str = "ph0", reps: int = 1):
     return script
 
 
+def target_of(obj: dict) -> str:
+    """The target phenomenon named in the objective's public text."""
+    m = re.search(r"phenomenon (\w+)", str((obj or {}).get("text") or ""))
+    return m.group(1) if m else "ph0"
+
+
 def reference(principal: str, obj: dict):
-    """The hidden reference policy factory (LABELLED SCRIPTED): tool-only, never handed the World."""
-    return K.ScriptPolicy(reference_script(obj.get("phenomenon", "ph0")), label="research-reference")
+    """The hidden reference policy factory (LABELLED SCRIPTED): tool-only, never handed the World; it reads the
+    target phenomenon from the objective's text."""
+    return K.ScriptPolicy(reference_script(target_of(obj)), label="research-reference")
 
 
 def null_policy(principal=None, obj=None):
@@ -947,33 +1049,37 @@ def _copy_script(target: str):
 
 
 def constant_model(principal: str, obj: dict):
-    return K.ScriptPolicy(_constant_script(obj.get("phenomenon", "ph0")), label="constant-model")
+    return K.ScriptPolicy(_constant_script(target_of(obj)), label="constant-model")
 
 
 def copy_model(principal: str, obj: dict):
-    return K.ScriptPolicy(_copy_script(obj.get("phenomenon", "ph0")), label="copy-model")
+    return K.ScriptPolicy(_copy_script(target_of(obj)), label="copy-model")
 
 
 # ====================================================================== mechanics (recorded-event probes)
-def _events(world, since: int, prefix: tuple[str, ...] = ("sci.", "bank.txn", "artifact.stored")):
-    return [e for e in world.events_range(int(since), world.seq) if e.type.startswith(prefix)]
+# Evidence functions return the SEQUENCE NUMBERS of the recorded events that exercise a mechanic (D-48 /3).
+def _completed(world, since: int) -> list[tuple[int, dict]]:
+    """(seq of the `sci.completed` event, run row) of the runs completed after `since`."""
+    st = world.state
+    out = []
+    for e in world.events_range(int(since), world.seq):
+        if e.type == "sci.completed":
+            r = st.get("sci_runs", e.payload["id"])
+            if r is not None:
+                out.append((int(e.seq), r))
+    return out
 
 
-def _done_runs(world, since: int) -> list[dict]:
-    ids_ = {e.payload["id"] for e in world.events_range(int(since), world.seq) if e.type == "sci.completed"}
-    return [r for rid, r in world.state.scan("sci_runs") if rid in ids_]
-
-
-def count_lawful_readings(world, since: int) -> int:
+def lawful_readings(world, since: int) -> list[int]:
     """Completed runs whose readings follow the hidden law through the apparatus' hidden calibration (median
     absolute residual below half the response spread), provided no public event payload carries a law's text."""
     sci = world.modules["sci"]
     laws = [sci._phen_cfg(pid)["law"] for pid in sci.laws]
     if any(e.vis == "public" and any(law in str(e.payload) for law in laws)
            for e in world.events_range(0, world.seq)):
-        return 0
-    n = 0
-    for r in _done_runs(world, since):
+        return []
+    out = []
+    for seq, r in _completed(world, since):
         pts = [p for p in r["points"] if not p.get("standard")]
         if len(pts) < 3:
             continue
@@ -981,58 +1087,48 @@ def count_lawful_readings(world, since: int) -> int:
         vals = np.array([v for p, v in zip(r["points"], r["values"]) if not p.get("standard")])
         a = sci.apps[r["apparatus"]]
         res = np.abs(vals - (float(a.get("gain", 1.0)) * tr + float(a.get("offset", 0.0))))
-        n += int(float(np.median(res)) < 0.5 * (float(np.std(tr)) or 1.0))
-    return n
+        if float(np.median(res)) < 0.5 * (float(np.std(tr)) or 1.0):
+            out.append(seq)
+    return out
 
 
-def count_noisy_replicates(world, since: int) -> int:
-    """Groups of repeated readings at the same condition in one run whose values differ (noise is real)."""
-    n = 0
-    for r in _done_runs(world, since):
+def noisy_replicates(world, since: int) -> list[int]:
+    """Completed runs with repeated readings at one condition (or of one standard) whose values differ."""
+    out = []
+    for seq, r in _completed(world, since):
         seen: dict = {}
         for p, v in zip(r["points"], r["values"]):
             seen.setdefault((p.get("standard"), tuple(sorted(p["at"].items()))), []).append(v)
-        n += sum(1 for v in seen.values() if len(v) > 1 and float(np.std(v)) > 0)
-    return n
+        if any(len(v) > 1 and float(np.std(v)) > 0 for v in seen.values()):
+            out.append(seq)
+    return out
 
 
-def count_experiment_payments(world, since: int) -> int:
-    return sum(1 for e in world.events_range(int(since), world.seq)
-               if e.type == "bank.txn" and e.payload.get("kind") == "experiment")
+def independent_replications(world, since: int) -> list[int]:
+    return events_where(world, since, ("sci.replication",), lambda e: bool(e.payload.get("independent")))
 
 
-def count_datasets(world, since: int) -> int:
-    return sum(1 for e in world.events_range(int(since), world.seq)
-               if e.type == "artifact.stored" and e.payload.get("kind") == "dataset")
-
-
-def count_independent_replications(world, since: int) -> int:
-    return sum(1 for e in world.events_range(int(since), world.seq)
-               if e.type == "sci.replication" and e.payload.get("independent"))
-
-
-def count_challenge_tests(world, since: int) -> int:
-    return sum(len(e.payload["results"]) for e in world.events_range(int(since), world.seq)
-               if e.type == "sci.challenge")
+def challenge_tests(world, since: int) -> list[int]:
+    """Blind challenges that tested at least one paper."""
+    return events_where(world, since, ("sci.challenge",), lambda e: bool(e.payload.get("results")))
 
 
 MECHANICS = (
     Mechanic("Experimental apparatus", ("sci.booked",), "runs booked on paid, queued, capacity-limited apparatus"),
     Mechanic("Hidden laws", (), "readings generated by the phenomena's hidden laws, never published",
-             count=count_lawful_readings),
+             count=lawful_readings),
     Mechanic("Measurement noise", (), "repeated readings at one condition differ (absolute and relative noise)",
-             count=count_noisy_replicates),
-    Mechanic("Experimental costs", (), "measurements paid to the apparatus operators through the bank",
-             count=count_experiment_payments),
-    Mechanic("Data collection", ("sci.completed",), "completed runs stored as dataset artifacts",
-             count=count_datasets),
+             count=noisy_replicates),
+    Mechanic("Experimental costs", ("bank.txn{kind=experiment}",),
+             "measurements paid to the apparatus operators through the bank"),
+    Mechanic("Data collection", ("sci.completed", "artifact.stored{kind=dataset}"),
+             "completed runs stored as dataset artifacts"),
     Mechanic("Hypothesis testing", ("sci.paper", "sci.replication"),
              "claimed models tested against data by the generalised chi-square statistic"),
     Mechanic("Independent replication", (), "replication reports by unrelated labs on other apparatus",
-             count=count_independent_replications),
-    Mechanic("Novel-condition evaluation", ("sci.challenge",),
-             "blind challenges outside every bookable range; papers tested against them",
-             count=count_challenge_tests),
+             count=independent_replications),
+    Mechanic("Novel-condition evaluation", (), "blind challenges outside every bookable range; papers tested "
+             "against them", count=challenge_tests),
 )
 REQUIRED = tuple(m.name for m in MECHANICS)
 
@@ -1046,25 +1142,22 @@ def mechanics(world, since: int = 0) -> dict:
 
 
 def structure(world) -> dict:
-    """The domain's measured structure of a built world (discrete: names and categories, never magnitudes)."""
-    cfg = world.modules["sci"].config
-    phen = cfg.get("phenomena") or []
-    apps = cfg.get("apparatus") or []
+    """The domain's measured structure of a BUILT world (`base.BuiltWorld`: the science institution's public tables
+    - phenomena, apparatus, standards, bureau; discrete: names and categories, never magnitudes)."""
+    st = world.state
+    phen = [r for _, r in sorted(st.scan("sci_phen"))] if "sci_phen" in st.tables else []
     if not phen:
         return {}
     t = phen[0]
+    tid = sorted(pid for pid, _ in st.scan("sci_phen"))[0]
     names = [v["name"] for v in t["vars"]]
-    tapps = [a for a in apps if a["phenomenon"] == t["id"]]
+    apps = [a for _, a in st.scan("sci_app")] if "sci_app" in st.tables else []
+    tapps = [a for a in apps if a["phenomenon"] == tid]
     layouts = {json.dumps({k: a["range"][k] for k in names}, sort_keys=True) for a in tapps}
-    rel_true = [float(a.get("rel", t.get("noise_rel", 0.0))) for a in apps]
-    rel_stated = [float(a["stated_rel"]) if a.get("stated_rel") is not None else r for a, r in zip(apps, rel_true)]
     return {"phenomena": {1: "one", 2: "two"}.get(len(phen), "many"), "variables": f"v{len(names)}",
             "apparatus_layout": "tiled" if len(layouts) > 1 else "full",
-            "drift": any(float(a.get("drift_per_measure", 0.0)) > 0 for a in apps),
-            "datasheet": "optimistic" if any(s < r - 1e-12 for s, r in zip(rel_stated, rel_true)) else "honest",
-            "standards": f"s{len(t['standards'])}",
-            "law_form_in_handbook": all(str(ph.get("form")) in HANDBOOK_FAMILIES for ph in phen),
-            "challenge_bureau": bool(cfg.get("challenge"))}
+            "standards": f"s{len(t.get('standards') or [])}",
+            "challenge_bureau": bool(st.tables.get("sci_bureau")) if "sci_bureau" in st.tables else False}
 
 
 # the hidden law families whose functional form the public handbook lists (a researcher who knows the form can fit
@@ -1094,7 +1187,7 @@ CONFIGS = (
 
 DOMAIN = register(Domain(
     name="research", title="Scientific research", spec_part="9.5", required_mechanics=REQUIRED, configs=CONFIGS,
-    build=build, objective=objective, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
+    build=build, goal=GOAL, evaluate=evaluate, reference=reference, mechanics=MECHANICS,
     seats=(Seat("researcher", 800_000, "Independent researcher", "a researcher with its own lab budget"),),
     actors=(Actor("population researchers", ("cols.batch:scipop.decide",),
                   "individuals of the population who study, publish and replicate with their own money"),

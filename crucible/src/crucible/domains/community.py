@@ -43,7 +43,7 @@ from ..core.errors import CrucibleError
 from ..core.kernel import Module, applier, register_module
 from ..substrate import columns, ids
 from . import _t2kit as K
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, civ_recipe, register
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, civ_recipe, events_where, register
 
 DAY = 86400
 WEEK = 7 * DAY
@@ -411,17 +411,44 @@ TARGET = {1: {"active": 40, "contributors": 8, "retention": 0.4},
 ORGANISER_DAYS = 14
 
 
-def objective(world, principal: str, difficulty: int = 1) -> dict:
+def _goal_draw(rng, difficulty: int, world) -> dict:
+    """The goal generator's draw (`crucible.goals`, its own stream): the level's participation targets, the active
+    members and weekly contributors varied by +-10% per instance."""
     d = int(min(3, max(1, difficulty)))
     t = TARGET[d]
-    text = (f"Build a community with sustained voluntary participation: within {HORIZON_DAYS:.0f} days found a "
-            f"community (community.found) so that, at the end, at least {t['active']} members other than you took "
-            f"part in the last 7 days, at least {t['contributors']} other members posted or commented in each of "
-            f"the last two weeks, at least {t['retention']:.0%} of the members who joined two or more weeks "
-            f"before the end are still members and took part in the last week, and you still run it (you own or "
-            f"moderate it and took part in it in the last {ORGANISER_DAYS} days).")
-    return {"text": text, "description": text, "domain": "community", "difficulty": d, **t,
-            "window_days": HORIZON_DAYS}
+    return {"active": int(round(t["active"] * float(rng.uniform(0.9, 1.1)))),
+            "contributors": int(max(2, round(t["contributors"] * float(rng.uniform(0.9, 1.1))))),
+            "retention": float(t["retention"]), "organiser_days": ORGANISER_DAYS, "window_days": HORIZON_DAYS}
+
+
+def _goal_text(p: dict) -> str:
+    return (f"Build a community with sustained voluntary participation: within {p['window_days']:.0f} days found a "
+            f"community (community.found) so that, at the end, at least {p['active']} members other than you took "
+            f"part in the last 7 days, at least {p['contributors']} other members posted or commented in each of "
+            f"the last two weeks, at least {p['retention']:.0%} of the members who joined two or more weeks before "
+            f"the end are still members and took part in the last week, and you still run it (you own or moderate "
+            f"it and took part in it in the last {p['organiser_days']} days).")
+
+
+def _goal_args(p: dict) -> dict:
+    return {"principal": "$self", "active": int(p["active"]), "contributors": int(p["contributors"]),
+            "retention": float(p["retention"])}
+
+
+GOAL = GoalFamily(
+    "sustained_community", draw=_goal_draw, text=_goal_text,
+    success=lambda p: {"metric": "community_sustained_participation", "args": _goal_args(p), "op": ">=",
+                       "value": 1},
+    progress=lambda p: {"metric": "community_active_members", "args": {"principal": "$self"},
+                        "target": int(p["active"])},
+    window_days=lambda p: float(p["window_days"]),
+    doc="members other than the seat active in the last week, weekly contributors, retention of members who "
+        "joined two weeks before, and the seat still running a community it founded (recorded membership)")
+
+
+def objective(world, principal: str, difficulty: int = 1) -> dict:
+    """The objective generated for a participant (`Domain.make_objective`: the goal generator above)."""
+    return DOMAIN.make_objective(world, principal, difficulty)
 
 
 def _contributors(world, cid: str, exclude: set, t0: int, t1: int) -> int:
@@ -474,7 +501,7 @@ def _organiser_active(world, c: dict, mine: set) -> bool:
     return False
 
 
-def evaluate(world, principal: str, obj: dict) -> dict:
+def verdict(world, principal: str, active: int, contributors: int, retention: float) -> dict:
     st = world.state
     mine = set(world.principals_of(principal)) | {principal} if world.principal(principal) else {principal}
     rows = {}
@@ -483,12 +510,41 @@ def evaluate(world, principal: str, obj: dict) -> dict:
             if c.get("founder") in mine:
                 rows[cid] = community_health(world, cid, mine)
                 rows[cid]["organiser_active"] = _organiser_active(world, c, mine)
-    ok = any(r["active_7d"] >= int(obj["active"]) and min(r["weekly_contributors"]) >= int(obj["contributors"])
-             and r["joined_2w_ago"] > 0 and r["retention"] >= float(obj["retention"]) and r["organiser_active"]
+    ok = any(r["active_7d"] >= int(active) and min(r["weekly_contributors"]) >= int(contributors)
+             and r["joined_2w_ago"] > 0 and r["retention"] >= float(retention) and r["organiser_active"]
              for r in rows.values())
     best = max(rows.values(), key=lambda r: r["active_7d"], default=None)
-    score = 0.0 if best is None else min(1.0, best["active_7d"] / float(obj["active"]))
+    score = 0.0 if best is None else min(1.0, best["active_7d"] / float(active))
     return {"success": bool(ok), "score": round(score, 5), "details": {"communities": rows}}
+
+
+def evaluate(world, principal: str, obj: dict) -> dict:
+    """The evaluator (hidden): `verdict` with the generated goal's parameters."""
+    p = obj.get("params") or {}
+    t = TARGET[1]
+    return verdict(world, principal, int(p.get("active", t["active"])), int(p.get("contributors", t["contributors"])),
+                   float(p.get("retention", t["retention"])))
+
+
+def _register_metrics() -> None:
+    """The goal's metrics (`crucible.goals.metrics`, evaluator side; no in-world subject, evaluator-only)."""
+    from ..goals import metrics as GM
+
+    @GM.metric("community_sustained_participation", "EVALUATOR-ONLY. 1 when a community the principal founded and "
+               "still runs has enough active members, weekly contributors and retention.")
+    def m_sustained(world, principal: str, active: int, contributors: int, retention: float) -> float:
+        return float(verdict(world, principal, active, contributors, retention)["success"])
+
+    @GM.metric("community_active_members", "EVALUATOR-ONLY. Members other than the principal active in the last "
+               "week in the principal's largest community.")
+    def m_active(world, principal: str) -> float:
+        rows = verdict(world, principal, 1, 0, 0.0)["details"]["communities"]
+        return float(max((r["active_7d"] for r in rows.values()), default=0))
+
+    GM.EVALUATOR_ONLY_METRICS.update({"community_sustained_participation", "community_active_members"})
+
+
+_register_metrics()
 
 
 # ====================================================================== the hidden reference (LABELLED SCRIPTED)
@@ -604,91 +660,105 @@ def null_policy(principal=None, obj=None):
 
 
 # ====================================================================== mechanics (recorded-event probes)
-def _ev(world, since, types):
-    return [e for e in world.events_range(int(since), world.seq) if e.type in types]
+# Evidence functions return the SEQUENCE NUMBERS of the recorded events that exercise a mechanic (D-48 /3); the
+# measures on membership rows read the rows each column batch wrote (its blob's `idx`).
+def _batch_rows(world, e) -> np.ndarray:
+    from ..substrate import artifacts
+    try:
+        return np.asarray(artifacts.get_array_blob(world, e.payload["ref"])["idx"], np.int64)
+    except Exception:  # noqa: BLE001 - a batch whose blob is gone gives no evidence
+        return np.zeros(0, np.int64)
 
 
-def count_network_joins(world, since: int) -> int:
-    """Population members who joined a community after one of their contacts was already a member there (the
-    social network carrying membership)."""
+def network_joins(world, since: int) -> list[int]:
+    """Membership batches that admitted a population individual into a community where one of its contacts was
+    already a member (the social network carrying membership)."""
     from ..social import communities as CM
     v = CM.CMEMBER.view(world)
     if not v["node"].size or "pop" not in world.modules:
-        return 0
+        return []
     contacts = columns.col(world, "pop", "contacts")
-    t_since = world.events_range(int(since), int(since) + 1)[0].t if world.seq > since else world.now
-    n = 0
-    first = {}
-    for r in range(v["node"].size):
-        first[(int(v["node"][r]), int(v["comm"][r]))] = int(v["first_joined"][r])
-    for (node, comm), t in first.items():
-        if t < t_since or node >= contacts.shape[0] or node < 0:
+    first = {(int(n), int(c)): int(t) for n, c, t in zip(v["node"], v["comm"], v["first_joined"]) if t >= 0}
+    out = []
+    for e in world.events_range(int(since), world.seq):
+        if e.type != "cols.batch" or e.payload.get("kind") != "community.join" or e.payload.get("table") != CM.CMEMBER.name:
             continue
-        cs = contacts[node]
-        if any(first.get((int(x), comm), 10 ** 18) < t for x in cs if x >= 0):
-            n += 1
-    return n
+        for r in _batch_rows(world, e):
+            if r < 0 or r >= v["node"].size:
+                continue
+            node, comm = int(v["node"][r]), int(v["comm"][r])
+            if node < 0 or node >= contacts.shape[0]:
+                continue
+            if any(first.get((int(x), comm), 10 ** 18) < e.t for x in contacts[node] if x >= 0):
+                out.append(int(e.seq))
+                break
+    return out
 
 
-def count_persistent_members(world, since: int) -> int:
-    from ..social import communities as CM
-    v = CM.CMEMBER.view(world)
-    now = int(world.now)
-    return int(np.sum((v["status"] == CM.MEMBER) & (v["first_joined"] >= 0) & (v["first_joined"] <= now - WEEK)))
-
-
-def count_independent_participants(world, since: int) -> int:
-    """Distinct population individuals who posted, commented, voted, attended or reported in a community they did
+def independent_participants(world, since: int) -> list[int]:
+    """Votes, attendance, reports, community posts and comments by population individuals in communities they did
     not found."""
     st = world.state
     founders = {c.get("founder") for _, c in st.scan("communities")} if "communities" in st.tables else set()
-    who = set()
-    for e in _ev(world, since, ("community.vote", "community.attend", "community.report", "content.published",
-                                "content.comment")):
+
+    def indep(e):
+        if e.type == "content.published" and e.payload.get("platform") != "community":
+            return False
         p = e.payload.get("voter") or e.payload.get("member") or e.payload.get("by") or e.payload.get("creator") \
             or e.payload.get("author") or e.actor
-        if e.type == "content.published" and e.payload.get("platform") != "community":
-            continue
-        if K.is_population(p) and p not in founders:
-            who.add(p)
-    return len(who)
+        return K.is_population(p) and p not in founders
+    return events_where(world, since, ("community.vote", "community.attend", "community.report", "content.published",
+                                       "content.comment"), indep)
 
 
-def count_communication(world, since: int) -> int:
-    return sum(1 for e in _ev(world, since, ("content.published", "content.comment", "msg.message"))
-               if e.type != "content.published" or e.payload.get("platform") == "community")
+def communication(world, since: int) -> list[int]:
+    return events_where(world, since, ("content.published", "content.comment", "msg.message"),
+                        lambda e: e.type != "content.published" or e.payload.get("platform") == "community")
 
 
-def count_retained(world, since: int) -> int:
-    """Members who joined at least a week ago and took part in the last week (retention measured, not assigned)."""
+def retained_activity(world, since: int) -> list[int]:
+    """Members' visits (recorded experience batches) by members who joined more than a week before the visit:
+    members who stay and keep taking part (retention measured on recorded activity, never assigned)."""
     from ..social import communities as CM
     v = CM.CMEMBER.view(world)
-    now = int(world.now)
-    return int(np.sum((v["status"] == CM.MEMBER) & (v["first_joined"] >= 0) & (v["first_joined"] <= now - WEEK) &
-                      (v["last_active"] >= now - WEEK)))
+    fj = v["first_joined"]
+    if not fj.size or not (fj >= 0).any():
+        return []
+    t_min = int(fj[fj >= 0].min()) + WEEK
+    out = []
+    for e in world.events_range(int(since), world.seq):
+        if e.type != "cols.batch" or e.payload.get("kind") != "community.experience" or e.t < t_min:
+            continue
+        r = _batch_rows(world, e)
+        r = r[(r >= 0) & (r < fj.size)]
+        if r.size and bool(np.any((fj[r] >= 0) & (fj[r] <= e.t - WEEK))):
+            out.append(int(e.seq))
+    return out
 
 
 MECHANICS = (
     Mechanic("Social networks", ("cols.batch:social.follow", "community.notice"),
-             "follows, invitations to contacts, joins carried by contacts", count=count_network_joins),
+             "follows, invitations to contacts, joins carried by contacts", count=network_joins),
     Mechanic("Persistent memberships", ("cols.batch:community.join", "cols.batch:community.found"),
-             "membership rows with spells, roles and history", count=count_persistent_members),
+             "membership rows with spells, roles and history"),
     Mechanic("Independent participants", (), "population individuals taking part in communities they did not found",
-             count=count_independent_participants),
+             count=independent_participants),
     Mechanic("Shared activities", ("community.event", "community.rsvp", "community.attend"),
              "scheduled events, RSVPs and attendance while they run"),
-    Mechanic("Communication", (), "posts and comments in communities, direct messages", count=count_communication),
+    Mechanic("Communication", (), "posts and comments in communities, direct messages", count=communication),
     Mechanic("Moderation", ("community.report", "community.moderation"), "reports and moderators' actions"),
     Mechanic("Governance", ("community.proposal", "community.vote", "community.decided"),
              "proposals, votes and decisions under each community's governance rule"),
     Mechanic("Retention", ("cols.batch:community.leave",), "members who stay and take part, members who leave",
-             count=count_retained),
+             count=retained_activity),
     Mechanic("Community evolution", ("community.rules", "community.info", "community.founded", "community.status"),
              "rule changes, renames, new communities and spin-offs, archiving"),
 )
 
 
 def structure(world) -> dict:
+    """Built state only (`base.BuiltWorld`): the communities at genesis and their rules in force, and whether
+    direct messaging is engaged."""
     st = world.state
     comms = [c for _, c in st.scan("communities")] if "communities" in st.tables else []
     return {"seeded": bool(comms), "governance": sorted({c["rules"]["governance"] for c in comms}),
@@ -701,7 +771,7 @@ CONFIGS = tuple(DomainConfig(n, s, dict(STRUCTURES[n]), DOCS[n]) for n, s in (
 
 DOMAIN = register(Domain(
     name="community", title="Community ecosystem", spec_part="9.4",
-    required_mechanics=tuple(m.name for m in MECHANICS), configs=CONFIGS, build=build, objective=objective,
+    required_mechanics=tuple(m.name for m in MECHANICS), configs=CONFIGS, build=build, goal=GOAL,
     evaluate=evaluate, reference=reference, mechanics=MECHANICS,
     seats=(Seat("organiser", 200_000, "Organiser", "someone who wants to start a community"),),
     actors=(Actor("population members", ("cols.batch:commlife.decide", "cols.batch:community.experience"),
