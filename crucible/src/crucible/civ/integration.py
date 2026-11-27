@@ -16,8 +16,6 @@ Everything here is measured on data flow in the world, not on which modules happ
   world that hold facts of that kind; a kind held in more than one populated table, and every single fact present
   in two tables, is a duplicate (O.2). The kernel's mandatory check (`crucible.substrate.facts.world_report`) is
   added: a reviewed second copy of a shared kind that holds facts in this world, and every problem the check
-  reports, count as well. The kernel's mandatory check (`crucible.substrate.facts.world_report`) is
-  added: a reviewed second copy of a shared kind that holds facts in this world, and every problem the check
   reports, count as well.
 * `identity_violations(world)` - dangling references to principals or accounts, population principals without a
   population row, organisation members that are not persons, accounts without an owner (O.2).
