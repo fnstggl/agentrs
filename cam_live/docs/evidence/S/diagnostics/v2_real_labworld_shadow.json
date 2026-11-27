@@ -1,0 +1,278 @@
+{
+ "E": {
+  "note": "estimates (columns 1-2) and model predictions (3) are not observations of the alternative policy's consequences; column 4 exists only because the world is diagnostic",
+  "reward": "observed adopters attributed to the executed intervention (0 otherwise)",
+  "targets": {
+   "always_act_max_effort": {
+    "ess_fraction": {
+     "hi": 0.09369629307556944,
+     "lo": 0.03125,
+     "mean": 0.062482073103929364,
+     "n": 3,
+     "se": 0.018026694268692453
+    },
+    "ground_truth_same_contexts": {
+     "hi": 24.382681864949557,
+     "lo": 0.9792643152658081,
+     "mean": 11.040472732085007,
+     "n": 3,
+     "se": 6.952306871948546
+    },
+    "ips_estimate_observed": {
+     "hi": 1.349100142325384,
+     "lo": 0.40930860133001007,
+     "mean": 0.8476578965916186,
+     "n": 3,
+     "se": 0.27312242397325326
+    },
+    "model_prediction": {
+     "hi": 21.370064845790548,
+     "lo": 5.0877924138202015,
+     "mean": 14.556205408457751,
+     "n": 3,
+     "se": 4.884092881613223
+    },
+    "n_runs": 3,
+    "snips_estimate_observed": {
+     "hi": 1.0,
+     "lo": 1.0,
+     "mean": 1.0,
+     "n": 3,
+     "se": 0.0
+    },
+    "target_mass_on_logged_support": {
+     "hi": 0.9375,
+     "lo": 0.84375,
+     "mean": 0.8958333333333334,
+     "n": 3,
+     "se": 0.027559909490256156
+    }
+   },
+   "behaviour": {
+    "ess_fraction": {
+     "hi": 1.0,
+     "lo": 1.0,
+     "mean": 1.0,
+     "n": 3,
+     "se": 0.0
+    },
+    "ground_truth_same_contexts": {
+     "hi": 2.30160680512623,
+     "lo": 1.0827648590633805,
+     "mean": 1.591703241342145,
+     "n": 3,
+     "se": 0.3659162816381495
+    },
+    "ips_estimate_observed": {
+     "hi": 0.34375,
+     "lo": 0.25,
+     "mean": 0.2916666666666667,
+     "n": 3,
+     "se": 0.027559909490256156
+    },
+    "model_prediction": {
+     "hi": 6.615625663791633,
+     "lo": 2.2347393426756645,
+     "mean": 4.852254918114442,
+     "n": 3,
+     "se": 1.3348175633510855
+    },
+    "n_runs": 3,
+    "snips_estimate_observed": {
+     "hi": 0.34375,
+     "lo": 0.25,
+     "mean": 0.2916666666666667,
+     "n": 3,
+     "se": 0.027559909490256156
+    },
+    "target_mass_on_logged_support": {
+     "hi": 1.0,
+     "lo": 1.0,
+     "mean": 1.0,
+     "n": 3,
+     "se": 0.0
+    }
+   },
+   "greedy_p_success": {
+    "ess_fraction": {
+     "hi": 0.0627631525643633,
+     "lo": 0.0,
+     "mean": 0.041681820543412795,
+     "n": 3,
+     "se": 0.020841372519402053
+    },
+    "ground_truth_same_contexts": {
+     "hi": 0.8399308654511795,
+     "lo": 0.18031197840583998,
+     "mean": 0.46870077395598014,
+     "n": 3,
+     "se": 0.19486857047090803
+    },
+    "ips_estimate_observed": {
+     "hi": 0.40063076740371667,
+     "lo": 0.0,
+     "mean": 0.26613155672431527,
+     "n": 3,
+     "se": 0.13306835191182603
+    },
+    "model_prediction": {
+     "hi": 5.044145281569223,
+     "lo": 1.8532070912577536,
+     "mean": 3.0059652080134485,
+     "n": 3,
+     "se": 1.0220079361702339
+    },
+    "n_runs": 3,
+    "snips_estimate_observed": {
+     "hi": 0.6811933495203586,
+     "lo": 0.4704397690269225,
+     "mean": 0.5758165592736406,
+     "n": 2,
+     "se": 0.10537679024671802
+    },
+    "target_mass_on_logged_support": {
+     "hi": 0.9375,
+     "lo": 0.90625,
+     "mean": 0.9270833333333334,
+     "n": 3,
+     "se": 0.010416666666666668
+    }
+   },
+   "greedy_predicted_goal_mean": {
+    "ess_fraction": {
+     "hi": 0.09367033996809532,
+     "lo": 0.0,
+     "mean": 0.062367375693095216,
+     "n": 3,
+     "se": 0.031183763884427354
+    },
+    "ground_truth_same_contexts": {
+     "hi": 18.50902606106029,
+     "lo": 1.0657332232755654,
+     "mean": 8.57652042576954,
+     "n": 3,
+     "se": 5.178984983629794
+    },
+    "ips_estimate_observed": {
+     "hi": 1.2274963948811353,
+     "lo": 0.0,
+     "mean": 0.7115892296987782,
+     "n": 3,
+     "se": 0.36760733246296134
+    },
+    "model_prediction": {
+     "hi": 26.29489115589173,
+     "lo": 5.196497070243951,
+     "mean": 16.327531007716747,
+     "n": 3,
+     "se": 6.118310245055366
+    },
+    "n_runs": 3,
+    "snips_estimate_observed": {
+     "hi": 1.0,
+     "lo": 0.6763910418972531,
+     "mean": 0.8381955209486265,
+     "n": 2,
+     "se": 0.16180447905137346
+    },
+    "target_mass_on_logged_support": {
+     "hi": 0.9375,
+     "lo": 0.84375,
+     "mean": 0.8958333333333334,
+     "n": 3,
+     "se": 0.027559909490256156
+    }
+   },
+   "uniform": {
+    "ess_fraction": {
+     "hi": 0.9533824532741754,
+     "lo": 0.8821227527588865,
+     "mean": 0.9219647299762944,
+     "n": 3,
+     "se": 0.020997716304062396
+    },
+    "ground_truth_same_contexts": {
+     "hi": 2.370588824138366,
+     "lo": 1.193410165761386,
+     "mean": 1.6958852933753874,
+     "n": 3,
+     "se": 0.3505635299404811
+    },
+    "ips_estimate_observed": {
+     "hi": 0.33951533195640166,
+     "lo": 0.238556472408647,
+     "mean": 0.286618938045434,
+     "n": 3,
+     "se": 0.029244361150004942
+    },
+    "model_prediction": {
+     "hi": 6.758549665298122,
+     "lo": 2.219907965224643,
+     "mean": 4.900111615831387,
+     "n": 3,
+     "se": 1.3731097489305337
+    },
+    "n_runs": 3,
+    "snips_estimate_observed": {
+     "hi": 0.3662141765393814,
+     "lo": 0.27526482129621765,
+     "mean": 0.3137064566025448,
+     "n": 3,
+     "se": 0.02718049151757738
+    },
+    "target_mass_on_logged_support": {
+     "hi": 0.9464285714285715,
+     "lo": 0.8660714285714285,
+     "mean": 0.9109432234432234,
+     "n": 3,
+     "se": 0.023667112490436175
+    }
+   }
+  }
+ },
+ "conditions": {
+  "A": [
+   1,
+   2,
+   3
+  ],
+  "B": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "E": [
+   0,
+   1,
+   2
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "plan": "real",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/real",
+ "scale": {
+  "A": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "B": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "E": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ]
+}

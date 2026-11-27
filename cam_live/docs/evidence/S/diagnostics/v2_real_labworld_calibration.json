@@ -1,0 +1,209 @@
+{
+ "E": {
+  "action_succeeded": {
+   "auc": null,
+   "brier": 0.042110706638354915,
+   "brier_base_rate": 0.0,
+   "brier_base_rate_ci_clustered": {
+    "clusters": 3,
+    "hi": 0.0,
+    "lo": 0.0,
+    "mean": 0.0,
+    "n": 105
+   },
+   "brier_ci_clustered": {
+    "clusters": 3,
+    "hi": 0.047163709014049676,
+    "lo": 0.037647094026413655,
+    "mean": 0.042110706638354915,
+    "n": 105
+   },
+   "clusters": 3,
+   "ece_10": 0.16947160575368975,
+   "mean_forecast": 0.8305283942463103,
+   "n": 105,
+   "observed_rate": 1.0,
+   "reliability": [
+    {
+     "bin": [
+      0.4,
+      0.6
+     ],
+     "mean_forecast": 0.5362261922329111,
+     "n": 6,
+     "observed_rate": 1.0,
+     "wilson": {
+      "hi": 1.0,
+      "k": 6,
+      "lo": 0.6096657120978346,
+      "n": 6,
+      "p": 1.0
+     }
+    },
+    {
+     "bin": [
+      0.6,
+      0.8
+     ],
+     "mean_forecast": 0.7175557168897888,
+     "n": 26,
+     "observed_rate": 1.0,
+     "wilson": {
+      "hi": 1.0,
+      "k": 26,
+      "lo": 0.8712710781407846,
+      "n": 26,
+      "p": 1.0
+     }
+    },
+    {
+     "bin": [
+      0.8,
+      1.0
+     ],
+     "mean_forecast": 0.8949544603195972,
+     "n": 73,
+     "observed_rate": 1.0,
+     "wilson": {
+      "hi": 0.9999999999999998,
+      "k": 73,
+      "lo": 0.9500079920442688,
+      "n": 73,
+      "p": 1.0
+     }
+    }
+   ]
+  },
+  "goal_count_predictions": {
+   "coverage_80": {
+    "clusters": 3,
+    "hi": 0.6428571428571429,
+    "lo": 0.5853658536585366,
+    "mean": 0.6141732283464567,
+    "n": 127
+   },
+   "mean_z2": {
+    "clusters": 3,
+    "hi": 2266178587320.3267,
+    "lo": 42320295467.07404,
+    "mean": 905016007859.4854,
+    "n": 127
+   },
+   "note": "calibrated predictive: mean z^2 ~ 1, central-80% coverage ~ 0.80"
+  },
+  "nll_first_half_vs_second_half_of_lifetimes": {
+   "hi": 5.252594665414948,
+   "lo": -16.324009440476686,
+   "mean": -5.287626582921568,
+   "n": 3,
+   "p": 0.75,
+   "paired": true,
+   "se": 6.233567556449029,
+   "test": "exact sign-flip permutation"
+  },
+  "non_prospective_predictions_excluded": 0,
+  "objective_success_forecasts": {
+   "auc": null,
+   "brier": 0.22421612796101845,
+   "brier_base_rate": 0.0,
+   "brier_base_rate_ci_clustered": {
+    "clusters": 6,
+    "hi": 0.0,
+    "lo": 0.0,
+    "mean": 0.0,
+    "n": 96
+   },
+   "brier_ci_clustered": {
+    "clusters": 6,
+    "hi": 0.25062721305094265,
+    "lo": 0.19552084359068303,
+    "mean": 0.22421612796101845,
+    "n": 96
+   },
+   "clusters": 6,
+   "ece_10": 0.47113799272725976,
+   "mean_forecast": 0.4711379927272598,
+   "n": 96,
+   "observed_rate": 0.0,
+   "reliability": [
+    {
+     "bin": [
+      0.2,
+      0.4
+     ],
+     "mean_forecast": 0.36957536523158735,
+     "n": 13,
+     "observed_rate": 0.0,
+     "wilson": {
+      "hi": 0.22809537235419838,
+      "k": 0,
+      "lo": 0.0,
+      "n": 13,
+      "p": 0.0
+     }
+    },
+    {
+     "bin": [
+      0.4,
+      0.6
+     ],
+     "mean_forecast": 0.4870453922145338,
+     "n": 83,
+     "observed_rate": 0.0,
+     "wilson": {
+      "hi": 0.04423530964197385,
+      "k": 0,
+      "lo": 3.469446951953614e-18,
+      "n": 83,
+      "p": 0.0
+     }
+    }
+   ]
+  }
+ },
+ "conditions": {
+  "A": [
+   1,
+   2,
+   3
+  ],
+  "B": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "E": [
+   0,
+   1,
+   2
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "plan": "real",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/real",
+ "scale": {
+  "A": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "B": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "E": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ]
+}

@@ -1,0 +1,159 @@
+{
+ "E": {
+  "note": "truth = expected adopters of the candidate at that moment from the hidden mechanism (0 for operations without direct effect); goal_mean = the agent's registered prediction of the goal-relevant outcome of that candidate",
+  "randomised_experiments": {
+   "concluded": 0,
+   "items": [
+    {
+     "experiment_id": "exp_8da9b6a873b64e1e",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_996c9a682a6240e6",
+     "n_actual": 2,
+     "n_units": 0,
+     "seed": 0,
+     "status": "closed",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_147060dbb5fe499b",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_8e3ae24847e24511",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 0,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_a428bca6f89b4f20",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b8d3bdb2bf6d4e8e",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 1,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_b5868d0a897f407e",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "running",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_2a3c330777a24ba8",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "matured",
+     "supported": null
+    },
+    {
+     "experiment_id": "exp_10882e99b73e4ec0",
+     "n_actual": 1,
+     "n_units": 0,
+     "seed": 2,
+     "status": "matured",
+     "supported": null
+    }
+   ],
+   "n": 9,
+   "refuted": 0,
+   "supported": 0,
+   "units": 0
+  },
+  "spearman_predicted_vs_true_value_over_candidates": {
+   "hi": 0.17371165525135537,
+   "lo": -0.024518290388315104,
+   "mean": 0.07637146287334644,
+   "n": 3,
+   "se": 0.057251571663803104
+  },
+  "true_value_gain_of_top_predicted_candidate_over_mean_alternative": {
+   "hi": 17.37985548591592,
+   "lo": -0.49718203725395654,
+   "mean": 7.4085702670144835,
+   "n": 3,
+   "se": 5.262981959475071
+  },
+  "true_value_ratio_of_chosen_to_best": {
+   "hi": 0.16381308198309244,
+   "lo": 0.061796174830071195,
+   "mean": 0.12874337994617785,
+   "n": 3,
+   "se": 0.03348628444696904
+  },
+  "true_value_ratio_of_top_predicted_to_best": {
+   "hi": 0.40276314358963167,
+   "lo": 0.12956480532041978,
+   "mean": 0.3076846387699306,
+   "n": 3,
+   "se": 0.08912767939631647
+  }
+ },
+ "conditions": {
+  "A": [
+   1,
+   2,
+   3
+  ],
+  "B": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "E": [
+   0,
+   1,
+   2
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "plan": "real",
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/real",
+ "scale": {
+  "A": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "B": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "E": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ]
+}

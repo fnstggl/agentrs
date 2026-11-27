@@ -1,0 +1,572 @@
+{
+ "attack_battery": {
+  "by_attack": {
+   "duplicate_valid_verdict_x5": {
+    "detected": 4,
+    "not_applicable": 1,
+    "not_detected": 0
+   },
+   "forged_objective_outcome": {
+    "detected": 4,
+    "not_applicable": 1,
+    "not_detected": 0
+   },
+   "imagined_outcome": {
+    "detected": 0,
+    "not_applicable": 5,
+    "not_detected": 0
+   },
+   "inflated_signed_measurement": {
+    "detected": 0,
+    "not_applicable": 5,
+    "not_detected": 0
+   },
+   "relabelled_measurement": {
+    "detected": 0,
+    "not_applicable": 5,
+    "not_detected": 0
+   },
+   "stale_prediction": {
+    "detected": 4,
+    "not_applicable": 1,
+    "not_detected": 0
+   },
+   "verdict_unchanged_by_attacks": {
+    "detected": 4,
+    "not_applicable": 0,
+    "not_detected": 1
+   }
+  },
+  "n_seeds": 5,
+  "runs": [
+   {
+    "attacked_lifetime_index": 3,
+    "attacks": {
+     "duplicate_valid_verdict_x5": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": true,
+        "evaluator": true,
+        "meta_ledger": {
+         "accepted": false,
+         "reason": "duplicate"
+        },
+        "status": "pending",
+        "value": 2.0
+       }
+      },
+      "supervision_changed": {
+       "ledger_admitted": [
+        158,
+        159
+       ],
+       "ledger_entries": [
+        158,
+        159
+       ],
+       "ledger_rejected": [
+        0,
+        4
+       ]
+      }
+     },
+     "forged_objective_outcome": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": false,
+        "reason": "bad signature"
+       }
+      },
+      "supervision_changed": {},
+      "verifier_accepts_signature": false
+     },
+     "stale_prediction": {
+      "registry": "refused: ResolutionBeforePredictionError: outcome observed at 1795769730.558419 is not strictly after the prediction (made 1795773330.558419, registered 1795773333.3514354)",
+      "status_after": "pending"
+     }
+    },
+    "detected": {
+     "duplicate_valid_verdict_x5": true,
+     "forged_objective_outcome": true,
+     "imagined_outcome": null,
+     "inflated_signed_measurement": null,
+     "relabelled_measurement": null,
+     "stale_prediction": true,
+     "verdict_unchanged_by_attacks": true
+    },
+    "independent_verdict": {
+     "decisions_before_attacks": 14,
+     "due_queries": 0,
+     "pending_queries": 0,
+     "status": "pending",
+     "target": 61.0,
+     "value": 2.0
+    },
+    "independent_verdict_after_attacks": {
+     "status": "pending",
+     "value": 2.0
+    },
+    "lifetimes": [
+     {
+      "decisions": 16,
+      "progress": 0.38461538461538464,
+      "verified_status": "failed",
+      "verified_value": 15.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.41379310344827586,
+      "verified_status": "failed",
+      "verified_value": 24.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.40384615384615385,
+      "verified_status": "failed",
+      "verified_value": 21.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.08196721311475409,
+      "verified_status": "failed",
+      "verified_value": 5.0
+     }
+    ],
+    "seed": 0
+   },
+   {
+    "attacked_lifetime_index": 3,
+    "attacks": {
+     "duplicate_valid_verdict_x5": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": true,
+        "evaluator": true,
+        "meta_ledger": {
+         "accepted": false,
+         "reason": "duplicate"
+        },
+        "status": "pending",
+        "value": 0.0
+       }
+      },
+      "supervision_changed": {
+       "ledger_admitted": [
+        121,
+        122
+       ],
+       "ledger_entries": [
+        121,
+        122
+       ],
+       "ledger_rejected": [
+        0,
+        4
+       ]
+      }
+     },
+     "forged_objective_outcome": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": false,
+        "reason": "bad signature"
+       }
+      },
+      "supervision_changed": {},
+      "verifier_accepts_signature": false
+     },
+     "stale_prediction": {
+      "registry": "refused: ResolutionBeforePredictionError: outcome observed at 1795769731.1302316 is not strictly after the prediction (made 1795773331.1302316, registered 1795773333.2218788)",
+      "status_after": "pending"
+     }
+    },
+    "detected": {
+     "duplicate_valid_verdict_x5": true,
+     "forged_objective_outcome": true,
+     "imagined_outcome": null,
+     "inflated_signed_measurement": null,
+     "relabelled_measurement": null,
+     "stale_prediction": true,
+     "verdict_unchanged_by_attacks": true
+    },
+    "independent_verdict": {
+     "decisions_before_attacks": 14,
+     "due_queries": 0,
+     "pending_queries": 0,
+     "status": "pending",
+     "target": 122.0,
+     "value": 0.0
+    },
+    "independent_verdict_after_attacks": {
+     "status": "pending",
+     "value": 0.0
+    },
+    "lifetimes": [
+     {
+      "decisions": 16,
+      "progress": 0.375,
+      "verified_status": "failed",
+      "verified_value": 21.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.0,
+      "verified_status": "failed",
+      "verified_value": 0.0
+     },
+     {
+      "decisions": 7,
+      "progress": 1.0,
+      "verified_status": "achieved",
+      "verified_value": 24.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.0,
+      "verified_status": "failed",
+      "verified_value": 0.0
+     }
+    ],
+    "seed": 1
+   },
+   {
+    "attacked_lifetime_index": 3,
+    "attacks": {
+     "duplicate_valid_verdict_x5": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": true,
+        "evaluator": true,
+        "meta_ledger": {
+         "accepted": false,
+         "reason": "duplicate"
+        },
+        "status": "pending",
+        "value": 0.0
+       }
+      },
+      "supervision_changed": {
+       "ledger_admitted": [
+        152,
+        153
+       ],
+       "ledger_entries": [
+        152,
+        153
+       ],
+       "ledger_rejected": [
+        0,
+        4
+       ]
+      }
+     },
+     "forged_objective_outcome": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": false,
+        "reason": "bad signature"
+       }
+      },
+      "supervision_changed": {},
+      "verifier_accepts_signature": false
+     },
+     "stale_prediction": {
+      "registry": "refused: ResolutionBeforePredictionError: outcome observed at 1795769730.934349 is not strictly after the prediction (made 1795773330.934349, registered 1795773332.9326372)",
+      "status_after": "pending"
+     }
+    },
+    "detected": {
+     "duplicate_valid_verdict_x5": true,
+     "forged_objective_outcome": true,
+     "imagined_outcome": null,
+     "inflated_signed_measurement": null,
+     "relabelled_measurement": null,
+     "stale_prediction": true,
+     "verdict_unchanged_by_attacks": true
+    },
+    "independent_verdict": {
+     "decisions_before_attacks": 14,
+     "due_queries": 0,
+     "pending_queries": 0,
+     "status": "pending",
+     "target": 53.0,
+     "value": 0.0
+    },
+    "independent_verdict_after_attacks": {
+     "status": "pending",
+     "value": 0.0
+    },
+    "lifetimes": [
+     {
+      "decisions": 16,
+      "progress": 0.059322033898305086,
+      "verified_status": "failed",
+      "verified_value": 7.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.36363636363636365,
+      "verified_status": "failed",
+      "verified_value": 28.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.42857142857142855,
+      "verified_status": "failed",
+      "verified_value": 6.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.0,
+      "verified_status": "failed",
+      "verified_value": 0.0
+     }
+    ],
+    "seed": 2
+   },
+   {
+    "attacks": {},
+    "detected": {
+     "duplicate_valid_verdict_x5": null,
+     "forged_objective_outcome": null,
+     "imagined_outcome": null,
+     "inflated_signed_measurement": null,
+     "relabelled_measurement": null,
+     "stale_prediction": null,
+     "verdict_unchanged_by_attacks": false
+    },
+    "lifetimes": [
+     {
+      "decisions": 16,
+      "progress": 0.0196078431372549,
+      "verified_status": "failed",
+      "verified_value": 1.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.5681818181818182,
+      "verified_status": "failed",
+      "verified_value": 25.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.09558823529411764,
+      "verified_status": "failed",
+      "verified_value": 13.0
+     },
+     {
+      "decisions": 13,
+      "progress": 1.0,
+      "verified_status": "achieved",
+      "verified_value": 23.0
+     }
+    ],
+    "seed": 3
+   },
+   {
+    "attacked_lifetime_index": 3,
+    "attacks": {
+     "duplicate_valid_verdict_x5": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": true,
+        "evaluator": true,
+        "meta_ledger": {
+         "accepted": false,
+         "reason": "duplicate"
+        },
+        "status": "pending",
+        "value": 10.0
+       }
+      },
+      "supervision_changed": {
+       "ledger_admitted": [
+        147,
+        148
+       ],
+       "ledger_entries": [
+        147,
+        148
+       ],
+       "ledger_rejected": [
+        0,
+        4
+       ]
+      }
+     },
+     "forged_objective_outcome": {
+      "reconcile_info": {
+       "accepted": 0,
+       "duplicates": 0,
+       "links": 0,
+       "n_outcomes": 0,
+       "predictions_resolved": 0,
+       "refused_imagined": 0,
+       "retrain_marked": 0,
+       "verified": {
+        "accepted": false,
+        "reason": "bad signature"
+       }
+      },
+      "supervision_changed": {},
+      "verifier_accepts_signature": false
+     },
+     "stale_prediction": {
+      "registry": "refused: ResolutionBeforePredictionError: outcome observed at 1795769731.5542789 is not strictly after the prediction (made 1795773331.5542789, registered 1795773333.563529)",
+      "status_after": "pending"
+     }
+    },
+    "detected": {
+     "duplicate_valid_verdict_x5": true,
+     "forged_objective_outcome": true,
+     "imagined_outcome": null,
+     "inflated_signed_measurement": null,
+     "relabelled_measurement": null,
+     "stale_prediction": true,
+     "verdict_unchanged_by_attacks": true
+    },
+    "independent_verdict": {
+     "decisions_before_attacks": 14,
+     "due_queries": 0,
+     "pending_queries": 0,
+     "status": "pending",
+     "target": 39.0,
+     "value": 10.0
+    },
+    "independent_verdict_after_attacks": {
+     "status": "pending",
+     "value": 10.0
+    },
+    "lifetimes": [
+     {
+      "decisions": 16,
+      "progress": 0.5473684210526316,
+      "verified_status": "failed",
+      "verified_value": 52.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.14545454545454545,
+      "verified_status": "failed",
+      "verified_value": 8.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.06896551724137931,
+      "verified_status": "failed",
+      "verified_value": 2.0
+     },
+     {
+      "decisions": 16,
+      "progress": 0.5641025641025641,
+      "verified_status": "failed",
+      "verified_value": 22.0
+     }
+    ],
+    "seed": 4
+   }
+  ]
+ },
+ "executed": true,
+ "exit_codes": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  1,
+  1,
+  1,
+  1
+ ],
+ "trivial_world": {
+  "n_seeds": 0,
+  "noise_share_per_seed": {
+   "hi": null,
+   "lo": null,
+   "mean": null,
+   "n": 0,
+   "se": null
+  },
+  "runs": [],
+  "tick_share_last_lifetime": {
+   "hi": null,
+   "lo": null,
+   "mean": null,
+   "n": 0,
+   "se": null
+  },
+  "tick_share_of_abs_internal_reward": {
+   "hi": null,
+   "lo": null,
+   "mean": null,
+   "n": 0,
+   "se": null
+  },
+  "tick_share_per_seed": {
+   "hi": null,
+   "lo": null,
+   "mean": null,
+   "n": 0,
+   "se": null
+  },
+  "uniform_share": 0.0625,
+  "verified_progress": {
+   "hi": null,
+   "lo": null,
+   "mean": null,
+   "n": 0,
+   "se": null
+  }
+ }
+}

@@ -1,0 +1,73 @@
+{
+ "conditions": {
+  "A": [
+   1,
+   2,
+   3
+  ],
+  "B": [
+   0,
+   1,
+   2,
+   3
+  ],
+  "E": [
+   0,
+   1,
+   2
+  ]
+ },
+ "executed": true,
+ "family": "F1",
+ "fraction_of_delayed_outcome_records_whose_credit_changed": {
+  "hi": 1.0,
+  "lo": 1.0,
+  "mean": 1.0,
+  "n": 3,
+  "se": 0.0
+ },
+ "plan": "real",
+ "records_whose_credit_changed_after_later_decisions_per_run": {
+  "hi": 27.0,
+  "lo": 23.0,
+  "mean": 24.666666666666668,
+  "n": 3,
+  "se": 1.2018504251546633
+ },
+ "records_with_delayed_outcome_per_run": {
+  "hi": 27.0,
+  "lo": 23.0,
+  "mean": 24.333333333333332,
+  "n": 3,
+  "se": 1.3333333333333335
+ },
+ "results_dir": "/workspace/camlive/runs/cam_live/eval/v2/results/real",
+ "rudder_conservation_error": {
+  "max": 0.0,
+  "mean": 0.0,
+  "n_objectives": 6
+ },
+ "scale": {
+  "A": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "B": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  },
+  "E": {
+   "backbone": "Qwen/Qwen3-4B",
+   "core": "50m",
+   "real": true
+  }
+ },
+ "seeds": [
+  0,
+  1,
+  2,
+  3
+ ]
+}
