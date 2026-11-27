@@ -2,7 +2,8 @@
 
 ``SignalAssembler.assemble`` builds the named vector of ``reward.signals`` for a batch of stored decisions. Every
 value is something that had been observed, measured or predicted *by the time the reward is computed* — the moment
-H_{t+1} was formed (``reward_time`` = newest item of ``post_item_refs``, else decision time + duration). Nothing
+H_{t+1} was formed (``reward_time`` = the later of decision time + duration and the newest item of
+``post_item_refs``). Nothing
 that matured later is read, and nothing is invented: a signal with no source is masked (value 0, mask 0).
 
 Source of each signal, in priority order (first available wins):
@@ -84,9 +85,8 @@ def context_key(rec: ExperienceRecord) -> str:
 
 def reward_time(rec: ExperienceRecord, post_items: Sequence[Any]) -> float:
     """When H_{t+1} was formed: nothing observed later may enter the reward of this decision."""
-    if post_items:
-        return max(float(i.ts) for i in post_items)
-    return float(rec.decision.ts) + max(float(rec.duration_s), 0.0)
+    end = float(rec.decision.ts) + max(float(rec.duration_s), 0.0)
+    return max([end] + [float(i.ts) for i in post_items])
 
 
 def _finite(x: Any) -> Optional[float]:

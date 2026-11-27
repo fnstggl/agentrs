@@ -1,4 +1,8 @@
-"""cam_live.reward.selfgoals — budgeted goal-free learning (spec 11.4): the model-independent machinery.
+"""cam_live.reward.selfgoals — budgeted goal-free learning (spec 11.4).
+
+``SelfGoalSelector`` is the model-independent machinery; :class:`GoalFreeMode` wires it onto the real model and
+its Bayesian fast layer (proposal from epistemic uncertainty and achievable progress, achievement decided by
+observation, fixed budget, usefulness judged on later independently assigned objectives).
 
 When no objective is assigned CAM may choose learning goals of its own, inside a fixed resource budget:
 
@@ -21,10 +25,12 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from ..contracts import Cost, Trust
+from typing import Tuple
+
+from ..contracts import ActionSpec, Clock, Cost, GoalStatus, OutcomeKind, OutcomeQuery, Trust, new_id
 from .integrity import LedgerEntry, NoisyTVGate, SelfGoalDiscount
 
-__all__ = ["GoalFreeBudget", "LearningGoalCandidate", "SelectedGoal", "SelfGoalSelector"]
+__all__ = ["GoalFreeBudget", "LearningGoalCandidate", "SelectedGoal", "SelfGoalSelector", "SelfGoal", "GoalFreeMode"]
 
 
 @dataclass
@@ -170,3 +176,195 @@ class SelfGoalSelector:
         self.discount.load_state_dict(d["discount"])
         self.gate.load_state_dict(d["gate"])
         self.history, self._later = list(d["history"]), list(d["later"])
+
+
+# ================================================================================================ on the real model
+@dataclass
+class SelfGoal:
+    """One self-chosen learning goal: "predict ``query`` under ``action`` better than now". Never an objective:
+    ``origin`` is ``Trust.SELF`` and its outcome cannot enter the outer objective of the reward."""
+    goal_id: str
+    key: str
+    description: str
+    action: ActionSpec
+    query: OutcomeQuery
+    phi: Any                           # [F] features of (action, query) under the belief at proposal time
+    epistemic_before: float            # epistemic std of the prediction at proposal
+    predicted_progress: float          # calibrated achievable progress (nats)
+    required_progress: float           # progress the observation must show for the goal to count as achieved
+    score: float
+    discount: float
+    created_at: float = 0.0
+    status: str = GoalStatus.PENDING
+    realised_progress: Optional[float] = None
+    epistemic_after: Optional[float] = None
+    origin: str = Trust.SELF
+    selected: Optional[SelectedGoal] = None
+
+
+class GoalFreeMode:
+    """Autonomous learning when no objective is assigned (spec 11.4), on ``CamLiveModel`` + ``FastBeliefState``.
+
+    propose   for candidate (action, outcome query) pairs supplied by the candidate generators: epistemic
+              uncertainty from the fast posterior, achievable progress = expected information gain of one
+              observation, 1/2 log(1 + epistemic_var / noise), scaled by how much of the progress predicted for
+              that context was actually realised before (so unpredictable contexts stop looking learnable), with
+              the repeat / triviality discount, the noisy-TV gate and the fixed budget of ``SelfGoalSelector``
+    resolve   the *observed* outcome is absorbed by the fast layer; realised progress = improvement of the
+              predictive NLL on the observations of that context (earlier ones and the new one), the same targets
+              before and after; the goal is ACHIEVED only if that reaches ``required_progress``. No observation,
+              no achievement. The budget is charged with the actual cost either way.
+    Nothing here produces a reward for the outer objective, and the mode is off whenever an objective is assigned.
+    """
+
+    def __init__(self, model: Any, fast: Any, budget: GoalFreeBudget, *, selector: Optional[SelfGoalSelector] = None,
+                 achieve_fraction: float = 0.25, calibration_rate: float = 0.3, replay_per_key: int = 8,
+                 min_progress: float = 0.02, clock: Optional[Clock] = None):
+        self.model, self.fast = model, fast
+        self.selector = selector or SelfGoalSelector(budget)
+        self.budget = self.selector.budget
+        self.achieve_fraction, self.calibration_rate = float(achieve_fraction), float(calibration_rate)
+        self.replay_per_key = int(replay_per_key)
+        self.min_progress = float(min_progress)                # nats: below this a context is not worth a decision
+        self.clock = clock
+        self.calibration: Dict[str, float] = {}                # key -> realised / predicted progress (ratio of EMAs)
+        self._cal: Dict[str, Tuple[float, float]] = {}         # key -> (EMA realised, EMA predicted)
+        self.achieved: Dict[str, Tuple[int, int]] = {}         # key -> (achieved, resolved)
+        self._replay: Dict[str, List[Tuple[Any, float, float]]] = {}   # key -> [(phi, y, exposure)]
+        self.goals: List[SelfGoal] = []
+
+    # ---------------------------------------------------------------------------------------- proposal
+    @staticmethod
+    def key_of(action: ActionSpec, query: OutcomeQuery) -> str:
+        return f"{action.operation}|{query.metric}"
+
+    def active(self, objective_assigned: bool) -> bool:
+        return not objective_assigned and not self.budget.exhausted
+
+    def p_success(self, key: str) -> float:
+        a, n = self.achieved.get(key, (0, 0))
+        return (a + 1.0) / (n + 2.0)
+
+    def _features(self, b: Any, pairs: Sequence[Tuple[ActionSpec, OutcomeQuery]], goal_text: str = "") -> Any:
+        import torch
+        with torch.no_grad():
+            e_a, _ = self.model.encode_actions([[a for a, _ in pairs]])
+            e_g = self.model.encode_goals([goal_text])
+            e_q, _, _, _ = self.model.encode_queries([[q for _, q in pairs]])
+            phi = self.model.features(self.model.decision_latent(b, e_a, e_g), e_q)[0]       # [N, N, F]
+        idx = torch.arange(len(pairs), device=phi.device)
+        return phi[idx, idx]
+
+    def candidates(self, b: Any, pairs: Sequence[Tuple[ActionSpec, OutcomeQuery]]
+                   ) -> List[Tuple[LearningGoalCandidate, Any, float]]:
+        """(candidate, phi, raw predicted progress) for every pair whose outcome kind the fast layer supports."""
+        if not pairs:
+            return []
+        phi = self._features(b, pairs)
+        out = []
+        for i, (a, q) in enumerate(pairs):
+            if not self.fast.supports(q.kind):
+                continue
+            ex = q.exposure if q.kind != OutcomeKind.REAL else None
+            _, v, noise = self.fast.predict(phi[i], q.kind, ex)
+            v, noise = max(float(v), 0.0), max(float(noise), 1e-12)
+            raw = 0.5 * math.log1p(v / noise)
+            key = self.key_of(a, q)
+            achievable = raw * self.calibration.get(key, 1.0)
+            cand = LearningGoalCandidate(
+                key=key, description=f"predict {q.metric} after {a.operation}", epistemic=math.sqrt(v),
+                achievable_progress=achievable if achievable >= self.min_progress else 0.0,
+                p_success=self.p_success(key), transfer=1.0, est_cost=a.est_cost)
+            out.append((cand, phi[i].detach().cpu(), raw))
+        return out
+
+    def propose(self, b: Any, pairs: Sequence[Tuple[ActionSpec, OutcomeQuery]], *, k: int = 1,
+                objective_assigned: bool = False) -> List[SelfGoal]:
+        """Up to ``k`` self-chosen learning goals for belief ``b`` [1, D]; empty when an objective is assigned,
+        the budget is spent or nothing has positive expected learning value."""
+        if not self.active(objective_assigned):
+            return []
+        cands = self.candidates(b, pairs)
+        by = {id(c): (i, phi, raw) for i, (c, phi, raw) in enumerate(cands)}
+        supported = [(a, q) for a, q in pairs if self.fast.supports(q.kind)]
+        picked = self.selector.select([c for c, _, _ in cands], k)
+        now = float(self.clock.now()) if self.clock is not None else 0.0
+        out = []
+        for sel in picked:
+            i, phi, raw = by[id(sel.candidate)]
+            a, q = supported[i]
+            g = SelfGoal(goal_id=new_id("sgoal"), key=sel.candidate.key, description=sel.candidate.description,
+                         action=a, query=q, phi=phi, epistemic_before=sel.candidate.epistemic,
+                         predicted_progress=sel.candidate.achievable_progress,
+                         required_progress=self.achieve_fraction * raw, score=sel.score, discount=sel.discount,
+                         created_at=now, selected=sel)
+            self.goals.append(g)
+            out.append(g)
+        return out
+
+    # ---------------------------------------------------------------------------------------- resolution
+    def resolve(self, goal: SelfGoal, value: Optional[float], cost: Cost, *, censored: Optional[bool] = None
+                ) -> SelfGoal:
+        """Close a goal with what was actually observed (``value=None``: nothing was observed)."""
+        if goal.status != GoalStatus.PENDING:
+            raise ValueError("this goal was already resolved")
+        q = goal.query
+        ex = q.exposure if q.kind != OutcomeKind.REAL else None
+        raw = goal.required_progress / max(self.achieve_fraction, 1e-12)
+        if value is None or not math.isfinite(float(value)):
+            realised, eps_after = 0.0, goal.epistemic_before
+        else:
+            targets = self._replay.get(goal.key, []) + [(goal.phi, float(value), q.exposure)]
+            nll = lambda: [float(self.fast.nll(p, y, q.kind, e if q.kind != OutcomeKind.REAL else None,
+                                               censored if p is goal.phi else None)) for p, y, e in targets]
+            before = nll()
+            self.fast.update(goal.phi, float(value), q.kind, exposure=ex, censored=censored)
+            after = nll()
+            realised = sum(b - a for b, a in zip(before, after)) / len(targets)
+            eps_after = math.sqrt(max(float(self.fast.predict(goal.phi, q.kind, ex)[1]), 0.0))
+            self._replay[goal.key] = targets[-self.replay_per_key:]
+        goal.realised_progress, goal.epistemic_after = realised, eps_after
+        goal.status = GoalStatus.ACHIEVED if (value is not None and realised >= max(goal.required_progress,
+                                                                                    self.min_progress)) \
+            else GoalStatus.FAILED
+        a, n = self.achieved.get(goal.key, (0, 0))
+        self.achieved[goal.key] = (a + int(goal.status == GoalStatus.ACHIEVED), n + 1)
+        r = self.calibration_rate
+        num, den = self._cal.get(goal.key, (raw, raw))
+        num, den = (1.0 - r) * num + r * min(realised, 2.0 * raw), (1.0 - r) * den + r * raw
+        self._cal[goal.key] = (num, den)
+        self.calibration[goal.key] = min(2.0, max(0.0, num / den)) if den > 0 else 0.0
+        self.selector.record_result(goal.selected, cost, epistemic_after=eps_after, realised_progress=realised)
+        return goal
+
+    # ---------------------------------------------------------------------------------------- usefulness
+    def record_later_objective(self, entry: LedgerEntry, predicted_without: float) -> None:
+        self.selector.record_later_objective(entry, predicted_without)
+
+    def usefulness(self) -> Dict[str, Any]:
+        return self.selector.usefulness()
+
+    def report(self) -> Dict[str, Any]:
+        done = [g for g in self.goals if g.status != GoalStatus.PENDING]
+        by_key: Dict[str, Dict[str, float]] = {}
+        for g in done:
+            d = by_key.setdefault(g.key, {"n": 0, "achieved": 0, "realised": 0.0})
+            d["n"] += 1
+            d["achieved"] += int(g.status == GoalStatus.ACHIEVED)
+            d["realised"] += float(g.realised_progress or 0.0)
+        return {"goals": len(self.goals), "resolved": len(done),
+                "achieved": sum(g.status == GoalStatus.ACHIEVED for g in done), "by_key": by_key,
+                "budget_remaining": self.budget.remaining(), "budget_exhausted": self.budget.exhausted,
+                "calibration": dict(self.calibration), "usefulness": self.usefulness(),
+                "progress_estimator_error": self.selector.progress_estimator_error()}
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {"selector": self.selector.state_dict(), "calibration": dict(self.calibration),
+                "cal": {k: list(v) for k, v in self._cal.items()},
+                "achieved": {k: list(v) for k, v in self.achieved.items()}}
+
+    def load_state_dict(self, d: Mapping[str, Any]) -> None:
+        self.selector.load_state_dict(d["selector"])
+        self.calibration = dict(d["calibration"])
+        self._cal = {k: (float(v[0]), float(v[1])) for k, v in d.get("cal", {}).items()}
+        self.achieved = {k: (int(v[0]), int(v[1])) for k, v in d["achieved"].items()}
