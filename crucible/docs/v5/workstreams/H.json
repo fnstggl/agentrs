@@ -77,9 +77,9 @@
   ],
   "probe_counts_second_continuation": {
    "train": 63,
-   "eval": 21,
-   "named_items_admitted": 59,
-   "registered_families": 96
+   "eval": 22,
+   "named_items_admitted": 60,
+   "registered_families": 97
   },
   "tried_not_adopted_second_continuation": [
    "plan_supply_chain (multi-regime demand, alternating regimes, larger single shift, holding 1.0-1.5 at the retailer; echelon base-stock reference with lag identification by matching shipments to receipts)",
@@ -92,7 +92,8 @@
    "dl_delayed_adoption (8.6.3)",
    "net_congestion_routes (8.7.1)",
    "plan_spoilage (8.4.2)",
-   "plan_serial_stages (8.4.3)"
+   "plan_serial_stages (8.4.3)",
+   "net_interdependent (8.7.4, evaluation)"
   ]
  },
  "requirements": {
@@ -146,8 +147,8 @@
    "tests": [
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "MET in probes (21 of 20), to be confirmed by the registry-wide run",
-   "notes": "Evaluation families (v5-eval-1) admitted on both seed sets in probes: 8 at the start of wave 3b, 15 after the first agent, 21 after the continuation (hc_feedback_hidden, team_schedule, ch_sign_reversal, cxc_balancing_constraint, cxc_latched_reversal, mk_gate). Several prediction-world references are weak on one seed of a set (ch_sign_reversal, cxc_balancing_constraint, cxc_latched_reversal): admitted under the two-of-three rule."
+   "status_claim": "MET in probes (22 of 20), to be confirmed by the registry-wide run",
+   "notes": "Evaluation families (v5-eval-1) admitted on both seed sets in probes: 8 at the start of wave 3b, 15 after the first agent, 21 after the first continuation (f1 registry run at 7a4137d: 21), 22 with net_interdependent (8.7.4, new in the second continuation). Several prediction-world references are weak on one seed of a set (ch_sign_reversal, cxc_balancing_constraint, cxc_latched_reversal): admitted under the two-of-three rule."
   },
   "M.3": {
    "implementation_files": [
@@ -314,8 +315,8 @@
    "tests": [
     "tests/v5/test_gate_SP_8_0.py"
    ],
-   "status_claim": "NOT MET in probes (59 of 60 named items admitted; 8.7.4 missing)",
-   "notes": "All 60 items have a registered family. Second continuation: 8.4.1 (plan_distribution, des_inventory), 8.4.2 (plan_spoilage, new), 8.4.3 (plan_serial_stages, new), 8.6.3 (dl_delayed_adoption, new), 8.7.1 (net_congestion_routes, new) admitted on both seed sets in probes. Missing: 8.7.4 interdependent infrastructure failures (net_cascade, evaluation split: the best simple policy is within 0.8 of the oracle on two seeds of a set, and its 'achievable' check fails on seed 12)."
+   "status_claim": "MET in probes (60 of 60 named items admitted), to be confirmed by the registry-wide run",
+   "notes": "All 60 items have an admitted family in probes on seeds 0-2 and 10-12. Second continuation: 8.4.1 (plan_distribution, des_inventory fixed), 8.4.2 (plan_spoilage), 8.4.3 (plan_serial_stages), 8.6.3 (dl_delayed_adoption), 8.7.1 (net_congestion_routes) and 8.7.4 (net_interdependent, evaluation) are new primitive-graph families scored by held-out predictions; the original planning/graph/program families of these items (plan_perishable, des_perishable, plan_supply_chain, pe_rollout_targeting, net_routing, net_cascade) are registered but not admitted."
   },
   "SP-8.0b": {
    "implementation_files": [
@@ -362,7 +363,7 @@
   }
  },
  "limitations": [
-  "Gate M counts are probe counts until the registry-wide run lands: M.1 63/60 training families, M.2 21/20 evaluation families, SP-8.0 59/60 named items (last registry-wide run f1 at 7a4137d: 54/21/54).",
+  "Gate M counts are probe counts until the registry-wide run lands: M.1 63/60 training families, M.2 22/20 evaluation families, SP-8.0 60/60 named items (last registry-wide run f1 at 7a4137d: 54/21/54).",
   "Seventeen families became prediction tasks (D-63 and its amendment): their objective is the interventional or end-of-episode response at held-out settings, scored 1 - MSE / variance of the truth; their public references are model-fitting procedures (refs_adapt), several of them assuming a model class (a logit demand curve, a drifting bump, a rival that follows your average price, a peaked dose law, a saturating hub, a saturating output link).",
   "Several prediction references are weak on one seed of a seed set (ch_sign_reversal, ch_demand_shift, cxc_balancing_constraint, cxc_latched_reversal); they pass the two-of-three rule, the margin is small.",
   "Program-execution families pay compute by measured CPU time (D-20 metering); admission values of pe_* families can vary with machine load.",
@@ -377,7 +378,7 @@
   "team_commons v2 (bad spells) is used by experience tests and gates (SP-11.1, SP-11.1b, OO, S): plumbing unchanged; stocks now fall during hidden spells.",
   "tests/test_v5_research_unit.py and tests/test_v5_substrate_modes.py exceed the 5-minute direct-run budget and were not run here; they reference rapid families only through crucible.experience.",
   "primitive_graph.true_response can now fix discrete decisions in a condition (used by the look-alike markets' certification state); fingerprints.legacy_recreation ignores journal messages of prediction worlds (D-9 still flags ch_sign_reversal, ch_rule_change, ch_wandering_taste, all evaluation families).",
-  "Second continuation (2026-11-27): new families dl_delayed_adoption, net_congestion_routes, plan_spoilage, plan_serial_stages (registry now 96 families); versions bumped: ch_tech_transition 3, eng_delayed_controller 2, dl_short_term_damage 2; plan_distribution's action space gained a 'program' kind (fingerprint action_interface changed); lab_drift_blanks's held-out doses changed to 4.25-5.0. Any cached admission or fingerprint registries keyed by family version/source digest must be recomputed.",
+  "Second continuation (2026-11-27): new families dl_delayed_adoption, net_congestion_routes, plan_spoilage, plan_serial_stages and net_interdependent (evaluation) (registry now 97 families); versions bumped: ch_tech_transition 3, eng_delayed_controller 2, dl_short_term_damage 2; plan_distribution's action space gained a 'program' kind (fingerprint action_interface changed); lab_drift_blanks's held-out doses changed to 4.25-5.0. Any cached admission or fingerprint registries keyed by family version/source digest must be recomputed.",
   "The slot job 'H: rapid final 2' (tools/final_job.sh f2 in the H scratch directory) snapshots the COMMITTED tree at its start (git archive HEAD) into a small git repository, runs the registry-wide admission (2 processes), assembles the cache and runs the H gate tests and unit tests there; outputs land in <scratch>/w3b-rapid/out/f2-* and the unofficial evidence copies in out/f2-evidence. The first such run (f1) failed every gate test at the evidence-record step only because its rsync snapshot was not a git checkout (fixed)."
  ],
  "history": {
