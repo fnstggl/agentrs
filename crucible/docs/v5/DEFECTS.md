@@ -1099,8 +1099,8 @@ B_population verdict) and P's own findings.
   "found_by": "workstream K gate runs (wave 3b); reopened by the independent verifier of f013d086"
  },
  "status": "open",
- "summary": "SP-12.0 not established on the Tier 3 civilisation: single-seed runs gave 7 (2981d88), 8 (5dfa700), 10 (c212a6f) and 11 (7eb39d1) capability kinds, never replicated, none at the final head; and the two passing runs measured create_services_used_by_others without direction (a learning party only buying counted) and compete_for_scarce_resources as co-renting far below capacity (max utilisation 0.14). With the measures fixed (DEF-K-10) civilisation compute is not scarce, so that kind is expected to be missing unless the learners contest capacity.",
- "history": "closed as fixed at 4e9108e on the c212a6f/7eb39d1 runs; reopened in the repair pass (verifier of f013d086): variance across seeds, no run at the final head, and two weakly measured kinds"
+ "summary": "SP-12.0 not established on the Tier 3 civilisation: single-seed runs gave 7 (2981d88), 8 (5dfa700), 10 (c212a6f) and 11 (7eb39d1) capability kinds, never replicated, none at the final head; and the two passing runs measured create_services_used_by_others without direction (a learning party only buying counted) and compete_for_scarce_resources as co-renting far below capacity (max utilisation 0.14). With the measures fixed (DEF-K-10) the balanced profile's compute (2 x 256 cores) never binds, so that kind cannot occur there.",
+ "history": "closed as fixed at 4e9108e on the c212a6f/7eb39d1 runs; reopened in the repair pass (verifier of f013d086): variance across seeds, no run at the final head, and two weakly measured kinds. Repair: the gate now pre-trains once and runs two seeds (7, 8) of the infrastructure_constrained profile (one 24-core provider the population's sites nearly fill: compute binds) with the direction-aware and binding-scarcity measures; selfplay_capability_kinds is the smaller count of the two runs. Open until that gate passes on the civilisation at the branch head."
 }
 ```
 
@@ -1223,6 +1223,54 @@ B_population verdict) and P's own findings.
  "status": "fixed",
  "summary": "Q.5 policy_versions_recorded counted behaviour-cloning epochs as 'update' versions (234 = 190 RL + 44 BC at eb6f1d7, reported as 234 reinforcement-update versions); the same versions fed SP-12.1b's lifetime-adaptation count with demonstration-world times; imitate() restarted its minibatch order every call.",
  "fixed_by": "c5c/w3b-selfplay 1345f81: imitate() versions have origin behaviour_cloning (reported separately); one minibatch-order generator across imitate() calls"
+}
+```
+
+### DEF-K-13 (low, fixed): Q.6's 'unfamiliar' held-out family (heldout_gru) is behaviour-cloned from the same scripted demonstr
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-13",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_a_heldout_family_without_demonstrations_learns_by_self_play_alone_and_its_difference_is_measured, tests/v5/test_gate_Q.py::test_Q_6_evaluation_against_unfamiliar_opponents",
+ "requirements": [
+  "Q.6"
+ ],
+ "severity": "low",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "Q.6's 'unfamiliar' held-out family (heldout_gru) is behaviour-cloned from the same scripted demonstrator as the training groups: unfamiliar only in architecture, algorithm, data seeds and training world; no measure of how differently it acts.",
+ "fixed_by": "c5c/w3b-selfplay (repair pass 2): a second held-out family heldout_rl (gru+a2c, self-play only from its random initialisation, no demonstrations, no behaviour prior) plays every held-out match; campaign.heldout_similarity reports the host-level JS divergence of each held-out family from the training groups next to that among the training groups; the evidence labels name both training sources"
+}
+```
+
+### DEF-K-14 (low, fixed): SP-12.0 respond_to_changing_strategies counted any divergence of alpha's decisions (including reads 
+
+```json
+{
+ "area": "K_selfplay",
+ "id": "DEF-K-14",
+ "owner": "K",
+ "regression_tests": "tests/test_v5_selfplay_multiagent.py::test_strategy_switch_counts_state_changing_responses_and_reports_the_responders_own_noise, tests/v5/test_gate_SP_12_0.py",
+ "requirements": [
+  "SP-12.0"
+ ],
+ "severity": "low",
+ "source": {
+  "audit": "K_selfplay",
+  "file": "docs/v5/workstreams/K.json",
+  "finding": null,
+  "found_by": "independent verifier of c5c/w3b-selfplay at f013d086 (wave 3b)"
+ },
+ "status": "fixed",
+ "summary": "SP-12.0 respond_to_changing_strategies counted any divergence of alpha's decisions (including reads and waits) after beta's policy was replaced, with no scale: a single flipped sampled read counted as a response.",
+ "fixed_by": "c5c/w3b-selfplay (repair pass 2): a response needs a differing accepted state-changing action of alpha while the control and replicate branches agree exactly; a fourth branch changes only alpha's sampling generators and its divergence and host/tool TV are reported beside the switch's (switch_shift_exceeds_own_noise)"
 }
 ```
 

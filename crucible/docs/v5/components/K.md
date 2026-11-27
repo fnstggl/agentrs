@@ -15,7 +15,8 @@ is the evaluator's.
 knowledge.py     a participant's private memory (ids by field name, own things, words, its own tool record)
 grammar.py       argument candidates from tool schemas + own knowledge; scripted syntax for files/terms/input
 policy.py        PolicyGroup: hierarchical host -> tool -> slot policy (MLP or GRU), REINFORCE / A2C / PPO,
-                 evidence-scaled updates, no-signal controls, behaviour cloning, checkpoints
+                 evidence-scaled updates, learning controls (shuffled / negated signal twins), behaviour
+                 cloning, checkpoints
 objectives.py    learner-side drives (profit, reach, adoption) + novelty / rejection, from own observations only
 agents.py        LearnerAgent (one identity of a group), SemanticAgent (class 4)
 registry.py      versions, hashes, identities, provenance, experience, actions, outcomes, updates, composition
@@ -25,7 +26,8 @@ analysis.py      parties; cooperative / competitive interactions; consequences; 
 integrity.py     independence audit, canary taps, shared-reward audit, controlled identities, collusion battery
 league.py        MatchSpec, play / replay (reproducible cross-play), held-out evaluation on sealed seeds, Elo, PFSP
 demonstrator.py  SCRIPTED workflow demonstrator (behaviour-cloning data and feasibility only)
-campaign.py      demonstrations -> pre-training -> held-out family -> civ run -> learning evidence -> strategy switch
+campaign.py      demonstrations -> pre-training -> held-out families -> civ run -> learning evidence -> strategy
+                 switch (with an own-noise branch)
 ```
 
 ## How a learned participant acts
@@ -40,8 +42,16 @@ signal is the identity's own `Objective` over its own previous and current obser
 
 Learning: each group's own buffer, optimiser (persisted), generators; an update every 4 decisions per identity;
 advantages divided by a running RMS of the signal (no per-batch renormalisation); a batch without signal is not
-trained on; an update counts only when the weights hash changes. Every learning group feeds a no-signal twin the
-same batches with signal 0 (it must not change). Pre-training: behaviour cloning on decisions recorded from the
+trained on; an update counts only when the weights hash changes. Each identity's signal arrives with its next
+observation and is attached to that identity's own decision record; a group trains only decisions whose signal has
+arrived (in a shared training system the update one identity triggers leaves the others' latest decisions waiting;
+before 1345f81 they were trained with 0 and their signals dropped: DEF-K-8). Learning controls (Q.7): every learning
+group trains two twins, cloned at the start of the civilisation run, on exactly its batches with the signals
+permuted across the batch (shuffled) or negated. Any training changes parameters and behaviour - the KL anchor, the
+entropy bonus and the optimiser move a twin as much as the learner (DEF-K-9) - so behaviour change alone is not
+evidence of learning from the signal; the measure is the signal-direction gain: the expected mean own signal of the
+tool the policy picks on the run's recorded situations, from the initial to the final policy, for the group and
+each twin (signal-directed when the group's gain exceeds both twins'; in-sample). Pre-training: behaviour cloning on decisions recorded from the
 scripted demonstrator in CPU training worlds (open_digital + v5 commerce/software modules), never the evaluated
 civilisation; groups share the demonstration corpus but have their own seeds and batch orders (one Adam optimiser
 across the epochs). After pre-training a frozen private copy of the network is kept as the anchor of
@@ -74,8 +84,11 @@ Gate tests (civilisation, GPU text path): `tests/v5/test_gate_Q.py` and `test_ga
 demonstration worlds of 48 h, 12 epochs of cloning, a held-out GRU/PPO family, 96 simulated hours with 9 admitted
 identities, held-out evaluation on two sealed seeds, strategy switch) and `test_gate_SP_12_1/1b/2/3/3b.py` (24 h):
 
-    PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 4000 --ram-mb 6000 --timeout 7200 \
+    PYTHONPATH=src python -m crucible.scale.slots --cpu 1 --gpu-mb 3000 --ram-mb 5000 --timeout 4200 \
         --label "K: gate Q" -- python -m pytest -q tests/v5/test_gate_Q.py
+
+`test_gate_SP_12_0.py` pre-trains once and runs two civilisations (infrastructure_constrained, seeds 7 and 8), each
+also with the frozen pre-trained control: about 50 minutes on a GPU slot.
 
 ## Measured on the Tier 3 civilisation (unofficial runs, wave 3b)
 
@@ -90,12 +103,34 @@ identities, held-out evaluation on two sealed seeds, strategy switch) and `test_
 | test_gate_SP_12_3.py | 7eb39d1 | criterion met (0 controlled-identity cents counted) but the test failed on its positive control: beta0's purchase was netted (093a05d) or related (7eb39d1, shared organisation) by the evaluator; positive control replaced by an unrelated buyer in 5be64e6, civilisation re-run queued |
 | test_gate_SP_12_3b.py | 093a05d | passed: 0 private-observation accesses (24 canaries), 0 shared reward channels, 6 collusion probes (also c212a6f) |
 
-What the runs show about learning (reported, not required to be large): parameters and behaviour change (behaviour
-TV on recorded situations 0.34 vs 0 for the no-signal twins at eb6f1d7), and pre-training now gives competent acting
+What the runs show about learning (reported, not required to be large): parameters and behaviour change, but the
+eb6f1d7 figure "behaviour TV 0.34 vs 0 for the no-signal twins" is NOT evidence of learning: that twin could not
+change by construction (DEF-K-9), and twins trained on permuted or negated signals change behaviour as much as the
+learner (verifier probe: TV real/shuffled/flipped alpha 0.029/0.023/0.028). The signal-direction gain against those
+twins is the learning measure from 1345f81 on (CPU proxy open_digital 36 h: all 4 groups' gains above both twins').
+The Part 12 capabilities come from behaviour cloning of the scripted demonstrator: frozen pre-trained groups with no
+updates exercised as many world-interaction kinds as the learning groups (verifier probe, open_digital 36 h: 7 vs 6;
+DEF-K-11); test_gate_SP_12_0.py now plays every civilisation a second time with the frozen pre-trained policies and
+reports which capabilities learning added. Pre-training gives competent acting
 (state-changing accept rates 0.30-0.53 in the first third of the run, against 0.05-0.17 before eb6f1d7), but outcomes do
 not improve within a 96 h run for 3 of 4 groups (accept rates fall, waits rise as the novelty term decays and the
 external drives stay near zero), and the trained alpha scored 50,000 cents below its initial copy against the held-out
-family. Which capabilities are exercised varies between runs (7, 8, 10, 11 of 11 over four runs, one seed each).
+family. Which capabilities are exercised varies between runs (7, 8, 10, 11 of 11 over four runs, one seed each, in
+the balanced profile; the two passing runs also counted a learning party's purchases as a service it created and
+co-renting at 14% utilisation as competition for a scarce resource: DEF-K-10). SP-12.0 is now measured on two seeds
+of the infrastructure_constrained profile (one 24-core provider whose capacity the population's sites nearly fill)
+with the direction-aware, binding-scarcity measures; the criterion must hold in both runs.
+
+Held-out opponents (Q.6): `heldout_gru` (gru+ppo) is behaviour-cloned on the same scripted demonstrator (other worlds
+and seeds) and then trained by self-play, so it is unfamiliar in architecture, algorithm, data and training world but
+not in its demonstration source; `heldout_rl` (gru+a2c) never sees a demonstration (self-play from its random
+initialisation). Both play every held-out match; Q.6 reports the host-level Jensen-Shannon divergence of each from
+the training groups next to that among the training groups.
+
+Respond to changing strategies (SP-12.0): four forks of the world and every participant; control and replicate must
+agree exactly; the switch branch replaces only beta's policy; a response needs one of alpha's accepted state-changing
+actions to differ; the own-noise branch changes only alpha's sampling generators and gives the size of the shift
+alpha's own randomness produces (reported beside the switch's).
 
 ## Known limits
 

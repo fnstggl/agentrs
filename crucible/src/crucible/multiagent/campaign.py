@@ -9,9 +9,13 @@
    pre-training corpus, or dealt out disjointly; the training-data provenance (worlds, identities, decision times)
    is registered as the group's first versions. Everything after that - the self-play experience - is each
    group's own.
-3. **Held-out family** (`heldout_family`): a recurrent (GRU) PPO policy pre-trained on demonstrations from other
-   worlds and then trained by self-play among its own identities in yet another world - an architecture and
-   algorithm no training group has, never admitted to the training civilisation: an unfamiliar opponent.
+3. **Held-out families** (`heldout_family`): recurrent (GRU) policies - an architecture no training group has -
+   never admitted to the training civilisation. ``source="demonstrator"``: a PPO policy behaviour-cloned on
+   demonstrations of the same scripted demonstrator from other worlds and seeds, then trained by self-play among
+   its own identities in yet another world (unfamiliar in architecture, algorithm, data and training world, but
+   not in its demonstration source). ``source="self_play"``: an A2C policy that never saw a demonstration, trained
+   from its random initialisation by self-play alone with its own drive (independent of the scripted
+   demonstrator). `heldout_similarity` measures how differently each one acts from the training groups.
 4. **Civilisation self-play** (`civ_run`): the learning groups (shared-training group of several identities,
    independently updated groups with other algorithms and unrelated objectives), semantic generalists and, from
    half-time, a frozen historical checkpoint of the main group act in one Tier 3 civilisation with its whole
@@ -21,8 +25,11 @@
    and its twins (`learning_evidence`).
 5. **Strategy switch** (`strategy_switch`): the world and every participant are forked; in one branch a competitor
    group's policy is replaced, in two others nothing changes; the main group's decisions are compared across the
-   branches (it responds to the competitor's strategy exactly when its decisions differ from the unchanged branches,
-   which must agree with each other).
+   branches (it responds to the competitor's strategy when its accepted state-changing actions differ from the
+   unchanged branches, which must agree with each other exactly; everything is identical across the branches
+   except the competitor's policy, so the difference is caused by it). A fourth branch changes only the main
+   group's own sampling randomness: how far its behaviour moves through its own noise, reported next to how far
+   the competitor's switch moved it.
 """
 from __future__ import annotations
 
@@ -46,8 +53,10 @@ CONTROL_MODES = ("shuffled", "negated")
 EVIDENCE_LABELS = {"learned": True, "scripted_demonstrations_for_pretraining": True,
                    "scripted_syntax": "code files, contract clauses and service inputs come from syntax grammars "
                                       "(crucible.multiagent.grammar); the policy chooses among them",
-                   "heldout_training_source": "behaviour cloning of the same scripted demonstrator (other worlds and "
-                                              "seeds), then gru+ppo self-play outside the league"}
+                   "heldout_training_source": "heldout_gru: behaviour cloning of the same scripted demonstrator "
+                                              "(other worlds and seeds), then gru+ppo self-play outside the league; "
+                                              "heldout_rl: gru+a2c self-play from random initialisation, no "
+                                              "demonstrations"}
 
 
 # ====================================================================== 1-3: training before the civilisation
@@ -107,24 +116,58 @@ def pretrain(registry: PolicyRegistry, specs: dict[str, dict], demos: dict, *, e
 
 
 def heldout_family(registry: PolicyRegistry, *, seed: int = 4242, demo_seeds=(31,), hours: float = 24,
-                   epochs: int = 6, demo_hours: float = 36, batch: int = 64) -> PolicyGroup:
-    """The held-out policy family (see the module docstring): frozen and registered as `heldout_gru@<n>`."""
-    d = demonstrations(demo_seeds, hours=demo_hours, n=4)
-    g = PolicyGroup("heldout_gru", "ppo", "gru", seed=int(seed))
-    registry.register_group(g, world_id=",".join(d["worlds"]), origin="initialised (held-out family)")
-    for _ in range(int(epochs)):
-        g.imitate(d["demos"], epochs=1, batch=batch)
-    g.set_prior()
+                   epochs: int = 6, demo_hours: float = 36, batch: int = 64, source: str = "demonstrator",
+                   drive: str = "profit") -> PolicyGroup:
+    """A held-out policy family (see the module docstring), frozen. ``source="demonstrator"``: `heldout_gru`
+    (gru+ppo, behaviour-cloned on scripted demonstrations of other worlds and seeds, then self-play);
+    ``source="self_play"``: `heldout_rl` (gru+a2c, self-play only from its random initialisation, no
+    demonstrations, no behaviour prior)."""
+    if source not in ("demonstrator", "self_play"):
+        raise ValueError("source must be demonstrator or self_play")
+    if source == "demonstrator":
+        d = demonstrations(demo_seeds, hours=demo_hours, n=4)
+        g = PolicyGroup("heldout_gru", "ppo", "gru", seed=int(seed))
+        registry.register_group(g, world_id=",".join(d["worlds"]), origin="initialised (held-out family)")
+        for _ in range(int(epochs)):
+            g.imitate(d["demos"], epochs=1, batch=batch)
+        g.set_prior()
+    else:
+        g = PolicyGroup("heldout_rl", "a2c", "gru", seed=int(seed))
+        registry.register_group(g, world_id=None, origin="initialised (held-out family, no demonstrations)")
     env = kernel_env(TRAINING_WORLD, int(seed))
-    m = Match(env, {g.gid: g}, [Member(f"ho{i}", "current", f"ctrl:heldout-train:{i}", g.gid) for i in range(3)],
+    m = Match(env, {g.gid: g}, [Member(f"ho{i}", "current", f"ctrl:heldout-train:{g.gid}:{i}", g.gid, drive=drive)
+                                for i in range(3)],
               registry=registry, seed=int(seed), think_s=1800)
     m.run(hours, chunk_hours=12)
     m.finish()
     m.close()
     g.frozen = True
     registry.checkpoint(g)
-    registry.versions[registry.vid(g)]["origin"] = "held-out family (gru+ppo, trained outside the league)"
+    v = registry.versions[registry.vid(g)]
+    v["origin"] = (f"held-out family ({g.arch}+{g.algo}, trained outside the league"
+                   + (", no demonstrations)" if source == "self_play" else ")"))
+    v["provenance"] = dict(v.get("provenance") or {}, heldout_source=source,
+                           scripted_demonstrator=source == "demonstrator")
     return g
+
+
+def heldout_similarity(reference: dict[str, PolicyGroup], heldout: dict[str, PolicyGroup], recs: list[dict]) -> dict:
+    """How differently the held-out families act from the training groups: the mean Jensen-Shannon divergence of
+    the host-level tool distributions (``code``, ``pkg``, ``prod``, ...) on the same recorded situations `recs`,
+    for every (held-out, training group) pair and, as the scale of comparison, for every pair of training groups
+    (which share their demonstration corpus)."""
+    def js(a: PolicyGroup, b: PolicyGroup) -> float:
+        return float(np.mean([AN.js_divergence(AN.host_mass(a.tool_probs_of(r)), AN.host_mass(b.tool_probs_of(r)))
+                              for r in recs])) if recs else 0.0
+    ref = sorted(reference)
+    out = {"situations": len(recs),
+           "heldout_vs_training": {h: {g: js(heldout[h], reference[g]) for g in ref} for h in sorted(heldout)},
+           "training_vs_training": {f"{a}|{b}": js(reference[a], reference[b]) for i, a in enumerate(ref)
+                                    for b in ref[i + 1:]}}
+    tt = list(out["training_vs_training"].values())
+    out["training_pairs_mean"] = float(np.mean(tt)) if tt else 0.0
+    out["heldout_mean"] = {h: float(np.mean(list(v.values()))) for h, v in out["heldout_vs_training"].items()}
+    return out
 
 
 # ====================================================================== 4: the civilisation run
@@ -298,7 +341,7 @@ def strategy_switch(match: Match, *, responder: str, switched: str, replacement:
     from ..experience.kernel import KernelExperienceEnv
     learners = {p: _inner(a) for p, a in match.agents.items() if isinstance(_inner(a), LearnerAgent)}
     branches = {}
-    for name in ("control", "replicate", "switch"):
+    for name in ("control", "replicate", "switch", "own_noise"):
         w = match.world.fork(f"{match.world.world_id}-{name}")
         env = KernelExperienceEnv(w, seed, agents=[], reward_mode=match.env.reward_mode, tier=match.env.tier,
                                   name=f"{match.env.name}-{name}", semantic=False)
@@ -306,6 +349,9 @@ def strategy_switch(match: Match, *, responder: str, switched: str, replacement:
         for gid, g in match.groups.items():
             if name == "switch" and gid == switched:
                 gmap[gid] = replacement.clone(f"{replacement.gid}-{name}")
+            elif name == "own_noise" and gid == responder:
+                # the same parameters with other sampling generators: the responder's own randomness only
+                gmap[gid] = g.frozen_copy(f"{gid}-{name}", seed=int(seed) + 9173)
             else:
                 gmap[gid] = g.clone(f"{gid}-{name}")
             gmap[gid].frozen = True
@@ -316,25 +362,51 @@ def strategy_switch(match: Match, *, responder: str, switched: str, replacement:
         from ..experience.loop import run_learners
         steps = int(round(hours * HOUR / match.think_s))
         run_learners(env, agents, steps, think_s=match.think_s, update_every=10**9, learn=False, check_schema=False)
-        branches[name] = {p: [(h["tool"], h["ok"]) for h in agents[p].history]
+        branches[name] = {p: [(h["tool"], bool(h["ok"]), bool(h.get("read_only"))) for h in agents[p].history]
                           for p in agents if learners[p].group.gid == responder}
         env.close()
 
+    def state_changing(x):
+        return x is not None and x[0] is not None and x[1] and not x[2]
+
     def diverged(a, b):
-        n, first = 0, None
+        n, n_state, first = 0, 0, None
         for p in a:
-            for i, (x, y) in enumerate(zip(a[p], b[p])):
+            xs, ys = a[p], b.get(p, [])
+            for i in range(max(len(xs), len(ys))):
+                x = xs[i] if i < len(xs) else None
+                y = ys[i] if i < len(ys) else None
                 if x != y:
                     n += 1
+                    n_state += int(state_changing(x) or state_changing(y))
                     first = i if first is None else min(first, i)
-        return n, first
+        return n, n_state, first
 
-    def dist(br):
-        return AN.usage_distribution([{"tool": t, "ok": ok} for v in br.values() for t, ok in v])
-    n_rep, _ = diverged(branches["control"], branches["replicate"])
-    n_sw, first = diverged(branches["control"], branches["switch"])
+    def dist(br, tools=False):
+        return AN.usage_distribution([{"tool": t, "ok": ok} for v in br.values() for t, ok, _ in v]) if not tools \
+            else _tool_dist(br)
+    n_rep, n_rep_state, _ = diverged(branches["control"], branches["replicate"])
+    n_sw, n_sw_state, first = diverged(branches["control"], branches["switch"])
+    n_noise, n_noise_state, _ = diverged(branches["control"], branches["own_noise"])
     total = sum(len(v) for v in branches["control"].values())
-    return {"responded": n_rep == 0 and n_sw > 0, "replicate_divergent_decisions": n_rep,
-            "switch_divergent_decisions": n_sw, "responder_decisions": total, "first_divergence_step": first,
-            "host_tv_switch_vs_control": AN.tv_distance(dist(branches["control"]), dist(branches["switch"])),
+    tv_sw = AN.tv_distance(dist(branches["control"]), dist(branches["switch"]))
+    tv_noise = AN.tv_distance(dist(branches["control"]), dist(branches["own_noise"]))
+    return {"responded": n_rep == 0 and n_sw_state > 0, "replicate_divergent_decisions": n_rep,
+            "switch_divergent_decisions": n_sw, "switch_divergent_state_changing": n_sw_state,
+            "responder_decisions": total, "first_divergence_step": first,
+            "host_tv_switch_vs_control": tv_sw,
+            "tool_tv_switch_vs_control": AN.tv_distance(dist(branches["control"], True),
+                                                        dist(branches["switch"], True)),
+            # the scale of the response: the same comparison when only the responder's own sampling changes
+            "own_noise_divergent_decisions": n_noise, "own_noise_divergent_state_changing": n_noise_state,
+            "host_tv_own_noise_vs_control": tv_noise,
+            "tool_tv_own_noise_vs_control": AN.tv_distance(dist(branches["control"], True),
+                                                           dist(branches["own_noise"], True)),
+            "switch_shift_exceeds_own_noise": bool(tv_sw > tv_noise),
             "responder": responder, "switched": switched, "replacement": replacement.gid, "hours": hours}
+
+
+def _tool_dist(br: dict) -> dict[str, float]:
+    c = Counter(t for v in br.values() for t, ok, ro in v if t and ok and not ro)
+    n = sum(c.values())
+    return {k: v / n for k, v in c.items()} if n else {}

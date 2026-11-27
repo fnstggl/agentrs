@@ -14,7 +14,9 @@ Tier 3 civilisation (`crucible.civ`, profile balanced, development population) i
 Each identity is admitted with its controller (alpha's three are one party). Outcomes are the evaluator's
 (`crucible.commerce.integrity`, ledger); cooperation, competition and consequences are read from the world's state
 and event log (`crucible.multiagent.analysis`). Held-out evaluation: alpha's final and initial versions, frozen,
-against a held-out GRU/PPO family (never in the training civilisation) on sealed seeds. Numeric facility-only
+against two held-out GRU families never in the training civilisation (gru+ppo behaviour-cloned on the scripted
+demonstrator's demonstrations of other worlds, then self-play; gru+a2c from self-play alone, no demonstrations) on
+sealed seeds, with how differently each acts from the training groups. Numeric facility-only
 self-play (`crucible.selfplay`) is classified and refused (Q.n1). A failure to build Tier 3 fails the tests."""
 import json
 from collections import Counter
@@ -54,7 +56,13 @@ def q(tmp_path_factory):
     reg = run["registry"]
     run["heldout_eval"] = L.heldout_evaluation(
         reg, {"final": reg.vid(run["groups"]["alpha"]), "initial": reg.vid(run["initial"]["alpha"])},
-        [reg.vid(run["heldout"])], world=f"civ:{PROFILE}", seeds=L.SEALED_SEEDS[:2], hours=12)
+        [reg.vid(run["heldout"]), reg.vid(run["heldout_rl"])], world=f"civ:{PROFILE}", seeds=L.SEALED_SEEDS[:2],
+        hours=12)
+    recs = [r for a in map(C._inner, m.agents.values()) if getattr(a, "group", None) is m.groups["alpha"]
+            for r in getattr(a, "_decisions", [])]
+    run["heldout_similarity"] = C.heldout_similarity(
+        {g: m.groups[g] for g in LEARNING}, {"heldout_gru": run["heldout"], "heldout_rl": run["heldout_rl"]},
+        recs[:: max(1, len(recs) // 60)][:60])
     run["battery"] = I.collusion_battery(m.world, groups_for_hidden_state=m.groups, clean_party_of=ctrl)
     yield run
     m.close()
@@ -169,8 +177,18 @@ def test_Q_6_evaluation_against_unfamiliar_opponents(q):
     ho = q["heldout_eval"]
     reg = q["registry"]
     fam = reg.versions[reg.vid(q["heldout"])]
+    fam_rl = reg.versions[reg.vid(q["heldout_rl"])]
+    sim = q["heldout_similarity"]
     record("Q.6", {"heldout_opponent_evaluations": ho["matches"], "sealed_seeds": json.dumps(ho["seeds"]),
                    "heldout_family": f"{fam['arch']}+{fam['algo']}",
+                   "heldout_families": json.dumps({"heldout_gru": [f"{fam['arch']}+{fam['algo']}",
+                                                                   "scripted demonstrator, then self-play"],
+                                                   "heldout_rl": [f"{fam_rl['arch']}+{fam_rl['algo']}",
+                                                                  "self-play only, no demonstrations"]}),
+                   "heldout_host_js_vs_training_mean": json.dumps({k: round(v, 4) for k, v in
+                                                                   sim["heldout_mean"].items()}),
+                   "training_groups_host_js_mean": round(sim["training_pairs_mean"], 4),
+                   "similarity_situations": sim["situations"],
                    "training_families": json.dumps(sorted({f"{reg.versions[reg.vid(q['groups'][g])]['arch']}+"
                                                            f"{q['groups'][g].algo}" for g in LEARNING})),
                    "final_score_mean": ho["summary"]["final"]["score_mean"],
@@ -178,11 +196,17 @@ def test_Q_6_evaluation_against_unfamiliar_opponents(q):
                    "final_minus_initial_score": ho["paired"]["diff_mean"],
                    "final_minus_initial_rejected": ho["paired"]["rejected_diff_mean"]},
            command=CMD, labels=LABELS,
-           notes="frozen candidates vs frozen held-out GRU/PPO policies trained outside the league, in civilisations "
-                 "on sealed seeds no training run used; scores are evaluator outcomes (cash change + independent "
-                 "revenue). The difference final - initial is reported, not required to be positive.")
-    assert ho["matches"] >= 1
-    assert fam["arch"] == "gru" and all(q["groups"][g].arch != "gru" for g in LEARNING)
+           notes="frozen candidates vs two frozen held-out GRU families trained outside the league (heldout_gru: "
+                 "behaviour-cloned on the same scripted demonstrator's demonstrations of other worlds and seeds, "
+                 "then self-play - unfamiliar in architecture, algorithm, data and world, not in its demonstration "
+                 "source; heldout_rl: self-play only from its random initialisation, no demonstrations), in "
+                 "civilisations on sealed seeds no training run used; scores are evaluator outcomes (cash change + "
+                 "independent revenue). The difference final - initial is reported, not required to be positive. "
+                 "Similarity: mean Jensen-Shannon divergence of host-level tool distributions on alpha's recorded "
+                 "situations, held-out vs training groups and among the training groups")
+    assert ho["matches"] >= 1 and len(ho["heldout"]) == 2
+    assert fam["arch"] == "gru" and fam_rl["arch"] == "gru" and all(q["groups"][g].arch != "gru" for g in LEARNING)
+    assert fam_rl["provenance"]["heldout_source"] == "self_play" and sim["situations"] >= 1
 
 
 def test_Q_7_evidence_of_neural_learning(q):

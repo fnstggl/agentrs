@@ -528,3 +528,46 @@ def test_arguments_from_a_syntax_grammar_are_labelled_scripted_syntax():
     assert act["tool"] == "svc.run" and rec["scripted_syntax"] == ["input"]
     act, rec, _ = g.decide("p:x", dict(obs, tools=[]), kn, np.zeros(STATE_DIM, np.float32), None)
     assert act is None and rec["scripted_syntax"] == []
+
+
+def test_a_heldout_family_without_demonstrations_learns_by_self_play_alone_and_its_difference_is_measured(run):
+    """Verifier note (Q.6): the behaviour-cloned held-out family shares the training groups' scripted demonstrator.
+    The second held-out family never sees a demonstration: gru+a2c from its random initialisation, self-play only,
+    no behaviour prior; `heldout_similarity` measures how differently each acts from the training groups."""
+    from crucible.multiagent import campaign as C
+    reg = PolicyRegistry()
+    ho = C.heldout_family(reg, seed=4343, hours=6, source="self_play", drive="reach")
+    v = reg.versions[reg.vid(ho)]
+    assert (ho.arch, ho.algo, ho.frozen, ho.prior) == ("gru", "a2c", True, None)
+    assert v["provenance"]["heldout_source"] == "self_play" and not v["provenance"]["scripted_demonstrator"]
+    assert not [x for x in reg.versions.values() if x["origin"] == "behaviour_cloning"]   # never imitated
+    assert ho.updates >= 1 and v["origin"].endswith("no demonstrations)")
+    with pytest.raises(ValueError):
+        C.heldout_family(reg, source="copy")
+    m, groups = run["m"], run["groups"]
+    recs = [r for a in m.agents.values() if getattr(a, "group", None) is groups["alpha"] for r in a._decisions][:12]
+    sim = C.heldout_similarity({"alpha": groups["alpha"], "beta": groups["beta"]},
+                               {"heldout_rl": ho, "alpha_copy": groups["alpha"].clone("alpha_copy")}, recs)
+    assert sim["situations"] == len(recs) >= 1
+    assert sim["heldout_vs_training"]["alpha_copy"]["alpha"] == pytest.approx(0.0, abs=1e-9)
+    assert sim["heldout_vs_training"]["heldout_rl"]["alpha"] > 0.0
+    assert set(sim["training_vs_training"]) == {"alpha|beta"} and sim["training_pairs_mean"] >= 0.0
+
+
+def test_strategy_switch_counts_state_changing_responses_and_reports_the_responders_own_noise(run):
+    """Respond to changing strategies (SP-12.0): only the switched group's policy differs between the control and
+    the switch branch, two unchanged branches agree exactly, a response needs a differing accepted state-changing
+    action, and a branch that changes only the responder's own sampling gives the scale of its noise."""
+    from crucible.multiagent import campaign as C
+    m, groups = run["m"], run["groups"]
+    rep = PolicyGroup("replacement", "ppo", "gru", seed=99)
+    sw = C.strategy_switch(m, responder="alpha", switched="beta", replacement=rep, hours=6, seed=3)
+    assert sw["replicate_divergent_decisions"] == 0
+    assert sw["responder_decisions"] >= 1
+    assert sw["responded"] == (sw["switch_divergent_state_changing"] > 0)
+    assert sw["switch_divergent_state_changing"] <= sw["switch_divergent_decisions"]
+    assert sw["own_noise_divergent_decisions"] >= 1          # other sampling generators: other decisions
+    for k in ("host_tv_own_noise_vs_control", "tool_tv_switch_vs_control", "tool_tv_own_noise_vs_control"):
+        assert 0.0 <= sw[k] <= 1.0
+    assert sw["switch_shift_exceeds_own_noise"] == (sw["host_tv_switch_vs_control"] > sw["host_tv_own_noise_vs_control"])
+    assert groups["alpha"].frozen is False                   # the original groups are untouched
