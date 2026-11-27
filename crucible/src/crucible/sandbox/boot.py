@@ -345,7 +345,7 @@ def _run_v4(job: dict) -> dict:
             result = _run_tests(job.get("pattern", "tests"))
         else:
             raise ValueError(f"unknown job kind {kind}")
-        json.dumps(result, allow_nan=False)
+        json.dumps(result)                       # 4.0's call (its default encoder: 4.0's line count)
         ok, err = True, None
     except SystemExit as e:
         ok, result, err = False, None, {"type": "SystemExit", "message": str(e)}
@@ -356,6 +356,11 @@ def _run_v4(job: dict) -> dict:
     finally:
         lines = _v4_count_off()
         sys.stdout, sys.stderr = old_out, old_err
+    if ok:                                       # after counting: the v5 protocol carries JSON-native results only
+        try:
+            json.dumps(result, allow_nan=False)
+        except ValueError as e:
+            ok, result, err = False, None, {"type": "ValueError", "message": str(e)[:2000]}
     return {"ok": ok, "result": result, "error": err, "stdout": buf.getvalue()[:out_cap], "v4_work_lines": lines}
 
 

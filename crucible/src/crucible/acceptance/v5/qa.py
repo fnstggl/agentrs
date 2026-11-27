@@ -297,12 +297,17 @@ def defect_revalidation(root: str | None = None) -> dict:
             nodes = _regression_nodes(d.get("regression_tests"))
             if not d.get("fixed_by") or not nodes or not all(_test_exists(root, n) for n in nodes):
                 fixed_no_test.append(d["id"])
+    triaged = {d["id"]: (d.get("qa_triage") or [{}])[-1].get("verdict") for d in ds
+               if d.get("status") == "open" and d.get("qa_triage")}
     return {"metrics": {"defects_checked": len(ds), "open_defects_not_revalidated": len(not_reval),
+                        "open_defects_qa_triaged": len(triaged),
+                        "open_defects_qa_likely_fixed": sum(v == "likely_fixed" for v in triaged.values()),
                         "open_defects_reported_fixed_by_owner": len(to_close),
                         "fixed_defects_without_regression_test": len(fixed_no_test),
                         "revalidation_base_set": bool(since)},
             "since": since, "due_by_owner": {k: v for k, v in sorted(due.items())}, "not_revalidated": not_reval,
-            "to_close": to_close, "fixed_without_regression_test": fixed_no_test, "invalid_revalidations": bad_reval}
+            "to_close": to_close, "fixed_without_regression_test": fixed_no_test, "invalid_revalidations": bad_reval,
+            "qa_triage": triaged}
 
 
 def _rewrite_defects(root: str, ds: list[dict]) -> None:
@@ -328,6 +333,34 @@ def revalidate_defect(root: str | None, defect: str, *, by: str, verdict: str, r
     d.setdefault("revalidations", []).append({"by": by, "commit": head, "verdict": verdict, "reason": reason,
                                               "evidence": evidence,
                                               "at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")})
+    _rewrite_defects(root, ds)
+    return d
+
+
+QA_TRIAGE_VERDICTS = ("likely_fixed", "still_open", "needs_decision", "not_reproducible")
+
+
+def triage_defect(root: str | None, defect: str, *, verdict: str, reason: str, evidence: str = "",
+                  by: str = "P") -> dict:
+    """The independent QA workstream's re-triage of an open defect at HEAD (`qa_triage`, wave 3b): what QA measured
+    or read and what it concludes. It never closes or re-validates a defect - the owner re-validates, and closing
+    needs a fix and regression tests (`close_defect`) - but it tells the owner and the orchestrator where to look."""
+    root = root or M.crucible_root()
+    if verdict not in QA_TRIAGE_VERDICTS:
+        raise ValueError(f"verdict must be one of {QA_TRIAGE_VERDICTS}")
+    if not reason.strip():
+        raise ValueError("a triage states its reason")
+    ds = parse_defects(root)
+    d = next((x for x in ds if x.get("id") == defect), None)
+    if d is None:
+        raise KeyError(defect)
+    if d.get("status") != "open":
+        raise ValueError(f"{defect} is not open")
+    head = _git(root, "rev-parse", "HEAD").strip()
+    import datetime as _dt
+    d.setdefault("qa_triage", []).append({"by": by, "commit": head, "verdict": verdict, "reason": reason,
+                                          "evidence": evidence,
+                                          "at": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds")})
     _rewrite_defects(root, ds)
     return d
 

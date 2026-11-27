@@ -12,6 +12,7 @@
     python -m crucible.acceptance.v5 progress interrupted --workstream B --why ... --recovery-branch ... --reassigned-to ...
     python -m crucible.acceptance.v5 defects check [--owner X] | defects revalidate --id DEF-X-n --by X --verdict ... --reason ...
     python -m crucible.acceptance.v5 defects close --id DEF-X-n --fixed-by "<commit> <what>" --regression-test tests/...::test
+    python -m crucible.acceptance.v5 defects triage --id DEF-X-n --verdict likely_fixed|still_open|needs_decision|... --reason ...
 
 Exit codes of --verify-all: 0 CRUCIBLE_5_COMPLETE, 1 IN_PROGRESS, 3 INCOMPLETE_BLOCKED.
 Run from the `crucible/` directory with PYTHONPATH=src. `run` and `review` work in fresh clones of committed trees;
@@ -95,7 +96,7 @@ def main(argv: list[str] | None = None) -> int:
     rv.add_argument("--verdict", choices=("approved", "rejected"), required=True)
     rv.add_argument("--notes", default="")
     df = sub.add_parser("defects", help="the defect register's re-validation duty (D-83)")
-    df.add_argument("action", choices=("check", "revalidate", "close"))
+    df.add_argument("action", choices=("check", "revalidate", "close", "triage"))
     df.add_argument("--owner")
     df.add_argument("--id", dest="defect")
     df.add_argument("--by")
@@ -164,6 +165,11 @@ def main(argv: list[str] | None = None) -> int:
             d = qa.revalidate_defect(None, a.defect, by=a.by or "", verdict=a.verdict or "", reason=a.reason,
                                      evidence=a.evidence)
             print(f"{d['id']}: re-validated by {a.by} ({a.verdict})")
+            return 0
+        if a.action == "triage":            # the QA workstream's re-triage (never closes or re-validates)
+            d = qa.triage_defect(None, a.defect, verdict=a.verdict or "", reason=a.reason, evidence=a.evidence,
+                                 by=a.by or "P")
+            print(f"{d['id']}: QA triage {a.verdict}")
             return 0
         if a.action == "close":
             d = qa.close_defect(None, a.defect, fixed_by=a.fixed_by or "", regression_tests=a.regression_tests)
