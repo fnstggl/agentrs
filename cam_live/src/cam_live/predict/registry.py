@@ -305,7 +305,8 @@ class ExperimentRegistry:
         if op == "register":
             self._recs[eid] = ExperimentRecord.from_dict(data["record"])
             self._meta[eid] = {"arm_probs": list(data["arm_probs"]), "assignments": [], "outcome_arms": {},
-                               "started_at": None, "test": None, "concluded_at": None}
+                               "started_at": None, "test": None, "concluded_at": None,
+                               "ordinal": len(self._recs) - 1}
             return
         rec, meta = self._recs[eid], self._meta[eid]
         if op == "start":
@@ -385,8 +386,9 @@ class ExperimentRegistry:
         return self.get(experiment_id)
 
     def assign(self, experiment_id: str, unit_id: str) -> Assignment:
-        """Randomly assign ``unit_id`` to an arm. The draw is a deterministic function of (registry seed,
-        experiment, unit) — reproducible and auditable — and its probability is recorded."""
+        """Randomly assign ``unit_id`` to an arm. The draw is a deterministic function of (registry seed, the
+        experiment's registration ordinal and arms, unit) — reproducible and auditable, also by a process restored from
+        the registry file whose new experiments get different (random) ids — and its probability is recorded."""
         rec, meta = self._need(experiment_id), self._meta[experiment_id]
         if rec.assignment != "randomized":
             raise RegistryError("this experiment does not use randomised assignment")
@@ -397,7 +399,8 @@ class ExperimentRegistry:
         if rec.status == "registered":
             self.start(experiment_id)
         probs = meta["arm_probs"]
-        h = hashlib.sha256(f"{self.seed}|{experiment_id}|{unit_id}".encode()).digest()
+        key = f"{meta.get('ordinal', experiment_id)}|{'|'.join(rec.arms)}"
+        h = hashlib.sha256(f"{self.seed}|{key}|{unit_id}".encode()).digest()
         u = int.from_bytes(h[:8], "big") / 2.0 ** 64
         acc, idx = 0.0, len(probs) - 1
         for i, p in enumerate(probs):

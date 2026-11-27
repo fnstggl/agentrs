@@ -344,3 +344,27 @@ def test_welch_test_edge_cases():
     np.testing.assert_allclose([res["t"], res["p_value"]], [ref.statistic, ref.pvalue], rtol=1e-7)
     ci = ref.confidence_interval(0.9)
     np.testing.assert_allclose([res["lo"], res["hi"]], [ci.low, ci.high], rtol=1e-7)
+
+
+def test_assignment_is_reproduced_by_a_restored_registry_whose_new_experiments_get_other_ids(tmp_path):
+    """A process restored from the registry file registers a new experiment under a new random id; the arm a unit is
+    assigned to must not depend on that id (seen in the integrated agent: a reloaded agent drew a different arm than
+    the uninterrupted one). The draw depends on (seed, registration ordinal, arms, unit)."""
+    import shutil
+    clock = SimClock()
+    a_dir, b_dir = tmp_path / "a", tmp_path / "b"
+    a_dir.mkdir()
+    pa = PredictionRegistry(str(a_dir / RunFiles.PREDICTIONS), clock)
+    ea = ExperimentRegistry(str(a_dir / RunFiles.EXPERIMENTS), pa, clock, seed=11)
+    first = _register(ea, clock)
+    [ea.assign(first.experiment_id, f"u{i}") for i in range(3)]
+    shutil.copytree(str(a_dir), str(b_dir))                                    # the saved state
+    pb = PredictionRegistry(str(b_dir / RunFiles.PREDICTIONS), clock)
+    eb = ExperimentRegistry(str(b_dir / RunFiles.EXPERIMENTS), pb, clock, seed=11)
+    arms = {}
+    for name, er, pr in (("a", ea, pa), ("b", eb, pb)):
+        new = er.register(question="Which is better?", hypothesis="X", predictions=[_pred(300, clock)],
+                          arms=["X", "Y", "Z"], assignment="randomized")
+        arms[name] = (new.experiment_id, [er.assign(new.experiment_id, f"unit{i}").arm for i in range(40)])
+    assert arms["a"][0] != arms["b"][0]                                        # different random ids ...
+    assert arms["a"][1] == arms["b"][1] and len(set(arms["a"][1])) == 3        # ... the same draws

@@ -151,6 +151,31 @@ class _Episode:
     prefix_base: List[float] = field(default_factory=list)  # running mean utility when the decision was registered
 
 
+def _ib_state(ib: Optional[InnerBatch]) -> Optional[Dict[str, Any]]:
+    """Plain, CPU, checkpointable copy of an update event's support batch (every field, bit-exact)."""
+    if ib is None:
+        return None
+    out: Dict[str, Any] = {}
+    for f in dataclasses.fields(ib):
+        v = getattr(ib, f.name)
+        if isinstance(v, Tensor):
+            out[f.name] = v.detach().cpu().clone()
+        elif f.name == "h0":
+            out[f.name] = [h.detach().cpu().clone() for h in v]
+        elif f.name in ("norm_state", "boot_components"):
+            out[f.name] = {k: t.detach().cpu().clone() for k, t in v.items()}
+        else:
+            out[f.name] = copy.deepcopy(v)
+    return out
+
+
+def _ib_from_state(d: Optional[Dict[str, Any]], dev: Any) -> Optional[InnerBatch]:
+    if not d:
+        return None
+    names = {f.name for f in dataclasses.fields(InnerBatch)}
+    return InnerBatch(**{k: v for k, v in d.items() if k in names}).to(device=dev)
+
+
 def _default_measurement_utility(rec: ExperienceRecord, q: OutcomeQuery, o: OutcomeObservation) -> Optional[float]:
     """Goal-relevant verifier measurements count with their measured value; others are not utility."""
     return float(o.value) if (q.goal_relevant and o.value is not None) else None
@@ -874,11 +899,26 @@ class MetaLearner:
                             "steps": e.steps, "mix": e.mix, "reward_version": e.reward_version,
                             "lifetime": e.lifetime, "query_ids": list(e.query_ids), "external": e.external,
                             "theta0_hash": e.theta0_hash, "theta1_hash": e.theta1_hash,
-                            "theta0": {n: v.detach().cpu() for n, v in e.theta0.items()}} for e in self.events]}
+                            "theta0": {n: v.detach().cpu() for n, v in e.theta0.items()},
+                            "ib": _ib_state(e.ib) if self._event_needed(k) else None}
+                           for k, e in enumerate(self.events)]}
+
+    def _event_needed(self, k: int) -> bool:
+        """Will update event ``k`` still be differentiated? It is while it has query rows not yet used, or while a
+        later event within ``unroll_events`` may chain it. Its cached support batch is then checkpointed (INT2-8:
+        a batch rebuilt from the store after a restore differs from the one the live update used)."""
+        if self.events[k].ib is None:
+            return False
+        last = len(self.events) - 1
+        for j in range(k, min(last, k + max(1, self.mc.unroll_events) - 1) + 1):
+            if j == last or any(i not in self._used for i in self.events[j].query_ids):
+                return True
+        return False
 
     def load_state_dict(self, sd: Dict[str, Any]) -> None:
-        """Restore the bookkeeping. Cached support latents are rebuilt from the store on first use; the ledger is
-        reloaded from its own file and must still contain the head recorded here."""
+        """Restore the bookkeeping. The support batches of the events that will still be differentiated are restored
+        bit-exactly from the checkpoint (INT2-8); others (older checkpoints) are rebuilt from the store on first use.
+        The ledger is reloaded from its own file and must still contain the head recorded here."""
         head = sd.get("ledger_head", OutcomeLedger.GENESIS)
         if head != OutcomeLedger.GENESIS and head not in {e.hash for e in self.ledger.entries()}:
             raise IntegrityError("the outcome ledger does not contain the head recorded in the checkpoint")
@@ -909,7 +949,8 @@ class MetaLearner:
         self.events = [UpdateEvent(event_id=e["event_id"], ts=e["ts"], exp_ids=list(e["exp_ids"]),
                                    inner_lr=e["inner_lr"], steps=e["steps"], mix=e["mix"],
                                    reward_version=e["reward_version"], lifetime=e["lifetime"],
-                                   theta0={n: v.to(dev) for n, v in e["theta0"].items()}, ib=None,
+                                   theta0={n: v.to(dev) for n, v in e["theta0"].items()},
+                                   ib=_ib_from_state(e.get("ib"), dev),
                                    query_ids=list(e["query_ids"]), external=e["external"],
                                    theta0_hash=e.get("theta0_hash", ""), theta1_hash=e.get("theta1_hash", ""))
                        for e in sd["events"]]

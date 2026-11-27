@@ -245,3 +245,45 @@ def test_learner_feeds_the_selection_calibration_once_per_final_outcome_and_pers
     ec2, model2, store2, clock2, ml2, _ = _stack(6, mix=1.0)
     ml2.load_state_dict(sd)
     assert ml2.selection.posterior() == ml.selection.posterior() and ml2.selection is selection_calibration(ml2.policy)
+
+
+# ----------------------------------------------------------------------------------------- 7. INT2-8 restore
+def test_restored_update_events_keep_the_support_batch_the_live_update_used():
+    """INT2-8: a support batch rebuilt from the store after a restore is not the one the live update used (the encoder
+    and the reward's input statistics moved since). The events that will still be differentiated are checkpointed
+    with their batch, bit-exactly; the meta-gradient of a restored learner differentiates the same update."""
+    from cam_live.reward.metalearner import MetaLearner
+    ec, model, store, clock, ml, lt = _stack(8, mix=1.0)
+    lt2, _, ups = dg.lab_lifetime(ml, store, clock, ec, seed=9000, update_every=4)
+    assert len(ml.events) >= 2 and all(e.ib is not None for e in ml.events)
+    sd = ml.state_dict()
+    saved = [e["ib"] is not None for e in sd["events"]]
+    assert saved[-1] and any(saved)
+    # the continual learner moves the encoder after the save: a batch rebuilt from the store is then different
+    g = torch.Generator().manual_seed(0)
+    with torch.no_grad():
+        for n, p in model.named_parameters():
+            if not n.startswith(("heads.reward", "reward")) and p.dtype.is_floating_point:
+                p.add_(0.05 * torch.randn(p.shape, generator=g, dtype=p.dtype))
+    old = ml.events[-1]
+    rebuilt = ml.inner.build_batch(store, [r for r in (store.get(i) for i in old.exp_ids) if r is not None])
+    assert not torch.equal(old.ib.b, rebuilt.b)
+    twin = MetaLearner(model, store, ml.cfg, meta_cfg=ml.mc, inner_cfg=ml.inner.cfg, ledger=ml.ledger, clock=clock,
+                       check_signature=ml.ledger.check_signature)
+    twin.load_state_dict(sd)
+    for e, f, kept in zip(ml.events, twin.events, saved):
+        if not kept:
+            assert f.ib is None
+            continue
+        for name in ("b", "e_a", "a_mask", "e_g", "chosen", "behaviour_logp", "ts", "b_next", "signals",
+                     "signal_mask", "r_boot", "gamma", "r_goal"):
+            x, y = getattr(e.ib, name), getattr(f.ib, name)
+            assert (x is None) == (y is None) and (x is None or torch.equal(x, y.to(x.device))), name
+        assert f.ib.goal_source == e.ib.goal_source and f.ib.segments == e.ib.segments and f.ib.mix == e.ib.mix
+        assert all(torch.equal(e.ib.norm_state[k], f.ib.norm_state[k].to(e.ib.norm_state[k].device))
+                   for k in e.ib.norm_state)
+        # the restored event replays the live update bit-identically from its snapshot
+        psi = {k: v.detach() for k, v in ml.reward.psi().items()}
+        if not e.external and e.theta1_hash:
+            th = twin.engine.inner_update(f.theta0, psi, [f.ib], f.inner_lr, f.steps, create_graph=False).detached()
+            assert params_hash(th) == e.theta1_hash
