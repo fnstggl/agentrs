@@ -114,7 +114,7 @@ def test_SP_19_7_no_requirement_removed_and_no_criteria_weakened():
     entries = L.read(ROOT)
     st = L.state(entries)
     derived = {d["id"] for d in M.derive(ROOT)}
-    removed = sorted(i for i in st if i != "__anchors__" and i not in derived)
+    removed = sorted(i for i in st if not i.startswith("__") and i not in derived)
     rules = L.rule_problems(st, L.decision_sections(M.docs_dir(ROOT)))
     weaker = sorted(rid for rid, ps in rules.items() if any("not provably" in p for p in ps))
     git_probs = [p for p in L.git_problems(ROOT) if "uncommitted" not in p]

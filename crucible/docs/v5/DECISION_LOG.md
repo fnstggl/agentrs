@@ -423,3 +423,49 @@ docs/v5/baselines/tree_startup_hooks.json pins its path and sha256; any edit un-
 diff is reviewed and the baseline updated), a pin at a start-up root or of a .pth file is ignored, and ignored hook
 files stay rejected (probe P39). The measured processes' own start-up hooks are still checked against
 python_site_hooks.json, and the official runner never puts `_slotsite` on a measured process's PYTHONPATH.
+Third addendum (2026-11-27, wave 3b repair pass after the second independent verification; no criterion changes):
+1. Ablation verdict by what was blocked (probes V2b, V3: tests that detected the ablation - through an aliased
+   sys.monitoring read or `git log` of the ablation commit - and recorded different metrics without executing their
+   implementation passed it). The ablation hook now logs every block (pid, time, code) to the ablation run's output
+   directory, and `official.ablation_verdict` judges the run by the log: without a record it is sensitive only if an
+   implementation function was blocked; a record made after a block in the recording process is not sensitive (the
+   test outlived the blocked call through finally/with/except); a record made before any block is not sensitive (it
+   was computed without the implementation); a record made after blocks in child processes only is sensitive iff every
+   criteria metric differs. Detecting the ablation therefore gains nothing: the test must run into the blocked
+   implementation before it records. The ablated clone's commit replaces the evidence commit with the same parents,
+   author, committer, dates and message (only the tree differs). Stated residual: the ablation proves that the producing
+   test executes implementation code before it records (or measures child processes that do), not that the recorded
+   values are computed from it - a test that calls its implementation and records values obtained elsewhere is caught
+   only by the static rules and the reviewer; a test that forges the block log of a child process is visible only to
+   the reviewer.
+2. The recording machinery is never blocked (probes V6, V6c): functions started by `evidence.record` or the files-read
+   audit hook, and those two themselves, run normally, so requirements listing evidence.py, manifest.py, ledger.py or
+   scale/slots.py no longer get a vacuous "no record" ablation.
+3. Code-object patches (probe V4): `evidence.code_object_patches` compares every reachable function of a module under
+   src/ (standard source loader) with the code compiled from its file - code, constants (recursively), names, flags,
+   argument counts - and its globals with its module's; `fn.__code__ = fn.__code__.replace(...)` and
+   `types.FunctionType` over other globals are recorded as patched functions. Statically, a store to `__code__` or
+   `setattr(x, "__code__", ...)` is an `interpreter_probe` finding. Not covered: patched `__defaults__` /
+   `__kwdefaults__` and rebound module-level data.
+4. Interpreter probes by whitelist (probe P38b's four evasions): every use of a name bound to the sys module must be an
+   attribute access of a listed harmless attribute (`testscan.SYS_OK`); passing the module to a call, subscripting it,
+   any other attribute, `os.sys`, `from os import sys`, `sys.modules["sys"]`, `__import__("sys")` /
+   `import_module("sys")`, a hook attribute named as a string (`getattr(x, "monitoring")`, `d["settrace"]`),
+   `__builtins__`, ctypes and gc's object graph are `interpreter_probe` findings. The real test tree has none.
+5. Start-up hooks are pinned in the change-control ledger, not in a plain JSON (probes V1, V5; the second addendum's
+   docs/v5/baselines/tree_startup_hooks.json is removed). A `startup_hook` ledger entry pins a path and sha256; it is
+   valid only when it cites a decision whose text names the path and quotes the first 16 hex digits of the sha256, so
+   re-pinning edited content needs a new visible decision quoting the new hash (`python -m crucible.acceptance.v5
+   pin-hook <path> --decision D-n`). A pinned hook must also pass `testscan.startup_hook_findings`: nothing
+   `harness_findings` reports except meta-path finders restricted to one installed module (`if name != "torch": return
+   None` first), no name, import or string of the repository's own modules, no dynamic imports, setattr, sys.modules
+   scans or interpreter probes. `checker.harness_problems` now applies the pins as committed at the evidence commit (the
+   P39 fix applied only to the global check, so no requirement could reach VERIFIED with the pinned hook in the tree).
+   Pinned here: src/crucible/scale/_slotsite/sitecustomize.py, sha256 da0251cf6aba4da0e688b23293bb39316096d7b7bcf8f88d6d9cd7249ae3eb2c
+   (workstream M's GPU cap and usage reporter, D-27; content reviewed: it wraps torch.cuda._lazy_init and reports
+   allocator usage; it names no repository module). Stated residual: a pinned hook could still patch installed
+   libraries (this one wraps torch's lazy CUDA initialisation by design).
+6. The whole repository is scanned (probe V8: Gate A.1 puts the repository's own src/ on child processes' PYTHONPATH):
+   start-up hooks, ignored code and compiled files anywhere in the repository count, and a start-up hook outside the
+   crucible tree can never be pinned. Stated residual: code that a child process of the measured test loads by name
+   from outside the crucible tree (Gate A.1's AGENTRS alias plugin) is not attested by the records.

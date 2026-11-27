@@ -43,6 +43,7 @@ consistent, and only re-execution exposes that.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -76,6 +77,11 @@ def _git_ok(*args: str, cwd: str) -> bool:
 
 def _git(*args: str, cwd: str) -> str:
     return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True).stdout.strip()
+
+
+def _show_bytes(cwd: str, commit: str, rel: str) -> bytes | None:
+    p = subprocess.run(["git", "show", f"{commit}:./{rel}"], cwd=cwd, capture_output=True)
+    return p.stdout if p.returncode == 0 else None
 
 
 def _show(cwd: str, commit: str, rel: str) -> str | None:
@@ -187,6 +193,22 @@ class Ctx:
             self._tree[commit] = [p[len(prefix):] for p in self._tree[commit] if p.startswith(prefix)]
         return self._tree[commit]
 
+    def repo_files(self, commit: str) -> list[str]:
+        k = ("repo", commit)
+        if k not in self._tree:
+            self._tree[k] = repo_files(self.root, commit)
+        return self._tree[k]
+
+    def pins_at(self, commit: str) -> tuple[dict, list[str]]:
+        """The start-up hook pins of the ledger and decision log as committed at `commit`."""
+        k = ("pins", commit)
+        if k not in self._tree:
+            led = _show(self.root, commit, M.L.LEDGER_REL)
+            dl = _show(self.root, commit, "docs/v5/DECISION_LOG.md")
+            secs = M.L.decision_sections_text(dl) if dl is not None else {}
+            self._tree[k] = pin_state(self.root, led or "", secs)
+        return self._tree[k]
+
     def changed_since(self, commit: str, paths: list[str]) -> list[str]:
         out = []
         for i in range(0, len(paths), 200):
@@ -212,27 +234,52 @@ def open_blockers(root: str) -> dict[str, str]:
     return out
 
 
-TREE_HOOKS_BASELINE = "docs/v5/baselines/tree_startup_hooks.json"
-
-
 def _startup_root(path: str) -> bool:
     """A file directly in a directory that is on a measured process's start-up path (the clone's src/ - PYTHONPATH -,
-    the crucible root and the repository top - the working directory of `python -m` -, tests/): a sitecustomize
-    there runs at interpreter start-up without anything naming it."""
+    the crucible root and the repository top - the working directory of `python -m` -, tests/), or anywhere outside
+    the crucible tree (a gate may put the repository's other source directories on a child's PYTHONPATH: Gate A.1
+    adds the AGENTRS src/, probe V8): a sitecustomize there runs at interpreter start-up without anything naming it."""
     d = os.path.dirname(os.path.normpath(path))
     return d in ("", ".", "src") or d.startswith(("..", "tests")) or path.endswith(".pth")
 
 
-def pinned_tree_hooks(root: str) -> dict[str, str]:
-    """Start-up hook files a decision committed to the tree on purpose, pinned by content (D-83 addendum): path ->
-    sha256. A pinned path is never at a start-up root (`_startup_root`), so it runs only where committed code puts its
-    directory on PYTHONPATH (the slot governor's GPU cap, `crucible.scale._slotsite`)."""
+def local_top_names(files: list[str]) -> set[str]:
+    """Top-level module and package names of the repository's own code (crucible's src/ and tests/, the repository's
+    other src/ and tests/ directories): the names a start-up hook must not touch."""
+    out = {"crucible"}
+    for f in files:
+        parts = os.path.normpath(f).split(os.sep)
+        while parts and parts[0] == "..":
+            parts = parts[1:]
+        if len(parts) >= 2 and parts[0] in ("src", "tests"):
+            name = parts[1][:-3] if parts[1].endswith(".py") else parts[1]
+            if name.isidentifier() and name not in ("__init__", "conftest", "__main__"):
+                out.add(name)
+    return out
+
+
+def pin_state(root: str, ledger_text: str | None = None, decisions: dict | None = None) -> tuple[dict, list[str]]:
+    """Start-up hook pins of the change-control ledger (D-83 third addendum; `ledger.hook_pins`): path -> sha256 of the
+    valid pins whose path is not a start-up root, and the problems of the others."""
+    entries = M.L.parse(ledger_text) if ledger_text is not None else M.L.read(root)
+    pins, probs = M.L.hook_pins(M.L.state(entries), decisions if decisions is not None else
+                                M.L.decision_sections(M.docs_dir(root)))
+    for p in [p for p in pins if _startup_root(p) or not is_startup_hook(p)]:
+        probs.append(f"start-up hook pin of {p} ignored: a pin may not name a start-up root or a .pth file")
+        pins.pop(p)
+    return pins, probs
+
+
+def hook_content_problems(path: str, src: str | None, local: set[str]) -> list[str]:
+    """What a pinned start-up hook may not do (`testscan.startup_hook_findings`): it runs before and inside measured
+    child processes without anything naming it there."""
+    if src is None:
+        return [f"pinned start-up hook {path} is missing"]
     try:
-        d = json.load(open(os.path.join(root, TREE_HOOKS_BASELINE)))
-    except (OSError, ValueError):
-        return {}
-    return {p: str(v.get("sha256")) for p, v in (d.get("hooks") or {}).items()
-            if isinstance(v, dict) and not _startup_root(p)}
+        found = testscan.startup_hook_findings(src, local)
+    except SyntaxError:
+        found = ["syntax error"]
+    return [f"pinned start-up hook {path} can change the measured code: {', '.join(found)}"] if found else []
 
 
 def is_startup_hook(path: str) -> bool:
@@ -257,25 +304,50 @@ def hidden_changes(root: str) -> list[str]:
         probs.append(f"{len(flagged)} tracked files carry assume-unchanged/skip-worktree flags that hide working-tree "
                      f"changes from git status: {flagged[:3]}")
     ignored = []
-    for line in subprocess.run(["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "."], cwd=root,
+    top = os.path.realpath(_git("rev-parse", "--show-toplevel", cwd=root))
+    for line in subprocess.run(["git", "status", "--porcelain", "--ignored", "--untracked-files=all"], cwd=top,
                                capture_output=True, text=True).stdout.splitlines():
-        if not line.startswith("!! "):
+        if not line.startswith("!! "):          # the whole repository (probe V8: a gate may run code outside crucible/)
             continue
-        top = os.path.realpath(_git("rev-parse", "--show-toplevel", cwd=root))
         rel = os.path.relpath(os.path.join(top, line[3:].strip().strip('"')), os.path.realpath(root))
         parts = rel.split(os.sep)
-        code = rel.endswith(CODE_SUFFIXES) and parts[0] in ("src", "tests") and "__pycache__" not in parts
+        while parts and parts[0] == "..":
+            parts = parts[1:]
+        code = rel.endswith(CODE_SUFFIXES) and parts[:1] in (["src"], ["tests"]) and "__pycache__" not in parts
         if is_startup_hook(rel) or code:
             ignored.append(rel)
     if ignored:
         probs.append(f"{len(ignored)} ignored code files or startup hooks in the tree (git status does not show them, "
                      f"but they run): {ignored[:3]}")
-    pinned = pinned_tree_hooks(root)
-    hooks = [f for f in _git("ls-files", cwd=root).splitlines() if is_startup_hook(f) and not (
-        f in pinned and sha256_file(os.path.join(root, f)) == pinned[f])]
+    pins, pin_probs = pin_state(root)
+    probs += pin_probs
+    files = repo_files(root)
+    local = local_top_names(files)
+    hooks = []
+    for f in files:
+        if not is_startup_hook(f):
+            continue
+        if f in pins and os.path.exists(os.path.join(root, f)) and sha256_file(os.path.join(root, f)) == pins[f]:
+            probs += hook_content_problems(f, open(os.path.join(root, f), encoding="utf-8", errors="replace").read(),
+                                           local)
+        else:
+            hooks.append(f)
     if hooks:
-        probs.append(f"interpreter startup hooks committed in the tree (sitecustomize/usercustomize/.pth): {hooks[:3]}")
+        probs.append(f"interpreter startup hooks committed in the repository (sitecustomize/usercustomize/.pth, not "
+                     f"pinned): {hooks[:3]}")
     return probs
+
+
+def repo_files(root: str, commit: str | None = None) -> list[str]:
+    """Every file of the repository (the working tree's index, or `commit`'s tree), relative to the crucible root
+    (files outside it start with `../`)."""
+    top = os.path.realpath(_git("rev-parse", "--show-toplevel", cwd=root))
+    if commit is None:
+        names = _git("-C", top, "ls-files", cwd=root).splitlines()
+    else:
+        names = _git("ls-tree", "-r", "--name-only", "--full-tree", commit, cwd=root).splitlines()
+    rr = os.path.realpath(root)
+    return [os.path.relpath(os.path.join(top, n), rr) for n in names if n]
 
 
 def _load(path: str):
@@ -491,10 +563,20 @@ def harness_problems(ctx: Ctx, e: dict, commit: str) -> list[str]:
         if found:
             probs.append(f"conftest/harness file {f} at the evidence commit can change outcomes or the measured code: "
                          f"{', '.join(found)}")
-    hooks = [f for f in ctx.tree_files(commit) if is_startup_hook(f)]
+    files = ctx.repo_files(commit)
+    pins, _ = ctx.pins_at(commit)
+    local = local_top_names(files)
+    hooks = []
+    for f in (f for f in files if is_startup_hook(f)):
+        text = _show_bytes(ctx.root, commit, f)
+        if f in pins and text is not None and hashlib.sha256(text).hexdigest() == pins[f]:
+            probs += hook_content_problems(f, text.decode("utf-8", "replace"), local)
+        else:
+            hooks.append(f)
     if hooks:
-        probs.append(f"interpreter startup hooks in the tree at the evidence commit: {hooks[:3]}")
-    compiled = [f for f in ctx.tree_files(commit) if is_compiled(f)]
+        probs.append(f"interpreter startup hooks in the repository at the evidence commit (not pinned at that "
+                     f"commit): {hooks[:3]}")
+    compiled = [f for f in files if is_compiled(f)]
     if compiled:
         probs.append(f"compiled bytecode or extension modules committed in the tree at the evidence commit (CPython can "
                      f"load them instead of the reviewed source, and no static check or ablation reads them): "
@@ -552,7 +634,7 @@ def module_problems(ctx: Ctx, e: dict, rec: dict, commit: str) -> list[str]:
 def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> list[str]:
     """The review's ablation run: every listed implementation module ablated at the evidence commit, the producing
     test run alone, and its measurement did not survive."""
-    from .official import ablatable, ablation_survivors
+    from .official import ablatable, ablation_survivors, ablation_verdict
     files = ablatable(ctx.root, e, commit)
     if not files:
         return []
@@ -585,6 +667,16 @@ def ablation_problems(ctx: Ctx, e: dict, ev: dict, rv: dict, commit: str) -> lis
             got = got or {}
         elif not ctx.committed(rec_rel):
             probs.append("ablation: the ablated run's record is not committed")
+    if abl.get("mode") == "block":
+        if not isinstance(abl.get("blocks"), list):
+            probs.append("ablation: the block-mode ablation run carries no block log (it predates D-83's third "
+                         "addendum): rerun the review")
+        else:
+            v = ablation_verdict(ev.get("metrics") or {}, got, abl["blocks"],
+                                 e.get("tolerance"), e["criteria"])
+            if not v["sensitive"]:
+                probs.append(f"ablation: not sensitive - {v['why']}")
+        return probs
     survived = [] if got is None else ablation_survivors(ev.get("metrics") or {}, got, e.get("tolerance"),
                                                          e["criteria"])
     if survived:

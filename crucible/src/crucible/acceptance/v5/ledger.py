@@ -28,7 +28,9 @@ import subprocess
 
 LEDGER_REL = "docs/v5/ACCEPTANCE_LEDGER.jsonl"
 GENESIS = "0" * 64
-KINDS = ("anchor", "add", "text", "criteria", "tolerance", "dependencies", "tests", "implementation_files")
+KINDS = ("anchor", "add", "text", "criteria", "tolerance", "dependencies", "tests", "implementation_files",
+         "startup_hook")
+HOOK_SHA_PREFIX = 16            # a startup_hook pin's decision must quote this many leading hex digits of its sha256
 INTEGRATION_REFS = ("refs/remotes/origin/feat/crucible-5-complete",)
 
 
@@ -94,12 +96,18 @@ def chain_problems(entries: list[dict]) -> list[str]:
 
 def state(entries: list[dict]) -> dict:
     """id -> {"text", "criteria_history": [{criteria, decision, note, hash}], "tests", "implementation_files",
-    "dependencies", "tolerance", "changes": [(kind, old, new, decision)]} plus the special key "__anchors__"."""
-    st: dict = {"__anchors__": {}}
+    "dependencies", "tolerance", "changes": [(kind, old, new, decision)]} plus the special keys "__anchors__" and
+    "__hooks__" (start-up hook path -> its pins in ledger order: [{sha256, decision, seq}])."""
+    st: dict = {"__anchors__": {}, "__hooks__": {}}
     for e in entries:
         rid, kind, val = e["id"], e["kind"], e["value"]
         if kind == "anchor":                     # anchors are immutable: the first one counts
             st["__anchors__"].setdefault(rid, val)
+            continue
+        if kind == "startup_hook":               # not a requirement: a pinned start-up hook file (D-83 third addendum)
+            st["__hooks__"].setdefault(rid, []).append({
+                "sha256": val.get("sha256") if isinstance(val, dict) else None, "decision": e.get("decision"),
+                "seq": e["seq"]})
             continue
         if kind == "add":
             st.setdefault(rid, {"added": e["seq"], "text": None, "criteria_history": [], "tests": None,
@@ -177,6 +185,10 @@ def decision_sections(docs_dir: str) -> dict[str, str]:
         text = open(os.path.join(docs_dir, "DECISION_LOG.md"), encoding="utf-8").read()
     except OSError:
         return {}
+    return decision_sections_text(text)
+
+
+def decision_sections_text(text: str) -> dict[str, str]:
     out, cur, buf = {}, None, []
     for line in text.splitlines():
         m = re.match(r"^##+\s*(D-\d+)\b", line)
@@ -203,7 +215,7 @@ def rule_problems(st: dict, sections: dict[str, str]) -> dict[str, list[str]]:
     """Per requirement id, the change-control rules its ledger history breaks."""
     out: dict[str, list[str]] = {}
     for rid, r in st.items():
-        if rid == "__anchors__":
+        if rid.startswith("__"):
             continue
         probs = []
         if r["added"] is None:
@@ -233,6 +245,32 @@ def rule_problems(st: dict, sections: dict[str, str]) -> dict[str, list[str]]:
         if probs:
             out[rid] = probs
     return out
+
+
+def hook_pins(st: dict, sections: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """Start-up hook pins (D-83 third addendum): path -> the sha256 of its latest pin, and the pins' problems. A pin is
+    valid only when it cites a decision recorded in DECISION_LOG.md whose text names the path and quotes the first
+    HOOK_SHA_PREFIX hex digits of the pinned sha256: re-pinning edited hook content needs a new, visible decision that
+    states the new content's hash - the hook, the ledger entry and the decision text change together, and the ledger
+    is append-only and anchored in git history. A path with an invalid latest pin is not pinned."""
+    pins, probs = {}, []
+    for hp, hist in sorted((st.get("__hooks__") or {}).items()):
+        last = hist[-1]
+        sha, dec = last.get("sha256"), last.get("decision")
+        if not isinstance(sha, str) or len(sha) != 64:
+            probs.append(f"start-up hook pin of {hp} carries no sha256")
+            continue
+        text = sections.get(dec or "")
+        if not text:
+            probs.append(f"start-up hook pin of {hp} cites no recorded decision ({dec})")
+        elif hp not in text and os.path.basename(os.path.dirname(hp)) + "/" + os.path.basename(hp) not in text:
+            probs.append(f"start-up hook pin of {hp} cites {dec}, whose text does not name the hook")
+        elif sha[:HOOK_SHA_PREFIX] not in text:
+            probs.append(f"start-up hook pin of {hp} cites {dec}, whose text does not quote the pinned hash "
+                         f"{sha[:HOOK_SHA_PREFIX]}")
+        else:
+            pins[hp] = sha
+    return pins, probs
 
 
 # ------------------------------------------------------------------------------------------------- git anchoring

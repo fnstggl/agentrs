@@ -294,6 +294,129 @@ DYNAMIC_CODE = {"exec", "eval", "compile", "builtins.exec", "builtins.eval", "bu
 
 INTERPRETER_PROBES = {"sys.monitoring", "sys.settrace", "sys.setprofile", "sys.gettrace", "sys.getprofile",
                       "threading.settrace", "threading.setprofile"}
+# Wave 3b verifier (P38b): matching the dotted names above was evaded by `import sys as _i; _i.monitoring`,
+# `getattr(sys, "monitoring")`, `vars(sys)["monitoring"]` and `sys.__dict__["monitoring"]`. The sys module is now
+# judged by what a test may do with it (a whitelist): every reference to a name bound to it must be an attribute access
+# of one of SYS_OK (stores only to SYS_STORE_OK); any other use - an attribute outside the list, passing the module to
+# a call, subscripting it, putting it in a container - is a probe, and so is reaching the module another way
+# (`os.sys`, `from os import sys`, `sys.modules["sys"]`, `__import__("sys")`, `importlib.import_module("sys")`),
+# naming a hook attribute as a string (`getattr(x, "settrace")`, `d["monitoring"]`), replacing a code object,
+# `__builtins__`, ctypes and the garbage collector's object graph (`gc.get_objects` / `get_referrers` /
+# `get_referents`).
+SYS_OK = {"path", "executable", "argv", "orig_argv", "modules", "exit", "stdin", "stdout", "stderr", "implementation",
+          "version", "version_info", "hexversion", "api_version", "platform", "maxsize", "maxunicode", "byteorder",
+          "float_info", "int_info", "thread_info", "hash_info", "float_repr_style", "getrecursionlimit",
+          "setrecursionlimit", "getsizeof", "getrefcount", "exc_info", "exception", "prefix", "base_prefix",
+          "exec_prefix", "base_exec_prefix", "platlibdir", "pycache_prefix", "flags", "dont_write_bytecode",
+          "builtin_module_names", "stdlib_module_names", "getdefaultencoding", "getfilesystemencoding", "intern",
+          "warnoptions", "copyright", "abiflags", "addaudithook", "audit", "getswitchinterval", "is_finalizing",
+          "get_int_max_str_digits", "set_int_max_str_digits", "getallocatedblocks", "last_exc", "last_value",
+          "last_type", "last_traceback"}
+SYS_STORE_OK = {"argv", "path", "stdin", "stdout", "stderr", "dont_write_bytecode"}
+PROBE_ATTRS = {"monitoring", "settrace", "setprofile", "gettrace", "getprofile", "settrace_all_threads",
+               "setprofile_all_threads", "_getframe", "_current_frames", "call_tracing", "sys", "__code__"}
+PROBE_MODULES = {"sys", "threading", "_thread", "ctypes"}
+GC_PROBES = {"get_objects", "get_referrers", "get_referents"}
+THREADING_PROBES = {"settrace", "setprofile", "settrace_all_threads", "setprofile_all_threads", "gettrace",
+                    "getprofile"}
+
+
+def _module_aliases(tree: ast.Module, module: str) -> set[str]:
+    """Names bound to `module` (import statements, and plain assignments from such a name), to a fixed point."""
+    out = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == module:
+                    out.add(a.asname or a.name)
+                elif a.name.startswith(module + ".") and not a.asname:
+                    out.add(module)
+    changed = True
+    while changed:
+        changed = False
+        for n in ast.walk(tree):
+            if isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr)) and isinstance(n.value, ast.Name) and \
+                    n.value.id in out:
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                    if isinstance(t, ast.Name) and t.id not in out:
+                        out.add(t.id)
+                        changed = True
+    return out
+
+
+def _const_str(n) -> str | None:
+    return n.value if isinstance(n, ast.Constant) and isinstance(n.value, str) else None
+
+
+def interpreter_probe_findings(tree: ast.Module) -> list[str]:
+    """Why a module can read or install interpreter hooks (see SYS_OK); empty when it cannot."""
+    parent: dict[int, ast.AST] = {}
+    for n in ast.walk(tree):
+        for c in ast.iter_child_nodes(n):
+            parent[id(c)] = n
+    sys_names = _module_aliases(tree, "sys")
+    thr_names = _module_aliases(tree, "threading")
+    gc_names = _module_aliases(tree, "gc")
+    why: list[str] = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Name) and n.id in sys_names:
+            p = parent.get(id(n))
+            if isinstance(p, ast.Attribute) and p.value is n:
+                if isinstance(p.ctx, ast.Load) and p.attr not in SYS_OK:
+                    why.append(f"sys.{p.attr}")
+                elif not isinstance(p.ctx, ast.Load) and p.attr not in SYS_STORE_OK:
+                    why.append(f"sys.{p.attr} (store)")
+            elif isinstance(p, (ast.Assign, ast.AnnAssign, ast.NamedExpr)) and p.value is n and all(
+                    isinstance(t, ast.Name) for t in (p.targets if isinstance(p, ast.Assign) else [p.target])):
+                pass                                    # an alias: its own uses are judged as the module's
+            elif isinstance(p, ast.Call) and _dotted(p.func) in ("getattr", "hasattr") and len(p.args) > 1 and \
+                    p.args[0] is n and _const_str(p.args[1]) in SYS_OK:
+                pass                                    # getattr(sys, "stdlib_module_names", ()): a listed attribute
+            elif isinstance(n.ctx, ast.Load):
+                why.append(f"the sys module used as a value ({type(p).__name__})")
+        elif isinstance(n, ast.Name) and n.id == "__builtins__":
+            why.append("__builtins__")
+        elif isinstance(n, ast.Attribute):
+            root = n.value.id if isinstance(n.value, ast.Name) else None
+            if n.attr == "sys" and root not in sys_names:
+                why.append(f"{_dotted(n) or '?'} (the sys module reached through another object)")
+            elif root in thr_names and n.attr in THREADING_PROBES:
+                why.append(f"threading.{n.attr}")
+            elif root in gc_names and n.attr in GC_PROBES:
+                why.append(f"gc.{n.attr}")
+            elif n.attr == "__code__" and not isinstance(n.ctx, ast.Load):
+                why.append(f"{_dotted(n) or '?'} (code object replaced)")
+        elif isinstance(n, ast.ImportFrom):
+            mod = n.module or ""
+            if mod == "sys":
+                bad = [a.name for a in n.names if a.name not in SYS_OK]
+                if bad:
+                    why.append(f"from sys import {bad}")
+            elif mod in ("threading", "gc") and any(a.name in THREADING_PROBES | GC_PROBES or a.name == "*"
+                                                    for a in n.names):
+                why.append(f"from {mod} import {[a.name for a in n.names]}")
+            elif mod.split(".")[0] == "ctypes":
+                why.append("ctypes")
+            elif any(a.name == "sys" for a in n.names):
+                why.append(f"from {mod} import sys")
+        elif isinstance(n, ast.Import):
+            if any(a.name.split(".")[0] == "ctypes" for a in n.names):
+                why.append("ctypes")
+        elif isinstance(n, ast.Call):
+            d = _dotted(n.func)
+            first = _const_str(n.args[0]) if n.args else None
+            second = _const_str(n.args[1]) if len(n.args) > 1 else None
+            if second in PROBE_ATTRS and (d in ("setattr", "delattr") or (
+                    d in ("getattr", "hasattr", "builtins.getattr") and second != "__code__")):
+                why.append(f"{d}(..., {second!r})")
+            elif (d in ("__import__", "builtins.__import__") or d.endswith("import_module")) and \
+                    first is not None and first.split(".")[0] in PROBE_MODULES:
+                why.append(f"{d}({first!r})")
+        elif isinstance(n, ast.Subscript):
+            k = _const_str(n.slice)
+            if k in PROBE_ATTRS or (k in PROBE_MODULES and _dotted(n.value).endswith("modules")):
+                why.append(f"[{k!r}]")
+    return sorted(set(why))
 
 
 def dynamic_code_findings(tree: ast.Module) -> list[str]:
@@ -303,10 +426,7 @@ def dynamic_code_findings(tree: ast.Module) -> list[str]:
     out = ["dynamic_code" for n in ast.walk(tree) if isinstance(n, ast.Call) and
            isinstance(n.func, (ast.Name, ast.Attribute)) and _root_name(n.func) in ("exec", "eval", "compile", "builtins")
            and _dotted(n.func) in DYNAMIC_CODE][:1]
-    probes = [n for n in ast.walk(tree) if isinstance(n, ast.Attribute) and _dotted(n) in INTERPRETER_PROBES]
-    probes += [n for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module in ("sys", "threading") and
-               any(f"{n.module}.{a.name}" in INTERPRETER_PROBES for a in n.names)]
-    return out + (["interpreter_probe"] if probes else [])
+    return out + (["interpreter_probe"] if interpreter_probe_findings(tree) else [])
 
 
 def _is_fixture(fn) -> bool:
@@ -737,4 +857,81 @@ def harness_findings(src: str) -> list[str]:
     out.update(dynamic_code_findings(tree))
     if patch_findings(tree, local):
         out.add("module_patch")
+    return sorted(out)
+
+
+def _names_local(name: str, local: set[str]) -> bool:
+    return any(name == x or name.startswith(x + ".") for x in local)
+
+
+def _finder_guard(fn) -> str | None:
+    """The single module name a meta-path finder's find_spec acts on: its body must start with
+    `if name != "<module>": return None` (the name parameter compared with one constant)."""
+    params = [a.arg for a in fn.args.args]
+    name = params[1] if params and params[0] == "self" and len(params) > 1 else (params[0] if params else None)
+    body = [b for b in fn.body if not (isinstance(b, ast.Expr) and isinstance(b.value, ast.Constant))]
+    if not body or not isinstance(body[0], ast.If):
+        return None
+    t = body[0].test
+    if not (isinstance(t, ast.Compare) and isinstance(t.left, ast.Name) and t.left.id == name and len(t.ops) == 1 and
+            isinstance(t.ops[0], ast.NotEq) and isinstance(t.comparators[0], ast.Constant) and
+            isinstance(t.comparators[0].value, str)):
+        return None
+    ret = body[0].body
+    if not (len(ret) == 1 and isinstance(ret[0], ast.Return) and (ret[0].value is None or (
+            isinstance(ret[0].value, ast.Constant) and ret[0].value.value is None))):
+        return None
+    return t.comparators[0].value
+
+
+def startup_hook_findings(src: str, local: set[str]) -> list[str]:
+    """What a start-up hook pinned in the tree (D-83 third addendum) may not do: anything `harness_findings` reports
+    except installing a meta-path finder, and that only when every finder's `find_spec` acts on exactly one module that
+    is not the repository's own (`if name != "torch": return None` first); naming any of the repository's own modules
+    or packages (`local`: crucible, the packages of src/ and tests/) as an identifier, an import or a string; and
+    interpreter-hook probes. A hook that patches the measured code has to name it (wave 3b verifier probe V5)."""
+    tree = ast.parse(src)
+    out = set(harness_findings(src)) - {"import_hook", "interpreter_probe", "mock"}
+    if module_flags(tree)["mock_import"]:
+        out.add("mock")                          # (a helper of the hook named `patch` is not a mock)
+    probes = [w for w in interpreter_probe_findings(tree) if not w.startswith("sys.meta_path")]
+    if probes:                                   # (the meta-path finders are judged below)
+        out.add(f"interpreter_probe:{probes[:3]}")
+    parent: dict[int, ast.AST] = {}
+    for n in ast.walk(tree):
+        for c in ast.iter_child_nodes(n):
+            parent[id(c)] = n
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            d = _dotted(n.func)
+            last = d.split(".")[-1]
+            if last in ("import_module", "__import__", "find_spec", "find_module", "find_loader") and \
+                    not (n.args and _const_str(n.args[0]) is not None):
+                out.add(f"dynamic_import:{d}")
+            elif last in ("setattr", "delattr") and isinstance(n.func, ast.Name):
+                out.add(f"{last}()")
+        elif isinstance(n, ast.Attribute) and n.attr == "modules" and _dotted(n) == "sys.modules":
+            p = parent.get(id(n))
+            ok = (isinstance(p, ast.Subscript) and _const_str(p.slice) is not None and
+                  not _names_local(_const_str(p.slice), local)) or (
+                isinstance(p, ast.Compare) and len(p.comparators) == 1 and p.comparators[0] is n and
+                _const_str(p.left) is not None and not _names_local(_const_str(p.left), local))
+            if not ok:
+                out.add("sys.modules scanned (only a constant lookup of an installed module is allowed)")
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ClassDef):
+            for m in n.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name in ("find_spec", "find_module"):
+                    g = _finder_guard(m)
+                    if g is None or _names_local(g, local):
+                        out.add(f"import_hook:{n.name}.{m.name} (not restricted to one installed module)")
+        elif isinstance(n, ast.Name) and _names_local(n.id, local):
+            out.add(f"names_local:{n.id}")
+        elif isinstance(n, ast.Constant) and isinstance(n.value, str) and _names_local(n.value, local):
+            out.add(f"names_local:{n.value!r}")
+        elif isinstance(n, ast.Import):
+            out.update(f"names_local:{a.name}" for a in n.names if _names_local(a.name, local))
+        elif isinstance(n, ast.ImportFrom):
+            if n.level or _names_local(n.module or "", local):
+                out.add(f"names_local:{n.module}")
     return sorted(out)

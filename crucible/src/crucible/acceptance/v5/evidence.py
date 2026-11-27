@@ -248,6 +248,116 @@ def _functions_of(obj):
                 yield "", acc
 
 
+_CODE_INDEX: dict[tuple, dict] = {}
+
+
+def _code_index(path: str) -> dict | None:
+    """(co_qualname, co_firstlineno) -> [code objects] of everything compiled from the file's current bytes (cached by
+    path, size and mtime); None when the file cannot be read or compiled."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (path, st.st_size, st.st_mtime_ns)
+    if key not in _CODE_INDEX:
+        try:
+            with open(path, "rb") as fh:
+                top = compile(fh.read(), path, "exec", dont_inherit=True)
+        except (OSError, SyntaxError, ValueError):
+            _CODE_INDEX[key] = None
+            return None
+        idx: dict = {}
+        todo = [top]
+        while todo:
+            c = todo.pop()
+            idx.setdefault((c.co_qualname, c.co_firstlineno), []).append(c)
+            todo.extend(x for x in c.co_consts if isinstance(x, types.CodeType))
+        _CODE_INDEX[key] = idx
+    return _CODE_INDEX[key]
+
+
+_CODE_FIELDS = ("co_code", "co_names", "co_varnames", "co_freevars", "co_cellvars", "co_flags", "co_argcount",
+                "co_posonlyargcount", "co_kwonlyargcount", "co_name", "co_qualname")
+
+
+def _same_code(a, b) -> bool:
+    if any(getattr(a, f) != getattr(b, f) for f in _CODE_FIELDS) or len(a.co_consts) != len(b.co_consts):
+        return False
+    for x, y in zip(a.co_consts, b.co_consts):
+        if isinstance(x, types.CodeType) or isinstance(y, types.CodeType):
+            if not (isinstance(x, types.CodeType) and isinstance(y, types.CodeType) and _same_code(x, y)):
+                return False
+        elif type(x) is not type(y) or (x != y and not (x != x and y != y)):
+            return False
+    return True
+
+
+def _plain_source_module(mod) -> bool:
+    """Loaded by the standard source loader (not pytest's assertion-rewriting loader, whose code differs from a plain
+    compile of the file by design)."""
+    import importlib.machinery
+    return type(getattr(mod, "__loader__", None)) is importlib.machinery.SourceFileLoader
+
+
+def code_object_patches(root: str) -> list[str]:
+    """Functions of modules under the checkout's `src/` whose code object claims a file of the checkout but is not
+    the code compiled from that file (`fn.__code__ = fn.__code__.replace(...)`, `types.FunctionType` over altered or
+    foreign globals): co_filename is kept by such a patch, so `patched_functions` (which judges by file) cannot see it
+    (wave 3b verifier probe V4)."""
+    root = os.path.realpath(root)
+    src = os.path.join(root, "src")
+    homes: dict[str, dict] = {}
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if f and f.endswith(".py") and _under(os.path.realpath(f), [src]) and _plain_source_module(mod):
+            try:
+                homes.setdefault(os.path.realpath(f), []).append(vars(mod))
+            except TypeError:
+                pass
+    out = []
+    seen: set[int] = set()
+
+    def check(fn, where: str) -> None:
+        if id(fn) in seen:
+            return
+        seen.add(id(fn))
+        code = fn.__code__
+        cf = code.co_filename
+        if not cf or cf.startswith("<"):
+            return
+        rf = os.path.realpath(cf)
+        if rf not in homes:
+            return
+        idx = _code_index(rf)
+        if idx is None:
+            return
+        if not any(_same_code(code, c) for c in idx.get((code.co_qualname, code.co_firstlineno), [])):
+            out.append(f"{where} <- code object not compiled from {os.path.relpath(rf, root)}")
+        elif not any(fn.__globals__ is g for g in homes[rf]):
+            out.append(f"{where} <- function of {os.path.relpath(rf, root)} rebuilt over other globals")
+
+    for name, mod in list(sys.modules.items()):
+        f = getattr(mod, "__file__", None)
+        if not f or not _under(os.path.realpath(f), [root]):
+            continue
+        try:
+            items = list(vars(mod).items())
+        except TypeError:
+            continue
+        for attr, val in items:
+            for _, fn in _functions_of(val):
+                check(fn, f"{name}.{attr}")
+            if isinstance(val, type) and getattr(val, "__module__", None) == name:
+                try:
+                    members = list(vars(val).items())
+                except TypeError:
+                    continue
+                for mname, mval in members:
+                    for _, fn in _functions_of(mval):
+                        check(fn, f"{name}.{attr}.{mname}")
+    return sorted(set(out))
+
+
 def patched_functions(root: str) -> list[str]:
     """Functions reachable from modules of the checkout (module attributes, and the methods of classes defined there)
     whose code is not implementation code: compiled from a real file outside the checkout and outside the interpreter;
@@ -483,7 +593,7 @@ def record(requirement: str, metrics: dict, *, command: str | None = None, artif
            "modules": mods, "modules_outside_root": outside, "files_read": reads,
            "files_read_truncated": bool(_TRUNCATED[0]) if run else False,
            "interpreter": interpreter(), "site_hooks": site_hooks(), "foreign_modules": foreign_modules(root),
-           "patched_functions": patched_functions(root), "python_env": python_env(),
+           "patched_functions": patched_functions(root) + code_object_patches(root), "python_env": python_env(),
            "datasets": dataset_checksums(datasets),
            "metrics": metrics, "artifacts": arts, "labels": dict(labels or {}), "notes": notes,
            "junit": None, "run": None}

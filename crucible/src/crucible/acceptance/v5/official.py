@@ -158,11 +158,26 @@ def ablate_source(src: str, label: str) -> tuple[str, int]:
 # its files, code objects, docstrings and line numbers are the evidence commit's. Not covered: processes that do not
 # import Crucible from a clone (the sandbox's `python -I -S` boot and jail scripts; every requirement listing them
 # also lists the in-process modules that start them) and generators started during an import and resumed later.
+#
+# Wave 3b verifier fixes (D-83 third addendum):
+# * the recording machinery is never blocked: a function started by `evidence.record` or the files-read audit hook
+#   (`evidence._open_hook`), or one of those two themselves, runs normally, so listing evidence.py, manifest.py,
+#   ledger.py or scale/slots.py (which record() calls) as implementation files no longer makes record() itself raise
+#   and every measurement look dependent (probes V6, V6c);
+# * every block is logged (pid, time, code) to the ablation run's own output directory (a path fixed in the hook text,
+#   so children whose environment was scrubbed log there too). `ablation_verdict` judges a run by it: a run in which no
+#   implementation function was blocked before the record (or at all, when there is no record) is not sensitive - the
+#   test did not execute its implementation, or it told the ablated run from a normal one and avoided it (probes V2b,
+#   V3); a record made in the producing process after a block in that same process is not sensitive either - the test
+#   outlived the blocked call (finally, with, except) and its record only says that a call failed.
 ABLATION_HOOK = """
 
 # --- crucible-v5 review: behavioural ablation (acceptance/v5/official.py; exists only in a throwaway clone) ---
-def _crucible_v5_ablation(suffixes):
+def _crucible_v5_ablation(suffixes, machinery_file, machinery, log_dir):
+    import json
+    import os
     import sys
+    import time
     mon = sys.monitoring
     tool = next((t for t in (5, 3, 2) if mon.get_tool(t) is None), None)
     if tool is None:
@@ -171,23 +186,46 @@ def _crucible_v5_ablation(suffixes):
     class __CrucibleAblated__(BaseException):
         pass
 
+    logged = [0]
+
+    def note(code):
+        logged[0] += 1
+        if logged[0] > 50:
+            return
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            with open(os.path.join(log_dir, str(os.getpid()) + ".jsonl"), "a") as fh:
+                fh.write(json.dumps({"pid": os.getpid(), "t": time.time(),
+                                     "code": code.co_filename + ":" + code.co_qualname}) + "\\n")
+        except OSError:
+            pass
+
     def start(code, offset):
         if not (code.co_flags & 1 and code.co_filename.endswith(suffixes)):
             return mon.DISABLE
+        if code.co_qualname in machinery and code.co_filename.endswith(machinery_file):
+            return None
         f = sys._getframe(1)
         while f is not None:
-            if f.f_code.co_filename.startswith("<frozen importlib._bootstrap"):
+            c = f.f_code
+            if c.co_filename.startswith("<frozen importlib._bootstrap"):
+                return None
+            if c.co_qualname in machinery and c.co_filename.endswith(machinery_file):
                 return None
             f = f.f_back
+        note(code)
         raise __CrucibleAblated__(code.co_filename + ":" + code.co_qualname)
     mon.use_tool_id(tool, "crucible-v5-ablation")
     mon.register_callback(tool, mon.events.PY_START, start)
     mon.set_events(tool, mon.events.PY_START)
 
 
-_crucible_v5_ablation(%r)
+_crucible_v5_ablation(%r, %r, %r, %r)
 del _crucible_v5_ablation
 """
+ABLATION_MACHINERY_FILE = os.sep + os.path.join("crucible", "acceptance", "v5", "evidence.py")
+ABLATION_MACHINERY = ("record", "_open_hook")
+ABLATION_LOG = "ablation_blocks"                # under the run's output directory
 ABLATION_PACKAGE_INIT = "src/crucible/__init__.py"
 
 
@@ -204,6 +242,26 @@ def ablatable(root: str, e: dict, commit: str) -> list[str]:
                                                 capture_output=True).returncode == 0:
             out.append(f)
     return sorted(out)
+
+
+def _replacement_commit(dest: str, base: str) -> str:
+    """Commit the clone's working tree as a stand-in for `base`: same parents, author, committer, dates and message,
+    only the tree differs; HEAD (detached) points at it and the clone is clean. The ablated run's history therefore
+    looks like the evidence commit's (D-83 third addendum: an ablation commit of its own, authored
+    'crucible-v5-ablation', told the measured test it was ablated - probe V3)."""
+    _git(dest, "add", "-A")
+    tree = _git(dest, "write-tree")
+    fmt = "%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI"
+    an, ae, ad, cn, ce, cd = _git(dest, "show", "-s", f"--format={fmt}", base).split("\x00")
+    msg = subprocess.run(["git", "cat-file", "commit", base], cwd=dest, capture_output=True, text=True,
+                         check=True).stdout.split("\n\n", 1)[1]
+    parents = [x for x in _git(dest, "rev-parse", f"{base}^@").split() if x]
+    env = dict(os.environ, GIT_AUTHOR_NAME=an, GIT_AUTHOR_EMAIL=ae, GIT_AUTHOR_DATE=ad, GIT_COMMITTER_NAME=cn,
+               GIT_COMMITTER_EMAIL=ce, GIT_COMMITTER_DATE=cd)
+    new = subprocess.run(["git", "commit-tree", tree, *[a for p in parents for a in ("-p", p)]], cwd=dest, env=env,
+                         input=msg, capture_output=True, text=True, check=True).stdout.strip()
+    _git(dest, "update-ref", "--no-deref", "HEAD", new)
+    return new
 
 
 def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "evidence", agent: str,
@@ -238,10 +296,9 @@ def execute(root: str, tests: list[str], *, commit: str = "HEAD", kind: str = "e
         if mode == "block":
             sufs = tuple(sorted({os.sep + os.path.normpath(f) for f in ablate}))
             with open(init, "a", encoding="utf-8") as fh:
-                fh.write(ABLATION_HOOK % (sufs,))
-        _git(dest, "-c", "user.name=crucible-v5-ablation", "-c", "user.email=ablation@invalid", "commit", "-qam",
-             "ablation (never pushed)")
-        ablated_sha = _git(croot, "rev-parse", "HEAD")
+                fh.write(ABLATION_HOOK % (sufs, ABLATION_MACHINERY_FILE, ABLATION_MACHINERY,
+                                          os.path.join(out, ABLATION_LOG)))
+        ablated_sha = _replacement_commit(dest, sha)
         gd = _git(dest, "rev-parse", "--absolute-git-dir")
         with open(os.path.join(gd, MARKER), "w") as fh:
             json.dump({"run_id": run_id, "commit": ablated_sha, "created_at": _now()}, fh)
@@ -424,9 +481,75 @@ def ablation_survivors(ev_metrics: dict, ablated: dict | None, tolerance: dict |
 
 def ablation_sensitive(ev_metrics: dict, ablated: dict | None, tolerance: dict | None,
                        criteria: list[dict] | None = None) -> bool:
-    """The measurement depends on the implementation: the ablated run recorded nothing, or every criteria metric
-    differs from the evidence."""
+    """The legacy (file-rewriting ablation) rule: the ablated run recorded nothing, or every criteria metric differs
+    from the evidence. Block-mode ablations are judged by `ablation_verdict`."""
     return ablated is None or not ablation_survivors(ev_metrics, ablated, tolerance, criteria)
+
+
+def read_blocks(log_dir: str) -> list[dict]:
+    """The ablation hook's block log of one run: [{pid, t, code}] in time order."""
+    out = []
+    try:
+        names = sorted(os.listdir(log_dir))
+    except OSError:
+        return out
+    for n in names:
+        try:
+            for line in open(os.path.join(log_dir, n), encoding="utf-8"):
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(d, dict) and isinstance(d.get("pid"), int) and isinstance(d.get("t"), (int, float)):
+                    out.append({"pid": d["pid"], "t": float(d["t"]), "code": str(d.get("code"))[:300]})
+        except OSError:
+            continue
+    return sorted(out, key=lambda b: b["t"])
+
+
+def _record_time(rec: dict) -> float | None:
+    try:
+        return _dt.datetime.fromisoformat(rec["recorded_at"]).timestamp()
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def ablation_verdict(ev_metrics: dict, ablated: dict | None, blocks: list[dict] | None, tolerance: dict | None,
+                     criteria: list[dict] | None = None) -> dict:
+    """Judge a block-mode ablation run (D-83 third addendum) by what the hook blocked and when:
+
+    * no record: sensitive only if an implementation function was blocked (a test that fails, or skips its record,
+      without having run into the ablation told the ablated run from a normal one);
+    * a record made after a block in the recording process itself: not sensitive (the test outlived a blocked call -
+      finally, with, except - so its record says only that a call failed);
+    * a record made before any block anywhere: not sensitive (nothing the record holds was computed with the
+      implementation blocked: it was computed without the implementation, or the test detected the ablation);
+    * a record made after blocks in child processes only (a test that measures through subprocesses): sensitive iff
+      every criteria metric differs from the evidence."""
+    blocks = list(blocks or [])
+    if ablated is None:
+        ok = bool(blocks)
+        return {"sensitive": ok, "survivors": [], "blocks": len(blocks),
+                "why": "no record; implementation blocked" if ok else
+                "no record, but no implementation function was blocked: the test did not reach its implementation"}
+    t, pid = _record_time(ablated), (ablated.get("identity") or {}).get("pid")
+    if t is None or not isinstance(pid, int):
+        return {"sensitive": False, "survivors": [], "blocks": len(blocks),
+                "why": "the ablated record carries no recording time or process id"}
+    mine = [b for b in blocks if b["pid"] == pid and b["t"] <= t]
+    children = [b for b in blocks if b["pid"] != pid and b["t"] <= t]
+    if mine:
+        return {"sensitive": False, "survivors": [], "blocks": len(blocks),
+                "why": f"recorded after {len(mine)} blocked call(s) in the recording process ({mine[0]['code']}): "
+                       "the test outlived the blocked implementation"}
+    if not children:
+        return {"sensitive": False, "survivors": [], "blocks": len(blocks),
+                "why": "recorded before any implementation function was blocked: the record does not depend on the "
+                       "implementation"}
+    surv = ablation_survivors(ev_metrics, ablated, tolerance, criteria)
+    return {"sensitive": not surv, "survivors": surv, "blocks": len(blocks),
+            "why": "recorded after blocks in child processes" + (f"; criteria metrics unchanged: {surv[:4]}"
+                                                                  if surv else "")}
 
 
 def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = None, install: bool = True,
@@ -444,16 +567,23 @@ def ablate(root: str, e: dict, ev: dict, *, agent: str, scratch: str | None = No
     rec = res["record"]
     path = os.path.join(res["out"], "evidence", f"gate_{gate_of(e['id'])}", f"{e['id']}.json")
     got = json.load(open(path)) if os.path.exists(path) else None
+    abl = rec.get("ablation") or {}
+    if abl.get("mode") == "block":
+        blocks = read_blocks(os.path.join(res["out"], ABLATION_LOG))
+        abl["blocks"], abl["blocks_total"] = blocks[:500], len(blocks)
+        verdict = ablation_verdict(ev["metrics"], got, blocks, e.get("tolerance"), e.get("criteria"))
+    else:
+        surv = ablation_survivors(ev["metrics"], got, e.get("tolerance"), e.get("criteria"))
+        verdict = {"sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"), e.get("criteria")),
+                   "survivors": surv, "blocks": None, "why": "file-rewriting ablation (legacy rule)"}
     installed = _install_records(root, res, {e["id"]}, ABLATIONS_DIR, evidence_layout=False) if install else {}
     shutil.rmtree(res["work"], ignore_errors=True)
     return {"applicable": True, "run_id": rec["run_id"], "run_path": f"{ABLATIONS_DIR}/{rec['run_id']}.json",
-            "commit": rec["commit"], "ablated_commit": (rec.get("ablation") or {}).get("ablated_commit"),
-            "ablated_files": files, "functions_ablated": sum((rec.get("ablation") or {}).get("functions_ablated",
-                                                                                          {}).values()),
+            "commit": rec["commit"], "ablated_commit": abl.get("ablated_commit"), "mode": abl.get("mode"),
+            "ablated_files": files, "functions_ablated": sum((abl.get("functions_ablated") or {}).values()),
             "node": node, "pytest_rc": rec["pytest_rc"], "record_produced": got is not None,
-            "record_path": installed.get(e["id"]),
-            "survivors": ablation_survivors(ev["metrics"], got, e.get("tolerance"), e.get("criteria")),
-            "sensitive": ablation_sensitive(ev["metrics"], got, e.get("tolerance"), e.get("criteria"))}
+            "record_path": installed.get(e["id"]), "blocks": verdict["blocks"], "why": verdict["why"],
+            "survivors": verdict["survivors"], "sensitive": verdict["sensitive"]}
 
 
 def review(root: str | None = None, *, requirement: str, agent: str | None = None, verdict: str = "approved",

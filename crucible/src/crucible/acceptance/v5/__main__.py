@@ -105,6 +105,11 @@ def main(argv: list[str] | None = None) -> int:
     df.add_argument("--evidence", default="")
     df.add_argument("--fixed-by")
     df.add_argument("--regression-test", dest="regression_tests", action="append", default=[])
+    ph = sub.add_parser("pin-hook", help="pin a committed start-up hook file in the ledger (D-83 third addendum)")
+    ph.add_argument("path", help="the hook file, relative to the crucible root")
+    ph.add_argument("--decision", required=True, help="a DECISION_LOG.md decision naming the path and quoting the "
+                                                       "first 16 hex digits of the file's sha256")
+    ph.add_argument("--note", default="")
     fr = sub.add_parser("final-report")
     fr.add_argument("--out", default=None)
     pg = sub.add_parser("progress")
@@ -134,6 +139,16 @@ def main(argv: list[str] | None = None) -> int:
             json.dump(res, fh, indent=1)
         print(f"report: {out}")
         return 0 if a.cmd == "report" else EXIT[res["project_status"]]
+    if a.cmd == "pin-hook":
+        from .checker import pin_state
+        from .evidence import sha256_file
+        root = M.crucible_root()
+        sha = sha256_file(os.path.join(root, a.path))
+        M.L.append(root, [{"id": a.path, "kind": "startup_hook", "value": {"sha256": sha}, "decision": a.decision,
+                           "note": a.note}])
+        pins, probs = pin_state(root)
+        print(f"pinned {a.path} sha256 {sha}" if pins.get(a.path) == sha else f"pin recorded but not valid: {probs}")
+        return 0 if pins.get(a.path) == sha else 1
     if a.cmd == "build-manifest":
         m = M.build(decision=a.decision)
         print(f"{len(m['requirements'])} requirements written to {M.manifest_path()}")

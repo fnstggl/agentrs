@@ -226,7 +226,7 @@ def build(root: str | None = None, decision: str | None = None) -> dict:
         items.append({"id": "MASTER_SPEC.md", "kind": "anchor", "value": have,
                       "note": "sha256 of the verbatim specification"})
     fresh_ids = {e["id"] for e in fresh}
-    gone = sorted(i for i in st if i != "__anchors__" and i not in fresh_ids)
+    gone = sorted(i for i in st if not i.startswith("__") and i not in fresh_ids)
     if gone:
         raise ValueError(f"requirements may never be removed: {gone[:10]}")
 
@@ -509,7 +509,7 @@ def consistency(root: str | None = None, m: dict | None = None) -> dict:
     rules = L.rule_problems(st, L.decision_sections(docs_dir(root)))
     for rid, ps in rules.items():
         per.setdefault(rid, []).extend(ps)
-    led_ids = {i for i in st if i != "__anchors__"}
+    led_ids = {i for i in st if not i.startswith("__")}
     lost = sorted(led_ids - set(want))
     if lost:
         g.append(f"{len(lost)} requirements recorded in the ledger were removed: {lost[:8]}")
