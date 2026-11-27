@@ -92,3 +92,20 @@ def test_a_defect_is_closed_only_with_a_fix_in_history_and_existing_regression_t
     # a fixed defect whose regression test disappears is reported
     os.remove(os.path.join(root, "tests", "test_z.py"))
     assert qa.defect_revalidation(root)["fixed_without_regression_test"] == ["DEF-Z-1"]
+
+
+def test_regression_references_may_cite_test_files_with_remarks(tmp_path):
+    """Owners close defects citing whole gate files and parenthesised remarks ('tests/v5/test_gate_SP_13_7.py
+    (adversarial probes: 7 dimensions stopped, 9 scheduling rules held), tests/test_v5_slots.py'); every such closure
+    was reported as 'fixed without existing regression tests'. A cited file must exist and hold a test function; a
+    cited node must name an existing function; a remark is not a test."""
+    root = str(tmp_path)
+    os.makedirs(os.path.join(root, "tests", "v5"))
+    open(os.path.join(root, "tests", "v5", "test_gate_Q.py"), "w").write("def test_q():\n    assert 1 + 1\n")
+    open(os.path.join(root, "tests", "helpers.py"), "w").write("def util():\n    return 1\n")
+    nodes = qa._regression_nodes("tests/v5/test_gate_Q.py (probes: 7 stopped, 9 held), tests/v5/test_gate_Q.py::test_q")
+    assert nodes == ["tests/v5/test_gate_Q.py", "tests/v5/test_gate_Q.py::test_q"]
+    assert all(qa._test_exists(root, n) for n in nodes)
+    assert not qa._test_exists(root, "tests/helpers.py")                  # no test in it
+    assert not qa._test_exists(root, "tests/v5/test_gate_Q.py::test_missing")
+    assert not qa._test_exists(root, "tests/v5/test_gate_R.py")

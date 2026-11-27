@@ -292,10 +292,24 @@ def _owners(d: dict) -> list[str]:
     return out or [o]
 
 
+def _strip_notes(text: str) -> str:
+    """The text without parenthesised remarks ('tests/x.py (7 probes, 9 rules), tests/y.py' -> 'tests/x.py , ...')."""
+    out, depth = [], 0
+    for ch in text:
+        if ch == "(":
+            depth += 1
+        elif ch == ")" and depth:
+            depth -= 1
+        elif not depth:
+            out.append(ch)
+    return "".join(out)
+
+
 def _regression_nodes(spec) -> list[str]:
-    """`regression_tests` as node ids: a list, or a comma-separated string whose '::name' items reuse the previous
-    item's file."""
-    items = spec if isinstance(spec, list) else [x.strip() for x in str(spec or "").split(",") if x.strip()]
+    """`regression_tests` as node ids or test files: a list, or a comma-separated string (parenthesised remarks
+    ignored) whose '::name' items reuse the previous item's file."""
+    items = spec if isinstance(spec, list) else [x.strip() for x in _strip_notes(str(spec or "")).split(",")
+                                                 if x.strip()]
     out, last = [], None
     for it in items:
         if it.startswith("::") and last:
@@ -307,16 +321,21 @@ def _regression_nodes(spec) -> list[str]:
 
 
 def _test_exists(root: str, node: str) -> bool:
+    """A test node id (file::name) whose function exists, or a test file (tests/.../test_*.py) with at least one test
+    function: owners cite whole gate files as the regression tests of a closed defect."""
     f, _, name = node.partition("::")
     path = os.path.join(root, f)
-    if not name or not f.endswith(".py") or not os.path.exists(path):
+    if not f.endswith(".py") or not os.path.exists(path):
         return False
-    name = name.split("::")[-1].split("[", 1)[0]
     try:
         tree = ast.parse(open(path, encoding="utf-8").read())
     except SyntaxError:
         return False
-    return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name for n in ast.walk(tree))
+    tests = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    if not name:
+        return os.path.basename(f).startswith("test_") and any(n.name.startswith("test_") for n in tests)
+    name = name.split("::")[-1].split("[", 1)[0]
+    return any(n.name == name for n in tests)
 
 
 def _in_history(root: str, commit: str, since: str | None = None) -> bool:
