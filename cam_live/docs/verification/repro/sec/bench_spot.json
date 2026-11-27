@@ -1,0 +1,225 @@
+{
+ "authorization_checks": {
+  "visual.click": 60
+ },
+ "command": "python -m cam_live.harness.grounding.bench --grounders goclick-base,reference-template --per-family 4 --no-recovery --out /tmp/claude-0/-workspace/8e531f56-63d9-4df0-a584-c2fb645312ce/scratchpad/g_sec/bench_spot.json",
+ "commit": "560d57747e9e7117f3c594b6191d2dc9f9429b0d",
+ "families": [
+  "canvas_buttons",
+  "dense_form",
+  "icon_only",
+  "lookalike",
+  "small_targets",
+  "workflow"
+ ],
+ "finished_unix": 1795745956.9174948,
+ "grounders": {
+  "goclick-base": {
+   "baseline": false,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 4,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 4,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "dense_form": {
+     "e2e_success": 3,
+     "e2e_success_rate": 0.75,
+     "grounding_accuracy": 0.75,
+     "grounding_correct": 3,
+     "incorrect_actions": 1,
+     "targets": 4
+    },
+    "icon_only": {
+     "e2e_success": 4,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 4,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "lookalike": {
+     "e2e_success": 4,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 4,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "small_targets": {
+     "e2e_success": 4,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 4,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "workflow": {
+     "e2e_success": 12,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 12,
+     "incorrect_actions": 0,
+     "targets": 12
+    }
+   },
+   "compute_s_per_successful_operation": 2.8700603071239685,
+   "compute_s_total": 88.97186952084303,
+   "device": "cuda",
+   "e2e_success": 31,
+   "e2e_success_rate": 0.96875,
+   "executor_verification_agrees": 32,
+   "gpu_mem_mb_after_load": 528.27685546875,
+   "gpu_mem_mb_peak": 694.67529296875,
+   "grounding_accuracy": 0.96875,
+   "held_shared_gpu_lock": false,
+   "incorrect_actions": 1,
+   "isolated_process": true,
+   "latency_s": {
+    "action_mean": 4.311380285827909,
+    "model_mean": 2.7803709225263447,
+    "model_median": 0.8579373373650014,
+    "model_p90": 1.3034669887274504
+   },
+   "license": "MIT",
+   "load_s": 48.07270996365696,
+   "lock_held_s": 0.0,
+   "no_effect": 0,
+   "no_proposal": 0,
+   "params": 270803968,
+   "partial": "",
+   "recovery": {
+    "failures": 0,
+    "fallback": "mai-ui-2b",
+    "recovered": 0,
+    "recovery_rate": null,
+    "retried": 0
+   },
+   "repo": "HongxinLi/GoClick-Base",
+   "revision": "05633a495f9d2ce823372d0c7fd9b0b4bb67c6fa",
+   "role": "lightweight",
+   "targets": 32,
+   "workflows": 4,
+   "workflows_completed_without_help": 4
+  },
+  "reference-template": {
+   "baseline": true,
+   "by_family": {
+    "canvas_buttons": {
+     "e2e_success": 4,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 4,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "dense_form": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "icon_only": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "lookalike": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 4,
+     "targets": 4
+    },
+    "small_targets": {
+     "e2e_success": 0,
+     "e2e_success_rate": 0.0,
+     "grounding_accuracy": 0.0,
+     "grounding_correct": 0,
+     "incorrect_actions": 0,
+     "targets": 4
+    },
+    "workflow": {
+     "e2e_success": 12,
+     "e2e_success_rate": 1.0,
+     "grounding_accuracy": 1.0,
+     "grounding_correct": 12,
+     "incorrect_actions": 0,
+     "targets": 12
+    }
+   },
+   "compute_s_per_successful_operation": 12.61449749302119,
+   "compute_s_total": 201.83195988833904,
+   "device": "cpu",
+   "e2e_success": 16,
+   "e2e_success_rate": 0.5,
+   "executor_verification_agrees": 32,
+   "gpu_mem_mb_after_load": 0.0,
+   "gpu_mem_mb_peak": 0.0,
+   "grounding_accuracy": 0.5,
+   "held_shared_gpu_lock": false,
+   "incorrect_actions": 4,
+   "isolated_process": false,
+   "latency_s": {
+    "action_mean": 7.38501110622019,
+    "model_mean": 6.307248746510595,
+    "model_median": 4.503005389124155,
+    "model_p90": 15.31784460041672
+   },
+   "license": "part of cam_live",
+   "load_s": 0.0,
+   "lock_held_s": 0.0,
+   "no_effect": 8,
+   "no_proposal": 4,
+   "params": 0,
+   "partial": "",
+   "recovery": {
+    "failures": 0,
+    "fallback": "goclick-base",
+    "recovered": 0,
+    "recovery_rate": null,
+    "retried": 0
+   },
+   "repo": "",
+   "revision": "builtin-1",
+   "role": "baseline for comparison only",
+   "targets": 32,
+   "workflows": 4,
+   "workflows_completed_without_help": 4
+  }
+ },
+ "host": {
+  "gpu": "NVIDIA RTX A6000",
+  "load_average": [
+   25.099609375,
+   20.62744140625,
+   17.75244140625
+  ],
+  "load_average_end": [
+   18.8037109375,
+   28.45166015625,
+   23.17431640625
+  ],
+  "note": "the GPU and CPUs are shared with other jobs; latencies include that contention",
+  "torch": "2.15.0+cu132"
+ },
+ "not_run": {},
+ "per_family": 4,
+ "started_unix": 1795745546.4631183,
+ "targets": 32,
+ "tasks": 24,
+ "viewport": [
+  1280,
+  800
+ ],
+ "what": "visual grounders on controlled canvas tasks, operated through cam_live.harness.visual.VisualExecutor"
+}
