@@ -64,26 +64,50 @@ observations, and the task's site addresses were not in `learner_view`'s resourc
    executed actions between two *verified* rises of the objective metric (§4), offered once per trace.
 5. **Feasibility**: modalities the task does not permit, actions longer than the objective's time left, and what
    `EnvironmentAdapter.validate_action` (runtime hook) refuses for the current interface are dropped.
-6. **Backbone**: the backbone writes JSON actions over the tools of the candidates the trainable policy ranks highest
-   (at most `proposer_tools`), reading the compact digest of the current surface (`[ref] role "name" = value
-   {options} -> href`, observation id) and the latest results, conditioned on the belief `b` through the bridge.
-7. **Offer** (`_offer`): C_t = up to `backbone_slots` backbone proposals + up to `skill_slots` skill candidates
-   (the initial modality preference of 12A.7) + `grounded_share` of the remaining slots for grounded candidates,
-   the rest for the walker's; in each group `policy_share` go to the candidates the trainable policy ranks highest in
-   the current context, the others are drawn uniformly at random. The inclusion probability of every candidate is
+6. **Backbone** (`agent.AgentProposer`, change request S-6; open-ended generation is on by default, the schema walker
+   is a supplement): the backbone is asked for `proposer_k` (8) *different single* actions as JSON Lines (a sequence
+   may still be one `{"steps": [...]}` line), over a bounded tool list — half of the `proposer_tools` slots rotate
+   over the tools only generation can instantiate (free text, files, programs, notes, operator requests), half are
+   the operations the trainable policy ranks highest — each tool shown as a compact argument list
+   (`compact_tool`: name, what it does, `arg*: type range|options`), reading the compact digest of the current
+   surface and the latest results, conditioned on the belief `b` through the bridge. Before the strict parser
+   (`predict.candidates.parse_actions`, unchanged) `normalise_proposal` makes meaning-preserving repairs and counts
+   each in the proposal stats: the program tool's own form `{"operation": "program", "arguments": {"steps": ...}}`
+   is lifted to `{"steps": ...}`, argument names a closed schema does not have are dropped (e.g. `"method": "GET"` on
+   `http.get`), unknown top-level fields are dropped, argument names written at the top level are moved into
+   `arguments`. Nothing is invented; the environment still validates and authorizes every action.
+7. **Offer** (`_offer`): C_t = the backbone's valid proposals (at least `backbone_share` = 1/2 of C_t, S-6: the
+   policy, not dilution among walker candidates, decides about them) + up to `skill_slots` skill candidates (the
+   initial modality preference of 12A.7) + `grounded_share` of the remaining slots for grounded candidates, the rest
+   for the walker's; in each group `policy_share` go to the candidates the trainable policy ranks highest in the
+   current context, the others are drawn uniformly at random. The inclusion probability of every candidate is
    recorded as `decision.diagnostics["proposal_probs"]` (untracked when a backbone proposal is in the set, D-14).
-   Then the trainable policy selects among C_t as before (rule `policy`).
+8. **Selection** (S-5): rule `policy` samples from softmax(policy logit + `value_weight` x the world model's predicted
+   goal value net of cost, standardised over C_t) with the exploration floor; the probabilities are exact and the
+   decision records `selection: policy+value`. `value_weight = 0` gives the policy alone. (Interim agent-side
+   mechanism: once LRN's selection rule in `predict/` combines policy and uncertainty-aware value, the agent should
+   pass `value_weight = 0` to avoid counting the value twice.)
+9. **Schema walker**: `proposer_per_tool = 12` settings per tool, so a small discrete space (LabWorld: 4 channels x 3
+   efforts) is enumerated completely — with 4 the walker offered 4 of 12 interventions and the best one was usually
+   not in C_t (diagnosis, §9).
 
 ## 4. Which questions are asked about a candidate before it is executed
 
 (a) templates of the environment's own declared measurements for that operation, (b) `action.succeeded`,
 (c) `observed.<metric>` for up to three reported metrics — as in round 1 — and new (d) **the objective metric**
-(`success.metric` of the learner view) after the action, `goal_relevant=True`: the runtime queues it, the
-independent verifier measures it and signs the reading, the record holds it as a pending query (so the store
-attaches the answer). Uses of the signed reading: verifier-trust outcome item in the context; measurement utility
-in the meta ledger; the decision's `reward_signals.verified_progress_delta` annotation (signed reading minus the
-previous signed reading: the bootstrap's verified term, which was always 0 in a runtime run, INT2-1); detection of
-verified progress for skill induction.
+(`success.metric` of the learner view) after the action, `goal_relevant=True`, *unless the environment attributes
+outcomes to decisions* (it declared goal-relevant attributed queries, e.g. LabWorld's adopters per intervention):
+then the attributed questions are the goal-relevant ones and the level would mix earlier decisions' consequences
+into a candidate's value. The runtime queues the agent's goal-relevant questions; the independent verifier measures
+and signs them; the record holds them as pending queries, so the store attaches the answers.
+
+**Verified progress of a decision** (`_annotate_verified_delta`, written once as the decision's
+`reward_signals.verified_progress_delta` — the stored-signal path of `reward.assemble`, INT2-1): when every
+goal-relevant answer of the decision is in, its own attributed signed outcomes summed; 0 for a decision without
+attributed outcomes in an objective whose environment attributes; the signed level change across the decision only
+where nothing is attributed (a site whose count changes when the action executes). Round 2's first version credited
+the level change to every decision, which paid waits and probes for adopters that earlier interventions brought
+(measured, §9).
 
 ## 5. What is learned at which timescale
 
@@ -97,6 +121,31 @@ verified progress for skill induction.
 | checkpoint | promotion of the learner checkpoint, or rollback to the last promoted one | every `promote_every` frequent updates and at the end of every objective |
 
 `AgentSettings.learning=False` (controlled experiments only) turns every weight, belief and reward update off.
+
+## 5a. Storage, drain, planning phase
+
+* **Storage guard** (`cam_live.storage`, rule of 2026-11-27): the runtime checks `DiskGuard` before every checkpoint
+  (`RuntimeConfig.min_free_gb` / `warn_free_gb`, from config section `storage`: 20 / 50 GB); below the minimum it
+  writes nothing and pauses the run with a resource obstacle (`obstacle` + `storage_low` events, journal); the
+  learner checks before every save and promotion and its refusal reaches the runtime through `learn()` (same pause).
+  Runtime checkpoints: the newest `keep_checkpoints = 2`, optimizer state only in the newest; learner promotions:
+  `keep_last 2` + the promoted one. Tests: `tests/runtime/test_int2_storage_drain.py`,
+  `tests/integration/test_int2_storage.py`.
+* **Drain after exhaustion** (S-1, `RuntimeConfig.drain_after_exhaustion`): after the decision budget, with the
+  objective pending, the runtime keeps measuring due outcomes, verifying and learning without deciding until the
+  verdict is terminal or the deadline passes.
+* **Planning phase** (`tasks/discord_100_planning.yaml`, operator amendment; prepared, not run): the operator's
+  objective verbatim (confirmed by its hash; objective text limit raised to 2000 characters), interfaces
+  structured_browser / code / api / internal, member_list false, publications and Discord writes need approval.
+  Notes, hypotheses and operator requests come only from open-ended generation (`internal.note`,
+  `internal.request_operator`: the walker never invents text); `tests/integration/test_int2_planning.py` shows a
+  backbone request with its justification becoming a valid candidate. `tests/integration/test_int2_prompts.py` scans
+  every prompt template the agent sends for strategy content and checks that the sent prompt is constants +
+  objective + tool descriptors + observation digest.
+* **Harness/policy changes applied by INT2** (owners finished): S-3 — a network flag `none/off/false/...` is not a
+  network request (`harness/auth/evaluate.py`); S-4 — `sandbox.list_files` without a path lists the workspace root
+  (rule `T-CODE-LIST` in both policy files, byte-identical); `look_grant` (runtime) passes `consume=False` only to a
+  `check_grant` that names the parameter.
 
 ## 6. Checkpoints (INT2 item 2; spec 10.3, 15.2, 15.3)
 

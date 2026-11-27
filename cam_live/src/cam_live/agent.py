@@ -1567,6 +1567,12 @@ class CamLiveAgent:
             decision.diagnostics["proposal_probs"] = pp          # inclusion probability of each offered candidate
         decision.diagnostics["offer"] = {k: self.offer.get(k) for k in ("pool", "policy_ranked", "random", "backbone",
                                                                         "skills", "grounded")}
+        ps = (self.last.get("proposal") or {}).get("stats") or {}
+        if ps.get("n_items") is not None:                  # what the backbone wrote and what became of it (logged)
+            decision.diagnostics["generation"] = {
+                "n_items": ps.get("n_items"), "n_backbone_valid": ps.get("n_backbone_valid"),
+                "rejection_reasons": ps.get("rejection_reasons"), "normalised": ps.get("normalised"),
+                "prompt_chars": ps.get("prompt_chars"), "prompt_tools": ps.get("prompt_tools")}
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
             self.exp_out[rec.experiment_id] = rec

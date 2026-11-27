@@ -123,6 +123,16 @@ def main(argv=None) -> int:
             return 1
         info = json.loads(out)
         report["start"] = info
+        # the operator registers the staging site as a local service of this run (a loopback port is reachable only
+        # when registered: authorization service, separated mode)
+        regs = []
+        for name in ("variants", "structured"):
+            hp = caps["sites"][name]["url"].replace("http://", "").rstrip("/")
+            p2 = subprocess.run([sys.executable, "-m", "cam_live.harness.auth.opctl", "--run-dir", run_dir,
+                                 "local-service", "add", hp, "--note", "staging site (operator)"],
+                                env=dict(os.environ, PYTHONPATH=SRC), capture_output=True, text=True, timeout=60)
+            regs.append({"service": hp, "exit": p2.returncode, "out": (p2.stdout + p2.stderr)[-300:]})
+        report["local_services_registered"] = regs
         pid = info.get("runtime_pid") or read_pid(run_dir)
         uid = {role: pwd.getpwnam(user).pw_uid for role, user in SERVICE_USERS.items()}
         report["learner_uid"] = uid_of_pid(pid)
