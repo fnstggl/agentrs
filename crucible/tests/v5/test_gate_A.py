@@ -1,7 +1,8 @@
 """Gate A (MASTER_SPEC Part 17): baseline preservation, measured on the real tree against Crucible 4.0 (c07098b).
 
-A.1 runs the 4.0 test files of the recorded baseline and requires every one of its 1,076 node ids to pass by exact id
-(run it with the GPU visible through the slot scheduler, so the two GPU tests do not skip, and with
+A.1 runs the 4.0 test files of the recorded baseline - byte-identical to c07098b, restored in a fresh clone of HEAD, as
+the explicitly selected 4.0 historical baseline (DECISION_LOG D-82) - and requires every one of its 1,076 node ids to
+pass by exact id (run it with the GPU visible through the slot scheduler, so the two GPU tests do not skip, and with
 CRUCIBLE_GATE_A_WORKERS=<cpus> to split the files). A.2 compares every 4.0 world, mechanism and useful-work family
 definition by generated content on two seeds with an extracted c07098b tree. A.3 builds and advances every 4.0 world
 family on two seeds. A.4 checks the sealed store against its committed metadata baseline, its access log, static
@@ -27,8 +28,11 @@ CMD = "PYTHONPATH=src python -m crucible.acceptance.v5 run --gate A --agent <nam
 def test_A_1_regression_suite_passes_by_baseline_node_id():
     res = B.regression()
     m = res["metrics"]
-    record("A.1", m, command=CMD, notes=f"not run: {res['not_run'][:10]}; not passed: {res['not_passed'][:10]}; "
-                                        f"4.0 test files changed: {res['changed_test_files'][:10]}; exit codes {res['rcs']}")
+    record("A.1", m, command=CMD, notes=f"D-82: the c07098b bytes of every 4.0 test file, restored in a fresh clone, "
+                                        f"run as the 4.0 historical baseline; not run: {res['not_run'][:10]}; not passed: "
+                                        f"{res['not_passed'][:10]}; tree copies carrying v5 additions (restored for the run): "
+                                        f"{res['changed_test_files'][:12]}; still differing after the restore: "
+                                        f"{res['differ_after_restore'][:5]}; exit codes {res['rcs']}")
     bad = unmet("A.1", m)
     assert not bad, (bad, res["not_passed"][:10], res["not_run"][:10])
 
