@@ -73,6 +73,9 @@ AGENT_STATE_VERSION = 1
 LEARNER_DIR = "learner"                      # <run_dir>/learner: everything the learner process owns
 QUERY_EXEC_OK = "action.succeeded"           # immediate execution outcome the agent asks about every action
 OBS_PREFIX = "observed."                     # later reading of a metric the environment reports
+RECENT_OBS = 16                              # latest observations + action results kept for the digest
+LP_PENDING = 64                              # records waiting for a learning-progress measurement
+LP_BATCH = 8                                 # records measured per frequent update (newest first)
 
 
 @dataclass
@@ -123,7 +126,10 @@ class AgentSettings:
     backbone_share: float = 0.5              # ... at least this share of C_t (S-6: the learned policy, not dilution
                                              # among walker candidates, decides about what the backbone wrote)
     skill_slots: int = 2                     # slots reserved for skill-library candidates (12A.7 initial preference)
-    proposer_tools: int = 12                 # tools shown to the backbone: those of the policy's top-ranked pool
+    proposer_tools: int = 0                  # 0: the backbone's prompt lists every tool the task permits (S-6b,
+                                             # INT3A); > 0 bounds the list (ablation only, recorded per decision)
+    proposer_fit_prompt: bool = True         # shrink the observation digest (never tools / objective) so the
+                                             # prompt fits the backbone's prompt window, which keeps the END
     planner: bool = True                     # imagined values of candidates (recorded; no rule selects on them)
     goal_metric_query: bool = True           # ask the verifier for the objective metric after every action
     skills: bool = True                      # validated skills and skill induction from verified-successful runs
@@ -383,16 +389,38 @@ def _type_of(sch: Any) -> str:
     return t
 
 
+#: characters of a tool's own description shown to the backbone (whole sentences; S-6b: every permitted tool is
+#: listed, so the descriptions are shortened instead of tools being left out)
+TOOL_DESCRIPTION_CHARS = 200
+
+
+def short_description(text: str, limit: int = TOOL_DESCRIPTION_CHARS) -> str:
+    """The tool's own description cut to whole sentences within ``limit`` characters (the first sentence cut at a word
+    boundary when it alone is longer). Nothing is added or reworded."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = 0
+    for m in re.finditer(r"[.!?](\s|$)", text):
+        if m.end() > limit + 1:
+            break
+        cut = m.end()
+    if cut:
+        return text[:cut].strip()
+    head = text[:limit]
+    return (head[:head.rfind(" ")] if " " in head else head).rstrip(" ,;") + " ..."
+
+
 def compact_tool(t: ToolDescriptor) -> Dict[str, Any]:
-    """A tool as the backbone reads it: name, what it does, and one line per argument (type, range / options,
-    required marked with *). Same information as the JSON Schema the environment validates against, in a tenth of
-    the characters."""
+    """A tool as the backbone reads it: name, what it does (its own description, whole sentences), and one line per
+    argument (type, range / options, required marked with *). Same argument information as the JSON Schema the
+    environment validates against, in a tenth of the characters."""
     schema = t.arg_schema if isinstance(t.arg_schema, dict) else {}
     req = set(schema.get("required") or [])
     args = {(k + ("*" if k in req else "")): _type_of(v) for k, v in (schema.get("properties") or {}).items()}
     if t.name == "program":
         args = {"steps*": "array of actions, each {operation, arguments}"}
-    return {"name": t.name, "does": (t.description or "")[:220], "args": args}
+    return {"name": t.name, "does": short_description(t.description), "args": args}
 
 
 def normalise_proposal(obj: Any, tools: Dict[str, ToolDescriptor], notes: Dict[str, int]) -> Any:
@@ -470,7 +498,7 @@ class AgentProposer(BackboneProposer):
                k: Optional[int] = None) -> str:
         from .predict.candidates import H_ANSWER, H_END, H_OBJECTIVE, H_OBSERVATION, H_TOOLS
         enc = lambda v: json.dumps(v, ensure_ascii=True, sort_keys=True, separators=(",", ":"), default=str)  # noqa
-        listed = [compact_tool(t) for t in tools if t.available][:48]
+        listed = [compact_tool(t) for t in tools if t.available]       # every tool given, in the order given
         obs = observation_digest if isinstance(observation_digest, str) else str(observation_digest)
         text = "\n".join([PROPOSAL_INSTRUCTIONS.format(k=int(k or self.k)), H_OBJECTIVE, enc(objective), "", H_TOOLS,
                           enc(listed), "", H_OBSERVATION, enc(obs[:6000]), "", H_END, H_ANSWER, ""])
@@ -532,9 +560,32 @@ class AgentProposer(BackboneProposer):
                  "fraction_valid_of_items": (len(actions) / n_items) if n_items else 0.0,
                  "rejection_reasons": reasons, "normalised": notes, "prompt_chars": len(prompt),
                  "latent_conditioned": latent is not None, "by_operation": dict(collections.Counter(
-                     a.operation for a in actions))}
+                     a.operation for a in actions)),
+                 # what the backbone was shown (S-6b): the tools of the prompt in prompt order and the prompt's hash
+                 "prompt_tools": [t.name for t in tools if t.available],
+                 "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                 "prompt_tokens": prompt_tokens(self.model, prompt)}
         return ProposalResult(actions if max_n is None else actions[:max_n], stats, rejections,
                               [str(t) for t in texts])
+
+
+def prompt_window(model: Any) -> Optional[int]:
+    """Tokens of a prompt the backbone keeps (``nn_cfg.max_prompt_tokens``; a longer prompt loses its BEGINNING:
+    instructions, objective, tools), or None when the backbone does not say."""
+    bb = getattr(model, "backbone", None)
+    n = getattr(getattr(bb, "nn_cfg", None), "max_prompt_tokens", None)
+    return int(n) if isinstance(n, int) and n > 0 else None
+
+
+def prompt_tokens(model: Any, text: str) -> Optional[int]:
+    """Tokens of ``text`` under the backbone's own tokenizer (None when it exposes none)."""
+    enc = getattr(getattr(model, "backbone", None), "_encode", None)
+    if not callable(enc):
+        return None
+    try:
+        return len(enc(text))
+    except Exception:  # noqa: BLE001 — a count is diagnostic; generation does its own encoding
+        return None
 
 
 def surface_digest(surf: Optional[Dict[str, Any]], max_chars: int = 2000) -> str:
@@ -627,6 +678,7 @@ class CamLiveAgent:
         if s.adapters and s.bridge_grounding:
             self.learner.register(BridgeGroundingProvider(self.model))
         self.learner.add_probe("policy", self._policy_probe)
+        self.meta.inner.credit_fn = self._credit_for        # KF-E01: retrospective credit reaches the policy update
         self.meta.check_learner_optimizers(list(self.learner.optimizers.values()))
         self.evaluator_loss = next((p for p in self.providers if p.name == "evaluator"), None)
         # ---- prediction, decision, generation, imagination (one fast state, shared) ----
@@ -652,13 +704,14 @@ class CamLiveAgent:
         self.lifetime = 0
         self.ctx: List[str] = []                          # item refs of the current objective, in order
         self.goal_ref = self.tools_ref = ""
-        self.recent_obs: Deque[Dict[str, Any]] = collections.deque(maxlen=12)
+        self.recent_obs: Deque[Dict[str, Any]] = collections.deque(maxlen=RECENT_OBS)  # + action results
         self.metric_kinds: Dict[str, str] = {}             # metric name -> outcome kind, in order of last reading
         self.templates: Dict[str, List[Dict[str, Any]]] = {}
         self.self_pending: Dict[str, Dict[str, Any]] = {}  # self-asked query id -> {exp_id, metric, due, made_at}
         self.query_owner: Dict[str, Dict[str, str]] = {}  # query id -> {exp_id, action_id, experiment_id, arm}
         self.exp_outcome_keys: set = set()
         self.unrewarded: List[str] = []
+        self.lp_pending: List[str] = []                   # records whose learning progress is not measured yet
         self.rewarded_since_update: List[str] = []
         self.rewarded: List[str] = []
         self.buffer: List[OutcomeObservation] = []        # matured outcomes waiting for the fast update (step 5)
@@ -779,8 +832,9 @@ class CamLiveAgent:
     # ============================================================================================ step 1
     def set_objective(self, task: TaskSpec) -> None:
         """A new objective keeps every weight, the reward parameters and the learned priors; task-specific fast
-        beliefs return to the learned prior and the meta-learner starts a new lifetime. The same objective id only
-        updates the task's boundaries."""
+        beliefs return to the learned prior and the meta-learner starts a new objective segment (R_psi's lifetime
+        context carries on: the agent's lifetime spans its objectives, KF-E05). The same objective id only updates
+        the task's boundaries."""
         if self.task is not None and task.objective_id == self.task.objective_id:
             self.task = task
             reg = getattr(self.meta, "register_objective", None)
@@ -796,7 +850,7 @@ class CamLiveAgent:
                     self.fast_records += self.promote(f"objective {self.task.objective_id} ended")
                 except DiskSpaceLow as e:                  # reported to the runtime by the next learn()
                     self._storage_alarm = e
-            self.meta.new_lifetime()
+            self.meta.new_objective()                      # KF-E05: R_psi's lifetime context is not reset
             self.lifetime += 1
         self.learner.reset_fast()
         self.predictor.set_fast_state(self.learner.fast_state)
@@ -859,6 +913,16 @@ class CamLiveAgent:
                 self.skill_catalog[sk["skill_id"]] = {k: sk.get(k) for k in ("skill_id", "name", "description",
                                                                             "version", "status", "arg_schema",
                                                                             "reliability", "operations")}
+
+    def _note_result(self, a: ActionSpec, result: ActionResult, ts: float) -> None:
+        """What became of an executed action, for the proposer's digest: operation, status and, when it did not
+        succeed, the failure class and the environment's own detail (S-6b: the latest action results are in the
+        prompt even when the result carries no observation)."""
+        text = f"{a.operation} -> {result.status}"
+        if result.status != ResultStatus.OK:
+            text += f" ({result.failure_class})" + (f": {result.failure_detail[:300]}" if result.failure_detail else "")
+        self.recent_obs.append({"obs_id": f"result:{a.action_id}", "ts": float(result.ended or ts), "kind": "result",
+                                "text": text, "quantities": [], "vocab": {}})
 
     def ingest(self, observations: Sequence[Observation]) -> None:
         events = []
@@ -1114,6 +1178,8 @@ class CamLiveAgent:
             res = self.predictor.observe_outcomes(buf)
             out.update(fast_updates=res["n"], surprise=res["surprise"], belief_kl=res["kl"],
                        change_detected=res["change_detected"], skipped=res["skipped"])
+            for did in sorted({d.get("decision_id", "") for d in res["details"] if "kl" in d} - {""}):
+                self._annotate_epistemic_after(did)                 # LRN-3: exploration input of the bootstrap
             if res["n"]:
                 self.learner.counters["fast"] += res["n"]
                 rec = LearningUpdateRecord(
@@ -1135,7 +1201,8 @@ class CamLiveAgent:
     def propose(self, tools: Sequence[ToolDescriptor], k: int) -> List[ActionSpec]:
         s = self.settings
         now = float(self.clock.now())
-        tools = [t for t in tools if t.available]
+        given = list(tools)
+        tools = [t for t in given if t.available]
         if self.task is not None:
             ti = tools_item(tools, now, self.task.objective_id)
             if ti.ref != self.tools_ref:
@@ -1163,32 +1230,31 @@ class CamLiveAgent:
         stats: Dict[str, Any] = {"latent_conditioned": False}
         backbone: List[ActionSpec] = []
         if s.use_backbone:
-            # the backbone writes actions over the tools of the candidates the trainable policy ranks highest in this
-            # context (a bounded prompt), reading the compact digest of the current interface, conditioned on b
+            # S-6b: the backbone's prompt lists the complete action space the task permits (every available tool of
+            # a permitted modality; compact descriptors), the operations the trainable policy ranks highest in this
+            # context first, then the others in the environment's order; it reads the objective, the task's success
+            # definition and the digest of the current interface and latest results, conditioned on b
             ranked = [pool[i] for i in sorted(range(len(pool)), key=lambda i: (-float(probs[i]), i))] if pool else []
             ranked_ops: List[str] = []
             for a in ranked:
                 if a.operation not in ranked_ops:
                     ranked_ops.append(a.operation)
-            allowed = set(self.task.interfaces) if self.task is not None and self.task.interfaces else set()
-            covered = {a.operation for a in pool}
-            # tools no other generator could instantiate (free text, programs, code) can only come from the backbone:
-            # half of the prompt's tool slots rotate over them, the other half are the policy's top-ranked operations
-            open_only = [t.name for t in tools if t.name not in covered
-                         and (not allowed or t.modality in allowed or t.modality == "internal")]
-            n = max(1, s.proposer_tools)
-            pick = self.rng.sample(open_only, min(len(open_only), max(n - min(len(ranked_ops), n // 2), n // 2)))
-            names = list(pick)
-            for op in ranked_ops:
-                if len(names) >= n:
-                    break
-                if op not in names:
-                    names.append(op)
-            ptools = [t for t in tools if t.name in names] or tools[:n]
-            res = self.proposer.propose(ptools, self._digest(), objective=self._goal_text(), latent=b, vocab=vocab,
+            permitted = self._permitted(tools)
+            pos = {op: i for i, op in enumerate(ranked_ops)}
+            ptools = sorted(permitted, key=lambda t: (0, pos[t.name]) if t.name in pos else (1, 0))
+            if s.proposer_tools > 0:                       # ablation only: a bounded list (recorded below)
+                ptools = ptools[:s.proposer_tools]
+            digest, fit = self._fitted_digest(ptools)
+            res = self.proposer.propose(ptools, digest, objective=self._goal_text(), latent=b, vocab=vocab,
                                         k=s.proposer_k, id_prefix=prefix, seed=self.rng.randrange(1 << 30))
             stats = dict(res.stats)
-            stats["prompt_tools"] = names
+            stats["prompt_fit"] = fit
+            stats["tools_permitted"] = len(permitted)
+            stats["tools_not_listed"] = [t.name for t in permitted if t not in ptools]
+            stats["tools_unavailable"] = {t.name: (t.unavailable_reason or "unavailable")[:300] for t in given
+                                          if not t.available and self._modality_permitted(t.modality)}
+            if stats["tools_unavailable"]:
+                self.counters["decisions_with_unavailable_permitted_tools"] += 1
             seen = {a.action_id for a in pool}
             backbone = [a for a in self._feasible([a for a in res.actions if "backbone" in a.provenance.split("+")],
                                                   tools, now, invalid) if a.action_id not in seen]
@@ -1249,6 +1315,42 @@ class CamLiveAgent:
             else:
                 kept.append(a)
         return kept or cands
+
+    def _modality_permitted(self, modality: str) -> bool:
+        allowed = set(self.task.interfaces) if self.task is not None and self.task.interfaces else set()
+        return not allowed or modality in allowed or modality == "internal"
+
+    def _permitted(self, tools: Sequence[ToolDescriptor]) -> List[ToolDescriptor]:
+        """The task's authorized action space as the environment describes it: every available tool whose modality
+        the task permits (internal tools always), in the environment's order."""
+        return [t for t in tools if t.available and self._modality_permitted(t.modality)]
+
+    def _fitted_digest(self, ptools: Sequence[ToolDescriptor]) -> Tuple[str, Dict[str, Any]]:
+        """The observation digest for the proposer's prompt. The backbone keeps the END of a prompt longer than its
+        window (``nn_cfg.max_prompt_tokens``), which would cut the instructions, the objective and the tool list
+        first; so the digest's character budget is reduced (oldest observations go first; the success definition
+        and the current interface stay) until the prompt fits. Only for a pretrained backbone (the debug LM's
+        prompts are left as they were)."""
+        s = self.settings
+        budget = int(s.proposer_max_obs_chars)
+        digest = self._digest(budget)
+        bb = getattr(self.model, "backbone", None)
+        limit = prompt_window(self.model)
+        info: Dict[str, Any] = {"window": limit, "obs_budget": budget, "fitted": False}
+        if not (s.proposer_fit_prompt and limit and getattr(bb, "pretrained", False)):
+            return digest, info
+        goal = self._goal_text()
+        n = prompt_tokens(self.model, self.proposer.prompt(ptools, digest, goal, s.proposer_k))
+        info["tokens_before_fit"] = n
+        margin = 8
+        while n is not None and n > limit - margin and budget > 120:
+            budget = int(budget * 0.75)
+            digest = self._digest(budget)
+            n = prompt_tokens(self.model, self.proposer.prompt(ptools, digest, goal, s.proposer_k))
+            info.update(fitted=True, obs_budget=budget)
+        info["tokens"] = n
+        info["over_window"] = bool(n is not None and n > limit)
+        return digest, info
 
     def set_action_validator(self, fn: Any) -> None:
         """``EnvironmentAdapter.validate_action`` (called by the runtime when present): candidates the environment
@@ -1384,13 +1486,18 @@ class CamLiveAgent:
             n += 1
         self.n_decisions = n
 
-    def _digest(self) -> str:
-        """Compact observation digest for the backbone: the current interface (refs, fields, links, tabs), then the
-        latest other observations (results, errors, metrics), newest last, within ``proposer_max_obs_chars``."""
-        budget = int(self.settings.proposer_max_obs_chars)
+    def _digest(self, budget: Optional[int] = None) -> str:
+        """Compact observation digest for the backbone: the current interface (refs, fields, links, tabs), the task's
+        success definition as the task states it, then the latest other observations and action results (status,
+        failure class and detail of each executed action), newest last, within ``budget`` characters
+        (``proposer_max_obs_chars``)."""
+        budget = int(self.settings.proposer_max_obs_chars if budget is None else budget)
         head = surface_digest(self.surface, max_chars=int(budget * 0.6))
         skip = (self.surface or {}).get("obs_id", "")
-        lines, n = [], len(head)
+        task_line = ""
+        if self.task is not None and self.task.success:
+            task_line = "[task] success definition: " + json.dumps(self.task.success, sort_keys=True, default=str)
+        lines, n = [], len(head) + len(task_line)
         for o in reversed(self.recent_obs):
             if o["obs_id"] == skip:
                 continue
@@ -1400,7 +1507,7 @@ class CamLiveAgent:
             if n > budget:
                 break
             lines.append(line)
-        return "\n".join(([head] if head else []) + list(reversed(lines)))
+        return "\n".join(([head] if head else []) + ([task_line] if task_line else []) + list(reversed(lines)))
 
     def _resource_vocab(self) -> Dict[str, List[str]]:
         """Identifiers of the resources the operator authorized in the task (URLs, account / channel ids), as
@@ -1436,7 +1543,7 @@ class CamLiveAgent:
         """Values for the schema walker: the resources the operator authorized, then identifiers from the latest
         observations (newest last; the walker spreads evenly over at most 24 per name)."""
         v: Dict[str, List[str]] = {k: list(x) for k, x in self._resource_vocab().items()}
-        for o in list(self.recent_obs)[-3:]:
+        for o in [o for o in self.recent_obs if o.get("kind") != "result"][-3:]:     # observations, not results
             for key, vals in (o.get("vocab") or {}).items():
                 for x in vals:
                     if x not in v.setdefault(key, []):
@@ -1601,7 +1708,10 @@ class CamLiveAgent:
                 "n_items": ps.get("n_items"), "n_backbone_valid": ps.get("n_backbone_valid"),
                 "rejection_reasons": ps.get("rejection_reasons"), "normalised": ps.get("normalised"),
                 "rejections": ps.get("rejections_sample"),
-                "prompt_chars": ps.get("prompt_chars"), "prompt_tools": ps.get("prompt_tools")}
+                "prompt_chars": ps.get("prompt_chars"), "prompt_tools": ps.get("prompt_tools"),
+                "prompt_sha256": ps.get("prompt_sha256"), "prompt_tokens": ps.get("prompt_tokens"),
+                "prompt_fit": ps.get("prompt_fit"), "tools_permitted": ps.get("tools_permitted"),
+                "tools_not_listed": ps.get("tools_not_listed"), "tools_unavailable": ps.get("tools_unavailable")}
         decision.diagnostics["planner_horizon"] = self.pending_eval.get("planner_horizon", 0)
         if rec is not None:
             self.exp_out[rec.experiment_id] = rec
@@ -1672,6 +1782,7 @@ class CamLiveAgent:
         a = decision.chosen
         refs = list(decision.diagnostics.get("context_item_refs") or self._window())
         self._put(action_item(a, decision.ts, result))
+        self._note_result(a, result, decision.ts)
         for o in result.observations:
             self._note_obs(o)
         post = self._window()
@@ -1760,6 +1871,8 @@ class CamLiveAgent:
             self._goal_outcome(a.action_id, QUERY_EXEC_OK, float(o.value), result.cost)
         if exp_id not in self.unrewarded and exp_id not in self.rewarded:
             self.unrewarded.append(exp_id)
+        if exp_id not in self.lp_pending:
+            self.lp_pending = (self.lp_pending + [exp_id])[-LP_PENDING:]
         goal_m = self._goal_metric()
         if any(q.goal_relevant and q.metric != goal_m for q in result.expected_outcomes):
             self.attributing.add(decision.objective_id)
@@ -1811,6 +1924,111 @@ class CamLiveAgent:
         self._goal_outcome(aid, canonical_query(q, [aid]).metric, float(o.value), cost,
                            censored=o.status == OutcomeStatus.CENSORED)
 
+    # ============================================================================================ KF-E01
+    def _credit_for(self, rec: ExperienceRecord) -> Optional[Tuple[float, str, bool]]:
+        """The stored retrospective credit the policy update's goal term uses for one decision (spec 9.2: "use
+        redistributed credit during eligible training updates"), as (value, estimator, return_like), or None.
+
+        The estimator is the evidence-selected ``CreditAssigner.default`` (``credit.select``; ``simple`` until RUDDER
+        or COCOA agree with held-out randomised experiments) and its learning key (``credit.providers.LEARNING_KEY``):
+
+        * ``rudder`` / ``cocoa`` give a *return-like* value (RUDDER's redistributed return-to-go; COCOA's credit of the
+          action for its own and later outcomes): it replaces the row's discounted goal return;
+        * ``simple`` gives the decision's own linked outcome amounts: a per-decision goal reward, used only where
+          the environment attributes outcomes to decisions (its declared answers are then increments the decision
+          caused). Elsewhere the linked answer of a decision's goal question is a *reading of the objective level*
+          (e.g. the pass fraction after the action), which is not a contribution of that decision.
+
+        The verified per-decision annotation, when final, still takes precedence over per-decision credit."""
+        from .credit.providers import LEARNING_KEY
+        est = str(getattr(self.assigner, "default", "") or "")
+        if not est or not isinstance(rec.credit, dict):
+            return None
+        v = rec.credit.get(LEARNING_KEY.get(est, est))
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(v):
+            return None
+        if est == "simple":
+            if rec.objective_id not in self.attributing:
+                return None
+            return v, est, False
+        return v, est, True
+
+    # ============================================================================================ LRN-3
+    def _annotate(self, exp_id: str, name: str, value: float) -> bool:
+        """Write one reward-signal annotation ``reward_signals.<name>`` on a stored decision, once (an added
+        ``decision.diagnostics`` key: D-14 permits adding, never changing)."""
+        from .reward.assemble import annotation_key, stored_signals
+        rec = self.store.get(exp_id) if exp_id else None
+        if rec is None or not isinstance(rec.decision.diagnostics, dict) or not math.isfinite(float(value)):
+            return False
+        if name in stored_signals(rec.decision.diagnostics):
+            return False
+        rec.decision.diagnostics[annotation_key(name)] = float(value)
+        try:
+            self.store.update(rec)
+        except Exception as e:  # noqa: BLE001 — the store refuses rewriting history: nothing else is affected
+            self.last["annotation_error"] = f"{type(e).__name__}: {e}"
+            return False
+        self.counters[f"annotated_{name}"] += 1
+        return True
+
+    def _annotate_epistemic_after(self, decision_id: str) -> None:
+        """``epistemic_after`` of a decision (bootstrap exploration input, LRN-3): the executed candidate's goal-value
+        epistemic std recomputed by the predictor with the fast belief state after it absorbed *every* goal-relevant
+        outcome of that decision (same quantity and head view as its decision-time ``uncertainty``)."""
+        ep = self.predictor.goal_epistemic_after(decision_id)
+        if ep is None:
+            return
+        rec = self.store.by_decision(decision_id)
+        if rec is not None:
+            self._annotate(rec.exp_id, "epistemic_after", ep["epistemic_after"])
+        self.predictor.forget_goal_view(decision_id)
+
+    def _lp_records(self) -> List[ExperienceRecord]:
+        recs = [r for r in self.store.get_many(list(self.lp_pending)) if r is not None and r.result is not None]
+        return recs[-LP_BATCH:]
+
+    def _world_nll(self, recs: Sequence[ExperienceRecord]) -> List[Optional[float]]:
+        from .predict.providers import record_world_nll
+        was = self.model.training
+        self.model.eval()
+        try:
+            return record_world_nll(self.model, self.heads, self.store, recs)
+        except Exception as e:  # noqa: BLE001 — a measurement for the bootstrap; learning goes on without it
+            self.last["learning_progress_error"] = f"{type(e).__name__}: {e}"
+            return [None] * len(recs)
+        finally:
+            self.model.train(was)
+
+    def _lp_before(self) -> Tuple[List[ExperienceRecord], List[Optional[float]]]:
+        """Records waiting for their learning progress and the world model's loss on their matured outcomes now."""
+        if not self.lp_pending:
+            return [], []
+        recs = self._lp_records()
+        return recs, (self._world_nll(recs) if recs else [])
+
+    def _lp_after(self, recs: Sequence[ExperienceRecord], before: Sequence[Optional[float]]) -> None:
+        """``learning_progress`` of each record (bootstrap input, LRN-3; ``reward.bootstrap.learning_progress``):
+        the world model's loss on the record's matured outcomes before minus after the frequent update, on the
+        same targets (the record objects measured before)."""
+        from .reward.bootstrap import LearningProgressTracker
+        tr = LearningProgressTracker()
+        for r, b in zip(recs, before):
+            if b is not None:
+                tr.record_before(r.exp_id, b)
+        after = self._world_nll(recs)
+        for r, b, a in zip(recs, before, after):
+            if b is None or a is None:
+                continue
+            lp = tr.progress(r.exp_id, a)
+            if lp is not None:
+                self._annotate(r.exp_id, "learning_progress", lp)
+                self.lp_pending = [x for x in self.lp_pending if x != r.exp_id]     # measured once
+
     # ============================================================================================ step 13
     def internal_rewards(self) -> Dict[str, Any]:
         if not self.unrewarded:
@@ -1839,9 +2057,13 @@ class CamLiveAgent:
             return out
         plan = self.learner.poll()
         if plan is not None:
+            lp_recs, lp_before = self._lp_before()             # LRN-3: loss on the same targets before ...
             ups = self.learner.learn(dataclasses.replace(plan, budget_s=float(budget_s)))
             out += ups
-            self.frequent_since_promotion += sum(1 for u in ups if u.timescale == "frequent")
+            n_freq = sum(1 for u in ups if u.timescale == "frequent")
+            self.frequent_since_promotion += n_freq
+            if n_freq and lp_recs:
+                self._lp_after(lp_recs, lp_before)              # ... and after the frequent update
         s = self.settings
         if len(self.rewarded_since_update) >= s.policy_update_every:
             ids = self.rewarded[-s.policy_update_batch:]
@@ -2090,6 +2312,7 @@ class CamLiveAgent:
             "self_pending": self.self_pending, "query_owner": self.query_owner,
             "exp_outcome_keys": sorted([list(k) for k in self.exp_outcome_keys]), "unrewarded": self.unrewarded,
             "rewarded_since_update": self.rewarded_since_update, "rewarded": self.rewarded,
+            "lp_pending": self.lp_pending,
             "verified_log": self.verified_log, "failure_counts": self.failure_counts,
             "n_decisions": self.n_decisions, "n_since_planner": self.n_since_planner, "uid": self.uid,
             "objective_started_at": getattr(self, "objective_started_at", 0.0), "counters": dict(self.counters),
@@ -2107,7 +2330,7 @@ class CamLiveAgent:
             return
         self.lifetime = int(d["lifetime"])
         self.ctx, self.goal_ref, self.tools_ref = list(d["ctx"]), d["goal_ref"], d["tools_ref"]
-        self.recent_obs = collections.deque(d["recent_obs"], maxlen=12)
+        self.recent_obs = collections.deque(d["recent_obs"], maxlen=RECENT_OBS)
         self.metric_kinds = collections.OrderedDict((k, v) for k, v in d["metric_kinds"])
         self.templates = {k: list(v) for k, v in d["templates"].items()}
         self.self_pending = dict(d["self_pending"])
@@ -2115,6 +2338,7 @@ class CamLiveAgent:
         self.exp_outcome_keys = {tuple(k) for k in d["exp_outcome_keys"]}
         self.unrewarded, self.rewarded = list(d["unrewarded"]), list(d["rewarded"])
         self.rewarded_since_update = list(d["rewarded_since_update"])
+        self.lp_pending = list(d.get("lp_pending") or [])
         self.verified_log = list(d["verified_log"])
         self.failure_counts = {k: dict(v) for k, v in d["failure_counts"].items()}
         self.n_decisions, self.n_since_planner = int(d["n_decisions"]), int(d["n_since_planner"])

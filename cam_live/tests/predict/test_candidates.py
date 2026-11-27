@@ -173,7 +173,10 @@ def test_multi_step_program():
     # the program claims exactly the union of its steps' scopes; each step keeps its own for individual checks
     assert prog.auth_scope == "grid.write,web.read,web.write"
     assert [s.auth_scope for s in prog.steps] == ["web.read", "web.write", "grid.write"]
-    assert prog.modality == Modality.STRUCTURED_BROWSER and prog.steps[2].modality == Modality.API
+    # INT2-9: the composition is the environment's internal program operation (no `program` tool is described
+    # here); every step keeps, and is authorised by, its own modality
+    assert prog.modality == Modality.INTERNAL and prog.steps[0].modality == Modality.STRUCTURED_BROWSER
+    assert prog.steps[2].modality == Modality.API
     assert prog.est_cost.seconds == 6.0 and prog.est_cost.money == 0.25 and prog.timeout_s == 180.0
     assert all(s.provenance == "backbone" for s in prog.steps) and prog.steps[2].verify.kind == "text_present"
     assert "page.open" in prog.render() and "form.fill" in prog.render()

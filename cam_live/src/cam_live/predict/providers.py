@@ -95,6 +95,35 @@ def encode_with_adapters(model: LatentModelAPI, store: ExperienceStore, records:
     return batch
 
 
+@torch.no_grad()
+def record_world_nll(model: LatentModelAPI, heads: PredictHeads, store: ExperienceStore,
+                     records: Sequence[ExperienceRecord]) -> List[Optional[float]]:
+    """Per record: the world model's mean negative log-likelihood (nats, averaged over ensemble members and the
+    record's matured targets) of the executed action's matured outcomes under the *current* weights; None for a
+    record without matured outcomes. The same targets measured before and after an update give the record's
+    learning progress (``reward.bootstrap.learning_progress``, LRN-3). No scaler or normaliser state is touched."""
+    from ..learning_api import encode_decisions
+    from . import dists as D
+    recs = list(records)
+    rows = record_rows(recs)
+    out: List[Optional[float]] = [None] * len(recs)
+    keep = [i for i, r in enumerate(rows) if r]
+    if not keep:
+        return out
+    batch = encode_decisions(model, store, [recs[i] for i in keep], grad=False)
+    wb = world_batch(model, heads, batch.z_chosen, [rows[i] for i in keep], update_scaler=False)
+    mask = wb.mask()                                                             # [B, Q]
+    y = D.safe_targets(wb.targets.y.to(wb.out.raw.dtype), mask)
+    lp = wb.out.log_prob(y, event=wb.targets.observed)[:, :, 0]                 # [M, B, Q]
+    nll = torch.where(mask[None].expand_as(lp), -lp, torch.zeros_like(lp)).double()
+    cnt = mask.sum(-1).double() * lp.shape[0]
+    per = nll.sum((0, 2)) / cnt.clamp_min(1.0)
+    for j, i in enumerate(keep):
+        if float(cnt[j]) > 0 and bool(torch.isfinite(per[j])):
+            out[i] = float(per[j])
+    return out
+
+
 class _Base:
     name = "predict"
     timescale = TIMESCALE_FREQUENT

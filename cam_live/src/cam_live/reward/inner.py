@@ -214,7 +214,9 @@ class InnerBatch:
     boot_components: Dict[str, Tensor] = field(default_factory=dict)
     lifetime: Optional[Tensor] = None  # (engine hook; one lifetime per batch here)
     r_goal: Optional[Tensor] = None    # [n] goal term u before scaling (0 where nothing is known)
-    goal_source: List[str] = field(default_factory=list)   # "verified" | "predicted" | "" per row
+    goal_source: List[str] = field(default_factory=list)   # "verified" | "credit:<est>" | "predicted" | "" per row
+    g_credit: Optional[Tensor] = None  # [n] KF-E01: credited goal return of the row (redistributed return-to-go of the
+    g_credit_ok: Optional[Tensor] = None   # evidence-selected estimator), replacing its discounted goal return; mask
     z_pred: Optional[Tensor] = None    # [n, N] recorded predicted value of every candidate, standardised per row
     z_ok: Optional[Tensor] = None      # [n] bool: the row's candidates all carried a prediction
     model_weight: float = 0.0          # calibrated weight of the world model's values (beta_q^+, constant)
@@ -224,7 +226,7 @@ class InnerBatch:
         return int(self.b.shape[0])
 
     _FLOAT = ("b", "e_a", "e_g", "z", "b_next", "e_a_chosen", "signals", "signal_mask", "r_boot", "gamma", "r_goal",
-              "z_pred")
+              "z_pred", "g_credit")
 
     def to(self, dtype: Optional[torch.dtype] = None, device: Optional[torch.device] = None) -> "InnerBatch":
         kw: Dict[str, Any] = {}
@@ -277,6 +279,10 @@ class PolicyImprovementLoss:
         self.subset = AdaptableSubset(model, policy, self.cfg.adapt_trunk)
         self.lifetime_of = lifetime_of or (lambda exp_id: 0)
         self.life_states: Dict[str, Tensor] = life_states if life_states is not None else {}
+        # KF-E01 (spec 9.2 "use redistributed credit during eligible training updates"): record -> the stored
+        # retrospective credit the goal term may use, as (value, estimator, return_like) or None. Set by the
+        # integrated agent (the estimator is the evidence-selected ``CreditAssigner.default``); None: no credit
+        self.credit_fn: Optional[Callable[[ExperienceRecord], Optional[Tuple[float, str, bool]]]] = None
 
     # --------------------------------------------------------------------------------------------- batches
     def eligible(self, record: ExperienceRecord) -> bool:
@@ -361,6 +367,7 @@ class PolicyImprovementLoss:
         ib.r_boot = boot.total.to(dev, torch.float32)
         ib.boot_components = {k: v.detach() for k, v in boot.components.items()}
         ib.r_goal, ib.goal_source = self._goal_term(recs, dev)
+        ib.g_credit, ib.g_credit_ok = self._credit_returns(recs, ib.goal_source, dev)
         ib.z_pred, ib.z_ok, ib.model_weight = self._model_values(recs, int(a_mask.shape[1]), dev)
         life = [self.lifetime_of(r.exp_id) for r in recs]
         beta = self.cfg.beta
@@ -392,6 +399,11 @@ class PolicyImprovementLoss:
                 vals.append(v)
                 src.append("verified")
                 continue
+            c = self._credit(r)
+            if c is not None and not c[2]:             # per-decision credit (e.g. simple): a goal reward of the row
+                vals.append(c[0])
+                src.append(f"credit:{c[1]}")
+                continue
             pred = None
             if cal is not None:
                 f = cal.features(r.decision)
@@ -401,6 +413,36 @@ class PolicyImprovementLoss:
             vals.append(0.0 if pred is None else float(pred))
             src.append("" if pred is None else "predicted")
         return torch.tensor(vals, dtype=torch.float32, device=dev), src
+
+    def _credit(self, r: ExperienceRecord) -> Optional[Tuple[float, str, bool]]:
+        if self.credit_fn is None:
+            return None
+        try:
+            c = self.credit_fn(r)
+        except Exception:  # noqa: BLE001 — no credit is not zero credit: the row keeps its other goal source
+            return None
+        if c is None or not math.isfinite(float(c[0])):
+            return None
+        return float(c[0]), str(c[1]), bool(c[2])
+
+    def _credit_returns(self, recs: Sequence[ExperienceRecord], src: List[str], dev: Any
+                        ) -> Tuple[Optional[Tensor], Optional[Tensor]]:
+        """KF-E01: rows whose evidence-selected estimator gives a *return-like* credit (RUDDER's redistributed
+        return-to-go, COCOA's counterfactual credit of the action for its own and later outcomes) take that value as
+        their goal return instead of the discounted sum of goal rewards; ``src`` is relabelled ``credit:<est>``."""
+        vals, ok = [], []
+        for i, r in enumerate(recs):
+            c = self._credit(r)
+            if c is not None and c[2]:
+                vals.append(c[0])
+                ok.append(True)
+                src[i] = f"credit:{c[1]}"
+            else:
+                vals.append(0.0)
+                ok.append(False)
+        if not any(ok):
+            return None, None
+        return (torch.tensor(vals, dtype=torch.float32, device=dev), torch.tensor(ok, dtype=torch.bool, device=dev))
 
     def _model_values(self, recs: Sequence[ExperienceRecord], n_cand: int, dev: Any
                       ) -> Tuple[Optional[Tensor], Optional[Tensor], float]:
@@ -425,6 +467,8 @@ class PolicyImprovementLoss:
         if not self.cfg.goal_coef or ib.r_goal is None or not ib.goal_source:
             return None
         known = torch.tensor([bool(x) for x in ib.goal_source], device=ib.r_goal.device)
+        if ib.g_credit_ok is not None:                 # a credited goal return replaces the row's goal rewards
+            known = known & ~ib.g_credit_ok.to(known.device)
         if not bool(known.any()):
             return None
         u = ib.r_goal.to(dtype)
@@ -488,6 +532,8 @@ class PolicyImprovementLoss:
         lp = out.log_prob(ib.chosen)
         r, rl = self.intrinsic(psi, ib, detach_reward=detach_reward)
         G = discounted_returns(r, gamma=ib.gamma.to(r.dtype))
+        if ib.g_credit_ok is not None and bool(ib.g_credit_ok.any()):
+            G = G + self.credited_goal_return(ib, r.dtype) - self._goal_return(ib, r.dtype)
         Gn = scale_normalise(G) if self.cfg.normalise else G
         v = out.value
         adv = Gn - (v.detach() if theta_sg is None else self.subset.forward(theta_sg, ib).value)
@@ -509,7 +555,33 @@ class PolicyImprovementLoss:
                       "entropy": ent.detach(), "value": v.detach(), "advantage": adv.detach(),
                       "model_term": None if model is None else float(model.detach()),
                       "goal_verified": float(sum(1 for x in ib.goal_source if x == "verified")),
+                      "goal_credit": float(sum(1 for x in ib.goal_source if x.startswith("credit:"))),
                       "goal_predicted": float(sum(1 for x in ib.goal_source if x == "predicted"))}
+
+    def _goal_return(self, ib: InnerBatch, dtype: torch.dtype) -> Tensor:
+        """The part of ``discounted_returns(r)`` that comes from the per-row goal rewards (constants)."""
+        g = self.goal_term(ib, dtype)
+        if g is None:
+            return torch.zeros(ib.n, dtype=dtype, device=ib.b.device)
+        return discounted_returns(g.detach(), gamma=ib.gamma.to(dtype)).detach()
+
+    def credited_goal_return(self, ib: InnerBatch, dtype: torch.dtype) -> Tensor:
+        """Goal return of every row with the credited rows' values in place [n] (constants): the recursion
+        G_i = c_g * C_i / rms(C) at a credited row, g_i + gamma_i G_{i+1} elsewhere (g: the per-row goal rewards)."""
+        g = self.goal_term(ib, dtype)
+        n = ib.n
+        g = torch.zeros(n, dtype=dtype, device=ib.b.device) if g is None else g.detach()
+        ok = ib.g_credit_ok.to(ib.b.device)
+        c = ib.g_credit.to(dtype)
+        rms = torch.sqrt((c[ok] ** 2).mean())
+        c = self.cfg.goal_coef * (c / rms if float(rms) > 0 else c)
+        gam = ib.gamma.to(dtype)
+        out = torch.zeros(n, dtype=dtype, device=ib.b.device)
+        nxt = torch.zeros((), dtype=dtype, device=ib.b.device)
+        for i in range(n - 1, -1, -1):
+            nxt = c[i] if bool(ok[i]) else g[i] + gam[i] * nxt
+            out[i] = nxt
+        return out
 
     def inner_loss(self, theta: Params, psi: Params, ib: InnerBatch, theta_sg: Optional[Params] = None) -> Tensor:
         """``reward.meta.InnerLoss`` (stop-gradient aware): what the meta unroll differentiates."""

@@ -267,9 +267,19 @@ class MetaLearner:
         assert_optimizers_disjoint(optimizers, self.reward)
 
     def new_lifetime(self) -> None:
-        """A new independent lifetime starts: reset the lifetime context of R_psi (the only reset there is)."""
+        """A new independent lifetime starts: reset the lifetime context of R_psi (the only reset there is).
+        For diagnostics and experiments whose lifetimes are separate agents' lives; the integrated agent's life
+        spans all its objectives (:meth:`new_objective`)."""
         self._life += 1
         self.reward.lifetime.new_lifetime()
+
+    def new_objective(self) -> None:
+        """A new objective starts within the same lifetime (KF-E05; architecture section 4: ``life_ctx`` is a
+        recurrent summary of the lifetime that is *not* reset at objective boundaries). The objective is a new
+        segment of the meta-learner's bookkeeping (returns, the return-to-go chain and the discount do not run across
+        it; ``UpdateEvent.lifetime`` / ``_life_of`` name the segment), but R_psi's lifetime context carries on: the
+        first step of the new objective sees the summary of everything before it."""
+        self._life += 1
 
     def observe(self, records: Sequence[ExperienceRecord]) -> List[ExperienceRecord]:
         """Register executed decisions once, in order. Returns the ones that were new."""

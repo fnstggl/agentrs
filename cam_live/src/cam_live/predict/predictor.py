@@ -21,6 +21,7 @@ an approximate update for information. Nothing here returns or consumes a reward
 """
 from __future__ import annotations
 
+import collections
 import dataclasses
 import math
 from dataclasses import dataclass, field
@@ -102,6 +103,11 @@ class Predictor:
         self._ref = None
         self.set_fast_state(fast_state)
         self.last: Dict[str, Any] = {}                      # tensors of the latest evaluation (diagnostics)
+        # LRN-3: per decision, the decision-time head view of the goal-relevant predictions (chosen row after
+        # commit), so the goal-value epistemic std can be recomputed after the fast layer absorbed the decision's
+        # own outcomes without another network pass (bounded; diagnostics / reward inputs only)
+        self._goal_views: "collections.OrderedDict[str, Dict[str, Any]]" = collections.OrderedDict()
+        self.max_goal_views = 512
 
     def set_fast_state(self, fast_state: Any) -> None:
         """Use another fast belief state (e.g. a fresh one at the start of a new lifetime)."""
@@ -356,6 +362,8 @@ class Predictor:
                 voi=None if voi is None else float(voi[i]), cost=Cost.from_dict(a.est_cost.to_dict()),
                 uncertainty=float(goal_epi[i]) if any_goal else None,
                 feasible=not reasons[i], infeasible_reason="; ".join(reasons[i]), extras=extras))
+        if has_q and any_goal:
+            self._keep_goal_view(decision_id, cands, concrete, view, gmask, goal_epi)
         if objective_id and deadline is not None and deadline > now:
             self._register_success(objective_id, decision_id, float(ev_v.p_success[0]), now, deadline)
         self.last = {"decision_id": decision_id, "b": b.detach(), "z": z.detach(), "e_a": e_a.detach(),
@@ -553,7 +561,58 @@ class Predictor:
         drop = [k for k, c in self._cache.items() if c.decision_id == decision_id and c.action_id != chosen_action_id]
         for k in drop:
             del self._cache[k]
+        gv = self._goal_views.get(decision_id)
+        if gv is not None and "rows" in gv:
+            row = gv["rows"].get(chosen_action_id)
+            if row is None:
+                del self._goal_views[decision_id]
+            else:
+                self._goal_views[decision_id] = {"action_id": chosen_action_id, **row}
         return len(drop)
+
+    # ---- goal-value epistemic uncertainty after the decision's own outcomes (LRN-3) -------------------------------
+    def _keep_goal_view(self, decision_id: str, cands: Sequence[ActionSpec], concrete: List[List[OutcomeQuery]],
+                        view: _View, gmask: Tensor, goal_epi: Tensor) -> None:
+        rows: Dict[str, Dict[str, Any]] = {}
+        for i, a in enumerate(cands):
+            cols = [j for j in range(len(concrete[i])) if float(gmask[i, j]) > 0]
+            if not cols:
+                continue
+            sl = lambda t: t[:, i:i + 1].detach().cpu().clone()                                # noqa: E731
+            r = lambda t: t[i:i + 1].detach().cpu().clone()                                    # noqa: E731
+            rows[a.action_id] = {
+                "view": _View(count=sl(view.count), loc=sl(view.loc), logit=sl(view.logit), time=sl(view.time),
+                              cat=sl(view.cat), phi=r(view.phi), kind_ids=r(view.kind_ids),
+                              real_loc=r(view.real_loc), real_scale=r(view.real_scale)),
+                "gmask": gmask[i:i + 1].detach().cpu().clone(),
+                "queries": [concrete[i][j].query_id for j in cols], "before": float(goal_epi[i])}
+        if not rows:
+            return
+        self._goal_views[decision_id] = {"rows": rows}
+        self._goal_views.move_to_end(decision_id)
+        while len(self._goal_views) > self.max_goal_views:
+            self._goal_views.popitem(last=False)
+
+    def goal_epistemic_after(self, decision_id: str) -> Optional[Dict[str, float]]:
+        """The executed candidate's goal-value epistemic std recomputed with the *current* fast belief state on the
+        decision-time head view (the same quantity as its ``CandidateEvaluation.uncertainty``), once every one of its
+        goal-relevant predictions has absorbed its own matured outcome; None before that (or when the decision had
+        no goal-relevant prediction). Returns {"epistemic_before", "epistemic_after"}."""
+        gv = self._goal_views.get(decision_id)
+        if gv is None or "rows" in gv:
+            return None
+        if not all(f"query:{q}" in self._absorbed for q in gv["queries"]):
+            return None
+        v: _View = gv["view"]
+        dev = self.fast.device if hasattr(self.fast, "device") else None
+        if dev is not None:
+            v = _View(**{f.name: getattr(v, f.name).to(dev) for f in dataclasses.fields(_View)})
+        _, epi = self._means(v, self.fast)
+        after = float((epi.cpu() * gv["gmask"]).sum(-1).sqrt()[0])
+        return {"epistemic_before": float(gv["before"]), "epistemic_after": after}
+
+    def forget_goal_view(self, decision_id: str) -> None:
+        self._goal_views.pop(decision_id, None)
 
     def _own(self, o: OutcomeObservation) -> OutcomeObservation:
         qid = self._alias.get(o.query_id, o.query_id)
@@ -603,7 +662,8 @@ class Predictor:
             det.update((float(o.value) - c.mean) / max(total, 1e-9))
             att = classify_error(o.status, o.value, c.mean, c.aleatoric_std, c.epistemic_std, det)
             detail: Dict[str, Any] = {"query_id": c.query.query_id, "prediction_id": c.prediction_id, "kind": kind,
-                                      "action_id": c.action_id, "error": att.label, "z_total": att.z_total,
+                                      "action_id": c.action_id, "decision_id": c.decision_id, "error": att.label,
+                                      "z_total": att.z_total,
                                       "predicted": c.mean, "observed": float(o.value)}
             if self._supports(self.fast, kind):
                 y = float(o.value)

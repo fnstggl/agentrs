@@ -39,7 +39,8 @@ SCALAR_SPECS: Tuple[SignalSpec, ...] = (
     SignalSpec("success_after", IDENTITY, "evaluator's success probability after the result was observed"),
     SignalSpec("delta_v", IDENTITY, "success_after - success_before"),
     SignalSpec("action_quality", SYMLOG, "policy/evaluator estimate of the chosen action's value relative to the candidates"),
-    SignalSpec("info_gain", LOG1P, "belief change caused by the observation (KL of the fast posterior, nats)"),
+    SignalSpec("info_gain", LOG1P, "belief change the action's own outcomes are expected to cause (KL of the fast "
+                                   "posterior, nats; estimated before acting)"),
     SignalSpec("voi", SYMLOG, "decision-relevant value-of-information estimate made before acting"),
     SignalSpec("cost_money", LOG1P, "money spent by the action"),
     SignalSpec("cost_seconds", LOG1P, "wall-clock seconds the action took"),

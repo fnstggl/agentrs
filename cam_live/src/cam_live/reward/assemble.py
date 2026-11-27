@@ -8,8 +8,11 @@ that matured later is read, and nothing is invented: a signal with no source is 
 
 Source of each signal, in priority order (first available wins):
 
-    any signal               ``decision.diagnostics["reward_signals"][name]`` — written by the agent when it computed
-                             the quantity at decision / reconciliation time (change request C-4 workaround)
+    any signal               ``decision.diagnostics["reward_signals"][name]``, else the annotation
+                             ``decision.diagnostics["reward_signals.<name>"]`` — written by the agent when it computed
+                             the quantity at decision / reconciliation time (change request C-4 workaround; LRN-3:
+                             ``epistemic_after`` after the fast layer absorbed the decision's own goal-relevant
+                             outcomes, ``learning_progress`` after the next frequent update)
     success_before           with an evaluator: the evaluator head on ``b`` (the same function as success_after);
                              else the state value recorded before acting (``CandidateEvaluation.extras["v_state"]``)
                              — never the candidate's Q(b, a) (``p_success``), which differs from V by an
@@ -19,8 +22,10 @@ Source of each signal, in priority order (first available wins):
     action_quality           ``predict.evaluator.action_quality`` on the world model's predicted goal value net of cost
                              (``extras["q_goal"] - extras["net_cost"]``) of every candidate (else the recorded
                              ``CandidateEvaluation.value``) and the logged probabilities
-    info_gain                chosen ``CandidateEvaluation.extras["info_gain"]`` (fast-posterior KL, ``FastBeliefState
-                             .update()["kl"]``)
+    info_gain                chosen ``CandidateEvaluation.extras["info_gain_nats"]`` (``extras["info_gain"]`` if a
+                             caller wrote that): the expected fast-posterior KL (``FastBeliefState.update()["kl"]``)
+                             of the candidate's own outcomes, averaged over outcomes sampled from its predictive
+                             before acting (``Predictor._voi``; 0 for candidates outside ``voi_max_candidates``)
     voi                      chosen ``CandidateEvaluation.voi`` (predict.voi, estimated before acting)
     cost_money / cost_seconds / cost_compute_s      ``ActionResult.cost`` (measured)
     elapsed_s                decision time minus the time of the newest ACTION item in H_t (previous decision)
@@ -55,8 +60,29 @@ from .integrity import is_prospective
 from .signals import SCALAR_NAMES, RewardSignals
 
 STORED_KEY = "reward_signals"
+#: one signal written later as its own annotation key ``reward_signals.<name>`` (``decision.diagnostics`` keys may
+#: be added after a record is stored but never changed, so a signal that becomes known after the ``reward_signals``
+#: annotation was written gets its own key; LRN-3: ``epistemic_after``, ``learning_progress``)
+ANNOTATION_PREFIX = STORED_KEY + "."
 
-__all__ = ["STORED_KEY", "SIGNAL_SOURCES", "AssembledSignals", "SignalAssembler", "record_signals",
+
+def annotation_key(name: str) -> str:
+    return ANNOTATION_PREFIX + name
+
+
+def stored_signals(diagnostics: Any) -> Dict[str, Any]:
+    """Signals the agent stored with a decision: the ``reward_signals`` annotation, then every
+    ``reward_signals.<name>`` annotation for a name the former does not carry."""
+    if not isinstance(diagnostics, dict):
+        return {}
+    base = diagnostics.get(STORED_KEY)
+    out: Dict[str, Any] = dict(base) if isinstance(base, dict) else {}
+    for k, v in diagnostics.items():
+        if isinstance(k, str) and k.startswith(ANNOTATION_PREFIX) and k[len(ANNOTATION_PREFIX):] not in out:
+            out[k[len(ANNOTATION_PREFIX):]] = v
+    return out
+
+__all__ = ["STORED_KEY", "ANNOTATION_PREFIX", "annotation_key", "stored_signals", "SIGNAL_SOURCES", "AssembledSignals", "SignalAssembler", "record_signals",
            "reward_time", "context_key"]
 
 SIGNAL_SOURCES: Dict[str, str] = {
@@ -65,7 +91,7 @@ SIGNAL_SOURCES: Dict[str, str] = {
     "delta_v": "stored | success_after - success_before",
     "action_quality": "stored | predict.evaluator.action_quality(q_goal - net_cost (else CandidateEvaluation.value), "
                       "logged probabilities)",
-    "info_gain": "stored | CandidateEvaluation.extras['info_gain'] of the chosen candidate",
+    "info_gain": "stored | CandidateEvaluation.extras['info_gain'] else ['info_gain_nats'] of the chosen candidate",
     "voi": "stored | CandidateEvaluation.voi of the chosen candidate",
     "cost_money": "stored | ActionResult.cost.money",
     "cost_seconds": "stored | ActionResult.cost.seconds",
@@ -121,7 +147,10 @@ def record_signals(rec: ExperienceRecord, store: ExperienceStore) -> Tuple[Dict[
         # the same function success_after is evaluated with: the candidate's Q(b, a) (p_success) differs from V by an
         # action-dependent offset, and V(b') - Q(b, a) paid systematically for the actions the evaluator rates low
         for name, val in (("success_before", ev.extras.get("v_state")), ("voi", ev.voi),
-                          ("epistemic_before", ev.uncertainty), ("info_gain", ev.extras.get("info_gain")),
+                          ("epistemic_before", ev.uncertainty),
+                          # KF-E02: the predictor writes the expected fast-posterior KL of the candidate's own outcomes
+                          # as ``info_gain_nats`` (``Predictor._voi``); ``info_gain`` was never written
+                          ("info_gain", ev.extras.get("info_gain", ev.extras.get("info_gain_nats"))),
                           ("epistemic_after", ev.extras.get("epistemic_after"))):
             v = _finite(val)
             if v is not None:
@@ -160,9 +189,9 @@ def record_signals(rec: ExperienceRecord, store: ExperienceStore) -> Tuple[Dict[
         new = [i for i in post_items if i.ref not in ctx_refs and i.kind == ItemKind.OUTCOME
                and i.trust == Trust.VERIFIER and str(i.ref).rsplit(":", 1)[0] in own]
         out["verified_progress_delta"] = float(sum(q.value for i in new for q in i.quantities))
-    stored = d.diagnostics.get(STORED_KEY) if isinstance(d.diagnostics, dict) else None
+    stored = stored_signals(d.diagnostics)
     extras: Dict[str, float] = {}
-    if isinstance(stored, dict):
+    if stored:
         for k, v in stored.items():
             f = _finite(v[0] if isinstance(v, (list, tuple)) and v else v)
             if f is None:
@@ -218,8 +247,7 @@ class SignalAssembler:
                 p1 = None if b_next is None else \
                     self.evaluator(b_next.detach(), e_g.detach(), hz[:, 1]).p_success.detach().cpu()
             for i, (rec, sig) in enumerate(zip(records, rows)):
-                stored = rec.decision.diagnostics.get(STORED_KEY) if isinstance(rec.decision.diagnostics, dict) else None
-                stored = stored if isinstance(stored, dict) else {}
+                stored = stored_signals(rec.decision.diagnostics)
                 # both ends of delta V from the same function V(., g, horizon) (a stored value still wins)
                 if p1 is not None and (has_next is None or bool(has_next[i])) and "success_after" not in stored:
                     sig["success_after"] = float(p1[i])

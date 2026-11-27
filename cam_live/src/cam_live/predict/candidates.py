@@ -6,8 +6,8 @@ Three sources of candidates, each stamping its provenance on every ``ActionSpec`
   JSON Lines); no prose is searched for JSON, duplicate keys and non-finite numbers are refused, unknown fields are
   refused, arguments are validated against the tool's ``arg_schema``. Everything the model is not allowed to decide
   (modality, level, permission scope, cost estimate, identifiers) is copied from the ``ToolDescriptor``, never from
-  the text. A program takes the modality of its first step and the union of its steps' scopes; every step keeps
-  its own and is authorised individually. An object schema that declares ``properties`` admits no other property
+  the text. A program takes the modality of the environment's ``program`` tool (internal when none is described;
+  INT2-9) and the union of its steps' scopes; every step keeps its own and is authorised individually. An object schema that declares ``properties`` admits no other property
   unless it says ``additionalProperties`` (stricter than the JSON-Schema default, so invented arguments fail). Every refused fragment is returned with its reason. Multi-step programs are ``steps``.
 * :func:`schema_candidates` — a deterministic walker over each tool's JSON Schema that enumerates (and optionally
   samples) valid argument settings, so the candidate set never depends only on what a language model writes.
@@ -31,7 +31,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
-from ..contracts import ActionSpec, Cost, Level, ToolDescriptor, VerificationCondition
+from ..contracts import ActionSpec, Cost, Level, Modality, ToolDescriptor, VerificationCondition
 
 #: operation name of a multi-step program (an ``ActionSpec`` whose content is its ``steps``)
 PROGRAM_OPERATION = "program"
@@ -318,9 +318,14 @@ def _build(item: Any, tools: Mapping[str, ToolDescriptor], provenance: str, id_p
                         tokens=cost.tokens + s.est_cost.tokens)
         scopes = sorted({s.auth_scope for s in steps if s.auth_scope})
         payload = {"steps": [{"operation": s.operation, "arguments": s.arguments, "target": s.target} for s in steps]}
+        # INT2-9: a composition has the modality the environment declares for its program tool (internal when the
+        # environment describes none), not its first step's: the authorization policy judges `program` as an internal
+        # operation and every step on its own (each step keeps, and is judged by, its own modality)
+        ptool = tools.get(PROGRAM_OPERATION)
+        modality = ptool.modality if ptool is not None and ptool.modality else Modality.INTERNAL
         return ActionSpec(
             action_id=_action_id(id_prefix, payload, provenance), operation=PROGRAM_OPERATION,
-            modality=steps[0].modality, level=Level.PROCEDURE,
+            modality=modality, level=Level.PROCEDURE,
             expected=_text_field(item, "expected", 1000), est_cost=cost, auth_scope=",".join(scopes),
             timeout_s=sum(s.timeout_s for s in steps), parent_decision_id=parent_decision_id,
             experiment_id=experiment_id, steps=steps, provenance=provenance,
