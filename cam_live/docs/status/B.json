@@ -644,6 +644,15 @@
     "failed": 0,
     "skipped": 0,
     "seconds": 0.8
+   },
+   "fix_run_default_slow_gpu": {
+    "passed": 157,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 1235.9,
+    "command": "cd /workspace/camlive && CAM_LIVE_B_MEASURE=<scratch>/B_measured_fix.json .venv/bin/python -m pytest cam_live/tests/predict cam_live/tests/reward -m \"(gpu or slow or not (gpu or slow)) and not network and not browser and not privileged\" -q -rs --rootdir=cam_live -p no:cacheprovider --junitxml=cam_live/docs/evidence/test_results/BC_fix.xml",
+    "junit": "docs/evidence/test_results/BC_fix.xml",
+    "note": "one run of predict/ and reward/ after the G-pr fixes, default + slow + gpu (GPU tests under the shared lock), wall time of the whole run 2539 s"
    }
   },
   "diagnostics_source": "docs/evidence/B/diagnostics.json (debug scale, LabWorld, provenance diagnostic)",

@@ -31,7 +31,7 @@
    "n_items": 50,
    "n_lines": 50,
    "rejection_reasons": {},
-   "seconds": 119.8
+   "seconds": 165.0
   },
   "labworld": {
    "examples": [
@@ -46,14 +46,14 @@
    ],
    "fraction_valid_of_items": 1.0,
    "fraction_valid_of_lines": 1.0,
-   "mean_merged_candidates": 17.25,
+   "mean_merged_candidates": 18.0,
    "n_backbone_valid": 64,
    "n_environment_invalid": 0,
    "n_generations": 8,
    "n_items": 64,
    "n_lines": 64,
    "rejection_reasons": {},
-   "seconds": 138.9
+   "seconds": 132.3
   }
  },
  "temperature": 0.7

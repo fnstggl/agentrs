@@ -4,12 +4,12 @@
  "n_same": 9,
  "n_different": 46,
  "same_goal_cosine": {
-  "min": 0.35119915171094607,
-  "mean": 0.5400455867967343
+  "min": 0.35284758245924397,
+  "mean": 0.5393969578257071
  },
  "different_goal_cosine": {
-  "max": 0.5706499039073877,
-  "mean": 0.41060521356927837
+  "max": 0.57123385573623,
+  "mean": 0.4097666981764133
  },
  "separating_threshold": null,
  "texts": [

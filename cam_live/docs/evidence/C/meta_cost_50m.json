@@ -2,33 +2,33 @@
  "K": {
   "2": {
    "checkpoint": {
-    "extra_peak_gpu_mb": 221.27490234375,
-    "grad_norm": 0.006218904088631795,
-    "seconds_mean": 0.1601247787475586,
-    "seconds_min": 0.14879584312438965,
+    "extra_peak_gpu_mb": 223.02490234375,
+    "grad_norm": 0.010447711977934482,
+    "seconds_mean": 0.13709505399068198,
+    "seconds_min": 0.1306135654449463,
     "supported": true
    },
    "unroll": {
-    "extra_peak_gpu_mb": 198.30126953125,
-    "grad_norm": 0.006218902582632985,
-    "seconds_mean": 0.10462172826131184,
-    "seconds_min": 0.10210299491882324,
+    "extra_peak_gpu_mb": 200.80126953125,
+    "grad_norm": 0.010447709553730783,
+    "seconds_mean": 0.09973541895548503,
+    "seconds_min": 0.09630966186523438,
     "supported": true
    }
   },
   "4": {
    "checkpoint": {
-    "extra_peak_gpu_mb": 264.89990234375,
-    "grad_norm": 0.012412302865719005,
-    "seconds_mean": 0.2720601558685303,
-    "seconds_min": 0.2652900218963623,
+    "extra_peak_gpu_mb": 266.39990234375,
+    "grad_norm": 0.021176051544526453,
+    "seconds_mean": 0.3376515706380208,
+    "seconds_min": 0.2538490295410156,
     "supported": true
    },
    "unroll": {
-    "extra_peak_gpu_mb": 343.27685546875,
-    "grad_norm": 0.012412308682032535,
-    "seconds_mean": 0.19729105631510416,
-    "seconds_min": 0.1891326904296875,
+    "extra_peak_gpu_mb": 347.77685546875,
+    "grad_norm": 0.021176060686320622,
+    "seconds_mean": 0.20163345336914062,
+    "seconds_min": 0.14881157875061035,
     "supported": true
    }
   }
@@ -37,38 +37,38 @@
  "backbone_pretrained": true,
  "command": "pytest cam_live/tests/reward/test_reward_experiment.py -m gpu",
  "d_model": 768,
- "encode_peak_gb": 7.924055099487305,
- "encode_seconds_16_rows_cached_text": 0.16451120376586914,
- "encode_seconds_first_48_rows": 0.7602887153625488,
+ "encode_peak_gb": 7.964008331298828,
+ "encode_seconds_16_rows_cached_text": 0.24525165557861328,
+ "encode_seconds_first_48_rows": 0.9315943717956543,
  "end_to_end_meta_update": {
   "2": {
    "applied": true,
    "estimator": "on_policy_query",
-   "extra_peak_gpu_mb": 224.2099609375,
-   "meta_grad_norm": 0.06200412325781577,
+   "extra_peak_gpu_mb": 244.3974609375,
+   "meta_grad_norm": 0.07838771040129605,
    "n_independent": 4,
    "n_query": 56,
-   "policy_update_seconds_mean": 0.21278464794158936,
-   "seconds": 1.3017592430114746,
+   "policy_update_seconds_mean": 0.2779752016067505,
+   "seconds": 2.4556689262390137,
    "skipped_reason": ""
   },
   "4": {
    "applied": true,
-   "estimator": "on_policy_query",
-   "extra_peak_gpu_mb": 388.6513671875,
-   "meta_grad_norm": 0.04778770745925216,
+   "estimator": "mixed_on_policy_and_importance",
+   "extra_peak_gpu_mb": 411.0888671875,
+   "meta_grad_norm": 0.060905820342139955,
    "n_independent": 4,
    "n_query": 64,
-   "policy_update_seconds_mean": 0.24482446908950806,
-   "seconds": 1.8564560413360596,
+   "policy_update_seconds_mean": 0.43010061979293823,
+   "seconds": 3.76910662651062,
    "skipped_reason": ""
   }
  },
  "experiential_params": 50953765,
- "gpu_allocated_after_load_gb": 7.809755802154541,
- "gpu_peak_total_gb": 8.55699634552002,
- "load_seconds": 9.419947862625122,
- "lock_held_seconds": 32.502209186553955,
+ "gpu_allocated_after_load_gb": 7.810122013092041,
+ "gpu_peak_total_gb": 8.62724781036377,
+ "load_seconds": 4.652423620223999,
+ "lock_held_seconds": 40.33470892906189,
  "n_decisions": 64,
  "n_psi": 949121,
  "n_theta": 5422467,
