@@ -1655,3 +1655,44 @@ def adoption_predict(view, env) -> None:
     view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
     while not view.done:
         view.step(None)
+
+
+# ====================================================================== congestion on routes with a shared link
+def congestion_predict(view, env, seed: int = 0) -> None:
+    """Scripted public reference for predicting a route's delay at flows above the settable range: random flows on
+    both routes every tick (the system has no memory), then the delay of the first route modelled as a sum of BPR
+    link delays along it - its own link and a link shared with the second route: d = c0 + k1 f1^beta + k2 (f1 +
+    f2)^beta, with beta from a grid (cross-validated) and c0, k1, k2 by least squares - and filed at the held-out
+    flows. Assumes the BPR class and the shared-link structure of the brief's network."""
+    rng = np.random.default_rng(seed)
+    obj = env._config["objective"]
+    held = obj["heldout"]
+    gauge = obj["gauge"]
+    n1, n2 = list(held[0])[:2]
+    props = view.action_space().kinds["levers"]["properties"]["values"]["properties"]
+    X, y = [], []
+    while view.t < view.horizon - 2 and not view.done:
+        f = {n: float(props[n]["minimum"] + rng.random() * (props[n]["maximum"] - props[n]["minimum"]))
+             for n in (n1, n2)}
+        x = view.step({"kind": "levers", "values": f})["observation"]["numbers"]
+        if gauge in x:
+            X.append((f[n1], f[n2]))
+            y.append(float(x[gauge]))
+    X, y = np.asarray(X), np.asarray(y)
+    best = None
+    folds = np.arange(len(y)) % 5
+    for beta in (2.0, 3.0, 4.0, 5.0):
+        F = np.c_[np.ones(len(y)), X[:, 0] ** beta, (X[:, 0] + X[:, 1]) ** beta]
+        cv = 0.0
+        for k in range(5):
+            tr, te = folds != k, folds == k
+            coef = np.linalg.lstsq(F[tr], y[tr], rcond=None)[0]
+            cv += float(np.sum((F[te] @ coef - y[te]) ** 2))
+        if best is None or cv < best[0]:
+            best = (cv, beta, np.linalg.lstsq(F, y, rcond=None)[0])
+    _, beta, coef = best
+    preds = [{"set": c, "value": float(coef[0] + coef[1] * c[n1] ** beta + coef[2] * (c[n1] + c[n2]) ** beta)}
+             for c in held]
+    view.step({"kind": "message", "to": "journal", "content": {"predictions": preds}})
+    while not view.done:
+        view.step(None)

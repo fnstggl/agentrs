@@ -1029,3 +1029,54 @@ def identify_awareness_delay(env) -> dict:
     truth = int(c["claim"]["lag"])
     return {"question": "the delay of marketing spend on awareness, in ticks", "estimate": int(L + 1),
             "truth": truth, "ok": bool(L + 1 == truth)}
+
+
+# ====================================================================== net_congestion_routes (8.7.1)
+def _route_delays(env, f1: float, f2: float) -> tuple[float, float]:
+    from .oracles import fork
+    c = env._config
+    cl = c["claim"]
+    names = {n["id"]: n["lever"]["name"] for n in c["nodes"] if n["type"] == "lever"}
+    e = fork(env)
+    x = e.step({"kind": "levers", "values": {names[cl["first"]]: f1, names[cl["second"]]: f2}})["observation"]
+    g = [gg["name"] for gg in c["gauges"]]
+    return float(x["numbers"][g[0]]), float(x["numbers"][g[1]])
+
+
+def claim_shared_congestion(env) -> dict:
+    """With the same noise: (1) traffic on the second route slows the first (the shared link): the first route's
+    delay at flows (5, 10) exceeds its delay at (5, 0); (2) congestion is convex: on the first route alone, raising
+    the flow from 8 to 10 adds more delay than raising it from 2 to 4."""
+    d5_0 = _route_delays(env, 5.0, 0.0)[0]
+    d5_10 = _route_delays(env, 5.0, 10.0)[0]
+    d = {f: _route_delays(env, f, 0.0)[0] for f in (2.0, 4.0, 8.0, 10.0)}
+    ok = d5_10 > d5_0 and (d[10.0] - d[8.0]) > (d[4.0] - d[2.0])
+    return {"ok": bool(ok), "first_delay_without_and_with_second_traffic": [d5_0, d5_10],
+            "rise_2_to_4": d[4.0] - d[2.0], "rise_8_to_10": d[10.0] - d[8.0]}
+
+
+def identify_tighter_route(env) -> dict:
+    """Question: which route slows down more under a full load of its own traffic (its own link nearer
+    capacity)? Public: on each route, the average delay with full own traffic minus the delay with none, the other
+    route empty (six replicate ticks each; the shared link carries the same load in both tests)."""
+    view = PublicView(env)
+    c = env._config
+    obj = c["objective"]
+    n1, n2 = list(obj["heldout"][0])[:2]
+    g = [gg["name"] for gg in c["gauges"]]
+    res = {}
+    for lab, vals in (("idle", {n1: 0.0, n2: 0.0}), ("full1", {n1: 10.0, n2: 0.0}), ("full2", {n1: 0.0, n2: 10.0})):
+        rows = [view.step({"kind": "levers", "values": vals})["observation"]["numbers"] for _ in range(6)]
+        res[lab] = (float(np.mean([r[g[0]] for r in rows])), float(np.mean([r[g[1]] for r in rows])))
+    rise1 = res["full1"][0] - res["idle"][0]
+    rise2 = res["full2"][1] - res["idle"][1]
+    est = "first" if rise1 > rise2 else "second"
+    cl = c["claim"]
+
+    def own_rise(nid):
+        nd = next(n for n in c["nodes"] if n["id"] == nid)
+        p = nd["params"]
+        return float(p["t0"] * p["alpha"] * (10.0 / nd["bias"]["cap"]) ** p["beta"])
+    truth = "first" if own_rise(cl["own_a"]) > own_rise(cl["own_b"]) else "second"
+    return {"question": "which route slows more under a full load of its own", "estimate": est, "truth": truth,
+            "ok": est == truth}

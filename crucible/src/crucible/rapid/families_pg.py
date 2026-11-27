@@ -314,6 +314,51 @@ def dl_delayed_adoption(rng, d):
                     claim={"lever": spend, "outcome": adopters, "awareness": aware, "lag": lag, "market": M})
 
 
+@family("net_congestion_routes", engine="primitive_graph", category="8.7", item="8.7.1", split="train",
+        doc="Traffic is sent over two routes; each has its own link of hidden capacity and both share a bottleneck "
+            "link of hidden capacity, and every link's delay rises steeply as it nears its capacity (BPR "
+            "congestion). Predict the delay on the first route at flows above what can be sent: a straight line "
+            "through light-traffic tests misses the steep part, and the second route's traffic slows the first "
+            "through the shared link.",
+        distinct_because="two routes of two links each, one link shared: BPR congestion delays (convex in load over "
+                         "capacity) summed along a route, so route delays interact through the shared bottleneck; "
+                         "scored by the delay at held-out flows above the settable range",
+        axes={"horizon": 50, "observation_noise": 0.3}, objective="predict_heldout",
+        claims=("crucible.rapid.claims_w3b:claim_shared_congestion",),
+        identify="crucible.rapid.claims_w3b:identify_tighter_route", lever_view=True,
+        reference="crucible.rapid.refs_adapt:congestion_predict", oracle="crucible.rapid.oracles:science_oracle")
+def net_congestion_routes(rng, d):
+    gb = GraphBuilder(rng)
+    fa = gb.lever(0.0, 10.0, 2.0, cost=0.0)
+    fb = gb.lever(0.0, 10.0, 2.0, cost=0.0)
+    beta = float(rng.choice([3.0, 4.0]))
+    own_a = gb.prim("congestion", {"t0": u(rng, 4.0, 8.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
+                    bias={"cap": u(rng, 7.0, 11.0)}, load=[(fa, 0, 1.0)], cap=[])
+    own_b = gb.prim("congestion", {"t0": u(rng, 4.0, 8.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
+                    bias={"cap": u(rng, 7.0, 11.0)}, load=[(fb, 0, 1.0)], cap=[])
+    shared = gb.prim("congestion", {"t0": u(rng, 2.0, 5.0), "alpha": u(rng, 0.5, 1.0), "beta": beta},
+                     bias={"cap": u(rng, 11.0, 16.0)}, load=[(fa, 0, 1.0), (fb, 0, 1.0)], cap=[])
+    delay_a = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, role="outcome",
+                      x=[(own_a, 0, 1.0), (shared, 0, 1.0)])
+    delay_b = gb.prim("linear_nonlinear", {"form": "linear", "a": 1.0, "b": 0.0}, x=[(own_b, 0, 1.0), (shared, 0, 1.0)])
+    noise = float(d["observation_noise"])
+    ga = gb.gauge(delay_a, [("measurement_noise", {"sd": noise * 2})])
+    gb.gauge(delay_b, [("measurement_noise", {"sd": noise * 2})])
+    held = [{gb.name_of(fa): x, gb.name_of(fb): y} for x, y in
+            ((12.0, 2.0), (11.0, 8.0), (14.0, 5.0), (6.0, 13.0), (13.0, 12.0), (2.0, 15.0), (16.0, 1.0))]
+    text = ("Predict the delay on the first route if these flows were sent over the two routes (partly above what "
+            f"you can send): {held}. File predictions with the journal: message to 'journal' with content "
+            "{\"predictions\": [{\"set\": <condition>, \"value\": <number>}, ...]}. Only the last filing counts.")
+    return gb.build(horizon=int(d["horizon"]), money={"revenue_node": delay_a, "price": 1.0, "cap": 1.0},
+                    affordances=["levers", "message"], endowment=100_000,
+                    objective={"type": "predict_heldout", "heldout": held, "gauge": ga, "text": text},
+                    journal=True,
+                    brief="Two routes through a network. Levers: the flow sent on each route. Gauges: the delay on "
+                          "each route.",
+                    claim={"first": fa, "second": fb, "outcome": delay_a, "own_a": own_a, "own_b": own_b,
+                           "shared": shared})
+
+
 @family("dl_short_term_damage", engine="primitive_graph", category="8.6", item="8.6.6", split="train",
         doc="Overdriving raises output now but accumulates wear (shown by a noisy vibration reading) that drains "
             "only below a hidden rate; past a hidden level the machine latches into a permanently degraded state. "
