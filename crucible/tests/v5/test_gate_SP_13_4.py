@@ -184,11 +184,16 @@ def _versioning(svc) -> dict:
 
 def _selective_gpu() -> dict:
     from crucible.semantic import routing as R
+    from crucible.semantic.service import _LOADED
     import torch
+    # the policy for a model not yet on the GPU in this process (a model already placed there is shared, whatever
+    # the grant: the retrieval check above may have placed the routed models)
+    on_gpu = {k[0] for k in list(_LOADED) if str(k[2]).startswith("cuda")}
+    probe = next(m for m in sorted(R.PARAMS, key=R.PARAMS.get) if m not in on_gpu)
     saved = {k: os.environ.get(k) for k in ("CUDA_VISIBLE_DEVICES", "CRUCIBLE_SLOT_GPU_MB")}
     try:
         os.environ["CRUCIBLE_SLOT_GPU_MB"] = "100"
-        small_grant = R.device_for("Qwen/Qwen3-0.6B")
+        small_grant = R.device_for(probe)
     finally:
         for k, v in saved.items():
             if v is None:
@@ -202,7 +207,7 @@ def _selective_gpu() -> dict:
         s = R.service_for_model("Qwen/Qwen3-0.6B", max_batch=4, max_new_tokens=8)
         s.generate(None, _reqs(QS[:2]))
         ran = s.device
-    return {"cuda_available": bool(torch.cuda.is_available()), "slot_grant_mb": granted,
+    return {"cuda_available": bool(torch.cuda.is_available()), "slot_grant_mb": granted, "probe_model": probe,
             "device_with_100mb_grant": small_grant[0], "device_in_this_slot": dev, "ran_on": ran,
             "ok": small_grant[0] == "cpu" and dev == "cuda" and ran == "cuda"}
 
