@@ -90,6 +90,10 @@ def test_Q_1_multiple_learned_policies_in_a_shared_civilisation(q):
                    "world_family": m.world.spec.family, "population_individuals": int(
                        sum(v[0] for v in population_activity(m.world, 0, q["t_end"]).values())),
                    "state_changing_actions_by_group": json.dumps(acting), "identities": len(m.agents),
+                   # accepted state-changing actions with an argument from a syntax grammar (labelled scripted syntax)
+                   "state_changing_actions_with_scripted_syntax": sum(
+                       1 for a in m.agents.values() for h in getattr(a, "history", [])
+                       if h.get("ok") and not h.get("read_only") and h.get("scripted_syntax")),
                    "simulated_hours": int((q["t_end"] - m.t0) / 3600)},
            command=CMD, labels=LABELS,
            notes="learned policies = neural policy groups updated by their own training signal in the civilisation "
