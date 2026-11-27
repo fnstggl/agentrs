@@ -80,6 +80,9 @@ GENERIC_95 = tuple(Mechanic(m, ("bank.txn",)) for m in base.PART9["9.5"]["mechan
     (lambda d: replace(d, mechanics=d.mechanics[:-1] + (Mechanic(d.mechanics[-1].name, d.mechanics[0].events),)),
      "same evidence"),
     (lambda d: replace(d, actors=(Actor("clock", ("artifact.stored",)),)), "substrate-generic"),
+    (lambda d: replace(d, mechanics=tuple(Mechanic(m.name, (), count=lambda w, s: 1) for m in d.mechanics)),
+     "returns a constant"),                                                               # probe p4 'count'
+    (lambda d: replace(d, actors=(Actor("ghosts", (), count=lambda w, s: 3),)), "returns a constant"),
     (lambda d: replace(d, degenerate=()), "degenerate-strategy"),
     (lambda d: replace(d, actors=()), "autonomous participant"),
     (lambda d: replace(d, seats=()), "no participant seat"),

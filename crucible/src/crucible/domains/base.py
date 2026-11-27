@@ -571,9 +571,28 @@ def validate(d: Domain) -> list[str]:
     return out
 
 
+def _constant_evidence(fn) -> bool:
+    """An evidence function that only returns a literal number (``lambda w, s: 1``): it cannot point at recorded
+    events (read from its bytecode, so lambdas inside expressions are seen too)."""
+    import dis
+    try:
+        ins = [i for i in dis.get_instructions(fn) if i.opname not in ("RESUME", "NOP", "CACHE")]
+    except TypeError:
+        return False
+    if len(ins) == 1 and ins[0].opname == "RETURN_CONST":
+        v = ins[0].argval
+    elif len(ins) == 2 and ins[0].opname == "LOAD_CONST" and ins[1].opname == "RETURN_VALUE":
+        v = ins[0].argval
+    else:
+        return False
+    return isinstance(v, (int, float, bool))
+
+
 def _pattern_problems(what: str, probes) -> list[str]:
     out = []
     for pr in probes:
+        if pr.count is not None and _constant_evidence(pr.count):
+            out.append(f"{what} {pr.name!r}: its evidence function returns a constant, not recorded events")
         try:
             pats = [parse_pattern(p) for p in (pr.events or ())]
         except ValueError as e:

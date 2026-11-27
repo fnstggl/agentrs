@@ -50,11 +50,17 @@ def test_SP_9_0_autonomous_open_ended_structural_composable():
         ctl = base.check(F.DOMAIN, days=CTL_DAYS)
         cv = base.verdicts(ctl)
         inert = replace(F.DOMAIN, name="fixture_inert", actors=F.DOMAIN.actors + (
-            base.Actor("ghosts", ("ghost.acted",), "never acts", count=lambda w, s: 3),
-            base.Actor("clock", ("artifact.stored", "proc"), "kernel bookkeeping"),
+            base.Actor("ghosts", ("ghost.acted",), "never acts"),
             base.Actor("system", ("goods.wom",), "recorded by the system, decided by nobody")))
         base.register(inert)
-        null = base.run("fixture_inert", "ring_standard", 0, policy="null", days=3)
+        null = base.run("fixture_inert", "ring_standard", 0, policy="null", days=3, keep_env=True)
+        env = null.pop("env")
+        try:          # not registrable (validate refuses them), measured directly: bookkeeping and constant evidence
+            unreg = base.actors_active(env.world, replace(inert, actors=(
+                base.Actor("clock", ("artifact.stored", "proc"), "kernel bookkeeping"),
+                base.Actor("constant", (), "a constant count", count=lambda w, s: 3))), null["since_seq"])
+        finally:
+            env.close()
         F.SHAPES["ring_standard6"] = {"chain": "standard", "regions": 6, "links": "ring"}
         planted = replace(F.DOMAIN, name="fixture_numbers", configs=F.DOMAIN.configs + (
             base.DomainConfig("ring_standard6", "train", dict(F.SHAPES["ring_standard6"]), "only more regions"),))
@@ -81,13 +87,14 @@ def test_SP_9_0_autonomous_open_ended_structural_composable():
     metrics.update({"control_fixture_autonomous": cv["autonomous"], "control_fixture_open_ended": cv["open_ended"],
                     "control_fixture_tier3": cv["tier3"], "control_fixture_same_structure_pairs":
                     cv["same_structure_pairs"], "control_inert_actor_active": null["actors"]["counts"]["ghosts"],
-                    "control_bookkeeping_actor_active": null["actors"]["counts"]["clock"],
+                    "control_bookkeeping_actor_active": unreg["counts"]["clock"],
+                    "control_constant_actor_active": unreg["counts"]["constant"],
                     "control_system_event_actor_active": null["actors"]["counts"]["system"],
                     "control_numbers_only_pairs": len(same), "control_cross_domain_pairs": len(cross)})
     evidence.record("SP-9.0", metrics, command=CMD, labels={"scripted": True})
     assert cv["autonomous"] and cv["open_ended"] and cv["tier3"] and cv["same_structure_pairs"] == 0
     assert null["actors"]["active"] == 2 and null["actors"]["counts"]["ghosts"] == 0
-    assert null["actors"]["counts"]["clock"] == 0 and null["actors"]["counts"]["system"] == 0
+    assert unreg["counts"]["clock"] == 0 and unreg["counts"]["constant"] == 0 and null["actors"]["counts"]["system"] == 0
     assert "ring_standard=ring_standard6" in same and len(cross) == len(F.DOMAIN.configs)
     assert m["domains_with_autonomous_participants"] == 15, metrics
     assert m["domains_with_open_ended_actions"] == 15, metrics
