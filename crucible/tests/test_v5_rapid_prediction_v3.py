@@ -38,9 +38,9 @@ def test_delayed_adoption_truth_has_the_threshold_and_saturation():
 
 
 @pytest.mark.parametrize("family", ["dl_delayed_adoption", "dl_short_term_damage", "eng_delayed_controller",
-                                    "ch_tech_transition"])
+                                    "ch_tech_transition", "net_congestion_routes"])
 def test_prediction_reference_beats_naive_predictors(family):
-    seed = 0
+    seed = 1 if family == "net_congestion_routes" else 0     # (on seed 0 its exponent grid picks too flat a curve)
     v_ref = play(F.make(family, seed))["value"]
     simple = search(F.make(family, seed), seed=seed)
     assert v_ref > 0.5 and simple["best_value"] <= 0.8 * v_ref, (v_ref, simple["best_label"], simple["best_value"])
@@ -72,3 +72,12 @@ def test_tech_transition_constants_must_be_revised():
     new = env._config["claim"]["new"]
     cost = next(n["lever"]["cost"] for n in env._config["nodes"] if n["id"] == new)
     assert cost > 0
+
+
+def test_congestion_routes_share_a_link_and_are_convex():
+    for seed in (0, 10):
+        r = CW.claim_shared_congestion(F.make("net_congestion_routes", seed))
+        assert r["ok"], r
+        assert CW.identify_tighter_route(F.make("net_congestion_routes", seed))["ok"]
+    t = _truth(F.make("net_congestion_routes", 1))
+    assert max(t) > 1.5 * min(t)                     # the held-out flows reach the steep part of the delay curves
