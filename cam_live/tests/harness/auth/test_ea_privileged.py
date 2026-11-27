@@ -79,6 +79,8 @@ calls = {
     "resume": ("x",), "revoke": ("secret:does-not-exist", "x"), "reload_policy": ("x",),
     "register_task": (C.TaskSpec("other-task", "o"), "x"), "register_live_authorization": ({"record_id": "r"}, "x"),
     "put_secret": ("n2", "another-secret-value", ["127.0.0.1"]), "secret_names": (), "audit_tail": (5,), "verify_audit": (),
+    "register_local_service": ("127.0.0.1:18650", "x"), "unregister_local_service": ("127.0.0.1:18650", "x"),
+    "local_services": (),
 }
 out, raw = {}, []
 try:

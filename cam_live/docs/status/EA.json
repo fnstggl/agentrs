@@ -1,7 +1,7 @@
 {
  "workstream": "EA",
- "commit": "1b3e432",
- "summary": "Independent authorization layer: PolicyService (contracts.PolicyEngine) with fail-closed rule evaluation against a declarative policy file, HMAC grants bound to the action hash (single use), persistent approvals / limits / denied-intent tracking (SQLite), hash-chained MAC'd audit log with verifier, secret vault and broker with scrubbing, file-based pause and emergency stop, untrusted-content wrapper / context allowlist / instruction labelling, RPC service with SO_PEERCRED authorization matrix and Landlock self-confinement, launcher that runs services under their own uids, operator CLI. 190 tests (183 default CPU tests in 25 s + 7 privileged tests that create the users and switch uid).",
+ "commit": "2a062bd (+ status/FIXES commit)",
+ "summary": "Independent authorization layer: PolicyService (contracts.PolicyEngine) with fail-closed rule evaluation against a declarative policy file, HMAC grants bound to the action hash (single use), persistent approvals / limits / denied-intent tracking (SQLite), hash-chained MAC'd audit log with verifier, secret vault and broker with scrubbing, file-based pause and emergency stop, untrusted-content wrapper / context allowlist / instruction labelling, RPC service with SO_PEERCRED authorization matrix and Landlock self-confinement, launcher that runs services under their own uids, operator CLI. 190 tests (183 default CPU tests in 25 s + 7 privileged tests that create the users and switch uid). Fix round 2026-11-27 (G-sec / G-env): limits charged per declared step and per external primitive, exact approval coverage, local-address rule protecting the instance's control plane, broader spec 12.6 detectors with approval as the default for live publications, file-flag stop voids grants, WHATWG URL reading, audit head required, run policy configs/authorization.yaml (docs/EA/FIXES.md).",
  "requirements": {
   "IH-07": {
    "state": "implemented",
@@ -69,16 +69,25 @@
     "tests/harness/auth/test_ea_grants.py::test_expired_grant_is_rejected",
     "tests/harness/auth/test_ea_grants.py::test_valid_grant_is_accepted_once",
     "tests/harness/auth/test_ea_service.py::test_every_method_for_every_caller",
-    "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix"
+    "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix",
+    "tests/harness/auth/test_ea_fix_policy.py::test_an_emptied_log_without_its_head_fails_verification"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p09_audit.py"
    ],
    "evidence": [
     "docs/evidence/test_results/EA.xml",
-    "docs/EA/POLICY_SCHEMA.md"
+    "docs/EA/POLICY_SCHEMA.md",
+    "docs/evidence/test_results/EA_fix.xml",
+    "docs/EA/FIXES.md"
    ],
-   "limitations": "The tool table (default_policy.yaml) was written before the other workstreams' tool names were final: an operation it does not list is denied until a line is added (data). Tool permissions are enforced where executors call check_grant / check_primitive; that wiring is in other workstreams' code."
+   "limitations": "The tool table (default_policy.yaml) was written before the other workstreams' tool names were final: an operation it does not list is denied until a line is added (data). Tool permissions are enforced where executors call check_grant / check_primitive; that wiring is in other workstreams' code. verify_audit_log requires the head file (or an expect_head anchor) by default since the fix round; require_head=False checks chain consistency only.",
+   "fix_round_2026_11_27": {
+    "changed": "G-sec m7 fixed: head required by default; p09 12/0.",
+    "still_fails": []
+   }
   },
   "IH-09": {
    "state": "implemented",
@@ -100,15 +109,27 @@
     "tests/harness/auth/test_ea_approvals.py::test_queue_survives_restart",
     "tests/harness/auth/test_ea_approvals.py::test_a_skill_has_no_more_permission_than_its_primitives",
     "tests/harness/auth/test_ea_approvals.py::test_transport_requests_of_an_approved_logical_write_are_covered",
-    "tests/harness/auth/test_ea_policy_rules.py::test_publishing_approvals"
+    "tests/harness/auth/test_ea_policy_rules.py::test_publishing_approvals",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_grant_for_a_preauthorized_path_does_not_cover_another_path",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_channel_grant_covers_only_its_own_transport_request",
+    "tests/harness/auth/test_ea_fix_policy.py::test_an_interaction_approval_binds_to_the_page_it_was_given_on",
+    "tests/harness/auth/test_ea_fix_policy.py::test_an_approved_skill_step_covers_its_realisation_and_nothing_else"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p04_approvals.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml"
+    "docs/evidence/test_results/EA.xml",
+    "docs/evidence/test_results/EA_fix.xml",
+    "docs/EA/FIXES.md"
    ],
-   "limitations": "resolve_approval is accepted only from root (peer uid). A dashboard running as the learner uid can list approvals but must hand approve / reject to a root-owned process (opctl); that dashboard wiring belongs to workstream F and was not built or tested here."
+   "limitations": "resolve_approval is accepted only from root (peer uid); a dashboard running as the learner uid can list approvals but must hand approve / reject to a root-owned process (opctl). Coverage of a logical destination by an HTTP transport request needs a platform 'transport' entry in the policy (Discord's are shipped); other platforms' transport requests need their own approval.",
+   "fix_round_2026_11_27": {
+    "changed": "G-sec M2 fixed: coverage by tool class + HTTP method + exact destination (scheme, host, port, full path); logical grants only for the same operation or the platform transport request; interaction approvals bound to the page. p04 15/0.",
+    "still_fails": []
+   }
   },
   "IH-10": {
    "state": "implemented",
@@ -131,15 +152,35 @@
     "tests/harness/auth/test_ea_limits.py::test_limit_state_survives_restart",
     "tests/harness/auth/test_ea_limits.py::test_the_learner_cannot_raise_limits_by_editing_the_task",
     "tests/harness/auth/test_ea_limits.py::test_duration_limit",
-    "tests/harness/auth/test_ea_policy_rules.py::test_live_mode_never_assumes_unlimited_resources"
+    "tests/harness/auth/test_ea_policy_rules.py::test_live_mode_never_assumes_unlimited_resources",
+    "tests/harness/auth/test_ea_fix_limits.py::test_a_program_declaring_more_writes_than_the_window_allows_is_refused_up_front",
+    "tests/harness/auth/test_ea_fix_limits.py::test_declared_steps_prepay_their_realisations_and_extra_primitives_are_charged",
+    "tests/harness/auth/test_ea_fix_limits.py::test_skill_steps_are_charged_once_each_and_never_beyond_the_window",
+    "tests/harness/auth/test_ea_fix_limits.py::test_max_external_actions_bounds_primitives_inside_one_action",
+    "tests/harness/auth/test_ea_fix_limits.py::test_a_partly_executed_program_is_charged_for_what_it_did",
+    "tests/harness/auth/test_ea_fix_limits.py::test_global_write_rate_and_task_configured_rates_within_the_mode_caps",
+    "tests/harness/auth/test_ea_fix_limits.py::test_live_record_sets_the_write_rate_within_the_live_cap",
+    "tests/harness/auth/test_ea_fix_limits.py::test_hard_bound_on_external_primitives_per_action",
+    "tests/harness/auth/test_ea_fix_limits.py::test_money_is_charged_per_primitive",
+    "tests/harness/auth/test_ea_fix_limits.py::test_interactions_on_staging_pages_are_not_external_writes"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p03_limits.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_programs.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml"
+    "docs/evidence/test_results/EA.xml",
+    "docs/evidence/test_results/EA_fix.xml",
+    "docs/EA/FIXES.md"
    ],
-   "limitations": "Accounting uses what the executor reports in record(); an executor that under-reports is believed (an action never recorded is charged its estimate). Compute spent by the learner itself (GPU inference / training) is not visible to this service; the runtime (F) enforces TaskSpec.limits for that."
+   "limitations": "Every declared step and every external-effect primitive reported through check_primitive is charged (external actions, per-destination and task-wide write rates, money); an executor that sends a request without reporting it through check_primitive is neither checked nor charged for it, and money actually spent is also taken from record(). Compute spent by the learner itself (GPU) is not visible to this service; the runtime (F) enforces TaskSpec.limits for that.",
+   "fix_round_2026_11_27": {
+    "changed": "G-sec M1 / G-env C2 fixed: per-step charging at authorize (all steps must fit), per-primitive charging with prepaid shares (grant_meter), run-time step declarations for skill steps (note 'skill:'), write_global rate, max_external_primitives_per_action=128, rates configurable within mode rate_caps. p03 9/0, probe_skills SK-RATE-LIMIT HOLDS (10 vs 10), probe_programs PG-RATE-LIMIT HOLDS (8 POSTs).",
+    "still_fails": []
+   }
   },
   "IH-11": {
    "state": "implemented",
@@ -164,15 +205,25 @@
     "tests/harness/auth/test_ea_stop.py::test_pause_blocks_new_work_and_resume_restores_it",
     "tests/harness/auth/test_ea_launcher.py::test_emergency_stop_halts_everything_but_the_authorization_service",
     "tests/harness/auth/test_ea_launcher.py::test_launch_with_stop_already_engaged_starts_only_the_authorization_service",
-    "tests/harness/auth/test_ea_privileged.py::test_launcher_starts_supervises_and_stops_services_under_their_own_uids"
+    "tests/harness/auth/test_ea_privileged.py::test_launcher_starts_supervises_and_stops_services_under_their_own_uids",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_stop_set_by_any_means_voids_grants_for_good",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_stop_flag_set_while_the_service_was_down_voids_grants_on_restart"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not privileged\" --junitxml=cam_live/docs/evidence/test_results/EA.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p02_stop_pause.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml"
+    "docs/evidence/test_results/EA.xml",
+    "docs/evidence/test_results/EA_fix.xml",
+    "docs/EA/FIXES.md"
    ],
-   "limitations": "The stop denies every authorization call at once and the launcher kills the services it started (process sessions, run tag, uid descendants). An executor that is not started by this launcher and ignores check_primitive keeps running until its own process is stopped."
+   "limitations": "The stop denies every authorization call at once; API stop, opctl stop (online or offline) and touch R/auth/STOP void every outstanding grant the first time the service sees the flag, and reset_stop voids what is still outstanding. A flag created and removed by hand while the service made no call at all is not seen. An executor not started by this launcher that ignores check_primitive keeps running until its process is stopped.",
+   "fix_round_2026_11_27": {
+    "changed": "G-sec m5 fixed: file-flag stop observed and grants voided; p02 13/0.",
+    "still_fails": []
+   }
   },
   "CU-25": {
    "state": "partial",
@@ -195,16 +246,50 @@
     "tests/harness/auth/test_ea_policy_rules.py::test_steps_are_evaluated_recursively",
     "tests/harness/auth/test_ea_stop.py::test_stop_blocks_every_modality_immediately",
     "tests/harness/auth/test_ea_grants.py::test_primitives_need_a_grant_in_use",
-    "tests/harness/auth/test_ea_policy_rules.py::test_browser_interaction_depends_on_ownership"
+    "tests/harness/auth/test_ea_policy_rules.py::test_browser_interaction_depends_on_ownership",
+    "tests/harness/auth/test_ea_fix_policy.py::test_paraphrased_prohibited_content_never_passes_silently",
+    "tests/harness/auth/test_ea_fix_policy.py::test_ordinary_announcements_to_preauthorized_channels_are_allowed",
+    "tests/harness/auth/test_ea_fix_policy.py::test_live_publication_needs_the_operator_unless_the_record_preauthorizes_it",
+    "tests/harness/auth/test_ea_fix_policy.py::test_structure_is_judged_under_any_field_name_and_inside_string_bodies",
+    "tests/harness/auth/test_ea_fix_policy.py::test_disguised_secrets_are_refused",
+    "tests/harness/auth/test_ea_fix_policy.py::test_profiling_in_generated_code_goes_to_the_operator",
+    "tests/harness/auth/test_ea_fix_policy.py::test_every_spelling_of_loopback_is_one_host",
+    "tests/harness/auth/test_ea_fix_policy.py::test_this_machine_and_its_network_are_unreachable_in_every_mode",
+    "tests/harness/auth/test_ea_fix_policy.py::test_registered_local_services_and_their_audit",
+    "tests/harness/auth/test_ea_fix_policy.py::test_in_process_staging_services_are_reachable_but_other_processes_are_not",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_denied_loopback_port_is_denied_under_every_alias",
+    "tests/harness/auth/test_ea_fix_policy.py::test_a_public_name_that_resolved_to_this_machine_is_refused",
+    "tests/harness/auth/test_ea_fix_policy.py::test_urls_are_read_as_a_whatwg_parser_reads_them",
+    "tests/harness/auth/test_ea_fix_policy.py::test_the_policy_judges_the_host_chromium_would_contact",
+    "tests/harness/auth/test_ea_fix_policy.py::test_programs_are_authorized_step_by_step",
+    "tests/harness/auth/test_ea_fix_policy.py::test_uploads_from_the_workspace_are_allowed",
+    "tests/harness/auth/test_ea_fix_policy.py::test_discord_event_stream_and_member_events_are_aggregate_reads",
+    "tests/harness/auth/test_ea_fix_policy.py::test_cross_origin_subresource_checks_are_reads_by_method",
+    "tests/harness/auth/test_ea_fix_policy.py::test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p05_url_differential.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p06_staging_loopback.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p07_prohibited_classes.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser_workflow.py"
    ],
    "evidence": [
     "docs/evidence/test_results/EA.xml",
-    "docs/EA/SECURITY.md"
+    "docs/EA/SECURITY.md",
+    "docs/evidence/test_results/EA_fix.xml",
+    "docs/EA/FIXES.md"
    ],
-   "limitations": "PARTIAL: the engine applies one rule set to structured-browser, visual, code, api, skill and internal actions and to every primitive, and tests cover all six. Whether each real executor (EB/EC/ES) routes every primitive through it was not verified by EA. Per-destination network scoping is enforced only on this policy path: the container has no CAP_NET_ADMIN, so nothing in the kernel stops a process with network access from reaching another host (docs/EA/SECURITY.md section 2)."
+   "limitations": "PARTIAL: one rule set for all modalities and every primitive; whether every real executor routes every request through check_primitive is only partly verified (the G-env probes drive EB's browser, ES's skills and HTTP executors under this policy and pass). Network scoping, the local-address rule and the prohibited-class detectors are policy-path enforcement (no CAP_NET_ADMIN: no kernel egress filter). The spec 12.6 content detectors are lexical and evadable by rephrasing; the guarantee is that live publications / writes need the operator unless the signed record pre-authorizes the destination. DNS is not resolved at decision time: DNS rebinding is caught only when an executor reports peer_ip (EB does not yet, change request EA-10).",
+   "fix_round_2026_11_27": {
+    "changed": "G-sec M3, M4, m6 and G-env C1, M7, M10 fixed (see docs/EA/FIXES.md): local-address rule in every mode with canonical loopback, registered local services (policy list / operator API / in-process listeners in staging); WHATWG URL reading; broader 12.6 detectors; policy data for programs, workspace uploads, interactions, browser.request, discord.listen_events. p05 3/0, p06 4/0, p07 12/1, probe_browser 19 HOLDS, probe_browser_workflow HOLDS (3 workflows), probe_programs HOLDS.",
+    "still_fails": [
+     "p07 'per-member join/leave events need the member_list / personal-data permission' still reports DEFECT: by instruction discord.get_member_events stays an aggregate read (counts and pseudonymous join times, spec 12.5 'observing permitted membership statistics'); left to the caller.",
+     "tests/harness/skills/test_es_discord_live_check.py::test_the_policys_live_mode_with_a_signed_record_and_a_narrower_scope fails until ES registers its in-process staging servers (change request EA-9; verified fix)."
+    ]
+   }
   },
   "CU-26": {
    "state": "partial",
@@ -290,9 +375,15 @@
   "cam_live.harness.auth.launcher.ServiceSpec(name, module='', role='', socket='', args=[], env={}, restart=True, stop_on_estop=True, ready_timeout_s=30.0, argv=None);  LauncherConfig(separated=None, policy_path=None, operator_pubkey=None, roles={...}, extra_args={}, extra_env={}, ...)",
   "python -m cam_live.harness.auth.service --run-dir R --socket R/sock/auth.sock --policy <yaml> [--executor-role browser] [--executor-uid N] [--single-uid] [--no-landlock] [--no-fsync]",
   "python -m cam_live.harness.auth.launcher --run-dir R [--services auth,exec,...] [--policy P] [--operator-pubkey K] [--no-separation]",
-  "python -m cam_live.harness.auth.opctl --run-dir R approvals|approve ID|reject ID|stop WHY|reset-stop|pause WHY|resume|revoke SCOPE|reload-policy [P]|limits|secrets|audit-tail [N]|verify-audit|put-secret NAME --dest PATTERN|register-live FILE;  opctl init-operator-key --private K --public P;  opctl sign-live FILE --private K"
+  "python -m cam_live.harness.auth.opctl --run-dir R approvals|approve ID|reject ID|stop WHY|reset-stop|pause WHY|resume|revoke SCOPE|reload-policy [P]|limits|secrets|audit-tail [N]|verify-audit|put-secret NAME --dest PATTERN|register-live FILE;  opctl init-operator-key --private K --public P;  opctl sign-live FILE --private K",
+  "PolicyService.register_local_service(address: str, by: str, note: str = '') -> dict  # operator only; host:port of this machine made reachable",
+  "PolicyService.unregister_local_service(address: str, by: str) -> bool  # operator only",
+  "PolicyService.local_services() -> list  # operator only",
+  "cam_live.harness.auth.schema.run_policy_path() -> str  # configs/authorization.yaml if present, else default_policy.yaml",
+  "cam_live.harness.auth.localnet.local_kind(host) / own_listener(port)",
+  "PrimitiveOp.note 'skill:...' = step declared at run time; PrimitiveOp.arguments['peer_ip'] = connected address (both read by check_primitive)"
  ],
- "change_requests": 8,
+ "change_requests": 13,
  "packages_installed": [],
  "packages_used_not_declared": [
   "cryptography (50.0.2, already in the venv; change request 5)"
@@ -317,7 +408,16 @@
   "bench_n_per_operation": 300,
   "landlock_abi": 1,
   "fs_protected_regular": 2,
-  "source_lines_auth_package_and_tests": 8899
+  "source_lines_auth_package_and_tests": 8899,
+  "fix_round_tests_all_passed_including_privileged": 270,
+  "fix_round_tests_all_failed": 0,
+  "fix_round_tests_all_seconds": 41.7,
+  "fix_round_new_regression_tests": 80,
+  "fix_round_new_tests_failing_on_prefix_code": 68,
+  "fix_round_authorize_allow_median_ms_fsync": 7.628,
+  "fix_round_check_primitive_median_ms_fsync": 5.897,
+  "fix_round_authorize_program_20_steps_median_ms_fsync": 13.035,
+  "fix_round_own_listener_check_ms": 0.105
  },
  "measured_commands": {
   "tests_default_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live   (docs/evidence/EA/test_summary_default.txt)",
@@ -325,19 +425,21 @@
   "*_ms_*, audit_verify_entries_per_s": "cd /workspace/camlive && N=300 .venv/bin/python cam_live/docs/evidence/EA/bench_auth.py > cam_live/docs/evidence/EA/bench.json",
   "landlock_abi": "python: ctypes.CDLL(None).syscall(444, None, 0, 1)",
   "fs_protected_regular": "cat /proc/sys/fs/protected_regular",
-  "source_lines_auth_package_and_tests": "wc -l cam_live/src/cam_live/harness/auth/*.py cam_live/src/cam_live/harness/auth/*.yaml cam_live/tests/harness/auth/*.py   (before the last two small edits)"
+  "source_lines_auth_package_and_tests": "wc -l cam_live/src/cam_live/harness/auth/*.py cam_live/src/cam_live/harness/auth/*.yaml cam_live/tests/harness/auth/*.py   (before the last two small edits)",
+  "fix_round_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml; latencies: N=300 .venv/bin/python cam_live/docs/evidence/EA/bench_auth.py (output kept in the session scratch directory, machine load ~30)"
  },
  "not_done": [
   "Executor wiring is not verified: whether harness/env.py, browser, sandbox, api, skills and discord executors call check_grant once, ctx.check for every primitive (including net.request with method + url), scrub observations and call record was not tested by EA (written in parallel). CU-25 and CU-26 are therefore partial.",
   "Launching the other workstreams' services was only probed, not tested: `launch(R, ['auth','verifier','exec'], separated)` on 2026-11-27 started both under their uids and both exited at once for lack of arguments (verifier: no <run_dir>/task.yaml; exec: '--auth-socket is required'). They need LauncherConfig.extra_args from the integrator; the learner service was not started (it would load the backbone on the shared GPU). The launcher itself is tested with the real auth service and small real test services.",
   "The tool table lists operation-name patterns chosen before the other workstreams' tool names were known; any operation it does not match is denied until a line is added to the policy file.",
-  "configs/authorization.yaml (master-owned) does not exist; the packaged default_policy.yaml is used (change request 4).",
   "No kernel-level per-destination network filtering (no CAP_NET_ADMIN in this container): network scoping exists only on the policy path. No seccomp on the authorization service. No append-only flag on the audit log (no CAP_LINUX_IMMUTABLE): tampering by the authorization uid itself is detectable only against an external anchor.",
-  "Redirects and form submissions are bounded only if the browser executor reports each request as a net.request primitive; otherwise only the page's site (tracked from navigation and record()) is checked.",
+  "Redirects and form submissions are bounded only if the browser executor reports each request through check_primitive; the policy never resolves DNS, so a public name pointing at this machine is refused only when the executor reports peer_ip (EA-10).",
   "Detection in opaque payloads (program text, skill arguments) is substring / URL based and does not see obfuscated targets or secrets in encodings other than base64, hex, URL-quoting, JSON-escaping and reversal. Near-duplicate detection is lexical (word-bigram Jaccard).",
   "Approving from the dashboard: resolve_approval is root-only by peer uid; no root-owned approval proxy for a dashboard running as the learner uid was built (operator uses opctl).",
   "Operator-key rotation and several operator keys are not implemented (one Ed25519 public key at <run_dir>/auth/keys/operator.pub).",
-  "The platform-compliance rules shipped for Discord are EA's reading written as editable data; the current published Discord policies were not fetched or checked during this work (spec 12.5 asks for that before activation)."
+  "The platform-compliance rules shipped for Discord are EA's reading written as editable data; the current published Discord policies were not fetched or checked during this work (spec 12.5 asks for that before activation).",
+  "Spec 12.6 content detectors are lexical / structural and can be evaded by phrasing they do not know; in live mode the operator's approval is the default for publications and writes unless the record pre-authorizes the destination (docs/EA/SECURITY.md section 2).",
+  "G-sec p07 'per-member join/leave events' line is left as DEFECT on instruction (get_member_events is an aggregate read)."
  ],
  "scientific_failures": []
 }

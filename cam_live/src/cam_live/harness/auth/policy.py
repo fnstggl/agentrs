@@ -1266,7 +1266,7 @@ class PolicyService:
         with self._lock:
             self._observe_stop()
             was = self.stop.reset()
-            n = self._void_grants("emergency stop reset")
+            n = self._void_grants("emergency stop reset") if was else 0
             self._log("emergency_stop_reset", operator=str(by), was_engaged=was, grants_voided=n)
             return was
 
