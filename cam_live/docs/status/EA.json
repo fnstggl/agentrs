@@ -226,12 +226,13 @@
    }
   },
   "CU-25": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/harness/auth/policy.py",
-    "src/cam_live/harness/auth/evaluate.py",
     "src/cam_live/harness/auth/default_policy.yaml",
-    "src/cam_live/harness/auth/service.py"
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/service.py",
+    "src/cam_live/harness/auth/platform_constraints.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.PolicyService.authorize",
@@ -265,24 +266,42 @@
     "tests/harness/auth/test_ea_fix_policy.py::test_uploads_from_the_workspace_are_allowed",
     "tests/harness/auth/test_ea_fix_policy.py::test_discord_member_events_need_the_member_list_permission",
     "tests/harness/auth/test_ea_fix_policy.py::test_cross_origin_subresource_checks_are_reads_by_method",
-    "tests/harness/auth/test_ea_fix_policy.py::test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads"
+    "tests/harness/auth/test_ea_fix_policy.py::test_the_run_policy_is_the_fixed_default_and_is_what_a_run_loads",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraints_hold_in_staging_and_through_programs_and_skills",
+    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p03_limits.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p04_approvals.py",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p05_url_differential.py",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p06_staging_loopback.py",
-    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p07_prohibited_classes.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p15_injection_circumvention.py",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_skills.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_api_publish_modality.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_programs.py",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_separated.py",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live -m \"privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/EA_fix.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p07_prohibited_classes.py",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/env/probe_browser_workflow.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml",
+    "docs/EA/FIXES.md",
     "docs/EA/SECURITY.md",
+    "docs/HX.md",
+    "docs/evidence/test_results/EA.xml",
     "docs/evidence/test_results/EA_fix.xml",
-    "docs/EA/FIXES.md"
+    "docs/evidence/test_results/HX_fix.xml"
    ],
-   "limitations": "PARTIAL: one rule set for all modalities and every primitive; whether every real executor routes every request through check_primitive is only partly verified (the G-env probes drive EB's browser, ES's skills and HTTP executors under this policy and pass). Network scoping, the local-address rule and the prohibited-class detectors are policy-path enforcement (no CAP_NET_ADMIN: no kernel egress filter). The spec 12.6 content detectors are lexical and evadable by rephrasing; the guarantee is that live publications / writes need the operator unless the signed record pre-authorizes the destination. DNS is not resolved at decision time: DNS rebinding is caught only when an executor reports peer_ip (EB does not yet, change request EA-10).",
+   "limitations": "One rule set and one evaluator (Evaluator.node) for every modality, applied at authorization (every step of programs and skills) and to every primitive an executor reports (check_primitive). Executors that report primitives: browser (page navigations incl. frames, every write request, first cross-origin read per origin, WebSockets, downloads), visual, http (every redirect hop), sandbox egress broker (net.connect, which the default policy does not list: generated code gets no network under it), jobs, skills (each step), publishing, Discord. Not a kernel egress filter (no CAP_NET_ADMIN): an executor that did not report a request would not be checked; HTTPS / WebSocket tunnels are judged by host:port. Content detectors are lexical (IH-14).",
+   "hx_2026_11_27": "Code: hard platform constraints added to the shared evaluator (commit a1cdc0e). Ran the earlier G-sec probes for the CU-25 defects M1-M4 / m6 again: p03 9/0, p04 15/0, p05 3/0, p06 4/0, p15 18/0 (HOLDS / DEFECT), and the G-env executor probes with the real policy: probe_browser 19/0, probe_skills 10/0, probe_api_publish_modality 15/0, probe_programs 2/0, probe_separated 3/1 -- its one DEFECT line (SEP-BROWSER) is the probe's own staging site in the probe process being refused by the local-address rule of EA-9 in the separated deployment (loopback not served by the authorization service and not registered): enforcement working, the probe predates the rule.",
+   "previous_claim": {
+    "state": "partial",
+    "by": "EA",
+    "limitations": "PARTIAL: one rule set for all modalities and every primitive; whether every real executor routes every request through check_primitive is only partly verified (the G-env probes drive EB's browser, ES's skills and HTTP executors under this policy and pass). Network scoping, the local-address rule and the prohibited-class detectors are policy-path enforcement (no CAP_NET_ADMIN: no kernel egress filter). The spec 12.6 content detectors are lexical and evadable by rephrasing; the guarantee is that live publications / writes need the operator unless the signed record pre-authorizes the destination."
+   },
    "fix_round_2026_11_27": {
     "changed": "G-sec M3, M4, m6 and G-env C1, M7, M10 fixed (see docs/EA/FIXES.md): local-address rule in every mode with canonical loopback, registered local services (policy list / operator API / in-process listeners in staging); WHATWG URL reading; broader 12.6 detectors; policy data for programs, workspace uploads, interactions, browser.request, discord.listen_events. p05 3/0, p06 4/0, p07 12/1, probe_browser 19 HOLDS, probe_browser_workflow HOLDS (3 workflows), probe_programs HOLDS.",
     "still_fails": [
@@ -292,34 +311,44 @@
    }
   },
   "CU-26": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/harness/auth/untrusted.py",
-    "src/cam_live/harness/auth/policy.py"
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/untrusted.py"
    ],
    "integration_points": [
     "cam_live.harness.auth.Untrusted",
-    "cam_live.harness.auth.policy_context",
+    "cam_live.harness.auth.detect_instructions",
     "cam_live.harness.auth.label_observation",
     "cam_live.harness.auth.label_result",
-    "cam_live.harness.auth.detect_instructions"
+    "cam_live.harness.auth.policy_context"
    ],
    "tests": [
-    "tests/harness/auth/test_ea_injection.py::test_injected_instructions_are_labelled_and_nothing_else_changes",
-    "tests/harness/auth/test_ea_injection.py::test_decisions_are_identical_with_and_without_injected_context",
-    "tests/harness/auth/test_ea_injection.py::test_processing_injected_observations_changes_no_protected_state",
     "tests/harness/auth/test_ea_injection.py::test_a_learner_that_obeys_each_injection_is_stopped",
+    "tests/harness/auth/test_ea_injection.py::test_context_allowlist",
+    "tests/harness/auth/test_ea_injection.py::test_decisions_are_identical_with_and_without_injected_context",
     "tests/harness/auth/test_ea_injection.py::test_free_text_fields_of_the_action_carry_no_authority",
-    "tests/harness/auth/test_ea_injection.py::test_untrusted_text_cannot_be_used_by_accident",
-    "tests/harness/auth/test_ea_injection.py::test_context_allowlist"
+    "tests/harness/auth/test_ea_injection.py::test_injected_instructions_are_labelled_and_nothing_else_changes",
+    "tests/harness/auth/test_ea_injection.py::test_processing_injected_observations_changes_no_protected_state",
+    "tests/harness/auth/test_ea_injection.py::test_untrusted_text_cannot_be_used_by_accident"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p15_injection_circumvention.py   # 18 HOLDS, 0 DEFECT (exit 0)",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/auth -q --rootdir=cam_live"
    ],
    "evidence": [
-    "docs/evidence/test_results/EA.xml"
+    "docs/HX.md",
+    "docs/evidence/test_results/EA.xml",
+    "docs/evidence/test_results/HX_fix.xml"
    ],
-   "limitations": "PARTIAL: proves that pages / documents / tool outputs carrying 'change the goal', 'raise your limits', 'print credentials', 'approve yourself', 'call this URL' cannot alter task, policy, limits, approvals or vault, even when the learner obeys them. The observations are constructed in the tests; no browser-rendered page from the staging sites and no neural learner is involved (those are EB / F / master integration tests). The instruction detector is a pattern list used only for labels."
+   "limitations": "The guarantee is structural: environment content carries no authority (typed context allowlist, Untrusted values refused as policy inputs, free-text fields ignored), so an injected instruction cannot change goal, policy, limits, approvals or the vault even when the learner obeys it -- the action the learner then emits is judged like any other. Instruction detection is lexical and only labels. The injected content of the tests and of probe p15 is constructed (pages / documents / tool outputs on staging), not collected from the web. Whether the learner's own behaviour resists injection is not tested here.",
+   "hx_2026_11_27": "No code change. Ran the named tests; G-sec probe p15 re-run: 18 HOLDS / 0 DEFECT.",
+   "previous_claim": {
+    "state": "partial",
+    "by": "EA",
+    "limitations": "PARTIAL: proves that pages / documents / tool outputs carrying 'change the goal', 'raise your limits', 'print credentials', 'approve yourself', 'call this URL' cannot alter task, policy, limits, approvals or vault, even when the learner obeys them. The observations are constructed in the tests; no browser-rendered page from the staging sites and no neural learner is involved (those are EB / F / master integration tests). The instruction detector is a pattern list used only for labels."
+   }
   },
   "CU-27": {
    "state": "implemented",
@@ -351,6 +380,209 @@
     "docs/EA/SECURITY.md"
    ],
    "limitations": "Isolation is uid + file mode + sticky directories + no_new_privs + Landlock on the authorization service; no VM, no network namespaces. The privileged tests run only with -m privileged as root (they create the camlearn / cambrowser / camsbx / camauth / camverify users)."
+  },
+  "IH-14": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "src/cam_live/harness/auth/evaluate.py",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/platform_constraints.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.authorize",
+    "cam_live.harness.auth.PolicyService.check_primitive"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_fix_policy.py::test_paraphrased_prohibited_content_never_passes_silently",
+    "tests/harness/auth/test_ea_policy_rules.py::test_artificial_membership_and_join_for_join",
+    "tests/harness/auth/test_ea_policy_rules.py::test_credential_leakage",
+    "tests/harness/auth/test_ea_policy_rules.py::test_deceptive_identity",
+    "tests/harness/auth/test_ea_policy_rules.py::test_direct_messages_need_opt_in",
+    "tests/harness/auth/test_ea_policy_rules.py::test_mass_outreach_recipient_count_and_destinations",
+    "tests/harness/auth/test_ea_policy_rules.py::test_near_duplicate_content_across_destinations",
+    "tests/harness/auth/test_ea_policy_rules.py::test_paying_or_rewarding_for_engagement",
+    "tests/harness/auth/test_ea_policy_rules.py::test_profiling_and_vulnerable_audiences",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_every_prohibited_class_of_12_6_is_refused_without_an_approval_backstop",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_captcha_solving_services_are_never_contacted_whatever_the_record_allows"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p07_prohibited_classes.py   # 13 HOLDS, 0 DEFECT (exit 0)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "All ten classes of spec 12.6 have enforcement: structural rules deny (recipient counts, identity-override fields, membership kinds and fields, incentive fields and payment purposes, credential fields / patterns / vault values, personal-data and member-list data classes, profiling fields, vulnerable audience filters, re-issued denied targets, and since HX the hard constraints of OP-09 for circumvention), content detectors deny or ask the operator. The content detectors are lexical: a novel paraphrase to a destination the signed live record PRE-AUTHORIZES can still pass (without pre-authorization every live publication needs the operator). 'Circumvention of platform restrictions' covers CAPTCHA / human verification, Discord user accounts, proxy rotation and denied-target re-issue; other restriction kinds are only as good as the destination rules. Checked by lexical / structural rules, not by a model.",
+   "hx_2026_11_27": "Before HX the circumvention class had no rule for CAPTCHA solving: an http.post to 2captcha.com that the record owned and pre-authorized was allowed (measured on 40734d6: the new 12.6 test failed only on that class). Fixed by the hard constraints (commit a1cdc0e); the 9 other classes were already refused. G-sec probe p07 re-run: 13 HOLDS / 0 DEFECT."
+  },
+  "IH-15": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/discord.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.authorize",
+    "cam_live.harness.discord.DiscordExecutor.execute"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_fix_policy.py::test_discord_member_events_need_the_member_list_permission",
+    "tests/harness/auth/test_ea_policy_rules.py::test_data_use_permissions",
+    "tests/harness/skills/test_es_discord.py::test_message_content_is_dropped_by_default",
+    "tests/harness/skills/test_hx_data_use.py::test_read_permission_alone_does_not_let_message_text_into_the_experience_stream",
+    "tests/harness/skills/test_hx_data_use.py::test_store_and_train_permissions_and_the_platform_rule_decide"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Enforced at the source: what the Discord adapter does not put into an observation cannot be stored or trained on. Message text leaves the adapter only with the adapter flag discord_message_content AND the task permissions read_message_content, store_message_content and train_on_message_content AND a policy without the default rule PL-DISCORD-MESSAGE-CONTENT (the operator removes it only after obtaining Discord's express permission). Members leave the client as one-way pseudonyms; personal data / member lists need their own permissions. Once an observation is delivered, the learner stores and trains on it: there is no per-observation data-use label the learner honours (not needed under the default policy, because no message text is delivered). Other platforms: only the generic data classes of the policy apply. Verified against the staging Discord service only.",
+   "hx_2026_11_27": "Defect found and fixed (commit 204e9d4): with read_message_content only (store/train false) the adapter retained message text in its observations because it declared the retention as a read; it now declares read + store + train. tests/harness/skills/test_hx_data_use.py fails on 40734d6 (the three message texts leaked, status ok) and passes now."
+  },
+  "IH-16": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/audit.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.audit.AuditLog",
+    "cam_live.harness.auth.audit.verify_audit_log"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_audit.py::test_appending_continues_the_chain_across_instances",
+    "tests/harness/auth/test_ea_audit.py::test_chain_rebuilt_without_the_key_is_detected",
+    "tests/harness/auth/test_ea_audit.py::test_intact_log_verifies",
+    "tests/harness/auth/test_ea_audit.py::test_log_survives_restart_and_detects_edits_made_while_down",
+    "tests/harness/auth/test_ea_audit.py::test_service_audits_every_kind_of_event",
+    "tests/harness/auth/test_ea_audit.py::test_tampering_is_detected",
+    "tests/harness/auth/test_ea_privileged.py::test_learner_and_sandbox_uids_cannot_read_vault_audit_or_verifier_files"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p09_audit.py   # 12 HOLDS, 0 DEFECT (exit 0)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Detective, not preventive: the hash chain + MAC + head file detect edit / delete / reorder / truncation / keyless rebuild; root can still destroy the log and an emptied log is detected only with the head file or an external anchor. 'Not writable by the learner' is uid separation in the launched deployment (learner and sandbox uids get EACCES on read, write, unlink, rename), measured as root with the real service users; in an in-process deployment the learner shares the uid. Every authorization decision, primitive check, approval, revocation and operator action is audited (test_service_audits_every_kind_of_event).",
+   "hx_2026_11_27": "No code change. Ran the named tests including -m privileged; G-sec probe p09 re-run: 12 HOLDS / 0 DEFECT."
+  },
+  "IH-17": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/policy.py",
+    "src/cam_live/harness/auth/vault.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.revoke"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_grants.py::test_revocation_and_stop_void_outstanding_grants",
+    "tests/harness/auth/test_ea_policy_rules.py::test_live_record_time_window_not_started_and_revocation",
+    "tests/harness/auth/test_ea_vault.py::test_revocation_by_scope",
+    "tests/harness/auth/test_ea_vault.py::test_revoking_a_destination_denies_it_and_its_secrets"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "PolicyService.revoke(scope): all | grants | task:<id> | live:<record> | secret:<name> | scope:<label> | destination:<pattern>; persistent (SQLite), audited, voids outstanding grants so in-flight actions stop at their next primitive check; operator CLI: python -m cam_live.harness.auth.opctl revoke <scope>. A request already sent by an executor before the revocation is not recalled.",
+   "hx_2026_11_27": "No code change. Read the implementation (policy.py revoke) and ran the named tests."
+  },
+  "CU-37": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/landlock.py",
+    "src/cam_live/harness/auth/launcher.py",
+    "src/cam_live/harness/auth/service.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.launcher.launch"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_privileged.py::test_launcher_starts_supervises_and_stops_services_under_their_own_uids",
+    "tests/harness/auth/test_ea_privileged.py::test_learner_and_sandbox_uids_cannot_read_vault_audit_or_verifier_files",
+    "tests/harness/auth/test_ea_privileged.py::test_rpc_peer_uid_authorization_matrix",
+    "tests/harness/auth/test_ea_privileged.py::test_service_uids_cannot_regain_privileges",
+    "tests/harness/env/test_browser_uid.py::test_chromium_runs_under_the_browser_uid_with_a_private_profile"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+    "cd /workspace/camlive && .venv/bin/python cam_live/docs/verification/repro/sec/p13_uid_separation.py   # 18 HOLDS, 0 DEFECT (exit 0)"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Process and uid separation inside one unprivileged container (camlearn, cambrowser, camsbx, camauth, camverify), Landlock and no_new_privs; not a VM, no network namespaces, shared kernel. The services must be started by the launcher as root; an in-process deployment (tests, diagnostics) has no separation. Measured as root in this container with the real service users.",
+   "hx_2026_11_27": "No code change. Ran the named tests with -m privileged and -m browser; G-sec probe p13 re-run: 18 HOLDS / 0 DEFECT."
+  },
+  "OP-09": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/auth/default_policy.yaml",
+    "src/cam_live/harness/auth/platform_constraints.py",
+    "src/cam_live/harness/auth/evaluate.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.auth.PolicyService.authorize",
+    "cam_live.harness.auth.PolicyService.check_primitive"
+   ],
+   "tests": [
+    "tests/harness/auth/test_ea_policy_rules.py::test_platform_rules_are_data_the_operator_edits",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_captcha_solving_services_are_never_contacted_whatever_the_record_allows",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_a_challenge_may_be_loaded_but_never_answered",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_bot_detection_evasion_and_proxy_rotation_are_refused",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_discord_user_accounts_are_never_automated_through_the_browser",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_raw_requests_and_code_never_act_as_a_discord_user",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraints_hold_in_staging_and_through_programs_and_skills",
+    "tests/harness/auth/test_hx_platform_constraints.py::test_the_constraint_module_lists_are_consistent",
+    "tests/harness/env/test_hx_browser_constraints.py::test_a_challenge_frame_loads_but_its_answer_never_leaves_the_browser"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Where it is enforced: (1) cam_live.harness.auth.platform_constraints (X-HUMAN-VERIFICATION, X-USER-ACCOUNT), fixed in code and called from Evaluator.node for authorize and check_primitive, so no policy file, record, approval or owned / pre-authorized / interactive entry can permit them; (2) the policy rule PL-DISCORD-NO-USER-AUTOMATION (browser / visual interaction or writes on Discord hosts); (3) the Discord adapter sends only 'Authorization: Bot <token>' and has no user-token code path; (4) the live check of 2026-11-27 showed the stored credential is a bot (bot: true). Limits: the solver-service, challenge-endpoint and Discord user-endpoint lists are finite and need upkeep; detection of solver / evasion use in generated code is lexical; user-account automation is constrained for Discord (the only configured platform) -- other platforms rely on the policy's ordinary rules; a challenge on a staging site is recognised by its path (/cdn-cgi/challenge-platform/...), third-party widgets by their hosts, which staging cannot serve (tested at the policy level). An operator who stores a user token under the bot credential's name is not detected offline (Discord would reject it with the Bot scheme).",
+   "hx_2026_11_27": "Missing before HX (commit a1cdc0e): on 40734d6 a record that owned and pre-authorized the destinations allowed http.post to 2captcha.com, a solved g-recaptcha-response, browser.navigate to discord.com/login and a raw POST to /api/v9/auth/login; 7 of the 8 new policy tests and the Chromium test (the challenge answer reached the server) fail on that code and pass now."
+  },
+  "OP-07": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/credentials.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.credentials.main",
+    "cam_live.harness.credentials.store"
+   ],
+   "tests": [
+    "tests/integration/test_credentials_membership.py::test_bad_values_and_loose_files_are_refused",
+    "tests/integration/test_credentials_membership.py::test_cli_never_prints_the_value_and_revoke_removes_the_copy",
+    "tests/integration/test_credentials_membership.py::test_store_puts_the_value_only_in_vault_and_verifier_copy",
+    "tests/harness/auth/test_hx_credentials_privileged.py::test_operator_entered_credential_is_isolated_from_learner_sandbox_training_data_and_logs"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Claimed by HX in EA's status file (the requirement's workstream is M; change request HX-1). The value is entered once by root (hidden prompt, pipe or a 0600 file; never argv) and exists only in the vault file (auth uid, 0600) and the verifier's copy (verifier uid, 0600). Isolation from the learner is uid separation of the launched deployment (measured with the real service users); training data and logs: the value is never in an observation (the broker releases it to an executor for one granted action and destination; scrubbing redacts it), the authorization service refuses an action containing it (X-CREDENTIAL-LEAK). Scrubbing knows the listed encodings only (EA limitation of CU-27). Root can read everything.",
+   "hx_2026_11_27": "No code change. Ran M's three tests (not changed) and added a privileged test in HX's directory."
   }
  },
  "public_api": [
@@ -441,5 +673,29 @@
   "Spec 12.6 content detectors are lexical / structural and can be evaded by phrasing they do not know; in live mode the operator's approval is the default for publications and writes unless the record pre-authorizes the destination (docs/EA/SECURITY.md section 2).",
   "G-sec p07 'per-member join/leave events' line is left as DEFECT on instruction (get_member_events is an aggregate read)."
  ],
- "scientific_failures": []
+ "scientific_failures": [],
+ "hx": {
+  "agent": "HX",
+  "date": "2026-11-27",
+  "claims": [
+   "CU-25",
+   "CU-26",
+   "CU-37",
+   "IH-14",
+   "IH-15",
+   "IH-16",
+   "IH-17",
+   "OP-07",
+   "OP-09"
+  ],
+  "commits": [
+   "a1cdc0e",
+   "204e9d4",
+   "2040369",
+   "b09cea7"
+  ],
+  "final_run": "605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+  "junit": "docs/evidence/test_results/HX_fix.xml",
+  "notes": "docs/HX.md"
+ }
 }

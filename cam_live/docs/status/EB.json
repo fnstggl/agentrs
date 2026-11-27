@@ -441,6 +441,87 @@
     "docs/evidence/test_results/EB.xml"
    ],
    "limitations": "Survives: pending outcomes, event stream and cursors, resource totals, scheduled waits, at-most-once journal, browser profile, session cookies and open tab URLs (reopened on first use, each URL policy-checked). Does not survive: in-page state of open tabs (forms, scroll), research and CDP sessions, observation references. An action interrupted by a crash is reported failed/unknown (if state-changing) rather than resumed."
+  },
+  "IH-13": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/contracts.py",
+    "src/cam_live/harness/env.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.execute"
+   ],
+   "tests": [
+    "tests/harness/env/test_adapter_contract.py::test_adapter_returns_no_reward",
+    "tests/harness/env/test_hx_no_reward.py::test_the_contract_types_have_no_reward_field",
+    "tests/harness/env/test_hx_no_reward.py::test_no_modality_returns_a_reward_for_a_completed_operation",
+    "tests/harness/env/test_hx_no_reward.py::test_no_modality_returns_a_reward_including_the_browser_and_visual"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Checked by field names (reward / bonus / advantage / return_to_go / score / points / utility) in every result, observation, event, measured outcome, metric, resource state, capability and tool description of the composed harness, and by the contract dataclasses; the one occurrence is the capability statement features.reward = false. Quantities are measurements (counts, sizes, times); whether the learner turns one into a reward is the reward workstream's (C) concern. Staging services only.",
+   "hx_2026_11_27": "No code change. New test drives every executor of factories.all_executors behind the real authorization service against a staging site and staging Discord (internal, code, api: HTTP + Discord, skills; browser and visual with -m browser)."
+  },
+  "CU-35": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/staging/canvas.py",
+    "src/cam_live/harness/staging/labsite.py",
+    "src/cam_live/harness/staging/server.py",
+    "src/cam_live/harness/staging/sites.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.staging.StagingSites"
+   ],
+   "tests": [
+    "tests/harness/compute/test_ec_visual.py::test_browser_click_on_a_canvas_button_changes_the_page_and_is_verified",
+    "tests/harness/env/test_browser.py::test_dynamic_changes_are_observed_as_diffs",
+    "tests/harness/env/test_browser.py::test_multi_step_workflow_on_the_structured_site",
+    "tests/harness/env/test_browser.py::test_page_observation_has_the_structured_representation",
+    "tests/harness/env/test_browser.py::test_unfamiliar_variants_and_a_mid_run_interface_change",
+    "tests/harness/env/test_browser_sessions.py::test_delayed_consequences_through_the_browser",
+    "tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution",
+    "tests/harness/skills/test_es_skills.py::test_stale_after_interface_change_then_repaired_to_a_new_version"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "Controlled tests on local staging sites (structured HTML, canvas-drawn controls, dynamic changes, a multi-step workflow, unfamiliar variants and a mid-run interface change, repeated tasks with skills, delayed consequences) on real Chromium. These are harness tests driven by scripted actions, not by the learner; no public website; the skill-vs-primitive comparison is one synthetic 20-task measurement (docs/evidence/ES/skills_vs_primitives.json).",
+   "hx_2026_11_27": "No code change. Ran the named tests with -m browser."
+  },
+  "CU-36": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/env.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.env.ComputerEnvironment.execute"
+   ],
+   "tests": [
+    "tests/harness/env/test_browser.py::test_duplicate_submission_of_a_click_executes_once",
+    "tests/harness/env/test_e_fix_core.py::test_a_duplicate_during_a_long_execution_gets_in_progress_and_later_the_recorded_result",
+    "tests/harness/env/test_e_fix_core.py::test_one_action_id_with_two_valid_grants_executes_once_under_concurrency",
+    "tests/harness/env/test_env_core.py::test_concurrent_duplicates_execute_once_and_share_the_result",
+    "tests/harness/env/test_env_core.py::test_duplicate_submission_executes_once"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md"
+   ],
+   "limitations": "At most once per action_id within one environment (journal + claim under a lock, persisted across restart); state-changing actions are serialised. Two different action ids with the same intent are two actions (deduplication of intent is the authorization layer's near-duplicate rule, not this one). Several environment processes on one run directory are not coordinated with each other. An action interrupted by a crash is reported failed / unknown, never repeated.",
+   "hx_2026_11_27": "No code change. Ran the named tests (incl. -m browser)."
   }
  },
  "public_api": [
@@ -558,5 +639,23 @@
   "Log, journal and event-stream files are append-only without rotation."
  ],
  "scientific_failures": [],
- "commit_note": "code and evidence as of this commit; the status file itself is committed right after it"
+ "commit_note": "code and evidence as of this commit; the status file itself is committed right after it",
+ "hx": {
+  "agent": "HX",
+  "date": "2026-11-27",
+  "claims": [
+   "CU-35",
+   "CU-36",
+   "IH-13"
+  ],
+  "commits": [
+   "a1cdc0e",
+   "204e9d4",
+   "2040369",
+   "b09cea7"
+  ],
+  "final_run": "605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+  "junit": "docs/evidence/test_results/HX_fix.xml",
+  "notes": "docs/HX.md"
+ }
 }

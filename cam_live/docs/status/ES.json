@@ -288,12 +288,16 @@
     "tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution"
    ],
    "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml"
    ],
    "evidence": [
-    "docs/evidence/ES/skills_vs_primitives.json"
+    "docs/HX.md",
+    "docs/evidence/ES/skills_vs_primitives.json",
+    "docs/evidence/test_results/HX_fix.xml"
    ],
-   "limitations": "ES delivers the PROCEDURE level only: one skill.run action carries start / end observation ids, the underlying primitive operations with their times, elapsed time, resources and termination condition. Programs of steps are executed by the environment (EB); the INTERVENTION level, the semi-Markov treatment, duration-aware discounting and not double-counting an outcome across levels are in the learner and credit workstreams and were not built or tested here."
+   "limitations": "ES delivers the PROCEDURE level only: one skill.run action carries start / end observation ids, the underlying primitive operations with their times, elapsed time, resources and termination condition. Programs of steps are executed by the environment (EB); the INTERVENTION level, the semi-Markov treatment, duration-aware discounting and not double-counting an outcome across levels are in the learner and credit workstreams and were not built or tested here.",
+   "hx_2026_11_27": "HX checked and left it partial. Procedure level: skill.run records start / end observation, primitive operations with times, elapsed time, resources, termination (named tests pass). Programs of steps: the environment merges the step results into one ActionResult (per-step boundaries are not kept); cam_live.credit.smdp (semi-Markov traces, duration-aware discounting, outcome counted once) exists but is not reachable from the runtime entry points (checker: unreachable modules) and no code calls attach_trace. Change request HX-3."
   },
   "CU-31": {
    "state": "implemented",
@@ -364,6 +368,31 @@
     "docs/evidence/test_results/E_fix.xml"
    ],
    "limitations": "Classification is a fixed evidence-voting table; VISUAL_GROUNDING, STALE_OBSERVATION, PAGE_CHANGED and STRATEGIC are classified only from evidence fields that the browser / visual executors and the runtime must fill in, which was tested with constructed evidence, not with those executors. Only the ES executors (http, discord, publishing, skills) use it so far. E-fix: a refusal whose every reason is a limit ('resource: ...') is classified RESOURCE_LIMIT with the stated wait (refusal_class, retry_after_of); run_with_retries takes a may_retry veto."
+  },
+  "OP-04": {
+   "state": "implemented",
+   "files": [
+    "src/cam_live/harness/discord.py",
+    "tools/discord_live_check.py"
+   ],
+   "integration_points": [
+    "cam_live.harness.discord.DiscordExecutor.execute"
+   ],
+   "tests": [
+    "tests/harness/skills/test_es_discord_live_check.py::test_full_sequence_in_staging_leaves_the_server_as_it_was",
+    "tests/harness/skills/test_es_discord_live_check.py::test_the_documented_live_preparation_yields_grants_and_releases_the_token_only_to_discord"
+   ],
+   "commands": [
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness cam_live/tests/integration/test_credentials_membership.py -q --rootdir=cam_live -p no:cacheprovider -m \"browser or privileged or not (gpu or slow or network)\" --junitxml=cam_live/docs/evidence/test_results/HX_fix.xml   # 605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included"
+   ],
+   "evidence": [
+    "docs/evidence/test_results/HX_fix.xml",
+    "docs/HX.md",
+    "docs/evidence/discord/README.md",
+    "docs/evidence/discord/live_check_20261127.json"
+   ],
+   "limitations": "Claimed from the existing evidence docs/evidence/discord/live_check_20261127.json (master agent, operator's request): 50 of 50 steps ok against https://discord.com/api/v10 and the Gateway in the operator-designated server, bot identity confirmed (bot: true), server restored (read-only check afterwards). HX did NOT contact Discord. The evidence predates two later changes: tools/discord_live_check.py in the same commit 9732197 (its staging path only: data permissions and local-service registration) and discord.py in HX commit 204e9d4 (only the message-text retention path, which the live run did not use: no content permission was granted, every activity step reports 'message text not retained'). A new live run is needed for fresh executed evidence.",
+   "hx_2026_11_27": "No change to the live-checked path. Ran the two named staging tests (pass)."
   }
  },
  "public_api": [
@@ -453,5 +482,22 @@
   "One early `git add` by ES covered the whole harness directory and staged four files of other workstreams in the shared index (browser.py, staging/sites.py, grounding/base.py, grounding/goclick.py); they were not committed by ES (every ES commit used an explicit path list).",
   "2026-11-27: the Discord API documentation used for the administration tools was read from a local copy of discord-api-docs at commit 62ab2d5; three further pages of the same commit (topics/opcodes-and-status-codes, reference, resources/guild-scheduled-event) were fetched read-only from raw.githubusercontent.com for close codes, the snowflake epoch and event permissions.",
   "2026-11-27: two assertions of test_es_discord.py were adapted to the larger tool set (the ten original tools must still be present; the set must equal discord.TOOLS). No other existing ES test was changed."
- ]
+ ],
+ "hx": {
+  "agent": "HX",
+  "date": "2026-11-27",
+  "claims": [
+   "OP-04",
+   "CU-19 (annotated, partial)"
+  ],
+  "commits": [
+   "a1cdc0e",
+   "204e9d4",
+   "2040369",
+   "b09cea7"
+  ],
+  "final_run": "605 passed, 0 failed, 4 deselected (gpu/slow/network) in 241 s at 5562e65; browser and privileged marks included",
+  "junit": "docs/evidence/test_results/HX_fix.xml",
+  "notes": "docs/HX.md"
+ }
 }
