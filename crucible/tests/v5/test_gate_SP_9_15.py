@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.timeout(4 * 3600)]
 def _arm(seed: int, discovery: bool) -> dict:
     env = base.make_env("commercialization", "linear_optimum", seed)
     a = env.agents()[0]
-    obj = R.objective(env.world, a, 1)
+    obj = R.DOMAIN.make_objective(env.world, a, 1)
     common = env.world.modules["rcomm"].c["own_setting"][0]
     pol = R.ScienceFounder(a, obj, discovery=discovery, common_practice=common)
     base.drive(env, {a: pol}, days=R.DOMAIN.horizon_days, dt=R.DOMAIN.dt)

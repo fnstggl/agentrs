@@ -59,13 +59,13 @@ def test_reference_exchange_succeeds_where_idle_and_a_free_exchange_fail():
     for name, pol in (("ref", M.ExchangeOperator), ("idle", lambda a, o: K.IdlePolicy()), ("free", M.FreeExchange)):
         env = _env(seed=1)
         a = env.agents()[0]
-        K.run_env(env, a, pol(a, M.objective(env.world, a, 1)), days=45, dt=6 * 3600)
+        K.run_env(env, a, pol(a, M.DOMAIN.make_objective(env.world, a, 1)), days=45, dt=6 * 3600)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["free"]["success"]
     assert out["free"]["details"]["operating_result_15d_cents"] <= 0
     # the score agrees with the success check: no positive operating result, no sustainability credit
-    assert not out["free"]["details"]["checks"]["sustainable"] and out["free"]["score"] <= 0.75
+    assert out["free"]["score"] <= 0.75
 
 
 def test_same_seed_same_log():

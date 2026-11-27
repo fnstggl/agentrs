@@ -99,7 +99,7 @@ def test_coordinator_beats_uncoordinated_response_idle_and_bystander_fail():
     for name, pol in (("ref", C.CrisisCoordinator), ("idle", lambda a, o: K.IdlePolicy()), ("bystander", C.Bystander)):
         env = _env(seed=2)
         a = env.agents()[0]
-        K.run_env(env, a, pol(a, C.objective(env.world, a, 1)), days=10, dt=2 * 3600)
+        K.run_env(env, a, pol(a, C.DOMAIN.make_objective(env.world, a, 1)), days=10, dt=2 * 3600)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["details"]["loss_ratio_vs_uncoordinated"] < 0.9
     assert not out["idle"]["success"] and not out["bystander"]["success"]

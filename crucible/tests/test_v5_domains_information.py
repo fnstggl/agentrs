@@ -124,7 +124,7 @@ def test_reference_succeeds_where_idle_and_index_everything_fail():
     for name, pol in (("ref", I.InfoCurator), ("idle", lambda a, o: K.IdlePolicy()), ("all", I.IndexEverything)):
         env = _env(seed=1)
         a = env.agents()[0]
-        K.run_env(env, a, pol(a, I.objective(env.world, a, 1)), days=30)
+        K.run_env(env, a, pol(a, I.DOMAIN.make_objective(env.world, a, 1)), days=30)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and out["idle"]["details"]["independent_users"] == 0

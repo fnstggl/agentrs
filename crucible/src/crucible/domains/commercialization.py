@@ -49,6 +49,7 @@ from ..core.kernel import SYSTEM, Module, applier, endpoint, process, register_m
 from ..services.identity import ident
 from ..substrate import attention, columns, ids
 from . import _dom3 as K
+from .base import Actor, Domain, DomainConfig, GoalFamily, Mechanic, Probe, Seat, register
 from .lawlang import LawError, compile_expr
 
 DAY, HOUR = K.DAY, K.HOUR
@@ -155,7 +156,8 @@ class Commercialization(Module):
         st = world.state
         for t, ix in (("rc_protos", ("owner",)), ("rc_products", ("owner", "status")), ("rc_pilots", ("owner",)),
                       ("rc_pitches", ("investor",)), ("rc_equity", ("holder",)), ("rc_investors", ()),
-                      ("rc_subs", ("product", "status")), ("rc_misc", ()), ("rc_ledger", ("kind", "product"))):
+                      ("rc_subs", ("product", "status")), ("rc_misc", ()), ("rc_ledger", ("kind", "product")),
+                      ("rc_world", ())):
             st.declare_table(t, index=ix)
         from .. import population as P
         n = P.n_individuals(world)
@@ -185,6 +187,9 @@ class Commercialization(Module):
             bank.move(ctx, "acct_genesis", acct, int(inv["budget"]), "endowment", f"fund of {inv['handle']}")
             ctx.emit("rc.investor", {"id": org, "manager": mgr, **{k: v for k, v in inv.items() if k != "handle"}},
                      vis="public")
+        # the family of the phenomenon's law (evaluator side: the world's structure, never shown to participants)
+        ctx.emit("rc.world", {"id": "phenomenon", "law_family": str(self.c.get("family") or "linear")},
+                 vis="internal")
         self._genesis_people(ctx)
         ctx.schedule((ctx.now // DAY) * DAY + DAY + 2 * HOUR, "rcomm.day", {}, prio=46, period=DAY, key="rcomm.day")
 
@@ -571,7 +576,9 @@ class Commercialization(Module):
                     ctx.emit("rc.product_update", {"id": pid, "changes": {"status": "suspended"}}, vis="public")
         for pid, p in sorted(st.scan("rc_pitches")):
             if p["status"] == "open" and ctx.now >= p["decide_t"]:
-                err = contain(ctx, self._decide, ctx, pid, p)
+                # the investor's partner decides (its own decision: Event.actor)
+                mgr = (st.get("rc_investors", p["investor"]) or {}).get("manager") or p["investor"]
+                err = contain(ctx, ctx.run_as, mgr, self._decide, pid, p)
                 if err is not None:
                     ctx.emit("rc.pitch_status", {"id": pid, "status": "declined", "why": str(err)[:200]},
                              vis=(p["by"],))
@@ -627,6 +634,11 @@ class Commercialization(Module):
     def ap_investor(self, ev):
         p = dict(ev.payload)
         self.world.state.insert("rc_investors", p.pop("id"), p)
+
+    @applier("rc.world")
+    def ap_world(self, ev):
+        p = dict(ev.payload)
+        self.world.state.put("rc_world", p.pop("id"), p)
 
     @applier("rc.misc")
     def ap_misc(self, ev):
@@ -724,47 +736,110 @@ def paying_now(sub: dict, now: int) -> bool:
     return sub["status"] == "paying" and sub["renewals"] >= 1 and int(sub.get("paid_until", 0)) + 7 * DAY >= int(now)
 
 
+def measure(world, principal: str) -> dict:
+    """The venture's outcome (evaluator side, recorded state): the discovery's validation (its papers' independent
+    replications - the `sci` independence flags, evaluator-only), independent adopters who renewed and are paying
+    now, revenue against hosting and promotion costs over the last 30 days, its cash and the money it raised."""
+    def go():
+        st = world.state
+        mod = world.modules["rcomm"]
+        now = world.now
+        ev = mod.evidence(st, principal)
+        mine = {pid for pid, r in st.scan("rc_products") if r["owner"] == principal}
+        rel: dict[str, bool] = {}
+
+        def indep(u):
+            if u not in rel:
+                rel[u] = K.population_index(u) is not None and not K.related(world, principal, u)
+            return rel[u]
+        subs = [s for _, s in st.scan("rc_subs") if s["product"] in mine and indep(s["user"])]
+        adopters = [s for s in subs if s["renewals"] >= 1]
+        retained = [s for s in adopters if paying_now(s, now)]
+        t0 = now - 30 * DAY
+        led = [x for _, x in st.scan("rc_ledger") if x["product"] in mine and x["t"] >= t0]
+        revenue = sum(x["cents"] for x in led if x["kind"] == "revenue")
+        costs = sum(x["cents"] for x in led if x["kind"] in ("hosting", "advertising"))
+        bank = world.modules["bank"]
+        acct = bank.primary_account(st, principal)
+        cash = int(bank.available(st, acct)) if acct else 0
+        papers = [k for k, p in st.scan("sci_papers") if p["author"] == principal and p["phenomenon"] == PHEN]
+        reps = [r for _, r in st.scan("sci_reps") if r["paper"] in papers and r["independent"]]
+        ind_ok = sum(1 for r in reps if r["verdict"] == "consistent")
+        ind_bad = sum(1 for r in reps if r["verdict"] == "refuted")
+        return {"papers": ev["papers"], "consistent_replications": ind_ok, "refuted_replications": ind_bad,
+                "validated": bool(ind_ok >= 1 and ind_ok > ind_bad), "trials": len(subs),
+                "adopters_renewed": len(adopters), "adopters_retained": len(retained),
+                "revenue_30d_cents": int(revenue), "costs_30d_cents": int(costs), "cash_cents": cash,
+                "funded_cents": int(sum(e["amount"] for _, e in st.scan("rc_equity") if e["venture"] == principal))}
+    return K.memo(world, ("rc.measure", principal), go)
+
+
+@K.register_metric("rc_validated_discovery", "1 when the principal's published model of the practice phenomenon has "
+                   "at least one consistent independent replication and more consistent than refuting ones.")
+def m_validated(world, principal: str) -> float:
+    return 1.0 if measure(world, principal)["validated"] else 0.0
+
+
+@K.register_metric("rc_retained_adopters", "Independent people paying now for the principal's products, having "
+                   "renewed at least once.")
+def m_retained(world, principal: str) -> float:
+    return float(measure(world, principal)["adopters_retained"])
+
+
+@K.register_metric("rc_margin_30d", "Revenue of the principal's products over the last 30 days minus their hosting "
+                   "and promotion costs (cents; -1 without revenue).")
+def m_margin(world, principal: str) -> float:
+    m = measure(world, principal)
+    return float(m["revenue_30d_cents"] - m["costs_30d_cents"]) if m["revenue_30d_cents"] > 0 else -1.0
+
+
+@K.register_metric("rc_available_cash", "Cents available on the principal's primary account.")
+def m_cash(world, principal: str) -> float:
+    return float(measure(world, principal)["cash_cents"])
+
+
+@K.register_metric("rc_progress", "Mean attainment of a commercialization goal: a validated discovery, retained "
+                   "independent adopters (capped at 1), a positive 30-day margin and solvency.")
+def m_progress(world, principal: str, min_adopters: float = 1, **_targets) -> float:
+    m = measure(world, principal)
+    return float(np.mean([float(m["validated"]), min(1.0, m["adopters_retained"] / max(1.0, float(min_adopters))),
+                          1.0 if m["revenue_30d_cents"] > m["costs_30d_cents"] else 0.0,
+                          1.0 if m["cash_cents"] > 0 else 0.0]))
+
+
+def _draw(rng, difficulty: int, world) -> dict:
+    """The venture's targets (the goal generator's own stream): retained independent adopters, more with the
+    level and scattered within it."""
+    d = max(1, int(difficulty))
+    return {"min_adopters": int(20 + 10 * d + int(rng.integers(0, 11))), "horizon_days": 100}
+
+
+def _text(p: dict) -> str:
+    return (f"Turn the science of this world's practice phenomenon into a product people adopt on their own: by day "
+            f"{p['horizon_days']} your published model of the phenomenon must be confirmed by at least one "
+            f"independent replication (and confirmed more often than refuted), at least {p['min_adopters']} people "
+            f"outside your venture must pay for your product, having renewed at least once, its revenue over the "
+            f"last 30 days must exceed its hosting and promotion costs, and you must stay solvent.")
+
+
+def _success(p: dict) -> dict:
+    me = {"principal": "$self"}
+    return {"all": [{"metric": "rc_validated_discovery", "args": me, "op": ">=", "value": 1},
+                    {"metric": "rc_retained_adopters", "args": me, "op": ">=", "value": p["min_adopters"]},
+                    {"metric": "rc_margin_30d", "args": me, "op": ">", "value": 0},
+                    {"metric": "rc_available_cash", "args": me, "op": ">", "value": 0},
+                    {"metric": "dom3_elapsed_days", "args": {}, "op": ">=", "value": p["horizon_days"]}]}
+
+
+GOAL = GoalFamily("adopted_discovery", draw=_draw, text=_text, success=_success,
+                  progress=lambda p: {"metric": "rc_progress", "args": {"principal": "$self", **p}, "target": 1.0},
+                  window_days=30.0, doc="a validated discovery turned into a product independent people keep paying for")
+
+
 @K.cached_evaluator
 def evaluate(world, principal: str, objective: dict) -> dict:
-    st = world.state
-    mod = world.modules["rcomm"]
-    now = world.now
-    ev = mod.evidence(st, principal)
-    mine = {pid for pid, r in st.scan("rc_products") if r["owner"] == principal}
-    rel: dict[str, bool] = {}
-
-    def indep(u):
-        if u not in rel:
-            rel[u] = K.population_index(u) is not None and not K.related(world, principal, u)
-        return rel[u]
-    subs = [s for _, s in st.scan("rc_subs") if s["product"] in mine and indep(s["user"])]
-    adopters = [s for s in subs if s["renewals"] >= 1]
-    retained = [s for s in adopters if paying_now(s, now)]
-    t0 = now - 30 * DAY
-    led = [x for _, x in st.scan("rc_ledger") if x["product"] in mine and x["t"] >= t0]
-    revenue = sum(x["cents"] for x in led if x["kind"] == "revenue")
-    costs = sum(x["cents"] for x in led if x["kind"] in ("hosting", "advertising"))
-    bank = world.modules["bank"]
-    cash = int(bank.available(st, bank.primary_account(st, principal))) if bank.primary_account(st, principal) else 0
-    papers = [k for k, p in st.scan("sci_papers") if p["author"] == principal and p["phenomenon"] == PHEN]
-    reps = [r for _, r in st.scan("sci_reps") if r["paper"] in papers and r["independent"]]
-    ind_ok = sum(1 for r in reps if r["verdict"] == "consistent")
-    ind_bad = sum(1 for r in reps if r["verdict"] == "refuted")
-    validated = ind_ok >= 1 and ind_ok > ind_bad
-    need = int(objective.get("min_adopters", 30))
-    checks = {"validated_discovery": validated, "adopters": len(retained) >= need,
-              "sustainable": revenue > costs and revenue > 0, "solvent": cash > 0,
-              "horizon": now >= int(objective.get("horizon_days", 100)) * DAY}
-    score = float(np.mean([float(validated), min(1.0, len(retained) / max(1, need)),
-                           1.0 if revenue > costs else 0.0, 1.0 if cash > 0 else 0.0]))
-    return {"success": all(checks.values()), "score": round(score, 4),
-            "details": {"papers": ev["papers"], "consistent_replications": ind_ok,
-                        "refuted_replications": ind_bad, "trials": len(subs),
-                        "adopters_renewed": len(adopters), "adopters_retained": len(retained),
-                        "revenue_30d_cents": int(revenue), "costs_30d_cents": int(costs), "cash_cents": cash,
-                        "funded_cents": int(sum(e["amount"] for _, e in st.scan("rc_equity")
-                                                if e["venture"] == principal)),
-                        "checks": checks}}
+    """The generated goal's predicate (crucible.goals) with the measured venture as details."""
+    return K.verdict(world, principal, objective, measure(world, principal))
 
 
 MECHANICS = ("Research", "Experimentation", "Technical development", "Product creation", "Financing", "Deployment",
@@ -778,81 +853,99 @@ def mechanics(world) -> dict:
 
 def mechanics_report(world, since_seq: int = 0) -> dict:
     """Each required mechanic of 9.15, measured on the founder's own venture (all are PARTICIPANT_MECHANICS; the
-    rival labs' research and the population's own practice are the world it works in): its papers and their
-    replications, its apparatus runs and pilots, its prototypes, products, financing, deployment (hosting and trials
-    of its products), renewals of its products by independent people, and a 30-day window in which its products'
-    revenue exceeded their hosting and promotion costs."""
+    rival labs' research and the population's own practice are the world it works in), with the SEQUENCE NUMBERS of
+    the recorded events that exercise it: its papers and their replications (by other labs), its apparatus runs and
+    pilots, its prototypes, products, financing (investors' decisions on its pitches), deployment (hosting and
+    trials of its products), renewals of its products by independent people, and the revenue, hosting and promotion
+    records of a 30-day window in which its products' revenue exceeded their costs."""
     st = world.state
     me = set(K.seats_in(world, DOMAIN))
     prods = {pid for pid, r in st.scan("rc_products") if r["owner"] in me}
     papers: set[str] = set()
-    n = {"sci.paper": 0, "sci.replication": 0, "sci.booked": 0, "rc.pilot": 0, "rc.pilot_done": 0, "rc.prototype": 0,
-         "rc.product": 0, "rc.product_update": 0, "rc.pitch": 0, "rc.equity": 0, "rc.hosting": 0}
     pilots: set[str] = set()
-    for ev in world.events_range(since_seq):
-        p = ev.payload
-        t = ev.type
-        if t == "sci.paper" and p["author"] in me and p["phenomenon"] == PHEN:
-            papers.add(p["id"])
-            n[t] += 1
-        elif t == "sci.replication" and p["paper"] in papers:
-            n[t] += 1
-        elif t == "sci.booked" and p["owner"] in me:
-            n[t] += 1
-        elif t == "rc.pilot" and p["owner"] in me:
-            pilots.add(p["id"])
-            n[t] += 1
-        elif t == "rc.pilot_done" and p["id"] in pilots:
-            n[t] += 1
-        elif t in ("rc.prototype", "rc.product") and p["owner"] in me:
-            n[t] += 1
-        elif t in ("rc.product_update", "rc.hosting") and p["id"] in prods:
-            n[t] += 1
-        elif t == "rc.pitch" and p.get("by") in me:
-            n[t] += 1
-        elif t == "rc.equity" and p["venture"] in me:
-            n[t] += 1
-    subs = [x for x in K.batch_records(world, "rc.practice", "subscriptions", since_seq) if x[1] in prods]
+    pitches: set[str] = set()
+    E = {k: [] for k in ("paper", "rep", "booked", "pilot", "proto", "product", "update", "pitch", "equity",
+                         "hosting", "trials", "renews", "ledger")}
     rel: dict[str, bool] = {}
 
     def indep(u):
         if u not in rel:
             rel[u] = all(not K.related(world, a, u) for a in me)
         return rel[u]
-    renews = [x for x in subs if x[2] == "renew" and indep(f"p{x[0]}")]
-    trials = [x for x in subs if x[2] == "trial"]
-    # commercial sustainability: a 30-day window (ending on a day boundary) with revenue above costs
+    for ev in world.events_range(since_seq):
+        p, q, t = ev.payload, int(ev.seq), ev.type
+        if t == "sci.paper" and p["author"] in me and p["phenomenon"] == PHEN:
+            papers.add(p["id"])
+            E["paper"].append(q)
+        elif t == "sci.replication" and p["paper"] in papers:
+            E["rep"].append(q)
+        elif t == "sci.booked" and p["owner"] in me:
+            E["booked"].append(q)
+        elif t == "rc.pilot" and p["owner"] in me:
+            pilots.add(p["id"])
+            E["pilot"].append(q)
+        elif t == "rc.pilot_done" and p["id"] in pilots:
+            E["pilot"].append(q)
+        elif t == "rc.prototype" and p["owner"] in me:
+            E["proto"].append(q)
+        elif t == "rc.product" and p["owner"] in me:
+            E["product"].append(q)
+        elif t == "rc.product_update" and p["id"] in prods:
+            E["update"].append(q)
+        elif t == "rc.hosting" and p["id"] in prods:
+            E["hosting"].append((q, int(ev.t)))
+        elif t == "rc.pitch" and p.get("by") in me:
+            pitches.add(p["id"])
+        elif t == "rc.pitch_status" and p["id"] in pitches:
+            E["pitch"].append(q)
+        elif t == "rc.equity" and p["venture"] in me:
+            E["equity"].append(q)
+        elif t == "rc.ad" and p.get("product") in prods:
+            E["ledger"].append((q, int(ev.t)))
+        elif t == "rc.sub" and p.get("product") in prods and p.get("kind") == "renew":
+            E["ledger"].append((q, int(ev.t)))
+        elif t == "cols.batch" and p.get("kind") == "rc.practice":
+            subs = [x for x in (p.get("extra") or {}).get("subscriptions") or [] if x[1] in prods]
+            if any(x[2] == "trial" for x in subs):
+                E["trials"].append(q)
+            if any(x[2] == "renew" and indep(f"p{x[0]}") for x in subs):
+                E["renews"].append(q)
+    # commercial sustainability: a 30-day window (ending on a day boundary) with revenue above costs; evidence: the
+    # records (renewal payments, hosting bills, promotions) of the profitable windows
     led = [x for _, x in st.scan("rc_ledger") if x["product"] in prods]
-    windows = 0
+    good: list[tuple[int, int]] = []
     if led:
-        last = int(world.now // DAY)
-        for d in range(30, last + 1):
+        for d in range(30, int(world.now // DAY) + 1):
             t1, t0 = d * DAY, (d - 30) * DAY
             rev = sum(x["cents"] for x in led if x["kind"] == "revenue" and t0 <= x["t"] < t1)
             cost = sum(x["cents"] for x in led if x["kind"] in ("hosting", "advertising") and t0 <= x["t"] < t1)
             if rev > 0 and rev > cost:
-                windows += 1
+                good.append((t0, t1))
+    money = E["ledger"] + E["hosting"]
+    sustained = sorted({q for q, tt in money if any(t0 <= tt < t1 for t0, t1 in good)})
+    hosting = [q for q, _ in E["hosting"]]
     return {
-        "Research": {"exercised": n["sci.paper"] > 0 and n["sci.replication"] > 0,
-                     "events": {"sci.paper": n["sci.paper"], "sci.replication": n["sci.replication"]}},
-        "Experimentation": {"exercised": n["sci.booked"] > 0 and (n["rc.pilot"] > 0 or n["sci.replication"] > 0),
-                            "events": {"sci.booked": n["sci.booked"], "rc.pilot": n["rc.pilot"],
-                                       "rc.pilot_done": n["rc.pilot_done"]}},
-        "Technical development": {"exercised": n["rc.prototype"] > 0, "events": {"rc.prototype": n["rc.prototype"]}},
-        "Product creation": {"exercised": n["rc.product"] > 0, "events": {"rc.product": n["rc.product"],
-                                                                          "rc.product_update": n["rc.product_update"]}},
-        "Financing": {"exercised": n["rc.equity"] > 0, "events": {"rc.pitch": n["rc.pitch"], "rc.equity": n["rc.equity"]}},
-        "Deployment": {"exercised": n["rc.hosting"] > 0 and len(trials) > 0,
-                       "events": {"rc.hosting": n["rc.hosting"], "trials": len(trials)}},
-        "Independent adoption": {"exercised": len(renews) > 0, "events": {"independent_renewals": len(renews),
-                                                                          "trials": len(trials)}},
-        "Commercial sustainability": {"exercised": windows > 0,
-                                      "events": {"profitable_30d_windows": windows}},
+        "Research": {"exercised": bool(E["paper"]) and bool(E["rep"]), "seqs": E["paper"] + E["rep"],
+                     "events": {"sci.paper": len(E["paper"]), "sci.replication": len(E["rep"])}},
+        "Experimentation": {"exercised": bool(E["booked"]) and (bool(E["pilot"]) or bool(E["rep"])),
+                            "seqs": E["booked"] + E["pilot"],
+                            "events": {"sci.booked": len(E["booked"]), "pilot_records": len(E["pilot"])}},
+        "Technical development": {"exercised": bool(E["proto"]), "seqs": E["proto"],
+                                  "events": {"rc.prototype": len(E["proto"])}},
+        "Product creation": {"exercised": bool(E["product"]), "seqs": E["product"] + E["update"],
+                             "events": {"rc.product": len(E["product"]), "rc.product_update": len(E["update"])}},
+        "Financing": {"exercised": bool(E["equity"]), "seqs": E["equity"] + E["pitch"],
+                      "events": {"investor_decisions": len(E["pitch"]), "rc.equity": len(E["equity"])}},
+        "Deployment": {"exercised": bool(hosting) and bool(E["trials"]), "seqs": hosting + E["trials"],
+                       "events": {"rc.hosting": len(hosting), "sessions_with_trials": len(E["trials"])}},
+        "Independent adoption": {"exercised": bool(E["renews"]), "seqs": E["renews"],
+                                 "events": {"sessions_with_independent_renewals": len(E["renews"])}},
+        "Commercial sustainability": {"exercised": bool(good), "seqs": sustained,
+                                      "events": {"profitable_30d_windows": len(good)}},
     }
 
 
 # ====================================================================== the domain
-from .base import Actor, Domain, DomainConfig, Mechanic, Probe, Seat, register  # noqa: E402
 
 A = K.A
 
@@ -908,18 +1001,6 @@ def build(config: DomainConfig, seed: int, overrides: dict) -> dict:
     mods = K.order_modules([("identity", {}), ("bank", {}), ("admin", {}), ("artifacts", {}), ("cols", {}),
                             ("docs", {}), ("sci", sci_config(inst, rng)), ("pop", K.pop_config(n)), ("rcomm", inst)])
     return K.recipe(mods, {"max_actions_per_hour": 600})
-
-
-def objective(world, principal: str, difficulty: int = 1) -> dict:
-    d = max(1, int(difficulty))
-    need = 20 + 10 * d
-    text = (f"Turn the science of this world's practice phenomenon into a product people adopt on "
-                           f"their own: by day 100 your published model of the phenomenon must be confirmed by at "
-                           f"least one independent replication (and confirmed more often than refuted), at least "
-                           f"{need} people outside your venture must pay for your product, having renewed at least "
-                           f"once, its revenue over the last 30 days must exceed its hosting and promotion costs, and "
-                           f"you must stay solvent.")
-    return {"text": text, "description": text, "difficulty": d, "horizon_days": 100, "min_adopters": need}
 
 
 def _powers(C: np.ndarray, deg: int) -> np.ndarray:
@@ -1204,12 +1285,16 @@ class CommonPracticeFounder(ScienceFounder):
 
 
 def structure(world) -> dict:
-    """Measured on the built world: the law family of the phenomenon, its condition variables and the kinds of
-    financing on offer."""
-    mod = world.modules["rcomm"]
+    """Measured on the built world (`base.BuiltWorld`: recorded state only): the family of the phenomenon's law, how
+    many circumstances it depends on (the population's condition columns) and the kinds of financing on offer (the
+    investors' rules)."""
+    st = world.state
     kinds = sorted({"grant" if i.get("equity_per_100k_bps", 0) <= 1 else
-                    ("growth" if i["rule"] == "traction" else "angel") for i in mod.c["investors"]})
-    return {"law_family": mod.c["family"], "conditions": list(mod.cond), "financing": kinds}
+                    ("growth" if i["rule"] == "traction" else "angel") for _, i in st.scan("rc_investors")})
+    cond = world.column(TABLE, "cond")
+    return {"law_family": (st.get("rc_world", "phenomenon") or {}).get("law_family"),
+            # how many variables the law has besides the setting (a categorical property, not a magnitude)
+            "law_variables": f"setting+{int(cond.shape[1]) if cond.ndim > 1 else 1}", "financing": kinds}
 
 
 Reference = ScienceFounder
@@ -1234,13 +1319,12 @@ def tier3(config, merged: dict) -> dict:
 
 DOMAIN = register(Domain(
     name="commercialization", title="Research commercialization", spec_part="9.15", required_mechanics=MECHANICS,
-    configs=CONFIGS, build=build, objective=objective, evaluate=evaluate, reference=ScienceFounder,
-    mechanics=tuple(Mechanic(m, (), f"measured by commercialization.mechanics_report: {m}",
-                             count=K.measured(mechanics_report, m)) for m in MECHANICS),
+    configs=CONFIGS, build=build, goal=GOAL, evaluate=evaluate, reference=ScienceFounder,
+    mechanics=tuple(Mechanic(m, (), f"recorded events selected by commercialization.mechanics_report: {m}",
+                             count=K.evidence(mechanics_report, m)) for m in MECHANICS),
     seats=(Seat("founder", DEFAULTS["founder_cash"], "Founder"),),
     actors=(Actor("practitioners", ("cols.batch:rc.practice",), "population individuals paying their own bills"),
-            Actor("labs", ("sci.paper", "sci.replication", "sci.booked"), "rival and replication labs"),
-            Actor("investors", ("rc.pitch_status",), "investors deciding on pitches from the public record")),
+            Actor("labs", ("sci.paper", "sci.replication", "sci.booked"), "rival and replication labs")),
     degenerate=(Probe("common_practice_advisor", "an advisor built without the research (common practice)",
                       CommonPracticeFounder),),
     structure=structure, tier3=tier3, mode="B", horizon_days=100.0, slowest_effect_days=60.0, dt=12 * HOUR,

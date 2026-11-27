@@ -2236,11 +2236,12 @@ DOMAIN = register(Domain(
     mechanics=tuple(Mechanic(m, (), f"recorded events selected by crisis.mechanics_report: {m}",
                              count=K.evidence(mechanics_report, m)) for m in MECHANICS),
     seats=(Seat("agent", 1_000_000, "Emergency coordinator"),),
-    actors=(Actor("households", ("cols.batch:crisis.household",), "population individuals living with the outage"),
+    actors=(Actor("households", ("cols.batch:crisis.household", "crisis.report"),
+                  "population individuals living with the outage and reporting outages when their phones work "
+                  "(each report is the individual's own act)"),
             Actor("utility operators", ("crisis.priority", "crisis.order", "crisis.truck_task"),
                   "power, water, telecom, works and hospital duty managers assigning their crews, ordering parts "
-                  "and dispatching fuel (their own decisions: events whose actor is a manager)"),
-            Actor("outage reporters", ("crisis.report",), "households reporting outages when their phones work")),
+                  "and dispatching fuel (their own decisions: events whose actor is a manager)")),
     degenerate=(Probe("bystander", "asks for everything first and helps with nothing", Bystander),),
     structure=structure, mode="B", horizon_days=10.0, slowest_effect_days=3.0, dt=2 * HOUR,
     reference_seeds=(0, 1, 2), sources=("crisis.py", "_dom3.py"),

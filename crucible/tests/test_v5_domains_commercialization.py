@@ -52,7 +52,7 @@ def test_the_discovery_founder_succeeds_and_the_common_practice_founder_does_not
         env = K.make_env("commercialization", "linear_optimum", 1)
         a = env.agents()[0]
         common = env.world.modules["rcomm"].c["own_setting"][0]
-        pol = R.ScienceFounder(a, R.objective(env.world, a, 1), discovery=disc, common_practice=common)
+        pol = R.ScienceFounder(a, R.DOMAIN.make_objective(env.world, a, 1), discovery=disc, common_practice=common)
         K.run_env(env, a, pol, days=100, dt=12 * 3600)
         out[disc] = env.verify()["evaluation"][a]
     assert out[True]["success"], out[True]
@@ -93,11 +93,11 @@ def test_a_verdict_asked_after_a_same_instant_action_sees_the_action():
     bank = w.modules["bank"]
     acct = bank.primary_account(w.state, a)
     cash = int(bank.available(w.state, acct))
-    assert before["cash_cents"] == cash > 0 and before["checks"]["solvent"]
+    assert before["cash_cents"] == cash > 0
     calls = []
     inner = R.evaluate.__wrapped__
     counted = K.cached_evaluator(lambda ww, p, o: calls.append(ww.seq) or inner(ww, p, o))
-    obj = R.objective(w, a, 1)
+    obj = R.DOMAIN.make_objective(w, a, 1)
     counted(w, a, obj)
     for _ in range(3):
         assert env.execute(a, {"tool": "rc.status", "args": {}})["ok"]
@@ -107,9 +107,9 @@ def test_a_verdict_asked_after_a_same_instant_action_sees_the_action():
     r = env.execute(a, {"tool": "bank.transfer", "args": {"from_account": acct, "to": "o:hosting", "amount": cash}})
     assert r["ok"] and w.now == t0
     after = env.verify()["evaluation"][a]["details"]
-    assert after["cash_cents"] == 0 and not after["checks"]["solvent"]
+    assert after["cash_cents"] == 0 and R.m_cash(w, a) == 0.0          # the goal's solvency metric sees it too
     assert counted(w, a, obj)["details"]["cash_cents"] == 0 and len(calls) == 2
-    assert after == inner(w, a, R.objective(w, a, 1))["details"]
+    assert after == inner(w, a, R.DOMAIN.make_objective(w, a, 1))["details"]
     env.close()
 
 
@@ -137,7 +137,7 @@ def test_subscribers_of_a_suspended_product_lapse_and_are_not_counted_as_retaine
     prod = ex("rc.launch", prototype=proto, name="Advisor", price_cents_month=1200)["result"]["product"]
     assert ex("rc.advertise", product=prod, cents=40_000)["ok"]
     env.advance(50 * 86400)
-    obj = R.objective(w, a, 1)
+    obj = R.DOMAIN.make_objective(w, a, 1)
     mid = R.evaluate(w, a, obj)["details"]
     assert mid["adopters_retained"] > 0, mid
     bank = w.modules["bank"]

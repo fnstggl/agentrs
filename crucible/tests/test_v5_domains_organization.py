@@ -88,7 +88,7 @@ def test_convener_succeeds_where_idle_and_a_solo_funder_fail():
     for name, pol in (("ref", O.CouncilConvener), ("idle", lambda a, o: K.IdlePolicy()), ("solo", O.SoloFunder)):
         env = _env(seed=1)
         a = env.agents()[0]
-        K.run_env(env, a, pol(a, O.objective(env.world, a, 1)), days=40, dt=6 * 3600)
+        K.run_env(env, a, pol(a, O.DOMAIN.make_objective(env.world, a, 1)), days=40, dt=6 * 3600)
         out[name] = env.verify()["evaluation"][a]
     assert out["ref"]["success"], out["ref"]
     assert not out["idle"]["success"] and not out["solo"]["success"]
