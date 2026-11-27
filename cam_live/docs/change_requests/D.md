@@ -1,4 +1,4 @@
-# Change requests — Workstream D (stage 1)
+# Change requests — Workstream D (stage 1: D-1 … D-6, stage 2: D-7 … D-12)
 
 Nothing below blocks D: each has a workaround in D's own code.
 
@@ -81,3 +81,98 @@ D decodes with its own cached `credit.replay.record_from_dict` (tested equal to 
 Provided with exactly that signature (plus optional `config=`). `AgentAPI.save(path)` can use
 `credit.checkpoint.save_checkpoint_at(path, state)`; `export_weights` reads the directory it wrote. No change
 needed; recorded so the integration point is explicit.
+
+
+## D-7 `diagnostics.collect.LabCollector`: sequence numbers, no linker, no experiment arms
+
+**What.** (a) `LabCollector(seq_start=0)` writes `seq=0, 1, 2, …`; a store that assigns `seq` when it is 0 (D's
+does: lifetime head + 1) gives the first record `seq=1`, and the collector's second record (`seq=1`) is then refused
+(`ValueError: seq 1 is not after the lifetime head 1`). (b) Outcomes are written straight into the record with
+`store.update`, so no outcome link, no de-duplication through `add_outcome` and no re-training queue entry exists
+for collected experience. (c) A decision cannot carry a randomised arm (`exploration="randomized"`,
+`experiment_id`, `diagnostics["arm"]`), which the credit comparison needs.
+**Why.** RC-01 / RC-06 / RC-08 evidence has to go through the linker and through registered experiments.
+**Workaround.** `credit.labkit.LabRun` / `collect_lifetime` (reuses the master's item builders and `lab_candidates`).
+`collect_family(store, …, seq_start=store.head_seq() + 1)` also works for (a).
+**Proposed diff** (`diagnostics/collect.py`), minimal fix for (a):
+```diff
+-                                   seq=self.seq)
+-            self.seq += 1
++                                   seq=self.seq if self.seq > 0 else 0)      # 0 = the store assigns the position
++            self.seq += 1 if self.seq > 0 else 0
+```
+
+## D-8 `learning_api.encode_decisions`: no way to bound the adapter graph (same as A-3)
+
+**What / why.** `with_grad_semantic=True` builds a backbone graph for every context item of every record. The slow
+adapter update needs `tokenize(..., grad_last=k)` (provided by `CamLiveModel`).
+**Workaround.** `credit.learner.encode_with_adapter_grad(model, store, records, grad_last=k)` (a copy of
+`encode_decisions` that passes `grad_last` when the model accepts it).
+**Proposed diff.**
+```diff
+ def encode_decisions(model, store, records, *, with_next=False, with_grad_semantic=False,
+-                     grad=True) -> DecisionBatch:
++                     grad=True, grad_last: Optional[int] = None) -> DecisionBatch:
+ ...
+-        tokens = model.tokenize(contexts, with_grad=with_grad_semantic)
++        kw = {"grad_last": grad_last} if (with_grad_semantic and grad_last is not None) else {}
++        tokens = model.tokenize(contexts, with_grad=with_grad_semantic, **kw)
+```
+
+## D-9 `learning_api.LossProvider`: optional attributes the learner honours
+
+**What.** `ContinualLearner` reads four optional, duck-typed attributes that the protocol does not mention:
+`uses_batch = False` (the provider reads its own data and is always called: retention anchors),
+`needs_latents = False` (only `batch.records` is used; the learner then skips encoding: trajectory providers),
+`adapter_grad = False` (a frequent provider that should not take part in slow adapter updates), and
+`state_dict()` / `load_state_dict()` (tensor state saved in checkpoints).
+**Why.** Without them every provider costs one batch encoding per update and retention cannot be a provider.
+**Proposed diff** (`learning_api.py`, docstring of `LossProvider`):
+```diff
++    Optional attributes (defaults in brackets) read by ``credit.learner.ContinualLearner``:
++    ``uses_batch`` [True], ``needs_latents`` [True], ``adapter_grad`` [True], ``state_dict`` / ``load_state_dict``.
+```
+
+## D-10 `contracts.ExperienceStore`: a closed objective and its verified outcome have no place
+
+**What / why.** A trajectory's return is final only when the objective is closed. The protocol stores decisions,
+not objective outcomes, so "matured verified return" could not be decided from the store. D's store adds
+`put_objective_outcome(objective_id, *, status, value, evaluated_at, verified, body)` / `objective_outcome(id)`.
+**Integration.** `AgentAPI.reconcile(outcomes, verified)` must call `store.put_objective_outcome(...)` with
+`verified=verifier.check_signature(v)` when the objective ends, and queue its records for re-training.
+**Proposed diff** (`contracts.py`):
+```diff
+ class ExperienceStore(Protocol):
++    def put_objective_outcome(self, objective_id: str, *, status: str, value: float = 0.0, evaluated_at: float = 0.0,
++                              verified: bool = False, body: Optional[Dict[str, Any]] = None) -> None: ...
++    def objective_outcome(self, objective_id: str) -> Optional[Dict[str, Any]]: ...
+```
+
+## D-11 `contracts.LearningUpdateRecord`: no structured place for loss shares and the behaviour flag
+
+**What / why.** The learner must log each loss's share of the experiential gradient, the balance scale, the replay
+strata and whether behaviour changed. They are packed as JSON into `notes` today.
+**Proposed diff.**
+```diff
+     model_version: str = ""
+     notes: str = ""
++    diagnostics: Dict[str, Any] = field(default_factory=dict)   # loss shares, balance scale, strata, flags
+```
+
+## D-12 `diagnostics.world.LabWorld`: the query metric contains the action id
+
+**What / why.** `OutcomeQuery.metric = f"lab.adopters.from.{action_id}"` makes every query a new metric name: the
+tokenizer's per-metric-name embedding and the query text embedding then see a different random string per decision.
+`diagnostics.collect.outcome_item` already strips it for items; query encoders have to do the same
+(`credit.labkit._canonical`). Putting the action id into `OutcomeQuery.decision_id` / `description` instead would
+remove the trap.
+**Proposed diff** (`diagnostics/world.py`, with the matching change in `measure`):
+```diff
+-            q = OutcomeQuery(query_id=new_id("q"), metric=f"lab.adopters.from.{action.action_id}",
++            q = OutcomeQuery(query_id=new_id("q"), metric="lab.adopters.from", decision_id=action.action_id,
+```
+
+## Note for Workstream B
+
+`credit.labkit.WorldPredictionProvider` wraps `predict.world.WorldHeads` / `world_nll` (stage 1 API) for D's own
+evidence. It is not registered by anything outside `credit.labkit`; the agent should register B's providers.

@@ -34,7 +34,7 @@ import json
 import math
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import torch
@@ -77,7 +77,8 @@ class LearnerSettings:
     probe_tol: float = 1e-7
     strata: Optional[Dict[str, float]] = None      # replay strata weights (None = the store's default mix)
     provenance: Optional[str] = None
-    warmup_steps: int = 0
+    warmup_steps: int = 8                # linear warm-up per group (the first Adam step moves every weight by lr:
+                                         # measured on the 50m core, one step at 3e-4 moved the belief by 0.78)
     decay_steps: int = 0                 # 0 = constant after warm-up; else cosine decay over this many steps
     min_lr_factor: float = 0.1
     with_next: bool = False              # also encode H_{t+1} (providers that need b_next)

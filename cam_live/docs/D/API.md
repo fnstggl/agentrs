@@ -1,7 +1,10 @@
-# Workstream D (stage 1) — public API of `cam_live.credit`
+# Workstream D — public API of `cam_live.credit` (stage 1 + stage 2)
 
 Everything is importable from its submodule. Importing `cam_live.credit` (or `.replay`, `.links`, `.simple`, `.select`,
-`.smdp`) does not import torch. Tests: `tests/credit/`. Measured numbers: `docs/evidence/D/measured.json`.
+`.smdp`) does not import torch. Tests: `tests/credit/`. Measured numbers: `docs/evidence/D/measured.json` (stage 1,
+tensor level), `docs/evidence/D/diagnostics.json` (stage 2, real model at debug scale in LabWorld) and
+`docs/evidence/D/real_update.json` (Qwen3-4B + 50m core). Sections 1-8 are the model-independent parts; 9-13 run on
+`nn.model.CamLiveModel`. Integration notes for the agent are at the end.
 
 ## 1. `credit.replay` — durable experience store
 
@@ -171,10 +174,171 @@ automatically; the frozen backbone is never written. Loading matches tensors and
 name**: added heads are reported in `missing` / `fresh`, removed ones in `unexpected` / `dropped`. Metrics are
 oriented higher = better; metrics named like the agent's own reward are ignored by `promote`.
 
-## For stage 2 (continual learner)
+Store additions (stage 2): `put_objective_outcome(objective_id, *, status, value=0.0, evaluated_at=0.0, verified=False,
+body=None)`, `objective_outcome(id)`, `objective_ids(closed=None, family="", provenance=None)`, `objective_of(exp_ids)`,
+`set_credits(exp_id, {estimator: (value, uncertainty) | None}, *, version=0, reason="", ts=0.0) -> {estimator: change}`,
+`credit_history(exp_id="", estimator="")`, `kv_get(key, default=None)`, `kv_put(key, value)`.
+Checkpoint additions: `CheckpointState.aux_state` (provider tensors, `aux.pt`); `load_optimizer_state` clears the state
+of parameters that had none when the checkpoint was written (report key `unstepped`), so a rollback is exact.
 
-* `LossProvider`s for `ReturnDecomposer` and `HindsightModel` on the real model's latents are not written yet;
-  both modules take plain tensors (`DecisionBatch.z_chosen` along a trajectory; `b`, candidate embeddings `e_a`,
-  `behaviour_probs.log()`), register them with `model.register_head(name, module)` so they are checkpointed.
-* After each reconciliation: `store.retrain_queue()` -> train -> `store.pop_retrain(ids)`.
-* `AgentAPI.save(path)`: `save_checkpoint_at(path, capture_state(model, optimizers, store=store, ...))`.
+## 9. `credit.learner` — the continual learner
+
+```python
+LearnerSettings(batch_size=16, slow_batch_size=4, grad_last=8, adapter_every=8, max_share=0.9,
+                min_independent_outcomes=4, min_surprise=0.0, steps_per_trigger=1, max_steps=8, fresh_fraction=0.25,
+                val_fraction=0.15, val_split="objective", val_batch=32, probe_size=8, probe_tol=1e-7, strata=None,
+                provenance=None, warmup_steps=0, decay_steps=0, min_lr_factor=0.1, with_next=False, slow_guard=True,
+                slow_guard_tol=0.05, betas=(0.9, 0.999), seed=0)
+LearnerSettings.from_cfg(cfg, **over)        # cfg.optim.batch_size / adapter_every + cfg.section("credit")["learner"]
+
+ContinualLearner(model: LatentModelAPI, store: SqliteExperienceStore, cfg: CamLiveConfig, *, clock=None, settings=None,
+                 log_path=None, credit: CreditAssigner | None = None)
+  .register(provider: LossProvider) -> provider         .add_probe(name, fn(model, batch, store) -> {key: Tensor})
+  .poll() -> UpdatePlan | None                           # trigger: independent matured outcomes in store.retrain_queue()
+  .learn(plan: UpdatePlan) -> List[LearningUpdateRecord] # frequent updates (+ slow when due), or a forced slow update
+  .fast_update(phi, y, kind, *, exposure=None, censored=None, exp_id="", trigger="outcome_observed") -> LearningUpdateRecord
+  .reset_fast(kind=None)                                 # new objective: fast beliefs back to the learned prior
+  .validate(providers=None, n=None) -> {provider: held-out loss}
+  .refresh_eligibility(exp_ids=None, *, full=False)      .is_validation(record) -> bool
+  .set_probe(exp_ids=None)   .probe() -> {key: Tensor}   .group_hashes()   .status()   .state_dict() / .load_state_dict()
+  .optimizers {group: AdamW}   .fast_state   .counters   .model_version ("m<frequent>.<slow>")   .history   .share_log
+take(batch, rows) -> DecisionBatch;  records_only_batch(model, records) -> DecisionBatch
+encode_with_adapter_grad(model, store, records, *, grad_last=None, with_next=False) -> DecisionBatch
+```
+* One AdamW per group `experiential`, `heads`, `semantic_adapters` (lr / clip from `cfg.optim`; weight decay on
+  tensors with >= 2 dims). The `reward` group is never in an optimizer and gradients are taken with
+  `torch.autograd.grad` w.r.t. the learner's own parameters, so `reward` tensors get no `.grad` and no step.
+* `poll()` returns a plan only when at least `min_independent_outcomes` *units* matured (unit = the top-level decision
+  an outcome belongs to; correlated rows of the same decision count once; time is not an input). `learn(plan)` first
+  re-assigns credit for `plan.exp_ids` (when `credit` is given), refreshes eligibility, trains, then pops the queue.
+* A frequent update draws one replay batch (a quota per provider from the store's strata + the triggering
+  experience), encodes it once, gives each provider its eligible rows, measures each provider's gradient on the
+  experiential group, scales the dominant one down so its share is at most `max_share`, clips per group, steps.
+* A slow update runs every `adapter_every` applied frequent updates (or when the plan lists `TIMESCALE_SLOW`):
+  the batch is encoded with an adapter graph for the newest `grad_last` context items and all candidate / goal
+  texts; providers with `timescale == TIMESCALE_SLOW` and frequent providers that do not declare
+  `adapter_grad = False` contribute; only the adapter optimizer steps; with `slow_guard` a step that raises the mean
+  held-out loss by more than `slow_guard_tol` (relative) is undone.
+* `LearningUpdateRecord.notes` is JSON: `experiential_share`, `experiential_share_applied`, `balance_scale`,
+  `strata`, `rows`, `metrics`, `lr`, `behaviour_changed`, `flag` (weights changed, probe did not), `skipped`,
+  `adapter_grad_norm` / `adapter_delta_norm` (`lora`, `bridge`), `guard`.
+* Optional provider attributes: `uses_batch = False` (reads its own data, always called), `needs_latents = False`
+  (only `batch.records` is used: no encoding), `adapter_grad = False` (not part of slow updates),
+  `state_dict()` / `load_state_dict()` (saved in checkpoints).
+
+## 10. `credit.providers` — losses and the credit assigner
+
+```python
+ReturnDecompositionProvider(model, store, *, beta=0.0, weight=1.0, d_model=128, n_layers=2, n_heads=4,
+                            max_trajectories=8, max_len=64, use_belief=True, detach_latents=True, require_closed=True,
+                            verified_only=False, head_name="credit_rudder", name="rudder", seed=0, encoder=None)
+  .loss(model, batch, store)  .eligible(record)  .redistribute(objective_ids) -> {objective_id: RudderCredit}
+HindsightProvider(model, store, *, beta=0.0, weight=1.0, d_hidden=128, d_key=64, n_members=4, max_trajectories=8,
+                  max_pairs=512, max_len=64, min_prob=1e-3, clip=10.0, require_closed=True, verified_only=False,
+                  head_name="credit_cocoa", name="cocoa", seed=0, encoder=None)
+  .loss(model, batch, store)  .eligible(record)  .credit(objective_ids) -> {exp_id: CocoaCredit}
+BridgeGroundingProvider(model, *, weight=1.0, max_rows=4, max_chars=240, name="bridge_grounding")   # TIMESCALE_SLOW
+CreditAssigner(model, store, *, rudder=None, cocoa=None, selector: EstimatorSelector = None, beta=0.0, clock=None,
+               goal_relevant_only=True)
+  .assign(exp_ids=None, *, objective_ids=None, reason="outcome_matured") -> CreditUpdate
+  .on_reconcile(report: ReconcileReport) -> CreditUpdate
+  .credited_returns(records, estimator=None) -> CreditedReturns(estimator, key, values [B] f64, mask [B], uncertainty [B])
+  .compare_with_experiment(experiment_id, *, treatment, control, confidence=0.95) -> ExperimentEvidence | None
+  .select() -> SelectionRecord   .default   .version   .state_dict() / .load_state_dict()
+trajectory_return(store, records, *, beta=0.0, require_closed=True, verified_only=False, goal_relevant_only=True)
+    -> TrajectoryReturn(objective_id, exp_ids, times, events, G, closed, n_pending, matured, reason)
+TrajectoryEncoder(model, store, *, max_len=64, chunk=32).encode(objective_id, records=None, *, grad=False)
+outcome_features(values) -> [K, 10];  consequence_text(record);  is_top_level(record);  top_index(records)
+```
+* Return convention: an outcome of value v observed at tau is worth `v * exp(-beta * (tau - t))` at a decision made
+  at t; a trajectory return is referenced at its first decision; an outcome event (dedup key) enters once.
+* A return is *matured* when the objective was closed (`store.put_objective_outcome`) and no goal-relevant query of
+  its decisions is outstanding. Until then `rudder*` and `cocoa` are withheld (absent from `record.credit`, never
+  zero); `simple` appears as soon as a linked outcome or event exists.
+* `record.credit` keys: `simple`; `rudder` (learning signal: redistributed return-to-go minus the prefix
+  prediction), `rudder_rtg`, `rudder_contribution`; `cocoa` (own declared outcomes + sum over later outcomes of
+  `w * v`). `credit_uncertainty`: link uncertainty (`simple`), `|G - F(whole trajectory)|` (`rudder`), ensemble
+  spread (`cocoa`). COCOA is `unsupported` (no entry, reasons in `CreditUpdate.unsupported`) without usable logged
+  propensities. Every changed value gets a row in `store.credit_history` under a new credit version.
+* `credited_returns` reads the key of the estimator the selector currently trusts (`assigner.default`, initially
+  `simple`); records without that credit are masked.
+* `compare_with_experiment` compares the matured return-to-go of the randomised decisions of a registered
+  experiment with each estimator's estimate (`rudder`: difference of mean `rudder_contribution`; `cocoa`: mean
+  contrast of the per-candidate credit; `simple`: difference of mean credit where it exists). Arms are read from
+  `decision.diagnostics["arm"]` and `["arms"] = {arm: candidate index}`.
+
+## 11. `credit.retention`
+
+```python
+FunctionSpec(name, fn(model, batch, store) -> values | (values, mask), kind="mse" | "kl", weight=1.0)
+latent_functions() -> [latent_b, latent_z]
+AnchorSet(functions=None, *, max_per_family=256)
+  .add(model, store, records, *, family=None, batch_size=32) -> n_added     .penalty(model, store, exp_ids) -> (loss, metrics)
+  .ids(family=None)  .families()  .state_dict() / .load_state_dict()
+RetentionProvider(anchors, *, weight=1.0, n_anchors=8, name="retention", seed=0)        # uses_batch = False
+evaluate_families(model, store, {family: exp_ids}, eval_fn, *, batch_size=32) -> {family: FamilyEval}
+measure_forgetting(model, store, before: {family: FamilyEval}, eval_fn, *, batch_size=32) -> {family: {
+    nll_before, nll_after, nll_change, nll_change_se, calibration_error_before/after, calibration_change,
+    mean_sq_z_before/after, coverage90_before/after, decision_agreement, action_tv, n, n_scored}}
+retention_metrics(report) -> {"<family>/neg_nll", "<family>/decision_agreement"}        # higher = better
+validation_metrics({provider: held-out loss}) -> {"heldout/neg_<provider>": ...}
+```
+`eval_fn(model, batch, store) -> {"nll": [B], "z": [B], "action_probs": [B, N]}` (NaN where a record has no matured
+outcome). Evaluate on records the learner holds out (`learner.is_validation`).
+
+## 12. `credit.checkpoint` — complete learner state, promotion, transfer
+
+```python
+capture_learner(learner, *, extra_optimizers=None, generators=None, lifetime_context=None, current_task=None,
+                auth_config_hash="", reward_version="", extra=None) -> CheckpointState
+restore_learner(learner, state, *, strict=False, extra_optimizers=None, generators=None, rng=True,
+                expected_auth_hash=None) -> report
+save_learner(root | CheckpointManager, learner, *, notes="", **capture_kw) -> CheckpointInfo
+load_learner(root | CheckpointManager, learner, *, checkpoint_id=None, strict=False, map_location="cpu", **restore_kw) -> report
+promote_learner(manager, learner, *, retention: dict, validation: dict = None, notes="", rollback=True, **capture_kw)
+    -> (PromotionDecision, CheckpointInfo, rollback report | None)
+export_learner_weights(learner, out_dir) -> config
+load_exported_model(export_dir, *, cfg=None, register_heads: Callable[[model], Any] = None, strict=True, device=None)
+    -> ExportedModel(model, fast_state, report, config)
+```
+A learner checkpoint holds: all trainable groups (including `reward`), the learner's optimizers (+ `extra_optimizers`,
+e.g. the meta optimizer), fast belief state, lifetime context, replay sampler indices, pending-outcome pointer,
+schedules / counters / probe ids, RNG states, versions, architecture signature, `extra["config"]`,
+`extra["credit"]` (selector evidence) and provider tensors. `restore_learner` expects a learner built from the same
+configuration with the same providers registered. `load_exported_model` builds `nn.model.build_model(cfg)` in the
+calling process, calls `register_heads(model)`, loads the exported tensors and returns a fresh fast state at the
+exported learned prior; nothing else exists in that process.
+
+## 13. `credit.labkit`, `credit.diagnose` — LabWorld evidence
+
+```python
+build_lab(store_path, cfg=None, *, world=True, policy=True, credit=True, bridge=False, beta=0.0, settings=None,
+          clock=None, log_path=None, durable=False, selector=None, model=None, **store_kw) -> Lab
+register_lab_heads(model, store=None, *, world=True, policy=True, credit=True, beta=0.0, seed=0) -> {name: provider}
+LabRun(store, linker, world, *, task=None, seed=0, max_context=40).decide(policy_fn, *, candidates_fn=None, arms=None)
+  .reconcile()  .mature()  .close() -> VerifiedOutcome
+collect_lifetime(store, linker, world, policy_fn, n_decisions, *, seed=0, candidates_fn=None, arms=None, mature=True,
+                 close=True, tag="") -> LabLifetime;  collect_family(store, linker, base, n_worlds, n_decisions, ...)
+WorldPredictionProvider(model, ...)   # local wrapper of predict.world (B, stage 1); evidence only
+python -m cam_live.credit.diagnose [--only learning,credit,retention,restart,export] [--out PATH] [--work DIR]
+python -m cam_live.credit.diagnose --real          # Qwen3-4B + 50m core, shared GPU lock
+```
+
+## Integration notes (for `agent.py`)
+
+* Build once: `store = SqliteExperienceStore(run/STORE)`, `linker = OutcomeLinker(store, clock=clock,
+  retro_predecessors=64)`, the providers of B / C / D (each registers its heads on the model), `assigner =
+  CreditAssigner(model, store, rudder=..., cocoa=..., beta=...)`, `learner = ContinualLearner(model, store, cfg,
+  clock=clock, credit=assigner, log_path=run/LEARNING)`, `learner.register(p)` for every provider, probes with
+  `learner.add_probe`.
+* `AgentAPI.reconcile(outcomes, verified)`: `linker.reconcile(outcomes=..., events=...)`; for each outcome
+  `learner.fast_update(phi, y, kind, ...)`; when `verified` closes the objective and its signature was checked,
+  `store.put_objective_outcome(...)` and queue its records (`store.mark_for_retraining(ids, "outcome_matured")`).
+* `AgentAPI.learn(budget_s)`: `plan = learner.poll()`; `learner.learn(dataclasses.replace(plan, budget_s=budget_s))`
+  if a plan was returned, else nothing (no evidence, no learning).
+* `AgentAPI.save(path)` / `load(path)`: `save_checkpoint_at(path, capture_learner(learner, extra_optimizers={"reward":
+  meta_opt}, lifetime_context=..., current_task=..., auth_config_hash=..., reward_version=...))` and
+  `restore_learner(learner, load_checkpoint(path), extra_optimizers=...)`.
+* New objective: `learner.reset_fast()`; weights, optimizers, reward parameters, lifetime context and experience stay.
+* The policy loss of the reward workstream reads `assigner.credited_returns(batch.records)`; `values` are measured
+  outcome units, `mask` says where they exist. D never passes them to the learner as a reward.

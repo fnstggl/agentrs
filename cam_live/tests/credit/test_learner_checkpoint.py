@@ -161,3 +161,32 @@ def test_weights_only_export_builds_a_fresh_model_without_experience_and_with_re
                                        strict=False)
     assert any("credit_rudder" in k for k in tol.report.unexpected) and any("r_psi" in k for k in tol.report.unexpected)
     assert tol.report.missing == []
+
+
+def test_reward_parameters_and_their_optimizer_travel_with_the_checkpoint_but_belong_to_no_learner_optimizer(lab_factory, tmp_path):
+    lab = lab_factory(n_worlds=6, cfg=_cfg(), credit=False)
+    model, learner = lab.model, lab.learner
+    psi = model.register_head("r_psi", torch.nn.Linear(model.d_model, 1), GROUP_REWARD)
+    meta_opt = torch.optim.Adam(psi.parameters(), lr=1e-2)             # owned by the reward workstream's outer loop
+    recs = lab.store.all()[:4]
+    b = encode_decisions(model, lab.store, recs, grad=False).b
+    psi(b).mean().backward()
+    meta_opt.step()
+    meta_opt.zero_grad(set_to_none=True)
+    learner.learn(STEP)
+    with pytest.raises(ValueError):
+        ckpt.capture_learner(learner, extra_optimizers={"heads": meta_opt})
+    root = str(tmp_path / "ckpt")
+    ckpt.save_learner(root, learner, extra_optimizers={"reward": meta_opt}, reward_version="r7")
+    w = {k: v.clone() for k, v in psi.state_dict().items()}
+    m = meta_opt.state[psi.weight]["exp_avg"].clone()
+    st = ckpt.load_checkpoint(root)
+    assert set(st.weights["reward"]) == {"heads.r_psi.weight", "heads.r_psi.bias"} and "reward" in st.optimizers
+    assert st.reward_version == "r7"
+    psi(b).pow(2).mean().backward()
+    meta_opt.step()
+    assert not torch.equal(psi.weight, w["weight"])
+    rep = ckpt.load_learner(root, learner, extra_optimizers={"reward": meta_opt})
+    assert torch.equal(psi.weight, w["weight"]) and torch.equal(meta_opt.state[psi.weight]["exp_avg"], m)
+    assert rep["optimizers"]["reward"]["restored"] == ["heads.r_psi.weight", "heads.r_psi.bias"]
+    assert set(learner.optimizers) == {"experiential", "heads", "semantic_adapters"}

@@ -31,10 +31,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import torch
 from torch import Tensor
 
-from ..contracts import (ActionSpec, Clock, ExperienceRecord, OutcomeStatus, WallClock)
+from ..contracts import Clock, ExperienceRecord, OutcomeStatus, WallClock
 from ..learning_api import TIMESCALE_FREQUENT, TIMESCALE_SLOW, DecisionBatch, encode_decisions
 from ..nn.api import LatentModelAPI
-from .cocoa import SUPPORTED, UNSUPPORTED, HindsightModel
+from .cocoa import SUPPORTED, UNSUPPORTED, HindsightModel, check_support
 from .links import OutcomeLink, record_arm
 from .replay import SqliteExperienceStore, outcome_key
 from .rudder import ReturnDecomposer, duration_discount
@@ -562,7 +562,6 @@ class HindsightProvider:
             status, reasons = [SUPPORTED] * T, [[] for _ in range(T)]
             pairs = self._pairs(enc, tr)
             # support is a property of the decision's recorded propensities, with or without later outcomes
-            from .cocoa import check_support
             logp_all = torch.where(enc.a_mask, enc.probs.clamp_min(1e-30).log(), torch.zeros_like(enc.probs))
             for t in range(T):
                 rep = check_support(logp_all[t:t + 1].cpu() if enc.has_probs[t] else None, enc.a_mask[t:t + 1].cpu(),

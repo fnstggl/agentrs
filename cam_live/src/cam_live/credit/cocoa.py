@@ -78,7 +78,11 @@ def check_support(logp_policy: Optional[Tensor], cand_mask: Tensor, *, min_prob:
                  defined if every proposal that could have been executed was recorded with its probability
     n_eff / min_ess   optional effective sample size per candidate and the minimum required
     """
-    m = cand_mask.bool()
+    m = cand_mask.bool().cpu()                       # bookkeeping on the CPU, whatever device the latents live on
+    if logp_policy is not None:
+        logp_policy = logp_policy.detach().cpu()
+    if n_eff is not None:
+        n_eff = n_eff.detach().cpu()
     B, N = m.shape
     oe, tr = _per_row(open_ended, B), _per_row(tracked_proposals, B)
     status, reasons = [], []

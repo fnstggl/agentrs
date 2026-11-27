@@ -331,11 +331,10 @@ def exp_retention(work: str, *, n_worlds: int = 40, n_decisions: int = 10, steps
 
 
 # ================================================================================================ (5) restart recovery
-def _restart_lab(store_path: str, root: str) -> Lab:
+def _restart_lab(store_path: str) -> Lab:
     cfg = _cfg(lr_exp=3e-4, adapter_every=2, seed=0)
-    lab = build_lab(store_path, cfg, bridge=True, beta=BETA, durable=True,
-                    settings=LearnerSettings.from_cfg(cfg, val_fraction=0.25, batch_size=12, grad_last=4))
-    return lab
+    return build_lab(store_path, cfg, bridge=True, beta=BETA, durable=True,
+                     settings=LearnerSettings.from_cfg(cfg, val_fraction=0.25, batch_size=12, grad_last=4))
 
 
 def _restart_anchors(lab: Lab) -> RetentionProvider:
@@ -358,7 +357,7 @@ def child_restart(mode: str, work: str, k_before: int, m_after: int, kill_at: st
     torch.manual_seed(0)
     name = "ref" if mode == "reference" else "victim"
     root = os.path.join(work, name + "_ckpt")
-    lab = _restart_lab(os.path.join(work, name, "store.sqlite"), root)
+    lab = _restart_lab(os.path.join(work, name, "store.sqlite"))
     learner = lab.learner
     rp = _restart_anchors(lab)
     out: Dict[str, Any] = {"mode": mode, "pid": os.getpid()}
@@ -428,7 +427,7 @@ def exp_restart(work: str, *, k_before: int = 3, m_after: int = 4, n_worlds: int
         w = os.path.join(work, f"restart_{kill_at}")
         shutil.rmtree(w, ignore_errors=True)
         os.makedirs(os.path.join(w, "seed"))
-        lab = _restart_lab(os.path.join(w, "seed", "store.sqlite"), os.path.join(w, "seed_ckpt"))
+        lab = _restart_lab(os.path.join(w, "seed", "store.sqlite"))
         collect_family(lab.store, lab.linker, FAM_A, n_worlds, n_decisions, seed=4, clock=lab.clock)
         lab.store.flush()
         lab.close()
@@ -605,12 +604,13 @@ def exp_real(work: str, *, n_worlds: int = 6, n_decisions: int = 6, batch_size: 
             "load_seconds": t_load, "gpu_gb_after_load": mem_load,
             "settings": {"batch_size": batch_size, "slow_batch_size": slow_batch, "grad_last": grad_last,
                          "max_context": cfg.core.max_context, "grad_checkpoint": cfg.backbone.grad_checkpoint}}
-        for name, p in (("frequent", dataclasses.replace(plan or UpdatePlan(trigger="replay"), max_steps=1)),
-                        ("slow_adapters", UpdatePlan(trigger="replay", timescales=(TIMESCALE_SLOW,)))):
+        for name, ts, p in (("frequent", "frequent", dataclasses.replace(plan or UpdatePlan(trigger="replay"), max_steps=1)),
+                            ("frequent_replay", "frequent", UpdatePlan(trigger="replay", max_steps=1)),
+                            ("slow_adapters", "slow_adapters", UpdatePlan(trigger="replay", timescales=(TIMESCALE_SLOW,)))):
             torch.cuda.reset_peak_memory_stats()
             torch.cuda.synchronize()
             t0 = time.perf_counter()
-            rec = [r for r in learner.learn(p) if r.timescale == name][0]
+            rec = [r for r in learner.learn(p) if r.timescale == ts][0]
             torch.cuda.synchronize()
             n = _notes(rec)
             res[name] = {"seconds": time.perf_counter() - t0, "peak_gpu_gb": torch.cuda.max_memory_allocated() / 2 ** 30,
@@ -623,6 +623,9 @@ def exp_real(work: str, *, n_worlds: int = 6, n_decisions: int = 6, batch_size: 
                                                          "adapter_grad_norm", "adapter_delta_norm",
                                                          "adapter_grad_norm_by_loss", "guard", "skipped", "flag",
                                                          "behaviour_changed", "lr", "rows", "strata")}}
+        res["_notes"] = ("'frequent' is the update triggered by the matured outcomes and includes re-assigning credit "
+                         "for the 36 stored decisions; 'frequent_replay' is a plain replay update; seconds include "
+                         "group hashing and the behavioural probe before and after")
         res["counters"] = dict(learner.counters)
         res["backbone_stats"] = {k: (float(v) if isinstance(v, (int, float)) else str(v))
                                  for k, v in getattr(model.backbone, "stats", {}).items()}

@@ -1,0 +1,281 @@
+{
+ "_command": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real",
+ "_notes": "'frequent' is the update triggered by the matured outcomes and includes re-assigning credit for the 36 stored decisions; 'frequent_replay' is a plain replay update; seconds include group hashing and the behavioural probe before and after",
+ "adapters_bridge": 4917376,
+ "adapters_lora": 11796480,
+ "backbone": "Qwen/Qwen3-4B",
+ "backbone_pretrained": true,
+ "backbone_stats": {
+  "cache_hits": 3017.0,
+  "cache_invalidations": 1.0,
+  "cache_misses": 120.0,
+  "embed_s": 5.612386226654053,
+  "embedded_texts": 167.0,
+  "embedded_tokens": 2404.0,
+  "generate_s": 0.0,
+  "generated_tokens": 0.0,
+  "load_s": 51.27998971939087,
+  "truncated_tokens": 0.0
+ },
+ "counters": {
+  "fast": 0,
+  "frequent": 2,
+  "skipped": 0,
+  "slow": 1,
+  "slow_reverted": 0,
+  "triggers": 1
+ },
+ "experience": {
+  "records": 36,
+  "trigger": "matured_outcomes:18_independent/18_rows"
+ },
+ "frequent": {
+  "credit_changes": {
+   "cocoa": 1.4249527080469493,
+   "n_records_changed": 36.0,
+   "rudder": 8.568090101948133,
+   "rudder_contribution": 1.506040697291148,
+   "rudder_rtg": 8.568090101948133,
+   "simple": 2.849905065150449
+  },
+  "grad_norms": {
+   "experiential": 0.3438902199268341,
+   "heads": 13.684996604919434
+  },
+  "hash_changed": {
+   "experiential": true,
+   "heads": true,
+   "reward": false,
+   "semantic_adapters": false
+  },
+  "losses": {
+   "cocoa": 2.1972246170043945,
+   "rudder": 0.5816162824630737,
+   "world": 0.6359089016914368
+  },
+  "n_experiences": 7,
+  "notes": {
+   "adapter_delta_norm": null,
+   "adapter_grad_norm": null,
+   "adapter_grad_norm_by_loss": null,
+   "balance_scale": {
+    "cocoa": 1.0,
+    "rudder": 1.0,
+    "world": 1.0
+   },
+   "behaviour_changed": true,
+   "experiential_share": {
+    "cocoa": 0.0,
+    "rudder": 0.0,
+    "world": 1.0
+   },
+   "experiential_share_applied": {
+    "cocoa": 0.0,
+    "rudder": 0.0,
+    "world": 1.0
+   },
+   "flag": null,
+   "guard": null,
+   "lr": {
+    "experiential": 3.75e-05,
+    "heads": 3.75e-05
+   },
+   "rows": {
+    "cocoa": 7,
+    "rudder": 7,
+    "world": 6
+   },
+   "skipped": null,
+   "strata": {
+    "fresh": 2,
+    "informative": 3,
+    "recent": 3
+   }
+  },
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "peak_gpu_gb": 9.073974132537842,
+  "prediction_change": {
+   "latent_b": 0.26883256435394287,
+   "latent_z": 0.3913797438144684,
+   "max_abs": 0.3913797438144684,
+   "policy.action_probs": 0.00025488209212198853,
+   "world.pred_mean": 0.04869192838668823
+  },
+  "seconds": 17.023681447375566,
+  "trigger": "matured_outcomes:18_independent/18_rows",
+  "weight_delta": {
+   "experiential": 0.2528763711452484,
+   "heads": 0.018625294789671898
+  }
+ },
+ "frequent_replay": {
+  "credit_changes": {},
+  "grad_norms": {
+   "experiential": 0.14921167492866516,
+   "heads": 11.25269603729248
+  },
+  "hash_changed": {
+   "experiential": true,
+   "heads": true,
+   "reward": false,
+   "semantic_adapters": false
+  },
+  "losses": {
+   "cocoa": 2.197190523147583,
+   "rudder": 0.4637536108493805,
+   "world": 0.3597927391529083
+  },
+  "n_experiences": 8,
+  "notes": {
+   "adapter_delta_norm": null,
+   "adapter_grad_norm": null,
+   "adapter_grad_norm_by_loss": null,
+   "balance_scale": {
+    "cocoa": 1.0,
+    "rudder": 1.0,
+    "world": 1.0
+   },
+   "behaviour_changed": true,
+   "experiential_share": {
+    "cocoa": 0.0,
+    "rudder": 0.0,
+    "world": 1.0
+   },
+   "experiential_share_applied": {
+    "cocoa": 0.0,
+    "rudder": 0.0,
+    "world": 1.0
+   },
+   "flag": null,
+   "guard": null,
+   "lr": {
+    "experiential": 7.5e-05,
+    "heads": 7.5e-05
+   },
+   "rows": {
+    "cocoa": 8,
+    "rudder": 8,
+    "world": 6
+   },
+   "skipped": null,
+   "strata": {
+    "delayed": 3,
+    "informative": 3,
+    "recent": 3
+   }
+  },
+  "param_groups": [
+   "experiential",
+   "heads"
+  ],
+  "peak_gpu_gb": 9.095925331115723,
+  "prediction_change": {
+   "latent_b": 0.26135963201522827,
+   "latent_z": 0.3477095663547516,
+   "max_abs": 0.3477095663547516,
+   "policy.action_probs": 0.0005107035394757986,
+   "world.pred_mean": 0.0328521728515625
+  },
+  "seconds": 6.098190767224878,
+  "trigger": "replay",
+  "weight_delta": {
+   "experiential": 0.3347485661506653,
+   "heads": 0.048626985400915146
+  }
+ },
+ "gpu_gb_after_load": 7.820958137512207,
+ "heads": {
+  "credit_cocoa": 925696,
+  "credit_rudder": 559361,
+  "policy": 209539,
+  "world": 238118,
+  "world_norm": 0
+ },
+ "load_seconds": 58.46955356374383,
+ "parameters": {
+  "backbone_frozen": 4022468096,
+  "experiential": 50953765,
+  "heads": 1932714,
+  "reward": 0,
+  "semantic_adapters": 16713856
+ },
+ "scale": "50m",
+ "settings": {
+  "batch_size": 8,
+  "grad_checkpoint": true,
+  "grad_last": 8,
+  "max_context": 64,
+  "slow_batch_size": 4
+ },
+ "slow_adapters": {
+  "credit_changes": {},
+  "grad_norms": {
+   "semantic_adapters": 5.582971572875977
+  },
+  "hash_changed": {
+   "experiential": false,
+   "heads": false,
+   "reward": false,
+   "semantic_adapters": true
+  },
+  "losses": {
+   "bridge_grounding": 8.025407791137695,
+   "world": 0.36039063334465027
+  },
+  "n_experiences": 4,
+  "notes": {
+   "adapter_delta_norm": {
+    "bridge": 0.008757708594202995,
+    "lora": 0.015133644454181194
+   },
+   "adapter_grad_norm": {
+    "bridge": 3.7784781455993652,
+    "lora": 4.110069751739502
+   },
+   "adapter_grad_norm_by_loss": {
+    "bridge_grounding": 5.582943916320801,
+    "world": 0.0009937570430338383
+   },
+   "balance_scale": null,
+   "behaviour_changed": true,
+   "experiential_share": null,
+   "experiential_share_applied": null,
+   "flag": null,
+   "guard": {
+    "validation_after": 3.4861383587121964,
+    "validation_before": 3.478714808821678
+   },
+   "lr": {
+    "semantic_adapters": 6.25e-06
+   },
+   "rows": {
+    "bridge_grounding": 4,
+    "world": 3
+   },
+   "skipped": null,
+   "strata": {
+    "informative": 2,
+    "recent": 2
+   }
+  },
+  "param_groups": [
+   "semantic_adapters"
+  ],
+  "peak_gpu_gb": 8.846506118774414,
+  "prediction_change": {
+   "latent_b": 0.004722477402538061,
+   "latent_z": 0.0060352846048772335,
+   "max_abs": 0.0060352846048772335,
+   "policy.action_probs": 2.9194685339462012e-05,
+   "world.pred_mean": 0.00036215782165527344
+  },
+  "seconds": 11.98776205116883,
+  "trigger": "replay",
+  "weight_delta": {
+   "semantic_adapters": 0.017484983429312706
+  }
+ }
+}
