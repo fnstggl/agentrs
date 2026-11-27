@@ -1,7 +1,7 @@
 {
  "workstream": "C",
- "commit": "ab980b70d2d69d47459a752a64b128037b947dcb",
- "summary": "Stage 1 + stage 2. The learned intrinsic reward R_psi and its lifetime meta-gradient are implemented end to end on the real model at debug scale: PolicyImprovementLoss (one function used as the learner's LossProvider with R_psi detached and, functionally over the policy head + decision trunk, as the inner step of the unroll); MetaLearner (real policy updates with snapshots, support/query windows inside one lifetime, utilities only from a hash-chained ledger of signed outcomes, on-policy or importance-weighted outer step, held-out promotion of the bootstrap mix, MetaUpdateRecord also for skipped updates); signal assembly with a documented source for every signal; a budgeted goal-free mode on the fast posterior; integrity guards. The mathematics checks out (finite differences, exact zeros under the two ablations, psi bit-identical under the inner loss). The science does not: in the multi-lifetime LabWorld comparison (10 seeds x 320 lifetimes) the learned reward used from scratch: hurt relative to bootstrap-only (-0.210 [-0.379, -0.041] in verified goal achievement; it collapsed in 5 of 10 seeds, in 3 of them onto the noisy gauge, which the learned reward then paid for), and the cold-start path: no detectable difference relative to bootstrap-only (-0.028 [-0.209, +0.154]). Nothing here has seen live or staging experience, and the agent / runtime do not call it yet.",
+ "commit": "8a4222589ec67da0d9eef9f6bee015dc3b221eae",
+ "summary": "Stage 1 + stage 2. The learned intrinsic reward R_psi and its lifetime meta-gradient are implemented end to end on the real model at debug scale: PolicyImprovementLoss (one function used as the learner's LossProvider with R_psi detached and, functionally over the policy head + decision trunk, as the inner step of the unroll); MetaLearner (real policy updates with snapshots, support/query windows inside one lifetime, utilities only from a hash-chained ledger of signed outcomes, on-policy or importance-weighted outer step, held-out promotion of the bootstrap mix, MetaUpdateRecord also for skipped updates); signal assembly with a documented source for every signal; a budgeted goal-free mode on the fast posterior; integrity guards. The mathematics checks out (finite differences, exact zeros under the two ablations, psi bit-identical under the inner loss). The science does not: in the multi-lifetime LabWorld comparison (10 seeds x 320 lifetimes, re-run after the G-pr fixes) the learned reward used from scratch: hurt relative to bootstrap-only (-0.291 [-0.438, -0.144] in verified goal achievement; it collapsed onto a non-intervention in 5 of 10 seeds), and the cold-start path: no detectable difference relative to bootstrap-only (-0.061 [-0.213, +0.090]). No learning result here comes from live or staging experience; the integrated agent (agent.py, M-int) now calls MetaLearner and GoalFreeMode but needs change requests C-10 / C-11 for the fixed admission and budget rules. G-pr fixes (docs/C/FIXES.md): return-to-go baseline no longer depends on the row's own outcome (D1, exact unbiasedness test); outer utilities derived in the ledger from the signed outcome, caller utilities / credits refused and chained (D2); only objectives with a recorded operator origin supervise (D3); goal-free budget counts pending goals (D4); reworded self-goals discounted (D6); on-policy estimator only when the live update replays bit-identically (D7); anchored ledger (D8); 'bootstrap' label until a promoted meta-update (D12). The LabWorld experiment was re-run in full on the fixed, committed code.",
  "requirements": {
   "MR-01": {
    "state": "implemented",
@@ -181,7 +181,11 @@
     "tests/reward/test_reward_metalearner.py::test_shadow_update_with_importance_weights_while_bootstrap_drives_the_policy",
     "tests/reward/test_reward_metalearner.py::test_skipped_update_reports_the_reason_and_leaves_psi_bit_identical",
     "tests/reward/test_reward_metalearner.py::test_external_optimizer_path_and_unroll_across_two_events",
-    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld"
+    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld",
+    "tests/reward/test_reward_fixes.py::test_return_to_go_baseline_keeps_the_outer_policy_gradient_unbiased_exactly",
+    "tests/reward/test_reward_fixes.py::test_meta_learner_baseline_of_a_row_does_not_depend_on_its_own_measured_outcome",
+    "tests/reward/test_reward_fixes.py::test_cold_start_shadow_update_never_uses_the_on_policy_estimator_by_tolerance",
+    "tests/reward/test_reward_fixes.py::test_on_policy_only_while_psi_is_the_one_the_live_update_used"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -192,9 +196,11 @@
     "docs/evidence/C/diagnostics.json",
     "docs/evidence/C/exact_meta_gradient.json",
     "docs/evidence/test_results/C.xml",
-    "docs/evidence/test_results/C_slow.xml"
+    "docs/evidence/test_results/C_slow.xml",
+    "docs/evidence/C/fix_D1_baseline.json",
+    "docs/C/FIXES.md"
    ],
-   "limitations": "Outer step (Adam on psi, clipped) runs on-policy and importance-weighted on the real debug model. The window is truncated to the K steps of one policy update by default; the bias of that truncation and of weight clipping is not quantified on the real model. The optimisation did not produce a useful reward in the LabWorld experiment (scientific_failures)."
+   "limitations": "Outer step (Adam on psi, clipped) on the real debug model. Estimator (G-pr D7): on-policy only when replaying each live policy update from its snapshot with the current psi and mix gives bit-identical parameters (MetaLearner.logged_policy_is_current), otherwise clipped importance weighting - the cold-start shadow update and rows collected under an older psi are always importance-weighted. Baseline (G-pr D1): mean utility outside the row's baseline group (with return-to-go the whole chain), else the prefix-only running mean; exact expectation test shows the estimator unbiased (rel. bias 1e-15; the audited leave-group-out rule: 0.97). The window is truncated to the K steps of one policy update by default; the bias of that truncation and of weight clipping is not quantified on the real model. The optimisation did not produce a useful reward in the LabWorld experiment (scientific_failures)."
   },
   "MR-06": {
    "state": "implemented",
@@ -221,7 +227,11 @@
     "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective",
     "tests/reward/test_reward_metalearner.py::test_unauthenticated_measurements_never_supervise",
     "tests/reward/test_reward_metalearner.py::test_repeated_evaluations_of_one_objective_credit_progress_once",
-    "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning"
+    "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning",
+    "tests/reward/test_reward_integrity.py::test_utility_is_derived_from_the_signed_outcome_and_a_disagreeing_caller_utility_is_refused",
+    "tests/reward/test_reward_integrity.py::test_objective_origin_is_recorded_and_unknown_origin_is_excluded",
+    "tests/reward/test_reward_fixes.py::test_signed_outcome_utility_and_credit_cannot_be_chosen_by_the_caller",
+    "tests/reward/test_reward_fixes.py::test_verifier_signed_outcome_of_a_self_generated_goal_never_supervises_by_default"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -229,9 +239,10 @@
    ],
    "evidence": [
     "docs/evidence/C/diagnostics.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/test_results/C.xml",
+    "docs/C/FIXES.md"
    ],
-   "limitations": "Utilities come only from the hash-chained ledger: signed VerifiedOutcome records (LabVerifier HMAC in the tests) and measurements authenticated by an injected check. contracts.OutcomeObservation has no signature (change request C-1), so in live operation verifier measurements cannot supervise until the verifier supplies check_measurement; LabWorld tests authenticate by asking the verifier again."
+   "limitations": "Utilities come only from the hash-chained ledger, and the number is derived there from the signed record (integrity.objective_utility: 1 if ACHIEVED else 0.5 * clip(value / max(target, 1), 0, 1), admitted as progress since the previous admitted evaluation; measurements: the measured value). A caller-stated utility that disagrees, or exp_ids that are not decisions of the objective, are refused and the refusal is chained (G-pr D2; before the fix the signature was checked but the utility was the caller's). Only objectives whose recorded origin (TaskSpec.origin via register_objective) is the operator or the verifier supervise; unknown origin is excluded (G-pr D3; before, the caller's objective_origin defaulted to OPERATOR). The integrated agent does not register its task yet (change request C-10): until it does, its objective outcomes are refused for the meta ledger (fail closed). Verifier measurements need the verifier's check_measurement (C-1 applied; runtime.verifier.SignedVerifier does not sign measurements yet, M-int-3)."
   },
   "MR-07": {
    "state": "implemented",
@@ -310,7 +321,10 @@
     "tests/reward/test_reward_metalearner.py::test_shadow_update_with_importance_weights_while_bootstrap_drives_the_policy",
     "tests/reward/test_reward_metalearner.py::test_promotion_moves_the_mix_only_on_held_out_evidence",
     "tests/reward/test_reward_inner.py::test_reward_step_labels_every_decision_and_replay_moves_no_state",
-    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld"
+    "tests/reward/test_reward_experiment.py::test_three_learners_with_equal_experience_in_labworld",
+    "tests/reward/test_reward_bootstrap.py::test_promotion_before_any_meta_update_does_not_earn_the_learned_label",
+    "tests/reward/test_reward_fixes.py::test_reward_is_labelled_bootstrap_until_a_meta_update_was_applied_and_promoted",
+    "tests/reward/test_reward_fixes.py::test_an_applied_meta_update_is_counted_for_the_label"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -322,7 +336,7 @@
     "docs/evidence/test_results/C.xml",
     "docs/evidence/test_results/C_slow.xml"
    ],
-   "limitations": "Bootstrap mode works without any pretraining and is labelled in every record; psi is meta-updated by shadow updates while the bootstrap reward drives the policy; the mix moves only on held-out verified evidence. The promotion rule is uncalibrated (margin and step chosen ad hoc): in the experiment it lowered the mix in 2 of 10 seeds. Of the four bootstrap components only the verified-outcome one had inputs in LabWorld, and it misattributes (it pays the step during which outcomes mature)."
+   "limitations": "Bootstrap mode works without any pretraining and is labelled in every record; the label stays 'bootstrap' until at least one meta-update was applied and promoted on held-out evidence (G-pr D12; before, mix 0 was labelled 'learned' for a random R_psi). psi is meta-updated by shadow updates (importance weighting only, G-pr D7) while the bootstrap reward drives the policy; the mix moves only on held-out verified evidence. The promotion rule is uncalibrated (margin and step chosen ad hoc). Of the four bootstrap components only the verified-outcome one had inputs in LabWorld, and it misattributes (it pays the step during which outcomes mature)."
   },
   "MR-09": {
    "state": "implemented",
@@ -359,7 +373,10 @@
     "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning",
     "tests/reward/test_reward_metalearner.py::test_unauthenticated_measurements_never_supervise",
     "tests/reward/test_reward_inner.py::test_prediction_error_uses_only_prospective_predictions_seen_by_reward_time",
-    "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn"
+    "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn",
+    "tests/reward/test_reward_integrity.py::test_reworded_self_generated_goals_count_as_repeats",
+    "tests/reward/test_reward_integrity.py::test_semantic_near_duplicates_on_the_goal_embedding_are_discounted",
+    "tests/reward/test_reward_semantic_goals.py::test_reworded_goals_are_closer_than_different_goals_in_the_real_embedding"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -367,9 +384,10 @@
    ],
    "evidence": [
     "docs/evidence/C/diagnostics.json",
-    "docs/evidence/test_results/C.xml"
+    "docs/evidence/test_results/C.xml",
+    "docs/evidence/C/semantic_goal_repeats.json"
    ],
-   "limitations": "The tests exist and execute on the real debug model. One of the things they are meant to rule out did happen in the experiment: with the learned reward used from scratch the noisy gauge ended up paid above average and chosen in more than 25 % of decisions in 3 of 10 seeds (scientific_failures). Detection of engagement without genuine participation is verifier-side and not covered here."
+   "limitations": "The tests exist and execute on the real debug model. Repeated self-goals are discounted also when reworded (number words, endings, attainment verbs folded, G-pr D6); an optional embedding near-duplicate test exists, but on the real Qwen3-4B text embedding no cosine threshold separates rewordings from different goals (least similar rewording 0.35 < most similar different goal 0.57, docs/evidence/C/semantic_goal_repeats.json), so it is off by default and paraphrases with no shared content word are not caught. One of the things the guards are meant to rule out did happen in the experiment: see scientific_failures (noisy gauge in the learned arm). Detection of engagement without genuine participation is verifier-side and not covered here."
   },
   "MR-10": {
    "state": "implemented",
@@ -444,7 +462,8 @@
     "tests/reward/test_reward_inner.py::test_provider_contract_and_same_function_as_the_unroll",
     "tests/reward/test_reward_metalearner.py::test_external_optimizer_path_and_unroll_across_two_events",
     "tests/reward/test_reward_metalearner.py::test_ledger_tampering_stops_meta_learning",
-    "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective"
+    "tests/reward/test_reward_metalearner.py::test_fabricated_unsigned_duplicated_imagined_outcomes_never_enter_the_outer_objective",
+    "tests/reward/test_reward_fixes.py::test_truncated_ledger_file_stops_meta_learning"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -454,7 +473,7 @@
     "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "Inside the learner process: R_psi is detached in every learner loss, psi has its own optimizer, PsiGuard wraps the real policy update, the outcome ledger is hash-chained and a broken chain stops meta-learning. Success criteria and verifier records live with the verifier / authorization service (other workstreams); these guards detect interference from the learner's code paths, they are not process isolation."
+   "limitations": "Inside the learner process: R_psi is detached in every learner loss, psi has its own optimizer, PsiGuard wraps the real policy update, the outcome ledger is hash-chained, anchored by a head file (a truncated or unanchored ledger fails verification, refuses appends and stops meta-learning, G-pr D8) and records refused signed outcomes. Someone who rewrites both the ledger and its anchor is detected only against a head kept elsewhere (checkpoint / expected_head). Success criteria and verifier records live with the verifier / authorization service; these guards detect interference from the learner's code paths, they are not process isolation."
   },
   "AE-04": {
    "state": "partial",
@@ -479,7 +498,8 @@
     "tests/reward/test_reward_goalfree.py::test_goal_free_mode_is_budgeted_and_stops_when_nothing_is_left_to_learn",
     "tests/reward/test_reward_goalfree.py::test_fixed_budget_is_never_exceeded",
     "tests/reward/test_reward_goalfree.py::test_achievement_is_decided_by_observation_only",
-    "tests/reward/test_reward_goalfree.py::test_self_goals_never_supervise_and_usefulness_needs_later_independent_objectives"
+    "tests/reward/test_reward_goalfree.py::test_self_goals_never_supervise_and_usefulness_needs_later_independent_objectives",
+    "tests/reward/test_reward_fixes.py::test_goal_free_budget_is_enforced_including_pending_goals"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/reward -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/C.xml",
@@ -489,7 +509,7 @@
     "docs/evidence/C/diagnostics.json",
     "docs/evidence/test_results/C.xml"
    ],
-   "limitations": "GoalFreeMode proposes budgeted learning goals from the fast posterior of the real debug model, decides achievement from observations, discounts repeats, goes idle when nothing is worth a decision and records usefulness against later signed objectives (LabWorld). Not done: the runtime does not call it; candidate (action, query) pairs must be supplied by the candidate generators; expected transferable competence is a constant 1.0, not an estimate; only real-valued queries were exercised."
+   "limitations": "GoalFreeMode proposes budgeted learning goals from the fast posterior of the real debug model; the budget counts pending goals (a selected goal reserves one decision and its estimated cost until resolved or abandoned; G-pr D4 - before the fix the budget was charged only on resolution, so goals still pending could exceed it). Achievement is decided from observations, repeats (also reworded) are discounted, the mode goes idle when nothing is worth a decision, and usefulness is recorded against later signed objectives (LabWorld). Not done: the agent does not yet abandon proposed goals it does not execute (change request C-11; until then goal-free mode stops selecting early - fail closed); candidate (action, query) pairs must be supplied by the candidate generators; expected transferable competence is a constant 1.0, not an estimate; only real-valued queries were exercised."
   }
  },
  "public_api": [
@@ -526,7 +546,7 @@
   "cam_live.reward.integrity.OutcomeLedger.by_exp(exp_id) -> List[LedgerEntry]; .has_observation(obs) -> bool; BootstrapReward.__call__(..., gate_update=True)",
   "python -m cam_live.reward.diagnose --out DIR [--seeds ... --lifetimes N --kinds ... --workers N --skip-experiment | --gpu-cost]"
  ],
- "change_requests": 9,
+ "change_requests": 12,
  "extra_packages": [],
  "measured": {
   "tests_passed": 115,
@@ -666,12 +686,12 @@
   "s2_50m_policy_update_seconds_K4": 0.24482446908950806,
   "s2_50m_gpu_peak_total_gb": 8.55699634552002,
   "s2_50m_lock_held_seconds": 32.502209186553955,
-  "s2_real_model_fd_rel_err_K1": 9.519430106984726e-06,
-  "s2_real_model_fd_rel_err_K2": 9.562805487019147e-06,
-  "s2_real_model_fd_rel_err_K4": 9.628300627683919e-06,
-  "s2_real_model_fd_directional_rel_err_K1": 3.3422957006261536e-08,
-  "s2_real_model_fd_directional_rel_err_K2": 1.4922728315491245e-08,
-  "s2_real_model_fd_directional_rel_err_K4": 2.2536900761121252e-09,
+  "s2_real_model_fd_rel_err_K1": 7.422530016637259e-06,
+  "s2_real_model_fd_rel_err_K2": 7.4318634918479034e-06,
+  "s2_real_model_fd_rel_err_K4": 7.411325698271074e-06,
+  "s2_real_model_fd_directional_rel_err_K1": 6.859761925496099e-09,
+  "s2_real_model_fd_directional_rel_err_K2": 3.36033022952127e-10,
+  "s2_real_model_fd_directional_rel_err_K4": 3.74676660347604e-09,
   "s2_real_model_grad_norm_reward_detached_K1": 0.0,
   "s2_real_model_grad_norm_reward_detached_K2": 0.0,
   "s2_real_model_grad_norm_reward_detached_K4": 0.0,
@@ -682,54 +702,54 @@
   "s2_real_model_policy_prob_mean_abs_change_K2": 0.006223351838287596,
   "s2_real_model_policy_prob_mean_abs_change_K4": 0.01236193059634997,
   "s2_bias_if_value_baseline_plainly_detached_K1": 0.0,
-  "s2_bias_if_value_baseline_plainly_detached_K2": 0.009973946262988179,
-  "s2_bias_if_value_baseline_plainly_detached_K4": 0.03306600175402949,
+  "s2_bias_if_value_baseline_plainly_detached_K2": 0.025305005065637372,
+  "s2_bias_if_value_baseline_plainly_detached_K4": 0.08074545397168299,
   "s2_scaling_output_x1000_max_abs_update_diff": 2.9802322387695312e-08,
   "s2_scaling_pre_bound_x1000_update_norm_ratio": 0.9900239109992981,
   "s2_scaling_pre_bound_x1000_cosine": 0.978081226348877,
-  "s2_final_quarter_achieved_bootstrap": 0.4725,
-  "s2_final_quarter_achieved_learned": 0.2625,
-  "s2_final_quarter_achieved_mixed": 0.445,
-  "s2_final_quarter_achieved_verified_pg": 0.47125000000000006,
-  "s2_final_quarter_achieved_bootstrap_lo": 0.4052137628237899,
-  "s2_final_quarter_achieved_learned_lo": 0.07905050625710253,
-  "s2_final_quarter_achieved_mixed_lo": 0.29306265392695285,
-  "s2_final_quarter_achieved_verified_pg_lo": 0.41595907332906257,
-  "s2_final_quarter_achieved_bootstrap_hi": 0.53978623717621,
-  "s2_final_quarter_achieved_learned_hi": 0.4459494937428975,
-  "s2_final_quarter_achieved_mixed_hi": 0.5969373460730472,
-  "s2_final_quarter_achieved_verified_pg_hi": 0.5265409266709375,
-  "s2_diff_bootstrap_minus_verified_pg": 0.00124999999999999,
-  "s2_diff_learned_minus_bootstrap": -0.21000000000000002,
-  "s2_diff_learned_minus_verified_pg": -0.20875000000000005,
-  "s2_diff_mixed_minus_bootstrap": -0.027500000000000007,
-  "s2_diff_mixed_minus_learned": 0.18250000000000002,
-  "s2_diff_bootstrap_minus_verified_pg_lo": -0.11118427455882254,
-  "s2_diff_learned_minus_bootstrap_lo": -0.3791793455945874,
-  "s2_diff_learned_minus_verified_pg_lo": -0.3846363562785809,
-  "s2_diff_mixed_minus_bootstrap_lo": -0.2088942724950181,
-  "s2_diff_mixed_minus_learned_lo": -0.06253802223859892,
-  "s2_diff_bootstrap_minus_verified_pg_hi": 0.11368427455882252,
-  "s2_diff_learned_minus_bootstrap_hi": -0.04082065440541266,
-  "s2_diff_learned_minus_verified_pg_hi": -0.0328636437214192,
-  "s2_diff_mixed_minus_bootstrap_hi": 0.1538942724950181,
-  "s2_diff_mixed_minus_learned_hi": 0.42753802223859894,
+  "s2_final_quarter_achieved_bootstrap": 0.48625000000000007,
+  "s2_final_quarter_achieved_learned": 0.195,
+  "s2_final_quarter_achieved_mixed": 0.4250000000000001,
+  "s2_final_quarter_achieved_verified_pg": 0.4225,
+  "s2_final_quarter_achieved_bootstrap_lo": 0.39688504878026565,
+  "s2_final_quarter_achieved_learned_lo": 0.07216234332014827,
+  "s2_final_quarter_achieved_mixed_lo": 0.32906183441915304,
+  "s2_final_quarter_achieved_verified_pg_lo": 0.35846101608473224,
+  "s2_final_quarter_achieved_bootstrap_hi": 0.5756149512197345,
+  "s2_final_quarter_achieved_learned_hi": 0.31783765667985175,
+  "s2_final_quarter_achieved_mixed_hi": 0.5209381655808472,
+  "s2_final_quarter_achieved_verified_pg_hi": 0.48653898391526773,
+  "s2_diff_bootstrap_minus_verified_pg": 0.06375,
+  "s2_diff_learned_minus_bootstrap": -0.29125,
+  "s2_diff_learned_minus_verified_pg": -0.22749999999999998,
+  "s2_diff_mixed_minus_bootstrap": -0.061250000000000006,
+  "s2_diff_mixed_minus_learned": 0.23000000000000004,
+  "s2_diff_bootstrap_minus_verified_pg_lo": -0.01206063039726589,
+  "s2_diff_learned_minus_bootstrap_lo": -0.43830532002219275,
+  "s2_diff_learned_minus_verified_pg_lo": -0.37753084579824236,
+  "s2_diff_mixed_minus_bootstrap_lo": -0.21296791227399023,
+  "s2_diff_mixed_minus_learned_lo": 0.07322781172912934,
+  "s2_diff_bootstrap_minus_verified_pg_hi": 0.1395606303972659,
+  "s2_diff_learned_minus_bootstrap_hi": -0.14419467997780727,
+  "s2_diff_learned_minus_verified_pg_hi": -0.0774691542017576,
+  "s2_diff_mixed_minus_bootstrap_hi": 0.09046791227399023,
+  "s2_diff_mixed_minus_learned_hi": 0.38677218827087073,
   "s2_learned_seeds_collapsed_on_non_intervention": 5,
   "s2_learned_seeds_gauge_paid_and_chosen_over_25pct": 3,
   "s2_mixed_seeds_collapsed_on_non_intervention": 1,
   "s2_mixed_seeds_gauge_paid_and_chosen_over_25pct": 0,
-  "s2_gauge_frequency_last_quarter_bootstrap": 0.036310782793473786,
-  "s2_gauge_frequency_last_quarter_learned": 0.17858811711892106,
-  "s2_gauge_frequency_last_quarter_mixed": 0.042551849229385666,
-  "s2_gauge_frequency_last_quarter_verified_pg": 0.07761451793300654,
-  "s2_learned_reward_pays_act_last_locked_sd_units": 0.09102901333401255,
-  "s2_learned_reward_pays_act_last_unlocked_sd_units": 0.08254689619605779,
-  "s2_learned_reward_pays_act_other_sd_units": 0.21324591532511422,
-  "s2_learned_reward_pays_noise_gauge_sd_units": -0.1564377695357857,
-  "s2_learned_reward_pays_probe_sd_units": -0.041767169606914234,
-  "s2_learned_reward_pays_unlock_first_sd_units": -0.2662133064761846,
-  "s2_learned_reward_pays_unlock_repeat_sd_units": -0.3129663975564248,
-  "s2_learned_reward_pays_wait_sd_units": -0.20362900657591493,
+  "s2_gauge_frequency_last_quarter_bootstrap": 0.016496528702226922,
+  "s2_gauge_frequency_last_quarter_learned": 0.054995889203933036,
+  "s2_gauge_frequency_last_quarter_mixed": 0.021000298408986425,
+  "s2_gauge_frequency_last_quarter_verified_pg": 0.08478741627095125,
+  "s2_learned_reward_pays_act_last_locked_sd_units": 0.003022225131827263,
+  "s2_learned_reward_pays_act_last_unlocked_sd_units": -0.20235483431576134,
+  "s2_learned_reward_pays_act_other_sd_units": 0.09744826055743663,
+  "s2_learned_reward_pays_noise_gauge_sd_units": -0.05194549003731401,
+  "s2_learned_reward_pays_probe_sd_units": 0.16828120199728994,
+  "s2_learned_reward_pays_unlock_first_sd_units": -0.04593964455801699,
+  "s2_learned_reward_pays_unlock_repeat_sd_units": -0.17219190660350905,
+  "s2_learned_reward_pays_wait_sd_units": -0.4169551350197433,
   "s2_bootstrap_reward_pays_act_last_locked_sd_units": 0.1106720908142899,
   "s2_bootstrap_reward_pays_act_last_unlocked_sd_units": 0.28866403071259344,
   "s2_bootstrap_reward_pays_act_other_sd_units": 0.22697994354454268,
@@ -738,11 +758,20 @@
   "s2_bootstrap_reward_pays_unlock_first_sd_units": 0.011486626291546705,
   "s2_bootstrap_reward_pays_unlock_repeat_sd_units": 0.3684466938277519,
   "s2_bootstrap_reward_pays_wait_sd_units": 0.6539493954030454,
-  "s2_mixed_seeds_with_any_promotion": 2,
+  "s2_mixed_seeds_with_any_promotion": 0,
   "s2_scripted_uniform_achieved": 0.2966666666666667,
   "s2_scripted_interventions_only_achieved": 0.5533333333333333,
   "s2_scripted_unlock_then_interventions_achieved": 0.9,
-  "s2_experiment_arms_bit_reproduced_on_rerun": 3
+  "s2_experiment_arms_bit_reproduced_on_rerun": "re-run in full after the G-pr fixes on a snapshot of commit 0536a74 (git archive; other agents' uncommitted edits excluded); the earlier stored runs no longer reproduced on the committed tree because of changes outside C (nn/, config, diagnostics) and, for learned / mixed, because of D7",
+  "s2_meta_estimators_learned": [
+   "mixed_on_policy_and_importance",
+   "on_policy_query"
+  ],
+  "s2_meta_estimators_mixed": [
+   "importance_weighted",
+   "mixed_on_policy_and_importance",
+   "on_policy_query"
+  ]
  },
  "not_done": [
   "Integration: cam_live/agent.py and the runtime do not call any of this yet. AgentAPI.internal_rewards -> MetaLearner.internal_rewards, AgentAPI.meta_learn -> MetaLearner.meta_update, verifier outcomes -> MetaLearner.admit_objective, checkpoint -> MetaLearner.state_dict, and who applies the policy-improvement step (change request C-8) are the master's to wire.",
@@ -757,15 +786,16 @@
   "Goal-free mode: not called by the runtime; needs (action, query) pairs from the candidate generators; expected transferable competence is a constant; real-valued queries only in the tests.",
   "MetaLearner's bookkeeping maps (decision -> lifetime, used rows, lifetime-context snapshots) grow with the lifetime and are not pruned.",
   "Detection of engagement statistics without genuine participation is verifier-side and not covered here.",
-  "Reverse-over-forward Hessian-vector products for the adjoint sweep are not implemented (double backward is used)."
+  "Reverse-over-forward Hessian-vector products for the adjoint sweep are not implemented (double backward is used).",
+  "G-pr fixes need two integration changes in agent.py (M-int): register the assigned TaskSpec with MetaLearner.register_objective (C-10; until then the agent's objective outcomes are refused for the meta ledger, fail closed) and abandon proposed goal-free goals that are not executed (C-11; until then goal-free mode stops selecting once pending goals hold the budget). Signing the objective origin by the verifier is proposed as C-12.",
+  "Semantic near-duplicate self-goals: SelfGoalDiscount(embed=...) exists, but on the real Qwen3-4B text embedding no threshold separates rewordings from different goals; only the lexical fold is on by default."
  ],
  "scientific_failures": [
-  "The learned reward used from scratch (mix 0, 80 meta-updates per seed): HURT against bootstrap-only and HURT against verified-outcome-only policy gradient. Verified goal achievement over the last quarter of 320 LabWorld lifetimes, 10 seeds: learned 0.263 [0.079, 0.446], bootstrap-only 0.472 [0.405, 0.540], verified-outcome-only 0.471 [0.416, 0.527]; paired differences -0.210 [-0.379, -0.041] and -0.209 [-0.385, -0.033]. In 5 of 10 seeds the policy collapsed onto a non-intervention (seeds [11, 12, 13, 15, 19]); once every lifetime behaves the same, the outer objective has no contrast left to correct the reward. The other 5 seeds ended at 0.39-0.57.",
-  "Reward integrity failed in that arm: in 3 of 10 seeds ([13, 15, 19]) the learned reward ended up paying the noisy gauge above average (+0.37 to +1.77 standard deviations) and the policy chose it in 40-76 % of decisions in the last quarter. The guards that hold are structural (bounded, scale-normalised, gated bootstrap curiosity, verified-only outer utility); they did not stop a randomly initialised reward from steering a persistent policy into the gauge before meta-learning corrected it.",
-  "The cold-start path (bootstrap mix 1, shadow meta-updates by importance weighting, promotion on held-out evidence): no detectable difference against bootstrap-only, -0.028 [-0.209, +0.154]. Promotion lowered the mix in 2 of 10 seeds ({10: 0.25, 15: 0.5}; their last-quarter achievement: {10: 0.14, 15: 0.04}); seeds collapsed on a non-intervention: [15]; seeds with the gauge paid and chosen above 25 %: [].",
-  "Bootstrap-only vs verified-outcome-only policy gradient: no detectable difference (+0.001 [-0.111, +0.114]); both end near 0.47, below the scripted 'only run interventions' rule (0.55) and far below 'prepare the last channel, then run interventions' (0.90; uniform behaviour: 0.30).",
-  "No learner discovered the key-to-door dependency. Averaged over seeds the learned reward pays the first unlock -0.27 sd (interval [-1.01, +0.47]), interventions +0.21, the probe -0.04, the noisy gauge -0.16 [-0.94, +0.63], waiting -0.20; the sign differs between seeds.",
-  "The labelled bootstrap reward misattributes in LabWorld: it pays the step during which verified outcomes mature, so waiting earns +0.65 sd and repeating the unlock +0.37 sd, against +0.23 for an intervention.",
+  "(re-run after the G-pr fixes, commit 0536a74) The learned reward used from scratch (mix 0, 80 meta-updates per seed; 777 of 800 meta-updates mixed on-policy / importance-weighted episodes, 23 purely on-policy): HURT against bootstrap-only and HURT against verified-outcome-only policy gradient. Verified goal achievement over the last quarter of 320 LabWorld lifetimes, 10 seeds: learned 0.195 [0.072, 0.318], bootstrap-only 0.486 [0.397, 0.576], verified-outcome-only 0.422 [0.358, 0.487]; paired differences -0.291 [-0.438, -0.144] and -0.227 [-0.378, -0.077]. Per-seed last quarter (learned): 10: 0.04, 11: 0.11, 12: 0.47, 13: 0.41, 14: 0.28, 15: 0.09, 16: 0.25, 17: 0.00, 18: 0.00, 19: 0.30. The static gauge is paid above average by the learned reward and chosen in more than 25% of decisions at the end in 0 of 10 seeds []; seeds collapsed on a non-intervention: [10, 11, 15, 17, 18]. Before the fixes (stored run, superseded): learned 0.263, bootstrap-only 0.472, verified-outcome-only 0.471, gauge paid and chosen above 25 % in 3 of 10 seeds.",
+  "The cold-start path (bootstrap mix starting at 1, shadow meta-updates, promotion on held-out evidence): no detectable difference against bootstrap-only, -0.061 [-0.213, +0.090] (and better than the learned reward from scratch, +0.230 [+0.073, +0.387]). Estimator after G-pr D7: 522 of 591 meta-updates purely importance-weighted; the others contain episodes whose live update replays bit-identically with the learned reward alone (on-policy is then exact; this happens when the bootstrap reward is exactly 0 on the support batch while the mix is below 1). The mix ended at 1.0 in every seed; it had been lowered at some point in 9 of 10 seeds (lowest mix per seed: 10: 0.25, 11: 0.25, 12: 1.0, 13: 0.75, 14: 0.75, 15: 0.25, 16: 0.5, 17: 0.75, 18: 0.5, 19: 0.0) and raised again on held-out evidence. No seed collapsed onto a non-intervention; the gauge was not paid and chosen above 25 % in any seed.",
+  "Bootstrap-only vs verified-outcome-only policy gradient: no detectable difference (+0.064 [-0.012, +0.140]); scripted references: 'only run interventions' 0.55, 'prepare the last channel, then run interventions' 0.90, uniform 0.30.",
+  "No learner discovered the key-to-door dependency (best arm 0.486 against 0.90 for the scripted 'prepare the last channel, then run interventions'). What the learned reward pays for, averaged over seeds (sd units, interval over seeds): act_last_locked +0.00 [-0.37, +0.38], act_last_unlocked -0.20 [-0.61, +0.20], act_other +0.10 [-0.22, +0.42], noise_gauge -0.05 [-0.51, +0.41], probe +0.17 [-0.18, +0.52], unlock_first -0.05 [-0.44, +0.35], unlock_repeat -0.17 [-0.55, +0.20], wait -0.42 [-0.72, -0.12].",
+  "What the labelled bootstrap reward pays for (sd units): act_last_locked +0.11, act_last_unlocked +0.29, act_other +0.23, noise_gauge -0.59, probe -0.58, unlock_first +0.01, unlock_repeat +0.37, wait +0.65 (it pays the step during which verified outcomes mature).",
   "Stage-1 engine bug found on the real model and fixed: with the value baseline written as v.detach() the unroll lost the path theta_k(psi) -> V -> advantage; relative error of the meta-gradient 0.010 at K = 2 and 0.033 at K = 4 (zero at K = 1). Stage-1 finite-difference tests had not combined a value function with K >= 2.",
   "Adjoint checkpointing buys little at the 50m preset: at K = 2 it uses more memory than the full unroll (221 vs 198 MB) and 1.5x the time; at K = 4 it saves 23 % memory (265 vs 343 MB) for 1.4x the time.",
   "(stage 1) First-order approximation is not a validated lower-cost approximation: relative error against the exact window gradient 13 % / 30 % / 46 % at K = 2 / 4 / 8 (bandit MLP, inner_lr 0.5, normalised advantages) and it used more peak memory than the full unroll at K = 8 in all three cost configurations (e.g. 698 vs 477 MiB at 10M theta). Kept for comparison only.",
