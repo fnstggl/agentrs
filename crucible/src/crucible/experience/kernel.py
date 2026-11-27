@@ -102,6 +102,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
         self.gate = RewardGate(self.reward_mode)
         self.evaluator = evaluator
         self._agents: list[str] = []
+        self._gone: dict[str, int] = {}          # visible events that left the in-memory window unobserved (no store)
         self._vis: dict[str, list[int]] = {}
         self._cause: dict[str, dict[int, dict]] = {}
         self._cursor: dict[str, int] = {}
@@ -156,6 +157,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
             return p
         self._agents.append(p)
         self._vis[p], self._cause[p], self._artifacts[p] = [], {}, {}
+        self._gone[p] = 0
         self._cursor[p] = w.seq
         self._last_result[p] = None
         self._objective_text[p] = None
@@ -222,6 +224,22 @@ class KernelExperienceEnv(BaseExperienceEnv):
         cut = w.now - 86400
         if self._public and self._public[0][0] < cut:
             self._public = [x for x in self._public if x[0] >= cut]
+
+    def _retained(self, agent: str) -> None:
+        """Forget the visible events that left the world's in-memory window (`params.log_retain`) when the world keeps
+        no event store: they cannot be delivered any more. How many were never observed is counted for the next
+        observation's `missing` note; the bookkeeping of the forgotten ones is dropped (bounded memory in long runs)."""
+        w = self.world
+        if w.store is not None:
+            return
+        vis = self._vis[agent]
+        k = bisect_right(vis, int(w.log_base))
+        if not k:
+            return
+        self._gone[agent] += sum(1 for q in vis[:k] if q > self._cursor[agent])
+        for q in vis[:k]:
+            self._cause[agent].pop(q, None)
+        del vis[:k]
 
     def _event(self, agent: str, seq: int) -> dict:
         e = self.world.participant_event(self.world.events_range(seq - 1, seq)[0])
@@ -313,6 +331,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
         cursor is then the last returned seq, otherwise the world's current seq)."""
         self._check(agent)
         self._scan()
+        self._retained(agent)
         vis = self._vis[agent]
         i = bisect_right(vis, int(cursor))
         page = vis[i:i + PAGE]
@@ -322,6 +341,7 @@ class KernelExperienceEnv(BaseExperienceEnv):
     def observe(self, agent: str) -> Observation:
         self._check(agent)
         self._scan()
+        self._retained(agent)
         w = self.world
         vis = self._vis[agent]
         i = bisect_right(vis, self._cursor[agent])
@@ -352,6 +372,11 @@ class KernelExperienceEnv(BaseExperienceEnv):
         if len(deliver) < len(pending):
             missing.append(f"events: {len(pending) - len(deliver)} more visible events after cursor {cursor}; read "
                            f"them with observe_since(agent, {cursor})")
+        if self._gone[agent]:
+            missing.append(f"events: {self._gone[agent]} visible events left the world's in-memory window "
+                           f"(params.log_retain = {w.spec.params.get('log_retain')}) before they were observed; this world "
+                           f"keeps no event store to read them from")
+            self._gone[agent] = 0
         if self._encode is not None:
             arrays.update(self._semantic(arts, missing))
         missing += self._pending_notes(agent)

@@ -323,3 +323,24 @@ def test_external_adapter_pays_nothing_and_never_ends_on_the_verifier_by_default
     assert r["n_leaks"] == 0, r["leaks"]
     assert r["kinds"]["reward_scalar"]["checked"] >= 18 and r["kinds"]["termination"]["checked"] == 1
     assert not r["notes"], r["notes"]                      # the verifier's success was reached (termination exercised)
+
+
+def test_events_that_left_the_in_memory_window_are_reported_missing_not_fatal():
+    """A world without an event store keeps `params.log_retain` events in memory. Visible events that left that
+    window before the participant observed them cannot be delivered: the observation says how many (missing),
+    observe_since returns what is still there, the adapter's bookkeeping of them is dropped (bounded memory) and
+    verification still runs. Gate OO.5's 90-day civilisation run failed here with a ProtocolError."""
+    from crucible.experience import make
+    env = make(0, "tiny", 2, agents=["learner"], overrides={"n_consumers": 100, "params": {"log_retain": 3000}})
+    a = env.agents()[0]
+    notes = []
+    for d in range(30):
+        env.execute(a, {"tool": "forum.post", "args": {"board": "general", "title": f"day {d}", "body": "notes"}})
+        env.advance(86400)
+        if d % 5 == 4:
+            notes += [m for m in env.observe(a)["missing"] if "in-memory window" in m]
+    assert env.world.log_base > 0 and notes                      # events were dropped and the observation said so
+    assert all(q > env.world.log_base for q in env._vis[a])
+    evs, cur = env.observe_since(a, 0)
+    assert evs and all(e["seq"] > env.world.log_base for e in evs) and cur == env.world.seq
+    assert env.verify()["invariant_violations"] == []
