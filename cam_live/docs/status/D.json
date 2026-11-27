@@ -1,15 +1,16 @@
 {
  "workstream": "D",
- "stage": "1 of 2",
- "commit": "491fa23ee3aed862bf056d4fda018e1d650dba7d",
- "summary": "Stage 1: durable storage, linking, credit estimators at reference level and checkpoint IO. SqliteExperienceStore (WAL + blobs, single writer, SIGKILL-safe, outcome de-duplication, provenance strata, stratified seeded replay sampler with checkpointable state); OutcomeLinker (evidence-only fractional links, no future leakage, retrospective re-training queue); exact REINFORCE / all-actions / COCOA / RUDDER estimators validated against enumerated gradients; ReturnDecomposer (conservation under exp(-beta dt), return-to-go signal, no credit for pending trajectories); HindsightModel (policy-logit prior, elapsed time, ensemble and support uncertainty, UNSUPPORTED refusal, three separate fields); simple attribution with Welch arm differences; evidence-based estimator selector; SMDP traces and a credit-once ledger; atomic checkpoints with tolerant loading, weights-only export, promotion and rollback. Nothing is wired onto the real model or the agent yet: the continual learner (NA-08, CL-02, CL-03, CL-04, CL-08) is stage 2.",
+ "stage": "1 + 2 (complete workstream)",
+ "commit": "cc9c1c212d027fc98be468db40786bcbe64da2f7",
+ "summary": "Retrospective credit and continual learning. Stage 1 (model-independent): SqliteExperienceStore, OutcomeLinker, exact REINFORCE / all-actions / COCOA / RUDDER references, ReturnDecomposer, HindsightModel, simple attribution, EstimatorSelector, SMDP traces and credit ledger, atomic checkpoints. Stage 2 (on nn.model.CamLiveModel): ContinualLearner with one optimizer per group (never reward), per-group clipping, warm-up / cosine schedules, three timescales (fast belief update without gradient; frequent experiential + heads updates triggered by matured independent outcomes; slow adapter updates every adapter_every with a bounded adapter graph and a held-out guard), measured loss shares with a 90 % cap, stratified replay, held-out split, learning records with hashes, deltas and a behavioural probe; LossProviders for RUDDER, COCOA and a bridge-grounding adapter loss; CreditAssigner (versioned per-decision credit, withheld until the return is final, evidence-selected default, credited returns); anchors + functional regularisation + measured forgetting; complete learner checkpoints, promotion / rollback on validation and retention, weights-only export and a fresh-model loader. Evidence at debug scale in LabWorld (docs/evidence/D/diagnostics.json) and single updates on Qwen3-4B + 50m core (docs/evidence/D/real_update.json). Not yet called by agent.py or the runtime.",
  "requirements": {
   "RC-01": {
    "state": "implemented",
    "files": [
     "src/cam_live/credit/links.py",
     "src/cam_live/credit/replay.py",
-    "src/cam_live/credit/simple.py"
+    "src/cam_live/credit/simple.py",
+    "src/cam_live/credit/labkit.py"
    ],
    "integration_points": [
     "cam_live.credit.links.OutcomeLinker.reconcile",
@@ -24,10 +25,12 @@
     "tests/credit/test_links.py::test_ambiguous_evidence_gives_fractional_links_with_uncertainty",
     "tests/credit/test_links.py::test_one_event_answering_two_decisions_is_shared_not_counted_twice",
     "tests/credit/test_links.py::test_experiment_arm_links",
-    "tests/credit/test_links.py::test_labworld_events_are_linked_through_their_attribution_keys"
+    "tests/credit/test_links.py::test_labworld_events_are_linked_through_their_attribution_keys",
+    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
@@ -39,14 +42,17 @@
    "state": "implemented",
    "files": [
     "src/cam_live/credit/rudder.py",
-    "src/cam_live/credit/estimators.py"
+    "src/cam_live/credit/estimators.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.rudder.ReturnDecomposer.loss",
     "cam_live.credit.rudder.ReturnDecomposer.redistribute",
     "cam_live.credit.rudder.write_credit",
     "cam_live.credit.estimators.rudder_grad",
-    "cam_live.credit.estimators.rudder_exact_redistribution"
+    "cam_live.credit.estimators.rudder_exact_redistribution",
+    "cam_live.credit.providers.ReturnDecompositionProvider",
+    "cam_live.credit.providers.CreditAssigner.assign"
    ],
    "tests": [
     "tests/credit/test_rudder.py::test_predictions_are_causal",
@@ -55,38 +61,59 @@
     "tests/credit/test_rudder.py::test_pending_sequences_yield_no_credit_and_no_loss",
     "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
     "tests/credit/test_estimators_exact.py::test_redistribution_as_immediate_reward_starves_the_key_decision_but_return_to_go_does_not",
-    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error",
-    "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr"
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error[random_tree]",
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error[key_to_door]",
+    "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr",
+    "tests/credit/test_providers.py::test_nothing_is_credited_before_maturation_and_the_unlock_is_credited_retrospectively",
+    "tests/credit/test_providers.py::test_learner_reassigns_credit_for_the_experience_that_triggered_it_and_trains_the_credit_heads",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "The learned decomposer is trained and tested on synthetic delayed-reward sequences and tabular MDPs only, never on the real model's decision latents or on real outcomes (stage 2). 1/Gamma_t amplifies prediction error for late decisions when beta * elapsed time is large."
+   "limitations": "Now trained on the real model's decision latents (debug scale) with matured LabWorld returns; not on the real configuration beyond single updates, and not on live experience. Trajectories longer than max_len (64) are cut to their last decisions. By default the latents are detached (the regression trains the decomposer head only). The stored uncertainty of RUDDER credit is |G - F(whole trajectory)|, a proxy. 1/Gamma_t amplifies prediction error for late decisions when beta * elapsed time is large."
   },
   "RC-03": {
    "state": "implemented",
    "files": [
-    "src/cam_live/credit/rudder.py"
+    "src/cam_live/credit/rudder.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.rudder.Redistribution.conservation_error",
-    "cam_live.credit.rudder.duration_discount"
+    "cam_live.credit.rudder.duration_discount",
+    "cam_live.credit.providers.trajectory_return",
+    "cam_live.credit.providers.CreditUpdate.conservation_error"
    ],
    "tests": [
-    "tests/credit/test_rudder.py::test_conservation_to_numerical_precision_under_duration_aware_discounting",
+    "tests/credit/test_rudder.py::test_conservation_to_numerical_precision_under_duration_aware_discounting[0.0]",
+    "tests/credit/test_rudder.py::test_conservation_to_numerical_precision_under_duration_aware_discounting[2e-05]",
+    "tests/credit/test_rudder.py::test_conservation_to_numerical_precision_under_duration_aware_discounting[0.001]",
     "tests/credit/test_rudder.py::test_key_decision_receives_the_credit",
-    "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door"
+    "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
+    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
    "limitations": "Convention: G is referenced at the first decision of the trajectory and Gamma_t = exp(-beta * seconds since it); conservation is sum_t Gamma_t c_t = G (max error < 1e-9 in the tests, float64 bookkeeping)."
   },
@@ -104,7 +131,8 @@
    "tests": [
     "tests/credit/test_estimators_exact.py::test_exact_expectations_on_enumerated_noisy_key_to_door",
     "tests/credit/test_estimators_exact.py::test_contribution_coefficients_are_hindsight_over_policy_minus_one",
-    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error",
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error[random_tree]",
+    "tests/credit/test_estimators_exact.py::test_monte_carlo_unbiasedness_by_z_score_and_relative_error[key_to_door]",
     "tests/credit/test_estimators_exact.py::test_variance_comparison_on_key_to_door",
     "tests/credit/test_estimators_exact.py::test_long_delay_key_decision_snr",
     "tests/credit/test_estimators_exact.py::test_return_conditioned_hindsight_bias_closed_form"
@@ -121,13 +149,16 @@
   "RC-05": {
    "state": "implemented",
    "files": [
-    "src/cam_live/credit/cocoa.py"
+    "src/cam_live/credit/cocoa.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.cocoa.HindsightModel.contribution",
     "cam_live.credit.cocoa.check_support",
     "cam_live.credit.cocoa.CounterfactualCredit.attach_experiment",
-    "cam_live.credit.cocoa.arm_contrast"
+    "cam_live.credit.cocoa.arm_contrast",
+    "cam_live.credit.providers.HindsightProvider.credit",
+    "cam_live.credit.providers.CreditAssigner.assign"
    ],
    "tests": [
     "tests/credit/test_cocoa.py::test_untrained_model_equals_the_policy_and_claims_no_credit",
@@ -136,87 +167,123 @@
     "tests/credit/test_cocoa.py::test_elapsed_time_input_gives_time_indexed_hindsight",
     "tests/credit/test_cocoa.py::test_support_check_refuses_instead_of_returning_a_number",
     "tests/credit/test_cocoa.py::test_three_kinds_of_statement_stay_separate",
-    "tests/credit/test_cocoa.py::test_effective_sample_size_per_candidate"
+    "tests/credit/test_cocoa.py::test_effective_sample_size_per_candidate",
+    "tests/credit/test_providers.py::test_cocoa_refuses_decisions_without_usable_propensities_and_claims_nothing_before_training",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Validated against exact coefficients on tabular problems with one-hot inputs only; not trained on the real model's belief and candidate embeddings (stage 2). The refusal is strict: one candidate below min_prob makes the whole decision UNSUPPORTED. Ensemble spread was not shown to be calibrated. Clipping w to [-1, clip] is a declared bias (reported per candidate in `clipped`)."
+   "limitations": "Trained on the real model's beliefs and candidate embeddings at debug scale. The outcome representation is a fixed function of the outcome value (no learned outcome encoder), so outcomes of equal size are indistinguishable to the hindsight model. No sampled-alternatives estimator for candidate sets too large to enumerate. Support is judged from the logged propensities of the decision (missing / invalid / near-zero / untracked open-ended proposals); effective sample size per candidate is available in credit.cocoa but not fed by the assigner."
   },
   "RC-06": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/credit/links.py",
     "src/cam_live/credit/replay.py",
     "src/cam_live/credit/rudder.py",
-    "src/cam_live/credit/simple.py"
+    "src/cam_live/credit/simple.py",
+    "src/cam_live/credit/providers.py",
+    "src/cam_live/credit/learner.py"
    ],
    "integration_points": [
     "cam_live.credit.replay.SqliteExperienceStore.mark_for_retraining",
     "cam_live.credit.replay.SqliteExperienceStore.retrain_queue",
     "cam_live.credit.replay.SqliteExperienceStore.pop_retrain",
-    "cam_live.credit.rudder.write_credit"
+    "cam_live.credit.rudder.write_credit",
+    "cam_live.credit.providers.CreditAssigner.assign",
+    "cam_live.credit.providers.CreditAssigner.on_reconcile",
+    "cam_live.credit.replay.SqliteExperienceStore.set_credits",
+    "cam_live.credit.replay.SqliteExperienceStore.credit_history",
+    "cam_live.credit.learner.ContinualLearner.learn"
    ],
    "tests": [
     "tests/credit/test_links.py::test_declared_query_links_exactly_and_queues_retraining",
     "tests/credit/test_replay.py::test_retrain_queue",
-    "tests/credit/test_rudder.py::test_pending_sequences_yield_no_credit_and_no_loss"
+    "tests/credit/test_rudder.py::test_pending_sequences_yield_no_credit_and_no_loss",
+    "tests/credit/test_providers.py::test_nothing_is_credited_before_maturation_and_the_unlock_is_credited_retrospectively",
+    "tests/credit/test_providers.py::test_learner_reassigns_credit_for_the_experience_that_triggered_it_and_trains_the_credit_heads",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Stage 1 delivers the queue and the credit rewrite: when an outcome matures the linked earlier records (and optionally their predecessors) are queued durably and their stored credit is revised. Nothing consumes the queue yet: the learner that re-trains on those records is stage 2."
+   "limitations": "When an outcome matures the linked decisions and the earlier decisions of the objective are queued, their credit is recomputed and versioned, and the learner trains on them (a share of each triggered batch is the triggering experience). Learned credit (RUDDER, COCOA) appears only when the objective is closed and nothing goal-relevant is pending; an objective that never closes never gets it. The agent has to call store.put_objective_outcome when the verifier closes an objective (change request D-10); nothing outside credit/ does so yet."
   },
   "RC-07": {
    "state": "implemented",
    "files": [
     "src/cam_live/credit/links.py",
     "src/cam_live/credit/replay.py",
-    "src/cam_live/credit/rudder.py"
+    "src/cam_live/credit/rudder.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.links.OutcomeLinker.audit_leakage",
     "cam_live.credit.links.OutcomeLinker.available_at_decision",
     "cam_live.credit.replay.SqliteExperienceStore.put_item",
-    "cam_live.credit.replay.SqliteExperienceStore.add_outcome"
+    "cam_live.credit.replay.SqliteExperienceStore.add_outcome",
+    "cam_live.credit.providers.HindsightProvider._pairs"
    ],
    "tests": [
     "tests/credit/test_links.py::test_no_future_leakage",
     "tests/credit/test_links.py::test_time_decayed_window_is_bounded_and_causal",
     "tests/credit/test_replay.py::test_items_are_ordered_immutable_and_never_silently_missing",
     "tests/credit/test_replay.py::test_pending_due_times_and_outcome_deduplication",
-    "tests/credit/test_rudder.py::test_predictions_are_causal"
+    "tests/credit/test_rudder.py::test_predictions_are_causal",
+    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
    "limitations": "Guards at D's level: a decision after the outcome is refused as a cause; an outcome dated before its query is refused; stored context items cannot be rewritten; linking never changes context_item_refs; audit_leakage() reports any context item dated after its decision. Whether the agent builds contexts correctly in the first place is outside D (audit_leakage detects it after the fact). The reference MemoryStore still overwrites items (change request D-3)."
   },
   "RC-08": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
     "src/cam_live/credit/select.py",
     "src/cam_live/credit/simple.py",
     "src/cam_live/credit/cocoa.py",
-    "src/cam_live/credit/rudder.py"
+    "src/cam_live/credit/rudder.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.select.EstimatorSelector.select",
     "cam_live.credit.select.EstimatorSelector.add_from_store",
     "cam_live.credit.simple.experiment_effects",
-    "cam_live.credit.simple.arm_difference"
+    "cam_live.credit.simple.arm_difference",
+    "cam_live.credit.providers.CreditAssigner.compare_with_experiment",
+    "cam_live.credit.providers.CreditAssigner.select",
+    "cam_live.credit.providers.CreditAssigner.credited_returns",
+    "cam_live.credit.providers.CreditAssigner.default"
    ],
    "tests": [
     "tests/credit/test_simple_select.py::test_selector_starts_simple_and_promotes_only_on_evidence",
@@ -224,16 +291,23 @@
     "tests/credit/test_simple_select.py::test_rudder_and_cocoa_are_exercised_and_compared_with_randomised_differences",
     "tests/credit/test_simple_select.py::test_experiment_effects_need_real_randomisation",
     "tests/credit/test_simple_select.py::test_arm_difference_is_welch_and_covers_the_true_effect",
-    "tests/credit/test_simple_select.py::test_student_t_matches_scipy"
+    "tests/credit/test_simple_select.py::test_student_t_matches_scipy",
+    "tests/credit/test_providers.py::test_credited_returns_follow_the_evidence_selected_estimator_and_mask_missing_credit",
+    "tests/credit/test_evidence.py::test_delayed_unlock_is_credited_retrospectively_and_estimators_are_compared_with_randomised_differences"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "RUDDER and COCOA are exercised and compared with randomised arm differences on a synthetic delayed-effect world (six randomised experiments) and on tabular MDPs. The selector's default is not yet read by any training code, and no comparison on the real model or on staging/live experiments exists (stage 2). Gate thresholds (min 5 experiments, mean z^2 <= 3, sign agreement >= 0.8, 10 % RMSE improvement) are engineering choices, not tuned."
+   "limitations": "RUDDER and COCOA are exercised on the real model's latents and compared with 6 randomised LabWorld experiments; in the recorded run the selector's default after the comparison is 'rudder' (cocoa not promoted: disagrees with measured differences: mean z^2 3.84 > 3.0; rudder: validated on 6 experiments; simple has no estimate to compare; promoted rudder to training default). The selected default is what CreditAssigner.credited_returns hands out, but no policy loss consumes it yet (Workstream C / agent integration). The simple attribution has no estimate for a decision without linked outcomes, so it cannot be scored on these experiments. One seed, debug scale."
   },
   "CL-01": {
    "state": "implemented",
@@ -245,11 +319,13 @@
     "cam_live.credit.replay.SqliteExperienceStore",
     "cam_live.credit.replay.SqliteExperienceStore.sample",
     "cam_live.credit.replay.SqliteExperienceStore.add_outcome",
-    "cam_live.credit.replay.SqliteExperienceStore.state_dict"
+    "cam_live.credit.replay.SqliteExperienceStore.state_dict",
+    "cam_live.credit.replay.SqliteExperienceStore.put_objective_outcome"
    ],
    "tests": [
     "tests/credit/test_replay.py::test_implements_the_contract_and_round_trips",
-    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record",
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record[40]",
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record[137]",
     "tests/credit/test_replay.py::test_sampler_does_not_collapse_onto_recent_successes",
     "tests/credit/test_replay.py::test_informative_stratum_prefers_stored_surprise_and_credit",
     "tests/credit/test_replay.py::test_sampling_is_seeded_and_the_sampler_state_checkpoints",
@@ -275,86 +351,122 @@
    "limitations": "Durability was tested against SIGKILL of the writer, not against power loss (synchronous=FULL is set but cannot be tested here). Unreferenced blobs are never garbage-collected. No retention/deletion policy for authorised data-retention rules (spec 10.4) yet. Success/failure labels are derived heuristically unless set explicitly (set_success). Not yet used by the learner (stage 2)."
   },
   "CL-05": {
-   "state": "partial",
+   "state": "implemented",
    "files": [
-    "src/cam_live/credit/checkpoint.py"
+    "src/cam_live/credit/checkpoint.py",
+    "src/cam_live/credit/retention.py"
    ],
    "integration_points": [
     "cam_live.credit.checkpoint.CheckpointManager.promote",
     "cam_live.credit.checkpoint.CheckpointManager.rollback",
     "cam_live.credit.checkpoint.CheckpointManager.save",
-    "cam_live.credit.checkpoint.export_weights"
+    "cam_live.credit.checkpoint.export_weights",
+    "cam_live.credit.checkpoint.promote_learner",
+    "cam_live.credit.checkpoint.restore_learner"
    ],
    "tests": [
     "tests/credit/test_checkpoint.py::test_promotion_is_gated_by_validation_and_retention_and_rollback_restores_the_promoted_state",
     "tests/credit/test_checkpoint.py::test_weights_only_export_contains_only_parameters_and_fixed_configuration",
-    "tests/credit/test_checkpoint.py::test_tolerant_loading_reports_added_removed_and_reshaped_modules"
+    "tests/credit/test_checkpoint.py::test_tolerant_loading_reports_added_removed_and_reshaped_modules",
+    "tests/credit/test_retention.py::test_promotion_needs_validation_and_retention_and_a_refusal_rolls_the_learner_back"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
     "docs/evidence/D/measured.json"
    ],
-   "limitations": "Mechanism only: gates, log, rollback and retention of checkpoints on disk are tested with supplied metrics on plain nn.Modules. No real validation or retention measurement feeds it yet and the agent does not call it (stage 2)."
+   "limitations": "Promotion and rollback are wired to the learner's held-out validation losses and to measured forgetting and tested on the real model at debug scale; nothing in the runtime calls promote_learner yet, and the 'independent validation' is the learner's own held-out split of stored experience, not a separate evaluation service. Experience is never rolled back."
   },
   "CL-06": {
    "state": "partial",
    "files": [
     "src/cam_live/credit/checkpoint.py",
-    "src/cam_live/credit/replay.py"
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/learner.py",
+    "src/cam_live/credit/diagnose.py"
    ],
    "integration_points": [
     "cam_live.credit.checkpoint.save_checkpoint_at",
     "cam_live.credit.checkpoint.load_checkpoint",
     "cam_live.credit.checkpoint.capture_state",
     "cam_live.credit.checkpoint.restore_state",
-    "cam_live.credit.checkpoint.recover"
+    "cam_live.credit.checkpoint.recover",
+    "cam_live.credit.checkpoint.save_learner",
+    "cam_live.credit.checkpoint.load_learner",
+    "cam_live.credit.checkpoint.capture_learner",
+    "cam_live.credit.checkpoint.load_exported_model"
    ],
    "tests": [
     "tests/credit/test_checkpoint.py::test_round_trip_is_bit_exact_and_training_continues_identically",
-    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint",
-    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint[weights-1]",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint[files-1]",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint[before_rename-1]",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint[after_rename-2]",
+    "tests/credit/test_checkpoint.py::test_crash_at_every_step_of_a_save_leaves_a_loadable_checkpoint[after_latest-2]",
+    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint[0.0]",
+    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint[0.004]",
+    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint[0.011]",
+    "tests/credit/test_checkpoint.py::test_kill_9_during_save_leaves_a_loadable_checkpoint[0.023]",
     "tests/credit/test_checkpoint.py::test_damaged_newest_checkpoint_falls_back_to_the_previous_one",
     "tests/credit/test_checkpoint.py::test_replay_indices_and_pending_pointer_travel_with_the_checkpoint",
     "tests/credit/test_checkpoint.py::test_runtime_named_checkpoint_directory_and_export_from_disk",
     "tests/credit/test_checkpoint.py::test_real_model_class_round_trips_through_a_checkpoint",
     "tests/credit/test_checkpoint.py::test_checkpoint_of_a_gpu_model_is_stored_on_cpu",
-    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record"
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record[40]",
+    "tests/credit/test_replay.py::test_kill_9_loses_no_acknowledged_record[137]",
+    "tests/credit/test_learner_checkpoint.py::test_saved_learner_state_is_complete_and_continues_identically",
+    "tests/credit/test_learner_checkpoint.py::test_a_head_added_after_the_checkpoint_is_reported_not_fatal_and_strict_loading_refuses",
+    "tests/credit/test_learner_checkpoint.py::test_weights_only_export_builds_a_fresh_model_without_experience_and_with_reset_fast_beliefs",
+    "tests/credit/test_evidence.py::test_kill_minus_nine_mid_update_resumes_from_the_last_atomic_checkpoint_identically",
+    "tests/credit/test_evidence.py::test_fresh_process_weights_only_reload_reproduces_predictions_without_experience",
+    "tests/credit/test_learner_checkpoint.py::test_reward_parameters_and_their_optimizer_travel_with_the_checkpoint_but_belong_to_no_learner_optimizer"
    ],
    "commands": [
     "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu   # test_checkpoint_of_a_gpu_model_is_stored_on_cpu (small model, < 1 GB, no lock needed)"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu   # test_checkpoint_of_a_gpu_model_is_stored_on_cpu (small model, < 1 GB, no lock needed)",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
     "docs/evidence/D/measured.json",
-    "docs/evidence/test_results/D_gpu.xml"
+    "docs/evidence/test_results/D_gpu.xml",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Checkpoint IO and store durability are verified in isolation (plain nn.Modules; the CamLiveModel class with the tiny CPU backbone for weights only). A complete restart of the integrated agent (AgentAPI.save/load with fast state, schedules and the real optimizers, then identical behaviour) has not been run: that is stage 2 plus the runtime. Experiment records live in the store, not in the checkpoint. numpy arrays inside fast_state come back as tensors."
+   "limitations": "Verified for the learner (model, optimizers, fast state, schedules, sampler, RNG, provider state) at debug scale on the CPU: kill -9 in the middle of an update and in the middle of a checkpoint write, resume in a new process, bit-identical subsequent updates. Bit-identity holds when the experience store holds what it held at the checkpoint (the store is never rolled back; experience written after the checkpoint is kept and would change later batches). NOT verified: restart of the integrated agent / runtime (AgentAPI.save / load do not call this yet), the current task and authorization configuration (carried as opaque fields), restart on the GPU with the real backbone, power loss (only SIGKILL)."
   },
   "CU-20": {
    "state": "implemented",
    "files": [
     "src/cam_live/credit/smdp.py",
-    "src/cam_live/credit/replay.py"
+    "src/cam_live/credit/replay.py",
+    "src/cam_live/credit/providers.py"
    ],
    "integration_points": [
     "cam_live.credit.smdp.CreditLedger.assign",
     "cam_live.credit.smdp.attach_trace",
     "cam_live.credit.smdp.smdp_target",
     "cam_live.credit.smdp.smdp_transition",
-    "cam_live.credit.replay.SqliteExperienceStore.ledger_assign"
+    "cam_live.credit.replay.SqliteExperienceStore.ledger_assign",
+    "cam_live.credit.providers.trajectory_return",
+    "cam_live.credit.providers.top_index"
    ],
    "tests": [
     "tests/credit/test_smdp.py::test_intervention_record_contains_procedure_and_primitive_traces",
     "tests/credit/test_smdp.py::test_duration_aware_discount_is_consistent_across_timescales",
     "tests/credit/test_smdp.py::test_one_outcome_is_credited_once_across_the_three_timescales",
-    "tests/credit/test_smdp.py::test_evidence_at_several_levels_of_one_hierarchy_still_counts_once"
+    "tests/credit/test_smdp.py::test_evidence_at_several_levels_of_one_hierarchy_still_counts_once",
+    "tests/credit/test_providers.py::test_an_outcome_is_counted_once_across_levels_and_duplicate_reports",
+    "tests/credit/test_providers.py::test_return_is_conserved_under_duration_aware_discounting_and_no_outcome_links_to_a_later_decision"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
@@ -363,106 +475,203 @@
    "limitations": "Primitive operations can be assigned to procedure steps only when per-step results with time intervals are supplied (PrimitiveOp has no step id: change request D-4). The credit-once guarantee covers outcomes that pass through CreditLedger; estimators that write record.credit directly (simple, rudder) are not forced through it yet. No policy is trained on these records here."
   },
   "NA-08": {
-   "state": "not_started",
-   "files": [],
-   "integration_points": [],
-   "tests": [],
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/learner.py",
+    "src/cam_live/credit/labkit.py",
+    "src/cam_live/credit/diagnose.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.learner.ContinualLearner.learn",
+    "cam_live.credit.learner.ContinualLearner.register"
+   ],
+   "tests": [
+    "tests/credit/test_learner.py::test_frequent_update_changes_experiential_and_heads_and_says_exactly_what_happened",
+    "tests/credit/test_learner.py::test_the_reward_group_never_receives_a_gradient_or_a_step",
+    "tests/credit/test_learner.py::test_no_loss_supplies_more_than_the_cap_of_the_experiential_gradient",
+    "tests/credit/test_learner.py::test_learning_rate_schedule_clipping_and_optimizers_per_group",
+    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction",
+    "tests/credit/test_evidence.py::test_real_configuration_one_frequent_and_one_slow_adapter_update"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/evidence/D/real_update.json",
+    "docs/evidence/test_results/D_gpu.xml"
    ],
-   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+   "limitations": "Shown at debug scale (tiny random backbone, 0.2 M-parameter core) on LabWorld diagnostic experience, and as single updates on Qwen3-4B + the 50m core (36 stored decisions). No learning curve exists for the real configuration and none on live experience. The prediction loss used in D's evidence is D's local wrapper of Workstream B's stage-1 world heads (credit.labkit.WorldPredictionProvider), not B's own provider. Held-out improvement is in mean NLL (2.954 -> 2.284, change -0.670 +- 0.245 SE, n=151); the median NLL did not improve (1.870 -> 2.136) and only 50% of the held-out records improved: the gain is in the over-confident tail. The learner is not yet called by agent.py."
   },
   "CL-02": {
-   "state": "not_started",
-   "files": [],
-   "integration_points": [],
-   "tests": [],
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/learner.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.learner.ContinualLearner.learn",
+    "cam_live.credit.learner.ContinualLearner.probe",
+    "contracts.LearningUpdateRecord (hash_before / hash_after / weight_delta / prediction_change / notes)"
+   ],
+   "tests": [
+    "tests/credit/test_learner.py::test_frequent_update_changes_experiential_and_heads_and_says_exactly_what_happened",
+    "tests/credit/test_learner.py::test_weights_that_change_without_changing_behaviour_are_flagged",
+    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+   "limitations": "The behavioural probe is whatever probes the agent registers (D's evidence: belief / decision latents, D's wrapper of B's world predictions, B's stage-1 policy head). The policy head is not trained by any loss D owns, so its probabilities move only through the latents. Loss shares, strata and the behaviour flag live as JSON in LearningUpdateRecord.notes (change request D-11)."
   },
   "CL-03": {
-   "state": "not_started",
-   "files": [],
-   "integration_points": [],
-   "tests": [],
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/learner.py",
+    "src/cam_live/credit/providers.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.learner.ContinualLearner._slow_update",
+    "cam_live.credit.learner.encode_with_adapter_grad",
+    "cam_live.credit.providers.BridgeGroundingProvider"
+   ],
+   "tests": [
+    "tests/credit/test_learner.py::test_slow_adapter_update_runs_every_adapter_every_frequent_updates_and_reaches_lora_and_bridge",
+    "tests/credit/test_learner.py::test_slow_update_that_hurts_held_out_validation_is_reverted",
+    "tests/credit/test_learner.py::test_take_and_bridge_provider_on_real_latents",
+    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction",
+    "tests/credit/test_evidence.py::test_real_configuration_one_frequent_and_one_slow_adapter_update"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json",
+    "docs/evidence/D/real_update.json"
    ],
-   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+   "limitations": "Adapter updates happen and are measured (gradient and delta of LoRA and bridge separately); whether they improve semantic understanding is NOT shown: on Qwen3-4B there is one slow update on 4 records, and at debug scale the held-out grounding loss moved 12.466 -> 12.405 on a random tiny LM. On the real model the world-NLL path into LoRA is three orders of magnitude weaker than the grounding loss (gradient norms {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}). The adapter graph covers the newest grad_last context items plus all candidate and goal texts; encode_decisions itself cannot bound it (change request D-8)."
   },
   "CL-04": {
-   "state": "not_started",
-   "files": [],
-   "integration_points": [],
-   "tests": [],
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/retention.py",
+    "src/cam_live/credit/checkpoint.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.retention.AnchorSet",
+    "cam_live.credit.retention.RetentionProvider",
+    "cam_live.credit.retention.measure_forgetting",
+    "cam_live.credit.retention.retention_metrics"
+   ],
+   "tests": [
+    "tests/credit/test_retention.py::test_anchor_penalty_is_zero_at_the_reference_and_measures_functional_change",
+    "tests/credit/test_retention.py::test_measure_forgetting_reports_nll_calibration_and_decision_agreement",
+    "tests/credit/test_retention.py::test_retention_provider_keeps_the_anchored_function_closer_while_a_new_family_is_learned",
+    "tests/credit/test_evidence.py::test_forgetting_is_measured_and_the_retention_mechanism_reduces_it"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this. (CheckpointManager.promote accepts retention metrics, but nothing measures retention.)"
+   "limitations": "One pair of LabWorld families at debug scale, one seed. 'Decision agreement' is measured on B's stage-1 policy head, which no loss in this experiment trains. The retention arm combines family-balanced replay with the functional regulariser; their separate contributions were not measured. Anchors are chosen by the caller (first records of a family), not by an importance criterion. Adapters are not covered by the functional regulariser (the slow guard and weight decay protect them)."
   },
   "CL-08": {
-   "state": "not_started",
-   "files": [],
-   "integration_points": [],
-   "tests": [],
+   "state": "implemented",
+   "files": [
+    "src/cam_live/credit/learner.py"
+   ],
+   "integration_points": [
+    "cam_live.credit.learner.ContinualLearner.poll",
+    "cam_live.credit.learner.ContinualLearner.fast_update",
+    "cam_live.credit.learner.ContinualLearner.learn",
+    "learning_api.UpdatePlan"
+   ],
+   "tests": [
+    "tests/credit/test_learner.py::test_frequent_learning_is_triggered_by_matured_independent_outcomes_not_by_time_or_rows",
+    "tests/credit/test_learner.py::test_slow_adapter_update_runs_every_adapter_every_frequent_updates_and_reaches_lora_and_bridge",
+    "tests/credit/test_learner.py::test_fast_timescale_updates_beliefs_without_gradient_or_parameter_change",
+    "tests/credit/test_evidence.py::test_stored_experience_changes_experiential_weights_and_improves_held_out_prediction"
+   ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live"
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml"
    ],
    "evidence": [
     "docs/evidence/test_results/D.xml",
-    "docs/evidence/D/measured.json"
+    "docs/evidence/D/measured.json",
+    "docs/evidence/test_results/D_slow.xml",
+    "docs/evidence/D/diagnostics.json"
    ],
-   "limitations": "Stage 2 (continual learner on the real model) has not started; nothing in stage 1 implements this."
+   "limitations": "The learner schedules fast / frequent / slow; the fourth timescale (meta-update of the reward) belongs to Workstream C and is not scheduled here. 'Informative' is decided from the stored surprise of a registered prediction (outcomes nobody predicted always count); the independence unit is the top-level decision, not a statistical test. In D's evidence only the first plan comes from poll(); the remaining updates of each experiment are explicit replay plans."
   }
  },
  "public_api": [
-  "cam_live.credit.replay.SqliteExperienceStore(path, *, provenance=None, seed=0, recent_window=256, recent_fraction=0.25, priority_alpha=0.6, uniform_floor=0.1, delayed_min_s=1.0, blob_threshold=65536, durable=True, readonly=False, eligible_default=True, item_conflict='keep_first', strict_items=False, strata=None)  # contracts.ExperienceStore",
-  "SqliteExperienceStore.sample(n, *, loss, strata=None, seed=None, provenance=None) -> List[ExperienceRecord]",
-  "SqliteExperienceStore.add_outcome(obs: OutcomeObservation, exp_id='') -> AddOutcomeResult(accepted, exp_id, duplicate, upgraded, final, reason, dedup_key)",
-  "SqliteExperienceStore.next_due() -> Optional[float]; .pending_pointer() -> dict; .state_dict() / .load_state_dict(st); .batch()",
-  "SqliteExperienceStore.set_eligible(exp_ids, loss, flag=True); .refresh_eligibility(loss, predicate, *, since_seq=0, exp_ids=None); .set_success(exp_id, success); .set_surprise(exp_id, x); .set_credit(exp_id, estimator, value, uncertainty=None)",
-  "SqliteExperienceStore.retrain_queue(limit=None) -> List[dict]; .pop_retrain(exp_ids) -> int; .mark_for_retraining(exp_ids, reason, *, outcome_key='', now=0.0)",
-  "cam_live.credit.links.OutcomeLinker(store, *, clock=None, retro_predecessors=0, window_half_life_s=None).reconcile(outcomes=(), events=()) -> ReconcileReport",
-  "cam_live.credit.simple.SimpleAttribution(store, *, beta=0.0, goal_relevant_only=True, value_fn=None, combine='declared_first').apply(exp_ids=None) -> Dict[str, CreditValue]",
-  "cam_live.credit.simple.arm_difference(treatment, control, *, confidence=0.95, randomized=False, ...) -> Optional[ArmDifference]; experiment_effects(store, experiment_id, *, control=None, confidence=0.95, metric_prefix='', value_fn=None) -> List[ArmDifference]",
-  "cam_live.credit.rudder.ReturnDecomposer(d_in, d_model=128, n_layers=2, n_heads=4, d_goal=0, beta=0.0, scale=1.0, dropout=0.0, time_unit_s=60.0): .forward(x, mask, e_g=None, times=None) -> [B,T+1]; .loss(x, mask, G, matured, e_g=None, times=None) -> (Optional[Tensor], dict); .redistribute(x, mask, G, matured, e_g=None, times=None) -> Redistribution(contrib, diff, signal, return_to_go, pred, offset, residual, discount, mask, matured)",
-  "cam_live.credit.rudder.write_credit(store, exp_ids, red, *, name='rudder') -> int",
-  "cam_live.credit.cocoa.HindsightModel(d_b, d_u, d_a, d_hidden=128, d_key=64, n_members=4, n_elapsed=2, elapsed_units=(60.0, 1.0), seed=0): .loss(b, u, cand, cand_mask, taken, logp_policy, elapsed=None, generator=None, bootstrap=True) -> (Tensor, dict); .contribution(b, u, cand, cand_mask, logp_policy, elapsed=None, *, outcome_value=None, clip=10.0, min_prob=1e-3, open_ended=False, tracked_proposals=True, n_eff=None, min_ess=0.0) -> CounterfactualCredit(status, reasons, learned_association, counterfactual_estimate, experimental_effect, w, w_std, h, clipped, candidate_supported)",
-  "cam_live.credit.cocoa.check_support(logp_policy, cand_mask, *, min_prob=1e-3, open_ended=False, tracked_proposals=True, norm_tol=1e-3, n_eff=None, min_ess=0.0) -> SupportReport; arm_contrast(w, outcome_value, treatment, control) -> Optional[(estimate, se, n)]",
-  "cam_live.credit.select.EstimatorSelector(*, baseline='simple', min_experiments=5, max_mean_sq_z=3.0, min_sign_agreement=0.8, min_improvement=0.1, log_path=None, clock=None): .add_evidence(ExperimentEvidence); .add_from_store(store, experiment_id, estimators, *, control=None, confidence=0.95, extra=None); .select() -> SelectionRecord; .default",
-  "cam_live.credit.smdp.attach_trace(rec, step_results=None) -> TraceNode; smdp_transition(rec) -> SMDPTransition; smdp_target(reward, duration_s, next_value, beta); CreditLedger(store, max_depth=8).assign(links) -> List[LedgerEntry] (raises DoubleCreditError)",
-  "cam_live.credit.checkpoint.capture_state(model=None, optimizers=None, *, groups=None, store=None, generators=None, **fields) -> CheckpointState; restore_state(state, model=None, optimizers=None, *, strict=False, store=None, generators=None, rng=True, expected_auth_hash=None) -> dict",
-  "cam_live.credit.checkpoint.save_checkpoint(root, state, *, parent='', notes='', clock=None) -> CheckpointInfo; save_checkpoint_at(path, state, *, parent='', notes='', clock=None) -> CheckpointInfo; load_checkpoint(path_or_root, checkpoint_id=None, *, map_location='cpu', verify=True) -> CheckpointState; recover(root) -> dict",
-  "cam_live.credit.checkpoint.load_weights(model, weights, *, strict=False) -> LoadReport(loaded, missing, unexpected, mismatched); load_optimizer_state(optimizer, model, saved) -> dict",
-  "cam_live.credit.checkpoint.export_weights_only(state, out_dir, *, config=None) -> dict; export_weights(checkpoint_path, out_dir, *, config=None) -> dict; load_weights_only(path, *, map_location='cpu') -> (weights_by_group, config)",
-  "cam_live.credit.checkpoint.CheckpointManager(root, *, keep_last=3, keep_promoted=5, gates=None, clock=None): .save(state, *, notes='', parent=None); .load(checkpoint_id=None); .promote(checkpoint_id, *, validation, retention, notes='') -> PromotionDecision; .rollback(reason='') -> (CheckpointInfo, CheckpointState); .promoted(); .latest()",
-  "full reference: docs/D/API.md"
+  "cam_live.credit.learner.ContinualLearner(model, store, cfg, *, clock=None, settings: LearnerSettings = None, log_path=None, credit: CreditAssigner = None)",
+  "ContinualLearner.register(provider: LossProvider) -> provider; .add_probe(name, fn(model, batch, store) -> Dict[str, Tensor])",
+  "ContinualLearner.poll() -> Optional[UpdatePlan]; .learn(plan: UpdatePlan) -> List[LearningUpdateRecord]",
+  "ContinualLearner.fast_update(phi, y, kind, *, exposure=None, censored=None, exp_id='', trigger='outcome_observed') -> LearningUpdateRecord; .reset_fast(kind=None)",
+  "ContinualLearner.validate(providers=None, n=None) -> Dict[str, float]; .refresh_eligibility(exp_ids=None, *, full=False); .is_validation(record) -> bool; .status(); .state_dict(); .load_state_dict(st)",
+  "cam_live.credit.learner.LearnerSettings.from_cfg(cfg, **over)  # cfg.section('credit')['learner']",
+  "cam_live.credit.learner.encode_with_adapter_grad(model, store, records, *, grad_last=None, with_next=False) -> DecisionBatch; take(batch, rows); records_only_batch(model, records)",
+  "cam_live.credit.providers.ReturnDecompositionProvider(model, store, *, beta=0.0, weight=1.0, d_model=128, n_layers=2, n_heads=4, max_trajectories=8, max_len=64, use_belief=True, detach_latents=True, require_closed=True, verified_only=False, head_name='credit_rudder', name='rudder', seed=0, encoder=None)",
+  "cam_live.credit.providers.HindsightProvider(model, store, *, beta=0.0, weight=1.0, d_hidden=128, d_key=64, n_members=4, max_trajectories=8, max_pairs=512, max_len=64, min_prob=1e-3, clip=10.0, require_closed=True, verified_only=False, head_name='credit_cocoa', name='cocoa', seed=0, encoder=None)",
+  "cam_live.credit.providers.BridgeGroundingProvider(model, *, weight=1.0, max_rows=4, max_chars=240, name='bridge_grounding')  # TIMESCALE_SLOW",
+  "cam_live.credit.providers.CreditAssigner(model, store, *, rudder=None, cocoa=None, selector=None, beta=0.0, clock=None, goal_relevant_only=True)",
+  "CreditAssigner.assign(exp_ids=None, *, objective_ids=None, reason='outcome_matured') -> CreditUpdate; .on_reconcile(report) -> CreditUpdate",
+  "CreditAssigner.credited_returns(records, estimator=None) -> CreditedReturns(estimator, key, values [B] float64, mask [B] bool, uncertainty [B])",
+  "CreditAssigner.compare_with_experiment(experiment_id, *, treatment, control, confidence=0.95) -> Optional[ExperimentEvidence]; .select() -> SelectionRecord; .default; .version",
+  "cam_live.credit.providers.trajectory_return(store, records, *, beta=0.0, require_closed=True, verified_only=False, goal_relevant_only=True) -> TrajectoryReturn",
+  "cam_live.credit.retention.AnchorSet(functions=None, *, max_per_family=256): .add(model, store, records, *, family=None) -> int; .penalty(model, store, exp_ids) -> (loss, metrics)",
+  "cam_live.credit.retention.RetentionProvider(anchors, *, weight=1.0, n_anchors=8, name='retention', seed=0)",
+  "cam_live.credit.retention.evaluate_families(model, store, {family: exp_ids}, eval_fn, *, batch_size=32) -> {family: FamilyEval}; measure_forgetting(model, store, before, eval_fn) -> {family: metrics}; retention_metrics(report); validation_metrics(losses)",
+  "cam_live.credit.checkpoint.capture_learner(learner, *, extra_optimizers=None, generators=None, lifetime_context=None, current_task=None, auth_config_hash='', reward_version='', extra=None) -> CheckpointState; restore_learner(learner, state, *, strict=False, extra_optimizers=None, generators=None, rng=True, expected_auth_hash=None) -> report",
+  "cam_live.credit.checkpoint.save_learner(root | CheckpointManager, learner, *, notes='', **capture_kw) -> CheckpointInfo; load_learner(root | CheckpointManager, learner, *, checkpoint_id=None, strict=False) -> report",
+  "cam_live.credit.checkpoint.promote_learner(manager, learner, *, retention, validation=None, notes='', rollback=True) -> (PromotionDecision, CheckpointInfo, rollback report | None)",
+  "cam_live.credit.checkpoint.export_learner_weights(learner, out_dir) -> config; load_exported_model(export_dir, *, cfg=None, register_heads=None, strict=True, device=None) -> ExportedModel(model, fast_state, report, config)",
+  "SqliteExperienceStore.put_objective_outcome(objective_id, *, status, value=0.0, evaluated_at=0.0, verified=False, body=None); .objective_outcome(id); .objective_ids(closed=None, family='', provenance=None); .set_credits(exp_id, values, *, version=0, reason='', ts=0.0); .credit_history(exp_id='', estimator='')",
+  "cam_live.credit.labkit.build_lab(store_path, cfg=None, *, world=True, policy=True, credit=True, bridge=False, beta=0.0, settings=None, ...) -> Lab; collect_lifetime(...); LabRun(...); register_lab_heads(model, store=None, ...)",
+  "python -m cam_live.credit.diagnose [--only learning,credit,retention,restart,export] [--out PATH] [--work DIR] | --real",
+  "stage-1 API unchanged: see docs/D/API.md sections 1-8"
  ],
- "change_requests": 6,
+ "change_requests": 12,
+ "change_requests_note": "docs/change_requests/D.md: D-1 ... D-6 (stage 1), D-7 ... D-12 (stage 2), plus a note for Workstream B. None blocks D.",
  "extra_packages": [],
  "measured": {
-  "tests_passed_default": 76,
-  "tests_skipped_default_gpu_marked": 1,
-  "tests_passed_gpu_marked": 1,
-  "suite_seconds": 96.0,
+  "tests_passed_default": 100,
+  "tests_passed_gpu_marked": 2,
+  "suite_seconds": 122.616,
   "exact_rel_bias_max_unbiased_estimators_enumerated": 7.203e-32,
   "exact_rel_bias_return_conditioned_hindsight": 0.06099,
   "exact_rel_var_reinforce": 23.46,
@@ -504,30 +713,200 @@
   "store_durable_add_outcome_per_s": 233.0,
   "store_sample_32_records_ms": 10.39,
   "store_cached_sample_ids_ms_20k_records": 1.92,
-  "store_db_bytes_per_record": 8674
+  "store_db_bytes_per_record": 8674,
+  "tests_skipped_default_slow_or_gpu": 7,
+  "tests_failed_default": 0,
+  "tests_passed_slow": 5,
+  "tests_failed_slow": 0,
+  "slow_suite_seconds": 321.735,
+  "tests_failed_gpu": 0,
+  "debug_heldout_nll_before": 2.9539895057678223,
+  "debug_heldout_nll_after": 2.284083604812622,
+  "debug_heldout_nll_change": -0.6699055433273315,
+  "debug_heldout_nll_change_se": 0.24469798803329468,
+  "debug_heldout_n": 151,
+  "debug_heldout_median_nll_before": 1.8703665733337402,
+  "debug_heldout_median_nll_after": 2.1359286308288574,
+  "debug_heldout_share_improved": 0.503311276435852,
+  "debug_heldout_mean_sq_z_before": 6.665335655212402,
+  "debug_heldout_mean_sq_z_after": 1.0760793685913086,
+  "debug_frequent_updates": 161,
+  "debug_total_weight_delta": {
+   "experiential": 0.8315804816407313,
+   "heads": 4.354372242321238,
+   "reward": 0.0,
+   "semantic_adapters": 0.11015515853968809
+  },
+  "debug_slow_updates_applied": 20,
+  "debug_slow_reverted": 0,
+  "debug_slow_grad_norm_lora_min": 2.784388780593872,
+  "debug_slow_grad_norm_bridge_min": 1.4630342721939087,
+  "debug_slow_delta_norm_lora_min": 0.00014142077998258173,
+  "debug_slow_delta_norm_bridge_min": 0.0005656564608216286,
+  "credit_experiments": 6,
+  "credit_max_conservation_error": 1.7763568394002505e-15,
+  "credit_links_to_later_decision": 0,
+  "credit_context_leaks": 0,
+  "credit_rmse_rudder": 1.5248930483118348,
+  "credit_rmse_cocoa": 3.0567677411976257,
+  "credit_mean_sq_z_rudder": 1.9030695042648478,
+  "credit_mean_sq_z_cocoa": 3.8350270130774082,
+  "credit_rmse_of_claiming_no_effect": 6.199205247828908,
+  "credit_selected_default": "rudder",
+  "credit_first_decision_mean_credit": {
+   "unlock": {
+    "cocoa": 4.023378607201565,
+    "rudder": 4.529284775157264,
+    "rudder_contribution": 10.159076251213767,
+    "rudder_rtg": 12.18400188519493,
+    "simple": null
+   },
+   "wait": {
+    "cocoa": -1.7847512810946706,
+    "rudder": -0.18757015882788095,
+    "rudder_contribution": 5.813947140053445,
+    "rudder_rtg": 7.467146951209784,
+    "simple": null
+   }
+  },
+  "retention_nll_increase_on_A_naive": 2.085038423538208,
+  "retention_nll_increase_on_A_naive_se": 0.5801178216934204,
+  "retention_nll_increase_on_A_with_retention": 0.14969143271446228,
+  "retention_nll_increase_on_A_with_retention_se": 0.15304340422153473,
+  "retention_nll_change_on_B_naive": -0.3997666537761688,
+  "retention_nll_change_on_B_with_retention": -0.26525354385375977,
+  "retention_decision_agreement_A_naive": 0.32222222222222224,
+  "retention_decision_agreement_A_with_retention": 0.9,
+  "restart_kill_mid_update_identical_updates": "6/6",
+  "restart_kill_mid_checkpoint_identical_updates": "6/6",
+  "restart_final_hashes_identical": true,
+  "export_all_bit_exact": true,
+  "export_max_abs_difference": 0.0,
+  "export_bytes_debug": 2115719,
+  "real_parameters": {
+   "backbone_frozen": 4022468096,
+   "experiential": 50953765,
+   "heads": 1932714,
+   "reward": 0,
+   "semantic_adapters": 16713856
+  },
+  "real_load_seconds": 7.478732713032514,
+  "real_gpu_gb_after_load": 7.820958137512207,
+  "real_frequent_seconds_with_credit_assignment": 2.6624531988054514,
+  "real_frequent_seconds": 0.7278398219496012,
+  "real_frequent_peak_gpu_gb": 9.095925331115723,
+  "real_frequent_grad_norms": {
+   "experiential": 0.3438902199268341,
+   "heads": 13.684985160827637
+  },
+  "real_frequent_weight_delta": {
+   "experiential": 0.2528763711452484,
+   "heads": 0.01861485093832016
+  },
+  "real_frequent_prediction_change": {
+   "latent_b": 0.26883256435394287,
+   "latent_z": 0.3913797438144684,
+   "max_abs": 0.3913797438144684,
+   "policy.action_probs": 0.00025488209212198853,
+   "world.pred_mean": 0.04869192838668823
+  },
+  "real_slow_seconds": 2.6036708331666887,
+  "real_slow_peak_gpu_gb": 8.846506118774414,
+  "real_slow_grad_norms": {
+   "semantic_adapters": 5.582971572875977
+  },
+  "real_slow_adapter_grad_norm": {
+   "bridge": 3.778477907180786,
+   "lora": 4.11007022857666
+  },
+  "real_slow_adapter_delta_norm": {
+   "bridge": 0.008757708594202995,
+   "lora": 0.015133644454181194
+  },
+  "real_slow_guard": {
+   "validation_after": 3.4846725463867188,
+   "validation_before": 3.3413895815610886
+  }
  },
  "measured_commands": {
-  "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
-  "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
-  "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+  "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+  "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+  "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+  "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
+  "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
+  "stage_1_numbers": {
+   "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+   "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+   "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+   "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
+   "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
+   "stage_1_numbers": {
+    "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+    "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+    "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+    "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
+    "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
+    "stage_1_numbers": {
+     "default_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/D.xml",
+     "slow_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m slow --junitxml=cam_live/docs/evidence/test_results/D_slow.xml",
+     "gpu_tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -m gpu --junitxml=cam_live/docs/evidence/test_results/D_gpu.xml",
+     "debug_scale_evidence (debug_*, credit_*, retention_*, restart_*, export_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose   # docs/evidence/D/diagnostics.json",
+     "real_configuration (real_*)": "cd /workspace/camlive && .venv/bin/python -m cam_live.credit.diagnose --real   # docs/evidence/D/real_update.json",
+     "stage_1_numbers": {
+      "note": "every block except store_benchmark is the JSON a test prints (tag in upper case) during the test run above",
+      "store_benchmark": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/D/bench_store.py",
+      "tests": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/credit -q --rootdir=cam_live -s"
+     }
+    }
+   }
+  }
  },
  "not_done": [
-  "Stage 2 in full: the continual learner on the real model (NA-08, CL-02, CL-03, CL-04, CL-08): optimizers, schedules, per-group clipping, LearningUpdateRecords, behavioural probes, retention measurement, adapter updates.",
-  "LossProvider wrappers for ReturnDecomposer and HindsightModel on the real model's latents; neither model has been trained on real decision latents or real outcomes.",
-  "No code outside cam_live/credit calls the store, the linker, the selector or the checkpoint functions yet (the runtime CLI looks up credit.checkpoint.export_weights, which exists).",
-  "The selector's default is not consumed by any training code.",
-  "Full agent restart (AgentAPI.save / load) is not verified; only checkpoint IO and store durability are.",
-  "Durability under power loss is configured (synchronous=FULL, fsync of files and directories) but not testable here; only SIGKILL was tested.",
+  "Not integrated: agent.py and the runtime do not construct the learner, the assigner or the linker yet; AgentAPI.learn / save / load / reconcile do not call them. Everything was exercised through credit.labkit only.",
+  "No learning curve on the real configuration: Qwen3-4B + 50m core saw two frequent updates and one slow update on 36 LabWorld decisions (time, memory, gradient norms, deltas). Whether the 50m core learns from stored experience, and at which rates, is untested.",
+  "No live or staging experience: every record in the evidence has provenance 'diagnostic'.",
+  "Adapter learning is shown as mechanics only (non-zero gradient and delta, held-out guard); no evidence that adapter updates improve prediction or generation.",
+  "Restart of the integrated agent, restart on the GPU, and power-loss durability are not verified (learner restart at debug scale on CPU and SIGKILL only).",
+  "The policy head is not trained by any loss in this workstream (the policy loss belongs to Workstream C); credited returns are exposed but not consumed.",
+  "Retention: one family pair, one seed, debug scale; replay and functional regularisation not ablated separately; no anchor-selection criterion.",
+  "Estimator comparison: six experiments, one seed, one mechanism family, debug scale.",
+  "RUDDER auxiliary losses of the original paper are not implemented; COCOA has no learned outcome encoder and no sampled-alternatives estimator; trajectories longer than 64 decisions are truncated.",
   "No garbage collection of unreferenced blobs and no data-retention / deletion policy in the store.",
-  "RUDDER auxiliary losses of the original paper (prediction-of-prediction, quality-weighted mixing with the ordinary advantage) are not implemented; only the main squared loss at every prefix.",
-  "COCOA: no learned outcome encoder (u is supplied by the caller) and no sampled-alternatives estimator for candidate sets too large to enumerate."
+  "The learner is single-threaded and assumes it is the only writer of the store."
  ],
  "scientific_failures": [
   "Return-conditioned hindsight is biased, as the literature says: relative bias 0.061 on the enumerated NoisyKeyDoor and exactly 16/81 on the two-armed bandit with rewards (1, -2). It is kept only as a counterexample.",
   "The redistributed return-to-go gives no variance reduction over REINFORCE at the key decision (key-to-door variance 8.09 for both); the reduction comes only from the contributions of a well-trained decomposer (0.14) or from COCOA (0.059).",
   "In the one seeded run of the synthetic experiment world, a decomposer trained with a constant learning rate gave arm-difference estimates that disagreed with the randomised differences (RMSE 0.096, mean z^2 4.3) and the selector rejected it; the same 400 steps with cosine annealing gave RMSE 0.018. One seed, one task: it shows sensitivity to training quality, not a rate.",
-  "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018)."
+  "Learned COCOA coefficients are the less accurate of the two learned estimators on the synthetic experiments (max error against the true effect 0.20 versus 0.035 for RUDDER contributions; RMSE against measured differences 0.12 versus 0.018).",
+  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
+  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
+  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
+  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
+  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
+  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
+  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
+  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
+  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
+  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
+  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
+  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
+  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
+  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
+  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
+  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
+  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
+  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
+  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
+  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
+  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates.",
+  "Debug-scale credit comparison (recorded run): the selector's default after six randomised experiments is 'rudder'. RUDDER contributions: RMSE 1.52, mean z^2 1.90, passes=True; COCOA: RMSE 3.06, mean z^2 3.84, passes=False (claiming no effect: RMSE 6.20; gate: mean z^2 <= 3). This outcome is NOT stable: the same experiment run earlier without learning-rate warm-up (same seeds; not kept as evidence) left both learned estimators just outside the gate (mean z^2 3.77 and 3.86) and the default stayed 'simple'; an exploratory run with other world seeds promoted COCOA (mean z^2 2.44) and rejected RUDDER (5.71). Six experiments at debug scale do not decide between the estimators.",
+  "Held-out prediction: the mean NLL improved (2.954 -> 2.284) but the median did not (1.870 -> 2.136); 50% of held-out records improved. With a smaller data set (60 lifetimes) held-out NLL fell and then rose again after about 75 updates (over-fitting, observed while exploring; not in the evidence file).",
+  "On the 50m core a single Adam step moves the belief latent a lot: with the 8-step warm-up (first step at lr/8) the probe belief changed by 0.27 (mean absolute); without warm-up, at lr 3e-4, by 0.78 (measured before the warm-up default was introduced).",
+  "On Qwen3-4B the world-NLL gradient that reaches LoRA through the semantic embeddings is tiny next to the grounding loss (by-loss adapter gradient norms: {'bridge_grounding': 5.582943916320801, 'world': 0.0009938043076545}): in practice the slow update is driven by the grounding loss.",
+  "On Qwen3-4B the one slow adapter update did not improve held-out loss: {'validation_after': 3.4846725463867188, 'validation_before': 3.3413895815610886} (kept, because the increase is inside the 5 % tolerance of the guard). One update on four records shows that the path works, not that it helps.",
+  "Update times on the real configuration depend strongly on what else the shared machine is doing: the same three updates took 17.0 / 6.1 / 12.0 s in a run under heavy load and the values in real_update.json under light load.",
+  "An untrained ensemble under loss *ascent* first improved the ensemble-mixture NLL on held-out data (members spread apart) before it got worse: per-member NLL (the training objective) and mixture NLL (what is scored) can move in opposite directions for a few updates."
  ],
- "change_requests_note": "D-1 .. D-5 propose diffs to master-owned files; D-6 only records an integration point that already works.",
- "commit_note": "last commit that changed Workstream D code, tests or evidence; later commits on the branch belong to other workstreams or are this status file"
+ "commit_note": "commit = the code commit the evidence was produced from; the status file itself is committed afterwards."
 }
