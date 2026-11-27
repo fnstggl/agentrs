@@ -331,6 +331,24 @@ def test_session_utilities_of_policy_groups(run2):
     assert sum(v.size for v in su.values()) == n > 0
 
 
+def test_category_condition_sites_carry_a_perceivable_regularity_the_switch_reverses():
+    """G.6's controlled condition "category": rich sites are guides and poor ones blogs (the category a reader
+    perceives from the title, popweb.kind_of); the switch's rewritten blogs are rich text on the blog's own topic, with
+    the same links (no page of the experimenter's says which sites changed)."""
+    from crucible.population import experiments as PX
+    from crucible.population import sites as SITES
+    from crucible.population.web import kind_of
+    names, specs = PX._site_specs(4, "category")
+    guide, blog = SITES.CATEGORIES.index("guide") + 1, SITES.CATEGORIES.index("blog") + 1
+    for b, sp in zip(PX.BEHAVIOURS, specs):
+        assert kind_of(sp["title"]) == (guide if b == "rich" else blog), (b, sp["title"])
+    _, plain = PX._site_specs(4, "sites")
+    assert [s["behaviour"] for s in plain] == [s["behaviour"] for s in specs] == PX.BEHAVIOURS
+    assert [s["topic"] for s in plain] == [s["topic"] for s in specs]
+    with pytest.raises(ValueError):
+        PX.adaptation(0, 1, condition="nonsense")
+
+
 def test_policy_updates_are_recorded(run2):
     _, w, _ = run2
     ups = [e for e in w.log if e.type == "pop.policy_update"]
