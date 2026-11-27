@@ -1,7 +1,7 @@
 {
  "workstream": "ES",
- "commit": "168c163",
- "summary": "Skill library (induction from traces, validation by execution, per-step authorization, Beta reliability, staleness, repair / retire, versioned storage), adaptive modality selector, failure taxonomy with bounded retries, generic HTTP API executor, authorized publishing adapter, Discord bot-REST adapter with a local staging service. 106 CPU tests pass; Discord and all external effects were exercised on local staging services only.",
+ "commit": "34d5127",
+ "summary": "Skill library (induction from traces, validation by execution, per-step authorization, Beta reliability, staleness, repair / retire, versioned storage), adaptive modality selector, failure taxonomy with bounded retries, generic HTTP API executor, authorized publishing adapter, Discord bot adapter with a local staging service. Added 2026-11-27: 18 Discord administration tools (identity, permissions, guild settings, channels, role objects, messages, invites, member-event diff, audit summary), the operator's permission scope, a permission pre-check, one bounded receive-only Gateway window (discord_gateway.GatewayWindow), a staging Gateway, and tools/discord_live_check.py. 141 of 142 CPU tests pass (the one failure is a hard-coded tool count in test_es_publishing.py, see not_done). Discord and all external effects were exercised on local staging services only: no request was sent to Discord.",
  "requirements": {
   "IH-04": {
    "state": "implemented",
@@ -38,14 +38,22 @@
    "state": "implemented",
    "files": [
     "src/cam_live/harness/discord.py",
+    "src/cam_live/harness/discord_perms.py",
+    "src/cam_live/harness/discord_gateway.py",
     "src/cam_live/harness/staging_discord/server.py",
+    "src/cam_live/harness/staging_discord/gateway.py",
     "src/cam_live/harness/staging_discord/__init__.py",
-    "docs/ES/DISCORD_COMPLIANCE.md"
+    "tools/discord_live_check.py",
+    "docs/ES/DISCORD_COMPLIANCE.md",
+    "docs/ES/INTEGRATION.md"
    ],
    "integration_points": [
     "cam_live.harness.discord.DiscordClient",
     "cam_live.harness.discord.DiscordExecutor.from_task",
-    "cam_live.harness.staging_discord.StagingDiscordServer"
+    "cam_live.harness.discord.DiscordExecutor.missing_capabilities",
+    "cam_live.harness.discord_gateway.GatewayWindow",
+    "cam_live.harness.staging_discord.StagingDiscordServer",
+    "cam_live.harness.staging_discord.StagingGateway"
    ],
    "tests": [
     "tests/harness/skills/test_es_discord.py::test_members_bots_and_declared_test_accounts",
@@ -60,18 +68,60 @@
     "tests/harness/skills/test_es_discord.py::test_denials_platform_rules_and_missing_permissions_are_hard_failures",
     "tests/harness/skills/test_es_discord.py::test_rate_limited_and_unreachable_service_through_the_executor",
     "tests/harness/skills/test_es_integration_shapes.py::test_discord_tools_name_the_server_and_use_a_probe_for_availability",
-    "tests/harness/skills/test_es_integration_shapes.py::test_retaining_message_text_is_put_to_the_policy_as_its_own_operation"
+    "tests/harness/skills/test_es_integration_shapes.py::test_retaining_message_text_is_put_to_the_policy_as_its_own_operation",
+    "tests/harness/skills/test_es_discord_admin.py::test_permission_bits_match_the_documented_values",
+    "tests/harness/skills/test_es_discord_admin.py::test_permission_algorithm_roles_everyone_administrator_overwrites",
+    "tests/harness/skills/test_es_discord_admin.py::test_get_permissions_agrees_with_the_service_for_roles_and_overwrites",
+    "tests/harness/skills/test_es_discord_admin.py::test_scope_refusal_even_when_the_bot_is_administrator",
+    "tests/harness/skills/test_es_discord_admin.py::test_precheck_refuses_without_the_doomed_request",
+    "tests/harness/skills/test_es_discord_admin.py::test_a_403_that_arrives_anyway_drops_the_cached_permissions",
+    "tests/harness/skills/test_es_discord_admin.py::test_rename_guild_and_restore",
+    "tests/harness/skills/test_es_discord_admin.py::test_channel_create_modify_permissions_delete",
+    "tests/harness/skills/test_es_discord_admin.py::test_roles_create_modify_delete_and_the_refusal_list",
+    "tests/harness/skills/test_es_discord_admin.py::test_delete_pin_and_unpin_messages",
+    "tests/harness/skills/test_es_discord_admin.py::test_delete_invite_only_of_the_authorized_guild",
+    "tests/harness/skills/test_es_discord_admin.py::test_member_event_diff_baseline_bots_and_declared_test_accounts",
+    "tests/harness/skills/test_es_discord_admin.py::test_member_events_without_a_state_directory_use_the_run_directory_or_memory",
+    "tests/harness/skills/test_es_discord_admin.py::test_identity_other_guilds_and_missing_capabilities",
+    "tests/harness/skills/test_es_discord_admin.py::test_audit_summary_has_counts_and_times_only",
+    "tests/harness/skills/test_es_discord_admin.py::test_every_new_write_tool_passes_through_the_check_with_deterministic_arguments",
+    "tests/harness/skills/test_es_discord_admin.py::test_no_tool_names_or_takes_a_member_as_target",
+    "tests/harness/skills/test_es_discord_gateway.py::test_protocol_constants_come_from_the_documentation",
+    "tests/harness/skills/test_es_discord_gateway.py::test_window_receives_member_add_and_remove_and_reduces_them",
+    "tests/harness/skills/test_es_discord_gateway.py::test_invites_messages_channels_and_scheduled_events_are_reduced",
+    "tests/harness/skills/test_es_discord_gateway.py::test_events_of_other_guilds_are_counted_and_dropped",
+    "tests/harness/skills/test_es_discord_gateway.py::test_heartbeats_jitter_ack_request_and_a_connection_that_stops_answering",
+    "tests/harness/skills/test_es_discord_gateway.py::test_reconnect_invalid_session_and_refused_identifies",
+    "tests/harness/skills/test_es_discord_gateway.py::test_the_token_is_in_no_exception_and_no_result",
+    "tests/harness/skills/test_es_discord_gateway.py::test_listen_events_through_the_executor",
+    "tests/harness/skills/test_es_discord_gateway.py::test_listen_events_with_the_content_permission_is_its_own_checked_read",
+    "tests/harness/skills/test_es_discord_gateway.py::test_listen_events_hard_failures_limits_and_destinations",
+    "tests/harness/skills/test_es_discord_gateway.py::test_a_cancelled_action_ends_the_window",
+    "tests/harness/skills/test_es_discord_live_check.py::test_full_sequence_in_staging_leaves_the_server_as_it_was",
+    "tests/harness/skills/test_es_discord_live_check.py::test_the_policys_live_mode_with_a_signed_record",
+    "tests/harness/skills/test_es_discord_live_check.py::test_scope_and_permission_refusals_are_reported_and_cleanup_still_runs",
+    "tests/harness/skills/test_es_discord_live_check.py::test_stops_after_identity_when_the_bot_is_not_in_the_server",
+    "tests/harness/skills/test_es_discord_live_check.py::test_stops_before_any_write_when_the_policy_write_rate_is_too_low",
+    "tests/harness/skills/test_es_discord_live_check.py::test_cleanup_runs_when_the_sequence_is_interrupted",
+    "tests/harness/skills/test_es_discord_live_check.py::test_the_live_entry_point_stops_before_any_connection_without_an_authorization_record",
+    "tests/harness/skills/test_es_discord_live_check.py::test_the_documented_live_preparation_yields_grants_and_releases_the_token_only_to_discord"
    ],
    "commands": [
-    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live",
+    "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_discord.py cam_live/tests/harness/skills/test_es_discord_admin.py cam_live/tests/harness/skills/test_es_discord_gateway.py cam_live/tests/harness/skills/test_es_discord_live_check.py -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/ES/discord_tests.xml",
+    "cd /workspace/camlive && .venv/bin/python cam_live/tools/discord_live_check.py --staging --await-reply-s 6 --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging.json",
+    "cd /workspace/camlive && .venv/bin/python cam_live/tools/discord_live_check.py --staging --live-policy --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging_live_policy.json",
     "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
    ],
    "evidence": [
-    "docs/evidence/test_results/ES.xml",
+    "docs/evidence/ES/discord_tests.xml",
+    "docs/evidence/ES/discord_live_check_staging.json",
+    "docs/evidence/ES/discord_live_check_staging_live_policy.json",
+    "docs/evidence/ES/discord_live_check_staging.txt",
     "docs/ES/DISCORD_COMPLIANCE.md",
     "docs/evidence/ES/integration_smoke.txt"
    ],
-   "limitations": "STAGING ONLY. No request has ever been sent to Discord; the client was exercised only against the local staging imitation of the REST subset it uses, whose fidelity to the real service is unverified beyond the published documentation. Live use is blocked until the operator supplies a bot token and the authorized guild id. REST only (no gateway): joins are observed by polling. Exact member counts need the Server Members privileged intent."
+   "limitations": "STAGING ONLY. No request has been sent to Discord by ES code or tests; the client, the executor, the Gateway window and tools/discord_live_check.py were exercised only against the local staging imitation of the REST subset and of the Gateway, whose fidelity to the real service is unverified beyond the published documentation (commit 62ab2d5 of discord-api-docs). The live check script exists and its live entry point is tested up to the authorization service's verdict; the path from a granted action to discord.com has never been executed. The Gateway is used for one bounded receive-only window per action (1-60 s, one Identify, no resume, no persistent connection): between windows joins are observed by the REST snapshot diff. Exact member counts and member events need the Server Members privileged intent. By design nothing acts on a member. docs/evidence/test_results/ES.xml predates these tests (106 tests); the JUnit of the Discord test files is docs/evidence/ES/discord_tests.xml."
   },
   "IH-06": {
    "state": "implemented",
@@ -304,14 +354,20 @@
   "cam_live.harness.discord.DiscordClient(base_url, token_provider, *, clock=None, sleep=None, transport=None, timeout_s=20.0, max_rate_limit_wait_s=30.0, max_rate_limit_retries=2, user_agent=..., id_salt=''): guild(guild_id, with_counts=True); list_members(guild_id, *, test_account_ids=(), page_size=1000) -> [{id_hash, bot, joined_at, pending, test_account}]; member_counts(members); member_retention(earlier, later); list_channels(guild_id); channel(channel_id); create_channel(guild_id, name, type=0, *, topic=None, parent_id=None); send_message(channel_id, content, *, nonce=None); edit_message(channel_id, message_id, content); channel_activity(channel_id, limit=100, *, guild_id='', keep_content=False); list_invites(guild_id); create_invite(channel_id, *, max_age=86400, max_uses=0, temporary=False, unique=False); list_scheduled_events(guild_id, with_user_count=True); create_scheduled_event(guild_id, name, scheduled_start_time, *, scheduled_end_time=None, description=None, location=None, channel_id=None)",
   "cam_live.harness.discord.DiscordExecutor(base_url=LIVE_BASE_URL, *, guild_id='', token_secret='discord_bot_token', secrets=None, credential_probe=None, test_account_ids=(), data_permissions=None, ...); DiscordExecutor.from_task(task, *, base_url='', secrets=None, **kw); availability(secrets=None) -> (bool, reason)  # ModalityExecutor 'api'; tools discord.get_guild_stats, list_channels, create_channel, send_message, edit_message, get_channel_activity, list_invites, create_invite, list_events, create_event (each takes guild_id)",
   "cam_live.harness.staging_discord.StagingDiscordServer(state=None, host='127.0.0.1', port=0).base_url / .state / .close(); StagingDiscord(*, token='staging-bot-token', members_intent=True, rate_limit=(50, 1.0)): add_human, add_bot, add_test_account, remove_member, add_channel, add_dm_channel, post_member_message, use_invite, mark_interested, set_permission, set_rate_limit, block_globally, test_account_ids, request_log",
-  "cam_live.harness.publishing.PublishingExecutor(state_dir, destinations: Sequence[Destination], *, discord=None); PublishingExecutor.from_resources(resources, state_dir, *, discord=None); Destination(name, kind, root='', base_url='', access_log='', channel_id='')  # ModalityExecutor 'api'; tools publish.draft, publish.preview, publish.submit, publish.update, publish.status, publish.get_analytics; aggregate_access_log(text, *, now, since_s=None, own_host='') -> dict"
+  "cam_live.harness.publishing.PublishingExecutor(state_dir, destinations: Sequence[Destination], *, discord=None); PublishingExecutor.from_resources(resources, state_dir, *, discord=None); Destination(name, kind, root='', base_url='', access_log='', channel_id='')  # ModalityExecutor 'api'; tools publish.draft, publish.preview, publish.submit, publish.update, publish.status, publish.get_analytics; aggregate_access_log(text, *, now, since_s=None, own_host='') -> dict",
+  "cam_live.harness.discord.DiscordExecutor(base_url=LIVE_BASE_URL, *, guild_id='', token_secret='discord_bot_token', secrets=None, credential_probe=None, test_account_ids=(), data_permissions=None, id_salt='', transport=None, sleep=None, retry=None, user_agent=..., scope=None, state_dir='', permission_ttl_s=300.0, identify_reserve=50, gateway_connect=None)  # 28 tools; from_task(task, *, base_url='', secrets=None, **kw) reads resources.discord {guild_id, test_account_ids, token_secret, base_url, scope, state_dir}; missing_capabilities() -> [{capability, reason, how_to_grant}]; requirements(name, arguments) -> permission names; facts",
+  "cam_live.harness.discord.TOOLS: Dict[str, _Tool(effect, text, properties, required, requires, idempotent)]; AUDIT_REASON; AUDIT_LOG_EVENTS; DiscordMissingPermission; snowflake_iso(snowflake)",
+  "cam_live.harness.discord_perms: PERMISSION_BITS, DEFAULT_SCOPE, NEVER_GRANTED, INTENT_BITS, PRIVILEGED_INTENTS; bits_of(names) -> int; names_of(bits) -> List[str]; normalise_scope(scope); base_permissions(guild_id, roles, member_role_ids, *, is_owner=False) -> int; channel_permissions(base, overwrites, guild_id, member_role_ids, member_id) -> int; timed_out_permissions(perms); granted_intents(application_flags) -> Dict[str, bool]; intents_value(names); member_id_hash(guild_id, user_id, salt='')",
+  "cam_live.harness.discord_gateway.GatewayWindow(url, token_provider, *, guild_id, seconds, intents=DEFAULT_INTENTS, keep_content=False, id_salt='', test_account_ids=(), max_events=200, cancel=None, connect=None, monotonic=time.monotonic, rng=None, open_timeout_s=10.0, hello_timeout_s=10.0, library='cam-live').run() -> dict (reduced events, counts, dropped, heartbeats, ended_by); GatewayError(kind, message, *, close_code=None); CLOSE_CODES; describe_close(code)",
+  "cam_live.harness.staging_discord.StagingDiscordServer(state=None, host='127.0.0.1', port=0, *, gateway=True, heartbeat_interval_ms=45000)  # .base_url, .state (hooks), .gateway (StagingGateway: url, emit, emit_other_guild, send_op, close_sessions, identify_response, acknowledge_heartbeats, on_ready, wait_ready, identify_log, frames_received)",
+  "python cam_live/tools/discord_live_check.py --run-dir R --task T [--policy P] [--skip-writes] [--await-reply-s N] [--approve-wait-s N] [--listen-s 1..60] [--out FILE] | --staging [--live-policy] | --task T --print-record-template | --print-policy-rule | --write-policy FILE"
  ],
  "change_requests": 4,
  "extra_packages": [],
  "measured": {
-  "tests_passed": 106,
-  "tests_failed": 0,
-  "test_wall_seconds": 9.535,
+  "tests_passed": 141,
+  "tests_failed": 1,
+  "test_wall_seconds": 32.68,
   "skills_vs_primitives.n_tasks": 20,
   "skills_vs_primitives.primitive_only.decisions_per_task": 3.0,
   "skills_vs_primitives.skill_based.decisions_per_task": 1.0,
@@ -324,28 +380,51 @@
   "modality.mean_abs_error_p_success_simulated": 0.021668550514979505,
   "modality.max_abs_error_p_success_simulated": 0.05332807700219078,
   "modality.thompson_share_best_kind_context_A": 0.9937888198757764,
-  "modality.thompson_share_best_kind_context_B": 1.0
+  "modality.thompson_share_best_kind_context_B": 1.0,
+  "discord.tests_passed": 47,
+  "discord.tests_failed": 0,
+  "discord.test_wall_seconds": 23.6,
+  "discord.new_tests": 36,
+  "discord.tools": 28,
+  "discord.tools_added": 18,
+  "discord_live_check.staging.steps_ok": 29,
+  "discord_live_check.staging.steps_not_ok": 0,
+  "discord_live_check.staging.exit_code": 0,
+  "discord_live_check.staging.write_requests": 15,
+  "discord_live_check.staging.requests": 49,
+  "discord_live_check.staging_live_policy.steps_ok": 27,
+  "discord_live_check.staging_live_policy.exit_code": 0,
+  "discord_live_check.live.runs": 0
  },
  "measured_commands": {
-  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/test_results/ES.xml",
+  "tests_*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills -q --rootdir=cam_live  (2026-11-27, machine load average about 23; 1 failed = test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter, the hard-coded tool count)",
   "skills_vs_primitives.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_skills.py::test_measured_primitive_only_versus_skill_based_execution -q --rootdir=cam_live  (values of the final full run, as written to docs/evidence/ES/skills_vs_primitives.json; latencies vary with machine load: the skill / primitive latency ratio was about 1.7 to 2.3 in the runs made after the last change to skill persistence)",
   "modality.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_modality.py::test_estimates_calibrate_on_a_simulated_mix_and_selection_shifts -q --rootdir=cam_live",
-  "integration smoke": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py"
+  "integration smoke": "cd /workspace/camlive && .venv/bin/python cam_live/docs/evidence/ES/integration_smoke.py",
+  "discord.*": "cd /workspace/camlive && .venv/bin/python -m pytest cam_live/tests/harness/skills/test_es_discord.py cam_live/tests/harness/skills/test_es_discord_admin.py cam_live/tests/harness/skills/test_es_discord_gateway.py cam_live/tests/harness/skills/test_es_discord_live_check.py -q --rootdir=cam_live --junitxml=cam_live/docs/evidence/ES/discord_tests.xml",
+  "discord_live_check.*": "cd /workspace/camlive && .venv/bin/python cam_live/tools/discord_live_check.py --staging --await-reply-s 6 --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging.json ; ... --staging --live-policy --run-dir <tmp> --out cam_live/docs/evidence/ES/discord_live_check_staging_live_policy.json  (output in docs/evidence/ES/discord_live_check_staging.txt)"
  },
  "not_done": [
-  "No request was ever sent to Discord: the Discord client, executor, publishing-to-channel path and every Discord number were exercised only against the local staging service. Live operation is blocked until the operator provides the bot token and the authorized guild.",
+  "No request was ever sent to Discord by ES: the Discord client, executor, Gateway window, publishing-to-channel path, tools/discord_live_check.py and every Discord number were exercised only against the local staging service (REST and Gateway). The live check is written and its preparation is tested without executing any action; it has to be run by the operator.",
   "Skills were induced, validated, monitored and repaired only on HTTP-API workflows of a local test application (plus one run through the real environment and authorization service in docs/evidence/ES/integration_smoke.py). Browser and visual traces were not tried.",
   "Transfer of skills to unfamiliar interfaces, compute cost per task and task success on real sites (spec 12A.17 comparison) were not measured; only decisions, primitive operations, harness latency and success on one local repeated task.",
   "The modality selector is not wired into the agent's decision loop, and its calibration was measured on a simulated mix only.",
   "CU-19 beyond the procedure-level record (interventions, semi-Markov credit, duration-aware discounting) is not in ES.",
   "The ES test-suite uses a small local policy engine and secret broker of the same shape as the authorization service's; the real environment + authorization service were exercised only by the manual smoke script, not by automated ES tests.",
   "Change requests ES-1..ES-4 are open: until ES-3 is applied a top-level publish.update needs its destination argument and is treated by the default policy as a publication; until ES-4 is applied the caller of env.execute must call SkillExecutor.observe_execution itself.",
-  "Gateway (websocket) events, webhooks, threads, roles and moderation endpoints of Discord are not implemented."
+  "tests/harness/skills/test_es_publishing.py::test_publishing_to_an_owned_channel_goes_through_the_discord_adapter FAILS: line 229 asserts `len(api.tools()) == 16` (6 publishing + 10 Discord tools); with the 18 new Discord tools it is 34. The file was outside the paths of the task that added the tools and was left unchanged; the assertion should read `== 6 + len(cam_live.harness.discord.TOOLS)`.",
+  "The staging imitation's reading of the documentation is unverified against the real service: error codes for role-hierarchy and managed-role refusals, GET /guilds/{id}/invites without MANAGE_GUILD (list without metadata), event timing of the Gateway, and the 2FA requirement for the starred permissions (not modelled at all).",
+  "Not implemented for Discord: webhooks, threads, reactions, guild icon / banner / features, editing or deleting scheduled events, a persistent or resumed Gateway connection (each window is one Identify; events between windows are seen only through the REST snapshot diff), and - by design - anything that acts on a member (roles of members, kick, ban, timeout, nickname, direct messages).",
+  "DiscordExecutor.missing_capabilities() reports missing Discord permissions, missing intents and absence from the guild only after an executed action has learned them (it contacts nothing itself); it is not wired into the runtime's operator-request file.",
+  "The authorization policy's tool table (EA, default_policy.yaml) classifies discord.listen_events and all the new administration tools as external writes of kind publish (T-DISCORD-WRITE), and its default write rate (10 per hour and destination) is lower than the 16 writes of the live check; tools/discord_live_check.py therefore needs a policy with a per-destination rate (it writes one with --write-policy). Proposed changes are listed in the ES report of 2026-11-27, not applied.",
+  "docs/CAM_LIVE_ARCHITECTURE.md section 6 still says Discord is used through the bot REST API only; the bounded Gateway window was added on the integrator's instruction and that master-owned sentence was not edited."
  ],
  "scientific_failures": [
   "Skill-based execution did not reduce harness latency on the measured task: mean 0.0050 s per task with the skill against 0.0029 s primitive-only in the final run (ratio 1.71; the skill makes 4 requests instead of 3 and persists its monitoring record). The measured gain is in decisions per task (3 -> 1) only."
  ],
  "notes": [
-  "One early `git add` by ES covered the whole harness directory and staged four files of other workstreams in the shared index (browser.py, staging/sites.py, grounding/base.py, grounding/goclick.py); they were not committed by ES (every ES commit used an explicit path list)."
+  "One early `git add` by ES covered the whole harness directory and staged four files of other workstreams in the shared index (browser.py, staging/sites.py, grounding/base.py, grounding/goclick.py); they were not committed by ES (every ES commit used an explicit path list).",
+  "2026-11-27: the Discord API documentation used for the administration tools was read from a local copy of discord-api-docs at commit 62ab2d5; three further pages of the same commit (topics/opcodes-and-status-codes, reference, resources/guild-scheduled-event) were fetched read-only from raw.githubusercontent.com for close codes, the snowflake epoch and event permissions.",
+  "2026-11-27: two assertions of test_es_discord.py were adapted to the larger tool set (the ten original tools must still be present; the set must equal discord.TOOLS). No other existing ES test was changed."
  ]
 }
