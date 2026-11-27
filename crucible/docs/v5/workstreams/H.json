@@ -96,7 +96,7 @@
    "net_interdependent (8.7.4, evaluation)"
   ],
   "unit_tests_second_continuation": "rapid unit + kernel + invariant tests (10 files incl. the two new ones), direct single-CPU run 2026-11-27 03:44: 457 passed, 1 failed (batch path of net_interdependent: cascading_failure did not broadcast per-instance parameters) -> fixed in fed6640b; tests/test_v5_rapid_engines.py + test_v5_rapid_primitives.py then 196 passed",
-  "gate_tests_run_without_admission_cache_second_continuation": "test_gate_M M5 and Mn1 passed (direct, 2026-11-27 03:47): 97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance. The admission-based gates (M.1-M.4, M.6, M.7, SP-8.0, SP-8.0b, SP-7.3, SP-7.4, SP-8.11, SP-8.12) and the longer ones (M.8, SP-7.0-7.2, SP-7.5, SP-8.12b, SP-0.9) wait for the slot job."
+  "gate_tests_run_without_admission_cache_second_continuation": "Direct single-CPU runs on the worktree, 2026-11-27 03:46-03:51 (unofficial evidence): test_gate_M M5 and Mn1 passed (97 families, 0 missing or numeric fingerprint components; 474 variants, 0 counted, 0 at nonzero distance); SP-7.0 passed (97 families, 0 with world-specific objective code, 328 generated worlds, 5 objective kinds); SP-7.1 passed (28 primitives, 27 per-instance checks, 0 failures); SP-7.2 passed (11 dimensions, 6 look-alike pairs confirmed different); SP-0.9 passed (68 training families checked, 0 matching a 4.0 held-out mechanism, min distance 0.39). SP-7.5 needs more than five minutes (left to the slot job); the distinctness of every family whose nearest neighbour changed was verified directly (all verified, two by the new pair protocols). The admission-based gates wait for the slot job."
  },
  "requirements": {
   "M.1": {
@@ -225,7 +225,7 @@
     "tests/test_v5_rapid_families.py",
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run, worktree, 97 families)",
    "notes": "test_M5 passed at 433c4356-era tree: 93+ families, 0 missing fingerprints, 0 numeric components (fingerprint rapid-fp/3)."
   },
   "M.6": {
@@ -316,7 +316,7 @@
     "crucible/tests/test_v5_rapid_prediction_v3.py",
     "tests/v5/test_gate_M.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run, worktree, 474 variants)",
    "notes": "test_Mn1 passed (direct run, 2026-11-27 03:13): 458 renamed/parameter/axis variants, 0 counted, 0 at nonzero distance, 0 not buildable; min distance between real families 0.02 (net_hidden_bottleneck_swap~net_topology_shift)."
   },
   "SP-0.9": {
@@ -327,7 +327,7 @@
    "tests": [
     "tests/v5/test_gate_SP_0_9.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run, worktree, 68 training families)",
    "notes": "test_gate_SP_0_9 passed: 18 4.0 held-out families fingerprinted, 64 v5 training families checked, 0 matching (min distance 0.39)."
   },
   "SP-7.0": {
@@ -338,7 +338,7 @@
    "tests": [
     "tests/v5/test_gate_SP_7_0.py"
    ],
-   "status_claim": "MET (gate test run, worktree)",
+   "status_claim": "MET (gate test run, worktree, 97 families)",
    "notes": "test_gate_SP_7_0 passed: 5 independently generated objective kinds, 0 families with world-specific objective code, 92 families checked, 295 generated worlds built, 92 objective-free worlds."
   },
   "SP-7.1": {
