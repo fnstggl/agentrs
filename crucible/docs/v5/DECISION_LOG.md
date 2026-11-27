@@ -309,6 +309,21 @@ sessions); an individual another module entered as a simulated worker (I-2's `fi
 (I-2's `firms` declares a population table `jobs`; the column ownership rules refuse two writers of one column).
 Which of the two population job-search paths survives the merge is an orchestrator decision (integration note in
 docs/v5/workstreams/F.json); until then they partition the workers.
+Addendum 3 (wave-3b repair, integrity under adversarial agents; the verifier's probes p_shift_spam, p_assoc_takeover,
+p_assoc_drain): (a) working time is physical - a `labor.shift` occupies its hours of the worker's time (no overlap),
+at most 12 h a calendar day and, in a calendar week, at most the hours the worker registered for (<= 48, the order of
+the EU Working Time Directive); recorded labour therefore cannot exceed the contracted hours, so labour-basis profit
+sharing, contribution-weighted votes and contribution dissolution follow real working time. A shift's reported
+performance is a noisy measurement of the worker (sd 0.08), not its private skill mean. (b) Association members read
+what a decision does: an amendment can pass only when it changes nothing but the quorum or voting window of the
+members' procedure (any change of who decides on the treasury, offices, membership, dissolution, rules or
+procedures is voted down), and any action other than a member's own claim of the published benefit is voted down.
+(c) Claims follow published terms (`qualifying_days` 30, `claim_gap_days` 365, recorded with the association's
+terms): a claim qualifies only for a member of 30 days with dues in two months and no benefit within the gap; the
+job loss is judged on the evidence a voter has (a contact knows; the public labour-market profile shows a current
+employer or when the last employment ended), with the benefit of the doubt (yes 0.6) when nobody can tell. Residual
+risk, stated in FR-WORK-3: an unverifiable member who waits out the qualifying period can obtain one benefit per
+claim gap per association. Rules out: unbounded self-reported hours, unread rule changes, repeatable claims.
 
 ## D-40 SP-2.3 migrations of the institution and contract primitives (2026-11-26, workstream F, wave 3b)
 As docs/v5/workstreams/A.json integration_notes specify: `primitives.OWNERS["institution"]` is `inst.inst_charters`
@@ -326,6 +341,13 @@ procedure counts the votes cast against its quorum.
 Addendum (wave-3b continuation): the institution's typed primitive event is `inst.charter` (`primitives.PRIMITIVE_EVENTS`,
 owner `inst`); `gov.constitution` stays typed as the kind's legacy writer (`primitives.LEGACY_EVENTS`, read with the
 primitive events by `substrate.modes`), so tests/test_v5_substrate_typed.py holds again after the migration.
+Addendum 2 (wave-3b repair): readers of the 4.0 records read them through `services.governance.constitutions_view`
+and `proposals_view` (the gov tables, plus inst charters and tool decisions where `inst` is installed): the civ
+structure fingerprint (`civ.integration.fingerprint`, O.7 / SP-10.1), `evaluation.open_endedness.census` and the
+open-internet M9 metric had read the always-empty gov tables (minimal commented edits in those files; M9 now also
+counts the `executed` status both modules record as passed). `actors.negotiation.gov_vote` (society minds voting on
+gov proposals) still reads the 4.0 proposals table: with `inst` installed minds do not vote on inst decisions
+(integration note for the actors owner; civ genesis adopts constitutions without vote rules).
 
 ## D-41 Display advertising on the population with randomised eligibility (2026-11-26, workstream F, wave 3b)
 The in-world advertising mechanism is `ad_response@2` (calibration/RUNTIME.md), applied to display campaigns shown in

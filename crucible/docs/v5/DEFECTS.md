@@ -577,7 +577,7 @@ B_population verdict) and P's own findings.
 ```json
 {
  "area": "F_commerce",
- "fixed_by": "c5c/w2-econ + c5c/w3-intfix (commerce installed in startup worlds and civilisations; demand from the population) and c5c/w3b-econ1 (marketplaces, labour market and institutions active in civilisations through population activities; passes are one-time sales; rolling sales never recurring, measured). The 4.0 `revenue` goal family and household pool remain only in 4.0 families (no v5 world installs consumers/shoppers); v5 objectives use commerce.objective (qualifying MRR)",
+ "fixed_by": "c5c/w2-econ + c5c/w3-intfix (commerce installed in startup worlds and civilisations; demand from the population) and c5c/w3b-econ1 (population activities for marketplaces, the labour market and institutions are registered in every civilisation that installs the modules; measured active in startup worlds (tests/test_v5_econ_civic.py: pass purchases, hires, shifts, association decisions over 12 weeks); in civilisations employment is registrations only in short runs (3-4-day probe: 177-233 registered workers, 0 postings, 0 hires - incumbents hire after two days of support backlog), so no civilisation test supports active employment yet; passes are one-time sales; rolling sales never recurring, measured). The 4.0 `revenue` goal family and household pool remain only in 4.0 families (no v5 world installs consumers/shoppers); v5 objectives use commerce.objective (qualifying MRR)",
  "id": "DEF-F-5",
  "owner": "F (ECON)",
  "regression_tests": "tests/test_v5_econ_civic.py, tests/test_v5_econ_work.py, tests/v5/test_gate_SP_6_2.py::test_SP_6_2_genuine_recurring_revenue (rolling_sales_counted_as_recurring), tests/v5/test_gate_K.py::test_Kn1_reference_strategy_reaches_feasible_arr_objective",
@@ -631,6 +631,106 @@ B_population verdict) and P's own findings.
  },
  "status": "fixed",
  "summary": "An incumbent's staffing rule re-dismissed an employee already serving notice; labor.dismiss refused it and the incumbent's whole daily rule set (support replies, refunds, pricing, listings) was rolled back every day from day 55 (26 rivals.failed in 84 days, seed 21); seekers employed outside the market accepted offers and quit the next day."
+}
+```
+
+### DEF-F-8 (high, fixed): labor.shift recorded any number of hours: an employee calling it twenty times a day recorded 240 h p
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 167a1feb (a shift occupies its hours, <= 12 h a day, <= registered hours_week (<= 48) a calendar week; refused otherwise; shift reports are noisy measurements)",
+ "id": "DEF-F-8",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_commerce_labor.py::test_shifts_are_bounded_working_time_and_profit_sharing_by_labour_follows_real_hours, tests/test_v5_commerce_labor.py::test_shift_reports_are_noisy_measurements_not_private_skill_levels",
+ "requirements": [],
+ "severity": "high",
+ "source": {
+  "audit": "workstream F wave-3b repair: independent verifier of c5c/w3b-econ1 at e6d73e2a",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "commerce/labor.py ep_shift put no cap on recorded hours per day, per contract or against hours_week; every call fed inst.record_labor (labour contributions, labor_hours meta, labour-basis profit sharing, contribution-weighted votes, contribution dissolution). Verifier probe p_shift_spam (orgworld seed 41): 580 calls recorded 6,960 h (240 h per working day) and took 1,327,868 of a 1,350,000 distribution (98.4%); reachable in civilisations through cooperative_institutions' labour-basis charters. The shift report also exposed the exact mean of private skills."
+}
+```
+
+### DEF-F-9 (high, fixed): Association members approved any rule change with probability 0.6 without reading it: an agent made 
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 8b9acf17 (members read what a decision does: only quorum/window changes of the members' procedure can pass; any other amendment or action is voted down)",
+ "id": "DEF-F-9",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_assoc.py::test_members_read_amendments_and_refuse_a_treasury_takeover",
+ "requirements": [],
+ "severity": "high",
+ "source": {
+  "audit": "workstream F wave-3b repair: independent verifier of c5c/w3b-econ1 at e6d73e2a",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "economy/assoc.py _vote approved any amendment with probability 0.6. Verifier probe p_assoc_takeover (startup_spec seed 21, n=450, day 12, o:mutual-13, 139 members): an agent that paid no dues proposed an amend making itself treasurer with an officer procedure over bank.*; ballots 65 yes / 39 no, executed; one officer decision moved the whole treasury (38,400 cents) to itself. After the fix: 4 yes / 63 no, rejected; the transfer stays an open members' decision."
+}
+```
+
+### DEF-F-10 (medium, fixed): Association claims were approved for any member who paid dues twice: an agent that never had a job d
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 8b9acf17 (claims qualify under published terms - 30 days a member, dues in two months, one benefit per 365 days - and are judged on job-loss evidence: contacts, the public labour-market profile with the end of the last employment; the residual unverifiable case is stated in FR-WORK-3)",
+ "id": "DEF-F-10",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_assoc.py::test_claims_must_qualify_and_a_patient_fraud_is_bounded_to_one_benefit_per_gap, tests/test_v5_econ_civic.py::test_mutual_aid_claims_qualify_and_are_paid_by_member_votes",
+ "requirements": [],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream F wave-3b repair: independent verifier of c5c/w3b-econ1 at e6d73e2a",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "economy/assoc.py claim voting checked only dues payments >= 2 in 90 days and the amount. Verifier probe p_assoc_drain: an agent paid 2 x 300 cents on one day and filed 8 claims of 3,600 four days apart; all executed (+28,800 cents). After the fix all 8 are rejected (gain 0); a patient claimant obtains at most one benefit per claim gap."
+}
+```
+
+### DEF-F-11 (medium, fixed): Readers of the 4.0 gov tables were not migrated with the D-40 write-through: civ fingerprints showed
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 e37d9865 (services.governance.constitutions_view / proposals_view; minimal commented reader edits in civ/integration.py fingerprint, evaluation/open_endedness.py census, evaluation/open_internet m9)",
+ "id": "DEF-F-11",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/test_v5_econ_gov_views.py::test_civilisation_fingerprints_show_institutions_kept_as_inst_charters, tests/test_v5_commerce_institutions.py::test_gov_writes_through_inst_charters",
+ "requirements": [],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream F wave-3b repair: independent verifier of c5c/w3b-econ1 at e6d73e2a",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "Where inst is installed (every civilisation) gov tables are always empty, but civ.integration.fingerprint fp['institutions'] (O.7 / SP-10.1 structure), open_endedness census and open-internet M9 read them. Verifier probe p_civ_fp seed 5: cooperative_institutions [['equal',2],['labor',2]] and mixed_economy [['equal',2]] became [] (distances 0.167 -> 0.083, 0.25 -> 0.167). Restored exactly."
+}
+```
+
+### DEF-F-12 (medium, fixed): Gate SP-6.2 counted systems of record from the registered class body only: inherited billing (caps) 
+
+```json
+{
+ "area": "F_commerce",
+ "fixed_by": "c5c/w3b-econ1 8b9acf17 (the scan follows every crucible class of each module's MRO and the file-level helpers; the rolling-sales check adds an independent ledger bound)",
+ "id": "DEF-F-12",
+ "owner": "F (ECON)",
+ "regression_tests": "tests/v5/test_gate_SP_6_2.py::test_SP_6_2_genuine_recurring_revenue",
+ "requirements": [],
+ "severity": "medium",
+ "source": {
+  "audit": "workstream F wave-3b repair: independent verifier of c5c/w3b-econ1 at e6d73e2a",
+  "finding": null
+ },
+ "status": "fixed",
+ "summary": "recurring_billing_modules scanned only the AST of the class named like the module class: innovation/caps.py CapabilityRegistry inherits services/capabilities.Capabilities._bill (bank.move kind 'subscription'), so the gate reported 2 systems {subs, creators} instead of 3 {caps, creators, subs}; the rolling_sales check compared MRR with a bound built from the same rows. The gate now measures 3 (fails honestly until creators and caps bill through subs: workstreams C and G)."
 }
 ```
 
