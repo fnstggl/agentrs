@@ -654,6 +654,9 @@
  },
  "test_runs": {
   "repair_pass_this_branch": "one CPU, CUDA hidden, OMP_NUM_THREADS=1, file by file, after the last code change: test_kernel 29, test_invariants 22, substrate artifacts 11, bus 9, columns 24, facts 9, history 4, inference 3, integrity 20, kernel 6, memo 6, primitives 79, typed 7, streams 7, retention 13, resume 1; test_sandbox 6, test_v5_security_sandbox 17, test_hardening 25; calibration core 22, runtime 36, ad_exposure 9, governance 4, commercial 13, inworld 32; gates SP-5.1 3, SP-5.3 1, SP-5.5 3; ops/bank users test_open_substrate + test_kernel_props 12, test_open_dynamics 11: 444 passed, 0 failed. tests/test_ow_worlds.py: 18 passed, 1 failed (test_end_to_end_only_working_software_earns_a_living = DEF-P-26, owner qa/obs: it fails identically with the kernel, state, ops, bank, artifacts and sandbox runner files of 55433e7 and of 2ff5b7b, and with CRUCIBLE_METER_MEMO=off)",
-  "not_run_here": "tests/test_v5_substrate_modes.py, gates SP-2.1, SP-2.3, SP-2.3b, SP-5.0, SP-5.4, SP-5.5b, F (queued on the integration mirror), tests/test_v5_calibration_software.py (unchanged code, > 280 s on one CPU), tests/test_v5_civ_core.py (J's; its coupling test steps pass as probe p12)"
+  "not_run_here": "tests/test_v5_substrate_modes.py, gates SP-2.1, SP-2.3, SP-2.3b, SP-5.0, SP-5.4, SP-5.5b, F (queued on the integration mirror), tests/test_v5_calibration_software.py (unchanged code, > 280 s on one CPU), tests/test_v5_civ_core.py (J's; its coupling test steps pass as probe p12)",
+  "integration_mirror": "one CPU, CUDA hidden: test_v5_substrate_typed + integrity + primitives 106 passed, test_v5_substrate_facts 9, test_kernel 29, test_v5_substrate_kernel 6 passed; test_v5_substrate_retention did not finish in 600 s (its population-world fixture runs the integrated tree's text path on CPU) - not a failure, not a pass",
+  "trace_overhead": "civ 2 simulated hours on this branch: 20 s untraced (hashes), 27 s traced with genesis and the replay check",
+  "slot_queue_at_end": "the six A+E jobs at FIFO positions 22-29 of 38 at 09:10 UTC (none started)"
  }
 }
