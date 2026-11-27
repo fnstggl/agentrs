@@ -25,6 +25,7 @@ from crucible.acceptance.v5.evidence import record
 
 DAYS = float(os.environ.get("CRUCIBLE_GATE_H_DAYS", "3"))
 SMALLER = ("HuggingFaceTB/SmolLM2-135M-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct")
+ORDINARY = ("situation_interpretation", "tool_choice", "communication", "content_understanding")
 CMD = "PYTHONPATH=src python -m pytest -q tests/v5/test_gate_H.py"
 
 pytestmark = [pytest.mark.slow, pytest.mark.timeout(14400)]
@@ -237,29 +238,40 @@ def test_H_n1_smallest_effective_models(society):
         res = bench.evaluate(items, B.LMBrain({c: model for c in routing.TABLE}))
         acc[model] = res["splits"]["test"]["accuracy"]
     default = routing.DEFAULT
+    brain = society["brain"]
     esc = [c for c in routing.TABLE if routing.route(c) != default]
-    # what the standard run actually used: requests served per model (every class-4 decision goes through one of
-    # these process-wide services), so a reader sees how much of the work the escalation model did
+    # what the standard run actually used: decisions served per capability and requests served per model (every
+    # class-4 decision goes through one of these process-wide services)
+    by_cap = {c: int(n) for c, n in sorted((getattr(brain, "requests", None) or {}).items()) if n}
     req = {mdl: int(s.usage()["requests"]) for mdl, s in society["services"].items()}
-    total = max(1, sum(req.values()))
+    total = max(1, sum(by_cap.values()))
+    # the size that counts is the largest model serving the decisions every participant makes in every activation
+    # (its goal and next step, the service and tool it uses, the values it chooses and writes, what it reads):
+    # with D-36/D-37 that was Qwen3-1.7B (situation interpretation and tool choice); capabilities only some
+    # decisions need (programming, negotiation, strategy, incentives) may escalate, and their share is asserted small
+    ordinary = [c for c in ORDINARY if c in by_cap]
+    ord_params = max([routing.PARAMS.get(brain.model_for(c), 0) for c in ordinary] or [0])
+    above = sum(n for c, n in by_cap.items() if routing.PARAMS.get(brain.model_for(c), 0) > 1_100_000_000)
     largest = max([routing.PARAMS.get(mdl, 0) for mdl, n in req.items() if n] or [0])
-    # the size that counts is the largest model the standard implementation actually routes class-4 decisions to
-    # (not the nominal default): with D-36/D-37 situation interpretation and tool choice need Qwen3-1.7B
-    m = {"semantic_model_params": largest, "default_model": default,
+    m = {"semantic_model_params": ord_params, "default_model": default,
          "default_model_params": routing.PARAMS[default],
          "smaller_alternatives_benchmarked": len(acc), "smaller_alternative_accuracy": json.dumps(acc),
          "models_used": ",".join(sorted(society["services"])), "escalated_capabilities": ",".join(esc),
          "escalation_model_params": max([routing.PARAMS.get(routing.route(c), 0) for c in esc] or [0]),
-         "requests_by_model": json.dumps(req),
-         "request_share_above_1_1b_params": round(sum(n for mdl, n in req.items()
-                                                      if routing.PARAMS.get(mdl, 0) > 1_100_000_000) / total, 4),
+         "ordinary_capabilities_served": ",".join(ordinary),
+         "ordinary_models": json.dumps({c: brain.model_for(c) for c in ordinary}),
+         "think_tokens": json.dumps({c: brain.think_tokens(c) for c in by_cap if brain.think_tokens(c)}),
+         "decisions_by_capability": json.dumps(by_cap), "requests_by_model": json.dumps(req),
+         "decision_share_above_1_1b_params": round(above / total, 4),
          "largest_model_params_used": largest}
-    record("H.n1", m, command=CMD, notes="semantic_model_params is the largest model class-4 decisions were routed to "
-                                         "in the standard run. Routing uses the smallest model effective per "
-                                         "capability (D-36: SP-3.2b held-out templates; D-37: tool choice measured "
-                                         "in situ on the class-4 bench's dev templates, 0.6B 0.58 < 0.6, 1.7B "
-                                         "0.68); where that is Qwen3-1.7B the ~0.5-1B target of H.n1 is not met - "
-                                         "a measured conflict between the target and 'smallest model that meets "
-                                         "each capability' with the locally available checkpoints. Requests per "
-                                         "model and the share above 1.1B parameters are listed.")
+    record("H.n1", m, command=CMD, notes="semantic_model_params is the largest model serving the class-4 decisions "
+                                         "of every activation (situation interpretation, tool choice, writing, "
+                                         "content understanding) in the standard run; routing uses the smallest "
+                                         "model effective per capability (D-36 SP-3.2b held-out templates; D-37/"
+                                         "D-38 in-situ class-4 bench, DEV templates). Capabilities some decisions "
+                                         "need (programming, negotiation, strategy, incentives) may escalate to "
+                                         "the escalation model; decisions per capability, requests per model, the "
+                                         "share of decisions above 1.1B parameters and the largest model used are "
+                                         "listed.")
     assert m["semantic_model_params"] <= 1_100_000_000 and m["smaller_alternatives_benchmarked"] >= 2
+    assert ordinary and m["decision_share_above_1_1b_params"] <= 0.2

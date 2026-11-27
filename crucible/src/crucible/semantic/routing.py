@@ -64,17 +64,42 @@ def derive(report: dict, in_situ: dict | None = None) -> dict:
     for cap, meas in (in_situ or {}).items():
         if cap not in out:
             continue
-        vals = {m: v for m, v in meas.items() if m in PARAMS and v is not None}
+        vals = {m: v for m, v in meas.items() if base_model(m) in PARAMS and v is not None}
         eff = [m for m, v in vals.items() if v >= EFFECTIVE_ACCURACY]
         if eff:
-            model, reason = min(eff, key=lambda m: PARAMS[m]), "smallest model effective in situ (class-4 bench, dev)"
+            # smallest model; at equal size the plain choice before the one that reasons first (cheaper)
+            pick, reason = min(eff, key=lambda m: (PARAMS[base_model(m)], think_of(m))), \
+                "smallest model effective in situ (class-4 bench, dev)"
         elif vals:
-            model = max(vals, key=lambda m: (vals[m], -PARAMS[m]))
+            pick = max(vals, key=lambda m: (vals[m], -PARAMS[base_model(m)], -think_of(m)))
             reason = "no candidate effective in situ (class-4 bench, dev): best measured"
         else:
             continue
-        out[cap] = dict(out[cap], model=model, reason=reason, in_situ=vals)
+        r = dict(out[cap], model=base_model(pick), reason=reason, in_situ=vals)
+        r.pop("think_tokens", None)
+        if think_of(pick):
+            r["think_tokens"] = think_of(pick)
+        out[cap] = r
     return out
+
+
+def base_model(variant: str) -> str:
+    """The checkpoint of a measured variant: ``<model>`` scores the options directly, ``<model>#think<N>`` first
+    reasons in the model's own thinking mode for at most N tokens, then names or scores an option."""
+    return variant.split("#", 1)[0]
+
+
+def think_of(variant: str) -> int:
+    tail = variant.split("#", 1)[1] if "#" in variant else ""
+    return int(tail[5:]) if tail.startswith("think") and tail[5:].isdigit() else 0
+
+
+def think_tokens(capability: str) -> int:
+    """Tokens of the model's own reasoning before a choice of this capability (0: options scored directly), from
+    the committed decision (an in-situ measurement can route a capability to a model that reasons first)."""
+    dec = decision() or {}
+    r = (dec.get("routes") or {}).get(capability) or {}
+    return int(r.get("think_tokens", 0) or 0) if r.get("model") == route(capability) else 0
 
 
 def _derive_report(report: dict) -> dict:

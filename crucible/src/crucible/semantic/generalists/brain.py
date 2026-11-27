@@ -24,10 +24,12 @@ _WORD = re.compile(r"[A-Za-z][A-Za-z'-]{1,20}")
 class LMBrain:
     kind = "lm"
 
-    def __init__(self, routes: dict[str, str] | None = None, max_batch: int = 16):
+    def __init__(self, routes: dict[str, str] | None = None, max_batch: int = 16, think: dict | None = None):
         self.routes = dict(routes or {})
+        self.think = dict(think) if think is not None else None     # {capability: tokens}; None: the decision's
         self.max_batch = int(max_batch)
-        self.calls = {"choose": 0, "generate": 0}
+        self.calls = {"choose": 0, "generate": 0, "think": 0}
+        self.requests: dict[str, int] = {}     # decisions served per capability (H.n1: which models do the work)
 
     def model_for(self, capability: str) -> str:
         from .. import routing
@@ -37,23 +39,48 @@ class LMBrain:
         from .. import routing
         return routing.service_for_model(self.model_for(capability), max_batch=self.max_batch)
 
+    def think_tokens(self, capability: str) -> int:
+        """Reasoning budget before a choice of `capability`: only for models with a thinking mode (Qwen3)."""
+        from .. import routing
+        from ..participants import THINKING_MODELS
+        k = self.think.get(capability, 0) if self.think is not None else (
+            routing.think_tokens(capability) if capability not in self.routes else 0)
+        return int(k) if k and any(f in self.model_for(capability).lower() for f in THINKING_MODELS) else 0
+
     def choose(self, ctx, capability: str, requests: list[dict]) -> list[int]:
         if not requests:
             return []
         self.calls["choose"] += 1
-        out = self.service(capability).choose(ctx, requests)
+        self.requests[capability] = self.requests.get(capability, 0) + len(requests)
+        svc = self.service(capability)
+        k = self.think_tokens(capability)
+        if k:
+            # the model reasons in its own thinking mode (bounded), then names an option; when it names none, the
+            # options are scored after its closed reasoning (`participants.select_options`, as SP-3.2b scores
+            # "think"); both requests are recorded through the service like any other
+            from ..participants import select_options
+            self.calls["think"] += 1
+            svc.max_new_tokens = max(svc.max_new_tokens, k)
+
+            def infer(kind, reqs, principals, purpose):
+                return svc.choose(ctx, reqs) if kind == "choose" else svc.generate(ctx, reqs)
+            picks, _ = select_options(infer, [dict(r, think_tokens=k) for r in requests], [""] * len(requests))
+            return [int(p) for p in picks]
+        out = svc.choose(ctx, requests)
         return [int(o["choice"]) for o in out]
 
     def generate(self, ctx, capability: str, requests: list[dict]) -> list[str]:
         if not requests:
             return []
         self.calls["generate"] += 1
+        self.requests[capability] = self.requests.get(capability, 0) + len(requests)
         out = self.service(capability).generate(ctx, requests)
         return [str(o.get("text") or "") for o in out]
 
     def describe(self) -> dict:
         from .. import routing
-        return {"kind": self.kind, "routes": {c: self.model_for(c) for c in routing.TABLE}}
+        return {"kind": self.kind, "routes": {c: self.model_for(c) for c in routing.TABLE},
+                "think_tokens": {c: self.think_tokens(c) for c in routing.TABLE if self.think_tokens(c)}}
 
 
 class AblatedBrain:

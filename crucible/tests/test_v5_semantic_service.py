@@ -254,3 +254,19 @@ def test_semantic_inference_module_passes_admission():
     from crucible.worldgen.admission import admit
     rep = admit(["semantic_inference"], steps=120)
     assert rep.passed, rep.errors
+
+
+def test_in_situ_routing_prefers_the_smallest_effective_variant_including_reasoning_first():
+    """routing.derive: an in-situ measurement may name `<model>#think<N>` (the model reasons first); the smallest
+    effective checkpoint wins, at equal size the plain choice before the one that reasons first."""
+    from crucible.semantic import routing
+    dec = routing.decision()
+    assert dec is not None
+    small, big = "Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B"
+    r = routing.derive(dec["report"], {"tool_choice": {small: 0.54, f"{small}#think192": 0.63, big: 0.68}})
+    assert r["tool_choice"]["model"] == small and r["tool_choice"]["think_tokens"] == 192
+    r = routing.derive(dec["report"], {"tool_choice": {small: 0.61, f"{small}#think192": 0.66, big: 0.68}})
+    assert r["tool_choice"]["model"] == small and "think_tokens" not in r["tool_choice"]
+    r = routing.derive(dec["report"], {"tool_choice": {small: 0.5, f"{small}#think192": 0.55, big: 0.68}})
+    assert r["tool_choice"]["model"] == big and "think_tokens" not in r["tool_choice"]
+    assert routing.base_model(f"{small}#think384") == small and routing.think_of(f"{small}#think384") == 384
