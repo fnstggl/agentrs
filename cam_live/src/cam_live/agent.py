@@ -1211,16 +1211,22 @@ class CamLiveAgent:
                   invalid: Dict[str, int]) -> List[ActionSpec]:
         """Cost estimates from the tool descriptors; drop what cannot finish within the objective's time left and
         what the environment's structural validation refuses for the interface it currently shows."""
+        by_name = {t.name: t for t in tools}
         for a in cands:
+            t = by_name.get(a.operation)
             if a.est_cost.seconds <= 0 and a.est_cost.money <= 0:
-                t = next((t for t in tools if t.name == a.operation), None)
                 if t is not None:
                     a.est_cost = Cost.from_dict(t.est_cost.to_dict())
+            if a.steps and t is not None and t.modality and a.modality != t.modality:
+                # a composition has the modality its own tool declares (the parser gives it its first step's, which
+                # the authorization policy refuses for `program`); every step keeps, and is judged by, its own
+                a.modality = t.modality
             if a.operation.endswith("wait") and "seconds" in a.arguments:
                 a.est_cost.seconds = float(a.arguments["seconds"])
         allowed = set(self.task.interfaces) if self.task is not None and self.task.interfaces else set()
         if allowed:                                        # modalities the task does not permit are not proposed
-            out = [a for a in cands if a.modality not in allowed and a.modality != "internal"]
+            out = [a for a in cands if any(m not in allowed and m != "internal"
+                                           for m in [a.modality] + [x.modality for x in a.steps])]
             if out and len(out) < len(cands):
                 invalid["interface_not_permitted"] = invalid.get("interface_not_permitted", 0) + len(out)
                 cands = [a for a in cands if a not in out]

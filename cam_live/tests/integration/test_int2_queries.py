@@ -47,3 +47,54 @@ def test_no_unanswerable_duplicate_question_and_decisions_resolve(tmp_path):
                                  {o.query_id for o in r.outcomes if o.status in DONE}]) for r in early]
     finally:
         agent.close()
+
+
+def test_backbone_program_takes_the_modality_of_the_program_tool(tmp_path):
+    """Defect measured on the real configuration (S-6 sequence, MECH objective): the parser gives a program its first
+    step's modality (``api`` for ``[http.get, internal.note]``); the authorization rule T-PROGRAM allows the program
+    operation only as ``internal``, so such a program was refused before any step was judged. The agent now gives a
+    composition the modality its own tool declares; its steps keep theirs, and the task's interfaces still bound them."""
+    from cam_live.contracts import ActionSpec, Cost, Limits, TaskSpec, ToolDescriptor
+    from cam_live.harness.auth import PolicyService
+    from cam_live.predict.candidates import parse_actions
+    tools = [ToolDescriptor(name="http.get", modality="api", description="GET a url", side_effects="read",
+                            arg_schema={"type": "object", "properties": {"url": {"type": "string"}},
+                                          "required": ["url"]}, est_cost=Cost(seconds=1.0)),
+             ToolDescriptor(name="internal.note", modality="internal", description="write a note", side_effects="none",
+                            arg_schema={"type": "object", "properties": {"text": {"type": "string"}},
+                                          "required": ["text"]}),
+             ToolDescriptor(name="program", modality="internal", description="steps", side_effects="none",
+                            arg_schema={"type": "object"})]
+    text = ('{"steps": [{"operation": "http.get", "arguments": {"url": "http://127.0.0.1:9/measure?x=1"}}, '
+            '{"operation": "internal.note", "arguments": {"text": "measured"}}]}')
+    progs = [a for a in parse_actions(text, tools, provenance="backbone", id_prefix="t").actions if a.steps]
+    assert progs and progs[0].modality == "api"             # what the parser gives it
+    task = TaskSpec(objective_id="o", objective="measure", interfaces=["api", "internal"], mode="staging",
+                    limits=Limits(duration_s=600, max_decisions=5))
+    def judged(action, name):
+        p = PolicyService(str(tmp_path / name))                # fresh: a repeat would count as circumvention
+        p.register_task(task, "operator")
+        d = p.authorize(action, task, {})
+        return d.verdict, " ".join(d.reasons) + " " + " ".join(d.policy_ids)
+    verdict, why = judged(progs[0], "auth1")
+    assert verdict == "deny" and "T-PROGRAM" in why             # refused as `api` before any step is judged
+    clock = SimClock()
+    agent = CamLiveAgent(agent_config(use_backbone=False, planner=False), str(tmp_path / "a"), clock=clock)
+    try:
+        agent.set_objective(task)
+        (a,) = agent._feasible(progs, tools, clock.now(), {})
+        assert a.modality == "internal" and [s.modality for s in a.steps] == ["api", "internal"]
+        _verdict, why = judged(a, "auth2")
+        assert "T-PROGRAM" not in why, why                     # the steps are judged now (a loopback address that is
+                                                               # not a registered local service is still refused)
+        # a step whose interface the task does not permit still removes the composition
+        t2 = TaskSpec(objective_id="o2", objective="x", interfaces=["internal"], mode="staging",
+                      limits=Limits(duration_s=600, max_decisions=5))
+        agent.set_objective(t2)
+        progs2 = [x for x in parse_actions(text, tools, provenance="backbone", id_prefix="u").actions if x.steps]
+        inv: dict = {}
+        assert agent._feasible(progs2 + [ActionSpec(action_id="w", operation="internal.note", modality="internal",
+                                                    arguments={"text": "n"})], tools, clock.now(), inv) and \
+            inv.get("interface_not_permitted") == 1
+    finally:
+        agent.close()

@@ -131,6 +131,19 @@ normaliser state) — the meta-gradient should differentiate the update actually
 processes is not equivalent.
 **Workaround.** None in INT2's files; the test is left failing when it diverges (not marked expected-to-fail).
 
+## INT2-9 (predict, `predict/candidates.py::_build`, owner LRN): a parsed program gets its first step's modality
+
+**What (measured on the real configuration).** `_build` constructs a program with `modality=steps[0].modality`. The
+authorization rule `T-PROGRAM` allows the `program` operation only with modality `internal` (the harness declares
+the `program` tool as `internal`; every step is judged on its own). A backbone program whose first step is not
+internal is therefore refused before any step is judged: S-6 sequence run, MECH objective, `program [http.get,
+internal.inspect]` denied "'program' is not an operation of modality 'api' (T-PROGRAM)"
+(`docs/evidence/validation/s6/oe_seq_20261127.json`).
+**Proposed.** `modality=Modality.INTERNAL` for a composition (or the `program` tool's declared modality).
+**Workaround (applied, `agent.py`).** `CamLiveAgent._feasible` gives a composition the modality its own tool declares
+and removes it when any step's modality is outside the task's interfaces;
+`tests/integration/test_int2_queries.py::test_backbone_program_takes_the_modality_of_the_program_tool`.
+
 ## Requests from LRN (details and diffs: `docs/change_requests/LRN.md`)
 
 * **LRN-1** `AgentSettings.selection_rule` default `"thompson_policy"` (already accepted by `from_cfg`; rule `policy`
